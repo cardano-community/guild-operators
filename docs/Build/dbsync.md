@@ -1,4 +1,4 @@
-!!! important
+!!! danger "Important"
     An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned [here](../build.md#components).  
 
     - Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
@@ -76,7 +76,6 @@ scripts/postgresql-setup.sh --restore-snapshot /tmp/dbsyncsnap.tgz ${CNODE_HOME}
 
 ```
 
-
 #### Test running dbsync manually at terminal
 
 In order to verify that you can run dbsync, before making a start - you'd want to ensure that you can run it interactively once. To do so, try the commands below:
@@ -97,6 +96,28 @@ cd $CNODE_HOME/scripts
 ```
 
 Now to start dbsync instance, you can run `sudo systemctl start cnode-dbsync`
+
+!!! warning "Note"
+
+    Note that dbsync while syncs, it might defer creation of indexes/constraints to speed up initial catch up. Once relatively closer to tip, this will initiate creation of indexes - which can take a while in background. Thus, you might notice the query timings right after reaching to tip might not be as good.
+
+## Update DBSync
+
+Updating dbsync can have different tasks depending on the versions involved. We attempt to briefly explain the tasks involved:
+
+- Shutdown dbsync (eg: `sudo systemctl stop cnode-dbsync`)
+- Update binaries (either download pre-compiled binaries via [guild-deploy.sh](../basics.md#pre-requisites) or using build instructions above)
+- Go to your git folder, pull and checkout to latest version as in example below (if you were to switch to `13.1.0.2`):
+
+    ``` bash
+    cd ~/git/cardano-db-sync
+    git pull
+    git checkout 13.1.0.2
+    ```
+
+- If going through major version update (eg: 13.x.x.x to 14.x.x.x), you might need to [rebuild and resync db from scratch](#prepare-db-for-sync), you may still follow the section to restore using snapshot to save some time (as long as you use a compatible snapshot).
+- If the underlying `cardano-node` version has changed (specifically if it's `ledger-state` schema is different), you'd also need to clear the ledger-state directory (eg: `rm -rf $CNODE_HOME/guild-db/ledger-state`)
+- Test that `dbsync.sh` starts up fine manually as described above. If it does, stop it and go ahead with startup of systemd service (i.e. `sudo systemctl start cnode-dbsync`)
 
 ### Validation
 

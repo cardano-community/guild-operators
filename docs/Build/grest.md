@@ -7,8 +7,8 @@
 
 gRest is an open source implementation of a `query layer built over dbsync using PostgREST and HAProxy`. The package is built as part of [Koios](https://www.koios.rest) team's efforts to unite community individual stream of work together and give back a more aligned structure to query dbsync and adopt standardisation to queries utilising open-source tooling as well as collaboration. In addition to these, there are also accessibility features to deploy rules for failover, do healthchecks, set up priorities, have ability to prevent DDoS attacks, provide timeouts, report tips for analysis over a longer period, etc - which can prove to be really useful when performing any analysis for instances.
 
-!!! warning ""
-    Note that the scripts below do allow for provisioning ogmios integration too, but Ogmios does not provide advanced session management for a server-client architecture in absence of a middleware. The availability for ogmios from monitoring instance is restricted to avoid ability to DDoS an instance.
+!!! info "Note"
+    Note that the scripts below do allow for provisioning ogmios integration too, but Ogmios - currently - is not designed to provide advanced session management for a server-client architecture in absence of a middleware. Thus, the availability for ogmios from monitoring instance is restricted to avoid ability to DDoS an instance.
 
 ### Components
 
@@ -77,32 +77,28 @@ The default ports used will make haproxy instance available at port 8053 or 8453
 
 !!! info "Reminder"
 
-Once you've successfully deployed the grest instance, it will deploy certain cron jobs that will ensure the relevant cache tables are updated periodically. Until these have finished (especially on first run, it could take an hour or so on mainnet, your instance will likely not pass any tests from `grest-poll.sh` but that's expected.
+    Once you've successfully deployed the grest instance, it will deploy certain cron jobs that will ensure the relevant cache tables are updated periodically. Until these have finished (especially on first run, it could take an hour or so on mainnet, your instance will likely not pass any tests from `grest-poll.sh` but that's expected.
 
 ### Enable TLS on HAProxy {: id="tls"}
 
-In order to enable SSL on your haproxy, all you need to do is edit the file `${CNODE_HOME}/files/haproxy.cfg` and update the *frontend app* section to disable normal bind and enable ssl bind.
+In order to enable SSL on your haproxy, all you need to do is edit the file `${CNODE_HOME}/files/haproxy.cfg` and update the *frontend app* section to uncomment ssl bind (and comment normal bind).
 
-!!! info ""
+!!! info
 
     - server.pem referred below should be a chain containing server TLS certificate, signing certificates (intermediate/root) and private key.
     - Make sure to replace the hostname to the CNAME/SAN used to create your TLS certificate.
 
-If you're not familiar with how to configure TLS OR would not like to buy one, you can find tips on how to create a TLS certificate for free via LetsEncrypt using tutorials [here](https://letsencrypt.org/getting-started/). Once you do have a TLS Certificate generated, you need to chain the private key and full chain cert together in a file - `/etc/ssl/server.pem` in example below:
+If you're not familiar with how to configure TLS OR would not like to buy one, you can find tips on how to create a TLS certificate for free via LetsEncrypt using tutorials [here](https://letsencrypt.org/getting-started/). Once you do have a TLS Certificate generated, you need to chain the private key and full chain cert together in a file - `/etc/ssl/server.pem` - which can be then referenced as below:
 
 ```
 frontend app
-  bind 0.0.0.0:8053
-  http-request set-log-level silent
-  http-request replace-value Host (.*):8053 servername.koios.rest:8453
-  redirect scheme https code 301 if !{ ssl_fc }
-
-frontend app-secured
+  #bind 0.0.0.0:8053
+  ## If using SSL, comment line above and uncomment line below
   bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
   http-request set-log-level silent
-  acl srv_down nbsrv(grest_postgrest) le 1
+  acl srv_down nbsrv(grest_postgrest) eq 0
   acl is_wss hdr(Upgrade) -i websocket
-  http-request use-service prometheus-exporter if { path /metrics }
+  ...
 ```
 Restart haproxy service for changes to take effect.
 
@@ -111,7 +107,7 @@ Restart haproxy service for changes to take effect.
 With the setup, you also have a `checkstatus.sh` script, which will query the Postgres DB instance via haproxy (coming through postgREST), and only show an instance up if the latest block in your DB instance is within 180 seconds.
 
 !!! warning "Important"
-    While currently the HAProxy config only checks for tip, there will be test cases added for validating each endpoint in future. If you'd like to participate in joining to the elastic cluster via Koios, please raise a PR request by editing topology files in [this folder](https://github.com/cardano-community/koios-artifacts/tree/main/topology) to do so!!
+    If you'd like to participate in joining to the elastic cluster via Koios, please raise a PR request by editing topology files in [this folder](https://github.com/cardano-community/koios-artifacts/tree/main/topology) to do so!!
 
 If you were using `guild` network, you could do a couple of very basic sanity checks as per below:
 
