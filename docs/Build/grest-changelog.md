@@ -1,5 +1,12 @@
 # Koios gRest Changelog
 
+## [1.0.10] - For all networks.
+
+The release is effectively same as `1.0.10rc` except with one minor modification below.
+
+### Chores:
+- Replace all RPC references for JSON endpoints with JSONB, this allows filtering child members of array elements using `cs.[{"key":"value"}]` in PostgREST [#172](https://github.com/cardano-community/koios-artifacts/pull/172)
+
 ## [1.0.10rc] - For non-mainnet networks
 
 This release primarily focuses on ability to support better DeFi projects alongwith some value addition for existing clients by bringing in 10 new endpoints (paired with 2 deprecations), and few additional *optional* input parameters , and some additional output columns to existing endpoints. The only breaking change/fix is for output returned for `tx_info`.
@@ -7,7 +14,6 @@ This release primarily focuses on ability to support better DeFi projects alongw
 Also, dbsync 13.1.x.x has been released and is recommended to be used for this release
 
 ### New endpoints added
-
 - `/asset_addresses` -  Equivalent of deprecated `/asset_address_list` [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - `/asset_nft_address` - Returns address where the specified NFT sits on [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - `/account_utxos` - Returns brief details on non-empty UTxOs associated with a given stake address [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
