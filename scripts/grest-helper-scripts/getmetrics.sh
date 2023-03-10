@@ -45,7 +45,7 @@ function get-metrics() {
   memtotal=$(( $(echo "${meminf}" | grep MemTotal | awk '{print $2}') ))
   arcused=$(awk '/^size/ { print $3/1024 }' /proc/spl/kstat/zfs/arcstats 2>/dev/null)
   [[ -z "${arcused}" ]] && arcused=0
-  memused=$(( memtotal - $(echo "${meminf}" | grep MemAvailable | awk '{print $2}') - arcused )  ))
+  memused=$(( memtotal - $(echo "${meminf}" | grep MemAvailable | awk '{print $2}') - arcused ))
   cpuutil=$(awk -v a="$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
   # in Bytes
   pubschsize=$(psql -t --csv -d ${PGDATABASE} -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | grep "^[0-9]")
