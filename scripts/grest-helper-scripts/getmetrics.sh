@@ -43,8 +43,9 @@ function get-metrics() {
   meminf=$(grep "^Mem" /proc/meminfo)
   load1m=$(( $(awk '{ print $1*100 }' /proc/loadavg) / $(grep -c ^processor /proc/cpuinfo) ))
   memtotal=$(( $(echo "${meminf}" | grep MemTotal | awk '{print $2}') ))
-  arcused=$(grep "^size" /proc/spl/kstat/zfs/arcstats | awk '{print $3}')
-  memused=$(( memtotal - $(echo "${meminf}" | grep MemAvailable | awk '{print $2}') - ( arcused / 1024 )  ))
+  arcused=$(awk '/^size/ { print $3/1024 }' /proc/spl/kstat/zfs/arcstats 2>/dev/null)
+  [[ -z "${arcused}" ]] && arcused=0
+  memused=$(( memtotal - $(echo "${meminf}" | grep MemAvailable | awk '{print $2}') - arcused )  ))
   cpuutil=$(awk -v a="$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
   # in Bytes
   pubschsize=$(psql -t --csv -d ${PGDATABASE} -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | grep "^[0-9]")
@@ -60,6 +61,7 @@ function get-metrics() {
   export METRIC_nodeBlockHeight=${blocknum}
   export METRIC_dbsyncQueueLength=$(( METRIC_nodeBlockHeight - METRIC_dbsyncBlockHeight ))
   export METRIC_memtotal="${memtotal}"
+  export METRIC_arcused="${arcused}"
   export METRIC_memused="${memused}"
   export METRIC_cpuutil="${cpuutil}"
   export METRIC_load1m="$(( load1m ))"
