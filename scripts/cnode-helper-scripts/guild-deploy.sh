@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086,SC1090,SC2059
+# shellcheck disable=SC2086,SC1090,SC2059,SC2016
 # shellcheck source=/dev/null
 
 unset CNODE_HOME
@@ -15,7 +15,7 @@ unset CNODE_HOME
                         # topology.json, config.json and genesis files normally saved will also be overwritten
 #LIBSODIUM_FORK='Y'     # Use IOG fork of libsodium instead of official repositories - Recommended as per IOG instructions (Default: IOG fork)
 #INSTALL_CNCLI='N'      # Install/Upgrade and build CNCLI with RUST
-#INSTALL_VCHC='N'       # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
+#INSTALL_CWHCLI='N'       # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 #INSTALL_OGMIOS='N'     # Install Ogmios Server
 #INSTALL_CSIGNER='N'    # Install/Upgrade Cardano Signer
 #CNODE_NAME='cnode'     # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
@@ -93,7 +93,7 @@ set_defaults() {
   [[ -z ${FORCE_OVERWRITE} ]] && FORCE_OVERWRITE='N'
   [[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='N'
   [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
-  [[ -z ${INSTALL_VCHC} ]] && INSTALL_VCHC='N'
+  [[ -z ${INSTALL_CWHCLI} ]] && INSTALL_CWHCLI='N'
   [[ -z ${INSTALL_OGMIOS} ]] && INSTALL_OGMIOS='N'
   [[ -z ${INSTALL_CSIGNER} ]] && INSTALL_CSIGNER='N'
   [[ -z ${CNODE_PATH} ]] && CNODE_PATH="/opt/cardano"
@@ -155,7 +155,7 @@ common_init() {
   mkdir -p "${HOME}"/tmp
   [[ ! -d "${HOME}"/.local/bin ]] && mkdir -p "${HOME}"/.local/bin
   if ! grep -q '/.local/bin' "${HOME}"/.bashrc; then
-    export PATH="${HOME}/.local/bin:${PATH}"
+    echo 'export PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}"/.bashrc
   fi
 }
 
@@ -314,6 +314,7 @@ build_libsodium() {
 # Download cardano-node, cardano-cli, cardano-db-sync, bech32 and cardano-submit-api
 # TODO: Replace these with self-hosted ones (potentially consider IPFS as upload destination for CI)
 download_cnodebins() {
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The IO CI builds are not available for ARM, you might need to build them!"
   echo "Downloading binaries.."
   pushd "${HOME}"/tmp >/dev/null || err_exit
   echo "  Downloading Cardano Node archive created from IO CI builds.."
@@ -327,7 +328,7 @@ download_cnodebins() {
   tar zxf caddress.tar.gz --strip-components=1 bin/cardano-address &>/dev/null
   rm -f caddress.tar.gz
   [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (bin/cardano-address) not found after extracting package!"
-  if [[ "${SKIP_DBSYNC_DOWNLOAD}" != "N" ]]; then
+  if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
     echo "  Downloading Cardano DB Sync archive created from IO CI Builds.."
     curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-db-sync/cardano-db-sync-13.1.0.0-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
     tar zxf cnodedbsync.tar.gz ./cardano-db-sync &>/dev/null
@@ -341,7 +342,8 @@ download_cnodebins() {
 
 # Download CNCLI
 download_cncli() {
-  echo "Installing CNCLI"
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The cncli pre-compiled binary is not available for ARM, you might need to build them!"
+  echo "Installing CNCLI.."
   if command -v cncli >/dev/null; then cncli_version="v$(cncli -V 2>/dev/null | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
   cncli_git_version="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.tag_name')"
   echo "  Downloading CNCLI..."
@@ -364,6 +366,7 @@ download_cncli() {
 
 # Download pre-build cardano-hw-cli binary and it's dependencies
 download_cardanohwcli() {
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The cardano-hw-cli pre-compiled binary is not available for ARM, you might need to build them!"
   echo "Installing Vacuumlabs cardano-hw-cli"
   if command -v cardano-hw-cli >/dev/null; then vchc_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"; else vchc_version="0.0.0"; fi
   echo "  Downloading Vacuumlabs cardano-hw-cli..."
@@ -384,7 +387,7 @@ download_cardanohwcli() {
         rm -rf "${HOME}"/.local/bin/cardano-hw-cli 
       fi
       pushd "${HOME}"/.local/bin >/dev/null || err_exit
-      mv -f /tmp/chwcli-bin/cardano-hw-cli/cardano-hw-cli .
+      mv -f /tmp/chwcli-bin/cardano-hw-cli/* ./
       if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
         # Ledger udev rules
         curl -s -f -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash >/dev/null 2>&1
@@ -410,6 +413,7 @@ download_cardanohwcli() {
 
 # Download pre-built ogmios binary
 download_ogmios() {
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The ogmios pre-compiled binary is not available for ARM, you might need to build them!"
   echo "Installing Ogmios"
   if command -v ogmios >/dev/null; then ogmios_version="$(ogmios --version)"; else ogmios_version="v0.0.0"; fi
   rm -rf /tmp/ogmios && mkdir /tmp/ogmios
@@ -439,6 +443,7 @@ download_ogmios() {
 
 # Download pre-built cardano-signer binary
 download_cardanosigner() {
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The cardano-signer pre-compiled binary is not available for ARM, you might need to build them!"
   echo "Installing Cardano Signer"
   if command -v cardano-signer >/dev/null; then csigner_version="v$(cardano-signer version)"; else csigner_version="v0.0.0"; fi
   csigner_git_version="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.tag_name')"
@@ -448,9 +453,7 @@ download_cardanosigner() {
     csigner_asset_url="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.assets[].browser_download_url')"
     csigner_release_url=""
     while IFS= read -r release; do
-      if [[ -z ${ARCH##*aarch64*} && ${release} = *arm-x64.tar.gz ]]; then # ARM64
-        csigner_release_url=${release}; break
-      elif [[ -z ${ARCH##*x86_64*} && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
+      if [[ -z ${ARCH##*x86_64*} && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
         csigner_release_url=${release}; break
       fi
     done <<< "${csigner_asset_url}"
@@ -561,10 +564,6 @@ populate_cnode() {
 # Parse arguments supplied to script
 parse_args() {
   POPULATE_CNODE="Y"
-  if [[ ! -d "${CNODE_HOME}"/files ]]; then
-    # Guess this is a fresh machine and set minimal params
-    INSTALL_OS_DEPS="Y"
-  fi
   if [[ -n "${S_ARGS}" ]]; then
     [[ "${S_ARGS}" =~ "p" ]] && INSTALL_OS_DEPS="Y"
     [[ "${S_ARGS}" =~ "b" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y"
@@ -577,11 +576,15 @@ parse_args() {
     [[ "${S_ARGS}" =~ "x" ]] && INSTALL_CARDANO_SIGNER="Y"
     echo "Nothing to do.."
   fi
+  common_init
+  if [[ ! -d "${CNODE_HOME}"/files ]]; then
+    # Guess this is a fresh machine and set minimal params
+    INSTALL_OS_DEPS="Y"
+  fi
 }
 
 # Main Flow for calling different functions
 main_flow() {
-  common_init
   [[ "${UPDATE_CHECK}" == "Y" ]] && update_check
   [[ "${INSTALL_OS_DEPS}" == "Y" ]] && os_dependencies
   [[ "${WANT_BUILD_DEPS}" == "Y" ]] && build_dependencies

@@ -16,15 +16,15 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=1.0.10rc
+SGVERSION=1.0.10
 
 ######## Functions ########
   usage() {
     cat <<-EOF >&2
 		
-		Usage: $(basename "$0") [-f] [-i [p][r][m][c][d]] [-u] [-b <branch>]
+		Usage: $(basename "$0") [-i [p][r][m][c][d]] [-u] [-b <branch>]
 		
-		Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync
+		Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and monitoring
 		
 		-i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)
 		    p    Install/Update PostgREST binaries by downloading latest release from github.
@@ -49,7 +49,7 @@ SGVERSION=1.0.10rc
     # Update check
     if [[ ${SKIP_UPDATE} != Y ]]; then
 
-      echo "Checking for script updates..."
+      printf "\nChecking for script updates..."
 
       # Check availability of checkUpdate function
       if [[ ! $(command -v checkUpdate) ]]; then
@@ -78,7 +78,7 @@ SGVERSION=1.0.10rc
     base64 --decode <<<$2 | jq -r "$1"
   }
 
-  deployRPC() {
+  deploy_rpc() {
     file_name=$(jqDecode '.name' "${1}")
     [[ -z ${file_name} || ${file_name} != *.sql ]] && return
     dl_url=$(jqDecode '.download_url //empty' "${1}")
@@ -215,7 +215,7 @@ SGVERSION=1.0.10rc
 
   # Description : Remove all grest-related cron entries.
   remove_all_grest_cron_jobs() {
-    echo "Removing all installed cron jobs..."
+    printf "\nRemoving all installed cron jobs..."
     remove_cron_job "active-stake-cache-update"
     remove_cron_job "asset-registry-update"
     remove_cron_job "epoch-info-cache-update"
@@ -245,7 +245,6 @@ SGVERSION=1.0.10rc
 
   parse_args() {
     if [[ -z "${I_ARGS}" ]]; then
-      ! command -v postgrest >/dev/null && INSTALL_POSTGREST="Y"
       ! command -v haproxy >/dev/null && INSTALL_HAPROXY="Y"
       [[ ! -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && INSTALL_MONITORING_AGENTS="Y"
       # absence of haproxy.cfg or grest.conf at mentioned path would mean setup is not updated, or has not been run - hence, overwrite all
@@ -316,7 +315,7 @@ SGVERSION=1.0.10rc
   }
 
   deploy_postgrest() {
-    echo "[Re]Installing PostgREST.."
+    printf "\n[Re]Installing PostgREST.."
     pushd ~/tmp >/dev/null || err_exit
     ARCH=$(uname -i)
     if [ -z "${ARCH##*aarch64*}" ]; then
@@ -328,14 +327,17 @@ SGVERSION=1.0.10rc
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
-      mv -f ./postgrest ~/.local/bin/
+      [[ ! $(id -u authenticator 2>/dev/null) ]] && sudo useradd authenticator -d /home/authenticator -m
+      [[ ! -d /home/authenticator/.local/bin ]] && sudo mkdir -p /home/authenticator/.local/bin
+      sudo mv -f ./postgrest /home/authenticator/.local/bin/
+      sudo chown -R authenticator:authenticator /home/authenticator
     else
       err_exit "Could not download ${pgrest_asset_url}"
     fi
   }
 
   deploy_haproxy() {
-    echo "[Re]Installing HAProxy.."
+    printf "[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
     haproxy_url="http://www.haproxy.org/download/2.6/src/haproxy-2.6.5.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
@@ -384,10 +386,11 @@ SGVERSION=1.0.10rc
 
   deploy_configs() {
     # Create PostgREST config template
-    echo "[Re]Deploying Configs.."
-    [[ -f "${CNODE_HOME}"/priv/grest.conf ]] && cp "${CNODE_HOME}"/priv/grest.conf "${CNODE_HOME}"/priv/grest.conf.bkp_$(date +%s)
+    printf "\n[Re]Deploying Configs.."
+    sudo chmod 755 "${CNODE_HOME}" "${CNODE_HOME}"/priv
+    [[ -f "${CNODE_HOME}"/priv/grest.conf ]] && sudo mv "${CNODE_HOME}"/priv/grest.conf "${CNODE_HOME}"/priv/grest.conf.bkp_$(date +%s)
     cat <<-EOF > "${CNODE_HOME}"/priv/grest.conf
-			db-uri = "postgres://${USER}@/${PGDATABASE}"
+			db-uri = "postgres://authenticator@/${PGDATABASE}"
 			db-schema = "grest"
 			db-anon-role = "web_anon"
 			server-host = "127.0.0.1"
@@ -397,6 +400,8 @@ SGVERSION=1.0.10rc
 			#db-extra-search-path = "public"
 			max-rows = 1000
 			EOF
+    sudo chmod 640 "${CNODE_HOME}"/priv/grest.conf
+    sudo chown authenticator:${USER} "${CNODE_HOME}"/priv/grest.conf
     # Create HAProxy config template
     [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
 
@@ -481,13 +486,13 @@ SGVERSION=1.0.10rc
 			backend flood_lmt_rate
 			  stick-table type ip size 1m expire 10m store http_req_rate(10s)
 			EOF"
-    echo "  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
+    printf "\n  Done!! Please ensure to set any custom settings/peers/TLS configs/etc back and update configs as necessary!"
   }
 
   deploy_systemd() {
     printf "\n[Re]Deploying Services.."
     printf "\n  PostgREST Service"
-    command -v postgrest >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-postgrest.service
+    sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-postgrest.service
 			[Unit]
 			Description=REST Overlay for Postgres database
 			After=postgresql.service
@@ -496,9 +501,9 @@ SGVERSION=1.0.10rc
 			[Service]
 			Restart=always
 			RestartSec=5
-			User=${USER}
+			User=authenticator
 			LimitNOFILE=1048576
-			ExecStart=${HOME}/.local/bin/postgrest ${CNODE_HOME}/priv/grest.conf
+			ExecStart=/home/authenticator/.local/bin/postgrest ${CNODE_HOME}/priv/grest.conf
 			ExecReload=/bin/kill -SIGUSR1 \\\$MAINPID
 			StandardOutput=syslog
 			StandardError=syslog
@@ -554,7 +559,7 @@ SGVERSION=1.0.10rc
 			WantedBy=multi-user.target
 			EOF"
     sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-postgrest.service ${CNODE_VNAME}-haproxy.service ${CNODE_VNAME}-grest_exporter.service >/dev/null 2>&1
-    echo "  Done!! Please ensure to all [re]start services above!"
+    printf "\n  Done!! Please ensure to all [re]start services above!"
   }
   
   # Description : Setup grest schema, web_anon user, and genesis and control tables.
@@ -633,10 +638,10 @@ SGVERSION=1.0.10rc
           printf "\n      \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
         fi
         for row2 in $(jq -r '.[] | @base64' <<<${rpc_file_list_subdir}); do
-          deployRPC ${row2}
+          deploy_rpc ${row2}
         done
       else
-        deployRPC ${row}
+        deploy_rpc ${row}
       fi
     done
     setup_cron_jobs
@@ -662,7 +667,7 @@ SGVERSION=1.0.10rc
     case ${opt} in
     i) I_ARGS="${OPTARG}" ;;
     u) SKIP_UPDATE='Y' ;;
-    r) RESET_GREST='Y' && DB_QRY_UPDATES='y' ;;
+    r) RESET_GREST='Y' && DB_QRY_UPDATES='Y' ;;
     q) DB_QRY_UPDATES='Y' ;;
     b) echo "${OPTARG}" > ./.env_branch ;;
     \?) usage ;;
@@ -673,7 +678,7 @@ SGVERSION=1.0.10rc
   set_environment_variables
   parse_args
   common_update
-  [[ "${INSTALL_POSTGREST}" == "Y" ]] && deploy_postgrest
+  [[ "${INSTALL_POSTGREST}" == "Y" ]] && setup_db_basics && deploy_postgrest
   [[ "${INSTALL_HAPROXY}" == "Y" ]] && deploy_haproxy
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
   [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs

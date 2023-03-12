@@ -42,7 +42,7 @@ fi
 
 # enable or disable dialog used to help in file/dir selection by providing a gui to see available files and folders. [true|false] (not supported on all systems)
 # if disabled standard tty input is used
-#ENABLE_DIALOG=true
+#ENABLE_DIALOG=false
 
 # enable advanced/developer features like metadata transactions, multi-asset management etc. [true|false] (not needed for SPO usage)
 #ENABLE_ADVANCED=false
@@ -2559,7 +2559,12 @@ function main {
                        pool_registered="${FG_RED}NO${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
                      fi ;;
                 esac
-                println "${FG_GREEN}${pool_name}${NC}"
+                enc_files=$(find "${pool}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
+                if [[ ${enc_files} -gt 0 ]]; then
+                  println "${FG_GREEN}${pool_name}${NC} (${FG_YELLOW}encrypted${NC})"
+                else
+                  println "${FG_GREEN}${pool_name}${NC}"
+                fi
                 println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
                 [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
                 println "$(printf "%-21s : %s" "Registered" "${pool_registered}")"

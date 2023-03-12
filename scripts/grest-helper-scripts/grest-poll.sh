@@ -78,7 +78,7 @@ function usage() {
 
 function chk_version() {
   instance_vr=$(curl -sfkL "${GURL}/control_table?key=eq.version&select=last_value" | jq -r '.[0].last_value' 2>/dev/null)
-  monitor_vr=$(curl -sf "${API_STRUCT_DEFINITION}" | grep ^\ \ version|awk '{print $2}' 2>/dev/null)
+  monitor_vr=$(curl -sfkL "${API_STRUCT_DEFINITION}" | grep ^\ \ version|awk '{print $2}' 2>/dev/null)
 
   if [[ -z "${instance_vr}" ]] || [[ "${instance_vr}" == "[]" ]]; then
     log_err "Could not fetch the grest version for ${GURL} using control_table endpoint (response received: ${instance_vr})!!"
@@ -90,7 +90,7 @@ function chk_version() {
 }
 
 function chk_is_up() {
-  rc=$(curl -sf "${GURL}"/ready -I 2>/dev/null | grep x-failover)
+  rc=$(curl -sfkL "${GURL}"/ready -I 2>/dev/null | grep x-failover)
   if [[ "${rc}" != "" ]]; then
     log_err "${GURL}/ready status check failed!!"
     optexit
@@ -190,13 +190,15 @@ function chk_endpt_get() {
 function chk_endpt_post() {
   local endpt="${1}"
   local data="${2}"
-  echo rslt="$(curl -sL -X POST -H "Content-Type: application/json" "${GURL}/${endpt}" -d "${data}" 2>&1)"
+  echo rslt="$(curl -skL -X POST -H "Content-Type: application/json" "${GURL}/${endpt}" -d "${data}" 2>&1)"
 }
 
 function chk_asset_registry() {
-  ct=$(curl -sfL -H 'Prefer: count=exact' "${GURL}/asset_registry_cache?select=name&limit=1" -I 2>/dev/null | grep content-range | cut -d/ -f2)
-  [[ "${ct}" == "" ]] && log_err "Asset registry cache not yet populated!"
-  [[ ${ct} -lt 150 ]] && log_err "Asset registry cache seems incomplete (<150) assets, try deleting key: asset_registry_commit in control_table and wait for next cron run"
+  ct=$(curl -sfkL -H 'Prefer: count=exact' "${GURL}/asset_registry_cache?select=name&limit=1" -I 2>/dev/null | grep -i "content-range" | cut -d/ -f2 | tr -d '[:space:]')
+  if [[ "${ct}" == "" ]] || [[ $ct -lt 150 ]]; then
+    log_err "Asset registry cache seems incomplete (<150) assets, try deleting key: asset_registry_commit in control_table and wait for next cron run"
+    optexit
+  fi
 }
 
 ##################

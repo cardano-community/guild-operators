@@ -599,7 +599,7 @@ getBlocklogMetrics() {
     echo "" # request body starts from this empty line
   fi
 
-  cncli_error=""
+  cncli_error_code=0
   next_leader_time_utc=0
   next_next_leader_time_utc=0
   leader=0
@@ -621,10 +621,11 @@ getBlocklogMetrics() {
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   CNCLI_DB="${CNCLI_DIR}/cncli.db"
   
+  unset cncli_error
   if [[ ! -f "${BLOCKLOG_DB}" ]]; then
-    cncli_error="ERROR: blocklog database not found: ${BLOCKLOG_DB}"
+    cncli_error="ERROR: blocklog database not found: ${BLOCKLOG_DB}" && cncli_error_code=1
   elif ! cncliDBinSync; then
-    cncli_error="CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})]"
+    cncli_error="CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})]" && cncli_error_code=1
   else
     for status_type in $(sqlite3 "${BLOCKLOG_DB}" "SELECT status, COUNT(status) FROM blocklog WHERE epoch=${epochnum} GROUP BY status;" 2>/dev/null); do
       IFS='|' read -ra status <<< ${status_type}; unset IFS
@@ -666,6 +667,10 @@ getBlocklogMetrics() {
     adopted_max_consec=$(( adopted_max_consec + confirmed_max_consec ))
   fi
 
+  if [[ ${SERVED} != true && -n ${cncli_error} ]]; then
+    echo ${cncli_error} && return
+  fi
+
   # Metrics
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_next_leader_time_utc=${next_leader_time_utc}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_next_next_leader_time_utc=${next_next_leader_time_utc}
@@ -684,7 +689,7 @@ getBlocklogMetrics() {
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_ghosted_max_consec=${ghosted_max_consec}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_stolen_max_consec=${stolen_max_consec}
   export CNCLI_METRIC_cntools_cncli_blocks_metrics_invalid_max_consec=${invalid_max_consec}
-  export CNCLI_METRIC_cntools_cncli_blocks_metrics_error=${cncli_error}
+  export CNCLI_METRIC_cntools_cncli_blocks_metrics_error=${cncli_error_code}
 
   for metric_var_name in $(env | grep ^CNCLI_METRIC_ | sort | awk -F= '{print $1}'); do
     METRIC_NAME=${metric_var_name//CNCLI_METRIC_/}
