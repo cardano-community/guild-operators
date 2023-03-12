@@ -128,22 +128,7 @@ else
   . "${PARENT}"/env &>/dev/null
 fi
 
-# get helper functions from library file
-! . "${PARENT}"/cntools.library && myExit 1
-
 [[ ${PRINT_VERSION} = "true" ]] && myExit 0 "CNTools v${CNTOOLS_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))"
-
-archiveLog # archive current log and cleanup log archive folder
-
-# check for required command line tools
-if ! cmdAvailable "curl" || \
-   ! cmdAvailable "jq" || \
-   ! cmdAvailable "bc" || \
-   ! cmdAvailable "sed" || \
-   ! cmdAvailable "awk" || \
-   ! cmdAvailable "column" || \
-   ! protectionPreRequisites; then myExit 1 "Missing one or more of the required command line tools, press any key to exit"
-fi
 
 # Do some checks when run in connected mode
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
@@ -215,6 +200,21 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\nError message: ${PROT_PARAMS}\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
   fi
   echo "${PROT_PARAMS}" > "${TMP_DIR}"/protparams.json
+fi
+
+# get helper functions from library file
+! . "${PARENT}"/cntools.library && myExit 1
+
+archiveLog # archive current log and cleanup log archive folder
+
+# check for required command line tools
+if ! cmdAvailable "curl" || \
+   ! cmdAvailable "jq" || \
+   ! cmdAvailable "bc" || \
+   ! cmdAvailable "sed" || \
+   ! cmdAvailable "awk" || \
+   ! cmdAvailable "column" || \
+   ! protectionPreRequisites; then myExit 1 "Missing one or more of the required command line tools, press any key to exit"
 fi
 
 # check that bash version is > 4.4.0
