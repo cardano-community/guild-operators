@@ -13,9 +13,9 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=10
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=1
+CNTOOLS_MINOR_VERSION=2
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -1330,7 +1330,8 @@ registerStakeWallet() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
   echo
   if ! verifyTx ${base_addr}; then return 1; fi
@@ -1429,7 +1430,8 @@ deregisterStakeWallet() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1566,7 +1568,8 @@ sendAssets() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_DIR}/tx.raw" "${s_payment_sk_file}"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${s_payment_sk_file}"; then return 1; fi
+  if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1656,7 +1659,8 @@ delegate() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -1742,7 +1746,8 @@ withdrawRewards() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -2286,7 +2291,8 @@ sendMetadata() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}"; then return 1; fi
+  if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -2393,7 +2399,8 @@ mintAsset() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}"; then return 1; fi
+  if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -2498,7 +2505,8 @@ burnAsset() {
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! signTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}"; then return 1; fi
+  if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
@@ -2581,65 +2589,6 @@ assembleTx() {
     println ERROR "\n${FG_RED}ERROR${NC}: no witness files provided, unable to assemble tx!"
     return 1
   fi
-}
-
-# Command     : signTx [raw tx file] [signing keys ...]
-# Description : Helper function to sign a raw transaction
-# Parameters  : raw tx file    >  the transaction file to sign
-#             : signing keys   >  list of signing keys to use when signing the transaction, for direct signing
-signTx() {
-  tx_raw="$1"
-  shift
-  tx_signed="${TMP_DIR}/tx.signed_$(date +%s)"
-  if HWCLIversionCheck >/dev/null; then 
-    if ! transformRawTx "${tx_raw}"; then return 1; fi
-  fi
-  if [[ $# -gt 0 ]]; then
-    tx_sign_out=()
-    hw_wallet='N'
-    for skey in "$@"; do
-      [[ -z ${skey//[[:blank:]]/} ]] && continue
-      skey_desc="$(jq -r '.description //empty' "${skey}")"
-      if [[ ! -f "${skey}" ]]; then
-        println ERROR "\n${FG_RED}ERROR${NC}: file not found: ${skey}"
-        return 1
-      elif [[ ${skey_desc} = *"Hardware"* ]]; then # HW signing key
-        tx_sign_out+=( "--hw-signing-file ${skey}" )
-        if [[ ${wallet_source} = "base" && ${skey_desc} = "Payment"* ]]; then
-          tx_sign_out+=( "--change-output-key-file ${skey}" )
-          # Add stake.hwsfile as well as a change output
-          [[ -f "$(dirname "${skey}")/${WALLET_HW_STAKE_SK_FILENAME}" ]] && tx_sign_out+=( "--change-output-key-file $(dirname "${skey}")/${WALLET_HW_STAKE_SK_FILENAME}" )
-        fi
-        hw_wallet='Y'
-      else
-        tx_sign_out+=( "--signing-key-file ${skey}" )
-      fi
-    done
-    if [[ ${hw_wallet} = 'Y' ]]; then
-      if ! unlockHWDevice "sign the transaction"; then return 1; fi
-      sign_command=(
-        cardano-hw-cli transaction sign
-        --tx-file "${tx_raw}"
-        ${tx_sign_out[@]}
-        ${NETWORK_IDENTIFIER}
-        --out-file "${tx_signed}"
-      )
-    else
-      sign_command=(
-        ${CCLI} transaction sign
-        --tx-body-file "${tx_raw}"
-        ${tx_sign_out[@]}
-        ${NETWORK_IDENTIFIER}
-        --out-file "${tx_signed}"
-      )
-    fi
-  else
-    println ERROR "\n${FG_RED}ERROR${NC}: no signing keys provided, unable to sign tx!"
-    return 1
-  fi
-  
-  println ACTION "${sign_command[@]}"
-  "${sign_command[@]}"
 }
 
 # Command     : submitTx [signed tx file]

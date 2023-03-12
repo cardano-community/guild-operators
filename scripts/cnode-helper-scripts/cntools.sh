@@ -3236,7 +3236,8 @@ function main {
                     tx_sign_files+=( "${file}" )
                   done
                   if [[ ${#tx_sign_files[@]} -gt 0 ]]; then
-                    if ! signTx "${TMP_DIR}"/tx.raw "${tx_sign_files[@]}"; then waitForInput && continue; fi
+                    if ! witnessTx "${TMP_DIR}/tx.raw" "${tx_sign_files[@]}"; then waitForInput && continue; fi
+                    if ! assembleTx "${TMP_DIR}/tx.raw"; then waitForInput && continue; fi
                     echo
                     if jq ". += { \"signed-txBody\": $(jq -c . "${tx_signed}") }" <<< "${offlineJSON}" > "${offline_tx}"; then
                       println "Offline transaction successfully signed"
