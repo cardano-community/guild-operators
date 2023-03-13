@@ -6,6 +6,13 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.2.0] - 2023-03-13
+#### Fixed
+- HW signing fix due to deprecated cardano-hw-cli sign call.
+- The check whether to use Koios API or not (env config) wasn't properly handled.
+#### Changed
+- Disabled Koios for balance lookup to prefer local node check. In most circumstances this will be faster due to low latency. If needed, set WALLET_SELECTION_FILTER_LIMIT in cntools.sh to a lower limit to skip balance lookup on wallet selection if you have many wallets and delay is too long.
+
 ## [10.1.1] - 2023-02-07
 #### Fixed
 - Disable `dialog` by default, it is an optional component - and no longer installed by default.

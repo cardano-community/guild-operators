@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028
+# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028,SC1091
 
 . "$(dirname $0)"/env offline
 
@@ -1944,7 +1944,6 @@ function main {
                   0) meta_extended_option=""
                     ;;
                   1) getAnswerAnyCust extended_enter "Enter URL to extended metadata (default: ${meta_extended})"
-                    extended_enter="${extended_enter}"
                     [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
                     if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
@@ -4062,7 +4061,7 @@ function main {
                 println OFF " Multi-Asset Token Management\n"\
 									" ) Create Policy  - create a new asset policy"\
 									" ) List Assets    - list created/minted policies/assets (local)"\
-                  " ) Show Asset     - show minted asset information"\
+									" ) Show Asset     - show minted asset information"\
 									" ) Decrypt Policy - remove write protection and decrypt policy"\
 									" ) Encrypt Policy - encrypt policy sign key and make all files immutable"\
 									" ) Mint Asset     - mint new assets for selected policy"\
