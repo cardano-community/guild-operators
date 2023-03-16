@@ -4487,6 +4487,7 @@ function main {
                       2) println "Minted         : ${FG_LBLUE}$(formatAsset ${assets_to_mint})${NC}"
                          println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
                     esac
+                    println DEBUG "\n${FG_YELLOW}Please note that it can take a couple of minutes before minted asset show in wallet${NC}"
                     waitForInput && continue
                     ;; ###################################################################
                   burn-asset)
@@ -4637,6 +4638,7 @@ function main {
                       2) println "Burned          : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
                          println "In Circulation  : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
                     esac
+                    println DEBUG "\n${FG_YELLOW}Please note that burned assets can take a couple of minutes before being reflected in wallet${NC}"
                     waitForInput && continue
                     ;; ###################################################################
                   register-asset)
