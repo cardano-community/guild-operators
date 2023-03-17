@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028
+# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028,SC1091
 
 . "$(dirname $0)"/env offline
 
@@ -128,22 +128,7 @@ else
   . "${PARENT}"/env &>/dev/null
 fi
 
-# get helper functions from library file
-! . "${PARENT}"/cntools.library && myExit 1
-
 [[ ${PRINT_VERSION} = "true" ]] && myExit 0 "CNTools v${CNTOOLS_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))"
-
-archiveLog # archive current log and cleanup log archive folder
-
-# check for required command line tools
-if ! cmdAvailable "curl" || \
-   ! cmdAvailable "jq" || \
-   ! cmdAvailable "bc" || \
-   ! cmdAvailable "sed" || \
-   ! cmdAvailable "awk" || \
-   ! cmdAvailable "column" || \
-   ! protectionPreRequisites; then myExit 1 "Missing one or more of the required command line tools, press any key to exit"
-fi
 
 # Do some checks when run in connected mode
 if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
@@ -215,6 +200,21 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\nError message: ${PROT_PARAMS}\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
   fi
   echo "${PROT_PARAMS}" > "${TMP_DIR}"/protparams.json
+fi
+
+# get helper functions from library file
+! . "${PARENT}"/cntools.library && myExit 1
+
+archiveLog # archive current log and cleanup log archive folder
+
+# check for required command line tools
+if ! cmdAvailable "curl" || \
+   ! cmdAvailable "jq" || \
+   ! cmdAvailable "bc" || \
+   ! cmdAvailable "sed" || \
+   ! cmdAvailable "awk" || \
+   ! cmdAvailable "column" || \
+   ! protectionPreRequisites; then myExit 1 "Missing one or more of the required command line tools, press any key to exit"
 fi
 
 # check that bash version is > 4.4.0
@@ -1944,7 +1944,6 @@ function main {
                   0) meta_extended_option=""
                     ;;
                   1) getAnswerAnyCust extended_enter "Enter URL to extended metadata (default: ${meta_extended})"
-                    extended_enter="${extended_enter}"
                     [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
                     if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
@@ -3236,7 +3235,8 @@ function main {
                     tx_sign_files+=( "${file}" )
                   done
                   if [[ ${#tx_sign_files[@]} -gt 0 ]]; then
-                    if ! signTx "${TMP_DIR}"/tx.raw "${tx_sign_files[@]}"; then waitForInput && continue; fi
+                    if ! witnessTx "${TMP_DIR}/tx.raw" "${tx_sign_files[@]}"; then waitForInput && continue; fi
+                    if ! assembleTx "${TMP_DIR}/tx.raw"; then waitForInput && continue; fi
                     echo
                     if jq ". += { \"signed-txBody\": $(jq -c . "${tx_signed}") }" <<< "${offlineJSON}" > "${offline_tx}"; then
                       println "Offline transaction successfully signed"
@@ -4061,7 +4061,7 @@ function main {
                 println OFF " Multi-Asset Token Management\n"\
 									" ) Create Policy  - create a new asset policy"\
 									" ) List Assets    - list created/minted policies/assets (local)"\
-                  " ) Show Asset     - show minted asset information"\
+									" ) Show Asset     - show minted asset information"\
 									" ) Decrypt Policy - remove write protection and decrypt policy"\
 									" ) Encrypt Policy - encrypt policy sign key and make all files immutable"\
 									" ) Mint Asset     - mint new assets for selected policy"\
@@ -4487,6 +4487,7 @@ function main {
                       2) println "Minted         : ${FG_LBLUE}$(formatAsset ${assets_to_mint})${NC}"
                          println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
                     esac
+                    println DEBUG "\n${FG_YELLOW}Please note that it can take a couple of minutes before minted asset show in wallet${NC}"
                     waitForInput && continue
                     ;; ###################################################################
                   burn-asset)
@@ -4637,6 +4638,7 @@ function main {
                       2) println "Burned          : ${FG_LBLUE}$(formatAsset ${assets_to_burn})${NC}"
                          println "In Circulation  : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
                     esac
+                    println DEBUG "\n${FG_YELLOW}Please note that burned assets can take a couple of minutes before being reflected in wallet${NC}"
                     waitForInput && continue
                     ;; ###################################################################
                   register-asset)
