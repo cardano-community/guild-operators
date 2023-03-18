@@ -909,6 +909,10 @@ chmod<span class="w"> </span><span class="m">755</span><span class="w"> </span>g
 </ul>
 <h6 id="peer-analysis">Peer analysis<a class="headerlink" href="#peer-analysis" title="Permanent link">⚓︎</a></h6>
 <p>A manual peer analysis can be triggered by key press <code>p</code>. A latency test will be done on incoming and outgoing connections to the node.</p>
+<div class="admonition warning">
+<p class="admonition-title">Note</p>
+<p>Note that with P2P enabled, an incoming/outgoing connection can be reused for bi-directional traffic. There isnt a way to distinctly identify the P2P peer's direction yet for a given IP.</p>
+</div>
 <p>Outgoing connections(peers in topology file), ping type used is done in this order:<br />
 1. cncli - If available, this gives the most accurate measure as it checks the entire handshake process against the remote peer.<br />
 2. ss - Sends a TCP SYN package to ping the remote peer on the <code>cardano-node</code> port. Should give ~100% success rate.<br />
