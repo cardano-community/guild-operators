@@ -210,7 +210,7 @@ SGVERSION=1.0.10
   # Description : Kill a running cron script (does not stop psql executions).
   kill_cron_script_process() {
     local job=$1
-    sudo pkill -9 -f "${job}.sh"
+    sudo pkill -9 -f "${job}.s[h]" >/dev/null 2>&1
   }
 
   # Description : Remove all grest-related cron entries.
