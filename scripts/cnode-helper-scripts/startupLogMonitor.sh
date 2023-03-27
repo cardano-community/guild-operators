@@ -2,13 +2,33 @@
 #shellcheck disable=SC2086,SC2001,SC2154
 #shellcheck source=/dev/null
 
-STARTUPLOG_DIR="/opt/cardano/cnode/guild-db/startuplog"
-STARTUPLOG_DB="${STARTUPLOG_DIR}/startuplog.db"
-logfile="/opt/cardano/cnode/logs/node0.json"
+# STARTUPLOG_DIR="/opt/cardano/cnode/guild-db/startuplog"
+# STARTUPLOG_DB="${STARTUPLOG_DIR}/startuplog.db"
+#logfile="/opt/cardano/cnode/logs/node0.json"
 
 ######################################
 # Do NOT modify code below           #
 ######################################
+
+PARENT="$(dirname $0)"
+if [[ ! -f "${PARENT}"/env ]]; then
+  echo "ERROR: could not find common env file, please run guild-deploy.sh or manually download"
+  exit 1
+fi
+if ! . "${PARENT}"/env offline; then exit 1; fi
+
+# get log file from config file specified in env
+unset logfile
+if [[ "${CONFIG##*.}" = "yaml" ]]; then
+  [[ $(grep "scName.*\.json" "${CONFIG}") =~ scName:.\"(.+\.json)\" ]] && logfile="${BASH_REMATCH[1]}"
+elif [[ "${CONFIG##*.}" = "json" ]]; then
+  logfile=$(jq -r '.setupScribes[] | select (.scFormat == "ScJson") | .scName' "${CONFIG}")
+fi
+[[ -z "${logfile}" ]] && echo -e "${FG_RED}ERROR:${NC} failed to locate json logfile in node configuration file\na setupScribe of format ScJson with extension .json expected" && exit 1
+
+
+[[ -z "${STARTUPLOG_DIR}" ]] && export STARTUPLOG_DIR="/opt/cardano/cnode/guild-db/startuplog"
+[[ -z "${STARTUPLOG_DB}" ]] && export STARTUPLOG_DB="${STARTUPLOG_DIR}/startuplog.db"
 
 createStartuplogDB() {
   if ! mkdir -p "${STARTUPLOG_DIR}" 2>/dev/null; then echo "ERROR: failed to create directory to store blocklog: ${STARTUPLOG_DIR}" && return 1; fi
@@ -97,7 +117,7 @@ while read -r logentry; do
       if ! finalChunk="$(jq -er '.data.finalChunk' <<< ${logentry})"; then echo "ERROR[TraceImmutableDBEvent]: invalid json schema, '.data.finalChunk' not found" && continue; fi
       sqlite3 "${STARTUPLOG_DB}" "INSERT OR IGNORE INTO validationlog (event,at,env,final_chunk,initial_chunk) values ('${event}','${at}','${env}',${finalChunk},${initialChunk});"
       ;;
-    *TraceLedgerReplayEvent* )
+    *TraceLedgerReplayEvent.ReplayedBlock* )
       if ! at="$(jq -er '.at' <<< ${logentry})"; then echo "ERROR[TraceLedgerReplayEvent]: invalid json schema, '.at' not found" && continue; else at="$(sed 's/\.[0-9]\{2\}Z/+00:00/' <<< ${at})"; fi
       if ! env="$(jq -er '.env' <<< ${logentry})"; then echo "ERROR[TraceLedgerReplayEvent]: invalid json schema, '.env' not found" && continue; fi
       if ! event="$(jq -er '.data.kind' <<< ${logentry})"; then echo "ERROR[TraceLedgerReplayEvent]: invalid json schema, '.data.kind' not found" && continue; fi
