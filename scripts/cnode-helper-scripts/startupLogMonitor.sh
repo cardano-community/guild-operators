@@ -10,6 +10,11 @@
 # Do NOT modify code below           #
 ######################################
 
+
+#####################
+# Functions         #
+#####################
+
 createStartuplogDB() {
   if ! mkdir -p "${STARTUPLOG_DIR}" 2>/dev/null; then echo "ERROR: failed to create directory to store blocklog: ${STARTUPLOG_DIR}" && return 1; fi
   if [[ ! -f ${STARTUPLOG_DB} ]]; then # create a fresh DB with latest schema
@@ -22,8 +27,72 @@ createStartuplogDB() {
   fi
 }
 
+deploy_systemd() {
+  echo "Deploying startup log monitoring for ${vname} as systemd service.."
+  ${sudo} bash -c "cat <<-'EOF' > /etc/systemd/system/${vname}-startup-logmonitor.service
+[Unit]
+Description=Cardano Node - Startup Log Monitor
+BindsTo=${vname}.service
+Before=${vname}.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=20
+User=$USER
+WorkingDirectory=${CNODE_HOME}/scripts
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/startupLogMonitor.sh -u\"
+ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/startupLogMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
+KillSignal=SIGINT
+SuccessExitStatus=143
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=${vname}-startup-logmonitor
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=${vname}.service
+EOF" && echo "${vname}-startup-logmonitor.service deployed successfully!!" && ${sudo} systemctl daemon-reload && ${sudo} systemctl enable ${vname}-startup-logmonitor.service
+}
+
+usage() {
+  cat <<-EOF >&2
+		
+		Usage: $(basename "$0") [operation <sub arg>]
+		Script to run startupLogMonitor, best launched through systemd deployed by 'deploy-as-systemd.sh'
+
+		-d    Deploy startupLogMonitor as a systemd service
+		-u    Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
+		EOF
+  exit 1
+}
+
+
+###################
+# Execution       #
+###################
+
+while getopts du opt; do
+  case ${opt} in
+    d ) DEPLOY_SYSTEMD="Y" ;;
+    u ) SKIP_UPDATE=Y ;;
+    \? ) usage ;;
+  esac
+done
+shift $((OPTIND -1))
+
+[[ -z "${SKIP_UPDATE}" ]] && SKIP_UPDATE=N
 
 PARENT="$(dirname $0)"
+
+if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
+  vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
+else
+  echo "failed to get cnode instance name from env file, aborting!"
+  exit 1
+fi
+
 if [[ ! -f "${PARENT}"/env ]]; then
     echo -e "\nCommon env file missing: ${PARENT}/env"
     echo -e "This is a mandatory prerequisite, please install with guild-deploy.sh or manually download from GitHub\n"
@@ -32,8 +101,11 @@ fi
 
 if ! . "${PARENT}"/env offline ; then exit 1; fi
 
+[[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
 [[ -z "${STARTUPLOG_DIR}" ]] && export STARTUPLOG_DIR="/opt/cardano/cnode/guild-db/startuplog"
 [[ -z "${STARTUPLOG_DB}" ]] && export STARTUPLOG_DB="${STARTUPLOG_DIR}/startuplog.db"
+[[ -z ${SUDO} ]] && SUDO='Y'
+[[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
 
 #######################################################
 # Version Check                                       #
@@ -46,7 +118,7 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
 
   # Check availability of checkUpdate function
   if [[ ! $(command -v checkUpdate) ]]; then
-    echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
+    echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docs for installation!"
     exit 1
   fi
 
@@ -69,7 +141,7 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   . "${PARENT}"/env offline &>/dev/null
   case $? in
     0) : ;; # ok
-    2) echo "continuing with topology update..." ;;
+    2) echo "continuing with startup log monitoring..." ;;
     *) exit 1 ;;
   esac
 
@@ -86,6 +158,12 @@ fi
 
 
 if renice_cmd="$(command -v renice)"; then ${renice_cmd} -n 19 $$ >/dev/null; fi
+
+#Deploy systemd if -d argument was specified
+if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
+  deploy_systemd && exit 0
+  exit 2
+fi
 
 [[ ! -f ${STARTUPLOG_DB} ]] && createStartuplogDB
 
