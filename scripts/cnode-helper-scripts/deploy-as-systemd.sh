@@ -400,11 +400,52 @@ else
   fi
 fi
 
+echo
+echo -e "\e[32m~~ Startup Log Monitor ~~\e[0m"
+echo "Parses JSON log of cardano-node for traces of interest to provide metrics for chain validation and ledger replay startup events."
+echo "Optional to use."
+echo
+echo "Deploy Startup Log Monitor as systemd services? [y|n]"
+read -rsn1 yn
+if [[ ${yn} = [Yy]* ]]; then
+  ##############################################./blockPerf.sh -d
+  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-startup-logmonitor.service
+[Unit]
+Description=Cardano Node - Startup Log Monitor
+BindsTo=${vname}.service
+Before=${vname}.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=20
+User=$USER
+WorkingDirectory=${CNODE_HOME}/scripts
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/startupLogMonitor.sh\"
+ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/startupLogMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
+KillSignal=SIGINT
+SuccessExitStatus=143
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=${vname}-startup-logmonitor
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=${vname}.service
+EOF"
+else
+  if [[ -f /etc/systemd/system/${vname}-startup-logmonitor.service ]]; then
+    sudo systemctl disable ${vname}-startup-logmonitor.service
+    sudo rm -f /etc/systemd/system/${vname}-startup-logmonitor.service
+  fi
+fi
 
 echo
 sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}.service ]] && sudo systemctl enable ${vname}.service
 [[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && sudo systemctl enable ${vname}-logmonitor.service
+[[ -f /etc/systemd/system/${vname}-startup-logmonitor.service ]] && sudo systemctl enable ${vname}-startup-logmonitor.service
 [[ -f /etc/systemd/system/${vname}-tu-fetch.service ]] && sudo systemctl enable ${vname}-tu-fetch.service
 [[ -f /etc/systemd/system/${vname}-tu-restart.timer ]] && sudo systemctl enable ${vname}-tu-restart.timer
 [[ -f /etc/systemd/system/${vname}-tu-push.timer ]] && sudo systemctl enable ${vname}-tu-push.timer

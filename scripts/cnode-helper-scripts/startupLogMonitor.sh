@@ -10,26 +10,6 @@
 # Do NOT modify code below           #
 ######################################
 
-PARENT="$(dirname $0)"
-if [[ ! -f "${PARENT}"/env ]]; then
-  echo "ERROR: could not find common env file, please run guild-deploy.sh or manually download"
-  exit 1
-fi
-if ! . "${PARENT}"/env offline; then exit 1; fi
-
-# get log file from config file specified in env
-unset logfile
-if [[ "${CONFIG##*.}" = "yaml" ]]; then
-  [[ $(grep "scName.*\.json" "${CONFIG}") =~ scName:.\"(.+\.json)\" ]] && logfile="${BASH_REMATCH[1]}"
-elif [[ "${CONFIG##*.}" = "json" ]]; then
-  logfile=$(jq -r '.setupScribes[] | select (.scFormat == "ScJson") | .scName' "${CONFIG}")
-fi
-[[ -z "${logfile}" ]] && echo -e "${FG_RED}ERROR:${NC} failed to locate json logfile in node configuration file\na setupScribe of format ScJson with extension .json expected" && exit 1
-
-
-[[ -z "${STARTUPLOG_DIR}" ]] && export STARTUPLOG_DIR="/opt/cardano/cnode/guild-db/startuplog"
-[[ -z "${STARTUPLOG_DB}" ]] && export STARTUPLOG_DB="${STARTUPLOG_DIR}/startuplog.db"
-
 createStartuplogDB() {
   if ! mkdir -p "${STARTUPLOG_DIR}" 2>/dev/null; then echo "ERROR: failed to create directory to store blocklog: ${STARTUPLOG_DIR}" && return 1; fi
   if [[ ! -f ${STARTUPLOG_DB} ]]; then # create a fresh DB with latest schema
@@ -41,6 +21,68 @@ createStartuplogDB() {
     echo "SQLite startuplog DB created: ${STARTUPLOG_DB}"
   fi
 }
+
+
+PARENT="$(dirname $0)"
+if [[ ! -f "${PARENT}"/env ]]; then
+    echo -e "\nCommon env file missing: ${PARENT}/env"
+    echo -e "This is a mandatory prerequisite, please install with guild-deploy.sh or manually download from GitHub\n"
+    exit 1
+fi
+
+if ! . "${PARENT}"/env offline ; then exit 1; fi
+
+[[ -z "${STARTUPLOG_DIR}" ]] && export STARTUPLOG_DIR="/opt/cardano/cnode/guild-db/startuplog"
+[[ -z "${STARTUPLOG_DB}" ]] && export STARTUPLOG_DB="${STARTUPLOG_DIR}/startuplog.db"
+
+#######################################################
+# Version Check                                       #
+#######################################################
+clear
+
+if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
+
+  echo "Checking for script updates..."
+
+  # Check availability of checkUpdate function
+  if [[ ! $(command -v checkUpdate) ]]; then
+    echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
+    exit 1
+  fi
+
+  # check for env update
+  ENV_UPDATED=${BATCH_AUTO_UPDATE}
+  checkUpdate "${PARENT}"/env N N N
+  case $? in
+    1) ENV_UPDATED=Y ;;
+    2) exit 1 ;;
+  esac
+
+  # check for startupLogMonitor.sh update
+    checkUpdate "${PARENT}"/startupLogMonitor.sh ${ENV_UPDATED}
+  case $? in
+    1) $0 "-u" "$@"; exit 0 ;; # re-launch script with same args skipping update check
+    2) exit 1 ;;
+  esac
+
+  # source common env variables in case it was updated
+  . "${PARENT}"/env offline &>/dev/null
+  case $? in
+    0) : ;; # ok
+    2) echo "continuing with topology update..." ;;
+    *) exit 1 ;;
+  esac
+
+fi
+
+# get log file from config file specified in env
+unset logfile
+if [[ "${CONFIG##*.}" = "yaml" ]]; then
+  [[ $(grep "scName.*\.json" "${CONFIG}") =~ scName:.\"(.+\.json)\" ]] && logfile="${BASH_REMATCH[1]}"
+elif [[ "${CONFIG##*.}" = "json" ]]; then
+  logfile=$(jq -r '.setupScribes[] | select (.scFormat == "ScJson") | .scName' "${CONFIG}")
+fi
+[[ -z "${logfile}" ]] && echo -e "${FG_RED}ERROR:${NC} failed to locate json logfile in node configuration file\na setupScribe of format ScJson with extension .json expected" && exit 1
 
 
 if renice_cmd="$(command -v renice)"; then ${renice_cmd} -n 19 $$ >/dev/null; fi
