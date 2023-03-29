@@ -4,7 +4,8 @@
 
 # STARTUPLOG_DIR="/opt/cardano/cnode/guild-db/startuplog"
 # STARTUPLOG_DB="${STARTUPLOG_DIR}/startuplog.db"
-#logfile="/opt/cardano/cnode/logs/node0.json"
+# BATCH_AUTO_UPDATE="Y"
+# logfile="/opt/cardano/cnode/logs/node0.json"
 
 ######################################
 # Do NOT modify code below           #
@@ -28,12 +29,12 @@ createStartuplogDB() {
 }
 
 deploy_systemd() {
-  echo "Deploying startup log monitoring for ${vname} as systemd service.."
-  ${sudo} bash -c "cat <<-'EOF' > /etc/systemd/system/${vname}-startup-logmonitor.service
+  echo "Deploying startup log monitoring for ${CNODE_VNAME} as systemd service.."
+  ${sudo} bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}-startup-logmonitor.service
 [Unit]
 Description=Cardano Node - Startup Log Monitor
-BindsTo=${vname}.service
-Before=${vname}.service
+BindsTo=${CNODE_VNAME}.service
+Before=${CNODE_VNAME}.service
 
 [Service]
 Type=simple
@@ -47,13 +48,13 @@ KillSignal=SIGINT
 SuccessExitStatus=143
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=${vname}-startup-logmonitor
+SyslogIdentifier=${CNODE_VNAME}-startup-logmonitor
 TimeoutStopSec=5
 KillMode=mixed
 
 [Install]
-WantedBy=${vname}.service
-EOF" && echo "${vname}-startup-logmonitor.service deployed successfully!!" && ${sudo} systemctl daemon-reload && ${sudo} systemctl enable ${vname}-startup-logmonitor.service
+WantedBy=${CNODE_VNAME}.service
+EOF" && echo "${CNODE_VNAME}-startup-logmonitor.service deployed successfully!!" && ${sudo} systemctl daemon-reload && ${sudo} systemctl enable ${CNODE_VNAME}-startup-logmonitor.service
 }
 
 usage() {
