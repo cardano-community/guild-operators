@@ -22,7 +22,7 @@
 # Do NOT modify code below           #
 ######################################
 
-BP_VERSION=v1.3.7
+BP_VERSION=v1.3.8
 
 SKIP_UPDATE=N
 [[ $1 = "-u" ]] && SKIP_UPDATE=Y && shift
@@ -395,7 +395,7 @@ do
         else
           echo -e "WARN: blockheight:${iblockHeight} no hash" 
           #Debug: look into when and why this happens
-          echo -e "blockheight:${iblockHeight} (no hash) \n\n $(grep -m 1 "$iblockHeight" ${logfile})" > zzz_debug_WARN_block_${iblockHeight}.json
+          #echo -e "blockheight:${iblockHeight} (no hash) \n\n $(grep -m 1 "$iblockHeight" ${logfile})" > zzz_debug_WARN_block_${iblockHeight}.json
         fi
         [[ ${SERVICE_MODE} != "Y" ]] && echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
       done  # catch up from previous to current blockheight
