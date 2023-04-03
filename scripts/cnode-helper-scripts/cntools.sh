@@ -2870,7 +2870,7 @@ function main {
                 else
                   # get active/live stake/block info
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Active Stake" "$(formatLovelace "${p_active_stake}")")"
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC}" "Epoch Blocks" "${p_block_count}")"
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC}" "Lifetime Blocks" "${p_block_count}")"
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Live Stake" "$(formatLovelace "${p_live_stake}")")"
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} (incl owners)" "Delegators" "${p_live_delegators}")"
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Saturation" "${p_live_saturation}")"
