@@ -128,6 +128,9 @@ else
   . "${PARENT}"/env &>/dev/null
 fi
 
+# Source cntools.library to populate defaults for CNTools
+! . "${PARENT}"/cntools.library && myExit 1
+
 [[ ${PRINT_VERSION} = "true" ]] && myExit 0 "CNTools v${CNTOOLS_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))"
 
 # Do some checks when run in connected mode
@@ -202,8 +205,8 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
   echo "${PROT_PARAMS}" > "${TMP_DIR}"/protparams.json
 fi
 
-# get helper functions from library file
-! . "${PARENT}"/cntools.library && myExit 1
+# Test if koios is reachable , otherwise - unset KOIOS_API
+test_koios
 
 archiveLog # archive current log and cleanup log archive folder
 
@@ -2452,7 +2455,7 @@ function main {
               println DEBUG "Current epoch: ${FG_LBLUE}${epoch}${NC}"
               epoch_start=$((epoch + 1))
               epoch_end=$((epoch + poolRetireMaxEpoch))
-              println DEBUG "earlist epoch to retire pool is ${FG_LBLUE}${epoch_start}${NC} and latest ${FG_LBLUE}${epoch_end}${NC}"
+              println DEBUG "earliest epoch to retire pool is ${FG_LBLUE}${epoch_start}${NC} and latest ${FG_LBLUE}${epoch_end}${NC}"
               echo
               getAnswerAnyCust epoch_enter "Enter epoch in which to retire pool (blank for ${epoch_start})"
               [[ -z "${epoch_enter}" ]] && epoch_enter=${epoch_start}
