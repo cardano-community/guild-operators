@@ -349,7 +349,7 @@ download_cncli() {
   echo -e "\n  Downloading CNCLI..."
   rm -rf /tmp/cncli-bin && mkdir /tmp/cncli-bin
   pushd /tmp/cncli-bin >/dev/null || err_exit
-  cncli_asset_url="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-gnu.tar.gz')"
+  cncli_asset_url="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-musl.tar.gz')"
   if curl -sL -f -m ${CURL_TIMEOUT} -o cncli.tar.gz ${cncli_asset_url}; then
     tar zxf cncli.tar.gz &>/dev/null
     rm -f cncli.tar.gz
