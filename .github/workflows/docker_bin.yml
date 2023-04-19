@@ -1,7 +1,11 @@
 name: Docker Image 
 
-on: workflow_dispatch
-
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'files/docker/node/release-versions/cardano-node-latest.txt'
+      
 jobs:
   build:
     runs-on: ubuntu-latest
