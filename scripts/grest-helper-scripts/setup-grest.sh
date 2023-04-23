@@ -210,7 +210,7 @@ SGVERSION=1.0.10
   # Description : Kill a running cron script (does not stop psql executions).
   kill_cron_script_process() {
     local job=$1
-    sudo pkill -9 -f "${job}.sh"
+    sudo pkill -9 -f "${job}.s[h]" >/dev/null 2>&1
   }
 
   # Description : Remove all grest-related cron entries.
@@ -251,7 +251,7 @@ SGVERSION=1.0.10
       [[ ! -f "${HAPROXY_CFG}" ]] && OVERWRITE_CONFIG="Y"
       [[ ! -f "${CNODE_HOME}"/priv/grest.conf ]] && OVERWRITE_CONFIG="Y"
     else
-      [[ "${I_ARGS}" =~ "p" ]] && INSTALL_POSTGREST="Y"
+      [[ "${I_ARGS}" =~ "p" ]] && INSTALL_POSTGREST="Y" && DB_QRY_UPDATES="Y"
       [[ "${I_ARGS}" =~ "r" ]] && INSTALL_HAPROXY="Y"
       [[ "${I_ARGS}" =~ "m" ]] && INSTALL_MONITORING_AGENTS="Y"
       [[ "${I_ARGS}" =~ "c" ]] && OVERWRITE_CONFIG="Y"
@@ -524,7 +524,7 @@ SGVERSION=1.0.10
 			ExecStartPre=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c
 			ExecStart=/usr/sbin/haproxy -Ws -f \"\\\$CONFIG\" -p \"\\\$PIDFILE\"
 			ExecReload=/usr/sbin/haproxy -f \"\\\$CONFIG\" -c
-			ExecReload=/bin/kill -USR2 $MAINPID
+			ExecReload=/bin/kill -USR2 \\\$MAINPID
 			Restart=on-failure
 			SuccessExitStatus=143
 			KillMode=mixed

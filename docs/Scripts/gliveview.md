@@ -83,6 +83,9 @@ If the node is run as a core, identified by the 'forge-about-to-lead' parameter,
 
 A manual peer analysis can be triggered by key press `p`. A latency test will be done on incoming and outgoing connections to the node.
 
+!!! warning "Note"
+    Note that with P2P enabled, an incoming/outgoing connection can be reused for bi-directional traffic. There isnt a way to distinctly identify the P2P peer's direction yet for a given IP.
+
 Outgoing connections(peers in topology file), ping type used is done in this order:  
 1. cncli - If available, this gives the most accurate measure as it checks the entire handshake process against the remote peer.  
 2. ss - Sends a TCP SYN package to ping the remote peer on the `cardano-node` port. Should give ~100% success rate.  
