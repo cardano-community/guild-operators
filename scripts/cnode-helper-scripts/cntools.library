@@ -2492,7 +2492,7 @@ witnessTx() {
       println ERROR "\n${FG_RED}ERROR${NC}: file not found: ${skey}"
       return 1
     elif [[ $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
-      if[[ ${isHW} = 'Y' ]]; then
+      if [[ ${isHW} = 'Y' ]]; then
         # just add key to witness_command()
         hw_witness_command+=( --hw-signing-file "${skey}" )
       else
