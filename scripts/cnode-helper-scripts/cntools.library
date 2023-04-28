@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=10
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=2
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=3
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -2493,17 +2493,21 @@ witnessTx() {
       return 1
     elif [[ $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
       if [[ ${isHW} = 'Y' ]]; then
-        # just add key to witness_command()
-        hw_witness_command+=( --hw-signing-file "${skey}" )
+        # just add key and output to witness_command()
+        tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
+        hw_witness_command+=(
+          --hw-signing-file "${skey}"
+          --out-file "${tx_witness}"
+        )
       else
         isHW=Y
-        hw_tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
+        tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
         hw_witness_command=(
           cardano-hw-cli transaction witness
           --tx-file "${tx_raw}"
           --hw-signing-file "${skey}"
+          --out-file "${tx_witness}"
           ${NETWORK_IDENTIFIER}
-          --out-file "${hw_tx_witness}"
         )
       fi
     else
@@ -2526,7 +2530,6 @@ witnessTx() {
     if ! unlockHWDevice "witness the transaction"; then return 1; fi
     println ACTION "${hw_witness_command[@]}"
     if ! "${hw_witness_command[@]}"; then println ERROR "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!" && return 1; fi
-    tx_witness_files+=( "${hw_tx_witness}" )
   fi
 }
 
