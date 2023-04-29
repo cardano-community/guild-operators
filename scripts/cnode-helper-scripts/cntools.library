@@ -2497,6 +2497,7 @@ witnessTx() {
         tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
         hw_witness_command+=(
           --hw-signing-file "${skey}"
+          --change-output-key-file "${skey}"
           --out-file "${tx_witness}"
         )
       else
@@ -2506,6 +2507,7 @@ witnessTx() {
           cardano-hw-cli transaction witness
           --tx-file "${tx_raw}"
           --hw-signing-file "${skey}"
+          --change-output-key-file "${skey}"
           --out-file "${tx_witness}"
           ${NETWORK_IDENTIFIER}
         )
@@ -2541,7 +2543,7 @@ assembleTx() {
   if [[ ${#tx_witness_files[@]} -gt 0 ]]; then # assemble witness files and sign
     tx_witness_out=()
     for witness in "${tx_witness_files[@]}"; do
-      [[ -z ${witness//[[:blank:]]/} ]] && continue
+      [[ -z ${witness//[[:blank:]]/} || ! -s "${witness}" ]] && continue
       if [[ -f "${witness}" ]]; then
         tx_witness_out+=( "--witness-file ${witness}" )
       else
