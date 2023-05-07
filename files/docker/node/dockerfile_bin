@@ -32,7 +32,7 @@ RUN set -x && apt update \
     && echo "export LC_ALL=en_US.UTF-8" >> ~/.bashrc \
     && echo "export LANG=en_US.UTF-8" >> ~/.bashrc \
     && echo "export LANGUAGE=en_US.UTF-8" >> ~/.bashr \
-    && apt-get install -y procps libsecp256k1-0 libcap2 libselinux1 libc6 libsodium-dev ncurses-bin iproute2 curl wget apt-utils xz-utils netbase sudo coreutils dnsutils net-tools procps tcptraceroute bc usbip sqlite3 python3 tmux jq ncurses-base libtool autoconf git gnupg tcptraceroute util-linux less openssl bsdmainutils dialog \
+    && apt-get install -y procps libsecp256k1-0 libcap2 libselinux1 libc6 libsodium-dev ncurses-bin iproute2 curl wget apt-utils xz-utils netbase sudo coreutils dnsutils net-tools procps tcptraceroute bc usbip sqlite3 python3 tmux jq ncurses-base libtool autoconf git gnupg tcptraceroute util-linux less openssl bsdmainutils dialog vim \
     && apt-get -y remove libpq-dev build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ && apt-get -y purge && apt-get -y clean && apt-get -y autoremove && rm -rf /var/lib/apt/lists/* \
     && cd /usr/bin \
     && wget http://www.vdberg.org/~richard/tcpping \
