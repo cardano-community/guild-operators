@@ -2709,7 +2709,7 @@ function main {
               if [[ ${CNTOOLS_MODE} = "OFFLINE" && -f "${pool_config}" ]]; then
                 conf_pledge=$(( $(jq -r '.pledgeADA //0' "${pool_config}") * 1000000 ))
                 conf_margin=$(jq -r '.margin //0' "${pool_config}")
-                conf_cost=$(( $(jq -r '.costADA //0' "${pool_config}") * 1000000 ))
+                conf_cost=$(jq -r '.costADA //0' "${pool_config}" | tr -d '.')
                 conf_owner=$(jq -r '.pledgeWallet //"unknown"' "${pool_config}")
                 conf_reward=$(jq -r '.rewardWallet //"unknown"' "${pool_config}")
                 println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatAsset "${conf_pledge::-6}")")"
