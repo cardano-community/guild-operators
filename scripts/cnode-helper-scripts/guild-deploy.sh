@@ -514,7 +514,6 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json || err_exit "${err_msg} topology-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json || err_exit "${err_msg} config-guild.json"
   elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview)$ ]]; then
-    # test push
     NWCONFURL="https://book.world.dev.cardano.org/environments"
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json" || err_exit "${err_msg} shelley-genesis.json"
