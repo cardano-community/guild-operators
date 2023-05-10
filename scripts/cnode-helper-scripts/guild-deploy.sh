@@ -247,8 +247,8 @@ os_dependencies() {
 build_dependencies() {
   echo -e "\nInstalling Haskell build/compiler dependencies (if missing)..."
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
-  export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.7
-  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.6.2.0
+  export BOOTSTRAP_HASKELL_GHC_VERSION=9.4.5
+  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.10.1.0
   if ! command -v ghcup &>/dev/null; then
     echo -e "\nInstalling ghcup (The Haskell Toolchain installer) .."
     BOOTSTRAP_HASKELL_NONINTERACTIVE=1
@@ -303,7 +303,7 @@ build_libsodium() {
   pushd "${HOME}"/git >/dev/null || err_exit
   [[ ! -d "./libsodium" ]] && git clone https://github.com/input-output-hk/libsodium &>/dev/null
   pushd libsodium >/dev/null || err_exit
-  git checkout 66f017f1 &>/dev/null
+  git checkout dbb48cc &>/dev/null
   ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1
   ./configure > configure.log >> /tmp/libsodium.log 2>&1
   make > make.log 2>&1 || err_exit  " Could not complete \"make\" for libsodium package, please try to run it manually to diagnose!"
@@ -319,7 +319,7 @@ download_cnodebins() {
   pushd "${HOME}"/tmp >/dev/null || err_exit
   echo -e "\n  Downloading Cardano Node archive created from IO CI builds.."
   rm -f cardano-node cardano-address
-  curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-node-releases/cardano-node-1.35.7-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at update-cardano-mainnet.iohk.io!"
+  curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-node-releases/cardano-node-8.0.0-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at update-cardano-mainnet.iohk.io!"
   tar zxf cnode.tar.gz ./cardano-node ./cardano-cli ./cardano-submit-api ./bech32 &>/dev/null
   rm -f cnodebin.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
