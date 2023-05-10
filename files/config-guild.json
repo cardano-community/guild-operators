@@ -1,4 +1,5 @@
 {
+  "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
   "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
   "AlonzoGenesisHash": "d89208a6f12ce204057f32beef1aec0e2dd6a9634d374f5bbec567b9866252c1",
   "ApplicationName": "cardano-sl",

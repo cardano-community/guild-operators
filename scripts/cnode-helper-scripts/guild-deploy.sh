@@ -510,6 +510,7 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp ${URL_RAW}/files/byron-genesis-guild.json || err_exit "${err_msg} byron-genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp ${URL_RAW}/files/genesis-guild.json || err_exit "${err_msg} genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp ${URL_RAW}/files/alonzo-genesis-guild.json || err_exit "${err_msg} alonzo-genesis-guild.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp ${URL_RAW}/files/conway-genesis-guild.json || err_exit "${err_msg} conway-genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json || err_exit "${err_msg} topology-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json || err_exit "${err_msg} config-guild.json"
   elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview)$ ]]; then
@@ -517,6 +518,7 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json" || err_exit "${err_msg} shelley-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/${NETWORK}/alonzo-genesis.json" || err_exit "${err_msg} alonzo-genesis.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp "${NWCONFURL}/${NETWORK}/conway-genesis.json" || err_exit "${err_msg} conway-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp "${NWCONFURL}/${NETWORK}/topology.json" || err_exit "${err_msg} topology.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp "${URL_RAW}/files/config-${NETWORK}.json" || err_exit "${err_msg} config-${NETWORK}.json"
   else

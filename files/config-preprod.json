@@ -1,4 +1,5 @@
 {
+  "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
   "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
   "ApplicationName": "cardano-sl",
   "ApplicationVersion": 0,
@@ -12,7 +13,6 @@
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
   "EnableLogging": true,
   "EnableLogMetrics": false,
-  "TestEnableDevelopmentNetworkProtocols": true,
   "TargetNumberOfActivePeers": 20,
   "TargetNumberOfEstablishedPeers": 50,
   "TargetNumberOfKnownPeers": 100,

@@ -1,4 +1,5 @@
 {
+  "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
   "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
   "AlonzoGenesisHash": "7e94a15f55d1e82d10f09203fa1d40f8eede58fd8066542cf6566008068ed874",
   "ApplicationName": "cardano-sl",
@@ -20,7 +21,6 @@
   "TestAllegraHardForkAtEpoch": 0,
   "TestAlonzoHardForkAtEpoch": 0,
   "TestEnableDevelopmentHardForkEras": true,
-  "TestEnableDevelopmentNetworkProtocols": true,
   "TestMaryHardForkAtEpoch": 0,
   "TestShelleyHardForkAtEpoch": 0,
   "EnableLogging": true,

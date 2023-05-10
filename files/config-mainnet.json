@@ -1,4 +1,5 @@
 {
+  "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
   "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
   "ApplicationName": "cardano-sl",
   "ApplicationVersion": 1,
