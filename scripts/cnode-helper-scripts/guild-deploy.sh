@@ -531,11 +531,21 @@ populate_cnode() {
     [[ -f dbsync.json ]] && cp -f dbsync.json "dbsync.json_bkp$(date +%s)"
   fi
   if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]]; then
-    mv -f byron-genesis.json.tmp byron-genesis.json && mv -f shelley-genesis.json.tmp shelley-genesis.json && mv -f alonzo-genesis.json.tmp alonzo-genesis.json
-    mv -f topology.json.tmp topology.json && mv -f config.json.tmp config.json && mv -f dbsync.json.tmp dbsync.json
+    mv -f byron-genesis.json.tmp byron-genesis.json
+    mv -f shelley-genesis.json.tmp shelley-genesis.json
+    mv -f alonzo-genesis.json.tmp alonzo-genesis.json
+    mv -f conway-genesis.json.tmp conway-genesis.json
+    mv -f topology.json.tmp topology.json
+    mv -f config.json.tmp config.json
+    mv -f dbsync.json.tmp dbsync.json
   else
-    rm -f byron-genesis.json.tmp && rm -f shelley-genesis.json.tmp && rm -f alonzo-genesis.json.tmp
-    rm -f topology.json.tmp && rm -f config.json.tmp && rm -f dbsync.json.tmp
+    rm -f byron-genesis.json.tmp
+    rm -f shelley-genesis.json.tmp
+    rm -f alonzo-genesis.json.tmp
+    rm -f conway-genesis.json.tmp
+    rm -f topology.json.tmp
+    rm -f config.json.tmp
+    rm -f dbsync.json.tmp
   fi
   
   pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
