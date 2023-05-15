@@ -707,9 +707,9 @@ getEraIdentifier() {
     Shelley) ERA_IDENTIFIER="--shelley-era" ;;
     Allegra) ERA_IDENTIFIER="--allegra-era" ;;
     Mary)    ERA_IDENTIFIER="--mary-era" ;;
-    #Alonzo)  ERA_IDENTIFIER="--alonzo-era" ;;
-    #Babbage) ERA_IDENTIFIER="--babbage-era" ;;
-    *)       ERA_IDENTIFIER="--mary-era" # use mary era as default
+    Alonzo)  ERA_IDENTIFIER="--alonzo-era" ;;
+    Babbage) ERA_IDENTIFIER="--babbage-era" ;;
+    *)       ERA_IDENTIFIER="--babbage-era" # use mary era as default
              [[ ${OFFLINE_MODE} = "N" ]] && return 1
   esac
   return 0
@@ -963,6 +963,8 @@ BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
 IP_VERSION=$(tr '[:upper:]' '[:lower:]' <<< "${IP_VERSION}")
 [[ -z ${USE_EKG} ]] && USE_EKG='Y'
 CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}")
+
+[[ -z ${CIP0094_POLL_URL} ]] && CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json"
 
 if [[ -n "${CNODE_PID}" ]]; then
   if [[ "${USE_EKG}" == "N" ]]; then
