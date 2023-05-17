@@ -3087,92 +3087,13 @@ function main {
               else
                 if ! selectOpMode; then continue; fi
               fi
-              echo
-              println DEBUG "# Select the voting pool"
-              if [[ ${op_mode} = "online" ]]; then
-                selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
-                case $? in
-                  1) waitForInput; continue ;;
-                  2) continue ;;
-                esac
-                getPoolType ${pool_name}
-                case $? in
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitForInput && continue ;;
-                esac
-              else
-                selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
-                case $? in
-                  1) waitForInput; continue ;;
-                  2) continue ;;
-                esac
-                getPoolType ${pool_name}
-              fi
-              echo
-              println DEBUG "# Select wallet for the ballot cast transaction fee"
-              if [[ ${op_mode} = "online" ]]; then
-                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
-                case $? in
-                  1) waitForInput; continue ;;
-                  2) continue ;;
-                esac
-                getWalletType ${wallet_name}
-                case $? in
-                  0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
-                esac
-              else
-                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
-                case $? in
-                  1) waitForInput; continue ;;
-                  2) continue ;;
-                esac
-                getWalletType ${wallet_name}
-                case $? in
-                  0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
-                esac
-              fi
-              getBaseAddress ${wallet_name}
-              getPayAddress ${wallet_name}
-              getBalance ${base_addr}
-              base_lovelace=${assets[lovelace]}
-              getBalance ${pay_addr}
-              pay_lovelace=${assets[lovelace]}
-              if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
-                # Both payment and base address available with funds, let user choose what to use
-                println DEBUG "\n# Select wallet address to use"
-                if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
-                fi
-                select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
-                case $? in
-                  0) addr="${base_addr}" ;;
-                  1) addr="${pay_addr}" ;;
-                  2) continue ;;
-                esac
-              elif [[ ${pay_lovelace} -gt 0 ]]; then
-                addr="${pay_addr}"
-                if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
-                fi
-              elif [[ ${base_lovelace} -gt 0 ]]; then
-                addr="${base_addr}"
-                if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                fi
-              else
-                println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
-                waitForInput && continue
-              fi
               epoch=$(getEpoch)
               echo 
               echo "Current ${NETWORK_NAME} epoch: ${epoch}"
               NETWORK_NAME_LOWER=$(echo "$NETWORK_NAME" | awk '{print tolower($0)}')
               println LOG "Query ${NETWORK_NAME} polls ..."
               println ACTION "curl -sSL -f -H \"Content-Type: application/json\" ${CIP0094_POLL_URL}"
-              ! polls=$(curl -sSL -f -H "Content-Type: application/json"  "${CIP0094_POLL_URL}" | jq -r .networks.${NETWORK_NAME_LOWER} 2>&1) && error_msg=${polls} && waitForInput && continue
+              ! polls=$(curl -sSL -f -H "Content-Type: application/json"  "${CIP0094_POLL_URL}" | jq -r .networks.${NETWORK_NAME_LOWER} 2>&1) && waitForInput && continue
               poll_index=$(echo $polls | jq '. | length')
               if [[ "$poll_index" -gt 0 ]]; then
                 poll_index_act=0
@@ -3190,112 +3111,195 @@ function main {
                     echo -e "$poll_index_act) $(jq -r '[.tx_id, .title] | @tsv' <<< $poll)"
                   fi
                 done < <(echo $polls | jq -c .[])
+                if [[ "$poll_index_act" -gt 0 ]]; then 
                   while :; do
-                  read -p "Please select a poll: " poll_index_selected
-                  [[ $poll_index_selected =~ ^[[:digit:]]+$ ]] || continue
-                    if [[ "$poll_index_selected" -lt "1" ]] || [[ "$poll_index_selected" -gt "$poll_index_act" ]]; then
-                    continue
-                  fi
-                  break
-                done
-              else
-                echo && println "${FG_YELLOW}There are currently no active polls in ${NETWORK_NAME}${NC}" && waitForInput && continue
-              fi
-              poll_txId=${poll_index_txIds[$((poll_index_selected-1))]}
-              poll_title=${poll_index_titles[$(($poll_index_selected-1))]}
-              echo
-              echo "Query ${NETWORK_NAME} ${poll_txId} metadata from Koios API..."
-              println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_tx_hashes\":[\"${poll_txId}\"]}' ${KOIOS_API}/tx_metadata"
-              ! tx=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_tx_hashes":["'${poll_txId}'"]}' "${KOIOS_API}/tx_metadata" 2>&1) && error_msg=${tx} && waitForInput && continue
-              tx_meta=$(echo ${tx} | jq -r ".[0].metadata.\"94\" // empty" 2> /dev/null  )
-              if [[ ! -z ${tx_meta} ]]; then
-                echo "OK: Metadata has a CIP-0094 label"
-                #Variables for the Question and the Options
-                #this code part was originaly written by SPO Scripts (https://github.com/gitmachtl/scripts/blob/master/cardano/testnet/13a_spoPoll.sh)
-                questionString=""   #string that holds the question
-                optionString=()     #array of options
-                #Question found now convert it to cbor
-                cborStr="" #setup a clear new cbor string variable
-                cborStr+=$(to_cbor "map" 1) #map 1
-                cborStr+=$(to_cbor "unsigned" 94) #unsigned 94
-                cborStr+=$(to_cbor "map" 2) #map 2
-                cborStr+=$(to_cbor "unsigned" 0) #unsigned 0
-                #Add QuestionStrings
-                questionStrLength=$(jq -r ".\"0\" | length" <<< ${tx_meta} 2> /dev/null)
-                if [[ ${questionStrLength} -eq 0 ]]; then
-                    echo -e "\n${FG_RED}ERROR - No question string included\n${NC}" && waitForInput && continue
-                fi
-                cborStr+=$(to_cbor "array" ${questionStrLength}) #array with the number of entries
-                for (( tmpCnt=0; tmpCnt<${questionStrLength}; tmpCnt++ ))
-                do
-                    strEntry=$(jq -r ".\"0\"[${tmpCnt}]" <<< ${tx_meta} 2> /dev/null)
-                    cborStr+=$(to_cbor "string" "${strEntry}") #string
-                    questionString+="${strEntry}"
-                done
-                cborStr+=$(to_cbor "unsigned" 1) #unsigned 1
-                #Add OptionsStrings
-                optionsStrLength=$(jq -r ".\"1\" | length" <<< ${tx_meta} 2> /dev/null)
-                if [[ ${optionsStrLength} -eq 0 ]]; then
-                    echo -e "\n${FG_RED}ERROR - No option strings included\n${NC}" && waitForInput && continue
-                fi
-                cborStr+=$(to_cbor "array" ${optionsStrLength}) #array with the number of options
-                
-                for (( tmpCnt=0; tmpCnt<${optionsStrLength}; tmpCnt++ ))
-                do
-                    optionEntryStrLength=$(jq -r ".\"1\"[${tmpCnt}] | length" <<< ${tx_meta} 2> /dev/null)
-                    cborStr+=$(to_cbor "array" ${optionEntryStrLength}) #array with the number of entries
-                    for (( tmpCnt2=0; tmpCnt2<${optionEntryStrLength}; tmpCnt2++ ))
-                    do
-                        strEntry=$(jq -r ".\"1\"[${tmpCnt}][${tmpCnt2}]" <<< ${tx_meta} 2> /dev/null)
-                        cborStr+=$(to_cbor "string" "${strEntry}") #string
-                        optionString[${tmpCnt}]+="${strEntry}"
-                    done
-                done
-                #Show the question and the available answer options
-                echo
-                echo -e "${FG_GREEN}Question${NC}: ${questionString}"
-                echo
-                echo -e "There are ${optionsStrLength} answer option(s) available:"
-                for (( tmpCnt=0; tmpCnt<${optionsStrLength}; tmpCnt++ ))
-                do
-                 echo -e "[${FG_YELLOW}${tmpCnt}${NC}] ${optionString[${tmpCnt}]}"
-                done
-                echo
-                #Read in the answer, loop until a valid answer index is given
-                answer="-1"
-                while [ -z "${answer##*[!0-9]*}" ] || [[ ${answer} -lt 0 ]] || [[ ${answer} -ge ${optionsStrLength} ]];
-                do
-                    read -p $'Please indicate an answer (by index): ' answer
-                    if [[ ${answer} == "" ]]; then 
-                      echo && println "${FG_YELLOW}No answer${NC}" && waitForInput && continue
+                    read -p "Please select a poll: " poll_index_selected
+                    [[ $poll_index_selected =~ ^[[:digit:]]+$ ]] || continue
+                      if [[ "$poll_index_selected" -lt "1" ]] || [[ "$poll_index_selected" -gt "$poll_index_act" ]]; then
+                      continue
                     fi
-                done
-                echo
-                echo -e "Your answer is '${optionString[${answer}]}'."
-                echo
-                #Generating the answer cbor
-                questionHash=$(echo -n "${cborStr}" | xxd -r -ps | b2sum -l 256 -b | cut -d' ' -f 1)
-                #Make a new cborStr with the answer
-                cborStr="" #setup a clear new cbor string variable
-                cborStr+=$(to_cbor "map" 1) #map 1
-                cborStr+=$(to_cbor "unsigned" 94) #unsigned 94
-                cborStr+=$(to_cbor "map" 2) #map 2
-                cborStr+=$(to_cbor "unsigned" 2) #unsigned 2
-                cborStr+=$(to_cbor "bytes" "${questionHash}") #bytearray of the blake2b-256 hash of the question cbor
-                cborStr+=$(to_cbor "unsigned" 3) #unsigned 3
-                cborStr+=$(to_cbor "unsigned" ${answer}) #unsigned - answer index
-                #CBOR Answer is ready, write it out to disc
-                cborFile="${TMP_DIR}/CIP-0094_${poll_txId}_answer.cbor"
-                #echo -ne "Writing '${cborFile}' to disc ... "
-                xxd -r -ps <<< ${cborStr} 2> /dev/null > ${cborFile}
-                if [ $? -ne 0 ]; then echo -e "\n\n${FG_RED}ERROR, could not write to file!\n\n${NC}"; exit 1; fi
-                if ! submitPoll "${pool_name}"; then
+                    break
+                  done
+                  poll_txId=${poll_index_txIds[$((poll_index_selected-1))]}
+                  poll_title=${poll_index_titles[$(($poll_index_selected-1))]}
+                  echo
+                  println DEBUG "# Select the voting pool"
+                  if [[ ${op_mode} = "online" ]]; then
+                    selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
+                    getPoolType ${pool_name}
+                    case $? in
+                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
+                      3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitForInput && continue ;;
+                    esac
+                  else
+                    selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
+                    getPoolType ${pool_name}
+                  fi
+                  echo
+                  println DEBUG "# Select wallet for the ballot cast transaction fee"
+                  if [[ ${op_mode} = "online" ]]; then
+                    selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
+                    getWalletType ${wallet_name}
+                    case $? in
+                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
+                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
+                      3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                    esac
+                  else
+                    selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
+                    getWalletType ${wallet_name}
+                    case $? in
+                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
+                    esac
+                  fi
+                  getBaseAddress ${wallet_name}
+                  getPayAddress ${wallet_name}
+                  getBalance ${base_addr}
+                  base_lovelace=${assets[lovelace]}
+                  getBalance ${pay_addr}
+                  pay_lovelace=${assets[lovelace]}
+                  if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
+                    # Both payment and base address available with funds, let user choose what to use
+                    println DEBUG "\n# Select wallet address to use"
+                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                      println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                      println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                    fi
+                    select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                    case $? in
+                      0) addr="${base_addr}" ;;
+                      1) addr="${pay_addr}" ;;
+                      2) continue ;;
+                    esac
+                  elif [[ ${pay_lovelace} -gt 0 ]]; then
+                    addr="${pay_addr}"
+                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                      println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                    fi
+                  elif [[ ${base_lovelace} -gt 0 ]]; then
+                    addr="${base_addr}"
+                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                      println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                    fi
+                  else
+                    println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
+                    waitForInput && continue
+                  fi
+                  echo
+                  echo "Query ${NETWORK_NAME} ${poll_txId} metadata from Koios API..."
+                  println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_tx_hashes\":[\"${poll_txId}\"]}' ${KOIOS_API}/tx_metadata"
+                  ! tx=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_tx_hashes":["'${poll_txId}'"]}' "${KOIOS_API}/tx_metadata" 2>&1) && error_msg=${tx} && waitForInput && continue
+                  tx_meta=$(echo ${tx} | jq -r ".[0].metadata.\"94\" // empty" 2> /dev/null  )
+                  if [[ ! -z ${tx_meta} ]]; then
+                    echo "OK: Metadata has a CIP-0094 label"
+                    #Variables for the Question and the Options
+                    #this code part was originaly written by SPO Scripts (https://github.com/gitmachtl/scripts/blob/master/cardano/testnet/13a_spoPoll.sh)
+                    questionString=""   #string that holds the question
+                    optionString=()     #array of options
+                    #Question found now convert it to cbor
+                    cborStr="" #setup a clear new cbor string variable
+                    cborStr+=$(to_cbor "map" 1) #map 1
+                    cborStr+=$(to_cbor "unsigned" 94) #unsigned 94
+                    cborStr+=$(to_cbor "map" 2) #map 2
+                    cborStr+=$(to_cbor "unsigned" 0) #unsigned 0
+                    #Add QuestionStrings
+                    questionStrLength=$(jq -r ".\"0\" | length" <<< ${tx_meta} 2> /dev/null)
+                    if [[ ${questionStrLength} -eq 0 ]]; then
+                        echo -e "\n${FG_RED}ERROR - No question string included\n${NC}" && waitForInput && continue
+                    fi
+                    cborStr+=$(to_cbor "array" ${questionStrLength}) #array with the number of entries
+                    for (( tmpCnt=0; tmpCnt<${questionStrLength}; tmpCnt++ ))
+                    do
+                        strEntry=$(jq -r ".\"0\"[${tmpCnt}]" <<< ${tx_meta} 2> /dev/null)
+                        cborStr+=$(to_cbor "string" "${strEntry}") #string
+                        questionString+="${strEntry}"
+                    done
+                    cborStr+=$(to_cbor "unsigned" 1) #unsigned 1
+                    #Add OptionsStrings
+                    optionsStrLength=$(jq -r ".\"1\" | length" <<< ${tx_meta} 2> /dev/null)
+                    if [[ ${optionsStrLength} -eq 0 ]]; then
+                        echo -e "\n${FG_RED}ERROR - No option strings included\n${NC}" && waitForInput && continue
+                    fi
+                    cborStr+=$(to_cbor "array" ${optionsStrLength}) #array with the number of options
+                    
+                    for (( tmpCnt=0; tmpCnt<${optionsStrLength}; tmpCnt++ ))
+                    do
+                        optionEntryStrLength=$(jq -r ".\"1\"[${tmpCnt}] | length" <<< ${tx_meta} 2> /dev/null)
+                        cborStr+=$(to_cbor "array" ${optionEntryStrLength}) #array with the number of entries
+                        for (( tmpCnt2=0; tmpCnt2<${optionEntryStrLength}; tmpCnt2++ ))
+                        do
+                            strEntry=$(jq -r ".\"1\"[${tmpCnt}][${tmpCnt2}]" <<< ${tx_meta} 2> /dev/null)
+                            cborStr+=$(to_cbor "string" "${strEntry}") #string
+                            optionString[${tmpCnt}]+="${strEntry}"
+                        done
+                    done
+                    #Show the question and the available answer options
+                    echo
+                    echo -e "${FG_GREEN}Question${NC}: ${questionString}"
+                    echo
+                    echo -e "There are ${optionsStrLength} answer option(s) available:"
+                    for (( tmpCnt=0; tmpCnt<${optionsStrLength}; tmpCnt++ ))
+                    do
+                     echo -e "[${FG_YELLOW}${tmpCnt}${NC}] ${optionString[${tmpCnt}]}"
+                    done
+                    echo
+                    #Read in the answer, loop until a valid answer index is given
+                    answer="-1"
+                    while [ -z "${answer##*[!0-9]*}" ] || [[ ${answer} -lt 0 ]] || [[ ${answer} -ge ${optionsStrLength} ]];
+                    do
+                        read -p $'Please indicate an answer (by index): ' answer
+                        if [[ ${answer} == "" ]]; then 
+                          echo && println "${FG_YELLOW}No answer${NC}" && waitForInput && continue
+                        fi
+                    done
+                    echo
+                    echo -e "Your answer is '${optionString[${answer}]}'."
+                    echo
+                    #Generating the answer cbor
+                    questionHash=$(echo -n "${cborStr}" | xxd -r -ps | b2sum -l 256 -b | cut -d' ' -f 1)
+                    #Make a new cborStr with the answer
+                    cborStr="" #setup a clear new cbor string variable
+                    cborStr+=$(to_cbor "map" 1) #map 1
+                    cborStr+=$(to_cbor "unsigned" 94) #unsigned 94
+                    cborStr+=$(to_cbor "map" 2) #map 2
+                    cborStr+=$(to_cbor "unsigned" 2) #unsigned 2
+                    cborStr+=$(to_cbor "bytes" "${questionHash}") #bytearray of the blake2b-256 hash of the question cbor
+                    cborStr+=$(to_cbor "unsigned" 3) #unsigned 3
+                    cborStr+=$(to_cbor "unsigned" ${answer}) #unsigned - answer index
+                    #CBOR Answer is ready, write it out to disc
+                    cborFile="${TMP_DIR}/CIP-0094_${poll_txId}_answer.cbor"
+                    #echo -ne "Writing '${cborFile}' to disc ... "
+                    xxd -r -ps <<< ${cborStr} 2> /dev/null > ${cborFile}
+                    if [ $? -ne 0 ]; then echo -e "\n\n${FG_RED}ERROR, could not write to file!\n\n${NC}"; exit 1; fi
+                    if ! submitPoll; then
+                      waitForInput && continue
+                    fi
+                  else
+                    echo && println "${FG_YELLOW}Cannot find valid metadata for this transaction${NC}" 
+                    waitForInput && continue
+                  fi
+                else
+                  echo && println "${FG_YELLOW}There are currently no active polls in ${NETWORK_NAME}${NC}" 
                   waitForInput && continue
                 fi
-                println "Poll ${FG_GREEN}${poll_txId}${NC} ballot casted to the network"
-                waitForInput && continue
               else
-                echo && println "${FG_YELLOW}Cannot find valid metadata for this transaction${NC}" 
+                echo && println "${FG_YELLOW}There are currently no polls in ${NETWORK_NAME}${NC}" 
                 waitForInput && continue
               fi
               ;; ###################################################################

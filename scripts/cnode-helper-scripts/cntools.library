@@ -2757,8 +2757,7 @@ submitPoll() {
 
   [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
 
-  pool_id_file="${POOL_FOLDER}/${1}/${POOL_ID_FILENAME}-bech32"
-  POOL_ID_HASH=$(cat ${pool_id_file} | bech32 )
+  POOL_ID_HASH=$(cat ${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME})
   
   getBalance ${addr}
   if ! getTTL; then return 1; fi
