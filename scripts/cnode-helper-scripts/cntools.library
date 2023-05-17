@@ -2473,8 +2473,8 @@ burnAsset() {
 #             : populate an array variable called 'build_args' with all data
 # Parameters  : build_args  >  an array with all the arguments to assemble the transaction
 buildTx() {
-  println ACTION "${CCLI} transaction build-raw ${ERA_IDENTIFIER} --cddl-format ${build_args[*]}"
-  ${CCLI} transaction build-raw ${ERA_IDENTIFIER} --cddl-format "${build_args[@]}"
+  println ACTION "${CCLI} transaction build-raw ${ERA_IDENTIFIER} ${build_args[*]}"
+  ${CCLI} transaction build-raw ${ERA_IDENTIFIER} "${build_args[@]}"
 }
 
 # Command     : witnessTx [raw tx file] [signing keys ...]
