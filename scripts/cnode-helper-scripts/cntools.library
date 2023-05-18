@@ -13,9 +13,9 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=10
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=2
+CNTOOLS_MINOR_VERSION=3
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -2652,5 +2652,210 @@ selectOpMode() {
     0) op_mode="online" ;;
     1) op_mode="hybrid" ;;
     2) return 1 ;;
+  esac
+}
+
+# Command     : to_cbor
+# Description : converts different majortypes and there values into a cborHexString
+# Original src: SPO Scripts (https://github.com/gitmachtl/scripts/blob/master/cardano/testnet/00_common.sh#L979) 
+to_cbor() {
+
+  # ${1} type: unsigned, negative, bytes, string, array, map, tag
+  # ${2} value: unsigned int value or hexstring for bytes
+
+  local type=${1}
+  local value="${2}"
+
+  # majortypes
+  #  unsigned      000x|xxxx       majortype 0     not limited, but above 18446744073709551615 (2^64), the numbers are represented via tag2 + bytearray
+  #  bytes         010x|xxxx       majortype 2     limited to max. 65535 here
+  #  array         100x|xxxx       majortype 4     limited to max. 65535 here
+  #  map           101x|xxxx       majortype 5     limited to max. 65535 here
+  # extras - not used yet but implemented for the future
+  #  negative    001x|xxxx    majortype 1    not limited, but below -18446744073709551616 (-2^64 -1), the numbers are represented via tag3 + bytearray
+  #  string    011x|xxxx    majortype 3    limited to max. 65535 chars
+  #  tag           110x|xxxx       majortype 6     limited to max. 65535 here
+
+  case ${type} in
+    #unsigned - input is an unsigned integer, range is selected via a bc query because bash can't handle big numbers
+    unsigned )
+      if [[ $(bc <<< "${value} < 24") -eq 1 ]]; then printf -v cbor "%02x" $((10#${value})) #1byte total value below 24
+      elif [[ $(bc <<< "${value} < 256") -eq 1 ]]; then printf -v cbor "%04x" $((0x1800 + 10#${value})) #2bytes total: first 0x1800 + 1 lower byte value
+      elif [[ $(bc <<< "${value} < 65536") -eq 1 ]]; then printf -v cbor "%06x" $((0x190000 + 10#${value})) #3bytes total: first 0x190000 + 2 lowerbytes value
+      elif [[ $(bc <<< "${value} < 4294967296") -eq 1 ]]; then printf -v cbor "%10x" $((0x1A00000000 + 10#${value})) #5bytes total: 0x1A00000000 + 4 lower bytes value
+      elif [[ $(bc <<< "${value} < 18446744073709551616") -eq 1 ]]; then local tmp="00$(bc <<< "obase=16;ibase=10;${value}+498062089990157893632")"; cbor="${tmp: -18}" #9bytes total: first 0x1B0000000000000000 + 8 lower bytes value
+      #if value does not fit into an 8byte unsigned integer, the cbor representation is tag2(pos.bignum)+bytearray of the value
+      else local cbor=$(to_cbor "tag" 2); local tmp="00$(bc <<< "obase=16;ibase=10;${value}")"; tmp=${tmp: -$(( (${#tmp}-1)/2*2 ))}; local cbor+=$(to_cbor "bytes" ${tmp}) #fancy calc to get a leading zero in the hex array if needed
+      fi
+      ;;
+    #bytestring - input is a hexstring
+    bytes )
+      local bytesLength=$(( ${#value} / 2 ))  #bytesLength is length of value /2 because of hex encoding (2chars -> 1byte)
+      if [[ ${bytesLength} -lt 24 ]]; then printf -v cbor "%02x${value}" $((0x40 + 10#${bytesLength})) #1byte total 0x40 + lower part value & bytearrayitself
+      elif [[ ${bytesLength} -lt 256 ]]; then printf -v cbor "%04x${value}" $((0x5800 + 10#${bytesLength})) #2bytes total: first 0x4000 + 0x1800 + 1 lower byte value & bytearrayitself
+      elif [[ ${bytesLength} -lt 65536 ]]; then printf -v cbor "%06x${value}" $((0x590000 + 10#${bytesLength})) #3bytes total: first 0x400000 + 0x190000 + 2 lower bytes value & bytearrayitself
+      fi
+      ;;
+    #array - input is an unsigned integer
+    array )
+      if [[ ${value} -lt 24 ]]; then printf -v cbor "%02x" $((0x80 + 10#${value})) #1byte total 0x80 + lower part value
+      elif [[ ${value} -lt 256 ]]; then printf -v cbor "%04x" $((0x9800 + 10#${value})) #2bytes total: first 0x8000 + 0x1800 & 1 lower byte value
+      elif [[ ${value} -lt 65536 ]]; then printf -v cbor "%06x" $((0x990000 + 10#${value})) #3bytes total: first 0x800000 + 0x190000 & 2 lower bytes value
+      fi
+      ;;
+    #map - input is an unsigned integer
+    map )
+      if [[ ${value} -lt 24 ]]; then printf -v cbor "%02x" $((0xA0 + 10#${value})) #1byte total 0xA0 + lower part value
+      elif [[ ${value} -lt 256 ]]; then printf -v cbor "%04x" $((0xB800 + 10#${value})) #2bytes total: first 0xA000 + 0x1800 & 1 lower byte value
+      elif [[ ${value} -lt 65536 ]]; then printf -v cbor "%06x" $((0xB90000 + 10#${value})) #3bytes total: first 0xA00000 + 0x190000 & 2 lower bytes value
+      fi
+      ;;
+    ###
+    ### the following types are not used in these scripts yet, but added to have a more complete function for the future
+    ###
+    #negative - input is a negative unsigned integer, range is selected via a bc query because bash can't handle big numbers
+    negative )
+      local value=$(bc <<< "${value//-/} -1") #negative representation in cbor is the neg. number as a pos. number minus 1, so a -500 will be represented as a 499
+      if [[ $(bc <<< "${value} < 24") -eq 1 ]]; then printf -v cbor "%02x" $((0x20 + 10#${value})) #1byte total 0x20 value below 24
+      elif [[ $(bc <<< "${value} < 256") -eq 1 ]]; then printf -v cbor "%04x" $((0x3800 + 10#${value})) #2bytes total: first 0x2000 + 0x1800 + 1 lower byte value
+      elif [[ $(bc <<< "${value} < 65536") -eq 1 ]]; then printf -v cbor "%06x" $((0x390000 + 10#${value})) #3bytes total: first 0x200000 + 0x190000 + 2 lowerbytes value
+      elif [[ $(bc <<< "${value} < 4294967296") -eq 1 ]]; then printf -v cbor "%10x" $((0x3A00000000 + 10#${value})) #5bytes total: 0x2000000000 + 0x1A00000000 + 4 lower bytes value
+      elif [[ $(bc <<< "${value} < 18446744073709551616") -eq 1 ]]; then local tmp="00$(bc <<< "obase=16;ibase=10;${value}+1088357900348863545344")"; cbor="${tmp: -18}" #9bytes total: first 0x3B0000000000000000 + 8 lower bytes value
+      #if value does not fit into an 8byte unsigned integer, the cbor representation is tag3(neg.bignum)+bytearray of the value
+      else local cbor=$(to_cbor "tag" 3); local tmp="00$(bc <<< "obase=16;ibase=10;${value}")"; tmp=${tmp: -$(( (${#tmp}-1)/2*2 ))}; local cbor+=$(to_cbor "bytes" ${tmp}) #fancy calc to get a leading zero in the hex array if needed
+      fi
+      ;;
+    #tag - input is an unsigned integer
+    tag )
+      if [[ ${value} -lt 24 ]]; then printf -v cbor "%02x" $((0xC0 + 10#${value})) #1byte total 0xC0 + lower part value
+      elif [[ ${value} -lt 256 ]]; then printf -v cbor "%04x" $((0xD800 + 10#${value})) #2bytes total: first 0xC000 + 0x1800 & 1 lower byte value
+      elif [[ ${value} -lt 65536 ]]; then printf -v cbor "%06x" $((0xD90000 + 10#${value})) #3bytes total: first 0xC00000 + 0x190000 & 2 lower bytes value
+      fi
+      ;;
+    #textstring - input is a utf8-string
+    string )
+      local value=$(echo -ne "${value}" | xxd -p -c 65536 | tr -d '\n') #convert the given string into a hexstring and process it further like a bytearray
+      local bytesLength=$(( ${#value} / 2 ))  #bytesLength is length of value /2 because of hex encoding (2chars -> 1byte)
+      if [[ ${bytesLength} -lt 24 ]]; then printf -v cbor "%02x${value}" $((0x60 + 10#${bytesLength})) #1byte total 0x60 + lower part value & bytearrayitself
+      elif [[ ${bytesLength} -lt 256 ]]; then printf -v cbor "%04x${value}" $((0x7800 + 10#${bytesLength})) #2bytes total: first 0x6000 + 0x1800 + 1 lower byte value & bytearrayitself
+      elif [[ ${bytesLength} -lt 65536 ]]; then printf -v cbor "%06x${value}" $((0x790000 + 10#${bytesLength})) #3bytes total: first 0x600000 + 0x190000 + 2 lower bytes value & bytearrayitself
+      fi
+      ;;
+  esac
+  echo -n "${cbor^^}" #return the cbor in uppercase
+}
+
+# Command     : submitPoll
+# Description : sign and submit a CIP-0094 poll answer
+submitPoll() {
+
+  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+  POOL_ID_HASH=$(cat ${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME})
+
+  getBalance ${addr}
+  if ! getTTL; then return 1; fi
+  getAssetsTxOut
+  metafile_param="--metadata-cbor-file ${cborFile}"
+  if [[ -n ${metafile} && -f ${metafile} ]]; then
+    metafile_param+=" --json-metadata-no-schema --metadata-json-file ${metafile}"
+  fi
+
+  build_args=(
+    ${tx_in}
+    --tx-out "${addr}+0${assets_tx_out}"
+    --invalid-hereafter ${ttl}
+    --fee 0
+    ${metafile_param}
+    --required-signer-hash "${POOL_ID_HASH}"
+    --out-file "${TMP_DIR}"/tx0.tmp
+  )
+
+  if ! buildTx; then return 1; fi
+
+  min_fee_args=(
+    transaction calculate-min-fee
+    --tx-body-file "${TMP_DIR}"/tx0.tmp
+    --tx-in-count ${utxo_cnt}
+    --tx-out-count 1
+    ${NETWORK_IDENTIFIER}
+    --witness-count 2
+    --byron-witness-count 0
+    --protocol-params-file "${TMP_DIR}"/protparams.json
+  )
+  println ACTION "${CCLI} ${min_fee_args[*]}"
+  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+
+  newBalance=$(( ${assets[lovelace]} - min_fee ))
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+
+  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    return 1
+  fi
+
+  tx_out="${addr}+${newBalance}${assets_tx_out}"
+  getMinUTxO "${tx_out}"
+  if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    return 1
+  fi
+
+  build_args=(
+    ${tx_in}
+    --tx-out "${tx_out}"
+    --invalid-hereafter ${ttl}
+    --fee ${min_fee}
+    ${metafile_param}
+    --required-signer-hash "${POOL_ID_HASH}"
+    --out-file "${TMP_DIR}"/tx.raw
+  )
+
+  if ! buildTx; then return 1; fi
+
+  needHWCLI=false
+  pay_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+  [[ $(jq .description "${pay_vk_file}") = *Hardware* ]] && needHWCLI=true
+  if [[ ${needHWCLI} = true ]]; then
+    if ! HWCLIversionCheck; then return 1; fi
+    if ! transformRawTx "${TMP_DIR}"/tx.raw; then return 1; fi
+  fi
+
+  if [[ ${op_mode} = "hybrid" ]]; then
+    if ! buildOfflineJSON "Poll Cast"; then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"poll-title\": \"${poll_title}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"poll-txId\": \"${poll_txId}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"poll-question\": \"${questionString}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"poll-answer\": \"${optionString[${answer}]}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
+    offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
+    jq -r . <<< "${offlineJSON}" > "${offline_tx}"
+    echo
+    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}$(basename ${pool_coldkey_sk_file})${NC}"
+    return 2 # return as failed to stop main processing and return to home menu
+  fi
+
+  getWalletType ${wallet_name}
+  echo "Transaction Fee: $(formatLovelace ${min_fee}) Ada"
+  println "\n# Do you want to publish this answer for pool ${pool_name} on ${NETWORK_NAME}?"
+  select_opt "[n] No" "[y] Yes"
+  case $? in
+   1) if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${pool_coldkey_sk_file}"; then return 1; fi
+      if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
+      if ! submitTx "${tx_signed}"; then return 1; fi
+      println "Poll ${FG_GREEN}${poll_txId}${NC} ballot casted to the network"
+      waitForInput && continue
   esac
 }
