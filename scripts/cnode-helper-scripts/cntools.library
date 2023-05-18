@@ -2755,8 +2755,10 @@ submitPoll() {
   getBalance ${addr}
   if ! getTTL; then return 1; fi
   getAssetsTxOut
-  #metafile_param="--json-metadata-detailed-schema --metadata-json-file ${cborFile}"
   metafile_param="--metadata-cbor-file ${cborFile}"
+  if [[ -n ${metafile} && -f ${metafile} ]]; then
+    metafile_param+=" --json-metadata-no-schema --metadata-json-file ${metafile}"
+  fi
 
   build_args=(
     ${tx_in}
@@ -2847,13 +2849,13 @@ submitPoll() {
 
   getWalletType ${wallet_name}
   echo "Transaction Fee: $(formatLovelace ${min_fee}) Ada"
-  echo
-  read -p "Do you want to publish this answer for pool ${pool_name} on ${NETWORK_NAME}? [y/n]" -n 1 -r
-  echo
-  if [[ $REPLY =~ ^[Yy]$ ]]
-  then
-    if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${pool_coldkey_sk_file}"; then return 1; fi
-    if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
-    if ! submitTx "${tx_signed}"; then return 1; fi
-  fi
+  println "\n# Do you want to publish this answer for pool ${pool_name} on ${NETWORK_NAME}?"
+  select_opt "[n] No" "[y] Yes"
+  case $? in
+   1) if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${pool_coldkey_sk_file}"; then return 1; fi
+      if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
+      if ! submitTx "${tx_signed}"; then return 1; fi
+      println "Poll ${FG_GREEN}${poll_txId}${NC} ballot casted to the network"
+      waitForInput && continue
+  esac
 }

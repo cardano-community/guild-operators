@@ -3287,6 +3287,51 @@ function main {
                     #echo -ne "Writing '${cborFile}' to disc ... "
                     xxd -r -ps <<< ${cborStr} 2> /dev/null > ${cborFile}
                     if [ $? -ne 0 ]; then echo -e "\n\n${FG_RED}ERROR, could not write to file!\n\n${NC}"; exit 1; fi
+                    # Optional metadata/message
+                    println "# Add a message to the answer? (Poll Dashboards will show this message)"
+                    select_opt "[n] No" "[y] Yes"
+                    case $? in
+                      0)  unset metafile ;;
+                      1)  metafile="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
+                          DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
+                          println OFF "\nA maximum of 64 characters(bytes) is allowed per line."
+                          println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
+                          exec >&6 2>&7 # normal stdout/stderr
+                          waitForInput "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
+                          ${DEFAULTEDITOR} "${metafile}"
+                          exec >&8 2>&9 # custom stdout/stderr
+                          if [[ ! -f "${metafile}" ]]; then
+                            println ERROR "${FG_RED}ERROR${NC}: file not found"
+                            println ERROR "File: ${FG_LGRAY}${metafile}${NC}"
+                            waitForInput && continue
+                          fi
+                          tput cuu 4 && tput ed
+                          if [[ ! -s ${metafile} ]]; then
+                            println "Message empty, skip and continue with answer without message? No to abort!"
+                            select_opt "[y] Yes" "[n] No"
+                            case $? in
+                              0) unset metafile ;;
+                              1) continue ;;
+                            esac
+                          else
+                            tx_msg='{"674":{"msg":[]}}'
+                            error=""
+                            while IFS="" read -r line || [[ -n "${line}" ]]; do
+                              line_bytes=$(echo -n "${line}" | wc -c)
+                              if [[ ${line_bytes} -gt 64 ]]; then
+                                error="${FG_RED}ERROR${NC}: line contains more that 64 bytes(characters) [${line_bytes}]\nLine: ${FG_LGRAY}${line}${NC}" && break
+                              fi
+                              if ! tx_msg=$(jq -er ".\"674\".msg += [\"${line}\"]" <<< "${tx_msg}" 2>&1); then
+                                error="${FG_RED}ERROR${NC}: ${tx_msg}" && break
+                              fi
+                            done < "${metafile}"
+                            [[ -n ${error} ]] && println ERROR "${error}" && waitForInput && continue
+                            jq -c . <<< "${tx_msg}" > "${metafile}"
+                            jq -r . "${metafile}" >&3 && echo
+                            println LOG "Transaction message: ${tx_msg}"
+                          fi
+                          ;;
+                    esac
                     if ! submitPoll; then
                       waitForInput && continue
                     fi
