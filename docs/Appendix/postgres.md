@@ -10,7 +10,7 @@ Execute commands below to set up Postgres Server
 
 ``` bash
 # Determine OS platform
-OS_ID=$(grep -i ^ID_LIKE= /etc/os-release | cut -d= -f 2)
+OS_ID=$( (grep -i ^ID_LIKE= /etc/os-release || grep -i ^ID= /etc/os-release) | cut -d= -f 2)
 DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
 
 if [ -z "${OS_ID##*debian*}" ]; then
