@@ -1677,9 +1677,10 @@ function main {
 						" ) Rotate   - rotate pool KES keys"\
 						" ) Decrypt  - remove write protection and decrypt pool"\
 						" ) Encrypt  - encrypt pool cold keys and make all files immutable"\
+						" ) Vote     - Cast a CIP-0094 Poll ballot"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Pool Operation\n"
-          select_opt "[n] New" "[i] Import" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home"
+          select_opt "[n] New" "[i] Import" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[v] Vote" "[h] Home"
           case $? in
             0) SUBCOMMAND="new" ;;
             1) SUBCOMMAND="import" ;;
@@ -1691,7 +1692,8 @@ function main {
             7) SUBCOMMAND="rotate" ;;
             8) SUBCOMMAND="decrypt" ;;
             9) SUBCOMMAND="encrypt" ;;
-            10) break ;;
+            10) SUBCOMMAND="vote" ;;
+            11) break ;;
           esac
           case $SUBCOMMAND in
             new)
@@ -3065,6 +3067,287 @@ function main {
               fi
               waitForInput && continue
               ;; ###################################################################
+            vote)
+              clear
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              println " >> POOL >> VOTE (CIP-0094)"
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              # check for required command line tools (xxd hexdump)
+              if ! cmdAvailable "xxd"; then 
+                myExit 1 "xxd is a hexdump tool to generate the CBOR encoded poll answer"
+              fi
+              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available to pay for poll ballot casts!${NC}" && waitForInput && continue
+              if [[ -z ${KOIOS_API} ]]; then
+                echo && println ERROR "${FG_YELLOW}Koios API required!${NC}" && waitForInput && continue
+              fi
+              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                waitForInput && continue
+              else
+                if ! selectOpMode; then continue; fi
+              fi
+              epoch=$(getEpoch)
+              echo 
+              echo "Current ${NETWORK_NAME} epoch: ${epoch}"
+              NETWORK_NAME_LOWER=$(echo "$NETWORK_NAME" | awk '{print tolower($0)}')
+              println LOG "Query ${NETWORK_NAME} polls ..."
+              println ACTION "curl -sSL -f -H \"Content-Type: application/json\" ${CIP0094_POLL_URL}"
+              ! polls=$(curl -sSL -f -H "Content-Type: application/json"  "${CIP0094_POLL_URL}" | jq -r .networks.${NETWORK_NAME_LOWER} 2>&1) && waitForInput && continue
+              poll_index=$(echo $polls | jq '. | length')
+              if [[ "$poll_index" -gt 0 ]]; then
+                poll_index_act=0
+                poll_index_cnt=0
+                declare poll_index_txIds=()
+                declare poll_index_titles=()
+                echo "Polls currently open for Pool answers:"
+                while read poll; do
+                  poll_index_cnt=$((poll_index_cnt+1))
+                  if [[ "$epoch" -ge "$(jq '.epoch_cast' <<< $poll)" ]] && [[ "$epoch" -lt "$(jq '.epoch_delegation' <<< $poll)" ]]; then
+                    # list polls who actually are open for SPO ballot casts (filter upcoming and passed ones)
+                    poll_index_act=$((poll_index_act+1))
+                    poll_index_txIds+=("$(jq -r '[.tx_id] | @tsv' <<< $poll)")
+                    poll_index_titles+=("$(jq -r '[.title] | @tsv' <<< $poll)")
+                    echo -e "$poll_index_act) $(jq -r '[.tx_id, .title] | @tsv' <<< $poll)"
+                  fi
+                done < <(echo $polls | jq -c .[])
+                if [[ "$poll_index_act" -gt 0 ]]; then 
+                  while :; do
+                    read -p "Please select a poll: " poll_index_selected
+                    [[ $poll_index_selected =~ ^[[:digit:]]+$ ]] || continue
+                      if [[ "$poll_index_selected" -lt "1" ]] || [[ "$poll_index_selected" -gt "$poll_index_act" ]]; then
+                      continue
+                    fi
+                    break
+                  done
+                  poll_txId=${poll_index_txIds[$((poll_index_selected-1))]}
+                  poll_title=${poll_index_titles[$(($poll_index_selected-1))]}
+                  echo
+                  println DEBUG "# Select the voting pool"
+                  if [[ ${op_mode} = "online" ]]; then
+                    selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
+                    getPoolType ${pool_name}
+                    case $? in
+                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
+                      3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitForInput && continue ;;
+                    esac
+                  else
+                    selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
+                    getPoolType ${pool_name}
+                  fi
+                  echo
+                  println DEBUG "# Select wallet for the ballot cast transaction fee"
+                  if [[ ${op_mode} = "online" ]]; then
+                    selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
+                    getWalletType ${wallet_name}
+                    case $? in
+                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
+                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
+                      3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                    esac
+                  else
+                    selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                    case $? in
+                      1) waitForInput; continue ;;
+                      2) continue ;;
+                    esac
+                    getWalletType ${wallet_name}
+                    case $? in
+                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
+                    esac
+                  fi
+                  getBaseAddress ${wallet_name}
+                  getPayAddress ${wallet_name}
+                  getBalance ${base_addr}
+                  base_lovelace=${assets[lovelace]}
+                  getBalance ${pay_addr}
+                  pay_lovelace=${assets[lovelace]}
+                  if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
+                    # Both payment and base address available with funds, let user choose what to use
+                    println DEBUG "\n# Select wallet address to use"
+                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                      println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                      println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                    fi
+                    select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                    case $? in
+                      0) addr="${base_addr}" ;;
+                      1) addr="${pay_addr}" ;;
+                      2) continue ;;
+                    esac
+                  elif [[ ${pay_lovelace} -gt 0 ]]; then
+                    addr="${pay_addr}"
+                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                      println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                    fi
+                  elif [[ ${base_lovelace} -gt 0 ]]; then
+                    addr="${base_addr}"
+                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                      println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                    fi
+                  else
+                    println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
+                    waitForInput && continue
+                  fi
+                  echo
+                  echo "Query ${NETWORK_NAME} ${poll_txId} metadata from Koios API..."
+                  println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_tx_hashes\":[\"${poll_txId}\"]}' ${KOIOS_API}/tx_metadata"
+                  ! tx=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_tx_hashes":["'${poll_txId}'"]}' "${KOIOS_API}/tx_metadata" 2>&1) && error_msg=${tx} && waitForInput && continue
+                  tx_meta=$(echo ${tx} | jq -r ".[0].metadata.\"94\" // empty" 2> /dev/null  )
+                  if [[ ! -z ${tx_meta} ]]; then
+                    echo "OK: Metadata has a CIP-0094 label"
+                    #Variables for the Question and the Options
+                    #this code part was originaly written by SPO Scripts (https://github.com/gitmachtl/scripts/blob/master/cardano/testnet/13a_spoPoll.sh)
+                    questionString=""   #string that holds the question
+                    optionString=()     #array of options
+                    #Question found now convert it to cbor
+                    cborStr="" #setup a clear new cbor string variable
+                    cborStr+=$(to_cbor "map" 1) #map 1
+                    cborStr+=$(to_cbor "unsigned" 94) #unsigned 94
+                    cborStr+=$(to_cbor "map" 2) #map 2
+                    cborStr+=$(to_cbor "unsigned" 0) #unsigned 0
+                    #Add QuestionStrings
+                    questionStrLength=$(jq -r ".\"0\" | length" <<< ${tx_meta} 2> /dev/null)
+                    if [[ ${questionStrLength} -eq 0 ]]; then
+                        echo -e "\n${FG_RED}ERROR - No question string included\n${NC}" && waitForInput && continue
+                    fi
+                    cborStr+=$(to_cbor "array" ${questionStrLength}) #array with the number of entries
+                    for (( tmpCnt=0; tmpCnt<${questionStrLength}; tmpCnt++ ))
+                    do
+                        strEntry=$(jq -r ".\"0\"[${tmpCnt}]" <<< ${tx_meta} 2> /dev/null)
+                        cborStr+=$(to_cbor "string" "${strEntry}") #string
+                        questionString+="${strEntry}"
+                    done
+                    cborStr+=$(to_cbor "unsigned" 1) #unsigned 1
+                    #Add OptionsStrings
+                    optionsStrLength=$(jq -r ".\"1\" | length" <<< ${tx_meta} 2> /dev/null)
+                    if [[ ${optionsStrLength} -eq 0 ]]; then
+                        echo -e "\n${FG_RED}ERROR - No option strings included\n${NC}" && waitForInput && continue
+                    fi
+                    cborStr+=$(to_cbor "array" ${optionsStrLength}) #array with the number of options
+                    
+                    for (( tmpCnt=0; tmpCnt<${optionsStrLength}; tmpCnt++ ))
+                    do
+                        optionEntryStrLength=$(jq -r ".\"1\"[${tmpCnt}] | length" <<< ${tx_meta} 2> /dev/null)
+                        cborStr+=$(to_cbor "array" ${optionEntryStrLength}) #array with the number of entries
+                        for (( tmpCnt2=0; tmpCnt2<${optionEntryStrLength}; tmpCnt2++ ))
+                        do
+                            strEntry=$(jq -r ".\"1\"[${tmpCnt}][${tmpCnt2}]" <<< ${tx_meta} 2> /dev/null)
+                            cborStr+=$(to_cbor "string" "${strEntry}") #string
+                            optionString[${tmpCnt}]+="${strEntry}"
+                        done
+                    done
+                    #Show the question and the available answer options
+                    echo
+                    echo -e "${FG_GREEN}Question${NC}: ${questionString}"
+                    echo
+                    echo -e "There are ${optionsStrLength} answer option(s) available:"
+                    for (( tmpCnt=0; tmpCnt<${optionsStrLength}; tmpCnt++ ))
+                    do
+                     echo -e "[${FG_YELLOW}${tmpCnt}${NC}] ${optionString[${tmpCnt}]}"
+                    done
+                    echo
+                    #Read in the answer, loop until a valid answer index is given
+                    answer="-1"
+                    while [ -z "${answer##*[!0-9]*}" ] || [[ ${answer} -lt 0 ]] || [[ ${answer} -ge ${optionsStrLength} ]];
+                    do
+                        read -p $'Please indicate an answer (by index): ' answer
+                        if [[ ${answer} == "" ]]; then 
+                          echo && println "${FG_YELLOW}No answer${NC}" && waitForInput && continue
+                        fi
+                    done
+                    echo
+                    echo -e "Your answer is '${optionString[${answer}]}'."
+                    echo
+                    #Generating the answer cbor
+                    questionHash=$(echo -n "${cborStr}" | xxd -r -ps | b2sum -l 256 -b | cut -d' ' -f 1)
+                    #Make a new cborStr with the answer
+                    cborStr="" #setup a clear new cbor string variable
+                    cborStr+=$(to_cbor "map" 1) #map 1
+                    cborStr+=$(to_cbor "unsigned" 94) #unsigned 94
+                    cborStr+=$(to_cbor "map" 2) #map 2
+                    cborStr+=$(to_cbor "unsigned" 2) #unsigned 2
+                    cborStr+=$(to_cbor "bytes" "${questionHash}") #bytearray of the blake2b-256 hash of the question cbor
+                    cborStr+=$(to_cbor "unsigned" 3) #unsigned 3
+                    cborStr+=$(to_cbor "unsigned" ${answer}) #unsigned - answer index
+                    #CBOR Answer is ready, write it out to disc
+                    cborFile="${TMP_DIR}/CIP-0094_${poll_txId}_answer.cbor"
+                    #echo -ne "Writing '${cborFile}' to disc ... "
+                    xxd -r -ps <<< ${cborStr} 2> /dev/null > ${cborFile}
+                    if [ $? -ne 0 ]; then echo -e "\n\n${FG_RED}ERROR, could not write to file!\n\n${NC}"; exit 1; fi
+                    # Optional metadata/message
+                    println "# Add a message to the answer? (Poll Dashboards will show this message)"
+                    select_opt "[n] No" "[y] Yes"
+                    case $? in
+                      0)  unset metafile ;;
+                      1)  metafile="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
+                          DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
+                          println OFF "\nA maximum of 64 characters(bytes) is allowed per line."
+                          println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
+                          exec >&6 2>&7 # normal stdout/stderr
+                          waitForInput "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
+                          ${DEFAULTEDITOR} "${metafile}"
+                          exec >&8 2>&9 # custom stdout/stderr
+                          if [[ ! -f "${metafile}" ]]; then
+                            println ERROR "${FG_RED}ERROR${NC}: file not found"
+                            println ERROR "File: ${FG_LGRAY}${metafile}${NC}"
+                            waitForInput && continue
+                          fi
+                          tput cuu 4 && tput ed
+                          if [[ ! -s ${metafile} ]]; then
+                            println "Message empty, skip and continue with answer without message? No to abort!"
+                            select_opt "[y] Yes" "[n] No"
+                            case $? in
+                              0) unset metafile ;;
+                              1) continue ;;
+                            esac
+                          else
+                            tx_msg='{"674":{"msg":[]}}'
+                            error=""
+                            while IFS="" read -r line || [[ -n "${line}" ]]; do
+                              line_bytes=$(echo -n "${line}" | wc -c)
+                              if [[ ${line_bytes} -gt 64 ]]; then
+                                error="${FG_RED}ERROR${NC}: line contains more that 64 bytes(characters) [${line_bytes}]\nLine: ${FG_LGRAY}${line}${NC}" && break
+                              fi
+                              if ! tx_msg=$(jq -er ".\"674\".msg += [\"${line}\"]" <<< "${tx_msg}" 2>&1); then
+                                error="${FG_RED}ERROR${NC}: ${tx_msg}" && break
+                              fi
+                            done < "${metafile}"
+                            [[ -n ${error} ]] && println ERROR "${error}" && waitForInput && continue
+                            jq -c . <<< "${tx_msg}" > "${metafile}"
+                            jq -r . "${metafile}" >&3 && echo
+                            println LOG "Transaction message: ${tx_msg}"
+                          fi
+                          ;;
+                    esac
+                    if ! submitPoll; then
+                      waitForInput && continue
+                    fi
+                  else
+                    echo && println "${FG_YELLOW}Cannot find valid metadata for this transaction${NC}" 
+                    waitForInput && continue
+                  fi
+                else
+                  echo && println "${FG_YELLOW}There are currently no active polls in ${NETWORK_NAME}${NC}" 
+                  waitForInput && continue
+                fi
+              else
+                echo && println "${FG_YELLOW}There are currently no polls in ${NETWORK_NAME}${NC}" 
+                waitForInput && continue
+              fi
+              ;; ###################################################################
           esac # pool sub OPERATION
         done # Pool loop
         ;; ###################################################################
@@ -3127,7 +3410,7 @@ function main {
               tx_witness_files=()
               tx_sign_files=()
               case "${otx_type}" in
-                Wallet*|Payment|"Pool De-Registration"|Metadata|Asset*)
+                Wallet*|Payment|"Pool De-Registration"|Metadata|Asset*|"Poll Cast")
                   echo
                   [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} Ada"
                   if [[ ${otx_type} = "Payment" ]]; then
@@ -3154,6 +3437,10 @@ function main {
                   [[ ${otx_type} = "Asset Minting" ]] && println DEBUG "Assets Minted    : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
                   [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets To Burn   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
                   [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets Left      : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
+                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Poll ID          : ${FG_LGRAY}$(jq -r '."poll-txId"' <<< ${offlineJSON})${NC}"
+                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Title            : ${FG_LGRAY}$(jq -r '."poll-title"' <<< ${offlineJSON})${NC}"
+                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Question         : ${FG_LGRAY}$(jq -r '."poll-question"' <<< ${offlineJSON})${NC}"
+                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Answer           : ${FG_LGRAY}$(jq -r '."poll-answer"' <<< ${offlineJSON})${NC}"
                   for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
                     _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
                     otx_signing_name=$(_jq '.name')
@@ -3405,7 +3692,7 @@ function main {
                 println DEBUG "Expire           : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
               fi
               case "${otx_type}" in
-                "Wallet Registration"|"Wallet De-Registration"|"Payment"|"Wallet Delegation"|"Wallet Rewards Withdrawal"|"Pool De-Registration"|"Metadata"|"Pool Registration"|"Pool Update"|"Asset Minting"|"Asset Burning")
+                "Wallet Registration"|"Wallet De-Registration"|"Payment"|"Wallet Delegation"|"Wallet Rewards Withdrawal"|"Pool De-Registration"|"Metadata"|"Pool Registration"|"Pool Update"|"Asset Minting"|"Asset Burning"|"Poll Cast")
                   echo
                   [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} Ada"
                   if [[ ${otx_type} = "Payment" ]]; then
@@ -3440,6 +3727,10 @@ function main {
                   [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets To Burn   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
                   [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets Left      : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
                   if [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && otx_metadata=$(jq -er '.metadata' <<< ${offlineJSON}); then println DEBUG "Metadata         : \n${otx_metadata}\n"; fi
+                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Poll ID          : ${FG_LGRAY}$(jq -r '."poll-txId"' <<< ${offlineJSON})${NC}"
+                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Title            : ${FG_LGRAY}$(jq -r '."poll-title"' <<< ${offlineJSON})${NC}"
+                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Question         : ${FG_LGRAY}$(jq -r '."poll-question"' <<< ${offlineJSON})${NC}"
+                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Answer           : ${FG_LGRAY}$(jq -r '."poll-answer"' <<< ${offlineJSON})${NC}"
                   tx_signed="${TMP_DIR}/tx.signed_$(date +%s)"
                   println DEBUG "\nProceed to submit transaction?"
                   select_opt "[y] Yes" "[n] No"

@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.0] - 2023-05-18
+### Added
+- Support for voting as per [CIP-0094](https://github.com/cardano-foundation/CIPs/blob/8fd78f984b6b6686b33932713890b16ee571081b/CIP-0094/README.md)
+
 ## [10.2.3] - 2023-04-28
 #### Fixed
 - Additional HW signing fixes

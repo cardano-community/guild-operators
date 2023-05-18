@@ -78,6 +78,7 @@
 #ASSET_POLICY_SK_FILENAME="policy.skey"
 #ASSET_POLICY_SCRIPT_FILENAME="policy.script"           # File extension '.script' mandatory
 #ASSET_POLICY_ID_FILENAME="policy.id"
+#CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json" # URL for polls to vote against
 
 ######################################
 # Do NOT modify code below           #
@@ -707,9 +708,9 @@ getEraIdentifier() {
     Shelley) ERA_IDENTIFIER="--shelley-era" ;;
     Allegra) ERA_IDENTIFIER="--allegra-era" ;;
     Mary)    ERA_IDENTIFIER="--mary-era" ;;
-    #Alonzo)  ERA_IDENTIFIER="--alonzo-era" ;;
-    #Babbage) ERA_IDENTIFIER="--babbage-era" ;;
-    *)       ERA_IDENTIFIER="--mary-era" # use mary era as default
+    Alonzo)  ERA_IDENTIFIER="--alonzo-era" ;;
+    Babbage) ERA_IDENTIFIER="--babbage-era" ;;
+    *)       ERA_IDENTIFIER="--babbage-era" # use mary era as default
              [[ ${OFFLINE_MODE} = "N" ]] && return 1
   esac
   return 0
@@ -792,6 +793,7 @@ set_default_vars() {
   [[ -z ${ASSET_POLICY_SK_FILENAME} ]] && ASSET_POLICY_SK_FILENAME="policy.skey"
   [[ -z ${ASSET_POLICY_SCRIPT_FILENAME} ]] && ASSET_POLICY_SCRIPT_FILENAME="policy.script"
   [[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
+  [[ -z ${CIP0094_POLL_URL} ]] && CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json"
   FG_BLACK='\e[30m'
   FG_RED='\e[31m'
   FG_GREEN='\e[32m'
