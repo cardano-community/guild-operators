@@ -78,6 +78,7 @@
 #ASSET_POLICY_SK_FILENAME="policy.skey"
 #ASSET_POLICY_SCRIPT_FILENAME="policy.script"           # File extension '.script' mandatory
 #ASSET_POLICY_ID_FILENAME="policy.id"
+#CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json" # URL for polls to vote against
 
 ######################################
 # Do NOT modify code below           #
@@ -792,6 +793,7 @@ set_default_vars() {
   [[ -z ${ASSET_POLICY_SK_FILENAME} ]] && ASSET_POLICY_SK_FILENAME="policy.skey"
   [[ -z ${ASSET_POLICY_SCRIPT_FILENAME} ]] && ASSET_POLICY_SCRIPT_FILENAME="policy.script"
   [[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
+  [[ -z ${CIP0094_POLL_URL} ]] && CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json"
   FG_BLACK='\e[30m'
   FG_RED='\e[31m'
   FG_GREEN='\e[32m'
@@ -963,8 +965,6 @@ BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
 IP_VERSION=$(tr '[:upper:]' '[:lower:]' <<< "${IP_VERSION}")
 [[ -z ${USE_EKG} ]] && USE_EKG='Y'
 CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}")
-
-[[ -z ${CIP0094_POLL_URL} ]] && CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json"
 
 if [[ -n "${CNODE_PID}" ]]; then
   if [[ "${USE_EKG}" == "N" ]]; then
