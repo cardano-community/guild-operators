@@ -2,6 +2,7 @@ FROM debian:stable-slim
 
 LABEL desc="Cardano Node by Guild's Operators"
 ARG DEBIAN_FRONTEND=noninteractive
+ARG G_ACCOUNT
 
 USER root
 WORKDIR /
@@ -52,7 +53,7 @@ USER guild
 WORKDIR /home/guild
 
 # Commit Version 
-RUN  curl -sL -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/cardano-community/guild-operators/commits | grep -v md | grep -A 2 guild-deploy.sh | grep sha | head -n 1 | cut -d "\"" -f 4 > ~/guild-latest.txt
+RUN  curl -sL -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/${G_ACCOUNT}/guild-operators/commits | grep -v md | grep -A 2 guild-deploy.sh | grep sha | head -n 1 | cut -d "\"" -f 4 > ~/guild-latest.txt
 
 RUN echo "head -n 8 /home/guild/.scripts/banner.txt" >> ~/.bashrc \
     && echo "grep MENU -A 6 /home/guild/.scripts/banner.txt | grep -v MENU" >> ~/.bashrc \
@@ -62,12 +63,12 @@ RUN echo "head -n 8 /home/guild/.scripts/banner.txt" >> ~/.bashrc \
     && echo "export PATH=/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.local/bin"  >> ~/.bashrc
 
 # ENTRY SCRIPT
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/addons/banner.txt /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/addons/guild-topology.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/addons/block_watcher.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh /opt/cardano/cnode/scripts/
-ADD https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/addons/entrypoint.sh ./
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/banner.txt /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/guild-topology.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/block_watcher.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh /opt/cardano/cnode/scripts/
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/entrypoint.sh ./
 
 RUN sudo chown -R guild:guild $CNODE_HOME/* \
     && sudo chown -R guild:guild /home/guild/.* \
