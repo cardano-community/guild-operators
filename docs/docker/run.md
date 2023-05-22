@@ -37,6 +37,16 @@
       cardanocommunity/cardano-node
       ```
 
+!!! info "Note"
+    1) For hardware wallet management start the node temporarily as shown above
+    passing through the USB devices of the host, with elevated privileges, for
+    the trezor bridge process to access the USB bus.
+    2) Start trezord (trezor bridge) as the root and disconnect
+    ```docker exec -dit -u root <YourCName> trezord -l /opt/cardano/cnode/logs/trezord.log```
+    3) Login to the container ``` docker exec -it < container name or hash >  /bin/bash ```
+    4) Execute cntools ``` cntools ``` and follow instructions when told to
+    take actions on the hardware wallet.
+
 
 === "Public mode"
 
