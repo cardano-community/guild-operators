@@ -20,6 +20,24 @@
       cardanocommunity/cardano-node
       ```
 
+    - Hardware Wallet Management
+
+      ```bash
+      docker run -dit
+      --name <YourCName>
+      --security-opt=no-new-privileges
+      -e NETWORK=mainnet
+      -v <your_custom_path>:/opt/cardano/cnode/priv
+      -v <your_custom_db_path>:/opt/cardano/cnode/db
+      --annotation run.oci.keep_original_groups=1
+      --privileged=True
+      --security-opt no-new-privileges
+      --mount type=devpts,destination=/dev/pts
+      --volume /dev/:/dev:rslave
+      cardanocommunity/cardano-node
+      ```
+
+
 === "Public mode"
 
     #### Use Cases:

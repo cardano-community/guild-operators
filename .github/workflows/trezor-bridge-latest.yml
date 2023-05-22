@@ -1,0 +1,38 @@
+name: Get latest Trezor bridge release version
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 */5 * *"
+jobs:
+  get-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.REPO_SCOPED_TOKEN }}
+          fetch-depth: 0
+          ref: alpha
+      - name: Examine local version before fetch
+        run: |
+          cat ./files/docker/node/release-versions/trezor-bridge-latest.txt
+      - name: Fetch bridge release version
+        run: |
+          curl -sL -o files/docker/node/release-versions/trezor-bridge-latest.txt https://raw.githubusercontent.com/trezor/data/master/bridge/latest.txt
+      - name: Assigns release version
+        run: |
+          echo "VERSION=$(cat ./files/docker/node/release-versions/trezor-bridge-latest.txt)" >> $GITHUB_ENV
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v35
+        with:
+          files: |
+            files/docker/node/release-versions/trezor-bridge-latest.txt
+      - name: Commit & Push changes
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions-js/push@master
+        with:
+          github_token: ${{ secrets.REPO_SCOPED_TOKEN }}
+          author_name: ${{ secrets.REPO_SCOPED_USER }}
+          author_email: ${{ secrets.REPO_SCOPED_EMAIL }}
+          branch: alpha
+          message: "New Trezor Bridge release version ${VERSION}"

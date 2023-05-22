@@ -41,6 +41,16 @@ RUN set -x && apt update \
     && echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers \
     && adduser guild sudo 
 
+RUN wget -O trezor-bridge-latest.txt  https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/docker/node/release-versions/trezor-bridge-latest.txt \
+    && export TREZOR_LATEST=$(cat trezor-bridge-latest.txt) \
+    && wget "https://github.com/trezor/data/raw/master/bridge/${TREZOR_LATEST}/trezor-bridge_${TREZOR_LATEST}_amd64.deb" \
+    && dpkg --unpack "trezor-bridge_${TREZOR_LATEST}_amd64.deb" \
+    && rm -f /var/lib/dpkg/info/trezor-bridge.postinst \
+    && dpkg --configure trezor-bridge \
+    && rm -f "trezor-bridge_${TREZOR_LATEST}_amd64.deb" \
+    && apt-get install -yf \
+    && apt-get -y purge && apt-get -y clean && apt-get -y autoremove && rm -rf /var/lib/apt/lists/*
+
 USER guild
 WORKDIR /home/guild
 
