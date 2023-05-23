@@ -3153,7 +3153,7 @@ function main {
                     esac
                     getWalletType ${wallet_name}
                     case $? in
-                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
+                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitForInput && continue ;;
                       2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
                       3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
                     esac
@@ -3165,7 +3165,7 @@ function main {
                     esac
                     getWalletType ${wallet_name}
                     case $? in
-                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
+                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitForInput && continue ;;
                     esac
                   fi
                   getBaseAddress ${wallet_name}
