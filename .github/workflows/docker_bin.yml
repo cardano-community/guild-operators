@@ -8,15 +8,25 @@ on:
       
 jobs:
   build:
+    env:
+      REGISTRY: docker.io
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: docker login
       run: |
         docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_PASSWORD }}
+    - name: Add variables to environment
+      run: |
+        echo "G_ACCOUNT=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
+        echo "CNVERSION=$(cat files/docker/node/release-versions/cardano-node-latest.txt)" >> $GITHUB_ENV
     - name: Compiling new node software suite
-      run: |      
-        DOCKER_BUILDKIT=1 docker build . --file files/docker/node/dockerfile_bin --compress --tag cardanocommunity/cardano-node:latest
+      run: |
+        DOCKER_BUILDKIT=1 docker build . \
+          --file files/docker/node/dockerfile_bin \
+          --compress \
+          --build-arg G_ACCOUNT=${{ env.G_ACCOUNT }} \
+          --tag ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest
         # Workaround to provide additional free space for builds.
         #   https://github.com/actions/virtual-environments/issues/2840
         sudo apt-get remove -y '^dotnet-.*'
@@ -30,6 +40,13 @@ jobs:
     - name: docker push latest
       run: |
         CNVERSION=`cat files/docker/node/release-versions/cardano-node-latest.txt`
-        docker push cardanocommunity/cardano-node:latest
-        docker tag cardanocommunity/cardano-node:latest cardanocommunity/cardano-node:$CNVERSION
-        docker push cardanocommunity/cardano-node:$CNVERSION
+        docker push ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest
+        docker tag ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest ${{ secrets.DOCKER_USER }}/cardano-node:${{ env.CNVERSION }}
+        docker push ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:${{ env.CNVERSION }}
+    - name: Add summary details
+      if: always()
+      run: |
+        echo "## Summary Details" >> $GITHUB_STEP_SUMMARY
+        echo "* Docker Image: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:${{ env.CNVERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo "* G_ACCOUNT: ${GITHUB_REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
+        echo "* CNVERSION: ${{ env.CNVERSION }}" >> $GITHUB_STEP_SUMMARY
