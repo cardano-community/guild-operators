@@ -36,7 +36,7 @@ GRANT USAGE ON SCHEMA grest TO authenticator,web_anon;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticator,web_anon;
 GRANT SELECT ON ALL TABLES IN SCHEMA grest TO authenticator,web_anon;
 GRANT web_anon TO authenticator;
-ALTER ROLE authenticator SET pgrst.tx.statement_timeout = 65000;
+ALTER ROLE authenticator SET statement_timeout = 65000;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT
 SELECT
