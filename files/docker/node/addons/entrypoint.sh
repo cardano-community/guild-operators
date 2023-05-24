@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-trap 'killall -s SIGTERM cardano-node' SIGINT SIGTERM
+trap 'killall -s SIGINT cardano-node' SIGINT SIGTERM
 # "docker run --init" to enable the docker init proxy
 # To manually test: docker kill -s SIGTERM container
 
