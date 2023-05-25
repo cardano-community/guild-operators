@@ -39,7 +39,7 @@ echo "${PATH}"
 
 - Check and add back your customisations to config files (or simply restore from automatically created backup of your config/topology files).
 
-- Since one of the basic changes we start to recommend as part of this revamp is moving your binaries to `"${HOME}/.local/bin`, you would want to *move* the binaries below from current location:
+- Since one of the basic changes we start to recommend as part of this revamp is moving your binaries to `"${HOME}"/.local/bin`, you would want to *move* the binaries below from current location:
     - "${HOME}"/.cabal/bin - Binaries built by `cabal build all` script (eg: `cardano-node`, `cardano-cli`, `bech32`, `cardano-address`, `cardano-submit-api`, `cardano-db-sync`
     - "${HOME}"/.cargo/bin - Binaries built by `cardano install` (eg: `cncli`)
     - "${HOME}"/bin - Downloaded binaries from previous `prereqs.sh` (eg: `cardano-hw-cli`)
