@@ -43,7 +43,7 @@ function get-metrics() {
   meminf=$(grep "^Mem" /proc/meminfo)
   load1m=$(( $(awk '{ print $1*100 }' /proc/loadavg) / $(grep -c ^processor /proc/cpuinfo) ))
   memtotal=$(( $(echo "${meminf}" | grep MemTotal | awk '{print $2}') ))
-  arcused=$(awk -v OFMT='%i' '/^size/ { print $3/1024 }' /proc/spl/kstat/zfs/arcstats 2>/dev/null)
+  arcused=$(awk -v CONVFMT='%i' '/^size/ { print $3/1024 }' /proc/spl/kstat/zfs/arcstats 2>/dev/null)
   [[ -z "${arcused}" ]] && arcused=0
   memused=$(( memtotal - $(echo "${meminf}" | grep MemAvailable | awk '{print $2}') - arcused ))
   cpuutil=$(awk -v a="$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
