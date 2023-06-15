@@ -283,7 +283,7 @@ build_dependencies() {
   pushd secp256k1 >/dev/null || err_exit
   git checkout ac83be33 &>/dev/null
   ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
-  ./configure --prefix=/usr --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
+  ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
   make > make.log 2>&1 || err_exit " Could not complete \"make\" for libsecp256k1 package, please try to run it manually to diagnose!"
   make check >>make.log 2>&1
   $sudo make install > install.log 2>&1
@@ -291,6 +291,7 @@ build_dependencies() {
     echo -e "\nexport LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
   fi
+  echo -e "\nlibsecp256k1 installed to /usr/local/lib/"
 }
 
 # Build fork of libsodium
