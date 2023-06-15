@@ -3997,14 +3997,14 @@ function main {
             select_opt "[n] No" "[y] Yes"
             case $? in
               0) excluded_files=(
-                   "--delete *${WALLET_PAY_SK_FILENAME}"
-                   "--delete *${WALLET_PAY_SK_FILENAME}.gpg"
-                   "--delete *${WALLET_STAKE_SK_FILENAME}"
-                   "--delete *${WALLET_STAKE_SK_FILENAME}.gpg"
-                   "--delete *${POOL_COLDKEY_SK_FILENAME}"
-                   "--delete *${POOL_COLDKEY_SK_FILENAME}.gpg"
-                   "--delete *${ASSET_POLICY_SK_FILENAME}"
-                   "--delete *${ASSET_POLICY_SK_FILENAME}.gpg"
+                   --exclude=${WALLET_PAY_SK_FILENAME}
+                   --exclude=${WALLET_PAY_SK_FILENAME}.gpg
+                   --exclude=${WALLET_STAKE_SK_FILENAME}
+                   --exclude=${WALLET_STAKE_SK_FILENAME}.gpg
+                   --exclude=${POOL_COLDKEY_SK_FILENAME}
+                   --exclude=${POOL_COLDKEY_SK_FILENAME}.gpg
+                   --exclude=${ASSET_POLICY_SK_FILENAME}
+                   --exclude=${ASSET_POLICY_SK_FILENAME}.gpg
                  )
                  backup_file="${backup_path}online_cntools_backup-$(date '+%Y%m%d%H%M%S').${CNODE_NAME}.tar"
                  ;;
@@ -4030,15 +4030,15 @@ function main {
             done
             [[ ${backup_cnt} -eq 0 ]] && println "\nNo folders found to include in backup :(" && waitForInput && continue
             echo
-            println ACTION "tar cf ${backup_file} ${backup_list[*]}"
-            if ! output=$(tar cf "${backup_file}" "${backup_list[@]}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during tarball creation:\n${output}" && waitForInput && continue; fi
             if [[ ${#excluded_files[@]} -gt 0 ]]; then
-              println ACTION "tar --wildcards --file=\"${backup_file}\" ${excluded_files[*]}"
-              tar --wildcards --file="${backup_file}" "${excluded_files[@]}" &>/dev/null # ignore any error, tar will write error if some of the keys to delete are not found
+              println ACTION "tar ${excluded_files[*]} -cf ${backup_file} ${backup_list[*]}"
+              if ! output=$(tar "${excluded_files[@]}" -cf "${backup_file}" "${backup_list[@]}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during tarball creation:\n${output}" && waitForInput && continue; fi
               println ACTION "gzip ${backup_file}"
               if ! output=$(gzip "${backup_file}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: gzip error:\n${output}" && waitForInput && continue; fi
               backup_file+=".gz"
             else
+              println ACTION "tar -cf ${backup_file} ${backup_list[*]}"
+              if ! output=$(tar -cf "${backup_file}" "${backup_list[@]}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during tarball creation:\n${output}" && waitForInput && continue; fi
               println ACTION "gzip ${backup_file}"
               if ! output=$(gzip "${backup_file}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: gzip error:\n${output}" && waitForInput && continue; fi
               backup_file+=".gz"
