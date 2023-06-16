@@ -19,13 +19,7 @@ if [ -z "${OS_ID##*debian*}" ]; then
   RELEASE=$(lsb_release -cs)
   echo "deb [arch=amd64] http://apt.postgresql.org/pub/repos/apt/ ${RELEASE}"-pgdg main | sudo tee  /etc/apt/sources.list.d/pgdg.list
   sudo apt-get update
-  sudo apt-get -y install postgresql-14 postgresql-server-dev-14 postgresql-contrib libghc-hdbc-postgresql-dev
-  sudo systemctl restart postgresql
-  sudo systemctl enable postgresql
-elif [ -z "${OS_ID##*rhel*}" ]; then
-  #CentOS/RHEL/Fedora
-  sudo yum install -y postgresql-server postgresql-server-devel postgresql-contrib postgresql-devel libpq-devel
-  sudo postgresql-setup initdb
+  sudo apt-get -y install postgresql-15 postgresql-server-dev-15 postgresql-contrib libghc-hdbc-postgresql-dev
   sudo systemctl restart postgresql
   sudo systemctl enable postgresql
 else
@@ -61,7 +55,7 @@ export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 echo "/var/run/postgresql:5432:cexplorer:*:*" > $PGPASSFILE
 chmod 0600 $PGPASSFILE
 psql postgres
-# psql (14.0)
+# psql (15.0)
 # Type "help" for help.
 # 
 # postgres=#
@@ -69,21 +63,33 @@ psql postgres
 
 #### Tuning your instance
 
-Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing `/etc/postgresql/14/main/postgresql.conf`.
-Typically, you might find a lot of common standard practices parameters available in tuning guides. For our consideration, it would be nice to start with some baselines - for which we will use inputs from example [here](https://pgtune.leopard.in.ua/#/).
-You might want to fill in some sample information as per below to fill in the form:
+Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing `/etc/postgresql/15/main/postgresql.conf`.
+Typically, you might find a lot of common standard practices parameters available in tuning guides. For our consideration, it would be nice to start with some baselines - for which we will use inputs from example [here](https://pgtune.leopard.in.ua/#/), which would need to be customised further to your environment and resources.
 
-| Option         | Value |
-|----------------|-------|
-| DB Version     | 14    |
-| OS Type        | Linux |
-| DB Type        | Online Transaction Processing System|
-| Total RAM      | 64 (or as per your server) |
-| Number of CPUs | 8 (or as per your server)  |
-| Number of Connections | 200 |
-| Data Storage   | HDD Storage |
+In a typical Koios [gRest] setup, we use below for minimum viable specs (i.e. 64GB RAM, > 8 CPUs, >16K IOPs for `ioping -q -S512M -L -c 10 -s8k .` output when postgres data directory is on ZFS configured with max arc of 4GB), we find the below configuration to be the best common setup:
 
-In addition to above, due to the nature of usage by dbsync (restart of instance does a rollback to last saved ledger-state snapshot), and data retention on blockchain - we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your `/etc/postgresql/14/main/postgresql.conf`:
+| Parameter                        | Value                                 | Comment                                                                                                |
+|----------------------------------|---------------------------------------|--------------------------------------------------------------------------------------------------------|
+| data_directory                   | '/opt/cardano/mnode/guild-db/pgdb/15' | Move postgres data directory to ZFS mount at /opt/cardano/cnode, ensure it's writable by postgres user |
+| effective_cache_size             | 8GB                                   | Be conservative as Node and DBSync by themselves will need ~32-40GB of RAM if ledger-state is enabled  |
+| effective_io_concurrency         | 4                                     | Can go higher if you have substantially higher IOPs/IO throughputs                                     |
+| lc_time                          | 'en_US.UTF-8'                         | Just to use standard server-side time formatting between instances, can adapt to your preferences      |
+| log_timezone                     | 'UTC'                                 | For consistency, to avoid timezone confusions                                                          |
+| maintenance_work_mem             | 512MB                                 | Helps with vacuum/index/foreign key maintainance (with 4 workers, it's set to max 2GB)                 |
+| max_connections                  | 200                                   | Allow maximum of 200 connections, the koios connections are still controlled via postgrest db-pool     |
+| max_parallel_maintenance_workers | 4                                     | Max workers postgres will use for maintainance                                                         |
+| max_parallel_workers             | 4                                     | Max workers postgres will use across the system                                                        |
+| max_parallel_workers_per_gather  | 2                                     | Parallel threads per query, do not increase to higher values as it will multiply memory usage          |
+| max_wal_size                     | 4GB                                   | Used for WAL automatic checkpoints (disabled later)                                                    |
+| max_worker_processes             | 4                                     | Maximum number of background processes system can support                                              |
+| min_wal_size                     | 1GB                                   | Used for WAL automatic checkpoints (disabled later)                                                    |
+| random_page_cost                 | 1.1                                   | Use higher value if IOPs has trouble catching up (you can use 4 instead of 1.1)                        |
+| shared_buffers                   | 4GB                                   | Conservative limit to allow for node/dbsync/zfs memory usage                                           |
+| timezone                         | 'UTC'                                 | For consistency, to avoid timezone confusions                                                          |
+| wal_buffers                      | 16MB                                  | WAL consumption in shared buffer (disabled later)                                                      |
+| work_mem                         | 16MB                                  | Base memory size before writing to temporary disk files                                                |
+
+In addition to above, due to the nature of usage by dbsync (synching from node and restart traversing back to last saved ledger-state snapshot), we leverage data retention on blockchain - as we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your `/etc/postgresql/15/main/postgresql.conf`:
 
 | Parameter          | Value   |
 |--------------------|---------|
