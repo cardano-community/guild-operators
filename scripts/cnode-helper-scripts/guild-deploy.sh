@@ -304,7 +304,7 @@ build_libsodium() {
   pushd "${HOME}"/git >/dev/null || err_exit
   [[ ! -d "./libsodium" ]] && git clone https://github.com/input-output-hk/libsodium &>/dev/null
   pushd libsodium >/dev/null || err_exit
-  git checkout 66f017f1 &>/dev/null
+  git checkout dbb48cc &>/dev/null
   ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1
   ./configure > configure.log >> /tmp/libsodium.log 2>&1
   make > make.log 2>&1 || err_exit  " Could not complete \"make\" for libsodium package, please try to run it manually to diagnose!"
@@ -320,7 +320,7 @@ download_cnodebins() {
   pushd "${HOME}"/tmp >/dev/null || err_exit
   echo -e "\n  Downloading Cardano Node archive created from IO CI builds.."
   rm -f cardano-node cardano-address
-  curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-node-releases/cardano-node-1.35.7-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at update-cardano-mainnet.iohk.io!"
+  curl -m 200 -sfL https://update-cardano-mainnet.iohk.io/cardano-node-releases/cardano-node-8.0.0-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at update-cardano-mainnet.iohk.io!"
   tar zxf cnode.tar.gz ./cardano-node ./cardano-cli ./cardano-submit-api ./bech32 &>/dev/null
   rm -f cnodebin.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
@@ -511,6 +511,7 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp ${URL_RAW}/files/byron-genesis-guild.json || err_exit "${err_msg} byron-genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp ${URL_RAW}/files/genesis-guild.json || err_exit "${err_msg} genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp ${URL_RAW}/files/alonzo-genesis-guild.json || err_exit "${err_msg} alonzo-genesis-guild.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp ${URL_RAW}/files/conway-genesis-guild.json || err_exit "${err_msg} conway-genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json || err_exit "${err_msg} topology-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json || err_exit "${err_msg} config-guild.json"
   elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview)$ ]]; then
@@ -518,6 +519,7 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json" || err_exit "${err_msg} shelley-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/${NETWORK}/alonzo-genesis.json" || err_exit "${err_msg} alonzo-genesis.json"
+    curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp "${NWCONFURL}/${NETWORK}/conway-genesis.json" || err_exit "${err_msg} conway-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp "${NWCONFURL}/${NETWORK}/topology.json" || err_exit "${err_msg} topology.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp "${URL_RAW}/files/config-${NETWORK}.json" || err_exit "${err_msg} config-${NETWORK}.json"
   else
@@ -530,11 +532,21 @@ populate_cnode() {
     [[ -f dbsync.json ]] && cp -f dbsync.json "dbsync.json_bkp$(date +%s)"
   fi
   if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]]; then
-    mv -f byron-genesis.json.tmp byron-genesis.json && mv -f shelley-genesis.json.tmp shelley-genesis.json && mv -f alonzo-genesis.json.tmp alonzo-genesis.json
-    mv -f topology.json.tmp topology.json && mv -f config.json.tmp config.json && mv -f dbsync.json.tmp dbsync.json
+    mv -f byron-genesis.json.tmp byron-genesis.json
+    mv -f shelley-genesis.json.tmp shelley-genesis.json
+    mv -f alonzo-genesis.json.tmp alonzo-genesis.json
+    mv -f conway-genesis.json.tmp conway-genesis.json
+    mv -f topology.json.tmp topology.json
+    mv -f config.json.tmp config.json
+    mv -f dbsync.json.tmp dbsync.json
   else
-    rm -f byron-genesis.json.tmp && rm -f shelley-genesis.json.tmp && rm -f alonzo-genesis.json.tmp
-    rm -f topology.json.tmp && rm -f config.json.tmp && rm -f dbsync.json.tmp
+    rm -f byron-genesis.json.tmp
+    rm -f shelley-genesis.json.tmp
+    rm -f alonzo-genesis.json.tmp
+    rm -f conway-genesis.json.tmp
+    rm -f topology.json.tmp
+    rm -f config.json.tmp
+    rm -f dbsync.json.tmp
   fi
   
   pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
