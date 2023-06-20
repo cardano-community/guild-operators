@@ -6,7 +6,6 @@ on:
     paths:
       - scripts/cnode-helper-scripts/guild-deploy.sh
       - scripts/cnode-helper-scripts/cabal-build-all.sh
-      - files/tests/pre-merge/rockylinux-guild-deploy.sh.containerfile
       - files/tests/pre-merge/rockylinux-guild-deploy.sh-l.containerfile
 
 jobs:

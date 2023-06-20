@@ -8,6 +8,7 @@ ENV \
   LANG=C.UTF-8 \
   USER=root \
   PATH=$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH \
+  LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
   BRANCH=$BRANCH \
   G_ACCOUNT=$G_ACCOUNT \
   COMMIT=$COMMIT
