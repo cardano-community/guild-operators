@@ -76,11 +76,38 @@ To test starting the node in interactive mode, you can use the pre-built script 
 ```
 You can uncomment this and set to the desired number, but be wary not to go above your physical core count.
 ```bash
-cd $CNODE_HOME/scripts
+cd "${CNODE_HOME}"/scripts
 ./cnode.sh
 ```
 
-Stop the node by hitting Ctrl-C.
+Ensure you do not have any errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.
+
+#### Modify the node to P2P mode
+
+!!! note
+  The section below only refer to mainnet, as Guildnet/Preview/Preprod templates already come with P2P as default mode, and do not require steps below
+
+In case you prefer to start the node in P2P mode (ideally, only on relays), you can do so by replacing the config.json and topology.json files in `$CNODE_HOME/files` folder.
+You can find a sample of these two files that can be downloaded using commands below:
+
+```bash
+cd "${CNODE_HOME}"/files
+mv config.json config.json.bkp_$(date +%s)
+mv topology.json topology.json.bkp_$(date +%s)
+curl -sL -f "https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/config-mainnet.p2p.json" -o config.json
+curl -sL -f "https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/topology-mainnet.json" -o topology.json
+```
+
+Once downloaded, you'd want to update config.json (if you want to update any port/path references or change tracers from default) and the topology.json file to include your core/relay nodes in `localRoots` section (replacing dummy values currently in place with `"127.0.0.1"` address. The P2P topology file provides you few public nodes as a fallback to avoid single point of reliance, being IO provided mainnet nodes. You can also remove/update any additional peers as per your preference.
+
+Once updated, since you modified the file manually - there is always a chance of human errors (eg: missing comma/quotes). Thus, we would recommend you to start the node interactively once again before proceeding.
+
+```bash
+cd "${CNODE_HOME}"/scripts
+./cnode.sh
+```
+
+Ensure you do not have any errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.
 
 !!! note
     An average pool operator may not require `cardano-submit-api` at all. Please verify if it is required for your use as mentioned [here](../build.md#components). If - however - you do run submit-api for accepting sizeable transaction load, you would want to override the default MEMPOOL_BYTES by uncommenting it in cnode.sh.
