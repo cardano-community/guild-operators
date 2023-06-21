@@ -425,6 +425,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#modify-the-node-to-p2p-mode" class="md-nav__link">
+    Modify the node to P2P mode
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#start-the-submit-api" class="md-nav__link">
     Start the submit-api
   </a>
@@ -985,6 +992,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#modify-the-node-to-p2p-mode" class="md-nav__link">
+    Modify the node to P2P mode
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#start-the-submit-api" class="md-nav__link">
     Start the submit-api
   </a>
@@ -1036,15 +1050,6 @@ git<span class="w"> </span>clone<span class="w"> </span>https://github.com/input
 </code></pre></div>
 <h4 id="build-cardano-node">Build Cardano Node<a class="headerlink" href="#build-cardano-node" title="Permanent link">⚓︎</a></h4>
 <p>You can use the instructions below to build the latest release of <a href="https://github.com/input-output-hk/cardano-node">cardano-node</a>. </p>
-<details class="danger">
-<summary>Known issue on cardano-node 1.35.[4-7]</summary>
-<p>Guild tools use a couple of additional binaries that is not part of node repository. Traditionally, these (eg: <code>cardano-address</code> and previously <code>cardano-ping</code>) were made available as part of build process by cabal.project.local file. However, for node tag 1.35.[4-7] - <code>cabal install</code> is <a href="https://github.com/cardano-community/guild-operators/issues/1573#issuecomment-1310230673">broken</a> which means <code>cabal install cardano-addresses-cli</code> will no longer work and report error as below:</p>
-<div class="highlight"><pre><span></span><code>Got NamedPackage ouroboros-consensus-cardano-tools
-CallStack (from HasCallStack):
-  error, called at src/Distribution/Client/CmdInstall.hs:474:33 in main:Distribution.Client.CmdInstall
-</code></pre></div>
-<p>The error is already fixed on <code>cardano-node</code> repo in later commits - but when using this particular tag, you would want to include additional flag to download binaries (<code>-s d</code>) for <code>guild-deploy.sh</code> prior to compiling below, just to ensure you've pre-compiled version of <code>cardano-address</code> and <code>bech32</code> are added to your setup.</p>
-</details>
 <div class="highlight"><pre><span></span><code>git<span class="w"> </span>fetch<span class="w"> </span>--tags<span class="w"> </span>--all
 git<span class="w"> </span>pull
 <span class="c1"># Replace tag against checkout if you do not want to build the latest released version</span>
@@ -1061,10 +1066,10 @@ Once downloaded, you would want to make it available to preferred <code>PATH</co
 <h3 id="verify">Verify<a class="headerlink" href="#verify" title="Permanent link">⚓︎</a></h3>
 <p>Execute <code>cardano-cli</code> and <code>cardano-node</code> to verify output as below (the exact version and git rev should depend on your checkout tag on github repository):</p>
 <div class="highlight"><pre><span></span><code>cardano-cli<span class="w"> </span>version
-<span class="c1"># cardano-cli 1.35.7 - linux-x86_64 - ghc-8.10</span>
+<span class="c1"># cardano-cli 8.1.1 - linux-x86_64 - ghc-8.10</span>
 <span class="c1"># git rev &lt;...&gt;</span>
 cardano-node<span class="w"> </span>version
-<span class="c1"># cardano-node 1.35.7 - linux-x86_64 - ghc-8.10</span>
+<span class="c1"># cardano-node 8.1.1 - linux-x86_64 - ghc-8.10</span>
 <span class="c1"># git rev &lt;...&gt;</span>
 </code></pre></div>
 <h4 id="update-port-number-or-pool-name-for-relative-paths">Update port number or pool name for relative paths<a class="headerlink" href="#update-port-number-or-pool-name-for-relative-paths" title="Permanent link">⚓︎</a></h4>
@@ -1088,10 +1093,29 @@ cardano-node<span class="w"> </span>version
 <span class="c1">#CPU_CORES=2            # Number of CPU cores cardano-node process has access to (please don&#39;t set higher than physical core count, 2-4 recommended)</span>
 </code></pre></div>
 You can uncomment this and set to the desired number, but be wary not to go above your physical core count.
-<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="nv">$CNODE_HOME</span>/scripts
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span><span class="s2">&quot;</span>/scripts
 ./cnode.sh
 </code></pre></div></p>
-<p>Stop the node by hitting Ctrl-C.</p>
+<p>Ensure you do not have any errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.</p>
+<h4 id="modify-the-node-to-p2p-mode">Modify the node to P2P mode<a class="headerlink" href="#modify-the-node-to-p2p-mode" title="Permanent link">⚓︎</a></h4>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+</div>
+<p>The section below only refer to mainnet, as Guildnet/Preview/Preprod templates already come with P2P as default mode, and do not require steps below</p>
+<p>In case you prefer to start the node in P2P mode (ideally, only on relays), you can do so by replacing the config.json and topology.json files in <code>$CNODE_HOME/files</code> folder.
+You can find a sample of these two files that can be downloaded using commands below:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span><span class="s2">&quot;</span>/files
+mv<span class="w"> </span>config.json<span class="w"> </span>config.json.bkp_<span class="k">$(</span>date<span class="w"> </span>+%s<span class="k">)</span>
+mv<span class="w"> </span>topology.json<span class="w"> </span>topology.json.bkp_<span class="k">$(</span>date<span class="w"> </span>+%s<span class="k">)</span>
+curl<span class="w"> </span>-sL<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/config-mainnet.p2p.json&quot;</span><span class="w"> </span>-o<span class="w"> </span>config.json
+curl<span class="w"> </span>-sL<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/topology-mainnet.json&quot;</span><span class="w"> </span>-o<span class="w"> </span>topology.json
+</code></pre></div>
+<p>Once downloaded, you'd want to update config.json (if you want to update any port/path references or change tracers from default) and the topology.json file to include your core/relay nodes in <code>localRoots</code> section (replacing dummy values currently in place with <code>"127.0.0.1"</code> address. The P2P topology file provides you few public nodes as a fallback to avoid single point of reliance, being IO provided mainnet nodes. You can also remove/update any additional peers as per your preference.</p>
+<p>Once updated, since you modified the file manually - there is always a chance of human errors (eg: missing comma/quotes). Thus, we would recommend you to start the node interactively once again before proceeding.</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span><span class="s2">&quot;</span>/scripts
+./cnode.sh
+</code></pre></div>
+<p>Ensure you do not have any errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>An average pool operator may not require <code>cardano-submit-api</code> at all. Please verify if it is required for your use as mentioned <a href="../../build/#components">here</a>. If - however - you do run submit-api for accepting sizeable transaction load, you would want to override the default MEMPOOL_BYTES by uncommenting it in cnode.sh.</p>
