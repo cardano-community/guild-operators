@@ -85,7 +85,7 @@ Ensure you do not have any errors in the console. To stop the node, hit Ctrl-C -
 #### Modify the node to P2P mode
 
 !!! note
-  The section below only refer to mainnet, as Guildnet/Preview/Preprod templates already come with P2P as default mode, and do not require steps below
+    The section below only refer to mainnet, as Guildnet/Preview/Preprod templates already come with P2P as default mode, and do not require steps below
 
 In case you prefer to start the node in P2P mode (ideally, only on relays), you can do so by replacing the config.json and topology.json files in `$CNODE_HOME/files` folder.
 You can find a sample of these two files that can be downloaded using commands below:

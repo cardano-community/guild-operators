@@ -29,6 +29,7 @@ jobs:
           --tag ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest
         # Workaround to provide additional free space for builds.
         #   https://github.com/actions/virtual-environments/issues/2840
+        sudo apt-get update -y 
         sudo apt-get remove -y '^dotnet-.*'
         sudo apt-get remove -y 'php.*'
         sudo apt-get remove -y azure-cli google-cloud-sdk google-chrome-stable firefox powershell mono-devel
