@@ -281,6 +281,7 @@ build_dependencies() {
   pushd "${HOME}"/git >/dev/null || err_exit
   [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
   pushd secp256k1 >/dev/null || err_exit
+  git fetch >/dev/null 2>&1
   git checkout ac83be33 &>/dev/null
   ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
   ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
@@ -304,6 +305,7 @@ build_libsodium() {
   pushd "${HOME}"/git >/dev/null || err_exit
   [[ ! -d "./libsodium" ]] && git clone https://github.com/input-output-hk/libsodium &>/dev/null
   pushd libsodium >/dev/null || err_exit
+  git fetch >/dev/null 2>&1
   git checkout dbb48cc &>/dev/null
   ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1
   ./configure > configure.log >> /tmp/libsodium.log 2>&1
