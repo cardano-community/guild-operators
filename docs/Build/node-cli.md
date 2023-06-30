@@ -17,19 +17,6 @@ cd cardano-node
 
 You can use the instructions below to build the latest release of [cardano-node](https://github.com/input-output-hk/cardano-node). 
 
-??? danger "Known issue on cardano-node 1.35.[4-7]"
-    
-    Guild tools use a couple of additional binaries that is not part of node repository. Traditionally, these (eg: `cardano-address` and previously `cardano-ping`) were made available as part of build process by cabal.project.local file. However, for node tag 1.35.[4-7] - `cabal install` is [broken](https://github.com/cardano-community/guild-operators/issues/1573#issuecomment-1310230673) which means `cabal install cardano-addresses-cli` will no longer work and report error as below:
-    
-    ```
-    Got NamedPackage ouroboros-consensus-cardano-tools
-    CallStack (from HasCallStack):
-      error, called at src/Distribution/Client/CmdInstall.hs:474:33 in main:Distribution.Client.CmdInstall
-    ```
-    
-    The error is already fixed on `cardano-node` repo in later commits - but when using this particular tag, you would want to include additional flag to download binaries (`-s d`) for `guild-deploy.sh` prior to compiling below, just to ensure you've pre-compiled version of `cardano-address` and `bech32` are added to your setup.
-
-
 ``` bash
 git fetch --tags --all
 git pull
@@ -54,10 +41,10 @@ Execute `cardano-cli` and `cardano-node` to verify output as below (the exact ve
 
 ```bash
 cardano-cli version
-# cardano-cli 1.35.7 - linux-x86_64 - ghc-8.10
+# cardano-cli 8.1.1 - linux-x86_64 - ghc-8.10
 # git rev <...>
 cardano-node version
-# cardano-node 1.35.7 - linux-x86_64 - ghc-8.10
+# cardano-node 8.1.1 - linux-x86_64 - ghc-8.10
 # git rev <...>
 ```
 
@@ -89,11 +76,38 @@ To test starting the node in interactive mode, you can use the pre-built script 
 ```
 You can uncomment this and set to the desired number, but be wary not to go above your physical core count.
 ```bash
-cd $CNODE_HOME/scripts
+cd "${CNODE_HOME}"/scripts
 ./cnode.sh
 ```
 
-Stop the node by hitting Ctrl-C.
+Ensure you do not have any errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.
+
+#### Modify the node to P2P mode
+
+!!! note
+    The section below only refer to mainnet, as Guildnet/Preview/Preprod templates already come with P2P as default mode, and do not require steps below
+
+In case you prefer to start the node in P2P mode (ideally, only on relays), you can do so by replacing the config.json and topology.json files in `$CNODE_HOME/files` folder.
+You can find a sample of these two files that can be downloaded using commands below:
+
+```bash
+cd "${CNODE_HOME}"/files
+mv config.json config.json.bkp_$(date +%s)
+mv topology.json topology.json.bkp_$(date +%s)
+curl -sL -f "https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/config-mainnet.p2p.json" -o config.json
+curl -sL -f "https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/topology-mainnet.json" -o topology.json
+```
+
+Once downloaded, you'd want to update config.json (if you want to update any port/path references or change tracers from default) and the topology.json file to include your core/relay nodes in `localRoots` section (replacing dummy values currently in place with `"127.0.0.1"` address. The P2P topology file provides you few public nodes as a fallback to avoid single point of reliance, being IO provided mainnet nodes. You can also remove/update any additional peers as per your preference.
+
+Once updated, since you modified the file manually - there is always a chance of human errors (eg: missing comma/quotes). Thus, we would recommend you to start the node interactively once again before proceeding.
+
+```bash
+cd "${CNODE_HOME}"/scripts
+./cnode.sh
+```
+
+Ensure you do not have any errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.
 
 !!! note
     An average pool operator may not require `cardano-submit-api` at all. Please verify if it is required for your use as mentioned [here](../build.md#components). If - however - you do run submit-api for accepting sizeable transaction load, you would want to override the default MEMPOOL_BYTES by uncommenting it in cnode.sh.

@@ -6,7 +6,6 @@ on:
     paths:
       - scripts/cnode-helper-scripts/guild-deploy.sh
       - scripts/cnode-helper-scripts/cabal-build-all.sh
-      - files/tests/pre-merge/debian-guild-deploy.sh.containerfile
       - files/tests/pre-merge/debian-guild-deploy.sh-l.containerfile
 
 jobs:
@@ -20,6 +19,7 @@ jobs:
       run: |
         # Workaround to provide additional free space for builds.
         #   https://github.com/actions/virtual-environments/issues/2840
+        sudo apt-get update -y
         sudo apt-get remove -y '^dotnet-.*'
         sudo apt-get remove -y 'php.*'
         sudo apt-get remove -y azure-cli google-cloud-sdk google-chrome-stable firefox powershell mono-devel
