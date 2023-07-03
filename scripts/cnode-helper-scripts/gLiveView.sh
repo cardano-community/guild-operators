@@ -57,7 +57,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.27.4
+GLV_VERSION=v1.27.5
 
 PARENT="$(dirname $0)"
 
@@ -67,12 +67,12 @@ PARENT="$(dirname $0)"
 usage() {
   cat <<-EOF
 		Usage: $(basename "$0") [-l] [-p] [-b <branch name>] [-v]
-		Guild LiveView - An alternative cardano-node LiveView
+		Koios gLiveView - A local Cardano node monitoring tool
 
 		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
 		-u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Use alternate branch to check for updates - only for testing/development (Default: Master)
-		-v    Print Guild LiveView version
+		-v    Print Koios gLiveView version
 		EOF
   exit 1
 }
@@ -84,7 +84,7 @@ while getopts :lub:v opt; do
     l ) LEGACY_MODE="true" ;;
     u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
-    v ) echo -e "\nGuild LiveView ${GLV_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))\n"; exit 0 ;;
+    v ) echo -e "\nKoios gLiveView ${GLV_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))\n"; exit 0 ;;
     \? ) usage ;;
   esac
 done
@@ -95,7 +95,7 @@ cleanup() {
   [[ -n $1 ]] && err=$1 || err=$?
   [[ $err -eq 0 ]] && clear
   tput cnorm # restore cursor
-  [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nGuild LiveView terminated, cleaning up...\n"
+  [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nKoios gLiveView terminated, cleaning up...\n"
   tput sgr0  # turn off all attributes
   exit $err
 }
@@ -133,7 +133,7 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   echo "Checking for script updates..."
   # Check availability of checkUpdate function
   if [[ ! $(command -v checkUpdate) ]]; then
-    echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
+    echo -e "\nCould not find checkUpdate function in env, make sure you're using official docos for installation!"
     myExit 1
   fi
 
@@ -224,7 +224,7 @@ granularity_small=$((granularity/2))
 bar_col_small=$((width - granularity_small))
 
 # Title
-title="Guild LiveView ${GLV_VERSION}"
+title="Koios gLiveView ${GLV_VERSION}"
 
 # Lines
 if [[ ${LEGACY_MODE} = "true" ]]; then
@@ -284,8 +284,8 @@ waitForInput() {
   if [[ $1 = "homeInfo" || $1 = "peersInfo" ]]; then read -rsn1 key1
   elif ! read -rsn1 -t ${REFRESH_RATE} key1; then return; fi
   [[ ${key1} = "${ESC}" ]] && read -rsn2 -t 0.3 key2 # read 2 more chars
-  [[ ${key1} = "q" ]] && myExit 0 "Guild LiveView stopped!"
-  [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Guild LiveView stopped!"
+  [[ ${key1} = "q" ]] && myExit 0 "Koios gLiveView stopped!"
+  [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Koios gLiveView stopped!"
   if [[ $# -eq 0 ]]; then
     [[ ${key1} = "p" ]] && check_peers="true" && clrScreen && return
     [[ ${key1} = "i" ]] && show_home_info="true" && clrScreen && return
@@ -1182,7 +1182,7 @@ while true; do
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clrScreen && continue
 
   echo "${bdivider}" && ((line++))
-  printf " TG Announcement/Support channel: ${style_info}t.me/guild_operators_official${NC}\n\n" && line=$((line+2))
+  printf " TG Announcement/Support channel: ${style_info}t.me/CardanoKoios/9759${NC}\n\n" && line=$((line+2))
 
   [[ -z ${oldLine} ]] && oldLine=$line
 
