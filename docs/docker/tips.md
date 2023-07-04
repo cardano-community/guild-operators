@@ -1,6 +1,6 @@
 ### How to run a **Cardano Node** with Docker
 
-With this quick guide you will be able to run a cardano node in seconds and also have the powerfull Guild operator's scripts *built-in*.
+With this quick guide you will be able to run a cardano node in seconds and also have the powerfull Koios SPO scripts *built-in*.
 
 ### How to operate interactively within the container
 
@@ -12,7 +12,7 @@ While if you have a hook within the container console, use the following command
 docker exec -it CN bash 
 ```
 
-This command will bring you within the container bash env ready to use the Guild tools.
+This command will bring you within the container bash env ready to use the Koios tools.
 
 ### Docker flags explained
 

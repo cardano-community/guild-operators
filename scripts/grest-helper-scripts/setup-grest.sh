@@ -536,7 +536,7 @@ SGVERSION=1.0.10
     printf "\n  GRest Exporter Service"
     [[ -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-grest_exporter.service
 			[Unit]
-			Description=Guild Rest Services Metrics Exporter
+			Description=gRest Services Metrics Exporter
 			After=network-online.target
 			Wants=network-online.target
 			

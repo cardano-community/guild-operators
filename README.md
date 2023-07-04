@@ -15,7 +15,7 @@ A place for SPOs to contribute together to the Cardano Ecosystem.
 
 ## Support
 The Telegram announcement & support channel is used to announce new releases and changes to the code base. This is also the place to ask general questions regarding the Guild Operators documentation and scripts.  
-[Telegram Announcement & Support channel](https://t.me/guild_operators_official)
+[Telegram Announcement & Support channel](https://t.me/CardanoKoios/9759)
 
 To report **bugs** and **issues** with scripts and documentation please open a [GitHub Issue](https://github.com/cardano-community/guild-operators/issues/new/choose).  
 **Feature requests** are best opened as a [discussion thread](https://github.com/cardano-community/guild-operators/discussions/new).

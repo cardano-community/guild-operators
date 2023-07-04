@@ -1,4 +1,4 @@
-??? example "One-Time major upgrade for Guild Scripts from 20-Jan-2023 (expand for details)"
+??? example "One-Time major upgrade for Koios Scripts from 20-Jan-2023 (expand for details)"
     
     The scripts on guild-operators repository have gone through quite a few changes to accomodate for the below:
 
@@ -70,4 +70,4 @@ The above might result in some lines having more than one entry (eg: you might h
 
 ### Support/Improvements
 
-Hope the guide above helps you with the migration, but again - we could've missed some edge cases. If so, please report via chat in [Guild Operators Support channel](https://t.me/guild_operators_official) only. Please DO NOT make edits to the script content based on forum/alternate guide/channels, while done with best intentions - there have been solutions put online that modify files unnecessarily instead of correcting configs and disabling updates, such actions will only cause trouble for future updates.
+Hope the guide above helps you with the migration, but again - we could've missed some edge cases. If so, please report via chat in [Koios Discussions channel](https://t.me/CardanoKoios) only. Please DO NOT make edits to the script content based on forum/alternate guide/channels, while done with best intentions - there have been solutions put online that modify files unnecessarily instead of correcting configs and disabling updates, such actions will only cause trouble for future updates.

@@ -185,7 +185,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
           echo -e "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_DIR}"/cntools-changelog.md | head -n -2)" | less -X
         else
           # print release notes from current until previously installed version
-          [[ $(cat "${PARENT}/cntools-changelog.md") =~ \[([[:digit:]])\.([[:digit:]])\.([[:digit:]])\] ]]
+          [[ $(cat "${PARENT}/cntools-changelog.md") =~ \[([[:digit:]]+)\.([[:digit:]]+)\.([[:digit:]]+)\] ]]
           cat <(echo -e "~ CNTools - What's New ~\n") <(awk "1;/\[${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}\.${BASH_REMATCH[3]}\]/{exit}" "${TMP_DIR}"/cntools-changelog.md | head -n -2 | tail -n +7) <(echo -e "\n [Press 'q' to quit and proceed to CNTools main menu]\n") | less -X
         fi
         cp "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"

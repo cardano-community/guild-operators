@@ -5,7 +5,7 @@
     - The tool uses the folder structure defined [here](../basics.md#folder-structure). Everyone is free to customise, but while doing so beware that you may introduce changes that may not be tested during updates.
     - Always use Preview/Preprod/Guild network first to familiarise, read the warning/messages in full, maintain your keys/backups with passwords (no one other than yourself can retrieve the funds if you make an accident), before performing actions on mainnet.
 
-CNTools is like a swiss army knife for pool operators to simplify typical operations regarding their wallet keys and pool management. Please note that this tool only aims to simplify usual tasks for its users, but it should **NOT** act as an excuse to skip understanding how to manually work through things or basics of Linux operations. The skills highlighted on the [home page](../index.md) are paramount for a stake pool operator, and so is the understanding of configuration files and network. Please ensure you've read and understood the disclaimers **before** proceeding.
+Koios CNTools is like a swiss army knife for pool operators to simplify typical operations regarding their wallet keys and pool management. Please note that this tool only aims to simplify usual tasks for its users, but it should **NOT** act as an excuse to skip understanding how to manually work through things or basics of Linux operations. The skills highlighted on the [home page](../index.md) are paramount for a stake pool operator, and so is the understanding of configuration files and network. Please ensure you've read and understood the disclaimers **before** proceeding.
 
 Visit the [Changelog](../Scripts/cntools-changelog.md) section to see progress and current release.
 
@@ -24,7 +24,7 @@ Additionally, CNTools can integrate and enable optional functionalities based on
 
 See [CNCLI](../Scripts/cncli.md) and [Log Monitor](../Scripts/logmonitor.md) sections for more details.
 
-CNTools can operate in following modes:
+Koios CNTools can operate in following modes:
 
 - Advanced - When CNTools is launched with `-a` runtime argument, this launches CNTools exposing a new `Advanced` menu, which allows users to manage (create/mint/burn) new assets.
 - Online - When all wallet and pool keys are available on the hot node, use this option. This is the default mode when you start CNTools without parameters.
@@ -41,7 +41,7 @@ The update functionality is provided from within CNTools. In case of breaking ch
 The scripts menu supports both arrow key navigation and shortcut key selection. The character within the square brackets is the shortcut to press for quick navigation. For other selections like wallet and pool menu that don't contain shortcuts, there is a third way to navigate. Key pressed is compared to the first character of the menu option and if there is a match the selection jumps to this location. A handy way to quickly navigate a large menu. 
 
 #### Hardware Wallet
-CNTools include hardware wallet support since version `7.0.0` through Vacuumlabs `cardano-hw-cli` application. Initialize and update firmware/app on the device to the latest version before usage following the manufacturer instructions.
+CNTools includes hardware wallet support since version `7.0.0` through Vacuumlabs `cardano-hw-cli` application. Initialize and update firmware/app on the device to the latest version before usage following the manufacturer instructions.
 
 To enable hardware support run `guild-deploy.sh -s w`. This downloads and installs Vacuumlabs `cardano-hw-cli` including `udev` configuration. When a new version of Vacuumlabs `cardano-hw-cli` is released, run `guild-deploy.sh -s w` again to update. For additional runtime options, run `guild-deploy.sh -h`.
 
@@ -65,7 +65,7 @@ Keys excluded from backup when created without private keys:
 **Wallet** - `payment.skey`, `stake.skey`
 **Pool**   - `cold.skey`
 
-Note that setting up an offline server requires good SysOps background (you need to be aware of how to set up your server with offline mirror repository, how to transfer files across and be fairly familiar with the disk layout of guild tools). The `guild-deploy.sh` in its current state is not expected to run on an offline machine. Essentially, you simply need the `cardano-cli`, `bech32`, `cardano-address` binaries in your `$PATH`, OS level dependency packages [`jq`, `coreutils`, `pkgconfig`, `gcc-c++` and `bc` ], and perhaps a copy from your online `cnode` directory (to ensure you have the right `genesis`/`config` files on your offline server). We strongly recommend you to familiarise yourself with the workflow on the preview / preprod / guild networks first, before attempting on mainnet.
+Note that setting up an offline server requires good SysOps background (you need to be aware of how to set up your server with offline mirror repository, how to transfer files across and be fairly familiar with the disk layout presented in the documentation). The `guild-deploy.sh` in its current state is not expected to run on an offline machine. Essentially, you simply need the `cardano-cli`, `bech32`, `cardano-address` binaries in your `$PATH`, OS level dependency packages [`jq`, `coreutils`, `pkgconfig`, `gcc-c++` and `bc` ], and perhaps a copy from your online `cnode` directory (to ensure you have the right `genesis`/`config` files on your offline server). We strongly recommend you to familiarise yourself with the workflow on the preview / preprod / guild networks first, before attempting on mainnet.
 
 Example workflow for creating a wallet and pool:
 
@@ -103,9 +103,9 @@ sequenceDiagram
 
     ```
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     >> CNTools vX.X.X - Guild - CONNECTED <<            A Guild Operators collaboration
+     >> Koios CNTools vX.X.X - Guild - CONNECTED <<
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     Main Menu    Telegram Announcement / Support channel: t.me/guild_operators_official
+     Main Menu    Telegram Announcement / Support channel: t.me/CardanoKoios/9759
     
      ) Wallet      - create, show, remove and protect wallets
      ) Funds       - send, withdraw and delegate
@@ -142,9 +142,9 @@ sequenceDiagram
     The main menu header should let you know that node is started in offline mode:
     ```
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     >> CNTools vX.X.X - Guild - OFFLINE <<              A Guild Operators collaboration
+     >> Koios CNTools vX.X.X - Guild - OFFLINE <<
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     Main Menu    Telegram Announcement / Support channel: t.me/guild_operators_official
+     Main Menu    Telegram Announcement / Support channel: t.me/CardanoKoios/9759
     
      ) Wallet      - create, show, remove and protect wallets
      ) Funds       - send, withdraw and delegate

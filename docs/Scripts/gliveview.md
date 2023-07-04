@@ -1,17 +1,17 @@
 !!! info "Reminder !!"
     Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
-**Guild LiveView - gLiveView** is a local monitoring tool to use in addition to remote monitoring tools like Prometheus/Grafana, Zabbix or IOG's RTView. This is especially useful when moving to a systemd deployment - if you haven't done so already - as it offers an intuitive UI to monitor the node status.
+**Koios gLiveView ** is a local monitoring tool to use in addition to remote monitoring tools like Prometheus/Grafana, Zabbix or IOG's RTView. This is especially useful when moving to a systemd deployment - if you haven't done so already - as it offers an intuitive UI to monitor the node status.
 
 The tool is independent from other files and can run as a standalone utility that can be stopped/started without affecting the status of `cardano-node`.
 
 ##### Download
 
 If you've used [guild-deploy.sh](../basics.md#pre-requisites), you can skip this part, as this is already set up for you. The tool relies on the common `env` configuration file.
-To get current epoch blocks, the [logMonitor.sh](../Scripts/logmonitor.md) script is needed (and can be combined with [CNCLI](../Scripts/cncli.md)). This is optional and **Guild LiveView** will function without it.
+To get current epoch blocks, the [logMonitor.sh](../Scripts/logmonitor.md) script is needed (and can be combined with [CNCLI](../Scripts/cncli.md)). This is optional and **Koios gLiveView** will function without it.
 
 !!! info "Note"
-    For those who follow guild's [folder structure](../basics.md#folder-structure) and do not wish to run `guild-deploy.sh`, you can run the below in `$CNODE_HOME/scripts` folder
+    For those who follow the [folder structure](../basics.md#folder-structure) in this repo and do not wish to run `guild-deploy.sh`, you can run the below in `$CNODE_HOME/scripts` folder
 
 To download the script:
 

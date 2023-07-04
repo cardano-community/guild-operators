@@ -11,11 +11,11 @@
 # The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 # and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
-CNTOOLS_MAJOR_VERSION=10
+CNTOOLS_MAJOR_VERSION=11
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=4
+CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 

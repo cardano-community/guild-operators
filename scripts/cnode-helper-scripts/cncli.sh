@@ -566,7 +566,7 @@ deployMonitoringAgent() {
   echo -e "[Re]Installing CNCLI Monitoring Agent service.."
   sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-cncli-exporter.service
 [Unit]
-Description=Guild CNCLI Metrics Exporter
+Description=CNCLI Metrics Exporter
 After=network-online.target
 Wants=network-online.target
 

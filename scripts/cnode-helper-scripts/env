@@ -188,7 +188,7 @@ checkUpdate() {
           GIT_VERSION=$(grep -r ^GLV_VERSION= "${dname}/${fname}".tmp | cut -d'=' -f2)
         fi
         if ! versionCheck ${GIT_VERSION} ${CUR_VERSION}; then
-          [[ ${fname} = cntools.library ]] && script_name="CNTools" || script_name="Guild LiveView"
+          [[ ${fname} = cntools.library ]] && script_name="Koios CNTools" || script_name="Koios gLiveView"
           update_msg="\nA new version of ${script_name} is available."
           update_msg="${update_msg}\nInstalled Version : ${FG_LGRAY}${CUR_VERSION}${NC}"
           update_msg="${update_msg}\nAvailable Version : ${FG_GREEN}${GIT_VERSION}${NC}"
@@ -982,7 +982,7 @@ fi
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
 if ! versionCheck "8.1.1" "${node_version}"; then
-  echo -e "\nGuild scripts has now been upgraded to support cardano-node 8.1.1 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+  echo -e "\nKoios scripts has now been upgraded to support cardano-node 8.1.1 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
   return 1
 fi
 
