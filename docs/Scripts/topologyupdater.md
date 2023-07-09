@@ -33,8 +33,8 @@ Out of the box, the scripts might come with some assumptions, that may or may no
 CNODE_HOSTNAME="CHANGE ME"                                # (Optional) Must resolve to the IP you are requesting from
 CNODE_VALENCY=1                                           # (Optional) for multi-IP hostnames
 MAX_PEERS=15                                              # Maximum number of peers to return on successful fetch
-#CUSTOM_PEERS="None"                                      # Additional custom peers to (IP:port[:valency]) to add to your target topology.json
-                                                          # eg: "10.0.0.1:3001|10.0.0.2:3002|relays.mydomain.com:3003:3"
+#CUSTOM_PEERS="None"                                      # Additional custom peers to (IP,port[,valency]) to add to your target topology.json
+                                                          # eg: "10.0.0.1,3001|10.0.0.2,3002|relays.mydomain.com,3003,3"
 #BATCH_AUTO_UPDATE=N                                      # Set to Y to automatically update the script if a new version is available without user interaction
 ```
 
@@ -84,7 +84,7 @@ Note that the change in topology is only effective upon restart of your node. Ma
 Most of the Stake Pool Operators may have few preferences (own relays, close friends, etc) that they would like to add to their topology by default. This is where the `CUSTOM_PEERS` variable in `topologyUpdater.sh` comes in. You can add a list of peers in the format of: `hostname/IP:port[:valency]` here and the output `topology.json` formed will already include the custom peers that you supplied. Every custom peer is defined in the form `[address]:[port]` and optional `:[valency]` (if not specified, the valency defaults to `1`). Multiple custom peers are separated by `|`. An example of a valid `CUSTOM_PEERS` variable would be:
 
 ```bash
-CUSTOM_PEERS="foo.bar.io:3001:2|198.175.21.197:6001|36.233.3.89:6000
+CUSTOM_PEERS="foo.bar.io,3001,2|198.175.21.197,6001|36.233.3.89,6000
 ```
 The list above would add three custom peers with the specified addresses and ports, with the first one additionally specifying the optional valency parameter (in this case `2`).
 

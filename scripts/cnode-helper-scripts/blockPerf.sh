@@ -22,7 +22,7 @@
 # Do NOT modify code below           #
 ######################################
 
-BP_VERSION=v1.3.8
+BP_VERSION=v1.3.9
 
 SKIP_UPDATE=N
 [[ $1 = "-u" ]] && SKIP_UPDATE=Y && shift
@@ -303,7 +303,7 @@ reportBlock() {
       #Debug: look into when and why this happens
       #echo -e "blockheight:${iblockHeight} (negative delta) \n  bhash:${blockHash}\n  tbh:${blockTimeTbh} ${deltaSlotTbh}\n  sfr:${blockTimeSfrX} ${deltaTbhSfr}\n  cbf:${blockTimeCbf} ${deltaSfrCbf}\n  ab:${blockTimeAb} ${deltaCbfAb} \n blockTimeCbfAddr: $blockTimeCbfAddr \n blockTimeCbfPort: $blockTimeCbfPort \n sbx: $sbx \n line_tsv: $line_tsv \n \n blockLogLine: \n${blockLogLine} \n\n ${blockLog}" > zzz_debug_WARN_block_${iblockHeight}.json
     else
-      if [[ "${deltaSlotTbh}" -lt 10000 ]] && [[ "$((blockSlot-slotHeightPrev))" -lt 200 ]]; then
+      if [[ "${deltaSlotTbh}" -lt 60000 ]] && [[ "$((blockSlot-slotHeightPrev))" -lt 200 ]]; then
         [[ ${SELFISH_MODE} != "Y" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&bpv=${BP_VERSION}&nport=${CNODE_PORT}&bn=${iblockHeight}&slot=${blockSlot}&tbh=${deltaSlotTbh}&tbhAddr=${blockTimeTbhAddrPublic}&tbhPort=${blockTimeTbhPortPublic}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&g=${blockTimeG}&size=${blockSize}&addr=${blockTimeCbfAddrPublic}&port=${blockTimeCbfPortPublic}&bh=${blockHash}&bpenv=${envBP}" &)
         [[ ${SERVICE_MODE} != "Y" ]] && echo -e "${FG_YELLOW}Block:.... ${iblockHeight} ( ${blockHash:0:10} ...)\n${NC} Slot..... ${blockSlot} ($((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms) from ${blockTimeTbhAddr}:${blockTimeTbhPort}\n RequestX. ${blockTimeSfrX} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms) from ${blockTimeCbfAddr}:${blockTimeCbfPort}\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec"
       else
@@ -415,7 +415,7 @@ do
         blockLog=$(grep -h -E ${blockHash:0:10} ${logfile/.json/-*} ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
         fi
       iblockHeight=$(grep -m 1 ${blockHash} ${logfile})
-      iblockHeight=$(jq -r .data.blockNo.unBlockNo <<< "${iblockHeight}")
+      iblockHeight=$(jq -r .data.blockNo <<< "${iblockHeight}")
       #echo "b:${iblockHeight}	s:${slotNum}" >> forks.log
       reportBlock ${blockLog};
     else
