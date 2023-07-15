@@ -2,11 +2,12 @@
   "localRoots": [
     {
       "accessPoints": [
-        {"address": "127.0.0.1", "port": 6000, "valency": 1, "pool": "BP"},
-        {"address": "127.0.0.1", "port": 6001, "valency": 1, "pool": "relay"}
+        {"address": "127.0.0.1", "port": 6000, "description": "BP"},
+        {"address": "127.0.0.1", "port": 6001, "description": "relay"}
       ],
       "advertise": false,
-      "valency": 1
+	  "valency_INFO": "set the .localRoots.valency to the number of configured accessPoints",
+      "valency": 2
     }
   ],
   "publicRoots": [
@@ -31,5 +32,6 @@
       "advertise": false
     }
   ],
+  "useLedgerAfterSlot_INFO": "the node will use the .publicRoots.accessPoints only until he synchronised up to slot .useLedgerAfterSlot. then P2P peering jumps in, plus static links to .localRoots.accessPoints",
   "useLedgerAfterSlot": 95212750
 }
