@@ -14,6 +14,7 @@
 #DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"          # Path to DBSync repository's schema folder
 #DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"            # Config file for dbsync instance
 #SYSTEMD_PGNAME="postgresql"                                # Name for postgres instance, if changed from default
+#DBSYNC_CONSUMED_TX_OUT="Y"                                 # Add new field consumed_by_tx_in_id in tx_out table (added unless variable is set to "N")
 
 ######################################
 # Do NOT modify code below           #
@@ -36,17 +37,20 @@ usage() {
 }
 
 set_defaults() {
-  [[ -z "${DBSYNCBIN}" ]] && DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync"
+  if [[ -z "${DBSYNCBIN}" ]]; then
+    [[ -f "${HOME}/.local/bin/cardano-db-sync" ]] && DBSYNCBIN="${HOME}/.local/bin/cardano-db-sync" || DBSYNCBIN="$(command -v cardano-db-sync)"
+  fi
   [[ -z "${PGPASSFILE}" ]] && PGPASSFILE="${CNODE_HOME}/priv/.pgpass"
   [[ -z "${DBSYNC_CONFIG}" ]] && DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"
   [[ -z "${DBSYNC_SCHEMA_DIR}" ]] && DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"
   [[ -z "${DBSYNC_STATE_DIR}" ]] && DBSYNC_STATE_DIR="${CNODE_HOME}/guild-db/ledger-state"
+  [[ -z "${DBSYNC_CONSUMED_TX_OUT}" ]] && DBSYNC_CONSUMED_TX_OUT="Y"
   [[ -z "${SYSTEMD_PGNAME}" ]] && SYSTEMD_PGNAME="postgresql"
 }
 
 check_defaults() {
-  if [[ ! -f "${DBSYNCBIN}" ]] && [[ ! $(command -v cardano-db-sync &>/dev/null) ]]; then
-    echo "ERROR: cardano-db-sync seems to be absent in PATH, please investigate \$PATH environment variable!" && exit 1
+  if [[ -z "${DBSYNCBIN}" ]]; then
+    echo "ERROR: DBSYNCBIN variable is not set, please set full path to cardano-db-sync binary!" && exit 1
   elif [[ ! -f "${PGPASSFILE}" ]]; then
     echo "ERROR: The PGPASSFILE (${PGPASSFILE}) not found, please ensure you've followed the instructions on guild-operators website!" && exit 1
     exit 1
@@ -58,11 +62,13 @@ check_defaults() {
 }
 
 check_config_sanity() {
-  BYGENHASH=$(cardano-cli byron genesis print-genesis-hash --genesis-json "${BYRON_GENESIS_JSON}" 2>/dev/null)
+  DBSYNC_VERSION="$(${DBSYNCBIN} --version | awk '{print $2}')"
+  [[ "${DBSYNC_CONSUMED_TX_OUT}" != "N" ]] && versionCheck 13.1.1.3 ${DBSYNC_VERSION} && DBSYNC_ARGS=" --consumed-tx-out"
+  BYGENHASH=$("${CCLI}" byron genesis print-genesis-hash --genesis-json "${BYRON_GENESIS_JSON}" 2>/dev/null)
   BYGENHASHCFG=$(jq '.ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
-  SHGENHASH=$(cardano-cli genesis hash --genesis "${GENESIS_JSON}" 2>/dev/null)
+  SHGENHASH=$("${CCLI}" genesis hash --genesis "${GENESIS_JSON}" 2>/dev/null)
   SHGENHASHCFG=$(jq '.ShelleyGenesisHash' <"${CONFIG}" 2>/dev/null)
-  ALGENHASH=$(cardano-cli genesis hash --genesis "${ALONZO_GENESIS_JSON}" 2>/dev/null)
+  ALGENHASH=$("${CCLI}" genesis hash --genesis "${ALONZO_GENESIS_JSON}" 2>/dev/null)
   ALGENHASHCFG=$(jq '.AlonzoGenesisHash' <"${CONFIG}" 2>/dev/null)
   # If hash are missing/do not match, add that to the end of config. We could have sorted it based on logic, but that would mess up sdiff comparison outputs
   if [[ "${BYGENHASH}" != "${BYGENHASHCFG}" ]] || [[ "${SHGENHASH}" != "${SHGENHASHCFG}" ]] || [[ "${ALGENHASH}" != "${ALGENHASHCFG}" ]]; then
@@ -135,4 +141,5 @@ export PGPASSFILE
   --config "${DBSYNC_CONFIG}" \
   --socket-path "${CARDANO_NODE_SOCKET_PATH}" \
   --schema-dir "${DBSYNC_SCHEMA_DIR}" \
+  ${DBSYNC_ARGS} \
   --state-dir "${DBSYNC_STATE_DIR}"
