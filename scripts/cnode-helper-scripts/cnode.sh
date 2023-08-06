@@ -133,7 +133,7 @@ pre_startup_sanity
 
 # Run Node
 if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" && -f "${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}" ]]; then
-  "${CNODEBIN}" "${CPU_RUNTIME[@]}" run \
+  exec "${CNODEBIN}" "${CPU_RUNTIME[@]}" run \
     --topology "${TOPOLOGY}" \
     --config "${CONFIG}" \
     --database-path "${DB_DIR}" \
@@ -144,7 +144,7 @@ if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_
     --port ${CNODE_PORT} \
     ${MEMPOOL_OVERRIDE} "${host_addr[@]}"
 else
-  "${CNODEBIN}" "${CPU_RUNTIME[@]}" run \
+  exec "${CNODEBIN}" "${CPU_RUNTIME[@]}" run \
     --topology "${TOPOLOGY}" \
     --config "${CONFIG}" \
     --database-path "${DB_DIR}" \
