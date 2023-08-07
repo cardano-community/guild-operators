@@ -1049,7 +1049,7 @@
 <span class="s1"> --name : Container&#39;</span>s<span class="w"> </span>name
 </code></pre></div>
 <h3 id="custom-container-with-your-own-cfg">Custom container with your own cfg<a class="headerlink" href="#custom-container-with-your-own-cfg" title="Permanent link">⚓︎</a></h3>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>-itd<span class="w">  </span>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--init<span class="w"> </span>-itd<span class="w">  </span>
 -name<span class="w"> </span>Relay<span class="w">                                   </span><span class="c1"># Optional (recommended for quick access): set a name for your newly created container.</span>
 -p<span class="w"> </span><span class="m">9000</span>:6000<span class="w">                                  </span><span class="c1"># Optional: to expose the internal container&#39;s port (6000) to the host &lt;IP&gt; port 9000</span>
 -e<span class="w"> </span><span class="nv">NETWORK</span><span class="o">=</span>mainnet<span class="w">                            </span><span class="c1"># Mandatory: mainnet / preprod / guild-mainnet / guild</span>

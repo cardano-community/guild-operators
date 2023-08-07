@@ -982,7 +982,7 @@
 <li>Wallet Management</li>
 <li>Node testing</li>
 </ul>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>-dit
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--init<span class="w"> </span>-dit
 --name<span class="w"> </span>&lt;YourCName&gt;
 --security-opt<span class="o">=</span>no-new-privileges
 -e<span class="w"> </span><span class="nv">NETWORK</span><span class="o">=</span>mainnet
@@ -996,7 +996,7 @@ cardanocommunity/cardano-node
 <ul>
 <li>Node Relay</li>
 </ul>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>-dit
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--init<span class="w"> </span>-dit
 --name<span class="w"> </span>&lt;YourCName&gt;
 --security-opt<span class="o">=</span>no-new-privileges
 -e<span class="w"> </span><span class="nv">NETWORK</span><span class="o">=</span>mainnet
@@ -1009,7 +1009,7 @@ cardanocommunity/cardano-node
 <li>Node Relay with custom permanent cfg by passing the env variable CONFIG 
   (Mapping your configuration folder as below will allow you to retain configurations if you update or delete your container)</li>
 </ul>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>-dit
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--init<span class="w"> </span>-dit
 --name<span class="w"> </span>&lt;YourCName&gt;
 --security-opt<span class="o">=</span>no-new-privileges
 -e<span class="w"> </span><span class="nv">NETWORK</span><span class="o">=</span>mainnet
