@@ -11,7 +11,7 @@
     - Node testing
     
       ```bash
-      docker run -dit
+      docker run --init -dit
       --name <YourCName>
       --security-opt=no-new-privileges
       -e NETWORK=mainnet
@@ -27,7 +27,7 @@
     - Node Relay
     
       ```bash
-      docker run -dit
+      docker run --init -dit
       --name <YourCName>
       --security-opt=no-new-privileges
       -e NETWORK=mainnet
@@ -41,7 +41,7 @@
       (Mapping your configuration folder as below will allow you to retain configurations if you update or delete your container)
 
       ```bash
-      docker run -dit
+      docker run --init -dit
       --name <YourCName>
       --security-opt=no-new-privileges
       -e NETWORK=mainnet

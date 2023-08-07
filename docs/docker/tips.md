@@ -33,7 +33,7 @@ This command will bring you within the container bash env ready to use the Koios
 ### Custom container with your own cfg
 
 ```bash
-docker run -itd  
+docker run --init -itd  
 -name Relay                                   # Optional (recommended for quick access): set a name for your newly created container.
 -p 9000:6000                                  # Optional: to expose the internal container's port (6000) to the host <IP> port 9000
 -e NETWORK=mainnet                            # Mandatory: mainnet / preprod / guild-mainnet / guild
