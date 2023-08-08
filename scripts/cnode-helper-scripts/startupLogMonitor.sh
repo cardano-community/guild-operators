@@ -2,10 +2,14 @@
 #shellcheck disable=SC2086,SC2001,SC2154
 #shellcheck source=/dev/null
 
-# STARTUPLOG_DIR="/opt/cardano/cnode/guild-db/startuplog"
-# STARTUPLOG_DB="${STARTUPLOG_DIR}/startuplog.db"
-# BATCH_AUTO_UPDATE="Y"
-# logfile="/opt/cardano/cnode/logs/node0.json"
+######################################
+# User Variables - Change as desired #
+# Common variables set in env file   #
+######################################
+
+#STARTUPLOG_DIR="/opt/cardano/cnode/guild-db/startuplog"
+#STARTUPLOG_DB="${STARTUPLOG_DIR}/startuplog.db"
+#BATCH_AUTO_UPDATE="Y"
 
 ######################################
 # Do NOT modify code below           #
@@ -15,6 +19,18 @@
 #####################
 # Functions         #
 #####################
+
+usage() {
+  cat <<-EOF >&2
+		
+		Usage: $(basename "$0") [operation <sub arg>]
+		Script to run startupLogMonitor, best launched through systemd deployed by 'deploy-as-systemd.sh'
+
+		-d    Deploy startupLogMonitor as a systemd service
+		-u    Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
+		EOF
+  exit 1
+}
 
 createStartuplogDB() {
   if ! mkdir -p "${STARTUPLOG_DIR}" 2>/dev/null; then echo "ERROR: failed to create directory to store blocklog: ${STARTUPLOG_DIR}" && return 1; fi
@@ -29,46 +45,33 @@ createStartuplogDB() {
 }
 
 deploy_systemd() {
-  echo "Deploying startup log monitoring for ${CNODE_VNAME} as systemd service.."
+  echo "Deploying ${CNODE_VNAME}-startup-logmonitor as systemd service.."
   ${sudo} bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}-startup-logmonitor.service
-[Unit]
-Description=Cardano Node - Startup Log Monitor
-BindsTo=${CNODE_VNAME}.service
-Before=${CNODE_VNAME}.service
-
-[Service]
-Type=simple
-Restart=on-failure
-RestartSec=20
-User=$USER
-WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/startupLogMonitor.sh -u\"
-ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/startupLogMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
-KillSignal=SIGINT
-SuccessExitStatus=143
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=${CNODE_VNAME}-startup-logmonitor
-TimeoutStopSec=5
-KillMode=mixed
-
-[Install]
-WantedBy=${CNODE_VNAME}.service
-EOF" && echo "${CNODE_VNAME}-startup-logmonitor.service deployed successfully!!" && ${sudo} systemctl daemon-reload && ${sudo} systemctl enable ${CNODE_VNAME}-startup-logmonitor.service
+	[Unit]
+	Description=Cardano Node - Startup Log Monitor
+	Wants=network-online.target
+	After=network-online.target
+	
+	[Service]
+	Type=simple
+	Restart=on-failure
+	RestartSec=20
+	User=${USER}
+	WorkingDirectory=${CNODE_HOME}/scripts
+	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/startupLogMonitor.sh -u\"
+	ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/startupLogMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
+	KillSignal=SIGINT
+	SuccessExitStatus=143
+	StandardOutput=syslog
+	StandardError=syslog
+	SyslogIdentifier=${CNODE_VNAME}-startup-logmonitor
+	TimeoutStopSec=5
+	KillMode=mixed
+	
+	[Install]
+	WantedBy=multi-user.target
+	EOF" && echo "${CNODE_VNAME}-startup-logmonitor.service deployed successfully!!" && ${sudo} systemctl daemon-reload && ${sudo} systemctl enable ${CNODE_VNAME}-startup-logmonitor.service
 }
-
-usage() {
-  cat <<-EOF >&2
-		
-		Usage: $(basename "$0") [operation <sub arg>]
-		Script to run startupLogMonitor, best launched through systemd deployed by 'deploy-as-systemd.sh'
-
-		-d    Deploy startupLogMonitor as a systemd service
-		-u    Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
-		EOF
-  exit 1
-}
-
 
 ###################
 # Execution       #
@@ -87,23 +90,15 @@ shift $((OPTIND -1))
 
 PARENT="$(dirname $0)"
 
-if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-  vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
-else
-  echo "failed to get cnode instance name from env file, aborting!"
-  exit 1
-fi
-
-if [[ ! -f "${PARENT}"/env ]]; then
-    echo -e "\nCommon env file missing: ${PARENT}/env"
-    echo -e "This is a mandatory prerequisite, please install with guild-deploy.sh or manually download from GitHub\n"
-    exit 1
-fi
-
-if ! . "${PARENT}"/env offline ; then exit 1; fi
+[[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+. "$(dirname $0)"/env offline
+case $? in
+  1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;
+  2) clear ;;
+esac
 
 [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
-[[ -z "${STARTUPLOG_DIR}" ]] && export STARTUPLOG_DIR="/opt/cardano/cnode/guild-db/startuplog"
+[[ -z "${STARTUPLOG_DIR}" ]] && export STARTUPLOG_DIR="${CNODE_HOME}/guild-db/startuplog"
 [[ -z "${STARTUPLOG_DB}" ]] && export STARTUPLOG_DB="${STARTUPLOG_DIR}/startuplog.db"
 [[ -z ${SUDO} ]] && SUDO='Y'
 [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
@@ -249,4 +244,3 @@ while read -r logentry; do
     * ) : ;; # ignore
   esac
 done < <(tail -F -n0 "${logfile}")
-
