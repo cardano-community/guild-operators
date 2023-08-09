@@ -408,32 +408,7 @@ echo
 echo "Deploy Startup Log Monitor as systemd services? [y|n]"
 read -rsn1 yn
 if [[ ${yn} = [Yy]* ]]; then
-  ##############################################./blockPerf.sh -d
-  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-startup-logmonitor.service
-[Unit]
-Description=Cardano Node - Startup Log Monitor
-BindsTo=${vname}.service
-Before=${vname}.service
-
-[Service]
-Type=simple
-Restart=on-failure
-RestartSec=20
-User=$USER
-WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/startupLogMonitor.sh\"
-ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/startupLogMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
-KillSignal=SIGINT
-SuccessExitStatus=143
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=${vname}-startup-logmonitor
-TimeoutStopSec=5
-KillMode=mixed
-
-[Install]
-WantedBy=${vname}.service
-EOF"
+  ./startupLogMonitor.sh -d
 else
   if [[ -f /etc/systemd/system/${vname}-startup-logmonitor.service ]]; then
     sudo systemctl disable ${vname}-startup-logmonitor.service
