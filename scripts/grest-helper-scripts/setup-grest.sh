@@ -388,7 +388,7 @@ SGVERSION=1.0.10
     # Create PostgREST config template
     printf "\n[Re]Deploying Configs.."
     sudo chmod 755 "${CNODE_HOME}" "${CNODE_HOME}"/priv
-    [[ -f "${CNODE_HOME}"/priv/grest.conf ]] && sudo mv "${CNODE_HOME}"/priv/grest.conf "${CNODE_HOME}"/priv/grest.conf.bkp_$(date +%s)
+    [[ -f "${CNODE_HOME}"/priv/grest.conf ]] && sudo mv "${CNODE_HOME}"/priv/grest.conf "${CNODE_HOME}"/priv/grest.conf_bkp$(date +%s)
     cat <<-EOF > "${CNODE_HOME}"/priv/grest.conf
 			db-uri = "postgres://authenticator@/${PGDATABASE}"
 			db-schema = "grest"
@@ -403,7 +403,7 @@ SGVERSION=1.0.10
     sudo chmod 640 "${CNODE_HOME}"/priv/grest.conf
     sudo chown authenticator:${USER} "${CNODE_HOME}"/priv/grest.conf
     # Create HAProxy config template
-    [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
+    [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}"_bkp$(date +%s)
 
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global

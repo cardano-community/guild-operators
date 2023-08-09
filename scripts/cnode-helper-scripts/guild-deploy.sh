@@ -176,7 +176,8 @@ updateWithCustomConfig() {
       return
     fi
   fi
-  [[ -f ${file} ]] && cp -f ${file} "${file}_bkp$(date +%s)"
+  [[ ! -d ./archive ]] && mkdir archive
+  [[ -f ${file} ]] && cp -f ${file} ./archive/"${file}_bkp$(date +%s)"
   mv -f ${file}.tmp ${file}
   [[ "${file}" == *.sh ]] && chmod 755 ${file}
 }
@@ -492,7 +493,7 @@ setup_folder() {
     echo -e "\nexport ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
   fi
   
-  $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
+  $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/scripts/archive "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv
   $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
 }
 
