@@ -200,7 +200,8 @@ checkUpdate() {
         if [[ $3 != Y ]] && grep -q "# Do NOT modify" "${dname}/${fname}"; then
           printf '%s\n%s\n' "${NEW_STATIC}" "${GIT_TEMPL}" > "${dname}/${fname}".tmp
         fi
-        cp "${dname}/${fname}" "${dname}/${fname}_bkp$(date +%s)"
+        [[ ! -d "${dname}"/archive ]] && mkdir "${dname}"/archive
+        cp "${dname}/${fname}" "${dname}/archive/${fname}_bkp$(date +%s)"
         mv -f "${dname}/${fname}".tmp "${dname}/${fname}"
         [[ ! "${fname}" == "env" ]] && chmod +x "${dname}/${fname}"
         echo -e "\n${FG_YELLOW}${fname}${NC} update successfully applied!"
