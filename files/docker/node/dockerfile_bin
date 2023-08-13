@@ -1,5 +1,8 @@
 FROM debian:stable-slim
 
+# DEFINE THE PREFERRED STOP SIGNAL
+STOPSIGNAL SIGINT
+
 LABEL desc="Cardano Node by Guild's Operators"
 ARG DEBIAN_FRONTEND=noninteractive
 ARG G_ACCOUNT

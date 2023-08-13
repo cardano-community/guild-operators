@@ -200,7 +200,8 @@ checkUpdate() {
         if [[ $3 != Y ]] && grep -q "# Do NOT modify" "${dname}/${fname}"; then
           printf '%s\n%s\n' "${NEW_STATIC}" "${GIT_TEMPL}" > "${dname}/${fname}".tmp
         fi
-        cp "${dname}/${fname}" "${dname}/${fname}_bkp$(date +%s)"
+        [[ ! -d "${dname}"/archive ]] && mkdir "${dname}"/archive
+        cp "${dname}/${fname}" "${dname}/archive/${fname}_bkp$(date +%s)"
         mv -f "${dname}/${fname}".tmp "${dname}/${fname}"
         [[ ! "${fname}" == "env" ]] && chmod +x "${dname}/${fname}"
         echo -e "\n${FG_YELLOW}${fname}${NC} update successfully applied!"
@@ -982,7 +983,7 @@ fi
 
 node_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
 if ! versionCheck "8.1.2" "${node_version}"; then
-  echo -e "\nKoios scripts has now been upgraded to support cardano-node 8.1.2 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version.\n\n"
+  echo -e "\nKoios scripts has now been upgraded to support cardano-node 8.1.2 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version (eg: ./<script>.sh -b node-1.35.7 to switch scripts to an older branch).\n\n"
   return 1
 fi
 

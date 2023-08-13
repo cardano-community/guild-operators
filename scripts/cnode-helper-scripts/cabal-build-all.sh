@@ -30,7 +30,7 @@ else
   CUSTOM_CABAL="N"
 fi
 
-[[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local.bkp_"$(date +%s)"
+[[ -f cabal.project.local ]] && mv cabal.project.local cabal.project.local_bkp"$(date +%s)"
 cat <<-EOF > .tmp.cabal.project.local
 	${USE_SYSTEM_LIBSODIUM}
 	

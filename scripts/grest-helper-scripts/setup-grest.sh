@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=1.0.10
+SGVERSION=v1.0.11rc
 
 ######## Functions ########
   usage() {
@@ -91,7 +91,7 @@ SGVERSION=1.0.10
   get_cron_job_executable() {
     local job=$1
     local job_path="${CRON_SCRIPTS_DIR}/${job}.sh"
-    local job_url="https://raw.githubusercontent.com/cardano-community/koios-artifacts/v${SGVERSION}/files/grest/cron/jobs/${job}.sh"
+    local job_url="https://raw.githubusercontent.com/cardano-community/koios-artifacts/${SGVERSION}/files/grest/cron/jobs/${job}.sh"
     is_file "${job_path}" && rm "${job_path}"
     if curl -s -f -m "${CURL_TIMEOUT}" -o "${job_path}" "${job_url}"; then
       printf "\n    Downloaded \e[32m${job_path}\e[0m"
@@ -388,7 +388,7 @@ SGVERSION=1.0.10
     # Create PostgREST config template
     printf "\n[Re]Deploying Configs.."
     sudo chmod 755 "${CNODE_HOME}" "${CNODE_HOME}"/priv
-    [[ -f "${CNODE_HOME}"/priv/grest.conf ]] && sudo mv "${CNODE_HOME}"/priv/grest.conf "${CNODE_HOME}"/priv/grest.conf.bkp_$(date +%s)
+    [[ -f "${CNODE_HOME}"/priv/grest.conf ]] && sudo mv "${CNODE_HOME}"/priv/grest.conf "${CNODE_HOME}"/priv/grest.conf_bkp$(date +%s)
     cat <<-EOF > "${CNODE_HOME}"/priv/grest.conf
 			db-uri = "postgres://authenticator@/${PGDATABASE}"
 			db-schema = "grest"
@@ -403,7 +403,7 @@ SGVERSION=1.0.10
     sudo chmod 640 "${CNODE_HOME}"/priv/grest.conf
     sudo chown authenticator:${USER} "${CNODE_HOME}"/priv/grest.conf
     # Create HAProxy config template
-    [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}".bkp_$(date +%s)
+    [[ -f "${HAPROXY_CFG}" ]] && cp "${HAPROXY_CFG}" "${HAPROXY_CFG}"_bkp$(date +%s)
 
     bash -c "cat <<-EOF > ${HAPROXY_CFG}
 			global
@@ -626,7 +626,7 @@ SGVERSION=1.0.10
     fi
 
     printf "\n  Downloading DBSync RPC functions from Guild Operators GitHub store..."
-    if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/${G_ACCOUNT}/koios-artifacts/contents/files/grest/rpc?ref=v${SGVERSION} 2>&1); then
+    if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/${G_ACCOUNT}/koios-artifacts/contents/files/grest/rpc?ref=${SGVERSION} 2>&1); then
       err_exit "${rpc_file_list}"
     fi
     printf "\n  (Re)Deploying GRest objects to DBSync..."
@@ -634,7 +634,7 @@ SGVERSION=1.0.10
     for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
       if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
         printf "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
-        if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/koios-artifacts/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=v${SGVERSION}"); then
+        if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/koios-artifacts/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${SGVERSION}"); then
           printf "\n      \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
         fi
         for row2 in $(jq -r '.[] | @base64' <<<${rpc_file_list_subdir}); do
