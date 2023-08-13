@@ -207,7 +207,7 @@ os_dependencies() {
     if [[ "${VERSION_ID}" == "2" ]] ; then
       #AmazonLinux2
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
-    elif [[ "${VERSION_ID}" =~ "8" ]][[ "${VERSION_ID}" =~ "9" ]]; then
+    elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
       #RHEL/CentOS/RockyLinux 8/9
       pkg_opts="${pkg_opts} --allowerasing"
       if [[ "${DISTRO}" =~ Rocky ]]; then
