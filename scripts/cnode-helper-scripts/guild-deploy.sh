@@ -209,9 +209,16 @@ os_dependencies() {
       #AmazonLinux2
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
     elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
-      #RHEL/CentOS/RockyLinux8
+      #RHEL/CentOS/RockyLinux 8/9
       pkg_opts="${pkg_opts} --allowerasing"
-      pkg_list="${pkg_list} --enablerepo=devel,crb libusbx ncurses-compat-libs pkgconf-pkg-config"
+      if [[ "${DISTRO}" =~ Rocky ]]; then
+        #RockyLinux 8/9
+        pkg_list="${pkg_list} --enablerepo=devel,crb libusbx ncurses-compat-libs pkgconf-pkg-config"
+      elif [[ "${DISTRO}" =~ "Red Hat" ]] || [[ "${VERSION_ID}" =~ "8" ]]; then
+        pkg_list="${pkg_list} --enablerepo=codeready-builder-for-rhel-8-x86_64-rpms libusbx ncurses-compat-libs pkgconf-pkg-config"
+      elif [[ "${DISTRO}" =~ "Red Hat" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
+        pkg_list="${pkg_list} --enablerepo=codeready-builder-for-rhel-9-x86_64-rpms libusbx ncurses-compat-libs pkgconf-pkg-config"
+      fi
     elif [[ "${DISTRO}" =~ Fedora ]]; then
       #Fedora
       pkg_opts="${pkg_opts} --allowerasing"
