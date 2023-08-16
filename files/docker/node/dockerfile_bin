@@ -87,7 +87,8 @@ RUN  curl -sL -H "Accept: application/vnd.github.everest-preview+json" -H "Conte
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh /opt/cardano/cnode/scripts/
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/entrypoint.sh ./
 
-RUN sudo chmod a+x /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh
+RUN sudo chmod a+rx /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh \
+    && sudo chown -R guild:guild /home/guild/.* $CNODE_HOME/* 
 
 HEALTHCHECK --start-period=5m --interval=5m --timeout=100s CMD /home/guild/.scripts/healthcheck.sh
 
