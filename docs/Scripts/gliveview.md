@@ -1,7 +1,7 @@
 !!! info "Reminder !!"
     Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
-**Koios gLiveView ** is a local monitoring tool to use in addition to remote monitoring tools like Prometheus/Grafana, Zabbix or IOG's RTView. This is especially useful when moving to a systemd deployment - if you haven't done so already - as it offers an intuitive UI to monitor the node status.
+**Koios gLiveView** is a local monitoring tool to use in addition to remote monitoring tools like Prometheus/Grafana, Zabbix or IOG's RTView. This is especially useful when moving to a systemd deployment - if you haven't done so already - as it offers an intuitive UI to monitor the node status.
 
 The tool is independent from other files and can run as a standalone utility that can be stopped/started without affecting the status of `cardano-node`.
 
