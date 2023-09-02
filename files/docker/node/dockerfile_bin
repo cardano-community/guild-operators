@@ -21,6 +21,7 @@ ENV \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 
 RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
+    && apt install -y curl wget gnupg git udev \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
@@ -45,7 +46,6 @@ ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/
 RUN set -x && apt update \
     && apt-get update \
     && mkdir -p /root/.local/bin \
-    && apt install -y curl wget gnupg apt-utils git udev \
     && wget https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh \
     && export SUDO='N' \
     && export UPDATE_CHECK='N' \
