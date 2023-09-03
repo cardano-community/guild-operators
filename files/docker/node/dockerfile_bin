@@ -50,10 +50,20 @@ RUN set -x && apt update \
     && export SUDO='N' \
     && export UPDATE_CHECK='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
-    && chmod +x ./guild-deploy.sh &&  ./guild-deploy.sh -b master -s pdcowx \
+    && chmod +x ./guild-deploy.sh &&  ./guild-deploy.sh -b master -s p \
     && ls /opt/ \
     && mkdir -p $CNODE_HOME/priv/files \
-    && apt-get -y remove libpq-dev build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ && apt-get -y purge && apt-get -y clean && apt-get -y autoremove && rm -rf /var/lib/apt/lists/* \
+    && apt-get -y remove libpq-dev build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ \
+    && apt-get -y purge \
+    && apt-get -y clean \
+    && apt-get -y autoremove \
+    && rm -rf /var/lib/apt/lists/*
+
+
+RUN set -x && export SUDO='N' \
+    && export UPDATE_CHECK='N' \
+    && export SKIP_DBSYNC_DOWNLOAD='Y' \
+    && ./guild-deploy.sh -b master -s dcowx \
     && cd /usr/bin \
     && wget http://www.vdberg.org/~richard/tcpping \
     && chmod 755 tcpping \
@@ -64,7 +74,7 @@ RUN set -x && apt update \
 
 # Add final tools in a separate layer to shrink the largest layer
 RUN apt-get update \
-    && apt-get install -y procps libcap2 libselinux1 libc6 libsodium-dev ncurses-bin iproute2 curl wget apt-utils xz-utils netbase coreutils dnsutils net-tools procps tcptraceroute bc usbip sqlite3 python3 tmux jq ncurses-base libtool autoconf git gnupg tcptraceroute util-linux less openssl bsdmainutils dialog vim \
+    && apt-get install -y procps libcap2 libselinux1 libc6 libsodium-dev ncurses-bin iproute2 xz-utils netbase coreutils dnsutils net-tools procps tcptraceroute bc usbip sqlite3 python3 tmux jq ncurses-base libtool autoconf tcptraceroute util-linux less openssl bsdmainutils dialog vim \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
