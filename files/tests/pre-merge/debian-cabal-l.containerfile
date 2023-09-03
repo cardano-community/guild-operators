@@ -1,6 +1,6 @@
 ARG COMMIT
-FROM ghcr.io/cardano-community/pre-merge-debian:guild-deploy-l_${COMMIT}
 ARG G_ACCOUNT
+FROM ghcr.io/${G_ACCOUNT}/pre-merge-debian:guild-deploy-l_${COMMIT}
 ARG BRANCH
 ARG CNODE_HOME=/opt/cardano/cnode
 
