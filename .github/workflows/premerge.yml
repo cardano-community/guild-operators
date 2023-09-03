@@ -1,4 +1,4 @@
-name: Pre-merge Debian
+name: Pre-merge
 
 on:
   workflow_dispatch:
@@ -9,10 +9,13 @@ on:
       - files/tests/pre-merge/debian-guild-deploy.sh-l.containerfile
 
 jobs:
-  guild-deploy-and-build-debian:
+  guild-deploy-and-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        distro: [rockylinux, ubuntu]
     env:
       REGISTRY: ghcr.io
-    runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
     - name: Provide additional free space
@@ -45,30 +48,34 @@ jobs:
     - name: Testing guild-deploy.sh (IO fork of libsodium)
       run: |
         docker build . \
-          --file files/tests/pre-merge/debian-guild-deploy.sh-l.containerfile \
+          --file files/tests/pre-merge/${{ matrix.distro }}-guild-deploy.sh-l.containerfile \
           --compress \
           --build-arg BRANCH=${{ env.BRANCH }} \
           --build-arg COMMIT=${{ env.COMMIT }} \
           --build-arg G_ACCOUNT=${{ env.G_ACCOUNT }} \
-          --tag ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-debian:guild-deploy-l_${{ env.COMMIT }}
-    - name: Push pre-merge-debian:guild-deploy-l_${{ env.COMMIT }}
+          --tag ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT }}
+    - name: Push pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT }}
       run: |
-        docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-debian:guild-deploy-l_${{ env.COMMIT }}
+        docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT }}
     - name: Testing cabal-build-all.sh (IO fork of libsodium)
       run: |
         echo "Working from PR Branch ${{ env.G_ACCOUNT }}/guild-operators/${{ env.BRANCH }} on Commit ${{ env.COMMIT }}"
         docker build . \
-        --file files/tests/pre-merge/debian-cabal-l.containerfile \
+        --file files/tests/pre-merge/${{ matrix.distro }}-cabal-l.containerfile \
         --compress \
         --build-arg BRANCH=${{ env.BRANCH }} \
         --build-arg COMMIT=${{ env.COMMIT }} \
         --build-arg G_ACCOUNT=${{ env.G_ACCOUNT }} \
-        --tag ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-debian:cabal-l_${{ env.COMMIT }}
+        --tag ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT }}
+    - name: Push pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT }}
+      run: |
+        docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT }}
     - name: Add summary details
       if: always()
       run: |
         echo "## Summary Details" >> $GITHUB_STEP_SUMMARY
-        echo "* Docker Image: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:$${{ env.COMMIT }}" >> $GITHUB_STEP_SUMMARY
+        echo "* Pre-Merge Guild Deploy Image: ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT }}" >> $GITHUB_STEP_SUMMARY
+        echo "* Pre-Merge Cabal Build Image: ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT }}" >> $GITHUB_STEP_SUMMARY
         echo "* BRANCH: ${{ env.BRANCH }}" >> $GITHUB_STEP_SUMMARY
-        echo "* G_ACCOUNT: ${GITHUB_REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
+        echo "* G_ACCOUNT: ${{ env.G_ACCOUNT }}" >> $GITHUB_STEP_SUMMARY
         echo "* COMMIT: ${{ env.COMMIT }}" >> $GITHUB_STEP_SUMMARY
