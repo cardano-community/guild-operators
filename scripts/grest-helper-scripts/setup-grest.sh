@@ -275,7 +275,8 @@ SGVERSION=v1.0.11rc
   common_update() {
     # Create skeleton whitelist URL file if one does not already exist using most common option
     curl -sfkL "https://${KOIOS_SRV}/koiosapi.yaml" -o "${CNODE_HOME}"/files/koiosapi.yaml 2>/dev/null
-    grep " #RPC" "${CNODE_HOME}"/files/koiosapi.yaml | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
+    grep "^  /" "${CNODE_HOME}"/files/koiosapi.yaml | grep -v -e submittx -e "#RPC" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
+    echo "/control_table" >> "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
     checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
     sed -i "s# API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"# API_STRUCT_DEFINITION=\"https://${KOIOS_SRV}/koiosapi.yaml\"#g" grest-poll.sh
     checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
@@ -341,9 +342,9 @@ SGVERSION=v1.0.11rc
   }
 
   deploy_haproxy() {
-    printf "[Re]Installing HAProxy.."
+    printf "\n[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
-    haproxy_url="http://www.haproxy.org/download/2.6/src/haproxy-2.6.5.tar.gz"
+    haproxy_url="http://www.haproxy.org/download/2.8/src/haproxy-2.8.3.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
@@ -352,7 +353,7 @@ SGVERSION=v1.0.11rc
       if command -v yum >/dev/null; then
         sudo yum -y install pcre-devel >/dev/null || err_exit "'sudo yum -y install prce-devel' failed!"
       fi
-      cd haproxy-2.6.5 || return
+      cd haproxy-2.8.3 || return
       make clean >/dev/null
       make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 USE_PROMEX=1 >/dev/null
       sudo make install-bin >/dev/null
@@ -440,23 +441,27 @@ SGVERSION=v1.0.11rc
 			  bind 0.0.0.0:8053
 			  ## If using SSL, comment line above and uncomment line below
 			  #bind :8453 ssl crt /etc/ssl/server.pem no-sslv3
+			  compression direction response
+			  compression algo-res gzip
+			  compression type-res application/json
+			  option http-buffer-request
 			  http-request set-log-level silent
 			  acl srv_down nbsrv(grest_postgrest) eq 0
 			  acl is_wss hdr(Upgrade) -i websocket
 			  http-request use-service prometheus-exporter if { path /metrics }
 			  http-request track-sc0 src table flood_lmt_rate
-			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 250 }
-			  use_backend ogmios if { path_beg /api/v0/ogmios } || { path_beg /dashboard.js } || { path_beg /assets } || { path_beg /health } || is_wss
-			  use_backend submitapi if { path_beg /api/v0/submittx }
+			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 500 }
+			  use_backend ogmios if { path_beg /api/v1/ogmios } || { path_beg /dashboard.js } || { path_beg /assets } || { path_beg /health } || is_wss
+			  use_backend submitapi if { path_beg /api/v1/submittx }
 			  use_backend grest_failover if srv_down
 			  default_backend grest_postgrest
 			
 			backend grest_postgrest
 			  balance first
 			  #option external-check
-			  acl grestrpcs path_beg -f \"\\\$GRESTTOP\"/files/grestrpcs
-			  http-request set-path \"%[path,regsub(^/api/v0/,/)]\"
-			  http-request set-path \"%[path,regsub(^/,/rpc/)]\" if grestrpcs
+			  acl grestviews path_beg -f \"\\\$GRESTTOP\"/files/grestrpcs
+			  http-request set-path \"%[path,regsub(^/api/v1/,/)]\"
+			  http-request set-path \"%[path,regsub(^/,/rpc/)]\" if !grestviews !{ path_beg /rpc } !{ path -i / }
 			  #external-check path \"/usr/bin:/bin:/tmp:/sbin:/usr/sbin\"
 			  #external-check command \"\\\$GRESTTOP\"/scripts/grest-poll.sh
 			  server local 127.0.0.1:8050 check inter 20000 fall 1 rise 2
@@ -468,7 +473,7 @@ SGVERSION=v1.0.11rc
 			
 			backend ogmios
 			  balance first
-			  http-request set-path \"%[path,regsub(^/api/v0/ogmios/,/)]\"
+			  http-request set-path \"%[path,regsub(^/api/v1/ogmios/,/)]\"
 			  option httpchk GET /health
 			  http-check expect status 200
 			  default-server inter 20s fall 1 rise 2
@@ -477,7 +482,7 @@ SGVERSION=v1.0.11rc
 			backend submitapi
 			  balance first
 			  option httpchk POST /api/submit/tx
-			  http-request set-path \"%[path,regsub(^/api/v0/submittx,/api/submit/tx)]\"
+			  http-request set-path \"%[path,regsub(^/api/v1/submittx,/api/submit/tx)]\"
 			  http-check expect status 415
 			  default-server inter 20s fall 1 rise 2
 			  server local 127.0.0.1:8090 check
