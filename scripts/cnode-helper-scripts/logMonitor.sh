@@ -162,7 +162,7 @@ echo "~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo "~~ LOG MONITOR STARTED ~~"
 echo "monitoring ${logfile} for traces"
 
-# Continuously parse cardano-node json log file for traces and callse processLogInfo()
+# Continuously parse cardano-node json log file for traces and call processLogInfo()
 while read -r logentry; do
   # Traces monitored: TraceNodeIsLeader, TraceAdoptedBlock, TraceForgedInvalidBlock
   case "${logentry}" in
