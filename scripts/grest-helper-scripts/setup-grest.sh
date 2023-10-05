@@ -451,7 +451,7 @@ SGVERSION=v1.0.11rc
 			  http-request use-service prometheus-exporter if { path /metrics }
 			  http-request track-sc0 src table flood_lmt_rate
 			  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 500 }
-			  use_backend ogmios if { path_beg /api/v1/ogmios } || { path_beg /dashboard.js } || { path_beg /assets } || { path_beg /health } || is_wss
+			  use_backend ogmios if { path_beg /api/ogmios } || { path_beg /dashboard.js } || { path_beg /assets } || { path_beg /health } || is_wss
 			  use_backend submitapi if { path_beg /api/v1/submittx }
 			  use_backend grest_failover if srv_down
 			  default_backend grest_postgrest
@@ -473,7 +473,7 @@ SGVERSION=v1.0.11rc
 			
 			backend ogmios
 			  balance first
-			  http-request set-path \"%[path,regsub(^/api/v1/ogmios/,/)]\"
+			  http-request set-path \"%[path,regsub(^/api/ogmios/,/)]\"
 			  option httpchk GET /health
 			  http-check expect status 200
 			  default-server inter 20s fall 1 rise 2
