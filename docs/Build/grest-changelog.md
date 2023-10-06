@@ -1,5 +1,45 @@
 # Koios gRest Changelog
 
+## [1.1.0rc] - For all networks.
+
+This is a breaking release for Koios, and accordingly - the base URL for queries will be shifting to `v1` instead of `v0`. With updates across the board for underlying node, dbsync and ogmios infrastructure, 12 new endpoints, quite a few value additions [new columns or flattended output] to the output of existing endpoints, as well as performance improvements especially for large volume transaction consumptions
+
+### New endpoints added:
+- `/pool_registrations` - List of all pool registrations initiated in the requested epoch [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- `/pool_retirements` - List of all pool retirements initiated in the requested epoch [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- `/treasury_withdrawals` - List of withdrawals made from treasury [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- `/reserve_withdrawals` - List of withdrawals made from reserves (MIRs) [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- `/account_txs` - Transactions associated with a given stake address [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- `/address_utxos` - Get UTxO details for requested addresses [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- `/asset_utxos` - Get UTxO details for requested assets [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- `/script_utxos` - Get UTxO details for requested script hashes [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- `/utxo_info` - Details for requested UTxO arrays [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- `/script_info` - Information about a given script FROM script hashes [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- `/ogmios/?EvaluateTransaction` - Expose [Ogmios EvaluateTransaction](https://ogmios.dev/api/#operation-publish-/?EvaluateTransaction) as an endpoint
+- `/ogmios/?SubmitTransaction` - Expose [Ogmios SubmitTransaction](https://ogmios.dev/api/#operation-publish-/?SubmitTransaction) as an endpoint
+
+### Data Input/Output Changes:
+- Input - `/account_utxos` , `/credential_utxos` - Accept `extended` as an additional flag - which enables `asset_list`, `reference_script` and `inline_datum` to the output [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- Output - `/block_txs` - Flatten output with transaction details (`tx_hash`, `epoch_no`, `block_height`, `block_time`) instead of `tx_hashes` array [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- Output - `/epoch_params` - Update `cost_models` to JSON (upstream change in node) [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- Output - `/account_assets` , `/address_assets` - Flatten the output result (instead of `asset_list` array) making it easier to apply horizontal filtering based on any of the fields
+- Output - Align output fields for `/account_utxos` , `/address_utxos`, `/asset_utxos` , `/script_utxos` and `/utxo_info` to return same schema giving complete details about UTxOs involved, with few fields toggled based on `extended` input flag [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- Output - `/pool_list` - Add various details to the endpoint for each pool (`pool_id_hex`,`active_epoch_no`,`margin`,`fixed_cost`,`pledge`,`reward_addr`,`owners`,`relays`,`ticker`,`meta_url`,`meta_hash`,`pool_status`,`retiring_epoch`) - this should mean *some* of the requests to `pool_info` should no longer be required [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- Output - `/pool_metadata` , `/pool_relays` - Add `pool_status` field to denote whether pool is retired [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- Output - `/datum_info` - Rename `hash` to `datum_hash` and add `creation_tx_hash` [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- Output - `/native_script_list` - Remove `script` column (as it has pretty large output better queried against `script_info`), add `size` and change `type` to text [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- Output - `/plutus_script_list` - Add `type` and `size` to output [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+
+### Deprecations:
+- `/tx_utxos` - No longer required as replaced by `/utxo_info` [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+
+### Chores:
+- Update base version to `v1` from `v0` [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- Allow Bearer Authentication against endpoints [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- Cron job to apply corrections to epoch info [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- `epoch_info_cache` Remove protocol parameters, as they can be queried from live table. Accordingly update dependent queries [#227](https://github.com/cardano-community/koios-artifacts/pull/227)
+- Make use of new `consumed_by_tx_in_id` column in `tx_out` from dbsync 13.1.1.3 across endpoints.
+
 ## [1.0.10] - For all networks.
 
 The release is effectively same as `1.0.10rc` except with one minor modification below.
