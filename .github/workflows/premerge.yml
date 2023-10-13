@@ -36,6 +36,7 @@ jobs:
         sudo rm -rf "/usr/share/dotnet"
         sudo rm -rf "/usr/local/lib/android"
         sudo rm -rf "/opt/ghc"
+        sudo rm -rf "/opt/hostedtoolcache/CodeQL"
         sudo rm -rf "/usr/local/share/boost"
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: Login to GitHub Container Registry
@@ -48,7 +49,7 @@ jobs:
     - name: Define BRANCH, COMMIT and G_ACCOUNT in environment
       run: |
         echo "G_ACCOUNT=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
-        if [[ -z ${{ env.BRANCH }} ]]; then
+        if [[ -z "${{ env.BRANCH }}" ]]; then
           echo "BRANCH=${GITHUB_HEAD_REF}" >> $GITHUB_ENV
           echo "COMMIT=$(git rev-parse --short "$GITHUB_SHA")" >> $GITHUB_ENV
         else
