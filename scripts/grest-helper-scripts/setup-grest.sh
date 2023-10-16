@@ -661,7 +661,9 @@ SGVERSION=v1.1.0rc
 
   # Description : Update the setup-grest.sh version used in the database.
   update_grest_version() {
-    [[ "${RESET_GREST}" == "Y" ]] && artifacts=['reset'] || artifacts=''
+    koios_release_commit="$(curl -s https://api.github.com/repos/${G_ACCOUNT}/koios-artifacts/commits/${SGVERSION} | jq -r '.sha')"
+    [[ -z ${koios_release_commit} ]] && koios_release_commit="null"
+    [[ "${RESET_GREST}" == "Y" ]] && artifacts=['reset',"${koios_release_commit}"] || artifacts=["${koios_release_commit}"]
 
     ! output=$(psql ${PGDATABASE} -qbt -c "SELECT GREST.update_control_table(
         'version',
