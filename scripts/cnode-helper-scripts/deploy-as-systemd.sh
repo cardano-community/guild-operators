@@ -37,6 +37,15 @@ if [[ ${yn} = [Yy]* ]]; then
   ./submitapi.sh -d
 fi
 
+if command -v mithril-signer >/dev/null 2>&1 ; then
+  echo -e "\e[32m~~ Mithril Signer ~~\e[0m"
+  echo "Deploy Mithril Signer as a systemd service? [y|n]"
+  read -rsn1 yn
+  if [[ ${yn} = [Yy]* ]]; then
+    ./mithril-signer.sh -d
+  fi
+fi
+
 if command -v ogmios >/dev/null 2>&1 ; then
   echo -e "\e32m~~ Cardano Ogmios Server ~~\e[0m"
   echo "launches the ogmios.sh script to deploy ogmios"
@@ -413,6 +422,7 @@ sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}-cncli-validate.service ]] && sudo systemctl enable ${vname}-cncli-validate.service
 [[ -f /etc/systemd/system/${vname}-cncli-ptsendtip.service ]] && sudo systemctl enable ${vname}-cncli-ptsendtip.service
 [[ -f /etc/systemd/system/${vname}-cncli-ptsendslots.service ]] && sudo systemctl enable ${vname}-cncli-ptsendslots.service
+[[ -f /etc/systemd/system/${vanem}-mithril-signer.service ]] && sudo systemctl enable ${vname}-mithril-signer.service
 
 
 echo
