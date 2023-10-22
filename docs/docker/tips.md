@@ -57,3 +57,26 @@ cardanocommunity/cardano-node:latest          # Mandatory: image to run
 
 #### Un-Official Docker managment cli tool
 - [Lazydocker](https://github.com/jesseduffield/lazydocker)
+
+### Docker backups and restores
+
+The docker container has an optional backup and restore functionality that can be used to backup the `/opt/cardano/cnode/db` directory. To have the 
+backup persist longer than the countainer, the backup directory should be mounted as a volume.
+
+[!NOTE]
+The backup and restore functionality is disabled by default.
+
+[!WARNING]
+Make sure adequate space exists on the host as the backup will double the space consumed by the database. 
+
+#### Creating a Backup
+
+When the container is started with the **ENABLE_BACKUP** environment variable set to **Y** the container will automatically create a
+backup in the `/opt/cardano/cnode/backup/$NETWORK-db` directory. The backup will be created when the container is started and if the
+backup directory is smaller than the db directory.
+
+#### Restoring from a Backup
+
+When the container is started with the **ENABLE_RESTORE** environment variable set to **Y** the container will automatically restore
+the latest backup from the `/opt/cardano/cnode/backup/$NETWORK-db` directory. The database will be restored when the container is started
+and if the backup directory is larger than the db directory.
