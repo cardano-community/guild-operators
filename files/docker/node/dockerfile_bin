@@ -37,11 +37,6 @@ RUN adduser --disabled-password --gecos '' guild \
     && adduser guild sudo \
     && mkdir -pv /home/guild/.local/ /home/guild/.scripts/ 
 
-# ENTRY SCRIPT
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/banner.txt /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/guild-topology.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/block_watcher.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
 
 RUN set -x && apt update \
     && apt-get update \
@@ -94,6 +89,10 @@ RUN  curl -sL -H "Accept: application/vnd.github.everest-preview+json" -H "Conte
 
 
 # ENTRY SCRIPT
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/banner.txt /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/guild-topology.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/block_watcher.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh /opt/cardano/cnode/scripts/
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/entrypoint.sh ./
 
