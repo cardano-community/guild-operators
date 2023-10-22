@@ -67,19 +67,19 @@ generate_environment_file() {
   ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.addr
   ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
   sudo bash -c "cat <<-'EOF' > ${MITHRIL_HOME}/service.env
-  AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK}.api.mithril.network/aggregator
-  KES_SECRET_KEY_PATH=${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}
-  OPERATIONAL_CERTIFICATE_PATH=${POOL_DIR}/${POOL_OPCERT_FILENAME}
-  PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME})
-  DB_DIRECTORY=${CNODE_HOME}/db
-  CARDANO_CLI_PATH=${HOME}/.local/bin/cardano-cli
-  DATA_STORES_DIRECTORY=${MITHRIL_HOME}/data-stores
-  ERA_READER_ADAPTER_TYPE=cardano-chain
-  ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.addr
-  ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
-  ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address $(wget -q -O - "${ERA_READER_ADDRESS}") --arg verification_key $(wget -q -O - "${ERA_READER_VKEY}") '{"address": $address, "verification_key": $verification_key}')
-  GENESIS_VERIFICATION_KEY=$(curl -s https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/genesis.vkey)
-EOF"
+	AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK}.api.mithril.network/aggregator
+	KES_SECRET_KEY_PATH=${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}
+	OPERATIONAL_CERTIFICATE_PATH=${POOL_DIR}/${POOL_OPCERT_FILENAME}
+	PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME})
+	DB_DIRECTORY=${CNODE_HOME}/db
+	CARDANO_CLI_PATH=${HOME}/.local/bin/cardano-cli
+	DATA_STORES_DIRECTORY=${MITHRIL_HOME}/data-stores
+	ERA_READER_ADAPTER_TYPE=cardano-chain
+	ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.addr
+	ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
+	ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address $(wget -q -O - "${ERA_READER_ADDRESS}") --arg verification_key $(wget -q -O - "${ERA_READER_VKEY}") '{"address": $address, "verification_key": $verification_key}')
+	GENESIS_VERIFICATION_KEY=$(curl -s https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/genesis.vkey)
+	EOF"
 }
 
 deploy_systemd() {
@@ -90,19 +90,19 @@ deploy_systemd() {
 
   echo "Deploying ${CNODE_VNAME}-mithril-signer as systemd service.."
   sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}-mithril-signer.service
-    [Unit]
-    Description=Cardano Mithril signer service
-    StartLimitIntervalSec=0
+	[Unit]
+	Description=Cardano Mithril signer service
+	StartLimitIntervalSec=0
 	Wants=network-online.target
 	After=network-online.target
-
-    [Service]
-    Type=simple
-    Restart=always
-    RestartSec=5
-    User=${USER}
-    EnvironmentFile=${MITHRIL_HOME}/service.env
-    ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/mithril-signer -vv\"
+	
+	[Service]
+	Type=simple
+	Restart=always
+	RestartSec=5
+	User=${USER}
+	EnvironmentFile=${MITHRIL_HOME}/service.env
+	ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/mithril-signer -vv\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
 	StandardOutput=syslog
@@ -110,10 +110,10 @@ deploy_systemd() {
 	SyslogIdentifier=${CNODE_VNAME}-mithril-signer
 	TimeoutStopSec=5
 	KillMode=mixed
-
-    [Install]
-    WantedBy=multi-user.target
-EOF" && echo "${CNODE_VNAME}-mithril-signer.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-mithril-signer.service
+	
+	[Install]
+	WantedBy=multi-user.target
+	EOF" && echo "${CNODE_VNAME}-mithril-signer.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-mithril-signer.service
 }
 
 ###################
