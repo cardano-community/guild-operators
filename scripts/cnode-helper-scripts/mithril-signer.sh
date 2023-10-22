@@ -11,7 +11,6 @@
 
 #MITHRILBIN="${HOME}"/.local/bin/mithril-signer # Path for mithril-signer binary, if not in $PATH
 #HOSTADDR=127.0.0.1                             # Default Listen IP/Hostname for Mithril Signer Server
-MITHRIL_HOME="/opt/mithril/mithril-signer"
 
 ######################################
 # Do NOT modify code below           #
@@ -36,7 +35,6 @@ usage() {
 
 set_defaults() {
   [[ -z "${MITHRILBIN}" ]] && MITHRILBIN="${HOME}"/.local/bin/mithril-signer
-  [[ -z "${MITHRIL_HOME}" ]] && MITHRIL_HOME=/opt/mithril/mithril-signer
   if [[ -z "${NETWORK}" ]] || [[ -z "${POOL_NAME}" ]] || [[ "${POOL_NAME}" == "CHANGE_ME" ]]; then
     echo "ERROR: The NETWORK and POOL_NAME must be set before deploying mithril-signer as a systemd service!!"
     exit 1
@@ -66,14 +64,14 @@ pre_startup_sanity() {
 generate_environment_file() {
   ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.addr
   ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
-  sudo bash -c "cat <<-'EOF' > ${MITHRIL_HOME}/service.env
+  sudo bash -c "cat <<-'EOF' > ${CNODE_HOME}/mithril-signer/service.env
 	AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK}.api.mithril.network/aggregator
 	KES_SECRET_KEY_PATH=${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}
 	OPERATIONAL_CERTIFICATE_PATH=${POOL_DIR}/${POOL_OPCERT_FILENAME}
 	PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME})
 	DB_DIRECTORY=${CNODE_HOME}/db
 	CARDANO_CLI_PATH=${HOME}/.local/bin/cardano-cli
-	DATA_STORES_DIRECTORY=${MITHRIL_HOME}/data-stores
+	DATA_STORES_DIRECTORY=${CNODE_HOME}/mithril-signer/data-stores
 	ERA_READER_ADAPTER_TYPE=cardano-chain
 	ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.addr
 	ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
@@ -84,7 +82,7 @@ generate_environment_file() {
 
 deploy_systemd() {
   echo "Creating ${CNODE_VNAME}-mithril-signer systemd service environment file.."
-  if [[ ! -f "${MITHRIL_HOME}"/service.env ]]; then
+  if [[ ! -f "${CNODE_HOME}"/mithril-signer/service.env ]]; then
     generate_environment_file && echo "Environment file created successfully!!"
   fi
 
@@ -101,7 +99,7 @@ deploy_systemd() {
 	Restart=always
 	RestartSec=5
 	User=${USER}
-	EnvironmentFile=${MITHRIL_HOME}/service.env
+	EnvironmentFile=${CNODE_HOME}/mithril-signer/service.env
 	ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/mithril-signer -vv\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
@@ -155,6 +153,6 @@ pre_startup_sanity
 
 # Run Mithril Signer Server
 echo "Sourcing the Mithril Signer environment file.."
-. "${MITHRIL_HOME}"/service.env
+. "${CNODE_HOME}"/mithril-signer/service.env
 echo "Starting Mithril Signer Server.."
 "${MITHRILBIN}" -vvv >> "${LOG_DIR}"/mithril-signer.log 2>&1

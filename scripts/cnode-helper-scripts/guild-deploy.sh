@@ -3,7 +3,6 @@
 # shellcheck source=/dev/null
 
 unset CNODE_HOME
-unset MITHRIL_HOME
 
 ##########################################
 # User Variables - Change as desired     #
@@ -111,7 +110,6 @@ set_defaults() {
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
-  MITHRIL_HOME="${MITHRIL_PATH}/mithril-signer"
   REPO="https://github.com/${G_ACCOUNT}/guild-operators"
   REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
   URL_RAW="${REPO_RAW}/${BRANCH}"
@@ -528,16 +526,9 @@ setup_folder() {
   $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
   
   if [[ ${INSTALL_MITHRIL} == 'Y' ]]; then
-
-    if grep -q "export MITHRIL_HOME=" "${HOME}"/.bashrc; then
-      echo -e "\nEnvironment Variable MITHRIL_HOME already set up!"
-    else
-      echo -e "\nSetting up MITHRIL_HOME Environment Variable"
-      echo -e "\nexport MITHRIL_HOME=${MITHRIL_HOME}" >> "${HOME}"/.bashrc
-    fi
   
-    $sudo mkdir -p "${MITHRIL_HOME}"/data-stores
-    $sudo chown -R "$U_ID":"$G_ID" "${MITHRIL_HOME}" 2>/dev/null
+    $sudo mkdir -p "${CNODE_HOME}"/mithril-signer/data-stores
+    $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"/mithril-signer 2>/dev/null
   fi
 }
 
