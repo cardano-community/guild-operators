@@ -77,7 +77,7 @@ generate_environment_file() {
 	ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
 	ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address $(wget -q -O - "${ERA_READER_ADDRESS}") --arg verification_key $(wget -q -O - "${ERA_READER_VKEY}") '{"address": $address, "verification_key": $verification_key}')
 	GENESIS_VERIFICATION_KEY=$(curl -s https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/genesis.vkey)
-	EOF"
+	EOF" && sudo chown $USER:$USER "${CNODE_HOME}"/mithril-signer/service.env
 }
 
 deploy_systemd() {
