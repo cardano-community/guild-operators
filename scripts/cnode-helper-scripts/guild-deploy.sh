@@ -74,7 +74,7 @@ usage() {
 		  p   Install common pre-requisite OS-level Dependencies for most tools on this repo (Default: skip)
 		  b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
 		  l   Build and Install libsodium fork from IO repositories (Default: skip)
-		  m   Build and install mithril from IO repositories (Default: skip)
+		  m   Download latest (released) binaries for mithril-signer, mithril-client (Default: skip)
 		  f   Force overwrite entire content of scripts and config files (backups of existing ones will be created) (Default: skip)
 		  d   Download latest (released) binaries for bech32, cardano-address, cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api (Default: skip)
 		  c   Install/Upgrade CNCLI binary (Default: skip)
