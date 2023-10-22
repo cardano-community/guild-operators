@@ -102,7 +102,7 @@ deploy_systemd() {
     RestartSec=5
     User=${USER}
     EnvironmentFile=${MITHRIL_HOME}/service.env
-    ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/mithril-signer -vv
+    ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/mithril-signer -vv\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
 	StandardOutput=syslog
