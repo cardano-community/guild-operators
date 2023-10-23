@@ -65,18 +65,22 @@ generate_environment_file() {
   ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.addr
   ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
   sudo bash -c "cat <<-'EOF' > ${CNODE_HOME}/mithril-signer/service.env
-	AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK}.api.mithril.network/aggregator
 	KES_SECRET_KEY_PATH=${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}
 	OPERATIONAL_CERTIFICATE_PATH=${POOL_DIR}/${POOL_OPCERT_FILENAME}
-	PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME})
+	NETWORK=${NETWORK}
+	AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK}.api.mithril.network/aggregator
+	RUN_INTERVAL=60000
 	DB_DIRECTORY=${CNODE_HOME}/db
+	CARDANO_NODE_SOCKET_PATH=${CARDANO_NODE_SOCKET_PATH}
 	CARDANO_CLI_PATH=${HOME}/.local/bin/cardano-cli
 	DATA_STORES_DIRECTORY=${CNODE_HOME}/mithril-signer/data-stores
+	STORE_RETENTION_LIMITS=5
 	ERA_READER_ADAPTER_TYPE=cardano-chain
 	ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.addr
 	ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
 	ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address $(wget -q -O - "${ERA_READER_ADDRESS}") --arg verification_key $(wget -q -O - "${ERA_READER_VKEY}") '{"address": $address, "verification_key": $verification_key}')
 	GENESIS_VERIFICATION_KEY=$(curl -s https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/genesis.vkey)
+	PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME})
 	EOF" && sudo chown $USER:$USER "${CNODE_HOME}"/mithril-signer/service.env
 }
 
