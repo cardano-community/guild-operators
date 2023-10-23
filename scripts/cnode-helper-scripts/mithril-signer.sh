@@ -97,6 +97,8 @@ deploy_systemd() {
 	StartLimitIntervalSec=0
 	Wants=network-online.target
 	After=network-online.target
+	BindsTo=${vname}.service
+	After=${vname}.service
 	
 	[Service]
 	Type=simple
