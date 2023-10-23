@@ -61,7 +61,18 @@ pre_startup_sanity() {
   [[ -f "${LOG_DIR}"/mithril-signer.log ]] && mv "${LOG_DIR}"/mithril-signer.log "${LOG_DIR}"/archive/
 }
 
+get_relay_endpoint() {
+  read -p "Enter the IP address of the relay endpoint: " RELAY_ENDPOINT_IP
+  read -p "Enter the port of the relay endpoint: " RELAY_PORT
+}
+
 generate_environment_file() {
+  # Inquire about the relay endpoint
+  read -p "Are you using a relay endpoint? (y/n): " ENABLE_RELAY_ENDPOINT
+    if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
+        get_relay_endpoint
+    fi
+
   ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.addr
   ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
   sudo bash -c "cat <<-'EOF' > ${CNODE_HOME}/mithril-signer/service.env
@@ -82,6 +93,10 @@ generate_environment_file() {
 	GENESIS_VERIFICATION_KEY=$(curl -s https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/genesis.vkey)
 	PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME})
 	EOF" && sudo chown $USER:$USER "${CNODE_HOME}"/mithril-signer/service.env
+    
+    if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
+      sudo bash -c "echo  RELAY_ENDPOINT=http://${RELAY_ENDPOINT_IP}:${RELAY_PORT} >> ${CNODE_HOME}/mithril-signer/service.env"
+    fi
 }
 
 deploy_systemd() {
