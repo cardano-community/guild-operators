@@ -99,7 +99,6 @@ set_defaults() {
   [[ -z ${INSTALL_OGMIOS} ]] && INSTALL_OGMIOS='N'
   [[ -z ${INSTALL_CSIGNER} ]] && INSTALL_CSIGNER='N'
   [[ -z ${CNODE_PATH} ]] && CNODE_PATH="/opt/cardano"
-  [[ -z ${MITHRIL_PATH} ]] && MITHRIL_PATH="/opt/mithril"
   [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
   [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
   [[ -z ${UPDATE_CHECK} ]] && UPDATE_CHECK='Y'
