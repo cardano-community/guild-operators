@@ -104,6 +104,7 @@ while getopts ":dlh" opt; do
 	case ${opt} in
 	d)
 		# Install squid and make a backup of the config file
+        echo -e "\nInstalling squid proxy"
 		sudo apt-get update
 		sudo apt-get install -y squid
 		sudo cp /etc/squid/squid.conf /etc/squid/squid.conf.bak
@@ -120,10 +121,13 @@ while getopts ":dlh" opt; do
 		done
 
 		# Read the listening port from user input
-		read -p "Enter the relays listening port (only one port is supported, 3132 suggested): " RELAY_LISTENING_PORT
+		read -p "Enter the relay's listening port (press Enter to use default 3132): " RELAY_LISTENING_PORT
+        RELAY_LISTENING_PORT=${RELAY_LISTENING_PORT:-3132}
+        echo "Using port ${RELAY_LISTENING_PORT} for relay's listening port."
 		generate_squid_conf
 
 		# Restart squid and check status
+        echo -e "\nStarting Mithril relay (squid proxy)"
 		sudo systemctl restart squid
 		sudo systemctl status squid
 
@@ -134,6 +138,7 @@ while getopts ":dlh" opt; do
 		;;
 	l)
 		# Install nginx and configure load balancing
+        echo -e "\nInstalling nginx load balancer"
 		sudo apt-get update
 		sudo apt-get install -y nginx
 
@@ -149,14 +154,19 @@ while getopts ":dlh" opt; do
 		done
 
 		# Read the listening IP for the load balancer
-		read -p "Enter the IP address of the load balancer: " SIDECAR_LISTENING_IP
+        read -p "Enter the IP address of the load balancer (press Enter to use default 127.0.0.1): " SIDECAR_LISTENING_IP
+        SIDECAR_LISTENING_IP=${SIDECAR_LISTENING_IP:-127.0.0.1}
+        echo "Using IP address ${SIDECAR_LISTENING_IP} for the load balancer configuration."
 
 		# Read the listening port from user input
-		read -p "Enter the relays listening port (only one port is supported and will also be used for the local load balancer, 3132 suggested): " RELAY_LISTENING_PORT
+		read -p "Enter the relay's listening port (press Enter to use default 3132): " RELAY_LISTENING_PORT
+        RELAY_LISTENING_PORT=${RELAY_LISTENING_PORT:-3132}
+        echo "Using port ${RELAY_LISTENING_PORT} for relay's listening port."
 
 		# Generate the nginx configuration file
 		generate_nginx_conf
 		# Restart nginx and check status
+        echo -e "\nStarting Mithril relay sidecar (nginx load balancer)"
 		sudo systemctl restart nginx
 		sudo systemctl status nginx
 		;;

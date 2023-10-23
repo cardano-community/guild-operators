@@ -63,15 +63,20 @@ pre_startup_sanity() {
 
 get_relay_endpoint() {
   read -p "Enter the IP address of the relay endpoint: " RELAY_ENDPOINT_IP
-  read -p "Enter the port of the relay endpoint: " RELAY_PORT
+  read -p "Enter the port of the relay endpoint (press Enter to use default 3132): " RELAY_PORT
+  RELAY_PORT=${RELAY_PORT:-3132}
+  echo "Using RELAY_ENDPOINT=${RELAY_ENDPOINT_IP}:${RELAY_PORT} for the Mithril signer relay endpoint."
 }
 
 generate_environment_file() {
   # Inquire about the relay endpoint
-  read -p "Are you using a relay endpoint? (y/n): " ENABLE_RELAY_ENDPOINT
-    if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
-        get_relay_endpoint
-    fi
+  read -p "Are you using a relay endpoint? (y/n, press Enter to use default y): " ENABLE_RELAY_ENDPOINT
+  ENABLE_RELAY_ENDPOINT=${ENABLE_RELAY_ENDPOINT:-y}
+  if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
+    get_relay_endpoint
+  else
+    echo "Using a naive Mithril configuration without a relay for testnets and devnets."
+  fi
 
   ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.addr
   ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
