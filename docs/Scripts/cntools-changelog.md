@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [11.0.1] - 2023-10-25
+#### Fixed
+- Fix display for Pool Cost and Pledge to accept integer as well as decimal format of ADA
+
 ## [11.0.0] - 2023-07-05
 #### Changed
 - CNTools now part of Koios brand

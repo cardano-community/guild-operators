@@ -57,7 +57,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.27.5
+GLV_VERSION=v1.27.6
 
 PARENT="$(dirname $0)"
 
@@ -656,7 +656,7 @@ while true; do
     tlines=$(tput lines) # update terminal lines
     tcols=$(tput cols)   # update terminal columns
   done
-  while [[ ${line} -ge $((tlines - 1)) ]]; do
+  while [[ ${line} -gt ${tlines} ]]; do
     mvPos 2 2
     printf "${style_status_3}Terminal height too small!${NC}"
     mvPos 4 2

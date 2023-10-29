@@ -3551,9 +3551,9 @@ function main {
                   echo
                   println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
                   println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
-                  println DEBUG "Pledge           : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")${NC} Ada"
+                  println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} Ada"
                   println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-                  println DEBUG "Cost             : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-cost"' <<< ${offlineJSON})")${NC} Ada"
+                  println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} Ada"
                   for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
                     _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
                     otx_signing_name=$(_jq '.name')
@@ -3725,9 +3725,9 @@ function main {
                   jq -er '.metadata' <<< ${offlineJSON} &>/dev/null && println DEBUG "Metadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pledge           : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")${NC} Ada"
+                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} Ada"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Cost             : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-cost"' <<< ${offlineJSON})")${NC} Ada"
+                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} Ada"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy Name      : ${FG_LGRAY}$(jq -r '."policy-name"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy ID        : ${FG_LGRAY}$(jq -r '."policy-id"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Asset Name       : ${FG_LGRAY}$(jq -r '."asset-name"' <<< ${offlineJSON})${NC}"

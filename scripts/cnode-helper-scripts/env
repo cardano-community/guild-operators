@@ -34,7 +34,7 @@
 #TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state
 #IP_VERSION=4                                           # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)
 #ENABLE_KOIOS=Y                                         # (Y|N) Enable KOIOS API. If disabled, local node queries will be used instead with increased system resource requirements (default Y)
-#KOIOS_API="https://api.koios.rest/api/v0"              # Koios API for blockchain queries instead of local cli lookup.
+#KOIOS_API="https://api.koios.rest/api/v1"              # Koios API for blockchain queries instead of local cli lookup.
                                                         # Leave commented for automatic network detection between MainNet, Preview, Preprod or Guild network.
                                                         # https://www.koios.rest/
 #DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries" # [advanced feature] Folder containing DB-Sync chain analysis queries
@@ -1010,19 +1010,19 @@ case ${NWMAGIC} in
   764824073) 
     NETWORK_NAME="Mainnet"
     SHELLEY_TRANS_EPOCH=208
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://api.koios.rest/api/v0" ;;
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://api.koios.rest/api/v1" ;;
   1)
     NETWORK_NAME="PreProd"
     SHELLEY_TRANS_EPOCH=4
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preprod.koios.rest/api/v0";;
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preprod.koios.rest/api/v1";;
   141) 
     NETWORK_NAME="Guild"
     SHELLEY_TRANS_EPOCH=2
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v0" ;;
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v1";;
   2)
     NETWORK_NAME="Preview"
     SHELLEY_TRANS_EPOCH=0
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v0" ;;
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v1";;
   *) 
     NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
