@@ -16,15 +16,21 @@ echo "NETWORK: $NETWORK $POOL_NAME $TOPOLOGY";
 echo "NODE: $HOSTNAME - Port:$CNODE_PORT - $POOL_NAME";
 cardano-node --version;
 
-dbsize=$(du -s ${CNODE_HOME}/db | awk '{print $1}')
-bksizedb=$(du -s $CNODE_HOME/priv/$NETWORK-db 2>/dev/null | awk '{print $1}')
+if [[ "${ENABLE_BACKUP}" == "Y" ]] || [[ "${ENABLE_RESTORE}" == "Y" ]]; then
+    [[ ! -d "${CNODE_HOME}"/backup/$NETWORK-db ]] && mkdir -p $CNODE_HOME/backup/$NETWORK-db
+    dbsize=$(du -s $CNODE_HOME/db | awk '{print $1}')
+    bksizedb=$(du -s $CNODE_HOME/backup/$NETWORK-db 2>/dev/null | awk '{print $1}')
+    if [[ "${ENABLE_RESTORE}" == "Y" ]] && [[ "$dbsize" -lt "$bksizedb" ]]; then
+        echo "Backup Started"
+        cp -rf "${CNODE_HOME}"/backup/"${NETWORK}"-db/* "${CNODE_HOME}"/db 2>/dev/null
+        echo "Backup Finished"
+    fi
 
-if [[ "$dbsize" -lt "$bksizedb" ]]; then
-cp -rf $CNODE_HOME/priv/$NETWORK-db/* ${CNODE_HOME}/db 2>/dev/null
-fi
-
-if [[ "$dbsize" -gt "$bksizedb" ]]; then
-cp -rf $CNODE_HOME/db/* $CNODE_HOME/priv/$NETWORK-db/ 2>/dev/null
+    if [[ "${ENABLE_BACKUP}" == "Y" ]] && [[ "$dbsize" -gt "$bksizedb" ]]; then
+        echo "Restore Started"
+        cp -rf "${CNODE_HOME}"/db/* "${CNODE_HOME}"/backup/"${NETWORK}"-db/ 2>/dev/null
+        echo "Restore Finished"
+    fi
 fi
 
 # Customisation 
