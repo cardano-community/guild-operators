@@ -27,7 +27,7 @@ usage() {
 		
 		Cardano Mithril signer wrapper script !!
 		-d    Deploy mithril-signer as a systemd service
-		-u    Update mithril-signer environment file
+		-u    Update mithril environment file
 		
 		EOF
   exit 1
@@ -35,20 +35,22 @@ usage() {
 
 set_defaults() {
   [[ -z "${MITHRILBIN}" ]] && MITHRILBIN="${HOME}"/.local/bin/mithril-signer
-  if [[ -z "${NETWORK}" ]] || [[ -z "${POOL_NAME}" ]] || [[ "${POOL_NAME}" == "CHANGE_ME" ]]; then
-    echo "ERROR: The NETWORK and POOL_NAME must be set before deploying mithril-signer as a systemd service!!"
+  if [[ -z "${POOL_NAME}" ]] || [[ "${POOL_NAME}" == "CHANGE_ME" ]]; then
+    echo "ERROR: The POOL_NAME must be set before deploying mithril-signer as a systemd service!!"
     exit 1
   else
-    case "${NETWORK}" in
-      mainnet|preprod)
+    case "${NETWORK_NAME,,}" in
+      mainnet|preprod|guild)
       RELEASE="release"
       ;;
-      *)
+      preview)
       RELEASE="pre-release"
       ;;
+      *)
+      echo "ERROR: The NETWORK_NAME must be set to Mainnet, PreProd, Preview, or Guild before mithril-signer can be deployed!!"
+      exit 1
     esac
   fi
-  [[ -z ${RELEASE} ]] && echo "ERROR: Failed to set RELEASE variable, please check NETWORK variable in env file!!" && exit 1
 }
 
 pre_startup_sanity() {
@@ -62,52 +64,53 @@ pre_startup_sanity() {
 }
 
 get_relay_endpoint() {
-  read -p "Enter the IP address of the relay endpoint: " RELAY_ENDPOINT_IP
-  read -p "Enter the port of the relay endpoint (press Enter to use default 3132): " RELAY_PORT
+  read -r -p "Enter the IP address of the relay endpoint: " RELAY_ENDPOINT_IP
+  read -r -p "Enter the port of the relay endpoint (press Enter to use default 3132): " RELAY_PORT
   RELAY_PORT=${RELAY_PORT:-3132}
   echo "Using RELAY_ENDPOINT=${RELAY_ENDPOINT_IP}:${RELAY_PORT} for the Mithril signer relay endpoint."
 }
 
 generate_environment_file() {
   # Inquire about the relay endpoint
-  read -p "Are you using a relay endpoint? (y/n, press Enter to use default y): " ENABLE_RELAY_ENDPOINT
+  read -r -p "Are you using a relay endpoint? (y/n, press Enter to use default y): " ENABLE_RELAY_ENDPOINT
   ENABLE_RELAY_ENDPOINT=${ENABLE_RELAY_ENDPOINT:-y}
   if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
     get_relay_endpoint
   else
-    echo "Using a naive Mithril configuration without a relay for testnets and devnets."
+    echo "Using a naive Mithril configuration without a mithril relay."
   fi
 
-  ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.addr
-  ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
-  sudo bash -c "cat <<-'EOF' > ${CNODE_HOME}/mithril-signer/service.env
+  # Generate the full set of environment variables required by Mithril signer use case
+  export ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.addr
+  export ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.vkey
+  sudo bash -c "cat <<-'EOF' > ${CNODE_HOME}/mithril/mithril.env
 	KES_SECRET_KEY_PATH=${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}
 	OPERATIONAL_CERTIFICATE_PATH=${POOL_DIR}/${POOL_OPCERT_FILENAME}
-	NETWORK=${NETWORK}
-	AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK}.api.mithril.network/aggregator
+	NETWORK=${NETWORK_NAME,,}
+	RELEASE=${RELEASE}
+	AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK_NAME,,}.api.mithril.network/aggregator
 	RUN_INTERVAL=60000
 	DB_DIRECTORY=${CNODE_HOME}/db
 	CARDANO_NODE_SOCKET_PATH=${CARDANO_NODE_SOCKET_PATH}
 	CARDANO_CLI_PATH=${HOME}/.local/bin/cardano-cli
-	DATA_STORES_DIRECTORY=${CNODE_HOME}/mithril-signer/data-stores
+	DATA_STORES_DIRECTORY=${CNODE_HOME}/mithril/data-stores
 	STORE_RETENTION_LIMITS=5
 	ERA_READER_ADAPTER_TYPE=cardano-chain
-	ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.addr
-	ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/era.vkey
-	ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address $(wget -q -O - "${ERA_READER_ADDRESS}") --arg verification_key $(wget -q -O - "${ERA_READER_VKEY}") '{"address": $address, "verification_key": $verification_key}')
-	GENESIS_VERIFICATION_KEY=$(curl -s https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK}/genesis.vkey)
+	ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address "$(wget -q -O - "${ERA_READER_ADDRESS}")" --arg verification_key "$(wget -q -O - "${ERA_READER_VKEY}")" '{"address": $address, "verification_key": $verification_key}')
+	GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
 	PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME})
-	EOF" && sudo chown $USER:$USER "${CNODE_HOME}"/mithril-signer/service.env
+	SNAPSHOT_DIGEST=latest
+	EOF" && sudo chown $USER:$USER "${CNODE_HOME}"/mithril/mithril.env
     
     if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
-      sudo bash -c "echo  RELAY_ENDPOINT=http://${RELAY_ENDPOINT_IP}:${RELAY_PORT} >> ${CNODE_HOME}/mithril-signer/service.env"
+      sudo bash -c "echo  RELAY_ENDPOINT=http://${RELAY_ENDPOINT_IP}:${RELAY_PORT} >> ${CNODE_HOME}/mithril/mithril.env"
     fi
 }
 
 deploy_systemd() {
   echo "Creating ${CNODE_VNAME}-mithril-signer systemd service environment file.."
-  if [[ ! -f "${CNODE_HOME}"/mithril-signer/service.env ]]; then
-    generate_environment_file && echo "Environment file created successfully!!"
+  if [[ ! -f "${CNODE_HOME}"/mithril/mithril.env ]]; then
+    generate_environment_file && echo "Mithril environment file created successfully!!"
   fi
 
   echo "Deploying ${CNODE_VNAME}-mithril-signer as systemd service.."
@@ -117,15 +120,15 @@ deploy_systemd() {
 	StartLimitIntervalSec=0
 	Wants=network-online.target
 	After=network-online.target
-	BindsTo=${vname}.service
-	After=${vname}.service
+	BindsTo=${CNODE_VNAME}.service
+	After=${CNODE_VNAME}.service
 	
 	[Service]
 	Type=simple
 	Restart=always
 	RestartSec=5
 	User=${USER}
-	EnvironmentFile=${CNODE_HOME}/mithril-signer/service.env
+	EnvironmentFile=${CNODE_HOME}/mithril/mithril.env
 	ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/mithril-signer -vv\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
@@ -179,6 +182,6 @@ pre_startup_sanity
 
 # Run Mithril Signer Server
 echo "Sourcing the Mithril Signer environment file.."
-. "${CNODE_HOME}"/mithril-signer/service.env
+. "${CNODE_HOME}"/mithril/mithril.env
 echo "Starting Mithril Signer Server.."
 "${MITHRILBIN}" -vvv >> "${LOG_DIR}"/mithril-signer.log 2>&1

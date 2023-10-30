@@ -43,6 +43,11 @@ if command -v mithril-signer >/dev/null 2>&1 ; then
   read -rsn1 yn
   if [[ ${yn} = [Yy]* ]]; then
     ./mithril-signer.sh -d
+  else
+    if [[ -f /etc/systemd/system/${vname}-mithril-signer.service ]]; then
+      sudo systemctl disable ${vname}-mithril-signer.service
+      sudo rm -f /etc/systemd/system/${vname}-mithril-signer.service
+    fi
   fi
 fi
 
@@ -422,7 +427,7 @@ sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}-cncli-validate.service ]] && sudo systemctl enable ${vname}-cncli-validate.service
 [[ -f /etc/systemd/system/${vname}-cncli-ptsendtip.service ]] && sudo systemctl enable ${vname}-cncli-ptsendtip.service
 [[ -f /etc/systemd/system/${vname}-cncli-ptsendslots.service ]] && sudo systemctl enable ${vname}-cncli-ptsendslots.service
-[[ -f /etc/systemd/system/${vanem}-mithril-signer.service ]] && sudo systemctl enable ${vname}-mithril-signer.service
+[[ -f /etc/systemd/system/${vname}-mithril-signer.service ]] && sudo systemctl enable ${vname}-mithril-signer.service
 
 
 echo

@@ -61,6 +61,15 @@ pre_startup_sanity() {
   [[ $(find "${LOG_DIR}"/node*.json 2>/dev/null | wc -l) -gt 0 ]] && mv "${LOG_DIR}"/node*.json "${LOG_DIR}"/archive/
 }
 
+mithril_snapshot_download() {
+  [[ -z "${MITHRIL_CLIENT}" ]] && MITHRIL_CLIENT="${CNODE_HOME}"/scripts/mithril-client.sh
+  if [[ ! -f "${MITHRIL_CLIENT}" ]] || [[ ! -e "${MITHRIL_CLIENT}" ]]; then 
+    echo "ERROR: Could not locate mithril-client.sh script or script is not executable. Skipping mithril snapshot download!!"
+  else
+    "${MITHRIL_CLIENT}" -d
+  fi
+}
+
 stop_node() {
   CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}" 2>/dev/null) # env was only called in offline mode
   kill -2 ${CNODE_PID} 2>/dev/null
@@ -130,6 +139,11 @@ if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
   exit 2
 fi
 pre_startup_sanity
+
+# Download the latest mithril snapshot before starting node
+if [[ "${MITHRIL_DOWNLOAD}" == "Y" ]]; then
+  mithril_snapshot_download
+fi
 
 # Run Node
 if [[ -f "${POOL_DIR}/${POOL_OPCERT_FILENAME}" && -f "${POOL_DIR}/${POOL_VRF_SK_FILENAME}" && -f "${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}" ]]; then
