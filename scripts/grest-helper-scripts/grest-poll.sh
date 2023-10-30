@@ -119,7 +119,7 @@ function chk_tip() {
 }
 
 function chk_rpc_struct() {
-  srvr_spec="$(curl -skL "${1}" | jq 'leaf_paths as $p | [$p[] | tostring] |join(".")' 2>/dev/null)"
+  srvr_spec="$(curl -skL "${1}" | jq '[leaf_paths as $p | { "key": $p | map(tostring) | join("_"), "value": getpath($p) }] | from_entries' | awk '{print $1 " " $2}' | grep -e ^\"paths -e ^\"parameters -e ^\"definitions 2>/dev/null)"
   api_endpts="$(grep ^\ \ / "${LOCAL_SPEC}" | sed -e 's#  /#/#g' -e 's#:##' | sort)"
   for endpt in ${api_endpts}
   do
@@ -155,7 +155,7 @@ function chk_cache_status() {
   else
       [[ -z "${GENESIS_JSON}" ]] && GENESIS_JSON="${PARENT}"/../files/shelley-genesis.json
       epoch_length=$(jq -r .epochLength "${GENESIS_JSON}" 2>/dev/null)
-      if [[ ${epoch_slot} -ge $(( epoch_length / 10 )) ]]; then
+      if [[ ${epoch_slot} -ge $(( epoch_length / 8 )) ]]; then
         if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
           log_err "Active Stake cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 10 )) !!"
           optexit
@@ -194,7 +194,7 @@ function chk_endpt_post() {
 }
 
 function chk_asset_registry() {
-  ct=$(curl -sfkL -H 'Prefer: count=exact' "${GURL}/asset_registry_cache?select=name&limit=1" -I 2>/dev/null | grep -i "content-range" | cut -d/ -f2 | tr -d '[:space:]')
+  ct=$(curl -sfkL -H 'Prefer: count=exact' "${GURL}/asset_token_registry?select=asset_name&limit=1" -I 2>/dev/null | grep -i "content-range" | cut -d/ -f2 | tr -d '[:space:]')
   if [[ "${ct}" == "" ]] || [[ $ct -lt 150 ]]; then
     log_err "Asset registry cache seems incomplete (<150) assets, try deleting key: asset_registry_commit in control_table and wait for next cron run"
     optexit

@@ -34,7 +34,7 @@
 #TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state
 #IP_VERSION=4                                           # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)
 #ENABLE_KOIOS=Y                                         # (Y|N) Enable KOIOS API. If disabled, local node queries will be used instead with increased system resource requirements (default Y)
-#KOIOS_API="https://api.koios.rest/api/v0"              # Koios API for blockchain queries instead of local cli lookup.
+#KOIOS_API="https://api.koios.rest/api/v1"              # Koios API for blockchain queries instead of local cli lookup.
                                                         # Leave commented for automatic network detection between MainNet, Preview, Preprod or Guild network.
                                                         # https://www.koios.rest/
 #DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries" # [advanced feature] Folder containing DB-Sync chain analysis queries
@@ -326,11 +326,14 @@ validateDecimalNbr() {
 # Description : Pretty print Lovelace value
 #             : $1 = Amount in Lovelace
 #             : $2 = normal | pretty (default)
+#             : $3 = full | trim (default, removes trailing zeros from fraction)
 formatLovelace() {
   if isNumber $1; then
     [[ $1 -eq 0 ]] && echo 0 && return
-    [[ $1 -le 999999 ]] && printf '0.%06d' "$1" && return
-    [[ -z $2 || $2 = 'pretty' ]] && printf '%s.%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${1: -6}" || printf '%s.%s' "${1::-6}" "${1: -6}"
+    [[ $1 -le 999999 ]] && printf '%s' "$(local frac=$(printf '%06d' "$1"); [[ -z $3 || $3 = 'trim' ]] && ([[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '0.%s' "${BASH_REMATCH[1]}") || printf '0.%s' "${frac}")" && return
+    [[ -z $3 || $3 = 'trim' ]] && fraction="$(local frac=${1: -6}; [[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '.%s' "${BASH_REMATCH[1]}")" || fraction=".${1: -6}"
+    [[ ${fraction} = '.' ]] && fraction=""
+    [[ -z $2 || $2 = 'pretty' ]] && printf '%s%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${fraction}" || printf '%s%s' "${1::-6}" "${fraction}"
   else
     printf "${FG_RED}ERROR${NC}: must be a valid integer number" 1>&2
     return 1
@@ -1013,19 +1016,19 @@ case ${NWMAGIC} in
   764824073) 
     NETWORK_NAME="Mainnet"
     SHELLEY_TRANS_EPOCH=208
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://api.koios.rest/api/v0" ;;
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://api.koios.rest/api/v1" ;;
   1)
     NETWORK_NAME="PreProd"
     SHELLEY_TRANS_EPOCH=4
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preprod.koios.rest/api/v0";;
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preprod.koios.rest/api/v1";;
   141) 
     NETWORK_NAME="Guild"
     SHELLEY_TRANS_EPOCH=2
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v0" ;;
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v1";;
   2)
     NETWORK_NAME="Preview"
     SHELLEY_TRANS_EPOCH=0
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v0" ;;
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v1";;
   *) 
     NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0

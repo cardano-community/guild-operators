@@ -1843,7 +1843,7 @@ function main {
               echo
               pledge_ada=50000 # default pledge
               [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-              getAnswerAnyCust pledge_enter "Pledge (in Ada, default: $(formatAsset ${pledge_ada}))"
+              getAnswerAnyCust pledge_enter "Pledge (in Ada, default: $(formatLovelace $(AdaToLovelace ${pledge_ada}))"
               pledge_enter="${pledge_enter//,}"
               if [[ -n "${pledge_enter}" ]]; then
                 if ! AdaToLovelace "${pledge_enter}" >/dev/null; then
@@ -2392,7 +2392,7 @@ function main {
                 println "Owner #$((index+1))      : ${FG_GREEN}${owner_wallets[${index}]}${NC}"
               done
               println "Reward Wallet : ${FG_GREEN}${reward_wallet}${NC}"
-              println "Pledge        : ${FG_LBLUE}$(formatAsset ${pledge_ada})${NC} Ada"
+              println "Pledge        : ${FG_LBLUE}$(formatLovelace $(AdaToLovelace ${pledge_ada}))${NC} Ada"
               println "Margin        : ${FG_LBLUE}${margin}${NC} %"
               println "Cost          : ${FG_LBLUE}$(formatLovelace ${cost_lovelace})${NC} Ada"
               if [[ ${SUBCOMMAND} = "register" ]]; then
@@ -2718,14 +2718,14 @@ function main {
                 fi
               fi
               if [[ ${CNTOOLS_MODE} = "OFFLINE" && -f "${pool_config}" ]]; then
-                conf_pledge=$(( $(jq -r '.pledgeADA //0' "${pool_config}") * 1000000 ))
+                conf_pledge=$(jq -r '.pledgeADA //0' "${pool_config}")
                 conf_margin=$(jq -r '.margin //0' "${pool_config}")
-                conf_cost=$(jq -r '.costADA //0' "${pool_config}" | tr -d '.')
+                conf_cost=$(jq -r '.costADA //0' "${pool_config}")
                 conf_owner=$(jq -r '.pledgeWallet //"unknown"' "${pool_config}")
                 conf_reward=$(jq -r '.rewardWallet //"unknown"' "${pool_config}")
-                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatAsset "${conf_pledge::-6}")")"
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatLovelace $(AdaToLovelace "${conf_pledge}"))")"
                 println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Margin" "${conf_margin}")"
-                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Cost" "$(formatAsset "${conf_cost::-6}")")"
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Cost" "$(formatLovelace $(AdaToLovelace "${conf_cost}"))")"
                 println "$(printf "%-21s : ${FG_GREEN}%s${NC} (%s)" "Owner Wallet" "${conf_owner}" "primary only, use online mode for multi-owner")"
                 println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward Wallet" "${conf_reward}")"
                 relay_title="Relay(s)"
@@ -2747,9 +2747,9 @@ function main {
                   pParams_pledge=${fPParams_pledge}
                 fi
                 if [[ ${pParams_pledge} -eq ${fPParams_pledge} ]]; then
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatAsset "${pParams_pledge::-6}")")"
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatLovelace "${pParams_pledge}")")"
                 else
-                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} Ada" "Pledge" "new" "$(formatAsset "${fPParams_pledge::-6}")" )"
+                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} Ada" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )"
                 fi
                 [[ -n ${KOIOS_API} ]] && println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Live Pledge" "$(formatLovelace "${p_live_pledge}")")"
                 
@@ -2776,9 +2776,9 @@ function main {
                   pParams_cost=${fPParams_cost}
                 fi
                 if [[ ${pParams_cost} -eq ${fPParams_cost} ]]; then
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Cost" "$(formatAsset "${pParams_cost::-6}")")"
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Cost" "$(formatLovelace "${pParams_cost}")")"
                 else
-                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} Ada" "Cost" "new" "$(formatAsset "${fPParams_cost::-6}")" )"
+                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} Ada" "Cost" "new" "$(formatLovelace "${fPParams_cost}")" )"
                 fi
                 
                 # get relays
@@ -3551,9 +3551,9 @@ function main {
                   echo
                   println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
                   println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
-                  println DEBUG "Pledge           : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")${NC} Ada"
+                  println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} Ada"
                   println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-                  println DEBUG "Cost             : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-cost"' <<< ${offlineJSON})")${NC} Ada"
+                  println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} Ada"
                   for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
                     _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
                     otx_signing_name=$(_jq '.name')
@@ -3725,9 +3725,9 @@ function main {
                   jq -er '.metadata' <<< ${offlineJSON} &>/dev/null && println DEBUG "Metadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pledge           : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")${NC} Ada"
+                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} Ada"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Cost             : ${FG_LBLUE}$(formatAsset "$(jq -r '."pool-cost"' <<< ${offlineJSON})")${NC} Ada"
+                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} Ada"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy Name      : ${FG_LGRAY}$(jq -r '."policy-name"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy ID        : ${FG_LGRAY}$(jq -r '."policy-id"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Asset Name       : ${FG_LGRAY}$(jq -r '."asset-name"' <<< ${offlineJSON})${NC}"
