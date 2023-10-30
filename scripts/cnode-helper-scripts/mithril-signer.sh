@@ -28,9 +28,9 @@ usage() {
 		Cardano Mithril signer wrapper script !!
 		-d    Deploy mithril-signer as a systemd service
 		-u    Update mithril environment file
+		-h    Show this help text
 		
 		EOF
-  exit 1
 }
 
 set_defaults() {
@@ -148,11 +148,24 @@ deploy_systemd() {
 ###################
 
 # Parse command line options
-while getopts :du opt; do
+while getopts :duh opt; do
   case ${opt} in
     d ) DEPLOY_SYSTEMD="Y" ;;
     u ) UPDATE_ENVIRONMENT="Y" ;;
-    \? ) usage ;;
+    h)
+      usage
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: -${OPTARG}" >&2
+      usage
+      exit 1
+      ;;
+    :)
+      echo "Option -${OPTARG} requires an argument." >&2
+      usage
+      exit 1
+      ;;
   esac
 done
 

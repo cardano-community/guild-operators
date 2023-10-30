@@ -27,6 +27,7 @@ usage() {
 		Cardano Mithril client wrapper script !!
 		-d    Download latest Mithril snapshot
 		-u    Update mithril environment file
+		-h    Show this help text
 		
 		EOF
 }
@@ -151,11 +152,24 @@ download_snapshot() {
 #####################
 
 # Parse command line options
-while getopts :du opt; do
+while getopts :duh opt; do
   case ${opt} in
     d ) MITHRIL_DOWNLOAD="Y" ;;
     u ) UPDATE_ENVIRONMENT="Y" ;;
-    \? ) usage ;;
+    h)
+      usage
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: -${OPTARG}" >&2
+      usage
+      exit 1
+      ;;
+    :)
+      echo "Option -${OPTARG} requires an argument." >&2
+      usage
+      exit 1
+      ;;
   esac
 done
 

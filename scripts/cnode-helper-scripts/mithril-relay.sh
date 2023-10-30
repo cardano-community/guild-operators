@@ -1,9 +1,26 @@
 #!/bin/bash
 
-# Default values
+######################################
+# User Variables - Change as desired #
+# Common variables set in env file   #
+######################################
+
+RELAY_LISTENING_PORT=3132
+
+######################################
+# Do NOT modify code below           #
+######################################
+
+#####################
+# Constants         #
+#####################
+
 BLOCK_PRODUCER_IP=()
 RELAY_LISTENING_IP=()
-RELAY_LISTENING_PORT=3132
+
+#####################
+# Functions         #
+#####################
 
 # Usage menu
 usage() {
@@ -14,6 +31,7 @@ usage() {
 		Cardano Mithril relay wrapper script!!
 		-d  Install squid and configure as a relay
 		-l  Install nginx and configure as a load balancer
+		-h  Show this help text
 		
 		EOF
 }
@@ -106,7 +124,7 @@ generate_squid_conf() {
 }
 
 # Parse command line arguments
-while getopts ":dlh" opt; do
+while getopts :dlh opt; do
   case ${opt} in
     d)
       # Install squid and make a backup of the config file
@@ -117,9 +135,9 @@ while getopts ":dlh" opt; do
 
       # Read the listening IP addresses from user input
       while true; do
-        read -p "Enter the IP address of your Block Producer: " ip
+        read -r -p "Enter the IP address of your Block Producer: " ip
         BLOCK_PRODUCER_IP+=("${ip}")
-        read -p "Are there more block producers? (y/n) " yn
+        read -r -p "Are there more block producers? (y/n) " yn
         case ${yn} in
           [Nn]*) break ;;
               *) continue ;;
@@ -127,7 +145,7 @@ while getopts ":dlh" opt; do
       done
 
       # Read the listening port from user input
-      read -p "Enter the relay's listening port (press Enter to use default 3132): " RELAY_LISTENING_PORT
+      read -r -p "Enter the relay's listening port (press Enter to use default 3132): " RELAY_LISTENING_PORT
       RELAY_LISTENING_PORT=${RELAY_LISTENING_PORT:-3132}
       echo "Using port ${RELAY_LISTENING_PORT} for relay's listening port."
       generate_squid_conf
@@ -150,9 +168,9 @@ while getopts ":dlh" opt; do
 
       # Read the listening IP addresses from user input
       while true; do
-        read -p "Enter the IP address of a relay: " ip
+        read -r -p "Enter the IP address of a relay: " ip
         RELAY_LISTENING_IP+=("${ip}")
-        read -p "Are there more relays? (y/n) " yn
+        read -r -p "Are there more relays? (y/n) " yn
         case ${yn} in
           [Nn]*) break ;;
               *) continue ;;
@@ -160,12 +178,12 @@ while getopts ":dlh" opt; do
       done
 
       # Read the listening IP for the load balancer
-      read -p "Enter the IP address of the load balancer (press Enter to use default 127.0.0.1): " SIDECAR_LISTENING_IP
+      read -r -p "Enter the IP address of the load balancer (press Enter to use default 127.0.0.1): " SIDECAR_LISTENING_IP
       SIDECAR_LISTENING_IP=${SIDECAR_LISTENING_IP:-127.0.0.1}
       echo "Using IP address ${SIDECAR_LISTENING_IP} for the load balancer configuration."
 
       # Read the listening port from user input
-      read -p "Enter the relay's listening port (press Enter to use default 3132): " RELAY_LISTENING_PORT
+      read -r -p "Enter the relay's listening port (press Enter to use default 3132): " RELAY_LISTENING_PORT
       RELAY_LISTENING_PORT=${RELAY_LISTENING_PORT:-3132}
       echo "Using port ${RELAY_LISTENING_PORT} for relay's listening port."
 
