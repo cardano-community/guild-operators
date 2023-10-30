@@ -328,8 +328,8 @@ validateDecimalNbr() {
 formatLovelace() {
   if isNumber $1; then
     [[ $1 -eq 0 ]] && echo 0 && return
-    [[ $1 -le 999999 ]] && printf '%s' "$(local frac=$(printf '%06d' "$1"); [[ -z $3 || $3 = 'trim' ]] && printf '0.%s' "${frac::+(0)}" || printf '0.%s' "${frac}")" && return
-    [[ -z $3 || $3 = 'trim' ]] && fraction="$(local frac=${1: -6}; printf '.%s' "${frac::+(0)}")" || fraction=".${1: -6}"
+    [[ $1 -le 999999 ]] && printf '%s' "$(local frac=$(printf '%06d' "$1"); [[ -z $3 || $3 = 'trim' ]] && ([[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '0.%s' "${BASH_REMATCH[1]}") || printf '0.%s' "${frac}")" && return
+    [[ -z $3 || $3 = 'trim' ]] && fraction="$(local frac=${1: -6}; [[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '.%s' "${BASH_REMATCH[1]}")" || fraction=".${1: -6}"
     [[ ${fraction} = '.' ]] && fraction=""
     [[ -z $2 || $2 = 'pretty' ]] && printf '%s%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${fraction}" || printf '%s%s' "${1::-6}" "${fraction}"
   else
