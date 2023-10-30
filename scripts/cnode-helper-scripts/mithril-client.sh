@@ -114,27 +114,26 @@ set_defaults() {
 }
 
 check_db_dir() {
-    # If the DB directory does not exist then set DOWNLOAD_SNAPSHOT to Y
-    if [[ ! -d "${DB_DIRECTORY}" ]]; then
-        echo "INFO: The db directory does not exist.."
-        DOWNLOAD_SNAPSHOT="Y"
-    # If the DB directory is empty then set DOWNLOAD_SNAPSHOT to Y and REMOVE_DB_DIR to Y
-    elif [[ -d "${DB_DIRECTORY}" ]] && [[ -z "$(ls -A "${DB_DIRECTORY}")" ]] && [[ $(du -cs "${DB_DIRECTORY}"/* 2>/dev/null | awk '/total$/ {print $1}') -eq 0 ]]; then
-        echo "INFO: The db directory is empty.."
-        REMOVE_DB_DIR="Y"
-        DOWNLOAD_SNAPSHOT="Y"
-    else
-        echo "INFO: The db directory is not empty.."
-    fi
-
+  # If the DB directory does not exist then set DOWNLOAD_SNAPSHOT to Y
+  if [[ ! -d "${DB_DIRECTORY}" ]]; then
+    echo "INFO: The db directory does not exist.."
+    DOWNLOAD_SNAPSHOT="Y"
+  # If the DB directory is empty then set DOWNLOAD_SNAPSHOT to Y and REMOVE_DB_DIR to Y
+  elif [[ -d "${DB_DIRECTORY}" ]] && [[ -z "$(ls -A "${DB_DIRECTORY}")" ]] && [[ $(du -cs "${DB_DIRECTORY}"/* 2>/dev/null | awk '/total$/ {print $1}') -eq 0 ]]; then
+    echo "INFO: The db directory is empty.."
+    REMOVE_DB_DIR="Y"
+    DOWNLOAD_SNAPSHOT="Y"
+  else
+    echo "INFO: The db directory is not empty.."
+  fi
 }
 
 remove_db_dir() {
-    # Mithril client errors if the db folder already exists, so remove it if it is empty
-    if [[ "${REMOVE_DB_DIR}" == "Y" ]]; then
-        echo "INFO: Removing empty db directory to prepare for snapshot download.."
-        rmdir "${DB_DIRECTORY}"
-    fi
+  # Mithril client errors if the db folder already exists, so remove it if it is empty
+  if [[ "${REMOVE_DB_DIR}" == "Y" ]]; then
+    echo "INFO: Removing empty db directory to prepare for snapshot download.."
+    rmdir "${DB_DIRECTORY}"
+  fi
 }
 
 download_snapshot() {
