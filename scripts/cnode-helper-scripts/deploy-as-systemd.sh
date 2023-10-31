@@ -8,14 +8,9 @@
 
 PARENT="$(dirname "$0")" 
 
-if [[ $(grep "_HOME=" "${PARENT}"/env) =~ ^#?([^[:space:]]+)_HOME ]]; then
-  vname=$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")
-else
-  echo "failed to get cnode instance name from env file, aborting!"
-  exit 1
-fi
-
 . "${PARENT}"/env offline
+
+vname="${CNODE_VNAME}"
 
 echo -e "\e[32m~~ Cardano Node ~~\e[0m"
 echo "launches the main cnode.sh script to deploy cardano-node"
@@ -402,7 +397,6 @@ fi
 
 echo
 sudo systemctl daemon-reload
-[[ -f /etc/systemd/system/${vname}.service ]] && sudo systemctl enable ${vname}.service
 [[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && sudo systemctl enable ${vname}-logmonitor.service
 [[ -f /etc/systemd/system/${vname}-tu-fetch.service ]] && sudo systemctl enable ${vname}-tu-fetch.service
 [[ -f /etc/systemd/system/${vname}-tu-restart.timer ]] && sudo systemctl enable ${vname}-tu-restart.timer
