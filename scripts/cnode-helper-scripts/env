@@ -80,7 +80,7 @@
 #ASSET_POLICY_ID_FILENAME="policy.id"
 #CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json" # URL for polls to vote against
 
-#MITHRIL_DOWNLOAD="Y"                                  # (Y|N) Download latest Mithril snapshot
+#MITHRIL_DOWNLOAD="N"                                  # (Y|N) Download latest Mithril snapshot
 
 ######################################
 # Do NOT modify code below           #
@@ -800,7 +800,7 @@ set_default_vars() {
   [[ -z ${ASSET_POLICY_SCRIPT_FILENAME} ]] && ASSET_POLICY_SCRIPT_FILENAME="policy.script"
   [[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
   [[ -z ${CIP0094_POLL_URL} ]] && CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json"
-  [[ -z ${MITHRIL_DOWNLOAD} ]] && MITHRIL_DOWNLOAD="Y"
+  [[ -z ${MITHRIL_DOWNLOAD} ]] && MITHRIL_DOWNLOAD="N"
   FG_BLACK='\e[30m'
   FG_RED='\e[31m'
   FG_GREEN='\e[32m'
