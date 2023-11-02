@@ -498,7 +498,7 @@ download_mithril() {
     # dynamic latest release updated automatically, uncomment and comment out the hardcoded release below if needed
     # mithril_release="$(curl -s https://api.github.com/repos/input-output-hk/mithril/releases/latest | jq -r '.tag_name')"
     # hardcoded latest release requiring a bump
-    mithril_release="2337.0"
+    mithril_release="2342.0"
     echo -e "\n  Downloading Mithril Signer/Client ${mithril_release}..."
     rm -f mithril-signer mithril-client
     curl -m 200 -sfL https://github.com/input-output-hk/mithril/releases/download/${mithril_release}/mithril-${mithril_release}-linux-x64.tar.gz -o mithril.tar.gz || err_exit " Could not download mithril's latest release archive from IO github!"
