@@ -498,7 +498,7 @@ download_mithril() {
     # dynamic latest release updated automatically, uncomment and comment out the hardcoded release below if needed
     # mithril_release="$(curl -s https://api.github.com/repos/input-output-hk/mithril/releases/latest | jq -r '.tag_name')"
     # hardcoded latest release requiring a bump
-    mithril_release="2337.0"
+    mithril_release="2342.0"
     echo -e "\n  Downloading Mithril Signer/Client ${mithril_release}..."
     rm -f mithril-signer mithril-client
     curl -m 200 -sfL https://github.com/input-output-hk/mithril/releases/download/${mithril_release}/mithril-${mithril_release}-linux-x64.tar.gz -o mithril.tar.gz || err_exit " Could not download mithril's latest release archive from IO github!"
@@ -521,14 +521,9 @@ setup_folder() {
     echo -e "\nexport ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
   fi
   
-  $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/scripts/archive "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv "${CNODE_HOME}"/mithril
+  $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/scripts/archive "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv "${CNODE_HOME}"/mithril/data-stores
   $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
   
-  if [[ ${INSTALL_MITHRIL} == 'Y' ]]; then
-  
-    $sudo mkdir -p "${CNODE_HOME}"/mithril/data-stores
-    $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"/mithril 2>/dev/null
-  fi
 }
 
 # Download and update scripts for cnode
@@ -588,7 +583,7 @@ populate_cnode() {
   
   pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
   
-  [[ ${FORCE_OVERWRITE} = 'Y' ]] && echo -e "\nForced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required!"
+  [[ ${FORCE_OVERWRITE} = 'Y' ]] && echo -e "\nForced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh scripts/mithril-client.sh scripts/mithril-relay.sh scripts/mithril-signer.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required!"
   
   updateWithCustomConfig "blockPerf.sh"
   updateWithCustomConfig "cabal-build-all.sh"
@@ -606,6 +601,9 @@ populate_cnode() {
   updateWithCustomConfig "setup_mon.sh"
   updateWithCustomConfig "setup-grest.sh" "grest-helper-scripts"
   updateWithCustomConfig "topologyUpdater.sh"
+  updateWithCustomConfig "mithril-client.sh"
+  updateWithCustomConfig "mithril-relay.sh"
+  updateWithCustomConfig "mithril-signer.sh"
   
   find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
   chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
@@ -618,7 +616,7 @@ parse_args() {
     [[ "${S_ARGS}" =~ "p" ]] && INSTALL_OS_DEPS="Y"
     [[ "${S_ARGS}" =~ "b" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y"
     [[ "${S_ARGS}" =~ "l" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y" && INSTALL_LIBSODIUM_FORK="Y"
-    [[ "${S_ARGS}" =~ "m" ]] && INSTALL_MITHRIL="Y" && WANT_BUILD_DEPS="Y"
+    [[ "${S_ARGS}" =~ "m" ]] && INSTALL_MITHRIL="Y"
     [[ "${S_ARGS}" =~ "f" ]] && FORCE_OVERWRITE="Y" && POPULATE_CNODE="F"
     [[ "${S_ARGS}" =~ "d" ]] && INSTALL_CNODEBINS="Y"
     [[ "${S_ARGS}" =~ "c" ]] && INSTALL_CNCLI="Y"
