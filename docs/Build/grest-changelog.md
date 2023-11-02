@@ -16,8 +16,7 @@ The major work with this release was to start making use of newer flags in dbsyn
 - `/script_utxos` - Get UTxO details for requested script hashes [#239](https://github.com/cardano-community/koios-artifacts/pull/239)
 - `/utxo_info` - Details for requested UTxO arrays [#239](https://github.com/cardano-community/koios-artifacts/pull/239)
 - `/script_info` - Information about a given script FROM script hashes [#239](https://github.com/cardano-community/koios-artifacts/pull/239)
-- `/ogmios/?EvaluateTransaction` - Expose [Ogmios EvaluateTransaction](https://ogmios.dev/api/#operation-publish-/?EvaluateTransaction) as an endpoint [#1690](https://github.com/cardano-community/guild-operators/pull/1690)
-- `/ogmios/?SubmitTransaction` - Expose [Ogmios SubmitTransaction](https://ogmios.dev/api/#operation-publish-/?SubmitTransaction) as an endpoint [#1690](https://github.com/cardano-community/guild-operators/pull/1690)
+- `/ogmios/` - Expose [stateless ogmios](https://ogmios.dev/api/) endpoints [#1690](https://github.com/cardano-community/guild-operators/pull/1690)
 
 ### Data Input/Output Changes:
 - Input - `/account_utxos` , `/credential_utxos` - Accept `extended` as an additional flag - which enables `asset_list`, `reference_script` and `inline_datum` to the output [#239](https://github.com/cardano-community/koios-artifacts/pull/239)
