@@ -92,7 +92,6 @@ SGVERSION=v1.1.0rc
     local job=$1
     local job_path="${CRON_SCRIPTS_DIR}/${job}.sh"
     local job_url="https://raw.githubusercontent.com/cardano-community/koios-artifacts/${SGVERSION}/files/grest/cron/jobs/${job}.sh"
-    is_file "${job_path}" && rm "${job_path}"
     if curl -s -f -m "${CURL_TIMEOUT}" -o "${job_path}" "${job_url}"; then
       printf "\n    Downloaded \e[32m${job_path}\e[0m"
       chmod +x "${job_path}"
@@ -108,7 +107,6 @@ SGVERSION=v1.1.0rc
     local cron_scripts_path="${CRON_SCRIPTS_DIR}/${job}.sh"
     local cron_log_path="${LOG_DIR}/${job}_\`date +\\%d\\%m\\%y\`.log"
     local cron_job_entry="${cron_pattern} ${USER} /bin/bash ${cron_scripts_path} >> ${cron_log_path} 2>&1"
-    remove_cron_job "${job}"
     sudo bash -c "{ echo '${cron_job_entry}'; } > ${cron_job_path}"
   }
 
@@ -192,42 +190,13 @@ SGVERSION=v1.1.0rc
     fi
   }
 
-  # Description : Remove a given grest cron entry.
-  remove_cron_job() {
-    local job=$1
-    local cron_job_path="${CRON_DIR}/${CNODE_VNAME}-${job}"
-    is_file "${cron_job_path}" && sudo rm "${cron_job_path}"
-    kill_cron_psql_process $(echo ${job} | tr '-' '_')
-    kill_cron_script_process ${job} &>/dev/null
-  }
-
-  # Description : Find and kill psql processes based on partial function name.
-  #             : $1 = partial name of the cron-related update function in postgres.
-  kill_cron_psql_process() {
-    local update_function=$1
-    output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -qt \
-      -c "select grest.get_query_pids_partial_match('${update_function}');" |
-        awk 'BEGIN {ORS = " "} {print $1}' | xargs echo -n)
-    [[ -n "${output}" ]] && echo ${output} | xargs sudo kill -SIGTERM > /dev/null
-  }
-
-  # Description : Kill a running cron script (does not stop psql executions).
-  kill_cron_script_process() {
-    local job=$1
-    sudo pkill -9 -f "${job}.s[h]" >/dev/null 2>&1
-  }
-
   # Description : Remove all grest-related cron entries.
   remove_all_grest_cron_jobs() {
     printf "\nRemoving all installed cron jobs..."
-    remove_cron_job "active-stake-cache-update"
-    remove_cron_job "asset-registry-update"
-    remove_cron_job "epoch-info-cache-update"
-    remove_cron_job "pool-history-cache-update"
-    remove_cron_job "stake-distribution-new-accounts-update"
-    remove_cron_job "stake-distribution-update"
-    remove_cron_job "stake-snapshot-cache"
-    remove_cron_job "populate-next-epoch_nonce"
+    grep -rl ${CRON_SCRIPTS_DIR} ${CRON_DIR} | xargs rm -f
+    rm -f ${CRON_SCRIPTS_DIR}/*.sh
+    psql "${PGDATABASE}" -qt -c "SELECT PG_CANCEL_BACKEND(pid) FROM pg_stat_activity WHERE usename='${USER}' AND application_name = 'psql' AND query NOT LIKE '%pg_stat_activity%';"
+    psql "${PGDATABASE}" -qt -c "SELECT PG_TERMINATE_BACKEND(pid) FROM pg_stat_activity WHERE usename='${USER}' AND application_name = 'psql' AND query NOT LIKE '%pg_stat_activity%';"
   }
 
   # Description : Set default env values if not user-specified.
@@ -615,7 +584,6 @@ SGVERSION=v1.1.0rc
   reset_grest() {
     local tr_dir="${HOME}/git/${CNODE_VNAME}-token-registry"
     [[ -d "${tr_dir}" ]] && rm -rf "${tr_dir}"
-    remove_all_grest_cron_jobs
     recreate_grest_schema
   }
 
@@ -694,7 +662,7 @@ SGVERSION=v1.1.0rc
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
   [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs
   [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
-  [[ "${RESET_GREST}" == "Y" ]] && setup_db_basics && reset_grest
-  [[ "${DB_QRY_UPDATES}" == "Y" ]] && setup_db_basics && deploy_query_updates && update_grest_version
+  [[ "${RESET_GREST}" == "Y" ]] && remove_all_grest_cron_jobs && setup_db_basics && reset_grest
+  [[ "${DB_QRY_UPDATES}" == "Y" ]] && remove_all_grest_cron_jobs && setup_db_basics && deploy_query_updates && update_grest_version
   pushd -0 >/dev/null || err_exit
   dirs -c
