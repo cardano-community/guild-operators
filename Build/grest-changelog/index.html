@@ -864,6 +864,47 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#110rc-for-all-networks" class="md-nav__link">
+    [1.1.0rc] - For all networks.
+  </a>
+  
+    <nav class="md-nav" aria-label="[1.1.0rc] - For all networks.">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#new-endpoints-added" class="md-nav__link">
+    New endpoints added:
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-inputoutput-changes" class="md-nav__link">
+    Data Input/Output Changes:
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecations" class="md-nav__link">
+    Deprecations:
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#chores" class="md-nav__link">
+    Chores:
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#1010-for-all-networks" class="md-nav__link">
     [1.0.10] - For all networks.
   </a>
@@ -872,7 +913,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#chores" class="md-nav__link">
+  <a href="#chores_1" class="md-nav__link">
     Chores:
   </a>
   
@@ -892,28 +933,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#new-endpoints-added" class="md-nav__link">
+  <a href="#new-endpoints-added_1" class="md-nav__link">
     New endpoints added
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#data-inputoutput-changes" class="md-nav__link">
+  <a href="#data-inputoutput-changes_1" class="md-nav__link">
     Data Input/Output Changes
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#deprecations" class="md-nav__link">
+  <a href="#deprecations_1" class="md-nav__link">
     Deprecations:
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#chores_1" class="md-nav__link">
+  <a href="#chores_2" class="md-nav__link">
     Chores:
   </a>
   
@@ -940,14 +981,14 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#new-endpoints-added_1" class="md-nav__link">
+  <a href="#new-endpoints-added_2" class="md-nav__link">
     New endpoints added
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#data-inputoutput-changes_1" class="md-nav__link">
+  <a href="#data-inputoutput-changes_2" class="md-nav__link">
     Data Input/Output changes
   </a>
   
@@ -982,14 +1023,14 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#new-endpoints-added_2" class="md-nav__link">
+  <a href="#new-endpoints-added_3" class="md-nav__link">
     New endpoints added
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#data-inputoutput-changes_2" class="md-nav__link">
+  <a href="#data-inputoutput-changes_3" class="md-nav__link">
     Data Input/Output changes
   </a>
   
@@ -1028,14 +1069,14 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#new-endpoints-added_3" class="md-nav__link">
+  <a href="#new-endpoints-added_4" class="md-nav__link">
     New endpoints added
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#data-inputoutput-changes_3" class="md-nav__link">
+  <a href="#data-inputoutput-changes_4" class="md-nav__link">
     Data Input/Output changes
   </a>
   
@@ -1240,16 +1281,74 @@
 
 
 <h1 id="koios-grest-changelog">Koios gRest Changelog<a class="headerlink" href="#koios-grest-changelog" title="Permanent link">⚓︎</a></h1>
+<h2 id="110rc-for-all-networks">[1.1.0rc] - For all networks.<a class="headerlink" href="#110rc-for-all-networks" title="Permanent link">⚓︎</a></h2>
+<p>This will be first major [breaking] release for Koios consumers in a while, and will be rolled out under new base prefix (<code>/api/v1</code>).
+The major work with this release was to start making use of newer flags in dbsync which help performance of queries under new endpoints. Also, you'd see quite a few new endpoint additions below, that'd be helping out with slightly lighter version of queries. To keep migration paths easier, we will ensure both v0 and v1 versions of the release is up for a month post release, before retiring v0.</p>
+<h3 id="new-endpoints-added">New endpoints added:<a class="headerlink" href="#new-endpoints-added" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li><code>/pool_registrations</code> - List of all pool registrations initiated in the requested epoch <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li><code>/pool_retirements</code> - List of all pool retirements initiated in the requested epoch <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li><code>/treasury_withdrawals</code> - List of withdrawals made from treasury <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li><code>/reserve_withdrawals</code> - List of withdrawals made from reserves (MIRs) <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li><code>/account_txs</code> - Transactions associated with a given stake address <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li><code>/address_utxos</code> - Get UTxO details for requested addresses <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li><code>/asset_utxos</code> - Get UTxO details for requested assets <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li><code>/script_utxos</code> - Get UTxO details for requested script hashes <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li><code>/utxo_info</code> - Details for requested UTxO arrays <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li><code>/script_info</code> - Information about a given script FROM script hashes <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li><code>/ogmios/</code> - Expose <a href="https://ogmios.dev/api/">stateless ogmios</a> endpoints <a href="https://github.com/cardano-community/guild-operators/pull/1690">#1690</a></li>
+</ul>
+<h3 id="data-inputoutput-changes">Data Input/Output Changes:<a class="headerlink" href="#data-inputoutput-changes" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>Input - <code>/account_utxos</code> , <code>/credential_utxos</code> - Accept <code>extended</code> as an additional flag - which enables <code>asset_list</code>, <code>reference_script</code> and <code>inline_datum</code> to the output <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Output - <code>/block_txs</code> - Flatten output with transaction details (<code>tx_hash</code>, <code>epoch_no</code>, <code>block_height</code>, <code>block_time</code>) instead of <code>tx_hashes</code> array <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Output - <code>/epoch_params</code> - Update <code>cost_models</code> to JSON (upstream change in node) <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Output - <code>/account_assets</code> , <code>/address_assets</code> - Flatten the output result (instead of <code>asset_list</code> array) making it easier to apply horizontal filtering based on any of the fields</li>
+<li>Output - Align output fields for <code>/account_utxos</code> , <code>/address_utxos</code>, <code>/asset_utxos</code> , <code>/script_utxos</code> and <code>/utxo_info</code> to return same schema giving complete details about UTxOs involved, with few fields toggled based on <code>extended</code> input flag <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Output - <code>/pool_list</code> - Add various details to the endpoint for each pool (<code>pool_id_hex</code>,<code>active_epoch_no</code>,<code>margin</code>,<code>fixed_cost</code>,<code>pledge</code>,<code>reward_addr</code>,<code>owners</code>,<code>relays</code>,<code>ticker</code>,<code>meta_url</code>,<code>meta_hash</code>,<code>pool_status</code>,<code>retiring_epoch</code>) - this should mean <em>some</em> of the requests to <code>pool_info</code> should no longer be required <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Output - <code>/pool_updates</code> - In v0, <code>pool_updates</code> only provided pool registration updates, while <code>pool_status</code> corresponded to current status of pool. With v1, we will have registration as well as deregistration transactions, and each transaction will have <code>update_type</code> (enum of either <code>registration</code> or <code>deregistration</code>) instead of <code>pool_status</code>. As a side-effect, since a registration transaction only has <code>retiring_epoch</code> as metadata, all the other fields will show up as <code>null</code> for such a transaction <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Output - <code>/pool_metadata</code> , <code>/pool_relays</code> - Add <code>pool_status</code> field to denote whether pool is retired <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Output - <code>/datum_info</code> - Rename <code>hash</code> to <code>datum_hash</code> and add <code>creation_tx_hash</code> <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Output - <code>/native_script_list</code> - Remove <code>script</code> column (as it has pretty large output better queried against <code>script_info</code>), add <code>size</code> and change <code>type</code> to text <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Output - <code>/plutus_script_list</code> - Add <code>type</code> and <code>size</code> to output <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Output - <code>/asset_info</code> - Add <code>cip68_metadata</code> JSONB field <a href="https://github.com/cardano-community/koios-artifacts/pull/227">#239</a></li>
+<li>Output - <code>/pool_history</code> - Add member_rewards <a href="https://github.com/cardano-community/koios-artifacts/pull/225">#225</a></li>
+</ul>
+<h3 id="deprecations">Deprecations:<a class="headerlink" href="#deprecations" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li><code>/tx_utxos</code> - No longer required as replaced by <code>/utxo_info</code> <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+</ul>
+<h3 id="chores">Chores:<a class="headerlink" href="#chores" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>Update base version to <code>v1</code> from <code>v0</code> <a href="https://github.com/cardano-community/guild-operators/pull/1690">#1690</a></li>
+<li>Allow Bearer Authentication against endpoints <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Cron job to apply corrections to epoch info <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li><code>epoch_info_cache</code> Remove protocol parameters, as they can be queried from live table. Accordingly update dependent queries <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Make use of new <code>consumed_by_tx_in_id</code> column in <code>tx_out</code> from dbsync 13.1.1.3 across endpoints <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
+<li>Fix <code>_last_active_stake_validated_epoch</code> in active_stake_cache <a href="https://github.com/cardano-community/koios-artifacts/pull/222">#222</a></li>
+<li>Typo for pool_history_cache.sql as well as add a check to ensure epoch_info_cache has run at least once prior to pool_history_cache <a href="https://github.com/cardano-community/koios-artifacts/pull/223">#223</a></li>
+<li>Move control_table entry in cache tables to the end (instead of start) <a href="https://github.com/cardano-community/koios-artifacts/pull/226">#226</a></li>
+<li>Fix Asset Info Cache (include mint/burn tx rather than sum for meta consideration) <a href="https://github.com/cardano-community/koios-artifacts/pull/226">#226</a></li>
+<li>Update SQLs as per SQLFluff linting guidelines <a href="https://github.com/cardano-community/koios-artifacts/pull/226">#226</a></li>
+<li>Fix for tip check in cron jobs <a href="https://github.com/cardano-community/koios-artifacts/pull/217">#217</a></li>
+<li>Update cron jobs to exit if the database has not received block in 5 mins <a href="https://github.com/cardano-community/koios-artifacts/pull/200">#200</a></li>
+<li>Update active stake cache to use control table <a href="https://github.com/cardano-community/koios-artifacts/pull/196">#196</a></li>
+<li>Update Asset Info Cache entry whenever asset registry cache has an update <a href="https://github.com/cardano-community/koios-artifacts/pull/194">#194</a></li>
+<li>Bump up margin for tx rollback lookup for asset_info_cache to 1000 , as 100 is too small a margin for 2-3 blocks , which can contain more than 100 transactions (of which if oldest transaction contains a mint, it will not get into the cache) <a href="https://github.com/cardano-community/koios-artifacts/pull/177">#177</a></li>
+<li>Swap grestrpcs file to list exceptions and treat everything else as RPC <a href="https://github.com/cardano-community/guild-operators/pull/1690">#1690</a></li>
+<li>Update grest-poll.sh to have stricter spec validation and add health check for asset_registry <a href="https://github.com/cardano-community/guild-operators/pull/1690">#1690</a></li>
+<li>Update guild-deploy.sh to include latest pre-release for ogmios <a href="https://github.com/cardano-community/guild-operators/pull/1690">#1690</a></li>
+</ul>
 <h2 id="1010-for-all-networks">[1.0.10] - For all networks.<a class="headerlink" href="#1010-for-all-networks" title="Permanent link">⚓︎</a></h2>
 <p>The release is effectively same as <code>1.0.10rc</code> except with one minor modification below.</p>
-<h3 id="chores">Chores:<a class="headerlink" href="#chores" title="Permanent link">⚓︎</a></h3>
+<h3 id="chores_1">Chores:<a class="headerlink" href="#chores_1" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li>Replace all RPC references for JSON endpoints with JSONB, this allows filtering child members of array elements using <code>cs.[{"key":"value"}]</code> in PostgREST <a href="https://github.com/cardano-community/koios-artifacts/pull/172">#172</a></li>
 </ul>
 <h2 id="1010rc-for-non-mainnet-networks">[1.0.10rc] - For non-mainnet networks<a class="headerlink" href="#1010rc-for-non-mainnet-networks" title="Permanent link">⚓︎</a></h2>
 <p>This release primarily focuses on ability to support better DeFi projects alongwith some value addition for existing clients by bringing in 10 new endpoints (paired with 2 deprecations), and few additional <em>optional</em> input parameters , and some additional output columns to existing endpoints. The only breaking change/fix is for output returned for <code>tx_info</code>.</p>
 <p>Also, dbsync 13.1.x.x has been released and is recommended to be used for this release</p>
-<h3 id="new-endpoints-added">New endpoints added<a class="headerlink" href="#new-endpoints-added" title="Permanent link">⚓︎</a></h3>
+<h3 id="new-endpoints-added_1">New endpoints added<a class="headerlink" href="#new-endpoints-added_1" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li><code>/asset_addresses</code> -  Equivalent of deprecated <code>/asset_address_list</code> <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/asset_nft_address</code> - Returns address where the specified NFT sits on <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
@@ -1262,7 +1361,7 @@
 <li><code>/policy_asset_info</code> - Equivalent of deprecated <code>/asset_policy_info</code> but with more details in output <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/policy_asset_list</code> - Returns list of asset under the given policy (including supply) <a href="https://github.com/cardano-community/koios-artifacts/pull/142">#142</a>, <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 </ul>
-<h3 id="data-inputoutput-changes">Data Input/Output Changes<a class="headerlink" href="#data-inputoutput-changes" title="Permanent link">⚓︎</a></h3>
+<h3 id="data-inputoutput-changes_1">Data Input/Output Changes<a class="headerlink" href="#data-inputoutput-changes_1" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li>Input - <code>/account_addresses</code> - Add optional <code>_first_only</code> and <code>_empty</code> flags to show only first address with tx or to include empty addresses to output <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li>Input - <code>/epoch_info</code> - Add optional <code>_include_next_epoch</code> field to show next epoch stats if available (eg: nonce, active stake) <a href="https://github.com/cardano-community/koios-artifacts/pull/143">#143</a></li>
@@ -1271,12 +1370,12 @@
 <li>Output (<strong>breaking</strong>) - <code>/tx_info</code> - Change <code>_invalid_before</code> and <code>_invalid_after</code> to text field <a href="https://github.com/cardano-community/koios-artifacts/pull/141">#141</a></li>
 <li>Output (<strong>breaking</strong>/removal) - <code>tx_info</code> - Remove the field <code>plutus_contracts</code> &gt; [array] &gt; <code>outputs</code> as there is no logic to connect it to inputs spending <a href="https://github.com/cardano-community/koios-artifacts/pull/163">#163</a></li>
 </ul>
-<h3 id="deprecations">Deprecations:<a class="headerlink" href="#deprecations" title="Permanent link">⚓︎</a></h3>
+<h3 id="deprecations_1">Deprecations:<a class="headerlink" href="#deprecations_1" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li><code>/asset_address_list</code> - Renamed to <code>asset_addresses</code> keeping naming line with other endpoints (old one still present, but will be deprecated in future release) <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/asset_policy_info</code> - Renamed to <code>policy_asset_info</code> keeping naming line with other endpoints (old one still present, but will be deprecated in future release) <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 </ul>
-<h3 id="chores_1">Chores:<a class="headerlink" href="#chores_1" title="Permanent link">⚓︎</a></h3>
+<h3 id="chores_2">Chores:<a class="headerlink" href="#chores_2" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li><code>/epoch_info</code>, <code>/epoch_params</code> - Restrict output to current epoch <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/block_info</code> - Use <code>/previous_id</code> field to show previous/next blocks (previously was using block_id/height) <a href="https://github.com/cardano-community/koios-artifacts/pull/145">#145</a></li>
@@ -1294,12 +1393,12 @@
 <h2 id="109rc-for-non-mainnet-networks">[1.0.9rc] - For non-mainnet networks<a class="headerlink" href="#109rc-for-non-mainnet-networks" title="Permanent link">⚓︎</a></h2>
 <p>This release candidate is non-breaking for existing methods and inputs, but breaking for output objects for endpoints.
 The aim with release candidate version is to allow folks couple of weeks to test, adapt their libraries before applying to mainnet.</p>
-<h3 id="new-endpoints-added_1">New endpoints added<a class="headerlink" href="#new-endpoints-added_1" title="Permanent link">⚓︎</a></h3>
+<h3 id="new-endpoints-added_2">New endpoints added<a class="headerlink" href="#new-endpoints-added_2" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li><code>datum_info</code> - List of datum information for given datum hashes</li>
 <li><code>account_info_cached</code> - Same as <code>account_info</code>, but serves cached information instead of live one</li>
 </ul>
-<h3 id="data-inputoutput-changes_1">Data Input/Output changes<a class="headerlink" href="#data-inputoutput-changes_1" title="Permanent link">⚓︎</a></h3>
+<h3 id="data-inputoutput-changes_2">Data Input/Output changes<a class="headerlink" href="#data-inputoutput-changes_2" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li><code>address_info</code>, <code>address_assets</code>, <code>account_assets</code>, <code>tx_info</code>, <code>asset_list</code> <code>asset_summary</code> to align output <code>asset_list</code> object to return array of <code>policy_id</code>, <code>asset_name</code>, <code>fingerprint</code> (and <code>quantity</code>, <code>minting_txs</code> where applicable) <a href="https://github.com/cardano-community/koios-artifacts/pull/120">#120</a></li>
 <li><code>asset_history</code> - Fix metadata to wrap in array to refer to right object <a href="https://github.com/cardano-community/koios-artifacts/pull/122">#122</a></li>
@@ -1317,11 +1416,11 @@ The aim with release candidate version is to allow folks couple of weeks to test
 <p>This release is contains minor bug-fixes that were discovered in koios-1.0.7.
 No major changes to output for this one.</p>
 <h3 id="changes-for-api">Changes for API<a class="headerlink" href="#changes-for-api" title="Permanent link">⚓︎</a></h3>
-<h4 id="new-endpoints-added_2">New endpoints added<a class="headerlink" href="#new-endpoints-added_2" title="Permanent link">⚓︎</a></h4>
+<h4 id="new-endpoints-added_3">New endpoints added<a class="headerlink" href="#new-endpoints-added_3" title="Permanent link">⚓︎</a></h4>
 <ul>
 <li>None</li>
 </ul>
-<h4 id="data-inputoutput-changes_2">Data Input/Output changes<a class="headerlink" href="#data-inputoutput-changes_2" title="Permanent link">⚓︎</a></h4>
+<h4 id="data-inputoutput-changes_3">Data Input/Output changes<a class="headerlink" href="#data-inputoutput-changes_3" title="Permanent link">⚓︎</a></h4>
 <ul>
 <li><code>tx_info</code> and <code>tx_metadata</code> - Align metadata for JSON output format <a href="https://github.com/cardano-community/guild-operators/pull/1542">#1542</a></li>
 <li><code>blocks</code> - Query Output aligned to specs (<code>epoch</code> =&gt; <code>epoch_no</code>)</li>
@@ -1338,12 +1437,12 @@ No major changes to output for this one.</p>
 <p>This release continues updates from koios-1.0.6 to further utilise stake-snapshot cache tables which would be useful for SPOs as well as reduce downtime post epoch transition. One largely requested feature to accept bulk inputs for many block/address/account endpoints is now complete.
 Additionally, koios instance providers are now recommended to use cardano-node 1.35.3 with dbsync 13.0.5.</p>
 <h3 id="changes-for-api_1">Changes for API<a class="headerlink" href="#changes-for-api_1" title="Permanent link">⚓︎</a></h3>
-<h3 id="new-endpoints-added_3">New endpoints added<a class="headerlink" href="#new-endpoints-added_3" title="Permanent link">⚓︎</a></h3>
+<h3 id="new-endpoints-added_4">New endpoints added<a class="headerlink" href="#new-endpoints-added_4" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li><code>pool_delegators_history</code> - Provides historical record for pool's delegators <a href="https://github.com/cardano-community/guild-operators/pull/1486">#1486</a></li>
 <li><code>pool_stake_snapshot</code> - Provides mark, set and go snapshot values for pool being queried. <a href="https://github.com/cardano-community/guild-operators/pull/1489">#1489</a></li>
 </ul>
-<h3 id="data-inputoutput-changes_3">Data Input/Output changes<a class="headerlink" href="#data-inputoutput-changes_3" title="Permanent link">⚓︎</a></h3>
+<h3 id="data-inputoutput-changes_4">Data Input/Output changes<a class="headerlink" href="#data-inputoutput-changes_4" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li><code>pool_delegators</code> - No longer accepts <code>_epoch_no</code> as parameter, as it only returns live delegators. Additionally provides <code>latest_delegation_hash</code> in output. <a href="https://github.com/cardano-community/guild-operators/pull/1486">#1486</a></li>
 <li><code>tx_info</code> - <code>epoch</code> =&gt; <code>epoch_no</code> <a href="https://github.com/cardano-community/guild-operators/pull/1494">#1494</a></li>

@@ -829,6 +829,33 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#docker-backups-and-restores" class="md-nav__link">
+    Docker backups and restores
+  </a>
+  
+    <nav class="md-nav" aria-label="Docker backups and restores">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creating-a-backup" class="md-nav__link">
+    Creating a Backup
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restoring-from-a-backup" class="md-nav__link">
+    Restoring from a Backup
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1007,6 +1034,33 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#docker-backups-and-restores" class="md-nav__link">
+    Docker backups and restores
+  </a>
+  
+    <nav class="md-nav" aria-label="Docker backups and restores">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creating-a-backup" class="md-nav__link">
+    Creating a Backup
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restoring-from-a-backup" class="md-nav__link">
+    Restoring from a Backup
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1075,6 +1129,21 @@ cardanocommunity/cardano-node:latest<span class="w">          </span><span class
 <ul>
 <li><a href="https://github.com/jesseduffield/lazydocker">Lazydocker</a></li>
 </ul>
+<h3 id="docker-backups-and-restores">Docker backups and restores<a class="headerlink" href="#docker-backups-and-restores" title="Permanent link">⚓︎</a></h3>
+<p>The docker container has an optional backup and restore functionality that can be used to backup the <code>/opt/cardano/cnode/db</code> directory. To have the 
+backup persist longer than the countainer, the backup directory should be mounted as a volume.</p>
+<p>[!NOTE]
+The backup and restore functionality is disabled by default.</p>
+<p>[!WARNING]
+Make sure adequate space exists on the host as the backup will double the space consumed by the database. </p>
+<h4 id="creating-a-backup">Creating a Backup<a class="headerlink" href="#creating-a-backup" title="Permanent link">⚓︎</a></h4>
+<p>When the container is started with the <strong>ENABLE_BACKUP</strong> environment variable set to <strong>Y</strong> the container will automatically create a
+backup in the <code>/opt/cardano/cnode/backup/$NETWORK-db</code> directory. The backup will be created when the container is started and if the
+backup directory is smaller than the db directory.</p>
+<h4 id="restoring-from-a-backup">Restoring from a Backup<a class="headerlink" href="#restoring-from-a-backup" title="Permanent link">⚓︎</a></h4>
+<p>When the container is started with the <strong>ENABLE_RESTORE</strong> environment variable set to <strong>Y</strong> the container will automatically restore
+the latest backup from the <code>/opt/cardano/cnode/backup/$NETWORK-db</code> directory. The database will be restored when the container is started
+and if the backup directory is larger than the db directory.</p>
 
 
   
