@@ -61,7 +61,7 @@ versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=avail
 usage() {
   cat <<-EOF >&2
 		
-		Usage: $(basename "$0") [-n <mainnet|preprod|guild|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][f][d][c][o][w][x]]
+		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview|sanchonet>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][f][d][c][o][w][x]]
 		Set up dependencies for building/using common tools across cardano ecosystem.
 		The script will always update dynamic content from existing scripts retaining existing user variables
 		
@@ -546,7 +546,7 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp ${URL_RAW}/files/conway-genesis-guild.json || err_exit "${err_msg} conway-genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json || err_exit "${err_msg} topology-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json || err_exit "${err_msg} config-guild.json"
-  elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview)$ ]]; then
+  elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview|sanchonet)$ ]]; then
     NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-world/master/docs/environments"
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json" || err_exit "${err_msg} shelley-genesis.json"
@@ -555,7 +555,7 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp "${NWCONFURL}/${NETWORK}/topology.json" || err_exit "${err_msg} topology.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp "${URL_RAW}/files/config-${NETWORK}.json" || err_exit "${err_msg} config-${NETWORK}.json"
   else
-    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, preprod, guild or preview."
+    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, preview or sanchonet."
   fi
   sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
   if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
