@@ -2056,7 +2056,7 @@ deRegisterPool() {
 rotatePoolKeys() {
 
   # cold keys
-  if getPoolType ${pool_name} ; then needHWCLI="true" ;fi
+  if getPoolType ${pool_name}; then needHWCLI="true"; else needHWCLI="false" ;fi
 
   # generated files
   pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
