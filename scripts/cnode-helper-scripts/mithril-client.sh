@@ -15,6 +15,9 @@
 # Do NOT modify code below           #
 ######################################
 
+U_ID=$(id -u)
+G_ID=$(id -g)
+
 #####################
 # Functions         #
 #####################
@@ -34,6 +37,10 @@ usage() {
 
 
 generate_environment_file() {
+  if [[ ! -d "${CNODE_HOME}/mithril/data-stores" ]]; then
+    sudo mkdir -p "${CNODE_HOME}"/mithril/data-stores
+    sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"/mithril 2>/dev/null
+  fi
   if [[ -n "${POOL_NAME}" ]] && [[ "${POOL_NAME}" != "CHANGE_ME" ]]; then
     export ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.addr
     export ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.vkey
@@ -166,6 +173,10 @@ while getopts :duh opt; do
       ;;
     :)
       echo "Option -${OPTARG} requires an argument." >&2
+      usage
+      exit 1
+      ;;
+    *)
       usage
       exit 1
       ;;
