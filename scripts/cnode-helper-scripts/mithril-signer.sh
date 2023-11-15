@@ -16,6 +16,9 @@
 # Do NOT modify code below           #
 ######################################
 
+U_ID=$(id -u)
+G_ID=$(id -g)
+
 #####################
 # Functions         #
 #####################
@@ -71,6 +74,10 @@ get_relay_endpoint() {
 }
 
 generate_environment_file() {
+  if [[ ! -d "${CNODE_HOME}/mithril/data-stores" ]]; then
+    sudo mkdir -p "${CNODE_HOME}"/mithril/data-stores
+    sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"/mithril 2>/dev/null
+  fi
   # Inquire about the relay endpoint
   read -r -p "Are you using a relay endpoint? (y/n, press Enter to use default y): " ENABLE_RELAY_ENDPOINT
   ENABLE_RELAY_ENDPOINT=${ENABLE_RELAY_ENDPOINT:-y}
