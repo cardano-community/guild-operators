@@ -176,6 +176,10 @@ while getopts :duh opt; do
       usage
       exit 1
       ;;
+    *)
+      usage
+      exit 1
+      ;;
   esac
 done
 
