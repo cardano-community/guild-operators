@@ -1147,14 +1147,14 @@ while true; do
     echo "${propdivider}" && ((line++))
 
     LC_NUMERIC=C printf -v block_delay_rounded "%.2f" ${block_delay}
-    LC_NUMERIC=C printf -v blocks_w1s_pct "%.2f" "$(bc -l <<<"(${blocks_w1s}*100)")"
-    LC_NUMERIC=C printf -v blocks_w3s_pct "%.2f" "$(bc -l <<<"(${blocks_w3s}*100)")"
-    LC_NUMERIC=C printf -v blocks_w5s_pct "%.2f" "$(bc -l <<<"(${blocks_w5s}*100)")"
+    [[ ${blocks_w1s} = 1.* ]] && blocks_w1s_pct=100 || LC_NUMERIC=C printf -v blocks_w1s_pct "%.2f" "$(bc -l <<<"(${blocks_w1s}*100)")"
+    [[ ${blocks_w3s} = 1.* ]] && blocks_w3s_pct=100 || LC_NUMERIC=C printf -v blocks_w3s_pct "%.2f" "$(bc -l <<<"(${blocks_w3s}*100)")"
+    [[ ${blocks_w5s} = 1.* ]] && blocks_w5s_pct=100 || LC_NUMERIC=C printf -v blocks_w5s_pct "%.2f" "$(bc -l <<<"(${blocks_w5s}*100)")"
 
     if [[ ${VERBOSE} = "Y" ]]; then
 
       # row 1
-      printf "${VL} Last Delay : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
+      printf "${VL} Last Block : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
       mvThreeSecond
       printf "Served     : ${style_values_1}%s${NC}" "${blocks_served}"
       mvThreeThird
@@ -1172,10 +1172,10 @@ while true; do
     else
 
       # row 1
-      printf "${VL} Last (s) / < 1|3|5s (%%) / >5s (#)"
-      mvTwoSecond
-
-      printf ": ${style_values_1}%s${NC} / ${style_values_1}%s${NC}|${style_values_1}%s${NC}|${style_values_1}%s${NC} / ${style_values_1}%s${NC}" "${block_delay_rounded}" "${blocks_w1s_pct}" "${blocks_w3s_pct}" "${blocks_w5s_pct}" "${blocks_late}"
+      printf "${VL} Last Block : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
+      mvThreeSecond
+      blocks_w5s_value_width=$(( (three_col_width*2) - 23 - 6 - ${#blocks_w1s_pct} - ${#blocks_w3s_pct} ))
+      printf "Less than 1|3|5s [%%] : ${style_values_1}%s${NC} | ${style_values_1}%s${NC} | ${style_values_1}%-${blocks_w5s_value_width}s${NC}" "${blocks_w1s_pct}" "${blocks_w3s_pct}" "${blocks_w5s_pct}"
       closeRow
 
     fi
