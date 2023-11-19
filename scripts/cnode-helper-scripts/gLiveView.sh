@@ -126,7 +126,7 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
 
   if command -v cncli >/dev/null && command -v systemctl >/dev/null && systemctl is-active --quiet ${CNODE_VNAME}-cncli-sync.service; then
     vcur=$(cncli -V | sed 's/cncli /v/g')
-    vrem=$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r .tag_name)
+    vrem=$(curl -s https://api.github.com/repos/${G_ACCOUNT}/cncli/releases/latest | jq -r .tag_name)
     [[ ${vcur} != ${vrem} ]] && printf "${FG_MAGENTA}CNCLI current version (${vcur}) different from repo (${vrem}), consider upgrading!.${NC}" && waitToProceed
   fi
 

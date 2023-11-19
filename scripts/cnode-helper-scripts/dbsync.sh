@@ -70,10 +70,12 @@ check_config_sanity() {
   SHGENHASHCFG=$(jq '.ShelleyGenesisHash' <"${CONFIG}" 2>/dev/null)
   ALGENHASH=$("${CCLI}" genesis hash --genesis "${ALONZO_GENESIS_JSON}" 2>/dev/null)
   ALGENHASHCFG=$(jq '.AlonzoGenesisHash' <"${CONFIG}" 2>/dev/null)
+  CWGENHASH=$("${CCLI}" genesis hash --genesis "${CONWAY_GENESIS_JSON}" 2>/dev/null)
+  CWGENHASHCFG=$(jq '.ConwayGenesisHash' <"${CONFIG}" 2>/dev/null)
   # If hash are missing/do not match, add that to the end of config. We could have sorted it based on logic, but that would mess up sdiff comparison outputs
-  if [[ "${BYGENHASH}" != "${BYGENHASHCFG}" ]] || [[ "${SHGENHASH}" != "${SHGENHASHCFG}" ]] || [[ "${ALGENHASH}" != "${ALGENHASHCFG}" ]]; then
+  if [[ "${BYGENHASH}" != "${BYGENHASHCFG}" ]] || [[ "${SHGENHASH}" != "${SHGENHASHCFG}" ]] || [[ "${ALGENHASH}" != "${ALGENHASHCFG}" ]] || [[ "${CWGENHASH}" != "${CWGENHASHCFG}" ]]; then
     cp "${CONFIG}" "${CONFIG}".tmp
-    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} '.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH' <"${CONFIG}" >"${CONFIG}".tmp
+    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} --arg CWGENHASH ${CWGENHASH} '.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH | .ConwayGenesisHash = $CWGENHASH' <"${CONFIG}" >"${CONFIG}".tmp
     [[ -s "${CONFIG}".tmp ]] && mv -f "${CONFIG}".tmp "${CONFIG}"
   fi
 }

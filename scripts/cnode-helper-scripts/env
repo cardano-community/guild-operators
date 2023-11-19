@@ -741,7 +741,6 @@ set_default_vars() {
   [[ -z ${G_ACCOUNT} ]] && G_ACCOUNT="cardano-community"
 
   URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
-  DB_SCRIPTS_URL="${URL_RAW}/scripts/grest-helper-scripts/db-scripts"
   export LC_ALL=C.UTF-8
   # special mapping of coreutils gdate to date for MacOS
   if [[ $(uname) == Darwin ]]; then
