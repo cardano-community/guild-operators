@@ -7,24 +7,26 @@
 # Common variables set in env file   #
 ######################################
 
-NODE_NAME="Cardano Node"                  # Change your node's name prefix here, keep at or below 19 characters!
-REFRESH_RATE=2                            # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
-LEGACY_MODE=false                         # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
-RETRIES=3                                 # How many attempts to connect to running Cardano node before erroring out and quitting (0 for continuous retries)
-PEER_LIST_CNT=10                          # Number of peers to show on each in/out page in peer analysis view
-THEME="dark"                              # dark  = suited for terminals with a dark background
+#NODE_NAME="Cardano Node"                 # Change your node's name prefix here, keep at or below 19 characters!
+#REFRESH_RATE=2                           # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
+#REPAINT_RATE=10                          # Re-paint entire screen every nth REFRESH_RATE. Complete re-paint can make screen flicker, hence not done for every update
+#LEGACY_MODE=false                        # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
+#RETRIES=3                                # How many attempts to connect to running Cardano node before erroring out and quitting (0 for continuous retries)
+#PEER_LIST_CNT=10                         # Number of peers to show on each in/out page in peer analysis view
+#THEME="dark"                             # dark  = suited for terminals with a dark background
                                           # light = suited for terminals with a bright background
-#ENABLE_IP_GEOLOCATION="Y"                # Enable IP geolocation on outgoing and incoming connections using ip-api.com (default: Y)
+#ENABLE_IP_GEOLOCATION=Y                  # Enable IP geolocation on outgoing and incoming connections using ip-api.com (default: Y)
 #LATENCY_TOOLS="cncli|ss|tcptraceroute|ping" # Preferred latency check tool order, valid entries: cncli|ss|tcptraceroute|ping (must be separated by |)
 #CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
-#HIDE_DUPLICATE_IPS="N"                   # If set to 'Y', duplicate and local IP's will be filtered out in peer analysis, else all connected peers are shown (default: N)
+#HIDE_DUPLICATE_IPS=N                     # If set to 'Y', duplicate and local IP's will be filtered out in peer analysis, else all connected peers are shown (default: N)
+#VERBOSE=N                                # Start in verbose mode showing additional metrics (default: N)
 
 #####################################
 # Themes                            #
 #####################################
 
 setTheme() {
-  if [[ ${THEME} = "dark" ]]; then
+  if [[ -z ${THEME} || ${THEME} = "dark" ]]; then
     style_title=${FG_MAGENTA}${BOLD}      # style of title
     style_base=${FG_WHITE}                # default color for text and lines
     style_values_1=${FG_LBLUE}            # color of most live values
@@ -57,12 +59,9 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.27.6
+GLV_VERSION=v1.28.0
 
 PARENT="$(dirname $0)"
-
-# Set default for user variables added in recent versions (for those who may not necessarily have it due to upgrade)
-[[ -z "${RETRIES}" ]]  && RETRIES=3
 
 usage() {
   cat <<-EOF
@@ -172,9 +171,18 @@ fi
 # Can be overridden in 'User Variables' section above #
 #######################################################
 
+[[ -z ${NODE_NAME} ]] && NODE_NAME="Cardano Node"
 [[ ${#NODE_NAME} -gt 19 ]] && myExit 1 "Please keep node name at or below 19 characters in length!"
 
+[[ -z ${REFRESH_RATE} ]] && REFRESH_RATE=2
 [[ ! ${REFRESH_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid refresh rate number!"
+
+[[ -z ${REPAINT_RATE} ]] && REPAINT_RATE=10
+[[ ! ${REPAINT_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid repaint rate number!"
+
+[[ -z ${LEGACY_MODE} ]] && LEGACY_MODE=false
+
+[[ -z "${RETRIES}" ]]  && RETRIES=3
 
 [[ -z ${ENABLE_IP_GEOLOCATION} ]] && ENABLE_IP_GEOLOCATION=Y
 declare -gA geoIP=()
@@ -187,6 +195,8 @@ declare -gA geoIP=()
 [[ -z ${CNCLI_CONNECT_ONLY} ]] && CNCLI_CONNECT_ONLY=false
 
 [[ -z ${HIDE_DUPLICATE_IPS} ]] && HIDE_DUPLICATE_IPS=N
+
+[[ -z ${VERBOSE} ]] && VERBOSE=N
 
 #######################################################
 # Style / UI                                          #
@@ -289,6 +299,7 @@ waitForInput() {
   if [[ $# -eq 0 ]]; then
     [[ ${key1} = "p" ]] && check_peers="true" && clrScreen && return
     [[ ${key1} = "i" ]] && show_home_info="true" && clrScreen && return
+    if [[ ${key1} = "v" ]]; then [[ ${VERBOSE} = "N" ]] && VERBOSE="Y" || VERBOSE="N"; fi; clrScreen && return
   elif [[ $1 = "homeInfo" ]]; then
     [[ ${key1} = "h" ]] && show_home_info="false" && line=0 && clrScreen && return
   elif [[ $1 = "peersInfo" ]]; then
@@ -385,9 +396,10 @@ clrLine () {
   printf "\033[K"
 }
 # Command    : clrScreen
-# Description: clear the screen, move to (0,0)
+# Description: clear the screen, move to (0,0), and reset screen update counter
 clrScreen () {
   printf "\033[2J"
+  screen_upd_cnt=0
 }
 
 # Description: latency helper functions
@@ -435,6 +447,83 @@ getArrayIndex () {
   arr=("$@")
   for i in "${!arr[@]}"; do [[ ${arr[$i]} = *"${match}"* ]] && echo $i && return; done
   echo -1
+}
+
+getPoolInfo () {
+  # runs in background to not stall rest of gLiveView while fetching data
+  if ! pool_info=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1); then
+    echo ${pool_info} > ${pool_info_error_file}
+    return
+  fi
+  [[ ${pool_info} = '[]' ]] && return
+  echo ${pool_info} > ${pool_info_file}
+}
+
+parsePoolInfo () {
+  pool_info_tsv=$(jq -r '[
+  .[0].active_epoch_no //0,
+  .[0].vrf_key_hash //"-",
+  .[0].margin //0,
+  .[0].fixed_cost //0,
+  .[0].pledge //0,
+  .[0].reward_addr //"-",
+  (.[0].owners|@json),
+  (.[0].relays|@json),
+  .[0].meta_url //"-",
+  .[0].meta_hash //"-",
+  (.[0].meta_json|@base64),
+  .[0].pool_status //"-",
+  .[0].retiring_epoch //"-",
+  .[0].op_cert //"-",
+  .[0].op_cert_counter //"null",
+  .[0].active_stake //0,
+  .[0].block_count //0,
+  .[0].live_pledge //0,
+  .[0].live_stake //0,
+  .[0].live_delegators //0,
+  .[0].live_saturation //0
+  ] | @tsv' "${pool_info_file}")
+
+  read -ra pool_info_arr <<< ${pool_info_tsv}
+
+  p_active_epoch_no=${pool_info_arr[0]}
+  p_vrf_key_hash=${pool_info_arr[1]}
+  p_margin=${pool_info_arr[2]}
+  p_fixed_cost=${pool_info_arr[3]}
+  p_pledge=${pool_info_arr[4]}
+  p_reward_addr=${pool_info_arr[5]}
+  p_owners=${pool_info_arr[6]}
+  p_relays=${pool_info_arr[7]}
+  p_meta_url=${pool_info_arr[8]}
+  p_meta_hash=${pool_info_arr[9]}
+  p_meta_json=$(base64 -d <<< ${pool_info_arr[10]})
+  p_pool_status=${pool_info_arr[11]}
+  p_retiring_epoch=${pool_info_arr[12]}
+  p_op_cert=${pool_info_arr[13]}
+  p_op_cert_counter=${pool_info_arr[14]}
+  p_active_stake=${pool_info_arr[15]}
+  p_block_count=${pool_info_arr[16]}
+  p_live_pledge=${pool_info_arr[17]}
+  p_live_stake=${pool_info_arr[18]}
+  p_live_delegators=${pool_info_arr[19]}
+  p_live_saturation=${pool_info_arr[20]}
+
+  rm ${pool_info_file}
+}
+
+getOpCert () {
+  op_cert_disk="?"
+  op_cert_node="?"
+  opcert_file="${POOL_DIR}/${POOL_OPCERT_FILENAME}"
+  if [[ -f ${opcert_file} ]]; then
+    op_cert_tsv=$(jq -r '[
+    .qKesNodeStateOperationalCertificateNumber //"?",
+    .qKesOnDiskOperationalCertificateNumber //"?"
+    ] | @tsv' <<<"$(${CCLI} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}" | tail -n +3)")
+    read -ra op_cert_arr <<< ${op_cert_tsv}
+    isNumber ${op_cert_arr[0]} && op_cert_node=${op_cert_arr[0]}
+    isNumber ${op_cert_arr[1]} && op_cert_disk=${op_cert_arr[1]}
+  fi
 }
 
 # Command    : checkPeers
@@ -627,6 +716,14 @@ node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
 node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
 fail_count=0
 epoch_items_last=0
+screen_upd_cnt=0
+
+test_koios # KOIOS_API variable unset if check fails. Only tested once on startup.
+pool_info_file=/dev/shm/pool_info
+pool_info_error_file=/dev/shm/pool_info_error
+[[ -n ${KOIOS_API} ]] && getPoolID ${POOL_NAME}
+
+getOpCert
 
 tput civis # Disable cursor
 stty -echo # Disable user input
@@ -686,6 +783,7 @@ while true; do
     node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
     node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
     fail_count=0
+    getOpCert
   fi
 
   if [[ -z "${PROT_PARAMS}" ]]; then
@@ -706,16 +804,16 @@ while true; do
     fi
 
     mem_rss="$(ps -q ${CNODE_PID} -o rss=)"
-    read -ra cpu_now <<< "$(awk '/cpu /{printf "%.f %.f", $2+$4,$2+$4+$5}' /proc/stat)"
+    read -ra cpu_now <<< "$(LC_NUMERIC=C awk '/cpu /{printf "%.f %.f", $2+$4,$2+$4+$5}' /proc/stat)"
     if [[ ${#cpu_now[@]} -eq 2 ]]; then
       if [[ ${#cpu_last[@]} -eq 2 ]]; then
         cpu_util=$(bc -l <<< "100*((${cpu_now[0]}-${cpu_last[0]})/(${cpu_now[1]}-${cpu_last[1]}))")
         if [[ ${cpu_util%.*} -gt 99 ]]; then
-          cpu_util=$(printf "%.0f" "${cpu_util}")
+          cpu_util=$(LC_NUMERIC=C printf "%.0f" "${cpu_util}")
         elif [[ ${cpu_util%.*} -gt 9 ]]; then
-          cpu_util=$(printf "%.1f" "${cpu_util}")
+          cpu_util=$(LC_NUMERIC=C printf "%.1f" "${cpu_util}")
         else
-          cpu_util=$(printf "%.2f" "${cpu_util}")
+          cpu_util=$(LC_NUMERIC=C printf "%.2f" "${cpu_util}")
         fi
       else
         cpu_util="0.0"
@@ -739,6 +837,25 @@ while true; do
       curr_epoch=${epochnum}
       PROT_PARAMS="$(${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
       if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralization <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
+      unset pool_info_last_upd
+    fi
+    if [[ ${nodemode} = "Core" ]]; then
+      if [[ -n ${KOIOS_API} && -n ${pool_id_bech32} ]]; then
+        if [[ -n ${pool_info_last_upd} && $(($(date -u +%s) - pool_info_last_upd)) -lt 3600 ]]; then
+          : # nothing to do, pool info already fetched, processed and under 1h old
+        elif [[ -f ${pool_info_error_file} ]]; then
+          clrScreen && mvPos 2 2
+          printf "${style_status_3}%s${NC}" "$(cat ${pool_info_error_file})"
+          rm ${pool_info_error_file}
+          waitToProceed && continue
+        elif [[ -f ${pool_info_file} ]]; then
+          parsePoolInfo
+          pool_info_last_upd=$(date -u +%s)
+          clrScreen
+        else
+          getPoolInfo & # background process to not stall UI
+        fi
+      fi
     fi
   fi
 
@@ -932,7 +1049,7 @@ while true; do
     else
       epoch_progress=$(echo "(${slot_in_epoch}/${BYRON_EPOCH_LENGTH})*100" | bc -l)  # in Byron era
     fi
-    epoch_progress_1dec=$(printf "%2.1f" "${epoch_progress}")
+    epoch_progress_1dec=$(LC_NUMERIC=C printf "%2.1f" "${epoch_progress}")
     epoch_time_left=$(timeLeft "$(timeUntilNextEpoch)")
     printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%s%%${NC}], ${style_values_1}%s${NC} %-12s" "${epochnum}" "${epoch_progress_1dec}" "${epoch_time_left}" "remaining"
     closeRow
@@ -972,7 +1089,7 @@ while true; do
       printf "Tip (diff) : ${style_status_2}%-${three_col_2_value_width}s${NC}" "${tip_diff} :|"
     else
       sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
-      printf "Syncing    : ${style_info}%-${three_col_2_value_width}s${NC}" "$(printf "%2.1f" "${sync_progress}")%"
+      printf "Syncing    : ${style_info}%-${three_col_2_value_width}s${NC}" "$(LC_NUMERIC=C printf "%2.1f" "${sync_progress}")%"
     fi
     mvThreeThird
     printf "Total Tx   : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${tx_processed}"
@@ -1029,54 +1146,91 @@ while true; do
 
     echo "${propdivider}" && ((line++))
 
-    # row 1
-    printf -v block_delay_rounded "%.2f" ${block_delay}
-    printf "${VL} Last Delay : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
-    mvThreeSecond
-    printf "Served     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${blocks_served}"
-    mvThreeThird
-    printf "Late (>5s) : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${blocks_late}"
-    closeRow
+    LC_NUMERIC=C printf -v block_delay_rounded "%.2f" ${block_delay}
+    [[ ${blocks_w1s} = 1.* ]] && blocks_w1s_pct=100 || LC_NUMERIC=C printf -v blocks_w1s_pct "%.2f" "$(bc -l <<<"(${blocks_w1s}*100)")"
+    [[ ${blocks_w3s} = 1.* ]] && blocks_w3s_pct=100 || LC_NUMERIC=C printf -v blocks_w3s_pct "%.2f" "$(bc -l <<<"(${blocks_w3s}*100)")"
+    [[ ${blocks_w5s} = 1.* ]] && blocks_w5s_pct=100 || LC_NUMERIC=C printf -v blocks_w5s_pct "%.2f" "$(bc -l <<<"(${blocks_w5s}*100)")"
 
-    # row 2
-    printf -v blocks_w1s_pct "%.2f" "$(bc -l <<<"(${blocks_w1s}*100)")"
-    printf "${VL} Within 1s  : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#blocks_w1s_pct}))s" "${blocks_w1s_pct}" "%"
-    mvThreeSecond
-    printf -v blocks_w3s_pct "%.2f" "$(bc -l <<<"(${blocks_w3s}*100)")"
-    printf "Within 3s  : ${style_values_1}%s${NC}%-$((three_col_2_value_width - ${#blocks_w3s_pct}))s" "${blocks_w3s_pct}" "%"
-    mvThreeThird
-    printf -v blocks_w5s_pct "%.2f" "$(bc -l <<<"(${blocks_w5s}*100)")"
-    printf "Within 5s  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#blocks_w5s_pct}))s" "${blocks_w5s_pct}" "%"
-    closeRow
+    if [[ ${VERBOSE} = "Y" ]]; then
+
+      # row 1
+      printf "${VL} Last Block : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
+      mvThreeSecond
+      printf "Served     : ${style_values_1}%s${NC}" "${blocks_served}"
+      mvThreeThird
+      printf "Late (>5s) : ${style_values_1}%s${NC}" "${blocks_late}"
+      closeRow
+
+      # row 2
+      printf "${VL} Within 1s  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#blocks_w1s_pct}))s" "${blocks_w1s_pct}" "%"
+      mvThreeSecond
+      printf "Within 3s  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#blocks_w3s_pct}))s" "${blocks_w3s_pct}" "%"
+      mvThreeThird
+      printf "Within 5s  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#blocks_w5s_pct}))s" "${blocks_w5s_pct}" "%"
+      closeRow
+
+    else
+
+      # row 1
+      printf "${VL} Last Block : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
+      mvThreeSecond
+      blocks_w5s_value_width=$(( (three_col_width*2) - 23 - 6 - ${#blocks_w1s_pct} - ${#blocks_w3s_pct} ))
+      printf "Less than 1|3|5s [%%] : ${style_values_1}%s${NC} | ${style_values_1}%s${NC} | ${style_values_1}%-${blocks_w5s_value_width}s${NC}" "${blocks_w1s_pct}" "${blocks_w3s_pct}" "${blocks_w5s_pct}"
+      closeRow
+
+    fi
 
     echo "${resourcesdivider}" && ((line++))
 
-    # row 1
-    printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#cpu_util}))s" "${cpu_util}" "%"
-    mvThreeSecond
-    printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
-    printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
-    mvThreeThird
-    printf "GC Minor   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_minor}"
-    closeRow
+    LC_NUMERIC=C printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
+    [[ $(df -h ${CNODE_HOME}) =~ ([0-9.]+)% ]] && disk_usage=${BASH_REMATCH[1]} || disk_usage="?"
 
-    # row 2
-    printf -v mem_rss_gb "%.1f" "$(bc -l <<<"(${mem_rss}/1048576)")"
-    printf "${VL} Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
-    mvThreeSecond
-    printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
-    printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
-    mvThreeThird
-    printf "GC Major   : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${gc_major}"
-    closeRow
+    if [[ ${VERBOSE} = "Y" ]]; then
+
+      LC_NUMERIC=C printf -v mem_live_gb "%.1f" "$(bc -l <<<"(${mem_live}/1073741824)")"
+      LC_NUMERIC=C printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
+
+      # row 1
+      printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cpu_util}))s" "${cpu_util}" "%"
+      mvThreeSecond
+      printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
+      mvThreeThird
+      printf "GC Minor   : ${style_values_1}%s${NC}" "${gc_minor}"
+      closeRow
+
+      # row 2
+      printf "${VL} Disk util  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#disk_usage}))s" "${disk_usage}" "%"
+      mvThreeSecond
+      printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
+      mvThreeThird
+      printf "GC Major   : ${style_values_1}%s${NC}" "${gc_major}"
+      closeRow
+
+      # row 3
+      printf "${VL}"
+      mvThreeSecond
+      printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
+      closeRow
+
+    else
+
+      # row 1
+      printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cpu_util}))s" "${cpu_util}" "%"
+      mvThreeSecond
+      printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
+      mvThreeThird
+      printf "Disk util  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#disk_usage}))s" "${disk_usage}" "%"
+      closeRow
+
+    fi
 
     ## Core section ##
     if [[ ${nodemode} = "Core" ]]; then
       echo "${coredivider}" && ((line++))
 
-      printf "${VL} KES current/remaining"
+      printf "${VL} KES current|remaining|exp"
       mvTwoSecond
-      printf ": ${style_values_1}%s${NC} / " "${kesperiod}"
+      printf ": ${style_values_1}%s${NC} | " "${kesperiod}"
       if [[ ${remaining_kes_periods} -le 0 ]]; then
         printf "${style_status_4}%s${NC}" "${remaining_kes_periods}"
       elif [[ ${remaining_kes_periods} -le 8 ]]; then
@@ -1084,16 +1238,67 @@ while true; do
       else
         printf "${style_values_1}%s${NC}" "${remaining_kes_periods}"
       fi
+      [[ ${kes_expiration} =~ (.+[0-9]+:[0-9]+):[0-9]+(.*) ]] && kes_expiration_nosec="${BASH_REMATCH[1]}${BASH_REMATCH[2]}" || kes_expiration_nosec="?"
+      printf " | ${style_values_1}%s${NC}" "${kes_expiration_nosec}"
       closeRow
 
-      printf "${VL} KES expiration date"
+      # OP Cert
+      if isNumber ${p_op_cert_counter}; then
+        op_cert_chain=${p_op_cert_counter}
+        if isNumber ${op_cert_disk} && [[ ${op_cert_disk} -ge ${op_cert_chain} && ${op_cert_disk} -le $((op_cert_chain+1)) ]]; then op_cert_disk_fmt="${style_values_1}"; else op_cert_disk_fmt="${style_status_3}"; fi
+        if isNumber ${op_cert_node} && [[ ${op_cert_node} -ge ${op_cert_chain} && ${op_cert_node} -le $((op_cert_chain+1)) ]]; then op_cert_node_fmt="${style_values_1}"; else op_cert_node_fmt="${style_status_3}"; fi
+      else
+        op_cert_chain="?"
+        if isNumber ${op_cert_disk}; then op_cert_disk_fmt="${style_values_1}"; else op_cert_disk_fmt="${style_values_3}"; fi
+        if isNumber ${op_cert_node}; then op_cert_node_fmt="${style_values_1}"; else op_cert_node_fmt="${style_values_3}"; fi
+      fi
+      printf "${VL} OP Cert disk|node|chain"
       mvTwoSecond
-      printf ": ${style_values_1}%-${two_col_width}s${NC}" "${kes_expiration}" && closeRow
+      printf ": ${op_cert_disk_fmt}%s${NC} | ${op_cert_node_fmt}%s${NC} | ${style_values_1}%s${NC}" "${op_cert_disk}" "${op_cert_node}" "${op_cert_chain}"
+      closeRow
 
-      printf "${VL} Missed slot leader checks"
-      mvTwoSecond
-      printf -v missed_slots_pct "%.4f" "$(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")"
-      printf ": ${style_values_1}%s${NC} (${style_values_1}%s${NC} %%)" "${missed_slots}" "${missed_slots_pct}" && closeRow
+      if [[ ${VERBOSE} = "Y" ]]; then
+        printf "${VL} Missed slot leader checks"
+        mvTwoSecond
+        LC_NUMERIC=C printf -v missed_slots_pct "%.4f" "$(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")"
+        printf ": ${style_values_1}%s${NC} (${style_values_1}%s${NC} %%)" "${missed_slots}" "${missed_slots_pct}"
+        closeRow
+      fi
+
+      if [[ -n ${p_active_stake} ]]; then
+
+        # row 1
+        printf "${VL} Blocks     : ${style_values_1}%s${NC}" "${p_block_count}"
+        mvThreeSecond
+        compactNumber $((p_active_stake/1000000))
+        printf "Act Stake  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
+        mvThreeThird
+        compactNumber $((p_pledge/1000000))
+        printf "Pledge     : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
+        closeRow
+
+        # row 2
+        compactNumber $((p_fixed_cost/1000000))
+        printf "${VL} Fixed Fee  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
+        mvThreeSecond
+        compactNumber $((p_live_stake/1000000))
+        printf "Live Stake : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
+        mvThreeThird
+        [[ ${p_live_pledge} -ge ${p_pledge} ]] && p_live_pledge_fmt="${style_values_1}" || p_live_pledge_fmt="${style_status_3}"
+        compactNumber $((p_live_pledge/1000000))
+        printf "Live Pledge: ${p_live_pledge_fmt}%s${NC}%-$((three_col_3_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
+        closeRow
+
+        # row 3
+        margin_fee=$(fractionToPCT ${p_margin})
+        ! validateDecimalNbr ${margin_fee} && margin_fee="?"
+        printf "${VL} Margin Fee : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#margin_fee}))s" "${margin_fee}" "%"
+        mvThreeSecond
+        printf "Delegators : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${p_live_delegators}"
+        mvThreeThird
+        printf "Saturation : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#p_live_saturation}))s" "${p_live_saturation}" "%"
+        closeRow
+      fi
 
       printf "${blockdivider}\n" && ((line++))
 
@@ -1112,40 +1317,66 @@ while true; do
           esac
         done
         adopted_cnt=$(( adopted_cnt + confirmed_cnt ))
-        leader_cnt=$(( leader_cnt + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
+        lost_cnt=$(( invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
+        leader_cnt=$(( leader_cnt + adopted_cnt + lost_cnt ))
         leader_next=$(sqlite3 "${BLOCKLOG_DB}" "SELECT at FROM blocklog WHERE datetime(at) > datetime('now') ORDER BY slot ASC LIMIT 1;" 2>/dev/null)
         IFS='|' read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epochnum};" 2>/dev/null)"; unset IFS
         if [[ ${#epoch_stats[@]} -eq 0 ]]; then epoch_stats=("-" "-"); else epoch_stats[1]="${epoch_stats[1]}%"; fi
 
-        [[ ${invalid_cnt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
-        [[ ${missed_cnt} -eq 0 ]] && missed_fmt="${style_values_1}" || missed_fmt="${style_status_3}"
-        [[ ${ghosted_cnt} -eq 0 ]] && ghosted_fmt="${style_values_1}" || ghosted_fmt="${style_status_3}"
-        [[ ${stolen_cnt} -eq 0 ]] && stolen_fmt="${style_values_1}" || stolen_fmt="${style_status_3}"
         [[ ${confirmed_cnt} -ne ${adopted_cnt} ]] && confirmed_fmt="${style_status_2}" || confirmed_fmt="${style_values_2}"
 
-        # row 1
-        printf "${VL} Leader     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${leader_cnt}"
-        mvThreeSecond
-        printf "Adopted    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${adopted_cnt}"
-        mvThreeThird
-        printf "Missed     : ${missed_fmt}%-${three_col_3_value_width}s${NC}" "${missed_cnt}"
-        closeRow
+        if [[ ${VERBOSE} = "Y" ]]; then
 
-        # row 2
-        printf "${VL} Ideal      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[0]}"
-        mvThreeSecond
-        printf "Confirmed  : ${confirmed_fmt}%-${three_col_2_value_width}s${NC}" "${confirmed_cnt}"
-        mvThreeThird
-        printf "Ghosted    : ${ghosted_fmt}%-${three_col_3_value_width}s${NC}" "${ghosted_cnt}"
-        closeRow
+          [[ ${invalid_cnt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
+          [[ ${missed_cnt} -eq 0 ]] && missed_fmt="${style_values_1}" || missed_fmt="${style_status_3}"
+          [[ ${ghosted_cnt} -eq 0 ]] && ghosted_fmt="${style_values_1}" || ghosted_fmt="${style_status_3}"
+          [[ ${stolen_cnt} -eq 0 ]] && stolen_fmt="${style_values_1}" || stolen_fmt="${style_status_3}"
 
-        # row 3
-        printf "${VL} Luck       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[1]}"
-        mvThreeSecond
-        printf "Invalid    : ${invalid_fmt}%-${three_col_2_value_width}s${NC}" "${invalid_cnt}"
-        mvThreeThird
-        printf "Stolen     : ${stolen_fmt}%-${three_col_3_value_width}s${NC}" "${stolen_cnt}"
-        closeRow
+          # row 1
+          printf "${VL} Leader     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${leader_cnt}"
+          mvThreeSecond
+          printf "Adopted    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${adopted_cnt}"
+          mvThreeThird
+          printf "Missed     : ${missed_fmt}%-${three_col_3_value_width}s${NC}" "${missed_cnt}"
+          closeRow
+
+          # row 2
+          printf "${VL} Ideal      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[0]}"
+          mvThreeSecond
+          printf "Confirmed  : ${confirmed_fmt}%-${three_col_2_value_width}s${NC}" "${confirmed_cnt}"
+          mvThreeThird
+          printf "Ghosted    : ${ghosted_fmt}%-${three_col_3_value_width}s${NC}" "${ghosted_cnt}"
+          closeRow
+
+          # row 3
+          printf "${VL} Luck       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[1]}"
+          mvThreeSecond
+          printf "Invalid    : ${invalid_fmt}%-${three_col_2_value_width}s${NC}" "${invalid_cnt}"
+          mvThreeThird
+          printf "Stolen     : ${stolen_fmt}%-${three_col_3_value_width}s${NC}" "${stolen_cnt}"
+          closeRow
+
+        else
+
+          [[ ${lost_cnt} -eq 0 ]] && lost_fmt="${style_values_1}" || lost_fmt="${style_status_3}"
+
+          # row 1
+          printf "${VL} Leader     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${leader_cnt}"
+          mvThreeSecond
+          printf "Luck       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[1]}"
+          mvThreeThird
+          printf "Confirmed  : ${confirmed_fmt}%-${three_col_2_value_width}s${NC}" "${confirmed_cnt}"
+          closeRow
+
+          # row 2
+          printf "${VL} Ideal      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[0]}"
+          mvThreeSecond
+          printf "Adopted    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${adopted_cnt}"
+          mvThreeThird
+          printf "Lost       : ${lost_fmt}%-${three_col_2_value_width}s${NC}" "${lost_cnt}"
+          closeRow
+
+        fi
 
         if [[ -n ${leader_next} ]]; then
           leader_time_left=$((  $(date -u -d ${leader_next} +%s) - $(printf '%(%s)T\n' -1) ))
@@ -1153,16 +1384,16 @@ while true; do
             setSizeAndStyleOfProgressBar ${leader_time_left}
             leader_time_left_fmt="$(timeLeft ${leader_time_left})"
             leader_progress=$(echo "(1-(${leader_time_left}/${leader_bar_span}))*100" | bc -l)
-            leader_items=$(( ($(printf %.0f "${leader_progress}") * granularity) / 100 ))
-            printf "${m3divider}\n" && ((line++))
-            printf "${VL} ${style_values_1}%s${NC} until leader " "${leader_time_left_fmt}" && closeRow
+            leader_items=$(( ($(printf %.0f "${leader_progress}") * granularity_small) / 100 ))
+            printf "${VL} Next block : ${style_values_1}%-$((two_col_width-14))s${NC}" "${leader_time_left_fmt}"
+            mvPos ${line} ${bar_col_small}
             if [[ -z ${leader_bar} || ${leader_items} -ne ${leader_items_last} ]]; then
               leader_bar=""; leader_items_last=${leader_items}
-              for i in $(seq 0 $((granularity-1))); do
+              for i in $(seq 0 $((granularity_small-1))); do
                 [[ $i -lt ${leader_items} ]] && leader_bar+=$(printf "${leader_bar_style}${char_marked}") || leader_bar+=$(printf "${NC}${char_unmarked}")
               done
             fi
-            printf "${VL} ${leader_bar}" && closeRow
+            printf "${leader_bar}" && closeRow
           fi
         fi
       else
@@ -1199,8 +1430,11 @@ while true; do
     clrLine
     waitForInput "homeInfo"
   else
-    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[i] Info${NC} | ${style_info}[p] Peer Analysis${NC}"
+    [[ ${VERBOSE} = "Y" ]] && verbose_label="Compact" || verbose_label="Verbose"
+    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[i] Info${NC} | ${style_info}[p] Peer Analysis${NC} | ${style_info}[v] ${verbose_label}${NC}"
     clrLine
     waitForInput
   fi
+
+  [[ $((++screen_upd_cnt)) -gt ${REPAINT_RATE} ]] && clrScreen
 done
