@@ -59,7 +59,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.28.0
+GLV_VERSION=v1.28.1
 
 PARENT="$(dirname $0)"
 
@@ -721,7 +721,7 @@ screen_upd_cnt=0
 test_koios # KOIOS_API variable unset if check fails. Only tested once on startup.
 pool_info_file=/dev/shm/pool_info
 pool_info_error_file=/dev/shm/pool_info_error
-[[ -n ${KOIOS_API} ]] && getPoolID ${POOL_NAME}
+[[ -n ${KOIOS_API} ]] && getPoolID
 
 getOpCert
 

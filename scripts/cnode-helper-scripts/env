@@ -717,12 +717,14 @@ kesExpiration() {
 # Parameters  : pool name  >  the name of the pool
 # Return      : populates ${pool_id} & ${pool_id_bech32}
 getPoolID() {
-  pool_id_file="${POOL_FOLDER}/${1}/${POOL_ID_FILENAME}"
-  pool_id_bech32_file="${POOL_FOLDER}/${1}/${POOL_ID_FILENAME}-bech32"
+  local pool_dir
+  [[ -z "${1}" ]] && pool_dir="${POOL_DIR}" || pool_dir="${POOL_FOLDER}/${1}"
+  pool_id_file="${pool_dir}/${POOL_ID_FILENAME}"
+  pool_id_bech32_file="${pool_dir}/${POOL_ID_FILENAME}-bech32"
   [[ -f ${pool_id_file} && -f ${pool_id_bech32_file} ]] && pool_id=$(cat ${pool_id_file}) && pool_id_bech32=$(cat ${pool_id_bech32_file}) && return 0
   pool_id=""
   pool_id_bech32=""
-  pool_coldkey_vk_file="${POOL_FOLDER}/${1}/${POOL_COLDKEY_VK_FILENAME}"
+  pool_coldkey_vk_file="${pool_dir}/${POOL_COLDKEY_VK_FILENAME}"
   if [[ -f ${pool_coldkey_vk_file} ]]; then
     println ACTION "${CCLI} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file} --output-format hex"
     println ACTION "${CCLI} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file}"
