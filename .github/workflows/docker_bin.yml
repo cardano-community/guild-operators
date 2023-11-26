@@ -53,6 +53,7 @@ jobs:
         sudo rm -rf "/usr/local/share/boost"
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: docker push latest
+      if: env.testing == 'false' && env.guild_deploy_branch == 'master'
       run: |
         CNVERSION=`cat files/docker/node/release-versions/cardano-node-latest.txt`
         docker push ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest
