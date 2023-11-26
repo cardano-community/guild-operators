@@ -2,6 +2,16 @@ name: Docker Image
 
 on:
   workflow_dispatch:
+    inputs:
+      guild_deploy_branch:
+        description: Branch to deploy
+        required: false
+        default: master
+      testing:
+        description: Testing workflow
+        required: false
+        type: boolean
+        default: false
   push:
     paths:
       - 'files/docker/node/release-versions/cardano-node-latest.txt'
@@ -26,6 +36,7 @@ jobs:
           --file files/docker/node/dockerfile_bin \
           --compress \
           --build-arg G_ACCOUNT=${{ env.G_ACCOUNT }} \
+          --build-arg GUILD_DEPLOY_BRANCH=${{ env.guild_deploy_branch }} \
           --tag ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest
         # Workaround to provide additional free space for builds.
         #   https://github.com/actions/virtual-environments/issues/2840
