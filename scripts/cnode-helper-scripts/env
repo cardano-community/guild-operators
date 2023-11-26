@@ -662,6 +662,20 @@ timeLeft() {
   printf '%02d:%02d:%02d' $H $M $S
 }
 
+# Description : Format number in compact format, ie thousand = k, millon = m etc, with variable precision
+# Return      : populates ${cn_value} & ${cn_suffix}
+compactNumber() {
+  unset cn_value cn_suffix
+  if [[ $# -ne 1 ]] || ! isNumber $1; then return 1; fi
+  if [[ $1 -gt 100000000 ]]; then LC_NUMERIC=C printf -v cn_value "%.0f" "$(echo "$1/1000000" | bc -l)"; cn_suffix=M; return; fi
+  if [[ $1 -gt 10000000  ]]; then LC_NUMERIC=C printf -v cn_value "%.1f" "$(echo "$1/1000000" | bc -l)"; cn_suffix=M; return; fi
+  if [[ $1 -gt 1000000   ]]; then LC_NUMERIC=C printf -v cn_value "%.2f" "$(echo "$1/1000000" | bc -l)"; cn_suffix=M; return; fi
+  if [[ $1 -gt 100000    ]]; then LC_NUMERIC=C printf -v cn_value "%.0f" "$(echo "$1/1000" | bc -l)";    cn_suffix=k; return; fi
+  if [[ $1 -gt 10000     ]]; then LC_NUMERIC=C printf -v cn_value "%.1f" "$(echo "$1/1000" | bc -l)";    cn_suffix=k; return; fi
+  if [[ $1 -gt 1000      ]]; then LC_NUMERIC=C printf -v cn_value "%.2f" "$(echo "$1/1000" | bc -l)";    cn_suffix=k; return; fi
+  cn_value=$1
+}
+
 # Description : Get calculated slot number tip
 getSlotTipRef() {
   current_time_sec=$(printf '%(%s)T\n' -1)
@@ -697,6 +711,32 @@ kesExpiration() {
   expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
   expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
   printf -v kes_expiration '%(%F %T %Z)T' ${expiration_time_sec}
+}
+
+# Description : create and save pool id in hex & bech32 encoded format
+# Parameters  : pool name  >  the name of the pool
+# Return      : populates ${pool_id} & ${pool_id_bech32}
+getPoolID() {
+  local pool_dir
+  [[ -z "${1}" ]] && pool_dir="${POOL_DIR}" || pool_dir="${POOL_FOLDER}/${1}"
+  pool_id_file="${pool_dir}/${POOL_ID_FILENAME}"
+  pool_id_bech32_file="${pool_dir}/${POOL_ID_FILENAME}-bech32"
+  [[ -f ${pool_id_file} && -f ${pool_id_bech32_file} ]] && pool_id=$(cat ${pool_id_file}) && pool_id_bech32=$(cat ${pool_id_bech32_file}) && return 0
+  pool_id=""
+  pool_id_bech32=""
+  pool_coldkey_vk_file="${pool_dir}/${POOL_COLDKEY_VK_FILENAME}"
+  if [[ -f ${pool_coldkey_vk_file} ]]; then
+    println ACTION "${CCLI} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file} --output-format hex"
+    println ACTION "${CCLI} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file}"
+    if ! pool_id=$(${CCLI} stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null) || \
+       ! pool_id_bech32=$(${CCLI} stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null); then
+      return 1
+    fi
+    echo ${pool_id} > "${pool_id_file}"
+    echo ${pool_id_bech32} > "${pool_id_bech32_file}"
+    return 0
+  fi
+  return 1
 }
 
 # Description : Calculate expected interval between blocks

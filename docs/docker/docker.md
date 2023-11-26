@@ -16,12 +16,19 @@ Running your own Cardano node has never been so fast and easy.
 - cardano-hw-cli
 - cardano-node
 - cardano-submit-api
+- mithril-client
+- mithril-signer
+
+#### Mithril
 
 ### 🔔 Built-in tools
 
 - CNTools
 - gLiveView
 - CNCLI
+- Ogmios
+- Cardano Hardware CLI
+- Cardano Signer
 - Monitoring ready (with EKG and Prometheus)
 
 #### Docker Splash screen
@@ -48,11 +55,13 @@ Running your own Cardano node has never been so fast and easy.
 
 Modular docker images based on Debian.
 
-Based on the Guild's work we decided to build the Cardano Node images in 3 stages:
+Based on the Guild's work the Cardano Node image is built in a single stage: -> [dockerfile_bin](https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_bin)
 
-- 1st stage: it uses `prereq.sh` to prepare the development environment before compiling the node source code.  -> [Stage1](https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage1)
-- 2nd stage: based on stage1, this stage intent is to compile and produce the binaries of the node. -> [Stage2](https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage2)
-- 3rd stage: based upon a minimal debian image it incorporates the node's binaries as well as all the Koios' SPO tools. -> [Stage3](https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage3)
+- Uses `guild-deploy.sh` to:
+  - Install the os prerequisites
+  - Add the cardano software from release binaries
+  - Add the guild's SPO tools and the node's configuration files.
+
 
 ### Additional docs
 

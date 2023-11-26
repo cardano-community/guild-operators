@@ -58,7 +58,7 @@ SGVERSION=v1.1.0
       fi
 
       checkUpdate env N N N
-      [[ $? -eq 2 ]] && print"\nERROR: Failed to check updates from github against specified branch\n" && exit 1
+      [[ $? -eq 2 ]] && printf "\nERROR: Failed to check updates from github against specified branch\n" && exit 1
 
       checkUpdate setup-grest.sh Y N N grest-helper-scripts
       case $? in
