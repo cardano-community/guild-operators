@@ -64,8 +64,7 @@ RUN set -x && export SUDO='N' \
     && chmod 755 tcpping \
     && chown -R guild:guild $CNODE_HOME \
     && mv /root/.local/bin /home/guild/.local/ \
-    && chown -R guild:guild /home/guild/.* \
-    && chmod a+x /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh
+    && chown -R guild:guild /home/guild/.*
 
 # Add final tools in a separate layer to shrink the largest layer
 RUN apt-get update \
