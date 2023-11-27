@@ -744,6 +744,19 @@
     🔔 Built-in Cardano software
   </a>
   
+    <nav class="md-nav" aria-label="🔔 Built-in Cardano software">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mithril" class="md-nav__link">
+    Mithril
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -992,6 +1005,19 @@
     🔔 Built-in Cardano software
   </a>
   
+    <nav class="md-nav" aria-label="🔔 Built-in Cardano software">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mithril" class="md-nav__link">
+    Mithril
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1099,12 +1125,18 @@
 <li>cardano-hw-cli</li>
 <li>cardano-node</li>
 <li>cardano-submit-api</li>
+<li>mithril-client</li>
+<li>mithril-signer</li>
 </ul>
+<h4 id="mithril">Mithril<a class="headerlink" href="#mithril" title="Permanent link">⚓︎</a></h4>
 <h3 id="built-in-tools">🔔 Built-in tools<a class="headerlink" href="#built-in-tools" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li>CNTools</li>
 <li>gLiveView</li>
 <li>CNCLI</li>
+<li>Ogmios</li>
+<li>Cardano Hardware CLI</li>
+<li>Cardano Signer</li>
 <li>Monitoring ready (with EKG and Prometheus)</li>
 </ul>
 <h4 id="docker-splash-screen">Docker Splash screen<a class="headerlink" href="#docker-splash-screen" title="Permanent link">⚓︎</a></h4>
@@ -1119,11 +1151,12 @@
 <p><img alt="CNCLI" src="../imgs/cncli.png" /></p>
 <h4 id="strategy">Guild Operators Docker strategy ( mainnet/ preview / preprod / guild)<a class="headerlink" href="#strategy" title="Permanent link">⚓︎</a></h4>
 <p>Modular docker images based on Debian.</p>
-<p>Based on the Guild's work we decided to build the Cardano Node images in 3 stages:</p>
+<p>Based on the Guild's work the Cardano Node image is built in a single stage: -&gt; <a href="https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_bin">dockerfile_bin</a></p>
 <ul>
-<li>1<sup>st</sup> stage: it uses <code>prereq.sh</code> to prepare the development environment before compiling the node source code.  -&gt; <a href="https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage1">Stage1</a></li>
-<li>2<sup>nd</sup> stage: based on stage1, this stage intent is to compile and produce the binaries of the node. -&gt; <a href="https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage2">Stage2</a></li>
-<li>3<sup>rd</sup> stage: based upon a minimal debian image it incorporates the node's binaries as well as all the Koios' SPO tools. -&gt; <a href="https://github.com/cardano-community/guild-operators/blob/master/files/docker/node/dockerfile_stage3">Stage3</a></li>
+<li>Uses <code>guild-deploy.sh</code> to:</li>
+<li>Install the os prerequisites</li>
+<li>Add the cardano software from release binaries</li>
+<li>Add the guild's SPO tools and the node's configuration files.</li>
 </ul>
 <h3 id="additional-docs">Additional docs<a class="headerlink" href="#additional-docs" title="Permanent link">⚓︎</a></h3>
 <p>If you prefer to build the images your own than you can check:</p>
