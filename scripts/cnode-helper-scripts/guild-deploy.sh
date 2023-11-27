@@ -216,10 +216,8 @@ os_dependencies() {
       if [[ "${DISTRO}" =~ Rocky ]]; then
         #RockyLinux 8/9
         pkg_list="${pkg_list} --enablerepo=devel,crb libusbx ncurses-compat-libs pkgconf-pkg-config"
-      elif [[ "${DISTRO}" =~ "Red Hat" ]] || [[ "${VERSION_ID}" =~ "8" ]]; then
-        pkg_list="${pkg_list} --enablerepo=codeready-builder-for-rhel-8-x86_64-rpms libusbx ncurses-compat-libs pkgconf-pkg-config"
-      elif [[ "${DISTRO}" =~ "Red Hat" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
-        pkg_list="${pkg_list} --enablerepo=codeready-builder-for-rhel-9-x86_64-rpms libusbx ncurses-compat-libs pkgconf-pkg-config"
+      elif [[ "${DISTRO}" =~ "Red Hat" ]]; then
+        pkg_list="${pkg_list} --enablerepo=codeready-builder-for-rhel-${VERSION_ID/.*/}-x86_64-rpms libusbx ncurses-compat-libs pkgconf-pkg-config"
       fi
     elif [[ "${DISTRO}" =~ Fedora ]]; then
       #Fedora
@@ -431,7 +429,7 @@ download_ogmios() {
   if command -v ogmios >/dev/null; then ogmios_version="$(ogmios --version)"; else ogmios_version="v0.0.0"; fi
   rm -rf /tmp/ogmios && mkdir /tmp/ogmios
   pushd /tmp/ogmios >/dev/null || err_exit
-  ogmios_asset_url="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases | jq -r '.[0].assets[].browser_download_url')"
+  ogmios_asset_url="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases | jq -r '.[].assets[].browser_download_url' | grep linux.zip | head -1)"
   if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.zip ${ogmios_asset_url}; then
     unzip ogmios.zip &>/dev/null
     rm -f ogmios.zip
