@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=v1.1.0rc
+SGVERSION=v1.1.0
 
 ######## Functions ########
   usage() {
@@ -91,7 +91,7 @@ SGVERSION=v1.1.0rc
   get_cron_job_executable() {
     local job=$1
     local job_path="${CRON_SCRIPTS_DIR}/${job}.sh"
-    local job_url="https://raw.githubusercontent.com/cardano-community/koios-artifacts/${SGVERSION}/files/grest/cron/jobs/${job}.sh"
+    local job_url="https://raw.githubusercontent.com/${G_ACCOUNT}/koios-artifacts/${SGVERSION}/files/grest/cron/jobs/${job}.sh"
     if curl -s -f -m "${CURL_TIMEOUT}" -o "${job_path}" "${job_url}"; then
       printf "\n    Downloaded \e[32m${job_path}\e[0m"
       chmod +x "${job_path}"
@@ -172,7 +172,11 @@ SGVERSION=v1.1.0rc
 
     get_cron_job_executable "asset-info-cache-update"
     set_cron_variables "asset-info-cache-update"
-    install_cron_job "asset-info-cache-update" "* * * * *"
+    install_cron_job "asset-info-cache-update" "*/2 * * * *"
+
+    get_cron_job_executable "asset-txo-cache-update"
+    set_cron_variables "asset-txo-cache-update"
+    install_cron_job "asset-txo-cache-update" "*/5 * * * *"
 
     get_cron_job_executable "epoch-summary-corrections-update"
     set_cron_variables "epoch-summary-corrections-update"
@@ -205,6 +209,7 @@ SGVERSION=v1.1.0rc
     [[ -z "${CRON_DIR}" ]] && CRON_DIR="/etc/cron.d"
     [[ -z "${PGDATABASE}" ]] && PGDATABASE="cexplorer"
     [[ -z "${HAPROXY_CFG}" ]] && HAPROXY_CFG="${CNODE_HOME}/files/haproxy.cfg"
+    [[ -z "${DB_SCRIPTS_URL}" ]] && DB_SCRIPTS_URL="https://raw.githubusercontent.com/${G_ACCOUNT}/koios-artifacts/${SGVERSION}/files/grest/rpc/db-scripts"
     DOCS_URL="https://cardano-community.github.io/guild-operators"
     [[ -z "${PGPASSFILE}" ]] && export PGPASSFILE="${CNODE_HOME}"/priv/.pgpass
     case ${NWMAGIC} in

@@ -3,27 +3,9 @@
 
 **Koios gLiveView** is a local monitoring tool to use in addition to remote monitoring tools like Prometheus/Grafana, Zabbix or IOG's RTView. This is especially useful when moving to a systemd deployment - if you haven't done so already - as it offers an intuitive UI to monitor the node status.
 
-The tool is independent from other files and can run as a standalone utility that can be stopped/started without affecting the status of `cardano-node`.
-
-##### Download
-
-If you've used [guild-deploy.sh](../basics.md#pre-requisites), you can skip this part, as this is already set up for you. The tool relies on the common `env` configuration file.
-To get current epoch blocks, the [logMonitor.sh](../Scripts/logmonitor.md) script is needed (and can be combined with [CNCLI](../Scripts/cncli.md)). This is optional and **Koios gLiveView** will function without it.
-
-!!! info "Note"
-    For those who follow the [folder structure](../basics.md#folder-structure) in this repo and do not wish to run `guild-deploy.sh`, you can run the below in `$CNODE_HOME/scripts` folder
-
-To download the script:
-
-```bash
-curl -s -o gLiveView.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/gLiveView.sh
-curl -s -o env https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/env
-chmod 755 gLiveView.sh
-```
-
 ##### Configuration & Startup
 
-For most setups, it's enough to set `CNODE_PORT` in the `env` file. The rest of the variables should automatically be detected. If required, modify User Variables in `env` and `gLiveView.sh` to suit your environment (if folder structure you use is different). This should lead you to a stage where you can now start running `./gLiveView.sh` in the folder you downloaded the script (the default location would be `$CNODE_HOME/scripts`). Note that the script is smart enough to automatically detect when you're running as a Core or Relay and will show fields accordingly.
+For most setups, it's enough to set `CNODE_PORT` in the `env` file. The rest of the variables should automatically be detected. If required, modify User Variables in `env` and `gLiveView.sh` to suit your environment (if the environment is customised). This should lead you to a stage where you can now start running `./gLiveView.sh` in the folder you downloaded the script (the default location would be `$CNODE_HOME/scripts`). Note that the script is smart enough to automatically detect when you're running as a Core or Relay and will show fields accordingly.
 
 The tool can be run in legacy mode with only standard ASCII characters for terminals with trouble displaying the box-drawing characters. Run `./gLiveView.sh -h` to show available command-line parameters or permanently set it directly in script.
 
@@ -65,7 +47,7 @@ Displays live metrics from cardano-node gathered through the nodes EKG/Prometheu
 - **Mem (RSS)** - RSS is the Resident Set Size and shows how much memory is allocated to cardano-node and that is in RAM. It does not include memory that is swapped out. It does include memory from shared libraries as long as the pages from those libraries are actually in memory. It does include all stack and heap memory.  
 - **Mem (Live) / (Heap)** - GC (Garbage Collector) values that show how much memory is used for live/heap data. A large difference between them (or the heap approaching the physical memory limit) means the node is struggling with the garbage collector and/or may begin swapping.  
 - **GC Minor / Major** - Collecting garbage from "Young space" is called a Minor GC. Major (Full) GC is done more rarily and is a more expensive operation. Explaining garbage collection is a topic outside the scope of this documentation and google is your friend for this.  
-- **Block propagation** - Last delay measures the duration between when the last block was scheduled to be produced and when the node learned about it. Late blocks are blocks whose delay is larger than 5s. If the node is not synching, the number of late blocks needs to stay low. Within 1/3/5s estimates the chance of observing a delay of 1/3/5s (based on the delays observed for previous blocks). A healthy node needs to stay above 95% of blocks within 3s. Finally, served blocks counts how many blocks were fetched by "in" peers. If this does not increase for a long time, it means the "in" peers are learning about new blocks from somewhere else (and therefore this node is not contributing towards accelerating the propagation). Overall, these metrics are helpful in tweaking the topology and/or performance of the network links.  
+- **Block propagation** - Last Block measures the duration between when the last block was scheduled to be produced and when the node learned about it. Late blocks are blocks whose delay is larger than 5s. If the node is not synching, the number of late blocks needs to stay low. Within 1/3/5s estimates the chance of observing a delay of 1/3/5s (based on the delays observed for previous blocks). A healthy node needs to stay above 95% of blocks within 3s. Finally, served blocks counts how many blocks were fetched by "in" peers. If this does not increase for a long time, it means the "in" peers are learning about new blocks from somewhere else (and therefore this node is not contributing towards accelerating the propagation). Overall, these metrics are helpful in tweaking the topology and/or performance of the network links.  
 
 ###### Core section
 
