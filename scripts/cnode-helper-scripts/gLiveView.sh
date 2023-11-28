@@ -59,7 +59,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.28.1
+GLV_VERSION=v1.28.2
 
 PARENT="$(dirname $0)"
 
@@ -823,7 +823,7 @@ while true; do
       cpu_util="0.0"
     fi
     if [[ ${about_to_lead} -gt 0 ]]; then
-      [[ ${nodemode} != "Core" ]] && clrScreen && nodemode="Core"
+      [[ ${nodemode} != "Core" ]] && nodemode="Core" && getOpCert && clrScreen
     else
       [[ ${nodemode} != "Relay" ]] && clrScreen && nodemode="Relay"
     fi
