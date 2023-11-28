@@ -36,7 +36,7 @@ jobs:
           --file files/docker/node/dockerfile_bin \
           --compress \
           --build-arg G_ACCOUNT=${{ env.G_ACCOUNT }} \
-          --build-arg GUILD_DEPLOY_BRANCH=${{ env.guild_deploy_branch }} \
+          --build-arg GUILD_DEPLOY_BRANCH=${{ github.event.inputs.guild_deploy_branch }} \
           --tag ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest
         # Workaround to provide additional free space for builds.
         #   https://github.com/actions/virtual-environments/issues/2840
@@ -53,7 +53,7 @@ jobs:
         sudo rm -rf "/usr/local/share/boost"
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: docker push latest
-      if: env.testing == 'false' && env.guild_deploy_branch == 'master'
+      if: github.event.inputs.testing == 'false' && github.event.inputs.guild_deploy_branch == 'master'
       run: |
         CNVERSION=`cat files/docker/node/release-versions/cardano-node-latest.txt`
         docker push ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest
@@ -65,4 +65,6 @@ jobs:
         echo "## Summary Details" >> $GITHUB_STEP_SUMMARY
         echo "* Docker Image: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:${{ env.CNVERSION }}" >> $GITHUB_STEP_SUMMARY
         echo "* G_ACCOUNT: ${GITHUB_REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
+        echo "* GUILD_DEPLOY_BRANCH: ${{ github.event.inputs.guild_deploy_branch }}" >> $GITHUB_STEP_SUMMARY
+        echo "* Push to GA Registry: $(if [[ '${{ github.event.inputs.testing }}' == 'true' ]]; then echo 'false'; else echo 'true'; fi)" >> $GITHUB_STEP_SUMMARY
         echo "* CNVERSION: ${{ env.CNVERSION }}" >> $GITHUB_STEP_SUMMARY
