@@ -30,6 +30,7 @@ jobs:
       run: |
         echo "G_ACCOUNT=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
         echo "CNVERSION=$(cat files/docker/node/release-versions/cardano-node-latest.txt)" >> $GITHUB_ENV
+        echo "PUSH_TO_GA=false" >> $GITHUB_ENV
     - name: Compiling new node software suite
       run: |
         DOCKER_BUILDKIT=1 docker build . \
@@ -56,6 +57,7 @@ jobs:
       if: github.event.inputs.testing == 'false' && github.event.inputs.guild_deploy_branch == 'master'
       run: |
         CNVERSION=`cat files/docker/node/release-versions/cardano-node-latest.txt`
+        echo "PUSH_TO_GA=true" >> $GITHUB_ENV
         docker push ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest
         docker tag ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest ${{ secrets.DOCKER_USER }}/cardano-node:${{ env.CNVERSION }}
         docker push ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:${{ env.CNVERSION }}
@@ -66,5 +68,5 @@ jobs:
         echo "* Docker Image: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:${{ env.CNVERSION }}" >> $GITHUB_STEP_SUMMARY
         echo "* G_ACCOUNT: ${GITHUB_REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
         echo "* GUILD_DEPLOY_BRANCH: ${{ github.event.inputs.guild_deploy_branch }}" >> $GITHUB_STEP_SUMMARY
-        echo "* Push to GA Registry: $(if [[ '${{ github.event.inputs.testing }}' == 'true' ]]; then echo 'false'; else echo 'true'; fi)" >> $GITHUB_STEP_SUMMARY
+        echo "* Push to GA Registry: ${{ env.PUSH_TO_GA }}" >> $GITHUB_STEP_SUMMARY
         echo "* CNVERSION: ${{ env.CNVERSION }}" >> $GITHUB_STEP_SUMMARY
