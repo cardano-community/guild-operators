@@ -15,6 +15,7 @@ on:
   push:
     paths:
       - 'files/docker/node/release-versions/cardano-node-latest.txt'
+      - 'files/docker/node/release-versions/mithril-latest.txt'
       
 jobs:
   build:
