@@ -197,7 +197,7 @@ SGVERSION=v1.1.0
   # Description : Remove all grest-related cron entries.
   remove_all_grest_cron_jobs() {
     printf "\nRemoving all installed cron jobs..."
-    grep -rl ${CRON_SCRIPTS_DIR} ${CRON_DIR} | xargs rm -f
+    grep -rl ${CRON_SCRIPTS_DIR} ${CRON_DIR} | xargs sudo rm -f
     rm -f ${CRON_SCRIPTS_DIR}/*.sh
     psql "${PGDATABASE}" -qt -c "SELECT PG_CANCEL_BACKEND(pid) FROM pg_stat_activity WHERE usename='${USER}' AND application_name = 'psql' AND query NOT LIKE '%pg_stat_activity%';"
     psql "${PGDATABASE}" -qt -c "SELECT PG_TERMINATE_BACKEND(pid) FROM pg_stat_activity WHERE usename='${USER}' AND application_name = 'psql' AND query NOT LIKE '%pg_stat_activity%';"
@@ -614,7 +614,7 @@ SGVERSION=v1.1.0
     printf "\n  (Re)Deploying GRest objects to DBSync..."
     populate_genesis_table
     for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
-      if [[ $(jqDecode '.type' "${row}") = 'dir' ]]; then
+      if [[ $(jqDecode '.type' "${row}") = 'dir' ]] && [[ $(jqDecode '.name' "${row}") != 'db-scripts' ]]; then
         printf "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
         if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/koios-artifacts/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${SGVERSION}"); then
           printf "\n      \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
@@ -667,7 +667,7 @@ SGVERSION=v1.1.0
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
   [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs
   [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
-  [[ "${RESET_GREST}" == "Y" ]] && remove_all_grest_cron_jobs && setup_db_basics && reset_grest
+  [[ "${RESET_GREST}" == "Y" ]] && remove_all_grest_cron_jobs && reset_grest
   [[ "${DB_QRY_UPDATES}" == "Y" ]] && remove_all_grest_cron_jobs && setup_db_basics && deploy_query_updates && update_grest_version
   pushd -0 >/dev/null || err_exit
   dirs -c
