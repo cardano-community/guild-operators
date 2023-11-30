@@ -59,7 +59,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.28.2
+GLV_VERSION=v1.28.3
 
 PARENT="$(dirname $0)"
 
@@ -515,6 +515,11 @@ getOpCert () {
   op_cert_disk="?"
   op_cert_node="?"
   opcert_file="${POOL_DIR}/${POOL_OPCERT_FILENAME}"
+  if [[ ! -f ${opcert_file} && -n ${CNODE_PID} ]]; then
+    if [[ $(ps -p ${CNODE_PID} -o cmd=) =~ --shelley-operational-certificate[[:space:]]([^[:space:]]+) ]]; then
+      opcert_file="${BASH_REMATCH[1]}"
+    fi
+  fi
   if [[ -f ${opcert_file} ]]; then
     op_cert_tsv=$(jq -r '[
     .qKesNodeStateOperationalCertificateNumber //"?",
