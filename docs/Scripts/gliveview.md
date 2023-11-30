@@ -9,6 +9,9 @@ For most setups, it's enough to set `CNODE_PORT` in the `env` file. The rest of 
 
 The tool can be run in legacy mode with only standard ASCII characters for terminals with trouble displaying the box-drawing characters. Run `./gLiveView.sh -h` to show available command-line parameters or permanently set it directly in script.
 
+!!! info "Note !!"
+    Keeping gLiveView to it's intent of being a dashboard and not a full-fledged monitoring tool, we intend to keep most relevant information for a node operator in a minimalistic dashboard, accordingly - gLiveView runs by default in compact mode. One can enable verbose mode by pressing 'v' to unhide additional fields.
+
 A sample output from both core and relay together with peer analysis:
 
 === "Core"
@@ -22,7 +25,6 @@ A sample output from both core and relay together with peer analysis:
 === "Peer Analysis"
 
     ![Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/glv-peers.png ':size=35%')
-
 
 ###### Upper main section
 
