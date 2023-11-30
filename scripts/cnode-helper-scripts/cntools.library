@@ -149,6 +149,7 @@ protectionPreRequisites() {
     fi
     rm -f "${TMP_DIR}"/test
   fi
+  return 0
 }
 
 # Command     : safeDel [path]
