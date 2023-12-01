@@ -892,6 +892,10 @@
 <h5 id="configuration-startup">Configuration &amp; Startup<a class="headerlink" href="#configuration-startup" title="Permanent link">⚓︎</a></h5>
 <p>For most setups, it's enough to set <code>CNODE_PORT</code> in the <code>env</code> file. The rest of the variables should automatically be detected. If required, modify User Variables in <code>env</code> and <code>gLiveView.sh</code> to suit your environment (if the environment is customised). This should lead you to a stage where you can now start running <code>./gLiveView.sh</code> in the folder you downloaded the script (the default location would be <code>$CNODE_HOME/scripts</code>). Note that the script is smart enough to automatically detect when you're running as a Core or Relay and will show fields accordingly.</p>
 <p>The tool can be run in legacy mode with only standard ASCII characters for terminals with trouble displaying the box-drawing characters. Run <code>./gLiveView.sh -h</code> to show available command-line parameters or permanently set it directly in script.</p>
+<div class="admonition info">
+<p class="admonition-title">Note !!</p>
+<p>Keeping gLiveView to it's intent of being a dashboard and not a full-fledged monitoring tool, we intend to keep most relevant information for a node operator in a minimalistic dashboard, accordingly - gLiveView runs by default in compact mode. One can enable verbose mode by pressing 'v' to unhide additional fields.</p>
+</div>
 <p>A sample output from both core and relay together with peer analysis:</p>
 <div class="tabbed-set" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><label for="__tabbed_1_1">Core</label><div class="tabbed-content">
 <p><img alt="Core" src="https://raw.githubusercontent.com/cardano-community/guild-operators/images/glv-core.png" title=":size=35%" /></p>
