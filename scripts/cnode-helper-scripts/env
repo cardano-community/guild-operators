@@ -933,19 +933,22 @@ if ! command -v "jq" &>/dev/null; then
   return 1
 fi
 
-read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile //"null", .ByronGenesisFile //"null", .ShelleyGenesisFile //"null", .Protocol //"Cardano", .TraceChainDb //"null", .EnableP2P //"false"]| @tsv' "${CONFIG}" 2>/dev/null)"
+read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile //"null", .ByronGenesisFile //"null", .ShelleyGenesisFile //"null", .Protocol //"Cardano", .TraceChainDb //"null", .EnableP2P //"false", .ConwayGenesisFile //"null"]| @tsv' "${CONFIG}" 2>/dev/null)"
 if [[ ${CONFIG_CONTENTS[4]} != "true" ]]; then
   echo "Could not find TraceChainDb when attempting to parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
   return 1
 else
+  CONWAY_GENESIS_JSON="${CONFIG_CONTENTS[6]}"
   ALONZO_GENESIS_JSON="${CONFIG_CONTENTS[0]}"
   BYRON_GENESIS_JSON="${CONFIG_CONTENTS[1]}"
   GENESIS_JSON="${CONFIG_CONTENTS[2]}"
   # if relative path is used, assume same parent dir as config
+  [[ ! ${CONWAY_GENESIS_JSON} =~ ^/ ]] && CONWAY_GENESIS_JSON="$(dirname "${CONFIG}")/${CONWAY_GENESIS_JSON}"
   [[ ! ${ALONZO_GENESIS_JSON} =~ ^/ ]] && ALONZO_GENESIS_JSON="$(dirname "${CONFIG}")/${ALONZO_GENESIS_JSON}"
   [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
   [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
   # if genesis files not found, exit with rc 1
+  [[ ! -f "${CONWAY_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${CONWAY_GENESIS_JSON}" && return 1
   [[ ! -f "${ALONZO_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${ALONZO_GENESIS_JSON}" && return 1
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
   [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
