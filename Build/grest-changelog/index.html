@@ -864,6 +864,26 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#110-for-all-networks" class="md-nav__link">
+    [1.1.0] - For all networks.
+  </a>
+  
+    <nav class="md-nav" aria-label="[1.1.0] - For all networks.">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#chores" class="md-nav__link">
+    Chores:
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#110rc-for-all-networks" class="md-nav__link">
     [1.1.0rc] - For all networks.
   </a>
@@ -893,7 +913,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#chores" class="md-nav__link">
+  <a href="#chores_1" class="md-nav__link">
     Chores:
   </a>
   
@@ -913,7 +933,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#chores_1" class="md-nav__link">
+  <a href="#chores_2" class="md-nav__link">
     Chores:
   </a>
   
@@ -954,7 +974,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#chores_2" class="md-nav__link">
+  <a href="#chores_3" class="md-nav__link">
     Chores:
   </a>
   
@@ -1281,6 +1301,22 @@
 
 
 <h1 id="koios-grest-changelog">Koios gRest Changelog<a class="headerlink" href="#koios-grest-changelog" title="Permanent link">⚓︎</a></h1>
+<h2 id="110-for-all-networks">[1.1.0] - For all networks.<a class="headerlink" href="#110-for-all-networks" title="Permanent link">⚓︎</a></h2>
+<p>This will be first major [breaking] release for Koios consumers in a while, and will be rolled out under new base prefix (<code>/api/v1</code>).
+The major work with this release was to start making use of newer flags in dbsync which help performance of queries under new endpoints. Please ensure to check out the release notes for <code>1.1.0rc</code> below. The list for this section is only a small addendum to <code>1.1.0rc</code>:</p>
+<h3 id="chores">Chores:<a class="headerlink" href="#chores" title="Permanent link">⚓︎</a></h3>
+<ul>
+<li>Make use of asset-txo-cache for top assets on mainnet, and use this cache for <code>asset_addresses</code> and <code>policy_asset_addresses</code> <a href="https://github.com/cardano-community/koios-artifacts/pull/250">#250</a></li>
+<li>Add v0 RPC redirectors to keep serve v0 endpoints from v1 <a href="https://github.com/cardano-community/koios-artifacts/pull/250">#250</a></li>
+<li>Convert few simple RPC functions from PLPGSQL to SQL language to help with inline filtering <a href="https://github.com/cardano-community/koios-artifacts/pull/250">#250</a></li>
+<li>Address linting results from SQLFluff <a href="https://github.com/cardano-community/koios-artifacts/pull/250">#250</a></li>
+<li>Move db-scripts from guild-operators repository to koios-artifacts repository <a href="https://github.com/cardano-community/koios-artifacts/pull/250">#250</a></li>
+<li>Drop stale db-scripts/genesis_table.sql file <a href="https://github.com/cardano-community/koios-artifacts/pull/250">#250</a></li>
+<li>Add 3 additional indexes for collateral and reference inputs based on query times <a href="https://github.com/cardano-community/koios-artifacts/pull/250">#250</a></li>
+<li>Add top 3 assets for preview/preprod to asset-txo-cache <a href="https://github.com/cardano-community/koios-artifacts/pull/250">#250</a></li>
+<li>Bump schema version for koios-1.1.0 <a href="https://github.com/cardano-community/koios-artifacts/pull/250">#250</a></li>
+<li>Minor patch for output data type (<code>pool_registrations</code> and <code>pool_retirements</code>) <a href="https://github.com/cardano-community/koios-artifacts/pull/249">#249</a></li>
+</ul>
 <h2 id="110rc-for-all-networks">[1.1.0rc] - For all networks.<a class="headerlink" href="#110rc-for-all-networks" title="Permanent link">⚓︎</a></h2>
 <p>This will be first major [breaking] release for Koios consumers in a while, and will be rolled out under new base prefix (<code>/api/v1</code>).
 The major work with this release was to start making use of newer flags in dbsync which help performance of queries under new endpoints. Also, you'd see quite a few new endpoint additions below, that'd be helping out with slightly lighter version of queries. To keep migration paths easier, we will ensure both v0 and v1 versions of the release is up for a month post release, before retiring v0.</p>
@@ -1318,7 +1354,7 @@ The major work with this release was to start making use of newer flags in dbsyn
 <ul>
 <li><code>/tx_utxos</code> - No longer required as replaced by <code>/utxo_info</code> <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
 </ul>
-<h3 id="chores">Chores:<a class="headerlink" href="#chores" title="Permanent link">⚓︎</a></h3>
+<h3 id="chores_1">Chores:<a class="headerlink" href="#chores_1" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li>Update base version to <code>v1</code> from <code>v0</code> <a href="https://github.com/cardano-community/guild-operators/pull/1690">#1690</a></li>
 <li>Allow Bearer Authentication against endpoints <a href="https://github.com/cardano-community/koios-artifacts/pull/239">#239</a></li>
@@ -1341,7 +1377,7 @@ The major work with this release was to start making use of newer flags in dbsyn
 </ul>
 <h2 id="1010-for-all-networks">[1.0.10] - For all networks.<a class="headerlink" href="#1010-for-all-networks" title="Permanent link">⚓︎</a></h2>
 <p>The release is effectively same as <code>1.0.10rc</code> except with one minor modification below.</p>
-<h3 id="chores_1">Chores:<a class="headerlink" href="#chores_1" title="Permanent link">⚓︎</a></h3>
+<h3 id="chores_2">Chores:<a class="headerlink" href="#chores_2" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li>Replace all RPC references for JSON endpoints with JSONB, this allows filtering child members of array elements using <code>cs.[{"key":"value"}]</code> in PostgREST <a href="https://github.com/cardano-community/koios-artifacts/pull/172">#172</a></li>
 </ul>
@@ -1375,7 +1411,7 @@ The major work with this release was to start making use of newer flags in dbsyn
 <li><code>/asset_address_list</code> - Renamed to <code>asset_addresses</code> keeping naming line with other endpoints (old one still present, but will be deprecated in future release) <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/asset_policy_info</code> - Renamed to <code>policy_asset_info</code> keeping naming line with other endpoints (old one still present, but will be deprecated in future release) <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 </ul>
-<h3 id="chores_2">Chores:<a class="headerlink" href="#chores_2" title="Permanent link">⚓︎</a></h3>
+<h3 id="chores_3">Chores:<a class="headerlink" href="#chores_3" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li><code>/epoch_info</code>, <code>/epoch_params</code> - Restrict output to current epoch <a href="https://github.com/cardano-community/koios-artifacts/pull/149">#149</a></li>
 <li><code>/block_info</code> - Use <code>/previous_id</code> field to show previous/next blocks (previously was using block_id/height) <a href="https://github.com/cardano-community/koios-artifacts/pull/145">#145</a></li>
