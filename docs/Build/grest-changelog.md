@@ -1,5 +1,23 @@
 # Koios gRest Changelog
 
+## [1.1.0] - For all networks.
+
+This will be first major [breaking] release for Koios consumers in a while, and will be rolled out under new base prefix (`/api/v1`).
+The major work with this release was to start making use of newer flags in dbsync which help performance of queries under new endpoints. Please ensure to check out the release notes for `1.1.0rc` below. The list for this section is only a small addendum to `1.1.0rc`:
+
+### Chores:
+- Make use of asset-txo-cache for top assets on mainnet, and use this cache for `asset_addresses` and `policy_asset_addresses` [#250](https://github.com/cardano-community/koios-artifacts/pull/250)
+- Add v0 RPC redirectors to keep serve v0 endpoints from v1 [#250](https://github.com/cardano-community/koios-artifacts/pull/250)
+- Convert few simple RPC functions from PLPGSQL to SQL language to help with inline filtering [#250](https://github.com/cardano-community/koios-artifacts/pull/250)
+- Address linting results from SQLFluff [#250](https://github.com/cardano-community/koios-artifacts/pull/250)
+- Move db-scripts from guild-operators repository to koios-artifacts repository [#250](https://github.com/cardano-community/koios-artifacts/pull/250)
+- Drop stale db-scripts/genesis_table.sql file [#250](https://github.com/cardano-community/koios-artifacts/pull/250)
+- Add 3 additional indexes for collateral and reference inputs based on query times [#250](https://github.com/cardano-community/koios-artifacts/pull/250)
+- Add top 3 assets for preview/preprod to asset-txo-cache [#250](https://github.com/cardano-community/koios-artifacts/pull/250)
+- Bump schema version for koios-1.1.0 [#250](https://github.com/cardano-community/koios-artifacts/pull/250)
+- Minor patch for output data type (`pool_registrations` and `pool_retirements`) [#249](https://github.com/cardano-community/koios-artifacts/pull/249)
+
+
 ## [1.1.0rc] - For all networks.
 
 This will be first major [breaking] release for Koios consumers in a while, and will be rolled out under new base prefix (`/api/v1`).
