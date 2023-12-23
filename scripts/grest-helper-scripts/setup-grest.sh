@@ -176,7 +176,7 @@ SGVERSION=v1.1.0
 
     get_cron_job_executable "asset-txo-cache-update"
     set_cron_variables "asset-txo-cache-update"
-    install_cron_job "asset-txo-cache-update" "*/5 * * * *"
+    install_cron_job "asset-txo-cache-update" "*/30 * * * *"
 
     get_cron_job_executable "epoch-summary-corrections-update"
     set_cron_variables "epoch-summary-corrections-update"
@@ -406,8 +406,8 @@ SGVERSION=v1.1.0
 			  option forwardfor
 			  #log-format \"%ci:%cp a:%f/%b/%s t:%Tq/%Tt %{+Q}r %ST b:%B C:%ac,%fc,%bc,%sc Q:%sq/%bq\"
 			  option dontlog-normal
-			  timeout client 30s
-			  timeout server 30s
+			  timeout client 120s
+			  timeout server 120s
 			  timeout connect 3s
 			  timeout server-fin 2s
 			  timeout http-request 5s
