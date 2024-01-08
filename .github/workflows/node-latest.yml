@@ -14,7 +14,7 @@ jobs:
           ref: alpha
       - name: Fetch node release version
         run: |
-          curl -sL https://api.github.com/repos/input-output-hk/cardano-node/releases/latest | grep tag_name | awk '{print $2}' | cut -d\" -f 2 > files/docker/node/release-versions/cardano-node-latest.txt
+          curl -sL https://api.github.com/repos/intersectmbo/cardano-node/releases/latest | grep tag_name | awk '{print $2}' | cut -d\" -f 2 > files/docker/node/release-versions/cardano-node-latest.txt
       - name: Assigns release version
         run: |
           VERSION=$(cat ./files/docker/node/release-versions/cardano-node-latest.txt)

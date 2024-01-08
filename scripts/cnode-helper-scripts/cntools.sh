@@ -4221,7 +4221,7 @@ function main {
               fi
               echo
               println DEBUG "Select the type of metadata to post on-chain"
-              println DEBUG "ref: https://github.com/input-output-hk/cardano-node/blob/master/doc/reference/tx-metadata.md"
+              println DEBUG "ref: https://github.com/input-output-hk/cardano-node-wiki/wiki/tx-metadata"
               select_opt "[n] No JSON Schema (default)" "[d] Detailed JSON Schema" "[c] Raw CBOR"
               case $? in
                 0) metatype="no-schema" ;;
