@@ -756,7 +756,7 @@ getEraIdentifier() {
     Mary)    ERA_IDENTIFIER="--mary-era" ;;
     Alonzo)  ERA_IDENTIFIER="--alonzo-era" ;;
     Babbage) ERA_IDENTIFIER="--babbage-era" ;;
-    *)       ERA_IDENTIFIER="--babbage-era" # use mary era as default
+    *)       ERA_IDENTIFIER="--babbage-era"
              [[ ${OFFLINE_MODE} = "N" ]] && return 1
   esac
   return 0
@@ -1059,18 +1059,21 @@ case ${NWMAGIC} in
     NETWORK_NAME="Mainnet"
     SHELLEY_TRANS_EPOCH=208
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://api.koios.rest/api/v1" ;;
+  141)
+    NETWORK_NAME="Guild"
+    SHELLEY_TRANS_EPOCH=2
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v1";;
   1)
     NETWORK_NAME="PreProd"
     SHELLEY_TRANS_EPOCH=4
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preprod.koios.rest/api/v1";;
-  141) 
-    NETWORK_NAME="Guild"
-    SHELLEY_TRANS_EPOCH=2
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v1";;
   2)
     NETWORK_NAME="Preview"
     SHELLEY_TRANS_EPOCH=0
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v1";;
+  4)
+    NETWORK_NAME="Sanchonet"
+    SHELLEY_TRANS_EPOCH=0;;
   *) 
     NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0

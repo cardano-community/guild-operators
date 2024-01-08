@@ -61,7 +61,7 @@ versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=avail
 usage() {
   cat <<-EOF >&2
 		
-		Usage: $(basename "$0") [-n <mainnet|preprod|guild|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][f][d][c][o][w][x]]
+		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview|sanchonet>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][f][d][c][o][w][x]]
 		Set up dependencies for building/using common tools across cardano ecosystem.
 		The script will always update dynamic content from existing scripts retaining existing user variables
 		
@@ -256,7 +256,7 @@ build_dependencies() {
   echo -e "\nInstalling Haskell build/compiler dependencies (if missing)..."
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
   export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.7
-  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.10.1.0
+  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.10.2.0
   if ! command -v ghcup &>/dev/null; then
     echo -e "\nInstalling ghcup (The Haskell Toolchain installer) .."
     BOOTSTRAP_HASKELL_NONINTERACTIVE=1
@@ -301,6 +301,7 @@ build_dependencies() {
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
   fi
   echo -e "\nlibsecp256k1 installed to /usr/local/lib/"
+  build_libblst
 }
 
 # Build fork of libsodium
@@ -320,6 +321,38 @@ build_libsodium() {
   make > make.log 2>&1 || err_exit  " Could not complete \"make\" for libsodium package, please try to run it manually to diagnose!"
   $sudo make install > install.log 2>&1
   echo -e "\nIOG fork of libsodium installed to /usr/local/lib/"
+}
+
+build_libblst() {
+  echo -e "\nBuilding BLST..."
+  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
+    echo -e "\nexport LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+  fi
+  pushd "${HOME}"/git >/dev/null || err_exit
+  [[ ! -d "./blst" ]] && git clone https://github.com/supranational/blst &>/dev/null
+  pushd blst >/dev/null || err_exit
+  git fetch >/dev/null 2>&1
+  git checkout v0.3.10 &>/dev/null
+  ./build.sh >/dev/null 2>&1
+  cat <<-EOF >libblst.pc
+		prefix=/usr/local
+		exec_prefix=\${prefix}
+		libdir=\${exec_prefix}/lib
+		includedir=\${prefix}/include
+		
+		Name: libblst
+		Description: Multilingual BLS12-381 signature library
+		URL: https://github.com/supranational/blst
+		Version: 0.3.10
+		Cflags: -I\${includedir}
+		Libs: -L\${libdir} -lblst
+		EOF
+  [[ ! -d /usr/local/lib/pkgconfig ]] && $sudo mkdir -p /usr/local/lib/pkgconfig
+  $sudo cp -f libblst.pc /usr/local/lib/pkgconfig/
+  $sudo cp bindings/blst_aux.h bindings/blst.h bindings/blst.hpp  /usr/local/include/
+  $sudo cp libblst.a /usr/local/lib
+  $sudo chmod u=rw,go=r /usr/local/{lib/{libblst.a,pkgconfig/libblst.pc},include/{blst.{h,hpp},blst_aux.h}}
 }
 
 # Download cardano-node, cardano-cli, cardano-db-sync, bech32 and cardano-submit-api
@@ -541,7 +574,7 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp ${URL_RAW}/files/conway-genesis-guild.json || err_exit "${err_msg} conway-genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json || err_exit "${err_msg} topology-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json || err_exit "${err_msg} config-guild.json"
-  elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview)$ ]]; then
+  elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview|sanchonet)$ ]]; then
     NWCONFURL="https://raw.githubusercontent.com/intersectmbo/cardano-world/master/docs/environments"
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json" || err_exit "${err_msg} shelley-genesis.json"
@@ -550,7 +583,7 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp "${NWCONFURL}/${NETWORK}/topology.json" || err_exit "${err_msg} topology.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp "${URL_RAW}/files/config-${NETWORK}.json" || err_exit "${err_msg} config-${NETWORK}.json"
   else
-    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, preprod, guild or preview."
+    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, preview or sanchonet."
   fi
   sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
   if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then

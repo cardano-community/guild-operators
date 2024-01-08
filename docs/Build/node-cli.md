@@ -18,9 +18,9 @@ cd cardano-node
 You can use the instructions below to build the latest release of [cardano-node](https://github.com/intersectmbo/cardano-node). 
 
 ``` bash
-git fetch --tags --all
+git fetch --tags --recurse-submodules --all
 git pull
-# Replace tag against checkout if you do not want to build the latest released version
+# Replace tag against checkout if you do not want to build the latest released version, we recommend using battle tested node versions - which may not always be latest
 git checkout $(curl -sLf https://api.github.com/repos/intersectmbo/cardano-node/releases/latest | jq -r .tag_name)
 
 # Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
