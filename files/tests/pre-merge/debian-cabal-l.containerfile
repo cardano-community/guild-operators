@@ -14,7 +14,7 @@ ENV \
   G_ACCOUNT=$G_ACCOUNT \
   COMMIT=$COMMIT
 
-RUN git clone https://github.com/input-output-hk/cardano-node
+RUN git clone https://github.com/intersectmbo/cardano-node
 
 WORKDIR /cardano-node
 

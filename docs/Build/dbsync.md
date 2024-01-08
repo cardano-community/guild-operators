@@ -2,8 +2,8 @@
     An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned [here](../build.md#components).  
 
     - Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
-    - The [Cardano DB Sync](https://github.com/input-output-hk/cardano-db-sync) relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](../Appendix/postgres.md) for setting up a Postgres instance. Specifically, we expect the `PGPASSFILE` environment variable is set as per the instructions in the sample guide, for `db-sync` to be able to connect.
-    - One of the biggest obstacles for user experience when running dbsync is ensuring you satisfy EACH of the points mentioned in System Requirements [here](https://github.com/input-output-hk/cardano-db-sync#system-requirements). Also, note that we do not advise running dbsync on mainnet if your RAM is below 48GB.
+    - The [Cardano DB Sync](https://github.com/intersectmbo/cardano-db-sync) relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](../Appendix/postgres.md) for setting up a Postgres instance. Specifically, we expect the `PGPASSFILE` environment variable is set as per the instructions in the sample guide, for `db-sync` to be able to connect.
+    - One of the biggest obstacles for user experience when running dbsync is ensuring you satisfy EACH of the points mentioned in System Requirements [here](https://github.com/intersectmbo/cardano-db-sync#system-requirements). Also, note that we do not advise running dbsync on mainnet if your RAM is below 48GB.
 
 
 ### Build Instructions
@@ -14,7 +14,7 @@ Execute the below to clone the `cardano-db-sync` repository to `$HOME/git` folde
 
 ``` bash
 cd ~/git
-git clone https://github.com/input-output-hk/cardano-db-sync
+git clone https://github.com/intersectmbo/cardano-db-sync
 cd cardano-db-sync
 ```
 
@@ -29,7 +29,7 @@ git pull
 # On CentOS 7 (GCC 4.8.5) we should also do
 # echo -e "package cryptonite\n  flags: -use_target_attributes" >> cabal.project.local
 # Replace tag against checkout if you do not want to build the latest released version
-git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-db-sync/releases/latest | jq -r .tag_name)
+git checkout $(curl -sLf https://api.github.com/repos/intersectmbo/cardano-db-sync/releases/latest | jq -r .tag_name)
 # Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
@@ -60,7 +60,7 @@ ln -s ~/git/cardano-db-sync/schema $CNODE_HOME/guild-db/schema
 
 #### Restore using Snapshot
 
-If you're running a mainnet/preview/preprod instance of dbsync, you might want to consider use of dbsync snapshots as documented [here](https://github.com/input-output-hk/cardano-db-sync/blob/master/doc/state-snapshot.md). The snapshot files as of recent epoch are available via links in [release notes](https://github.com/input-output-hk/cardano-db-sync/releases).
+If you're running a mainnet/preview/preprod instance of dbsync, you might want to consider use of dbsync snapshots as documented [here](https://github.com/intersectmbo/cardano-db-sync/blob/master/doc/state-snapshot.md). The snapshot files as of recent epoch are available via links in [release notes](https://github.com/intersectmbo/cardano-db-sync/releases).
 
 At high-level, this would involve steps as below (read and update paths as per your environment):
 

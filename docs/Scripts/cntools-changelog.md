@@ -338,7 +338,7 @@ Note: Version incremented thrice on PR branch itself
 ## [8.1.4] - 2021-04-05
 ##### Changed
 - Enhanced minimum utxo calculation (credits to Martin providing this)
-  - based on calculations from https://github.com/input-output-hk/cardano-ledger-specs/blob/master/doc/explanations/min-utxo.rst
+  - based on calculations from https://github.com/intersectmbo/cardano-ledger/blob/master/doc/explanations/min-utxo-mary.rst
 - Validation of wallet address balance on transactions improved
 
 ## [8.1.3] - 2021-04-01
@@ -634,7 +634,7 @@ Only the most noticeable changes added to changelog.
 - Pool registration and de-registration certificates removed in case of retire/re-registration
 - KES Expiry to use KES Period instead of Epoch duration
 - Block Collector script adapted for cardano-node 1.19.0.
-  - Block hash is now truncated in log, issue https://github.com/input-output-hk/cardano-node/issues/1738
+  - Block hash is now truncated in log, issue https://github.com/intersectmbo/cardano-node/issues/1738
 - High cpu usage reported in a few cases when running Block Collector
   - Depending on log level, parsing and byte64 enc each entry with jq could potentially put high load on weaker systems. Replaced with grep to only parse entries containing specific traces.
 - Docs for creating systemd block collector service file updated to include user env in run command

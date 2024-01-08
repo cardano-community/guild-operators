@@ -176,7 +176,7 @@ SGVERSION=v1.1.0
 
     get_cron_job_executable "asset-txo-cache-update"
     set_cron_variables "asset-txo-cache-update"
-    install_cron_job "asset-txo-cache-update" "*/5 * * * *"
+    install_cron_job "asset-txo-cache-update" "*/30 * * * *"
 
     get_cron_job_executable "epoch-summary-corrections-update"
     set_cron_variables "epoch-summary-corrections-update"
@@ -303,7 +303,7 @@ SGVERSION=v1.1.0
       pgrest_binary=linux-static-x64.tar.xz
     fi
     #pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep ${pgrest_binary})"
-    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v11.2.2/postgrest-v11.2.2-linux-static-x64.tar.xz" # Fix PostgREST to v11.2.2 until v12 headers are updated
+    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v11.2.2/postgrest-v11.2.2-${pgrest_binary}" # Fix PostgREST to v11.2.2 until v12 headers are updated
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
@@ -406,8 +406,8 @@ SGVERSION=v1.1.0
 			  option forwardfor
 			  #log-format \"%ci:%cp a:%f/%b/%s t:%Tq/%Tt %{+Q}r %ST b:%B C:%ac,%fc,%bc,%sc Q:%sq/%bq\"
 			  option dontlog-normal
-			  timeout client 30s
-			  timeout server 30s
+			  timeout client 120s
+			  timeout server 120s
 			  timeout connect 3s
 			  timeout server-fin 2s
 			  timeout http-request 5s
@@ -497,7 +497,7 @@ SGVERSION=v1.1.0
 			WantedBy=multi-user.target
 			EOF"
     printf "\n  HAProxy Service"
-    command -v haproxy >/dev/null && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-haproxy.service
+    [[ ! -f /usr/sbin/haproxy ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-haproxy.service
 			[Unit]
 			Description=HAProxy Load Balancer
 			After=network-online.target

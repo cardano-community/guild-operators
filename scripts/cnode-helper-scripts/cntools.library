@@ -994,7 +994,7 @@ getAssetsTxOut() {
 # Command     : getMinUTxO [--tx-out string]
 # Description : calculate minimum balance needed in source wallet UTxOs for transaction to be valid
 #               getBalance assumed to be run before
-#               based on calculations from https://github.com/input-output-hk/cardano-ledger-specs/blob/master/doc/explanations/min-utxo.rst
+#               based on calculations from https://github.com/intersectmbo/cardano-ledger/blob/master/doc/explanations/min-utxo-mary.rst
 # Return      : populates ${min_utxo_out}
 getMinUTxO() {
   [[ -z ${utxoCostPerWord} ]] && utxoCostPerWord=$(jq -r '.utxoCostPerWord' <<< "${PROT_PARAMS}")

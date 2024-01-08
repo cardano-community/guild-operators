@@ -9,7 +9,7 @@ ENV \
   USER=root \
   PATH=$CNODE_HOME/scripts:/root/.local/bin:/root/.ghcup/bin:$PATH 
 
-RUN git clone https://github.com/input-output-hk/cardano-node.git \
+RUN git clone https://github.com/intersectmbo/cardano-node.git \
   && export BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
   && mkdir -p /root/.local/bin/ \
   && wget https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/release-versions/cardano-node-latest.txt \

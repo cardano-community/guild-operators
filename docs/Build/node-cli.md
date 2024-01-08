@@ -9,19 +9,19 @@ Execute the below to clone the cardano-node repository to `$HOME/git` folder on 
 
 ``` bash
 cd ~/git
-git clone https://github.com/input-output-hk/cardano-node
+git clone https://github.com/intersectmbo/cardano-node
 cd cardano-node
 ```
 
 #### Build Cardano Node
 
-You can use the instructions below to build the latest release of [cardano-node](https://github.com/input-output-hk/cardano-node). 
+You can use the instructions below to build the latest release of [cardano-node](https://github.com/intersectmbo/cardano-node). 
 
 ``` bash
-git fetch --tags --all
+git fetch --tags --recurse-submodules --all
 git pull
-# Replace tag against checkout if you do not want to build the latest released version
-git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-node/releases/latest | jq -r .tag_name)
+# Replace tag against checkout if you do not want to build the latest released version, we recommend using battle tested node versions - which may not always be latest
+git checkout $(curl -sLf https://api.github.com/repos/intersectmbo/cardano-node/releases/latest | jq -r .tag_name)
 
 # Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
 $CNODE_HOME/scripts/cabal-build-all.sh
@@ -32,7 +32,7 @@ The above would copy the binaries built into `~/.local/bin` folder.
 #### Download pre-compiled Binary from Node release
 
 While certain folks might want to build the node themselves (could be due to OS/arch compatibility, trust factor or customisations), for most it might not make sense to build the node locally.
-Instead, you can download the binaries using [cardano-node release notes](https://github.com/input-output-hk/cardano-node/releases), where-in you can find the download links for every version.
+Instead, you can download the binaries using [cardano-node release notes](https://github.com/intersectmbo/cardano-node/releases), where-in you can find the download links for every version.
 Once downloaded, you would want to make it available to preferred `PATH` in your environment (if you're asking how - that'd mean you've skipped skillsets mentioned on homepage).
 
 ### Verify
