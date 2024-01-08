@@ -10,7 +10,7 @@ curl -sSL https://get.haskellstack.org/ | sh
 
 note:  you must build from source as of today as there are changes that just got into master you need
 ```
-git clone https://github.com/input-output-hk/cardano-wallet.git
+git clone https://github.com/cardano-foundation/cardano-wallet.git
 ```
 
 ## 3.  Go into the wallet directory

@@ -12,21 +12,21 @@ Execute the below to clone the `cardano-wallet` repository to `$HOME/git` folder
 
 ``` bash
 cd ~/git
-git clone https://github.com/input-output-hk/cardano-wallet
+git clone https://github.com/cardano-foundation/cardano-wallet
 cd cardano-wallet
 ```
 
 ##### Build Cardano Wallet
 
-You can use the instructions below to build the latest release of [cardano-wallet](https://github.com/input-output-hk/cardano-wallet).
+You can use the instructions below to build the latest release of [cardano-wallet](https://github.com/cardano-foundation/cardano-wallet).
 
-!> - Note that the latest release of `cardano-wallet` may not work with the latest release of `cardano-node`. Please check the compatibility of each `cardano-wallet` release yourself in the official docs, e.g. https://github.com/input-output-hk/cardano-wallet/releases/latest.
+!> - Note that the latest release of `cardano-wallet` may not work with the latest release of `cardano-node`. Please check the compatibility of each `cardano-wallet` release yourself in the official docs, e.g. https://github.com/cardano-foundation/cardano-wallet/releases/latest.
 
 ``` bash
 git fetch --tags --all
 git pull
 # Replace tag against checkout if you do not want to build the latest released version
-git checkout $(curl -s https://api.github.com/repos/input-output-hk/cardano-wallet/releases/latest | jq -r .tag_name)
+git checkout $(curl -s https://api.github.com/repos/cardano-foundation/cardano-wallet/releases/latest | jq -r .tag_name)
 $CNODE_HOME/scripts/cabal-build-all.sh
 ```
 

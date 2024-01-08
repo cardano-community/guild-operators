@@ -1,4 +1,4 @@
-The documentation here uses instructions from [IOHK repositories](https://github.com/input-output-hk) as a foundation, with additional info which we can contribute to where appropriate. Note that not everyone needs to build each component. You can refer to [architecture](https://docs.cardano.org/explore-cardano/cardano-architecture) to understand and qualify which of the components built by IO you want to run.
+The documentation here uses instructions from [Intersect MBO repositories](https://github.com/intersectmbo) as foundation, with additional info which we can contribute to where appropriate. Note that not everyone needs to build each component. You can refer to [architecture](https://docs.cardano.org/explore-cardano/cardano-architecture) to understand and qualify which of the components built by IO you want to run.
 
 #### Components
 

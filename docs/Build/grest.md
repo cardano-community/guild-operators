@@ -1,7 +1,7 @@
 !!! important
 
     - An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned [here](../build.md#components)
-    - Ensure that you have setup [DBSync](../Build/dbsync.md) and that it is in sync atleast to Mary fork before you proceed. *IF* you're participating in Koios services, ensure that you're using [latest dbsync release](https://github.com/input-output-hk/cardano-db-sync/releases/latest)
+    - Ensure that you have setup [DBSync](../Build/dbsync.md) and that it is in sync atleast to Mary fork before you proceed. *IF* you're participating in Koios services, ensure that you're using [latest dbsync release](https://github.com/intersectmbo/cardano-db-sync/releases/latest)
 
 ### What is gRest
 
