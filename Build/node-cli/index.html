@@ -1089,15 +1089,15 @@
 <h4 id="clone-the-repository">Clone the repository<a class="headerlink" href="#clone-the-repository" title="Permanent link">⚓︎</a></h4>
 <p>Execute the below to clone the cardano-node repository to <code>$HOME/git</code> folder on your system:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>~/git
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/input-output-hk/cardano-node
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/intersectmbo/cardano-node
 <span class="nb">cd</span><span class="w"> </span>cardano-node
 </code></pre></div>
 <h4 id="build-cardano-node">Build Cardano Node<a class="headerlink" href="#build-cardano-node" title="Permanent link">⚓︎</a></h4>
-<p>You can use the instructions below to build the latest release of <a href="https://github.com/input-output-hk/cardano-node">cardano-node</a>. </p>
-<div class="highlight"><pre><span></span><code>git<span class="w"> </span>fetch<span class="w"> </span>--tags<span class="w"> </span>--all
+<p>You can use the instructions below to build the latest release of <a href="https://github.com/intersectmbo/cardano-node">cardano-node</a>. </p>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>fetch<span class="w"> </span>--tags<span class="w"> </span>--recurse-submodules<span class="w"> </span>--all
 git<span class="w"> </span>pull
-<span class="c1"># Replace tag against checkout if you do not want to build the latest released version</span>
-git<span class="w"> </span>checkout<span class="w"> </span><span class="k">$(</span>curl<span class="w"> </span>-s<span class="w"> </span>https://api.github.com/repos/input-output-hk/cardano-node/releases/latest<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.tag_name<span class="k">)</span>
+<span class="c1"># Replace tag against checkout if you do not want to build the latest released version, we recommend using battle tested node versions - which may not always be latest</span>
+git<span class="w"> </span>checkout<span class="w"> </span><span class="k">$(</span>curl<span class="w"> </span>-sLf<span class="w"> </span>https://api.github.com/repos/intersectmbo/cardano-node/releases/latest<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.tag_name<span class="k">)</span>
 
 <span class="c1"># Use `-l` argument if you&#39;d like to use system libsodium instead of IOG fork of libsodium while compiling</span>
 <span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
@@ -1105,7 +1105,7 @@ git<span class="w"> </span>checkout<span class="w"> </span><span class="k">$(</s
 <p>The above would copy the binaries built into <code>~/.local/bin</code> folder.</p>
 <h4 id="download-pre-compiled-binary-from-node-release">Download pre-compiled Binary from Node release<a class="headerlink" href="#download-pre-compiled-binary-from-node-release" title="Permanent link">⚓︎</a></h4>
 <p>While certain folks might want to build the node themselves (could be due to OS/arch compatibility, trust factor or customisations), for most it might not make sense to build the node locally.
-Instead, you can download the binaries using <a href="https://github.com/input-output-hk/cardano-node/releases">cardano-node release notes</a>, where-in you can find the download links for every version.
+Instead, you can download the binaries using <a href="https://github.com/intersectmbo/cardano-node/releases">cardano-node release notes</a>, where-in you can find the download links for every version.
 Once downloaded, you would want to make it available to preferred <code>PATH</code> in your environment (if you're asking how - that'd mean you've skipped skillsets mentioned on homepage).</p>
 <h3 id="verify">Verify<a class="headerlink" href="#verify" title="Permanent link">⚓︎</a></h3>
 <p>Execute <code>cardano-cli</code> and <code>cardano-node</code> to verify output as below (the exact version and git rev should depend on your checkout tag on github repository):</p>

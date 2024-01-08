@@ -1072,15 +1072,15 @@
 <p>An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned <a href="../../build/#components">here</a>.  </p>
 <ul>
 <li>Ensure the <a href="../../basics/#pre-requisites">Pre-Requisites</a> are in place before you proceed.</li>
-<li>The <a href="https://github.com/input-output-hk/cardano-db-sync">Cardano DB Sync</a> relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="../../Appendix/postgres/">Sample Local PostgreSQL Server Deployment instructions</a> for setting up a Postgres instance. Specifically, we expect the <code>PGPASSFILE</code> environment variable is set as per the instructions in the sample guide, for <code>db-sync</code> to be able to connect.</li>
-<li>One of the biggest obstacles for user experience when running dbsync is ensuring you satisfy EACH of the points mentioned in System Requirements <a href="https://github.com/input-output-hk/cardano-db-sync#system-requirements">here</a>. Also, note that we do not advise running dbsync on mainnet if your RAM is below 48GB.</li>
+<li>The <a href="https://github.com/intersectmbo/cardano-db-sync">Cardano DB Sync</a> relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to <a href="../../Appendix/postgres/">Sample Local PostgreSQL Server Deployment instructions</a> for setting up a Postgres instance. Specifically, we expect the <code>PGPASSFILE</code> environment variable is set as per the instructions in the sample guide, for <code>db-sync</code> to be able to connect.</li>
+<li>One of the biggest obstacles for user experience when running dbsync is ensuring you satisfy EACH of the points mentioned in System Requirements <a href="https://github.com/intersectmbo/cardano-db-sync#system-requirements">here</a>. Also, note that we do not advise running dbsync on mainnet if your RAM is below 48GB.</li>
 </ul>
 </div>
 <h3 id="build-instructions">Build Instructions<a class="headerlink" href="#build-instructions" title="Permanent link">⚓︎</a></h3>
 <h4 id="clone-the-repository">Clone the repository<a class="headerlink" href="#clone-the-repository" title="Permanent link">⚓︎</a></h4>
 <p>Execute the below to clone the <code>cardano-db-sync</code> repository to <code>$HOME/git</code> folder on your system:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>~/git
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/input-output-hk/cardano-db-sync
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/intersectmbo/cardano-db-sync
 <span class="nb">cd</span><span class="w"> </span>cardano-db-sync
 </code></pre></div>
 <h4 id="build-cardano-db-sync">Build Cardano DB Sync<a class="headerlink" href="#build-cardano-db-sync" title="Permanent link">⚓︎</a></h4>
@@ -1091,7 +1091,7 @@ git<span class="w"> </span>pull
 <span class="c1"># On CentOS 7 (GCC 4.8.5) we should also do</span>
 <span class="c1"># echo -e &quot;package cryptonite\n  flags: -use_target_attributes&quot; &gt;&gt; cabal.project.local</span>
 <span class="c1"># Replace tag against checkout if you do not want to build the latest released version</span>
-git<span class="w"> </span>checkout<span class="w"> </span><span class="k">$(</span>curl<span class="w"> </span>-s<span class="w"> </span>https://api.github.com/repos/input-output-hk/cardano-db-sync/releases/latest<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.tag_name<span class="k">)</span>
+git<span class="w"> </span>checkout<span class="w"> </span><span class="k">$(</span>curl<span class="w"> </span>-sLf<span class="w"> </span>https://api.github.com/repos/intersectmbo/cardano-db-sync/releases/latest<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.tag_name<span class="k">)</span>
 <span class="c1"># Use `-l` argument if you&#39;d like to use system libsodium instead of IOG fork of libsodium while compiling</span>
 <span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
 </code></pre></div>
@@ -1111,7 +1111,7 @@ scripts/postgresql-setup.sh<span class="w"> </span>--createdb
 <div class="highlight"><pre><span></span><code>ln<span class="w"> </span>-s<span class="w"> </span>~/git/cardano-db-sync/schema<span class="w"> </span><span class="nv">$CNODE_HOME</span>/guild-db/schema
 </code></pre></div>
 <h4 id="restore-using-snapshot">Restore using Snapshot<a class="headerlink" href="#restore-using-snapshot" title="Permanent link">⚓︎</a></h4>
-<p>If you're running a mainnet/preview/preprod instance of dbsync, you might want to consider use of dbsync snapshots as documented <a href="https://github.com/input-output-hk/cardano-db-sync/blob/master/doc/state-snapshot.md">here</a>. The snapshot files as of recent epoch are available via links in <a href="https://github.com/input-output-hk/cardano-db-sync/releases">release notes</a>.</p>
+<p>If you're running a mainnet/preview/preprod instance of dbsync, you might want to consider use of dbsync snapshots as documented <a href="https://github.com/intersectmbo/cardano-db-sync/blob/master/doc/state-snapshot.md">here</a>. The snapshot files as of recent epoch are available via links in <a href="https://github.com/intersectmbo/cardano-db-sync/releases">release notes</a>.</p>
 <p>At high-level, this would involve steps as below (read and update paths as per your environment):</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Replace the actual link below with the latest one from release notes</span>
 wget<span class="w"> </span>https://update-cardano-mainnet.iohk.io/cardano-db-sync/13/db-sync-snapshot-schema-13-block-7622755-x86_64.tgz
