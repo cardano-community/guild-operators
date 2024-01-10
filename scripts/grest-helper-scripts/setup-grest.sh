@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=v1.1.0
+SGVERSION=v1.1.1
 
 ######## Functions ########
   usage() {
@@ -139,8 +139,8 @@ SGVERSION=v1.1.0
     get_cron_job_executable "stake-distribution-update"
     set_cron_variables "stake-distribution-update"
     # Special condition for guild network (NWMAGIC=141) where activity and entries are minimal, and epoch duration is 1 hour
-    ([[ ${NWMAGIC} -eq 141 ]] && install_cron_job "stake-distribution-update" "*/5 * * * *") ||
-      install_cron_job "stake-distribution-update" "*/30 * * * *"
+    ([[ ${NWMAGIC} -eq 141 ]] && install_cron_job "stake-distribution-update" "*/10 * * * *") ||
+      install_cron_job "stake-distribution-update" "*/120 * * * *"
 
     get_cron_job_executable "stake-distribution-new-accounts-update"
     set_cron_variables "stake-distribution-new-accounts-update"
@@ -303,7 +303,7 @@ SGVERSION=v1.1.0
       pgrest_binary=linux-static-x64.tar.xz
     fi
     #pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep ${pgrest_binary})"
-    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v11.2.2/postgrest-v11.2.2-${pgrest_binary}" # Fix PostgREST to v11.2.2 until v12 headers are updated
+    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v12.0.2/postgrest-v12.0.2-${pgrest_binary}" # Fix PostgREST to v11.2.2 until v12 headers are updated
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
@@ -319,7 +319,9 @@ SGVERSION=v1.1.0
   deploy_haproxy() {
     printf "\n[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
-    haproxy_url="http://www.haproxy.org/download/2.8/src/haproxy-2.8.3.tar.gz"
+    major_v="2.9"
+    minor_v="1"
+    haproxy_url="http://www.haproxy.org/download/${major_v}/src/haproxy-${major_v}.${minor_v}.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
@@ -328,7 +330,7 @@ SGVERSION=v1.1.0
       if command -v yum >/dev/null; then
         sudo yum -y install pcre-devel >/dev/null || err_exit "'sudo yum -y install prce-devel' failed!"
       fi
-      cd haproxy-2.8.3 || return
+      cd haproxy-${major_v}.${minor_v} || return
       make clean >/dev/null
       make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 USE_PROMEX=1 >/dev/null
       sudo make install-bin >/dev/null
@@ -375,6 +377,9 @@ SGVERSION=v1.1.0
 			db-anon-role = "web_anon"
 			server-host = "127.0.0.1"
 			server-port = 8050
+			db-aggregates-enabled = true
+			#db-plan-enabled = false
+			#server-timing-enabled = true
 			#jwt-secret = "secret-token"
 			#db-pool = 10
 			#db-extra-search-path = "public"
@@ -392,8 +397,8 @@ SGVERSION=v1.1.0
 			  maxconn 256
 			  ulimit-n 65536
 			  stats socket \"\\\$GRESTTOP\"/sockets/haproxy.socket mode 0600 level admin user \"\\\$HAPROXY_SOCKET_USER\"
-			  cpu-map 1/all 1-2
 			  log 127.0.0.1 local0 notice
+			  tune.disable-zero-copy-forwarding
 			  insecure-fork-wanted
 			  external-check
 			
