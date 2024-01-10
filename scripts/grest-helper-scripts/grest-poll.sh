@@ -137,10 +137,12 @@ function chk_rpcs() {
 }
 
 function chk_cache_status() {
-  last_stakedist_block=$(curl -skL "${GURL}/control_table?key=eq.stake_distribution_lbh" | jq -r .[0].last_value 2>/dev/null)
-  last_poolhist_update=$(curl -skL "${GURL}/control_table?key=eq.pool_history_cache_last_updated" | jq -r .[0].last_value 2>/dev/null)
-  last_actvstake_epoch=$(curl -skL "${GURL}/control_table?key=eq.last_active_stake_validated_epoch" | jq -r .[0].last_value 2>/dev/null)
-  last_snapshot_epoch=$(curl -skL "${GURL}/control_table?key=eq.last_stake_snapshot_epoch" | jq -r .[0].last_value 2>/dev/null)
+  ctrl_tbl=$(curl -skL "${GURL}/control_table")
+  last_stakedist_block=$(jq -r 'map(select(.key == "stake_distribution_lbh"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
+  last_poolhist_update=$(jq -r 'map(select(.key == "pool_history_cache_last_updated"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
+  last_actvstake_epoch=$(jq -r 'map(select(.key == "last_active_stake_validated_epoch"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
+  last_snapshot_epoch=$(jq -r 'map(select(.key == "last_stake_snapshot_epoch"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
+  last_epoch_summary=$(jq -r 'map(select(.key == "last_epoch_summary_data_checked"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
   if [[ "${last_stakedist_block}" == "" ]] || [[ "${last_stakedist_block}" == "[]" ]] || [[ $(( block_no - last_stakedist_block )) -gt 1000 ]]; then
     log_err "Stake Distribution cache too far from tip !!"
     optexit
@@ -153,18 +155,22 @@ function chk_cache_status() {
     log_err "Active Stake cache not populated !!"
     optexit
   else
-      [[ -z "${GENESIS_JSON}" ]] && GENESIS_JSON="${PARENT}"/../files/shelley-genesis.json
-      epoch_length=$(jq -r .epochLength "${GENESIS_JSON}" 2>/dev/null)
-      if [[ ${epoch_slot} -ge $(( epoch_length / 8 )) ]]; then
-        if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
-          log_err "Active Stake cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 10 )) !!"
-          optexit
-        fi
-      else
-        if [[ $((last_snapshot_epoch + 2)) -lt ${epoch} ]]; then
-          log_err "Stake snapshot for instance is at '${last_snapshot_epoch}' while current epoch is ${epoch}  !!"
-          optexit
-        fi
+    [[ -z "${GENESIS_JSON}" ]] && GENESIS_JSON="${PARENT}"/../files/shelley-genesis.json
+    epoch_length=$(jq -r .epochLength "${GENESIS_JSON}" 2>/dev/null)
+    if [[ ${epoch_slot} -ge $(( epoch_length / 6 )) ]]; then
+      if [[ "${last_actvstake_epoch}" != "${epoch}" ]]; then
+        log_err "Active Stake cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 10 )) !!"
+        optexit
+      fi
+      if [[ "last_epoch_summary" != "${epoch}" ]]; then
+        log_err "Epoch Summary Cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 10 )) !!"
+        optexit
+      fi
+    else
+      if [[ $((last_snapshot_epoch + 2)) -lt ${epoch} ]]; then
+        log_err "Stake snapshot for instance is at '${last_snapshot_epoch}' while current epoch is ${epoch}  !!"
+        optexit
+      fi
     fi
   fi
 }
@@ -220,7 +226,6 @@ else
 fi
 
 chk_upd
-
 chk_version
 chk_rpcs
 chk_tip

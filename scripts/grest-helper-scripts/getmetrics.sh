@@ -42,17 +42,16 @@ function get-metrics() {
   tip=$(curl -s http://${RESTAPI_HOST}:${RESTAPI_PORT}/rpc/tip)
   meminf=$(grep "^Mem" /proc/meminfo)
   load1m=$(( $(awk '{ print $1*100 }' /proc/loadavg) / $(grep -c ^processor /proc/cpuinfo) ))
-  memtotal=$(( $(echo "${meminf}" | grep MemTotal | awk '{print $2}') ))
-  arcused=$(awk -v CONVFMT='%i' '/^size/ { print $3/1024 }' /proc/spl/kstat/zfs/arcstats 2>/dev/null)
+  memtotal=$(echo "${meminf}" | grep MemTotal | awk '{print $2}')
+  arcused=$(awk -v OFMT='%i' '/^size/ { print $3/1024 }' /proc/spl/kstat/zfs/arcstats 2>/dev/null)
   [[ -z "${arcused}" ]] && arcused=0
   memused=$(( memtotal - $(echo "${meminf}" | grep MemAvailable | awk '{print $2}') - arcused ))
-  cpuutil=$(awk -v a="$(awk '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
+  cpuutil=$(awk -v a="$(awk -v OFMT='%i' '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
   # in Bytes
   pubschsize=$(psql -t --csv -d ${PGDATABASE} -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | grep "^[0-9]")
   grestschsize=$(psql -t --csv -d ${PGDATABASE} -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | grep "^[0-9]")
   grestconns=$(psql -t --csv -d ${PGDATABASE} -c "select count(1) from pg_stat_activity where state='active' or state='idle';" | awk '{print $1}')
   dbsize=$(psql -t --csv -d ${PGDATABASE} -c "SELECT pg_database_size ('${PGDATABASE}');" | grep "^[0-9]")
-
   # Metrics
   export METRIC_dbsynctipref=$(( currslottip - $( echo "${tip}" | jq .[0].abs_slot) ))
   export METRIC_nodetipref=$(( currslottip - slotnum ))
