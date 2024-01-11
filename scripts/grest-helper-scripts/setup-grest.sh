@@ -320,7 +320,7 @@ SGVERSION=v1.1.1
     printf "\n[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
     major_v="2.9"
-    minor_v="1"
+    minor_v="2"
     haproxy_url="http://www.haproxy.org/download/${major_v}/src/haproxy-${major_v}.${minor_v}.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
@@ -560,7 +560,7 @@ SGVERSION=v1.1.1
       err_exit "Failed to get basic db setup SQL from ${basics_sql_url}"
     fi
     printf "\nAdding grest schema if missing and granting usage for web_anon..."
-    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" -q <<<${basics_sql} 2>&1) && err_exit "${output}"
+    ! output=$(psql "${PGDATABASE}" -q <<<${basics_sql} 2>&1) && err_exit "${output}"
     return 0
   }
 

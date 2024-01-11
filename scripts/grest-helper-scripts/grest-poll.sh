@@ -162,7 +162,7 @@ function chk_cache_status() {
         log_err "Active Stake cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 6 )) !!"
         optexit
       fi
-      if [[ "last_epoch_summary" != "${epoch}" ]]; then
+      if [[ "${last_epoch_summary}" != "${epoch}" ]]; then
         log_err "Epoch Summary Cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 6 )) !!"
         optexit
       fi
