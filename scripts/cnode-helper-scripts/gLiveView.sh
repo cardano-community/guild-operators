@@ -59,7 +59,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.28.4
+GLV_VERSION=v1.28.5
 
 PARENT="$(dirname $0)"
 
@@ -524,7 +524,7 @@ getOpCert () {
     op_cert_tsv=$(jq -r '[
     .qKesNodeStateOperationalCertificateNumber //"?",
     .qKesOnDiskOperationalCertificateNumber //"?"
-    ] | @tsv' <<<"$(${CCLI} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}" | tail -n +3)")
+    ] | @tsv' <<<"$(${CCLI} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}" | grep "^[{ }]")")
     read -ra op_cert_arr <<< ${op_cert_tsv}
     isNumber ${op_cert_arr[0]} && op_cert_node=${op_cert_arr[0]}
     isNumber ${op_cert_arr[1]} && op_cert_disk=${op_cert_arr[1]}
