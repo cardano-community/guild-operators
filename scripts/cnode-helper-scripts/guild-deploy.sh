@@ -489,7 +489,11 @@ download_ogmios() {
 download_cardanosigner() {
   [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The cardano-signer pre-compiled binary is not available for ARM, you might need to build them!"
   echo -e "\nInstalling Cardano Signer"
-  if command -v cardano-signer >/dev/null; then csigner_version="v$(cardano-signer version)"; else csigner_version="v0.0.0"; fi
+  if command -v cardano-signer >/dev/null && [[ $(cardano-signer version) =~ ([0-9.]+) ]]; then
+    csigner_version="v${BASH_REMATCH[1]}"
+  else
+    csigner_version="v0.0.0"
+  fi
   csigner_git_version="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.tag_name')"
   if ! versionCheck "${csigner_git_version}" "${csigner_version}"; then
     rm -rf /tmp/csigner && mkdir /tmp/csigner
