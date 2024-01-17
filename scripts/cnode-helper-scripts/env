@@ -727,10 +727,10 @@ getPoolID() {
   pool_id_bech32=""
   pool_coldkey_vk_file="${pool_dir}/${POOL_COLDKEY_VK_FILENAME}"
   if [[ -f ${pool_coldkey_vk_file} ]]; then
-    [[ $(type -t println) = function ]] && println ACTION "${CCLI} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file} --output-format hex"
-    [[ $(type -t println) = function ]] && println ACTION "${CCLI} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file}"
-    if ! pool_id=$(${CCLI} stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null) || \
-       ! pool_id_bech32=$(${CCLI} stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null); then
+    [[ $(type -t println) = function ]] && println ACTION "${CCLI} ${NETWORK_ERA} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file} --output-format hex"
+    [[ $(type -t println) = function ]] && println ACTION "${CCLI} ${NETWORK_ERA} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file}"
+    if ! pool_id=$(${CCLI} ${NETWORK_ERA} stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null) || \
+       ! pool_id_bech32=$(${CCLI} ${NETWORK_ERA} stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null); then
       return 1
     fi
     echo ${pool_id} > "${pool_id_file}"
@@ -746,7 +746,7 @@ slotInterval() {
 }
 
 getProtocolParams() {
-  PROT_PARAMS="$(${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} &>/dev/null)"
+  PROT_PARAMS="$(${CCLI} ${NETWORK_ERA} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
   read -ra PROT_PARAMS_VERSION <<<"$(jq -r '[ .protocolVersion.major //0, .protocolVersion.minor //0]| @tsv' <<<"${PROT_PARAMS}" 2>/dev/null)"
   PROT_MAJOR=${PROT_PARAMS_VERSION[0]}
   PROT_MINOR=${PROT_PARAMS_VERSION[1]}
@@ -925,6 +925,9 @@ if ! command -v "jq" &>/dev/null; then
   return 1
 fi
 
+NETWORK_ERA=$(${CCLI} latest query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq -r '.era //empty' | tr '[:upper:]' '[:lower:]')
+[[ -z ${NETWORK_ERA} ]] && NETWORK_ERA=latest
+
 read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile //"null", .ByronGenesisFile //"null", .ShelleyGenesisFile //"null", .Protocol //"Cardano", .TraceChainDb //"null", .EnableP2P //"false", .ConwayGenesisFile //"null"]| @tsv' "${CONFIG}" 2>/dev/null)"
 if [[ ${CONFIG_CONTENTS[4]} != "true" ]]; then
   echo "Could not find TraceChainDb when attempting to parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
@@ -944,7 +947,7 @@ else
   [[ ! -f "${ALONZO_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${ALONZO_GENESIS_JSON}" && return 1
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
   [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
-  GENESIS_HASH="$(${CCLI} genesis hash --genesis "${GENESIS_JSON}")"
+  GENESIS_HASH="$(${CCLI} ${NETWORK_ERA} genesis hash --genesis "${GENESIS_JSON}")"
   PROTOCOL="${CONFIG_CONTENTS[3]}"
   P2P_ENABLED="${CONFIG_CONTENTS[5]}"
 fi
@@ -1071,9 +1074,6 @@ case ${NWMAGIC} in
     NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
 esac
-
-NETWORK_ERA=$(${CCLI} latest query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq -r '.era //empty' | tr '[:upper:]' '[:lower:]')
-[[ -z ${NETWORK_ERA} ]] && NETWORK_ERA=latest
 
 test_koios() {
   # make sure KOIOS_API is reachable, else fall back to cli

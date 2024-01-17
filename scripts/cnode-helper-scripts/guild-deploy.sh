@@ -497,7 +497,7 @@ download_cardanosigner() {
     csigner_asset_url="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.assets[].browser_download_url')"
     csigner_release_url=""
     while IFS= read -r release; do
-      if [[ -z ${ARCH##*x86_64*} && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
+      if [[ -z ${ARCH##*x86_64*} && ${release} = *linux-amd64.tar.gz ]]; then # Linux x64
         csigner_release_url=${release}; break
       fi
     done <<< "${csigner_asset_url}"
