@@ -115,7 +115,7 @@ getPoolVrfVkeyCborHex() {
 }
 
 getLedgerData() { # getNodeMetrics expected to have been already run
-  if ! stake_snapshot=$(${CCLI} query stake-snapshot --stake-pool-id ${POOL_ID} ${NETWORK_IDENTIFIER} 2>&1); then
+  if ! stake_snapshot=$(${CCLI} ${NETWORK_ERA} query stake-snapshot --stake-pool-id ${POOL_ID} ${NETWORK_IDENTIFIER} 2>&1); then
     echo "ERROR: stake-snapshot query failed: ${stake_snapshot}"
     return 1
   fi
@@ -199,7 +199,7 @@ cncliInit() {
   
   [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'guild-deploy.sh'\n" && exit 1
   CNCLI_VERSION="v$(cncli -V | cut -d' ' -f2)"
-  if ! versionCheck "5.1.0" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, minimum required version is 5.1.0, please upgrade to latest version!"; exit 1; fi
+  if ! versionCheck "6.0.0" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, minimum required version is 6.0.0, please upgrade to latest version!"; exit 1; fi
   
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   if ! mkdir -p "${CNCLI_DIR}" 2>/dev/null; then echo "ERROR: Failed to create CNCLI DB directory: ${CNCLI_DIR}"; exit 1; fi
@@ -266,8 +266,8 @@ cncliLeaderlog() {
   
   [[ ${subarg} != "force" ]] && echo "Node in sync, sleeping for ${SLEEP_RATE}s before running leaderlogs for current epoch" && sleep ${SLEEP_RATE}
   getNodeMetrics
-  getEraIdentifier
-  if [[ ${NETWORK_ERA} = "Babbage" ]]; then consensus="praos"; else consensus="tpraos"; fi
+  getProtocolParams
+  if versionCheck "8.0" "${PROT_VERSION}"; then consensus="praos"; else consensus="tpraos"; fi
   curr_epoch=${epochnum}
   if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${curr_epoch};" 2>/dev/null) -eq 1 && ${subarg} != "force" ]]; then
     echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
@@ -322,8 +322,8 @@ cncliLeaderlog() {
   while true; do
     [[ ${subarg} != "force" ]] && sleep ${SLEEP_RATE}
     getNodeMetrics
-    getEraIdentifier
-    if [[ ${NETWORK_ERA} = "Babbage" ]]; then consensus="praos"; else consensus="tpraos"; fi
+    getProtocolParams
+    if versionCheck "8.0" "${PROT_VERSION}"; then consensus="praos"; else consensus="tpraos"; fi
     if ! cncliDBinSync; then # verify that cncli DB is still in sync
       echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... checking again in ${SLEEP_RATE}s"
       [[ ${subarg} = force ]] && sleep ${SLEEP_RATE}

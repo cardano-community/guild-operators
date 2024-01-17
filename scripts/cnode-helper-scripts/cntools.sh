@@ -385,12 +385,12 @@ function main {
                 println "      Choose another name or delete the existing one"
                 waitForInput && continue
               fi
-              println ACTION "${CCLI} address key-gen --verification-key-file ${payment_vk_file} --signing-key-file ${payment_sk_file}"
-              if ! ${CCLI} address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"; then
+              println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${payment_vk_file} --signing-key-file ${payment_sk_file}"
+              if ! ${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"; then
                 println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key creation!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
               fi
-              println ACTION "${CCLI} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
-              if ! ${CCLI} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}"; then
+              println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
+              if ! ${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}"; then
                 println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
               fi
               chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
@@ -502,20 +502,20 @@ function main {
 											    "cborHex": "5880${ses_key}"
 											}
 											EOF
-                    println ACTION "${CCLI} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_DIR}/payment.evkey"
-                    if ! ${CCLI} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_DIR}/payment.evkey"; then
+                    println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_DIR}/payment.evkey"
+                    if ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_DIR}/payment.evkey"; then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during payment signing key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
                     fi
-                    println ACTION "${CCLI} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_DIR}/stake.evkey"
-                    if ! ${CCLI} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_DIR}/stake.evkey"; then
+                    println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_DIR}/stake.evkey"
+                    if ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_DIR}/stake.evkey"; then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during stake signing key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
                     fi
-                    println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
-                    if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}"; then
+                    println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
+                    if ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}"; then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
                     fi
-                    println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/stake.evkey --verification-key-file ${stake_vk_file}"
-                    if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}"; then
+                    println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/stake.evkey --verification-key-file ${stake_vk_file}"
+                    if ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}"; then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
                     fi
                     chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
@@ -1295,98 +1295,6 @@ function main {
               for asset in "${!assets[@]}"; do
                 assets_left[${asset}]=${assets[${asset}]}
               done
-              minUTxOValue=$(jq -r '.minUTxOValue //1000000' <<< "${PROT_PARAMS}")
-
-              # Amount
-              println DEBUG "\n# Amount to Send (in Ada)"
-              println DEBUG " Valid entry:"
-              println DEBUG "   ${FG_LGRAY}>${NC} Integer (e.g. 15) or Decimal (e.g. 956.1235), commas allowed as thousand separator"
-              println DEBUG "   ${FG_LGRAY}>${NC} The string '${FG_YELLOW}all${NC}' sends all available funds in source wallet"
-              println DEBUG " Multi-Asset Info:"
-              println DEBUG "   ${FG_LGRAY}>${NC} If '${FG_YELLOW}all${NC}' is used and the wallet contain multiple assets,"
-              println DEBUG "   ${FG_LGRAY}>${NC} then all assets will be transferred(incl Ada) to the destination address"
-              println DEBUG " Minimum Amount: ${FG_LBLUE}$(formatLovelace ${minUTxOValue})${NC} Ada"
-              println DEBUG "   ${FG_LGRAY}>${NC} To calculate the minimum Ada required if additional assets/tokens are to be sent,"\
-								"     make a dummy transaction with ${FG_LBLUE}0${NC} Ada selecting the tokens to send with the correct amount\n"
-              getAnswerAnyCust amountADA "Amount (Ada)"
-              amountADA="${amountADA//,}"
-              echo
-              if  [[ ${amountADA} != "all" ]]; then
-                if ! AdaToLovelace "${amountADA}" >/dev/null; then
-                  waitForInput && continue
-                fi
-                amount_lovelace=$(AdaToLovelace "${amountADA}")
-                [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} Ada" && waitForInput && continue
-                println DEBUG "Fee payed by sender? [else amount sent is reduced]"
-                select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
-                case $? in
-                  0) include_fee="no" ;;
-                  1) include_fee="yes" ;;
-                  2) continue ;;
-                esac
-              else
-                amount_lovelace=${assets[lovelace]}
-                println DEBUG "Ada to send set to total supply: ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC}"
-                include_fee="yes"
-              fi
-              echo
-              declare -gA assets_to_send=()
-              if [[ ${amount_lovelace} -eq ${assets[lovelace]} ]]; then
-                unset assets_left
-                for asset in "${!assets[@]}"; do
-                  assets_to_send[${asset}]=${assets[${asset}]} # add all assets, e.g clone assets array to assets_to_send
-                done
-              else
-                assets_left[lovelace]=$(( assets_left[lovelace] - amount_lovelace ))
-                assets_to_send[lovelace]=${amount_lovelace}
-              fi
-              
-              # Add additional assets to transaction?
-              if [[ ${#assets_left[@]} -gt 0 && ${#assets[@]} -gt 1 ]]; then
-                println DEBUG "Additional assets found on address, include in transaction?"
-                asset_cnt=1
-                select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
-                case $? in
-                  0) : ;;
-                  1) declare -A assets_on_addr=()
-                    for asset in "${!assets[@]}"; do
-                      [[ ${asset} = "lovelace" ]] && continue
-                      IFS='.' read -ra asset_arr <<< "${asset}"
-                      assets_on_addr["${asset} ($(hexToAscii ${asset_arr[1]}))"]=0 # only interested in the key
-                    done
-                    while true; do
-                      select_opt "${!assets_on_addr[@]}" "[Esc] Cancel"
-                      selection=$?
-                      [[ ${selected_value} = "[Esc] Cancel" ]] && continue 2
-                      IFS=' ' read -ra selection_arr <<< "${selected_value}"
-                      println DEBUG "Available to send: ${FG_LBLUE}$(formatAsset ${assets[${selection_arr[0]}]})${NC}"
-                      getAnswerAnyCust asset_amount "Amount (commas allowed as thousand separator)"
-                      asset_amount="${asset_amount//,}"
-                      [[ ${asset_amount} = "all" ]] && asset_amount=${assets[${selection_arr[0]}]}
-                      if ! isNumber ${asset_amount}; then println ERROR "${FG_RED}ERROR${NC}: invalid number, non digit characters found!" && continue; fi
-                      if [[ ${asset_amount} -gt ${assets[${selection_arr[0]}]} ]]; then
-                        println ERROR "${FG_RED}ERROR${NC}: you cant send more assets than available on address!" && continue
-                      elif [[ ${asset_amount} -eq ${assets[${selection_arr[0]}]} ]]; then
-                        unset assets_left[${selection_arr[0]}]
-                      else
-                        assets_left[${selection_arr[0]}]=$(( assets_left[${selection_arr[0]}] - asset_amount ))
-                      fi
-                      assets_to_send[${selection_arr[0]}]=${asset_amount}
-                      unset assets_on_addr["${selected_value}"]
-                      [[ $((++asset_cnt)) -eq ${#assets[@]} ]] && break
-                      println DEBUG "Add more assets?"
-                      select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
-                      case $? in
-                        0) break ;;
-                        1) : ;;
-                        2) continue 2 ;;
-                      esac
-                    done 
-                    ;;
-                  2) continue ;;
-                esac
-                echo
-              fi
 
               # Destination
               d_wallet=""
@@ -1428,6 +1336,111 @@ function main {
               if [[ -z ${d_addr} ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: destination address field empty"
                 waitForInput && continue
+              fi
+
+              declare -gA assets_to_send=()
+
+              # Add additional assets to transaction?
+              if [[ ${#assets_left[@]} -gt 1 ]]; then
+                println DEBUG "Additional assets found on address, include in transaction?"
+                select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+                case $? in
+                  0) : ;;
+                  1) declare -A assets_on_addr=()
+                    for asset in "${!assets_left[@]}"; do
+                      [[ ${asset} = "lovelace" ]] && continue
+                      IFS='.' read -ra asset_arr <<< "${asset}"
+                      assets_on_addr["${asset} ($(hexToAscii ${asset_arr[1]}))"]=0 # only interested in the key
+                    done
+                    while true; do
+                      select_opt "${!assets_on_addr[@]}" "[Esc] Cancel"
+                      selection=$?
+                      [[ ${selected_value} = "[Esc] Cancel" ]] && continue 2
+                      IFS=' ' read -ra selection_arr <<< "${selected_value}"
+                      println DEBUG "Available to send: ${FG_LBLUE}$(formatAsset ${assets[${selection_arr[0]}]})${NC}"
+                      getAnswerAnyCust asset_amount "Amount (commas allowed as thousand separator)"
+                      asset_amount="${asset_amount//,}"
+                      [[ ${asset_amount} = "all" ]] && asset_amount=${assets[${selection_arr[0]}]}
+                      if ! isNumber ${asset_amount}; then println ERROR "${FG_RED}ERROR${NC}: invalid number, non digit characters found!" && continue; fi
+                      if [[ ${asset_amount} -gt ${assets[${selection_arr[0]}]} ]]; then
+                        println ERROR "${FG_RED}ERROR${NC}: you cant send more assets than available on address!" && continue
+                      elif [[ ${asset_amount} -eq ${assets[${selection_arr[0]}]} ]]; then
+                        unset assets_left[${selection_arr[0]}]
+                      else
+                        assets_left[${selection_arr[0]}]=$(( assets_left[${selection_arr[0]}] - asset_amount ))
+                      fi
+                      assets_to_send[${selection_arr[0]}]=${asset_amount}
+                      unset assets_on_addr["${selected_value}"]
+                      [[ ${#assets_left[@]} -gt 1 ]] && break
+                      println DEBUG "Add more assets?"
+                      select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+                      case $? in
+                        0) break ;;
+                        1) : ;;
+                        2) continue 2 ;;
+                      esac
+                    done
+                    ;;
+                  2) continue ;;
+                esac
+                echo
+              fi
+
+              # Amount
+              getAssetsTxOut
+              getMinUTxO "--tx-out ${d_addr}+1${assets_tx_out}"
+              println DEBUG "\n# Amount to Send (in Ada)"
+              println DEBUG " Valid entry:"
+              println DEBUG "   ${FG_LGRAY}>${NC} Integer (e.g. 15) or Decimal (e.g. 956.1235), commas allowed as thousand separator"
+              println DEBUG "   ${FG_LGRAY}>${NC} The string '${FG_YELLOW}all${NC}' sends all available funds in source wallet"
+              println DEBUG " Multi-Asset Info:"
+              println DEBUG "   ${FG_LGRAY}>${NC} If '${FG_YELLOW}all${NC}' is used and the wallet contain multiple assets,"
+              println DEBUG "   ${FG_LGRAY}>${NC} then all assets will be transferred(incl Ada) to the destination address"
+              println DEBUG " Minimum Amount: ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada"
+              println DEBUG "   ${FG_LGRAY}>${NC} To calculate the minimum Ada required if additional assets/tokens are to be sent,"\
+								"     make a dummy transaction with ${FG_LBLUE}0${NC} Ada selecting the tokens to send with the correct amount\n"
+              getAnswerAnyCust amountADA "Amount (Ada)"
+              amountADA="${amountADA//,}"
+              echo
+              if  [[ ${amountADA} != "all" ]]; then
+                if ! AdaToLovelace "${amountADA}" >/dev/null; then
+                  waitForInput && continue
+                fi
+                amount_lovelace=$(AdaToLovelace "${amountADA}")
+                [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} Ada" && waitForInput && continue
+                println DEBUG "Fee payed by sender? [else amount sent is reduced]"
+                select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
+                case $? in
+                  0) include_fee="no" ;;
+                  1) include_fee="yes" ;;
+                  2) continue ;;
+                esac
+              else
+                amount_lovelace=${assets[lovelace]}
+                println DEBUG "Ada to send set to total supply: ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC}"
+                include_fee="yes"
+              fi
+
+              echo
+
+              if [[ ${amount_lovelace} -eq ${assets[lovelace]} ]]; then
+                if [[ ${#assets_left[@]} -gt 1 ]]; then
+                  println DEBUG "All Ada selected to be sent, automatically add all tokens?"
+                  select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
+                  case $? in
+                    0) declare -gA assets_left=()
+                       declare -gA assets_to_send=()
+                       for asset in "${!assets[@]}"; do
+                         assets_to_send[${asset}]=${assets[${asset}]} # add all assets, e.g clone assets array to assets_to_send
+                       done
+                       ;;
+                    1) println ERROR "${FG_RED}ERROR${NC}: Unable to send all Ada as there are additional assets left on address not selected to be sent" && waitForInput && continue ;;
+                    2) continue ;;
+                  esac
+                fi
+              else
+                assets_left[lovelace]=$(( assets_left[lovelace] - amount_lovelace ))
+                assets_to_send[lovelace]=${amount_lovelace}
               fi
 
               # Optional metadata/message
@@ -1580,8 +1593,8 @@ function main {
               esac
               stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
               pool_delegcert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
-              println ACTION "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --stake-pool-id ${pool_id} --out-file ${pool_delegcert_file}"
-              ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}"
+              println ACTION "${CCLI} ${NETWORK_ERA} stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --stake-pool-id ${pool_id} --out-file ${pool_delegcert_file}"
+              ${CCLI} ${NETWORK_ERA} stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}"
               if ! delegate; then
                 if [[ ${op_mode} = "online" ]]; then
                   echo && println ERROR "${FG_RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
@@ -1722,17 +1735,17 @@ function main {
                 println ERROR "      Choose another name or delete the existing one"
                 waitForInput && continue
               fi
-              println ACTION "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
-              ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
+              println ACTION "${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
+              ${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
               if [ -f "${POOL_FOLDER}-pregen/${pool_name}/${POOL_ID_FILENAME}" ]; then
                 mv ${POOL_FOLDER}'-pregen/'${pool_name}/* ${POOL_FOLDER}/${pool_name}/
                 rm -r ${POOL_FOLDER}'-pregen/'${pool_name}
               else
-                println ACTION "${CCLI} node key-gen --cold-verification-key-file ${pool_coldkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-                ${CCLI} node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
+                println ACTION "${CCLI} ${NETWORK_ERA} node key-gen --cold-verification-key-file ${pool_coldkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+                ${CCLI} ${NETWORK_ERA} node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
               fi
-              println ACTION "${CCLI} node key-gen-VRF --verification-key-file ${pool_vrf_vk_file} --signing-key-file ${pool_vrf_sk_file}"
-              ${CCLI} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
+              println ACTION "${CCLI} ${NETWORK_ERA} node key-gen-VRF --verification-key-file ${pool_vrf_vk_file} --signing-key-file ${pool_vrf_sk_file}"
+              ${CCLI} ${NETWORK_ERA} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
               chmod 600 "${POOL_FOLDER}/${pool_name}/"*
               getPoolID ${pool_name}
               echo
@@ -1768,11 +1781,11 @@ function main {
                 waitForInput && continue
               fi
 
-              println ACTION "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
-              ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
+              println ACTION "${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
+              ${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
 
-              println ACTION "${CCLI} node key-gen-VRF --verification-key-file ${pool_vrf_vk_file} --signing-key-file ${pool_vrf_sk_file}"
-              ${CCLI} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
+              println ACTION "${CCLI} ${NETWORK_ERA} node key-gen-VRF --verification-key-file ${pool_vrf_vk_file} --signing-key-file ${pool_vrf_sk_file}"
+              ${CCLI} ${NETWORK_ERA} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
 
               println ACTION "cardano-hw-cli node key-gen --path 1853H/1815H/0H/0H --hw-signing-file ${pool_coldkey_sk_file} --cold-verification-key-file ${pool_coldkey_kk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
               if ! unlockHWDevice "export cold pub keys"; then safeDel "${POOL_FOLDER}/${pool_name}"; continue; fi
@@ -2291,8 +2304,8 @@ function main {
                           --out-file "${pool_opcert_file}" \
                         && return 1
                     else
-                      println ACTION "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
-                      ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"
+                      println ACTION "${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
+                      ${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"
                     fi
                   fi
 
@@ -2309,8 +2322,8 @@ function main {
               fi
 
               println LOG "creating registration certificate"
-              println ACTION "${CCLI} stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} ${multi_owner_output} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}"
-              ${CCLI} stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" ${multi_owner_output} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
+              println ACTION "${CCLI} ${NETWORK_ERA} stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} ${multi_owner_output} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}"
+              ${CCLI} ${NETWORK_ERA} stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" ${multi_owner_output} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
 
               delegate_owner_wallet='N'
               if [[ ${SUBCOMMAND} = "register" ]]; then
@@ -2320,8 +2333,8 @@ function main {
                   waitForInput "press any key to continue"
                 else
                   println LOG "creating delegation certificate for main owner wallet"
-                  println ACTION "${CCLI} stake-address delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}"
-                  ${CCLI} stake-address delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
+                  println ACTION "${CCLI} ${NETWORK_ERA} stake-address delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}"
+                  ${CCLI} ${NETWORK_ERA} stake-address delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
                   delegate_owner_wallet='Y'
                   if [[ "${owner_wallets[0]}" != "${reward_wallet}" ]]; then
                     println DEBUG "\n${FG_BLUE}INFO${NC}: reward wallet not the same as owner, automatic reward wallet delegation disabled"
@@ -2535,8 +2548,8 @@ function main {
               pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
               pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
               println LOG "creating de-registration cert"
-              println ACTION "${CCLI} stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}"
-              ${CCLI} stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}
+              println ACTION "${CCLI} ${NETWORK_ERA} stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}"
+              ${CCLI} ${NETWORK_ERA} stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}
               echo
               if ! deRegisterPool; then
                 waitForInput && continue
@@ -2630,8 +2643,8 @@ function main {
                 select_opt "[y] Yes" "[n] No, abort"
                 [[ $? -eq 1 ]] && continue
                 tput sc && println DEBUG "Quering pool parameters from node, can take a while...\n"
-                println ACTION "${CCLI} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER}"
-                if ! pool_params=$(${CCLI} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER} 2>&1); then
+                println ACTION "${CCLI} ${NETWORK_ERA} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER}"
+                if ! pool_params=$(${CCLI} ${NETWORK_ERA} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER} 2>&1); then
                   tput rc && tput ed
                   println ERROR "${FG_RED}ERROR${NC}: pool-params query failed: ${pool_params}"
                   waitForInput && continue
@@ -2678,8 +2691,8 @@ function main {
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Description" "$(jq -r .description "${pool_meta_file}")")"
                   [[ -f "${pool_config}" ]] && meta_url="$(jq -r .json_url "${pool_config}")" || meta_url="---"
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "URL" "${meta_url}")"
-                  println "ACTION" "${CCLI} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file}"
-                  meta_hash="$( ${CCLI} stake-pool metadata-hash --pool-metadata-file "${pool_meta_file}" )"
+                  println "ACTION" "${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file}"
+                  meta_hash="$( ${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file "${pool_meta_file}" )"
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash" "${meta_hash}")"
                 fi
               elif [[ ${pool_registered} = *YES* ]]; then
@@ -2697,8 +2710,8 @@ function main {
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Homepage" "$(jq -r .homepage "$TMP_DIR/url_poolmeta.json")")"
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Description" "$(jq -r .description "$TMP_DIR/url_poolmeta.json")")"
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "URL" "${meta_json_url}")"
-                  println ACTION "${CCLI} stake-pool metadata-hash --pool-metadata-file ${TMP_DIR}/url_poolmeta.json"
-                  meta_hash_url="$( ${CCLI} stake-pool metadata-hash --pool-metadata-file "${TMP_DIR}/url_poolmeta.json" )"
+                  println ACTION "${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file ${TMP_DIR}/url_poolmeta.json"
+                  meta_hash_url="$( ${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file "${TMP_DIR}/url_poolmeta.json" )"
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash URL" "${meta_hash_url}")"
                   if [[ -z ${KOIOS_API} ]]; then
                     meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
@@ -2876,8 +2889,8 @@ function main {
                 
                 if [[ -z ${KOIOS_API} ]]; then
                   # get stake distribution
-                  println "ACTION" "LC_NUMERIC=C printf %.10f \$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep ${pool_id_bech32} | tr -s ' ' | cut -d ' ' -f 2))"
-                  stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
+                  println "ACTION" "LC_NUMERIC=C printf %.10f \$(${CCLI} ${NETWORK_ERA} query stake-distribution ${NETWORK_IDENTIFIER} | grep ${pool_id_bech32} | tr -s ' ' | cut -d ' ' -f 2))"
+                  stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} ${NETWORK_ERA} query stake-distribution ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
                   if validateDecimalNbr ${stake_pct}; then
                     println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Stake distribution" "${stake_pct}")"
                   fi
@@ -2896,8 +2909,8 @@ function main {
                   println "$(printf "%-21s : %s" "KES counter" "${kes_counter_str}")"
                 elif [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
                   pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
-                  println ACTION "${CCLI} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
-                  if ! kes_period_info=$(${CCLI} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
+                  println ACTION "${CCLI} ${NETWORK_ERA} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
+                  if ! kes_period_info=$(${CCLI} ${NETWORK_ERA} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
                     kes_counter_str="${FG_RED}ERROR${NC}: failed to grab counter from node: [${FG_LGRAY}${kes_period_info}${NC}]"
                   else
                     if op_cert_counter=$(awk '/{/,0' <<< "${kes_period_info}" | jq -er '.qKesNodeStateOperationalCertificateNumber' 2>/dev/null); then
@@ -3459,9 +3472,9 @@ function main {
                     # look for signing key in wallet folder
                     while IFS= read -r -d '' w_file; do
                       if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" ]]; then
-                        ! ${CCLI} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                        ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
                         if [[ $(jq -er '.type' "${w_file}" 2>/dev/null) = *"Extended"* ]]; then
-                          ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
+                          ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
                           mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                         fi
                         grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${w_file}" && break
@@ -3472,14 +3485,14 @@ function main {
                     # look for cold signing key in pool folder
                     if [[ -z ${skey_path} ]]; then
                       while IFS= read -r -d '' p_file; do
-                        ! ${CCLI} key verification-key --signing-key-file "${p_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                        ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${p_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
                         grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${p_file}" && break
                       done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}" -print0 2>/dev/null)
                     fi
                     # look for signing key in asset folder
                     if [[ -z ${skey_path} ]]; then
                       while IFS= read -r -d '' a_file; do
-                        ! ${CCLI} key verification-key --signing-key-file "${a_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                        ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${a_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
                         grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${a_file}" && break
                       done < <(find "${ASSET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${ASSET_POLICY_SK_FILENAME}" -print0 2>/dev/null)
                     fi
@@ -3515,11 +3528,11 @@ function main {
                         waitForInput && continue 2
                       fi
                     else
-                      println ACTION "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
-                      if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey; then waitForInput && continue 2; fi
+                      println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
+                      if ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey; then waitForInput && continue 2; fi
                       if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
-                        println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
-                        if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey"; then waitForInput && continue 2; fi
+                        println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
+                        if ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey"; then waitForInput && continue 2; fi
                         mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                       fi
                       if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
@@ -3568,9 +3581,9 @@ function main {
                     # look for signing key in wallet folder
                     while IFS= read -r -d '' w_file; do
                       if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" ]]; then
-                        ! ${CCLI} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                        ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
                         if [[ $(jq -er '.type' "${w_file}" 2>/dev/null) = *"Extended"* ]]; then
-                          ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
+                          ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
                           mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                         fi
                         grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${w_file}" && break
@@ -3581,7 +3594,7 @@ function main {
                     # look for cold signing key in pool folder
                     if [[ -z ${skey_path} ]]; then
                       while IFS= read -r -d '' p_file; do
-                        ! ${CCLI} key verification-key --signing-key-file "${p_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                        ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${p_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
                         grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${p_file}" && break
                       done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}" -print0 2>/dev/null)
                     fi
@@ -3615,11 +3628,11 @@ function main {
                               waitForInput && continue 2
                             fi
                           else
-                            println ACTION "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
-                            if ! ${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey; then waitForInput && continue 2; fi
+                            println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
+                            if ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey; then waitForInput && continue 2; fi
                             if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
-                              println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
-                              if ! ${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey"; then waitForInput && continue 2; fi
+                              println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
+                              if ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey"; then waitForInput && continue 2; fi
                               mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                             fi
                             if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
@@ -4415,12 +4428,12 @@ function main {
                       println "      Choose another name or delete the existing one"
                       waitForInput && continue
                     fi
-                    println ACTION "${CCLI} address key-gen --verification-key-file ${policy_vk_file} --signing-key-file ${policy_sk_file}"
-                    if ! ${CCLI} address key-gen --verification-key-file "${policy_vk_file}" --signing-key-file "${policy_sk_file}"; then
+                    println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${policy_vk_file} --signing-key-file ${policy_sk_file}"
+                    if ! ${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${policy_vk_file}" --signing-key-file "${policy_sk_file}"; then
                       println ERROR "${FG_RED}ERROR${NC}: failure during policy key creation!"; safeDel "${policy_folder}"; waitForInput && continue
                     fi
-                    println ACTION "${CCLI} address key-hash --payment-verification-key-file ${policy_vk_file}"
-                    if ! policy_key_hash=$(${CCLI} address key-hash --payment-verification-key-file "${policy_vk_file}"); then
+                    println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${policy_vk_file}"
+                    if ! policy_key_hash=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${policy_vk_file}"); then
                       println ERROR "${FG_RED}ERROR${NC}: failure during policy verification key hashing!"; safeDel "${policy_folder}"; waitForInput && continue
                     fi
                     println DEBUG "How long do you want the policy to be valid? (0/blank=unlimited)"
@@ -4437,8 +4450,8 @@ function main {
                       ttl=$(( $(getSlotTipRef) + (ttl_enter/SLOT_LENGTH) ))
                       echo "{ \"type\": \"all\", \"scripts\": [ { \"slot\": ${ttl}, \"type\": \"before\" }, { \"keyHash\": \"${policy_key_hash}\", \"type\": \"sig\" } ] }" > "${policy_script_file}"
                     fi
-                    println ACTION "${CCLI} transaction policyid --script-file ${policy_script_file}"
-                    if ! policy_id=$(${CCLI} transaction policyid --script-file "${policy_script_file}"); then
+                    println ACTION "${CCLI} ${NETWORK_ERA} transaction policyid --script-file ${policy_script_file}"
+                    if ! policy_id=$(${CCLI} ${NETWORK_ERA} transaction policyid --script-file "${policy_script_file}"); then
                       println ERROR "${FG_RED}ERROR${NC}: failure during policy ID generation!"; safeDel "${policy_folder}"; waitForInput && continue
                     fi
                     echo "${policy_id}" > "${policy_id_file}"

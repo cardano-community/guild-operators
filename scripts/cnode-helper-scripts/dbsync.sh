@@ -66,11 +66,11 @@ check_config_sanity() {
   [[ "${DBSYNC_CONSUMED_TX_OUT}" != "N" ]] && versionCheck 13.1.1.3 ${DBSYNC_VERSION} && DBSYNC_ARGS=" --consumed-tx-out"
   BYGENHASH=$("${CCLI}" byron genesis print-genesis-hash --genesis-json "${BYRON_GENESIS_JSON}" 2>/dev/null)
   BYGENHASHCFG=$(jq '.ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
-  SHGENHASH=$("${CCLI}" genesis hash --genesis "${GENESIS_JSON}" 2>/dev/null)
+  SHGENHASH=$("${CCLI}" ${NETWORK_ERA} genesis hash --genesis "${GENESIS_JSON}" 2>/dev/null)
   SHGENHASHCFG=$(jq '.ShelleyGenesisHash' <"${CONFIG}" 2>/dev/null)
-  ALGENHASH=$("${CCLI}" genesis hash --genesis "${ALONZO_GENESIS_JSON}" 2>/dev/null)
+  ALGENHASH=$("${CCLI}" ${NETWORK_ERA} genesis hash --genesis "${ALONZO_GENESIS_JSON}" 2>/dev/null)
   ALGENHASHCFG=$(jq '.AlonzoGenesisHash' <"${CONFIG}" 2>/dev/null)
-  CWGENHASH=$("${CCLI}" genesis hash --genesis "${CONWAY_GENESIS_JSON}" 2>/dev/null)
+  CWGENHASH=$("${CCLI}" ${NETWORK_ERA} genesis hash --genesis "${CONWAY_GENESIS_JSON}" 2>/dev/null)
   CWGENHASHCFG=$(jq '.ConwayGenesisHash' <"${CONFIG}" 2>/dev/null)
   # If hash are missing/do not match, add that to the end of config. We could have sorted it based on logic, but that would mess up sdiff comparison outputs
   if [[ "${BYGENHASH}" != "${BYGENHASHCFG}" ]] || [[ "${SHGENHASH}" != "${SHGENHASHCFG}" ]] || [[ "${ALGENHASH}" != "${ALGENHASHCFG}" ]] || [[ "${CWGENHASH}" != "${CWGENHASHCFG}" ]]; then

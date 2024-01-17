@@ -524,7 +524,7 @@ getOpCert () {
     op_cert_tsv=$(jq -r '[
     .qKesNodeStateOperationalCertificateNumber //"?",
     .qKesOnDiskOperationalCertificateNumber //"?"
-    ] | @tsv' <<<"$(${CCLI} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}" | grep "^[{ }]")")
+    ] | @tsv' <<<"$(${CCLI} ${NETWORK_ERA} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}" | grep "^[{ }]")")
     read -ra op_cert_arr <<< ${op_cert_tsv}
     isNumber ${op_cert_arr[0]} && op_cert_node=${op_cert_arr[0]}
     isNumber ${op_cert_arr[1]} && op_cert_disk=${op_cert_arr[1]}
@@ -791,11 +791,6 @@ while true; do
     getOpCert
   fi
 
-  if [[ -z "${PROT_PARAMS}" ]]; then
-    PROT_PARAMS="$(${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
-    if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralization <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
-  fi
-
   if [[ ${show_peers} = "false" ]]; then
 
     if [[ ${P2P_ENABLED} != true ]]; then
@@ -840,8 +835,6 @@ while true; do
     fi
     if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
       curr_epoch=${epochnum}
-      PROT_PARAMS="$(${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
-      if [[ -n "${PROT_PARAMS}" ]] && ! DECENTRALISATION=$(jq -re .decentralization <<< ${PROT_PARAMS} 2>/dev/null); then DECENTRALISATION=0.5; fi
       unset pool_info_last_upd
     fi
     if [[ ${nodemode} = "Core" ]]; then
