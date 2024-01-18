@@ -1290,11 +1290,6 @@ function main {
                 println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
                 waitForInput && continue
               fi
-              getBalance ${s_addr}
-              declare -gA assets_left=()
-              for asset in "${!assets[@]}"; do
-                assets_left[${asset}]=${assets[${asset}]}
-              done
 
               # Destination
               d_wallet=""
@@ -1338,7 +1333,12 @@ function main {
                 waitForInput && continue
               fi
 
+              getBalance ${s_addr}
+              declare -gA assets_left=()
               declare -gA assets_to_send=()
+              for asset in "${!assets[@]}"; do
+                assets_left[${asset}]=${assets[${asset}]}
+              done
 
               # Add additional assets to transaction?
               if [[ ${#assets_left[@]} -gt 1 ]]; then
@@ -1357,21 +1357,21 @@ function main {
                       selection=$?
                       [[ ${selected_value} = "[Esc] Cancel" ]] && continue 2
                       IFS=' ' read -ra selection_arr <<< "${selected_value}"
-                      println DEBUG "Available to send: ${FG_LBLUE}$(formatAsset ${assets[${selection_arr[0]}]})${NC}"
+                      println DEBUG "Available to send: ${FG_LBLUE}$(formatAsset ${assets_left[${selection_arr[0]}]})${NC}"
                       getAnswerAnyCust asset_amount "Amount (commas allowed as thousand separator)"
                       asset_amount="${asset_amount//,}"
-                      [[ ${asset_amount} = "all" ]] && asset_amount=${assets[${selection_arr[0]}]}
+                      [[ ${asset_amount} = "all" ]] && asset_amount=${assets_left[${selection_arr[0]}]}
                       if ! isNumber ${asset_amount}; then println ERROR "${FG_RED}ERROR${NC}: invalid number, non digit characters found!" && continue; fi
-                      if [[ ${asset_amount} -gt ${assets[${selection_arr[0]}]} ]]; then
+                      if [[ ${asset_amount} -gt ${assets_left[${selection_arr[0]}]} ]]; then
                         println ERROR "${FG_RED}ERROR${NC}: you cant send more assets than available on address!" && continue
-                      elif [[ ${asset_amount} -eq ${assets[${selection_arr[0]}]} ]]; then
+                      elif [[ ${asset_amount} -eq ${assets_left[${selection_arr[0]}]} ]]; then
                         unset assets_left[${selection_arr[0]}]
                       else
                         assets_left[${selection_arr[0]}]=$(( assets_left[${selection_arr[0]}] - asset_amount ))
                       fi
                       assets_to_send[${selection_arr[0]}]=${asset_amount}
                       unset assets_on_addr["${selected_value}"]
-                      [[ ${#assets_left[@]} -gt 1 ]] && break
+                      [[ ${#assets_on_addr[@]} -eq 0 ]] && break
                       println DEBUG "Add more assets?"
                       select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
                       case $? in
@@ -1387,34 +1387,37 @@ function main {
               fi
 
               # Amount
-              getAssetsTxOut
-              getMinUTxO "--tx-out ${d_addr}+1${assets_tx_out}"
+              assets_tx_out_d=""
+              for idx in "${!assets_to_send[@]}"; do
+                [[ ${idx} = "lovelace" ]] && continue
+                [[ ${assets_to_send[${idx}]} -gt 0 ]] && assets_tx_out_d+="+${assets_to_send[${idx}]} ${idx}"
+              done
+              getMinUTxO "${d_addr}+1${assets_tx_out_d}"
               println DEBUG "\n# Amount to Send (in Ada)"
               println DEBUG " Valid entry:"
               println DEBUG "   ${FG_LGRAY}>${NC} Integer (e.g. 15) or Decimal (e.g. 956.1235), commas allowed as thousand separator"
               println DEBUG "   ${FG_LGRAY}>${NC} The string '${FG_YELLOW}all${NC}' sends all available funds in source wallet"
               println DEBUG " Multi-Asset Info:"
               println DEBUG "   ${FG_LGRAY}>${NC} If '${FG_YELLOW}all${NC}' is used and the wallet contain multiple assets,"
-              println DEBUG "   ${FG_LGRAY}>${NC} then all assets will be transferred(incl Ada) to the destination address"
+              println DEBUG "   ${FG_LGRAY}>${NC} you will be asked to transfer all assets (incl Ada) to the destination address"
               println DEBUG " Minimum Amount: ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada"
-              println DEBUG "   ${FG_LGRAY}>${NC} To calculate the minimum Ada required if additional assets/tokens are to be sent,"\
-								"     make a dummy transaction with ${FG_LBLUE}0${NC} Ada selecting the tokens to send with the correct amount\n"
               getAnswerAnyCust amountADA "Amount (Ada)"
               amountADA="${amountADA//,}"
               echo
               if  [[ ${amountADA} != "all" ]]; then
-                if ! AdaToLovelace "${amountADA}" >/dev/null; then
-                  waitForInput && continue
-                fi
-                amount_lovelace=$(AdaToLovelace "${amountADA}")
+                if ! amount_lovelace=$(AdaToLovelace "${amountADA}" >/dev/null); then waitForInput && continue; fi
                 [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} Ada" && waitForInput && continue
-                println DEBUG "Fee payed by sender? [else amount sent is reduced]"
-                select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
-                case $? in
-                  0) include_fee="no" ;;
-                  1) include_fee="yes" ;;
-                  2) continue ;;
-                esac
+                if [[ ${amount_lovelace} -lt ${assets[lovelace]} ]]; then
+                  println DEBUG "Fee payed by sender? [else amount sent is reduced]"
+                  select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
+                  case $? in
+                    0) include_fee="no" ;;
+                    1) include_fee="yes" ;;
+                    2) continue ;;
+                  esac
+                else
+                  include_fee="yes"
+                fi
               else
                 amount_lovelace=${assets[lovelace]}
                 println DEBUG "Ada to send set to total supply: ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC}"
