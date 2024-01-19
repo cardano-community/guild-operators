@@ -11,11 +11,11 @@
 # The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 # and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
-CNTOOLS_MAJOR_VERSION=11
+CNTOOLS_MAJOR_VERSION=12
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -2553,13 +2553,13 @@ unlockHWDevice() {
     println ERROR "Make sure device is seen by OS using tools like lsusb etc and is working correctly"
     waitForInput && return 1
   elif [[ ${device_app_vendor} = Ledger ]]; then
-    if ! versionCheck "3.0.0" "${device_app_version}"; then
-      println ERROR "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required app version is ${FG_GREEN}v3.0.0${NC} !!"
+    if ! versionCheck "5.0.1" "${device_app_version}"; then
+      println ERROR "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required app version is ${FG_GREEN}v5.0.1${NC} !!"
       return 1
     fi
   elif [[ ${device_app_vendor} = Trezor ]]; then
-    if ! versionCheck "2.4.3" "${device_app_version}"; then
-      println ERROR "${FG_RED}ERROR${NC}: Trezor firmware installed on device is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.4.3${NC} !!"
+    if ! versionCheck "2.6.4" "${device_app_version}"; then
+      println ERROR "${FG_RED}ERROR${NC}: Trezor firmware installed on device is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.6.4${NC} !!"
       return 1
     fi
   else
@@ -2574,8 +2574,8 @@ HWCLIversionCheck() {
   println ACTION "cardano-hw-cli version"
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
   println LOG "cardano-hw-cli version: ${HWCLI_version}"
-  if ! versionCheck "1.13.0" "${HWCLI_version}"; then
-    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.13.0${NC} !!"
+  if ! versionCheck "1.14.0" "${HWCLI_version}"; then
+    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.14.0${NC} !!"
     println ERROR "Please run ${FG_LGRAY}guild-deploy.sh -s w${NC} to upgrade to the latest version."
     return 1
   fi
