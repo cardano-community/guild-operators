@@ -81,7 +81,9 @@
 
 #CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json" # URL for polls to vote against
 
-#MITHRIL_DOWNLOAD="N"                                  # (Y|N) Download latest Mithril snapshot
+#MITHRIL_DOWNLOAD="N"                                   # (Y|N) Download latest Mithril snapshot
+
+#STRICT_VERSION_CHECK="Y"                               # (Y|N) Restrict operation to supported major.minor version leaving patch version open. If disabled, any version will be accepted (unsupported)
 
 ######################################
 # Do NOT modify code below           #
@@ -104,9 +106,11 @@ is_dir() {
 # Description : Check higher of two versions
 #             : $1=minimal_needed_version
 #             : $2=current_node_version
-versionCheck()
-{
-  printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V
+versionCheck() {
+  [[ ${STRICT_VERSION_CHECK} = N ]] && return 0
+  w_ver=${1//v/}; w_ver_dots=${w_ver//[^.]}; [[ ${#w_ver_dots} -gt 1 && ${w_ver} =~ ^([0-9]+.[0-9]) ]] && w_ver=${BASH_REMATCH[1]}
+  c_ver=${2//v/}; c_ver_dots=${c_ver//[^.]}; [[ ${#c_ver_dots} -gt 1 && ${c_ver} =~ ^([0-9]+.[0-9]) ]] && c_ver=${BASH_REMATCH[1]}
+  printf '%s\n%s' "${w_ver}" "${c_ver}" | sort -C -V
 }
 
 # Description : Exit with error message
@@ -832,6 +836,7 @@ set_default_vars() {
   [[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
   [[ -z ${CIP0094_POLL_URL} ]] && CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json"
   [[ -z ${MITHRIL_DOWNLOAD} ]] && MITHRIL_DOWNLOAD="N"
+  [[ -z ${STRICT_VERSION_CHECK} ]] && STRICT_VERSION_CHECK="Y"
   FG_BLACK='\e[30m'
   FG_RED='\e[31m'
   FG_GREEN='\e[32m'
