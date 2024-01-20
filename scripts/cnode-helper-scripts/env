@@ -105,7 +105,7 @@ is_dir() {
 
 # Description : Check higher of two versions
 #             : $1=minimal_needed_version
-#             : $2=current_node_version
+#             : $2=current_version
 versionCheck() {
   [[ ${STRICT_VERSION_CHECK} = N ]] && return 0
   w_ver=${1//v/}; w_ver_dots=${w_ver//[^.]}; [[ ${#w_ver_dots} -gt 1 && ${w_ver} =~ ^([0-9]+.[0-9]) ]] && w_ver=${BASH_REMATCH[1]}
@@ -448,6 +448,7 @@ getPassword() {
     fi
   done
 }
+
 readPassword() {
   read_password=""
   prompt="$1: "
@@ -853,6 +854,27 @@ set_default_vars() {
   NC='\e[0m'
 }
 
+read_genesis() {
+  read -ra SHGENESIS <<< "$(jq -r '[ .networkMagic, .systemStart, .epochLength, .slotLength, .activeSlotsCoeff, .slotsPerKESPeriod, .maxKESEvolutions ] |@tsv' < ${GENESIS_JSON})"
+  read -ra BYGENESIS <<< "$(jq -r '[ .startTime, .protocolConsts.k, .blockVersionData.slotDuration ] |@tsv' < ${BYRON_GENESIS_JSON})"
+  NWMAGIC=${SHGENESIS[0]}
+  SHELLEY_GENESIS_START_SEC=$(date --date="${SHGENESIS[1]}" +%s)
+  EPOCH_LENGTH=${SHGENESIS[2]}
+  SLOT_LENGTH=${SHGENESIS[3]}
+  ACTIVE_SLOTS_COEFF=${SHGENESIS[4]}
+  SLOTS_PER_KES_PERIOD=${SHGENESIS[5]}
+  MAX_KES_EVOLUTIONS=${SHGENESIS[6]}
+  BYRON_GENESIS_START_SEC=${BYGENESIS[0]}
+  BYRON_K=${BYGENESIS[1]}
+  BYRON_SLOT_LENGTH=${BYGENESIS[2]}
+  BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
+}
+
+test_koios() {
+  # make sure KOIOS_API is reachable, else fall back to cli
+  [[ ${ENABLE_KOIOS} = 'Y' && -n ${KOIOS_API} && $(curl -sfk -o /dev/null -w "%{http_code}" -m 5 ${KOIOS_API}/tip | awk '{print $1}') = "200" ]] || unset KOIOS_API
+}
+
 [[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
 # Initialise/Set offline mode prior to calling functions
 OFFLINE_MODE='N'
@@ -887,6 +909,13 @@ fi
 
 if [[ -z "${CNCLI}" ]]; then
   CNCLI=$(command -v cncli) || CNCLI="${HOME}/.local/bin/cncli"
+fi
+
+node_version="$(${CNODEBIN} version | head -1 | cut -d' ' -f2)"
+cli_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
+if ! versionCheck "8.7.3" "${node_version}" || ! versionCheck "8.17.0.0" "${cli_version}"; then
+  echo -e "\nKoios scripts have now been upgraded to support cardano-node 8.7.x ('${node_version}' found) / cardano-cli 8.17.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.1.2 to switch scripts to an older branch).\n\n"
+  return 1
 fi
 
 [[ -f /usr/local/lib/libsodium.so ]] && export LD_LIBRARY_PATH=/usr/local/lib:"${LD_LIBRARY_PATH}" && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:"${PKG_CONFIG_PATH}"
@@ -1029,29 +1058,6 @@ if [[ -n "${CNODE_PID}" ]]; then
   fi
 fi
 
-node_version="$(${CNODEBIN} version | head -1 | cut -d' ' -f2)"
-cli_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "8.7.3" "${node_version}" || ! versionCheck "8.17.0.0" "${cli_version}"; then
-  echo -e "\nKoios scripts has now been upgraded to support cardano-node 8.7.3 or higher (${node_version} found).\nPlease update cardano-node (note that you should ideally update your config too) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.1.2 to switch scripts to an older branch).\n\n"
-  return 1
-fi
-
-read_genesis() {
-  read -ra SHGENESIS <<< "$(jq -r '[ .networkMagic, .systemStart, .epochLength, .slotLength, .activeSlotsCoeff, .slotsPerKESPeriod, .maxKESEvolutions ] |@tsv' < ${GENESIS_JSON})"
-  read -ra BYGENESIS <<< "$(jq -r '[ .startTime, .protocolConsts.k, .blockVersionData.slotDuration ] |@tsv' < ${BYRON_GENESIS_JSON})"
-  NWMAGIC=${SHGENESIS[0]}
-  SHELLEY_GENESIS_START_SEC=$(date --date="${SHGENESIS[1]}" +%s)
-  EPOCH_LENGTH=${SHGENESIS[2]}
-  SLOT_LENGTH=${SHGENESIS[3]}
-  ACTIVE_SLOTS_COEFF=${SHGENESIS[4]}
-  SLOTS_PER_KES_PERIOD=${SHGENESIS[5]}
-  MAX_KES_EVOLUTIONS=${SHGENESIS[6]}
-  BYRON_GENESIS_START_SEC=${BYGENESIS[0]}
-  BYRON_K=${BYGENESIS[1]}
-  BYRON_SLOT_LENGTH=${BYGENESIS[2]}
-  BYRON_EPOCH_LENGTH=$(( 10 * BYRON_K ))
-}
-
 read_genesis
 
 [[ ${NWMAGIC} == "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
@@ -1079,11 +1085,6 @@ case ${NWMAGIC} in
     NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
 esac
-
-test_koios() {
-  # make sure KOIOS_API is reachable, else fall back to cli
-  [[ ${ENABLE_KOIOS} = 'Y' && -n ${KOIOS_API} && $(curl -sfk -o /dev/null -w "%{http_code}" -m 5 ${KOIOS_API}/tip | awk '{print $1}') = "200" ]] || unset KOIOS_API
-}
 
 [[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
 

@@ -140,7 +140,7 @@ SGVERSION=v1.1.1
     set_cron_variables "stake-distribution-update"
     # Special condition for guild network (NWMAGIC=141) where activity and entries are minimal, and epoch duration is 1 hour
     ([[ ${NWMAGIC} -eq 141 ]] && install_cron_job "stake-distribution-update" "*/10 * * * *") ||
-      install_cron_job "stake-distribution-update" "*/120 * * * *"
+      install_cron_job "stake-distribution-update" "15 */2 * * *"
 
     get_cron_job_executable "stake-distribution-new-accounts-update"
     set_cron_variables "stake-distribution-new-accounts-update"
