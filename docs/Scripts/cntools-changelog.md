@@ -6,6 +6,17 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [12.0.0] - 2024-01-19
+#### Changed
+- Minimum version bumps
+  - node 8.7.3
+  - cardano-hw-cli 1.14.0
+  - Ledger 5.0.1
+  - Trezor 2.6.4
+- Send > Funds flow updated to ask for Ada amount after tokens and destination to be able to calculate minimum amount valid to send correctly.
+#### Fixed
+- Minimum utxo calculation changed to use cardano-cli calculation tool (was broken)
+
 ## [11.0.2] - 2023-10-30
 #### Fixed
 - Fix additional Ada printing. Now omits trailing zeros from fraction part of Ada output.

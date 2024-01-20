@@ -11,11 +11,11 @@
 # The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 # and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
-CNTOOLS_MAJOR_VERSION=11
+CNTOOLS_MAJOR_VERSION=12
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -39,7 +39,6 @@ if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}:
 [[ ${ENABLE_ADVANCED} = "true" ]] && ADVANCED_MODE="true"
 [[ -z ${CHECK_KES} ]] && CHECK_KES=true
 [[ -z ${CNTOOLS_LOG} ]] && CNTOOLS_LOG="${LOG_DIR}/cntools-history.log"
-getEraIdentifier
 
 ############################################################
 # library sourced by cntools with common taskes to perform #
@@ -468,7 +467,7 @@ selectWallet() {
         [[ -z ${base_addr} ]] && wallet_dirs+=("${dir}") && continue # ignore and add wallet without extra details
         getBalance ${base_addr}
         if getRewardAddress ${dir}; then
-          delegation_pool_id=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
+          delegation_pool_id=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
           unset poolName
           if [[ -n ${delegation_pool_id} ]]; then
             while IFS= read -r -d '' pool; do
@@ -852,8 +851,8 @@ getPayAddress() {
   [[ -f ${payment_addr_file} ]] && pay_addr=$(cat "${payment_addr_file}") && return 0
   pay_addr=""
   if [[ -f "${payment_vk_file}" ]]; then
-    println ACTION "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
-    if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
+    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
+    if ${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
       pay_addr=$(cat "${payment_addr_file}")
       return 0
     fi
@@ -872,14 +871,14 @@ getBaseAddress() {
   [[ -f ${base_addr_file} ]] && base_addr=$(cat "${base_addr_file}") && return 0
   base_addr=""
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
-    println ACTION "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
-    if ${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
+    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
+    if ${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
       base_addr=$(cat "${base_addr_file}")
       return 0
     fi
   elif [[ $# -eq 2 && -f "${1}" && -f "${2}" ]]; then
-    println ACTION "${CCLI} address build --payment-verification-key-file ${1} --stake-verification-key-file ${2} ${NETWORK_IDENTIFIER}"
-    base_addr=$(${CCLI} address build --payment-verification-key-file "${1}" --stake-verification-key-file "${2}" ${NETWORK_IDENTIFIER} 2>/dev/null)
+    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${1} --stake-verification-key-file ${2} ${NETWORK_IDENTIFIER}"
+    base_addr=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${1}" --stake-verification-key-file "${2}" ${NETWORK_IDENTIFIER} 2>/dev/null)
   fi
   return 1
 }
@@ -894,14 +893,14 @@ getRewardAddress() {
   [[ -f ${stake_addr_file} ]] && reward_addr=$(cat "${stake_addr_file}") && return 0
   reward_addr=""
   if [[ -f "${stake_vk_file}" ]]; then
-    println ACTION "${CCLI} stake-address build --stake-verification-key-file ${stake_vk_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
-    if ${CCLI} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
+    println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file ${stake_vk_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
+    if ${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
       reward_addr=$(cat "${stake_addr_file}")
       return 0
     fi
   elif [[ -f "${1}" ]]; then
-    println ACTION "${CCLI} stake-address build --stake-verification-key-file ${1} ${NETWORK_IDENTIFIER}"
-    reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>/dev/null)
+    println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file ${1} ${NETWORK_IDENTIFIER}"
+    reward_addr=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>/dev/null)
   fi
   return 1
 }
@@ -911,8 +910,8 @@ getRewardAddress() {
 # Parameters  : stake key  >  path to stake.vkey file
 # Return      : populates ${reward_addr}
 getRewardAddressFromKey() {
-  println ACTION "${CCLI} stake-address build --stake-verification-key-file ${1} ${NETWORK_IDENTIFIER}"
-  reward_addr=$(${CCLI} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>/dev/null)
+  println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file ${1} ${NETWORK_IDENTIFIER}"
+  reward_addr=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>/dev/null)
 }
 
 # Command     : getAddressInfo [address]
@@ -920,8 +919,8 @@ getRewardAddressFromKey() {
 # Parameters  : address  >  the wallet address to query
 # Return      : populates ${address_info}
 getAddressInfo() {
-  println ACTION "${CCLI} address info --address $1"
-  address_info=$(${CCLI} address info --address $1)
+  println ACTION "${CCLI} ${NETWORK_ERA} address info --address $1"
+  address_info=$(${CCLI} ${NETWORK_ERA} address info --address $1)
 }
 
 # Command     : getBalance [address]
@@ -934,7 +933,7 @@ getBalance() {
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
   
-  if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
+  if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} ${NETWORK_ERA} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
   [[ -z ${utxo_raw} ]] && return
   
   while IFS= read -r line; do
@@ -991,61 +990,19 @@ getAssetsTxOut() {
   done
 }
 
-# Command     : getMinUTxO [--tx-out string]
-# Description : calculate minimum balance needed in source wallet UTxOs for transaction to be valid
-#               getBalance assumed to be run before
-#               based on calculations from https://github.com/intersectmbo/cardano-ledger/blob/master/doc/explanations/min-utxo-mary.rst
+# Command     : getMinUTxO [string]
+# Description : calculate minimum balance needed in transaction output to be valid
+#             : string as passed to --tx-out parameter
 # Return      : populates ${min_utxo_out}
 getMinUTxO() {
-  [[ -z ${utxoCostPerWord} ]] && utxoCostPerWord=$(jq -r '.utxoCostPerWord' <<< "${PROT_PARAMS}")
-
-  # chain constants, based on: https://hydra.iohk.io/build/5949624/download/1/shelley-ma.pdf
-  local k0=2				                # coinSize=0 in mary-era, 2 in alonzo-era
-  local k1=6
-  local k2=12				                # assetSize=12
-  local k3=28				                # pidSize=28
-  local k4=8				                # word=8 bytes
-  local utxoEntrySizeWithoutVal=27 	# 6 + txOutLenNoVal(14) + txInLen(7)
-  local adaOnlyUTxOSize=$(( utxoEntrySizeWithoutVal + k0 ))
-
-  # New calculation for alonzo-era, static minUTxOValue replaced with utxoCostPerWord calculation
-  minUTxOValue=$(( utxoCostPerWord * adaOnlyUTxOSize ))
-  
-  min_utxo_out=${minUTxOValue}
-  
-  # split the tx-out string into the assets
-  IFS='+' read -ra asset_entry <<< "${1}"
-  
-  if [[ ${#asset_entry[@]} -gt 2 ]]; then # contains assets, do calculations.
-    local idx=2
-    declare -A pidCollector=()    # holds the list of individual policyIDs
-    declare -A assetsCollector=() # holds the list of individual assetNumbers
-    declare -A nameCollector=()   # holde the list of individual assetNames(hex format)
-    
-    while [[ ${#asset_entry[@]} -gt ${idx} ]]; do
-      # separate asset amount from hash(policyID.assetName)
-      IFS=' ' read -ra asset <<< "${asset_entry[${idx}]}"
-      local asset_hash=${asset[1]}
-
-      # split asset_hash_name into policy ID and asset name(hex)
-      IFS='.' read -ra asset_split <<< "${asset_hash}"
-      local asset_hash_policy=${asset_split[0]}
-      local asset_hash_name=${asset_split[1]}
-
-      # collect the entries in individual lists to sort them later
-      pidCollector[${asset_hash_policy}]=1
-      assetsCollector[${asset_hash_policy}${asset_hash_name}]=1
-      [[ -n ${asset_hash_name} ]] && nameCollector[${asset_hash_name}]=1
-      
-      ((idx++))
-    done
-    
-    local sumAssetNameLengths=$(_len=0;for K in "${!nameCollector[@]}";do ((_len+=$(printf "%s" "$K" | wc -c)));done;echo ${_len})
-    local roundupBytesToWords=$(bc <<< "scale=0; ( ${#assetsCollector[@]}*${k2} + ${sumAssetNameLengths} + ${#pidCollector[@]}*${k3} + (${k4}-1) ) / ${k4}")
-    local tokenBundleSize=$(( k1 + roundupBytesToWords ))
-    local minAda=$(( $(bc <<< "scale=0; ${minUTxOValue} / ${adaOnlyUTxOSize}") * ( utxoEntrySizeWithoutVal + tokenBundleSize ) ))
-    [[ ${minAda} -gt ${minUTxOValue} ]] && min_utxo_out=${minAda}
-  fi
+  min_utxo_args=(
+    ${NETWORK_ERA}
+    transaction calculate-min-required-utxo
+    --protocol-params-file "${TMP_DIR}"/protparams.json
+    --tx-out "$1"
+  )
+  println ACTION "${CCLI} ${min_utxo_args[*]}"
+  min_utxo_out=$([[ "$(${CCLI} "${min_utxo_args[@]}")" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
 }
 
 # Command     : getRewards [wallet name]
@@ -1067,8 +1024,8 @@ getRewards() {
 # Parameters  : stake address  >  the address from stake.vkey
 # Return      : populates ${reward_lovelace}
 getRewardsFromAddr() {
-  println ACTION "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
-  stake_address_info=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1})
+  println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
+  stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1})
   reward_lovelace=0
   for reward_entry in $(jq -r '.[] | @base64' <<< "${stake_address_info}"); do
     _jq() { base64 -d <<< ${reward_entry} | jq -r "${1}"; }
@@ -1081,8 +1038,8 @@ getRewardsFromAddr() {
 # Parameters  : wallet name  >  the name of the wallet
 isWalletRegistered() {
   if getRewardAddress $1; then
-    println ACTION "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}"
-    stake_address_info=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr})
+    println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}"
+    stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr})
     [[ -n "${stake_address_info}" && $(jq -r 'length' <<< ${stake_address_info}) -gt 0 ]] && return 0
   fi
   return 1
@@ -1182,8 +1139,8 @@ registerStakeWallet() {
   getBaseAddress "${wallet_name}"
   getBalance ${base_addr}
   
-  println ACTION "${CCLI} stake-address registration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cert_file}"
-  if ! ${CCLI} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}"; then return 1; fi
+  println ACTION "${CCLI} ${NETWORK_ERA} stake-address registration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cert_file}"
+  if ! ${CCLI} ${NETWORK_ERA} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}"; then return 1; fi
 
   if ! getTTL; then return 1; fi
   stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
@@ -1203,6 +1160,7 @@ registerStakeWallet() {
   if ! buildTx; then return 1; fi
   
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
@@ -1280,8 +1238,8 @@ deregisterStakeWallet() {
   wallet_source="base"
 
   stake_dereg_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_DEREG_FILENAME}"
-  println ACTION "${CCLI} stake-address deregistration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_dereg_file}"
-  if ! ${CCLI} stake-address deregistration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_dereg_file}"; then return 1; fi
+  println ACTION "${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_dereg_file}"
+  if ! ${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_dereg_file}"; then return 1; fi
 
   if ! getTTL; then return 1; fi
   
@@ -1302,6 +1260,7 @@ deregisterStakeWallet() {
   if ! buildTx; then return 1; fi
 
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
@@ -1415,6 +1374,7 @@ sendAssets() {
   if ! buildTx; then return 1; fi
   
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
@@ -1528,6 +1488,7 @@ delegate() {
   if ! buildTx; then return 1; fi
 
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
@@ -1618,6 +1579,7 @@ withdrawRewards() {
   if ! buildTx; then return 1; fi
 
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
@@ -1721,6 +1683,7 @@ registerPool() {
   if ! buildTx; then return 1; fi
 
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
@@ -1846,6 +1809,7 @@ modifyPool() {
   if ! buildTx; then return 1; fi
 
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
@@ -1967,6 +1931,7 @@ deRegisterPool() {
   if ! buildTx; then return 1; fi
 
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
@@ -2067,21 +2032,21 @@ rotatePoolKeys() {
   pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
 
   if [[ ! -f ${pool_coldkey_vk_file} ]]; then # lets re-generate it from cold signing key
-    println ACTION "${CCLI} key verification-key --signing-key-file ${pool_coldkey_sk_file} --verification-key-file ${pool_coldkey_vk_file}"
-    ! ${CCLI} key verification-key --signing-key-file "${pool_coldkey_sk_file}" --verification-key-file "${pool_coldkey_vk_file}" && return 1
+    println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${pool_coldkey_sk_file} --verification-key-file ${pool_coldkey_vk_file}"
+    ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${pool_coldkey_sk_file}" --verification-key-file "${pool_coldkey_vk_file}" && return 1
     output=$(jq '.description = "Stake Pool Operator Verification Key"' "${pool_coldkey_vk_file}") && jq <<< ${output} > "${pool_coldkey_vk_file}"
   fi
 
   current_kes_period=$(getCurrentKESperiod)
   echo "${current_kes_period}" > ${pool_saved_kes_start}
 
-  println ACTION "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
-  ! ${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" && return 1
+  println ACTION "${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
+  ! ${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" && return 1
 
   p_opcert=""
   if [[ $# -eq 1 ]]; then
-    println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $1 --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-    ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $1 --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
+    println ACTION "${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $1 --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+    ! ${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $1 --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
   elif [[ -n ${KOIOS_API} ]]; then
     ! getPoolID "${pool_name}" && println "ERROR" "\n${FG_RED}ERROR${NC}: failed to get pool ID!\n" && return 1
     println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_pool_bech32_ids\":[\"${pool_id_bech32}\"]}' ${KOIOS_API}/pool_info"
@@ -2091,11 +2056,11 @@ rotatePoolKeys() {
     else
       new_counter_nbr=0 # null returned = no block on chain for this pool
     fi
-    println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-    ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
+    println ACTION "${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+    ! ${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
   elif [[ -f ${pool_opcert_file} ]]; then
-    println ACTION "${CCLI} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
-    if ! kes_period_info=$(${CCLI} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
+    println ACTION "${CCLI} ${NETWORK_ERA} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
+    if ! kes_period_info=$(${CCLI} ${NETWORK_ERA} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
       println "ERROR" "\n${FG_RED}ERROR${NC}: failed to grab counter from node: [${kes_period_info}]\n" && return 1
     fi
     if old_counter_nbr=$(awk '/{/,0' <<< "${kes_period_info}" | jq -er '.qKesNodeStateOperationalCertificateNumber' 2>/dev/null); then
@@ -2103,8 +2068,8 @@ rotatePoolKeys() {
     else
       new_counter_nbr=0 # null returned = no block on chain for this pool
     fi
-    println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-    ! ${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
+    println ACTION "${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+    ! ${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
   else
     println "ERROR" "\n${FG_RED}ERROR${NC}: op cert file missing and Koios disabled/unavailable. Unable to get current on-chain counter value!\n" && return 1
   fi
@@ -2121,8 +2086,8 @@ rotatePoolKeys() {
     && return 1
 
   else
-    println ACTION "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
-    ! ${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" && return 1
+    println ACTION "${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
+    ! ${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" && return 1
   fi
 
   chmod 700 ${POOL_FOLDER}/${pool_name}/*
@@ -2165,6 +2130,7 @@ sendMetadata() {
   if ! buildTx; then return 1; fi
 
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
@@ -2262,6 +2228,7 @@ mintAsset() {
   if ! buildTx; then return 1; fi
   
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
@@ -2368,6 +2335,7 @@ burnAsset() {
   if ! buildTx; then return 1; fi
 
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}
@@ -2449,8 +2417,8 @@ burnAsset() {
 #             : populate an array variable called 'build_args' with all data
 # Parameters  : build_args  >  an array with all the arguments to assemble the transaction
 buildTx() {
-  println ACTION "${CCLI} transaction build-raw ${ERA_IDENTIFIER} ${build_args[*]}"
-  ${CCLI} transaction build-raw ${ERA_IDENTIFIER} "${build_args[@]}"
+  println ACTION "${CCLI} ${NETWORK_ERA} transaction build-raw ${build_args[*]}"
+  ${CCLI} ${NETWORK_ERA} transaction build-raw "${build_args[@]}"
 }
 
 # Command     : witnessTx [raw tx file] [signing keys ...]
@@ -2528,7 +2496,7 @@ assembleTx() {
       fi
     done
     sign_command=(
-      ${CCLI} transaction assemble
+      ${CCLI} ${NETWORK_ERA} transaction assemble
       --tx-body-file "${tx_raw}"
       ${tx_witness_out[@]}
       --out-file "${tx_signed}"
@@ -2548,7 +2516,7 @@ submitTx() {
   tx_signed="$1"
 
   submit_command=(
-    ${CCLI} transaction submit
+    ${CCLI} ${NETWORK_ERA} transaction submit
     --tx-file "${tx_signed}"
     ${NETWORK_IDENTIFIER}
   )
@@ -2585,13 +2553,13 @@ unlockHWDevice() {
     println ERROR "Make sure device is seen by OS using tools like lsusb etc and is working correctly"
     waitForInput && return 1
   elif [[ ${device_app_vendor} = Ledger ]]; then
-    if ! versionCheck "3.0.0" "${device_app_version}"; then
-      println ERROR "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required app version is ${FG_GREEN}v3.0.0${NC} !!"
+    if ! versionCheck "5.0.1" "${device_app_version}"; then
+      println ERROR "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required app version is ${FG_GREEN}v5.0.1${NC} !!"
       return 1
     fi
   elif [[ ${device_app_vendor} = Trezor ]]; then
-    if ! versionCheck "2.4.3" "${device_app_version}"; then
-      println ERROR "${FG_RED}ERROR${NC}: Trezor firmware installed on device is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.4.3${NC} !!"
+    if ! versionCheck "2.6.4" "${device_app_version}"; then
+      println ERROR "${FG_RED}ERROR${NC}: Trezor firmware installed on device is ${FG_LGRAY}v${device_app_version}${NC}, minimum required version is ${FG_GREEN}v2.6.4${NC} !!"
       return 1
     fi
   else
@@ -2606,8 +2574,8 @@ HWCLIversionCheck() {
   println ACTION "cardano-hw-cli version"
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
   println LOG "cardano-hw-cli version: ${HWCLI_version}"
-  if ! versionCheck "1.10.0" "${HWCLI_version}"; then
-    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.10.0${NC} !!"
+  if ! versionCheck "1.14.0" "${HWCLI_version}"; then
+    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.14.0${NC} !!"
     println ERROR "Please run ${FG_LGRAY}guild-deploy.sh -s w${NC} to upgrade to the latest version."
     return 1
   fi
@@ -2749,6 +2717,7 @@ submitPoll() {
   if ! buildTx; then return 1; fi
 
   min_fee_args=(
+    ${NETWORK_ERA}
     transaction calculate-min-fee
     --tx-body-file "${TMP_DIR}"/tx0.tmp
     --tx-in-count ${utxo_cnt}

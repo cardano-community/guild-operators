@@ -358,23 +358,23 @@ build_libblst() {
 # Download cardano-node, cardano-cli, cardano-db-sync, bech32 and cardano-submit-api
 # TODO: Replace these with self-hosted ones (potentially consider IPFS as upload destination for CI)
 download_cnodebins() {
-  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The IO CI builds are not available for ARM, you might need to build them!"
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The build archives are not available for ARM, you might need to build them!"
   echo -e "\nDownloading binaries.."
   pushd "${HOME}"/tmp >/dev/null || err_exit
-  echo -e "\n  Downloading Cardano Node archive created from IO CI builds.."
+  echo -e "\n  Downloading Cardano Node archive created from GitHub.."
   rm -f cardano-node cardano-address
-  curl -m 200 -sfL https://github.com/intersectmbo/cardano-node/releases/download/8.1.2/cardano-node-8.1.2-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node's latest release archive from IO CI builds at update-cardano-mainnet.iohk.io!"
+  curl -m 200 -sfL https://github.com/intersectmbo/cardano-node/releases/download/8.7.3/cardano-node-8.7.3-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node release 8.7.3 from GitHub!"
   tar zxf cnode.tar.gz ./cardano-node ./cardano-cli ./cardano-submit-api ./bech32 &>/dev/null
   rm -f cnode.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
   echo -e "\n  Downloading Github release package for Cardano Wallet"
-  curl -m 200 -sfL https://github.com/intersectmbo/cardano-addresses/releases/download/3.12.0/cardano-addresses-3.12.0-linux64.tar.gz -o caddress.tar.gz || err_exit " Could not download cardano-wallet's latest release archive from IO github!"
+  curl -m 200 -sfL https://github.com/intersectmbo/cardano-addresses/releases/download/3.12.0/cardano-addresses-3.12.0-linux64.tar.gz -o caddress.tar.gz || err_exit " Could not download cardano-wallet's latest release archive from GitHub!"
   tar zxf caddress.tar.gz --strip-components=1 bin/cardano-address &>/dev/null
   rm -f caddress.tar.gz
   [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (bin/cardano-address) not found after extracting package!"
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
-    echo -e "\n  Downloading Cardano DB Sync archive created from IO CI Builds.."
-    curl -m 200 -sfL https://github.com/intersectmbo/cardano-db-sync/releases/download/13.1.1.3/cardano-db-sync-13.1.1.3-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync's latest release archive from IO CI builds at hydra.iohk.io!"
+    echo -e "\n  Downloading Cardano DB Sync archive created from GitHub.."
+    curl -m 200 -sfL https://github.com/intersectmbo/cardano-db-sync/releases/download/sancho-3-0-0/cardano-db-sync-13.2.0.0-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.2.0.0 from GitHub!"
     tar zxf cnodedbsync.tar.gz ./cardano-db-sync &>/dev/null
     [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
     rm -f cnodedbsync.tar.gz
@@ -489,7 +489,11 @@ download_ogmios() {
 download_cardanosigner() {
   [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The cardano-signer pre-compiled binary is not available for ARM, you might need to build them!"
   echo -e "\nInstalling Cardano Signer"
-  if command -v cardano-signer >/dev/null; then csigner_version="v$(cardano-signer version)"; else csigner_version="v0.0.0"; fi
+  if command -v cardano-signer >/dev/null && [[ $(cardano-signer version) =~ ([0-9.]+) ]]; then
+    csigner_version="v${BASH_REMATCH[1]}"
+  else
+    csigner_version="v0.0.0"
+  fi
   csigner_git_version="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.tag_name')"
   if ! versionCheck "${csigner_git_version}" "${csigner_version}"; then
     rm -rf /tmp/csigner && mkdir /tmp/csigner
@@ -497,7 +501,7 @@ download_cardanosigner() {
     csigner_asset_url="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.assets[].browser_download_url')"
     csigner_release_url=""
     while IFS= read -r release; do
-      if [[ -z ${ARCH##*x86_64*} && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
+      if [[ -z ${ARCH##*x86_64*} && ${release} = *linux-amd64.tar.gz ]]; then # Linux x64
         csigner_release_url=${release}; break
       fi
     done <<< "${csigner_asset_url}"
@@ -567,11 +571,14 @@ populate_cnode() {
 
   err_msg=" Had Trouble downloading the file:"
   # Download node config, genesis and topology from template
+
+  # start of network-agnostic section of files that are the same across networks and are version controlled in guild operators repo
+  curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp ${URL_RAW}/files/conway-genesis-guild.json || err_exit "${err_msg} conway-genesis-guild.json"
+
   if [[ ${NETWORK} = "guild" ]]; then
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp ${URL_RAW}/files/byron-genesis-guild.json || err_exit "${err_msg} byron-genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp ${URL_RAW}/files/genesis-guild.json || err_exit "${err_msg} genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp ${URL_RAW}/files/alonzo-genesis-guild.json || err_exit "${err_msg} alonzo-genesis-guild.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp ${URL_RAW}/files/conway-genesis-guild.json || err_exit "${err_msg} conway-genesis-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp ${URL_RAW}/files/topology-guild.json || err_exit "${err_msg} topology-guild.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp ${URL_RAW}/files/config-guild.json || err_exit "${err_msg} config-guild.json"
   elif [[ ${NETWORK} =~ ^(mainnet|preprod|preview|sanchonet)$ ]]; then
@@ -579,7 +586,6 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/${NETWORK}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/${NETWORK}/shelley-genesis.json" || err_exit "${err_msg} shelley-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/${NETWORK}/alonzo-genesis.json" || err_exit "${err_msg} alonzo-genesis.json"
-    curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp "${NWCONFURL}/${NETWORK}/conway-genesis.json" || err_exit "${err_msg} conway-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp "${NWCONFURL}/${NETWORK}/topology.json" || err_exit "${err_msg} topology.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp "${URL_RAW}/files/config-${NETWORK}.json" || err_exit "${err_msg} config-${NETWORK}.json"
   else
