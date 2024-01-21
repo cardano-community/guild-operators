@@ -462,7 +462,7 @@ download_ogmios() {
   if command -v ogmios >/dev/null; then ogmios_version="$(ogmios --version)"; else ogmios_version="v0.0.0"; fi
   rm -rf /tmp/ogmios && mkdir /tmp/ogmios
   pushd /tmp/ogmios >/dev/null || err_exit
-  ogmios_asset_url="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases | jq -r '.[].assets[].browser_download_url' | grep linux.zip | head -1)"
+  ogmios_asset_url="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases | jq -r '.[].assets[].browser_download_url' | grep x86_64-linux.zip | head -1)"
   if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.zip ${ogmios_asset_url}; then
     unzip ogmios.zip &>/dev/null
     rm -f ogmios.zip
