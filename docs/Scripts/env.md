@@ -23,7 +23,7 @@ Most variables can be left commented to use the automatically detected or defaul
 #CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
 CNODE_PORT=6000                                         # Set node port
 #CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
-#SOCKET="${CNODE_HOME}/sockets/node0.socket"            # Override automatic detection of path to socket
+#SOCKET="${CNODE_HOME}/sockets/node.socket"             # Override automatic detection of path to socket
 #TOPOLOGY="${CNODE_HOME}/files/topology.json"           # Override default topology.json path
 #LOG_DIR="${CNODE_HOME}/logs"                           # Folder where your logs will be sent to (must pre-exist)
 #DB_DIR="${CNODE_HOME}/db"                              # Folder to store the cardano-node blockchain db
