@@ -10,6 +10,7 @@
   "LastKnownBlockVersion-Minor": 1,
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",
+  "PBftSignatureThreshold": 1,
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
   "TargetNumberOfActivePeers": 10,
   "TargetNumberOfEstablishedPeers": 25,
