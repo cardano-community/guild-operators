@@ -1405,7 +1405,7 @@ function main {
               amountADA="${amountADA//,}"
               echo
               if  [[ ${amountADA} != "all" ]]; then
-                if ! amount_lovelace=$(AdaToLovelace "${amountADA}" >/dev/null); then waitForInput && continue; fi
+                if ! amount_lovelace=$(AdaToLovelace "${amountADA}"); then waitForInput && continue; fi
                 [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} Ada" && waitForInput && continue
                 if [[ ${amount_lovelace} -lt ${assets[lovelace]} ]]; then
                   println DEBUG "Fee payed by sender? [else amount sent is reduced]"
