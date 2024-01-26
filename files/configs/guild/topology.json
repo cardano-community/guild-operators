@@ -1,0 +1,25 @@
+{
+  "localRoots": [
+    {
+      "accessPoints": [
+        {"address": "127.0.0.1", "port": 6000, "description": "replace-this-with-BP"}
+      ],
+      "advertise": false,
+      "valency": 1
+    }
+  ],
+  "publicRoots": [
+    {
+      "accessPoints": [
+        {"address": "209.145.50.190"                      ,"port": 7001, "name": "rdlrt"},
+        {"address": "95.216.188.94"                       ,"port": 7000, "name": "homer"},
+        {"address": "relay1-test.ahlnet.nu"               ,"port": 2103, "name": "ahl-1"},
+        {"address": "guild-relay.bluecheesestakehouse.com","port": 7000, "name": "westberg"},
+        {"address": "185.161.193.105"                     ,"port": 6011, "name": "clio-1"},
+        {"address": "relay-guild.adaplus.io"              ,"port": 6000, "name": "adaplus"}
+      ],
+      "advertise": false
+    }
+  ],
+  "useLedgerAfterSlot": 67067585
+}

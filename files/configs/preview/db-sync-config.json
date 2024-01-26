@@ -1,9 +1,10 @@
 {
   "EnableLogMetrics": false,
   "EnableLogging": true,
-  "NetworkName": "mainnet",
+  "NetworkName": "preview",
   "NodeConfigFile": "/opt/cardano/cnode/files/config.json",
-  "RequiresNetworkMagic": "RequiresNoMagic",
+  "PrometheusPort": 8080,
+  "RequiresNetworkMagic": "RequiresMagic",
   "defaultBackends": [
     "KatipBK"
   ],
@@ -12,10 +13,6 @@
       "FileSK",
       "/opt/cardano/cnode/logs/dbsync.json"
     ]
-  ],
-  "hasPrometheus": [
-    "127.0.0.1",
-    12698
   ],
   "minSeverity": "Info",
   "options": {

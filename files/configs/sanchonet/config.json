@@ -1,7 +1,5 @@
 {
   "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
-  "ApplicationName": "cardano-sl",
-  "ApplicationVersion": 0,
   "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
   "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
   "EnableP2P": true,
@@ -24,14 +22,14 @@
   "EnableLogging": true,
   "EnableLogMetrics": false,
   "TraceAcceptPolicy": true,
-  "TraceBlockFetchClient": false,
+  "TraceBlockFetchClient": true,
   "TraceBlockFetchDecisions": false,
   "TraceBlockFetchProtocol": false,
   "TraceBlockFetchProtocolSerialised": false,
   "TraceBlockFetchServer": false,
   "TraceChainDb": true,
   "TraceChainSyncBlockServer": false,
-  "TraceChainSyncClient": false,
+  "TraceChainSyncClient": true,
   "TraceChainSyncHeaderServer": false,
   "TraceChainSyncProtocol": false,
   "TraceConnectionManager": true,
@@ -40,13 +38,14 @@
   "TraceDiffusionInitialization": true,
   "TraceErrorPolicy": true,
   "TraceForge": true,
-  "TraceHandshake": false,
+  "TraceHandshake": true,
   "TraceInboundGovernor": true,
   "TraceIpSubscription": true,
   "TraceLedgerPeers": true,
   "TraceLocalChainSyncProtocol": false,
+  "TraceLocalConnectionManager": true,
   "TraceLocalErrorPolicy": true,
-  "TraceLocalHandshake": false,
+  "TraceLocalHandshake": true,
   "TraceLocalRootPeers": true,
   "TraceLocalTxSubmissionProtocol": false,
   "TraceLocalTxSubmissionServer": false,
@@ -68,7 +67,7 @@
   "defaultScribes": [
     [
       "FileSK",
-      "/opt/cardano/cnode/logs/node0.json"
+      "/opt/cardano/cnode/logs/node.json"
     ]
   ],
   "hasEKG": 12788,
@@ -104,7 +103,7 @@
   "setupScribes": [
     {
       "scKind": "FileSK",
-      "scName": "/opt/cardano/cnode/logs/node0.json",
+      "scName": "/opt/cardano/cnode/logs/node.json",
       "scFormat": "ScJson",
       "scRotation": null
     }

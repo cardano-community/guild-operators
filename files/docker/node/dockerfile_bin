@@ -17,7 +17,7 @@ ENV \
     LANG=en_US.UTF-8 \
     LANGUAGE=en_US.UTF-8 \
     CNODE_HOME=/opt/cardano/cnode \
-    CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node0.socket \
+    CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node.socket \
     PATH=/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.local/bin \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 
