@@ -431,8 +431,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#modify-the-node-to-p2p-mode" class="md-nav__link">
-    Modify the node to P2P mode
+  <a href="#modify-the-nodes-config-files" class="md-nav__link">
+    Modify the node's config files
   </a>
   
 </li>
@@ -1036,8 +1036,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#modify-the-node-to-p2p-mode" class="md-nav__link">
-    Modify the node to P2P mode
+  <a href="#modify-the-nodes-config-files" class="md-nav__link">
+    Modify the node's config files
   </a>
   
 </li>
@@ -1105,19 +1105,18 @@ git<span class="w"> </span>checkout<span class="w"> </span><span class="k">$(</s
 <p>The above would copy the binaries built into <code>~/.local/bin</code> folder.</p>
 <h4 id="download-pre-compiled-binary-from-node-release">Download pre-compiled Binary from Node release<a class="headerlink" href="#download-pre-compiled-binary-from-node-release" title="Permanent link">⚓︎</a></h4>
 <p>While certain folks might want to build the node themselves (could be due to OS/arch compatibility, trust factor or customisations), for most it might not make sense to build the node locally.
-Instead, you can download the binaries using <a href="https://github.com/intersectmbo/cardano-node/releases">cardano-node release notes</a>, where-in you can find the download links for every version.
-Once downloaded, you would want to make it available to preferred <code>PATH</code> in your environment (if you're asking how - that'd mean you've skipped skillsets mentioned on homepage).</p>
+Instead, you can download the binaries using <a href="https://github.com/intersectmbo/cardano-node/releases">cardano-node release notes</a>, where-in you can find the download links for every version. This is already taken care of by <code>guild-deploy.sh</code> if you used the option to download binaries (you can always re-run with specific arguments if unsure).</p>
 <h3 id="verify">Verify<a class="headerlink" href="#verify" title="Permanent link">⚓︎</a></h3>
 <p>Execute <code>cardano-cli</code> and <code>cardano-node</code> to verify output as below (the exact version and git rev should depend on your checkout tag on github repository):</p>
 <div class="highlight"><pre><span></span><code>cardano-cli<span class="w"> </span>version
-<span class="c1"># cardano-cli 8.1.2 - linux-x86_64 - ghc-8.10</span>
+<span class="c1"># cardano-cli 8.x.x - linux-x86_64 - ghc-8.10</span>
 <span class="c1"># git rev &lt;...&gt;</span>
 cardano-node<span class="w"> </span>version
-<span class="c1"># cardano-node 8.1.2 - linux-x86_64 - ghc-8.10</span>
+<span class="c1"># cardano-node 8.x.x - linux-x86_64 - ghc-8.10</span>
 <span class="c1"># git rev &lt;...&gt;</span>
 </code></pre></div>
 <h4 id="update-port-number-or-pool-name-for-relative-paths">Update port number or pool name for relative paths<a class="headerlink" href="#update-port-number-or-pool-name-for-relative-paths" title="Permanent link">⚓︎</a></h4>
-<p>Before you go ahead with starting your node, you may want to update values for <code>CNODE_PORT</code> in <code>$CNODE_HOME/scripts/env</code>. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of <code>guild-deploy.sh</code> will preserve and not overwrite these values.</p>
+<p>Before you go ahead with starting your node, you may want to update values for <code>CNODE_PORT</code> in <code>$CNODE_HOME/scripts/env</code>. Note that it is imperative for operational relays and pools to ensure that the port mentioned is opened via firewall to the destination your node is supposed to connect from. Update your network/firewall configuration accordingly. Future executions of <code>guild-deploy.sh</code> will preserve and not overwrite these values (or atleast back up if forced to overwrite).</p>
 <div class="highlight"><pre><span></span><code><span class="nv">CNODEBIN</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.local/bin/cardano-node&quot;</span>
 <span class="nv">CCLI</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/.local/bin/cardano-cli&quot;</span>
 <span class="nv">CNODE_PORT</span><span class="o">=</span><span class="m">6000</span>
@@ -1125,46 +1124,82 @@ cardano-node<span class="w"> </span>version
 </code></pre></div>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p>POOL_NAME is the name of folder that you will use when registering pools and starting node in core mode. This folder would typically contain your <code>hot.skey</code>,<code>vrf.skey</code> and <code>op.cert</code> files required. If the mentioned files are absent, the node will automatically start in a passive mode. Note that in case CNODE_PORT is changed, you'd want to re-do the deployment of systemd service as mentioned later in the guide</p>
+<p>POOL_NAME is the name of folder that you will use when registering pools and starting node in core mode. This folder would typically contain your <code>hot.skey</code>,<code>vrf.skey</code> and <code>op.cert</code> files required. If the mentioned files are absent (expected if this is a fresh install), the node will automatically start in a relay mode.</p>
 </div>
 <h4 id="start-the-node">Start the node<a class="headerlink" href="#start-the-node" title="Permanent link">⚓︎</a></h4>
-<p>To test starting the node in interactive mode, you can use the pre-built script below (<code>cnode.sh</code>) (note that your node logs are being written to <code>$CNODE_HOME/logs</code> folder, you may not see much output beyond <code>Listening on http://127.0.0.1:12798</code>). This script automatically determines whether to start the node as a relay or block producer (if the required pool keys are present in the <code>$CNODE_HOME/priv/pool/&lt;POOL_NAME&gt;</code> as mentioned above). The script contains a user-defined variable <code>CPU_CORES</code> which determines the number of CPU cores the node will use upon start-up:</p>
-<p><div class="highlight"><pre><span></span><code><span class="c1">######################################</span>
+<p>To test starting the node in interactive mode, we will make use of pre-built script <code>cnode.sh</code>. This script automatically determines whether to start the node as a relay or block producer (if the required pool keys are present in the <code>$CNODE_HOME/priv/pool/&lt;POOL_NAME&gt;</code> as mentioned above). The script contains a user-defined variable <code>CPU_CORES</code> which determines the number of CPU cores the node will use upon start-up:</p>
+<div class="highlight"><pre><span></span><code><span class="c1">######################################</span>
 <span class="c1"># User Variables - Change as desired #</span>
 <span class="c1"># Common variables set in env file   #</span>
 <span class="c1">######################################</span>
 
-<span class="c1">#CPU_CORES=2            # Number of CPU cores cardano-node process has access to (please don&#39;t set higher than physical core count, 2-4 recommended)</span>
+<span class="c1">#CPU_CORES=4            # Number of CPU cores cardano-node process has access to (please don&#39;t set higher than physical core count, 4 recommended)</span>
 </code></pre></div>
-You can uncomment this and set to the desired number, but be wary not to go above your physical core count.
-<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span><span class="s2">&quot;</span>/scripts
-./cnode.sh
-</code></pre></div></p>
-<p>Ensure you do not have any errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.</p>
-<h4 id="modify-the-node-to-p2p-mode">Modify the node to P2P mode<a class="headerlink" href="#modify-the-node-to-p2p-mode" title="Permanent link">⚓︎</a></h4>
+<p>Now let's test starting the node in interactive mode.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The section below only refer to mainnet, as Guildnet/Preview/Preprod templates already come with P2P as default mode, and do not require steps below</p>
+<p>At this stage, upon executing <code>cnode.sh</code>, you are expected to see the live config and a line ending with <code>Listening on http://127.0.0.1:12798</code> - this is expected, as your logs are being written to <code>$CNODE_HOME/logs/node.json</code> . If so, you should be alright to return to your console by pressing Ctrl-C. The node will be started later using instructions below using systemd (Linux's service management). In case you receive any errors, please troubleshoot and fix those before proceeding.</p>
 </div>
-<p>In case you prefer to start the node in P2P mode (ideally, only on relays), you can do so by replacing the config.json and topology.json files in <code>$CNODE_HOME/files</code> folder.
-You can find a sample of these two files that can be downloaded using commands below:</p>
-<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span><span class="s2">&quot;</span>/files
-mv<span class="w"> </span>config.json<span class="w"> </span>config.json.bkp_<span class="k">$(</span>date<span class="w"> </span>+%s<span class="k">)</span>
-mv<span class="w"> </span>topology.json<span class="w"> </span>topology.json.bkp_<span class="k">$(</span>date<span class="w"> </span>+%s<span class="k">)</span>
-curl<span class="w"> </span>-sL<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/config-mainnet.p2p.json&quot;</span><span class="w"> </span>-o<span class="w"> </span>config.json
-curl<span class="w"> </span>-sL<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/topology-mainnet.json&quot;</span><span class="w"> </span>-o<span class="w"> </span>topology.json
-</code></pre></div>
-<p>Once downloaded, you'd want to update config.json (if you want to update any port/path references or change tracers from default) and the topology.json file to include your core/relay nodes in <code>localRoots</code> section (replacing dummy values currently in place with <code>"127.0.0.1"</code> address. The P2P topology file provides you few public nodes as a fallback to avoid single point of reliance, being IO provided mainnet nodes. You can also remove/update any additional peers as per your preference.</p>
-<p>Once updated, since you modified the file manually - there is always a chance of human errors (eg: missing comma/quotes). Thus, we would recommend you to start the node interactively once again before proceeding.</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span><span class="s2">&quot;</span>/scripts
 ./cnode.sh
 </code></pre></div>
-<p>Ensure you do not have any errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.</p>
+<p>Press Ctrl-C to exit node and return to console.</p>
+<h4 id="modify-the-nodes-config-files">Modify the node's config files<a class="headerlink" href="#modify-the-nodes-config-files" title="Permanent link">⚓︎</a></h4>
+<p>Now that you've tested the basic node operation, you might want to customise your config files (assuming you are in top-level folder , i.e. <code>cd "${CNODE_HOME}"</code>:</p>
+<ol>
+<li>
+<p>files/config.json :
+This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus/EKG monitoring will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use this file as-is. Note that for mainnet </p>
+</li>
+<li>
+<p>files/topology.json :
+This file tells your node how to connect to other nodes (especially initially to start synching). You would want to update this file as below:</p>
+<ul>
+<li>Update the <code>localRoots</code> &gt; <code>accessPoints</code> section to include your local nodes that you want persistent connection against (eg: this could be your BP and own relay nodes).</li>
+<li>You'd want to update <code>localRoots</code> &gt; <code>valency</code> to number of connections from your localRoots that you always want to keep active connection to.</li>
+<li>[Optional] - you can add more <code>publicRoots</code> section, tho defaults populated should work fine.</li>
+<li><code>useLedgerAfterSlot</code> tells the node to use nodes from localRoots/publicRoots to sync the node initially until reaching an absolute slot number, after which - it can start attempting to connect to peers on the network.</li>
+</ul>
+</li>
+</ol>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>You'd want to set <code>useLedgerAfterSlot</code> to <code>-1</code> for your Block Producing (Core) node - thereby, telling your Core node to remain in non-P2P mode.</p>
+</div>
+<p>The resultant topology file could look something like below:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;localRoots&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;accessPoints&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;xx.xx.xx.xx&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6000</span><span class="w"> </span><span class="p">},</span>
+<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;xx.xx.xx.yy&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6000</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;advertise&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;valency&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;publicRoots&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;accessPoints&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3001</span><span class="w"> </span><span class="p">},</span>
+<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6000</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;advertise&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;useLedgerAfterSlot&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">67067585</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Once above two files are updated, since you modified the file manually - there is always a chance of human errors (eg: missing comma/quotes). Thus, we would recommend you to start the node interactively once again before proceeding.</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span><span class="s2">&quot;</span>/scripts
+./cnode.sh
+</code></pre></div>
+<p>As before, ensure you do not have any errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.</p>
+<h4 id="start-the-submit-api">Start the submit-api<a class="headerlink" href="#start-the-submit-api" title="Permanent link">⚓︎</a></h4>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>An average pool operator may not require <code>cardano-submit-api</code> at all. Please verify if it is required for your use as mentioned <a href="../../build/#components">here</a>. If - however - you do run submit-api for accepting sizeable transaction load, you would want to override the default MEMPOOL_BYTES by uncommenting it in cnode.sh.</p>
 </div>
-<h4 id="start-the-submit-api">Start the submit-api<a class="headerlink" href="#start-the-submit-api" title="Permanent link">⚓︎</a></h4>
 <p><code>cardano-submit-api</code> is one of the binaries built as part of <code>cardano-node</code> repository and allows you to submit transactions over a Web API. To run this service interactively, you can use the pre-built script below (<code>submitapi.sh</code>). Make sure to update <code>submitapi.sh</code> script to change listen IP or Port that you'd want to make this service available on.</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="nv">$CNODE_HOME</span>/scripts
 ./submitapi.sh
