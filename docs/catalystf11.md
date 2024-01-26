@@ -51,3 +51,33 @@
   Applicant: [Smaug](https://cardano.ideascale.com/c/profile/129977) (pool.pm)  
   Requested funds: **₳149,999.00**  
   Links: [Ideascale](https://cardano.ideascale.com/c/idea/114408), [Lidonation](https://www.lidonation.com/en/proposals/nftcdnio-nsfw-nft-detection-for-marketplaces-wallets-explorers-f11)
+
+* #### Cardanoscan Analytics Charts
+  Category: Product  
+  Applicant: [Strica](https://cardano.ideascale.com/c/profile/191274) (cardanoscan.io)  
+  Requested funds: **₳44,000.00**  
+  Links: [Ideascale](https://cardano.ideascale.com/c/idea/114271), [Lidonation](https://www.lidonation.com/en/proposals/cardanoscan-analytics-charts-f11)
+  
+* #### Cardanoscan API Javascript SDK
+  Category: Developers  
+  Applicant: [Strica](https://cardano.ideascale.com/c/profile/191274) (cardanoscan.io)  
+  Requested funds: **₳64,000.00**  
+  Links: [Ideascale](https://cardano.ideascale.com/c/idea/113151), [Lidonation](https://www.lidonation.com/en/proposals/cardanoscan-api-javascript-sdk-f11)
+  
+* #### Integrate Keystone Hardware Wallet into Typhon
+  Category: Product  
+  Applicant: [Strica](https://cardano.ideascale.com/c/profile/191274) (cardanoscan.io)  
+  Requested funds: **₳84,000.00**  
+  Links: [Ideascale](https://cardano.ideascale.com/c/idea/114118), [Lidonation](https://www.lidonation.com/en/proposals/integrate-keystone-hardware-wallet-into-typhon-f11)  
+  
+* #### Add support for Marlowe on Cardanoscan
+  Category: Product  
+  Applicant: [Strica](https://cardano.ideascale.com/c/profile/191274) (cardanoscan.io)  
+  Requested funds: **₳133,000.00**  
+  Links: [Ideascale](https://cardano.ideascale.com/c/idea/113980), [Lidonation](https://www.lidonation.com/en/proposals/add-support-for-marlowe-on-cardanoscan-f11)
+
+* #### Cardanoscan data info bubbles
+  Category: Ecosystem  
+  Applicant: [Strica](https://cardano.ideascale.com/c/profile/191274) (cardanoscan.io)  
+  Requested funds: **₳35,000.00**  
+  Links: [Ideascale](https://cardano.ideascale.com/c/idea/113183), [Lidonation](https://www.lidonation.com/en/proposals/cardanoscan-data-info-bubbles-f11)
