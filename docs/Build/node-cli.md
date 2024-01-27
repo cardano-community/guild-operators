@@ -88,18 +88,18 @@ Press Ctrl-C to exit node and return to console.
 
 #### Modify the node's config files
 
-Now that you've tested the basic node operation, you might want to customise your config files (assuming you are in top-level folder , i.e. `cd "${CNODE_HOME}"`:
+Now that you've tested the basic node operation, you might want to customise your config files (assuming you are in top-level folder , i.e. `cd "${CNODE_HOME}"`) :
 
 1. files/config.json :
-This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus/EKG monitoring will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use this file as-is. Note that for mainnet 
+This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus/EKG monitoring will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use this file as-is.
 
 2. files/topology.json :
 This file tells your node how to connect to other nodes (especially initially to start synching). You would want to update this file as below:
 
     * Update the `localRoots` > `accessPoints` section to include your local nodes that you want persistent connection against (eg: this could be your BP and own relay nodes).
     * You'd want to update `localRoots` > `valency` to number of connections from your localRoots that you always want to keep active connection to.
-    * [Optional] - you can add more `publicRoots` section, tho defaults populated should work fine.
-    * `useLedgerAfterSlot` tells the node to use nodes from localRoots/publicRoots to sync the node initially until reaching an absolute slot number, after which - it can start attempting to connect to peers on the network.
+    * [Optional] - you can add/remove nodes from `publicRoots` section, tho defaults populated should work fine. On mainnet, we did add a few additional nodes to help add more redundancy for initial sync - should IO/Emurgo decide to change DNS entries of their nodes.
+    * `useLedgerAfterSlot` tells the node to establish networking with nodes from localRoots/publicRoots to sync the node initially until reaching an absolute slot number, after which - it can start attempting to connect to peers registered as pool relays on the network. You may want this number to be relatively recent (eg: not hace it 50 epochs old)
 
 !!! important
     You'd want to set `useLedgerAfterSlot` to `-1` for your Block Producing (Core) node - thereby, telling your Core node to remain in non-P2P mode.

@@ -1405,7 +1405,7 @@ function main {
               amountADA="${amountADA//,}"
               echo
               if  [[ ${amountADA} != "all" ]]; then
-                if ! amount_lovelace=$(AdaToLovelace "${amountADA}" >/dev/null); then waitForInput && continue; fi
+                if ! amount_lovelace=$(AdaToLovelace "${amountADA}"); then waitForInput && continue; fi
                 [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} Ada" && waitForInput && continue
                 if [[ ${amount_lovelace} -lt ${assets[lovelace]} ]]; then
                   println DEBUG "Fee payed by sender? [else amount sent is reduced]"
@@ -1596,8 +1596,8 @@ function main {
               esac
               stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
               pool_delegcert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
-              println ACTION "${CCLI} ${NETWORK_ERA} stake-address delegation-certificate --stake-verification-key-file ${stake_vk_file} --stake-pool-id ${pool_id} --out-file ${pool_delegcert_file}"
-              ${CCLI} ${NETWORK_ERA} stake-address delegation-certificate --stake-verification-key-file "${stake_vk_file}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}"
+              println ACTION "${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file ${stake_vk_file} --stake-pool-id ${pool_id} --out-file ${pool_delegcert_file}"
+              ${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file "${stake_vk_file}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}"
               if ! delegate; then
                 if [[ ${op_mode} = "online" ]]; then
                   echo && println ERROR "${FG_RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
@@ -2336,8 +2336,8 @@ function main {
                   waitForInput "press any key to continue"
                 else
                   println LOG "creating delegation certificate for main owner wallet"
-                  println ACTION "${CCLI} ${NETWORK_ERA} stake-address delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}"
-                  ${CCLI} ${NETWORK_ERA} stake-address delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
+                  println ACTION "${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}"
+                  ${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
                   delegate_owner_wallet='Y'
                   if [[ "${owner_wallets[0]}" != "${reward_wallet}" ]]; then
                     println DEBUG "\n${FG_BLUE}INFO${NC}: reward wallet not the same as owner, automatic reward wallet delegation disabled"
