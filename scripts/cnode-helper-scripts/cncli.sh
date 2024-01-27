@@ -335,7 +335,8 @@ cncliLeaderlog() {
     slot_for_next_nonce=$(echo "(${slotnum} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (3 * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc) # firstSlotOfNextEpoch - stabilityWindow(3 * k / f)
     curr_epoch=${epochnum}
     next_epoch=$((curr_epoch+1))
-    if [[ ${slotnum} -gt ${slot_for_next_nonce} ]]; then # Run leaderlogs for next epoch
+    koios_delay=$( [[ -z ${KOIOS_API} ]] && echo 0 || echo $(( SLOT_LENGTH * 600 )) ) # 600 adds a delay of 10min to let Koios populate values.
+    if [[ ${slotnum} -gt $(( slot_for_next_nonce + koios_delay )) ]]; then # Run leaderlogs for next epoch
       if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${next_epoch};" 2>/dev/null) -eq 1 ]]; then # Leaderlogs already calculated for next epoch, skipping!
         if [[ -t 1 ]]; then # manual execution
           [[ ${subarg} != "force" ]] && echo "Leaderlogs already calculated for epoch ${next_epoch}, skipping!" && break
