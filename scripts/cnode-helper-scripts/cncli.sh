@@ -132,12 +132,14 @@ getKoiosData() {
     echo "ERROR: Koios pool_stake_snapshot query failed: curl -sSL -f -d _pool_bech32=${POOL_ID_BECH32} ${KOIOS_API}/pool_stake_snapshot"
     return 1
   fi
-  read -ra stake_mark <<<"$(jq -r '.[] | select(.snapshot=="Mark") | [.pool_stake, .active_stake] | @tsv' <<< ${stake_snapshot})"
-  read -ra stake_set <<<"$(jq -r '.[] | select(.snapshot=="Set") | [.pool_stake, .active_stake] | @tsv' <<< ${stake_snapshot})"
+  read -ra stake_mark <<<"$(jq -r '.[] | select(.snapshot=="Mark") | [.pool_stake, .active_stake, .nonce] | @tsv' <<< ${stake_snapshot})"
+  read -ra stake_set <<<"$(jq -r '.[] | select(.snapshot=="Set") | [.pool_stake, .active_stake, .nonce] | @tsv' <<< ${stake_snapshot})"
   pool_stake_mark=${stake_mark[0]}
   active_stake_mark=${stake_mark[1]}
+  nonce_mark=${stake_mark[2]}
   pool_stake_set=${stake_set[0]}
   active_stake_set=${stake_set[1]}
+  nonce_set=${stake_set[2]}
   return 0
 }
 
@@ -279,6 +281,7 @@ cncliLeaderlog() {
       getLedgerData || exit 1
     fi
     stake_param_current="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"
+    [[ -z "${nonce_set}" ]] && stake_param_current="${stake_param_current} --nonce ${nonce_set}"
     cncli_leaderlog=$(${CNCLI} leaderlog --consensus "${consensus}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current ${stake_param_current} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
     if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
       error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
@@ -332,7 +335,8 @@ cncliLeaderlog() {
     slot_for_next_nonce=$(echo "(${slotnum} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (3 * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc) # firstSlotOfNextEpoch - stabilityWindow(3 * k / f)
     curr_epoch=${epochnum}
     next_epoch=$((curr_epoch+1))
-    if [[ ${slotnum} -gt ${slot_for_next_nonce} ]]; then # Run leaderlogs for next epoch
+    koios_delay=$( [[ -z ${KOIOS_API} ]] && echo 0 || echo $(( SLOT_LENGTH * 600 )) ) # 600 adds a delay of 10min to let Koios populate values.
+    if [[ ${slotnum} -gt $(( slot_for_next_nonce + koios_delay )) ]]; then # Run leaderlogs for next epoch
       if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${next_epoch};" 2>/dev/null) -eq 1 ]]; then # Leaderlogs already calculated for next epoch, skipping!
         if [[ -t 1 ]]; then # manual execution
           [[ ${subarg} != "force" ]] && echo "Leaderlogs already calculated for epoch ${next_epoch}, skipping!" && break
@@ -345,6 +349,7 @@ cncliLeaderlog() {
         if ! getLedgerData; then sleep 300; continue; fi # Sleep for 5 min before retrying to query stake snapshot in case of error
       fi
       stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
+      [[ -z "${nonce_mark}" ]] && stake_param_next="${stake_param_next} --nonce ${nonce_mark}"
       cncli_leaderlog=$(${CNCLI} leaderlog --consensus "${consensus}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next ${stake_param_next} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
