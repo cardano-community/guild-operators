@@ -1145,11 +1145,11 @@ cardano-node<span class="w"> </span>version
 </code></pre></div>
 <p>Press Ctrl-C to exit node and return to console.</p>
 <h4 id="modify-the-nodes-config-files">Modify the node's config files<a class="headerlink" href="#modify-the-nodes-config-files" title="Permanent link">⚓︎</a></h4>
-<p>Now that you've tested the basic node operation, you might want to customise your config files (assuming you are in top-level folder , i.e. <code>cd "${CNODE_HOME}"</code>:</p>
+<p>Now that you've tested the basic node operation, you might want to customise your config files (assuming you are in top-level folder , i.e. <code>cd "${CNODE_HOME}"</code>) :</p>
 <ol>
 <li>
 <p>files/config.json :
-This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus/EKG monitoring will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use this file as-is. Note that for mainnet </p>
+This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus/EKG monitoring will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use this file as-is.</p>
 </li>
 <li>
 <p>files/topology.json :
@@ -1157,8 +1157,8 @@ This file tells your node how to connect to other nodes (especially initially to
 <ul>
 <li>Update the <code>localRoots</code> &gt; <code>accessPoints</code> section to include your local nodes that you want persistent connection against (eg: this could be your BP and own relay nodes).</li>
 <li>You'd want to update <code>localRoots</code> &gt; <code>valency</code> to number of connections from your localRoots that you always want to keep active connection to.</li>
-<li>[Optional] - you can add more <code>publicRoots</code> section, tho defaults populated should work fine.</li>
-<li><code>useLedgerAfterSlot</code> tells the node to use nodes from localRoots/publicRoots to sync the node initially until reaching an absolute slot number, after which - it can start attempting to connect to peers on the network.</li>
+<li>[Optional] - you can add/remove nodes from <code>publicRoots</code> section, tho defaults populated should work fine. On mainnet, we did add a few additional nodes to help add more redundancy for initial sync - should IO/Emurgo decide to change DNS entries of their nodes.</li>
+<li><code>useLedgerAfterSlot</code> tells the node to establish networking with nodes from localRoots/publicRoots to sync the node initially until reaching an absolute slot number, after which - it can start attempting to connect to peers registered as pool relays on the network. You may want this number to be relatively recent (eg: not hace it 50 epochs old)</li>
 </ul>
 </li>
 </ol>
