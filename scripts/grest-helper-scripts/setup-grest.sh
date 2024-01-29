@@ -174,10 +174,6 @@ SGVERSION=v1.1.1
     set_cron_variables "asset-info-cache-update"
     install_cron_job "asset-info-cache-update" "*/2 * * * *"
 
-    get_cron_job_executable "asset-txo-cache-update"
-    set_cron_variables "asset-txo-cache-update"
-    install_cron_job "asset-txo-cache-update" "*/30 * * * *"
-
     # Only (legacy) testnet and mainnet asset registries supported
     # In absence of official messaging, current (soon to be reset) preprod/preview networks use same registry as testnet. TBC - once there is an update from IO on these
     # Possible future addition for the Guild network once there is a guild registry
