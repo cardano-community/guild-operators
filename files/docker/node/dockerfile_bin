@@ -42,7 +42,7 @@ RUN adduser --disabled-password --gecos '' guild \
 RUN set -x && apt update \
     && apt-get update \
     && mkdir -p /root/.local/bin \
-    && wget https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh \
+    && wget https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh \
     && export SUDO='N' \
     && export UPDATE_CHECK='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
@@ -89,15 +89,15 @@ RUN  curl -sL -H "Accept: application/vnd.github.everest-preview+json" -H "Conte
 
 
 # ENTRY SCRIPT
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/banner.txt \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/guild-topology.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/block_watcher.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/scripts/cnode-helper-scripts/mithril-client.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/scripts/cnode-helper-scripts/mithril-signer.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/scripts/cnode-helper-scripts/mithril-relay.sh /opt/cardano/cnode/scripts/
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master/files/docker/node/addons/entrypoint.sh ./
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/banner.txt \
+    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/guild-topology.sh \
+    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/block_watcher.sh \
+    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh \
+    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-client.sh \
+    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-signer.sh \
+    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-relay.sh /opt/cardano/cnode/scripts/
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/entrypoint.sh ./
 
 RUN sudo chmod a+rx /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh \
     && sudo chown -R guild:guild /home/guild/.* $CNODE_HOME
