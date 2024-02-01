@@ -89,14 +89,6 @@ function chk_version() {
   fi
 }
 
-function chk_is_up() {
-  rc=$(curl -sfkL "${GURL}"/ready -I 2>/dev/null | grep x-failover)
-  if [[ "${rc}" != "" ]]; then
-    log_err "${GURL}/ready status check failed!!"
-    optexit
-  fi
-}
-
 function chk_tip() {
   read -ra tip <<< "$(curl -m 2 -sfkL "${URLRPC}/tip" 2>/dev/null | jq -r '[
     .[0].epoch_no // 0,
@@ -176,7 +168,7 @@ function chk_cache_status() {
 }
 
 function chk_limit() {
-  limit=$(curl -skL "${GURL}"/blocks -I | grep -i 'content-range' | sed -e 's#.*.-##' -e 's#/.*.##' 2>/dev/null)
+  limit=$(curl -skL "${URLRPC}"/blocks -I | grep -i 'content-range' | sed -e 's#.*.-##' -e 's#/.*.##' 2>/dev/null)
   if [[ "${limit}" != "999" ]]; then
     log_err "The PostgREST config for uses a custom limit that does not match monitoring instances"
     optexit
@@ -196,11 +188,11 @@ function chk_endpt_get() {
 function chk_endpt_post() {
   local endpt="${1}"
   local data="${2}"
-  echo rslt="$(curl -skL -X POST -H "Content-Type: application/json" "${GURL}/${endpt}" -d "${data}" 2>&1)"
+  echo rslt="$(curl -skL -X POST -H "Content-Type: application/json" "${URLRPC}/${endpt}" -d "${data}" 2>&1)"
 }
 
 function chk_asset_registry() {
-  ct=$(curl -sfkL -H 'Prefer: count=exact' "${GURL}/asset_token_registry?select=asset_name&limit=1" -I 2>/dev/null | grep -i "content-range" | cut -d/ -f2 | tr -d '[:space:]')
+  ct=$(curl -sfkL -H 'Prefer: count=exact' "${URLRPC}/asset_token_registry?select=asset_name&limit=1" -I 2>/dev/null | grep -i "content-range" | cut -d/ -f2 | tr -d '[:space:]')
   if [[ "${ct}" == "" ]] || [[ $ct -lt 150 ]]; then
     log_err "Asset registry cache seems incomplete (<150) assets, try deleting key: asset_registry_commit in control_table and wait for next cron run"
     optexit
