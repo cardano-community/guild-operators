@@ -249,6 +249,25 @@ os_dependencies() {
     echo -e "\nIt would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
     err_exit
   fi
+  # Cannot verify the version and availability of libsecp256k1 package built previously, hence have to re-install each time
+  echo -e "\n[Re]-Install libsecp256k1 ..."
+  mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
+  pushd "${HOME}"/git >/dev/null || err_exit
+  [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
+  pushd secp256k1 >/dev/null || err_exit
+  git fetch >/dev/null 2>&1
+  git checkout ac83be33 &>/dev/null
+  ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
+  ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
+  make > make.log 2>&1 || err_exit " Could not complete \"make\" for libsecp256k1 package, please try to run it manually to diagnose!"
+  make check >>make.log 2>&1
+  $sudo make install > install.log 2>&1
+  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
+    echo -e "\nexport LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+  fi
+  echo -e "\nlibsecp256k1 installed to /usr/local/lib/"
+  build_libblst
 }
 
 # Build Dependencies for cabal builds
@@ -283,25 +302,6 @@ build_dependencies() {
     echo -e "\n Installing Cabal v${BOOTSTRAP_HASKELL_CABAL_VERSION}.."
     ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION} >/dev/null 2>&1 || err_exit " Executing \"ghcup install cabal ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
   fi
-  # Cannot verify the version and availability of libsecp256k1 package built previously, hence have to re-install each time
-  echo -e "\n[Re]-Install libsecp256k1 ..."
-  mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
-  pushd "${HOME}"/git >/dev/null || err_exit
-  [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
-  pushd secp256k1 >/dev/null || err_exit
-  git fetch >/dev/null 2>&1
-  git checkout ac83be33 &>/dev/null
-  ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
-  ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
-  make > make.log 2>&1 || err_exit " Could not complete \"make\" for libsecp256k1 package, please try to run it manually to diagnose!"
-  make check >>make.log 2>&1
-  $sudo make install > install.log 2>&1
-  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
-    echo -e "\nexport LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
-    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-  fi
-  echo -e "\nlibsecp256k1 installed to /usr/local/lib/"
-  build_libblst
 }
 
 # Build fork of libsodium
