@@ -81,3 +81,9 @@
   Applicant: [Strica](https://cardano.ideascale.com/c/profile/191274) (cardanoscan.io)  
   Requested funds: **₳35,000.00**  
   Links: [Ideascale](https://cardano.ideascale.com/c/idea/113183), [Lidonation](https://www.lidonation.com/en/proposals/cardanoscan-data-info-bubbles-f11)
+
+* #### Create a CNT marketplace on Norwegian Block Exchange (NBX.COM)
+  Category: Product  
+  Applicant: [Eystein Hansen](https://cardano.ideascale.com/c/profile/128041) (nbx.com)  
+  Requested funds: **₳145,000.00**  
+  Links: [Ideascale](https://cardano.ideascale.com/c/idea/112966), [Lidonation](https://www.lidonation.com/en/proposals/create-a-cnt-marketplace-on-norwegian-block-exchange-nbxcom-f11)
