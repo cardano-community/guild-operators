@@ -133,7 +133,6 @@ function chk_cache_status() {
   last_stakedist_block=$(jq -r 'map(select(.key == "stake_distribution_lbh"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
   last_poolhist_update=$(jq -r 'map(select(.key == "pool_history_cache_last_updated"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
   last_actvstake_epoch=$(jq -r 'map(select(.key == "last_active_stake_validated_epoch"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
-  last_snapshot_epoch=$(jq -r 'map(select(.key == "last_stake_snapshot_epoch"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
   last_epoch_summary=$(jq -r 'map(select(.key == "last_epoch_summary_data_checked"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
   if [[ "${last_stakedist_block}" == "" ]] || [[ "${last_stakedist_block}" == "[]" ]] || [[ $(( block_no - last_stakedist_block )) -gt 2000 ]]; then
     log_err "Stake Distribution cache too far from tip !!"
@@ -156,11 +155,6 @@ function chk_cache_status() {
       fi
       if [[ "${last_epoch_summary}" != "${epoch}" ]]; then
         log_err "Epoch Summary Cache for epoch ${epoch} still not populated as of ${epoch_slot} slot, maximum tolerance was $(( epoch_length / 6 )) !!"
-        optexit
-      fi
-    else
-      if [[ $((last_snapshot_epoch + 2)) -lt ${epoch} ]]; then
-        log_err "Stake snapshot for instance is at '${last_snapshot_epoch}' while current epoch is ${epoch}  !!"
         optexit
       fi
     fi

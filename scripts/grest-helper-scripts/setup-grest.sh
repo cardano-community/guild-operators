@@ -162,10 +162,6 @@ SGVERSION=v1.1.1
     ([[ ${NWMAGIC} -eq 141 ]] && install_cron_job "active-stake-cache-update" "*/5 * * * *") ||
       install_cron_job "active-stake-cache-update" "*/15 * * * *"
 
-    get_cron_job_executable "stake-snapshot-cache"
-    set_cron_variables "stake-snapshot-cache"
-    install_cron_job "stake-snapshot-cache" "*/10 * * * *"
-
     get_cron_job_executable "populate-next-epoch-nonce"
     set_cron_variables "populate-next-epoch-nonce"
     install_cron_job "populate-next-epoch-nonce" "*/10 * * * *"
