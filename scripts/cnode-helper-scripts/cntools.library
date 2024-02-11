@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=12
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=0
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 
@@ -542,7 +542,8 @@ selectPool() {
         0) println "ERROR" "KOIOS_API: ${error_msg}" &>/dev/null ;; # log error without printing but show pool
         1) [[ ${mode} = "reg" ]] && continue ;;
         2) [[ ${mode} = "non-reg" ]] && continue ;;
-        3) [[ ${mode} = "reg" ]] && continue ;;
+        3) [[ ${mode} = "non-reg" ]] && continue ;;
+        4) [[ ${mode} = "reg" ]] && continue ;;
       esac
     fi
     pool_dirs+=("${dir}")
@@ -564,7 +565,8 @@ selectPool() {
 # Return      : 0 => error quering KOIOS API (error message saved in ${error_msg})
 #               1 => NOT registered
 #               2 => registered
-#               3 => retiring/retired (only for KOIOS API)
+#               3 => retiring (only for KOIOS API)
+#               4 => retired (only for KOIOS API)
 isPoolRegistered() {
   unset error_msg pool_info pool_info_tsv pool_info_arr
   unset p_active_epoch_no p_vrf_key_hash p_margin p_fixed_cost p_pledge p_reward_addr p_owners p_relays p_meta_url p_meta_hash p_meta_json p_pool_status
@@ -626,7 +628,8 @@ isPoolRegistered() {
     p_live_delegators=${pool_info_arr[19]}
     p_live_saturation=${pool_info_arr[20]}
 
-    [[ ${p_pool_status} = 'registered' ]] && return 2 || return 3
+    [[ ${p_pool_status} = 'registered' ]] && return 2
+    [[ ${p_pool_status} = 'retiring' ]] && return 3 || return 4
   fi
 }
 
