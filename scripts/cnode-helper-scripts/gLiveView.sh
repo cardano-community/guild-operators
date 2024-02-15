@@ -528,7 +528,7 @@ parsePoolInfo () {
 
 getOpCert () {
   op_cert_disk="?"
-  op_cert_node="?"
+  op_cert_chain="?"
   opcert_file="${POOL_DIR}/${POOL_OPCERT_FILENAME}"
   if [[ ! -f ${opcert_file} && -n ${CNODE_PID} ]]; then
     if [[ $(ps -p ${CNODE_PID} -o cmd=) =~ --shelley-operational-certificate[[:space:]]([^[:space:]]+) ]]; then
@@ -541,7 +541,7 @@ getOpCert () {
     .qKesOnDiskOperationalCertificateNumber //"?"
     ] | @tsv' <<<"$(${CCLI} ${NETWORK_ERA} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}" | grep "^[{ }]")")
     read -ra op_cert_arr <<< ${op_cert_tsv}
-    isNumber ${op_cert_arr[0]} && op_cert_node=${op_cert_arr[0]}
+    isNumber ${op_cert_arr[0]} && op_cert_chain=${op_cert_arr[0]}
     isNumber ${op_cert_arr[1]} && op_cert_disk=${op_cert_arr[1]}
   fi
 }
@@ -1252,18 +1252,16 @@ while true; do
       closeRow
 
       # OP Cert
-      if isNumber ${p_op_cert_counter}; then
-        op_cert_chain=${p_op_cert_counter}
+      if isNumber ${op_cert_chain}; then
+        op_cert_chain_fmt="${style_values_1}"
         if isNumber ${op_cert_disk} && [[ ${op_cert_disk} -ge ${op_cert_chain} && ${op_cert_disk} -le $((op_cert_chain+1)) ]]; then op_cert_disk_fmt="${style_values_1}"; else op_cert_disk_fmt="${style_status_3}"; fi
-        if isNumber ${op_cert_node} && [[ ${op_cert_node} -ge ${op_cert_chain} && ${op_cert_node} -le $((op_cert_chain+1)) ]]; then op_cert_node_fmt="${style_values_1}"; else op_cert_node_fmt="${style_status_3}"; fi
       else
-        op_cert_chain="?"
+        op_cert_chain_fmt="${style_values_3}"
         if isNumber ${op_cert_disk}; then op_cert_disk_fmt="${style_values_1}"; else op_cert_disk_fmt="${style_values_3}"; fi
-        if isNumber ${op_cert_node}; then op_cert_node_fmt="${style_values_1}"; else op_cert_node_fmt="${style_values_3}"; fi
       fi
-      printf "${VL} OP Cert disk|node|chain"
+      printf "${VL} OP Cert disk|chain"
       mvTwoSecond
-      printf ": ${op_cert_disk_fmt}%s${NC} | ${op_cert_node_fmt}%s${NC} | ${style_values_1}%s${NC}" "${op_cert_disk}" "${op_cert_node}" "${op_cert_chain}"
+      printf ": ${op_cert_disk_fmt}%s${NC} | ${op_cert_chain_fmt}%s${NC}" "${op_cert_disk}" "${op_cert_chain}"
       closeRow
 
       if [[ ${VERBOSE} = "Y" ]]; then
