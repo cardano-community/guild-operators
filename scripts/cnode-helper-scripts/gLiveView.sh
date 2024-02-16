@@ -20,6 +20,7 @@
 #CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
 #HIDE_DUPLICATE_IPS=N                     # If set to 'Y', duplicate and local IP's will be filtered out in peer analysis, else all connected peers are shown (default: N)
 #VERBOSE=N                                # Start in verbose mode showing additional metrics (default: N)
+#GLV_LOG="${LOG_DIR}/gLiveView.log"       # Log gLiveView errors, set empty to disable. LOG_DIR set in env file.
 
 #####################################
 # Themes                            #
@@ -59,7 +60,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.29.0
+GLV_VERSION=v1.29.1
 
 PARENT="$(dirname $0)"
 
@@ -197,6 +198,8 @@ declare -gA geoIP=()
 [[ -z ${HIDE_DUPLICATE_IPS} ]] && HIDE_DUPLICATE_IPS=N
 
 [[ -z ${VERBOSE} ]] && VERBOSE=N
+
+[[ -z ${GLV_LOG} ]] && GLV_LOG="${LOG_DIR}/gLiveView.log"
 
 #######################################################
 # Style / UI                                          #
@@ -449,10 +452,22 @@ getArrayIndex () {
   echo -1
 }
 
+logln() {
+  [[ -z ${GLV_LOG} ]] && return
+  local log_level=$1
+  shift
+  [[ -z $1 ]] && return
+  echo -e "$@" | while read -r log_line; do
+    log_line=$(sed -E 's/\x1b(\[[0-9;]*[a-zA-Z]|[0-9])//g' <<< ${log_line##*( )})
+    [[ -z ${log_line} ]] && continue
+    printf '%s %-8s %s\n' "$(date "+%F %T %Z")" "[${log_level}]" "${log_line}" >> "${GLV_LOG}"
+  done
+}
+
 getPoolInfo () {
   # runs in background to not stall rest of gLiveView while fetching data
   if ! pool_info=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1); then
-    echo ${pool_info} > ${pool_info_error_file}
+    [[ -n ${GLV_LOG} ]] && logln "ERROR" "${pool_info}"
     return
   fi
   [[ ${pool_info} = '[]' ]] && return
@@ -513,7 +528,7 @@ parsePoolInfo () {
 
 getOpCert () {
   op_cert_disk="?"
-  op_cert_node="?"
+  op_cert_chain="?"
   opcert_file="${POOL_DIR}/${POOL_OPCERT_FILENAME}"
   if [[ ! -f ${opcert_file} && -n ${CNODE_PID} ]]; then
     if [[ $(ps -p ${CNODE_PID} -o cmd=) =~ --shelley-operational-certificate[[:space:]]([^[:space:]]+) ]]; then
@@ -526,7 +541,7 @@ getOpCert () {
     .qKesOnDiskOperationalCertificateNumber //"?"
     ] | @tsv' <<<"$(${CCLI} ${NETWORK_ERA} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}" | grep "^[{ }]")")
     read -ra op_cert_arr <<< ${op_cert_tsv}
-    isNumber ${op_cert_arr[0]} && op_cert_node=${op_cert_arr[0]}
+    isNumber ${op_cert_arr[0]} && op_cert_chain=${op_cert_arr[0]}
     isNumber ${op_cert_arr[1]} && op_cert_disk=${op_cert_arr[1]}
   fi
 }
@@ -725,7 +740,6 @@ screen_upd_cnt=0
 
 test_koios # KOIOS_API variable unset if check fails. Only tested once on startup.
 pool_info_file=/dev/shm/pool_info
-pool_info_error_file=/dev/shm/pool_info_error
 [[ -n ${KOIOS_API} ]] && getPoolID
 
 getOpCert
@@ -776,12 +790,14 @@ while true; do
 
   # Gather some data
   getNodeMetrics
-  [[ ${RETRIES} -gt 0 && ${fail_count} -eq ${RETRIES} ]] && myExit 1 "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}"
+  [[ ${RETRIES} -gt 0 && ${fail_count} -eq ${RETRIES} ]] && printf -v error_msg "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}" && logln "ERROR" "${error_msg}" && myExit 1 "${error_msg}"
   CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}")
   if [[ -z ${CNODE_PID} ]]; then
     ((fail_count++))
     clrScreen && mvPos 2 2
-    printf "${style_status_3}Connection to node lost, retrying (${fail_count}$([[ ${RETRIES} -gt 0 ]] && echo "/${RETRIES}"))!${NC}"
+    printf -v error_msg "${style_status_3}Connection to node lost, retrying (${fail_count}$([[ ${RETRIES} -gt 0 ]] && echo "/${RETRIES}"))!${NC}"
+    printf ${error_msg}
+    logln "ERROR" "${error_msg}"
     waitForInput && continue
   elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check
     version=$("${CNODEBIN}" version)
@@ -841,11 +857,6 @@ while true; do
       if [[ -n ${KOIOS_API} && -n ${pool_id_bech32} ]]; then
         if [[ -n ${pool_info_last_upd} && $(($(date -u +%s) - pool_info_last_upd)) -lt 3600 ]]; then
           : # nothing to do, pool info already fetched, processed and under 1h old
-        elif [[ -f ${pool_info_error_file} ]]; then
-          clrScreen && mvPos 2 2
-          printf "${style_status_3}%s${NC}" "$(cat ${pool_info_error_file})"
-          rm ${pool_info_error_file}
-          waitToProceed && continue
         elif [[ -f ${pool_info_file} ]]; then
           parsePoolInfo
           pool_info_last_upd=$(date -u +%s)
@@ -1241,18 +1252,16 @@ while true; do
       closeRow
 
       # OP Cert
-      if isNumber ${p_op_cert_counter}; then
-        op_cert_chain=${p_op_cert_counter}
+      if isNumber ${op_cert_chain}; then
+        op_cert_chain_fmt="${style_values_1}"
         if isNumber ${op_cert_disk} && [[ ${op_cert_disk} -ge ${op_cert_chain} && ${op_cert_disk} -le $((op_cert_chain+1)) ]]; then op_cert_disk_fmt="${style_values_1}"; else op_cert_disk_fmt="${style_status_3}"; fi
-        if isNumber ${op_cert_node} && [[ ${op_cert_node} -ge ${op_cert_chain} && ${op_cert_node} -le $((op_cert_chain+1)) ]]; then op_cert_node_fmt="${style_values_1}"; else op_cert_node_fmt="${style_status_3}"; fi
       else
-        op_cert_chain="?"
+        op_cert_chain_fmt="${style_values_3}"
         if isNumber ${op_cert_disk}; then op_cert_disk_fmt="${style_values_1}"; else op_cert_disk_fmt="${style_values_3}"; fi
-        if isNumber ${op_cert_node}; then op_cert_node_fmt="${style_values_1}"; else op_cert_node_fmt="${style_values_3}"; fi
       fi
-      printf "${VL} OP Cert disk|node|chain"
+      printf "${VL} OP Cert disk|chain"
       mvTwoSecond
-      printf ": ${op_cert_disk_fmt}%s${NC} | ${op_cert_node_fmt}%s${NC} | ${style_values_1}%s${NC}" "${op_cert_disk}" "${op_cert_node}" "${op_cert_chain}"
+      printf ": ${op_cert_disk_fmt}%s${NC} | ${op_cert_chain_fmt}%s${NC}" "${op_cert_disk}" "${op_cert_chain}"
       closeRow
 
       if [[ ${VERBOSE} = "Y" ]]; then
