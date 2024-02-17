@@ -187,14 +187,14 @@ esac
 # Set defaults and do basic sanity checks
 set_defaults
 #Deploy systemd if -d argument was specified
-if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
-  deploy_systemd && exit 0
+if [[ "${UPDATE_ENVIRONMENT}" == "Y" && "${DEPLOY_SYSTEMD}" == "Y" ]]; then
+  generate_environment_file && echo "Environment file updated successfully" && deploy_systemd && echo "Mithril signer service successfully deployed" && exit 0
   exit 2
 elif [[ "${UPDATE_ENVIRONMENT}" == "Y" ]]; then
-  generate_environment_file && echo "Environment file updated successfully!!" && exit 0
+  generate_environment_file && echo "Environment file updated successfully" && exit 0
   exit 2
-elif [[ "${UPDATE_ENVIRONMENT}" == "Y" ]] && [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
-  generate_environment_file && deploy_systemd && exit 0
+elif [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
+  deploy_systemd && echo "Mithril signer service successfully deployed" && exit 0
   exit 2
 fi
 
