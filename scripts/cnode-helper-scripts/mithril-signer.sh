@@ -133,7 +133,7 @@ deploy_systemd() {
 	[Service]
 	Type=simple
 	Restart=always
-	RestartSec=5
+	RestartSec=60
 	User=${USER}
 	EnvironmentFile=${CNODE_HOME}/mithril/mithril.env
 	ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/mithril-signer -vv\"
