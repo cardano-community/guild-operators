@@ -12,6 +12,7 @@
 #OGMIOSBIN="${HOME}"/.local/bin/ogmios        # Path for ogmios binary, if not in $PATH
 #HOSTADDR=127.0.0.1                           # Default Listen IP/Hostname for Ogmios Server
 #HOSTPORT=1337                                # Default Listen port for Ogmios Server
+#LOG_LEVEL=Notice                             # Debug | Info | Notice | Warning | Error | Off
 
 ######################################
 # Do NOT modify code below           #
@@ -37,6 +38,19 @@ set_defaults() {
   [[ -z "${OGMIOSBIN}" ]] && OGMIOSBIN="${HOME}"/.local/bin/ogmios
   [[ -z "${HOSTADDR}" ]] && HOSTADDR=127.0.0.1
   [[ -z "${HOSTPORT}" ]] && HOSTPORT=1337
+  if [[ -z "${LOG_LEVEL}" ]]; then
+    LOG_LEVEL=Notice
+  else
+    case ${LOG_LEVEL} in
+      Debug)   : ;;
+      Info)    : ;;
+      Notice)  : ;;
+      Warning) : ;;
+      Error)   : ;;
+      Off)     : ;;
+      *) LOG_LEVEL=Notice ;;
+    esac
+  fi
 }
 
 pre_startup_sanity() {
@@ -108,4 +122,4 @@ fi
 pre_startup_sanity
 
 # Run Ogmios Server
-"${OGMIOSBIN}" --node-config "${CONFIG}" --node-socket "${CARDANO_NODE_SOCKET_PATH}" --host ${HOSTADDR} --port ${HOSTPORT} >> "${LOG_DIR}"/ogmios.log 2>&1
+"${OGMIOSBIN}" --node-config "${CONFIG}" --node-socket "${CARDANO_NODE_SOCKET_PATH}" --host ${HOSTADDR} --port ${HOSTPORT} --log-level ${LOG_LEVEL} >> "${LOG_DIR}"/ogmios.log 2>&1
