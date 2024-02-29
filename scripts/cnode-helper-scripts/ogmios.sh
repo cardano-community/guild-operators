@@ -44,7 +44,6 @@ set_defaults() {
     case ${LOG_LEVEL} in
       Debug)   : ;;
       Info)    : ;;
-      Notice)  : ;;
       Warning) : ;;
       Error)   : ;;
       Off)     : ;;
