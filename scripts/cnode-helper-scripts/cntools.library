@@ -2857,6 +2857,6 @@ getPriceString() {
     ada_value=$(bc -l <<< "${price_now}*($1/1000000)")
     getDecimalPlaces ${ada_value}
     decimals=$?
-    price_str=" (${FG_LBLUE}%s${NC})" "$(LC_NUMERIC=C printf "%.${decimals}f" "${ada_value}")"
+    price_str=$(LC_NUMERIC=C printf " (${FG_LBLUE}%s${NC}${currency_str})" "$(LC_NUMERIC=C printf "%.${decimals}f" "${ada_value}")")
   fi
 }
