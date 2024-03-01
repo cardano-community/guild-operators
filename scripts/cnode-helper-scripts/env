@@ -328,6 +328,17 @@ validateDecimalNbr() {
   [[ $1 =~ ${re_decimal_nbr} ]] && return 0 || return 1
 }
 
+getDecimalPlaces() {
+  local whole=${1%.*}
+  if [[ ${#whole} -lt 2 ]]; then
+    return 4
+  elif [[ ${#whole} -lt 4 ]]; then
+    return 2
+  else
+    return 0
+  fi
+}
+
 # Description : Pretty print Lovelace value
 #             : $1 = Amount in Lovelace
 #             : $2 = normal | pretty (default)
@@ -350,6 +361,8 @@ formatLovelace() {
 formatAsset() {
   if isNumber $1; then
     sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< $1
+  elif validateDecimalNbr $1; then
+    printf "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1%.*}).${1#*.}"
   else
     printf "${FG_RED}ERROR${NC}: must be a valid integer number" 1>&2
     return 1

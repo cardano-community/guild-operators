@@ -2851,14 +2851,12 @@ getPriceInfo() {
   price_24h=$(LC_NUMERIC=C printf "%.2f" "${price_info_arr[1]}")
 }
 
-getDecimalPlaces() {
-  local float=$1
-  local whole=${float%.*}
-  if [[ ${#whole} -lt 2 ]]; then
-    return 4
-  elif [[ ${#whole} -lt 4 ]]; then
-    return 2
-  else
-    return 0
+getPriceString() {
+  unset price_str
+  if [[ -n ${price_now} ]]; then
+    ada_value=$(bc -l <<< "${price_now}*($1/1000000)")
+    getDecimalPlaces ${ada_value}
+    decimals=$?
+    price_str=" (${FG_LBLUE}%s${NC})" "$(LC_NUMERIC=C printf "%.${decimals}f" "${ada_value}")"
   fi
 }

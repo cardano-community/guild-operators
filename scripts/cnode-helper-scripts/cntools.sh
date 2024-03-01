@@ -321,9 +321,9 @@ function main {
       decimals=$?
       price_str="1₳ = $(LC_NUMERIC=C printf "%.${decimals}f" "${price_now}")${currency_str}"
       if [[ ${price_24h:0:1} = '-' ]]; then
-        println DEBUG "$(printf "%$((84-${#price_24h}-4))s (${FG_RED}%s${NC}%%)" "${price_str}" "${price_24h}")"
+        println DEBUG "$(printf "%$((84-${#price_24h}-2))s (${FG_RED}%s${NC}%%)" "${price_str}" "${price_24h}")"
       else
-        println DEBUG "$(printf "%$((84-${#price_24h}-4))s (${FG_GREEN}%s${NC}%%)" "${price_str}" "${price_24h}")"
+        println DEBUG "$(printf "%$((84-${#price_24h}-2))s (${FG_GREEN}%s${NC}%%)" "${price_str}" "${price_24h}")"
       fi
     else
       echo
@@ -796,15 +796,17 @@ function main {
                 else
                   if [[ -n ${base_addr} ]]; then
                     getBalance ${base_addr}
+                    getPriceString ${assets[lovelace]}
                     println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
                     if [[ ${#assets[@]} -eq 1 ]]; then
-                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
+                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada${price_str}" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
                     else
-                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
+                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
                     fi
                   fi
                   if [[ -n ${pay_addr} ]]; then
                     getBalance ${pay_addr}
+                    getPriceString ${assets[lovelace]}
                     if [[ ${assets[lovelace]} -gt 0 ]]; then
                       println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Enterprise Address"  "${pay_addr}")"
                       if [[ ${#assets[@]} -eq 1 ]]; then
