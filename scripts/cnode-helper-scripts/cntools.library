@@ -458,11 +458,11 @@ selectWallet() {
         pay_lovelace=${assets[lovelace]}
         [[ ${#assets[@]} -gt 1 ]] && pay_assets_out=" + ${FG_LBLUE}$((${#assets[@]}-1))${NC} additional assets" || pay_assets_out=""
         if [[ ${base_lovelace} -gt 0 && ${pay_lovelace} -gt 0 ]]; then
-          wallet_dirs+=("${dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} Ada${base_assets_out} | Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} Ada${pay_assets_out})")
+          wallet_dirs+=("${dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_assets_out} | Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_assets_out})")
         elif [[ ${pay_lovelace} -gt 0 ]]; then
-          wallet_dirs+=("${dir} (Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} Ada${pay_assets_out})")
+          wallet_dirs+=("${dir} (Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_assets_out})")
         else
-          wallet_dirs+=("${dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} Ada${base_assets_out})")
+          wallet_dirs+=("${dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_assets_out})")
         fi
       elif [[ ${mode} = "delegate" ]]; then
         getBaseAddress ${dir}
@@ -480,19 +480,19 @@ selectWallet() {
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           fi
           if [[ -n ${poolName} ]]; then
-            wallet_dirs+=("${dir} (${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada - ${FG_RED}delegated${NC} to ${FG_GREEN}${poolName}${NC})")
+            wallet_dirs+=("${dir} (${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA - ${FG_RED}delegated${NC} to ${FG_GREEN}${poolName}${NC})")
           elif [[ -n ${delegation_pool_id} ]]; then
-            wallet_dirs+=("${dir} (${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada - ${FG_RED}delegated${NC} to external address)")
+            wallet_dirs+=("${dir} (${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA - ${FG_RED}delegated${NC} to external address)")
           else
-            wallet_dirs+=("${dir} (${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada)")
+            wallet_dirs+=("${dir} (${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA)")
           fi
         else
-          wallet_dirs+=("${dir} (${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada)")
+          wallet_dirs+=("${dir} (${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA)")
         fi
       elif [[ ${mode} = "reward" ]]; then
         getRewards ${dir}
         [[ ${reward_lovelace} -le 0 ]] && continue
-        wallet_dirs+=("${dir} (Rewards: ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} Ada)")
+        wallet_dirs+=("${dir} (Rewards: ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} ADA)")
       fi
     else
       wallet_dirs+=("${dir}")
@@ -947,11 +947,11 @@ getBalance() {
     ((utxo_cnt++))
     tx_in+=" --tx-in ${utxo_entry[0]}#${utxo_entry[1]}"
     if [[ ${utxo_entry[3]} = "lovelace" ]]; then
-      utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=${utxo_entry[2]} # Space added before 'Ada' for sort to place it first
+      utxos["${utxo_entry[0]}#${utxo_entry[1]}. ADA"]=${utxo_entry[2]} # Space added before 'ADA' for sort to place it first
       assets["lovelace"]=$(( ${assets["lovelace"]:-0} + utxo_entry[2] ))
       idx=5
     else
-      utxos["${utxo_entry[0]}#${utxo_entry[1]}. Ada"]=0 # Space added before 'Ada' for sort to place it first
+      utxos["${utxo_entry[0]}#${utxo_entry[1]}. ADA"]=0 # Space added before 'ADA' for sort to place it first
       assets["lovelace"]=0
       idx=2
     fi
@@ -1177,22 +1177,22 @@ registerStakeWallet() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 
   newBalance=$(( ${assets[lovelace]} - min_fee - stakeAddressDeposit ))
-  println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakeAddressDeposit}))"
+  println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakeAddressDeposit}))"
 
   if [[ ${assets[lovelace]} -lt $(( min_fee + stakeAddressDeposit )) ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee and key deposit!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakeAddressDeposit )))${NC} Ada"
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee and key deposit!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakeAddressDeposit )))${NC} ADA"
     return 1
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
   
@@ -1277,22 +1277,22 @@ deregisterStakeWallet() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 
   newBalance=$(( ${assets[lovelace]} + stakeAddressDeposit - min_fee ))
-  println LOG "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) Ada ($(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${stakeAddressDeposit}) - $(formatLovelace ${min_fee}))"
+  println LOG "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${stakeAddressDeposit}) - $(formatLovelace ${min_fee}))"
   
   if [[ $(( ${assets[lovelace]} + stakeAddressDeposit )) -lt ${min_fee} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee - stakeAddressDeposit )))${NC} Ada"
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee - stakeAddressDeposit )))${NC} ADA"
     return 1
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and returned key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and returned key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
   
@@ -1391,7 +1391,7 @@ sendAssets() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
   
   build_args=(
     ${tx_in}
@@ -1406,8 +1406,8 @@ sendAssets() {
     tx_out="${d_addr}+$(( ${assets_to_send[lovelace]} - min_fee ))${assets_tx_out_d}"
     getMinUTxO "${tx_out}"
     if [[ ${assets_to_send[lovelace]} -lt ${min_utxo_out} ]]; then
-      println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in address ( $(formatLovelace ${assets_to_send[lovelace]}) < $(formatLovelace ${min_utxo_out}) )"
-      println ERROR "Top up wallet with enough Ada to cover minimum UTxO balance"
+      println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in address ( $(formatLovelace ${assets_to_send[lovelace]}) < $(formatLovelace ${min_utxo_out}) )"
+      println ERROR "Top up wallet with enough ADA to cover minimum UTxO balance"
       return 1
     fi
     build_args+=( --tx-out "${tx_out}" )
@@ -1429,11 +1429,11 @@ sendAssets() {
     build_args+=( --tx-out "${tx_out_s}" )
     
     if [[ ${newBalance} -lt ${min_utxo_out_s} ]]; then
-      println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada left in source address ( $(formatLovelace ${newBalance}) < $(formatLovelace ${min_utxo_out_s}) )"
-      println ERROR "Send all Ada or top up wallet with enough Ada to cover minimum UTxO balance"
+      println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA left in source address ( $(formatLovelace ${newBalance}) < $(formatLovelace ${min_utxo_out_s}) )"
+      println ERROR "Send all ADA or top up wallet with enough ADA to cover minimum UTxO balance"
       return 1
     elif [[ ${assets_to_send[lovelace]} -lt ${min_utxo_out_d} ]]; then
-      println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, requires ${FG_LBLUE}$(formatLovelace ${min_utxo_out_d})${NC} Ada to be sent along!"
+      println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, requires ${FG_LBLUE}$(formatLovelace ${min_utxo_out_d})${NC} ADA to be sent along!"
       return 1
     fi
   fi
@@ -1505,22 +1505,22 @@ delegate() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
   
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
   
@@ -1596,22 +1596,22 @@ withdrawRewards() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 
   newBalance=$(( ${assets[lovelace]} - min_fee + reward_lovelace ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace $((min_fee - reward_lovelace)))${NC} Ada"
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace $((min_fee - reward_lovelace)))${NC} ADA"
     return 1
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and withdrawal, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and withdrawal, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
   
@@ -1700,22 +1700,22 @@ registerPool() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 
   newBalance=$(( ${assets[lovelace]} - min_fee - stakePoolDeposit ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakePoolDeposit}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakePoolDeposit}) )"
   
   if [[ ${assets[lovelace]} -lt $(( min_fee + stakePoolDeposit )) ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee and pool registration deposit!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakePoolDeposit )))${NC} Ada"
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee and pool registration deposit!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakePoolDeposit )))${NC} ADA"
     return 1
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee and pool registration deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and pool registration deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
   
@@ -1826,22 +1826,22 @@ modifyPool() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in base address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
   
@@ -1948,22 +1948,22 @@ deRegisterPool() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in ${wallet_source} address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
 
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
 
@@ -2147,22 +2147,22 @@ sendMetadata() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in ${wallet_source} address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
   
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
   
@@ -2245,22 +2245,22 @@ mintAsset() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in ${wallet_source} address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
   
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
   
@@ -2352,22 +2352,22 @@ burnAsset() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
   
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
   
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in ${wallet_source} address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
   
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
   
@@ -2734,22 +2734,22 @@ submitPoll() {
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
   min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) Ada"
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) Ada ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
   if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Not enough Ada in ${wallet_source} address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+    println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in ${wallet_source} address for tx fee!"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
 
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} Ada left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada required!"
+    println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
 
@@ -2798,7 +2798,7 @@ submitPoll() {
   fi
 
   getWalletType ${wallet_name}
-  echo "Transaction Fee: $(formatLovelace ${min_fee}) Ada"
+  echo "Transaction Fee: $(formatLovelace ${min_fee}) ADA"
   println "\n# Do you want to publish this answer for pool ${pool_name} on ${NETWORK_NAME}?"
   select_opt "[n] No" "[y] Yes"
   case $? in
