@@ -40,14 +40,7 @@ if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}:
 [[ -z ${CHECK_KES} ]] && CHECK_KES=true
 [[ -z ${CNTOOLS_LOG} ]] && CNTOOLS_LOG="${LOG_DIR}/cntools-history.log"
 [[ -z ${CURRENCY} ]] && CURRENCY="usd" || CURRENCY=${CURRENCY,,}
-[[ ${CURRENCY} = off ]] && unset CURRENCY_URL || CURRENCY_URL="https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=${CURRENCY}&include_24hr_change=true"
-if [[ ${CURRENCY} = usd ]]; then
-  currency_str='$'
-elif [[ ${CURRENCY} = eur ]]; then
-  currency_str='€'
-else
-  currency_str=${CURRENCY^^}
-fi
+[[ ${CURRENCY} = off || ${NETWORK_NAME} != Mainnet ]] && unset CURRENCY_URL || CURRENCY_URL="https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=${CURRENCY}&include_24hr_change=true"
 
 ############################################################
 # library sourced by cntools with common taskes to perform #
@@ -2857,6 +2850,6 @@ getPriceString() {
     ada_value=$(bc -l <<< "${price_now}*($1/1000000)")
     getDecimalPlaces ${ada_value}
     decimals=$?
-    price_str=$(LC_NUMERIC=C printf " (${FG_LBLUE}%s${NC}${currency_str})" "$(LC_NUMERIC=C printf "%.${decimals}f" "${ada_value}")")
+    price_str=$(LC_NUMERIC=C printf " (${FG_LBLUE}%s${NC} ${CURRENCY^^})" "$(LC_NUMERIC=C printf "%.${decimals}f" "${ada_value}")")
   fi
 }

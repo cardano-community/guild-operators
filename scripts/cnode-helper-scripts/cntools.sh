@@ -319,7 +319,7 @@ function main {
     if [[ -n ${price_now} ]]; then
       getDecimalPlaces ${price_now}
       decimals=$?
-      price_str="1₳ = $(LC_NUMERIC=C printf "%.${decimals}f" "${price_now}")${currency_str}"
+      price_str="1 Ada = $(LC_NUMERIC=C printf "%.${decimals}f" "${price_now}") ${CURRENCY^^}"
       if [[ ${price_24h:0:1} = '-' ]]; then
         println DEBUG "$(printf "%$((84-${#price_24h}-2))s (${FG_RED}%s${NC}%%)" "${price_str}" "${price_24h}")"
       else
