@@ -2848,10 +2848,10 @@ getPriceInfo() {
 # Description : construct the ada value price string in set currency from lovelace value
 getPriceString() {
   unset price_str
-  if [[ -n ${price_now} || $1 -eq 0 ]]; then
+  if [[ -n ${price_now} && $1 -ne 0 ]]; then
     ada_value=$(bc -l <<< "${price_now}*($1/1000000)")
     getDecimalPlaces ${ada_value}
     decimals=$?
-    price_str=$(LC_NUMERIC=C printf " (${FG_LBLUE}%s${NC} ${CURRENCY^^})" "formatAsset $(LC_NUMERIC=C printf "%.${decimals}f" "${ada_value}")")
+    price_str=$(LC_NUMERIC=C printf " (${FG_LBLUE}%s${NC} ${CURRENCY^^})" "$(formatAsset $(LC_NUMERIC=C printf "%.${decimals}f" "${ada_value}"))")
   fi
 }
