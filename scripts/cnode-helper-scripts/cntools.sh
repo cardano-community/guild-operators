@@ -19,7 +19,7 @@ fi
 
 #TIMEOUT_NO_OF_SLOTS=600 # used when waiting for a new block to be created
 
-# log cntools activities (comment or set empty to disable)
+# Log CNTools activities
 # LOG_DIR set in env file
 #CNTOOLS_LOG="${LOG_DIR}/cntools-history.log"
 
@@ -32,20 +32,23 @@ fi
 # Default Transaction TTL (slots after which transaction will expire from queue) to use
 #TX_TTL=3600
 
-# limit for extended wallet selection menu filtering (balance check and delegation status)
-# if more wallets exist than limit set these checks will be disabled to improve performance
+# Limit for extended wallet selection menu filtering (balance check and delegation status)
+# If more wallets exist than limit set these checks will be disabled to improve performance
 #WALLET_SELECTION_FILTER_LIMIT=10
 
-# enable or disable chattr used to protect keys from being overwritten [true|false] (not supported on all systems)
-# if disabled standard read-only permission is set instead
+# Enable or disable chattr used to protect keys from being overwritten [true|false] (not supported on all systems)
+# If disabled standard read-only permission is set instead
 #ENABLE_CHATTR=true
 
-# enable or disable dialog used to help in file/dir selection by providing a gui to see available files and folders. [true|false] (not supported on all systems)
-# if disabled standard tty input is used
+# Enable or disable dialog used to help in file/dir selection by providing a gui to see available files and folders. [true|false] (not supported on all systems)
+# If disabled standard tty input is used
 #ENABLE_DIALOG=false
 
-# enable advanced/developer features like metadata transactions, multi-asset management etc. [true|false] (not needed for SPO usage)
+# Enable advanced/developer features like metadata transactions, multi-asset management etc. [true|false] (not needed for SPO usage)
 #ENABLE_ADVANCED=false
+
+# Price fetching currency. Disable by setting value 'off' [off|usd|eur|...] (https://api.coingecko.com/api/v3/simple/supported_vs_currencies)
+#CURRENCY=usd
 
 ######################################
 # Do NOT modify code below           #
@@ -64,6 +67,7 @@ cleanup() {
   [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nCNTools terminated, cleaning up...\n"
   tput cnorm # restore cursor
   tput sgr0  # turn off all attributes
+  pkill -TERM -P ${$} &>/dev/null # kill all child processes of CNTools script
   exit $err
 }
 trap cleanup HUP INT TERM
@@ -280,6 +284,7 @@ function main {
     find "${TMP_DIR:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' -o -name "offline_tx*" -o -name "*_cntools_backup*" -o -name "metadata_*" -o -name "asset*" \) -delete
     unset IFS
     clear
+    [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getNodeMetrics && getPriceInfo
     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       println "$(printf " >> Koios CNTools v%s - %s - ${FG_GREEN}%s${NC} <<" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}")"
@@ -301,7 +306,6 @@ function main {
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       println DEBUG " What would you like to do?"
     else
-      getNodeMetrics
       tip_diff=$(( $(getSlotTipRef) - slotnum ))
       slot_interval=$(slotInterval)
       if [[ ${tip_diff} -le ${slot_interval} ]]; then
@@ -312,7 +316,18 @@ function main {
         println DEBUG "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_RED}%s${NC}" "Node Sync:" "${tip_diff} :(")"
       fi
     fi
-    echo
+    if [[ -n ${price_now} ]]; then
+      getDecimalPlaces ${price_now}
+      decimals=$?
+      price_str="1₳ = $(LC_NUMERIC=C printf "%.${decimals}f" "${price_now}")${currency_str}"
+      if [[ ${price_24h:0:1} = '-' ]]; then
+        println DEBUG "$(printf "%$((84-${#price_24h}-4))s (${FG_RED}%s${NC}%%)" "${price_str}" "${price_24h}")"
+      else
+        println DEBUG "$(printf "%$((84-${#price_24h}-4))s (${FG_GREEN}%s${NC}%%)" "${price_str}" "${price_24h}")"
+      fi
+    else
+      echo
+    fi
     select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[t] Transaction" "$([[ -f "${BLOCKLOG_DB}" ]] && echo "[b] Blocks")" "[z] Backup & Restore" "$([[ ${ADVANCED_MODE} = true ]] && echo "[a] Advanced")" "[r] Refresh" "[q] Quit"
     case ${selected_value} in
       "[w]"*) OPERATION="wallet" ;;
@@ -329,6 +344,7 @@ function main {
       wallet)
         while true; do # Wallet loop
           clear
+          [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println " >> WALLET"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -1201,6 +1217,7 @@ function main {
       funds)
         while true; do # Funds loop
           clear
+          [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println " >> FUNDS"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -1679,6 +1696,7 @@ function main {
       pool)
         while true; do # Pool loop
           clear
+          [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println " >> POOL"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -3379,6 +3397,7 @@ function main {
       transaction)
         while true; do # Transaction loop
           clear
+          [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println " >> TRANSACTION"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -4206,6 +4225,7 @@ function main {
       advanced)
         while true; do # Advanced loop
           clear
+          [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println " >> ADVANCED"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"

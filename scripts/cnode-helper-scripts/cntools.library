@@ -39,6 +39,15 @@ if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}:
 [[ ${ENABLE_ADVANCED} = "true" ]] && ADVANCED_MODE="true"
 [[ -z ${CHECK_KES} ]] && CHECK_KES=true
 [[ -z ${CNTOOLS_LOG} ]] && CNTOOLS_LOG="${LOG_DIR}/cntools-history.log"
+[[ -z ${CURRENCY} ]] && CURRENCY="usd" || CURRENCY=${CURRENCY,,}
+[[ ${CURRENCY} = off ]] && unset CURRENCY_URL || CURRENCY_URL="https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=${CURRENCY}&include_24hr_change=true"
+if [[ ${CURRENCY} = usd ]]; then
+  currency_str='$'
+elif [[ ${CURRENCY} = eur ]]; then
+  currency_str='€'
+else
+  currency_str=${CURRENCY^^}
+fi
 
 ############################################################
 # library sourced by cntools with common taskes to perform #
@@ -2806,4 +2815,50 @@ submitPoll() {
       println "Poll ${FG_GREEN}${poll_txId}${NC} ballot casted to the network"
       waitForInput && continue
   esac
+}
+
+# Command     : getPriceInfo
+# Description : fetch current ADA price from coingecko in selected currency
+getPriceInfo() {
+
+  [[ -z ${CURRENCY_URL} ]] && return
+
+  if [[ -n ${price_info_last_upd} && $(($(date -u +%s) - price_info_last_upd)) -lt 600 ]]; then
+    return # nothing to do, price already fetched within the last 10min
+  fi
+
+  if ! price_info=$(curl -sSL -f -m 3 "${CURRENCY_URL}" 2>&1); then
+    logln "ERROR" "${price_info}"
+    price_info_last_upd=$(($(date -u +%s)-300))
+    return
+  fi
+  if ! jq -e ".cardano.${CURRENCY}" <<< ${price_info} &>/dev/null; then
+    logln "ERROR" "invalid currency set, please check config!"
+    unset CURRENCY_URL # no need to re-check
+    return
+  fi
+
+  price_info_last_upd=$(date -u +%s)
+
+  price_info_tsv=$(jq -r "[
+  .cardano.${CURRENCY} //0,
+  .cardano.${CURRENCY}_24h_change //0
+  ] | @tsv" <<< "${price_info}")
+
+  read -ra price_info_arr <<< ${price_info_tsv}
+
+  price_now=${price_info_arr[0]}
+  price_24h=$(LC_NUMERIC=C printf "%.2f" "${price_info_arr[1]}")
+}
+
+getDecimalPlaces() {
+  local float=$1
+  local whole=${float%.*}
+  if [[ ${#whole} -lt 2 ]]; then
+    return 4
+  elif [[ ${#whole} -lt 4 ]]; then
+    return 2
+  else
+    return 0
+  fi
 }
