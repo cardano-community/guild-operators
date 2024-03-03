@@ -2791,11 +2791,13 @@ function main {
                   pParams_pledge=${fPParams_pledge}
                 fi
                 if [[ ${pParams_pledge} -eq ${fPParams_pledge} ]]; then
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Pledge" "$(formatLovelace "${pParams_pledge}")")"
+                  getPriceString ${pParams_pledge}
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Pledge" "$(formatLovelace "${pParams_pledge}")")"
                 else
-                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} ADA" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )"
+                  getPriceString ${fPParams_pledge}
+                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} ADA${price_str}" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )"
                 fi
-                [[ -n ${KOIOS_API} ]] && println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Live Pledge" "$(formatLovelace "${p_live_pledge}")")"
+                [[ -n ${KOIOS_API} ]] && getPriceString ${p_live_pledge} && println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Live Pledge" "$(formatLovelace "${p_live_pledge}")")"
                 
                 # get margin
                 if [[ -z ${KOIOS_API} ]]; then

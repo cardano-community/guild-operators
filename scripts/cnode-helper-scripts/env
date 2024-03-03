@@ -331,12 +331,12 @@ validateDecimalNbr() {
 getDecimalPlaces() {
   local whole=${1%.*}
   local fraction=${1#*.}
-    if [[ ${fraction::2}   = 00  ]]; then return 6
-  elif [[ ${fraction::1} -eq 0   ]]; then return 4
-  elif [[ ${whole}       -eq 0   ]]; then return 3
-  elif [[ ${whole}       -lt 10  ]]; then return 2
-  elif [[ ${whole}       -lt 100 ]]; then return 1
-  else                                    return 0
+    if [[ ${whole}       -ge 100 ]]; then return 0
+  elif [[ ${whole}       -ge 10  ]]; then return 1
+  elif [[ ${whole}       -gt 0   ]]; then return 2
+  elif [[ ${fraction::1} -gt 0   ]]; then return 3
+  elif [[ ${fraction::2}   = 00  ]]; then return 6
+  else                                    return 4
   fi
 }
 
