@@ -810,9 +810,9 @@ function main {
                     if [[ ${assets[lovelace]} -gt 0 ]]; then
                       println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Enterprise Address"  "${pay_addr}")"
                       if [[ ${#assets[@]} -eq 1 ]]; then
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})")"
+                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})")"
                       else
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
+                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
                       fi
                     fi
                   fi
@@ -823,7 +823,8 @@ function main {
                   fi
                   getRewards ${wallet_name}
                   if [[ "${reward_lovelace}" -ge 0 ]]; then
-                    println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")"
+                    getPriceString ${reward_lovelace}
+                    println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
                     delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
                     if [[ -n ${delegation_pool_id} ]]; then
                       unset poolName
@@ -932,7 +933,8 @@ function main {
                     println "\nASSET SUMMARY: ${FG_LBLUE}${#assets[@]} Asset-Type(s)${NC} $([[ ${#assets[@]} -gt 1 ]] && echo -e "/ ${FG_LBLUE}${#policyIDs[@]} Unique Policy ID(s)${NC}")\n"
                     println DEBUG "$(printf "%${asset_amount_maxlen}s ${FG_DGRAY}|${NC} %-${asset_name_maxlen}s%s\n" "Total Amount" "Asset" "$([[ ${#assets[@]} -gt 1 ]] && echo -e " ${FG_DGRAY}|${NC} Asset Fingerprint")")"
                     println DEBUG "${FG_DGRAY}$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+2))s%s\n" "" "" "$([[ ${#assets[@]} -gt 1 ]] && printf "+%57s" "")" | tr " " "-")${NC}"
-                    println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_GREEN}%-${asset_name_maxlen}s${NC}%s\n" "$(formatLovelace ${assets[lovelace]})" "ADA" "$([[ ${#assets[@]} -gt 1 ]] && echo -n " ${FG_DGRAY}|${NC}")")"
+                    getPriceString ${assets[lovelace]}
+                    println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_GREEN}%-${asset_name_maxlen}s${NC}%s${price_str}\n" "$(formatLovelace ${assets[lovelace]})" "ADA" "$([[ ${#assets[@]} -gt 1 ]] && echo -n " ${FG_DGRAY}|${NC}")")"
                     mapfile -d '' assets_sorted < <(printf '%s\0' "${!assets[@]}" | sort -z)
                     for asset in "${assets_sorted[@]}"; do
                       [[ ${asset} = "lovelace" ]] && continue
@@ -997,8 +999,11 @@ function main {
                 if [[ -n ${reward_addr} ]]; then
                   getRewardsFromAddr ${reward_addr}
                   if [[ "${reward_lovelace}" -ge 0 ]]; then
-                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
-                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA" "Funds + Rewards" "$(formatLovelace $((pay_lovelace + base_lovelace + reward_lovelace)))")"
+                    getPriceString ${reward_lovelace}
+                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
+                    total_lovelace=$((pay_lovelace + base_lovelace + reward_lovelace))
+                    getPriceString ${total_lovelace}
+                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds + Rewards" "$(formatLovelace ${total_lovelace})")"
                   fi
                 fi
                 if [[ -n ${base_addr} ]]; then getAddressInfo "${base_addr}"; else getAddressInfo "${pay_addr}"; fi
