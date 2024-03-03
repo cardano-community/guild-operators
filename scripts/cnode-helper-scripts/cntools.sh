@@ -344,7 +344,6 @@ function main {
       wallet)
         while true; do # Wallet loop
           clear
-          [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println " >> WALLET"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -763,6 +762,7 @@ function main {
               ;; ###################################################################
             list)
               clear
+              [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> WALLET >> LIST"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -843,6 +843,7 @@ function main {
               ;; ###################################################################
             show)
               clear
+              [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> WALLET >> SHOW"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -1227,7 +1228,6 @@ function main {
       funds)
         while true; do # Funds loop
           clear
-          [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println " >> FUNDS"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -1706,7 +1706,6 @@ function main {
       pool)
         while true; do # Pool loop
           clear
-          [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println " >> POOL"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -2652,6 +2651,7 @@ function main {
               ;; ###################################################################
             show)
               clear
+              [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> POOL >> SHOW"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -3409,7 +3409,6 @@ function main {
       transaction)
         while true; do # Transaction loop
           clear
-          [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println " >> TRANSACTION"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -4237,7 +4236,6 @@ function main {
       advanced)
         while true; do # Advanced loop
           clear
-          [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println " >> ADVANCED"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
