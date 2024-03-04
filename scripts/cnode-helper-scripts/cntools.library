@@ -2816,22 +2816,14 @@ getPriceInfo() {
 
   [[ -z ${CURRENCY_URL} ]] && return
 
-  if [[ -n ${price_info_last_upd} && $(($(date -u +%s) - price_info_last_upd)) -lt 600 ]]; then
-    return # nothing to do, price already fetched within the last 10min
-  fi
-
   if ! price_info=$(curl -sSL -f -m 3 "${CURRENCY_URL}" 2>&1); then
     logln "ERROR" "${price_info}"
-    price_info_last_upd=$(($(date -u +%s)-500)) # try again in 60s
     return
   fi
   if ! jq -e ".cardano.${CURRENCY}" <<< ${price_info} &>/dev/null; then
     logln "ERROR" "invalid currency set, please check config!"
-    unset CURRENCY_URL # no need to re-check
     return
   fi
-
-  price_info_last_upd=$(date -u +%s)
 
   price_info_tsv=$(jq -r "[
   .cardano.${CURRENCY} //0,
