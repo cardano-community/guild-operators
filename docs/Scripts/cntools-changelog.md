@@ -8,7 +8,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [12.1.0] - 2024-01-19
 #### Changed
-- ADA price discovery through CoinGecko in set currency incl 24hr change. Shown in main UI, wallet list & show as well as pool show. Updated every 10min.
+- ADA price discovery through CoinGecko in set currency incl 24hr change. Shown in main UI, wallet list & show as well as pool show. Disabled by default.
 
 ## [12.0.2] - 2024-02-11
 #### Fixed

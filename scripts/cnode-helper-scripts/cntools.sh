@@ -47,7 +47,7 @@ fi
 # Enable advanced/developer features like metadata transactions, multi-asset management etc. [true|false] (not needed for SPO usage)
 #ENABLE_ADVANCED=false
 
-# Price fetching currency. Disable by setting value 'off' [off|usd|eur|...] (https://api.coingecko.com/api/v3/simple/supported_vs_currencies)
+# Price fetching currency. Disable by setting value 'off' [off|usd|eur|...] (default: off) (https://api.coingecko.com/api/v3/simple/supported_vs_currencies)
 #CURRENCY=usd
 
 ######################################
