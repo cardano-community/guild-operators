@@ -9,6 +9,9 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [12.1.0] - 2024-01-19
 #### Changed
 - ADA price discovery through CoinGecko in set currency incl 24hr change. Shown in main UI, wallet list & show as well as pool show. Disabled by default.
+- Convert calculate-min-fee command references to function
+#### Added
+- Ability to submit transaction to koios endpoints
 
 ## [12.0.2] - 2024-02-11
 #### Fixed

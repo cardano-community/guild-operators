@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2034,SC2086,SC2230,SC2206,SC2140
+# shellcheck disable=SC2034,SC2086,SC2230,SC2206,SC2140,SC2059,SC2154
 
 ######################################
 # Do NOT modify code below           #
@@ -248,7 +248,7 @@ fileDialog() {
   [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
   dialog --clear --keep-tite --title "$1" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)) 2>"${TMP_DIR}/dialog.out"
   file=$([[ -f "${TMP_DIR}/dialog.out" ]] && cat "${TMP_DIR}/dialog.out" || echo "")
-  tput cup $(( ${ROW#*[} -1 )) $(( ${COL} -1 ))
+  tput cup $(( ${ROW#*[} -1 )) $(( COL -1 ))
   exec >&8 2>&9 # custom stdout/stderr
   println DEBUG "${FG_LGRAY}${file}${NC}"
 }
@@ -270,7 +270,7 @@ dirDialog() {
   [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
   dialog --clear --keep-tite --title "$1" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)) 2>"${TMP_DIR}/dialog.out"
   dir=$([[ -f "${TMP_DIR}/dialog.out" ]] && cat "${TMP_DIR}/dialog.out" || echo "")
-  tput cup $(( ${ROW#*[} -1 )) $(( ${COL} -1 ))
+  tput cup $(( ${ROW#*[} -1 )) $(( COL -1 ))
   exec >&8 2>&9 # custom stdout/stderr
   println DEBUG "${FG_LGRAY}${dir}${NC}"
 }
@@ -1062,11 +1062,11 @@ getWalletType() {
     if [[ $(jq -r '.description' "${payment_vk_file}") = *"Hardware"* ]]; then
       payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}"
       stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}"
-      ([[ ${op_mode} = "online" && ( ! -f ${payment_sk_file} || ! -f ${stake_sk_file} ) ]]) && return 3 || return 0
+      [[ ${op_mode} = "online" && ( ! -f ${payment_sk_file} || ! -f ${stake_sk_file} ) ]] && return 3 || return 0
     elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}.gpg" || -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}.gpg" ]]; then
       return 2
     else
-      ([[ ${op_mode} = "online" && ( ! -f ${payment_sk_file} || ! -f ${stake_sk_file} ) ]]) && return 3 || return 1
+      [[ ${op_mode} = "online" && ( ! -f ${payment_sk_file} || ! -f ${stake_sk_file} ) ]] && return 3 || return 1
     fi
   else
     return 4
@@ -1164,21 +1164,8 @@ registerStakeWallet() {
 
   if ! buildTx; then return 1; fi
   
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count 1
-    ${NETWORK_IDENTIFIER}
-    --witness-count 2
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
-
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
+  
   newBalance=$(( ${assets[lovelace]} - min_fee - stakeAddressDeposit ))
   println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakeAddressDeposit}))"
 
@@ -1264,20 +1251,7 @@ deregisterStakeWallet() {
 
   if ! buildTx; then return 1; fi
 
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count 1
-    ${NETWORK_IDENTIFIER}
-    --witness-count 2
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
 
   newBalance=$(( ${assets[lovelace]} + stakeAddressDeposit - min_fee ))
   println LOG "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${stakeAddressDeposit}) - $(formatLovelace ${min_fee}))"
@@ -1378,20 +1352,7 @@ sendAssets() {
 
   if ! buildTx; then return 1; fi
   
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count ${outCount}
-    ${NETWORK_IDENTIFIER}
-    --witness-count 1
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} ${outCount} 1
   
   build_args=(
     ${tx_in}
@@ -1492,20 +1453,7 @@ delegate() {
 
   if ! buildTx; then return 1; fi
 
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count 1
-    ${NETWORK_IDENTIFIER}
-    --witness-count 2
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -1583,20 +1531,7 @@ withdrawRewards() {
 
   if ! buildTx; then return 1; fi
 
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count 1
-    ${NETWORK_IDENTIFIER}
-    --witness-count 2
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
 
   newBalance=$(( ${assets[lovelace]} - min_fee + reward_lovelace ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -1687,21 +1622,8 @@ registerPool() {
 
   if ! buildTx; then return 1; fi
 
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count 1
-    ${NETWORK_IDENTIFIER}
-    --witness-count ${witness_count}
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
-
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_count}
+  
   newBalance=$(( ${assets[lovelace]} - min_fee - stakePoolDeposit ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakePoolDeposit}) )"
   
@@ -1813,21 +1735,8 @@ modifyPool() {
 
   if ! buildTx; then return 1; fi
 
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count 1
-    ${NETWORK_IDENTIFIER}
-    --witness-count ${witness_count}
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
-
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_count}
+  
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
@@ -1935,20 +1844,7 @@ deRegisterPool() {
 
   if ! buildTx; then return 1; fi
 
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count 1
-    ${NETWORK_IDENTIFIER}
-    --witness-count 2
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -2134,21 +2030,8 @@ sendMetadata() {
 
   if ! buildTx; then return 1; fi
 
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count 1
-    ${NETWORK_IDENTIFIER}
-    --witness-count 1
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
-
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 1
+  
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
 
@@ -2232,20 +2115,7 @@ mintAsset() {
 
   if ! buildTx; then return 1; fi
   
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count 1
-    ${NETWORK_IDENTIFIER}
-    --witness-count 2
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -2339,21 +2209,8 @@ burnAsset() {
 
   if ! buildTx; then return 1; fi
 
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count 1
-    ${NETWORK_IDENTIFIER}
-    --witness-count 2
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
-  
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
+
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
   
@@ -2424,6 +2281,29 @@ burnAsset() {
 buildTx() {
   println ACTION "${CCLI} ${NETWORK_ERA} transaction build-raw ${build_args[*]}"
   ${CCLI} ${NETWORK_ERA} transaction build-raw "${build_args[@]}"
+}
+
+# Command     : calcMinFee [rax tx file] 
+# Description : Helper function to calculate minimum fee from a build transaction
+# Parameters  : $1 = raw tx file > the transaction body file to use for calculating fee
+#               $2 = Count of transaction inputs (spent txo count)
+#               $3 = Count of transaction outputs
+#               $4 = Count of witnesses required to sign the transaction
+calcMinFee() {
+  min_fee_args=(
+    ${NETWORK_ERA}
+    transaction calculate-min-fee
+    --tx-body-file "$1"
+    --tx-in-count $2
+    --tx-out-count $3
+    ${NETWORK_IDENTIFIER}
+    --witness-count $4
+    --byron-witness-count 0
+    --protocol-params-file "${TMP_DIR}"/protparams.json
+  )
+  println ACTION "${CCLI} ${min_fee_args[*]}"
+  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 }
 
 # Command     : witnessTx [raw tx file] [signing keys ...]
@@ -2520,14 +2400,20 @@ assembleTx() {
 submitTx() {
   tx_signed="$1"
 
-  submit_command=(
-    ${CCLI} ${NETWORK_ERA} transaction submit
-    --tx-file "${tx_signed}"
-    ${NETWORK_IDENTIFIER}
-  )
-  
-  println ACTION "${submit_command[@]}"
-  "${submit_command[@]}"
+  if [[ -n ${KOIOS_API} ]]; then
+    txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
+    xxd -p -r <<< $(jq .cborHex ${tx.signed}) > ${txdata}
+    println ACTION "curl -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
+    curl -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx"
+  else
+    submit_command=(
+      ${CCLI} ${NETWORK_ERA} transaction submit
+      --tx-file "${tx_signed}"
+      ${NETWORK_IDENTIFIER}
+    )
+    println ACTION "${submit_command[@]}"
+    "${submit_command[@]}"
+  fi
 }
 
 # Command     : transformRawTx [raw tx file]
@@ -2721,20 +2607,7 @@ submitPoll() {
 
   if ! buildTx; then return 1; fi
 
-  min_fee_args=(
-    ${NETWORK_ERA}
-    transaction calculate-min-fee
-    --tx-body-file "${TMP_DIR}"/tx0.tmp
-    --tx-in-count ${utxo_cnt}
-    --tx-out-count 1
-    ${NETWORK_IDENTIFIER}
-    --witness-count 2
-    --byron-witness-count 0
-    --protocol-params-file "${TMP_DIR}"/protparams.json
-  )
-  println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
-  println LOG "fee is $(formatLovelace ${min_fee}) ADA"
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
