@@ -142,11 +142,6 @@ SGVERSION=v1.1.1
     ([[ ${NWMAGIC} -eq 141 ]] && install_cron_job "stake-distribution-update" "*/10 * * * *") ||
       install_cron_job "stake-distribution-update" "15 */2 * * *"
 
-    get_cron_job_executable "stake-distribution-new-accounts-update"
-    set_cron_variables "stake-distribution-new-accounts-update"
-    ([[ ${NWMAGIC} -eq 141 ]] && install_cron_job "stake-distribution-new-accounts-update" "*/30 * * * *") ||
-      install_cron_job "stake-distribution-new-accounts-update" "58 */6 * * *"
-
     get_cron_job_executable "pool-history-cache-update"
     set_cron_variables "pool-history-cache-update"
     ([[ ${NWMAGIC} -eq 141 ]] && install_cron_job "pool-history-cache-update" "*/5 * * * *") ||
