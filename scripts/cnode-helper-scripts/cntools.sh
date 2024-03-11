@@ -19,7 +19,7 @@ fi
 
 #TIMEOUT_NO_OF_SLOTS=600 # used when waiting for a new block to be created
 
-# log cntools activities (comment or set empty to disable)
+# Log CNTools activities
 # LOG_DIR set in env file
 #CNTOOLS_LOG="${LOG_DIR}/cntools-history.log"
 
@@ -32,20 +32,23 @@ fi
 # Default Transaction TTL (slots after which transaction will expire from queue) to use
 #TX_TTL=3600
 
-# limit for extended wallet selection menu filtering (balance check and delegation status)
-# if more wallets exist than limit set these checks will be disabled to improve performance
+# Limit for extended wallet selection menu filtering (balance check and delegation status)
+# If more wallets exist than limit set these checks will be disabled to improve performance
 #WALLET_SELECTION_FILTER_LIMIT=10
 
-# enable or disable chattr used to protect keys from being overwritten [true|false] (not supported on all systems)
-# if disabled standard read-only permission is set instead
+# Enable or disable chattr used to protect keys from being overwritten [true|false] (not supported on all systems)
+# If disabled standard read-only permission is set instead
 #ENABLE_CHATTR=true
 
-# enable or disable dialog used to help in file/dir selection by providing a gui to see available files and folders. [true|false] (not supported on all systems)
-# if disabled standard tty input is used
+# Enable or disable dialog used to help in file/dir selection by providing a gui to see available files and folders. [true|false] (not supported on all systems)
+# If disabled standard tty input is used
 #ENABLE_DIALOG=false
 
-# enable advanced/developer features like metadata transactions, multi-asset management etc. [true|false] (not needed for SPO usage)
+# Enable advanced/developer features like metadata transactions, multi-asset management etc. [true|false] (not needed for SPO usage)
 #ENABLE_ADVANCED=false
+
+# Price fetching currency. Disable by setting value 'off' [off|usd|eur|...] (default: off) (https://api.coingecko.com/api/v3/simple/supported_vs_currencies)
+#CURRENCY=usd
 
 ######################################
 # Do NOT modify code below           #
@@ -64,6 +67,7 @@ cleanup() {
   [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nCNTools terminated, cleaning up...\n"
   tput cnorm # restore cursor
   tput sgr0  # turn off all attributes
+  pkill -TERM -P ${$} &>/dev/null # kill all child processes of CNTools script
   exit $err
 }
 trap cleanup HUP INT TERM
@@ -280,6 +284,7 @@ function main {
     find "${TMP_DIR:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' -o -name "offline_tx*" -o -name "*_cntools_backup*" -o -name "metadata_*" -o -name "asset*" \) -delete
     unset IFS
     clear
+    [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getNodeMetrics && getPriceInfo
     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       println "$(printf " >> Koios CNTools v%s - %s - ${FG_GREEN}%s${NC} <<" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}")"
@@ -301,7 +306,6 @@ function main {
     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
       println DEBUG " What would you like to do?"
     else
-      getNodeMetrics
       tip_diff=$(( $(getSlotTipRef) - slotnum ))
       slot_interval=$(slotInterval)
       if [[ ${tip_diff} -le ${slot_interval} ]]; then
@@ -312,7 +316,18 @@ function main {
         println DEBUG "$(printf " What would you like to do? %$((84-29-${#tip_diff}-3))s ${FG_RED}%s${NC}" "Node Sync:" "${tip_diff} :(")"
       fi
     fi
-    echo
+    if [[ -n ${price_now} ]]; then
+      getDecimalPlaces ${price_now}
+      decimals=$?
+      price_str="1 ADA = $(LC_NUMERIC=C printf "%.${decimals}f" "${price_now}") ${CURRENCY^^}"
+      if [[ ${price_24h:0:1} = '-' ]]; then
+        println DEBUG "$(printf "%$((84-${#price_24h}-9))s (24h: ${FG_RED}%s${NC}%%)" "${price_str}" "${price_24h}")"
+      else
+        println DEBUG "$(printf "%$((84-${#price_24h}-9))s (24h: ${FG_GREEN}%s${NC}%%)" "${price_str}" "${price_24h}")"
+      fi
+    else
+      echo
+    fi
     select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[t] Transaction" "$([[ -f "${BLOCKLOG_DB}" ]] && echo "[b] Blocks")" "[z] Backup & Restore" "$([[ ${ADVANCED_MODE} = true ]] && echo "[a] Advanced")" "[r] Refresh" "[q] Quit"
     case ${selected_value} in
       "[w]"*) OPERATION="wallet" ;;
@@ -400,7 +415,7 @@ function main {
               println "New Wallet         : ${FG_GREEN}${wallet_name}${NC}"
               println "Address            : ${FG_LGRAY}${base_addr}${NC}"
               println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
-              println DEBUG "\nYou can now send and receive Ada using the above addresses."
+              println DEBUG "\nYou can now send and receive ADA using the above addresses."
               println DEBUG "Note that Enterprise Address will not take part in staking."
               println DEBUG "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
               waitForInput && continue
@@ -534,16 +549,16 @@ function main {
                     println "Address            : ${FG_LGRAY}${base_addr}${NC}"
                     println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
-                    println DEBUG "You can now send and receive Ada using the above addresses. Note that Enterprise Address will not take part in staking"
+                    println DEBUG "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
                     println DEBUG "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
                     echo
                     println DEBUG "${FG_YELLOW}Using a mnemonic imported wallet in CNTools comes with a few limitations${NC}"
                     echo
                     println DEBUG "Only the first address in the HD wallet is extracted and because of this the following apply:"
                     println DEBUG " ${FG_LGRAY}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
-                    println DEBUG " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
+                    println DEBUG " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all ADA through Daedalus/Yoroi to address shown in CNTools"
                     println DEBUG " ${FG_LGRAY}>${NC} Only use receive address shown in CNTools"
-                    println DEBUG " ${FG_LGRAY}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
+                    println DEBUG " ${FG_LGRAY}>${NC} Only spend ADA from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
                     echo
                     println DEBUG "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
                     println DEBUG " ${FG_LGRAY}>${NC} Wallet can be restored from saved 24 or 15 word mnemonic if keys are lost/deleted"
@@ -618,7 +633,7 @@ function main {
                     println "Address            : ${FG_LGRAY}${base_addr}${NC}"
                     println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
-                    println DEBUG "You can now send and receive Ada using the above addresses. Note that Enterprise Address will not take part in staking"
+                    println DEBUG "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
                     echo
                     println DEBUG "All transaction signing is now done through hardware device, please follow directions in both CNTools and the device display!"
                     println DEBUG "${FG_YELLOW}Using an imported hardware wallet in CNTools comes with a few limitations${NC}"
@@ -630,9 +645,9 @@ function main {
                     echo
                     println DEBUG "Only the first address in the HD wallet is extracted and because of this the following apply if also synced with Daedalus/Yoroi:"
                     println DEBUG " ${FG_LGRAY}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
-                    println DEBUG " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all Ada through Daedalus/Yoroi to address shown in CNTools"
+                    println DEBUG " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all ADA through Daedalus/Yoroi to address shown in CNTools"
                     println DEBUG " ${FG_LGRAY}>${NC} Only use the address shown in CNTools to receive funds"
-                    println DEBUG " ${FG_LGRAY}>${NC} Only spend Ada from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
+                    println DEBUG " ${FG_LGRAY}>${NC} Only spend ADA from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
                     waitForInput && continue
                     ;; ###################################################################
                 esac # wallet >> import sub OPERATION
@@ -675,12 +690,12 @@ function main {
               getBalance ${base_addr}
               if [[ ${assets[lovelace]} -gt 0 ]]; then
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Funds in wallet:"  "$(formatLovelace ${assets[lovelace]})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${assets[lovelace]})")"
                 fi
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
                 stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
-                println DEBUG "Funds for key deposit($(formatLovelace ${stakeAddressDeposit}) Ada) + transaction fee needed to register the wallet"
+                println DEBUG "Funds for key deposit($(formatLovelace ${stakeAddressDeposit}) ADA) + transaction fee needed to register the wallet"
                 waitForInput && continue
               fi
               if ! registerStakeWallet ${wallet_name} "true"; then
@@ -742,11 +757,12 @@ function main {
               if ! verifyTx ${base_addr}; then waitForInput && continue; fi
               echo
               println "${FG_GREEN}${wallet_name}${NC} successfully de-registered from chain!"
-              println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${stakeAddressDeposit})${NC} Ada"
+              println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${stakeAddressDeposit})${NC} ADA"
               waitForInput && continue
               ;; ###################################################################
             list)
               clear
+              [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> WALLET >> LIST"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -780,21 +796,23 @@ function main {
                 else
                   if [[ -n ${base_addr} ]]; then
                     getBalance ${base_addr}
+                    getPriceString ${assets[lovelace]}
                     println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
                     if [[ ${#assets[@]} -eq 1 ]]; then
-                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
+                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
                     else
-                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
+                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
                     fi
                   fi
                   if [[ -n ${pay_addr} ]]; then
                     getBalance ${pay_addr}
+                    getPriceString ${assets[lovelace]}
                     if [[ ${assets[lovelace]} -gt 0 ]]; then
                       println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Enterprise Address"  "${pay_addr}")"
                       if [[ ${#assets[@]} -eq 1 ]]; then
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})")"
+                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})")"
                       else
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
+                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
                       fi
                     fi
                   fi
@@ -805,7 +823,8 @@ function main {
                   fi
                   getRewards ${wallet_name}
                   if [[ "${reward_lovelace}" -ge 0 ]]; then
-                    println "$(printf "%-19s : ${FG_LBLUE}%s${NC} Ada" "Rewards" "$(formatLovelace ${reward_lovelace})")"
+                    getPriceString ${reward_lovelace}
+                    println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
                     delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
                     if [[ -n ${delegation_pool_id} ]]; then
                       unset poolName
@@ -824,6 +843,7 @@ function main {
               ;; ###################################################################
             show)
               clear
+              [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> WALLET >> SHOW"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -865,10 +885,14 @@ function main {
                 for i in {1..2}; do
                   if [[ $i -eq 1 ]]; then 
                     address_type="Base"
-                    getBalance ${base_addr} && base_lovelace=${assets[lovelace]}
+                    getBalance ${base_addr}
+                    base_lovelace=${assets[lovelace]}
+                    total_lovelace=$((total_lovelace + base_lovelace))
                   else
                     address_type="Enterprise"
-                    getBalance ${pay_addr} && pay_lovelace=${assets[lovelace]}
+                    getBalance ${pay_addr}
+                    pay_lovelace=${assets[lovelace]}
+                    total_lovelace=$((total_lovelace + pay_lovelace))
                   fi
                   [[ $i -eq 2 && ${utxo_cnt} -eq 0 ]] && continue # Dont print Enterprise if empty
                   
@@ -896,8 +920,8 @@ function main {
                     mapfile -d '' utxos_sorted < <(printf '%s\0' "${!utxos[@]}" | sort -z)
                     for utxo in "${utxos_sorted[@]}"; do
                       IFS='.' read -ra utxo_arr <<< "${utxo}"
-                      if [[ ${#utxo_arr[@]} -eq 2 && ${utxo_arr[1]} = " Ada" ]]; then
-                        println DEBUG "$(printf "%-67s ${FG_DGRAY}|${NC} ${FG_GREEN}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "Ada" "$(formatLovelace ${utxos["${utxo}"]})")"
+                      if [[ ${#utxo_arr[@]} -eq 2 && ${utxo_arr[1]} = " ADA" ]]; then
+                        println DEBUG "$(printf "%-67s ${FG_DGRAY}|${NC} ${FG_GREEN}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "ADA" "$(formatLovelace ${utxos["${utxo}"]})")"
                       else
                         [[ ${#utxo_arr[@]} -eq 3 ]] && asset_name="${utxo_arr[2]}" || asset_name=""
                         if [[ -n ${token_name[${utxo_arr[1]}.${asset_name}]} ]]; then
@@ -914,7 +938,7 @@ function main {
                     println "\nASSET SUMMARY: ${FG_LBLUE}${#assets[@]} Asset-Type(s)${NC} $([[ ${#assets[@]} -gt 1 ]] && echo -e "/ ${FG_LBLUE}${#policyIDs[@]} Unique Policy ID(s)${NC}")\n"
                     println DEBUG "$(printf "%${asset_amount_maxlen}s ${FG_DGRAY}|${NC} %-${asset_name_maxlen}s%s\n" "Total Amount" "Asset" "$([[ ${#assets[@]} -gt 1 ]] && echo -e " ${FG_DGRAY}|${NC} Asset Fingerprint")")"
                     println DEBUG "${FG_DGRAY}$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+2))s%s\n" "" "" "$([[ ${#assets[@]} -gt 1 ]] && printf "+%57s" "")" | tr " " "-")${NC}"
-                    println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_GREEN}%-${asset_name_maxlen}s${NC}%s\n" "$(formatLovelace ${assets[lovelace]})" "Ada" "$([[ ${#assets[@]} -gt 1 ]] && echo -n " ${FG_DGRAY}|${NC}")")"
+                    println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_GREEN}%-${asset_name_maxlen}s${NC}%s\n" "$(formatLovelace ${assets[lovelace]})" "ADA" "$([[ ${#assets[@]} -gt 1 ]] && echo -n " ${FG_DGRAY}|${NC}")")"
                     mapfile -d '' assets_sorted < <(printf '%s\0' "${!assets[@]}" | sort -z)
                     for asset in "${assets_sorted[@]}"; do
                       [[ ${asset} = "lovelace" ]] && continue
@@ -979,10 +1003,13 @@ function main {
                 if [[ -n ${reward_addr} ]]; then
                   getRewardsFromAddr ${reward_addr}
                   if [[ "${reward_lovelace}" -ge 0 ]]; then
-                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} Ada" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
-                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} Ada" "Funds + Rewards" "$(formatLovelace $((pay_lovelace + base_lovelace + reward_lovelace)))")"
+                    total_lovelace=$((total_lovelace + reward_lovelace))
+                    getPriceString ${reward_lovelace}
+                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
                   fi
                 fi
+                getPriceString ${total_lovelace}
+                println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds + Rewards" "$(formatLovelace ${total_lovelace})")"
                 if [[ -n ${base_addr} ]]; then getAddressInfo "${base_addr}"; else getAddressInfo "${pay_addr}"; fi
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Encoding" "$(jq -r '.encoding' <<< ${address_info})")"
                 if [[ -n ${reward_addr} ]]; then delegation_pool_id=$(jq -r '.[0].delegation  // empty' <<< "${stake_address_info}" 2>/dev/null); else unset delegation_pool_id; fi
@@ -1072,9 +1099,9 @@ function main {
                 esac
               else
                 println "${FG_RED}WARN${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not empty!"
-                [[ ${base_lovelace} -gt 0 ]] && println "Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} Ada"
-                [[ ${pay_lovelace} -gt 0 ]] && println "Enterprise Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} Ada"
-                [[ ${reward_lovelace} -gt 0 ]] && println "Rewards : ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} Ada"
+                [[ ${base_lovelace} -gt 0 ]] && println "Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
+                [[ ${pay_lovelace} -gt 0 ]] && println "Enterprise Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
+                [[ ${reward_lovelace} -gt 0 ]] && println "Rewards : ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} ADA"
                 echo
                 println DEBUG "${FG_RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
                 println DEBUG "Are you sure to delete wallet ${FG_GREEN}${wallet_name}${NC}?"
@@ -1205,7 +1232,7 @@ function main {
           println " >> FUNDS"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println OFF " Handle Funds\n"\
-						" ) Send     - send Ada and/or custom Assets from a local wallet"\
+						" ) Send     - send ADA and/or custom Assets from a local wallet"\
 						" ) Delegate - delegate wallet to a pool"\
 						" ) Withdraw - withdraw earned rewards to base address"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -1266,8 +1293,8 @@ function main {
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "Select source wallet address"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
                 select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
                 case $? in
@@ -1279,12 +1306,12 @@ function main {
               elif [[ ${pay_lovelace} -gt 0 ]]; then
                 s_addr="${pay_addr}"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada\n" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA\n" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
               elif [[ ${base_lovelace} -gt 0 ]]; then
                 s_addr="${base_addr}"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada\n" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA\n" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
                 println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
@@ -1393,20 +1420,20 @@ function main {
                 [[ ${assets_to_send[${idx}]} -gt 0 ]] && assets_tx_out_d+="+${assets_to_send[${idx}]} ${idx}"
               done
               getMinUTxO "${d_addr}+1${assets_tx_out_d}"
-              println DEBUG "\n# Amount to Send (in Ada)"
+              println DEBUG "\n# Amount to Send (in ADA)"
               println DEBUG " Valid entry:"
               println DEBUG "   ${FG_LGRAY}>${NC} Integer (e.g. 15) or Decimal (e.g. 956.1235), commas allowed as thousand separator"
               println DEBUG "   ${FG_LGRAY}>${NC} The string '${FG_YELLOW}all${NC}' sends all available funds in source wallet"
               println DEBUG " Multi-Asset Info:"
               println DEBUG "   ${FG_LGRAY}>${NC} If '${FG_YELLOW}all${NC}' is used and the wallet contain multiple assets,"
-              println DEBUG "   ${FG_LGRAY}>${NC} you will be asked to transfer all assets (incl Ada) to the destination address"
-              println DEBUG " Minimum Amount: ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} Ada"
-              getAnswerAnyCust amountADA "Amount (Ada)"
+              println DEBUG "   ${FG_LGRAY}>${NC} you will be asked to transfer all assets (incl ADA) to the destination address"
+              println DEBUG " Minimum Amount: ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA"
+              getAnswerAnyCust amountADA "Amount (ADA)"
               amountADA="${amountADA//,}"
               echo
               if  [[ ${amountADA} != "all" ]]; then
-                if ! amount_lovelace=$(AdaToLovelace "${amountADA}"); then waitForInput && continue; fi
-                [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} Ada" && waitForInput && continue
+                if ! amount_lovelace=$(ADAToLovelace "${amountADA}"); then waitForInput && continue; fi
+                [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} ADA" && waitForInput && continue
                 if [[ ${amount_lovelace} -lt ${assets[lovelace]} ]]; then
                   println DEBUG "Fee payed by sender? [else amount sent is reduced]"
                   select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
@@ -1420,7 +1447,7 @@ function main {
                 fi
               else
                 amount_lovelace=${assets[lovelace]}
-                println DEBUG "Ada to send set to total supply: ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC}"
+                println DEBUG "ADA to send set to total supply: ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC}"
                 include_fee="yes"
               fi
 
@@ -1428,7 +1455,7 @@ function main {
 
               if [[ ${amount_lovelace} -eq ${assets[lovelace]} ]]; then
                 if [[ ${#assets_left[@]} -gt 1 ]]; then
-                  println DEBUG "All Ada selected to be sent, automatically add all tokens?"
+                  println DEBUG "All ADA selected to be sent, automatically add all tokens?"
                   select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
                   case $? in
                     0) declare -gA assets_left=()
@@ -1437,7 +1464,7 @@ function main {
                          assets_to_send[${asset}]=${assets[${asset}]} # add all assets, e.g clone assets array to assets_to_send
                        done
                        ;;
-                    1) println ERROR "${FG_RED}ERROR${NC}: Unable to send all Ada as there are additional assets left on address not selected to be sent" && waitForInput && continue ;;
+                    1) println ERROR "${FG_RED}ERROR${NC}: Unable to send all ADA as there are additional assets left on address not selected to be sent" && waitForInput && continue ;;
                     2) continue ;;
                   esac
                 fi
@@ -1507,7 +1534,7 @@ function main {
               echo
               println "Transaction"
               println "  From          : ${FG_GREEN}${s_wallet}${NC}${s_wallet_type}"
-              println "  Amount        : ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} Ada"
+              println "  Amount        : ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} ADA"
               for idx in "${!assets_to_send[@]}"; do
                 [[ ${idx} = "lovelace" ]] && continue
                 println "                  ${FG_LBLUE}$(formatAsset ${assets_to_send[${idx}]})${NC} ${FG_LGRAY}${idx}${NC}"
@@ -1517,10 +1544,10 @@ function main {
               else
                 println "  To            : ${FG_LGRAY}${d_addr}${NC}"
               fi
-              println "  Fees          : ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} Ada"
+              println "  Fees          : ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
               println "  Balance"
-              println "  - Source      : ${FG_LBLUE}$(formatLovelace ${s_balance})${NC} Ada"
-              println "  - Destination : ${FG_LBLUE}$(formatLovelace ${d_balance})${NC} Ada"
+              println "  - Source      : ${FG_LBLUE}$(formatLovelace ${s_balance})${NC} ADA"
+              println "  - Destination : ${FG_LBLUE}$(formatLovelace ${d_balance})${NC} ADA"
               waitForInput && continue
               ;; ###################################################################
             delegate)
@@ -1560,7 +1587,7 @@ function main {
               getBalance ${base_addr}
               if [[ ${assets[lovelace]} -gt 0 ]]; then
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Funds in wallet:"  "$(formatLovelace ${assets[lovelace]})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${assets[lovelace]})")"
                 fi
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -1611,7 +1638,7 @@ function main {
               println "Delegation successfully registered"
               println "Wallet : ${FG_GREEN}${wallet_name}${NC}"
               println "Pool   : ${FG_GREEN}${pool_name}${NC}"
-              println "Amount : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"
+              println "Amount : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"
               waitForInput && continue
               ;; ###################################################################
             withdrawrewards)
@@ -1658,8 +1685,8 @@ function main {
                 println ERROR "${FG_YELLOW}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
                 waitForInput && continue
               fi
-              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
-              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Rewards"  "$(formatLovelace ${reward_lovelace})")"
+              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
+              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")"
               if ! withdrawRewards; then
                 waitForInput && continue
               fi
@@ -1669,8 +1696,8 @@ function main {
               echo
               println "Rewards successfully withdrawn"
               println "New Balance"
-              println "  Funds   : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} Ada"
-              println "  Rewards : ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} Ada"
+              println "  Funds   : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"
+              println "  Rewards : ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} ADA"
               waitForInput && continue
               ;; ###################################################################
           esac # funds sub OPERATION
@@ -1859,16 +1886,16 @@ function main {
               echo
               pledge_ada=50000 # default pledge
               [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-              getAnswerAnyCust pledge_enter "Pledge (in Ada, default: $(formatLovelace $(AdaToLovelace ${pledge_ada}))"
+              getAnswerAnyCust pledge_enter "Pledge (in ADA, default: $(formatLovelace $(ADAToLovelace ${pledge_ada}))"
               pledge_enter="${pledge_enter//,}"
               if [[ -n "${pledge_enter}" ]]; then
-                if ! AdaToLovelace "${pledge_enter}" >/dev/null; then
+                if ! ADAToLovelace "${pledge_enter}" >/dev/null; then
                   waitForInput && continue
                 fi
-                pledge_lovelace=$(AdaToLovelace "${pledge_enter}")
+                pledge_lovelace=$(ADAToLovelace "${pledge_enter}")
                 pledge_ada="${pledge_enter}"
               else
-                pledge_lovelace=$(AdaToLovelace "${pledge_ada}")
+                pledge_lovelace=$(ADAToLovelace "${pledge_ada}")
               fi
               margin=7.5 # default margin in %
               [[ -f "${pool_config}" ]] && margin=$(jq -r '.margin //0' "${pool_config}")
@@ -1882,19 +1909,19 @@ function main {
               else
                 margin_fraction=$(pctToFraction "${margin}")
               fi
-              minPoolCost=$(formatLovelace $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") normal) # convert to Ada
+              minPoolCost=$(formatLovelace $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") normal) # convert to ADA
               [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
               [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") -eq 1 ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
-              getAnswerAnyCust cost_enter "Cost (in Ada, minimum: ${minPoolCost}, default: ${cost_ada})"
+              getAnswerAnyCust cost_enter "Cost (in ADA, minimum: ${minPoolCost}, default: ${cost_ada})"
               cost_enter="${cost_enter//,}"
               if [[ -n "${cost_enter}" ]]; then
-                if ! AdaToLovelace "${cost_enter}" >/dev/null; then
+                if ! ADAToLovelace "${cost_enter}" >/dev/null; then
                   waitForInput && continue
                 fi
-                cost_lovelace=$(AdaToLovelace "${cost_enter}")
+                cost_lovelace=$(ADAToLovelace "${cost_enter}")
                 cost_ada="${cost_enter}"
               else
-                cost_lovelace=$(AdaToLovelace "${cost_ada}")
+                cost_lovelace=$(ADAToLovelace "${cost_ada}")
               fi
               if [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") -eq 1 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: cost set lower than allowed"
@@ -2408,9 +2435,9 @@ function main {
                 println "Owner #$((index+1))      : ${FG_GREEN}${owner_wallets[${index}]}${NC}"
               done
               println "Reward Wallet : ${FG_GREEN}${reward_wallet}${NC}"
-              println "Pledge        : ${FG_LBLUE}$(formatLovelace $(AdaToLovelace ${pledge_ada}))${NC} Ada"
+              println "Pledge        : ${FG_LBLUE}$(formatLovelace $(ADAToLovelace ${pledge_ada}))${NC} ADA"
               println "Margin        : ${FG_LBLUE}${margin}${NC} %"
-              println "Cost          : ${FG_LBLUE}$(formatLovelace ${cost_lovelace})${NC} Ada"
+              println "Cost          : ${FG_LBLUE}$(formatLovelace ${cost_lovelace})${NC} ADA"
               if [[ ${SUBCOMMAND} = "register" ]]; then
                 if [[ ${op_mode} = "hybrid" ]]; then
                   println DEBUG "\n${FG_YELLOW}After offline pool transaction is signed and submitted, uncomment and set value for POOL_NAME in ${PARENT}/env with${NC} '${FG_GREEN}${pool_name}${NC}'"
@@ -2428,7 +2455,7 @@ function main {
                   getRewards ${wallet_name}
                   [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
                 done
-                println DEBUG "${FG_BLUE}INFO${NC}: Total balance in ${FG_LBLUE}${#owner_wallets[@]}${NC} owner/pledge wallet(s) are: ${FG_LBLUE}$(formatLovelace ${total_pledge})${NC} Ada"
+                println DEBUG "${FG_BLUE}INFO${NC}: Total balance in ${FG_LBLUE}${#owner_wallets[@]}${NC} owner/pledge wallet(s) are: ${FG_LBLUE}$(formatLovelace ${total_pledge})${NC} ADA"
                 if [[ ${total_pledge} -lt ${pledge_lovelace} ]]; then
                   println ERROR "${FG_YELLOW}Not enough funds in owner/pledge wallet(s) to meet set pledge, please manually verify!!!${NC}"
                 fi
@@ -2525,8 +2552,8 @@ function main {
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "\n# Select wallet address to use"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
                 select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
                 case $? in
@@ -2537,12 +2564,12 @@ function main {
               elif [[ ${pay_lovelace} -gt 0 ]]; then
                 addr="${pay_addr}"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
               elif [[ ${base_lovelace} -gt 0 ]]; then
                 addr="${base_addr}"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -2624,6 +2651,7 @@ function main {
               ;; ###################################################################
             show)
               clear
+              [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> POOL >> SHOW"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -2739,9 +2767,9 @@ function main {
                 conf_cost=$(jq -r '.costADA //0' "${pool_config}")
                 conf_owner=$(jq -r '.pledgeWallet //"unknown"' "${pool_config}")
                 conf_reward=$(jq -r '.rewardWallet //"unknown"' "${pool_config}")
-                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatLovelace $(AdaToLovelace "${conf_pledge}"))")"
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Pledge" "$(formatLovelace $(ADAToLovelace "${conf_pledge}"))")"
                 println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Margin" "${conf_margin}")"
-                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Cost" "$(formatLovelace $(AdaToLovelace "${conf_cost}"))")"
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Cost" "$(formatLovelace $(ADAToLovelace "${conf_cost}"))")"
                 println "$(printf "%-21s : ${FG_GREEN}%s${NC} (%s)" "Owner Wallet" "${conf_owner}" "primary only, use online mode for multi-owner")"
                 println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward Wallet" "${conf_reward}")"
                 relay_title="Relay(s)"
@@ -2763,11 +2791,13 @@ function main {
                   pParams_pledge=${fPParams_pledge}
                 fi
                 if [[ ${pParams_pledge} -eq ${fPParams_pledge} ]]; then
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Pledge" "$(formatLovelace "${pParams_pledge}")")"
+                  getPriceString ${pParams_pledge}
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Pledge" "$(formatLovelace "${pParams_pledge}")")"
                 else
-                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} Ada" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )"
+                  getPriceString ${fPParams_pledge}
+                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} ADA${price_str}" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )"
                 fi
-                [[ -n ${KOIOS_API} ]] && println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Live Pledge" "$(formatLovelace "${p_live_pledge}")")"
+                [[ -n ${KOIOS_API} ]] && getPriceString ${p_live_pledge} && println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Live Pledge" "$(formatLovelace "${p_live_pledge}")")"
                 
                 # get margin
                 if [[ -z ${KOIOS_API} ]]; then
@@ -2792,9 +2822,9 @@ function main {
                   pParams_cost=${fPParams_cost}
                 fi
                 if [[ ${pParams_cost} -eq ${fPParams_cost} ]]; then
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Cost" "$(formatLovelace "${pParams_cost}")")"
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Cost" "$(formatLovelace "${pParams_cost}")")"
                 else
-                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} Ada" "Cost" "new" "$(formatLovelace "${fPParams_cost}")" )"
+                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} ADA" "Cost" "new" "$(formatLovelace "${fPParams_cost}")" )"
                 fi
                 
                 # get relays
@@ -2899,9 +2929,9 @@ function main {
                   fi
                 else
                   # get active/live stake/block info
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Active Stake" "$(formatLovelace "${p_active_stake}")")"
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Active Stake" "$(formatLovelace "${p_active_stake}")")"
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC}" "Lifetime Blocks" "${p_block_count}")"
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} Ada" "Live Stake" "$(formatLovelace "${p_live_stake}")")"
+                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Live Stake" "$(formatLovelace "${p_live_stake}")")"
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} (incl owners)" "Delegators" "${p_live_delegators}")"
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Saturation" "${p_live_saturation}")"
                 fi
@@ -3203,8 +3233,8 @@ function main {
                     # Both payment and base address available with funds, let user choose what to use
                     println DEBUG "\n# Select wallet address to use"
                     if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                      println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                      println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                      println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                     fi
                     select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
                     case $? in
@@ -3215,12 +3245,12 @@ function main {
                   elif [[ ${pay_lovelace} -gt 0 ]]; then
                     addr="${pay_addr}"
                     if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                      println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                     fi
                   elif [[ ${base_lovelace} -gt 0 ]]; then
                     addr="${base_addr}"
                     if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                      println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                     fi
                   else
                     println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -3419,10 +3449,10 @@ function main {
               [[ $(jq -r '."signed-txBody" | length' <<< ${offlineJSON}) -gt 0 ]] && println ERROR "${FG_RED}ERROR${NC}: transaction already signed, please submit transaction to complete!" && waitForInput && continue
               println DEBUG "Transaction type : ${FG_GREEN}${otx_type}${NC}"
               if wallet_name=$(jq -er '."wallet-name"' <<< ${offlineJSON}); then 
-                println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} Ada, payed by ${FG_GREEN}${wallet_name}${NC}"
+                println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA, payed by ${FG_GREEN}${wallet_name}${NC}"
                 [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
               else
-                println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} Ada"
+                println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA"
               fi
               println DEBUG "Created          : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_created}")${NC}"
               if [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]]; then
@@ -3437,11 +3467,11 @@ function main {
               case "${otx_type}" in
                 Wallet*|Payment|"Pool De-Registration"|Metadata|Asset*|"Poll Cast")
                   echo
-                  [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} Ada"
+                  [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} ADA"
                   if [[ ${otx_type} = "Payment" ]]; then
                     println DEBUG "Source addr      : ${FG_LGRAY}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
                     println DEBUG "Destination addr : ${FG_LGRAY}$(jq -r '."destination-address"' <<< ${offlineJSON})${NC}"
-                    println DEBUG "Amount           : ${FG_LBLUE}$(formatLovelace "$(jq -r '.assets[] | select(.asset=="lovelace") | .amount' <<< ${offlineJSON})")${NC} Ada"
+                    println DEBUG "Amount           : ${FG_LBLUE}$(formatLovelace "$(jq -r '.assets[] | select(.asset=="lovelace") | .amount' <<< ${offlineJSON})")${NC} ADA"
                     for otx_assets in $(jq -r '.assets[] | @base64' <<< "${offlineJSON}"); do
                       _jq() { base64 -d <<< ${otx_assets} | jq -r "${1}"; }
                       otx_asset=$(_jq '.asset')
@@ -3449,7 +3479,7 @@ function main {
                       println DEBUG "                   ${FG_LBLUE}$(formatAsset "$(_jq '.amount')")${NC} ${FG_LGRAY}${otx_asset}${NC}"
                     done
                   fi
-                  jq -er '.rewards' <<< ${offlineJSON} &>/dev/null && println DEBUG "Rewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} Ada"
+                  jq -er '.rewards' <<< ${offlineJSON} &>/dev/null && println DEBUG "Rewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} ADA"
                   jq -er '."pool-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Pool ID          : ${FG_LGRAY}$(jq -r '."pool-id"' <<< ${offlineJSON})${NC}"
                   jq -er '."pool-name"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-name"' <<< ${offlineJSON})${NC}"
                   jq -er '."pool-ticker"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-ticker"' <<< ${offlineJSON})${NC}"
@@ -3567,9 +3597,9 @@ function main {
                   echo
                   println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
                   println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
-                  println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} Ada"
+                  println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} ADA"
                   println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-                  println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} Ada"
+                  println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} ADA"
                   for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
                     _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
                     otx_signing_name=$(_jq '.name')
@@ -3704,9 +3734,9 @@ function main {
               [[ $(jq 'length' <<< ${otx_signed_txBody}) -eq 0 ]] && println ERROR "${FG_RED}ERROR${NC}: transaction not signed, please sign transaction first!" && waitForInput && continue
               println DEBUG "Transaction type : ${FG_YELLOW}${otx_type}${NC}"
               if jq -er '."wallet-name"' &>/dev/null <<< ${offlineJSON}; then 
-                println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} Ada, payed by ${FG_GREEN}$(jq -r '."wallet-name"' <<< ${offlineJSON})${NC}"
+                println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA, payed by ${FG_GREEN}$(jq -r '."wallet-name"' <<< ${offlineJSON})${NC}"
               else
-                println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} Ada"
+                println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA"
               fi
               println DEBUG "Created          : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_created}")${NC}"
               if [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]]; then
@@ -3719,11 +3749,11 @@ function main {
               case "${otx_type}" in
                 "Wallet Registration"|"Wallet De-Registration"|"Payment"|"Wallet Delegation"|"Wallet Rewards Withdrawal"|"Pool De-Registration"|"Metadata"|"Pool Registration"|"Pool Update"|"Asset Minting"|"Asset Burning"|"Poll Cast")
                   echo
-                  [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} Ada"
+                  [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} ADA"
                   if [[ ${otx_type} = "Payment" ]]; then
                     println DEBUG "Source addr      : ${FG_LGRAY}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
                     println DEBUG "Destination addr : ${FG_LGRAY}$(jq -r '."destination-address"' <<< ${offlineJSON})${NC}"
-                    println DEBUG "Amount           : ${FG_LBLUE}$(formatLovelace "$(jq -r '.assets[] | select(.asset=="lovelace") | .amount' <<< ${offlineJSON})")${NC} ${FG_GREEN}Ada${NC}"
+                    println DEBUG "Amount           : ${FG_LBLUE}$(formatLovelace "$(jq -r '.assets[] | select(.asset=="lovelace") | .amount' <<< ${offlineJSON})")${NC} ${FG_GREEN}ADA${NC}"
                     for otx_assets in $(jq -r '.assets[] | @base64' <<< "${offlineJSON}"); do
                       _jq() { base64 -d <<< ${otx_assets} | jq -r "${1}"; }
                       otx_asset=$(_jq '.asset')
@@ -3731,7 +3761,7 @@ function main {
                       println DEBUG "                   ${FG_LBLUE}$(formatAsset "$(_jq '.amount')")${NC} ${FG_LGRAY}${otx_asset}${NC}"
                     done
                   fi
-                  [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println DEBUG "Rewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} Ada"
+                  [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println DEBUG "Rewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} ADA"
                   jq -er '."pool-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Pool ID          : ${FG_LGRAY}$(jq -r '."pool-id"' <<< ${offlineJSON})${NC}"
                   if jq -er '."pool-name"' <<< ${offlineJSON} &>/dev/null; then
                     [[ ${otx_type} != "Pool Registration" ]] && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-name"' <<< ${offlineJSON})${NC}"
@@ -3741,9 +3771,9 @@ function main {
                   jq -er '.metadata' <<< ${offlineJSON} &>/dev/null && println DEBUG "Metadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} Ada"
+                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} ADA"
                   [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(AdaToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} Ada"
+                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} ADA"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy Name      : ${FG_LGRAY}$(jq -r '."policy-name"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy ID        : ${FG_LGRAY}$(jq -r '."policy-id"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Asset Name       : ${FG_LGRAY}$(jq -r '."asset-name"' <<< ${offlineJSON})${NC}"
@@ -4276,7 +4306,7 @@ function main {
                   2) println "Add an example metadata JSON scaffold?"
                     select_opt "[y] Yes" "[n] No"
                     case $? in
-                      0) jq . <<< '{"1815":{"name":"Ada Lovelace","age":36,"parents":[{"id":0,"name":"George Gordon Byron"},{"id":1,"name":"Anne Isabella Byron"}]}}' > "${metafile}" ;;
+                      0) jq . <<< '{"1815":{"name":"ADA Lovelace","age":36,"parents":[{"id":0,"name":"George Gordon Byron"},{"id":1,"name":"Anne Isabella Byron"}]}}' > "${metafile}" ;;
                       1) : ;; # do nothing
                     esac
                     tput sc
@@ -4338,8 +4368,8 @@ function main {
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "Select source wallet address"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
                 echo
                 select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
@@ -4351,12 +4381,12 @@ function main {
               elif [[ ${pay_lovelace} -gt 0 ]]; then
                 addr="${pay_addr}"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
               elif [[ ${base_lovelace} -gt 0 ]]; then
                 addr="${base_addr}"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
                 println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -4756,8 +4786,8 @@ function main {
                       # Both payment and base address available with funds, let user choose what to use
                       println DEBUG "Select source wallet address"
                       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                       fi
                       echo
                       select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
@@ -4770,12 +4800,12 @@ function main {
                     elif [[ ${pay_lovelace} -gt 0 ]]; then
                       addr="${pay_addr}"
                       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} Ada\n" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA\n" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                       fi
                     elif [[ ${base_lovelace} -gt 0 ]]; then
                       addr="${base_addr}"
                       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} Ada\n" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA\n" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                       fi
                     else
                       println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
