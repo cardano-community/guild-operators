@@ -1113,8 +1113,8 @@ getRewardsFromAddr() {
 isWalletRegistered() {
   if getRewardAddress $1; then
     if [[ -n ${KOIOS_API} ]]; then
-      [[ ! -v ${reward_status[${key}]} ]] && reward_addr_list=( ${reward_addr} ) && getRewardInfoKoios
-      [[ ${reward_status[${key}]} = registered ]] && return 0
+      [[ ! -v ${reward_status[${reward_addr}]} ]] && reward_addr_list=( ${reward_addr} ) && getRewardInfoKoios
+      [[ ${reward_status[${reward_addr}]} = registered ]] && return 0
     else
       println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}"
       stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr})
