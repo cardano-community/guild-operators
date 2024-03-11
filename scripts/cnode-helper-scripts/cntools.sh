@@ -770,6 +770,22 @@ function main {
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, wallet balance not shown!"
               fi
+              if [[ -n ${KOIOS_API} ]]; then
+                addr_list=()
+                reward_addr_list=()
+                while IFS= read -r -d '' wallet; do
+                  wallet_name=$(basename ${wallet})
+                  getBaseAddress ${wallet_name}
+                  [[ -n ${base_addr} ]] && addr_list+=(${base_addr})
+                  getPayAddress ${wallet_name}
+                  [[ -n ${pay_addr} ]] && addr_list+=(${pay_addr})
+                  getRewardAddress ${wallet_name}
+                  [[ -n ${reward_addr} ]] && reward_addr_list+=(${reward_addr})
+                done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
+                [[ ${#addr_list[@]} -gt 0 ]] && getBalanceKoios
+                [[ ${#reward_addr_list[@]} -gt 0 ]] && getRewardInfoKoios
+              fi
+
               while IFS= read -r -d '' wallet; do
                 wallet_name=$(basename ${wallet})
                 enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
@@ -795,37 +811,59 @@ function main {
                   [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Enterprise Addr"  "${pay_addr}")"
                 else
                   if [[ -n ${base_addr} ]]; then
-                    getBalance ${base_addr}
-                    getPriceString ${assets[lovelace]}
-                    println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
-                    if [[ ${#assets[@]} -eq 1 ]]; then
-                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
+                    lovelace=0
+                    asset_cnt=0
+                    if [[ -n ${KOIOS_API} ]]; then
+                      for key in "${!assets[@]}"; do
+                        [[ ${key} = "${base_addr},lovelace" ]] && lovelace=${assets["${base_addr},lovelace"]} && continue
+                        [[ ${key} = "${base_addr},"* ]] && ((asset_cnt++))
+                      done
                     else
-                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
+                      getBalance ${base_addr}
+                      lovelace=${assets[lovelace]}
+                      asset_cnt=$(( ${#assets[@]} - 1 ))
+                    fi
+                    getPriceString ${lovelace}
+                    println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
+                    if [[ ${asset_cnt} -eq 0 ]]; then
+                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds"  "$(formatLovelace ${lovelace})")"
+                    else
+                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
                     fi
                   fi
                   if [[ -n ${pay_addr} ]]; then
-                    getBalance ${pay_addr}
-                    getPriceString ${assets[lovelace]}
-                    if [[ ${assets[lovelace]} -gt 0 ]]; then
+                    lovelace=0
+                    asset_cnt=0
+                    if [[ -n ${KOIOS_API} ]]; then
+                      for key in "${!assets[@]}"; do
+                        [[ ${key} = "${pay_addr},lovelace" ]] && lovelace=${assets["${pay_addr},lovelace"]} && continue
+                        [[ ${key} = "${pay_addr},"* ]] && ((asset_cnt++))
+                      done
+                    else
+                      getBalance ${pay_addr}
+                      lovelace=${assets[lovelace]}
+                      asset_cnt=$(( ${#assets[@]} - 1 ))
+                    fi
+                    getPriceString ${lovelace}
+                    if [[ ${lovelace} -gt 0 ]]; then
                       println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Enterprise Address"  "${pay_addr}")"
-                      if [[ ${#assets[@]} -eq 1 ]]; then
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})")"
+                      if [[ ${asset_cnt} -eq 0 ]]; then
+                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Enterprise Funds" "$(formatLovelace ${lovelace})")"
                       else
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Enterprise Funds" "$(formatLovelace ${assets[lovelace]})" "$(( ${#assets[@]} - 1 ))")"
+                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Enterprise Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
                       fi
                     fi
                   fi
-                  if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
-                    println "${FG_RED}Not a supported wallet${NC} - genesis address?"
-                    println "Use an external script to send funds to a CNTools compatible wallet"
-                    continue
+                  if [[ -n ${KOIOS_API} ]]; then
+                    [[ -v ${rewards_available[${reward_addr}]} ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
+                    delegation_pool_id=${reward_pool[${reward_addr}]}
+                  else
+                    getRewards ${wallet_name}
+                    delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
                   fi
-                  getRewards ${wallet_name}
                   if [[ "${reward_lovelace}" -ge 0 ]]; then
                     getPriceString ${reward_lovelace}
                     println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
-                    delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
                     if [[ -n ${delegation_pool_id} ]]; then
                       unset poolName
                       while IFS= read -r -d '' pool; do

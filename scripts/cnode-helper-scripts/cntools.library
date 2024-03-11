@@ -931,7 +931,6 @@ getAddressInfo() {
 # Command     : getBalance [address]
 # Description : check balance for provided address
 # Parameters  : address  >  the wallet address to query
-# Return      : populates associative arrays ${assets[]} & ${policyIDs[]}
 getBalance() {
   declare -gA utxos=(); declare -gA assets=(); declare -gA policyIDs=()
   assets["lovelace"]=0; utxo_cnt=0
@@ -975,6 +974,49 @@ getBalance() {
   [[ ${asset_name_maxlen} -ne 5 ]] && asset_name_maxlen=$(( asset_name_maxlen / 2 ))
   lovelace_fmt="$(formatLovelace ${assets["lovelace"]})"
   [[ ${#lovelace_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#lovelace_fmt}
+}
+
+# Command     : getBalanceKoios
+# Description : check balance for provided addresses using Koios API
+getBalanceKoios() {
+  # generate different arrays using key constructed in format: <address>,<additional fields...>
+  # Ex: ( [addr123,lovelace]=1000 [addr456,policy.name]=500 )
+  # Its assumed that an array called addr_list has been populated with all addresses to fetch balance for
+
+  declare -gA utxos=(); declare -gA assets=(); declare -gA policyIDs=()
+  assets["lovelace"]=0; utxo_cnt=0
+  asset_name_maxlen=5; asset_amount_maxlen=12
+  tx_in="" # only useful for single address lookup
+
+  if [[ -n ${KOIOS_API} && -n ${addr_list+x} ]]; then
+    printf -v addr_list_joined '\"%s\",' "${addr_list[@]}"
+    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/address_info"
+    ! address_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/address_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_info_list}\n" && return 1 # print error and return
+    for address_info in $(jq -r '.[] | @base64' <<< "${address_info_list}"); do
+      address_bech32=$(base64 -d <<< ${address_info} | jq -r '.address')
+      address_balance=$(base64 -d <<< ${address_info} | jq -r '.balance')
+      assets["${address_bech32},lovelace"]=${address_balance}
+      for address_utxo in $(base64 -d <<< ${address_info} | jq -r '.utxo_set | @base64'); do
+        utxo_tx_hash=$(base64 -d <<< ${address_utxo} | jq -r '.tx_hash')
+        utxo_tx_idx=$(base64 -d <<< ${address_utxo} | jq -r '.tx_index')
+        utxo_value=$(base64 -d <<< ${address_utxo} | jq -r '.value')
+        ((utxo_cnt++))
+        utxos["${address_bech32},${utxo_tx_hash}#${utxo_tx_idx}. Ada"]=${utxo_value}
+        tx_in+=" --tx-in ${utxo_tx_hash}#${utxo_tx_idx}"
+        for address_asset_info in $(base64 -d <<< ${address_utxo} | jq -r '.asset_list | @base64'); do
+          policy_id=$(base64 -d <<< ${address_asset_info} | jq -r '.policy_id')
+          asset_name_hex=$(base64 -d <<< ${address_asset_info} | jq -r '.asset_name')
+          asset_quantity=$(base64 -d <<< ${address_asset_info} | jq -r '.quantity')
+          policyIDs[${address_bech32},${policy_id}]=1
+          [[ ${#asset_name_hex} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset_name_hex}
+          asset_amount_fmt="$(formatAsset ${asset_quantity})"
+          [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_amount_fmt}
+          assets["${address_bech32},${policy_id}.${asset_name_hex}"]=$(( ${assets["${address_bech32},${policy_id}.${asset_name_hex}"]:-0} + asset_quantity ))
+          utxos["${address_bech32},${utxo_tx_hash}#${utxo_tx_idx}.${policy_id}.${asset_name_hex}"]=${asset_quantity}
+        done
+      done
+    done
+  fi
 }
 
 # Command     : getAssetsTxOut [PolicyID.AssetName] [Amount]
@@ -1024,6 +1066,28 @@ getRewards() {
     done
   fi
 }
+
+# Command     : getRewardInfoKoios
+# Description : check status and rewards for provided reward addresses using Koios API
+getRewardInfoKoios() {
+  # generate different arrays using reward address as key, rewards available, status and delegated pool if any
+  # Its assumed that an array called reward_addr_list has been populated with all reward addresses to fetch data for
+
+  declare -gA rewards_available(); declare -gA reward_status(); declare -gA reward_pool();
+
+  if [[ -n ${KOIOS_API} && -n ${reward_addr_list+x} ]]; then
+    printf -v addr_list_joined '\"%s\",' "${reward_addr_list[@]}"
+    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_stake_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/account_info"
+    ! account_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_stake_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/account_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${account_info_list}\n" && return 1 # print error and return
+    for account_info in $(jq -r '.[] | @base64' <<< "${account_info_list}"); do
+      reward_address=$(base64 -d <<< ${account_info} | jq -r '.stake_address')
+      reward_status["${reward_address}"]="$(base64 -d <<< ${account_info} | jq -r '.status')"
+      reward_pool["${reward_address}"]="$(base64 -d <<< ${account_info} | jq -r '.delegated_pool')"
+      rewards_available["${reward_address}"]="$(base64 -d <<< ${account_info} | jq -r '.rewards_available')"
+    done
+  fi
+}
+
 # Command     : getRewardsFromAddr [stake address]
 # Description : check balance of reward address
 # Parameters  : stake address  >  the address from stake.vkey
@@ -1043,9 +1107,14 @@ getRewardsFromAddr() {
 # Parameters  : wallet name  >  the name of the wallet
 isWalletRegistered() {
   if getRewardAddress $1; then
-    println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}"
-    stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr})
-    [[ -n "${stake_address_info}" && $(jq -r 'length' <<< ${stake_address_info}) -gt 0 ]] && return 0
+    if [[ -n ${KOIOS_API} ]]; then
+      [[ ! -v ${reward_status[${key}]} ]] && reward_addr_list=( ${reward_addr} ) && getRewardInfoKoios
+      [[ ${reward_status[${key}]} = registered ]] && return 0
+    else
+      println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}"
+      stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr})
+      [[ -n "${stake_address_info}" && $(jq -r 'length' <<< ${stake_address_info}) -gt 0 ]] && return 0
+    fi
   fi
   return 1
 }
