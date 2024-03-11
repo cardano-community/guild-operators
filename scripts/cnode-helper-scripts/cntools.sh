@@ -771,6 +771,8 @@ function main {
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, wallet balance not shown!"
               fi
               if [[ -n ${KOIOS_API} ]]; then
+                tput sc
+                println DEBUG "\n${FG_YELLOW}> Querying Koios API for wallet information${NC}"
                 addr_list=()
                 reward_addr_list=()
                 while IFS= read -r -d '' wallet; do
@@ -784,6 +786,7 @@ function main {
                 done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
                 [[ ${#addr_list[@]} -gt 0 ]] && getBalanceKoios
                 [[ ${#reward_addr_list[@]} -gt 0 ]] && getRewardInfoKoios
+                tput rc && tput ed
               fi
 
               while IFS= read -r -d '' wallet; do
