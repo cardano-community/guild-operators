@@ -912,47 +912,48 @@ function main {
                 waitForInput && continue
               fi
               getRewardAddress ${wallet_name}
-              base_lovelace=0
-              pay_lovelace=0
-              declare -A token_data=()
-              declare -A token_name=()
-              declare -A assets_total=()
+              if [[ -n ${KOIOS_API} ]]; then
+                tput sc
+                println DEBUG "\n${FG_YELLOW}> Querying Koios API for wallet information${NC}"
+                addr_list=("${base_addr}" "${pay_addr}")
+                reward_addr_list=("${reward_addr}")
+                [[ ${#addr_list[@]} -gt 0 ]] && getBalanceKoios
+                [[ ${#reward_addr_list[@]} -gt 0 ]] && getRewardInfoKoios
+                tput rc && tput ed
+              fi
+              total_lovelace=0
               if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-                # Token Metadata API URLs
-                case ${NWMAGIC} in
-                  764824073) token_meta_server="https://tokens.cardano.org/metadata/" ;; # mainnet
-                  *) token_meta_server="https://metadata.cardano-testnet.iohkdev.io/metadata/" ;; # other test networks
-                esac
                 for i in {1..2}; do
                   if [[ $i -eq 1 ]]; then 
                     address_type="Base"
-                    getBalance ${base_addr}
-                    base_lovelace=${assets[lovelace]}
+                    address=${base_addr}
+                    if [[ -n ${KOIOS_API} ]]; then
+                      base_lovelace=${assets["${base_addr},lovelace"]}
+                    else
+                      getBalance ${base_addr}
+                      base_lovelace=${assets[lovelace]}
+                    fi
                     total_lovelace=$((total_lovelace + base_lovelace))
                   else
                     address_type="Enterprise"
-                    getBalance ${pay_addr}
-                    pay_lovelace=${assets[lovelace]}
+                    address=${pay_addr}
+                    if [[ -n ${KOIOS_API} ]]; then
+                      pay_lovelace=${assets["${pay_addr},lovelace"]}
+                      [[ ${utxo_cnt["${pay_addr}"]} -eq 0 ]] && continue # Dont print Enterprise if empty
+                    else
+                      getBalance ${pay_addr}
+                      pay_lovelace=${assets[lovelace]}
+                      [[ ${utxo_cnt} -eq 0 ]] && continue # Dont print Enterprise if empty
+                    fi
                     total_lovelace=$((total_lovelace + pay_lovelace))
                   fi
-                  [[ $i -eq 2 && ${utxo_cnt} -eq 0 ]] && continue # Dont print Enterprise if empty
-                  
-                  # loop all assets to query metadata register for token data
-                  for asset in "${!assets[@]}"; do
-                    assets_total[${asset}]=$(( assets_total[asset] + assets[asset] ))
-                    [[ ${asset} = "lovelace" ]] && continue
-                    IFS='.' read -ra asset_arr <<< "${asset}"
-                    [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="" || asset_name="${asset_arr[1]}"
-                    tsubject="${asset_arr[0]}${asset_name}"
-                    if tdata=$(curl -sL -f -m ${CURL_TIMEOUT} ${token_meta_server}${tsubject}); then
-                      token_data[${asset}]="${tdata}"
-                      if tticker=$(jq -er .ticker.value <<< "${tdata}" 2>/dev/null); then token_name[${asset}]="${tticker}"
-                      elif tname=$(jq -er .name.value <<< "${tdata}" 2>/dev/null); then token_name[${asset}]="${tname}"
-                      fi
-                    fi
-                  done
-                  
+
                   echo
+                  if [[ -n ${KOIOS_API} ]]; then
+                    utxo_cnt=${utxos_cnt["${address}"]}
+                    asset_name_maxlen=${asset_name_maxlen_arr["${address}"]:-5}
+                    asset_amount_maxlen=${asset_amount_maxlen_arr["${address}"]:-12}
+                  fi
                   println "${FG_LBLUE}${utxo_cnt} UTxO(s)${NC} found for ${FG_GREEN}${address_type}${NC} Address!"
                   if [[ ${utxo_cnt} -gt 0 ]]; then
                     echo
@@ -960,7 +961,8 @@ function main {
                     println DEBUG "${FG_DGRAY}$(printf "%68s+%$((asset_name_maxlen+2))s+%$((asset_amount_maxlen+1))s\n" "" "" "" | tr " " "-")${NC}"
                     mapfile -d '' utxos_sorted < <(printf '%s\0' "${!utxos[@]}" | sort -z)
                     for utxo in "${utxos_sorted[@]}"; do
-                      IFS='.' read -ra utxo_arr <<< "${utxo}"
+                      [[ -n ${KOIOS_API} && ${utxo} != "${address},"* ]] && continue
+                      IFS='.' read -ra utxo_arr <<< "${utxo#*,}"
                       if [[ ${#utxo_arr[@]} -eq 2 && ${utxo_arr[1]} = " ADA" ]]; then
                         println DEBUG "$(printf "%-67s ${FG_DGRAY}|${NC} ${FG_GREEN}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "ADA" "$(formatLovelace ${utxos["${utxo}"]})")"
                       else
@@ -975,57 +977,37 @@ function main {
                       fi
                     done
                   fi
-                  if [[ ${#assets[@]} -gt 0 ]]; then
-                    println "\nASSET SUMMARY: ${FG_LBLUE}${#assets[@]} Asset-Type(s)${NC} $([[ ${#assets[@]} -gt 1 ]] && echo -e "/ ${FG_LBLUE}${#policyIDs[@]} Unique Policy ID(s)${NC}")\n"
-                    println DEBUG "$(printf "%${asset_amount_maxlen}s ${FG_DGRAY}|${NC} %-${asset_name_maxlen}s%s\n" "Total Amount" "Asset" "$([[ ${#assets[@]} -gt 1 ]] && echo -e " ${FG_DGRAY}|${NC} Asset Fingerprint")")"
-                    println DEBUG "${FG_DGRAY}$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+2))s%s\n" "" "" "$([[ ${#assets[@]} -gt 1 ]] && printf "+%57s" "")" | tr " " "-")${NC}"
-                    println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_GREEN}%-${asset_name_maxlen}s${NC}%s\n" "$(formatLovelace ${assets[lovelace]})" "ADA" "$([[ ${#assets[@]} -gt 1 ]] && echo -n " ${FG_DGRAY}|${NC}")")"
+                  lovelace=0
+                  asset_cnt=0
+                  policy_cnt=0
+                  if [[ -n ${KOIOS_API} ]]; then
+                    for key in "${!assets[@]}"; do
+                      [[ ${key} = "${address},lovelace" ]] && lovelace=${assets["${address},lovelace"]}
+                      [[ ${key} = "${address},"* ]] && ((asset_cnt++))
+                    done
+                    for key in "${!policyIDs[@]}"; do
+                      [[ ${key} = "${address}"* ]] && ((policy_cnt++))
+                    done
+                  else
+                    lovelace=${assets[lovelace]}
+                    asset_cnt=${#assets[@]}
+                    policy_cnt=${#policyIDs[@]}
+                  fi
+                  if [[ ${asset_cnt} -gt 0 ]]; then
+                    println "\nASSET SUMMARY: ${FG_LBLUE}${asset_cnt} Asset-Type(s)${NC} $([[ ${asset_cnt} -gt 1 ]] && echo -e "/ ${FG_LBLUE}${policy_cnt} Unique Policy ID(s)${NC}")\n"
+                    println DEBUG "$(printf "%${asset_amount_maxlen}s ${FG_DGRAY}|${NC} %-${asset_name_maxlen}s%s\n" "Total Amount" "Asset" "$([[ ${asset_cnt} -gt 1 ]] && echo -e " ${FG_DGRAY}|${NC} Asset Fingerprint")")"
+                    println DEBUG "${FG_DGRAY}$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+2))s%s\n" "" "" "$([[ ${asset_cnt} -gt 1 ]] && printf "+%57s" "")" | tr " " "-")${NC}"
+                    println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_GREEN}%-${asset_name_maxlen}s${NC}%s\n" "$(formatLovelace ${lovelace})" "ADA" "$([[ ${asset_cnt} -gt 1 ]] && echo -n " ${FG_DGRAY}|${NC}")")"
                     mapfile -d '' assets_sorted < <(printf '%s\0' "${!assets[@]}" | sort -z)
                     for asset in "${assets_sorted[@]}"; do
-                      [[ ${asset} = "lovelace" ]] && continue
-                      IFS='.' read -ra asset_arr <<< "${asset}"
+                      [[ ${asset} = *"lovelace" ]] && continue
+                      IFS='.' read -ra asset_arr <<< "${asset#*,}"
                       [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="" || asset_name="${asset_arr[1]}"
-                      if [[ -n ${token_name[${asset_arr[0]}.${asset_name}]} ]]; then
-                        tname="${token_name[${asset_arr[0]}.${asset_name}]}"
-                      else
-                        tname="$(hexToAscii ${asset_name})"
-                      fi
-                      ! assets_id_bech32=$(getAssetIDBech32 ${asset_arr[0]} ${asset_name}) && continue 2
-                      println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%-${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LGRAY}%s${NC}\n" "$(formatAsset ${assets["${asset}"]})" "${tname}" "${assets_id_bech32}")"
+                      ! assets_id_bech32=$(getAssetIDBech32 ${asset_arr[0]} ${asset_name}) && assets_id_bech32="?"
+                      println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%-${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LGRAY}%s${NC}\n" "$(formatAsset ${assets["${asset}"]})" "$(hexToAscii ${asset_name})" "${assets_id_bech32}")"
                     done
                   fi
                 done
-                
-                if [[ ${#assets_total[@]} -gt 1 ]]; then
-                  echo -e "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" >&6
-                  println DEBUG "ASSET DETAILS & METADATA\n"
-                  i=1
-                  for asset in "${!assets_total[@]}"; do
-                    [[ ${asset} = "lovelace" ]] && continue
-                    IFS='.' read -ra asset_arr <<< "${asset}"
-                    [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="" || asset_name="${asset_arr[1]}"
-                    ! assets_id_bech32=$(getAssetIDBech32 ${asset_arr[0]} ${asset_name}) && continue 2
-                    println DEBUG "$(printf "%20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Asset Fingerprint" "${assets_id_bech32}")"
-                    if [[ -n ${token_data[${asset}]} ]]; then
-                      if jq -er .ticker.value <<< "${token_data[${asset}]}" &>/dev/null; then MetaNameColor=${FG_LGRAY}; MetaTickerColor=${FG_MAGENTA}; else MetaNameColor=${FG_MAGENTA}; MetaTickerColor=${FG_LGRAY}; fi
-                      println DEBUG "$(printf "%20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "PolicyID.AssetName" "${asset}")"
-                      println DEBUG "$(printf "%-21s${FG_DGRAY}%s${NC}" "" ": # METADATA #")"
-                      println DEBUG "  $(printf "%18s ${FG_DGRAY}:${NC} ${MetaNameColor}%s${NC}" "Name" "$(jq -r .name.value <<< "${token_data[${asset}]}")")"
-                      println DEBUG "  $(printf "%18s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Description" "$(jq -r .description.value <<< "${token_data[${asset}]}")")"
-                      tticker=$(jq -er .ticker.value <<< "${token_data[${asset}]}") && println DEBUG "  $(printf "%18s ${FG_DGRAY}:${NC} ${MetaTickerColor}%s${NC}" "Ticker" "${tticker}")"
-                      turl=$(jq -er .url.value <<< "${token_data[${asset}]}") && println DEBUG "  $(printf "%18s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "URL" "${turl}")"
-                      if tlogo=$(jq -er .logo.value <<< "${token_data[${asset}]}"); then
-                        base64 --decode <<< "${tlogo}" 2>/dev/null > "${TMP_DIR}/${assets_id_bech32}.png"
-                        println DEBUG "  $(printf "%18s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Logo" "Extracted to: ${TMP_DIR}/${assets_id_bech32}.png")"
-                      fi
-                    else
-                      println DEBUG "$(printf "%20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}$([[ -n ${asset_name} ]] && echo ".")${FG_LGRAY}%s${NC}$([[ -n ${asset_name} ]] && echo " (")${FG_MAGENTA}%s${NC}$([[ -n ${asset_name} ]] && echo ")")" "PolicyID.AssetName" "${asset_arr[0]}" "${asset_name}" "$(hexToAscii ${asset_name})")"
-                      println DEBUG "$(printf "${FG_DGRAY}%22s${NC} ${FG_YELLOW}%s${NC}" ":" "No metadata registered in Cardano token register for this asset")"
-                    fi
-                    ((i++))
-                    [[ ${#assets_total[@]} -gt $i ]] && println OFF "${FG_DGRAY}  -------------------+---------------------------------------------${NC}"
-                  done
-                fi
                 
                 echo -e "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" >&6
                 if isWalletRegistered ${wallet_name}; then
@@ -1042,7 +1024,13 @@ function main {
               [[ -n ${reward_addr} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
               if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
                 if [[ -n ${reward_addr} ]]; then
-                  getRewardsFromAddr ${reward_addr}
+                  if [[ -n ${KOIOS_API} ]]; then
+                    [[ -v ${rewards_available[${reward_addr}]} ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
+                    delegation_pool_id=${reward_pool[${reward_addr}]}
+                  else
+                    getRewardsFromAddr ${reward_addr}
+                    delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
+                  fi
                   if [[ "${reward_lovelace}" -ge 0 ]]; then
                     total_lovelace=$((total_lovelace + reward_lovelace))
                     getPriceString ${reward_lovelace}
@@ -1051,9 +1039,6 @@ function main {
                 fi
                 getPriceString ${total_lovelace}
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds + Rewards" "$(formatLovelace ${total_lovelace})")"
-                if [[ -n ${base_addr} ]]; then getAddressInfo "${base_addr}"; else getAddressInfo "${pay_addr}"; fi
-                println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Encoding" "$(jq -r '.encoding' <<< ${address_info})")"
-                if [[ -n ${reward_addr} ]]; then delegation_pool_id=$(jq -r '.[0].delegation  // empty' <<< "${stake_address_info}" 2>/dev/null); else unset delegation_pool_id; fi
                 if [[ -n ${delegation_pool_id} ]]; then
                   unset poolName
                   while IFS= read -r -d '' pool; do

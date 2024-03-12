@@ -976,15 +976,16 @@ getBalance() {
   [[ ${#lovelace_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#lovelace_fmt}
 }
 
-# Command     : getBalanceKoios
+# Command     : getBalanceKoios [no index]
 # Description : check balance for provided addresses using Koios API
+# Parameters  : no index  >  true|false, if true address index prefix is removed from array key
 getBalanceKoios() {
   # generate different arrays using key constructed in format: <address>,<additional fields...>
   # Ex: ( [addr123,lovelace]=1000 [addr456,policy.name]=500 )
   # Its assumed that an array called addr_list has been populated with all addresses to fetch balance for
 
-  declare -gA utxos=(); declare -gA assets=(); declare -gA policyIDs=(); declare -gA asset_name_maxlen_arr=(); declare -gA asset_amount_maxlen_arr=()
-  utxo_cnt=0
+  declare -gA utxos=(); declare -gA utxos_cnt=(); declare -gA assets=(); declare -gA policyIDs=(); declare -gA asset_name_maxlen_arr=(); declare -gA asset_amount_maxlen_arr=()
+  asset_name_maxlen=5; asset_amount_maxlen=12; utxo_cnt=0;
   tx_in="" # only useful for single address lookup
 
   if [[ -n ${KOIOS_API} && -n ${addr_list+x} ]]; then
@@ -992,19 +993,19 @@ getBalanceKoios() {
     println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/address_info"
     ! address_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/address_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_info_list}\n" && return 1 # print error and return
     for address_info in $(jq -r '.[] | @base64' <<< "${json}"); do
+      utxo_cnt=0
       address_info_tsv=$(base64 -d <<< ${address_info} | jq -r '[ .address //"-", .balance //0, (.utxo_set[] | @base64) ] | @tsv')
       read -ra address_info_arr <<< ${address_info_tsv}
       address_b32=${address_info_arr[0]}
-      assets["${address_b32},lovelace"]=${address_info_arr[1]}
-      asset_name_maxlen_arr["${address_b32}"]=5
-      asset_amount_maxlen_arr["${address_b32}"]=12
+      [[ $1 = true ]] && undet index_prefix || index_prefix="${address_b32},"
+      assets["${index_prefix}lovelace"]=${address_info_arr[1]}
       for address_utxo in $(base64 -d <<< ${address_info_arr[2]}); do
         utxo_tsv=$(base64 -d <<< ${address_utxo} | jq -r '[ .tx_hash //"-", .tx_index //"-", .value //0, (.asset_list[] | @base64) ] | @tsv')
         read -ra utxo_arr <<< ${utxo_tsv}
         tx_hash=${utxo_arr[0]}
         tx_idx=${utxo_arr[1]}
         ((utxo_cnt++))
-        utxos["${address_b32},${tx_hash}#${tx_idx}. Ada"]=${utxo_arr[2]}
+        utxos["${index_prefix}${tx_hash}#${tx_idx}. Ada"]=${utxo_arr[2]}
         tx_in+=" --tx-in ${tx_hash}#${tx_idx}"
         for address_asset_info in $(base64 -d <<< ${utxo_arr[3]}); do
           asset_tsv=$(base64 -d <<< ${address_asset_info} | jq -r '[ .policy_id //"-", .asset_name //"-", .quantity //0 ] | @tsv')
@@ -1012,14 +1013,17 @@ getBalanceKoios() {
           policy_id=${asset_arr[0]}
           asset_name=${asset_arr[1]}
           asset_quantity=${asset_arr[2]}
-          policyIDs["${address_b32},${policy_id}"]=1
-          [[ ${#asset_name} -gt ${asset_name_maxlen_arr["${address_b32}"]} ]] && asset_name_maxlen_arr["${address_b32}"]=${#asset_name}
+          policyIDs["${index_prefix}${policy_id}"]=1
+          [[ ${#asset_name} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset_name}
           asset_amount_fmt="$(formatAsset ${asset_quantity})"
-          [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen_arr["${address_b32}"]} ]] && asset_amount_maxlen_arr["${address_b32}"]=${#asset_amount_fmt}
-          assets["${address_b32},${policy_id}.${asset_name}"]=$(( ${assets["${address_b32},${policy_id}.${asset_name}"]:-0} + ${asset_quantity} ))
-          utxos["${address_b32},${tx_hash}#${tx_idx}.${policy_id}.${asset_name}"]=${asset_quantity}
+          [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_amount_fmt}
+          assets["${index_prefix}${policy_id}.${asset_name}"]=$(( ${assets["${index_prefix}${policy_id}.${asset_name}"]:-0} + ${asset_quantity} ))
+          utxos["${index_prefix}${tx_hash}#${tx_idx}.${policy_id}.${asset_name}"]=${asset_quantity}
         done
       done
+      asset_name_maxlen_arr["${address_b32}"]=${asset_name_maxlen}
+      asset_amount_maxlen_arr["${address_b32}"]=${asset_amount_maxlen}
+      utxos_cnt["${address_b32}"]=${utxo_cnt}
     done
   fi
 }
