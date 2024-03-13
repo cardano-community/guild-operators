@@ -999,7 +999,7 @@ getBalanceKoios() {
       address_b32=${address_info_arr[0]}
       [[ $1 = true ]] && unset index_prefix || index_prefix="${address_b32},"
       assets["${index_prefix}lovelace"]=${address_info_arr[1]}
-      for address_utxo in $(base64 -d <<< ${address_info_arr[2]}); do
+      for address_utxo in ${address_info_arr[@]:2}; do
         utxo_tsv=$(base64 -d <<< ${address_utxo} | jq -r '[ .tx_hash //"-", .tx_index //"-", .value //0, (.asset_list[] | @base64) ] | @tsv')
         read -ra utxo_arr <<< ${utxo_tsv}
         tx_hash=${utxo_arr[0]}
@@ -1007,7 +1007,7 @@ getBalanceKoios() {
         ((utxo_cnt++))
         utxos["${index_prefix}${tx_hash}#${tx_idx}. Ada"]=${utxo_arr[2]}
         tx_in+=" --tx-in ${tx_hash}#${tx_idx}"
-        for address_asset_info in $(base64 -d <<< ${utxo_arr[3]}); do
+        for address_asset_info in ${utxo_arr[@]:3}; do
           asset_tsv=$(base64 -d <<< ${address_asset_info} | jq -r '[ .policy_id //"-", .asset_name //"-", .quantity //0 ] | @tsv')
           read -ra asset_arr <<< ${asset_tsv}
           policy_id=${asset_arr[0]}
@@ -1089,16 +1089,16 @@ getRewardInfoKoios() {
     println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_stake_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/account_info"
     ! account_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_stake_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/account_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${account_info_list}\n" && return 1 # print error and return
     # set defaults
-    for reward_address in "${reward_addr_list[@]}"; do
-      reward_status["${reward_address}"]="not registered"
-      rewards_available["${reward_address}"]=0
-      unset 'reward_pool[${reward_address}]'
+    for reward_addr in "${reward_addr_list[@]}"; do
+      reward_status["${reward_addr}"]="not registered"
+      rewards_available["${reward_addr}"]=0
+      unset 'reward_pool[${reward_addr}]'
     done
     for account_info in $(jq -r '.[] | @base64' <<< "${account_info_list}"); do
-      reward_address=$(base64 -d <<< ${account_info} | jq -r '.stake_address')
-      reward_status["${reward_address}"]="$(base64 -d <<< ${account_info} | jq -r '.status')"
-      reward_pool["${reward_address}"]="$(base64 -d <<< ${account_info} | jq -r '.delegated_pool')"
-      rewards_available["${reward_address}"]="$(base64 -d <<< ${account_info} | jq -r '.rewards_available')"
+      reward_addr=$(base64 -d <<< ${account_info} | jq -r '.stake_address')
+      reward_status["${reward_addr}"]="$(base64 -d <<< ${account_info} | jq -r '.status')"
+      reward_pool["${reward_addr}"]="$(base64 -d <<< ${account_info} | jq -r '.delegated_pool')"
+      rewards_available["${reward_addr}"]="$(base64 -d <<< ${account_info} | jq -r '.rewards_available')"
     done
   fi
 }
@@ -1123,7 +1123,7 @@ getRewardsFromAddr() {
 isWalletRegistered() {
   if getRewardAddress $1; then
     if [[ -n ${KOIOS_API} ]]; then
-      [[ ! -v ${reward_status[${reward_addr}]} ]] && reward_addr_list=( ${reward_addr} ) && getRewardInfoKoios
+      [[ ! -v "reward_status[${reward_addr}]" ]] && reward_addr_list=( ${reward_addr} ) && getRewardInfoKoios
       [[ ${reward_status[${reward_addr}]} = registered ]] && return 0
     else
       println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}"
