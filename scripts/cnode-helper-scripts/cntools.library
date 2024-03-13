@@ -1089,9 +1089,11 @@ getRewardInfoKoios() {
     println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_stake_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/account_info"
     ! account_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_stake_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/account_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${account_info_list}\n" && return 1 # print error and return
     # set defaults
-    reward_status["${reward_address}"]="not registered"
-    rewards_available["${reward_address}"]=0
-    unset 'reward_pool[${reward_address}]'
+    for reward_address in "${reward_addr_list[@]}"; do
+      reward_status["${reward_address}"]="not registered"
+      rewards_available["${reward_address}"]=0
+      unset 'reward_pool[${reward_address}]'
+    done
     for account_info in $(jq -r '.[] | @base64' <<< "${account_info_list}"); do
       reward_address=$(base64 -d <<< ${account_info} | jq -r '.stake_address')
       reward_status["${reward_address}"]="$(base64 -d <<< ${account_info} | jq -r '.status')"
