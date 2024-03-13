@@ -858,7 +858,7 @@ function main {
                     fi
                   fi
                   if [[ -n ${KOIOS_API} ]]; then
-                    [[ -v ${rewards_available[${reward_addr}]} ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
+                    [[ -v rewards_available[${reward_addr}] ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
                     delegation_pool_id=${reward_pool[${reward_addr}]}
                   else
                     getRewards ${wallet_name}
@@ -1025,7 +1025,7 @@ function main {
               if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
                 if [[ -n ${reward_addr} ]]; then
                   if [[ -n ${KOIOS_API} ]]; then
-                    [[ -v ${rewards_available[${reward_addr}]} ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
+                    [[ -v rewards_available[${reward_addr}] ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
                     delegation_pool_id=${reward_pool[${reward_addr}]}
                   else
                     getRewardsFromAddr ${reward_addr}

@@ -1095,10 +1095,12 @@ getRewardInfoKoios() {
       unset 'reward_pool[${reward_addr}]'
     done
     for account_info in $(jq -r '.[] | @base64' <<< "${account_info_list}"); do
-      reward_addr=$(base64 -d <<< ${account_info} | jq -r '.stake_address')
-      reward_status["${reward_addr}"]="$(base64 -d <<< ${account_info} | jq -r '.status')"
-      reward_pool["${reward_addr}"]="$(base64 -d <<< ${account_info} | jq -r '.delegated_pool')"
-      rewards_available["${reward_addr}"]="$(base64 -d <<< ${account_info} | jq -r '.rewards_available')"
+      reward_info_tsv=$(base64 -d <<< ${address_info} | jq -r '[ .stake_address //"-", .status //"-", .delegated_pool //"-", .rewards_available //0 ] | @tsv')
+      read -ra reward_info_arr <<< ${reward_info_tsv}
+      reward_addr=${reward_info_arr[0]}
+      reward_status["${reward_addr}"]="${reward_info_arr[1]}"
+      [[ ${reward_info_arr[2]} != '-' ]] && reward_pool["${reward_addr}"]="${reward_info_arr[2]}"
+      rewards_available["${reward_addr}"]=${reward_info_arr[3]}
     done
   fi
 }
