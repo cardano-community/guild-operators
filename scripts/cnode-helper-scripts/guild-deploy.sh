@@ -109,6 +109,7 @@ set_defaults() {
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
+  CARDANO_NODE_VERSION="8.7.3"
   REPO="https://github.com/${G_ACCOUNT}/guild-operators"
   REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
   URL_RAW="${REPO_RAW}/${BRANCH}"
@@ -159,6 +160,10 @@ common_init() {
   if ! grep -q '/.local/bin' "${HOME}"/.bashrc; then
     echo -e '\nexport PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}"/.bashrc
   fi
+  NODE_DEPS="$(curl -sfL "${URL_RAW}"/files/node-deps.json)"
+  BLST_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".blst' <<< ${NODE_DEPS})"
+  SODIUM_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".secp256k1' <<< ${NODE_DEPS})"
+  SECP256K1_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".sodium' <<< ${NODE_DEPS})"
 }
 
 ### Update file retaining existing custom configs
@@ -256,7 +261,8 @@ os_dependencies() {
   [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
   pushd secp256k1 >/dev/null || err_exit
   git fetch >/dev/null 2>&1
-  git checkout ac83be33 &>/dev/null
+  [[ -z "${SECP256K1_REF}" ]] && SECP256K1_REF="ac83be33"
+  git checkout ${SECP256K1_REF} &>/dev/null
   ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
   ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
   make > make.log 2>&1 || err_exit " Could not complete \"make\" for libsecp256k1 package, please try to run it manually to diagnose!"
@@ -315,7 +321,8 @@ build_libsodium() {
   [[ ! -d "./libsodium" ]] && git clone https://github.com/intersectmbo/libsodium &>/dev/null
   pushd libsodium >/dev/null || err_exit
   git fetch >/dev/null 2>&1
-  git checkout dbb48cc &>/dev/null
+  [[ -z "${SODIUM_REF}" ]] && SODIUM_REF="dbb48cc"
+  git checkout "${SODIUM_REF}" &>/dev/null
   ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1
   ./configure > configure.log >> /tmp/libsodium.log 2>&1
   make > make.log 2>&1 || err_exit  " Could not complete \"make\" for libsodium package, please try to run it manually to diagnose!"
@@ -333,7 +340,8 @@ build_libblst() {
   [[ ! -d "./blst" ]] && git clone https://github.com/supranational/blst &>/dev/null
   pushd blst >/dev/null || err_exit
   git fetch >/dev/null 2>&1
-  git checkout v0.3.10 &>/dev/null
+  [[ -z "${BLST_REF}" ]] && BLST_REF="v0.3.10"
+  git checkout ${BLST_REF} &>/dev/null
   ./build.sh >/dev/null 2>&1
   cat <<-EOF >libblst.pc
 		prefix=/usr/local
