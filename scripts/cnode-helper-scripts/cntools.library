@@ -992,12 +992,12 @@ getBalanceKoios() {
     printf -v addr_list_joined '\"%s\",' "${addr_list[@]}"
     println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/address_info"
     ! address_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/address_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_info_list}\n" && return 1 # print error and return
-    for address_info in $(jq -r '.[] | @base64' <<< "${json}"); do
+    for address_info in $(jq -r '.[] | @base64' <<< "${address_info_list}"); do
       utxo_cnt=0
       address_info_tsv=$(base64 -d <<< ${address_info} | jq -r '[ .address //"-", .balance //0, (.utxo_set[] | @base64) ] | @tsv')
       read -ra address_info_arr <<< ${address_info_tsv}
       address_b32=${address_info_arr[0]}
-      [[ $1 = true ]] && undet index_prefix || index_prefix="${address_b32},"
+      [[ $1 = true ]] && unset index_prefix || index_prefix="${address_b32},"
       assets["${index_prefix}lovelace"]=${address_info_arr[1]}
       for address_utxo in $(base64 -d <<< ${address_info_arr[2]}); do
         utxo_tsv=$(base64 -d <<< ${address_utxo} | jq -r '[ .tx_hash //"-", .tx_index //"-", .value //0, (.asset_list[] | @base64) ] | @tsv')
