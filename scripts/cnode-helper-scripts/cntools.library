@@ -1005,7 +1005,7 @@ getBalanceKoios() {
         tx_hash=${utxo_arr[0]}
         tx_idx=${utxo_arr[1]}
         ((utxo_cnt++))
-        utxos["${index_prefix}${tx_hash}#${tx_idx}. Ada"]=${utxo_arr[2]}
+        utxos["${index_prefix}${tx_hash}#${tx_idx}. ADA"]=${utxo_arr[2]}
         tx_in+=" --tx-in ${tx_hash}#${tx_idx}"
         for address_asset_info in ${utxo_arr[@]:3}; do
           asset_tsv=$(base64 -d <<< ${address_asset_info} | jq -r '[ .policy_id //"-", .asset_name //"-", .quantity //0 ] | @tsv')
