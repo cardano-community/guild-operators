@@ -950,7 +950,7 @@ function main {
 
                   echo
                   if [[ -n ${KOIOS_API} ]]; then
-                    utxo_cnt=${utxos_cnt["${address}"]}
+                    utxo_cnt=${utxos_cnt["${address}"]:-0}
                     asset_name_maxlen=${asset_name_maxlen_arr["${address}"]:-5}
                     asset_amount_maxlen=${asset_amount_maxlen_arr["${address}"]:-12}
                   fi
@@ -1009,7 +1009,7 @@ function main {
                   fi
                 done
                 
-                echo -e "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" >&6
+                println DEBUG "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 if isWalletRegistered ${wallet_name}; then
                   println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_GREEN}%s${NC}" "Registered" "YES")"
                 else
