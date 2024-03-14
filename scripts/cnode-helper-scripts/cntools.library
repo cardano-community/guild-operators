@@ -1014,7 +1014,9 @@ getBalanceKoios() {
           asset_name=${asset_arr[1]}
           asset_quantity=${asset_arr[2]}
           policyIDs["${index_prefix}${policy_id}"]=1
-          [[ ${#asset_name} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset_name}
+          tname="$(hexToAscii ${asset_name})"
+          tname="${tname//[![:print:]]/}"
+          [[ ${#tname} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#tname}
           asset_amount_fmt="$(formatAsset ${asset_quantity})"
           [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_amount_fmt}
           assets["${index_prefix}${policy_id}.${asset_name}"]=$(( ${assets["${index_prefix}${policy_id}.${asset_name}"]:-0} + ${asset_quantity} ))
