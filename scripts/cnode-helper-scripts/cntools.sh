@@ -968,6 +968,7 @@ function main {
                       else
                         [[ ${#utxo_arr[@]} -eq 3 ]] && asset_name="${utxo_arr[2]}" || asset_name=""
                         tname="$(hexToAscii ${asset_name})"
+                        tname="${tname//[![:print:]]/}"
                         ! assets_id_bech32=$(getAssetIDBech32 ${utxo_arr[1]} ${asset_name}) && continue 3
                         println DEBUG "$(printf "${FG_DGRAY}%20s${NC}${FG_LGRAY}%-47s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "Asset Fingerprint: " "${assets_id_bech32}" "${tname}" "$(formatAsset ${utxos["${utxo}"]})")"
                       fi
@@ -1000,7 +1001,9 @@ function main {
                       IFS='.' read -ra asset_arr <<< "${asset#*,}"
                       [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="" || asset_name="${asset_arr[1]}"
                       ! assets_id_bech32=$(getAssetIDBech32 ${asset_arr[0]} ${asset_name}) && assets_id_bech32="?"
-                      println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%-${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LGRAY}%s${NC}\n" "$(formatAsset ${assets["${asset}"]})" "$(hexToAscii ${asset_name})" "${assets_id_bech32}")"
+                      tname="$(hexToAscii ${asset_name})"
+                      tname="${tname//[![:print:]]/}"
+                      println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%-${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LGRAY}%s${NC}\n" "$(formatAsset ${assets["${asset}"]})" "${tname}" "${assets_id_bech32}")"
                     done
                   fi
                 done
