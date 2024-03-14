@@ -961,7 +961,9 @@ getBalance() {
         asset_hash_name="${utxo_entry[$((idx+1))]}"
         IFS='.' read -ra asset <<< "${asset_hash_name}"
         policyIDs["${asset[0]}"]=1
-        [[ ${#asset[@]} -eq 2 && ${#asset[1]} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset[1]}
+        tname="$(hexToAscii ${asset[1]})"
+        tname="${tname//[![:print:]]/}"
+        [[ ${#asset[@]} -eq 2 && ${#tname} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#tname}
         asset_amount_fmt="$(formatAsset ${asset_amount})"
         [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_amount_fmt}
         assets["${asset_hash_name}"]=$(( ${assets["${asset_hash_name}"]:-0} + asset_amount ))
