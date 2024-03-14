@@ -964,7 +964,7 @@ function main {
                       [[ -n ${KOIOS_API} && ${utxo} != "${address},"* ]] && continue
                       IFS='.' read -ra utxo_arr <<< "${utxo#*,}"
                       if [[ ${#utxo_arr[@]} -eq 2 && ${utxo_arr[1]} = " ADA" ]]; then
-                        println DEBUG "$(printf "%-69s ${FG_DGRAY}|${NC} ${FG_GREEN}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "ADA" "$(formatLovelace ${utxos["${utxo}"]})")"
+                        println DEBUG "$(printf "%-68s ${FG_DGRAY}|${NC} ${FG_GREEN}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "ADA" "$(formatLovelace ${utxos["${utxo}"]})")"
                       else
                         [[ ${#utxo_arr[@]} -eq 3 ]] && asset_name="${utxo_arr[2]}" || asset_name=""
                         tname="$(hexToAscii ${asset_name})"
