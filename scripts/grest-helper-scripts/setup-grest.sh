@@ -303,7 +303,7 @@ SGVERSION=v1.1.1rc
     printf "\n[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
     major_v="2.9"
-    minor_v="2"
+    minor_v="6"
     haproxy_url="http://www.haproxy.org/download/${major_v}/src/haproxy-${major_v}.${minor_v}.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
@@ -485,7 +485,7 @@ SGVERSION=v1.1.1rc
 			WantedBy=multi-user.target
 			EOF"
     printf "\n  HAProxy Service"
-    [[ ! -f /usr/sbin/haproxy ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-haproxy.service
+    [[ -f /usr/sbin/haproxy ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-haproxy.service
 			[Unit]
 			Description=HAProxy Load Balancer
 			After=network-online.target
