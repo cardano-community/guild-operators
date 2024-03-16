@@ -772,7 +772,7 @@ function main {
               fi
               if [[ -n ${KOIOS_API} ]]; then
                 tput sc
-                println DEBUG "\n${FG_YELLOW}> Querying Koios API for wallet information${NC}"
+                println OFF "\n${FG_YELLOW}> Querying Koios API for wallet information${NC}"
                 addr_list=()
                 reward_addr_list=()
                 while IFS= read -r -d '' wallet; do
@@ -914,7 +914,7 @@ function main {
               getRewardAddress ${wallet_name}
               if [[ -n ${KOIOS_API} ]]; then
                 tput sc
-                println DEBUG "\n${FG_YELLOW}> Querying Koios API for wallet information${NC}"
+                println OFF "\n${FG_YELLOW}> Querying Koios API for wallet information${NC}"
                 addr_list=("${base_addr}" "${pay_addr}")
                 reward_addr_list=("${reward_addr}")
                 [[ ${#addr_list[@]} -gt 0 ]] && getBalanceKoios
@@ -2717,7 +2717,7 @@ function main {
                 [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
                 [[ -n "${ledger_pParams}" ]] && pool_registered="${FG_GREEN}YES${NC}" || pool_registered="${FG_RED}NO${NC}"
               else
-                println DEBUG "\n${FG_YELLOW}> Querying Koios API for pool information (some data can have a delay of up to 10min)${NC}"
+                println OFF "\n${FG_YELLOW}> Querying Koios API for pool information (some data can have a delay of up to 10min)${NC}"
                 isPoolRegistered ${pool_name} # variables set in isPoolRegistered [pool_info, error_msg, p_<metric>]
                 case $? in
                   0) println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitForInput && continue ;;
