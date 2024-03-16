@@ -441,6 +441,7 @@ selectWallet() {
   declare -A asset_cnt=()
   declare -A balances=()
   declare -A reward_pool=()
+  declare -A rewards_available=()
 
   for dir in "${dirs[@]}"; do
     for arg in "$@"; do # check if wallet is missing a required file or name matches execution, if so hide it
@@ -491,9 +492,14 @@ selectWallet() {
         fi
         wallet_dirs+=("${dir}_balance_")
       elif [[ ${mode} = "reward" ]]; then
-        getRewards ${dir}
-        [[ ${reward_lovelace} -le 0 ]] && continue
-        wallet_dirs+=("${dir} (Rewards: ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} ADA)")
+        if [[ -n ${KOIOS_API} ]]; then
+          getRewardAddress ${dir}
+          [[ -n ${reward_addr} ]] && reward_addr_list+=(${reward_addr})
+        else
+          getRewards ${dir}
+          rewards_available[${reward_addr}]=${reward_lovelace}
+        fi
+        wallet_dirs+=("${dir}_balance_")
       fi
     else
       wallet_dirs+=("${dir}")
@@ -534,14 +540,19 @@ selectWallet() {
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           fi
           if [[ -n ${poolName} ]]; then
-            wallet_dirs[i]="${dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA - ${FG_RED}delegated${NC} to ${FG_GREEN}${poolName}${NC})"
+            wallet_dirs[i]="${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA - ${FG_RED}delegated${NC} to ${FG_GREEN}${poolName}${NC})"
           elif [[ -n ${delegation_pool_id} ]]; then
-            wallet_dirs[i]="${dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA - ${FG_RED}delegated${NC} to ${FG_LGRAY}${delegation_pool_id:0:6}...${delegation_pool_id: -6}${NC})"
+            wallet_dirs[i]="${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA - ${FG_RED}delegated${NC} to ${FG_LGRAY}${delegation_pool_id:0:6}...${delegation_pool_id: -6}${NC})"
           else
-            wallet_dirs[i]="${dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA)"
+            wallet_dirs[i]="${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA)"
           fi
         else
-          wallet_dirs[i]="${dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA)"
+          wallet_dirs[i]="${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA)"
+        fi
+      elif [[ ${mode} = "reward" ]]; then
+        getRewardAddress ${wallet_dir}
+        if [[ -n ${reward_addr} && -v rewards_available[${reward_addr}] && ${rewards_available[${reward_addr}]} -gt 0 ]]; then
+          wallet_dirs[i]="${wallet_dir} (Rewards: ${FG_LBLUE}$(formatLovelace ${rewards_available[${reward_addr}]})${NC} ADA)"
         fi
       else
         getPayAddress ${wallet_dir}
@@ -566,7 +577,7 @@ selectWallet() {
     elif [[ ${mode} = "delegate" ]]; then
       println ERROR "${FG_YELLOW}WARN${NC}: No wallets available that can be delegated or used as pool pledge/owner/reward wallet! Required files:\n$(printf '%b\n' "$@")"
     elif [[ ${mode} = "reward" ]]; then
-      println ERROR "${FG_YELLOW}WARN${NC}: No wallets available that have rewards to withdraw!"
+      println ERROR "${FG_YELLOW}WARN${NC}: No wallets available that have rewards to withdraw or signing keys to do so!"
     else
       println ERROR "${FG_YELLOW}WARN${NC}: No wallets available for selection! Required files:\n$(printf '%b\n' "$@")"
     fi
