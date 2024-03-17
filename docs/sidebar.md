@@ -18,6 +18,8 @@
       - Guild LiveView: Scripts/gliveview.md
       - Log Monitor: Scripts/logmonitor.md
       - Block Performance: Scripts/blockperf.md
+    - Snapshot Dwnloading:
+      - Mithril Client: Scripts/mithril-client.md
     - Topology Updater: Scripts/topologyupdater.md
     - ITN Metadata Proof: Scripts/itnwitness.md
   - Docker:
