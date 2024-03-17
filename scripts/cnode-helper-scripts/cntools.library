@@ -2564,9 +2564,9 @@ submitTx() {
 
   if [[ -n ${KOIOS_API} ]]; then
     txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
-    xxd -p -r <<< $(jq .cborHex ${tx.signed}) > ${txdata}
-    println ACTION "curl -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
-    curl -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx"
+    xxd -p -r <<< $(jq .cborHex ${tx_signed}) > ${txdata}
+    println ACTION "curl -sSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
+    curl -sSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx"
   else
     submit_command=(
       ${CCLI} ${NETWORK_ERA} transaction submit
