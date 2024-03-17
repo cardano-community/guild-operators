@@ -38,8 +38,9 @@ usage() {
 			snapshot              Interact with Mithril snapshots
 			  download            Download latest Mithril snapshot
 			  list                List available Mithril snapshots
-			    json              Output latest Mithril snapshot in JSON format
+			    json              List availble Mithril snapshots in JSON format
 			  show                Show details of a Mithril snapshot
+			    json              Show details of a Mithril snapshot in JSON format
 			stake-distribution    Interact with Mithril stake distributions
 			  download            Download latest stake distribution
 			  list                List available stake distributions
