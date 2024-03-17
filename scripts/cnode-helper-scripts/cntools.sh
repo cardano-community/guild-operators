@@ -864,7 +864,7 @@ function main {
                     getRewards ${wallet_name}
                     delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
                   fi
-                  if [[ "${reward_lovelace}" -ge 0 ]]; then
+                  if [[ "${reward_lovelace}" != "-" ]] && [[ "${reward_lovelace}" -ge 0 ]]; then
                     getPriceString ${reward_lovelace}
                     println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
                     if [[ -n ${delegation_pool_id} ]]; then
@@ -1030,7 +1030,7 @@ function main {
                     getRewardsFromAddr ${reward_addr}
                     delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
                   fi
-                  if [[ "${reward_lovelace}" -ge 0 ]]; then
+                  if [[ "${reward_lovelace}" != "-" ]] && [[ "${reward_lovelace}" -ge 0 ]]; then
                     total_lovelace=$((total_lovelace + reward_lovelace))
                     getPriceString ${reward_lovelace}
                     println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
@@ -2478,7 +2478,7 @@ function main {
                   getBalance ${base_addr}
                   total_pledge=$(( total_pledge + assets[lovelace] ))
                   getRewards ${wallet_name}
-                  [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
+                  [[ "${reward_lovelace}" != "-" ]] && [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
                 done
                 println DEBUG "${FG_BLUE}INFO${NC}: Total balance in ${FG_LBLUE}${#owner_wallets[@]}${NC} owner/pledge wallet(s) are: ${FG_LBLUE}$(formatLovelace ${total_pledge})${NC} ADA"
                 if [[ ${total_pledge} -lt ${pledge_lovelace} ]]; then
