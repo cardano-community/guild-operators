@@ -593,13 +593,17 @@ selectWallet() {
   if [[ ${CNTOOLS_MODE} = "CONNECTED" && ${mode} != "none" ]]; then tput rc && tput ed; fi
   if [[ ${#wallet_dirs_filtered[@]} -eq 0 ]]; then
     if [[ ${mode} = "balance" ]]; then
-      println ERROR "${FG_YELLOW}WARN${NC}: No wallets with funds available for selection! Required files:\n$(printf '%b\n' "$@")"
+      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets with funds available for selection! Required files:\n$(printf '%b\n' "$@")"
     elif [[ ${mode} = "delegate" ]]; then
-      println ERROR "${FG_YELLOW}WARN${NC}: No wallets available that can be delegated or used as pool pledge/owner/reward wallet! Required files:\n$(printf '%b\n' "$@")"
+      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that can be delegated or used as pool pledge/owner/reward wallet! Required files:\n$(printf '%b\n' "$@")"
     elif [[ ${mode} = "reward" ]]; then
-      println ERROR "${FG_YELLOW}WARN${NC}: No wallets available that have rewards to withdraw or signing keys to do so!"
+      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that have rewards to withdraw or signing keys to do so!"
+    elif [[ ${mode} = "reg" ]]; then
+      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that are unregistered!"
+    elif [[ ${mode} = "non-reg" ]]; then
+      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that are registered on chain!"
     else
-      println ERROR "${FG_YELLOW}WARN${NC}: No wallets available for selection! Required files:\n$(printf '%b\n' "$@")"
+      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available for selection! Required files:\n$(printf '%b\n' "$@")"
     fi
     return 1
   fi
