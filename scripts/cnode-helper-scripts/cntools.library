@@ -508,7 +508,7 @@ selectWallet() {
 
   if [[ -n ${KOIOS_API} ]]; then
     if [[ ${#addr_list[@]} -gt 0 ]]; then
-      getBalanceKoios
+      getBalanceKoios false
       for key in ${!assets[@]}; do
         if [[ ${key} = *lovelace ]]; then
           address=${key%,*}
@@ -1004,7 +1004,7 @@ getAddressInfo() {
 # Description : check balance for provided address
 # Parameters  : address  >  the wallet address to query
 getBalance() {
-  declare -gA utxos=(); declare -gA assets=(); declare -gA policyIDs=()
+  declare -gA utxos=(); declare -gA assets=()
   assets["lovelace"]=0; utxo_cnt=0
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
@@ -1032,7 +1032,6 @@ getBalance() {
         if ! isNumber "${asset_amount}"; then break; fi
         asset_hash_name="${utxo_entry[$((idx+1))]}"
         IFS='.' read -ra asset <<< "${asset_hash_name}"
-        policyIDs["${asset[0]}"]=1
         tname="$(hexToAscii ${asset[1]})"
         tname="${tname//[![:print:]]/}"
         [[ ${#asset[@]} -eq 2 && ${#tname} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#tname}
@@ -1050,57 +1049,40 @@ getBalance() {
   [[ ${#lovelace_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#lovelace_fmt}
 }
 
-# Command     : getBalanceKoios [no index]
+# Command     : getBalanceKoios parse_assets
 # Description : check balance for provided addresses using Koios API
-# Parameters  : no index  >  true|false, if true address index prefix is removed from array key
+# Parameters  : parse_assets  >  [true|false] should additional assets on utxo be parsed or not (default=true)
 getBalanceKoios() {
   # generate different arrays using key constructed in format: <address>,<additional fields...>
   # Ex: ( [addr123,lovelace]=1000 [addr456,policy.name]=500 )
   # Its assumed that an array called addr_list has been populated with all addresses to fetch balance for
 
-  declare -gA utxos=(); declare -gA utxos_cnt=(); declare -gA assets=(); declare -gA policyIDs=(); declare -gA asset_name_maxlen_arr=(); declare -gA asset_amount_maxlen_arr=()
+  declare -gA utxos=(); declare -gA utxos_cnt=(); declare -gA assets=(); declare -gA asset_name_maxlen_arr=(); declare -gA asset_amount_maxlen_arr=()
   asset_name_maxlen=5; asset_amount_maxlen=12; utxo_cnt=0;
   tx_in="" # only useful for single address lookup
 
   if [[ -n ${KOIOS_API} && -n ${addr_list+x} ]]; then
     printf -v addr_list_joined '\"%s\",' "${addr_list[@]}"
-    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/address_info"
-    ! address_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/address_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_info_list}\n" && return 1 # print error and return
-    for address_info in $(jq -r '.[] | @base64' <<< "${address_info_list}"); do
-      utxo_cnt=0
-      address_info_tsv=$(base64 -d <<< ${address_info} | jq -r '[ .address //"-", .balance //0, (.utxo_set[] | @base64) ] | @tsv')
-      read -ra address_info_arr <<< ${address_info_tsv}
-      address_b32=${address_info_arr[0]}
-      [[ $1 = true ]] && unset index_prefix || index_prefix="${address_b32},"
-      assets["${index_prefix}lovelace"]=${address_info_arr[1]}
-      for address_utxo in ${address_info_arr[@]:2}; do
-        utxo_tsv=$(base64 -d <<< ${address_utxo} | jq -r '[ .tx_hash //"-", .tx_index //"-", .value //0, (.asset_list[] | @base64) ] | @tsv')
-        read -ra utxo_arr <<< ${utxo_tsv}
-        tx_hash=${utxo_arr[0]}
-        tx_idx=${utxo_arr[1]}
-        ((utxo_cnt++))
-        utxos["${index_prefix}${tx_hash}#${tx_idx}. ADA"]=${utxo_arr[2]}
-        tx_in+=" --tx-in ${tx_hash}#${tx_idx}"
-        for address_asset_info in ${utxo_arr[@]:3}; do
-          asset_tsv=$(base64 -d <<< ${address_asset_info} | jq -r '[ .policy_id //"-", .asset_name //"-", .quantity //0 ] | @tsv')
-          read -ra asset_arr <<< ${asset_tsv}
-          policy_id=${asset_arr[0]}
-          asset_name=${asset_arr[1]}
-          asset_quantity=${asset_arr[2]}
-          policyIDs["${index_prefix}${policy_id}"]=1
+    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
+    ! address_utxo_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_utxo_list}\n" && return 1 # print error and return
+    while IFS=',' read -r address tx_hash tx_index value asset_list; do
+      [[ ${address} = address ]] && continue # header line
+      index_prefix="${address},"
+      assets["${index_prefix}lovelace"]=$(( ${assets["${index_prefix}lovelace"]:-0} + value ))
+      utxos["${index_prefix}${tx_hash}#${tx_index}. ADA"]=${value}
+      utxos_cnt["${address}"]=$(( ${utxos_cnt["${address}"]:-0} + 1 ))
+      if [[ $1 != false ]]; then
+        while IFS=',' read -r policy_id asset_name quantity; do
           tname="$(hexToAscii ${asset_name})"
           tname="${tname//[![:print:]]/}"
-          [[ ${#tname} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#tname}
-          asset_amount_fmt="$(formatAsset ${asset_quantity})"
-          [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_amount_fmt}
-          assets["${index_prefix}${policy_id}.${asset_name}"]=$(( ${assets["${index_prefix}${policy_id}.${asset_name}"]:-0} + ${asset_quantity} ))
-          utxos["${index_prefix}${tx_hash}#${tx_idx}.${policy_id}.${asset_name}"]=${asset_quantity}
-        done
-      done
-      asset_name_maxlen_arr["${address_b32}"]=${asset_name_maxlen}
-      asset_amount_maxlen_arr["${address_b32}"]=${asset_amount_maxlen}
-      utxos_cnt["${address_b32}"]=${utxo_cnt}
-    done
+          [[ ${#tname} -gt ${asset_name_maxlen_arr["${address}"]:-5} ]] && asset_name_maxlen_arr["${address}"]=${#tname}
+          asset_amount_fmt="$(formatAsset ${quantity})"
+          [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen_arr["${address}"]:-12} ]] && asset_amount_maxlen_arr["${address}"]=${#asset_amount_fmt}
+          assets["${index_prefix}${policy_id}.${asset_name}"]=$(( ${assets["${index_prefix}${policy_id}.${asset_name}"]:-0} + quantity ))
+          utxos["${index_prefix}${tx_hash}#${tx_index}.${policy_id}.${asset_name}"]=${quantity}
+        done < <( jq -cr '.[] | "\(.policy_id),\(.asset_name),\(.quantity)"' <<< "${asset_list}" )
+      fi
+    done <<< "${address_utxo_list}"
   fi
 }
 
@@ -1160,24 +1142,23 @@ getRewardInfoKoios() {
 
   declare -gA rewards_available=(); declare -gA reward_status=(); declare -gA reward_pool=();
 
+  # set defaults
+  for reward_addr in "${reward_addr_list[@]}"; do
+    reward_status["${reward_addr}"]="not registered"
+    rewards_available["${reward_addr}"]=0
+    unset 'reward_pool[${reward_addr}]'
+  done
+
   if [[ -n ${KOIOS_API} && -n ${reward_addr_list+x} ]]; then
     printf -v addr_list_joined '\"%s\",' "${reward_addr_list[@]}"
-    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_stake_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/account_info"
-    ! account_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_stake_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/account_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${account_info_list}\n" && return 1 # print error and return
-    # set defaults
-    for reward_addr in "${reward_addr_list[@]}"; do
-      reward_status["${reward_addr}"]="not registered"
-      rewards_available["${reward_addr}"]=0
-      unset 'reward_pool[${reward_addr}]'
-    done
-    for account_info in $(jq -r '.[] | @base64' <<< "${account_info_list}"); do
-      reward_info_tsv=$(base64 -d <<< ${account_info} | jq -r '[ .stake_address //"-", .status //"-", .delegated_pool //"-", .rewards_available //0 ] | @tsv')
-      read -ra reward_info_arr <<< ${reward_info_tsv}
-      reward_addr=${reward_info_arr[0]}
-      reward_status["${reward_addr}"]="${reward_info_arr[1]}"
-      [[ ${reward_info_arr[2]} != '-' ]] && reward_pool["${reward_addr}"]="${reward_info_arr[2]}"
-      rewards_available["${reward_addr}"]=${reward_info_arr[3]}
-    done
+    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_stake_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available"
+    ! account_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_stake_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${account_info_list}\n" && return 1 # print error and return
+    while IFS=',' read -r stake_address status delegated_pool rewards_available; do
+      [[ ${stake_address} = stake_address ]] && continue # header line
+      reward_status["${stake_address}"]="${status}"
+      rewards_available["${stake_address}"]="${rewards_available}"
+      [[ -n ${delegated_pool} ]] && reward_pool["${stake_address}"]="${delegated_pool}"
+    done <<< "${account_info_list}"
   fi
 }
 

@@ -864,7 +864,7 @@ function main {
                     getRewards ${wallet_name}
                     delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
                   fi
-                  if [[ "${reward_lovelace}" != "-" ]] && [[ "${reward_lovelace}" -ge 0 ]]; then
+                  if [[ ${reward_lovelace} -gt 0 ]]; then
                     getPriceString ${reward_lovelace}
                     println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
                     if [[ -n ${delegation_pool_id} ]]; then
@@ -976,22 +976,17 @@ function main {
                   fi
                   lovelace=0
                   asset_cnt=0
-                  policy_cnt=0
                   if [[ -n ${KOIOS_API} ]]; then
                     for key in "${!assets[@]}"; do
                       [[ ${key} = "${address},lovelace" ]] && lovelace=${assets["${address},lovelace"]}
                       [[ ${key} = "${address},"* ]] && ((asset_cnt++))
                     done
-                    for key in "${!policyIDs[@]}"; do
-                      [[ ${key} = "${address}"* ]] && ((policy_cnt++))
-                    done
                   else
                     lovelace=${assets[lovelace]}
                     asset_cnt=${#assets[@]}
-                    policy_cnt=${#policyIDs[@]}
                   fi
                   if [[ ${asset_cnt} -gt 0 ]]; then
-                    println "\nASSET SUMMARY: ${FG_LBLUE}${asset_cnt} Asset-Type(s)${NC} $([[ ${asset_cnt} -gt 1 ]] && echo -e "/ ${FG_LBLUE}${policy_cnt} Unique Policy ID(s)${NC}")\n"
+                    println "\nASSET SUMMARY: ${FG_LBLUE}${asset_cnt} Asset-Type(s)${NC}\n"
                     println DEBUG "$(printf "%${asset_amount_maxlen}s ${FG_DGRAY}|${NC} %-${asset_name_maxlen}s%s\n" "Total Amount" "Asset" "$([[ ${asset_cnt} -gt 1 ]] && echo -e " ${FG_DGRAY}|${NC} Asset Fingerprint")")"
                     println DEBUG "${FG_DGRAY}$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+2))s%s\n" "" "" "$([[ ${asset_cnt} -gt 1 ]] && printf "+%57s" "")" | tr " " "-")${NC}"
                     println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_GREEN}%-${asset_name_maxlen}s${NC}%s\n" "$(formatLovelace ${lovelace})" "ADA" "$([[ ${asset_cnt} -gt 1 ]] && echo -n " ${FG_DGRAY}|${NC}")")"
@@ -1030,11 +1025,9 @@ function main {
                     getRewardsFromAddr ${reward_addr}
                     delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
                   fi
-                  if [[ "${reward_lovelace}" != "-" ]] && [[ "${reward_lovelace}" -ge 0 ]]; then
-                    total_lovelace=$((total_lovelace + reward_lovelace))
-                    getPriceString ${reward_lovelace}
-                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
-                  fi
+                  total_lovelace=$((total_lovelace + reward_lovelace))
+                  getPriceString ${reward_lovelace}
+                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
                 fi
                 getPriceString ${total_lovelace}
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds + Rewards" "$(formatLovelace ${total_lovelace})")"
@@ -2478,7 +2471,7 @@ function main {
                   getBalance ${base_addr}
                   total_pledge=$(( total_pledge + assets[lovelace] ))
                   getRewards ${wallet_name}
-                  [[ "${reward_lovelace}" != "-" ]] && [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
+                  [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
                 done
                 println DEBUG "${FG_BLUE}INFO${NC}: Total balance in ${FG_LBLUE}${#owner_wallets[@]}${NC} owner/pledge wallet(s) are: ${FG_LBLUE}$(formatLovelace ${total_pledge})${NC} ADA"
                 if [[ ${total_pledge} -lt ${pledge_lovelace} ]]; then
