@@ -1096,6 +1096,7 @@ getBalanceKoios() {
     [[ $1 != false ]] && extended=true || extended=false
     println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_addresses\":[${addr_list_joined%,}],\"_extended\":${extended}}' ${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
     ! address_utxo_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_addresses":['${addr_list_joined%,}'],"_extended":'${extended}'}' "${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_utxo_list}\n" && return 1 # print error and return
+    [[ -z ${address_utxo_list} ]] && return
     while IFS=',' read -r address tx_hash tx_index value asset_list; do
       [[ ${address} = address ]] && continue # header line
       index_prefix="${address},"
@@ -1187,6 +1188,7 @@ getRewardInfoKoios() {
     printf -v addr_list_joined '\"%s\",' "${reward_addr_list[@]}"
     println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_stake_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available"
     ! account_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_stake_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${account_info_list}\n" && return 1 # print error and return
+    [[ -z ${account_info_list} ]] && return
     while IFS=',' read -r stake_address status delegated_pool rewards_available; do
       [[ ${stake_address} = stake_address ]] && continue # header line
       reward_status["${stake_address}"]="${status}"
