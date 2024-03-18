@@ -1089,19 +1089,20 @@ getBalanceKoios() {
   # Its assumed that an array called addr_list has been populated with all addresses to fetch balance for
 
   declare -gA utxos=(); declare -gA utxos_cnt=(); declare -gA assets=(); declare -gA asset_name_maxlen_arr=(); declare -gA asset_amount_maxlen_arr=()
-  asset_name_maxlen=5; asset_amount_maxlen=12; utxo_cnt=0;
   tx_in="" # only useful for single address lookup
 
   if [[ -n ${KOIOS_API} && -n ${addr_list+x} ]]; then
     printf -v addr_list_joined '\"%s\",' "${addr_list[@]}"
-    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
-    ! address_utxo_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_utxo_list}\n" && return 1 # print error and return
+    [[ $1 != false ]] && extended=true || extended=false
+    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_addresses\":[${addr_list_joined%,}],\"_extended\":${extended}}' ${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
+    ! address_utxo_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_addresses":['${addr_list_joined%,}'],"_extended":${extended}}' "${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_utxo_list}\n" && return 1 # print error and return
     while IFS=',' read -r address tx_hash tx_index value asset_list; do
       [[ ${address} = address ]] && continue # header line
       index_prefix="${address},"
       assets["${index_prefix}lovelace"]=$(( ${assets["${index_prefix}lovelace"]:-0} + value ))
       utxos["${index_prefix}${tx_hash}#${tx_index}. ADA"]=${value}
       utxos_cnt["${address}"]=$(( ${utxos_cnt["${address}"]:-0} + 1 ))
+      tx_in+=" --tx-in ${tx_hash}#${tx_index}"
       if [[ $1 != false ]]; then
         while IFS=',' read -r policy_id asset_name quantity; do
           tname="$(hexToAscii ${asset_name})"
