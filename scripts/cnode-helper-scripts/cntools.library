@@ -1104,6 +1104,8 @@ getBalanceKoios() {
       utxos_cnt["${address}"]=$(( ${utxos_cnt["${address}"]:-0} + 1 ))
       tx_in+=" --tx-in ${tx_hash}#${tx_index}"
       if [[ $1 != false ]]; then
+        asset_list_unescaped=${asset_list:1: -1} # remove first and last char (quotation)
+        asset_list_unescaped=$(sed 's/""/"/g' <<< "${asset_list_unescaped}") # remove all double quotes, sed seems to perform better than bash string manipulation
         while IFS=',' read -r policy_id asset_name quantity; do
           tname="$(hexToAscii ${asset_name})"
           tname="${tname//[![:print:]]/}"
@@ -1112,7 +1114,7 @@ getBalanceKoios() {
           [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen_arr["${address}"]:-12} ]] && asset_amount_maxlen_arr["${address}"]=${#asset_amount_fmt}
           assets["${index_prefix}${policy_id}.${asset_name}"]=$(( ${assets["${index_prefix}${policy_id}.${asset_name}"]:-0} + quantity ))
           utxos["${index_prefix}${tx_hash}#${tx_index}.${policy_id}.${asset_name}"]=${quantity}
-        done < <( jq -cr '.[] | "\(.policy_id),\(.asset_name),\(.quantity)"' <<< "${asset_list}" )
+        done < <( jq -cr '.[] | "\(.policy_id),\(.asset_name),\(.quantity)"' <<< "${asset_list_unescaped}" )
       fi
     done <<< "${address_utxo_list}"
   fi
