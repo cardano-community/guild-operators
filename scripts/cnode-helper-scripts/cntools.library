@@ -1095,7 +1095,7 @@ getBalanceKoios() {
     printf -v addr_list_joined '\"%s\",' "${addr_list[@]}"
     [[ $1 != false ]] && extended=true || extended=false
     println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_addresses\":[${addr_list_joined%,}],\"_extended\":${extended}}' ${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
-    ! address_utxo_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_addresses":['${addr_list_joined%,}'],"_extended":${extended}}' "${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_utxo_list}\n" && return 1 # print error and return
+    ! address_utxo_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_addresses":['${addr_list_joined%,}'],"_extended":'${extended}'}' "${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_utxo_list}\n" && return 1 # print error and return
     while IFS=',' read -r address tx_hash tx_index value asset_list; do
       [[ ${address} = address ]] && continue # header line
       index_prefix="${address},"
