@@ -467,7 +467,7 @@ selectWallet() {
           fi
         else
           getRewardAddress ${dir}
-          [[ -n ${reward_addr} ]] && reward_addr_list+=(${reward_addr}) && wallet_dirs+=("${dir}_status_")
+          [[ -n ${reward_addr} ]] && reward_addr_list+=(${reward_addr})
         fi
       fi
       if [[ ${mode} = "balance" || ${mode} = "non-reg" || ${mode} = "reg" ]]; then
@@ -531,26 +531,21 @@ selectWallet() {
   wallet_dirs_filtered=()
 
   for dir in "${wallet_dirs[@]}"; do
-    if [[ ${dir} = *_status_ ]]; then
-      wallet_dir=${dir%%_status_}
-      getRewardAddress ${wallet_dir}
-      if [[ -n ${reward_addr} ]]; then
-        if [[ ${mode} = "reg" ]]; then
-          if [[ -v reward_status[${reward_addr}] && ${reward_status[${reward_addr}]} = registered ]]; then
-            wallet_dirs_filtered+=("${wallet_dir}")
-          fi
-        else
-          if [[ ! -v reward_status[${reward_addr}] || ${reward_status[${reward_addr}]} = "not registered" ]]; then
-            wallet_dirs_filtered+=("${wallet_dir}")
-          fi
-        fi
-      fi
-    elif [[ ${dir} = *_balance_ ]]; then
+    if [[ ${dir} = *_balance_ ]]; then
       wallet_dir=${dir%%_balance_}
       unset base_addr
       getBaseAddress ${wallet_dir}
       base_lovelace=${balances[${base_addr}]:-0}
-      if [[ ${mode} = "delegate" ]]; then
+      if [[ ${mode} = "reg" || ${mode} = "non-reg" ]]; then
+        getRewardAddress ${wallet_dir}
+        if [[ -n ${reward_addr} ]]; then
+          if [[ ${mode} = "reg" ]]; then
+            [[ ! -v reward_status[${reward_addr}] || ${reward_status[${reward_addr}]} = "not registered" ]] && continue
+          else
+            [[ -v reward_status[${reward_addr}] && ${reward_status[${reward_addr}]} = "registered" ]] && continue
+          fi
+        fi
+      elif [[ ${mode} = "delegate" ]]; then
         getRewardAddress ${wallet_dir}
         if [[ -n ${reward_addr} ]]; then
           delegation_pool_id=${reward_pool[${reward_addr}]}
@@ -573,23 +568,24 @@ selectWallet() {
         else
           wallet_dirs_filtered+=("${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA)")
         fi
+        continue
       elif [[ ${mode} = "reward" ]]; then
         getRewardAddress ${wallet_dir}
         if [[ -n ${reward_addr} && -v rewards_available[${reward_addr}] && ${rewards_available[${reward_addr}]} -gt 0 ]]; then
           wallet_dirs_filtered+=("${wallet_dir} (Rewards: ${FG_LBLUE}$(formatLovelace ${rewards_available[${reward_addr}]})${NC} ADA)")
         fi
+        continue
+      fi
+      getPayAddress ${wallet_dir}
+      pay_lovelace=${balances[${pay_addr}]:-0}
+      [[ -v asset_cnt[${base_addr}] ]] && base_asset_str=" + ${FG_LBLUE}${asset_cnt[${base_addr}]}${NC} additional assets" || unset base_asset_str
+      [[ -v asset_cnt[${pay_addr}] ]] && pay_asset_str=" + ${FG_LBLUE}${asset_cnt[${pay_addr}]}${NC} additional assets" || unset pay_asset_str
+      if [[ ${base_lovelace} -gt 0 && ${pay_lovelace} -gt 0 ]]; then
+        wallet_dirs_filtered+=("${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str} | Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
+      elif [[ ${pay_lovelace} -gt 0 ]]; then
+        wallet_dirs_filtered+=("${wallet_dir} (Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
       else
-        getPayAddress ${wallet_dir}
-        pay_lovelace=${balances[${pay_addr}]:-0}
-        [[ -v asset_cnt[${base_addr}] ]] && base_asset_str=" + ${FG_LBLUE}${asset_cnt[${base_addr}]}${NC} additional assets" || unset base_asset_str
-        [[ -v asset_cnt[${pay_addr}] ]] && pay_asset_str=" + ${FG_LBLUE}${asset_cnt[${pay_addr}]}${NC} additional assets" || unset pay_asset_str
-        if [[ ${base_lovelace} -gt 0 && ${pay_lovelace} -gt 0 ]]; then
-          wallet_dirs_filtered+=("${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str} | Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
-        elif [[ ${pay_lovelace} -gt 0 ]]; then
-          wallet_dirs_filtered+=("${wallet_dir} (Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
-        else
-          wallet_dirs_filtered+=("${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str})")
-        fi
+        wallet_dirs_filtered+=("${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str})")
       fi
     fi
   done
