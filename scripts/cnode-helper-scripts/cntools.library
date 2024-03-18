@@ -528,27 +528,22 @@ selectWallet() {
     [[ ${#reward_addr_list[@]} -gt 0 ]] && getRewardInfoKoios
   fi
 
-  for i in "${!wallet_dirs[@]}"; do
-    dir=${wallet_dirs[i]}
+  wallet_dirs_filtered=()
+
+  for dir in "${wallet_dirs[@]}"; do
     if [[ ${dir} = *_status_ ]]; then
-      wallet_dir=${dir%%_balance_}
+      wallet_dir=${dir%%_status_}
       getRewardAddress ${wallet_dir}
       if [[ -n ${reward_addr} ]]; then
         if [[ ${mode} = "reg" ]]; then
           if [[ -v reward_status[${reward_addr}] && ${reward_status[${reward_addr}]} = registered ]]; then
-            wallet_dirs[i]="${wallet_dir}"
-          else
-            unset 'wallet_dirs[${i}]'
+            wallet_dirs_filtered+=("${wallet_dir}")
           fi
         else
           if [[ ! -v reward_status[${reward_addr}] || ${reward_status[${reward_addr}]} = "not registered" ]]; then
-            wallet_dirs[i]="${wallet_dir}"
-          else
-            unset 'wallet_dirs[${i}]'
+            wallet_dirs_filtered+=("${wallet_dir}")
           fi
         fi
-      else
-        unset 'wallet_dirs[${i}]'
       fi
     elif [[ ${dir} = *_balance_ ]]; then
       wallet_dir=${dir%%_balance_}
@@ -569,21 +564,19 @@ selectWallet() {
             done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
           fi
           if [[ -n ${poolName} ]]; then
-            wallet_dirs[i]="${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA - ${FG_RED}delegated${NC} to ${FG_GREEN}${poolName}${NC})"
+            wallet_dirs_filtered+=("${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA - ${FG_RED}delegated${NC} to ${FG_GREEN}${poolName}${NC})")
           elif [[ -n ${delegation_pool_id} ]]; then
-            wallet_dirs[i]="${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA - ${FG_RED}delegated${NC} to ${FG_LGRAY}${delegation_pool_id:0:6}...${delegation_pool_id: -6}${NC})"
+            wallet_dirs_filtered+=("${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA - ${FG_RED}delegated${NC} to ${FG_LGRAY}${delegation_pool_id:0:6}...${delegation_pool_id: -6}${NC})")
           else
-            wallet_dirs[i]="${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA)"
+            wallet_dirs_filtered+=("${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA)")
           fi
         else
-          wallet_dirs[i]="${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA)"
+          wallet_dirs_filtered+=("${wallet_dir} (${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA)")
         fi
       elif [[ ${mode} = "reward" ]]; then
         getRewardAddress ${wallet_dir}
         if [[ -n ${reward_addr} && -v rewards_available[${reward_addr}] && ${rewards_available[${reward_addr}]} -gt 0 ]]; then
-          wallet_dirs[i]="${wallet_dir} (Rewards: ${FG_LBLUE}$(formatLovelace ${rewards_available[${reward_addr}]})${NC} ADA)"
-        else
-          unset 'wallet_dirs[${i}]'
+          wallet_dirs_filtered+=("${wallet_dir} (Rewards: ${FG_LBLUE}$(formatLovelace ${rewards_available[${reward_addr}]})${NC} ADA)")
         fi
       else
         getPayAddress ${wallet_dir}
@@ -591,18 +584,18 @@ selectWallet() {
         [[ -v asset_cnt[${base_addr}] ]] && base_asset_str=" + ${FG_LBLUE}${asset_cnt[${base_addr}]}${NC} additional assets" || unset base_asset_str
         [[ -v asset_cnt[${pay_addr}] ]] && pay_asset_str=" + ${FG_LBLUE}${asset_cnt[${pay_addr}]}${NC} additional assets" || unset pay_asset_str
         if [[ ${base_lovelace} -gt 0 && ${pay_lovelace} -gt 0 ]]; then
-          wallet_dirs[i]="${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str} | Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})"
+          wallet_dirs_filtered+=("${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str} | Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
         elif [[ ${pay_lovelace} -gt 0 ]]; then
-          wallet_dirs[i]="${wallet_dir} (Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})"
+          wallet_dirs_filtered+=("${wallet_dir} (Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
         else
-          wallet_dirs[i]="${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str})"
+          wallet_dirs_filtered+=("${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str})")
         fi
       fi
     fi
   done
 
   if [[ ${CNTOOLS_MODE} = "CONNECTED" && ${mode} != "none" ]]; then tput rc && tput ed; fi
-  if [[ ${#wallet_dirs[@]} -eq 0 ]]; then
+  if [[ ${#wallet_dirs_filtered[@]} -eq 0 ]]; then
     if [[ ${mode} = "balance" ]]; then
       println ERROR "${FG_YELLOW}WARN${NC}: No wallets with funds available for selection! Required files:\n$(printf '%b\n' "$@")"
     elif [[ ${mode} = "delegate" ]]; then
@@ -614,7 +607,7 @@ selectWallet() {
     fi
     return 1
   fi
-  if ! selectDir "wallet" "${wallet_dirs[@]}"; then return 2; fi # ${dir_name} populated by selectDir function
+  if ! selectDir "wallet" "${wallet_dirs_filtered[@]}"; then return 2; fi # ${dir_name} populated by selectDir function
   wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
 }
 
