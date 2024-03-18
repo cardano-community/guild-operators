@@ -686,11 +686,10 @@ function main {
                 esac
                 getWalletType ${wallet_name}
               fi
-              getBaseAddress ${wallet_name}
-              getBalance ${base_addr}
-              if [[ ${assets[lovelace]} -gt 0 ]]; then
+              getWalletBalance ${wallet_name} false true false
+              if [[ ${base_lovelace} -gt 0 ]]; then
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${assets[lovelace]})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -737,14 +736,13 @@ function main {
                 esac
                 getWalletType ${wallet_name}
               fi
-              getRewards ${wallet_name}
+              getWalletRewards ${wallet_name}
               if [[ "${reward_lovelace}" -gt 0 ]]; then
                 println "\n${FG_YELLOW}WARN${NC}: wallet has unclaimed rewards, please use 'Funds >> Withdraw Rewards' before de-registration to claim your rewards"
                 waitForInput && continue
               fi
-              getBaseAddress ${wallet_name}
-              getBalance ${base_addr}
-              if [[ ${assets[lovelace]} -le 0 ]]; then
+              getWalletBalance ${wallet_name} false true false
+              if [[ ${base_lovelace} -le 0 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
                 println ERROR "Funds for transaction fee needed to deregister the wallet"
                 waitForInput && continue
@@ -861,7 +859,7 @@ function main {
                     [[ -v rewards_available[${reward_addr}] ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
                     delegation_pool_id=${reward_pool[${reward_addr}]}
                   else
-                    getRewards ${wallet_name}
+                    getWalletRewards ${wallet_name}
                     delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
                   fi
                   if [[ ${reward_lovelace} -gt 0 ]]; then
@@ -1062,7 +1060,7 @@ function main {
               fi
               echo
               println DEBUG "# Select wallet to remove"
-              selectWallet "none"
+              selectWallet "balance"
               case $? in
                 1) waitForInput; continue ;;
                 2) continue ;;
@@ -1091,19 +1089,8 @@ function main {
                 esac
                 waitForInput && continue
               fi
-              if [[ -n ${base_addr} ]]; then
-                getBalance ${base_addr}
-                base_lovelace=${assets[lovelace]}
-              else
-                base_lovelace=0
-              fi
-              if [[ -n ${pay_addr} ]]; then
-                getBalance ${pay_addr}
-                pay_lovelace=${assets[lovelace]}
-              else
-                pay_lovelace=0
-              fi
-              getRewards ${wallet_name}
+              getWalletBalance ${wallet_name}
+              getWalletRewards ${wallet_name}
               if [[ ${base_lovelace} -eq 0 && ${pay_lovelace} -eq 0 && ${reward_lovelace} -le 0 ]]; then
                 println DEBUG "INFO: This wallet appears to be empty"
                 println DEBUG "${FG_RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
@@ -1301,12 +1288,7 @@ function main {
               s_wallet="${wallet_name}"
               s_payment_vk_file="${payment_vk_file}"
               s_payment_sk_file="${payment_sk_file}"
-              getBaseAddress ${s_wallet}
-              getPayAddress ${s_wallet}
-              getBalance ${base_addr}
-              base_lovelace=${assets[lovelace]}
-              getBalance ${pay_addr}
-              pay_lovelace=${assets[lovelace]}
+              getWalletBalance ${s_wallet}
               if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "Select source wallet address"
@@ -1378,11 +1360,17 @@ function main {
                 waitForInput && continue
               fi
 
-              getBalance ${s_addr}
+              if [[ -z ${KOIOS_API} ]]; then
+                getBalance ${s_addr} # need to re-fetch balance if CLI due to possibly being overwritten by payment balance lookup
+                unset index_prefix
+              else
+                index_prefix="${s_addr},"
+              fi
               declare -gA assets_left=()
               declare -gA assets_to_send=()
               for asset in "${!assets[@]}"; do
-                assets_left[${asset}]=${assets[${asset}]}
+                [[ -n ${index_prefix} && ${asset} != ${index_prefix}* ]] && continue
+                assets_left[${asset#*,}]=${assets[${asset}]}
               done
 
               # Add additional assets to transaction?
@@ -1451,8 +1439,8 @@ function main {
               echo
               if  [[ ${amountADA} != "all" ]]; then
                 if ! amount_lovelace=$(ADAToLovelace "${amountADA}"); then waitForInput && continue; fi
-                [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} ADA" && waitForInput && continue
-                if [[ ${amount_lovelace} -lt ${assets[lovelace]} ]]; then
+                [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[${index_prefix}lovelace]})${NC} ADA available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} ADA" && waitForInput && continue
+                if [[ ${amount_lovelace} -lt ${assets[${index_prefix}lovelace]} ]]; then
                   println DEBUG "Fee payed by sender? [else amount sent is reduced]"
                   select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
                   case $? in
@@ -1464,14 +1452,14 @@ function main {
                   include_fee="yes"
                 fi
               else
-                amount_lovelace=${assets[lovelace]}
+                amount_lovelace=${assets[${index_prefix}lovelace]}
                 println DEBUG "ADA to send set to total supply: ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC}"
                 include_fee="yes"
               fi
 
               echo
 
-              if [[ ${amount_lovelace} -eq ${assets[lovelace]} ]]; then
+              if [[ ${amount_lovelace} -eq ${assets[${index_prefix}lovelace]} ]]; then
                 if [[ ${#assets_left[@]} -gt 1 ]]; then
                   println DEBUG "All ADA selected to be sent, automatically add all tokens?"
                   select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
@@ -1479,7 +1467,8 @@ function main {
                     0) declare -gA assets_left=()
                        declare -gA assets_to_send=()
                        for asset in "${!assets[@]}"; do
-                         assets_to_send[${asset}]=${assets[${asset}]} # add all assets, e.g clone assets array to assets_to_send
+                         [[ -n ${index_prefix} && ${asset} != ${index_prefix}* ]] && continue
+                         assets_to_send[${asset#*,}]=${assets[${asset}]} # add all assets, e.g clone assets array to assets_to_send
                        done
                        ;;
                     1) println ERROR "${FG_RED}ERROR${NC}: Unable to send all ADA as there are additional assets left on address not selected to be sent" && waitForInput && continue ;;
@@ -1542,13 +1531,11 @@ function main {
               fi
               echo
               if ! verifyTx ${s_addr}; then waitForInput && continue; fi
-              s_balance=${assets[lovelace]}
-              getBalance ${d_addr}
-              d_balance=${assets[lovelace]}
+              s_balance=${assets[${index_prefix}lovelace]}
+              getAddressBalance ${d_addr} true
+              d_balance=${lovelace}
               getPayAddress ${s_wallet}
               [[ "${pay_addr}" = "${s_addr}" ]] && s_wallet_type=" (Enterprise)" || s_wallet_type=""
-              getPayAddress ${d_wallet}
-              [[ "${pay_addr}" = "${d_addr}" ]] && d_wallet_type=" (Enterprise)" || d_wallet_type=""
               echo
               println "Transaction"
               println "  From          : ${FG_GREEN}${s_wallet}${NC}${s_wallet_type}"
@@ -1558,6 +1545,8 @@ function main {
                 println "                  ${FG_LBLUE}$(formatAsset ${assets_to_send[${idx}]})${NC} ${FG_LGRAY}${idx}${NC}"
               done
               if [[ -n "${d_wallet}" ]]; then
+                getPayAddress ${d_wallet}
+                [[ "${pay_addr}" = "${d_addr}" ]] && d_wallet_type=" (Enterprise)" || d_wallet_type=""
                 println "  To            : ${FG_GREEN}${d_wallet}${NC}${d_wallet_type}"
               else
                 println "  To            : ${FG_LGRAY}${d_addr}${NC}"
@@ -1601,18 +1590,16 @@ function main {
                 esac
                 getWalletType ${wallet_name}
               fi
-              getBaseAddress ${wallet_name}
-              getBalance ${base_addr}
-              if [[ ${assets[lovelace]} -gt 0 ]]; then
+              getWalletBalance ${wallet_name}
+              if [[ ${base_lovelace} -gt 0 ]]; then
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${assets[lovelace]})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
                 waitForInput && continue
               fi
-              getRewards ${wallet_name}
-
+              getWalletRewards ${wallet_name}
               if [[ ${reward_lovelace} -eq -1 ]]; then
                 if [[ ${op_mode} = "online" ]]; then
                   if ! registerStakeWallet ${wallet_name}; then waitForInput && continue; fi
@@ -1693,29 +1680,26 @@ function main {
                 getWalletType ${wallet_name}
               fi
               echo
-              getBaseAddress ${wallet_name}
-              getBalance ${base_addr}
-              getRewards ${wallet_name}
+              getWalletBalance ${wallet_name} false true false
+              getWalletRewards ${wallet_name}
               if [[ ${reward_lovelace} -le 0 ]]; then
                 println ERROR "Failed to locate any rewards associated with the chosen wallet, please try another one"
                 waitForInput && continue
-              elif [[ ${assets[lovelace]} -eq 0 ]]; then
+              elif [[ ${base_lovelace} -eq 0 ]]; then
                 println ERROR "${FG_YELLOW}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
                 waitForInput && continue
               fi
-              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds"  "$(formatLovelace ${assets[lovelace]})")"
+              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds"  "$(formatLovelace ${base_lovelace})")"
               println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")"
               if ! withdrawRewards; then
                 waitForInput && continue
               fi
               echo
               if ! verifyTx ${base_addr}; then waitForInput && continue; fi
-              getRewards ${wallet_name}
               echo
               println "Rewards successfully withdrawn"
               println "New Balance"
               println "  Funds   : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"
-              println "  Rewards : ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} ADA"
               waitForInput && continue
               ;; ###################################################################
           esac # funds sub OPERATION
@@ -2470,7 +2454,7 @@ function main {
                   getBaseAddress ${wallet_name}
                   getBalance ${base_addr}
                   total_pledge=$(( total_pledge + assets[lovelace] ))
-                  getRewards ${wallet_name}
+                  getWalletRewards ${wallet_name}
                   [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
                 done
                 println DEBUG "${FG_BLUE}INFO${NC}: Total balance in ${FG_LBLUE}${#owner_wallets[@]}${NC} owner/pledge wallet(s) are: ${FG_LBLUE}$(formatLovelace ${total_pledge})${NC} ADA"

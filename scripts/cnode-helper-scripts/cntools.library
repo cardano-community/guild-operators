@@ -505,7 +505,7 @@ selectWallet() {
           getRewardAddress ${dir}
           [[ -n ${reward_addr} ]] && reward_addr_list+=(${reward_addr})
         else
-          getRewards ${dir}
+          getWalletRewards ${dir}
           rewards_available[${reward_addr}]=${reward_lovelace}
         fi
         wallet_dirs+=("${dir}_balance_")
@@ -932,12 +932,12 @@ waitNewBlockCreated() {
 # Parameters  : address  >  the address to compare with
 verifyTx() {
   if ! waitNewBlockCreated; then return 1; fi
-  getBalance ${1}
-  while [[ ${assets[lovelace]} -ne ${newBalance} ]]; do
+  getAddressBalance ${1} true
+  while [[ ${lovelace} -ne ${newBalance} ]]; do
     println DEBUG "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
-    println LOG "$(formatLovelace ${assets[lovelace]}) != $(formatLovelace ${newBalance})"
+    println LOG "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
     if ! waitNewBlockCreated "silent"; then return 1; fi
-    getBalance ${1}
+    getAddressBalance ${1} true
   done
   return 0
 }
@@ -1114,6 +1114,76 @@ getBalanceKoios() {
   fi
 }
 
+# Command     : getWalletBalance [wallet name] [force] [base] [pay] [asset]
+# Description : get balance for wallet
+# Parameters  : force  >  optional: [true|false] force update of balance (default = false)
+#             : base   >  optional: [true|false] get base address balance (default = true)
+#             : pay    >  optional: [true|false] get payment address balance (default = true)
+#             : asset  >  optional: [true|false] fetch additional koios asset data (default = false)
+getWalletBalance() {
+  addr_list=()
+  [[ $2 = true ]] && declare -gA balances=()
+  [[ $5 = true ]] && asset_info=true || asset_info=false
+  if [[ $3 != false ]] && getBaseAddress $1 && [[ -n ${base_addr} ]]; then
+    if [[ -v balances[${base_addr}] ]]; then
+      base_lovelace=${balances[${base_addr}]}
+    else
+      if [[ -n ${KOIOS_API} ]]; then
+        addr_list+=(${base_addr})
+      else
+        getBalance ${base_addr}
+        base_lovelace=${assets[lovelace]:-0}
+      fi
+    fi
+  else
+    base_lovelace=0
+  fi
+  if [[ $4 != false ]] && getPayAddress $1 && [[ -n ${pay_addr} ]]; then
+    if [[ -v balances[${pay_addr}] ]]; then
+      pay_lovelace=${balances[${pay_addr}]}
+    else
+      if [[ -n ${KOIOS_API} ]]; then
+        addr_list+=(${pay_addr})
+      else
+        getBalance ${pay_addr}
+        pay_lovelace=${assets[lovelace]:-0}
+      fi
+    fi
+  else
+    pay_lovelace=0
+  fi
+  if [[ ${#addr_list[@]} -gt 0 ]]; then
+    getBalanceKoios ${asset_info}
+    [[ -n ${base_addr} ]] && base_lovelace=${assets["${base_addr},lovelace"]:-0}
+    [[ -n ${pay_addr}  ]] && pay_lovelace=${assets["${pay_addr},lovelace"]:-0}
+  fi
+}
+
+# Command     : getAddressBalance [address] [force] [asset]
+# Description : get balance for address
+# Parameters  : force  >  optional: [true|false] force update of balance (default = false)
+#             : asset  >  optional: [true|false] fetch additional koios asset data (default = false)
+getAddressBalance() {
+  [[ $2 = true ]] && declare -gA balances=()
+  [[ $3 = true ]] && asset_info=true || asset_info=false
+  if [[ -n ${1} ]]; then
+    if [[ -v balances[${1}] ]]; then
+      lovelace=${balances[${1}]}
+    else
+      if [[ -n ${KOIOS_API} ]]; then
+        addr_list=(${1})
+        getBalanceKoios ${asset_info}
+        lovelace=${assets["${1},lovelace"]:-0}
+      else
+        getBalance ${1}
+        lovelace=${assets[lovelace]:-0}
+      fi
+    fi
+  else
+    lovelace=0
+  fi
+}
+
 # Command     : getAssetsTxOut [PolicyID.AssetName] [Amount]
 # Description : generate tx out string for multi-assets in wallet
 #               getBalance assumed to be run before calling this function
@@ -1147,18 +1217,25 @@ getMinUTxO() {
   min_utxo_out=$([[ "$(${CCLI} "${min_utxo_args[@]}")" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
 }
 
-# Command     : getRewards [wallet name]
+# Command     : getWalletRewards [wallet name] [force]
 # Description : check balance of reward address
 # Parameters  : wallet name  >  the name of the wallet
 # Return      : populates ${reward_lovelace}
-getRewards() {
+getWalletRewards() {
   reward_lovelace=-1
+  if [[ $2 = true ]]; then
+    declare -gA rewards_available=(); declare -gA reward_status=(); declare -gA reward_pool=();
+  fi
   if isWalletRegistered $1; then
     reward_lovelace=0
-    for reward_entry in $(jq -r '.[] | @base64' <<< "${stake_address_info}"); do
-      _jq() { base64 -d <<< ${reward_entry} | jq -r "${1}"; }
-      reward_lovelace=$(( reward_lovelace + $(_jq '.rewardAccountBalance //0') ))
-    done
+    if [[ -z ${KOIOS_API} ]]; then
+      for reward_entry in $(jq -r '.[] | @base64' <<< "${stake_address_info}"); do
+        _jq() { base64 -d <<< ${reward_entry} | jq -r "${1}"; }
+        reward_lovelace=$(( reward_lovelace + $(_jq '.rewardAccountBalance //0') ))
+      done
+    else
+      reward_lovelace=${rewards_available[${reward_addr}]:-0}
+    fi
   fi
 }
 
