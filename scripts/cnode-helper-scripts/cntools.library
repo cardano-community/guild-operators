@@ -436,6 +436,8 @@ selectWallet() {
     fi
   fi
 
+  unset reward_status
+
   addr_list=()
   reward_addr_list=()
   declare -A asset_cnt=()
@@ -456,10 +458,17 @@ selectWallet() {
         wallet_dirs+=("${dir} (${FG_YELLOW}unprotected${NC})")
       fi
     elif [[ ${CNTOOLS_MODE} = "CONNECTED" && ${mode} != "none" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-      if [[ ${mode} = "non-reg" ]]; then
-        if isWalletRegistered ${dir}; then continue; fi
-      elif [[ ${mode} = "reg" ]]; then
-        if ! isWalletRegistered ${dir}; then continue; fi
+      if [[ ${mode} = "reg" || ${mode} = "non-reg" ]]; then
+        if [[ -z ${KOIOS_API} ]]; then
+          if [[ ${mode} = "reg" ]]; then
+            isWalletRegistered ${dir} && continue
+          else
+            ! isWalletRegistered && continue
+          fi
+        else
+          getRewardAddress ${dir}
+          [[ -n ${reward_addr} ]] && reward_addr_list+=(${reward_addr}) && wallet_dirs+=("${dir}_status_")
+        fi
       fi
       if [[ ${mode} = "balance" || ${mode} = "non-reg" || ${mode} = "reg" ]]; then
         getBaseAddress ${dir}
@@ -521,7 +530,27 @@ selectWallet() {
 
   for i in "${!wallet_dirs[@]}"; do
     dir=${wallet_dirs[i]}
-    if [[ ${dir} = *_balance_ ]]; then
+    if [[ ${dir} = *_status_ ]]; then
+      wallet_dir=${dir%%_balance_}
+      getRewardAddress ${wallet_dir}
+      if [[ -n ${reward_addr} ]]; then
+        if [[ ${mode} = "reg" ]]; then
+          if [[ -v reward_status[${reward_addr}] && ${reward_status[${reward_addr}]} = registered ]]; then
+            wallet_dirs[i]="${wallet_dir}"
+          else
+            unset 'wallet_dirs[${i}]'
+          fi
+        else
+          if [[ ! -v reward_status[${reward_addr}] || ${reward_status[${reward_addr}]} = "not registered" ]]; then
+            wallet_dirs[i]="${wallet_dir}"
+          else
+            unset 'wallet_dirs[${i}]'
+          fi
+        fi
+      else
+        unset 'wallet_dirs[${i}]'
+      fi
+    elif [[ ${dir} = *_balance_ ]]; then
       wallet_dir=${dir%%_balance_}
       unset base_addr
       getBaseAddress ${wallet_dir}
@@ -553,6 +582,8 @@ selectWallet() {
         getRewardAddress ${wallet_dir}
         if [[ -n ${reward_addr} && -v rewards_available[${reward_addr}] && ${rewards_available[${reward_addr}]} -gt 0 ]]; then
           wallet_dirs[i]="${wallet_dir} (Rewards: ${FG_LBLUE}$(formatLovelace ${rewards_available[${reward_addr}]})${NC} ADA)"
+        else
+          unset 'wallet_dirs[${i}]'
         fi
       else
         getPayAddress ${wallet_dir}
