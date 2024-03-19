@@ -73,7 +73,6 @@ logln() {
 #             : newline    >  Add a newline at the end for tty output (default true) 
 #             : message    >  The message to print/log
 println() {  
-  sleep 0.01 # hack, sleep 10ms before each print to preserve order of execution
   local log_level=$1
   shift
   local newline="\n"
@@ -90,6 +89,7 @@ println() {
     ERROR) printf "%b${newline}" "$@" >&2 ;;
     *) printf "%b${newline}" "${log_level}"; [[ $# -ge 1 ]] && printf "%b${newline}" "$@" ;;
   esac
+  sleep 0.01 # hack, sleep 10ms after each print to preserve order of execution
 }
 
 # Command     : getAnswerAnyCust [variable name] [log] [question]
