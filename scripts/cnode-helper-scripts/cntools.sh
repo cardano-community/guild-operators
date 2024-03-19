@@ -1323,7 +1323,7 @@ function main {
               println DEBUG "# Select ${FG_YELLOW}destination${NC} type"
               select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel"
               case $? in
-                0) selectWallet "balance"
+                0) selectWallet "cache"
                   case $? in
                     1) waitForInput; continue ;;
                     2) continue ;;
@@ -1439,7 +1439,7 @@ function main {
               echo
               if  [[ ${amountADA} != "all" ]]; then
                 if ! amount_lovelace=$(ADAToLovelace "${amountADA}"); then waitForInput && continue; fi
-                [[ ${amount_lovelace} -gt ${assets[lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[${index_prefix}lovelace]})${NC} ADA available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} ADA" && waitForInput && continue
+                [[ ${amount_lovelace} -gt ${assets[${index_prefix}lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[${index_prefix}lovelace]})${NC} ADA available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} ADA" && waitForInput && continue
                 if [[ ${amount_lovelace} -lt ${assets[${index_prefix}lovelace]} ]]; then
                   println DEBUG "Fee payed by sender? [else amount sent is reduced]"
                   select_opt "[y] Yes" "[n] No" "[Esc] Cancel"

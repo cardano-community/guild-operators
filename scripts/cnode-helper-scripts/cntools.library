@@ -421,8 +421,17 @@ selectDir() {
 #             : arg array  >  array of files required to exist in wallet folder for it to be selectable **OR** the name of wallet to exclude from selection
 # Return      : populates ${wallet_name} variable with wallet selection
 selectWallet() {
-  wallet_dirs=()
+
   mode=$1 && shift
+
+  if [[ ${mode} = "cache" && ${#wallet_dirs_filtered[@]} -gt 0 ]]; then
+    if ! selectDir "wallet" "${wallet_dirs_filtered[@]}"; then return 2; fi # ${dir_name} populated by selectDir function
+    wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
+    return 0
+  fi
+
+  wallet_dirs=()
+
   if ! getDirs "${WALLET_FOLDER}"; then return 1; fi # dirs() array populated with all wallet folders
   if [[ ${CNTOOLS_MODE} = "CONNECTED" && ${mode} != "none" ]]; then
     tput sc
@@ -437,7 +446,6 @@ selectWallet() {
   fi
 
   unset reward_status
-
   addr_list=()
   reward_addr_list=()
   declare -A asset_cnt=()
@@ -933,15 +941,30 @@ waitNewBlockCreated() {
 # Description : Verify that the transaction was successfully registered by checking address balance against $newBalance
 # Parameters  : address  >  the address to compare with
 verifyTx() {
-  if ! waitNewBlockCreated; then return 1; fi
-  getAddressBalance ${1} true
-  while [[ ${lovelace} -ne ${newBalance} ]]; do
-    println DEBUG "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
-    println LOG "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
-    if ! waitNewBlockCreated "silent"; then return 1; fi
+  if [[ -n ${KOIOS_API} && -n ${tx_id} ]]; then
+    println DEBUG "Waiting for transaction to be seen on chain"
+    println DEBUG "${FG_BLUE}INFO${NC}: press any key to cancel and return (won't stop transaction)"
+    while :; do
+      read -r -n 1 -s -t 5 abort
+      if [[ $? -eq 0 ]]; then
+        println "${FG_YELLOW}WARN${NC}: aborted!! transaction still in queue!"
+        return 1
+      fi
+      println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_tx_hashes\":[\"${tx_id}\"]' ${KOIOS_API}/tx_status?select=num_confirmations | tail -n +2"
+      ! num_confirmations=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_tx_hashes":["'${tx_id}'"]}' "${KOIOS_API}/tx_status?select=num_confirmations" | tail -n +2 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${num_confirmations}\n" && return 1 # print error and return
+      [[ -n "${num_confirmations}" ]] && println DEBUG "Found! ${num_confirmations} block confirmation(s)" || printf . >&6
+    done
+  else
+    if ! waitNewBlockCreated; then return 1; fi
     getAddressBalance ${1} true
-  done
-  return 0
+    while [[ ${lovelace} -ne ${newBalance} ]]; do
+      println DEBUG "${FG_YELLOW}WARN${NC}: Balance mismatch, transaction not included in latest block... waiting for next block!"
+      println LOG "$(formatLovelace ${lovelace}) != $(formatLovelace ${newBalance})"
+      if ! waitNewBlockCreated "silent"; then return 1; fi
+      getAddressBalance ${1} true
+    done
+    return 0
+  fi
 }
 
 # Command     : getPayAddress [wallet name]
@@ -2652,10 +2675,16 @@ submitTx() {
   tx_signed="$1"
 
   if [[ -n ${KOIOS_API} ]]; then
+    txid_command=(
+      ${CCLI} transaction txid
+      --tx-file "${tx_signed}"
+    )
+    println ACTION "${txid_command[@]}"
+    tx_id=$("${txid_command[@]}") # used by verifyTx to check if its been put on chain
     txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
     xxd -p -r <<< $(jq .cborHex ${tx_signed}) > ${txdata}
     println ACTION "curl -sSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
-    curl -sSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx"
+    curl -sSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" >/dev/null
   else
     submit_command=(
       ${CCLI} ${NETWORK_ERA} transaction submit
