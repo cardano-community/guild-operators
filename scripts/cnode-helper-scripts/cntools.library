@@ -99,7 +99,7 @@ println() {
 #             : log            >  [true|false] log question (default: true)
 #             : question       >  what to ask user to input
 getAnswerAnyCust() {
-  sleep 0.1 # hack, sleep 100ms before asking question to preserve order
+  sleep 0.1 # sleep 100ms to flush print jobs
   var_name=$1
   shift
   local log_question=true
@@ -126,6 +126,7 @@ archiveLog() {
 # Description : wait for user keypress to continue
 # Parameters  : message  >  [optional]: override default 'press any key to proceed ..' message
 waitForInput() {
+  sleep 0.1 # sleep 100ms to flush print jobs
   exec >&6 # normal stdout
   waitToProceed "$*"
   exec >&8 # custom stdout
@@ -242,8 +243,8 @@ fileDialog() {
     println DEBUG false "${1}: "
     waitForInput "Press any key to open the file explorer [cancel to skip!]"
   fi
+  sleep 0.1 # sleep 100ms to flush print jobs
   exec >&6 2>&7 # normal stdout/stderr
-  sleep 0.1
   dialogSetup
   [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
   dialog --clear --keep-tite --title "$1" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)) 2>"${TMP_DIR}/dialog.out"
@@ -264,8 +265,8 @@ dirDialog() {
     println DEBUG false "${1}: "
     waitForInput "Press any key to open the file explorer [cancel to skip!]"
   fi
+  sleep 0.1 # sleep 100ms to flush print jobs
   exec >&6 2>&7 # normal stdout/stderr
-  sleep 0.1
   dialogSetup
   [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
   dialog --clear --keep-tite --title "$1" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)) 2>"${TMP_DIR}/dialog.out"
@@ -369,6 +370,7 @@ selectOption() {
 # Description : Helper function to selectOption
 # Parameters  : optX  >  a list of available options to choose from
 select_opt() {
+  sleep 0.1 # sleep 100ms to flush print jobs
   exec >&6 # normal stdout
   local opts=()
   for item in "$@"; do
@@ -404,6 +406,7 @@ getDirs() {
 #             : dirX  >  array of dirs to include in selection, '[Esc] Cancel' option added to all selections
 # Return      : populates ${dir_name} variable
 selectDir() {
+  sleep 0.1 # sleep 100ms to flush print jobs
   exec >&6 # normal stdout
   local type=$1 && shift
   dirs=( "$@" )
@@ -617,6 +620,7 @@ selectWallet() {
     fi
     return 1
   fi
+
   if ! selectDir "wallet" "${wallet_dirs_filtered[@]}"; then return 2; fi # ${dir_name} populated by selectDir function
   wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
 }
@@ -846,8 +850,8 @@ selectAsset() {
 # Parameters  : confirm  >  [optional] force user to provide password twice for confirmation
 # Return      : populates ${password} variable, make sure to unset variable when done
 getPasswordCust() {
+  sleep 0.1 # sleep 100ms to flush print jobs
   exec >&6 2>&7 # normal stdout/stderr
-  sleep 0.1
   getPassword 8 $1
   return_code=$?
   exec >&8 2>&9 # custom stdout/stderr
@@ -859,8 +863,8 @@ getPasswordCust() {
 # Parameters  : file      >  Path for file to encrypt, will get a new .gpg file extention added to filename
 #             : password  >  Password to encrypt file with
 encryptFile() {
+  sleep 0.1 # sleep 100ms to flush print jobs
   exec >&6 2>&7 # normal stdout/stderr
-  sleep 0.1
   echo "${2}" | gpg --symmetric --yes --batch --cipher-algo AES256 --passphrase-fd 0 --output "${1}.gpg" "${1}" &>/dev/null && \
   safeDel "${1}" >/dev/null || {
     exec >&8 2>&9 # custom stdout/stderr
@@ -877,8 +881,8 @@ encryptFile() {
 # Parameters  : file      >  Path for file to decrypt, file extension .gpg required
 #             : password  >  Password to decrypt file with
 decryptFile() {
+  sleep 0.1 # sleep 100ms to flush print jobs
   exec >&6 2>&7 # normal stdout/stderr
-  sleep 0.1
   echo "${2}" | gpg --decrypt --batch --yes --passphrase-fd 0 --output "${1%.*}" "${1}" &>/dev/null && \
   rm -f "${1}" || {
     exec >&8 2>&9 # custom stdout/stderr

@@ -1489,6 +1489,7 @@ function main {
                     DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
                     println OFF "\nA maximum of 64 characters(bytes) is allowed per line."
                     println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
+                    sleep 0.1 # sleep 100ms to flush print jobs
                     exec >&6 2>&7 # normal stdout/stderr
                     waitForInput "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
                     ${DEFAULTEDITOR} "${metafile}"
@@ -3353,6 +3354,7 @@ function main {
                           DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
                           println OFF "\nA maximum of 64 characters(bytes) is allowed per line."
                           println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
+                          sleep 0.1 # sleep 100ms to flush print jobs
                           exec >&6 2>&7 # normal stdout/stderr
                           waitForInput "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
                           ${DEFAULTEDITOR} "${metafile}"
@@ -4315,6 +4317,7 @@ function main {
                     DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
                     println OFF "\nPaste or enter the metadata text, opening text editor ${FG_LGRAY}${DEFAULTEDITOR}${NC}"
                     println OFF "${FG_YELLOW}Please don't change default file path when saving${NC}"
+                    sleep 0.1 # sleep 100ms to flush print jobs
                     exec >&6 2>&7 # normal stdout/stderr
                     waitForInput "press any key to open ${DEFAULTEDITOR}"
                     ${DEFAULTEDITOR} "${metafile}"
