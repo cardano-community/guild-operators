@@ -73,7 +73,7 @@ logln() {
 #             : newline    >  Add a newline at the end for tty output (default true) 
 #             : message    >  The message to print/log
 println() {  
-  sleep 0.05 # hack, sleep 50ms before each print to preserve order of execution
+  sleep 0.01 # hack, sleep 10ms before each print to preserve order of execution
   local log_level=$1
   shift
   local newline="\n"
