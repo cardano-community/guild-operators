@@ -5,23 +5,22 @@
     - Overview: build.md
     - Node & CLI: Build/node-cli.md
     - DBSync: Build/dbsync.md
-    - gREST: Build/grest.md
+    - Koios gRest: Build/grest.md
     - Offchain Metadata Tools: Build/offchain-metadata-tools.md
   - Scripts:
     - Common env: Scripts/env.md
-    - CNTools:
-      - Overview: Scripts/cntools.md
-      - Common Tasks: Scripts/cntools-common.md
-      - Changelog: Scripts/cntools-changelog.md
-    - Node Monitoring:
-      - CNCLI: Scripts/cncli.md
-      - Guild LiveView: Scripts/gliveview.md
-      - Log Monitor: Scripts/logmonitor.md
-      - Block Performance: Scripts/blockperf.md
-    - Snapshot Dwnloading:
-      - Mithril Client: Scripts/mithril-client.md
-    - Topology Updater: Scripts/topologyupdater.md
-    - ITN Metadata Proof: Scripts/itnwitness.md
+    - BlockPerf: Scripts/blockperf.md
+    - Koios SPO Tools:
+      - CNTools:
+        - Overview: Scripts/cntools.md
+        - Common Tasks: Scripts/cntools-common.md
+        - Changelog: Scripts/cntools-changelog.md
+        - Log Monitor: Scripts/logmonitor.md
+      - gLiveView: Scripts/gliveview.md
+      - Topology Updater: Scripts/topologyupdater.md
+    - CNCLI: Scripts/cncli.md
+    - Mithril:
+      - Client: Scripts/mithril-client.md
   - Docker:
     - Overview: docker/docker.md
     - Build: docker/build.md
