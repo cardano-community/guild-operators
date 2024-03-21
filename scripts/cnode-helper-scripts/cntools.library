@@ -87,7 +87,7 @@ println() {
     INFO) printf "%b${newline}" "$@"; logln "INFO" "$@" ;;
     ACTION) logln "ACTION" "$@" ;;
     ERROR) printf "%b${newline}" "$@"; logln "ERROR" "$@" ;;
-    *) printf "%b${newline}" "${log_level}"; [[ $# -ge 1 ]] && printf "%b${newline}" "$@" ;;
+    *) println INFO "${log_level}" "$@" ;;
   esac
 }
 
