@@ -20,7 +20,7 @@
       - Topology Updater: Scripts/topologyupdater.md
     - CNCLI: Scripts/cncli.md
     - Mithril:
-      - Overview: Scripts/mithril-overview.md
+      - Overview: Mithril/mithril-overview.md
       - Client: Scripts/mithril-client.md
       - Signer: Scripts/mithril-signer.md
       - Relay: Scripts/mithril-relay.md
