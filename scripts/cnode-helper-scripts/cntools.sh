@@ -59,9 +59,6 @@ fi
 # General exit handler
 cleanup() {
   sleep 0.1
-  if { true >&6; } 2<> /dev/null; then
-    exec 1>&6 2>&7 3>&- 6>&- 7>&- 8>&- 9>&- # Restore stdout/stderr and close tmp file descriptors
-  fi
   [[ -n $1 ]] && err=$1 || err=$?
   [[ $err -eq 0 ]] && clear
   [[ -n ${exit_msg} ]] && echo -e "\n${exit_msg}\n" || echo -e "\nCNTools terminated, cleaning up...\n"
@@ -182,8 +179,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
       if ! cmp -s "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"; then
         # Latest changes not shown, show whats new and copy changelog
-        clear 
-        sleep 0.1
+        clear
         if [[ ! -f "${PARENT}/cntools-changelog.md" ]]; then 
           # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
           echo -e "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_DIR}"/cntools-changelog.md | head -n -2)" | less -X
@@ -230,14 +226,6 @@ if ! versionCheck "4.4.0" "${BASH_REMATCH[1]}"; then
   myExit 1 "BASH does not meet the minimum required version of ${FG_LBLUE}4.4.0${NC}, found ${FG_LBLUE}${BASH_REMATCH[1]}${NC}\n\nPlease upgrade to a newer Linux distribution or compile latest BASH following official docs.\n\nINSTALL:  https://www.gnu.org/software/bash/manual/html_node/Installing-Bash.html\nDOWNLOAD: http://git.savannah.gnu.org/cgit/bash.git/ (latest stable TAG)"
 fi
 
-exec 6>&1 # Link file descriptor #6 with normal stdout.
-exec 7>&2 # Link file descriptor #7 with normal stderr.
-[[ -n ${CNTOOLS_LOG} ]] && exec > >( tee >( while read -r line; do logln "INFO" "${line}"; done ) )
-[[ -n ${CNTOOLS_LOG} ]] && exec 2> >( tee >( while read -r line; do logln "ERROR" "${line}"; done ) >&2 )
-[[ -n ${CNTOOLS_LOG} ]] && exec 3> >( tee >( while read -r line; do logln "DEBUG" "${line}"; done ) >&6 )
-exec 8>&1 # Link file descriptor #8 with custom stdout.
-exec 9>&2 # Link file descriptor #9 with custom stderr.
-
 # check if there are pools in need of KES key rotation
 clear
 kes_rotation_needed="no"
@@ -248,7 +236,7 @@ if [[ ${CHECK_KES} = true ]]; then
     [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && getNodeMetrics
     [[ (-z ${remaining_kes_periods} || ${remaining_kes_periods} -eq 0) && -f "${pool}/${POOL_CURRENT_KES_START}" ]] && unset remaining_kes_periods && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"  
   
-    if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitForInput && continue; fi
+    if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitToProceed && continue; fi
 
     if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
       kes_rotation_needed="yes"
@@ -266,7 +254,7 @@ if [[ ${CHECK_KES} = true ]]; then
       println DEBUG "Time left             : ${FG_YELLOW}$(timeLeft ${expiration_time_sec_diff})${NC}"
     fi
   done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-  [[ ${kes_rotation_needed} = "yes" ]] && waitForInput
+  [[ ${kes_rotation_needed} = "yes" ]] && waitToProceed
   
 fi
 
@@ -383,12 +371,12 @@ function main {
               wallet_name=${wallet_name//[^[:alnum:]]/_}
               if [[ -z "${wallet_name}" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               echo
               if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
                 println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               # Wallet key filenames
               payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
@@ -398,15 +386,15 @@ function main {
               if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
                 println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
                 println "      Choose another name or delete the existing one"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${payment_vk_file} --signing-key-file ${payment_sk_file}"
-              if ! ${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}"; then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key creation!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+              if ! stdout=$(${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
               fi
               println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
-              if ! ${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}"; then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+              if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
               fi
               chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
               getBaseAddress ${wallet_name}
@@ -418,7 +406,7 @@ function main {
               println DEBUG "\nYou can now send and receive ADA using the above addresses."
               println DEBUG "Note that Enterprise Address will not take part in staking."
               println DEBUG "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             import)
               while true; do # Wallet >> Import loop
@@ -449,24 +437,24 @@ function main {
                       ! cmdAvailable "cardano-address" &>/dev/null; then
                       println ERROR "${FG_RED}ERROR${NC}: bech32 and/or cardano-address not found in '\$PATH'" 
                       println ERROR "Please run updated guild-deploy.sh and re-build/re-download cardano-node"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     getAnswerAnyCust wallet_name "Name of imported wallet"
                     # Remove unwanted characters from wallet name
                     wallet_name=${wallet_name//[^[:alnum:]]/_}
                     if [[ -z "${wallet_name}" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     echo
                     if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
                       println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
                       println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
                       println "      Choose another name or delete the existing one"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     getAnswerAnyCust mnemonic false "24 or 15 word mnemonic(space separated)"
                     echo
@@ -475,7 +463,7 @@ function main {
                       println ERROR "${FG_RED}ERROR${NC}: 24 or 15 words expected, found ${FG_RED}${#words[@]}${NC}"
                       echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
                       unset mnemonic; unset words
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
                     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
@@ -486,7 +474,7 @@ function main {
                     if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
                       echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
                       unset mnemonic; unset words
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     unset mnemonic; unset words
                     payment_xprv=$(cardano-address key child 1852H/1815H/0H/0/0 <<< ${root_prv})
@@ -518,20 +506,20 @@ function main {
 											}
 											EOF
                     println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_DIR}/payment.evkey"
-                    if ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_DIR}/payment.evkey"; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment signing key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_DIR}/payment.evkey"2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
                     println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_DIR}/stake.evkey"
-                    if ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_DIR}/stake.evkey"; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake signing key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_DIR}/stake.evkey"2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
                     println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
-                    if ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}"; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}"2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
                     println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/stake.evkey --verification-key-file ${stake_vk_file}"
-                    if ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}"; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}"2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
                     chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
                     getBaseAddress ${wallet_name}
@@ -542,7 +530,7 @@ function main {
                       println ERROR "base_addr[${FG_LGRAY}${base_addr}${NC}]\n!=\nbase_addr_candidate[${FG_LGRAY}${base_addr_candidate}${NC}]"
                       println ERROR "Create a GitHub issue and include log file from failed CNTools session."
                       echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     echo
                     println "Wallet Imported    : ${FG_GREEN}${wallet_name}${NC}"
@@ -566,7 +554,7 @@ function main {
                     echo
                     println DEBUG "Please read more about HD wallets at:"
                     println DEBUG "https://cardano-community.github.io/support-faq/wallets?id=heirarchical-deterministic-hd-wallets"
-                    waitForInput && continue
+                    waitToProceed && continue
                     ;; ###################################################################
 
                   hardware)
@@ -580,34 +568,34 @@ function main {
                     select_opt "[y] Yes" "[n] No"
                     case $? in
                       0) : ;; # do nothing
-                      1) waitForInput "Unsupported hardware wallet, press any key to return home" && continue ;;
+                      1) waitToProceed "Unsupported hardware wallet, press any key to return home" && continue ;;
                     esac
                     echo
                     if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
                       println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli executable not found in path!"
                       println ERROR "Please run '${FG_YELLOW}guild-deploy.sh -s w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}guild-deploy.sh -h${NC}' shows all available options"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     if [[ ! -x $(command -v cardano-hw-cli) ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli binary doesn't have execution persmission, please fix!"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
-                    if ! HWCLIversionCheck; then waitForInput && continue; fi
+                    if ! HWCLIversionCheck; then waitToProceed && continue; fi
                     getAnswerAnyCust wallet_name "Name of imported wallet"
                     # Remove unwanted characters from wallet name
                     wallet_name=${wallet_name//[^[:alnum:]]/_}
                     if [[ -z "${wallet_name}" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
                       println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
                       println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
                       println "      Choose another name or delete the existing one"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_PAY_SK_FILENAME}"
                     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
@@ -615,14 +603,14 @@ function main {
                     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
                     if ! unlockHWDevice "extract ${FG_LGRAY}payment keys${NC}"; then safeDel "${WALLET_FOLDER}/${wallet_name}"; continue; fi
                     println ACTION "cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file ${payment_vk_file} --hw-signing-file ${payment_sk_file}"
-                    if ! cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file "${payment_vk_file}" --hw-signing-file "${payment_sk_file}"; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                    if ! stdout=$(cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file "${payment_vk_file}" --hw-signing-file "${payment_sk_file}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
                     jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" "${payment_vk_file}"
                     println DEBUG "${FG_BLUE}INFO${NC}: repeat and follow instructions on hardware device to extract the ${FG_LGRAY}stake keys${NC}"
                     println ACTION "cardano-hw-cli address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file ${stake_vk_file} --hw-signing-file ${stake_sk_file}"
-                    if ! cardano-hw-cli address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file "${stake_vk_file}" --hw-signing-file "${stake_sk_file}"; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key extraction!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitForInput && continue
+                    if ! stdout=$(cardano-hw-cli address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file "${stake_vk_file}" --hw-signing-file "${stake_sk_file}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
                     jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" "${stake_vk_file}"
                     getBaseAddress ${wallet_name}
@@ -648,7 +636,7 @@ function main {
                     println DEBUG " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all ADA through Daedalus/Yoroi to address shown in CNTools"
                     println DEBUG " ${FG_LGRAY}>${NC} Only use the address shown in CNTools to receive funds"
                     println DEBUG " ${FG_LGRAY}>${NC} Only spend ADA from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
-                    waitForInput && continue
+                    waitToProceed && continue
                     ;; ###################################################################
                 esac # wallet >> import sub OPERATION
               done # Wallet >> Import loop
@@ -658,10 +646,10 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> WALLET >> REGISTER"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitForInput && continue
+                waitToProceed && continue
               else
                 if ! selectOpMode; then continue; fi
               fi
@@ -670,18 +658,18 @@ function main {
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
                 case $? in
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
                 selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
@@ -695,23 +683,23 @@ function main {
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
                 stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
                 println DEBUG "Funds for key deposit($(formatLovelace ${stakeAddressDeposit}) ADA) + transaction fee needed to register the wallet"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               if ! registerStakeWallet ${wallet_name} "true"; then
-                waitForInput && continue
+                waitToProceed && continue
               fi
               println "\n${FG_GREEN}${wallet_name}${NC} successfully registered on chain!"
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             deregister)
               clear
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> WALLET >> DE-REGISTER"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitForInput && continue
+                waitToProceed && continue
               else
                 if ! selectOpMode; then continue; fi
               fi
@@ -720,18 +708,18 @@ function main {
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
                 case $? in
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
                 selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
@@ -739,24 +727,24 @@ function main {
               getWalletRewards ${wallet_name}
               if [[ "${reward_lovelace}" -gt 0 ]]; then
                 println "\n${FG_YELLOW}WARN${NC}: wallet has unclaimed rewards, please use 'Funds >> Withdraw Rewards' before de-registration to claim your rewards"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               getWalletBalance ${wallet_name} false true false
               if [[ ${base_lovelace} -le 0 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
                 println ERROR "Funds for transaction fee needed to deregister the wallet"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               if ! deregisterStakeWallet; then
                 [[ -f ${stake_dereg_file} ]] && rm -f ${stake_dereg_file}
-                waitForInput && continue
+                waitToProceed && continue
               fi
               echo
-              if ! verifyTx ${base_addr}; then waitForInput && continue; fi
+              if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
               echo
               println "${FG_GREEN}${wallet_name}${NC} successfully de-registered from chain!"
               println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${stakeAddressDeposit})${NC} ADA"
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             list)
               clear
@@ -764,7 +752,7 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> WALLET >> LIST"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, wallet balance not shown!"
               fi
@@ -878,7 +866,7 @@ function main {
                   fi
                 fi
               done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             show)
               clear
@@ -886,14 +874,14 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> WALLET >> SHOW"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, limited wallet info shown!"
               fi
               tput sc
               selectWallet "none"
               case $? in
-                1) waitForInput; continue ;;
+                1) waitToProceed; continue ;;
                 2) continue ;;
               esac
               tput rc && tput ed
@@ -907,7 +895,7 @@ function main {
               getPayAddress ${wallet_name}
               if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: wallet missing pay/base addr files or vkey files to generate them!"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               getRewardAddress ${wallet_name}
               if [[ -n ${KOIOS_API} ]]; then
@@ -1047,14 +1035,14 @@ function main {
                 [[ -z ${base_addr} ]]   && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_BASE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}/${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
                 [[ -z ${reward_addr} ]] && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_STAKE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
               fi
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             remove)
               clear
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> WALLET >> REMOVE"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, unable to verify wallet balance"
               fi
@@ -1062,7 +1050,7 @@ function main {
               println DEBUG "# Select wallet to remove"
               selectWallet "balance"
               case $? in
-                1) waitForInput; continue ;;
+                1) waitToProceed; continue ;;
                 2) continue ;;
               esac
               echo
@@ -1075,7 +1063,7 @@ function main {
                   1) echo && println "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
                     ;;
                 esac
-                waitForInput && continue
+                waitToProceed && continue
               fi
               if ! getBaseAddress ${wallet_name} && ! getPayAddress ${wallet_name}; then
                 println DEBUG "${FG_RED}WARN${NC}: unable to get address for wallet and do a balance check"
@@ -1087,7 +1075,7 @@ function main {
                   1) echo && println "skipped removal process for ${FG_GREEN}$wallet_name${NC}"
                     ;;
                 esac
-                waitForInput && continue
+                waitToProceed && continue
               fi
               getWalletBalance ${wallet_name}
               getWalletRewards ${wallet_name}
@@ -1118,7 +1106,7 @@ function main {
                     ;;
                 esac
               fi
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             decrypt)
               clear
@@ -1126,11 +1114,11 @@ function main {
               println " >> WALLET >> DECRYPT"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
               println DEBUG "# Select wallet to decrypt"
               selectWallet "encrypted"
               case $? in
-                1) waitForInput; continue ;;
+                1) waitToProceed; continue ;;
                 2) continue ;;
               esac
               filesUnlocked=0
@@ -1148,7 +1136,7 @@ function main {
                 echo
                 if ! getPasswordCust; then # $password variable populated by getPasswordCust function
                   println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 while IFS= read -r -d '' file; do
                   decryptFile "${file}" "${password}" && \
@@ -1166,7 +1154,7 @@ function main {
                 println DEBUG "${FG_YELLOW}Wallet files are now unprotected${NC}"
                 println DEBUG "Use 'WALLET >> ENCRYPT' to re-lock"
               fi
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             encrypt)
               clear
@@ -1174,11 +1162,11 @@ function main {
               println " >> WALLET >> ENCRYPT"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
               println DEBUG "# Select wallet to encrypt"
               selectWallet "encrypted"
               case $? in
-                1) waitForInput; continue ;;
+                1) waitToProceed; continue ;;
                 2) continue ;;
               esac
               filesLocked=0
@@ -1189,7 +1177,7 @@ function main {
                 echo
                 if ! getPasswordCust confirm; then # $password variable populated by getPasswordCust function
                   println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 keyFiles=(
                   "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
@@ -1206,7 +1194,7 @@ function main {
               else
                 echo
                 println DEBUG "${FG_YELLOW}NOTE${NC}: found GPG encrypted files in folder, please decrypt/unlock wallet files before encrypting"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               echo
               println DEBUG "# Write protecting all wallet keys with 400 permission and if enabled 'chattr +i'"
@@ -1225,7 +1213,7 @@ function main {
                 println DEBUG "${FG_BLUE}INFO${NC}: wallet files are now protected"
                 println DEBUG "Use 'WALLET >> DECRYPT' to unlock"
               fi
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
           esac # wallet sub OPERATION
         done # Wallet loop
@@ -1255,10 +1243,10 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> FUNDS >> SEND"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitForInput && continue
+                waitToProceed && continue
               else
                 if ! selectOpMode; then continue; fi
               fi
@@ -1269,18 +1257,18 @@ function main {
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
                 case $? in
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
                 selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
@@ -1315,7 +1303,7 @@ function main {
                 fi
               else
                 println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
-                waitForInput && continue
+                waitToProceed && continue
               fi
 
               # Destination
@@ -1325,7 +1313,7 @@ function main {
               case $? in
                 0) selectWallet "cache"
                   case $? in
-                    1) waitForInput; continue ;;
+                    1) waitToProceed; continue ;;
                     2) continue ;;
                   esac
                   d_wallet="${wallet_name}"
@@ -1345,10 +1333,10 @@ function main {
                     d_addr="${pay_addr}"
                   elif [[ "${base_addr}" = "${s_addr}" || "${pay_addr}" = "${s_addr}" ]]; then
                     println ERROR "\n${FG_RED}ERROR${NC}: sending to same address as source not supported"
-                    waitForInput && continue
+                    waitToProceed && continue
                   else
                     println ERROR "\n${FG_RED}ERROR${NC}: no address found for wallet ${FG_GREEN}${d_wallet}${NC} :("
-                    waitForInput && continue
+                    waitToProceed && continue
                   fi
                   ;;
                 1) getAnswerAnyCust d_addr "Address" ;;
@@ -1357,7 +1345,7 @@ function main {
               # Destination could be empty, if so without getting a valid address
               if [[ -z ${d_addr} ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: destination address field empty"
-                waitForInput && continue
+                waitToProceed && continue
               fi
 
               if [[ -z ${KOIOS_API} ]]; then
@@ -1438,8 +1426,8 @@ function main {
               amountADA="${amountADA//,}"
               echo
               if  [[ ${amountADA} != "all" ]]; then
-                if ! amount_lovelace=$(ADAToLovelace "${amountADA}"); then waitForInput && continue; fi
-                [[ ${amount_lovelace} -gt ${assets[${index_prefix}lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[${index_prefix}lovelace]})${NC} ADA available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} ADA" && waitForInput && continue
+                if ! amount_lovelace=$(ADAToLovelace "${amountADA}"); then waitToProceed && continue; fi
+                [[ ${amount_lovelace} -gt ${assets[${index_prefix}lovelace]} ]] && println ERROR "${FG_RED}ERROR${NC}: not enough funds on address, ${FG_LBLUE}$(formatLovelace ${assets[${index_prefix}lovelace]})${NC} ADA available but trying to send ${FG_LBLUE}$(formatLovelace ${amount_lovelace})${NC} ADA" && waitToProceed && continue
                 if [[ ${amount_lovelace} -lt ${assets[${index_prefix}lovelace]} ]]; then
                   println DEBUG "Fee payed by sender? [else amount sent is reduced]"
                   select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
@@ -1471,7 +1459,7 @@ function main {
                          assets_to_send[${asset#*,}]=${assets[${asset}]} # add all assets, e.g clone assets array to assets_to_send
                        done
                        ;;
-                    1) println ERROR "${FG_RED}ERROR${NC}: Unable to send all ADA as there are additional assets left on address not selected to be sent" && waitForInput && continue ;;
+                    1) println ERROR "${FG_RED}ERROR${NC}: Unable to send all ADA as there are additional assets left on address not selected to be sent" && waitToProceed && continue ;;
                     2) continue ;;
                   esac
                 fi
@@ -1489,15 +1477,12 @@ function main {
                     DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
                     println OFF "\nA maximum of 64 characters(bytes) is allowed per line."
                     println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
-                    sleep 0.1 # sleep 100ms to flush print jobs
-                    exec >&6 2>&7 # normal stdout/stderr
-                    waitForInput "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
+                    waitToProceed "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
                     ${DEFAULTEDITOR} "${metafile}"
-                    exec >&8 2>&9 # custom stdout/stderr
                     if [[ ! -f "${metafile}" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: file not found"
                       println ERROR "File: ${FG_LGRAY}${metafile}${NC}"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     tput cuu 4 && tput ed
                     if [[ ! -s ${metafile} ]]; then
@@ -1519,19 +1504,19 @@ function main {
                           error="${FG_RED}ERROR${NC}: ${tx_msg}" && break
                         fi
                       done < "${metafile}"
-                      [[ -n ${error} ]] && println ERROR "${error}" && waitForInput && continue
+                      [[ -n ${error} ]] && println ERROR "${error}" && waitToProceed && continue
                       jq -c . <<< "${tx_msg}" > "${metafile}"
-                      jq -r . "${metafile}" >&3 && echo
+                      jq -r . "${metafile}" && echo
                       println LOG "Transaction message: ${tx_msg}"
                     fi
                     ;;
               esac
 
               if ! sendAssets; then
-                waitForInput && continue
+                waitToProceed && continue
               fi
               echo
-              if ! verifyTx ${s_addr}; then waitForInput && continue; fi
+              if ! verifyTx ${s_addr}; then waitToProceed && continue; fi
               s_balance=${assets[${index_prefix}lovelace]}
               getAddressBalance ${d_addr} true
               d_balance=${lovelace}
@@ -1556,17 +1541,17 @@ function main {
               println "  Balance"
               println "  - Source      : ${FG_LBLUE}$(formatLovelace ${s_balance})${NC} ADA"
               println "  - Destination : ${FG_LBLUE}$(formatLovelace ${d_balance})${NC} ADA"
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             delegate)
               clear
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> FUNDS >> DELEGATE"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitForInput && continue
+                waitToProceed && continue
               else
                 if ! selectOpMode; then continue; fi
               fi
@@ -1575,18 +1560,18 @@ function main {
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
                 case $? in
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
                 selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
@@ -1598,16 +1583,16 @@ function main {
                 fi
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               getWalletRewards ${wallet_name}
               if [[ ${reward_lovelace} -eq -1 ]]; then
                 if [[ ${op_mode} = "online" ]]; then
-                  if ! registerStakeWallet ${wallet_name}; then waitForInput && continue; fi
+                  if ! registerStakeWallet ${wallet_name}; then waitToProceed && continue; fi
                 else
                   println ERROR "\n${FG_YELLOW}The wallet is not a registered wallet on chain and CNTools run in hybrid mode${NC}"
                   println ERROR "Please first register the wallet using 'Wallet >> Register'"
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
               fi
               echo
@@ -1616,7 +1601,7 @@ function main {
               case $? in
                 0) selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}"
                   case $? in
-                    1) waitForInput; continue ;;
+                    1) waitToProceed; continue ;;
                     2) continue ;;
                   esac
                   getPoolID "${pool_name}"
@@ -1630,32 +1615,34 @@ function main {
               stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
               pool_delegcert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
               println ACTION "${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file ${stake_vk_file} --stake-pool-id ${pool_id} --out-file ${pool_delegcert_file}"
-              ${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file "${stake_vk_file}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}"
+              if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file "${stake_vk_file}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake delegation certificate creation!\n${stdout}"; waitToProceed && continue
+              fi
               if ! delegate; then
                 if [[ ${op_mode} = "online" ]]; then
                   echo && println ERROR "${FG_RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
                   rm -f "${pool_delegcert_file}"
                 fi
-                waitForInput && continue
+                waitToProceed && continue
               fi
               echo
-              if ! verifyTx ${base_addr}; then waitForInput && continue; fi
+              if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
               echo
               println "Delegation successfully registered"
               println "Wallet : ${FG_GREEN}${wallet_name}${NC}"
               println "Pool   : ${FG_GREEN}${pool_name}${NC}"
               println "Amount : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             withdrawrewards)
               clear
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> FUNDS >> WITHDRAW REWARDS"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitForInput && continue
+                waitToProceed && continue
               else
                 if ! selectOpMode; then continue; fi
               fi
@@ -1664,18 +1651,18 @@ function main {
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
                 case $? in
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
                 selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
@@ -1685,23 +1672,23 @@ function main {
               getWalletRewards ${wallet_name}
               if [[ ${reward_lovelace} -le 0 ]]; then
                 println ERROR "Failed to locate any rewards associated with the chosen wallet, please try another one"
-                waitForInput && continue
+                waitToProceed && continue
               elif [[ ${base_lovelace} -eq 0 ]]; then
                 println ERROR "${FG_YELLOW}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds"  "$(formatLovelace ${base_lovelace})")"
               println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")"
               if ! withdrawRewards; then
-                waitForInput && continue
+                waitToProceed && continue
               fi
               echo
-              if ! verifyTx ${base_addr}; then waitForInput && continue; fi
+              if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
               echo
               println "Rewards successfully withdrawn"
               println "New Balance"
               println "  Funds   : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
           esac # funds sub OPERATION
         done # Funds loop
@@ -1753,7 +1740,7 @@ function main {
               pool_name=${pool_name//[^[:alnum:]]/_}
               if [[ -z "${pool_name}" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: Empty pool name, please retry!"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               mkdir -p "${POOL_FOLDER}/${pool_name}"
               pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
@@ -1766,26 +1753,32 @@ function main {
               if [[ -f "${pool_hotkey_vk_file}" ]]; then
                 println ERROR "${FG_RED}WARN${NC}: A pool ${FG_GREEN}$pool_name${NC} already exists"
                 println ERROR "      Choose another name or delete the existing one"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               println ACTION "${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
-              ${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
+              if ! stdout=$(${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during KES key creation!\n${stdout}"; waitToProceed && continue
+              fi
               if [ -f "${POOL_FOLDER}-pregen/${pool_name}/${POOL_ID_FILENAME}" ]; then
                 mv ${POOL_FOLDER}'-pregen/'${pool_name}/* ${POOL_FOLDER}/${pool_name}/
                 rm -r ${POOL_FOLDER}'-pregen/'${pool_name}
               else
                 println ACTION "${CCLI} ${NETWORK_ERA} node key-gen --cold-verification-key-file ${pool_coldkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-                ${CCLI} ${NETWORK_ERA} node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
+                if ! stdout=$(${CCLI} ${NETWORK_ERA} node key-gen --cold-verification-key-file "${pool_coldkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" 2>&1); then
+                  println ERROR "\n${FG_RED}ERROR${NC}: failure during operational certificate counter file creation!\n${stdout}"; waitToProceed && continue
+                fi
               fi
               println ACTION "${CCLI} ${NETWORK_ERA} node key-gen-VRF --verification-key-file ${pool_vrf_vk_file} --signing-key-file ${pool_vrf_sk_file}"
-              ${CCLI} ${NETWORK_ERA} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
+              if ! stdout=$(${CCLI} ${NETWORK_ERA} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during VRF key creation!\n${stdout}"; waitToProceed && continue
+              fi
               chmod 600 "${POOL_FOLDER}/${pool_name}/"*
               getPoolID ${pool_name}
               echo
               println "Pool: ${FG_GREEN}${pool_name}${NC}"
               [[ -n ${pool_id} ]] && println "ID (hex)    : ${pool_id}"
               [[ -n ${pool_id_bech32} ]] && println "ID (bech32) : ${pool_id_bech32}"
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
            import)
               clear
@@ -1798,7 +1791,7 @@ function main {
               pool_name=${pool_name//[^[:alnum:]]/_}
               if [[ -z "${pool_name}" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: Empty pool name, please retry!"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               mkdir -p "${POOL_FOLDER}/${pool_name}"
               pool_hotkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_HOTKEY_VK_FILENAME}"
@@ -1811,18 +1804,25 @@ function main {
               if [[ -f "${pool_hotkey_vk_file}" ]]; then
                 println ERROR "${FG_RED}WARN${NC}: A pool ${FG_GREEN}$pool_name${NC} already exists"
                 println ERROR "      Choose another name or delete the existing one"
-                waitForInput && continue
+                waitToProceed && continue
               fi
 
               println ACTION "${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
-              ${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}"
+              if ! stdout=$(${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during KES key creation!\n${stdout}"; waitToProceed && continue
+              fi
 
               println ACTION "${CCLI} ${NETWORK_ERA} node key-gen-VRF --verification-key-file ${pool_vrf_vk_file} --signing-key-file ${pool_vrf_sk_file}"
-              ${CCLI} ${NETWORK_ERA} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}"
+              if ! stdout=$(${CCLI} ${NETWORK_ERA} node key-gen-VRF --verification-key-file "${pool_vrf_vk_file}" --signing-key-file "${pool_vrf_sk_file}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during VRF key creation!\n${stdout}"; waitToProceed && continue
+              fi
 
-              println ACTION "cardano-hw-cli node key-gen --path 1853H/1815H/0H/0H --hw-signing-file ${pool_coldkey_sk_file} --cold-verification-key-file ${pool_coldkey_kk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
               if ! unlockHWDevice "export cold pub keys"; then safeDel "${POOL_FOLDER}/${pool_name}"; continue; fi
-              cardano-hw-cli node key-gen --path "1853H/1815H/0H/0H" --hw-signing-file "${pool_coldkey_sk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}"
+              println ACTION "cardano-hw-cli node key-gen --path 1853H/1815H/0H/0H --hw-signing-file ${pool_coldkey_sk_file} --cold-verification-key-file ${pool_coldkey_kk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+              if ! stdout=$(cardano-hw-cli node key-gen --path "1853H/1815H/0H/0H" --hw-signing-file "${pool_coldkey_sk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during HW key extraction!\n${stdout}"; waitToProceed && continue
+              fi
+
               jq '.description = "Stake Pool Operator Hardware Verification Key"' "${pool_coldkey_vk_file}" > "${TMP_DIR}/$(basename "${pool_coldkey_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${pool_coldkey_vk_file}").tmp" "${pool_coldkey_vk_file}"
 
               chmod 600 "${POOL_FOLDER}/${pool_name}/"*
@@ -1832,18 +1832,18 @@ function main {
               println "Pool: ${FG_GREEN}${pool_name}${NC}"
               [[ -n ${pool_id} ]] && println "ID (hex)    : ${pool_id}"
               [[ -n ${pool_id_bech32} ]] && println "ID (bech32) : ${pool_id_bech32}"
-              waitForInput && continue
+              waitToProceed && continue
               ;; ##################################################################
             register|modify)
               clear
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> POOL >> ${SUBCOMMAND^^}"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitForInput && continue
+                waitToProceed && continue
               else
                 if ! selectOpMode; then continue; fi
               fi
@@ -1855,19 +1855,19 @@ function main {
               if [[ ${op_mode} = "online" ]]; then
                 selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_VRF_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getPoolType ${pool_name}
                 case $? in
                   0) isHWpool=Y ;;
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitForInput && continue ;;
+                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                  3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitToProceed && continue ;;
                 esac
               else
                 selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_VRF_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getPoolType ${pool_name}
@@ -1893,7 +1893,7 @@ function main {
               pledge_enter="${pledge_enter//,}"
               if [[ -n "${pledge_enter}" ]]; then
                 if ! ADAToLovelace "${pledge_enter}" >/dev/null; then
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 pledge_lovelace=$(ADAToLovelace "${pledge_enter}")
                 pledge_ada="${pledge_enter}"
@@ -1905,7 +1905,7 @@ function main {
               getAnswerAnyCust margin_enter "Margin (in %, default: ${margin})"
               if [[ -n "${margin_enter}" ]]; then
                 if ! pctToFraction "${margin_enter}" >/dev/null; then
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 margin_fraction=$(pctToFraction "${margin_enter}")
                 margin="${margin_enter}"
@@ -1919,7 +1919,7 @@ function main {
               cost_enter="${cost_enter//,}"
               if [[ -n "${cost_enter}" ]]; then
                 if ! ADAToLovelace "${cost_enter}" >/dev/null; then
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 cost_lovelace=$(ADAToLovelace "${cost_enter}")
                 cost_ada="${cost_enter}"
@@ -1928,7 +1928,7 @@ function main {
               fi
               if [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") -eq 1 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: cost set lower than allowed"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               println DEBUG "\n# Pool Metadata\n"
               pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
@@ -1937,17 +1937,17 @@ function main {
               [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
               if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               metadata_done=false
               meta_tmp="${TMP_DIR}/url_poolmeta.json"
               if curl -sL -f -m ${CURL_TIMEOUT} -o "${meta_tmp}" ${meta_json_url} && jq -er . "${meta_tmp}" &>/dev/null; then
-                [[ $(wc -c <"${meta_tmp}") -gt 512 ]] && println ERROR "${FG_RED}ERROR${NC}: file at specified URL contain more than allowed 512b of data!" && waitForInput && continue
-                echo && jq -r . "${meta_tmp}" >&3 && echo
-                if ! jq -er .name "${meta_tmp}" &>/dev/null; then println ERROR "${FG_RED}ERROR${NC}: unable to get 'name' field from downloaded metadata file!" && waitForInput && continue; fi
-                if ! jq -er .ticker "${meta_tmp}" &>/dev/null; then println ERROR "${FG_RED}ERROR${NC}: unable to get 'ticker' field from downloaded metadata file!" && waitForInput && continue; fi
-                if ! jq -er .homepage "${meta_tmp}" &>/dev/null; then println ERROR "${FG_RED}ERROR${NC}: unable to get 'homepage' field from downloaded metadata file!" && waitForInput && continue; fi
-                if ! jq -er .description "${meta_tmp}" &>/dev/null; then println ERROR "${FG_RED}ERROR${NC}: unable to get 'description' field from downloaded metadata file!" && waitForInput && continue; fi
+                [[ $(wc -c <"${meta_tmp}") -gt 512 ]] && println ERROR "${FG_RED}ERROR${NC}: file at specified URL contain more than allowed 512b of data!" && waitToProceed && continue
+                echo && jq -r . "${meta_tmp}" && echo
+                if ! jq -er .name "${meta_tmp}" &>/dev/null; then println ERROR "${FG_RED}ERROR${NC}: unable to get 'name' field from downloaded metadata file!" && waitToProceed && continue; fi
+                if ! jq -er .ticker "${meta_tmp}" &>/dev/null; then println ERROR "${FG_RED}ERROR${NC}: unable to get 'ticker' field from downloaded metadata file!" && waitToProceed && continue; fi
+                if ! jq -er .homepage "${meta_tmp}" &>/dev/null; then println ERROR "${FG_RED}ERROR${NC}: unable to get 'homepage' field from downloaded metadata file!" && waitToProceed && continue; fi
+                if ! jq -er .description "${meta_tmp}" &>/dev/null; then println ERROR "${FG_RED}ERROR${NC}: unable to get 'description' field from downloaded metadata file!" && waitToProceed && continue; fi
                 println DEBUG "Metadata exists at URL.  Use existing data?"
                 select_opt "[y] Yes" "[n] No"
                 case $? in
@@ -1968,26 +1968,26 @@ function main {
                 [[ -n "${name_enter}" ]] && meta_name="${name_enter}"
                 if [[ ${#meta_name} -gt 50 ]]; then
                   println ERROR "${FG_RED}ERROR${NC}: Name cannot exceed 50 characters"
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 getAnswerAnyCust ticker_enter "Enter Pool's Ticker , should be between 3-5 characters (default: ${meta_ticker})"
                 ticker_enter=${ticker_enter//[^[:alnum:]]/}
                 [[ -n "${ticker_enter}" ]] && meta_ticker="${ticker_enter^^}"
                 if [[ ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 5 ]]; then
                   println ERROR "${FG_RED}ERROR${NC}: ticker must be between 3-5 characters"
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 getAnswerAnyCust desc_enter "Enter Pool's Description (default: ${meta_description})"
                 [[ -n "${desc_enter}" ]] && meta_description="${desc_enter}"
                 if [[ ${#meta_description} -gt 255 ]]; then
                   println ERROR "${FG_RED}ERROR${NC}: Description cannot exceed 255 characters"
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 getAnswerAnyCust homepage_enter "Enter Pool's Homepage (default: ${meta_homepage})"
                 [[ -n "${homepage_enter}" ]] && meta_homepage="${homepage_enter}"
                 if [[ ! "${meta_homepage}" =~ https?://.* || ${#meta_homepage} -gt 64 ]]; then
                   println ERROR "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 println DEBUG "\nOptionally set an extended metadata URL?"
                 select_opt "[n] No" "[y] Yes"
@@ -1998,7 +1998,7 @@ function main {
                     [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
                     if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
-                      waitForInput && continue
+                      waitToProceed && continue
                     else
                       meta_extended_option=",\"extended\":\"${meta_extended}\""
                     fi
@@ -2009,19 +2009,19 @@ function main {
                 metadata_size=$(stat -c%s "${new_pool_meta_file}")
                 if [[ ${metadata_size} -gt 512 ]]; then
                   println ERROR "\n${FG_RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
-                  waitForInput && continue
+                  waitToProceed && continue
                 else
                   cp -f "${new_pool_meta_file}" "${pool_meta_file}"
                 fi
                 println DEBUG "\n${FG_YELLOW}Please host file ${pool_meta_file} as-is at ${meta_json_url}${NC}"
-                waitForInput "Press any key to proceed with registration after metadata file is uploaded"
+                waitToProceed "Press any key to proceed with registration after metadata file is uploaded"
               fi
               relay_output=""
               relay_array=()
               println DEBUG "\n# Pool Relay Registration"
               if [[ -f "${pool_config}" && $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
                 println DEBUG "\nPrevious relay configuration:\n"
-                jq -r '["TYPE","ADDRESS","PORT"], (.relays[] | [.type //"-",.address //"-",.port //"-"]) | @tsv' "${pool_config}" | column -t >&3
+                jq -r '["TYPE","ADDRESS","PORT"], (.relays[] | [.type //"-",.address //"-",.port //"-"]) | @tsv' "${pool_config}" | column -t
                 println DEBUG "\nReuse previous relay configuration?"
                 select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
                 case $? in
@@ -2141,33 +2141,33 @@ function main {
                               println ERROR "${FG_RED}ERROR${NC}: main/first pool owner can NOT be a hardware wallet!"
                               println ERROR "Use a CLI wallet as owner with enough funds to pay for pool deposit and registration transaction fee"
                               println ERROR "Add the hardware wallet as an additional multi-owner to the pool later in the pool registration wizard"
-                              waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N' && break
+                              waitToProceed "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N' && break
                             else hw_owner_wallets='Y'; fi ;;
                         2) if [[ ${op_mode} = "online" ]]; then
                               println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted for wallet ${FG_GREEN}${wallet_name}${NC}, please decrypt before use!"
-                              waitForInput && continue 2
+                              waitToProceed && continue 2
                             fi ;;
                         3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
-                            waitForInput "Did you mean to run in Hybrid mode?  press any key to return home!" && continue 2 ;;
+                            waitToProceed "Did you mean to run in Hybrid mode?  press any key to return home!" && continue 2 ;;
                         4) if [[ ${wallet_name} != "${owner_wallets[0]}" && ! -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ]]; then # ignore if payment vkey is missing for multi-owner, only stake vkey important
                               println ERROR "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
-                              waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N' && break
+                              waitToProceed "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N' && break
                             fi ;;
                       esac
                       if [[ ${wallet_name} = "${owner_wallets[0]}" ]] && ! isWalletRegistered ${wallet_name}; then # make sure at least main owner is registered
                         if [[ ${op_mode} = "hybrid" ]]; then
                           println ERROR "\n${FG_RED}ERROR${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
                           println ERROR "Please first register main owner wallet to use in pool registration using 'Wallet >> Register'"
-                          waitForInput && continue 2
+                          waitToProceed && continue 2
                         fi
                         getBaseAddress ${wallet_name}
                         getBalance ${base_addr}
                         if [[ ${assets[lovelace]} -eq 0 ]]; then
                           println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
-                          waitForInput && continue 2
+                          waitToProceed && continue 2
                         fi
                         println DEBUG "# Wallet Registration Transaction"
-                        if ! registerStakeWallet ${wallet_name}; then waitForInput && continue 2; fi
+                        if ! registerStakeWallet ${wallet_name}; then waitToProceed && continue 2; fi
                       fi
                     done
 
@@ -2177,7 +2177,7 @@ function main {
                         0) hw_reward_wallet='Y' ;;
                         4) if [[ ! -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ]]; then # ignore if payment vkey is missing for reward wallet, only stake vkey important
                               println ERROR "${FG_RED}ERROR${NC}: stake verification key missing from reward wallet ${FG_GREEN}${wallet_name}${NC}!"
-                              waitForInput "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N'
+                              waitToProceed "Unable to reuse old configuration, please set new owner(s) & reward wallet" && owner_wallets=() && reward_wallet="" && reuse_wallets='N'
                             fi ;;
                       esac
                     fi
@@ -2194,21 +2194,21 @@ function main {
                 println DEBUG "# Select main ${FG_YELLOW}owner/pledge${NC} wallet (normal CLI wallet)"
                 if [[ ${op_mode} = "online" ]]; then
                   if ! selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
-                    [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+                    [[ "${dir_name}" != "[Esc] Cancel" ]] && waitToProceed; continue
                   fi
                   getWalletType ${wallet_name}
                   case $? in
                     0) println ERROR "${FG_RED}ERROR${NC}: main pool owner can NOT be a hardware wallet!"
                       println ERROR "Use a CLI wallet as owner with enough funds to pay for pool deposit and registration transaction fee"
                       println ERROR "Add the hardware wallet as an additional multi-owner to the pool later in the pool registration wizard"
-                      waitForInput && continue ;;
-                    2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                    3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                      waitToProceed && continue ;;
+                    2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                    3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                   esac
                 else
                   selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
                   case $? in
-                    1) waitForInput; continue ;;
+                    1) waitToProceed; continue ;;
                     2) continue ;;
                   esac
                   getWalletType ${wallet_name}
@@ -2217,16 +2217,16 @@ function main {
                   if [[ ${op_mode} = "hybrid" ]]; then
                     println ERROR "\n${FG_RED}ERROR${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not a registered wallet on chain and CNTools run in hybrid mode"
                     println ERROR "Please first register the main CLI wallet to use in pool registration using 'Wallet >> Register'"
-                    waitForInput && continue
+                    waitToProceed && continue
                   fi
                   getBaseAddress ${wallet_name}
                   getBalance ${base_addr}
                   if [[ ${assets[lovelace]} -eq 0 ]]; then
                     println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
-                    waitForInput && continue
+                    waitToProceed && continue
                   fi
                   println DEBUG "# Wallet Registration Transaction"
-                  if ! registerStakeWallet ${wallet_name}; then waitForInput && continue; fi
+                  if ! registerStakeWallet ${wallet_name}; then waitToProceed && continue; fi
                 fi
                 owner_wallets+=( "${wallet_name}" )
                 println DEBUG "Owner #1 : ${FG_GREEN}${wallet_name}${NC} added!"
@@ -2236,7 +2236,7 @@ function main {
               getBalance ${base_addr}
               if [[ ${assets[lovelace]} -eq 0 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in owner wallet ${FG_GREEN}${owner_wallets[0]}${NC}"
-                waitForInput && continue
+                waitToProceed && continue
               fi
 
               if [[ ${reuse_wallets} = 'N' ]]; then
@@ -2251,10 +2251,10 @@ function main {
                           0) hw_owner_wallets='Y' ;;
                           2) if [[ ${op_mode} = "online" ]]; then
                                 println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted for wallet ${FG_GREEN}${wallet_name}${NC}, please decrypt before use!"
-                                waitForInput && continue 2
+                                waitToProceed && continue 2
                               fi ;;
                           3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
-                              waitForInput "Did you mean to run in Hybrid mode?  press any key to return home!" && continue 2 ;;
+                              waitToProceed "Did you mean to run in Hybrid mode?  press any key to return home!" && continue 2 ;;
                           4) if [[ ! -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ]]; then # ignore if payment vkey is missing
                                 println ERROR "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
                                 println DEBUG "Add another owner?" && continue 
@@ -2278,14 +2278,14 @@ function main {
                 case $? in
                   0) reward_wallet="${owner_wallets[0]}" ;;
                   1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[0]}"; then # ${wallet_name} populated by selectWallet function
-                      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitForInput; continue
+                      [[ "${dir_name}" != "[Esc] Cancel" ]] && waitToProceed; continue
                     fi
                     reward_wallet="${wallet_name}"
                     getWalletType ${reward_wallet}
                     case $? in
                       0) hw_reward_wallet='Y' ;;
                       4) if [[ ! -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ]]; then # ignore if payment vkey is missing
-                            println ERROR "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!" && waitForInput && continue
+                            println ERROR "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!" && waitToProceed && continue
                           fi ;;
                     esac
                     ;;
@@ -2329,16 +2329,20 @@ function main {
                     if [[ ${isHWpool} = 'Y' ]]; then
                       if ! unlockHWDevice "issue the opcert"; then return 1; fi
                         println ACTION "cardano-hw-cli node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --hw-signing-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
-                        ! cardano-hw-cli node issue-op-cert \
+                        if ! stdout=$(cardano-hw-cli node issue-op-cert \
                           --kes-verification-key-file "${pool_hotkey_vk_file}" \
                           --hw-signing-file "${pool_coldkey_sk_file}" \
                           --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" \
                           --kes-period "${current_kes_period}" \
-                          --out-file "${pool_opcert_file}" \
-                        && return 1
+                          --out-file "${pool_opcert_file}" 2>&1); then
+                          println ERROR "\n${FG_RED}ERROR${NC}: failure during HW operational certificate creation!\n${stdout}"
+                          return 1
+                        fi
                     else
                       println ACTION "${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
-                      ${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}"
+                      if ! stdout=$(${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" 2>&1); then
+                        println ERROR "\n${FG_RED}ERROR${NC}: failure during operational certificate creation!\n${stdout}"; waitToProceed && continue
+                      fi
                     fi
                   fi
 
@@ -2350,29 +2354,33 @@ function main {
                   println DEBUG "${FG_LGRAY}${pool_hotkey_sk_file}${NC}"
                   println DEBUG "${FG_LGRAY}${pool_opcert_file}${NC}"
                   println DEBUG "${FG_LGRAY}${pool_saved_kes_start}${NC}"
-                  waitForInput "press any key to continue"
+                  waitToProceed "press any key to continue"
                 fi
               fi
 
               println LOG "creating registration certificate"
               println ACTION "${CCLI} ${NETWORK_ERA} stake-pool registration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --vrf-verification-key-file ${pool_vrf_vk_file} --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file ${reward_stake_vk_file} --pool-owner-stake-verification-key-file ${owner_stake_vk_file} ${multi_owner_output} --metadata-url ${meta_json_url} --metadata-hash \$\(${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} \) ${relay_output} ${NETWORK_IDENTIFIER} --out-file ${pool_regcert_file}"
-              ${CCLI} ${NETWORK_ERA} stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" ${multi_owner_output} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}"
+              if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-pool registration-certificate --cold-verification-key-file "${pool_coldkey_vk_file}" --vrf-verification-key-file "${pool_vrf_vk_file}" --pool-pledge ${pledge_lovelace} --pool-cost ${cost_lovelace} --pool-margin ${margin_fraction} --pool-reward-account-verification-key-file "${reward_stake_vk_file}" --pool-owner-stake-verification-key-file "${owner_stake_vk_file}" ${multi_owner_output} --metadata-url "${meta_json_url}" --metadata-hash "$(${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file ${pool_meta_file} )" ${relay_output} ${NETWORK_IDENTIFIER} --out-file "${pool_regcert_file}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake pool registration certificate creation!\n${stdout}"; waitToProceed && continue
+              fi
 
               delegate_owner_wallet='N'
               if [[ ${SUBCOMMAND} = "register" ]]; then
                 if [[ ${hw_owner_wallets} = 'Y' || ${hw_reward_wallet} = 'Y' || ${isHWpool} = 'Y' ]]; then
                   println DEBUG "\n${FG_BLUE}INFO${NC}: hardware wallet included as reward or multi-owner or hardware pool, automatic owner/reward wallet delegation disabled"
                   println DEBUG "${FG_BLUE}INFO${NC}: ${FG_YELLOW}please manually delegate all wallets to the pool!!!${NC}"
-                  waitForInput "press any key to continue"
+                  waitToProceed "press any key to continue"
                 else
                   println LOG "creating delegation certificate for main owner wallet"
                   println ACTION "${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file ${owner_stake_vk_file} --cold-verification-key-file ${pool_coldkey_vk_file} --out-file ${owner_delegation_cert_file}"
-                  ${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}"
+                  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file "${owner_stake_vk_file}" --cold-verification-key-file "${pool_coldkey_vk_file}" --out-file "${owner_delegation_cert_file}" 2>&1); then
+                    println ERROR "\n${FG_RED}ERROR${NC}: failure during stake delegation certificate creation!\n${stdout}"; waitToProceed && continue
+                  fi
                   delegate_owner_wallet='Y'
                   if [[ "${owner_wallets[0]}" != "${reward_wallet}" ]]; then
                     println DEBUG "\n${FG_BLUE}INFO${NC}: reward wallet not the same as owner, automatic reward wallet delegation disabled"
                     println DEBUG "${FG_BLUE}INFO${NC}: ${FG_YELLOW}please manually delegate reward wallet to the pool!!!${NC}"
-                    waitForInput "press any key to continue"
+                    waitToProceed "press any key to continue"
                   fi
                 fi
               fi
@@ -2397,7 +2405,7 @@ function main {
                 else
                   [[ -f "${pool_regcert_file}.tmp" ]] && mv -f "${pool_regcert_file}.tmp" "${pool_regcert_file}" # restore reg cert backup
                 fi
-                [[ $rc -eq 1 ]] && waitForInput && continue
+                [[ $rc -eq 1 ]] && waitToProceed && continue
               fi
 
               # Save pool config
@@ -2423,7 +2431,7 @@ function main {
               echo
               if [[ ${op_mode} = "online" ]]; then
                 getBaseAddress ${owner_wallets[0]}
-                if ! verifyTx ${base_addr}; then waitForInput && continue; fi
+                if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
                 echo
                 if [[ ${SUBCOMMAND} = "register" ]]; then
                   println "Pool ${FG_GREEN}${pool_name}${NC} successfully registered!"
@@ -2470,18 +2478,18 @@ function main {
                   println DEBUG "${FG_BLUE}INFO${NC}: please verify that all owner/reward wallets are delegated to the pool, if not do so!"
                 fi
               fi
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             retire)
               clear
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> POOL >> RETIRE"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available to pay for pool de-registration!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available to pay for pool de-registration!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitForInput && continue
+                waitToProceed && continue
               else
                 if ! selectOpMode; then continue; fi
               fi
@@ -2490,18 +2498,18 @@ function main {
               if [[ ${op_mode} = "online" ]]; then
                 selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getPoolType ${pool_name}
                 case $? in
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitForInput && continue ;;
+                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                  3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitToProceed && continue ;;
                 esac
               else
                 selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getPoolType ${pool_name}
@@ -2519,30 +2527,30 @@ function main {
               echo
               if [[ ${epoch_enter} -lt ${epoch_start} || ${epoch_enter} -gt ${epoch_end} ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: epoch invalid, valid range: ${epoch_start}-${epoch_end}"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               println DEBUG "# Select wallet for pool de-registration transaction fee"
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
                 case $? in
-                  0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                  0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitToProceed && continue ;;
+                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
                 selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
                 case $? in
-                  0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitForInput && continue ;;
+                  0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitToProceed && continue ;;
                 esac
               fi
               getBaseAddress ${wallet_name}
@@ -2576,31 +2584,33 @@ function main {
                 fi
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               pool_deregcert_file="${POOL_FOLDER}/${pool_name}/${POOL_DEREGCERT_FILENAME}"
               pool_regcert_file="${POOL_FOLDER}/${pool_name}/${POOL_REGCERT_FILENAME}"
               println LOG "creating de-registration cert"
               println ACTION "${CCLI} ${NETWORK_ERA} stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}"
-              ${CCLI} ${NETWORK_ERA} stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file}
+              if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-pool deregistration-certificate --cold-verification-key-file ${pool_coldkey_vk_file} --epoch ${epoch_enter} --out-file ${pool_deregcert_file} 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake pool deregistration certificate creation!\n${stdout}"; waitToProceed && continue
+              fi
               echo
               if ! deRegisterPool; then
-                waitForInput && continue
+                waitToProceed && continue
               fi
               [[ -f "${pool_regcert_file}" ]] && rm -f ${pool_regcert_file} # delete registration cert
               echo
-              if ! verifyTx ${addr}; then waitForInput && continue; fi
+              if ! verifyTx ${addr}; then waitToProceed && continue; fi
               echo
               println "Pool ${FG_GREEN}${pool_name}${NC} set to be retired in epoch ${FG_LBLUE}${epoch_enter}${NC}"
               println "Pool deposit will be returned to owner reward address after its retired"
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             list)
               clear
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> POOL >> LIST"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
               current_epoch=$(getEpoch)
               while IFS= read -r -d '' pool; do
                 echo
@@ -2609,7 +2619,7 @@ function main {
                 pool_regcert_file="${pool}/${POOL_REGCERT_FILENAME}"
                 isPoolRegistered "${pool_name}"
                 case $? in
-                  0) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitForInput && continue ;;
+                  0) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitToProceed && continue ;;
                   1) pool_registered="${FG_RED}NO${NC}" ;;
                   2) pool_registered="${FG_GREEN}YES${NC}" ;;
                   3) if [[ ${current_epoch} -lt ${p_retiring_epoch} ]]; then
@@ -2650,7 +2660,7 @@ function main {
                 fi
               done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
               echo
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             show)
               clear
@@ -2658,14 +2668,14 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> POOL >> SHOW"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, locally saved info shown!"
               fi
               tput sc
               selectPool "all" "${POOL_ID_FILENAME}"
               case $? in
-                1) waitForInput; continue ;;
+                1) waitToProceed; continue ;;
                 2) continue ;;
               esac
               current_epoch=$(getEpoch)
@@ -2681,7 +2691,7 @@ function main {
                 if ! pool_params=$(${CCLI} ${NETWORK_ERA} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER} 2>&1); then
                   tput rc && tput ed
                   println ERROR "${FG_RED}ERROR${NC}: pool-params query failed: ${pool_params}"
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 tput rc && tput ed
               fi
@@ -2698,7 +2708,7 @@ function main {
                 println OFF "\n${FG_YELLOW}> Querying Koios API for pool information (some data can have a delay of up to 10min)${NC}"
                 isPoolRegistered ${pool_name} # variables set in isPoolRegistered [pool_info, error_msg, p_<metric>]
                 case $? in
-                  0) println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitForInput && continue ;;
+                  0) println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitToProceed && continue ;;
                   1) pool_registered="${FG_RED}NO${NC}" ;;
                   2) pool_registered="${FG_GREEN}YES${NC}" ;;
                   3) if [[ ${current_epoch} -lt ${p_retiring_epoch} ]]; then
@@ -2745,7 +2755,9 @@ function main {
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Description" "$(jq -r .description "$TMP_DIR/url_poolmeta.json")")"
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "URL" "${meta_json_url}")"
                   println ACTION "${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file ${TMP_DIR}/url_poolmeta.json"
-                  meta_hash_url="$( ${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file "${TMP_DIR}/url_poolmeta.json" )"
+                  if ! meta_hash_url=$(${CCLI} ${NETWORK_ERA} stake-pool metadata-hash --pool-metadata-file "${TMP_DIR}/url_poolmeta.json" 2>&1); then
+                    println ERROR "\n${FG_RED}ERROR${NC}: failure during metadata hash creation!\n${meta_hash_url}"; waitToProceed && continue
+                  fi
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash URL" "${meta_hash_url}")"
                   if [[ -z ${KOIOS_API} ]]; then
                     meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
@@ -2976,7 +2988,7 @@ function main {
                   fi
                 fi
               fi
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             rotate)
               clear
@@ -2987,25 +2999,25 @@ function main {
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, please grab correct counter value from online node using pool info!\n"
               fi
-              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
               println DEBUG "# Select pool to rotate KES keys on"
               selectPool "all" "${POOL_COLDKEY_VK_FILENAME}"
               case $? in
-                1) waitForInput; continue ;;
+                1) waitToProceed; continue ;;
                 2) continue ;;
               esac
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 getAnswerAnyCust new_counter "Enter new counter number"
                 if ! isNumber ${new_counter}; then
                   println ERROR "\n${FG_RED}ERROR${NC}: not a number"
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 if ! rotatePoolKeys ${new_counter}; then
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
               else
                 if ! rotatePoolKeys; then
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
               fi
               echo
@@ -3020,7 +3032,7 @@ function main {
                 echo
               fi
               println DEBUG "Restart your pool node for changes to take effect"
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             decrypt)
               clear
@@ -3028,11 +3040,11 @@ function main {
               println " >> POOL >> DECRYPT"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
-              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
               println DEBUG "# Select pool to decrypt"
               selectPool "encrypted"
               case $? in
-                1) waitForInput; continue ;;
+                1) waitToProceed; continue ;;
                 2) continue ;;
               esac
               filesUnlocked=0
@@ -3049,7 +3061,7 @@ function main {
                 println "# Decrypting GPG encrypted pool files"
                 if ! getPasswordCust; then # $password variable populated by getPasswordCust function
                   println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 while IFS= read -r -d '' file; do
                   decryptFile "${file}" "${password}" && \
@@ -3067,7 +3079,7 @@ function main {
                 println DEBUG "${FG_YELLOW}Pool files are now unprotected${NC}"
                 println DEBUG "Use 'POOL >> ENCRYPT / LOCK' to re-lock"
               fi
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             encrypt)
               clear
@@ -3075,11 +3087,11 @@ function main {
               println " >> POOL >> ENCRYPT"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
-              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
               println DEBUG "# Select pool to encrypt"
               selectPool "encrypted"
               case $? in
-                1) waitForInput; continue ;;
+                1) waitToProceed; continue ;;
                 2) continue ;;
               esac
               filesLocked=0
@@ -3089,7 +3101,7 @@ function main {
                 println DEBUG "# Encrypting sensitive pool keys with GPG"
                 if ! getPasswordCust confirm; then # $password variable populated by getPasswordCust function
                   println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
                 keyFiles=(
                   "${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
@@ -3105,7 +3117,7 @@ function main {
               else
                 echo
                 println DEBUG "${FG_YELLOW}NOTE${NC}: found GPG encrypted files in folder, please decrypt/unlock pool files before encrypting"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               echo
               println DEBUG "# Write protecting all pool files with 400 permission and if enabled 'chattr +i'"
@@ -3123,7 +3135,7 @@ function main {
                 println DEBUG "${FG_BLUE}INFO${NC}: pool files are now protected"
                 println DEBUG "Use 'POOL >> DECRYPT / UNLOCK' to unlock"
               fi
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             vote)
               clear
@@ -3134,14 +3146,14 @@ function main {
               if ! cmdAvailable "xxd"; then 
                 myExit 1 "xxd is a hexdump tool to generate the CBOR encoded poll answer"
               fi
-              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitForInput && continue
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available to pay for poll ballot casts!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available to pay for poll ballot casts!${NC}" && waitToProceed && continue
               if [[ -z ${KOIOS_API} ]]; then
-                echo && println ERROR "${FG_YELLOW}Koios API required!${NC}" && waitForInput && continue
+                echo && println ERROR "${FG_YELLOW}Koios API required!${NC}" && waitToProceed && continue
               fi
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitForInput && continue
+                waitToProceed && continue
               else
                 if ! selectOpMode; then continue; fi
               fi
@@ -3151,7 +3163,9 @@ function main {
               NETWORK_NAME_LOWER=$(echo "$NETWORK_NAME" | awk '{print tolower($0)}')
               println LOG "Query ${NETWORK_NAME} polls ..."
               println ACTION "curl -sSL -f -H \"Content-Type: application/json\" ${CIP0094_POLL_URL}"
-              ! polls=$(curl -sSL -f -H "Content-Type: application/json"  "${CIP0094_POLL_URL}" | jq -r .networks.${NETWORK_NAME_LOWER} 2>&1) && waitForInput && continue
+              if ! polls=$(curl -sSL -f -H "Content-Type: application/json"  "${CIP0094_POLL_URL}" | jq -r .networks.${NETWORK_NAME_LOWER} 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during CIP0094 poll query!\n${polls}"; waitToProceed && continue
+              fi
               poll_index=$(echo $polls | jq '. | length')
               if [[ "$poll_index" -gt 0 ]]; then
                 poll_index_act=0
@@ -3185,18 +3199,18 @@ function main {
                   if [[ ${op_mode} = "online" ]]; then
                     selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
                     case $? in
-                      1) waitForInput; continue ;;
+                      1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
                     getPoolType ${pool_name}
                     case $? in
-                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                      3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitForInput && continue ;;
+                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                      3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitToProceed && continue ;;
                     esac
                   else
                     selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
                     case $? in
-                      1) waitForInput; continue ;;
+                      1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
                     getPoolType ${pool_name}
@@ -3206,24 +3220,24 @@ function main {
                   if [[ ${op_mode} = "online" ]]; then
                     selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
                     case $? in
-                      1) waitForInput; continue ;;
+                      1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
                     getWalletType ${wallet_name}
                     case $? in
-                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitForInput && continue ;;
-                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                      3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitToProceed && continue ;;
+                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                      3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                     esac
                   else
                     selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
                     case $? in
-                      1) waitForInput; continue ;;
+                      1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
                     getWalletType ${wallet_name}
                     case $? in
-                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitForInput && continue ;;
+                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitToProceed && continue ;;
                     esac
                   fi
                   getBaseAddress ${wallet_name}
@@ -3257,12 +3271,14 @@ function main {
                     fi
                   else
                     println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
-                    waitForInput && continue
+                    waitToProceed && continue
                   fi
                   echo
                   echo "Query ${NETWORK_NAME} ${poll_txId} metadata from Koios API..."
                   println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_tx_hashes\":[\"${poll_txId}\"]}' ${KOIOS_API}/tx_metadata"
-                  ! tx=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_tx_hashes":["'${poll_txId}'"]}' "${KOIOS_API}/tx_metadata" 2>&1) && error_msg=${tx} && waitForInput && continue
+                  if ! tx=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_tx_hashes":["'${poll_txId}'"]}' "${KOIOS_API}/tx_metadata" 2>&1); then
+                    println ERROR "\n${FG_RED}ERROR${NC}: failure during Koios tx metadata query!\n${tx}"; waitToProceed && continue
+                  fi
                   tx_meta=$(echo ${tx} | jq -r ".[0].metadata.\"94\" // empty" 2> /dev/null  )
                   if [[ ! -z ${tx_meta} ]]; then
                     echo "OK: Metadata has a CIP-0094 label"
@@ -3279,7 +3295,7 @@ function main {
                     #Add QuestionStrings
                     questionStrLength=$(jq -r ".\"0\" | length" <<< ${tx_meta} 2> /dev/null)
                     if [[ ${questionStrLength} -eq 0 ]]; then
-                        echo -e "\n${FG_RED}ERROR - No question string included\n${NC}" && waitForInput && continue
+                        echo -e "\n${FG_RED}ERROR - No question string included\n${NC}" && waitToProceed && continue
                     fi
                     cborStr+=$(to_cbor "array" ${questionStrLength}) #array with the number of entries
                     for (( tmpCnt=0; tmpCnt<${questionStrLength}; tmpCnt++ ))
@@ -3292,7 +3308,7 @@ function main {
                     #Add OptionsStrings
                     optionsStrLength=$(jq -r ".\"1\" | length" <<< ${tx_meta} 2> /dev/null)
                     if [[ ${optionsStrLength} -eq 0 ]]; then
-                        echo -e "\n${FG_RED}ERROR - No option strings included\n${NC}" && waitForInput && continue
+                        echo -e "\n${FG_RED}ERROR - No option strings included\n${NC}" && waitToProceed && continue
                     fi
                     cborStr+=$(to_cbor "array" ${optionsStrLength}) #array with the number of options
                     
@@ -3323,7 +3339,7 @@ function main {
                     do
                         read -p $'Please indicate an answer (by index): ' answer
                         if [[ ${answer} == "" ]]; then 
-                          echo && println "${FG_YELLOW}No answer${NC}" && waitForInput && continue
+                          echo && println "${FG_YELLOW}No answer${NC}" && waitToProceed && continue
                         fi
                     done
                     echo
@@ -3354,15 +3370,12 @@ function main {
                           DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
                           println OFF "\nA maximum of 64 characters(bytes) is allowed per line."
                           println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
-                          sleep 0.1 # sleep 100ms to flush print jobs
-                          exec >&6 2>&7 # normal stdout/stderr
-                          waitForInput "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
+                          waitToProceed "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
                           ${DEFAULTEDITOR} "${metafile}"
-                          exec >&8 2>&9 # custom stdout/stderr
                           if [[ ! -f "${metafile}" ]]; then
                             println ERROR "${FG_RED}ERROR${NC}: file not found"
                             println ERROR "File: ${FG_LGRAY}${metafile}${NC}"
-                            waitForInput && continue
+                            waitToProceed && continue
                           fi
                           tput cuu 4 && tput ed
                           if [[ ! -s ${metafile} ]]; then
@@ -3384,27 +3397,27 @@ function main {
                                 error="${FG_RED}ERROR${NC}: ${tx_msg}" && break
                               fi
                             done < "${metafile}"
-                            [[ -n ${error} ]] && println ERROR "${error}" && waitForInput && continue
+                            [[ -n ${error} ]] && println ERROR "${error}" && waitToProceed && continue
                             jq -c . <<< "${tx_msg}" > "${metafile}"
-                            jq -r . "${metafile}" >&3 && echo
+                            jq -r . "${metafile}" && echo
                             println LOG "Transaction message: ${tx_msg}"
                           fi
                           ;;
                     esac
                     if ! submitPoll; then
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                   else
                     echo && println "${FG_YELLOW}Cannot find valid metadata for this transaction${NC}" 
-                    waitForInput && continue
+                    waitToProceed && continue
                   fi
                 else
                   echo && println "${FG_YELLOW}There are currently no active polls in ${NETWORK_NAME}${NC}" 
-                  waitForInput && continue
+                  waitToProceed && continue
                 fi
               else
                 echo && println "${FG_YELLOW}There are currently no polls in ${NETWORK_NAME}${NC}" 
-                waitForInput && continue
+                waitToProceed && continue
               fi
               ;; ###################################################################
           esac # pool sub OPERATION
@@ -3439,18 +3452,18 @@ function main {
               [[ -z "${offline_tx}" ]] && continue
               if [[ ! -f "${offline_tx}" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: file not found: ${offline_tx}"
-                waitForInput && continue
+                waitToProceed && continue
               elif ! offlineJSON=$(jq -erc . "${offline_tx}"); then
                 println ERROR "${FG_RED}ERROR${NC}: invalid JSON file: ${offline_tx}"
-                waitForInput && continue
+                waitToProceed && continue
               fi
-              if ! otx_type="$(jq -er '.type' <<< ${offlineJSON})"; then println ERROR "${FG_RED}ERROR${NC}: field 'type' not found in: ${offline_tx}" && waitForInput && continue; fi
-              if ! otx_date_created="$(jq -er '."date-created"' <<< ${offlineJSON})"; then println ERROR "${FG_RED}ERROR${NC}: field 'date-created' not found in: ${offline_tx}" && waitForInput && continue; fi
-              if ! otx_date_expire="$(jq -er '."date-expire"' <<< ${offlineJSON})"; then println ERROR "${FG_RED}ERROR${NC}: field 'date-expire' not found in: ${offline_tx}" && waitForInput && continue; fi
-              if ! otx_txFee=$(jq -er '.txFee' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'txFee' not found in: ${offline_tx}" && waitForInput && continue; fi
-              if ! otx_txBody=$(jq -er '.txBody' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'txBody' not found in: ${offline_tx}" && waitForInput && continue; fi
+              if ! otx_type="$(jq -er '.type' <<< ${offlineJSON})"; then println ERROR "${FG_RED}ERROR${NC}: field 'type' not found in: ${offline_tx}" && waitToProceed && continue; fi
+              if ! otx_date_created="$(jq -er '."date-created"' <<< ${offlineJSON})"; then println ERROR "${FG_RED}ERROR${NC}: field 'date-created' not found in: ${offline_tx}" && waitToProceed && continue; fi
+              if ! otx_date_expire="$(jq -er '."date-expire"' <<< ${offlineJSON})"; then println ERROR "${FG_RED}ERROR${NC}: field 'date-expire' not found in: ${offline_tx}" && waitToProceed && continue; fi
+              if ! otx_txFee=$(jq -er '.txFee' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'txFee' not found in: ${offline_tx}" && waitToProceed && continue; fi
+              if ! otx_txBody=$(jq -er '.txBody' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'txBody' not found in: ${offline_tx}" && waitToProceed && continue; fi
               echo -e "${otx_txBody}" > "${TMP_DIR}"/tx.raw
-              [[ $(jq -r '."signed-txBody" | length' <<< ${offlineJSON}) -gt 0 ]] && println ERROR "${FG_RED}ERROR${NC}: transaction already signed, please submit transaction to complete!" && waitForInput && continue
+              [[ $(jq -r '."signed-txBody" | length' <<< ${offlineJSON}) -gt 0 ]] && println ERROR "${FG_RED}ERROR${NC}: transaction already signed, please submit transaction to complete!" && waitToProceed && continue
               println DEBUG "Transaction type : ${FG_GREEN}${otx_type}${NC}"
               if wallet_name=$(jq -er '."wallet-name"' <<< ${offlineJSON}); then 
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA, payed by ${FG_GREEN}${wallet_name}${NC}"
@@ -3462,7 +3475,7 @@ function main {
               if [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]]; then
                 println DEBUG "Expire           : ${FG_RED}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
                 println ERROR "\n${FG_RED}ERROR${NC}: offline transaction expired!  please create a new one with long enough Time To Live (TTL)"
-                waitForInput && continue
+                waitToProceed && continue
               else
                 println DEBUG "Expire           : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
               fi
@@ -3549,34 +3562,38 @@ function main {
                     elif [[ ${otx_signing_name} = "Asset "* ]]; then dialog_start_path="${POOL_FOLDER}"
                     else dialog_start_path="${WALLET_FOLDER}"; fi
                     fileDialog "\nEnter path to ${otx_signing_name}" "${dialog_start_path}/"
-                    [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitForInput && continue 2
+                    [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
                     if [[ ${file} = "${ASSET_POLICY_SCRIPT_FILENAME}" ]]; then
                       if ! grep -q "$(_jq '.script.keyHash')" "${file}"; then
                         println ERROR "${FG_RED}ERROR${NC}: script file provided doesn't match with script hash in offline transaction for: ${otx_signing_name}"
                         println ERROR "Provided asset script keyHash: $(jq -r '.keyHash' "${file}")"
                         println ERROR "Transaction asset script keyHash: $(_jq '.script.keyHash')"
-                        waitForInput && continue 2
+                        waitToProceed && continue 2
                       fi
                     elif [[ $(jq -er '.description' "${file}" 2>/dev/null) = *"Hardware"* ]]; then
                       if ! grep -q "${otx_vkey_cborHex:4}" "${file}"; then # strip 5820 prefix
                         println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
                         println ERROR "Provided hardware signing key's verification cborXPubKeyHex: $(jq -r .cborXPubKeyHex "${file}")"
                         println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex:4}"
-                        waitForInput && continue 2
+                        waitToProceed && continue 2
                       fi
                     else
                       println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
-                      if ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey; then waitForInput && continue 2; fi
+                      if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey 2>&1); then
+                        println ERROR "\n${FG_RED}ERROR${NC}: failure during verification key creation!\n${stdout}"; waitToProceed && continue 2
+                      fi
                       if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
                         println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
-                        if ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey"; then waitForInput && continue 2; fi
+                        if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" 2>&1); then
+                          println ERROR "\n${FG_RED}ERROR${NC}: failure during non-extended verification key creation!\n${stdout}"; waitToProceed && continue 2
+                        fi
                         mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                       fi
                       if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
                         println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
                         println ERROR "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey)"
                         println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex}"
-                        waitForInput && continue 2
+                        waitToProceed && continue 2
                       fi
                     fi
                     
@@ -3584,8 +3601,8 @@ function main {
                     tx_sign_files+=( "${file}" )
                   done
                   if [[ ${#tx_sign_files[@]} -gt 0 ]]; then
-                    if ! witnessTx "${TMP_DIR}/tx.raw" "${tx_sign_files[@]}"; then waitForInput && continue; fi
-                    if ! assembleTx "${TMP_DIR}/tx.raw"; then waitForInput && continue; fi
+                    if ! witnessTx "${TMP_DIR}/tx.raw" "${tx_sign_files[@]}"; then waitToProceed && continue; fi
+                    if ! assembleTx "${TMP_DIR}/tx.raw"; then waitToProceed && continue; fi
                     echo
                     if jq ". += { \"signed-txBody\": $(jq -c . "${tx_signed}") }" <<< "${offlineJSON}" > "${offline_tx}"; then
                       println "Offline transaction successfully signed"
@@ -3640,7 +3657,7 @@ function main {
                       println DEBUG "\nFound a match for ${otx_signing_name}, use this file ? : ${FG_LGRAY}${skey_path}${NC}"
                       select_opt "[y] Yes" "[n] No, continue with manual selection" "[s] Skip"
                       case $? in
-                        0)  if ! witnessTx "${TMP_DIR}/tx.raw" "${skey_path}"; then waitForInput && continue 2; fi
+                        0)  if ! witnessTx "${TMP_DIR}/tx.raw" "${skey_path}"; then waitToProceed && continue 2; fi
                             if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
                             jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
                             continue ;;
@@ -3656,30 +3673,34 @@ function main {
                     case ${selection} in
                       0) [[ ${otx_signing_name} = "Pool "* ]] && dialog_start_path="${POOL_FOLDER}" || dialog_start_path="${WALLET_FOLDER}"
                           fileDialog "Enter path to ${otx_signing_name}" "${dialog_start_path}/"
-                          [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitForInput && continue 2
+                          [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
                           if [[ $(jq -r '.description' "${file}") = *"Hardware"* ]]; then
                             if ! grep -q "${otx_vkey_cborHex:4}" "${file}"; then # strip 5820 prefix
                               println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
                               println ERROR "Provided hardware signing key's verification cborXPubKeyHex: $(jq -r .cborXPubKeyHex "${file}")"
                               println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex:4}"
-                              waitForInput && continue 2
+                              waitToProceed && continue 2
                             fi
                           else
                             println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
-                            if ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey; then waitForInput && continue 2; fi
+                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during verification key creation!\n${stdout}"; waitToProceed && continue 2
+                            fi
                             if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
                               println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
-                              if ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey"; then waitForInput && continue 2; fi
+                              if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" 2>&1); then
+                                println ERROR "\n${FG_RED}ERROR${NC}: failure during non-extended verification key creation!\n${stdout}"; waitToProceed && continue 2
+                              fi
                               mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                             fi
                             if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
                               println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
                               println ERROR "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey)"
                               println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex}"
-                              waitForInput && continue 2
+                              waitToProceed && continue 2
                             fi
                           fi
-                          if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitForInput && continue 2; fi
+                          if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitToProceed && continue 2; fi
                           if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
                           jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
                           ;;
@@ -3695,7 +3716,7 @@ function main {
                       jq -r . <<< "$(_jq '.witnessBody')" > "${tx_witness}"
                       tx_witness_files+=( "${tx_witness}" )
                     done
-                    if ! assembleTx "${TMP_DIR}/tx.raw"; then waitForInput && continue; fi
+                    if ! assembleTx "${TMP_DIR}/tx.raw"; then waitToProceed && continue; fi
                     if jq ". += { \"signed-txBody\": $(jq -c . "${tx_signed}") }" <<< "${offlineJSON}" > "${offline_tx}"; then
                       println "Offline transaction successfully assembled and signed by all signing keys"
                       println "please move ${offline_tx} back to online node and submit before ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}!"
@@ -3706,9 +3727,9 @@ function main {
                     println "Offline transaction need to be signed by ${FG_LBLUE}$(jq -r '."signing-file" | length' <<< "${offlineJSON}")${NC} signing keys, signed by ${FG_LBLUE}$(jq -r '.witness | length' <<< "${offlineJSON}")${NC} so far!"
                   fi
                   ;;
-                *) println ERROR "${FG_RED}ERROR${NC}: unsupported offline tx type: ${otx_type}" && waitForInput && continue ;;
+                *) println ERROR "${FG_RED}ERROR${NC}: unsupported offline tx type: ${otx_type}" && waitToProceed && continue ;;
               esac
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             submit)
               clear
@@ -3717,7 +3738,7 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               echo
               fileDialog "Enter path to offline tx file to submit" "${TMP_DIR}/" && echo
@@ -3725,17 +3746,17 @@ function main {
               [[ -z "${offline_tx}" ]] && continue
               if [[ ! -f "${offline_tx}" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: file not found: ${offline_tx}"
-                waitForInput && continue
+                waitToProceed && continue
               elif ! offlineJSON=$(jq -erc . "${offline_tx}"); then
                 println ERROR "${FG_RED}ERROR${NC}: invalid JSON file: ${offline_tx}"
-                waitForInput && continue
+                waitToProceed && continue
               fi
-              if ! otx_type=$(jq -er '.type' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'type' not found in: ${offline_tx}" && waitForInput && continue; fi
-              if ! otx_date_created=$(jq -er '."date-created"' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'date-created' not found in: ${offline_tx}" && waitForInput && continue; fi
-              if ! otx_date_expire=$(jq -er '."date-expire"' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'date-expire' not found in: ${offline_tx}" && waitForInput && continue; fi
-              if ! otx_txFee=$(jq -er '.txFee' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'txFee' not found in: ${offline_tx}" && waitForInput && continue; fi
-              if ! otx_signed_txBody=$(jq -er '."signed-txBody"' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'signed-txBody' not found in: ${offline_tx}" && waitForInput && continue; fi
-              [[ $(jq 'length' <<< ${otx_signed_txBody}) -eq 0 ]] && println ERROR "${FG_RED}ERROR${NC}: transaction not signed, please sign transaction first!" && waitForInput && continue
+              if ! otx_type=$(jq -er '.type' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'type' not found in: ${offline_tx}" && waitToProceed && continue; fi
+              if ! otx_date_created=$(jq -er '."date-created"' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'date-created' not found in: ${offline_tx}" && waitToProceed && continue; fi
+              if ! otx_date_expire=$(jq -er '."date-expire"' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'date-expire' not found in: ${offline_tx}" && waitToProceed && continue; fi
+              if ! otx_txFee=$(jq -er '.txFee' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'txFee' not found in: ${offline_tx}" && waitToProceed && continue; fi
+              if ! otx_signed_txBody=$(jq -er '."signed-txBody"' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'signed-txBody' not found in: ${offline_tx}" && waitToProceed && continue; fi
+              [[ $(jq 'length' <<< ${otx_signed_txBody}) -eq 0 ]] && println ERROR "${FG_RED}ERROR${NC}: transaction not signed, please sign transaction first!" && waitToProceed && continue
               println DEBUG "Transaction type : ${FG_YELLOW}${otx_type}${NC}"
               if jq -er '."wallet-name"' &>/dev/null <<< ${offlineJSON}; then 
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA, payed by ${FG_GREEN}$(jq -r '."wallet-name"' <<< ${offlineJSON})${NC}"
@@ -3746,7 +3767,7 @@ function main {
               if [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]]; then
                 println DEBUG "Expire           : ${FG_RED}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
                 println ERROR "\n${FG_RED}ERROR${NC}: offline transaction expired!  please create a new one with long enough Time To Live (TTL)"
-                waitForInput && continue
+                waitToProceed && continue
               else
                 println DEBUG "Expire           : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
               fi
@@ -3798,7 +3819,7 @@ function main {
                     1) continue ;;
                   esac
                   echo -e "${otx_signed_txBody}" > "${tx_signed}"
-                  if ! submitTx "${tx_signed}"; then waitForInput && continue; fi
+                  if ! submitTx "${tx_signed}"; then waitToProceed && continue; fi
                   if [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]]; then
                     if otx_pool_name=$(jq -er '."pool-name"' <<< ${offlineJSON}); then
                       if ! jq '."pool-reg-cert"' <<< "${offlineJSON}" > "${POOL_FOLDER}/${otx_pool_name}/${POOL_REGCERT_FILENAME}"; then println ERROR "${FG_RED}ERROR${NC}: failed to write pool cert to disk"; fi
@@ -3817,9 +3838,9 @@ function main {
                     1) : ;;
                   esac
                   ;;
-                *) println ERROR "${FG_RED}ERROR${NC}: unsupported offline tx type: ${otx_type}" && waitForInput && continue ;;
+                *) println ERROR "${FG_RED}ERROR${NC}: unsupported offline tx type: ${otx_type}" && waitToProceed && continue ;;
               esac
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
           esac # transaction sub OPERATION
         done # Transaction loop
@@ -3831,7 +3852,7 @@ function main {
         println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
         if ! command -v sqlite3 >/dev/null; then
           println ERROR "${FG_RED}ERROR${NC}: sqlite3 not found!"
-          waitForInput && continue
+          waitToProceed && continue
         fi
         current_epoch=$(getEpoch)
         println DEBUG "Current epoch: ${FG_LBLUE}${current_epoch}${NC}\n"
@@ -3842,7 +3863,7 @@ function main {
              epoch_enter=${epoch_enter:-10}
              if ! isNumber ${epoch_enter}; then
                println ERROR "\n${FG_RED}ERROR${NC}: not a number"
-               waitForInput && continue
+               waitToProceed && continue
              fi
              view=1; view_output="${FG_YELLOW}[b] Block View${NC} | [i] Info"
              while true; do
@@ -3860,9 +3881,9 @@ function main {
                  [[ ${ideal_len} -lt 5 ]] && ideal_len=5
                  luck_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(max_performance) FROM epochdata WHERE epoch BETWEEN ${first_epoch} and ${current_epoch} ORDER BY LENGTH(max_performance) DESC LIMIT 1;")
                  [[ $((luck_len+1)) -le 4 ]] && luck_len=4 || luck_len=$((luck_len+1))
-                 printf '|' >&3; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "=" >&3; printf '|\n' >&3
-                 printf "| %-5s | %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Epoch" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid" >&3
-                 printf '|' >&3; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "=" >&3; printf '|\n' >&3
+                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "="; printf '|\n'
+                 printf "| %-5s | %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Epoch" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid"
+                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "="; printf '|\n'
                  while [[ ${current_epoch} -gt ${first_epoch} ]]; do
                    invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='invalid';" 2>/dev/null)
                    missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='missed';" 2>/dev/null)
@@ -3877,10 +3898,10 @@ function main {
                    else
                      epoch_stats[1]="${epoch_stats[1]}%"
                    fi
-                   printf "| ${FG_LGRAY}%-5s${NC} | ${FG_LGRAY}%-6s${NC} | ${FG_LGRAY}%-${ideal_len}s${NC} | ${FG_LGRAY}%-${luck_len}s${NC} | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${current_epoch}" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}" >&3
+                   printf "| ${FG_LGRAY}%-5s${NC} | ${FG_LGRAY}%-6s${NC} | ${FG_LGRAY}%-${ideal_len}s${NC} | ${FG_LGRAY}%-${luck_len}s${NC} | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${current_epoch}" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}"
                    ((current_epoch--))
                  done
-                 printf '|' >&3; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "=" >&3; printf '|\n' >&3
+                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "="; printf '|\n'
                else
                  println OFF "Block Status:\n"
                  println OFF "Leader    - Scheduled to make block at this slot"
@@ -3913,7 +3934,7 @@ function main {
              [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
              if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=${epoch_enter} LIMIT 1);" 2>/dev/null) -eq 0 ]]; then
                println "No blocks in epoch ${epoch_enter}"
-               waitForInput && continue
+               waitToProceed && continue
              fi
              view=1; view_output="${FG_YELLOW}[1] View 1${NC} | [2] View 2 | [3] View 3 | [i] Info"
              while true; do
@@ -3939,11 +3960,11 @@ function main {
                fi
                [[ ${#epoch_stats[0]} -gt 5 ]] && ideal_len=${#epoch_stats[0]} || ideal_len=5
                [[ ${#epoch_stats[1]} -gt 4 ]] && luck_len=${#epoch_stats[1]} || luck_len=4
-               printf '|' >&3; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "=" >&3; printf '|\n' >&3
-               printf "| %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid" >&3
-               printf '|' >&3; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "=" >&3; printf '|\n' >&3
-               printf "| ${FG_LGRAY}%-6s${NC} | ${FG_LGRAY}%-${ideal_len}s${NC} | ${FG_LGRAY}%-${luck_len}s${NC} | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}" >&3
-               printf '|' >&3; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "=" >&3; printf '|\n' >&3
+               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "="; printf '|\n'
+               printf "| %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid"
+               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "="; printf '|\n'
+               printf "| ${FG_LGRAY}%-6s${NC} | ${FG_LGRAY}%-${ideal_len}s${NC} | ${FG_LGRAY}%-${luck_len}s${NC} | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}"
+               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "="; printf '|\n'
                echo
                # print block table
                block_cnt=1
@@ -3961,40 +3982,40 @@ function main {
                hash_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(hash) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(hash) DESC LIMIT 1;")
                [[ ${hash_len} -lt 4 ]] && hash_len=4
                if [[ ${view} -eq 1 ]]; then
-                 printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "=" >&3; printf '|\n' >&3
-                 printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At" >&3
-                 printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "=" >&3; printf '|\n' >&3
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "="; printf '|\n'
+                 printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At"
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "="; printf '|\n'
                  while IFS='|' read -r status block slot slot_in_epoch at; do
                    at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
                    [[ ${block} -eq 0 ]] && block="-"
-                   printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${block_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${slot_in_epoch_len}s${NC} | ${FG_LGRAY}%-${at_len}s${NC} |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}" >&3
+                   printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${block_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${slot_in_epoch_len}s${NC} | ${FG_LGRAY}%-${at_len}s${NC} |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}"
                    ((block_cnt++))
                  done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-                 printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "=" >&3; printf '|\n' >&3
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "="; printf '|\n'
                elif [[ ${view} -eq 2 ]]; then
-                 printf '|' >&3; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "=" >&3; printf '|\n' >&3
-                 printf "| %-${#leader_cnt}s | %-${status_len}s | %-${slot_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Slot" "Size" "Hash" >&3
-                 printf '|' >&3; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "=" >&3; printf '|\n' >&3
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "="; printf '|\n'
+                 printf "| %-${#leader_cnt}s | %-${status_len}s | %-${slot_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Slot" "Size" "Hash"
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "="; printf '|\n'
                  while IFS='|' read -r status slot size hash; do
                    [[ ${size} -eq 0 ]] && size="-"
                    [[ -z ${hash} ]] && hash="-"
-                   printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${size_len}s${NC} | ${FG_LGRAY}%-${hash_len}s${NC} |\n" "${block_cnt}" "${status}" "${slot}" "${size}" "${hash}" >&3
+                   printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${size_len}s${NC} | ${FG_LGRAY}%-${hash_len}s${NC} |\n" "${block_cnt}" "${status}" "${slot}" "${size}" "${hash}"
                    ((block_cnt++))
                  done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, slot, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-                 printf '|' >&3; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "=" >&3; printf '|\n' >&3
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "="; printf '|\n'
                elif [[ ${view} -eq 3 ]]; then
-                 printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "=" >&3; printf '|\n' >&3
-                 printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At" "Size" "Hash" >&3
-                 printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "=" >&3; printf '|\n' >&3
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "="; printf '|\n'
+                 printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At" "Size" "Hash"
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "="; printf '|\n'
                  while IFS='|' read -r status block slot slot_in_epoch at size hash; do
                    at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
                    [[ ${block} -eq 0 ]] && block="-"
                    [[ ${size} -eq 0 ]] && size="-"
                    [[ -z ${hash} ]] && hash="-"
-                   printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${block_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${slot_in_epoch_len}s${NC} | ${FG_LGRAY}%-${at_len}s${NC} | ${FG_LGRAY}%-${size_len}s${NC} | ${FG_LGRAY}%-${hash_len}s${NC} |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}" "${size}" "${hash}" >&3
+                   printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${block_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${slot_in_epoch_len}s${NC} | ${FG_LGRAY}%-${at_len}s${NC} | ${FG_LGRAY}%-${size_len}s${NC} | ${FG_LGRAY}%-${hash_len}s${NC} |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}" "${size}" "${hash}"
                    ((block_cnt++))
                  done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-                 printf '|' >&3; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "=" >&3; printf '|\n' >&3
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "="; printf '|\n'
                elif [[ ${view} -eq 4 ]]; then
                  println OFF "Block Status:\n"
                  println OFF "Leader    - Scheduled to make block at this slot"
@@ -4026,7 +4047,7 @@ function main {
              ;;
           2) continue ;;
         esac
-        waitForInput && continue
+        waitToProceed && continue
         ;; ###################################################################
       backup)
         clear
@@ -4044,9 +4065,9 @@ function main {
             [[ "${dir}" != */ ]] && backup_path="${dir}/" || backup_path="${dir}"
             if [[ ! "${backup_path}" =~ ^/[-0-9A-Za-z_]+ ]]; then
               println ERROR "${FG_RED}ERROR${NC}: invalid path, please specify the full path to backup directory (space not allowed)"
-              waitForInput && continue
+              waitToProceed && continue
             fi
-            if ! mkdir -p "${backup_path}"; then println ERROR "${FG_RED}ERROR${NC}: failed to create backup directory:\n${backup_path}" && waitForInput && continue; fi
+            if ! mkdir -p "${backup_path}"; then println ERROR "${FG_RED}ERROR${NC}: failed to create backup directory:\n${backup_path}" && waitToProceed && continue; fi
             missing_keys="false"
             excluded_files=()
             [[ -d "${ASSET_FOLDER}" ]] && asset_out=" and asset ${ASSET_POLICY_SK_FILENAME}" || asset_out=""
@@ -4087,19 +4108,19 @@ function main {
                 ((backup_cnt++))
               done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
             done
-            [[ ${backup_cnt} -eq 0 ]] && println "\nNo folders found to include in backup :(" && waitForInput && continue
+            [[ ${backup_cnt} -eq 0 ]] && println "\nNo folders found to include in backup :(" && waitToProceed && continue
             echo
             if [[ ${#excluded_files[@]} -gt 0 ]]; then
               println ACTION "tar ${excluded_files[*]} -cf ${backup_file} ${backup_list[*]}"
-              if ! output=$(tar "${excluded_files[@]}" -cf "${backup_file}" "${backup_list[@]}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during tarball creation:\n${output}" && waitForInput && continue; fi
+              if ! stdout=$(tar "${excluded_files[@]}" -cf "${backup_file}" "${backup_list[@]}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during tarball creation:\n${stdout}" && waitToProceed && continue; fi
               println ACTION "gzip ${backup_file}"
-              if ! output=$(gzip "${backup_file}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: gzip error:\n${output}" && waitForInput && continue; fi
+              if ! stdout=$(gzip "${backup_file}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: gzip error:\n${stdout}" && waitToProceed && continue; fi
               backup_file+=".gz"
             else
               println ACTION "tar -cf ${backup_file} ${backup_list[*]}"
-              if ! output=$(tar -cf "${backup_file}" "${backup_list[@]}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during tarball creation:\n${output}" && waitForInput && continue; fi
+              if ! stdout=$(tar -cf "${backup_file}" "${backup_list[@]}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during tarball creation:\n${stdout}" && waitToProceed && continue; fi
               println ACTION "gzip ${backup_file}"
-              if ! output=$(gzip "${backup_file}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: gzip error:\n${output}" && waitForInput && continue; fi
+              if ! stdout=$(gzip "${backup_file}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: gzip error:\n${stdout}" && waitToProceed && continue; fi
               backup_file+=".gz"
               while IFS= read -r -d '' wallet; do # check for missing signing keys
                 wallet_name=$(basename ${wallet})
@@ -4142,9 +4163,9 @@ function main {
             backup_file=${file}
             if [[ ! -f "${backup_file}" ]]; then
               println ERROR "${FG_RED}ERROR${NC}: file not found: ${backup_file}"
-              waitForInput && continue
+              waitToProceed && continue
             fi
-            if ! restore_path="$(mktemp -d "${TMP_DIR}/restore_XXXXXXXXXX")"; then println ERROR "${FG_RED}ERROR${NC}: failed to create restore directory:\n${restore_path}" && waitForInput && continue; fi
+            if ! restore_path="$(mktemp -d "${TMP_DIR}/restore_XXXXXXXXXX")"; then println ERROR "${FG_RED}ERROR${NC}: failed to create restore directory:\n${restore_path}" && waitToProceed && continue; fi
             tmp_bkp_file=""
             if [ "${backup_file##*.}" = "gpg" ]; then
               println DEBUG "Backup GPG encrypted, enter password to decrypt"
@@ -4157,11 +4178,11 @@ function main {
                 echo
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: password input aborted!"
-                waitForInput && continue
+                waitToProceed && continue
               fi
             fi
             println ACTION "tar xfzk ${backup_file} -C ${restore_path}"
-            if ! output=$(tar xfzk "${backup_file}" -C "${restore_path}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during tarball extraction:\n${output}" && waitForInput && continue; fi
+            if ! stdout=$(tar xfzk "${backup_file}" -C "${restore_path}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during tarball extraction:\n${stdout}" && waitToProceed && continue; fi
             [[ -n "${tmp_bkp_file}" ]] && mv -f "${tmp_bkp_file}" "${backup_file}.gpg" && rm -f "${backup_file}" # restore original encrypted backup file
             restore_source=(
               "${restore_path}${WALLET_FOLDER}"
@@ -4180,7 +4201,7 @@ function main {
                 ((restore_cnt++))
               done < <(find "${item}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
             done
-            [[ ${restore_cnt} -eq 0 ]] && println "\nNothing in backup file to restore :(" && waitForInput && continue
+            [[ ${restore_cnt} -eq 0 ]] && println "\nNothing in backup file to restore :(" && waitToProceed && continue
             echo
             println DEBUG "Continue with restore?"
             select_opt "[n] No" "[y] Yes"
@@ -4206,10 +4227,10 @@ function main {
             done
             if [[ ${source_cnt} -gt 0 ]]; then
               archive_dest="${CNODE_HOME}/priv/archive"
-              if ! mkdir -p "${archive_dest}"; then println ERROR "${FG_RED}ERROR${NC}: failed to create archive directory:\n${archive_dest}" && waitForInput && continue; fi
+              if ! mkdir -p "${archive_dest}"; then println ERROR "${FG_RED}ERROR${NC}: failed to create archive directory:\n${archive_dest}" && waitToProceed && continue; fi
               archive_file="${archive_dest}/archive_$(date '+%Y%m%d%H%M%S').tar.gz"
               println ACTION "tar cfz ${archive_file} ${archive_list[*]}"
-              if ! output=$(tar cfz "${archive_file}" "${archive_list[@]}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during archive/backup:\n${output}" && waitForInput && continue; fi
+              if ! stdout=$(tar cfz "${archive_file}" "${archive_list[@]}" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during archive/backup:\n${stdout}" && waitToProceed && continue; fi
               println DEBUG "An archive of current priv folder has been taken and stored in ${FG_LGRAY}${archive_file}${NC}"
               println DEBUG "Please set a password to GPG encrypt the archive"
               if getPasswordCust confirm; then # $password variable populated by getPasswordCust function
@@ -4228,13 +4249,13 @@ function main {
                 unlockFile "${file}"
               done < <(find "${dest_path}" -mindepth 1 -maxdepth 1 -type f -print0 2>/dev/null)
               println ACTION "cp -rf ${item} $(dirname "${dest_path}")"
-              cp -rf "${item}" "$(dirname "${dest_path}")"
+              if ! stdout=$(cp -rf "${item}" "$(dirname "${dest_path}")" 2>&1); then println ERROR "${FG_RED}ERROR${NC}: during retore copy:\n${stdout}" && waitToProceed && continue; fi
             done
             println "Backup ${FG_LGRAY}$(basename "${backup_file}")${NC} successfully restored!"
             ;;
           2) continue ;;
         esac
-        waitForInput && continue
+        waitToProceed && continue
         ;; ###################################################################
 
       advanced)
@@ -4262,10 +4283,10 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> ADVANCED >> METADATA"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available to pay for transaction fee!${NC}" && waitForInput && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available to pay for transaction fee!${NC}" && waitToProceed && continue
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitForInput && continue
+                waitToProceed && continue
               else
                 if ! selectOpMode; then continue; fi
               fi
@@ -4290,7 +4311,7 @@ function main {
                     metafile="${file}"
                     if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid JSON format or file not found"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     println DEBUG "$(cat "${metafile}")\n"
                     ;;
@@ -4298,11 +4319,11 @@ function main {
                     getAnswerAnyCust meta_json_url "Enter URL to JSON metadata file"
                     if [[ ! "${meta_json_url}" =~ https?://.* ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid URL format"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     if ! curl -sL -m ${CURL_TIMEOUT} -o "${metafile}" ${meta_json_url} || ! jq -er . "${metafile}" &>/dev/null; then
                       println ERROR "${FG_RED}ERROR${NC}: metadata download failed, please make sure the URL point to a valid JSON file!"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     tput rc && tput ed
                     println "Metadata file successfully downloaded to: ${FG_LGRAY}${metafile}${NC}"
@@ -4317,15 +4338,12 @@ function main {
                     DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
                     println OFF "\nPaste or enter the metadata text, opening text editor ${FG_LGRAY}${DEFAULTEDITOR}${NC}"
                     println OFF "${FG_YELLOW}Please don't change default file path when saving${NC}"
-                    sleep 0.1 # sleep 100ms to flush print jobs
-                    exec >&6 2>&7 # normal stdout/stderr
-                    waitForInput "press any key to open ${DEFAULTEDITOR}"
+                    waitToProceed "press any key to open ${DEFAULTEDITOR}"
                     ${DEFAULTEDITOR} "${metafile}"
-                    exec >&8 2>&9 # custom stdout/stderr
                     if [[ ! -f "${metafile}" ]] || ! jq -er . "${metafile}" &>/dev/null; then
                       println ERROR "${FG_RED}ERROR${NC}: file not found or invalid JSON format"
                       println ERROR "File: ${FG_LGRAY}${metafile}${NC}"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     tput rc && tput ed
                     println "Metadata file successfully saved to: ${FG_LGRAY}${metafile}${NC}"
@@ -4342,24 +4360,24 @@ function main {
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
                 case $? in
-                  0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for metadata transaction fee!" && waitForInput && continue ;;
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                  0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for metadata transaction fee!" && waitToProceed && continue ;;
+                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
                 selectWallet "balance"
                 case $? in
-                  1) waitForInput; continue ;;
+                  1) waitToProceed; continue ;;
                   2) continue ;;
                 esac
                 getWalletType ${wallet_name}
                 case $? in
-                  0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for metadata transaction fee!" && waitForInput && continue ;;
+                  0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for metadata transaction fee!" && waitToProceed && continue ;;
                 esac
               fi
               echo
@@ -4395,16 +4413,16 @@ function main {
                 fi
               else
                 println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
-                waitForInput && continue
+                waitToProceed && continue
               fi
               if ! sendMetadata; then
-                waitForInput && continue
+                waitToProceed && continue
               fi
               echo
-              if ! verifyTx ${addr}; then waitForInput && continue; fi
+              if ! verifyTx ${addr}; then waitToProceed && continue; fi
               echo
               println "Metadata successfully posted on-chain"
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
             multi-asset)
               while true; do # Multi-Asset loop
@@ -4448,13 +4466,13 @@ function main {
                     policy_name=${policy_name//[^[:alnum:]]/_}
                     if [[ -z "${policy_name}" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: Empty policy name, please retry!"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     policy_folder="${ASSET_FOLDER}/${policy_name}"
                     echo
                     if ! mkdir -p "${policy_folder}"; then
                       println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for policy:\n${policy_folder}"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     # Policy filenames
                     policy_sk_file="${policy_folder}/${ASSET_POLICY_SK_FILENAME}"
@@ -4464,15 +4482,15 @@ function main {
                     if [[ $(find "${policy_folder}" -type f -print0 | wc -c) -gt 0 ]]; then
                       println "${FG_RED}WARN${NC}: A policy ${FG_GREEN}${policy_name}${NC} already exist!"
                       println "      Choose another name or delete the existing one"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${policy_vk_file} --signing-key-file ${policy_sk_file}"
-                    if ! ${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${policy_vk_file}" --signing-key-file "${policy_sk_file}"; then
-                      println ERROR "${FG_RED}ERROR${NC}: failure during policy key creation!"; safeDel "${policy_folder}"; waitForInput && continue
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${policy_vk_file}" --signing-key-file "${policy_sk_file}" 2>&1); then
+                      println ERROR "${FG_RED}ERROR${NC}: failure during policy key creation!\n${stdout}"; safeDel "${policy_folder}"; waitToProceed && continue
                     fi
                     println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${policy_vk_file}"
-                    if ! policy_key_hash=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${policy_vk_file}"); then
-                      println ERROR "${FG_RED}ERROR${NC}: failure during policy verification key hashing!"; safeDel "${policy_folder}"; waitForInput && continue
+                    if ! policy_key_hash=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${policy_vk_file}" 2>&1); then
+                      println ERROR "${FG_RED}ERROR${NC}: failure during policy verification key hashing!\n${policy_key_hash}"; safeDel "${policy_folder}"; waitToProceed && continue
                     fi
                     println DEBUG "How long do you want the policy to be valid? (0/blank=unlimited)"
                     println DEBUG "${FG_YELLOW}Setting a limit will prevent you from minting/burning assets after the policy expire !!\nLeave blank/unlimited if unsure and just press enter${NC}"
@@ -4480,7 +4498,7 @@ function main {
                     ttl_enter=${ttl_enter:-0}
                     if ! isNumber ${ttl_enter}; then
                       println ERROR "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
-                      safeDel "${policy_folder}"; waitForInput && continue
+                      safeDel "${policy_folder}"; waitToProceed && continue
                     fi
                     if [[ ${ttl_enter} -eq 0 ]]; then
                       echo "{ \"keyHash\": \"${policy_key_hash}\", \"type\": \"sig\" }" > "${policy_script_file}"
@@ -4489,8 +4507,8 @@ function main {
                       echo "{ \"type\": \"all\", \"scripts\": [ { \"slot\": ${ttl}, \"type\": \"before\" }, { \"keyHash\": \"${policy_key_hash}\", \"type\": \"sig\" } ] }" > "${policy_script_file}"
                     fi
                     println ACTION "${CCLI} ${NETWORK_ERA} transaction policyid --script-file ${policy_script_file}"
-                    if ! policy_id=$(${CCLI} ${NETWORK_ERA} transaction policyid --script-file "${policy_script_file}"); then
-                      println ERROR "${FG_RED}ERROR${NC}: failure during policy ID generation!"; safeDel "${policy_folder}"; waitForInput && continue
+                    if ! policy_id=$(${CCLI} ${NETWORK_ERA} transaction policyid --script-file "${policy_script_file}" 2>&1); then
+                      println ERROR "${FG_RED}ERROR${NC}: failure during policy ID generation!\n${policy_id}"; safeDel "${policy_folder}"; waitToProceed && continue
                     fi
                     echo "${policy_id}" > "${policy_id_file}"
                     chmod 600 "${policy_folder}/"*
@@ -4499,14 +4517,14 @@ function main {
                     println "Policy ID     : ${FG_LGRAY}${policy_id}${NC}"
                     println "Policy Expire : $([[ ${ttl_enter} -eq 0 ]] && echo "${FG_LGRAY}unlimited${NC}" || echo "${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_LGRAY}$(timeLeft $((ttl-$(getSlotTipRef))))${NC} remaining")"
                     println DEBUG "\nYou can now start minting your custom assets using this Policy!"
-                    waitForInput && continue
+                    waitToProceed && continue
                     ;; ###################################################################
                   list-assets)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> ADVANCED >> MULTI-ASSET >> LIST ASSETS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitForInput && continue
+                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitToProceed && continue
                     while IFS= read -r -d '' policy; do
                       echo
                       println "Policy Name   : ${FG_GREEN}$(basename "${policy}")${NC}"
@@ -4530,18 +4548,18 @@ function main {
                         println "Asset         : ${FG_LGRAY}No assets minted for this policy!${NC}"
                       fi
                     done < <(find "${ASSET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-                    waitForInput && continue
+                    waitToProceed && continue
                     ;; ###################################################################
                   show-asset)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> ADVANCED >> MULTI-ASSET >> SHOW ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitForInput && continue
+                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitToProceed && continue
                     println DEBUG "# Select minted asset to show information for"
                     selectAsset
                     case $? in
-                      1) waitForInput; continue ;;
+                      1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
                     echo
@@ -4578,7 +4596,7 @@ function main {
                     a_last_action=$(jq -er '.lastAction //"-"' "${asset_file}")
                     println "Last Updated   : ${FG_LGRAY}${a_last_update}${NC}"
                     println "Last Action    : ${FG_LGRAY}${a_last_action}${NC}"
-                    waitForInput && continue
+                    waitToProceed && continue
                     ;; ###################################################################
                   decrypt-policy)
                     clear
@@ -4586,11 +4604,11 @@ function main {
                     println " >> ADVANCED >> MULTI-ASSET >> DECRYPT / UNLOCK POLICY"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitForInput && continue
+                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitToProceed && continue
                     println DEBUG "# Select policy to decrypt"
                     selectPolicy "encrypted"
                     case $? in
-                      1) waitForInput; continue ;;
+                      1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
                     filesUnlocked=0
@@ -4610,7 +4628,7 @@ function main {
                       println "# Decrypting GPG encrypted policy key"
                       if ! getPasswordCust; then # $password variable populated by getPasswordCust function
                         println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
-                        waitForInput && continue
+                        waitToProceed && continue
                       fi
                       while IFS= read -r -d '' file; do
                         decryptFile "${file}" "${password}" && \
@@ -4628,7 +4646,7 @@ function main {
                       println DEBUG "${FG_YELLOW}Policy files are now unprotected${NC}"
                       println DEBUG "Use 'ADVANCED >> MULTI-ASSET >> ENCRYPT / LOCK POLICY' to re-lock"
                     fi
-                    waitForInput && continue
+                    waitToProceed && continue
                     ;; ###################################################################
                   encrypt-policy)
                     clear
@@ -4636,11 +4654,11 @@ function main {
                     println " >> ADVANCED >> MULTI-ASSET >> ENCRYPT / LOCK POLICY"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitForInput && continue
+                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitToProceed && continue
                     println DEBUG "# Select policy to encrypt"
                     selectPolicy "encrypted"
                     case $? in
-                      1) waitForInput; continue ;;
+                      1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
                     filesLocked=0
@@ -4650,7 +4668,7 @@ function main {
                       println DEBUG "# Encrypting policy signing key with GPG"
                       if ! getPasswordCust confirm; then # $password variable populated by getPasswordCust function
                         println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
-                        waitForInput && continue
+                        waitToProceed && continue
                       fi
                       keyFiles=(
                         "${ASSET_FOLDER}/${policy_name}/${ASSET_POLICY_SK_FILENAME}"
@@ -4666,7 +4684,7 @@ function main {
                     else
                       echo
                       println DEBUG "${FG_YELLOW}NOTE${NC}: found GPG encrypted files in folder, please decrypt/unlock policy files before encrypting"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     echo
                     println DEBUG "# Write protecting all policy files with 400 permission and if enabled 'chattr +i'"
@@ -4687,26 +4705,26 @@ function main {
                       println DEBUG "${FG_BLUE}INFO${NC}: policy files are now protected"
                       println DEBUG "Use 'ADVANCED >> MULTI-ASSET >> DECRYPT / UNLOCK POLICY' to unlock"
                     fi
-                    waitForInput && continue
+                    waitToProceed && continue
                     ;; ###################################################################
                   mint-asset)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> ADVANCED >> MULTI-ASSET >> MINT ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+                    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                      waitForInput && continue
+                      waitToProceed && continue
                     else
                       if ! selectOpMode; then continue; fi
                     fi
                     echo
-                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to mint asset with" && waitForInput && continue
+                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to mint asset with" && waitToProceed && continue
                     println DEBUG "# Select the policy to use when minting the asset"
                     selectPolicy "all" "${ASSET_POLICY_SK_FILENAME}" "${ASSET_POLICY_VK_FILENAME}" "${ASSET_POLICY_SCRIPT_FILENAME}" "${ASSET_POLICY_ID_FILENAME}"
                     case $? in
-                      1) waitForInput; continue ;;
+                      1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
                     policy_folder="${ASSET_FOLDER}/${policy_name}"
@@ -4717,7 +4735,7 @@ function main {
                     policy_id_file="${policy_folder}/${ASSET_POLICY_ID_FILENAME}"
                     policy_id="$(cat "${policy_id_file}")"
                     policy_ttl=$(jq -r '.scripts[0].slot //0' "${policy_script_file}")
-                    [[ ${policy_ttl} -gt 0 && ${policy_ttl} -lt $(getSlotTipRef) ]] && println ERROR "${FG_RED}ERROR${NC}: Policy expired!" && waitForInput && continue
+                    [[ ${policy_ttl} -gt 0 && ${policy_ttl} -lt $(getSlotTipRef) ]] && println ERROR "${FG_RED}ERROR${NC}: Policy expired!" && waitToProceed && continue
                     echo
                     if [[ $(find "${policy_folder}" -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
                       println DEBUG "# Assets minted for this Policy\n"
@@ -4739,14 +4757,14 @@ function main {
                       println DEBUG "\nEnter an existing AssetName to mint more tokens or enter a new name to create a new Asset for this Policy"
                     fi
                     getAnswerAnyCust asset_name "Asset Name (empty valid)"
-                    [[ ${asset_name} =~ ^[^[:alnum:]]$ ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name should only contain alphanummeric chars!" && waitForInput && continue
-                    [[ ${#asset_name} -gt 32 ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name is limited to 32 chars in length!" && waitForInput && continue
+                    [[ ${asset_name} =~ ^[^[:alnum:]]$ ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name should only contain alphanummeric chars!" && waitToProceed && continue
+                    [[ ${#asset_name} -gt 32 ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name is limited to 32 chars in length!" && waitToProceed && continue
                     asset_file="${policy_folder}/${asset_name// /_}.asset"
                     echo
                     getAnswerAnyCust assets_to_mint "Amount (commas allowed as thousand separator)"
                     assets_to_mint="${assets_to_mint//,}"
-                    [[ -z "${assets_to_mint}" ]] && println ERROR "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitForInput && continue
-                    if ! isNumber ${assets_to_mint}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
+                    [[ -z "${assets_to_mint}" ]] && println ERROR "${FG_RED}ERROR${NC}: Amount empty, please set a valid integer number!" && waitToProceed && continue
+                    if ! isNumber ${assets_to_mint}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitToProceed && continue; fi
                     [[ -f "${asset_file}" ]] && asset_minted=$(( $(jq -r .minted "${asset_file}") + assets_to_mint )) || asset_minted=${assets_to_mint}
                     metafile_param=""
                     println DEBUG "\nDo you want to attach a metadata JSON file to the minting transaction?"
@@ -4755,9 +4773,9 @@ function main {
                       0) : ;; # do nothing
                       1) fileDialog "Enter path to metadata JSON file" "${TMP_DIR}/" && echo
                         metafile=${file}
-                        [[ -z "${metafile}" ]] && println ERROR "${FG_RED}ERROR${NC}: Metadata file path empty!" && waitForInput && continue
-                        [[ ! -f "${metafile}" ]] && println ERROR "${FG_RED}ERROR${NC}: File not found: ${metafile}" && waitForInput && continue
-                        if ! jq -er . "${metafile}"; then println ERROR "${FG_RED}ERROR${NC}: Metadata file not a valid json file!" && waitForInput && continue; fi
+                        [[ -z "${metafile}" ]] && println ERROR "${FG_RED}ERROR${NC}: Metadata file path empty!" && waitToProceed && continue
+                        [[ ! -f "${metafile}" ]] && println ERROR "${FG_RED}ERROR${NC}: File not found: ${metafile}" && waitToProceed && continue
+                        if ! jq -er . "${metafile}"; then println ERROR "${FG_RED}ERROR${NC}: Metadata file not a valid json file!" && waitToProceed && continue; fi
                         metafile_param="--metadata-json-file ${metafile}"
                         ;;
                     esac
@@ -4765,18 +4783,18 @@ function main {
                     if [[ ${op_mode} = "online" ]]; then
                       selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
                       case $? in
-                        1) waitForInput; continue ;;
+                        1) waitToProceed; continue ;;
                         2) continue ;;
                       esac
                       getWalletType ${wallet_name}
                       case $? in
-                        2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                        3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                        2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                        3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                       esac
                     else
                       selectWallet "balance"
                       case $? in
-                        1) waitForInput; continue ;;
+                        1) waitToProceed; continue ;;
                         2) continue ;;
                       esac
                     fi
@@ -4814,16 +4832,16 @@ function main {
                       fi
                     else
                       println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     if ! mintAsset; then
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     if [[ ! -f "${asset_file}" ]]; then echo "{}" > "${asset_file}"; fi
                     assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"${asset_name}\", policyID: \"${policy_id}\", assetName: \"$(asciiToHex "${asset_name}")\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"Minted $(formatAsset ${assets_to_mint})\"}" < "${asset_file}")
                     echo -e "${assetJSON}" > "${asset_file}"
                     echo
-                    if ! verifyTx ${addr}; then waitForInput && continue; fi
+                    if ! verifyTx ${addr}; then waitToProceed && continue; fi
                     echo
                     println "Assets successfully minted!"
                     println "Policy Name    : ${FG_GREEN}${policy_name}${NC}"
@@ -4842,17 +4860,17 @@ function main {
                          println "In Circulation : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
                     esac
                     println DEBUG "\n${FG_YELLOW}Please note that it can take a couple of minutes before minted asset show in wallet${NC}"
-                    waitForInput && continue
+                    waitToProceed && continue
                     ;; ###################################################################
                   burn-asset)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> ADVANCED >> MULTI-ASSET >> BURN ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitForInput && continue
+                    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                      waitForInput && continue
+                      waitToProceed && continue
                     else
                       if ! selectOpMode; then continue; fi
                     fi
@@ -4861,24 +4879,24 @@ function main {
                     if [[ ${op_mode} = "online" ]]; then
                       selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
                       case $? in
-                        1) waitForInput; continue ;;
+                        1) waitToProceed; continue ;;
                         2) continue ;;
                       esac
                       getWalletType ${wallet_name}
                       case $? in
-                        0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet for asset burning!" && waitForInput && continue ;;
-                        2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitForInput && continue ;;
-                        3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitForInput && continue ;;
+                        0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet for asset burning!" && waitToProceed && continue ;;
+                        2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                        3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                       esac
                     else
                       selectWallet "balance"
                       case $? in
-                        1) waitForInput; continue ;;
+                        1) waitToProceed; continue ;;
                         2) continue ;;
                       esac
                       getWalletType ${wallet_name}
                       case $? in
-                        0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet for asset burning!" && waitForInput && continue ;;
+                        0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet for asset burning!" && waitToProceed && continue ;;
                       esac
                     fi
                     # Let user choose asset on wallet to burn, both base and enterprise, fee payed with same address
@@ -4902,7 +4920,7 @@ function main {
                       assets_on_wallet+=( "${asset} (${asset_ascii_name}) [enterprise addr]" )
                     done
                     echo
-                    [[ ${#assets_on_wallet[@]} -eq 0 ]] && println ERROR "${FG_RED}ERROR${NC}: Wallet doesn't contain any assets!" && waitForInput && continue
+                    [[ ${#assets_on_wallet[@]} -eq 0 ]] && println ERROR "${FG_RED}ERROR${NC}: Wallet doesn't contain any assets!" && waitToProceed && continue
                     println DEBUG "# Select Asset to burn"
                     select_opt "${assets_on_wallet[@]}" "[Esc] Cancel"
                     selection=$?
@@ -4927,7 +4945,7 @@ function main {
                     while IFS= read -r -d '' file; do
                       [[ ${asset_arr[0]} = "$(jq -r .policyID ${file})" ]] && asset_file="${file}" && break
                     done < <(find "${ASSET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name '*.asset' -print0)
-                    [[ -z "${asset_file}" ]] && println ERROR "${FG_RED}ERROR${NC}: Searched all available policies in '${ASSET_FOLDER}' for matching '.asset' file but non found!" && waitForInput && continue
+                    [[ -z "${asset_file}" ]] && println ERROR "${FG_RED}ERROR${NC}: Searched all available policies in '${ASSET_FOLDER}' for matching '.asset' file but non found!" && waitToProceed && continue
                     
                     [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="" || asset_name="${asset_arr[1]}"
                     
@@ -4940,14 +4958,14 @@ function main {
                     policy_id_file="${policy_folder}/${ASSET_POLICY_ID_FILENAME}"
                     policy_id="$(cat "${policy_id_file}")"
                     policy_ttl=$(jq -r '.scripts[0].slot //0' "${policy_script_file}")
-                    [[ ${policy_ttl} -gt 0 && ${policy_ttl} -lt $(getSlotTipRef) ]] && println ERROR "${FG_RED}ERROR${NC}: Policy expired!" && waitForInput && continue
+                    [[ ${policy_ttl} -gt 0 && ${policy_ttl} -lt $(getSlotTipRef) ]] && println ERROR "${FG_RED}ERROR${NC}: Policy expired!" && waitToProceed && continue
                     # ask amount to burn
                     println DEBUG "Available assets to burn: ${FG_LBLUE}$(formatAsset "${curr_asset_amount}")${NC}\n"
                     getAnswerAnyCust assets_to_burn "Amount (commas allowed as thousand separator)"
                     assets_to_burn="${assets_to_burn//,}"
                     [[ ${assets_to_burn} = "all" ]] && assets_to_burn=${curr_asset_amount}
-                    if ! isNumber ${assets_to_burn}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitForInput && continue; fi
-                    [[ ${assets_to_burn} -gt ${curr_asset_amount} ]] && println ERROR "${FG_RED}ERROR${NC}: Amount exceeding assets in address, you can only burn ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}" && waitForInput && continue
+                    if ! isNumber ${assets_to_burn}; then println ERROR "${FG_RED}ERROR${NC}: Invalid number, should be an integer number. Decimals not allowed!" && waitToProceed && continue; fi
+                    [[ ${assets_to_burn} -gt ${curr_asset_amount} ]] && println ERROR "${FG_RED}ERROR${NC}: Amount exceeding assets in address, you can only burn ${FG_LBLUE}$(formatAsset "${asset_amount}")${NC}" && waitToProceed && continue
                     asset_minted=$(( $(jq -r .minted "${asset_file}") - assets_to_burn ))
                     # Attach metadata?
                     metafile_param=""
@@ -4957,23 +4975,23 @@ function main {
                       0) : ;; # do nothing
                       1) fileDialog "Enter path to metadata JSON file" "${TMP_DIR}/" && echo
                         metafile=${file}
-                        [[ -z "${metafile}" ]] && println ERROR "${FG_RED}ERROR${NC}: Metadata file path empty!" && waitForInput && continue
-                        [[ ! -f "${metafile}" ]] && println ERROR "${FG_RED}ERROR${NC}: File not found: ${metafile}" && waitForInput && continue
-                        if ! jq -er . "${metafile}"; then println ERROR "${FG_RED}ERROR${NC}: Metadata file not a valid json file!" && waitForInput && continue; fi
+                        [[ -z "${metafile}" ]] && println ERROR "${FG_RED}ERROR${NC}: Metadata file path empty!" && waitToProceed && continue
+                        [[ ! -f "${metafile}" ]] && println ERROR "${FG_RED}ERROR${NC}: File not found: ${metafile}" && waitToProceed && continue
+                        if ! jq -er . "${metafile}"; then println ERROR "${FG_RED}ERROR${NC}: Metadata file not a valid json file!" && waitToProceed && continue; fi
                         metafile_param="--metadata-json-file ${metafile}"
                         ;;
                     esac
                     echo
                     # Call burn helper function
                     if ! burnAsset; then
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
                     # TODO: Update asset file
                     if [[ ! -f "${asset_file}" ]]; then echo "{}" > "${asset_file}"; fi
                     assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"$(hexToAscii "${asset_name}")\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"Burned $(formatAsset ${assets_to_burn})\"}" < "${asset_file}")
                     echo -e "${assetJSON}" > "${asset_file}"
                     echo
-                    if ! verifyTx ${addr}; then waitForInput && continue; fi
+                    if ! verifyTx ${addr}; then waitToProceed && continue; fi
                     echo
                     println "Assets successfully burned!"
                     println "Policy Name     : ${FG_GREEN}${policy_name}${NC}"
@@ -4993,7 +5011,7 @@ function main {
                          println "In Circulation  : ${FG_LBLUE}$(formatAsset ${asset_minted})${NC} (local tracking)" ;;
                     esac
                     println DEBUG "\n${FG_YELLOW}Please note that burned assets can take a couple of minutes before being reflected in wallet${NC}"
-                    waitForInput && continue
+                    waitToProceed && continue
                     ;; ###################################################################
                   register-asset)
                     clear
@@ -5004,13 +5022,13 @@ function main {
                     if ! cmdAvailable "token-metadata-creator"; then
                       println ERROR "Please follow instructions on Guild Operators site to download or build the tool:"
                       println ERROR "${FG_YELLOW}https://cardano-community.github.io/guild-operators/Build/offchain-metadata-tools/${NC}"
-                      waitForInput && continue
+                      waitToProceed && continue
                     fi
-                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to use for Cardano Token Registry" && waitForInput && continue
+                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to use for Cardano Token Registry" && waitToProceed && continue
                     println DEBUG "# Select the policy to use for Cardano Token Registry"
                     selectPolicy "all" "${ASSET_POLICY_SK_FILENAME}" "${ASSET_POLICY_SCRIPT_FILENAME}" "${ASSET_POLICY_ID_FILENAME}"
                     case $? in
-                      1) waitForInput; continue ;;
+                      1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
                     policy_folder="${ASSET_FOLDER}/${policy_name}"
@@ -5041,8 +5059,8 @@ function main {
                     fi
                     println "Please enter the asset name as part of PolicyID.AssetName to create registry file for, either a previously minted coin or new"
                     getAnswerAnyCust asset_name "Asset Name (empty valid)"
-                    [[ ${asset_name} =~ ^[^[:alnum:]]$ ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name should only contain alphanummeric chars!" && waitForInput && continue
-                    [[ ${#asset_name} -gt 32 ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name is limited to 32 chars in length!" && waitForInput && continue
+                    [[ ${asset_name} =~ ^[^[:alnum:]]$ ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name should only contain alphanummeric chars!" && waitToProceed && continue
+                    [[ ${#asset_name} -gt 32 ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name is limited to 32 chars in length!" && waitToProceed && continue
                     asset_file="${policy_folder}/${asset_name}.asset"
                     echo
                     sequence_number=0
@@ -5056,21 +5074,21 @@ function main {
                     fi
                     println DEBUG "# Enter metadata (optional fields can be left empty)"
                     getAnswerAnyCust meta_name "Name        [${FG_RED}required${NC}] (Max. 50 chars) "
-                    [[ -z ${meta_name} || ${#meta_name} -gt 50 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata name is a required field and limited to 50 chars in length!" && waitForInput && continue
+                    [[ -z ${meta_name} || ${#meta_name} -gt 50 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata name is a required field and limited to 50 chars in length!" && waitToProceed && continue
                     getAnswerAnyCust meta_desc "Description [${FG_RED}required${NC}] (Max. 500 chars)"
-                    [[ -z ${meta_desc} || ${#meta_desc} -gt 500 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata description is a required field and limited to 500 chars in length!" && waitForInput && continue
+                    [[ -z ${meta_desc} || ${#meta_desc} -gt 500 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata description is a required field and limited to 500 chars in length!" && waitToProceed && continue
                     getAnswerAnyCust meta_ticker "Ticker      [${FG_YELLOW}optional${NC}] (3-9 chars)     "
-                    [[ -n ${meta_ticker} && ( ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 9 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata ticker is limited to 3-9 chars in length!" && waitForInput && continue
+                    [[ -n ${meta_ticker} && ( ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 9 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata ticker is limited to 3-9 chars in length!" && waitToProceed && continue
                     getAnswerAnyCust meta_url "URL         [${FG_YELLOW}optional${NC}] (Max. 250 chars)"
-                    [[ -n ${meta_url} && ( ! ${meta_url} =~ https://.* || ${#meta_url} -gt 250 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Invalid metadata URL format or greater than 250 char limit!" && waitForInput && continue
+                    [[ -n ${meta_url} && ( ! ${meta_url} =~ https://.* || ${#meta_url} -gt 250 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Invalid metadata URL format or greater than 250 char limit!" && waitToProceed && continue
                     getAnswerAnyCust meta_decimals "Decimals    [${FG_YELLOW}optional${NC}]"
-                    [[ -n ${meta_decimals} ]] && ! isNumber ${meta_decimals} && println ERROR "\n${FG_RED}ERROR${NC}: Invalid decimal number" && waitForInput && continue
+                    [[ -n ${meta_decimals} ]] && ! isNumber ${meta_decimals} && println ERROR "\n${FG_RED}ERROR${NC}: Invalid decimal number" && waitToProceed && continue
                     fileDialog "Logo/Icon   [${FG_YELLOW}optional${NC}] (PNG, <64kb)    " "${TMP_DIR}/"
                     meta_logo="${file}"
                     if [[ -n ${meta_logo} ]]; then
-                      [[ ! -f ${meta_logo} ]] && println ERROR "\n${FG_RED}ERROR${NC}: Logo not found!" && waitForInput && continue
-                      [[ $(wc -c ${meta_logo} | cut -d' ' -f1) -gt 64000 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Logo more than 64kb in size!" && waitForInput && continue
-                      [[ $(file -b ${meta_logo}) != "PNG"* ]] && println ERROR "\n${FG_RED}ERROR${NC}: Logo not of PNG image type!" && waitForInput && continue
+                      [[ ! -f ${meta_logo} ]] && println ERROR "\n${FG_RED}ERROR${NC}: Logo not found!" && waitToProceed && continue
+                      [[ $(wc -c ${meta_logo} | cut -d' ' -f1) -gt 64000 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Logo more than 64kb in size!" && waitToProceed && continue
+                      [[ $(file -b ${meta_logo}) != "PNG"* ]] && println ERROR "\n${FG_RED}ERROR${NC}: Logo not of PNG image type!" && waitToProceed && continue
                     fi
                     
                     asset_subject="${policy_id}$(asciiToHex "${asset_name}")"
@@ -5088,33 +5106,33 @@ function main {
                     [[ -n ${meta_decimals} && ${meta_decimals} -gt 0 ]] && cmd_args+=( "--decimals" "${meta_decimals}" )
                     [[ -n ${meta_logo} ]] && cmd_args+=( "--logo" "${meta_logo}" )
                     
-                    pushd ${policy_folder} &>/dev/null || { println ERROR "\n${FG_RED}ERROR${NC}: unable to change directory to: ${policy_folder}" && waitForInput && continue; }
+                    pushd ${policy_folder} &>/dev/null || { println ERROR "\n${FG_RED}ERROR${NC}: unable to change directory to: ${policy_folder}" && waitToProceed && continue; }
                     
                     # Create JSON draft
                     println DEBUG false "\nCreating Cardano Metadata Registry JSON draft file ..."
-                    ! meta_file=$(token-metadata-creator "${cmd_args[@]}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator draft:\n${meta_file}" && popd >/dev/null && waitForInput && continue
+                    ! meta_file=$(token-metadata-creator "${cmd_args[@]}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator draft:\n${meta_file}" && popd >/dev/null && waitToProceed && continue
                     println DEBUG " ${FG_GREEN}OK${NC}!"
                     
                     # Update the sequence number if needed
                     if [[ ${sequence_number} -ne 0 ]]; then
                       println DEBUG false "Updating sequence number to ${FG_LBLUE}${sequence_number}${NC} ..."
-                      ! sed -i "s/\"sequenceNumber\":\ .*,/\"sequenceNumber\":\ ${sequence_number},/g" ${meta_file} && popd >/dev/null && waitForInput && continue
+                      ! sed -i "s/\"sequenceNumber\":\ .*,/\"sequenceNumber\":\ ${sequence_number},/g" ${meta_file} && popd >/dev/null && waitToProceed && continue
                       println DEBUG " ${FG_GREEN}OK${NC}!"
                     fi
                     
                     # Signing draft file with policy signing key
                     println DEBUG false "Signing draft file with policy signing key ..."
-                    ! meta_file=$(token-metadata-creator entry ${asset_subject} -a "${policy_sk_file}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator signing:\n${meta_file}" && popd >/dev/null && waitForInput && continue
+                    ! meta_file=$(token-metadata-creator entry ${asset_subject} -a "${policy_sk_file}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator signing:\n${meta_file}" && popd >/dev/null && waitToProceed && continue
                     println DEBUG " ${FG_GREEN}OK${NC}!"
                     
                     # Finalizing the draft file
                     println DEBUG false "Finalizing the draft file ..."
-                    ! meta_file=$(token-metadata-creator entry ${asset_subject} --finalize 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator finalize:\n${meta_file}" && popd >/dev/null && waitForInput && continue
+                    ! meta_file=$(token-metadata-creator entry ${asset_subject} --finalize 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator finalize:\n${meta_file}" && popd >/dev/null && waitToProceed && continue
                     println DEBUG " ${FG_GREEN}OK${NC}!"
                     
                     # Validating the final metadata registry submission file
                     println DEBUG false "Validating the final metadata registry submission file ..."
-                    ! output=$(token-metadata-creator validate ${meta_file} 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator validation:\n${output}" && popd >/dev/null && waitForInput && continue
+                    ! output=$(token-metadata-creator validate ${meta_file} 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator validation:\n${output}" && popd >/dev/null && waitToProceed && continue
                     println DEBUG " ${FG_GREEN}OK${NC}!"
                     
                     popd &>/dev/null || println ERROR "\n${FG_RED}ERROR${NC}: unable to return to previous directory!"
@@ -5139,7 +5157,7 @@ function main {
                         ;;
                     esac
                     
-                    waitForInput && continue
+                    waitToProceed && continue
                     
                     ;; ###################################################################
                 esac # advanced >> multi-asset sub OPERATION
@@ -5195,7 +5213,7 @@ function main {
               else
                 println "\n${FG_LBLUE}${key_del_cnt}${NC} private key(s) found and deleted!"
               fi
-              waitForInput && continue
+              waitToProceed && continue
               ;; ###################################################################
           esac # advanced sub OPERATION
         done # Advanced loop

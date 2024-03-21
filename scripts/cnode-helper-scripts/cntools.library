@@ -81,15 +81,14 @@ println() {
     shift
   fi
   case $log_level in
-    OFF) printf "%b${newline}" "$@" >&6 ;;
+    OFF) printf "%b${newline}" "$@" ;;
     LOG) logln "DEBUG" "$@" ;;
-    DEBUG) printf "%b${newline}" "$@" >&6; logln "DEBUG" "$@" ;;
-    INFO) printf "%b${newline}" "$@" ;;
+    DEBUG) printf "%b${newline}" "$@"; logln "DEBUG" "$@" ;;
+    INFO) printf "%b${newline}" "$@"; logln "INFO" "$@" ;;
     ACTION) logln "ACTION" "$@" ;;
-    ERROR) printf "%b${newline}" "$@" >&2 ;;
+    ERROR) printf "%b${newline}" "$@"; logln "ERROR" "$@" ;;
     *) printf "%b${newline}" "${log_level}"; [[ $# -ge 1 ]] && printf "%b${newline}" "$@" ;;
   esac
-  sleep 0.01 # hack, sleep 10ms after each print to preserve order of execution
 }
 
 # Command     : getAnswerAnyCust [variable name] [log] [question]
@@ -99,7 +98,6 @@ println() {
 #             : log            >  [true|false] log question (default: true)
 #             : question       >  what to ask user to input
 getAnswerAnyCust() {
-  sleep 0.1 # sleep 100ms to flush print jobs
   var_name=$1
   shift
   local log_question=true
@@ -107,7 +105,7 @@ getAnswerAnyCust() {
     [[ $1 = false ]] && log_question=false
     shift
   fi
-  getAnswerAny "${var_name}" "$*" >&6
+  getAnswerAny "${var_name}" "$*"
   [[ ${log_question} = true ]] && println LOG "$*: ${!var_name}"
 }
 
@@ -120,16 +118,6 @@ archiveLog() {
   mkdir -p "${log_archive}"
   [[ -f ${CNTOOLS_LOG} ]] && mv -f "${CNTOOLS_LOG}" "${log_archive}/${log_file}_$(date +%s)"
   find "${log_archive}" -maxdepth 1 -type f -name "${log_file}*" -printf '%Ts\t%p\n' | sort -n | head -n -10 | cut -f 2- | xargs rm -rf
-}
-
-# Command     : waitForInput [optional: message]
-# Description : wait for user keypress to continue
-# Parameters  : message  >  [optional]: override default 'press any key to proceed ..' message
-waitForInput() {
-  sleep 0.1 # sleep 100ms to flush print jobs
-  exec >&6 # normal stdout
-  waitToProceed "$*"
-  exec >&8 # custom stdout
 }
 
 # Command     : protectionPreRequisites
@@ -241,16 +229,13 @@ fileDialog() {
     getAnswerAnyCust file "$1" && return
   else
     println DEBUG false "${1}: "
-    waitForInput "Press any key to open the file explorer [cancel to skip!]"
+    waitToProceed "Press any key to open the file explorer [cancel to skip!]"
   fi
-  sleep 0.1 # sleep 100ms to flush print jobs
-  exec >&6 2>&7 # normal stdout/stderr
   dialogSetup
   [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
   dialog --clear --keep-tite --title "$1" --fselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)) 2>"${TMP_DIR}/dialog.out"
   file=$([[ -f "${TMP_DIR}/dialog.out" ]] && cat "${TMP_DIR}/dialog.out" || echo "")
   tput cup $(( ${ROW#*[} -1 )) $(( COL -1 ))
-  exec >&8 2>&9 # custom stdout/stderr
   println DEBUG "${FG_LGRAY}${file}${NC}"
 }
 # Command     : dirDialog [title] [optional: start dir]
@@ -263,16 +248,13 @@ dirDialog() {
     getAnswerAnyCust dir "$1" && return
   else
     println DEBUG false "${1}: "
-    waitForInput "Press any key to open the file explorer [cancel to skip!]"
+    waitToProceed "Press any key to open the file explorer [cancel to skip!]"
   fi
-  sleep 0.1 # sleep 100ms to flush print jobs
-  exec >&6 2>&7 # normal stdout/stderr
   dialogSetup
   [[ -n $2 ]] && start_path="$2" || start_path="${TMP_DIR}/"
   dialog --clear --keep-tite --title "$1" --dselect "${start_path}" $(($(tput lines)-14)) $(($(tput cols)-10)) 2>"${TMP_DIR}/dialog.out"
   dir=$([[ -f "${TMP_DIR}/dialog.out" ]] && cat "${TMP_DIR}/dialog.out" || echo "")
   tput cup $(( ${ROW#*[} -1 )) $(( COL -1 ))
-  exec >&8 2>&9 # custom stdout/stderr
   println DEBUG "${FG_LGRAY}${dir}${NC}"
 }
 
@@ -300,13 +282,18 @@ key_input()        { key2=""
 opt_shortcut()     { [[ "$1" =~ ^\[([[:alnum:]]+)\].* ]] && echo ${BASH_REMATCH[1]}; }
 opt_firstchar()    { printf "${1:0:1}" | tr '[:upper:]' '[:lower:]'; }
 selectOption() {
-  sleep 0.1 # sleep for a short time to get tty in sync
 
   # initially print empty new lines (scroll down if at bottom of screen)
   printf "\n" && for opt; do printf "\n"; done
 
-  # determine current screen position for overwriting the options
-  local startrow=$(( $(get_cursor_row) - $# - 1 ))
+  # determine current screen position for overwriting the options or return -1 on failure
+  clrbuf
+  local startrow=-1
+  for i in {1..10}; do
+    local cursor_row=$(get_cursor_row)
+    isNumber ${cursor_row} && startrow=$(( cursor_row - $# - 1 )) && break
+  done
+  [[ ${startrow} -eq -1 ]] && return 255
 
   cursor_blink_off
 
@@ -370,15 +357,16 @@ selectOption() {
 # Description : Helper function to selectOption
 # Parameters  : optX  >  a list of available options to choose from
 select_opt() {
-  sleep 0.1 # sleep 100ms to flush print jobs
-  exec >&6 # normal stdout
   local opts=()
   for item in "$@"; do
     [[ -n ${item} ]] && opts+=("${item}")
   done
   selectOption "${opts[@]}"
   local answer=$?
-  exec >&8 # custom stdout
+  if [[ ${answer} -eq 255 ]]; then
+    println ERROR "\n${FG_RED}ERROR${NC}: Failed to print menu, default selection used!\n"
+    return 0
+  fi
   selected_value="${opts[${answer}]}"
   println DEBUG "Selected value: ${selected_value}"
   return $answer
@@ -391,7 +379,7 @@ select_opt() {
 getDirs() {
   if [[ ! -d "$1" ]]; then
     println ERROR "${FG_RED}ERROR${NC}: Missing folder: $1"
-    waitForInput && return 1
+    waitToProceed && return 1
   fi
   dirs=()
   while IFS= read -r -d '' dir; do
@@ -406,15 +394,17 @@ getDirs() {
 #             : dirX  >  array of dirs to include in selection, '[Esc] Cancel' option added to all selections
 # Return      : populates ${dir_name} variable
 selectDir() {
-  sleep 0.1 # sleep 100ms to flush print jobs
-  exec >&6 # normal stdout
   local type=$1 && shift
   dirs=( "$@" )
   dirs+=("[Esc] Cancel")
   selectOption "${dirs[@]}"
-  dir_name=${dirs[$?]}
-  [[ "${dir_name}" = "[Esc] Cancel" ]] && return 1
-  exec >&8 # custom stdout
+  local answer=$?
+  if [[ ${answer} -eq 255 ]]; then
+    println ERROR "\n${FG_RED}ERROR${NC}: Failed to print menu, please try again or report issue!"
+    return 1
+  fi
+  dir_name=${dirs[${answer}]}
+  [[ "${dir_name}" = "[Esc] Cancel" ]] && return 2
   println DEBUG "Selected ${type}: ${dir_name}"
 }
 
@@ -428,7 +418,7 @@ selectWallet() {
   mode=$1 && shift
 
   if [[ ${mode} = "cache" && ${#wallet_dirs_filtered[@]} -gt 0 ]]; then
-    if ! selectDir "wallet" "${wallet_dirs_filtered[@]}"; then return 2; fi # ${dir_name} populated by selectDir function
+    if ! selectDir "wallet" "${wallet_dirs_filtered[@]}"; then return $?; fi # ${dir_name} populated by selectDir function
     wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
     return 0
   fi
@@ -621,7 +611,7 @@ selectWallet() {
     return 1
   fi
 
-  if ! selectDir "wallet" "${wallet_dirs_filtered[@]}"; then return 2; fi # ${dir_name} populated by selectDir function
+  if ! selectDir "wallet" "${wallet_dirs_filtered[@]}"; then return $?; fi # ${dir_name} populated by selectDir function
   wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
 }
 
@@ -666,7 +656,7 @@ selectPool() {
     return 1
   fi
   [[ ${enc_req_files} -gt 0 ]] && println DEBUG "${FG_YELLOW}encrypted pools found but NOT listed, please decrypt to show${NC}"
-  if ! selectDir "pool" "${pool_dirs[@]}"; then return 2; fi # ${dir_name} populated by selectDir function
+  if ! selectDir "pool" "${pool_dirs[@]}"; then return $?; fi # ${dir_name} populated by selectDir function
   pool_name="$(echo ${dir_name} | cut -d' ' -f1)"
 }
 
@@ -817,7 +807,7 @@ selectPolicy() {
     return 1
   fi
   [[ ${enc_req_files} -gt 0 ]] && println DEBUG "${FG_YELLOW}encrypted policies found but NOT listed, please decrypt to show${NC}"
-  if ! selectDir "policy" "${policy_dirs[@]}"; then return 2; fi # ${dir_name} populated by selectDir function
+  if ! selectDir "policy" "${policy_dirs[@]}"; then return $?; fi # ${dir_name} populated by selectDir function
   policy_name="$(echo ${dir_name} | cut -d' ' -f1)"
 }
 
@@ -839,7 +829,7 @@ selectAsset() {
     println ERROR "${FG_YELLOW}WARN${NC}: No assets found on disk!"
     return 1
   fi
-  if ! selectDir "asset" "${asset_list[@]}"; then return 2; fi # ${dir_name} populated by selected value
+  if ! selectDir "asset" "${asset_list[@]}"; then return $?; fi # ${dir_name} populated by selected value
   policy_dir="${dir_name%%/*}"
   asset_name="${dir_name##*/}"
   asset_file="${ASSET_FOLDER}/${policy_dir}/${asset_name}.asset"
@@ -850,11 +840,8 @@ selectAsset() {
 # Parameters  : confirm  >  [optional] force user to provide password twice for confirmation
 # Return      : populates ${password} variable, make sure to unset variable when done
 getPasswordCust() {
-  sleep 0.1 # sleep 100ms to flush print jobs
-  exec >&6 2>&7 # normal stdout/stderr
   getPassword 8 $1
   return_code=$?
-  exec >&8 2>&9 # custom stdout/stderr
   return ${return_code}
 }
 
@@ -863,15 +850,11 @@ getPasswordCust() {
 # Parameters  : file      >  Path for file to encrypt, will get a new .gpg file extention added to filename
 #             : password  >  Password to encrypt file with
 encryptFile() {
-  sleep 0.1 # sleep 100ms to flush print jobs
-  exec >&6 2>&7 # normal stdout/stderr
   echo "${2}" | gpg --symmetric --yes --batch --cipher-algo AES256 --passphrase-fd 0 --output "${1}.gpg" "${1}" &>/dev/null && \
   safeDel "${1}" >/dev/null || {
-    exec >&8 2>&9 # custom stdout/stderr
     println ERROR "${FG_RED}ERROR${NC}: failed to encrypt ${1}"
     return 1
   }
-  exec >&8 2>&9 # custom stdout/stderr
   println DEBUG "${1} successfully encrypted"
 }
 
@@ -881,15 +864,11 @@ encryptFile() {
 # Parameters  : file      >  Path for file to decrypt, file extension .gpg required
 #             : password  >  Password to decrypt file with
 decryptFile() {
-  sleep 0.1 # sleep 100ms to flush print jobs
-  exec >&6 2>&7 # normal stdout/stderr
   echo "${2}" | gpg --decrypt --batch --yes --passphrase-fd 0 --output "${1%.*}" "${1}" &>/dev/null && \
   rm -f "${1}" || {
-    exec >&8 2>&9 # custom stdout/stderr
     println ERROR "${FG_RED}ERROR${NC}: failed to decrypt ${1}"
     return 1
   }
-  exec >&8 2>&9 # custom stdout/stderr
   println DEBUG "${1} successfully decrypted"
 }
 
@@ -956,7 +935,7 @@ verifyTx() {
       fi
       println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_tx_hashes\":[\"${tx_id}\"]' ${KOIOS_API}/tx_status?select=num_confirmations | tail -n +2"
       ! num_confirmations=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_tx_hashes":["'${tx_id}'"]}' "${KOIOS_API}/tx_status?select=num_confirmations" | tail -n +2 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${num_confirmations}\n" && return 1 # print error and return
-      [[ -n "${num_confirmations}" ]] && println DEBUG "Found! ${num_confirmations} block confirmation(s)" || printf . >&6
+      [[ -n "${num_confirmations}" ]] && println DEBUG "Found! ${num_confirmations} block confirmation(s)" || printf .
     done
   else
     if ! waitNewBlockCreated; then return 1; fi
@@ -982,9 +961,11 @@ getPayAddress() {
   pay_addr=""
   if [[ -f "${payment_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
-    if ${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
+    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       pay_addr=$(cat "${payment_addr_file}")
       return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during payment address creation!\n${stdout}"
     fi
   fi
   return 1
@@ -1002,13 +983,19 @@ getBaseAddress() {
   base_addr=""
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
-    if ${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
+    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       base_addr=$(cat "${base_addr_file}")
       return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${stdout}"
     fi
   elif [[ $# -eq 2 && -f "${1}" && -f "${2}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${1} --stake-verification-key-file ${2} ${NETWORK_IDENTIFIER}"
-    base_addr=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${1}" --stake-verification-key-file "${2}" ${NETWORK_IDENTIFIER} 2>/dev/null)
+    if base_addr=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${1}" --stake-verification-key-file "${2}" ${NETWORK_IDENTIFIER} 2>&1); then
+      return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${base_addr}"
+    fi
   fi
   return 1
 }
@@ -1024,13 +1011,15 @@ getRewardAddress() {
   reward_addr=""
   if [[ -f "${stake_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file ${stake_vk_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
-    if ${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>/dev/null; then
+    if stdout=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       reward_addr=$(cat "${stake_addr_file}")
       return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during reward address creation!\n${stdout}"
     fi
   elif [[ -f "${1}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file ${1} ${NETWORK_IDENTIFIER}"
-    reward_addr=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>/dev/null)
+    getRewardAddressFromKey ${1}
+    return $?
   fi
   return 1
 }
@@ -1041,7 +1030,10 @@ getRewardAddress() {
 # Return      : populates ${reward_addr}
 getRewardAddressFromKey() {
   println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file ${1} ${NETWORK_IDENTIFIER}"
-  reward_addr=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>/dev/null)
+  if ! reward_addr=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println LOG "\n${FG_RED}ERROR${NC}: failure during reward address creation!\n${base_addr}"
+    return 1
+  fi
 }
 
 # Command     : getAddressInfo [address]
@@ -1050,7 +1042,10 @@ getRewardAddressFromKey() {
 # Return      : populates ${address_info}
 getAddressInfo() {
   println ACTION "${CCLI} ${NETWORK_ERA} address info --address $1"
-  address_info=$(${CCLI} ${NETWORK_ERA} address info --address $1)
+  if ! address_info=$(${CCLI} ${NETWORK_ERA} address info --address $1 2>&1); then
+    println LOG "\n${FG_RED}ERROR${NC}: failure during reward address creation!\n${base_addr}"
+    return 1
+  fi
 }
 
 # Command     : getBalance [address]
@@ -1236,6 +1231,7 @@ getAssetsTxOut() {
 #             : string as passed to --tx-out parameter
 # Return      : populates ${min_utxo_out}
 getMinUTxO() {
+  unset min_utxo_out
   min_utxo_args=(
     ${NETWORK_ERA}
     transaction calculate-min-required-utxo
@@ -1243,7 +1239,11 @@ getMinUTxO() {
     --tx-out "$1"
   )
   println ACTION "${CCLI} ${min_utxo_args[*]}"
-  min_utxo_out=$([[ "$(${CCLI} "${min_utxo_args[@]}")" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  if ! stdout=$(${CCLI} "${min_utxo_args[@]}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during min utxo calculation!\n${stdout}"
+    return 1
+  fi
+  min_utxo_out=$([[ ${stdout} =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
 }
 
 # Command     : getWalletRewards [wallet name] [force]
@@ -1302,9 +1302,9 @@ getRewardInfoKoios() {
 # Parameters  : stake address  >  the address from stake.vkey
 # Return      : populates ${reward_lovelace}
 getRewardsFromAddr() {
-  println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
-  stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1})
   reward_lovelace=0
+  println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
+  ! stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}) && println "ERROR" "\n${FG_RED}NODE CLI ERROR${NC}: ${stake_address_info}\n" && return 1 # print error and return
   for reward_entry in $(jq -r '.[] | @base64' <<< "${stake_address_info}"); do
     _jq() { base64 -d <<< ${reward_entry} | jq -r "${1}"; }
     reward_lovelace=$(( reward_lovelace + $(_jq '.rewardAccountBalance //0') ))
@@ -1321,7 +1321,7 @@ isWalletRegistered() {
       [[ ${reward_status[${reward_addr}]} = registered ]] && return 0
     else
       println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}"
-      stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr})
+      ! stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}) && println "ERROR" "\n${FG_RED}NODE CLI ERROR${NC}: ${stake_address_info}\n" && return 1 # print error and return
       [[ -n "${stake_address_info}" && $(jq -r 'length' <<< ${stake_address_info}) -gt 0 ]] && return 0
     fi
   fi
@@ -1413,7 +1413,7 @@ registerStakeWallet() {
 
   if [[ -z $2 || $2 = "false" ]]; then
     println DEBUG "Wallet ${FG_GREEN}${wallet_name}${NC} not registered on chain"
-    waitForInput "press any key to continue with registration"
+    waitToProceed "press any key to continue with registration"
   fi
 
   stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
@@ -1423,7 +1423,9 @@ registerStakeWallet() {
   getBalance ${base_addr}
   
   println ACTION "${CCLI} ${NETWORK_ERA} stake-address registration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cert_file}"
-  if ! ${CCLI} ${NETWORK_ERA} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}"; then return 1; fi
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during stake registration certificate creation!\n${stdout}"; return 1
+  fi
 
   if ! getTTL; then return 1; fi
   stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
@@ -1442,7 +1444,7 @@ registerStakeWallet() {
 
   if ! buildTx; then return 1; fi
   
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
   
   newBalance=$(( ${assets[lovelace]} - min_fee - stakeAddressDeposit ))
   println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakeAddressDeposit}))"
@@ -1455,7 +1457,7 @@ registerStakeWallet() {
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
-  getMinUTxO "${tx_out}"
+  getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
@@ -1509,7 +1511,9 @@ deregisterStakeWallet() {
 
   stake_dereg_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_DEREG_FILENAME}"
   println ACTION "${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_dereg_file}"
-  if ! ${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_dereg_file}"; then return 1; fi
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_dereg_file}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during stake deregistration certificate creation!\n${stdout}"; return 1
+  fi
 
   if ! getTTL; then return 1; fi
   
@@ -1529,7 +1533,7 @@ deregisterStakeWallet() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
   newBalance=$(( ${assets[lovelace]} + stakeAddressDeposit - min_fee ))
   println LOG "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${stakeAddressDeposit}) - $(formatLovelace ${min_fee}))"
@@ -1542,7 +1546,7 @@ deregisterStakeWallet() {
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
-  getMinUTxO "${tx_out}"
+  getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and returned key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
@@ -1630,7 +1634,7 @@ sendAssets() {
 
   if ! buildTx; then return 1; fi
   
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} ${outCount} 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} ${outCount} 1 || return 1
   
   build_args=(
     ${tx_in}
@@ -1643,7 +1647,7 @@ sendAssets() {
   if [[ ${outCount} -eq 1 ]]; then # all assets to destination, nothing to return
     newBalance=0
     tx_out="${d_addr}+$(( ${assets_to_send[lovelace]} - min_fee ))${assets_tx_out_d}"
-    getMinUTxO "${tx_out}"
+    getMinUTxO "${tx_out}" || return 1
     if [[ ${assets_to_send[lovelace]} -lt ${min_utxo_out} ]]; then
       println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in address ( $(formatLovelace ${assets_to_send[lovelace]}) < $(formatLovelace ${min_utxo_out}) )"
       println ERROR "Top up wallet with enough ADA to cover minimum UTxO balance"
@@ -1731,7 +1735,7 @@ delegate() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -1744,7 +1748,7 @@ delegate() {
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
-  getMinUTxO "${tx_out}"
+  getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
@@ -1809,7 +1813,7 @@ withdrawRewards() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
   newBalance=$(( ${assets[lovelace]} - min_fee + reward_lovelace ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -1822,7 +1826,7 @@ withdrawRewards() {
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
-  getMinUTxO "${tx_out}"
+  getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and withdrawal, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
@@ -1900,7 +1904,7 @@ registerPool() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_count}
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_count} || return 1
   
   newBalance=$(( ${assets[lovelace]} - min_fee - stakePoolDeposit ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakePoolDeposit}) )"
@@ -1913,7 +1917,7 @@ registerPool() {
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
-  getMinUTxO "${tx_out}"
+  getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and pool registration deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
@@ -2013,7 +2017,7 @@ modifyPool() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_count}
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_count} || return 1
   
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -2026,7 +2030,7 @@ modifyPool() {
   fi
   
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
-  getMinUTxO "${tx_out}"
+  getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
@@ -2122,7 +2126,7 @@ deRegisterPool() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -2135,7 +2139,7 @@ deRegisterPool() {
   fi
 
   tx_out="${addr}+${newBalance}${assets_tx_out}"
-  getMinUTxO "${tx_out}"
+  getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
@@ -2212,20 +2216,31 @@ rotatePoolKeys() {
 
   if [[ ! -f ${pool_coldkey_vk_file} ]]; then # lets re-generate it from cold signing key
     println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${pool_coldkey_sk_file} --verification-key-file ${pool_coldkey_vk_file}"
-    ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${pool_coldkey_sk_file}" --verification-key-file "${pool_coldkey_vk_file}" && return 1
-    output=$(jq '.description = "Stake Pool Operator Verification Key"' "${pool_coldkey_vk_file}") && jq <<< ${output} > "${pool_coldkey_vk_file}"
+    if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${pool_coldkey_sk_file}" --verification-key-file "${pool_coldkey_vk_file}" 2>&1); then
+      println ERROR "\n${FG_RED}ERROR${NC}: failure during cold verification key creation!\n${stdout}"; return 1
+    fi
+    println ACTION "jq '.description = \"Stake Pool Operator Verification Key\"' ${pool_coldkey_vk_file}"
+    if ! stdout=$(jq '.description = "Stake Pool Operator Verification Key"' "${pool_coldkey_vk_file}" 2>&1); then
+      println ERROR "\n${FG_RED}ERROR${NC}: failure during cold verification key description update!\n${stdout}"; return 1
+    else
+      jq <<< ${stdout} > "${pool_coldkey_vk_file}"
+    fi
   fi
 
   current_kes_period=$(getCurrentKESperiod)
   echo "${current_kes_period}" > ${pool_saved_kes_start}
 
   println ACTION "${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
-  ! ${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" && return 1
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during KES key creation!\n${stdout}"; return 1
+  fi
 
   p_opcert=""
   if [[ $# -eq 1 ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $1 --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-    ! ${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $1 --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
+    if ! stdout=$(${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $1 --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" 2>&1); then
+      println ERROR "\n${FG_RED}ERROR${NC}: failure during operational certificate counter creation!\n${stdout}"; return 1
+    fi
   elif [[ -n ${KOIOS_API} ]]; then
     ! getPoolID "${pool_name}" && println "ERROR" "\n${FG_RED}ERROR${NC}: failed to get pool ID!\n" && return 1
     println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_pool_bech32_ids\":[\"${pool_id_bech32}\"]}' ${KOIOS_API}/pool_info"
@@ -2236,7 +2251,9 @@ rotatePoolKeys() {
       new_counter_nbr=0 # null returned = no block on chain for this pool
     fi
     println ACTION "${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-    ! ${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
+    if ! stdout=$(${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" 2>&1); then
+      println ERROR "\n${FG_RED}ERROR${NC}: failure during operational certificate counter creation!\n${stdout}"; return 1
+    fi
   elif [[ -f ${pool_opcert_file} ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
     if ! kes_period_info=$(${CCLI} ${NETWORK_ERA} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
@@ -2248,7 +2265,9 @@ rotatePoolKeys() {
       new_counter_nbr=0 # null returned = no block on chain for this pool
     fi
     println ACTION "${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-    ! ${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" && return 1
+    if ! stdout=$(${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" 2>&1); then
+      println ERROR "\n${FG_RED}ERROR${NC}: failure during operational certificate counter creation!\n${stdout}"; return 1
+    fi
   else
     println "ERROR" "\n${FG_RED}ERROR${NC}: op cert file missing and Koios disabled/unavailable. Unable to get current on-chain counter value!\n" && return 1
   fi
@@ -2256,17 +2275,19 @@ rotatePoolKeys() {
   if [[ ${needHWCLI} = true ]]; then
     if ! unlockHWDevice "issue the opcert"; then return 1; fi
     println ACTION "cardano-hw-cli node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --hw-signing-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
-    ! cardano-hw-cli node issue-op-cert \
+    if ! stdout=$(cardano-hw-cli node issue-op-cert \
     --kes-verification-key-file "${pool_hotkey_vk_file}" \
     --hw-signing-file "${pool_coldkey_sk_file}" \
     --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" \
     --kes-period "${current_kes_period}" \
-    --out-file "${pool_opcert_file}" \
-    && return 1
-
+    --out-file "${pool_opcert_file}" 2>&1); then
+      println ERROR "\n${FG_RED}ERROR${NC}: failure during hardware operational certificate creation!\n${stdout}"; return 1
+    fi
   else
     println ACTION "${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
-    ! ${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" && return 1
+    if ! stdout=$(${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" 2>&1); then
+      println ERROR "\n${FG_RED}ERROR${NC}: failure during operational certificate creation!\n${stdout}"; return 1
+    fi
   fi
 
   chmod 700 ${POOL_FOLDER}/${pool_name}/*
@@ -2308,7 +2329,7 @@ sendMetadata() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 1 || return 1
   
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -2321,7 +2342,7 @@ sendMetadata() {
   fi
   
   tx_out="${addr}+${newBalance}${assets_tx_out}"
-  getMinUTxO "${tx_out}"
+  getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
@@ -2393,7 +2414,7 @@ mintAsset() {
 
   if ! buildTx; then return 1; fi
   
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -2487,7 +2508,7 @@ burnAsset() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -2500,7 +2521,7 @@ burnAsset() {
   fi
   
   tx_out="${addr}+${newBalance}${assets_tx_out}"
-  getMinUTxO "${tx_out}"
+  getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
@@ -2558,7 +2579,9 @@ burnAsset() {
 # Parameters  : build_args  >  an array with all the arguments to assemble the transaction
 buildTx() {
   println ACTION "${CCLI} ${NETWORK_ERA} transaction build-raw ${build_args[*]}"
-  ${CCLI} ${NETWORK_ERA} transaction build-raw "${build_args[@]}"
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} transaction build-raw "${build_args[@]}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during transaction building!\n${stdout}"; return 1
+  fi
 }
 
 # Command     : calcMinFee [rax tx file] 
@@ -2580,7 +2603,10 @@ calcMinFee() {
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
-  min_fee=$([[ "$(${CCLI} ${min_fee_args[*]})" =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
+  if ! stdout=$(${CCLI} "${min_fee_args[*]}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during minimum fee calculation!\n${stdout}"; return 1
+  fi
+  min_fee=$([[ ${stdout} =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
   println LOG "fee is $(formatLovelace ${min_fee}) ADA"
 }
 
@@ -2629,7 +2655,7 @@ witnessTx() {
         --out-file "${tx_witness}"
       )
       println ACTION "${witness_command[@]}"
-      if ! "${witness_command[@]}"; then println ERROR "\n${FG_RED}ERROR${NC}: during transaction signing !!" && return 1; fi
+      if ! stdout=$("${witness_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: during transaction signing !!\n${stdout}" && return 1; fi
     fi
     tx_witness_files+=( "${tx_witness}" )
   done
@@ -2638,7 +2664,7 @@ witnessTx() {
   if [[ ${isHW} = 'Y' ]]; then
     if ! unlockHWDevice "witness the transaction"; then return 1; fi
     println ACTION "${hw_witness_command[@]}"
-    if ! "${hw_witness_command[@]}"; then println ERROR "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!" && return 1; fi
+    if ! stdout=$("${hw_witness_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!\n${stdout}" && return 1; fi
   fi
 }
 
@@ -2665,7 +2691,7 @@ assembleTx() {
       --out-file "${tx_signed}"
     )
     println ACTION "${sign_command[@]}"
-    "${sign_command[@]}"
+    if ! stdout=$("${sign_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: during hardware wallet signing !!\n${stdout}" && return 1; fi
   else
     println ERROR "\n${FG_RED}ERROR${NC}: no witness files provided, unable to assemble tx!"
     return 1
@@ -2684,11 +2710,13 @@ submitTx() {
       --tx-file "${tx_signed}"
     )
     println ACTION "${txid_command[@]}"
-    tx_id=$("${txid_command[@]}") # used by verifyTx to check if its been put on chain
+    if ! tx_id=$("${txid_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: during transaction hashing !!\n${tx_id}" && return 1; fi
     txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
     xxd -p -r <<< $(jq .cborHex ${tx_signed}) > ${txdata}
     println ACTION "curl -sSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
-    curl -sSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" >/dev/null
+    if ! stdout=$(curl -sSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
+      println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
+    fi
   else
     submit_command=(
       ${CCLI} ${NETWORK_ERA} transaction submit
@@ -2696,7 +2724,7 @@ submitTx() {
       ${NETWORK_IDENTIFIER}
     )
     println ACTION "${submit_command[@]}"
-    "${submit_command[@]}"
+    if ! stdout=$("${submit_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1; fi
   fi
 }
 
@@ -2707,26 +2735,32 @@ transformRawTx() {
   tx_raw="$1"
   tx_raw_tmp="$(mktemp "${TMP_DIR}/tx.raw_XXXXXXXXXX")"
   println ACTION "cardano-hw-cli transaction transform --tx-file ${tx_raw} --out-file ${tx_raw_tmp}"
-  if ! cardano-hw-cli transaction transform --tx-file "${tx_raw}" --out-file "${tx_raw_tmp}" >/dev/null; then return 1; fi
+  if ! stdout=$(cardano-hw-cli transaction transform --tx-file "${tx_raw}" --out-file "${tx_raw_tmp}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: Transaction transform failed !!\n${stdout}"; return 1
+  fi
   println ACTION "mv ${tx_raw_tmp} ${tx_raw}"
-  if ! mv "${tx_raw_tmp}" "${tx_raw}" >/dev/null; then return 1; fi
+  if ! stdout=$(mv "${tx_raw_tmp}" "${tx_raw}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: Transaction transform failure moving temporary file to ${tx_raw} !!\n${stdout}"; return 1
+  fi
 }
 
 # Command     : unlockHWDevice [action]
 # Description : Directions to unlock and open HW device
 # Parameters  : action  >  message for action to be taken
 unlockHWDevice() {
-  if ! HWCLIversionCheck; then waitForInput && return 1; fi
-  waitForInput "${FG_BLUE}INFO${NC}: please connect and unlock hardware device" "\n  ${FG_YELLOW}Ledger${NC} - Unlock with pin and open Cardano app" "\n  ${FG_YELLOW}Trezor${NC} - Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) " "\n\nwhen done, press any key to continue"
+  if ! HWCLIversionCheck; then waitToProceed && return 1; fi
+  waitToProceed "${FG_BLUE}INFO${NC}: please connect and unlock hardware device" "\n  ${FG_YELLOW}Ledger${NC} - Unlock with pin and open Cardano app" "\n  ${FG_YELLOW}Trezor${NC} - Make sure trezor bridge is installed (https://wallet.trezor.io/#/bridge) " "\n\nwhen done, press any key to continue"
   println ACTION "cardano-hw-cli device version"
-  device_app="$(cardano-hw-cli device version)"
+  if ! device_app=$(cardano-hw-cli device version 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: accessing hardware device failed !!\n${device_app}"; return 1
+  fi
   device_app_vendor="$(cut -d' ' -f1 <<< "${device_app}")"
   device_app_version="$(cut -d' ' -f4 <<< "${device_app}")"
   println LOG "hardware device: vendor=${device_app_vendor} version=${device_app_version}"
   if [[ ! ${device_app_version} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     println ERROR "${FG_RED}ERROR${NC}: unable to identify connected hardware device, is the device plugged in and unlocked?"
     println ERROR "Make sure device is seen by OS using tools like lsusb etc and is working correctly"
-    waitForInput && return 1
+    waitToProceed && return 1
   elif [[ ${device_app_vendor} = Ledger ]]; then
     if ! versionCheck "5.0.1" "${device_app_version}"; then
       println ERROR "${FG_RED}ERROR${NC}: Cardano app version installed on Ledger is ${FG_LGRAY}v${device_app_version}${NC}, minimum required app version is ${FG_GREEN}v5.0.1${NC} !!"
@@ -2891,7 +2925,7 @@ submitPoll() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
   newBalance=$(( ${assets[lovelace]} - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
@@ -2904,7 +2938,7 @@ submitPoll() {
   fi
 
   tx_out="${addr}+${newBalance}${assets_tx_out}"
-  getMinUTxO "${tx_out}"
+  getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
@@ -2963,7 +2997,7 @@ submitPoll() {
       if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
       if ! submitTx "${tx_signed}"; then return 1; fi
       println "Poll ${FG_GREEN}${poll_txId}${NC} ballot casted to the network"
-      waitForInput && continue
+      waitToProceed && continue
   esac
 }
 
