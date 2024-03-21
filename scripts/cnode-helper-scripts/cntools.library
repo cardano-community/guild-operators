@@ -936,7 +936,7 @@ verifyTx() {
       fi
       println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_tx_hashes\":[\"${tx_id}\"]' ${KOIOS_API}/tx_status?select=num_confirmations | tail -n +2"
       ! num_confirmations=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_tx_hashes":["'${tx_id}'"]}' "${KOIOS_API}/tx_status?select=num_confirmations" | tail -n +2 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${num_confirmations}\n" && return 1 # print error and return
-      [[ -n "${num_confirmations}" ]] && println DEBUG "Found! ${num_confirmations} block confirmation(s)" || printf .
+      [[ -n "${num_confirmations}" ]] && { println DEBUG "\nTx put on chain !!"; break; } || printf .
     done
   else
     if ! waitNewBlockCreated; then return 1; fi
