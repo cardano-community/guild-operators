@@ -2604,7 +2604,7 @@ calcMinFee() {
     --protocol-params-file "${TMP_DIR}"/protparams.json
   )
   println ACTION "${CCLI} ${min_fee_args[*]}"
-  if ! stdout=$(${CCLI} "${min_fee_args[*]}" 2>&1); then
+  if ! stdout=$(${CCLI} "${min_fee_args[@]}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during minimum fee calculation!\n${stdout}"; return 1
   fi
   min_fee=$([[ ${stdout} =~ ([0-9]+) ]] && echo ${BASH_REMATCH[1]})
