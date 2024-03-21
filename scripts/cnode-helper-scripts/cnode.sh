@@ -67,7 +67,7 @@ mithril_snapshot_download() {
   if [[ ! -f "${MITHRIL_CLIENT}" ]] || [[ ! -e "${MITHRIL_CLIENT}" ]]; then 
     echo "ERROR: Could not locate mithril-client.sh script or script is not executable. Skipping mithril snapshot download!!"
   else
-    "${MITHRIL_CLIENT}" -d
+    "${MITHRIL_CLIENT}" snapshot download
   fi
 }
 
