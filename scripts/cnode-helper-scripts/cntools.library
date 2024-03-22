@@ -76,10 +76,7 @@ println() {
   local log_level=$1
   shift
   local newline="\n"
-  if [[ $1 =~ true|false ]]; then
-    [[ $1 = false ]] && newline=""
-    shift
-  fi
+  if [[ $1 = false && $# -gt 2 ]]; then unset newline; shift; elif [[ $1 = true && $# -gt 2 ]] shift; fi
   case $log_level in
     OFF) printf "%b${newline}" "$@" ;;
     LOG) logln "DEBUG" "$@" ;;
@@ -1212,6 +1209,7 @@ getAddressBalance() {
 # Command     : getAssetsTxOut [PolicyID.AssetName] [Amount]
 # Description : generate tx out string for multi-assets in wallet
 #               getBalance assumed to be run before calling this function
+#               address variable assumed to be set to selected wallet bech32 address
 # Parameters  : PolicyID.AssetName  >  optional: Adjust balance for this asset before generating output
 #               Amount              >  optional: The amount to adjust balance
 # Return      : populates ${assets_tx_out}
@@ -1222,8 +1220,8 @@ getAssetsTxOut() {
     assets[$1]=$(( old_value + $2 ))
   fi
   for idx in "${!assets[@]}"; do
-    [[ ${idx} = "lovelace" ]] && continue
-    [[ ${assets[${idx}]} -gt 0 ]] && assets_tx_out+="+${assets[${idx}]} ${idx}"
+    [[ ${idx} = *lovelace ]] && continue
+    [[ ${assets[${idx}]} -gt 0 ]] && assets_tx_out+="+${assets[${idx}]} ${idx#*,}"
   done
 }
 
@@ -1420,9 +1418,6 @@ registerStakeWallet() {
   stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
   stake_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_CERT_FILENAME}"
   
-  getBaseAddress "${wallet_name}"
-  getBalance ${base_addr}
-  
   println ACTION "${CCLI} ${NETWORK_ERA} stake-address registration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cert_file}"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake registration certificate creation!\n${stdout}"; return 1
@@ -1447,12 +1442,12 @@ registerStakeWallet() {
   
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
   
-  newBalance=$(( ${assets[lovelace]} - min_fee - stakeAddressDeposit ))
-  println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakeAddressDeposit}))"
+  newBalance=$(( base_lovelace - min_fee - stakeAddressDeposit ))
+  println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakeAddressDeposit}))"
 
-  if [[ ${assets[lovelace]} -lt $(( min_fee + stakeAddressDeposit )) ]]; then
+  if [[ ${base_lovelace} -lt $(( min_fee + stakeAddressDeposit )) ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee and key deposit!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakeAddressDeposit )))${NC} ADA"
     return 1
   fi
@@ -1536,12 +1531,12 @@ deregisterStakeWallet() {
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
-  newBalance=$(( ${assets[lovelace]} + stakeAddressDeposit - min_fee ))
-  println LOG "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${assets[lovelace]}) + $(formatLovelace ${stakeAddressDeposit}) - $(formatLovelace ${min_fee}))"
+  newBalance=$(( base_lovelace + stakeAddressDeposit - min_fee ))
+  println LOG "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) + $(formatLovelace ${stakeAddressDeposit}) - $(formatLovelace ${min_fee}))"
   
-  if [[ $(( ${assets[lovelace]} + stakeAddressDeposit )) -lt ${min_fee} ]]; then
+  if [[ $(( ${base_lovelace} + stakeAddressDeposit )) -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee - stakeAddressDeposit )))${NC} ADA"
     return 1
   fi
@@ -1604,8 +1599,6 @@ sendAssets() {
   else
     metafile_param=""
   fi
-  
-  getBalance ${s_addr}
 
   [[ ${#assets_left[@]} -eq 0 ]] && outCount=1 || outCount=2
   
@@ -1657,10 +1650,10 @@ sendAssets() {
     build_args+=( --tx-out "${tx_out}" )
   else
     if [[ ${include_fee} = "no" ]]; then
-      newBalance=$(( ${assets[lovelace]} - ${assets_to_send[lovelace]} - min_fee ))
+      newBalance=$(( ${assets[${index_prefix}lovelace]} - ${assets_to_send[lovelace]} - min_fee ))
       tx_out_d="${d_addr}+${assets_to_send[lovelace]}${assets_tx_out_d}"
     else
-      newBalance=$(( ${assets[lovelace]} - ${assets_to_send[lovelace]} ))
+      newBalance=$(( ${assets[${index_prefix}lovelace]} - ${assets_to_send[lovelace]} ))
       tx_out_d="${d_addr}+$(( ${assets_to_send[lovelace]} - min_fee ))${assets_tx_out_d}"
     fi
     getMinUTxO "${tx_out_d}"
@@ -1738,12 +1731,12 @@ delegate() {
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
-  newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  newBalance=$(( base_lovelace - min_fee ))
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) )"
   
-  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+  if [[ ${base_lovelace} -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
@@ -1816,12 +1809,12 @@ withdrawRewards() {
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
-  newBalance=$(( ${assets[lovelace]} - min_fee + reward_lovelace ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  newBalance=$(( base_lovelace - min_fee + reward_lovelace ))
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) )"
 
-  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+  if [[ ${base_lovelace} -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $((min_fee - reward_lovelace)))${NC} ADA"
     return 1
   fi
@@ -1872,9 +1865,6 @@ withdrawRewards() {
 # Command     : registerPool
 # Description : Register pool with pledge on chain
 registerPool() {
-
-  getBaseAddress ${owner_wallets[0]}
-  getBalance ${base_addr}
   
   if ! getTTL; then return 1; fi
   
@@ -1907,12 +1897,12 @@ registerPool() {
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_count} || return 1
   
-  newBalance=$(( ${assets[lovelace]} - min_fee - stakePoolDeposit ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakePoolDeposit}) )"
+  newBalance=$(( base_lovelace - min_fee - stakePoolDeposit ))
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakePoolDeposit}) )"
   
-  if [[ ${assets[lovelace]} -lt $(( min_fee + stakePoolDeposit )) ]]; then
+  if [[ ${base_lovelace} -lt $(( min_fee + stakePoolDeposit )) ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee and pool registration deposit!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakePoolDeposit )))${NC} ADA"
     return 1
   fi
@@ -1997,9 +1987,6 @@ registerPool() {
 # Command     : modifyPool
 # Description : Register pool with pledge on chain
 modifyPool() {
-
-  getBaseAddress ${owner_wallets[0]}
-  getBalance ${base_addr}
   
   if ! getTTL; then return 1; fi
 
@@ -2020,12 +2007,12 @@ modifyPool() {
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_count} || return 1
   
-  newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  newBalance=$(( base_lovelace - min_fee ))
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) )"
 
-  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+  if [[ ${base_lovelace} -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
@@ -2111,8 +2098,15 @@ deRegisterPool() {
 
   [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
 
-  getBalance ${addr}
   if ! getTTL; then return 1; fi
+
+  if [[ -n ${KOIOS_API} ]]; then
+    for key in ${!assets[@]}; do
+      [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
+    done
+  else
+    getBalance ${addr}
+  fi
 
   getAssetsTxOut
 
@@ -2129,12 +2123,12 @@ deRegisterPool() {
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
-  newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  newBalance=$(( lovelace - min_fee ))
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
 
-  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+  if [[ ${lovelace} -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in ${wallet_source} address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
@@ -2314,8 +2308,15 @@ sendMetadata() {
     return 1
   fi
 
-  getBalance ${addr}
   if ! getTTL; then return 1; fi
+
+  if [[ -n ${KOIOS_API} ]]; then
+    for key in ${!assets[@]}; do
+      [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
+    done
+  else
+    getBalance ${addr}
+  fi
 
   getAssetsTxOut
 
@@ -2332,12 +2333,12 @@ sendMetadata() {
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 1 || return 1
   
-  newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  newBalance=$(( lovelace - min_fee ))
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
 
-  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+  if [[ ${lovelace} -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in ${wallet_source} address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
@@ -2390,7 +2391,16 @@ mintAsset() {
 
   [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
 
-  getBalance ${addr}
+  if [[ -n ${KOIOS_API} ]]; then
+    for key in ${!assets[@]}; do
+      [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
+    done
+    index_prefix="${addr},"
+  else
+    getBalance ${addr}
+    unset index_prefix
+  fi
+
   if [[ ${policy_ttl} -eq 0 ]]; then 
     if ! getTTL; then return 1; fi
   else
@@ -2400,7 +2410,7 @@ mintAsset() {
   fi
   
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".$(asciiToHex "${asset_name}")"
-  getAssetsTxOut "${policy_id}${asset_name_out}" "${assets_to_mint}"
+  getAssetsTxOut "${index_prefix}${policy_id}${asset_name_out}" "${assets_to_mint}"
   
   build_args=(
     ${tx_in}
@@ -2417,12 +2427,12 @@ mintAsset() {
   
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
-  newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  newBalance=$(( lovelace - min_fee ))
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
 
-  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+  if [[ ${lovelace} -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in ${wallet_source} address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
@@ -2484,7 +2494,16 @@ mintAsset() {
 # Description : burn custom assets on specified wallet
 burnAsset() {
 
-  getBalance ${addr}
+  if [[ -n ${KOIOS_API} ]]; then
+    for key in ${!assets[@]}; do
+      [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
+    done
+    index_prefix="${addr},"
+  else
+    getBalance ${addr}
+    unset index_prefix
+  fi
+
   if [[ ${policy_ttl} -eq 0 ]]; then 
     if ! getTTL; then return 1; fi
   else
@@ -2494,7 +2513,7 @@ burnAsset() {
   fi
   
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
-  getAssetsTxOut "${policy_id}${asset_name_out}" "-${assets_to_burn}"
+  getAssetsTxOut "${index_prefix}${policy_id}${asset_name_out}" "-${assets_to_burn}"
   
   build_args=(
     ${tx_in}
@@ -2511,12 +2530,12 @@ burnAsset() {
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
-  newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  newBalance=$(( lovelace - min_fee ))
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
   
-  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+  if [[ ${lovelace} -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in ${wallet_source} address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
@@ -2906,9 +2925,20 @@ submitPoll() {
   [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
   POOL_ID_HASH=$(cat ${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME})
 
-  getBalance ${addr}
+  if [[ -n ${KOIOS_API} ]]; then
+    for key in ${!assets[@]}; do
+      [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
+    done
+    index_prefix="${addr},"
+  else
+    getBalance ${addr}
+    unset index_prefix
+  fi
+
   if ! getTTL; then return 1; fi
+
   getAssetsTxOut
+
   metafile_param="--metadata-cbor-file ${cborFile}"
   if [[ -n ${metafile} && -f ${metafile} ]]; then
     metafile_param+=" --json-metadata-no-schema --metadata-json-file ${metafile}"
@@ -2928,12 +2958,12 @@ submitPoll() {
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
-  newBalance=$(( ${assets[lovelace]} - min_fee ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${assets[lovelace]}) - $(formatLovelace ${min_fee}) )"
+  newBalance=$(( lovelace - min_fee ))
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
 
-  if [[ ${assets[lovelace]} -lt ${min_fee} ]]; then
+  if [[ ${lovelace} -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in ${wallet_source} address for tx fee!"\
-			"Funds in address: ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"\
+			"Funds in address: ${FG_LBLUE}$(formatLovelace ${lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi

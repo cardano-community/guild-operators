@@ -1576,7 +1576,7 @@ function main {
                 esac
                 getWalletType ${wallet_name}
               fi
-              getWalletBalance ${wallet_name}
+              getWalletBalance ${wallet_name} true true false
               if [[ ${base_lovelace} -gt 0 ]]; then
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                   println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${base_lovelace})")"
@@ -2160,9 +2160,8 @@ function main {
                           println ERROR "Please first register main owner wallet to use in pool registration using 'Wallet >> Register'"
                           waitToProceed && continue 2
                         fi
-                        getBaseAddress ${wallet_name}
-                        getBalance ${base_addr}
-                        if [[ ${assets[lovelace]} -eq 0 ]]; then
+                        getWalletBalance ${wallet_name} true true false
+                        if [[ ${base_lovelace} -eq 0 ]]; then
                           println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                           waitToProceed && continue 2
                         fi
@@ -2219,9 +2218,8 @@ function main {
                     println ERROR "Please first register the main CLI wallet to use in pool registration using 'Wallet >> Register'"
                     waitToProceed && continue
                   fi
-                  getBaseAddress ${wallet_name}
-                  getBalance ${base_addr}
-                  if [[ ${assets[lovelace]} -eq 0 ]]; then
+                  getWalletBalance ${wallet_name} true true false
+                  if [[ ${base_lovelace} -eq 0 ]]; then
                     println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                     waitToProceed && continue
                   fi
@@ -2230,13 +2228,6 @@ function main {
                 fi
                 owner_wallets+=( "${wallet_name}" )
                 println DEBUG "Owner #1 : ${FG_GREEN}${wallet_name}${NC} added!"
-              fi
-
-              getBaseAddress ${owner_wallets[0]}
-              getBalance ${base_addr}
-              if [[ ${assets[lovelace]} -eq 0 ]]; then
-                println ERROR "\n${FG_RED}ERROR${NC}: no funds available in owner wallet ${FG_GREEN}${owner_wallets[0]}${NC}"
-                waitToProceed && continue
               fi
 
               if [[ ${reuse_wallets} = 'N' ]]; then
@@ -2291,6 +2282,12 @@ function main {
                     ;;
                   2) continue ;;
                 esac
+              fi
+
+              getWalletBalance ${owner_wallets[0]} true true false
+              if [[ ${base_lovelace} -eq 0 ]]; then
+                println ERROR "\n${FG_RED}ERROR${NC}: no funds available in owner wallet ${FG_GREEN}${owner_wallets[0]}${NC}"
+                waitToProceed && continue
               fi
 
               multi_owner_output=""
@@ -2459,13 +2456,30 @@ function main {
               echo
               if [[ ${op_mode} = "online" ]]; then
                 total_pledge=0
-                for wallet_name in "${owner_wallets[@]}"; do
-                  getBaseAddress ${wallet_name}
-                  getBalance ${base_addr}
-                  total_pledge=$(( total_pledge + assets[lovelace] ))
-                  getWalletRewards ${wallet_name}
-                  [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
-                done
+                if [[ -n ${KOIOS_API} ]]; then
+                  addr_list=()
+                  reward_addr_list=()
+                  for wallet_name in "${owner_wallets[@]}"; do
+                    getBaseAddress ${wallet_name} && addr_list+=(${base_addr})
+                    getRewardAddress ${wallet_name} && reward_addr_list+=(${reward_addr})
+                  done
+                  [[ ${#addr_list[@]} -gt 0 ]] && getBalanceKoios false
+                  [[ ${#reward_addr_list[@]} -gt 0 ]] && getRewardInfoKoios
+                  for key in "${!assets[@]}"; do
+                    [[ ${key} = *lovelace ]] && total_pledge=$(( total_pledge + assets[${key}] ))
+                  done
+                  for value in "${rewards_available[@]}"; do
+                    [[ ${value} -gt 0 ]] && total_pledge=$(( total_pledge + value ))
+                  done
+                else
+                  for wallet_name in "${owner_wallets[@]}"; do
+                    getBaseAddress ${wallet_name}
+                    getBalance ${base_addr}
+                    total_pledge=$(( total_pledge + assets[lovelace] ))
+                    getWalletRewards ${wallet_name}
+                    [[ ${reward_lovelace} -gt 0 ]] && total_pledge=$(( total_pledge + reward_lovelace ))
+                  done
+                fi
                 println DEBUG "${FG_BLUE}INFO${NC}: Total balance in ${FG_LBLUE}${#owner_wallets[@]}${NC} owner/pledge wallet(s) are: ${FG_LBLUE}$(formatLovelace ${total_pledge})${NC} ADA"
                 if [[ ${total_pledge} -lt ${pledge_lovelace} ]]; then
                   println ERROR "${FG_YELLOW}Not enough funds in owner/pledge wallet(s) to meet set pledge, please manually verify!!!${NC}"
@@ -2553,12 +2567,7 @@ function main {
                   0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitToProceed && continue ;;
                 esac
               fi
-              getBaseAddress ${wallet_name}
-              getPayAddress ${wallet_name}
-              getBalance ${base_addr}
-              base_lovelace=${assets[lovelace]}
-              getBalance ${pay_addr}
-              pay_lovelace=${assets[lovelace]}
+              getWalletBalance ${wallet_name}
               if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "\n# Select wallet address to use"
@@ -2568,17 +2577,19 @@ function main {
                 fi
                 select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
                 case $? in
-                  0) addr="${base_addr}" ;;
-                  1) addr="${pay_addr}" ;;
+                  0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
+                  1) addr="${pay_addr}";  lovelace=${pay_lovelace} ;;
                   2) continue ;;
                 esac
               elif [[ ${pay_lovelace} -gt 0 ]]; then
                 addr="${pay_addr}"
+                lovelace=${pay_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                   println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
               elif [[ ${base_lovelace} -gt 0 ]]; then
                 addr="${base_addr}"
+                lovelace=${base_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                   println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                 fi
@@ -3240,12 +3251,7 @@ function main {
                       0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitToProceed && continue ;;
                     esac
                   fi
-                  getBaseAddress ${wallet_name}
-                  getPayAddress ${wallet_name}
-                  getBalance ${base_addr}
-                  base_lovelace=${assets[lovelace]}
-                  getBalance ${pay_addr}
-                  pay_lovelace=${assets[lovelace]}
+                  getWalletBalance ${wallet_name}
                   if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
                     # Both payment and base address available with funds, let user choose what to use
                     println DEBUG "\n# Select wallet address to use"
@@ -3255,17 +3261,19 @@ function main {
                     fi
                     select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
                     case $? in
-                      0) addr="${base_addr}" ;;
-                      1) addr="${pay_addr}" ;;
+                      0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
+                      1) addr="${pay_addr}";  lovelace=${pay_lovelace} ;;
                       2) continue ;;
                     esac
                   elif [[ ${pay_lovelace} -gt 0 ]]; then
                     addr="${pay_addr}"
+                    lovelace=${pay_lovelace}
                     if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                       println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                     fi
                   elif [[ ${base_lovelace} -gt 0 ]]; then
                     addr="${base_addr}"
+                    lovelace=${base_lovelace}
                     if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                       println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                     fi
@@ -4381,12 +4389,7 @@ function main {
                 esac
               fi
               echo
-              getBaseAddress ${wallet_name}
-              getPayAddress ${wallet_name}
-              getBalance ${base_addr}
-              base_lovelace=${assets[lovelace]}
-              getBalance ${pay_addr}
-              pay_lovelace=${assets[lovelace]}
+              getWalletBalance ${wallet_name}
               if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "Select source wallet address"
@@ -4397,17 +4400,19 @@ function main {
                 echo
                 select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
                 case $? in
-                  0) addr="${base_addr}" ;;
-                  1) addr="${pay_addr}" ;;
+                  0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
+                  1) addr="${pay_addr}";  lovelace=${pay_lovelace} ;;
                   2) continue ;;
                 esac
               elif [[ ${pay_lovelace} -gt 0 ]]; then
                 addr="${pay_addr}"
+                lovelace=${pay_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                   println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
               elif [[ ${base_lovelace} -gt 0 ]]; then
                 addr="${base_addr}"
+                lovelace=${base_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                   println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                 fi
@@ -4799,12 +4804,7 @@ function main {
                       esac
                     fi
                     echo
-                    getBaseAddress ${wallet_name}
-                    getPayAddress ${wallet_name}
-                    getBalance ${base_addr}
-                    base_lovelace=${assets[lovelace]}
-                    getBalance ${pay_addr}
-                    pay_lovelace=${assets[lovelace]}
+                    getWalletBalance ${wallet_name}
                     if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
                       # Both payment and base address available with funds, let user choose what to use
                       println DEBUG "Select source wallet address"
@@ -4815,18 +4815,20 @@ function main {
                       echo
                       select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
                       case $? in
-                        0) addr="${base_addr}" ;;
-                        1) addr="${pay_addr}" ;;
+                        0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
+                        1) addr="${pay_addr}" ; lovelace=${pay_lovelace} ;;
                         2) continue ;;
                       esac
                       echo
                     elif [[ ${pay_lovelace} -gt 0 ]]; then
                       addr="${pay_addr}"
+                      lovelace=${pay_lovelace}
                       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                         println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA\n" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
                       fi
                     elif [[ ${base_lovelace} -gt 0 ]]; then
                       addr="${base_addr}"
+                      lovelace=${base_lovelace}
                       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                         println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA\n" "Funds :"  "$(formatLovelace ${base_lovelace})")"
                       fi
@@ -4901,18 +4903,15 @@ function main {
                     fi
                     # Let user choose asset on wallet to burn, both base and enterprise, fee payed with same address
                     assets_on_wallet=()
-                    getBaseAddress ${wallet_name}
-                    getBalance ${base_addr}
-                    declare -gA base_assets=(); for idx in "${!assets[@]}"; do base_assets[${idx}]=${assets[${idx}]}; done
+                    getWalletBalance ${wallet_name} true true true true
+                    declare -gA base_assets=(); for idx in "${!assets[@]}"; do [[ -z ${base_addr} || ${idx} != "${base_addr},"* ]] && continue; base_assets[${idx#*,}]=${assets[${idx}]}; done
                     for asset in "${!base_assets[@]}"; do
                       [[ ${asset} = "lovelace" ]] && continue
                       IFS='.' read -ra asset_arr <<< "${asset}"
                       [[ -z ${asset_arr[1]} ]] && asset_ascii_name="" || asset_ascii_name=$(hexToAscii ${asset_arr[1]})
                       assets_on_wallet+=( "${asset} (${asset_ascii_name}) [base addr]" )
                     done
-                    getPayAddress ${wallet_name}
-                    getBalance ${pay_addr}
-                    declare -gA pay_assets=(); for idx in "${!assets[@]}"; do pay_assets[${idx}]=${assets[${idx}]}; done
+                    declare -gA pay_assets=(); for idx in "${!assets[@]}"; do [[ -z ${pay_addr} || ${idx} != "${pay_addr},"* ]] && continue; pay_assets[${idx#*,}]=${assets[${idx}]}; done
                     for asset in "${!pay_assets[@]}"; do
                       [[ ${asset} = "lovelace" ]] && continue
                       IFS='.' read -ra asset_arr <<< "${asset}"
@@ -4933,10 +4932,12 @@ function main {
                       addr=${base_addr}
                       wallet_source="base"
                       curr_asset_amount=${base_assets[${asset}]}
+                      lovelace=${base_assets[lovelace]}
                     else
                       addr=${pay_addr}
                       wallet_source="enterprise"
                       curr_asset_amount=${pay_assets[${asset}]}
+                      lovelace=${pay_assets[lovelace]}
                     fi
                     echo
                     
@@ -4986,7 +4987,7 @@ function main {
                     if ! burnAsset; then
                       waitToProceed && continue
                     fi
-                    # TODO: Update asset file
+                    # Update asset file
                     if [[ ! -f "${asset_file}" ]]; then echo "{}" > "${asset_file}"; fi
                     assetJSON=$( jq ". += {minted: \"${asset_minted}\", name: \"$(hexToAscii "${asset_name}")\", policyID: \"${policy_id}\", policyValidBeforeSlot: \"${policy_ttl}\", lastUpdate: \"$(date -R)\", lastAction: \"Burned $(formatAsset ${assets_to_burn})\"}" < "${asset_file}")
                     echo -e "${assetJSON}" > "${asset_file}"
