@@ -113,12 +113,12 @@ SGVERSION=v1.1.1rc
   set_cron_variables() {
     local job=$1
     [[ ${PGDATABASE} != cexplorer ]] && sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
-    [[ ${job} == populate-next-epoch-nonce ]] &&
-      sed -e "s@NWMAGIC=.*@NWMAGIC=${NWMAGIC}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh" &&
-      sed -e "s@EPOCH_LENGTH=.*@EPOCH_LENGTH=${EPOCH_LENGTH}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh" &&
-      sed -e "s@PROM_URL=.*@PROM_URL=http://${PROM_HOST}:${PROM_PORT}/metrics@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
-      sed -e "s@CCLI=.*@CCLI=${CCLI}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
-      sed -e "s@CARDANO_NODE_SOCKET_PATH=.*@CARDANO_NODE_SOCKET_PATH=${CARDANO_NODE_SOCKET_PATH}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
+    sed -e "s@NWMAGIC=.*@NWMAGIC=${NWMAGIC}@" \
+      -e "s@EPOCH_LENGTH=.*@EPOCH_LENGTH=${EPOCH_LENGTH}@" \
+      -e "s@PROM_URL=.*@PROM_URL=http://${PROM_HOST}:${PROM_PORT}/metrics@" \
+      -e "s@CCLI=.*@CCLI=${CCLI}@" \
+      -e "s@CARDANO_NODE_SOCKET_PATH=.*@CARDANO_NODE_SOCKET_PATH=${CARDANO_NODE_SOCKET_PATH}@" \
+      -i "${CRON_SCRIPTS_DIR}/${job}.sh"
     # update last modified date of all json files to trigger cron job to process all
     [[ -d "${HOME}/git/${CNODE_VNAME}-token-registry" ]] && find "${HOME}/git/${CNODE_VNAME}-token-registry" -mindepth 2 -maxdepth 2 -type f -name "*.json" -exec touch {} +
   }
