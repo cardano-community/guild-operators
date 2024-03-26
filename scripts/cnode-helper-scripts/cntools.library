@@ -76,7 +76,7 @@ println() {
   local log_level=$1
   shift
   local newline="\n"
-  if [[ $1 = false && $# -gt 2 ]]; then unset newline; shift; elif [[ $1 = true && $# -gt 2 ]] shift; fi
+  if [[ $1 = false && $# -gt 2 ]]; then unset newline; shift; elif [[ $1 = true && $# -gt 2 ]]; then shift; fi
   case $log_level in
     OFF) printf "%b${newline}" "$@" ;;
     LOG) logln "DEBUG" "$@" ;;
