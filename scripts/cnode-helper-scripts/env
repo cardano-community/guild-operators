@@ -764,11 +764,34 @@ slotInterval() {
   echo "(${SLOT_LENGTH} / ${ACTIVE_SLOTS_COEFF}) + 0.5" | bc -l | awk '{printf "%.0f\n", $1}'
 }
 
+# Description : Get current protocol params from either node or Koios
+# Error codes:
+# 1 : CLI - node socket not available
+# 2 : CLI - node response not valid json
+# 3 : Koios - general error
 getProtocolParams() {
-  PROT_PARAMS="$(${CCLI} ${NETWORK_ERA} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
-  read -ra PROT_PARAMS_VERSION <<<"$(jq -r '[ .protocolVersion.major //0, .protocolVersion.minor //0]| @tsv' <<<"${PROT_PARAMS}" 2>/dev/null)"
-  PROT_MAJOR=${PROT_PARAMS_VERSION[0]}
-  PROT_MINOR=${PROT_PARAMS_VERSION[1]}
+  if [[ -n ${KOIOS_API} &&  ]]; then
+    [[ $(type -t println) = function ]] && println ACTION "curl -sSL -f -X GET -H \"accept: application/json\" ${KOIOS_API}/cli_params"
+    if ! PROT_PARAMS=$(curl -sSL -f -X GET -H "accept: application/json" "${KOIOS_API}/cli_params" 2>&1); then
+      return 3
+    fi
+  else
+    PROT_PARAMS="$(${CCLI} ${NETWORK_ERA} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
+    if grep -q "Network.Socket.connect" <<< "${PROT_PARAMS}"; then
+      return 1
+    elif [[ -z "${PROT_PARAMS}" ]] || ! jq -er . <<< "${PROT_PARAMS}" &>/dev/null; then
+      return 2
+    fi
+  fi
+  # Set a collection of commonly used values
+  read -r PROT_MAJOR PROT_MINOR KEY_DEPOSIT POOL_DEPOSIT MIN_POOL_COST POOL_RETIRE_MAX_EPOCH <<<"$(jq -r '[
+  .protocolVersion.major //0,
+  .protocolVersion.minor //0,
+  .stakeAddressDeposit //0,
+  .stakePoolDeposit //0,
+  .minPoolCost //0,
+  .poolRetireMaxEpoch //0
+  ] | @tsv' <<<"${PROT_PARAMS}" 2>/dev/null)"
   PROT_VERSION="${PROT_MAJOR}.${PROT_MINOR}"
   [[ ${PROT_MAJOR} -eq 0 ]] && return 1 || return 0
 }

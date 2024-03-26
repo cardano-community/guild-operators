@@ -156,6 +156,19 @@ safeDel() {
   return 0
 }
 
+updateProtocolParams() {
+  _epoch_=$(getEpoch)
+  [[ -n ${current_epoch} && ${current_epoch} -eq ${_epoch_} ]] && return
+  current_epoch=${_epoch_}
+  getProtocolParams
+  case $? in
+    1) myExit 1 "${FG_YELLOW}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality" ;; # do nothing
+    2) myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\nError message: ${PROT_PARAMS}\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality" ;;
+    3) myExit 1 "${FG_YELLOW}WARN${NC}: Unable to query Koios for current epoch parameters\n\n${FG_BLUE}INFO${NC}: Disable Koios in env file or re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality" ;;
+  esac
+  echo "${PROT_PARAMS}" > "${TMP_DIR}"/protparams.json
+}
+
 # Command     : dialogSetup
 # Description : set config parameters for dialog formatting
 dialogSetup() {
@@ -931,8 +944,9 @@ verifyTx() {
         println "${FG_YELLOW}WARN${NC}: aborted!! transaction still in queue!"
         return 1
       fi
-      println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_tx_hashes\":[\"${tx_id}\"]' ${KOIOS_API}/tx_status?select=num_confirmations | tail -n +2"
-      ! num_confirmations=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_tx_hashes":["'${tx_id}'"]}' "${KOIOS_API}/tx_status?select=num_confirmations" | tail -n +2 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${num_confirmations}\n" && return 1 # print error and return
+      println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_tx_hashes\":[\"${tx_id}\"]' ${KOIOS_API}/tx_status?select=num_confirmations"
+      ! num_confirmations=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_tx_hashes":["'${tx_id}'"]}' "${KOIOS_API}/tx_status?select=num_confirmations" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${num_confirmations}\n" && return 1 # print error and return
+      num_confirmations=$(tail -n +2 <<< ${num_confirmations})
       [[ -n "${num_confirmations}" ]] && { println DEBUG "\nTx put on chain !!"; break; } || printf .
     done
   else
@@ -1424,8 +1438,7 @@ registerStakeWallet() {
   fi
 
   if ! getTTL; then return 1; fi
-  stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
-  println LOG "Key Deposit is ${stakeAddressDeposit}"
+  println LOG "Key Deposit is ${KEY_DEPOSIT}"
 
   getAssetsTxOut
   
@@ -1442,13 +1455,13 @@ registerStakeWallet() {
   
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
   
-  newBalance=$(( base_lovelace - min_fee - stakeAddressDeposit ))
-  println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakeAddressDeposit}))"
+  newBalance=$(( base_lovelace - min_fee - KEY_DEPOSIT ))
+  println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${KEY_DEPOSIT}))"
 
-  if [[ ${base_lovelace} -lt $(( min_fee + stakeAddressDeposit )) ]]; then
+  if [[ ${base_lovelace} -lt $(( min_fee + KEY_DEPOSIT )) ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee and key deposit!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakeAddressDeposit )))${NC} ADA"
+			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + KEY_DEPOSIT )))${NC} ADA"
     return 1
   fi
   
@@ -1473,7 +1486,7 @@ registerStakeWallet() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + stakeAddressDeposit ))\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + KEY_DEPOSIT ))\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
@@ -1513,8 +1526,7 @@ deregisterStakeWallet() {
 
   if ! getTTL; then return 1; fi
   
-  stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
-  println LOG "Key Deposit is ${stakeAddressDeposit}"
+  println LOG "Key Deposit is ${KEY_DEPOSIT}"
 
   getAssetsTxOut
 
@@ -1531,13 +1543,13 @@ deregisterStakeWallet() {
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
 
-  newBalance=$(( base_lovelace + stakeAddressDeposit - min_fee ))
-  println LOG "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) + $(formatLovelace ${stakeAddressDeposit}) - $(formatLovelace ${min_fee}))"
+  newBalance=$(( base_lovelace + KEY_DEPOSIT - min_fee ))
+  println LOG "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) + $(formatLovelace ${KEY_DEPOSIT}) - $(formatLovelace ${min_fee}))"
   
-  if [[ $(( ${base_lovelace} + stakeAddressDeposit )) -lt ${min_fee} ]]; then
+  if [[ $(( ${base_lovelace} + KEY_DEPOSIT )) -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee - stakeAddressDeposit )))${NC} ADA"
+			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee - KEY_DEPOSIT )))${NC} ADA"
     return 1
   fi
   
@@ -1562,7 +1574,7 @@ deregisterStakeWallet() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet De-Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"amount-returned\": \"${stakeAddressDeposit}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"amount-returned\": \"${KEY_DEPOSIT}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
@@ -1868,8 +1880,7 @@ registerPool() {
   
   if ! getTTL; then return 1; fi
   
-  stakePoolDeposit=$(jq -r '.stakePoolDeposit' <<< "${PROT_PARAMS}")
-  println LOG "Pool Deposit is ${stakePoolDeposit}"
+  println LOG "Pool Deposit is ${POOL_DEPOSIT}"
   
   owner_delegation_cert=""
   [[ ${delegate_owner_wallet} = 'Y' ]] && owner_delegation_cert="--certificate-file ${owner_delegation_cert_file}"
@@ -1897,13 +1908,13 @@ registerPool() {
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_count} || return 1
   
-  newBalance=$(( base_lovelace - min_fee - stakePoolDeposit ))
-  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${stakePoolDeposit}) )"
+  newBalance=$(( base_lovelace - min_fee - POOL_DEPOSIT ))
+  println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${POOL_DEPOSIT}) )"
   
-  if [[ ${base_lovelace} -lt $(( min_fee + stakePoolDeposit )) ]]; then
+  if [[ ${base_lovelace} -lt $(( min_fee + POOL_DEPOSIT )) ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee and pool registration deposit!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + stakePoolDeposit )))${NC} ADA"
+			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + POOL_DEPOSIT )))${NC} ADA"
     return 1
   fi
   
@@ -1944,7 +1955,7 @@ registerPool() {
     if ! offlineJSON=$(jq ". += { \"pool-margin\": \"${margin}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-cost\": \"${cost_ada}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + stakePoolDeposit ))\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + POOL_DEPOSIT ))\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     for index in "${!owner_wallets[@]}"; do

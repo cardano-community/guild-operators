@@ -1,17 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028,SC1091
 
-. "$(dirname $0)"/env offline
-
-# legacy config (deprecated and removed in future major version update)
-if [[ -f "$(dirname $0)"/cntools.config ]]; then
-  ! . "$(dirname $0)"/cntools.config && exit 1
-  clear && waitToProceed "${FG_RED}cntools.config deprecated and will be removed in future major version!${NC}\n"\
-    "Uncomment and set any customization in User Variables section of cntools.sh instead."\
-    "Once done, delete cntools.config file to get rid of this message.\n"\
-    "press any key to proceed .."
-fi
-
 ######################################
 # User Variables - Change as desired #
 # Common variables set in env file   #
@@ -122,10 +111,14 @@ if [[ ! -f "${PARENT}"/env ]]; then
   myExit 1
 fi
 
-# Source env file, re-sourced later
-if [[ "${CNTOOLS_MODE}" == "OFFLINE" ]]; then
-  . "${PARENT}"/env offline &>/dev/null
-else
+# Source env file in offline mode
+. "${PARENT}"/env offline &>/dev/null
+
+# Test if koios is reachable, otherwise - unset KOIOS_API
+test_koios
+
+# Source env file in connected mode
+if [[ ${CNTOOLS_MODE} = "CONNECTED" && -z ${KOIOS_API} ]]; then
   . "${PARENT}"/env &>/dev/null
 fi
 
@@ -156,11 +149,13 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
     esac
 
     # source common env variables in case it was updated
-    . "${PARENT}"/env
-    case $? in
-      1) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
-      2) clear ;;
-    esac
+    if [[ ${ENV_UPDATED} = Y ]]; then
+      [[ -z ${KOIOS_API} ]] && . "${PARENT}"/env || . "${PARENT}"/env offline
+      case $? in
+        1) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
+        2) clear ;;
+      esac
+    fi
     
     # check for cntools update
     checkUpdate "${PARENT}"/cntools.library "${ENV_UPDATED}" Y N
@@ -195,18 +190,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       waitToProceed
     fi
   fi
-
-  # Validate protocol parameters
-  if grep -q "Network.Socket.connect" <<< "${PROT_PARAMS}"; then
-    myExit 1 "${FG_YELLOW}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
-  elif [[ -z "${PROT_PARAMS}" ]] || ! jq -er . <<< "${PROT_PARAMS}" &>/dev/null; then
-    myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\nError message: ${PROT_PARAMS}\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality"
-  fi
-  echo "${PROT_PARAMS}" > "${TMP_DIR}"/protparams.json
 fi
-
-# Test if koios is reachable , otherwise - unset KOIOS_API
-test_koios
 
 archiveLog # archive current log and cleanup log archive folder
 
@@ -272,7 +256,11 @@ function main {
     find "${TMP_DIR:?}" -type f -not \( -name 'protparams.json' -o -name '.dialogrc' -o -name "offline_tx*" -o -name "*_cntools_backup*" -o -name "metadata_*" -o -name "asset*" \) -delete
     unset IFS
     clear
-    [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getNodeMetrics && getPriceInfo
+    if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
+      getNodeMetrics
+      getPriceInfo
+      updateProtocolParams
+    fi
     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
       println "$(printf " >> Koios CNTools v%s - %s - ${FG_GREEN}%s${NC} <<" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}")"
@@ -681,8 +669,7 @@ function main {
                 fi
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
-                stakeAddressDeposit=$(jq -r '.stakeAddressDeposit' <<< "${PROT_PARAMS}")
-                println DEBUG "Funds for key deposit($(formatLovelace ${stakeAddressDeposit}) ADA) + transaction fee needed to register the wallet"
+                println DEBUG "Funds for key deposit($(formatLovelace ${KEY_DEPOSIT}) ADA) + transaction fee needed to register the wallet"
                 waitToProceed && continue
               fi
               if ! registerStakeWallet ${wallet_name} "true"; then
@@ -743,7 +730,7 @@ function main {
               if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
               echo
               println "${FG_GREEN}${wallet_name}${NC} successfully de-registered from chain!"
-              println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${stakeAddressDeposit})${NC} ADA"
+              println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${KEY_DEPOSIT})${NC} ADA"
               waitToProceed && continue
               ;; ###################################################################
             list)
@@ -1912,7 +1899,7 @@ function main {
               else
                 margin_fraction=$(pctToFraction "${margin}")
               fi
-              minPoolCost=$(formatLovelace $(jq -r '.minPoolCost //0' <<< "${PROT_PARAMS}") normal) # convert to ADA
+              minPoolCost=$(formatLovelace ${MIN_POOL_COST} normal) # convert to ADA
               [[ -f ${pool_config} ]] && cost_ada=$(jq -r '.costADA //0' "${pool_config}") || cost_ada=${minPoolCost} # default cost
               [[ $(bc -l <<< "${cost_ada} < ${minPoolCost}") -eq 1 ]] && cost_ada=${minPoolCost} # raise old value to new minimum cost
               getAnswerAnyCust cost_enter "Cost (in ADA, minimum: ${minPoolCost}, default: ${cost_ada})"
@@ -2530,10 +2517,9 @@ function main {
               fi
               echo
               epoch=$(getEpoch)
-              poolRetireMaxEpoch=$(jq -r '.poolRetireMaxEpoch' <<< "${PROT_PARAMS}")
               println DEBUG "Current epoch: ${FG_LBLUE}${epoch}${NC}"
               epoch_start=$((epoch + 1))
-              epoch_end=$((epoch + poolRetireMaxEpoch))
+              epoch_end=$((epoch + POOL_RETIRE_MAX_EPOCH))
               println DEBUG "earliest epoch to retire pool is ${FG_LBLUE}${epoch_start}${NC} and latest ${FG_LBLUE}${epoch_end}${NC}"
               echo
               getAnswerAnyCust epoch_enter "Enter epoch in which to retire pool (blank for ${epoch_start})"
