@@ -1,4 +1,10 @@
 {
+  "bootstrapPeers": [
+    {
+      "address": "preprod-node.play.dev.cardano.org",
+      "port": 3001
+    }
+  ],
   "localRoots": [
     {
       "accessPoints": [
@@ -6,16 +12,27 @@
         {"address": "127.0.0.1", "port": 6001, "description": "replace-this-with-relay"}
       ],
       "advertise": false,
-      "valency": 1
+      "trustable": true,
+      "valency": 2
+    },
+    {
+      "accessPoints": [
+        {"address": "preprod-test.ahlnet.nu", "port": 2101, "pool": "AHL"},
+        {"address": "154.12.248.114", "port": 6000, "pool": "HOM1"},
+        {"address": "tn-preprod.psilobyte.io", "port": 4101, "pool": "PSBT"},
+        {"address": "209.145.50.190", "port": 18000, "pool": "RDLRT"}
+      ],
+      "advertise": false,
+      "trustable": false,
+      "valency": 2,
+      "warmValency": 3
     }
   ],
   "publicRoots": [
     {
-      "accessPoints": [
-        {"address": "preprod-node.play.dev.cardano.org", "port": 3001}
-      ],
+      "accessPoints": [],
       "advertise": false
     }
   ],
-  "useLedgerAfterSlot": 42855241
+  "useLedgerAfterSlot": 55043150
 }

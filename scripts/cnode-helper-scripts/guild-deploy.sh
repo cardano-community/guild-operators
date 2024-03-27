@@ -109,7 +109,7 @@ set_defaults() {
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
-  CARDANO_NODE_VERSION="8.7.3"
+  CARDANO_NODE_VERSION="8.9.0"
   REPO="https://github.com/${G_ACCOUNT}/guild-operators"
   REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
   URL_RAW="${REPO_RAW}/${BRANCH}"
@@ -340,7 +340,7 @@ build_libblst() {
   [[ ! -d "./blst" ]] && git clone https://github.com/supranational/blst &>/dev/null
   pushd blst >/dev/null || err_exit
   git fetch >/dev/null 2>&1
-  [[ -z "${BLST_REF}" ]] && BLST_REF="v0.3.10"
+  [[ -z "${BLST_REF}" ]] && BLST_REF="v0.3.11"
   git checkout ${BLST_REF} &>/dev/null
   ./build.sh >/dev/null 2>&1
   cat <<-EOF >libblst.pc
@@ -372,7 +372,7 @@ download_cnodebins() {
   echo -e "\n  Downloading Cardano Node archive created from GitHub.."
   rm -f cardano-node cardano-address
   curl -m 200 -sfL https://github.com/intersectmbo/cardano-node/releases/download/8.7.3/cardano-node-8.7.3-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node release 8.7.3 from GitHub!"
-  tar zxf cnode.tar.gz ./cardano-node ./cardano-cli ./cardano-submit-api ./bech32 &>/dev/null
+  tar zxf cnode.tar.gz ./bin/cardano-node ./bin/cardano-cli ./bin/cardano-submit-api ./bin/bech32 &>/dev/null
   rm -f cnode.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
   echo -e "\n  Downloading Github release package for Cardano Wallet"
@@ -388,7 +388,7 @@ download_cnodebins() {
     rm -f cnodedbsync.tar.gz
     mv -f -t "${HOME}"/.local/bin cardano-db-sync
   fi
-  mv -f -t "${HOME}"/.local/bin cardano-node cardano-cli cardano-submit-api bech32 cardano-address
+  mv -f -t "${HOME}"/.local/bin bin/cardano-node bin/cardano-cli bin/cardano-submit-api bin/bech32 bin/cardano-address
   chmod +x "${HOME}"/.local/bin/*
 }
 

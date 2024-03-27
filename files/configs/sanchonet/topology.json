@@ -1,20 +1,23 @@
 {
+  "bootstrapPeers": [
+    {
+      "address": "sanchonet-node.play.dev.cardano.org",
+      "port": 3001
+    }
+  ],
   "localRoots": [
     {
-      "accessPoints": [
-        {"address": "127.0.0.1", "port": 6000, "description": "replace-this-with-BP"}
-      ],
+      "accessPoints": [],
       "advertise": false,
+      "trustable": false,
       "valency": 1
     }
   ],
   "publicRoots": [
     {
-      "accessPoints": [
-        {"address": "sanchonet-node.play.dev.cardano.org", "port": 3001}
-      ],
+      "accessPoints": [],
       "advertise": false
     }
   ],
-  "useLedgerAfterSlot": 14601600
+  "useLedgerAfterSlot": 21599922
 }
