@@ -116,7 +116,7 @@ if [[ ! -f "${PARENT}"/env ]]; then
 fi
 
 # Source env file in offline mode
-. "${PARENT}"/env offline &>/dev/null
+! . "${PARENT}"/env offline && myExit 1
 
 # Source cntools.library to populate defaults for CNTools
 ! . "${PARENT}"/cntools.library && myExit 1
