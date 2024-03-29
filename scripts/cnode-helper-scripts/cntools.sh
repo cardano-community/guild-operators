@@ -39,6 +39,9 @@
 # Price fetching currency. Disable by setting value 'off' [off|usd|eur|...] (default: off) (https://api.coingecko.com/api/v3/simple/supported_vs_currencies)
 #CURRENCY=usd
 
+# Runtime mode, offline | local | light (default local)
+# CNTOOLS_MODE=local
+
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -72,7 +75,8 @@ usage() {
 		Usage: $(basename "$0") [-o] [-a] [-b <branch name>] [-v]
 		Koios CNTools - The Cardano SPOs best friend
 		
-		-o    Activate offline mode - run CNTools in offline mode without node access, a limited set of functions available
+		-o    Offline mode - run CNTools in offline mode without local node, a limited set of functions available
+		-l    Light mode - run CNTools in full mode without local node using Koios query layer.
 		-a    Enable advanced/developer features like metadata transactions, multi-asset management etc (not needed for SPO usage)
 		-u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Run CNTools and look for updates on alternate branch instead of master (only for testing/development purposes)
@@ -81,16 +85,16 @@ usage() {
 		EOF
 }
 
-CNTOOLS_MODE="CONNECTED"
 ADVANCED_MODE="false"
 SKIP_UPDATE=N
 PRINT_VERSION="false"
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat "${PARENT}"/.env_branch)" || BRANCH="master"
 
-while getopts :oaub:v opt; do
+while getopts :olaub:v opt; do
   case ${opt} in
     o ) CNTOOLS_MODE="OFFLINE" ;;
+    l ) CNTOOLS_MODE="LIGHT" ;;
     a ) ADVANCED_MODE="true" ;;
     u ) SKIP_UPDATE=Y ;;
     b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
@@ -114,21 +118,26 @@ fi
 # Source env file in offline mode
 . "${PARENT}"/env offline &>/dev/null
 
-# Test if koios is reachable, otherwise - unset KOIOS_API
-test_koios
-
-# Source env file in connected mode
-if [[ ${CNTOOLS_MODE} = "CONNECTED" && -z ${KOIOS_API} ]]; then
-  . "${PARENT}"/env &>/dev/null
-fi
-
 # Source cntools.library to populate defaults for CNTools
 ! . "${PARENT}"/cntools.library && myExit 1
 
+# If light mode, test if koios is reachable, otherwise - unset KOIOS_API
+if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
+  test_koios
+  [[ -z ${KOIOS_API} ]] && myExit 1 "ERROR: Koios query test failed, unable to launch CNTools in light mode utilizing Koios query layer" ;;
+else
+  unset KOIOS_API
+fi
+
+# Source env file in normal mode with node connection
+if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
+  . "${PARENT}"/env &>/dev/null
+fi
+
 [[ ${PRINT_VERSION} = "true" ]] && myExit 0 "CNTools v${CNTOOLS_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))"
 
-# Do some checks when run in connected mode
-if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+# Do some checks when run in connected(local|light) mode
+if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
   # check to see if there are any updates available
   clear
   if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then 
@@ -150,7 +159,7 @@ if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
 
     # source common env variables in case it was updated
     if [[ ${ENV_UPDATED} = Y ]]; then
-      [[ -z ${KOIOS_API} ]] && . "${PARENT}"/env || . "${PARENT}"/env offline
+      [[ ${CNTOOLS_MODE} = "LOCAL" ]] && . "${PARENT}"/env || . "${PARENT}"/env offline
       case $? in
         1) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
         2) clear ;;
@@ -217,7 +226,7 @@ if [[ ${CHECK_KES} = true ]]; then
 
   while IFS= read -r -d '' pool; do
     unset pool_kes_start
-    [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && getNodeMetrics
+    [[ ${CNTOOLS_MODE} = "LOCAL" ]] && getNodeMetrics
     [[ (-z ${remaining_kes_periods} || ${remaining_kes_periods} -eq 0) && -f "${pool}/${POOL_CURRENT_KES_START}" ]] && unset remaining_kes_periods && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"  
   
     if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitToProceed && continue; fi
@@ -262,11 +271,7 @@ function main {
       updateProtocolParams
     fi
     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
-      println "$(printf " >> Koios CNTools v%s - %s - ${FG_GREEN}%s${NC} <<" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}")"
-    else
-      println "$(printf " >> Koios CNTools v%s - %s - ${FG_LBLUE}%s${NC} <<" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}")"
-    fi
+    println "$(printf " >> Koios CNTools v%s - %s - ${CNTOOLS_MODE_COLOR}%s${NC} <<" "${CNTOOLS_VERSION}" "${NETWORK_NAME}" "${CNTOOLS_MODE}")"
     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     println OFF " Main Menu    Telegram Announcement / Support channel: ${FG_YELLOW}t.me/CardanoKoios/9759${NC}\n"\
 			" ) Wallet      - create, show, remove and protect wallets"\
@@ -279,7 +284,7 @@ function main {
 			" ) Refresh     - reload home screen content"\
 			"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     println DEBUG "$(printf "%84s" "Epoch $(getEpoch) - $(timeLeft "$(timeUntilNextEpoch)") until next")"
-    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+    if [[ ${CNTOOLS_MODE} != "LOCAL" ]]; then
       println DEBUG " What would you like to do?"
     else
       tip_diff=$(( $(getSlotTipRef) - slotnum ))
@@ -765,7 +770,7 @@ function main {
               while IFS= read -r -d '' wallet; do
                 wallet_name=$(basename ${wallet})
                 enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
-                if [[ ${CNTOOLS_MODE} = "CONNECTED" ]] && isWalletRegistered ${wallet_name}; then registered="yes"; else registered="no"; fi
+                if [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && isWalletRegistered ${wallet_name}; then registered="yes"; else registered="no"; fi
                 echo
                 if [[ ${enc_files} -gt 0 && ${registered} = "yes" ]]; then
                   println "${FG_GREEN}${wallet_name}${NC} - ${FG_LGRAY}REGISTERED${NC} (${FG_YELLOW}encrypted${NC})"
@@ -895,7 +900,7 @@ function main {
                 tput rc && tput ed
               fi
               total_lovelace=0
-              if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+              if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
                 for i in {1..2}; do
                   if [[ $i -eq 1 ]]; then 
                     address_type="Base"
@@ -989,7 +994,7 @@ function main {
               [[ -n ${base_addr} ]]   && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
               [[ -n ${pay_addr} ]]    && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Enterprise Address" "${pay_addr}")"
               [[ -n ${reward_addr} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
-              if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+              if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
                 if [[ -n ${reward_addr} ]]; then
                   if [[ -n ${KOIOS_API} ]]; then
                     [[ -v rewards_available[${reward_addr}] ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
@@ -1335,7 +1340,7 @@ function main {
                 waitToProceed && continue
               fi
 
-              if [[ -z ${KOIOS_API} ]]; then
+              if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                 getBalance ${s_addr} # need to re-fetch balance if CLI due to possibly being overwritten by payment balance lookup
                 unset index_prefix
               else
@@ -2635,7 +2640,7 @@ function main {
                 [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
                 println "$(printf "%-21s : %s" "Registered" "${pool_registered}")"
                 unset pool_kes_start
-                if [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   getNodeMetrics
                 else
                   [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
@@ -2678,11 +2683,7 @@ function main {
               current_epoch=$(getEpoch)
               getPoolID ${pool_name}
               tput rc && tput ed
-              if [[ ${CNTOOLS_MODE} = "CONNECTED" && -z ${KOIOS_API} ]]; then
-                println DEBUG "Koios API disabled/unreachable, do you want to proceed querying pool parameters from node?"
-                println DEBUG "This is a heavy process and requiring several gigabytes of memory on MainNet."
-                select_opt "[y] Yes" "[n] No, abort"
-                [[ $? -eq 1 ]] && continue
+              if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                 tput sc && println DEBUG "Quering pool parameters from node, can take a while...\n"
                 println ACTION "${CCLI} ${NETWORK_ERA} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER}"
                 if ! pool_params=$(${CCLI} ${NETWORK_ERA} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER} 2>&1); then
@@ -2694,7 +2695,7 @@ function main {
               fi
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 pool_registered="${FG_LGRAY}status unavailable in offline mode${NC}"
-              elif [[ -z ${KOIOS_API} ]]; then
+              elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                 ledger_pParams=$(jq -r '.poolParams // empty' <<< ${pool_params})
                 ledger_fPParams=$(jq -r '.futurePoolParams // empty' <<< ${pool_params})
                 ledger_retiring=$(jq -r '.retiring // empty' <<< ${pool_params})
@@ -2702,7 +2703,7 @@ function main {
                 [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
                 [[ -n "${ledger_pParams}" ]] && pool_registered="${FG_GREEN}YES${NC}" || pool_registered="${FG_RED}NO${NC}"
               else
-                println OFF "\n${FG_YELLOW}> Querying Koios API for pool information (some data can have a delay of up to 10min)${NC}"
+                println OFF "\n${FG_YELLOW}> Querying Koios API for pool information (some data can have a small delay)${NC}"
                 isPoolRegistered ${pool_name} # variables set in isPoolRegistered [pool_info, error_msg, p_<metric>]
                 case $? in
                   0) println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitToProceed && continue ;;
@@ -2756,7 +2757,7 @@ function main {
                     println ERROR "\n${FG_RED}ERROR${NC}: failure during metadata hash creation!\n${meta_hash_url}"; waitToProceed && continue
                   fi
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash URL" "${meta_hash_url}")"
-                  if [[ -z ${KOIOS_API} ]]; then
+                  if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                     meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
                     meta_hash_fPParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_fPParams}")
                   else
@@ -2795,7 +2796,7 @@ function main {
                 done < <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
               elif [[ ${pool_registered} = *YES* ]]; then
                 # get pledge
-                if [[ -z ${KOIOS_API} ]]; then
+                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   pParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_pParams}")
                   fPParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_fPParams}")
                 else
@@ -2812,7 +2813,7 @@ function main {
                 [[ -n ${KOIOS_API} ]] && getPriceString ${p_live_pledge} && println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Live Pledge" "$(formatLovelace "${p_live_pledge}")")"
                 
                 # get margin
-                if [[ -z ${KOIOS_API} ]]; then
+                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_pParams}")")
                   fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_fPParams}")")
                 else
@@ -2826,7 +2827,7 @@ function main {
                 fi
                 
                 # get fixed cost
-                if [[ -z ${KOIOS_API} ]]; then
+                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   pParams_cost=$(jq -r '.cost //0' <<< "${ledger_pParams}")
                   fPParams_cost=$(jq -r '.cost //0' <<< "${ledger_fPParams}")
                 else
@@ -2840,7 +2841,7 @@ function main {
                 fi
                 
                 # get relays
-                if [[ -z ${KOIOS_API} ]]; then
+                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   relays=$(jq -c '.relays[] //empty' <<< "${ledger_fPParams}")
                   if [[ ${relays} != $(jq -c '.relays[] //empty' <<< "${ledger_pParams}") ]]; then
                     println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")"
@@ -2852,7 +2853,7 @@ function main {
                 if [[ -n "${relays}" ]]; then
                   while read -r relay; do
                     relay_addr=""; relay_port=""                  
-                    if [[ -z ${KOIOS_API} ]]; then
+                    if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                       relay_addr="$(jq -r '."single host address".IPv4 //empty' <<< ${relay})"
                       if [[ -n ${relay_addr} ]]; then
                         relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
@@ -2893,7 +2894,7 @@ function main {
                 fi
                 
                 # get owners
-                if [[ -z ${KOIOS_API} ]]; then
+                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   owners=$(jq -rc '.owners[] // empty' <<< "${ledger_fPParams}")
                   if [[ ${owners} != $(jq -rc '.owners[] // empty' <<< "${ledger_pParams}") ]]; then
                     println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Owner(s) updated, showing latest registered")"
@@ -2914,7 +2915,7 @@ function main {
                 done <<< "${owners}"
                 
                 # get reward account
-                if [[ -z ${KOIOS_API} ]]; then
+                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   reward_account=$(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_fPParams}")
                   if [[ ${reward_account} != $(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_pParams}") ]]; then
                     println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Reward account updated, showing latest registered")"
@@ -2932,7 +2933,7 @@ function main {
                   fi
                 fi
                 
-                if [[ -z ${KOIOS_API} ]]; then
+                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   # get stake distribution
                   println "ACTION" "LC_NUMERIC=C printf %.10f \$(${CCLI} ${NETWORK_ERA} query stake-distribution ${NETWORK_IDENTIFIER} | grep ${pool_id_bech32} | tr -s ' ' | cut -d ' ' -f 2))"
                   stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} ${NETWORK_ERA} query stake-distribution ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
@@ -2952,7 +2953,7 @@ function main {
                 if [[ -n ${KOIOS_API} ]]; then
                   [[ ${p_op_cert_counter} != null ]] && kes_counter_str="${FG_LBLUE}${p_op_cert_counter}${FG_LGRAY} - use counter ${FG_LBLUE}$((p_op_cert_counter+1))${FG_LGRAY} for rotation in offline mode.${NC}" || kes_counter_str="${FG_LGRAY}No blocks minted so far with active operational certificate. Use counter ${FG_LBLUE}0${FG_LGRAY} for rotation in offline mode.${NC}"
                   println "$(printf "%-21s : %s" "KES counter" "${kes_counter_str}")"
-                elif [[ ${CNTOOLS_MODE} = "CONNECTED" ]]; then
+                elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
                   println ACTION "${CCLI} ${NETWORK_ERA} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
                   if ! kes_period_info=$(${CCLI} ${NETWORK_ERA} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then

@@ -28,6 +28,14 @@ if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Fail
 if ! mkdir -p "${WALLET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create wallet directory: ${WALLET_FOLDER}"; fi
 if ! mkdir -p "${POOL_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create pool directory: ${POOL_FOLDER}"; fi
 if ! mkdir -p "${ASSET_FOLDER}" 2>/dev/null; then myExit 1 "${FG_RED}ERROR${NC}: Failed to create asset directory: ${POOL_ASSET}"; fi
+[[ -z ${CNTOOLS_MODE} ]] && CNTOOLS_MODE=LOCAL || CNTOOLS_MODE=${CNTOOLS_MODE^^}
+if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
+  CNTOOLS_MODE_COLOR="${FG_BLUE}"
+elif [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
+  CNTOOLS_MODE_COLOR="${FG_GREEN}"
+else
+  CNTOOLS_MODE_COLOR="${FG_GRAY}"
+fi
 [[ -z ${TIMEOUT_NO_OF_SLOTS} ]] && TIMEOUT_NO_OF_SLOTS=600
 [[ -z ${TX_TTL} ]] && TX_TTL=3600
 [[ -z ${WALLET_SELECTION_FILTER_LIMIT} ]] && WALLET_SELECTION_FILTER_LIMIT=10
@@ -437,7 +445,7 @@ selectWallet() {
   wallet_dirs=()
 
   if ! getDirs "${WALLET_FOLDER}"; then return 1; fi # dirs() array populated with all wallet folders
-  if [[ ${CNTOOLS_MODE} = "CONNECTED" && ${mode} != "none" ]]; then
+  if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" ]]; then
     tput sc
     wallet_count=${#dirs[@]}
     if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
@@ -469,9 +477,9 @@ selectWallet() {
       else
         wallet_dirs+=("${dir} (${FG_YELLOW}unprotected${NC})")
       fi
-    elif [[ ${CNTOOLS_MODE} = "CONNECTED" && ${mode} != "none" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+    elif [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
       if [[ ${mode} = "reg" || ${mode} = "non-reg" ]]; then
-        if [[ -z ${KOIOS_API} ]]; then
+        if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
           if [[ ${mode} = "reg" ]]; then
             isWalletRegistered ${dir} && continue
           else
@@ -487,7 +495,7 @@ selectWallet() {
         getPayAddress ${dir}
         [[ -z ${base_addr} || -z ${pay_addr} ]] && wallet_dirs+=("${dir}") && continue # ignore and add wallet without extra details
         addr_list+=(${base_addr} ${pay_addr})
-        if [[ -z ${KOIOS_API} ]]; then
+        if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
           getBalance ${base_addr}
           balances["${base_addr}"]=${assets[lovelace]}
           [[ ${#assets[@]} -gt 1 ]] && asset_cnt["${base_addr}"]="$((${#assets[@]}-1))"
@@ -501,7 +509,7 @@ selectWallet() {
         [[ -z ${base_addr} ]] && wallet_dirs+=("${dir}") && continue # ignore and add wallet without extra details
         addr_list+=(${base_addr})
         getRewardAddress ${dir}
-        if [[ -z ${KOIOS_API} ]]; then
+        if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
           getBalance ${base_addr}
           balances["${base_addr}"]=${assets[lovelace]}
           if [[ -n ${reward_addr} ]]; then
@@ -604,7 +612,7 @@ selectWallet() {
     fi
   done
 
-  if [[ ${CNTOOLS_MODE} = "CONNECTED" && ${mode} != "none" ]]; then tput rc && tput ed; fi
+  if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" ]]; then tput rc && tput ed; fi
   if [[ ${#wallet_dirs_filtered[@]} -eq 0 ]]; then
     if [[ ${mode} = "balance" ]]; then
       println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets with funds available for selection! Required files:\n$(printf '%b\n' "$@")"
@@ -684,7 +692,7 @@ isPoolRegistered() {
   unset error_msg pool_info pool_info_tsv pool_info_arr
   unset p_active_epoch_no p_vrf_key_hash p_margin p_fixed_cost p_pledge p_reward_addr p_owners p_relays p_meta_url p_meta_hash p_meta_json p_pool_status
   unset p_retiring_epoch p_op_cert p_op_cert_counter p_active_stake p_epoch_block_cnt p_live_stake p_live_delegators p_live_saturation
-  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${KOIOS_API} ]]; then
+  if [[ ${CNTOOLS_MODE} != "LIGHT" ]]; then
     [[ -f "${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}" ]] && return 2 || return 1
   else
     getPoolID "$1"
@@ -753,7 +761,7 @@ isPoolRegistered() {
 #               2: offline/disabled/no result
 getAssetInfo() {
   unset
-  if [[ ${CNTOOLS_MODE} = "OFFLINE" || -z ${KOIOS_API} || $# -ge 1 ]]; then
+  if [[ ${CNTOOLS_MODE} != "LIGHT" || $# -lt 1 ]]; then
     return 2
   else
     println ACTION "curl -sSL -f -d _asset_policy=$1 -d _asset_name=$2  ${KOIOS_API}/asset_info"
@@ -1270,7 +1278,7 @@ getWalletRewards() {
   fi
   if isWalletRegistered $1; then
     reward_lovelace=0
-    if [[ -z ${KOIOS_API} ]]; then
+    if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
       for reward_entry in $(jq -r '.[] | @base64' <<< "${stake_address_info}"); do
         _jq() { base64 -d <<< ${reward_entry} | jq -r "${1}"; }
         reward_lovelace=$(( reward_lovelace + $(_jq '.rewardAccountBalance //0') ))

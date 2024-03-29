@@ -771,8 +771,8 @@ slotInterval() {
 # 3 : Koios - general error
 getProtocolParams() {
   if [[ -n ${KOIOS_API} &&  ]]; then
-    [[ $(type -t println) = function ]] && println ACTION "curl -sSL -f -X GET -H \"accept: application/json\" ${KOIOS_API}/cli_params"
-    if ! PROT_PARAMS=$(curl -sSL -f -X GET -H "accept: application/json" "${KOIOS_API}/cli_params" 2>&1); then
+    [[ $(type -t println) = function ]] && println ACTION "curl -sSL -f -X GET -H \"accept: application/json\" ${KOIOS_API}/cli_protocol_params"
+    if ! PROT_PARAMS=$(curl -sSL -f -X GET -H "accept: application/json" "${KOIOS_API}/cli_protocol_params" 2>&1); then
       return 3
     fi
   else
