@@ -124,15 +124,15 @@ fi
 # If light mode, test if koios is reachable, otherwise - unset KOIOS_API
 if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
   test_koios
-  [[ -z ${KOIOS_API} ]] && myExit 1 "ERROR: Koios query test failed, unable to launch CNTools in light mode utilizing Koios query layer" ;;
-else
-  unset KOIOS_API
+  [[ -z ${KOIOS_API} ]] && myExit 1 "ERROR: Koios query test failed, unable to launch CNTools in light mode utilizing Koios query layer"
 fi
 
 # Source env file in normal mode with node connection
 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
   . "${PARENT}"/env &>/dev/null
 fi
+
+[[ ${CNTOOLS_MODE} != "LIGHT" ]] && unset KOIOS_API
 
 [[ ${PRINT_VERSION} = "true" ]] && myExit 0 "CNTools v${CNTOOLS_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))"
 
@@ -160,6 +160,7 @@ if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
     # source common env variables in case it was updated
     if [[ ${ENV_UPDATED} = Y ]]; then
       [[ ${CNTOOLS_MODE} = "LOCAL" ]] && . "${PARENT}"/env || . "${PARENT}"/env offline
+      [[ ${CNTOOLS_MODE} != "LIGHT" ]] && unset KOIOS_API
       case $? in
         1) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
         2) clear ;;
