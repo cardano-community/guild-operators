@@ -169,10 +169,14 @@ updateProtocolParams() {
   [[ -n ${current_epoch} && ${current_epoch} -eq ${_epoch_} ]] && return
   current_epoch=${_epoch_}
   getProtocolParams
+  launch_modes_info=""${FG_BLUE}INFO${NC}: Available launch modes, re-run CNTools in\n"\
+			"  ${CNTOOLS_MODE_COLOR}LOCAL${NC} mode (-n): Default mode with a local node connection."\
+			"  ${CNTOOLS_MODE_COLOR}LIGHT${NC} mode (-l): Utilizing Koios query layer with full functionallity for supported networks."\
+			"  ${CNTOOLS_MODE_COLOR}OFFLINE${NC} mode (-o): A limited set of functionallity without external communication useful for air-gapped mode.
   case $? in
-    1) myExit 1 "${FG_YELLOW}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality" ;; # do nothing
-    2) myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\nError message: ${PROT_PARAMS}\n\n${FG_BLUE}INFO${NC}: re-run CNTools in offline mode with -o parameter if you want to access CNTools with limited functionality" ;;
-    3) myExit 1 "${FG_YELLOW}WARN${NC}: Unable to query Koios for current epoch parameters\n\n${FG_BLUE}INFO${NC}: Start CNTools in local or offline mode instead" ;;
+    1) myExit 1 "${FG_YELLOW}WARN${NC}: node socket path wrongly configured or node not running, please verify that socket set in env file match what is used to run the node\n\n${launch_modes_info}" ;;
+    2) myExit 1 "${FG_YELLOW}WARN${NC}: failed to query protocol parameters, ensure your node is running with correct genesis (the node needs to be in sync to 1 epoch after the hardfork)\n\nError message: ${PROT_PARAMS}\n\n${launch_modes_info}" ;;
+    3) myExit 1 "${FG_YELLOW}WARN${NC}: Unable to query Koios for current epoch parameters\n\n${launch_modes_info}" ;;
   esac
   echo "${PROT_PARAMS}" > "${TMP_DIR}"/protparams.json
 }

@@ -75,8 +75,9 @@ usage() {
 		Usage: $(basename "$0") [-o] [-a] [-b <branch name>] [-v]
 		Koios CNTools - The Cardano SPOs best friend
 		
-		-o    Offline mode - run CNTools in offline mode without local node, a limited set of functions available
-		-l    Light mode - run CNTools in full mode without local node using Koios query layer.
+		-n    Local mode   - run CNTools in local node mode (default)
+		-l    Light mode   - run CNTools using Koios query layer for full functionallity without a local node
+		-o    Offline mode - run CNTools with a limited set of functionallity without external communication useful for air-gapped mode
 		-a    Enable advanced/developer features like metadata transactions, multi-asset management etc (not needed for SPO usage)
 		-u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Run CNTools and look for updates on alternate branch instead of master (only for testing/development purposes)
@@ -267,7 +268,7 @@ function main {
     unset IFS
     clear
     if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
-      getNodeMetrics
+      [[ ${CNTOOLS_MODE} = "LOCAL" ]] && getNodeMetrics
       getPriceInfo
       updateProtocolParams
     fi
