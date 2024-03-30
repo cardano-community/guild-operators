@@ -125,7 +125,7 @@ fi
 # If light mode, test if koios is reachable, otherwise - unset KOIOS_API
 if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
   test_koios
-  [[ -z ${KOIOS_API} ]] && myExit 1 "ERROR: Koios query test failed, unable to launch CNTools in light mode utilizing Koios query layer"
+  [[ -z ${KOIOS_API} ]] && myExit 1 "ERROR: Koios query test failed, unable to launch CNTools in light mode utilizing Koios query layer\n\n${launch_modes_info}"
 fi
 
 # Source env file in normal mode with node connection
