@@ -383,10 +383,10 @@ download_cnodebins() {
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
     echo -e "\n  Downloading Cardano DB Sync archive created from GitHub.."
     curl -m 200 -sfL https://github.com/intersectmbo/cardano-db-sync/releases/download/sancho-3-0-0/cardano-db-sync-13.2.0.0-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.2.0.0 from GitHub!"
-    tar zxf cnodedbsync.tar.gz ./cardano-db-sync &>/dev/null
-    [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
+    tar zxf cnodedbsync.tar.gz ./bin/cardano-db-sync &>/dev/null
+    [[ -f ./bin/cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (bin/cardano-db-sync) not found after extracting package!"
     rm -f cnodedbsync.tar.gz
-    mv -f -t "${HOME}"/.local/bin cardano-db-sync
+    mv -f -t "${HOME}"/.local/bin bin/cardano-db-sync
   fi
   mv -f -t "${HOME}"/.local/bin bin/cardano-node bin/cardano-cli bin/cardano-submit-api bin/bech32 bin/cardano-address
   chmod +x "${HOME}"/.local/bin/*
