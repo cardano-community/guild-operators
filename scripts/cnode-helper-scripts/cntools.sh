@@ -669,7 +669,7 @@ function main {
                 esac
                 getWalletType ${wallet_name}
               fi
-              getWalletBalance ${wallet_name} false true false
+              getWalletBalance ${wallet_name} false true false true
               if [[ ${base_lovelace} -gt 0 ]]; then
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                   println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${base_lovelace})")"
@@ -723,7 +723,7 @@ function main {
                 println "\n${FG_YELLOW}WARN${NC}: wallet has unclaimed rewards, please use 'Funds >> Withdraw Rewards' before de-registration to claim your rewards"
                 waitToProceed && continue
               fi
-              getWalletBalance ${wallet_name} false true false
+              getWalletBalance ${wallet_name} true true false true
               if [[ ${base_lovelace} -le 0 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
                 println ERROR "Funds for transaction fee needed to deregister the wallet"
@@ -1270,7 +1270,7 @@ function main {
               s_wallet="${wallet_name}"
               s_payment_vk_file="${payment_vk_file}"
               s_payment_sk_file="${payment_sk_file}"
-              getWalletBalance ${s_wallet}
+              getWalletBalance ${s_wallet} true true true true
               if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "Select source wallet address"
@@ -1570,7 +1570,7 @@ function main {
                 esac
                 getWalletType ${wallet_name}
               fi
-              getWalletBalance ${wallet_name} true true false
+              getWalletBalance ${wallet_name} true true false true
               if [[ ${base_lovelace} -gt 0 ]]; then
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                   println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${base_lovelace})")"
@@ -1583,6 +1583,8 @@ function main {
               if [[ ${reward_lovelace} -eq -1 ]]; then
                 if [[ ${op_mode} = "online" ]]; then
                   if ! registerStakeWallet ${wallet_name}; then waitToProceed && continue; fi
+                  # re-fetch balance to get a fresh set of utxos
+                  getWalletBalance ${wallet_name} true true false true
                 else
                   println ERROR "\n${FG_YELLOW}The wallet is not a registered wallet on chain and CNTools run in hybrid mode${NC}"
                   println ERROR "Please first register the wallet using 'Wallet >> Register'"
@@ -1621,11 +1623,12 @@ function main {
               fi
               echo
               if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
+              getWalletBalance true true false
               echo
               println "Delegation successfully registered"
               println "Wallet : ${FG_GREEN}${wallet_name}${NC}"
               println "Pool   : ${FG_GREEN}${pool_name}${NC}"
-              println "Amount : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"
+              println "Amount : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
               waitToProceed && continue
               ;; ###################################################################
             withdrawrewards)
@@ -1662,7 +1665,7 @@ function main {
                 getWalletType ${wallet_name}
               fi
               echo
-              getWalletBalance ${wallet_name} false true false
+              getWalletBalance ${wallet_name} true true false true
               getWalletRewards ${wallet_name}
               if [[ ${reward_lovelace} -le 0 ]]; then
                 println ERROR "Failed to locate any rewards associated with the chosen wallet, please try another one"
@@ -1678,10 +1681,11 @@ function main {
               fi
               echo
               if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
+              getWalletBalance ${wallet_name} true true false
               echo
               println "Rewards successfully withdrawn"
               println "New Balance"
-              println "  Funds   : ${FG_LBLUE}$(formatLovelace ${assets[lovelace]})${NC} ADA"
+              println "  Funds   : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
               waitToProceed && continue
               ;; ###################################################################
           esac # funds sub OPERATION
@@ -2154,7 +2158,7 @@ function main {
                           println ERROR "Please first register main owner wallet to use in pool registration using 'Wallet >> Register'"
                           waitToProceed && continue 2
                         fi
-                        getWalletBalance ${wallet_name} true true false
+                        getWalletBalance ${wallet_name} true true false true
                         if [[ ${base_lovelace} -eq 0 ]]; then
                           println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                           waitToProceed && continue 2
@@ -2212,7 +2216,7 @@ function main {
                     println ERROR "Please first register the main CLI wallet to use in pool registration using 'Wallet >> Register'"
                     waitToProceed && continue
                   fi
-                  getWalletBalance ${wallet_name} true true false
+                  getWalletBalance ${wallet_name} true true false true
                   if [[ ${base_lovelace} -eq 0 ]]; then
                     println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                     waitToProceed && continue
@@ -2278,7 +2282,7 @@ function main {
                 esac
               fi
 
-              getWalletBalance ${owner_wallets[0]} true true false
+              getWalletBalance ${owner_wallets[0]} true true false true
               if [[ ${base_lovelace} -eq 0 ]]; then
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available in owner wallet ${FG_GREEN}${owner_wallets[0]}${NC}"
                 waitToProceed && continue
@@ -2560,7 +2564,7 @@ function main {
                   0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for pool de-registration transaction fee!" && waitToProceed && continue ;;
                 esac
               fi
-              getWalletBalance ${wallet_name}
+              getWalletBalance ${wallet_name} true true true true
               if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "\n# Select wallet address to use"
@@ -3240,7 +3244,7 @@ function main {
                       0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitToProceed && continue ;;
                     esac
                   fi
-                  getWalletBalance ${wallet_name}
+                  getWalletBalance ${wallet_name} true true true true
                   if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
                     # Both payment and base address available with funds, let user choose what to use
                     println DEBUG "\n# Select wallet address to use"
@@ -4378,7 +4382,7 @@ function main {
                 esac
               fi
               echo
-              getWalletBalance ${wallet_name}
+              getWalletBalance ${wallet_name} true true true true
               if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "Select source wallet address"
@@ -4793,7 +4797,7 @@ function main {
                       esac
                     fi
                     echo
-                    getWalletBalance ${wallet_name}
+                    getWalletBalance ${wallet_name} true true true true
                     if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
                       # Both payment and base address available with funds, let user choose what to use
                       println DEBUG "Select source wallet address"
