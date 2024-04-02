@@ -281,7 +281,7 @@ cncliLeaderlog() {
       getLedgerData || exit 1
     fi
     stake_param_current="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"
-    [[ -z "${nonce_set}" ]] && stake_param_current="${stake_param_current} --nonce ${nonce_set}"
+    [[ -n "${nonce_set}" ]] && stake_param_current="${stake_param_current} --nonce ${nonce_set}"
     cncli_leaderlog=$(${CNCLI} leaderlog --consensus "${consensus}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current ${stake_param_current} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
     if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
       error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
