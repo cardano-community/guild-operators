@@ -1436,6 +1436,8 @@ registerStakeWallet() {
   wallet_name=$1
   wallet_source="base"
 
+  [[ ${CNTOOLS_MODE} = "LIGHT" ]] && utxo_cnt=${utxos_cnt[${base_addr}]}
+
   if [[ -z $2 || $2 = "false" ]]; then
     println DEBUG "Wallet ${FG_GREEN}${wallet_name}${NC} not registered on chain"
     waitToProceed "press any key to continue with registration"
@@ -1450,6 +1452,7 @@ registerStakeWallet() {
   fi
 
   if ! getTTL; then return 1; fi
+
   println LOG "Key Deposit is ${KEY_DEPOSIT}"
 
   getAssetsTxOut
@@ -1529,6 +1532,8 @@ registerStakeWallet() {
 deregisterStakeWallet() {
 
   wallet_source="base"
+
+  [[ ${CNTOOLS_MODE} = "LIGHT" ]] && utxo_cnt=${utxos_cnt[${base_addr}]}
 
   stake_dereg_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_DEREG_FILENAME}"
   println ACTION "${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_dereg_file}"
@@ -1615,6 +1620,8 @@ deregisterStakeWallet() {
 sendAssets() {
 
   [[ $(cat "${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${s_addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+
+  [[ ${CNTOOLS_MODE} = "LIGHT" ]] && utxo_cnt=${utxos_cnt[${s_addr}]}
 
   if ! getTTL; then return 1; fi
 
@@ -1738,6 +1745,8 @@ delegate() {
 
   wallet_source="base"
 
+  [[ ${CNTOOLS_MODE} = "LIGHT" ]] && utxo_cnt=${utxos_cnt[${base_addr}]}
+
   if ! getTTL; then return 1; fi
   
   getAssetsTxOut
@@ -1817,6 +1826,8 @@ withdrawRewards() {
 
   wallet_source="base"
 
+  [[ ${CNTOOLS_MODE} = "LIGHT" ]] && utxo_cnt=${utxos_cnt[${base_addr}]}
+
   if ! getTTL; then return 1; fi
   
   getAssetsTxOut
@@ -1889,6 +1900,8 @@ withdrawRewards() {
 # Command     : registerPool
 # Description : Register pool with pledge on chain
 registerPool() {
+
+  [[ ${CNTOOLS_MODE} = "LIGHT" ]] && utxo_cnt=${utxos_cnt[${base_addr}]}
   
   if ! getTTL; then return 1; fi
   
@@ -2010,6 +2023,8 @@ registerPool() {
 # Command     : modifyPool
 # Description : Register pool with pledge on chain
 modifyPool() {
+
+  [[ ${CNTOOLS_MODE} = "LIGHT" ]] && utxo_cnt=${utxos_cnt[${base_addr}]}
   
   if ! getTTL; then return 1; fi
 
@@ -2127,6 +2142,7 @@ deRegisterPool() {
     for key in ${!assets[@]}; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
+    utxo_cnt=${utxos_cnt[${addr}]}
   else
     getBalance ${addr}
   fi
@@ -2337,6 +2353,7 @@ sendMetadata() {
     for key in ${!assets[@]}; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
+    utxo_cnt=${utxos_cnt[${addr}]}
   else
     getBalance ${addr}
   fi
@@ -2419,6 +2436,7 @@ mintAsset() {
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     index_prefix="${addr},"
+    utxo_cnt=${utxos_cnt[${addr}]}
   else
     getBalance ${addr}
     unset index_prefix
@@ -2522,6 +2540,7 @@ burnAsset() {
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     index_prefix="${addr},"
+    utxo_cnt=${utxos_cnt[${addr}]}
   else
     getBalance ${addr}
     unset index_prefix
@@ -2953,6 +2972,7 @@ submitPoll() {
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     index_prefix="${addr},"
+    utxo_cnt=${utxos_cnt[${addr}]}
   else
     getBalance ${addr}
     unset index_prefix
