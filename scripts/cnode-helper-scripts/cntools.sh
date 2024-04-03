@@ -1623,7 +1623,7 @@ function main {
               fi
               echo
               if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
-              getWalletBalance true true false
+              getWalletBalance ${wallet_name} true true false
               echo
               println "Delegation successfully registered"
               println "Wallet : ${FG_GREEN}${wallet_name}${NC}"
