@@ -2635,6 +2635,7 @@ function main {
                      else
                        pool_registered="${FG_RED}NO${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
                      fi ;;
+                  4) pool_registered="${FG_RED}NO${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}" ;;
                 esac
                 enc_files=$(find "${pool}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
                 if [[ ${enc_files} -gt 0 ]]; then
@@ -2720,6 +2721,7 @@ function main {
                      else
                        pool_registered="${FG_RED}NO${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
                      fi ;;
+                  4) pool_registered="${FG_RED}NO${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}" ;;
                 esac
               fi
               echo
