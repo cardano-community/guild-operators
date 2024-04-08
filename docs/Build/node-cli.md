@@ -96,10 +96,11 @@ This file contains the logging configurations (tracers of to tune logging, paths
 2. files/topology.json :
 This file tells your node how to connect to other nodes (especially initially to start synching). You would want to update this file as below:
 
-    * Update the `localRoots` > `accessPoints` section to include your local nodes that you want persistent connection against (eg: this could be your BP and own relay nodes).
+    * Update the `localRoots` > `accessPoints` section to include your local nodes that you want persistent connection against (eg: this could be your BP and own relay nodes) against definition where `trustable` is set to `true`.
     * You'd want to update `localRoots` > `valency` to number of connections from your localRoots that you always want to keep active connection to.
-    * [Optional] - you can add/remove nodes from `publicRoots` section, tho defaults populated should work fine. On mainnet, we did add a few additional nodes to help add more redundancy for initial sync - should IO/Emurgo decide to change DNS entries of their nodes.
-    * `useLedgerAfterSlot` tells the node to establish networking with nodes from localRoots/publicRoots to sync the node initially until reaching an absolute slot number, after which - it can start attempting to connect to peers registered as pool relays on the network. You may want this number to be relatively recent (eg: not hace it 50 epochs old)
+    * [Optional] - you can add/remove nodes from `publicRoots` section as well as `localRoots` > `accessPoints` as desired, tho defaults populated should work fine. On mainnet, we did add a few additional nodes to help add more redundancy for initial sync.
+    * `useLedgerAfterSlot` tells the node to establish networking with nodes from defined peers to sync the node initially until reaching an absolute slot number, after which - it can start attempting to connect to peers registered as pool relays on the network. You may want this number to be relatively recent (eg: not have it 50 epochs old).
+    * You can read further about topology file configuration [here](https://github.com/input-output-hk/cardano-node-wiki/blob/main/docs/getting-started/understanding-config-files.md#the-p2p-topologyjson-file)
 
 !!! important
     You'd want to set `useLedgerAfterSlot` to `-1` for your Block Producing (Core) node - thereby, telling your Core node to remain in non-P2P mode.
@@ -108,6 +109,16 @@ The resultant topology file could look something like below:
 
 ``` json
 {
+  "bootstrapPeers": [
+    {
+      "address": "backbone.cardano.iog.io",
+      "port": 3001
+    },
+    {
+      "address": "backbone.mainnet.emurgornd.com",
+      "port": 3001
+    }
+  ],
   "localRoots": [
     {
       "accessPoints": [
@@ -115,19 +126,36 @@ The resultant topology file could look something like below:
         {"address": "xx.xx.xx.yy", "port": 6000 }
       ],
       "advertise": false,
+      "trustable": true,
       "valency": 2
+    },
+    {
+      "accessPoints": [
+        {"address": "node-dus.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "EU/DE/Dusseldorf" },
+        {"address": "node-syd.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "OC/AU/Sydney" },
+        {"address": "194.36.145.157",                   "port": 6000, "pool": "RDLRT",  "location": "EU/DE/Baden" },
+        {"address": "152.53.18.60",                     "port": 6000, "pool": "RDLRT",  "location": "NA/US/StLouis" },
+        {"address": "148.72.153.168",                   "port": 16000, "pool": "AAA",   "location": "US/StLouis" },
+        {"address": "78.47.99.41",                      "port": 6000, "pool": "AAA",    "location": "EU/DE/Nuremberg" },
+        {"address": "relay1-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
+        {"address": "relay2-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
+        {"address": "relay1.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Milan" },
+        {"address": "relay2.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" },
+        {"address": "relay3.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" }
+      ],
+      "advertise": false,
+      "trustable": false,
+      "valency": 5,
+      "warmValency": 10
     }
   ],
   "publicRoots": [
     {
-      "accessPoints": [
-        {"address": "...", "port": 3001 },
-        {"address": "...", "port": 6000 }
-      ],
+      "accessPoints": [],
       "advertise": false
     }
   ],
-  "useLedgerAfterSlot": 67067585
+  "useLedgerAfterSlot": 119160667
 }
 ```
 

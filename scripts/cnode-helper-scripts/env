@@ -929,8 +929,8 @@ fi
 
 node_version="$(${CNODEBIN} version | head -1 | cut -d' ' -f2)"
 cli_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
-if ! versionCheck "8.7.3" "${node_version}" || ! versionCheck "8.17.0.0" "${cli_version}"; then
-  echo -e "\nKoios scripts have now been upgraded to support cardano-node 8.7.x ('${node_version}' found) / cardano-cli 8.17.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.1.2 to switch scripts to an older branch).\n\n"
+if ! versionCheck "8.9.0" "${node_version}" || ! versionCheck "8.20.3.0" "${cli_version}"; then
+  echo -e "\nKoios scripts have now been upgraded to support cardano-node 8.9.x ('${node_version}' found) / cardano-cli 8.20.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.1.2 to switch scripts to an older branch).\n\n"
   return 1
 fi
 
