@@ -22,7 +22,7 @@ ENV \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 
 RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
-    && apt install -y curl wget gnupg git udev \
+    && apt install -y curl wget gnupg git udev jq \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
