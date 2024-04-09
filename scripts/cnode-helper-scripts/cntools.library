@@ -441,7 +441,7 @@ selectWallet() {
   mode=$1 && shift
 
   if [[ ${mode} = "cache" && ${#wallet_dirs_filtered[@]} -gt 0 ]]; then
-    if ! selectDir "wallet" "${wallet_dirs_filtered[@]}"; then return $?; fi # ${dir_name} populated by selectDir function
+    selectDir "wallet" "${wallet_dirs_filtered[@]}" || return $? # ${dir_name} populated by selectDir function
     wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
     return 0
   fi
@@ -634,7 +634,7 @@ selectWallet() {
     return 1
   fi
 
-  if ! selectDir "wallet" "${wallet_dirs_filtered[@]}"; then return $?; fi # ${dir_name} populated by selectDir function
+  selectDir "wallet" "${wallet_dirs_filtered[@]}" || return $? # ${dir_name} populated by selectDir function
   wallet_name="$(echo ${dir_name} | cut -d' ' -f1)"
 }
 
@@ -679,7 +679,7 @@ selectPool() {
     return 1
   fi
   [[ ${enc_req_files} -gt 0 ]] && println DEBUG "${FG_YELLOW}encrypted pools found but NOT listed, please decrypt to show${NC}"
-  if ! selectDir "pool" "${pool_dirs[@]}"; then return $?; fi # ${dir_name} populated by selectDir function
+  selectDir "pool" "${pool_dirs[@]}" || return $? # ${dir_name} populated by selectDir function
   pool_name="$(echo ${dir_name} | cut -d' ' -f1)"
 }
 
@@ -830,7 +830,7 @@ selectPolicy() {
     return 1
   fi
   [[ ${enc_req_files} -gt 0 ]] && println DEBUG "${FG_YELLOW}encrypted policies found but NOT listed, please decrypt to show${NC}"
-  if ! selectDir "policy" "${policy_dirs[@]}"; then return $?; fi # ${dir_name} populated by selectDir function
+  selectDir "policy" "${policy_dirs[@]}" || return $? # ${dir_name} populated by selectDir function
   policy_name="$(echo ${dir_name} | cut -d' ' -f1)"
 }
 
@@ -852,7 +852,7 @@ selectAsset() {
     println ERROR "${FG_YELLOW}WARN${NC}: No assets found on disk!"
     return 1
   fi
-  if ! selectDir "asset" "${asset_list[@]}"; then return $?; fi # ${dir_name} populated by selected value
+  selectDir "asset" "${asset_list[@]}" || return $? # ${dir_name} populated by selected value
   policy_dir="${dir_name%%/*}"
   asset_name="${dir_name##*/}"
   asset_file="${ASSET_FOLDER}/${policy_dir}/${asset_name}.asset"

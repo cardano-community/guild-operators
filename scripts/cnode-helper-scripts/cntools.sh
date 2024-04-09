@@ -1456,6 +1456,9 @@ function main {
                     1) println ERROR "${FG_RED}ERROR${NC}: Unable to send all ADA as there are additional assets left on address not selected to be sent" && waitToProceed && continue ;;
                     2) continue ;;
                   esac
+                else
+                  assets_left[lovelace]=0
+                  assets_to_send[lovelace]=${amount_lovelace}
                 fi
               else
                 assets_left[lovelace]=$(( assets_left[lovelace] - amount_lovelace ))
