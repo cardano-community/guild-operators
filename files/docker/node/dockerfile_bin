@@ -22,7 +22,7 @@ ENV \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 
 RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
-    && apt install -y curl wget gnupg git udev jq \
+    && apt install -y curl wget gnupg git udev jq nano \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
@@ -46,7 +46,7 @@ RUN set -x && apt update \
     && export SUDO='N' \
     && export UPDATE_CHECK='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
-    && chmod +x ./guild-deploy.sh &&  ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s p \
+    && chmod +x ./guild-deploy.sh &&  ./guild-deploy.sh -u -b ${GUILD_DEPLOY_BRANCH} -s fp \
     && ls /opt/ \
     && mkdir -p $CNODE_HOME/priv/files \
     && apt-get -y remove libpq-dev build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ \
@@ -87,6 +87,7 @@ RUN  curl -sL -H "Accept: application/vnd.github.everest-preview+json" -H "Conte
     && echo "alias gLiveView=$CNODE_HOME/scripts/gLiveView.sh" >> ~/.bashrc \
     && echo "export PATH=/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.local/bin"  >> ~/.bashrc 
 
+ENV G_BRANCH=${GUILD_DEPLOY_BRANCH}
 
 # ENTRY SCRIPT
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/banner.txt \
