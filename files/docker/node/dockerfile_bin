@@ -23,7 +23,7 @@ ENV \
     G_BRANCH=${GUILD_DEPLOY_BRANCH}
 
 RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
-    && apt install -y curl wget gnupg git udev jq nano \
+    && apt install -y curl wget gnupg git udev jq \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
