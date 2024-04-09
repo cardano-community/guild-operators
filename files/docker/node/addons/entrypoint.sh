@@ -44,26 +44,28 @@ return 0
 
 export UPDATE_CHECK='N'
 
+[[ -z ${G_BRANCH} ]] && G_BRANCH="master"
+
 if [[ "$NETWORK" == "mainnet" ]]; then
-  $CNODE_HOME/scripts/guild-deploy.sh -n mainnet -u -s f > /dev/null 2>&1 \
+  $CNODE_HOME/scripts/guild-deploy.sh -b ${G_BRANCH} -n mainnet -u -s f > /dev/null 2>&1 \
   && customise \
   && exec $CNODE_HOME/scripts/cnode.sh
 elif [[ "$NETWORK" == "preprod" ]]; then
-  $CNODE_HOME/scripts/guild-deploy.sh -n preprod -u -s f > /dev/null 2>&1 \
+  $CNODE_HOME/scripts/guild-deploy.sh -b ${G_BRANCH} -n preprod -u -s f > /dev/null 2>&1 \
   && customise \
   && exec $CNODE_HOME/scripts/cnode.sh
 elif [[ "$NETWORK" == "preview" ]]; then
-  $CNODE_HOME/scripts/guild-deploy.sh -n preview -u -s f > /dev/null 2>&1 \
+  $CNODE_HOME/scripts/guild-deploy.sh -b ${G_BRANCH} -n preview -u -s f > /dev/null 2>&1 \
   && customise \
   && exec $CNODE_HOME/scripts/cnode.sh
 elif [[ "$NETWORK" == "guild-mainnet" ]]; then
-  $CNODE_HOME/scripts/guild-deploy.sh -n mainnet -u -s f > /dev/null 2>&1 \
+  $CNODE_HOME/scripts/guild-deploy.sh -b ${G_BRANCH} -n mainnet -u -s f > /dev/null 2>&1 \
   && bash /home/guild/.scripts/guild-topology.sh > /dev/null 2>&1 \
   && export TOPOLOGY="${CNODE_HOME}/files/guildnet-topology.json" \
   && customise \
   && exec $CNODE_HOME/scripts/cnode.sh
 elif [[ "$NETWORK" == "guild" ]]; then
-  $CNODE_HOME/scripts/guild-deploy.sh -n guild -u -s f > /dev/null 2>&1 \
+  $CNODE_HOME/scripts/guild-deploy.sh -b ${G_BRANCH} -n guild -u -s f > /dev/null 2>&1 \
   && customise \
   && exec $CNODE_HOME/scripts/cnode.sh
 else

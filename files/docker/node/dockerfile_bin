@@ -5,8 +5,8 @@ STOPSIGNAL SIGINT
 
 LABEL desc="Cardano Node by Guild's Operators"
 ARG DEBIAN_FRONTEND=noninteractive
-ARG G_ACCOUNT
-ARG GUILD_DEPLOY_BRANCH
+ARG G_ACCOUNT=cardano-community
+ARG GUILD_DEPLOY_BRANCH=master
 
 USER root
 WORKDIR /
@@ -19,10 +19,11 @@ ENV \
     CNODE_HOME=/opt/cardano/cnode \
     CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node.socket \
     PATH=/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.local/bin \
-    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
+    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
+    G_BRANCH=${GUILD_DEPLOY_BRANCH}
 
 RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
-    && apt install -y curl wget gnupg git udev \
+    && apt install -y curl wget gnupg git udev jq \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
@@ -38,7 +39,6 @@ RUN adduser --disabled-password --gecos '' guild \
     && adduser guild sudo \
     && mkdir -pv /home/guild/.local/ /home/guild/.scripts/ 
 
-
 RUN set -x && apt update \
     && apt-get update \
     && mkdir -p /root/.local/bin \
@@ -46,7 +46,8 @@ RUN set -x && apt update \
     && export SUDO='N' \
     && export UPDATE_CHECK='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
-    && chmod +x ./guild-deploy.sh &&  ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s p \
+    && export G_ACCOUNT=${G_ACCOUNT} \
+    && chmod +x ./guild-deploy.sh && ./guild-deploy.sh -u -b ${GUILD_DEPLOY_BRANCH} -s p \
     && ls /opt/ \
     && mkdir -p $CNODE_HOME/priv/files \
     && apt-get -y remove libpq-dev build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ \
@@ -55,11 +56,11 @@ RUN set -x && apt update \
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
 
-
 RUN set -x && export SUDO='N' \
     && export UPDATE_CHECK='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
-    && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s dcmowx \
+    && export G_ACCOUNT=${G_ACCOUNT} \
+    && ./guild-deploy.sh -u -b ${GUILD_DEPLOY_BRANCH} -s dcmowx \
     && cd /usr/bin \
     && wget http://www.vdberg.org/~richard/tcpping \
     && chmod 755 tcpping \
