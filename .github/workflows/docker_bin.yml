@@ -23,9 +23,16 @@ jobs:
       REGISTRY: docker.io
     runs-on: ubuntu-latest
     steps:
+    - name: Set branch name
+      id: vars
+      run: echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
+    - name: Set GUILD_DEPLOY_BRANCH
+      run: echo "GUILD_DEPLOY_BRANCH=${{ github.event_name == 'push' && steps.vars.outputs.branch || github.event.inputs.guild_deploy_branch }}" >> $GITHUB_ENV
+    - name: Set TESTING
+      run: echo "TESTING=${{ github.event_name == 'push' && (steps.vars.outputs.branch != 'master') || github.event.inputs.testing }}" >> $GITHUB_ENV
     - uses: actions/checkout@v3
       with:
-        ref: ${{ github.event.inputs.guild_deploy_branch }}
+        ref: ${{ env.GUILD_DEPLOY_BRANCH }}
     - name: docker login
       run: |
         docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_PASSWORD }}
@@ -40,7 +47,7 @@ jobs:
           --file files/docker/node/dockerfile_bin \
           --compress \
           --build-arg G_ACCOUNT=${{ env.G_ACCOUNT }} \
-          --build-arg GUILD_DEPLOY_BRANCH=${{ github.event.inputs.guild_deploy_branch }} \
+          --build-arg GUILD_DEPLOY_BRANCH=${{ env.GUILD_DEPLOY_BRANCH }} \
           --tag ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest
         # Workaround to provide additional free space for builds.
         #   https://github.com/actions/virtual-environments/issues/2840
@@ -57,7 +64,7 @@ jobs:
         sudo rm -rf "/usr/local/share/boost"
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: docker push latest
-      if: github.event.inputs.testing == 'false' && github.event.inputs.guild_deploy_branch == 'master'
+      if: env.TESTING == 'false' && env.GUILD_DEPLOY_BRANCH == 'master'
       run: |
         CNVERSION=`cat files/docker/node/release-versions/cardano-node-latest.txt`
         echo "PUSH_TO_GA=true" >> $GITHUB_ENV
