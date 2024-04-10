@@ -11,7 +11,7 @@ on:
         description: Testing workflow
         required: false
         type: boolean
-        default: false
+        default: true
   push:
     paths:
       - 'files/docker/node/release-versions/cardano-node-latest.txt'
