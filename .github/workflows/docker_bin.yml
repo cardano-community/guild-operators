@@ -41,7 +41,7 @@ jobs:
         echo "G_ACCOUNT=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
         echo "CNVERSION=$(cat files/docker/node/release-versions/cardano-node-latest.txt)" >> $GITHUB_ENV
         echo "PUSH_TO_GA=false" >> $GITHUB_ENV
-    - name: Compiling new node software suite
+    - name: Docker build container image
       run: |
         DOCKER_BUILDKIT=1 docker build . \
           --file files/docker/node/dockerfile_bin \
