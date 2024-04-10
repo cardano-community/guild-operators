@@ -19,7 +19,8 @@ ENV \
     CNODE_HOME=/opt/cardano/cnode \
     CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node.socket \
     PATH=/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.local/bin \
-    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
+    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
+    UPDATE_CHECK=N
 
 RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
     && apt install -y curl wget gnupg git udev jq \

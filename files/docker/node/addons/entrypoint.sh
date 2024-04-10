@@ -42,7 +42,6 @@ find /opt/cardano/cnode/files -name "*config*.json" -print0 | xargs -0 sed -i 's
 return 0
 }
 
-export UPDATE_CHECK='N'
 
 if [[ "$NETWORK" == "mainnet" ]]; then
   $CNODE_HOME/scripts/guild-deploy.sh -n mainnet -u -s f > /dev/null 2>&1 \
