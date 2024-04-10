@@ -75,6 +75,15 @@ RUN apt-get update \
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
 
+
+RUN bash -c 'networks=(guild mainnet preprod preview sanchonet); files=({alonzo,byron,conway,shelley}-genesis.json config.json db-sync-config.json topology.json); \
+    for network in "${networks[@]}"; do \
+        mkdir -pv /conf/${network} && \
+        for file in "${files[@]}"; do \
+            curl -s -o /conf/${network}/$file https://raw.githubusercontent.com/'${G_ACCOUNT}'/guild-operators/'${GUILD_DEPLOY_BRANCH}'/files/configs/${network}/${file}; \
+        done; \
+    done'
+
 USER guild
 WORKDIR /home/guild
 
@@ -99,8 +108,8 @@ ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLO
     https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-relay.sh /opt/cardano/cnode/scripts/
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/entrypoint.sh ./
 
-RUN sudo chmod a+rx /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh \
-    && sudo chown -R guild:guild /home/guild/.* $CNODE_HOME
+RUN sudo chmod -R a+rx /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh /conf \
+    && sudo chown -R guild:guild /home/guild/.* $CNODE_HOME /conf
 
 HEALTHCHECK --start-period=5m --interval=5m --timeout=100s CMD /home/guild/.scripts/healthcheck.sh
 
