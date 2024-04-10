@@ -77,6 +77,6 @@ jobs:
         echo "## Summary Details" >> $GITHUB_STEP_SUMMARY
         echo "* Docker Image: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:${{ env.CNVERSION }}" >> $GITHUB_STEP_SUMMARY
         echo "* G_ACCOUNT: ${GITHUB_REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
-        echo "* GUILD_DEPLOY_BRANCH: ${{ github.event.inputs.guild_deploy_branch }}" >> $GITHUB_STEP_SUMMARY
+        echo "* GUILD_DEPLOY_BRANCH: ${{ env.GUILD_DEPLOY_BRANCH }}" >> $GITHUB_STEP_SUMMARY
         echo "* Push to GA Registry: ${{ env.PUSH_TO_GA }}" >> $GITHUB_STEP_SUMMARY
         echo "* CNVERSION: ${{ env.CNVERSION }}" >> $GITHUB_STEP_SUMMARY
