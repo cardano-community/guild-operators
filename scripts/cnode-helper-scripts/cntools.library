@@ -530,6 +530,7 @@ selectWallet() {
           [[ -n ${reward_addr} ]] && reward_addr_list+=(${reward_addr})
         else
           getWalletRewards ${dir}
+          [[ ${reward_lovelace} -eq 0 ]] && continue
           rewards_available[${reward_addr}]=${reward_lovelace}
         fi
         wallet_dirs+=("${dir}_balance_")
@@ -544,8 +545,8 @@ selectWallet() {
       getBalanceKoios false
       for key in ${!assets[@]}; do
         if [[ ${key} = *lovelace ]]; then
-          address=${key%,*}
-          balances[${address}]=${assets[${key}]}
+          _address=${key%,*}
+          balances[${_address}]=${assets[${key}]}
         fi
       done
     fi
@@ -1138,24 +1139,24 @@ getBalanceKoios() {
     println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_addresses\":[${addr_list_joined%,}],\"_extended\":${extended}}' ${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
     ! address_utxo_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_addresses":['${addr_list_joined%,}'],"_extended":'${extended}'}' "${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_utxo_list}\n" && return 1 # print error and return
     [[ -z ${address_utxo_list} ]] && return
-    while IFS=',' read -r address tx_hash tx_index value asset_list; do
-      [[ ${address} = address ]] && continue # header line
-      index_prefix="${address},"
+    while IFS=',' read -r _address _tx_hash _tx_index _value _asset_list; do
+      [[ ${_address} = address ]] && continue # header line
+      index_prefix="${_address},"
       assets["${index_prefix}lovelace"]=$(( ${assets["${index_prefix}lovelace"]:-0} + value ))
-      utxos["${index_prefix}${tx_hash}#${tx_index}. ADA"]=${value}
-      utxos_cnt["${address}"]=$(( ${utxos_cnt["${address}"]:-0} + 1 ))
-      tx_in+=" --tx-in ${tx_hash}#${tx_index}"
+      utxos["${index_prefix}${_tx_hash}#${_tx_index}. ADA"]=${_value}
+      utxos_cnt["${_address}"]=$(( ${utxos_cnt["${_address}"]:-0} + 1 ))
+      tx_in+=" --tx-in ${_tx_hash}#${_tx_index}"
       if [[ $1 != false ]]; then
-        asset_list_unescaped=${asset_list:1: -1} # remove first and last char (quotation)
+        asset_list_unescaped=${_asset_list:1: -1} # remove first and last char (quotation)
         asset_list_unescaped=$(sed 's/""/"/g' <<< "${asset_list_unescaped}") # remove all double quotes, sed seems to perform better than bash string manipulation
-        while IFS=',' read -r policy_id asset_name quantity; do
-          tname="$(hexToAscii ${asset_name})"
+        while IFS=',' read -r _policy_id _asset_name _quantity; do
+          tname="$(hexToAscii ${_asset_name})"
           tname="${tname//[![:print:]]/}"
-          [[ ${#tname} -gt ${asset_name_maxlen_arr["${address}"]:-5} ]] && asset_name_maxlen_arr["${address}"]=${#tname}
-          asset_amount_fmt="$(formatAsset ${quantity})"
-          [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen_arr["${address}"]:-12} ]] && asset_amount_maxlen_arr["${address}"]=${#asset_amount_fmt}
-          assets["${index_prefix}${policy_id}.${asset_name}"]=$(( ${assets["${index_prefix}${policy_id}.${asset_name}"]:-0} + quantity ))
-          utxos["${index_prefix}${tx_hash}#${tx_index}.${policy_id}.${asset_name}"]=${quantity}
+          [[ ${#tname} -gt ${asset_name_maxlen_arr["${_address}"]:-5} ]] && asset_name_maxlen_arr["${_address}"]=${#tname}
+          asset_amount_fmt="$(formatAsset ${_quantity})"
+          [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen_arr["${_address}"]:-12} ]] && asset_amount_maxlen_arr["${_address}"]=${#asset_amount_fmt}
+          assets["${index_prefix}${_policy_id}.${_asset_name}"]=$(( ${assets["${index_prefix}${_policy_id}.${_asset_name}"]:-0} + _quantity ))
+          utxos["${index_prefix}${_tx_hash}#${_tx_index}.${_policy_id}.${_asset_name}"]=${_quantity}
         done < <( jq -cr '.[] | "\(.policy_id),\(.asset_name),\(.quantity)"' <<< "${asset_list_unescaped}" )
       fi
     done <<< "${address_utxo_list}"
@@ -1302,10 +1303,10 @@ getRewardInfoKoios() {
   declare -gA rewards_available=(); declare -gA reward_status=(); declare -gA reward_pool=();
 
   # set defaults
-  for reward_addr in "${reward_addr_list[@]}"; do
-    reward_status["${reward_addr}"]="not registered"
-    rewards_available["${reward_addr}"]=0
-    unset 'reward_pool[${reward_addr}]'
+  for _reward_addr in "${reward_addr_list[@]}"; do
+    reward_status["${_reward_addr}"]="not registered"
+    rewards_available["${_reward_addr}"]=0
+    unset 'reward_pool[${_reward_addr}]'
   done
 
   if [[ -n ${KOIOS_API} && -n ${reward_addr_list+x} ]]; then
