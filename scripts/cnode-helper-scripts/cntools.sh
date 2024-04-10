@@ -92,6 +92,9 @@ PRINT_VERSION="false"
 PARENT="$(dirname $0)"
 [[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat "${PARENT}"/.env_branch)" || BRANCH="master"
 
+# save launch params
+arg_copy=("$@")
+
 while getopts :olaub:v opt; do
   case ${opt} in
     o ) CNTOOLS_MODE="OFFLINE" ;;
@@ -176,7 +179,7 @@ if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
            echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.sh against GitHub failed!"
            waitToProceed
          fi
-         $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
+         $0 "${arg_copy[@]}" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
       2) echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.library against GitHub failed!"
          waitToProceed ;;
     esac

@@ -464,10 +464,10 @@ selectWallet() {
   unset reward_status
   addr_list=()
   reward_addr_list=()
-  declare -A asset_cnt=()
-  declare -A balances=()
-  declare -A reward_pool=()
-  declare -A rewards_available=()
+  declare -gA asset_cnt=()
+  declare -gA balances=()
+  declare -gA reward_pool=()
+  declare -gA rewards_available=()
 
   for dir in "${dirs[@]}"; do
     for arg in "$@"; do # check if wallet is missing a required file or name matches execution, if so hide it
