@@ -22,7 +22,7 @@ ENV \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 
 RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
-    && apt install -y curl wget gnupg git udev \
+    && apt install -y curl wget gnupg git udev jq \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
@@ -69,7 +69,7 @@ RUN set -x && export SUDO='N' \
 
 # Add final tools in a separate layer to shrink the largest layer
 RUN apt-get update \
-    && apt-get install -y procps libcap2 libselinux1 libc6 libsodium-dev ncurses-bin iproute2 xz-utils netbase coreutils dnsutils net-tools procps tcptraceroute bc usbip sqlite3 python3 tmux jq ncurses-base libtool autoconf tcptraceroute util-linux less openssl bsdmainutils dialog vim \
+    && apt-get install -y procps libcap2 libselinux1 libc6 libsodium-dev ncurses-bin iproute2 xz-utils netbase coreutils dnsutils net-tools procps tcptraceroute bc usbip sqlite3 python3 tmux ncurses-base libtool autoconf tcptraceroute util-linux less openssl bsdmainutils dialog vim \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
