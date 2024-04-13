@@ -119,10 +119,10 @@ getLedgerData() { # getNodeMetrics expected to have been already run
     echo "ERROR: stake-snapshot query failed: ${stake_snapshot}"
     return 1
   fi
-  pool_stake_mark=$(jq -r .poolStakeMark <<< ${stake_snapshot})
-  active_stake_mark=$(jq -r .activeStakeMark <<< ${stake_snapshot})
-  pool_stake_set=$(jq -r .poolStakeSet <<< ${stake_snapshot})
-  active_stake_set=$(jq -r .activeStakeSet <<< ${stake_snapshot})
+  pool_stake_mark=$(jq -r ".pools[\"${POOL_ID}\"].stakeMark" <<< ${stake_snapshot})
+  active_stake_mark=$(jq -r .total.stakeMark <<< ${stake_snapshot})
+  pool_stake_set=$(jq -r ".pools[\"${POOL_ID}\"].stakeSet" <<< ${stake_snapshot})
+  active_stake_set=$(jq -r .total.stakeSet <<< ${stake_snapshot})
   return 0
 }
 
@@ -281,7 +281,7 @@ cncliLeaderlog() {
       getLedgerData || exit 1
     fi
     stake_param_current="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"
-    [[ -z "${nonce_set}" ]] && stake_param_current="${stake_param_current} --nonce ${nonce_set}"
+    [[ -n "${nonce_set}" ]] && stake_param_current="${stake_param_current} --nonce ${nonce_set}"
     cncli_leaderlog=$(${CNCLI} leaderlog --consensus "${consensus}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set current ${stake_param_current} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
     if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
       error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
@@ -348,7 +348,7 @@ cncliLeaderlog() {
         if ! getLedgerData; then sleep 300; continue; fi # Sleep for 5 min before retrying to query stake snapshot in case of error
       fi
       stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
-      [[ -z "${nonce_mark}" ]] && stake_param_next="${stake_param_next} --nonce ${nonce_mark}"
+      [[ -n "${nonce_mark}" ]] && stake_param_next="${stake_param_next} --nonce ${nonce_mark}"
       cncli_leaderlog=$(${CNCLI} leaderlog --consensus "${consensus}" --db "${CNCLI_DB}" --byron-genesis "${BYRON_GENESIS_JSON}" --shelley-genesis "${GENESIS_JSON}" --ledger-set next ${stake_param_next} --pool-id "${POOL_ID}" --pool-vrf-skey "${POOL_VRF_SKEY}" --tz UTC)
       if [[ $(jq -r .status <<< "${cncli_leaderlog}") != ok ]]; then
         error_msg=$(jq -r .errorMessage <<< "${cncli_leaderlog}")
