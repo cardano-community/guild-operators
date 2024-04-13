@@ -1142,7 +1142,7 @@ getBalanceKoios() {
     while IFS=',' read -r _address _tx_hash _tx_index _value _asset_list; do
       [[ ${_address} = address ]] && continue # header line
       index_prefix="${_address},"
-      assets["${index_prefix}lovelace"]=$(( ${assets["${index_prefix}lovelace"]:-0} + value ))
+      assets["${index_prefix}lovelace"]=$(( ${assets["${index_prefix}lovelace"]:-0} + _value ))
       utxos["${index_prefix}${_tx_hash}#${_tx_index}. ADA"]=${_value}
       utxos_cnt["${_address}"]=$(( ${utxos_cnt["${_address}"]:-0} + 1 ))
       tx_in+=" --tx-in ${_tx_hash}#${_tx_index}"
