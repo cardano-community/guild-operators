@@ -42,33 +42,22 @@ find /opt/cardano/cnode/files -name "*config*.json" -print0 | xargs -0 sed -i 's
 return 0
 }
 
-export UPDATE_CHECK='N'
+load_configs () {
+  cp -rf /conf/"${NETWORK}"/* "$CNODE_HOME"/files/
+}
 
-if [[ "$NETWORK" == "mainnet" ]]; then
-  $CNODE_HOME/scripts/guild-deploy.sh -n mainnet -u -s f > /dev/null 2>&1 \
-  && customise \
-  && exec $CNODE_HOME/scripts/cnode.sh
-elif [[ "$NETWORK" == "preprod" ]]; then
-  $CNODE_HOME/scripts/guild-deploy.sh -n preprod -u -s f > /dev/null 2>&1 \
-  && customise \
-  && exec $CNODE_HOME/scripts/cnode.sh
-elif [[ "$NETWORK" == "preview" ]]; then
-  $CNODE_HOME/scripts/guild-deploy.sh -n preview -u -s f > /dev/null 2>&1 \
-  && customise \
-  && exec $CNODE_HOME/scripts/cnode.sh
-elif [[ "$NETWORK" == "guild-mainnet" ]]; then
-  $CNODE_HOME/scripts/guild-deploy.sh -n mainnet -u -s f > /dev/null 2>&1 \
-  && bash /home/guild/.scripts/guild-topology.sh > /dev/null 2>&1 \
-  && export TOPOLOGY="${CNODE_HOME}/files/guildnet-topology.json" \
-  && customise \
-  && exec $CNODE_HOME/scripts/cnode.sh
-elif [[ "$NETWORK" == "guild" ]]; then
-  $CNODE_HOME/scripts/guild-deploy.sh -n guild -u -s f > /dev/null 2>&1 \
-  && customise \
-  && exec $CNODE_HOME/scripts/cnode.sh
+if [[ -n "${NETWORK}" ]] ; then
+  if [[ "${UPDATE_CHECK}" == "Y" ]] ; then
+    "$CNODE_HOME"/scripts/guild-deploy.sh -n "$NETWORK" -u -s f > /dev/null 2>&1
+  else
+    load_configs
+  fi
 else
   echo "Please set a NETWORK environment variable to one of: mainnet / preview / preprod / guild-mainnet / guild"
   echo "mount a '$CNODE_HOME/priv/files' volume containing: mainnet-config.json, mainnet-shelley-genesis.json, mainnet-byron-genesis.json, and mainnet-topology.json "
   echo "for active nodes set POOL_DIR environment variable where op.cert, hot.skey and vrf.skey files reside. (usually under '${CNODE_HOME}/priv/pool/$POOL_NAME' ) "
   echo "or just set POOL_NAME environment variable (for default path). "
 fi
+
+customise \
+&& exec "$CNODE_HOME"/scripts/cnode.sh
