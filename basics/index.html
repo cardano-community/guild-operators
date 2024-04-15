@@ -1063,11 +1063,12 @@
 <p>The architecture for various components are already described at <a href="https://docs.cardano.org/explore-cardano/cardano-architecture">docs.cardano.org</a> by CF/IOHK. We will not reinvent the wheel <img alt="😄" class="twemoji" src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/1f604.svg" title=":smile:" /></p>
 <h4 id="manual-software-pre-requirements">Manual Software Pre-Requirements<a class="headerlink" href="#manual-software-pre-requirements" title="Permanent link">⚓︎</a></h4>
 <p>While we do not intend to hand out step-by-step instructions, the tools are often misused as a shortcut to avoid ensuring base skillsets mentioned on home page. Some of the common gotchas that we often find SPOs to miss out on:</p>
-<div class="highlight"><pre><span></span><code>- It is imperative that pools operate with highly accurate system time, in order to propogate blocks to network in a timely manner and avoid penalties to own (or at times other competing) blocks. Please refer to sample guidance [here ](https://ubuntu.com/server/docs/network-ntp) for details - the precise steps may depend on your OS.
-- Ensure your Firewall rules at Network as well as OS level are updated according to the usage of your system, you&#39;d want to whitelist the rules that you really need to open to world (eg: You might need node, SSH, and potentially secured webserver/proxy ports to be open, depending on components you run).
-- Update your SSH Configuration to prevent password-based logon.
-- Ensure that you use offline workflow, you should never require to have your offline keys on online nodes. The tools provide you backup/restore functionality to only pass online keys to online nodes.
-</code></pre></div>
+<ul>
+<li>It is imperative that pools operate with highly accurate system time, in order to propogate blocks to network in a timely manner and avoid penalties to own (or at times other competing) blocks. Please refer to sample guidance <a href="https://ubuntu.com/server/docs/network-ntp">here </a> for details - the precise steps may depend on your OS.</li>
+<li>Ensure your Firewall rules at Network as well as OS level are updated according to the usage of your system, you'd want to whitelist the rules that you really need to open to world (eg: You might need node, SSH, and potentially secured webserver/proxy ports to be open, depending on components you run).</li>
+<li>Update your SSH Configuration to prevent password-based logon.</li>
+<li>Ensure that you use offline workflow, you should never require to have your offline keys on online nodes. The tools provide you backup/restore functionality to only pass online keys to online nodes.</li>
+</ul>
 <h4 id="pre-requisites">Pre-Requisites<a class="headerlink" href="#pre-requisites" title="Permanent link">⚓︎</a></h4>
 <div class="admonition info">
 <p class="admonition-title">Reminder !!</p>
