@@ -19,10 +19,11 @@ ENV \
     CNODE_HOME=/opt/cardano/cnode \
     CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node.socket \
     PATH=/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.local/bin \
-    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
+    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
+    UPDATE_CHECK=N
 
 RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
-    && apt install -y curl wget gnupg git udev \
+    && apt install -y curl wget gnupg git udev jq \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
@@ -69,11 +70,20 @@ RUN set -x && export SUDO='N' \
 
 # Add final tools in a separate layer to shrink the largest layer
 RUN apt-get update \
-    && apt-get install -y procps libcap2 libselinux1 libc6 libsodium-dev ncurses-bin iproute2 xz-utils netbase coreutils dnsutils net-tools procps tcptraceroute bc usbip sqlite3 python3 tmux jq ncurses-base libtool autoconf tcptraceroute util-linux less openssl bsdmainutils dialog vim \
+    && apt-get install -y procps libcap2 libselinux1 libc6 libsodium-dev ncurses-bin iproute2 xz-utils netbase coreutils dnsutils net-tools procps tcptraceroute bc usbip sqlite3 python3 tmux ncurses-base libtool autoconf tcptraceroute util-linux less openssl bsdmainutils dialog vim \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
+
+
+RUN bash -c 'networks=(guild mainnet preprod preview sanchonet); files=({alonzo,byron,conway,shelley}-genesis.json config.json db-sync-config.json topology.json); \
+    for network in "${networks[@]}"; do \
+        mkdir -pv /conf/${network} && \
+        for file in "${files[@]}"; do \
+            curl -s -o /conf/${network}/$file https://raw.githubusercontent.com/'${G_ACCOUNT}'/guild-operators/'${GUILD_DEPLOY_BRANCH}'/files/configs/${network}/${file}; \
+        done; \
+    done'
 
 USER guild
 WORKDIR /home/guild
@@ -99,8 +109,8 @@ ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLO
     https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-relay.sh /opt/cardano/cnode/scripts/
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/entrypoint.sh ./
 
-RUN sudo chmod a+rx /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh \
-    && sudo chown -R guild:guild /home/guild/.* $CNODE_HOME
+RUN sudo chmod -R a+rx /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh /conf \
+    && sudo chown -R guild:guild /home/guild/.* $CNODE_HOME /conf
 
 HEALTHCHECK --start-period=5m --interval=5m --timeout=100s CMD /home/guild/.scripts/healthcheck.sh
 
