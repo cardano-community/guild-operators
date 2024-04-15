@@ -1,9 +1,36 @@
 `mithril-client.sh` is a script to manage the Mithril client, a tool used to set up the Mithril client environment and manage downloading Mithril snapshots and stake distributions. The main features include:
 
 - **environment** - Creates a new `mithril.env` file with all the necessary environment variables for the Mithril client.
-- **snapshot** - Download, list all or show a specific available Mithril snapshot.
+- **cardano-db** - Download, list all or show a specific available Mithril snapshot.
 - **stake-distribution** - Download or list available Mithril stake distributions.
 - **-u** - Skip script update check.
+
+## Usage
+
+```bash
+Usage: bash [-u] <command> <subcommand> [<sub arg>]
+A script to run Cardano Mithril Client
+
+-u          Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
+    
+Commands:
+environment           Manage mithril environment file
+  setup               Setup mithril environment file
+  override            Override default variable in the mithril environment file
+  update              Update mithril environment file
+cardano-db            Interact with Cardano DB
+  download            Download Cardano DB from Mithril snapshot
+  snapshot            Interact with Mithril snapshots
+    list              List available Mithril snapshots
+      json            List availble Mithril snapshots in JSON format
+    show              Show details of a Mithril snapshot
+      json            Show details of a Mithril snapshot in JSON format
+stake-distribution    Interact with Mithril stake distributions
+  download            Download latest stake distribution
+  list                List available stake distributions
+    json              Output latest Mithril snapshot in JSON format
+
+```
 
 ## Preparing a Relay or Block Producer Node
 
@@ -18,7 +45,7 @@ To prepare a relay or block producer node, you should follow these steps:
 2. **Download the latest Mithril snapshot:** Once the environment file is set up, you can download the latest Mithril snapshot by running the script with the `snapshot download` command. This snapshot contains the latest state of the Cardano blockchain db from a Mithril Aggregator.
 
    ```bash
-   ./mithril-client.sh snapshot download
+   ./mithril-client.sh cardano-db download
    ```
 
 ## Investigating Available Snapshots
@@ -28,16 +55,16 @@ You can investigate the available snapshots by using the `snapshot list` and `sn
 - **List all available Mithril snapshots:** You can list all available Mithril snapshots by running the script with the `snapshot list` command. Add `json` at the end to get the output in JSON format.
 
   ```bash
-  ./mithril-client.sh snapshot list
-  ./mithril-client.sh snapshot list json
+  ./mithril-client.sh cardano-dbsnapshot list
+  ./mithril-client.sh cardano-dbsnapshot list json
   ```
 
 - **Show details of a specific Mithril snapshot:** You can show details of a specific Mithril snapshot by running the script with the `snapshot show <DIGEST>` command, where `<DIGEST>` is the digest of the snapshot. Add `json` at the end to get the output in JSON format.
 
   ```bash
-  ./mithril-client.sh snapshot show <DIGEST>
-  ./mithril-client.sh snapshot show <DIGEST> json
-  ./mithril-client.sh snapshot show json <DIGEST>
+  ./mithril-client.sh cardano-dbsnapshot show <DIGEST>
+  ./mithril-client.sh cardano-dbsnapshot show <DIGEST> json
+  ./mithril-client.sh cardano-dbsnapshot show json <DIGEST>
   ```
 
 ## Managing Stake Distributions

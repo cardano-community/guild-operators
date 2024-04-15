@@ -5,12 +5,17 @@ environment file to contain variables specific to the Mithril Signer.
 ## Usage
 
 ```bash
-Usage: mithril-signer.sh [-d] [-u]
+Usage: bash [-d] [-D] [-e] [-k] [-r] [-s] [-u] [-h]
+A script to setup, run and verify Cardano Mithril Signer
 
-Options:
-    -d    Deploy mithril-signer as a systemd service
-    -u    Update mithril environment file
-    -h    Show this help text
+-d    Deploy mithril-signer as a systemd service
+-D    Run mithril-signer as a daemon
+-e    Update mithril environment file
+-k    Stop signer using SIGINT
+-r    Verify signer registration
+-s    Verify signer signature
+-u    Skip update check
+-h    Show this help text
 ```
 
 # Description
