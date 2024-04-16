@@ -44,7 +44,6 @@ RUN set -x && apt update \
     && mkdir -p /root/.local/bin \
     && wget https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh \
     && export SUDO='N' \
-    && export UPDATE_CHECK='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
     && export G_ACCOUNT=${G_ACCOUNT} \
     && chmod +x ./guild-deploy.sh && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s p \
@@ -57,7 +56,6 @@ RUN set -x && apt update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -x && export SUDO='N' \
-    && export UPDATE_CHECK='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
     && export G_ACCOUNT=${G_ACCOUNT} \
     && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s dcmowx \
