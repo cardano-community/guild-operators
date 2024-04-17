@@ -16,67 +16,134 @@ on:
     paths:
       - 'files/docker/node/release-versions/cardano-node-latest.txt'
       - 'files/docker/node/release-versions/mithril-latest.txt'
-      
+
 jobs:
-  build:
+  set_environment_vars:
+    runs-on: ubuntu-latest
+    outputs:
+      guild_deploy_branch: ${{ steps.set_guild_deploy_branch.outputs.guild_deploy_branch }}
+      g_account: ${{ steps.set_g_account.outputs.g_account }}
+      testing: ${{ steps.set_testing.outputs.testing }}
+      short_sha: ${{ steps.set_short_sha.outputs.short_sha }}
+      cnversion: ${{ steps.set_cnversion.outputs.cnversion }}
+    steps:
+    - name: Set branch name
+      id: vars
+      run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+    - name: Set GUILD_DEPLOY_BRANCH
+      id: set_guild_deploy_branch
+      run: |
+        echo "guild_deploy_branch=${{ (github.event_name == 'push' && steps.vars.outputs.branch) || github.event.inputs.guild_deploy_branch }}" >> $GITHUB_OUTPUT
+    - name: Set G_ACCOUNT
+      id: set_g_account
+      run: |
+        echo "g_account=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
+    - name: Set TESTING
+      id: set_testing
+      run: |
+        echo "testing=${{ github.event_name == 'push' && (steps.vars.outputs.branch != 'master') || github.event.inputs.testing }}" >> $GITHUB_OUTPUT
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ steps.set_guild_deploy_branch.outputs.guild_deploy_branch }}
+    - name: Get short SHA
+      id: set_short_sha
+      run: |
+        echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+    - name: Get CNVERSION
+      id: set_cnversion
+      run: |
+        echo "cnversion=$(cat files/docker/node/release-versions/cardano-node-latest.txt)" >> $GITHUB_OUTPUT
+  build_production:
+    needs: set_environment_vars
+    if: needs.set_environment_vars.outputs.testing == 'false' && needs.set_environment_vars.outputs.guild_deploy_branch == 'master'
     env:
       REGISTRY: docker.io
     runs-on: ubuntu-latest
     steps:
-    - name: Set branch name
-      id: vars
-      run: echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
-    - name: Set GUILD_DEPLOY_BRANCH
-      run: echo "GUILD_DEPLOY_BRANCH=${{ github.event_name == 'push' && steps.vars.outputs.branch || github.event.inputs.guild_deploy_branch }}" >> $GITHUB_ENV
-    - name: Set TESTING
-      run: echo "TESTING=${{ github.event_name == 'push' && (steps.vars.outputs.branch != 'master') || github.event.inputs.testing }}" >> $GITHUB_ENV
+    - name: Set IMAGE_TAGS
+      run: |
+        GUILD_DEPLOY_BRANCH=$(echo "${{ needs.set_environment_vars.outputs.guild_deploy_branch }}" | sed 's/\//_/g')
+        REGISTRY=${{ env.REGISTRY }}
+        REPO=${{ secrets.DOCKER_USER }}
+        REPO=${REPO,,}
+        IMAGE_NAME="$REGISTRY/$REPO/cardano-node"
+        CNVERSION=${{ needs.set_environment_vars.outputs.cnversion }}
+        IMAGE_TAGS="$IMAGE_NAME:latest,$IMAGE_NAME:$CNVERSION"
+        echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+        echo "IMAGE_TAGS=$IMAGE_TAGS" >> $GITHUB_ENV
     - uses: actions/checkout@v3
       with:
-        ref: ${{ env.GUILD_DEPLOY_BRANCH }}
-    - name: docker login
-      run: |
-        docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_PASSWORD }}
-    - name: Add variables to environment
-      run: |
-        echo "G_ACCOUNT=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
-        echo "CNVERSION=$(cat files/docker/node/release-versions/cardano-node-latest.txt)" >> $GITHUB_ENV
-        echo "PUSH_TO_GA=false" >> $GITHUB_ENV
-    - name: Docker build container image
-      run: |
-        DOCKER_BUILDKIT=1 docker build . \
-          --file files/docker/node/dockerfile_bin \
-          --compress \
-          --build-arg G_ACCOUNT=${{ env.G_ACCOUNT }} \
-          --build-arg GUILD_DEPLOY_BRANCH=${{ env.GUILD_DEPLOY_BRANCH }} \
-          --tag ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest
-        # Workaround to provide additional free space for builds.
-        #   https://github.com/actions/virtual-environments/issues/2840
-        sudo apt-get update -y 
-        sudo apt-get remove -y '^dotnet-.*'
-        sudo apt-get remove -y 'php.*'
-        sudo apt-get remove -y azure-cli google-chrome-stable firefox powershell mono-devel
-        sudo apt-get autoremove -y
-        sudo apt-get clean
-        sudo rm -rf "/usr/share/dotnet"
-        sudo rm -rf "/usr/local/lib/android"
-        sudo rm -rf "/opt/ghc"
-        sudo rm -rf "/opt/hostedtoolcache/CodeQL"
-        sudo rm -rf "/usr/local/share/boost"
-        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-    - name: docker push latest
-      if: env.TESTING == 'false' && env.GUILD_DEPLOY_BRANCH == 'master'
-      run: |
-        CNVERSION=`cat files/docker/node/release-versions/cardano-node-latest.txt`
-        echo "PUSH_TO_GA=true" >> $GITHUB_ENV
-        docker push ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest
-        docker tag ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:latest ${{ secrets.DOCKER_USER }}/cardano-node:${{ env.CNVERSION }}
-        docker push ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:${{ env.CNVERSION }}
+        ref: ${{ needs.set_environment_vars.outputs.guild_deploy_branch }}
+    - name: Login to Dockerhub
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY}}
+        username: ${{ secrets.DOCKER_USER }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Build and Push production container image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: files/docker/node/dockerfile_bin
+        push: true
+        tags: ${{ env.IMAGE_TAGS }}
+        build-args: |
+          G_ACCOUNT=${{ needs.set_environment_vars.outputs.g_account }}
+          GUILD_DEPLOY_BRANCH=${{ needs.set_environment_vars.outputs.guild_deploy_branch }}
     - name: Add summary details
       if: always()
       run: |
         echo "## Summary Details" >> $GITHUB_STEP_SUMMARY
-        echo "* Docker Image: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/cardano-node:${{ env.CNVERSION }}" >> $GITHUB_STEP_SUMMARY
-        echo "* G_ACCOUNT: ${GITHUB_REPOSITORY_OWNER}" >> $GITHUB_STEP_SUMMARY
-        echo "* GUILD_DEPLOY_BRANCH: ${{ env.GUILD_DEPLOY_BRANCH }}" >> $GITHUB_STEP_SUMMARY
-        echo "* Push to GA Registry: ${{ env.PUSH_TO_GA }}" >> $GITHUB_STEP_SUMMARY
-        echo "* CNVERSION: ${{ env.CNVERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo "* Image Name: ${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+        echo "* Image Tags: ${{ env.IMAGE_TAGS }}" >> $GITHUB_STEP_SUMMARY
+        echo "* G_ACCOUNT: ${{ needs.set_environment_vars.outputs.g_account }}" >> $GITHUB_STEP_SUMMARY
+        echo "* GUILD_DEPLOY_BRANCH: ${{ needs.set_environment_vars.outputs.guild_deploy_branch }}" >> $GITHUB_STEP_SUMMARY
+        echo "* REGISTRY: ${{ env.REGISTRY }}" >> $GITHUB_STEP_SUMMARY
+        echo "* REGISTRY_USER: ${{ secrets.DOCKER_USER }}" >> $GITHUB_STEP_SUMMARY
+  build_testing:
+    needs: set_environment_vars
+    if: needs.set_environment_vars.outputs.testing == 'true' || needs.set_environment_vars.outputs.guild_deploy_branch != 'master'
+    env:
+      REGISTRY: ghcr.io
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set IMAGE_TAGS
+      run: |
+        GUILD_DEPLOY_BRANCH=$(echo "${{ needs.set_environment_vars.outputs.guild_deploy_branch }}" | sed 's/\//_/g')
+        REGISTRY=${{ env.REGISTRY }}
+        REPO=${{ needs.set_environment_vars.outputs.g_account }}
+        IMAGE_NAME="$REGISTRY/$REPO/cardano-node"
+        CNVERSION=${{ needs.set_environment_vars.outputs.cnversion }}
+        SHA=${{ needs.set_environment_vars.outputs.short_sha }}
+        IMAGE_TAGS="$IMAGE_NAME:test,$IMAGE_NAME:$CNVERSION-$SHA,$IMAGE_NAME:$GUILD_DEPLOY_BRANCH-$SHA"
+        echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+        echo "IMAGE_TAGS=$IMAGE_TAGS" >> $GITHUB_ENV
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ needs.set_environment_vars.outputs.guild_deploy_branch }}
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY}}
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Build and Push testing container image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: files/docker/node/dockerfile_bin
+        push: true
+        tags: ${{ env.IMAGE_TAGS }}
+        build-args: |
+          G_ACCOUNT=${{ needs.set_environment_vars.outputs.g_account }}
+          GUILD_DEPLOY_BRANCH=${{ needs.set_environment_vars.outputs.guild_deploy_branch }}
+    - name: Add summary details
+      if: always()
+      run: |
+        echo "## Summary Details" >> $GITHUB_STEP_SUMMARY
+        echo "* Image Name: ${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+        echo "* Image Tags: ${{ env.IMAGE_TAGS }}" >> $GITHUB_STEP_SUMMARY
+        echo "* G_ACCOUNT: ${{ needs.set_environment_vars.outputs.g_account }}" >> $GITHUB_STEP_SUMMARY
+        echo "* GUILD_DEPLOY_BRANCH: ${{ needs.set_environment_vars.outputs.guild_deploy_branch }}" >> $GITHUB_STEP_SUMMARY
+        echo "* REGISTRY: ${{ env.REGISTRY }}" >> $GITHUB_STEP_SUMMARY
+        echo "* REGISTRY_USER: ${{ github.repository_owner }}" >> $GITHUB_STEP_SUMMARY
