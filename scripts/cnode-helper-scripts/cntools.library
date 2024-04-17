@@ -2776,9 +2776,13 @@ submitTx() {
     if ! tx_id=$("${txid_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: during transaction hashing !!\n${tx_id}" && return 1; fi
     txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
     xxd -p -r <<< $(jq .cborHex ${tx_signed}) > ${txdata}
-    println ACTION "curl -sSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
-    if ! stdout=$(curl -sSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
-      println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
+    println ACTION "curl -sfSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
+    if ! stdout=$(curl -sfSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
+      # single retry until we figure out how best to handle failed submission and/or move to ogmios if it has better success rates
+      echo "Submit of transaction failed: ${stdout}, attempting a single retry"
+      if ! stdout=$(curl -sfSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
+        println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
+      fi
     fi
   else
     submit_command=(

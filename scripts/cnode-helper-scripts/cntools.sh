@@ -682,6 +682,26 @@ function main {
                 println DEBUG "Funds for key deposit($(formatLovelace ${KEY_DEPOSIT}) ADA) + transaction fee needed to register the wallet"
                 waitToProceed && continue
               fi
+
+              # echo "start of gregs attempt at a registration fix"
+              getBaseAddress ${wallet_name}
+              getPayAddress ${wallet_name}
+              if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
+                println ERROR "\n${FG_RED}ERROR${NC}: wallet missing pay/base addr files or vkey files to generate them!"
+                waitToProceed && continue
+              fi
+              getRewardAddress ${wallet_name}
+              if [[ -n ${KOIOS_API} ]]; then
+                tput sc
+                println OFF "\n${FG_YELLOW}> Querying Koios API for wallet information${NC}"
+                addr_list=("${base_addr}" "${pay_addr}")
+                reward_addr_list=("${reward_addr}")
+                [[ ${#addr_list[@]} -gt 0 ]] && getBalanceKoios
+                [[ ${#reward_addr_list[@]} -gt 0 ]] && getRewardInfoKoios
+                tput rc && tput ed
+              fi
+              # echo "end of gregs attempt at a registration fix"
+
               if ! registerStakeWallet ${wallet_name} "true"; then
                 waitToProceed && continue
               fi
