@@ -776,7 +776,7 @@ getProtocolParams() {
       return 3
     fi
   else
-    PROT_PARAMS="$(${CCLI} ${NETWORK_ERA} query protocol-parameters ${NETWORK_IDENTIFIER} 2>/dev/null)"
+    PROT_PARAMS="$(${CCLI} ${NETWORK_ERA} query protocol-parameters ${NETWORK_IDENTIFIER} 2>&1)"
     if grep -q "Network.Socket.connect" <<< "${PROT_PARAMS}"; then
       return 1
     elif [[ -z "${PROT_PARAMS}" ]] || ! jq -er . <<< "${PROT_PARAMS}" &>/dev/null; then
