@@ -954,7 +954,7 @@ verifyTx() {
     while :; do
       read -r -n 1 -s -t 5 abort
       if [[ $? -eq 0 ]]; then
-        println "${FG_YELLOW}WARN${NC}: aborted!! transaction still in queue!"
+        println "\n${FG_YELLOW}WARN${NC}: aborted!! transaction still in queue!"
         return 1
       fi
       println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_tx_hashes\":[\"${tx_id}\"]' ${KOIOS_API}/tx_status?select=num_confirmations"
@@ -2769,9 +2769,9 @@ submitTx() {
   answer=0
   while true; do
     if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-      submitTxNode && break
+      submitTxNode ${tx_signed} && break
     else
-      submitTxKoiosOgmios && break
+      submitTxKoiosOgmios ${tx_signed} && break
     fi
     tput sc
     println DEBUG "\nRetry transaction submit?"
@@ -2821,21 +2821,21 @@ submitTxKoiosSubmitAPI() {
   txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
   xxd -p -r <<< ${cborHex} > ${txdata}
   println ACTION "curl -sSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
-  if ! stdout=$(curl -sSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
+  if ! stdout=$(curl -sfSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
   fi
   println LOG "Submit result: ${stdout}"
 }
 
-# Command     : submitTxKoiosSubmitAPI [signed tx file]
+# Command     : submitTxKoiosOgmios [signed tx file]
 # Description : Helper function to submit signed transaction file using koios submitapi endpoint
 # Parameters  : signed tx file   >  the signed transaction file to submit
 submitTxKoiosOgmios() {
   getTxId $1 || return $?
   cborHex=$(jq -er '.cborHex' "$1" 2>/dev/null) || { println ERROR "\n${FG_RED}ERROR${NC}: Invalid tx file format, 'cborHex' missing in: $1"; return 1; }
   jsonrpc=$(jq -n --arg cbor "${cborHex}" '{jsonrpc: "2.0", method: "submitTransaction", params: {transaction: {cbor: $cbor}}}')
-  println ACTION "curl -sSL -X POST  -H \"accept: application/json\" -H \"Content-Type: application/json\" -d \"${jsonrpc}\" \"${KOIOS_API}/submittx\""
-  if ! stdout=$(curl -sSL -X POST  -H "accept: application/json" -H "Content-Type: application/json" -d "${jsonrpc}" "${KOIOS_API}/ogmios" 2>&1); then
+  println ACTION "curl -sSL -X POST  -H \"accept: application/json\" -H \"Content-Type: application/json\" -d \"${jsonrpc}\" \"${KOIOS_API}/ogmios\""
+  if ! stdout=$(curl -sfSL -X POST  -H "accept: application/json" -H "Content-Type: application/json" -d "${jsonrpc}" "${KOIOS_API}/ogmios" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
   fi
   println LOG "Submit result: ${stdout}"
