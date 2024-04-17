@@ -1401,7 +1401,6 @@ function main {
                     ;;
                   2) continue ;;
                 esac
-                echo
               fi
 
               # Amount
@@ -1442,11 +1441,9 @@ function main {
                 include_fee="yes"
               fi
 
-              echo
-
               if [[ ${amount_lovelace} -eq ${assets[${index_prefix}lovelace]} ]]; then
                 if [[ ${#assets_left[@]} -gt 1 ]]; then
-                  println DEBUG "All ADA selected to be sent, automatically add all tokens?"
+                  println DEBUG "\nAll ADA selected to be sent, automatically add all tokens?"
                   select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
                   case $? in
                     0) declare -gA assets_left=()
@@ -1460,7 +1457,7 @@ function main {
                     2) continue ;;
                   esac
                 else
-                  assets_left[lovelace]=0
+                  unset assets_left
                   assets_to_send[lovelace]=${amount_lovelace}
                 fi
               else
