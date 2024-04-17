@@ -2816,27 +2816,29 @@ getTxId() {
 # Description : Helper function to submit signed transaction file using koios submitapi endpoint
 # Parameters  : signed tx file   >  the signed transaction file to submit
 submitTxKoiosSubmitAPI() {
-  getTxId || return $?
+  getTxId $1 || return $?
+  cborHex=$(jq -er '.cborHex' "$1" 2>/dev/null) || { println ERROR "\n${FG_RED}ERROR${NC}: Invalid tx file format, 'cborHex' missing in: $1"; return 1; }
   txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
-  xxd -p -r <<< $(jq .cborHex ${tx_signed}) > ${txdata}
+  xxd -p -r <<< ${cborHex} > ${txdata}
   println ACTION "curl -sSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
   if ! stdout=$(curl -sSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
   fi
+  println LOG "Submit result: ${stdout}"
 }
 
 # Command     : submitTxKoiosSubmitAPI [signed tx file]
 # Description : Helper function to submit signed transaction file using koios submitapi endpoint
 # Parameters  : signed tx file   >  the signed transaction file to submit
 submitTxKoiosOgmios() {
-  getTxId || return $?
+  getTxId $1 || return $?
   cborHex=$(jq -er '.cborHex' "$1" 2>/dev/null) || { println ERROR "\n${FG_RED}ERROR${NC}: Invalid tx file format, 'cborHex' missing in: $1"; return 1; }
   jsonrpc=$(jq -n --arg cbor "${cborHex}" '{jsonrpc: "2.0", method: "submitTransaction", params: {transaction: {cbor: $cbor}}}')
   println ACTION "curl -sSL -X POST  -H \"accept: application/json\" -H \"Content-Type: application/json\" -d \"${jsonrpc}\" \"${KOIOS_API}/submittx\""
   if ! stdout=$(curl -sSL -X POST  -H "accept: application/json" -H "Content-Type: application/json" -d "${jsonrpc}" "${KOIOS_API}/ogmios" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
   fi
-  println LOG "Submit result:\n${stdout}"
+  println LOG "Submit result: ${stdout}"
 }
 
 # Command     : transformRawTx [raw tx file]
