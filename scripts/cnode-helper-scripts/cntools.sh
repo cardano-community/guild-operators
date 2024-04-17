@@ -672,7 +672,7 @@ function main {
                 esac
                 getWalletType ${wallet_name}
               fi
-              getWalletBalance ${wallet_name} false true false true
+              getWalletBalance ${wallet_name} true true false true
               if [[ ${base_lovelace} -gt 0 ]]; then
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                   println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${base_lovelace})")"
