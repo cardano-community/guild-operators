@@ -950,6 +950,7 @@ waitNewBlockCreated() {
 verifyTx() {
   if [[ -n ${KOIOS_API} && -n ${tx_id} ]]; then
     println DEBUG "Waiting for transaction to be seen on chain"
+    println DEBUG "Id: ${tx_id}"
     println DEBUG "${FG_BLUE}INFO${NC}: press any key to cancel and return (won't stop transaction)"
     while :; do
       read -r -n 1 -s -t 5 abort
