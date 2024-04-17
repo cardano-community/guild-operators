@@ -178,7 +178,7 @@ if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
            echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.sh against GitHub failed!"
            waitToProceed
          fi
-         $0 "${arg_copy[@]}" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
+         $0 "${arg_copy[@]}" "-u"; myExit 1 ;; # re-launch script with same args skipping update check
       2) echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.library against GitHub failed!"
          waitToProceed ;;
     esac
