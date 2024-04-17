@@ -63,7 +63,7 @@ POOL_NAME="GUILD"
 
 #### Start the node
 
-To test starting the node in interactive mode, we will make use of pre-built script `cnode.sh`. This script automatically determines whether to start the node as a relay or block producer (if the required pool keys are present in the `$CNODE_HOME/priv/pool/<POOL_NAME>` as mentioned above). The script contains a user-defined variable `CPU_CORES` which determines the number of CPU cores the node will use upon start-up:
+To test starting the node in interactive mode, we will make use of pre-built script `cnode.sh`. This script automatically determines whether to start the node as a relay or block producer (if the required pool keys are present in the `$CNODE_HOME/priv/pool/<POOL_NAME>` as mentioned above). If the `<MITHRIL_DOWNLOAD>` variable is set to 'Y' it will download the latest snapshot from a Mithril aggregator to speed up the blockchain synchronization. The script contains a user-defined variable `CPU_CORES` which determines the number of CPU cores the node will use upon start-up:
 
 ```bash
 ######################################
