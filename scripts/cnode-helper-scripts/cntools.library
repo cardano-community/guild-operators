@@ -487,7 +487,7 @@ selectWallet() {
           if [[ ${mode} = "reg" ]]; then
             isWalletRegistered ${dir} && continue
           else
-            ! isWalletRegistered && continue
+            ! isWalletRegistered ${dir} && continue
           fi
         else
           getRewardAddress ${dir}
@@ -565,7 +565,7 @@ selectWallet() {
         getRewardAddress ${wallet_dir}
         if [[ -n ${reward_addr} ]]; then
           if [[ ${mode} = "reg" ]]; then
-            [[ ! -v reward_status[${reward_addr}] || ${reward_status[${reward_addr}]} = "not registered" ]] && continue
+            if [[ ! -v reward_status[${reward_addr}] || ${reward_status[${reward_addr}]} != "registered" ]]; then continue; fi
           else
             [[ -v reward_status[${reward_addr}] && ${reward_status[${reward_addr}]} = "registered" ]] && continue
           fi
