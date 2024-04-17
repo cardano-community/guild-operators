@@ -2766,29 +2766,77 @@ assembleTx() {
 # Parameters  : signed tx file   >  the signed transaction file to submit
 submitTx() {
   tx_signed="$1"
-
-  if [[ -n ${KOIOS_API} ]]; then
-    txid_command=(
-      ${CCLI} transaction txid
-      --tx-file "${tx_signed}"
-    )
-    println ACTION "${txid_command[@]}"
-    if ! tx_id=$("${txid_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: during transaction hashing !!\n${tx_id}" && return 1; fi
-    txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
-    xxd -p -r <<< $(jq .cborHex ${tx_signed}) > ${txdata}
-    println ACTION "curl -sSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
-    if ! stdout=$(curl -sSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
-      println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
+  answer=0
+  while true; do
+    if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
+      submitTxNode && break
+    else
+      submitTxKoiosOgmios && break
     fi
-  else
-    submit_command=(
-      ${CCLI} ${NETWORK_ERA} transaction submit
-      --tx-file "${tx_signed}"
-      ${NETWORK_IDENTIFIER}
-    )
-    println ACTION "${submit_command[@]}"
-    if ! stdout=$("${submit_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1; fi
+    tput sc
+    println DEBUG "\nRetry transaction submit?"
+    select_opt "[y] Yes" "[n] No"
+    answer=$?
+    tput rc && tput ed
+    case ${answer} in
+      0) : ;;
+      1) break ;;
+    esac
+  done
+  return ${answer}
+}
+
+# Command     : submitTxNode [signed tx file]
+# Description : Helper function to submit signed transaction file using local node
+# Parameters  : signed tx file   >  the signed transaction file to submit
+submitTxNode() {
+  submit_command=(
+    ${CCLI} ${NETWORK_ERA} transaction submit
+    --tx-file "$1"
+    ${NETWORK_IDENTIFIER}
+  )
+  println ACTION "${submit_command[@]}"
+  if ! stdout=$("${submit_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1; fi
+}
+
+# Command     : getTxId [tx file]
+# Description : Helper function to calculate transaction id
+# Parameters  : signed tx file   >  the signed transaction file to submit
+# Info        : tx_id set to hash of transaction body
+getTxId() {
+  txid_command=(
+    ${CCLI} transaction txid
+    --tx-file "$1"
+  )
+  println ACTION "${txid_command[@]}"
+  if ! tx_id=$("${txid_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: during transaction hashing !!\n${tx_id}" && return 1; fi
+}
+
+# Command     : submitTxKoiosSubmitAPI [signed tx file]
+# Description : Helper function to submit signed transaction file using koios submitapi endpoint
+# Parameters  : signed tx file   >  the signed transaction file to submit
+submitTxKoiosSubmitAPI() {
+  getTxId || return $?
+  txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
+  xxd -p -r <<< $(jq .cborHex ${tx_signed}) > ${txdata}
+  println ACTION "curl -sSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
+  if ! stdout=$(curl -sSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
   fi
+}
+
+# Command     : submitTxKoiosSubmitAPI [signed tx file]
+# Description : Helper function to submit signed transaction file using koios submitapi endpoint
+# Parameters  : signed tx file   >  the signed transaction file to submit
+submitTxKoiosOgmios() {
+  getTxId || return $?
+  cborHex=$(jq -er '.cborHex' "$1" 2>/dev/null) || { println ERROR "\n${FG_RED}ERROR${NC}: Invalid tx file format, 'cborHex' missing in: $1"; return 1; }
+  jsonrpc=$(jq -n --arg cbor "${cborHex}" '{jsonrpc: "2.0", method: "submitTransaction", params: {transaction: {cbor: $cbor}}}')
+  println ACTION "curl -sSL -X POST  -H \"accept: application/json\" -H \"Content-Type: application/json\" -d \"${jsonrpc}\" \"${KOIOS_API}/submittx\""
+  if ! stdout=$(curl -sSL -X POST  -H "accept: application/json" -H "Content-Type: application/json" -d "${jsonrpc}" "${KOIOS_API}/ogmios" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
+  fi
+  println LOG "Submit result:\n${stdout}"
 }
 
 # Command     : transformRawTx [raw tx file]
