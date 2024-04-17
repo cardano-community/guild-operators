@@ -921,7 +921,7 @@ function main {
                     address=${pay_addr}
                     if [[ -n ${KOIOS_API} ]]; then
                       pay_lovelace=${assets["${pay_addr},lovelace"]}
-                      [[ ${utxo_cnt["${pay_addr}"]} -eq 0 ]] && continue # Dont print Enterprise if empty
+                      [[ ${utxos_cnt["${pay_addr}"]} -eq 0 ]] && continue # Dont print Enterprise if empty
                     else
                       getBalance ${pay_addr}
                       pay_lovelace=${assets[lovelace]}
