@@ -2820,7 +2820,7 @@ submitTxKoiosSubmitAPI() {
   cborHex=$(jq -er '.cborHex' "$1" 2>/dev/null) || { println ERROR "\n${FG_RED}ERROR${NC}: Invalid tx file format, 'cborHex' missing in: $1"; return 1; }
   txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
   xxd -p -r <<< ${cborHex} > ${txdata}
-  println ACTION "curl -sSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
+  println ACTION "curl -sfSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
   if ! stdout=$(curl -sfSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
   fi
@@ -2833,8 +2833,8 @@ submitTxKoiosSubmitAPI() {
 submitTxKoiosOgmios() {
   getTxId $1 || return $?
   cborHex=$(jq -er '.cborHex' "$1" 2>/dev/null) || { println ERROR "\n${FG_RED}ERROR${NC}: Invalid tx file format, 'cborHex' missing in: $1"; return 1; }
-  jsonrpc=$(jq -n --arg cbor "${cborHex}" '{jsonrpc: "2.0", method: "submitTransaction", params: {transaction: {cbor: $cbor}}}')
-  println ACTION "curl -sSL -X POST  -H \"accept: application/json\" -H \"Content-Type: application/json\" -d \"${jsonrpc}\" \"${KOIOS_API}/ogmios\""
+  jsonrpc=$(jq -n -c --arg cbor "${cborHex}" '{jsonrpc: "2.0", method: "submitTransaction", params: {transaction: {cbor: $cbor}}}')
+  println ACTION "curl -sfSL -X POST  -H \"accept: application/json\" -H \"Content-Type: application/json\" -d \"${jsonrpc}\" \"${KOIOS_API}/ogmios\""
   if ! stdout=$(curl -sfSL -X POST  -H "accept: application/json" -H "Content-Type: application/json" -d "${jsonrpc}" "${KOIOS_API}/ogmios" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
   fi
