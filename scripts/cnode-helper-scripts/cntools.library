@@ -485,9 +485,9 @@ selectWallet() {
       if [[ ${mode} = "reg" || ${mode} = "non-reg" ]]; then
         if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
           if [[ ${mode} = "reg" ]]; then
-            isWalletRegistered ${dir} && continue
-          else
             ! isWalletRegistered ${dir} && continue
+          else
+            isWalletRegistered ${dir} && continue
           fi
         else
           getRewardAddress ${dir}
@@ -564,10 +564,12 @@ selectWallet() {
       if [[ ${mode} = "reg" || ${mode} = "non-reg" ]]; then
         getRewardAddress ${wallet_dir}
         if [[ -n ${reward_addr} ]]; then
-          if [[ ${mode} = "reg" ]]; then
-            if [[ ! -v reward_status[${reward_addr}] || ${reward_status[${reward_addr}]} != "registered" ]]; then continue; fi
-          else
-            [[ -v reward_status[${reward_addr}] && ${reward_status[${reward_addr}]} = "registered" ]] && continue
+          if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
+            if [[ ${mode} = "reg" ]]; then
+              if [[ ! -v reward_status[${reward_addr}] || ${reward_status[${reward_addr}]} != "registered" ]]; then continue; fi
+            else
+              [[ -v reward_status[${reward_addr}] && ${reward_status[${reward_addr}]} = "registered" ]] && continue
+            fi
           fi
         fi
       elif [[ ${mode} = "delegate" ]]; then
@@ -626,9 +628,9 @@ selectWallet() {
     elif [[ ${mode} = "reward" ]]; then
       println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that have rewards to withdraw or signing keys to do so!"
     elif [[ ${mode} = "reg" ]]; then
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that are unregistered!"
-    elif [[ ${mode} = "non-reg" ]]; then
       println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that are registered on chain!"
+    elif [[ ${mode} = "non-reg" ]]; then
+      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that are unregistered!"
     else
       println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available for selection! Required files:\n$(printf '%b\n' "$@")"
     fi

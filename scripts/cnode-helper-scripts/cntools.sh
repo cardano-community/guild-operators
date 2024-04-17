@@ -119,21 +119,20 @@ if [[ ! -f "${PARENT}"/env ]]; then
   myExit 1
 fi
 
-# Source env file in offline mode
-! . "${PARENT}"/env offline && myExit 1
+# Source env file in normal mode with node connection, else offline mode
+if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
+  . "${PARENT}"/env || myExit 1
+else
+  . "${PARENT}"/env offline || myExit 1
+fi
 
 # Source cntools.library to populate defaults for CNTools
-! . "${PARENT}"/cntools.library && myExit 1
+. "${PARENT}"/cntools.library || myExit 1
 
 # If light mode, test if koios is reachable, otherwise - unset KOIOS_API
 if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
   test_koios
   [[ -z ${KOIOS_API} ]] && myExit 1 "ERROR: Koios query test failed, unable to launch CNTools in light mode utilizing Koios query layer\n\n${launch_modes_info}"
-fi
-
-# Source env file in normal mode with node connection
-if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-  . "${PARENT}"/env &>/dev/null
 fi
 
 [[ ${CNTOOLS_MODE} != "LIGHT" ]] && unset KOIOS_API
