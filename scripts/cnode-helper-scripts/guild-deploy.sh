@@ -397,11 +397,11 @@ download_cncli() {
   [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The cncli pre-compiled binary is not available for ARM, you might need to build them!"
   echo -e "\nInstalling CNCLI.."
   if command -v cncli >/dev/null; then cncli_version="v$(cncli -V 2>/dev/null | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
-  cncli_git_version="$(curl -s https://api.github.com/repos/${G_ACCOUNT}/cncli/releases/latest | jq -r '.tag_name')"
+  cncli_git_version="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.tag_name')"
   echo -e "\n  Downloading CNCLI..."
   rm -rf /tmp/cncli-bin && mkdir /tmp/cncli-bin
   pushd /tmp/cncli-bin >/dev/null || err_exit
-  cncli_asset_url="$(curl -s https://api.github.com/repos/${G_ACCOUNT}/cncli/releases/latest | jq -r '.assets[].browser_download_url' | grep 'ubuntu22.*.linux-musl.tar.gz')"
+  cncli_asset_url="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.assets[].browser_download_url' | grep 'ubuntu22.*.linux-musl.tar.gz')"
   if curl -sL -f -m ${CURL_TIMEOUT} -o cncli.tar.gz ${cncli_asset_url}; then
     tar zxf cncli.tar.gz &>/dev/null
     rm -f cncli.tar.gz
