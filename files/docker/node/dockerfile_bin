@@ -60,7 +60,7 @@ RUN set -x && export SUDO='N' \
     && export UPDATE_CHECK='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
     && export G_ACCOUNT=${G_ACCOUNT} \
-    && ./guild-deploy.sh -u -b ${GUILD_DEPLOY_BRANCH} -s dcmowx \
+    && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s dcmowx \
     && cd /usr/bin \
     && wget http://www.vdberg.org/~richard/tcpping \
     && chmod 755 tcpping \
