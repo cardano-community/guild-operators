@@ -2928,7 +2928,7 @@ submitTxKoiosOgmios() {
   cborHex=$(jq -er '.cborHex' "$1" 2>/dev/null) || { println ERROR "\n${FG_RED}ERROR${NC}: Invalid tx file format, 'cborHex' missing in: $1"; return 1; }
   jsonrpc=$(jq -n -c --arg cbor "${cborHex}" '{jsonrpc: "2.0", method: "submitTransaction", params: {transaction: {cbor: $cbor}}}')
   unset ogmios_error
-  println ACTION "curl -sSL -X POST  -H \"accept: application/json\" -H \"Content-Type: application/json\" -d \"${jsonrpc}\" \"${KOIOS_API}/ogmios\""
+  println ACTION "curl -sSL -X POST  -H \"accept: application/json\" -H \"Content-Type: application/json\" -d \"${jsonrpc}\" \"${KOIOS_API}/ogmios/\""
   stdout=$(curl -sSL -X POST  -H "accept: application/json" -H "Content-Type: application/json" -d "${jsonrpc}" "${KOIOS_API}/ogmios/" 2>&1)
   if [[ -z ${stdout} ]] || ogmios_error=$(jq -er '.error //empty' <<< "${stdout}") || ! jq -er '.result //empty' <<< "${stdout}" &>/dev/null; then
     println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!"
