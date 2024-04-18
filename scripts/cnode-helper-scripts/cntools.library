@@ -1108,8 +1108,8 @@ getCredentials() {
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   if [[ -f "${payment_vk_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${payment_vk_file} --out-file ${payment_cred_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_cred_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${payment_vk_file} --out-file ${payment_cred_file}"
+    if stdout=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_cred_file}" 2>&1); then
       pay_cred=$(cat "${payment_cred_file}")
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during payment key hash creation!\n${stdout}"
@@ -1117,8 +1117,8 @@ getCredentials() {
     fi
   fi
   if [[ -f "${stake_vk_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cred_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cred_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cred_file}"
+    if stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cred_file}" 2>&1); then
       stake_cred=$(cat "${stake_cred_file}")
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during stake key hash creation!\n${stdout}"

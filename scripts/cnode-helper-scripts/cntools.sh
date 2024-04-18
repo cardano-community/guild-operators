@@ -163,11 +163,11 @@ if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
     # source common env variables in case it was updated
     if [[ ${ENV_UPDATED} = Y ]]; then
       [[ ${CNTOOLS_MODE} = "LOCAL" ]] && . "${PARENT}"/env || . "${PARENT}"/env offline
-      [[ ${CNTOOLS_MODE} != "LIGHT" ]] && unset KOIOS_API
       case $? in
         1) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
         2) clear ;;
       esac
+      [[ ${CNTOOLS_MODE} != "LIGHT" ]] && unset KOIOS_API
     fi
     
     # check for cntools update
@@ -5265,30 +5265,30 @@ function main {
                     [[ ${#pay_cred} -ne 56 ]] && println ERROR "${FG_RED}ERROR${NC}: invalid payment credential entered!"; waitToProceed; continue
                     key_hashes[${pay_cred}]=1
                     ;;
-                  2) continue 2 ;;
+                  2) safeDel "${WALLET_FOLDER}/${wallet_name}"; continue 2 ;;
                 esac
                 println DEBUG "Multi-Sig size: #${#key_hashes[@]} - Add more wallets / credentials to multi-sig?"
                 select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
                 case $? in
                   0) break ;;
                   1) : ;;
-                  2) continue 2 ;;
+                  2) safeDel "${WALLET_FOLDER}/${wallet_name}"; continue 2 ;;
                 esac
               done
               println DEBUG "${#key_hashes[@]} wallets / credentials added to multi-sig, how many are required to witness the transaction?"
               getAnswerAnyCust required_sig_cnt "Required signatures"
               if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
-                println ERROR "${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; waitToProceed; continue
+                println ERROR "${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed; continue
               fi
               println DEBUG "Add time lock to multi-sig wallet by only allowing spending from wallet after a certain epoch start?"
               select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
               case $? in
                 0) : ;;
                 1) getAnswerAnyCust epoch_no "Epoch"
-                  isNumber ${epoch_no} || println ERROR "${FG_RED}ERROR${NC}: invalid epoch number entered!"; waitToProceed; continue
+                  isNumber ${epoch_no} || println ERROR "${FG_RED}ERROR${NC}: invalid epoch number entered!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed; continue
                   timelock_after=$(getEpochStart ${epoch_no})
                   ;;
-                2) continue ;;
+                2) safeDel "${WALLET_FOLDER}/${wallet_name}"; continue ;;
               esac
               # build multi-sig script
               jsonscript=$(jq -n --argjson req_sig "${required_sig_cnt}" '{type:"atLeast",required:$req_sig,scripts:[]}')
@@ -5298,7 +5298,9 @@ function main {
               if [[ -n ${timelock_after} ]]; then
                 jsonscript=$(jq -n --argjson after "${timelock_after}" --argjson sig_script "${jsonscript}" '{type:"all",scripts:[{type:"after",slot:$after},$sig_script]}')
               fi
-              jq . <<< "${jsonscript}" > "${script_file}"
+              if ! stdout=$(jq -e . <<< "${jsonscript}" > "${script_file}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
+              fi
               println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
               if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
                 println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
