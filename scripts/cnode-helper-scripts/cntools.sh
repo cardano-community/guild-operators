@@ -1045,12 +1045,21 @@ function main {
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Registered" "Unknown")"
               fi
 
+              if [[ -f ${payment_script_file} ]]; then
+                if timelock_after=$(jq -er '.scripts[0].type' ${payment_script_file}) && [[ ${timelock_after} = "after" ]]; then
+                  timelock_slot=$(jq -r '.scripts[0].slot' ${payment_script_file})
+                  timelock_date=$(getDateFromSlot ${timelock_slot})
+                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC} ${FG_YELLOW}%s${NC}" "Time Locked" "until" "${timelock_date}")"
+                fi
+              fi
+
               [[ -n ${base_addr} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
               [[ -n ${pay_addr} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Enterprise Address" "${pay_addr}")"
               [[ -n ${pay_script_addr} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Address" "${pay_script_addr}")"
               [[ -n ${reward_addr} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
               [[ -n ${pay_cred} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment Credential" "${pay_cred}")"
               [[ -n ${stake_cred} ]]      && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Stake Credential" "${stake_cred}")"
+
               if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
                 if [[ -n ${reward_addr} ]]; then
                   if [[ -n ${KOIOS_API} ]]; then
