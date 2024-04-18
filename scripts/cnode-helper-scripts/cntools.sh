@@ -946,7 +946,8 @@ function main {
               total_lovelace=0
               if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
                 for i in {1..3}; do
-                  if [[ $i -eq 1 ]]; then 
+                  if [[ $i -eq 1 ]]; then
+                    [[ -z ${base_addr} ]] && continue
                     address_type="Base"
                     address=${base_addr}
                     if [[ -n ${KOIOS_API} ]]; then
@@ -957,11 +958,12 @@ function main {
                     fi
                     total_lovelace=$((total_lovelace + base_lovelace))
                   elif [[ $i -eq 2 ]]; then
+                    [[ -z ${pay_addr} ]] && continue
                     address_type="Enterprise"
                     address=${pay_addr}
                     if [[ -n ${KOIOS_API} ]]; then
                       pay_lovelace=${assets["${pay_addr},lovelace"]}
-                      [[ ${utxos_cnt["${pay_addr}"]} -eq 0 ]] && continue # Dont print Enterprise if empty
+                      [[ ${utxos_cnt["${pay_addr}"]:-0} -eq 0 ]] && continue # Dont print Enterprise if empty
                     else
                       getBalance ${pay_addr}
                       pay_lovelace=${assets[lovelace]}
@@ -969,11 +971,12 @@ function main {
                     fi
                     total_lovelace=$((total_lovelace + pay_lovelace))
                   else
+                    [[ -z ${pay_script_addr} ]] && continue
                     address_type="Script"
                     address=${pay_script_addr}
                     if [[ -n ${KOIOS_API} ]]; then
                       pay_script_lovelace=${assets["${pay_script_addr},lovelace"]}
-                      [[ ${utxos_cnt["${pay_script_addr}"]} -eq 0 ]] && continue # Dont print Script if empty
+                      [[ ${utxos_cnt["${pay_script_addr}"]:-0} -eq 0 ]] && continue # Dont print Script if empty
                     else
                       getBalance ${pay_script_addr}
                       pay_script_lovelace=${assets[lovelace]}
@@ -1058,7 +1061,8 @@ function main {
                 if timelock_after=$(jq -er '.scripts[0].type' "${payment_script_file}") && [[ ${timelock_after} = "after" ]]; then
                   timelock_slot=$(jq -r '.scripts[0].slot' "${payment_script_file}")
                   timelock_date=$(getDateFromSlot ${timelock_slot} '%(%F %T %Z)T')
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC} ${FG_YELLOW}%s${NC}" "Time Locked" "until" "${timelock_date}")"
+                  [[ $(getSlotTipRef) -gt ${timelock_slot} ]] && timelock_color="${FG_GREEN}" || timelock_color="${FG_YELLOW}"
+                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${timelock_color}%s${NC}" "Time Locked Until" "${timelock_date}")"
                 fi
                 if atleast=$(jq -er '.scripts[1].type' "${payment_script_file}") && [[ ${atleast} = "atLeast" ]]; then
                   cred_header="Multi-Sig Creds ($(jq -r '.scripts[1].scripts|length' "${payment_script_file}"))"
