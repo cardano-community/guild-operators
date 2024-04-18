@@ -47,7 +47,7 @@ RUN set -x && apt update \
     && export UPDATE_CHECK='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
     && export G_ACCOUNT=${G_ACCOUNT} \
-    && chmod +x ./guild-deploy.sh && ./guild-deploy.sh -u -b ${GUILD_DEPLOY_BRANCH} -s p \
+    && chmod +x ./guild-deploy.sh && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s p \
     && ls /opt/ \
     && mkdir -p $CNODE_HOME/priv/files \
     && apt-get -y remove libpq-dev build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ \
