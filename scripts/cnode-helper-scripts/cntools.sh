@@ -1047,6 +1047,13 @@ function main {
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Registered" "Unknown")"
               fi
 
+              getWalletType ${wallet_name}
+              case $? in
+                0) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Hardware")" ;;
+                1) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "CLI")" ;;
+                5) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Multi-Sig")" ;;
+              esac
+
               if [[ -f ${payment_script_file} ]]; then
                 if timelock_after=$(jq -er '.scripts[0].type' "${payment_script_file}") && [[ ${timelock_after} = "after" ]]; then
                   timelock_slot=$(jq -r '.scripts[0].slot' "${payment_script_file}")
