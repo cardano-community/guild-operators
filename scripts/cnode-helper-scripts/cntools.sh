@@ -5237,9 +5237,9 @@ function main {
                 waitToProceed && continue
               fi
               # Wallet key filenames
-              stake_vk_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-              stake_sk_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-              pay_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
+              ms_stake_vk_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+              ms_stake_sk_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+              ms_pay_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
               if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
                 println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
                 println "      Choose another name or delete the existing one"
@@ -5299,11 +5299,11 @@ function main {
               if [[ -n ${timelock_after} ]]; then
                 jsonscript=$(jq -n --argjson after "${timelock_after}" --argjson sig_script "${jsonscript}" '{type:"all",scripts:[{type:"after",slot:$after},$sig_script]}')
               fi
-              if ! stdout=$(jq -e . <<< "${jsonscript}" > "${pay_script_file}" 2>&1); then
+              if ! stdout=$(jq -e . <<< "${jsonscript}" > "${ms_pay_script_file}" 2>&1); then
                 println ERROR "\n${FG_RED}ERROR${NC}: failure during script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
               fi
-              println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
-              if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
+              println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${ms_stake_vk_file} --signing-key-file ${ms_stake_sk_file}"
+              if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${ms_stake_vk_file}" --signing-key-file "${ms_stake_sk_file}" 2>&1); then
                 println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
               fi
               chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
@@ -5313,7 +5313,7 @@ function main {
               echo
               println "New Multi-Sig Wallet : ${FG_GREEN}${ms_wallet_name}${NC}"
               println "Address              : ${FG_LGRAY}${base_addr}${NC}"
-              println "Script Address       : ${FG_LGRAY}${script_addr}${NC}"
+              println "Script Address       : ${FG_LGRAY}${pay_script_addr}${NC}"
               println "Reward Address       : ${FG_LGRAY}${reward_addr}${NC}"
               println DEBUG "\nYou can now send and receive ADA using the above 'Address' or 'Script Address'."
               println DEBUG "Note that Script Address will not take part in staking."
