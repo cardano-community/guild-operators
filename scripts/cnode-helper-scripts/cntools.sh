@@ -776,6 +776,14 @@ function main {
                 enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
                 if [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && isWalletRegistered ${wallet_name}; then registered="yes"; else registered="no"; fi
                 echo
+                if [[ ${registered} = "yes" ]]; then
+                  postfix="- ${FG_LBLUE}REGISTERED${NC}"
+                else
+                  postfix="- ${FG_LGRAY}UNREGISTERED${NC}"
+                fi
+                getWalletType ${wallet_name}
+                [[ $? -eq 5 ]] && postfix="${postfix} (${FG_LGRAY}multi-sig${NC})"
+                [[ ${enc_files} -gt 0 ]] && postfix="${postfix} (${FG_YELLOW}encrypted${NC})"
                 if [[ ${enc_files} -gt 0 && ${registered} = "yes" ]]; then
                   println "${FG_GREEN}${wallet_name}${NC} - ${FG_LGRAY}REGISTERED${NC} (${FG_YELLOW}encrypted${NC})"
                 elif [[ ${registered} = "yes" ]]; then
@@ -787,13 +795,15 @@ function main {
                 fi
                 getBaseAddress ${wallet_name}
                 getPayAddress ${wallet_name}
-                if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
-                  println ERROR "${FG_RED}ERROR${NC}: wallet missing pay/base addr files or vkey files to generate them!"
+                getPayScriptAddress ${wallet_name}
+                if [[ -z ${base_addr} && -z ${pay_addr} && -z ${pay_script_addr} ]]; then
+                  println ERROR "${FG_RED}ERROR${NC}: wallet missing pay/base/script addr files or vkey/script files to generate them!"
                   continue
                 fi
                 if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                  [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
-                  [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Enterprise Addr"  "${pay_addr}")"
+                  [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
+                  [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Enterprise Addr" "${pay_addr}")"
+                  [[ -n ${pay_script_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Script Addr" "${pay_script_addr}")"
                 else
                   if [[ -n ${base_addr} ]]; then
                     lovelace=0
@@ -836,6 +846,29 @@ function main {
                         println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Enterprise Funds" "$(formatLovelace ${lovelace})")"
                       else
                         println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Enterprise Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
+                      fi
+                    fi
+                  fi
+                  if [[ -n ${pay_script_addr} ]]; then
+                    lovelace=0
+                    asset_cnt=0
+                    if [[ -n ${KOIOS_API} ]]; then
+                      for key in "${!assets[@]}"; do
+                        [[ ${key} = "${pay_script_addr},lovelace" ]] && lovelace=${assets["${pay_script_addr},lovelace"]} && continue
+                        [[ ${key} = "${pay_script_addr},"* ]] && ((asset_cnt++))
+                      done
+                    else
+                      getBalance ${pay_script_addr}
+                      lovelace=${assets[lovelace]}
+                      asset_cnt=$(( ${#assets[@]} - 1 ))
+                    fi
+                    getPriceString ${lovelace}
+                    if [[ ${lovelace} -gt 0 ]]; then
+                      println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Script Address"  "${pay_script_addr}")"
+                      if [[ ${asset_cnt} -eq 0 ]]; then
+                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Script Funds" "$(formatLovelace ${lovelace})")"
+                      else
+                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Script Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
                       fi
                     fi
                   fi
@@ -889,15 +922,20 @@ function main {
               fi
               getBaseAddress ${wallet_name}
               getPayAddress ${wallet_name}
-              if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
-                println ERROR "\n${FG_RED}ERROR${NC}: wallet missing pay/base addr files or vkey files to generate them!"
+              getPayScriptAddress ${wallet_name}
+              if [[ -z ${base_addr} && -z ${pay_addr} && -z ${pay_script_addr} ]]; then
+                println ERROR "\n${FG_RED}ERROR${NC}: wallet missing pay/base/script addr files or vkey/script files to generate them!"
                 waitToProceed && continue
               fi
+              getCredentials ${wallet_name}
               getRewardAddress ${wallet_name}
               if [[ -n ${KOIOS_API} ]]; then
                 tput sc
                 println OFF "\n${FG_YELLOW}> Querying Koios API for wallet information${NC}"
-                addr_list=("${base_addr}" "${pay_addr}")
+                addr_list=()
+                [[ -n ${base_addr} ]] && addr_list+=("${base_addr}")
+                [[ -n ${pay_addr} ]] && addr_list+=("${pay_addr}")
+                [[ -n ${pay_script_addr} ]] && addr_list+=("${pay_script_addr}")
                 reward_addr_list=("${reward_addr}")
                 [[ ${#addr_list[@]} -gt 0 ]] && getBalanceKoios
                 [[ ${#reward_addr_list[@]} -gt 0 ]] && getRewardInfoKoios
@@ -905,7 +943,7 @@ function main {
               fi
               total_lovelace=0
               if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
-                for i in {1..2}; do
+                for i in {1..3}; do
                   if [[ $i -eq 1 ]]; then 
                     address_type="Base"
                     address=${base_addr}
@@ -916,7 +954,7 @@ function main {
                       base_lovelace=${assets[lovelace]}
                     fi
                     total_lovelace=$((total_lovelace + base_lovelace))
-                  else
+                  elif [[ $i -eq 2 ]]; then
                     address_type="Enterprise"
                     address=${pay_addr}
                     if [[ -n ${KOIOS_API} ]]; then
@@ -928,6 +966,18 @@ function main {
                       [[ ${utxo_cnt} -eq 0 ]] && continue # Dont print Enterprise if empty
                     fi
                     total_lovelace=$((total_lovelace + pay_lovelace))
+                  else
+                    address_type="Script"
+                    address=${pay_script_addr}
+                    if [[ -n ${KOIOS_API} ]]; then
+                      pay_script_lovelace=${assets["${pay_script_addr},lovelace"]}
+                      [[ ${utxos_cnt["${pay_script_addr}"]} -eq 0 ]] && continue # Dont print Script if empty
+                    else
+                      getBalance ${pay_script_addr}
+                      pay_script_lovelace=${assets[lovelace]}
+                      [[ ${utxo_cnt} -eq 0 ]] && continue # Dont print Script if empty
+                    fi
+                    total_lovelace=$((total_lovelace + pay_script_lovelace))
                   fi
 
                   echo
@@ -995,9 +1045,12 @@ function main {
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Registered" "Unknown")"
               fi
 
-              [[ -n ${base_addr} ]]   && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
-              [[ -n ${pay_addr} ]]    && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Enterprise Address" "${pay_addr}")"
-              [[ -n ${reward_addr} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
+              [[ -n ${base_addr} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
+              [[ -n ${pay_addr} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Enterprise Address" "${pay_addr}")"
+              [[ -n ${pay_script_addr} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Address" "${pay_script_addr}")"
+              [[ -n ${reward_addr} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
+              [[ -n ${pay_cred} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment Credential" "${pay_cred}")"
+              [[ -n ${stake_cred} ]]      && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Stake Credential" "${stake_cred}")"
               if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
                 if [[ -n ${reward_addr} ]]; then
                   if [[ -n ${KOIOS_API} ]]; then
@@ -1025,9 +1078,11 @@ function main {
                   println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${delegation_pool_id})${NC}"
                 fi
               fi
-              if [[ -z ${pay_addr} || -z ${base_addr} || -z ${reward_addr} ]]; then
+              if [[ -z ${pay_addr} || -z ${pay_script_addr} || -z ${base_addr} || -z ${reward_addr} ]]; then
                 echo
-                [[ -z ${pay_addr} ]]    && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_PAY_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}' to generate it!"
+                if [[ -z ${pay_addr} && -z ${pay_script_addr} ]]; then
+                  println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_PAY_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}' to generate it!"
+                fi
                 [[ -z ${base_addr} ]]   && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_BASE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}/${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
                 [[ -z ${reward_addr} ]] && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_STAKE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
               fi
@@ -1710,7 +1765,7 @@ function main {
 						" ) Rotate   - rotate pool KES keys"\
 						" ) Decrypt  - remove write protection and decrypt pool"\
 						" ) Encrypt  - encrypt pool cold keys and make all files immutable"\
-						" ) Vote     - Cast a CIP-0094 Poll ballot"\
+						" ) Vote     - cast a CIP-0094 Poll ballot"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Pool Operation\n"
           select_opt "[n] New" "[i] Import" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[v] Vote" "[h] Home"
@@ -4272,15 +4327,17 @@ function main {
           println OFF " Developer & Advanced features\n"\
 						" ) Metadata       - create and optionally post metadata on-chain"\
 						" ) Multi-Asset    - multi-asset nanagement"\
-						" ) Delete Keys    - Delete all sign/cold keys from CNTools (wallet|pool|asset)"\
+						" ) Multi-Sig      - create a multi-sig/native script wallet"\
+						" ) Delete Keys    - delete all sign/cold keys from CNTools (wallet|pool|asset)"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Operation\n"
-          select_opt "[m] Metadata" "[a] Multi-Asset" "[x] Delete Private Keys" "[h] Home"
+          select_opt "[m] Metadata" "[a] Multi-Asset" "[s] Multi-Sig" "[x] Delete Private Keys" "[h] Home"
           case $? in
             0) SUBCOMMAND="metadata" ;;
             1) SUBCOMMAND="multi-asset" ;;
-            2) SUBCOMMAND="del-keys" ;;
-            3) break ;;
+            2) SUBCOMMAND="multi-sig" ;;
+            3) SUBCOMMAND="del-keys" ;;
+            4) break ;;
           esac
           case $SUBCOMMAND in  
             metadata)
@@ -5160,6 +5217,103 @@ function main {
                     ;; ###################################################################
                 esac # advanced >> multi-asset sub OPERATION
               done # Multi-Asset loop
+              ;; ###################################################################
+            multi-sig)
+              clear
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              println " >> ADVANCED >> MULTI-SIG"
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              echo
+              getAnswerAnyCust wallet_name "Name of multi-sig wallet" wallet_name
+              # Remove unwanted characters from wallet name
+              wallet_name=${wallet_name//[^[:alnum:]]/_}
+              if [[ -z "${wallet_name}" ]]; then
+                println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
+                waitToProceed && continue
+              fi
+              echo
+              if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
+                println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+                waitToProceed && continue
+              fi
+              # Wallet key filenames
+              stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+              stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+              script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_SCRIPT_FILENAME}"
+              if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+                println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
+                println "      Choose another name or delete the existing one"
+                waitToProceed && continue
+              fi
+              declare -gA key_hashes=() # key hashes as keys to assosiative array to act as a set
+              unset timelock_after
+              println OFF "Select wallet(s) / payment credentials (key hash) to include in multi-sig wallet\n"
+              while true; do
+                println DEBUG "Select wallet or manually enter credential?"
+                select_opt "[w] Wallet" "[c] Payment Credential" "[Esc] Cancel"
+                case $? in
+                  0) selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                    case $? in
+                      1) waitToProceed; continue ;;
+                      2) continue ;;
+                    esac
+                    getCredentials ${wallet_name}
+                    [[ -z ${pay_cred} ]] && println ERROR "${FG_RED}ERROR${NC}: wallet payment credentials not set!"; waitToProceed; continue
+                    key_hashes[${pay_cred}]=1
+                    ;;
+                  1) getAnswerAnyCust pay_cred "Payment Credential (key hash)"
+                    [[ ${#pay_cred} -ne 56 ]] && println ERROR "${FG_RED}ERROR${NC}: invalid payment credential entered!"; waitToProceed; continue
+                    key_hashes[${pay_cred}]=1
+                    ;;
+                  2) continue 2 ;;
+                esac
+                println DEBUG "Multi-Sig size: #${#key_hashes[@]} - Add more wallets / credentials to multi-sig?"
+                select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+                case $? in
+                  0) break ;;
+                  1) : ;;
+                  2) continue 2 ;;
+                esac
+              done
+              println DEBUG "${#key_hashes[@]} wallets / credentials added to multi-sig, how many are required to witness the transaction?"
+              getAnswerAnyCust required_sig_cnt "Required signatures"
+              if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
+                println ERROR "${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; waitToProceed; continue
+              fi
+              println DEBUG "Add time lock to multi-sig wallet by only allowing spending from wallet after a certain epoch start?"
+              select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+              case $? in
+                0) : ;;
+                1) getAnswerAnyCust epoch_no "Epoch"
+                  isNumber ${epoch_no} || println ERROR "${FG_RED}ERROR${NC}: invalid epoch number entered!"; waitToProceed; continue
+                  timelock_after=$(getEpochStart ${epoch_no})
+                  ;;
+                2) continue ;;
+              esac
+              # build multi-sig script
+              jsonscript=$(jq -n --argjson req_sig "${required_sig_cnt}" '{type:"atLeast",required:$req_sig,scripts:[]}')
+              for sig in "${!key_hashes[@]}"; do
+                jsonscript=$(jq --arg sig "${sig}" '.scripts += [{type:"sig",keyHash:$sig}]' <<< "${jsonscript}")
+              done
+              if [[ -n ${timelock_after} ]]; then
+                jsonscript=$(jq -n --argjson after "${timelock_after}" --argjson sig_script "${jsonscript}" '{type:"all",scripts:[{type:"after",slot:$after},$sig_script]}')
+              fi
+              jq . <<< "${jsonscript}" > "${script_file}"
+              println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
+              if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
+              fi
+              chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
+              getBaseAddress ${wallet_name}
+              getPayScriptAddress ${wallet_name}
+              getRewardAddress ${wallet_name}
+              println "New Multi-Sig Wallet : ${FG_GREEN}${wallet_name}${NC}"
+              println "Address              : ${FG_LGRAY}${base_addr}${NC}"
+              println "Script Address       : ${FG_LGRAY}${script_addr}${NC}"
+              println "Reward Address       : ${FG_LGRAY}${reward_addr}${NC}"
+              println DEBUG "\nYou can now send and receive ADA using the above 'Address' or 'Script Address'."
+              println DEBUG "Note that Script Address will not take part in staking."
+              waitToProceed && continue
               ;; ###################################################################
             del-keys)
               clear
