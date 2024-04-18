@@ -397,6 +397,7 @@ function main {
               getBaseAddress ${wallet_name}
               getPayAddress ${wallet_name}
               getRewardAddress ${wallet_name}
+              getCredentials ${wallet_name}
               println "New Wallet         : ${FG_GREEN}${wallet_name}${NC}"
               println "Address            : ${FG_LGRAY}${base_addr}${NC}"
               println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
@@ -522,6 +523,7 @@ function main {
                     getBaseAddress ${wallet_name}
                     getPayAddress ${wallet_name}
                     getRewardAddress ${wallet_name}
+                    getCredentials ${wallet_name}
                     if [[ ${base_addr} != "${base_addr_candidate}" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: base address generated doesn't match base address candidate."
                       println ERROR "base_addr[${FG_LGRAY}${base_addr}${NC}]\n!=\nbase_addr_candidate[${FG_LGRAY}${base_addr_candidate}${NC}]"
@@ -1046,10 +1048,24 @@ function main {
               fi
 
               if [[ -f ${payment_script_file} ]]; then
-                if timelock_after=$(jq -er '.scripts[0].type' ${payment_script_file}) && [[ ${timelock_after} = "after" ]]; then
-                  timelock_slot=$(jq -r '.scripts[0].slot' ${payment_script_file})
+                if timelock_after=$(jq -er '.scripts[0].type' "${payment_script_file}") && [[ ${timelock_after} = "after" ]]; then
+                  timelock_slot=$(jq -r '.scripts[0].slot' "${payment_script_file}")
                   timelock_date=$(getDateFromSlot ${timelock_slot})
                   println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC} ${FG_YELLOW}%s${NC}" "Time Locked" "until" "${timelock_date}")"
+                fi
+                if atleast=$(jq -er '.scripts[1].type' "${payment_script_file}") && [[ ${atleast} = "atLeast" ]]; then
+                  cred_header="Script Credentials ($(jq -r '.scripts[1].scripts|length' "${payment_script_file}"))"
+                  while read -r _sig; do
+                    unset wallet_str
+                    while IFS= read -r -d '' wallet; do
+                      getCredentials "$(basename ${wallet})"
+                      if [[ ${pay_cred} = ${_sig} ]]; then
+                        wallet_str=" (${FG_GREEN}$(basename ${wallet})${NC})" && break
+                      fi
+                    done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}%s" "${cred_header}" "${_sig}" "${wallet_str}")"
+                    unset cred_header
+                  done < <( jq -r '.scripts[1].scripts[].keyHash' "${payment_script_file}")
                 fi
               fi
 
