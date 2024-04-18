@@ -2930,13 +2930,13 @@ submitTxKoiosOgmios() {
   unset ogmios_error
   println ACTION "curl -sSL -X POST  -H \"accept: application/json\" -H \"Content-Type: application/json\" -d \"${jsonrpc}\" \"${KOIOS_API}/ogmios\""
   stdout=$(curl -sSL -X POST  -H "accept: application/json" -H "Content-Type: application/json" -d "${jsonrpc}" "${KOIOS_API}/ogmios" 2>&1)
-  if [[ -z ${stdout} ]] || ogmios_error=$(jq -er '.error' <<< "${stdout}"); then
+  if [[ -z ${stdout} ]] || ogmios_error=$(jq -er '.error //empty' <<< "${stdout}") || ! jq -er '.result //empty' <<< "${stdout}" &>/dev/null; then
     println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!"
     if [[ -n ${ogmios_error} ]]; then
       jq -r . <<< "${ogmios_error}"
       println LOG $(jq -rc . <<< "${ogmios_error}")
     else
-      println ERROR "Unknown API error"
+      println ERROR "Submit API error: ${stdout}"
     fi
     return 1
   fi
