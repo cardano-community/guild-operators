@@ -5239,7 +5239,7 @@ function main {
               # Wallet key filenames
               stake_vk_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_VK_FILENAME}"
               stake_sk_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-              script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_SCRIPT_FILENAME}"
+              pay_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
               if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
                 println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
                 println "      Choose another name or delete the existing one"
@@ -5247,9 +5247,9 @@ function main {
               fi
               declare -gA key_hashes=() # key hashes as keys to assosiative array to act as a set
               unset timelock_after
-              println OFF "Select wallet(s) / payment credentials (key hash) to include in multi-sig wallet\n"
+              println OFF "Select wallet(s) / payment credentials (key hash) to include in multi-sig wallet"
               while true; do
-                println DEBUG "Select wallet or manually enter credential?"
+                println DEBUG "\nSelect wallet or manually enter credential?"
                 select_opt "[w] Wallet" "[c] Payment Credential" "[Esc] Cancel"
                 echo
                 case $? in
@@ -5299,7 +5299,7 @@ function main {
               if [[ -n ${timelock_after} ]]; then
                 jsonscript=$(jq -n --argjson after "${timelock_after}" --argjson sig_script "${jsonscript}" '{type:"all",scripts:[{type:"after",slot:$after},$sig_script]}')
               fi
-              if ! stdout=$(jq -e . <<< "${jsonscript}" > "${script_file}" 2>&1); then
+              if ! stdout=$(jq -e . <<< "${jsonscript}" > "${pay_script_file}" 2>&1); then
                 println ERROR "\n${FG_RED}ERROR${NC}: failure during script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
               fi
               println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"

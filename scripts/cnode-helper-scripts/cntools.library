@@ -454,12 +454,12 @@ selectWallet() {
     wallet_count=${#dirs[@]}
     if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
       if [[ -n ${KOIOS_API} ]]; then
-        println OFF "\n${FG_YELLOW}> Querying Koios API for wallet balance${NC}"
+        println OFF "${FG_YELLOW}> Querying Koios API for wallet balance${NC}"
       else
-        println OFF "\n${FG_YELLOW}> Querying node for wallet balance${NC}"
+        println OFF "${FG_YELLOW}> Querying node for wallet balance${NC}"
       fi
     else
-      println OFF "\n${FG_YELLOW}> Max wallet count exceeded for balance/filtering (${wallet_count}/${WALLET_SELECTION_FILTER_LIMIT}).\nUpdate 'WALLET_SELECTION_FILTER_LIMIT' setting to increase this limit${NC}"
+      println OFF "${FG_YELLOW}> Max wallet count exceeded for balance/filtering (${wallet_count}/${WALLET_SELECTION_FILTER_LIMIT}).\nUpdate 'WALLET_SELECTION_FILTER_LIMIT' setting to increase this limit${NC}"
     fi
   fi
 
