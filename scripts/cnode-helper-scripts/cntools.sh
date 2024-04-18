@@ -1050,11 +1050,11 @@ function main {
               if [[ -f ${payment_script_file} ]]; then
                 if timelock_after=$(jq -er '.scripts[0].type' "${payment_script_file}") && [[ ${timelock_after} = "after" ]]; then
                   timelock_slot=$(jq -r '.scripts[0].slot' "${payment_script_file}")
-                  timelock_date=$(getDateFromSlot ${timelock_slot})
+                  timelock_date=$(getDateFromSlot ${timelock_slot} '%(%F %T %Z)T')
                   println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC} ${FG_YELLOW}%s${NC}" "Time Locked" "until" "${timelock_date}")"
                 fi
                 if atleast=$(jq -er '.scripts[1].type' "${payment_script_file}") && [[ ${atleast} = "atLeast" ]]; then
-                  cred_header="Script Credentials ($(jq -r '.scripts[1].scripts|length' "${payment_script_file}"))"
+                  cred_header="Multi-Sig Creds ($(jq -r '.scripts[1].scripts|length' "${payment_script_file}"))"
                   while read -r _sig; do
                     unset wallet_str
                     while IFS= read -r -d '' wallet; do
@@ -1066,6 +1066,7 @@ function main {
                     println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}%s" "${cred_header}" "${_sig}" "${wallet_str}")"
                     unset cred_header
                   done < <( jq -r '.scripts[1].scripts[].keyHash' "${payment_script_file}")
+                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Required signers" "$(jq -r '.scripts[1].required' "${payment_script_file}")")"
                 fi
               fi
 
