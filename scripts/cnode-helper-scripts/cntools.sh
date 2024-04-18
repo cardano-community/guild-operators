@@ -363,7 +363,7 @@ function main {
               println " >> WALLET >> NEW"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
-              getAnswerAnyCust wallet_name "Name of new wallet" wallet_name
+              getAnswerAnyCust wallet_name "Name of new wallet"
               # Remove unwanted characters from wallet name
               wallet_name=${wallet_name//[^[:alnum:]]/_}
               if [[ -z "${wallet_name}" ]]; then
@@ -5224,24 +5224,24 @@ function main {
               println " >> ADVANCED >> MULTI-SIG"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
-              getAnswerAnyCust wallet_name "Name of multi-sig wallet" wallet_name
+              getAnswerAnyCust ms_wallet_name "Name of multi-sig wallet"
               # Remove unwanted characters from wallet name
-              wallet_name=${wallet_name//[^[:alnum:]]/_}
-              if [[ -z "${wallet_name}" ]]; then
+              ms_wallet_name=${ms_wallet_name//[^[:alnum:]]/_}
+              if [[ -z "${ms_wallet_name}" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
                 waitToProceed && continue
               fi
               echo
-              if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-                println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+              if ! mkdir -p "${WALLET_FOLDER}/${ms_wallet_name}"; then
+                println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${ms_wallet_name}"
                 waitToProceed && continue
               fi
               # Wallet key filenames
-              stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-              stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-              script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_SCRIPT_FILENAME}"
-              if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-                println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
+              stake_vk_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+              stake_sk_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+              script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_SCRIPT_FILENAME}"
+              if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+                println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
                 println "      Choose another name or delete the existing one"
                 waitToProceed && continue
               fi
@@ -5258,37 +5258,37 @@ function main {
                       2) continue ;;
                     esac
                     getCredentials ${wallet_name}
-                    [[ -z ${pay_cred} ]] && println ERROR "${FG_RED}ERROR${NC}: wallet payment credentials not set!"; waitToProceed; continue
+                    [[ -z ${pay_cred} ]] && println ERROR "${FG_RED}ERROR${NC}: wallet payment credentials not set!" && waitToProceed && continue
                     key_hashes[${pay_cred}]=1
                     ;;
                   1) getAnswerAnyCust pay_cred "Payment Credential (key hash)"
-                    [[ ${#pay_cred} -ne 56 ]] && println ERROR "${FG_RED}ERROR${NC}: invalid payment credential entered!"; waitToProceed; continue
+                    [[ ${#pay_cred} -ne 56 ]] && println ERROR "${FG_RED}ERROR${NC}: invalid payment credential entered!" && waitToProceed && continue
                     key_hashes[${pay_cred}]=1
                     ;;
-                  2) safeDel "${WALLET_FOLDER}/${wallet_name}"; continue 2 ;;
+                  2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
                 esac
                 println DEBUG "Multi-Sig size: #${#key_hashes[@]} - Add more wallets / credentials to multi-sig?"
                 select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
                 case $? in
                   0) break ;;
                   1) : ;;
-                  2) safeDel "${WALLET_FOLDER}/${wallet_name}"; continue 2 ;;
+                  2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
                 esac
               done
               println DEBUG "${#key_hashes[@]} wallets / credentials added to multi-sig, how many are required to witness the transaction?"
               getAnswerAnyCust required_sig_cnt "Required signatures"
               if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
-                println ERROR "${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed; continue
+                println ERROR "${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
               fi
               println DEBUG "Add time lock to multi-sig wallet by only allowing spending from wallet after a certain epoch start?"
               select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
               case $? in
                 0) : ;;
                 1) getAnswerAnyCust epoch_no "Epoch"
-                  isNumber ${epoch_no} || println ERROR "${FG_RED}ERROR${NC}: invalid epoch number entered!"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed; continue
+                  if ! isNumber ${epoch_no}; then println ERROR "${FG_RED}ERROR${NC}: invalid epoch number entered!"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue; fi
                   timelock_after=$(getEpochStart ${epoch_no})
                   ;;
-                2) safeDel "${WALLET_FOLDER}/${wallet_name}"; continue ;;
+                2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue ;;
               esac
               # build multi-sig script
               jsonscript=$(jq -n --argjson req_sig "${required_sig_cnt}" '{type:"atLeast",required:$req_sig,scripts:[]}')
@@ -5299,17 +5299,17 @@ function main {
                 jsonscript=$(jq -n --argjson after "${timelock_after}" --argjson sig_script "${jsonscript}" '{type:"all",scripts:[{type:"after",slot:$after},$sig_script]}')
               fi
               if ! stdout=$(jq -e . <<< "${jsonscript}" > "${script_file}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
               fi
               println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
               if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
               fi
-              chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
-              getBaseAddress ${wallet_name}
-              getPayScriptAddress ${wallet_name}
-              getRewardAddress ${wallet_name}
-              println "New Multi-Sig Wallet : ${FG_GREEN}${wallet_name}${NC}"
+              chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
+              getBaseAddress ${ms_wallet_name}
+              getPayScriptAddress ${ms_wallet_name}
+              getRewardAddress ${ms_wallet_name}
+              println "New Multi-Sig Wallet : ${FG_GREEN}${ms_wallet_name}${NC}"
               println "Address              : ${FG_LGRAY}${base_addr}${NC}"
               println "Script Address       : ${FG_LGRAY}${script_addr}${NC}"
               println "Reward Address       : ${FG_LGRAY}${reward_addr}${NC}"
