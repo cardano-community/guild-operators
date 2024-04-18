@@ -5251,6 +5251,7 @@ function main {
               while true; do
                 println DEBUG "Select wallet or manually enter credential?"
                 select_opt "[w] Wallet" "[c] Payment Credential" "[Esc] Cancel"
+                echo
                 case $? in
                   0) selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
                     case $? in
@@ -5267,7 +5268,7 @@ function main {
                     ;;
                   2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
                 esac
-                println DEBUG "Multi-Sig size: #${#key_hashes[@]} - Add more wallets / credentials to multi-sig?"
+                println DEBUG "\nMulti-Sig size: ${#key_hashes[@]} - Add more wallets / credentials to multi-sig?"
                 select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
                 case $? in
                   0) break ;;
@@ -5275,12 +5276,12 @@ function main {
                   2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
                 esac
               done
-              println DEBUG "${#key_hashes[@]} wallets / credentials added to multi-sig, how many are required to witness the transaction?"
+              println DEBUG "\n${#key_hashes[@]} wallets / credentials added to multi-sig, how many are required to witness the transaction?"
               getAnswerAnyCust required_sig_cnt "Required signatures"
               if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
-                println ERROR "${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
+                println ERROR "\n${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
               fi
-              println DEBUG "Add time lock to multi-sig wallet by only allowing spending from wallet after a certain epoch start?"
+              println DEBUG "\nAdd time lock to multi-sig wallet by only allowing spending from wallet after a certain epoch start?"
               select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
               case $? in
                 0) : ;;
@@ -5309,6 +5310,7 @@ function main {
               getBaseAddress ${ms_wallet_name}
               getPayScriptAddress ${ms_wallet_name}
               getRewardAddress ${ms_wallet_name}
+              echo
               println "New Multi-Sig Wallet : ${FG_GREEN}${ms_wallet_name}${NC}"
               println "Address              : ${FG_LGRAY}${base_addr}${NC}"
               println "Script Address       : ${FG_LGRAY}${script_addr}${NC}"
