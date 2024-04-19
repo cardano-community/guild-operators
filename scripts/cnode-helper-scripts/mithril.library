@@ -157,7 +157,7 @@ update_mithril_environment_for_signer() {
 		ERA_READER_ADAPTER_TYPE=cardano-chain
 		ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address "$(wget -q -O - "${ERA_READER_ADDRESS}")" --arg verification_key "$(wget -q -O - "${ERA_READER_VKEY}")" '{"address": $address, "verification_key": $verification_key}')
 		GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
-		PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME})
+		PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME}-bech32)
 		SNAPSHOT_DIGEST=latest
 		EOF"
 
