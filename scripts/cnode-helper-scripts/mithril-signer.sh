@@ -40,10 +40,12 @@ usage() {
 
 mithril_init() {
   [[ ! -f "${CNODE_HOME}"/mithril/mithril.env ]] && generate_environment_file
-  . "${CNODE_HOME}"/mithril/mithril.env
+  for line in $(cat "${CNODE_HOME}"/mithril/mithril.env); do
+    export "${line}"
+  done
   # Move logs to archive
   [[ -d "${LOG_DIR}"/archive ]] || mkdir -p "${LOG_DIR}"/archive
-  [[ -f "${LOG_DIR}"/$(basename "${0::-3}").log ]] && mv "${LOG_DIR}/$(basename "${0::-3}")".log "${LOG_DIR}"/archive/
+  [[ -f "${LOG_DIR}"/$(basename "${0::-3}").log ]] && mv "${LOG_DIR}/$(basename "${0::-3}")".log "${LOG_DIR}"/archive/ ; touch "${LOG_DIR}/$(basename "${0::-3}")".log
 }
 
 deploy_systemd() {
@@ -90,7 +92,7 @@ stop_signer() {
 
 
 user_interrupt_received() {
-  echo "  SIGINT received, stopping $(basename "${0::-3}").." >> "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1
+  echo "  SIGINT received, stopping $(basename "${0::-3}").." |tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1
   stop_signer
 
 }
@@ -223,8 +225,8 @@ else
     # Run Mithril Signer Server
     echo "Starting Mithril Signer Server.."
     trap 'user_interrupt_received' INT
-    if ! "${MITHRILBIN}" -vv >> "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1 ; then
-      echo "Failed to start Mithril Signer Server" >> "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1
+    if ! "${MITHRILBIN}" -vv | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1 ; then
+      echo "Failed to start Mithril Signer Server" | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1
       exit 1
     fi
   fi
