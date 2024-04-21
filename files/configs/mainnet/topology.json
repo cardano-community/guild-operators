@@ -17,7 +17,6 @@
       ],
       "advertise": false,
       "trustable": true,
-	    "valency_INFO": "set the .localRoots.valency to the number of configured accessPoints",
       "valency": 2
     },
     {
@@ -46,6 +45,5 @@
       "advertise": false
     }
   ],
-  "useLedgerAfterSlot_INFO": "the node will use the .publicRoots.accessPoints only until he synchronised up to slot .useLedgerAfterSlot. then P2P peering jumps in, plus static links to .localRoots.accessPoints",
   "useLedgerAfterSlot": 119160667
 }
