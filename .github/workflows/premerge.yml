@@ -47,13 +47,15 @@ jobs:
     - uses: actions/checkout@v3
     - name: Define BRANCH, COMMIT and G_ACCOUNT in environment
       run: |
-        echo "G_ACCOUNT=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
-        if [[ -z "${{ env.BRANCH }}" ]]; then
-          echo "BRANCH=${GITHUB_HEAD_REF}" >> $GITHUB_ENV
-          echo "COMMIT=$(git rev-parse --short "$GITHUB_SHA")" >> $GITHUB_ENV
+        if [[ "${{ github.event.pull_request.head.repo.fork }}" == "true" ]]; then
+          # This means the PR is from a fork
+          echo "G_ACCOUNT=${{ github.event.pull_request.head.repo.owner.login }}" >> $GITHUB_ENV
         else
-          echo "COMMIT=$(git rev-parse --short ${{ env.BRANCH }})" >> $GITHUB_ENV
+          # This means the PR is from the same repository
+          echo "G_ACCOUNT=${{ github.repository_owner }}" >> $GITHUB_ENV
         fi
+        echo "BRANCH=${{ github.head_ref }}" >> $GITHUB_ENV
+        echo "COMMIT=$(git rev-parse --short "${{ github.sha }}")" >> $GITHUB_ENV
     - name: Testing guild-deploy.sh (IO fork of libsodium)
       run: |
         docker build . \
