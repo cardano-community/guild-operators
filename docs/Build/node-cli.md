@@ -91,19 +91,20 @@ Press Ctrl-C to exit node and return to console.
 Now that you've tested the basic node operation, you might want to customise your config files (assuming you are in top-level folder , i.e. `cd "${CNODE_HOME}"`) :
 
 1. files/config.json :
-This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus/EKG monitoring will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use this file as-is.
+This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus/EKG monitoring will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use most of this file as-is. You might - however - want to double-check `PeerSharing` in this file, if using a relay node where you'd like connecting peers (marked as `"advertise": "true"` in topology.json) to be shared , you may turn this setting to `true`.
 
 2. files/topology.json :
 This file tells your node how to connect to other nodes (especially initially to start synching). You would want to update this file as below:
 
     * Update the `localRoots` > `accessPoints` section to include your local nodes that you want persistent connection against (eg: this could be your BP and own relay nodes) against definition where `trustable` is set to `true`.
-    * You'd want to update `localRoots` > `valency` to number of connections from your localRoots that you always want to keep active connection to.
+    * If you want specific peers to be advertised on the network for discovery, you may set `advertise` to `true` for that peer group. You do NOT want to do that on BP
+    * You'd want to update `localRoots` > `valency` (`valency` is the same as `hotValency`, not yet replaced since the example in cardano-node-wiki repo still suggests `valency`) to number of connections from your localRoots that you always want to keep active connection to for that node.
     * [Optional] - you can add/remove nodes from `publicRoots` section as well as `localRoots` > `accessPoints` as desired, tho defaults populated should work fine. On mainnet, we did add a few additional nodes to help add more redundancy for initial sync.
     * `useLedgerAfterSlot` tells the node to establish networking with nodes from defined peers to sync the node initially until reaching an absolute slot number, after which - it can start attempting to connect to peers registered as pool relays on the network. You may want this number to be relatively recent (eg: not have it 50 epochs old).
     * You can read further about topology file configuration [here](https://github.com/input-output-hk/cardano-node-wiki/blob/main/docs/getting-started/understanding-config-files.md#the-p2p-topologyjson-file)
 
 !!! important
-    You'd want to set `useLedgerAfterSlot` to `-1` for your Block Producing (Core) node - thereby, telling your Core node to remain in non-P2P mode.
+    On BP, You'd want to set `useLedgerAfterSlot` to `-1` for your Block Producing (Core) node - thereby, telling your Core node to remain in non-P2P mode, and ensure `PeerSharing` is to `false`.
 
 The resultant topology file could look something like below:
 
