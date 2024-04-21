@@ -1,4 +1,14 @@
 {
+  "bootstrapPeers": [
+    {
+      "address": "backbone.cardano.iog.io",
+      "port": 3001
+    },
+    {
+      "address": "backbone.mainnet.emurgornd.com",
+      "port": 3001
+    }
+  ],
   "localRoots": [
     {
       "accessPoints": [
@@ -6,34 +16,34 @@
         {"address": "127.0.0.1", "port": 6001, "description": "replace-this-with-relay"}
       ],
       "advertise": false,
-	    "valency_INFO": "set the .localRoots.valency to the number of configured accessPoints",
+      "trustable": true,
       "valency": 2
-    }
-  ],
-  "publicRoots": [
+    },
     {
       "accessPoints": [
-        {"address": "backbone.cardano-mainnet.iohk.io", "port": 3001, "location": "various" },
-        {"address": "backbone.cardano.iog.io",          "port": 3001, "location": "various" },
-        {"address": "backbone.mainnet.emurgornd.com",   "port": 3001, "location": "various" },
         {"address": "node-dus.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "EU/DE/Dusseldorf" },
         {"address": "node-syd.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "OC/AU/Sydney" },
         {"address": "194.36.145.157",                   "port": 6000, "pool": "RDLRT",  "location": "EU/DE/Baden" },
-        {"address": "89.58.43.194",                     "port": 6000, "pool": "RDLRT",  "location": "NA/US/StLouis" },
-        {"address": "148.72.153.168",                   "port": 16000, "pool": "AAA",    "location": "US/StLouis" },
+        {"address": "152.53.18.60",                     "port": 6000, "pool": "RDLRT",  "location": "NA/US/StLouis" },
+        {"address": "148.72.153.168",                   "port": 16000, "pool": "AAA",   "location": "US/StLouis" },
         {"address": "78.47.99.41",                      "port": 6000, "pool": "AAA",    "location": "EU/DE/Nuremberg" },
         {"address": "relay1-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
         {"address": "relay2-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
         {"address": "relay1.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Milan" },
         {"address": "relay2.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" },
-        {"address": "relay3.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" },
-        {"address": "164.90.197.139",                   "port": 6000, "name": "EDEN",   "location": "EU/NL/Amsterdam" },
-        {"address": "128.199.187.2",                    "port": 6000, "name": "EDEN",   "location": "AS/SG/Singapore" },
-        {"address": "198.199.70.70",                    "port": 6000, "name": "EDEN",   "location": "NA/US/NorthBergen" }
+        {"address": "relay3.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" }
       ],
+      "advertise": false,
+      "trustable": false,
+      "valency": 5,
+      "warmValency": 10
+    }
+  ],
+  "publicRoots": [
+    {
+      "accessPoints": [],
       "advertise": false
     }
   ],
-  "useLedgerAfterSlot_INFO": "the node will use the .publicRoots.accessPoints only until he synchronised up to slot .useLedgerAfterSlot. then P2P peering jumps in, plus static links to .localRoots.accessPoints",
-  "useLedgerAfterSlot": 114590908
+  "useLedgerAfterSlot": 119160667
 }

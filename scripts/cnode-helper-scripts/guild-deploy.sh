@@ -109,7 +109,7 @@ set_defaults() {
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
-  CARDANO_NODE_VERSION="8.7.3"
+  CARDANO_NODE_VERSION="8.9.2"
   REPO="https://github.com/${G_ACCOUNT}/guild-operators"
   REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
   URL_RAW="${REPO_RAW}/${BRANCH}"
@@ -340,7 +340,7 @@ build_libblst() {
   [[ ! -d "./blst" ]] && git clone https://github.com/supranational/blst &>/dev/null
   pushd blst >/dev/null || err_exit
   git fetch >/dev/null 2>&1
-  [[ -z "${BLST_REF}" ]] && BLST_REF="v0.3.10"
+  [[ -z "${BLST_REF}" ]] && BLST_REF="v0.3.11"
   git checkout ${BLST_REF} &>/dev/null
   ./build.sh >/dev/null 2>&1
   cat <<-EOF >libblst.pc
@@ -364,26 +364,28 @@ build_libblst() {
 }
 
 # Download cardano-node, cardano-cli, cardano-db-sync, bech32 and cardano-submit-api
-# TODO: Replace these with self-hosted ones (potentially consider IPFS as upload destination for CI)
+# TODO: Replace these with self-hosted ones (potentially consider snapshots.koios.rest as upload destination for CI)
 download_cnodebins() {
   [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The build archives are not available for ARM, you might need to build them!"
   echo -e "\nDownloading binaries.."
   pushd "${HOME}"/tmp >/dev/null || err_exit
   echo -e "\n  Downloading Cardano Node archive created from GitHub.."
   rm -f cardano-node cardano-address
-  curl -m 200 -sfL https://github.com/intersectmbo/cardano-node/releases/download/8.7.3/cardano-node-8.7.3-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node release 8.7.3 from GitHub!"
-  tar zxf cnode.tar.gz ./cardano-node ./cardano-cli ./cardano-submit-api ./bech32 &>/dev/null
+  curl -m 200 -sfL https://github.com/intersectmbo/cardano-node/releases/download/${CARDANO_NODE_VERSION}/cardano-node-${CARDANO_NODE_VERSION}-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node release ${CARDANO_NODE_VERSION} from GitHub!"
+  tar zxf cnode.tar.gz --strip-components 2 ./bin/cardano-node ./bin/cardano-cli ./bin/cardano-submit-api ./bin/bech32 &>/dev/null
   rm -f cnode.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
   echo -e "\n  Downloading Github release package for Cardano Wallet"
   curl -m 200 -sfL https://github.com/intersectmbo/cardano-addresses/releases/download/3.12.0/cardano-addresses-3.12.0-linux64.tar.gz -o caddress.tar.gz || err_exit " Could not download cardano-wallet's latest release archive from GitHub!"
-  tar zxf caddress.tar.gz --strip-components=1 bin/cardano-address &>/dev/null
+  tar zxf caddress.tar.gz --strip-components 1 bin/cardano-address &>/dev/null
   rm -f caddress.tar.gz
   [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (bin/cardano-address) not found after extracting package!"
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
     echo -e "\n  Downloading Cardano DB Sync archive created from GitHub.."
-    curl -m 200 -sfL https://github.com/intersectmbo/cardano-db-sync/releases/download/sancho-3-0-0/cardano-db-sync-13.2.0.0-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.2.0.0 from GitHub!"
-    tar zxf cnodedbsync.tar.gz ./cardano-db-sync &>/dev/null
+    # TODO: Replace CI Build artifact against 13.2.0.2 tag with release from github artefacts once available
+    #curl -m 200 -sfL https://github.com/IntersectMBO/cardano-db-sync/releases/download/13.2.0.2/cardano-db-sync-13.2.0.1-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.2.0.2 from GitHub!"
+    curl -m 200 -sfL https://ci.iog.io/build/3735786/download/1/cardano-db-sync-13.2.0.2-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.2.0.2 from GitHub!"
+    tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync &>/dev/null
     [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
     rm -f cnodedbsync.tar.gz
     mv -f -t "${HOME}"/.local/bin cardano-db-sync
