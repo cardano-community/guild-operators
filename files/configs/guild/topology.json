@@ -5,10 +5,9 @@
         {"address": "127.0.0.1", "port": 6000, "description": "replace-this-with-BP"}
       ],
       "advertise": false,
+      "trustable": true,
       "valency": 1
-    }
-  ],
-  "publicRoots": [
+    },
     {
       "accessPoints": [
         {"address": "209.145.50.190"                      ,"port": 7001, "name": "rdlrt"},
@@ -18,6 +17,15 @@
         {"address": "185.161.193.105"                     ,"port": 6011, "name": "clio-1"},
         {"address": "relay-guild.adaplus.io"              ,"port": 6000, "name": "adaplus"}
       ],
+      "advertise": false,
+      "trustable": false,
+      "valency": 3,
+      "warmValency": 5
+    }
+  ],
+  "publicRoots": [
+    {
+      "accessPoints": [],
       "advertise": false
     }
   ],

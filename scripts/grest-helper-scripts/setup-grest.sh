@@ -440,7 +440,7 @@ SGVERSION=v1.1.1rc
 			
 			backend ogmios
 			  balance first
-			  http-request set-path \"%[path,regsub(^/api/v1/ogmios/,/)]\"
+			  http-request set-path \"%[path,regsub(^/api/v1/ogmios.*,/)]\"
 			  option httpchk GET /health
 			  http-check expect status 200
 			  default-server inter 20s fall 1 rise 2

@@ -14,6 +14,27 @@
       "/opt/cardano/cnode/logs/dbsync.json"
     ]
   ],
+  "insert_options": {
+    "tx_out": {
+      "value": "consumed"
+    },
+    "ledger": "enable",
+    "shelley": {
+      "enable": true
+    },
+    "multi_asset": {
+      "enable": true
+    },
+    "metadata": {
+      "enable": true
+    },
+    "plutus": {
+      "enable": true
+    },
+    "governance": "enable",
+    "offchain_pool_data": "enable",
+    "json_type": "text"
+  },
   "minSeverity": "Info",
   "options": {
     "cfokey": {
