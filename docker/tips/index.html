@@ -958,6 +958,40 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#configuration-update-check-functionality" class="md-nav__link">
+    Configuration Update Check Functionality
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration Update Check Functionality">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#persistently-updating-configuration-files" class="md-nav__link">
+    Persistently updating configuration files
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dynamically-updating-configuration-files" class="md-nav__link">
+    Dynamically updating configuration files
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-images-from-forked-repositories" class="md-nav__link">
+    Building Images from Forked Repositories
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1163,6 +1197,40 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#configuration-update-check-functionality" class="md-nav__link">
+    Configuration Update Check Functionality
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration Update Check Functionality">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#persistently-updating-configuration-files" class="md-nav__link">
+    Persistently updating configuration files
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dynamically-updating-configuration-files" class="md-nav__link">
+    Dynamically updating configuration files
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-images-from-forked-repositories" class="md-nav__link">
+    Building Images from Forked Repositories
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1246,6 +1314,39 @@ backup directory is smaller than the db directory.</p>
 <p>When the container is started with the <strong>ENABLE_RESTORE</strong> environment variable set to <strong>Y</strong> the container will automatically restore
 the latest backup from the <code>/opt/cardano/cnode/backup/$NETWORK-db</code> directory. The database will be restored when the container is started
 and if the backup directory is larger than the db directory.</p>
+<h3 id="configuration-update-check-functionality">Configuration Update Check Functionality<a class="headerlink" href="#configuration-update-check-functionality" title="Permanent link">⚓︎</a></h3>
+<p>The container now includes a static copy of each network's configuration files (Mainnet, Preprod, Preview, Sanchonet,
+and Guild networks). The <code>NETWORK</code> environment variable passed into the container determines which configuration files
+are copied into <code>$CNODE_HOME/files</code>.</p>
+<p>The <code>UPDATE_CHECK</code> environment variable controls whether the container updates these configuration files from GitHub
+before starting. By default, the container has the environment variable set to <code>UPDATE_CHECK=N</code>, meaning the container
+uses the configuration files it was built with. This can be overriden either persistently or dynamically.</p>
+<h4 id="persistently-updating-configuration-files">Persistently updating configuration files<a class="headerlink" href="#persistently-updating-configuration-files" title="Permanent link">⚓︎</a></h4>
+<p>To always update the configuration files from GitHub, set the <code>UPDATE_CHECK</code> environment variable when creating the
+container by using the <code>--env</code> option, for example <code>--env UPDATE_CHECK=Y</code>.</p>
+<p>To always update the configuration files from a specific GitHub account, set the <code>G_ACCOUNT</code> environment variable when
+creating the container by using the <code>--env</code> option, for example <code>--env G_ACCOUNT=gh-fork-user</code>.</p>
+<p>[!NOTE]
+There is no way to change the environment variable of an already running container. To rollback the configuration files and scripts stop and remove the container and start it without setting the environment variable.</p>
+<h4 id="dynamically-updating-configuration-files">Dynamically updating configuration files<a class="headerlink" href="#dynamically-updating-configuration-files" title="Permanent link">⚓︎</a></h4>
+<p>Set an environment file during create/run using <code>--env-file=file</code>, for example <code>--env-file=/opt/cardano/cnode/.env</code>.</p>
+<ul>
+<li>When <code>UPDATE_CHECK</code> is not defined in the environment file, the container will use the built-in configs.</li>
+<li>When <code>UPDATE_CHECK=Y</code> is defined in the environment file the container will update configs and scripts from the
+  <code>cardano-community</code> GitHub repository.</li>
+<li>When <code>G_ACCOUNT</code> is defined in the environment file, the container will update configs and scripts from the GitHub
+  repository of the specified account.</li>
+</ul>
+<p>To rollback the configuration files to the built-in versions, remove the <code>UPDATE_CHECK=Y</code> or set it to <code>UPDATE_CHECK=N</code> in the environment file. The static configuration files in the container will be used, however the scripts will remain updated. If you want both the configuration files and scripts to be rolled back, you will need to stop and remove the container and create a new one.</p>
+<h3 id="building-images-from-forked-repositories">Building Images from Forked Repositories<a class="headerlink" href="#building-images-from-forked-repositories" title="Permanent link">⚓︎</a></h3>
+<p>Run the <strong>Docker Image</strong> GitHub Action to build and push images to the <code>ghcr.io</code> registry.</p>
+<ul>
+<li>The <code>G_ACCOUNT</code> will be inherited from the <code>GITHUB_REPOSITORY_OWNER</code>.</li>
+<li>It will be all lowercase so it matches container image name requirements.</li>
+<li>All images not from <strong>master</strong> branch or when <strong>Testing workflow</strong> is checked will be pushed to <code>ghcr.io</code>.</li>
+<li>Images from the master branch will also be pushed to the <code>ghcr.io</code> registry as long as the <strong>Testing workflow</strong>
+remains checked.</li>
+</ul>
 
 
   
