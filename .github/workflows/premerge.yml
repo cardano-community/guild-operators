@@ -56,10 +56,10 @@ jobs:
       run: |
         if [ "$IS_FORK" = "true" ]; then
           echo "This means the PR is from a fork"
-          G_ACCOUNT="$FORK_OWNER"
+          BUILD_G_ACCOUNT="$FORK_OWNER"
         else
           echo "This means the PR is from the same repository"
-          G_ACCOUNT="$REPO_OWNER"
+          BUILD_G_ACCOUNT="$REPO_OWNER"
         fi
         echo "G_ACCOUNT=${G_ACCOUNT,,}" >> $GITHUB_ENV
 
@@ -70,7 +70,7 @@ jobs:
           --compress \
           --build-arg BRANCH=$BRANCH \
           --build-arg COMMIT=$COMMIT_SHA \
-          --build-arg G_ACCOUNT=$G_ACCOUNT \
+          --build-arg G_ACCOUNT=$BUILD_G_ACCOUNT \
           --tag $REGISTRY/$G_ACCOUNT/pre-merge-${{ matrix.distro }}:guild-deploy-l_$COMMIT_SHA
     - name: Get Image ID
       run: |
