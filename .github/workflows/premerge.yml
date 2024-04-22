@@ -49,7 +49,7 @@ jobs:
       run: |
         echo "IS_FORK=${{ github.event.pull_request.head.repo.fork }}" >> $GITHUB_ENV
         echo "FORK_OWNER=${{ github.event.pull_request.head.repo.owner.login }}" >> $GITHUB_ENV
-        echo "REPO_OWNER=${{ github.repository_owner }}" >> $GITHUB_ENV
+        echo "G_ACCOUNT=${{ github.repository_owner }}" >> $GITHUB_ENV
         echo "COMMIT_SHA=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV
 
     - name: Setup G_ACCOUNT based on fork status
@@ -59,7 +59,7 @@ jobs:
           BUILD_G_ACCOUNT="$FORK_OWNER"
         else
           echo "This means the PR is from the same repository"
-          BUILD_G_ACCOUNT="$REPO_OWNER"
+          BUILD_G_ACCOUNT="$G_ACCOUNT"
         fi
     - name: Testing guild-deploy.sh (IO fork of libsodium)
       run: |
