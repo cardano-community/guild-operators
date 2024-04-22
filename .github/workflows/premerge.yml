@@ -49,7 +49,7 @@ jobs:
       run: |
         echo "IS_FORK=${{ github.event.pull_request.head.repo.fork }}" >> $GITHUB_ENV
         echo "FORK_OWNER=${{ github.event.pull_request.head.repo.owner.login }}" >> $GITHUB_ENV
-        echo "REPO_OWNER=${{ github.repository_owner }}" >> $GITHUB_ENV
+        echo "REPO_OWNER=cardano-coomunity" >> $GITHUB_ENV
         echo "COMMIT_SHA=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV
 
     - name: Setup G_ACCOUNT based on fork status
@@ -79,7 +79,7 @@ jobs:
     - name: Push pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }}
       run: |
         if [ "$IS_FORK" = "true" ]; then
-          docker push ${{ env.REGISTRY }}/${{ REPO_OWNER }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }}
+          docker push ${{ env.REGISTRY }}/${{ env.REPO_OWNER }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }}
         else
           docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }}
         fi
@@ -103,7 +103,7 @@ jobs:
     - name: Push pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
       run: |
         if [ "$IS_FORK" = "true" ]; then
-          docker push ${{ env.REGISTRY }}/${{ REPO_OWNER }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
+          docker push ${{ env.REGISTRY }}/${{ env.REPO_OWNER }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
         else
           docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
         fi     
