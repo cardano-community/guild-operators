@@ -61,8 +61,6 @@ jobs:
           echo "This means the PR is from the same repository"
           BUILD_G_ACCOUNT="$REPO_OWNER"
         fi
-        echo "G_ACCOUNT=${G_ACCOUNT,,}" >> $GITHUB_ENV
-
     - name: Testing guild-deploy.sh (IO fork of libsodium)
       run: |
         docker build . \
