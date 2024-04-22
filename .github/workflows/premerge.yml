@@ -78,7 +78,11 @@ jobs:
         echo "PREMERGE_IMAGE_ID1=${PREMERGE_IMAGE_ID1}" >> $GITHUB_ENV
     - name: Push pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }}
       run: |
-        docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }}
+        if [ "$IS_FORK" = "true" ]; then
+          docker push ${{ env.REGISTRY }}/${{ REPO_OWNER }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }}
+        else
+          docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }}
+        fi
     - name: Testing cabal-build-all.sh (IO fork of libsodium)
       run: |
         echo "Working from PR Branch ${{ env.G_ACCOUNT }}/guild-operators/${{ env.BRANCH }} on COMMIT_SHA ${{ env.COMMIT_SHA }}"
@@ -98,7 +102,11 @@ jobs:
         echo "PREMERGE_IMAGE_ID2=${PREMERGE_IMAGE_ID2}" >> $GITHUB_ENV
     - name: Push pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
       run: |
-        docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
+        if [ "$IS_FORK" = "true" ]; then
+          docker push ${{ env.REGISTRY }}/${{ REPO_OWNER }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
+        else
+          docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
+        fi     
     - name: Add summary details
       if: always()
       run: |
