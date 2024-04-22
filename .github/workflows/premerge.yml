@@ -68,7 +68,7 @@ jobs:
           --compress \
           --build-arg BRANCH=$BRANCH \
           --build-arg COMMIT=$COMMIT_SHA \
-          --build-arg G_ACCOUNT==${{ env.BUILD_G_ACCOUNT }} \
+          --build-arg G_ACCOUNT=${{ env.BUILD_G_ACCOUNT }} \
           --tag $REGISTRY/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_$COMMIT_SHA
     - name: Get Image ID
       run: |
@@ -85,7 +85,7 @@ jobs:
         --compress \
         --build-arg BRANCH=${{ env.BRANCH }} \
         --build-arg COMMIT=${{ env.COMMIT_SHA }} \
-        --build-arg G_ACCOUNT==${{ env.BUILD_G_ACCOUNT }} \
+        --build-arg G_ACCOUNT=${{ env.BUILD_G_ACCOUNT }} \
         --tag ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
     - name: Get Versions and Image ID
       run: |
