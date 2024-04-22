@@ -56,10 +56,10 @@ jobs:
       run: |
         if [ "$IS_FORK" = "true" ]; then
           echo "This means the PR is from a fork"
-          BUILD_G_ACCOUNT="$FORK_OWNER"
+          echo "BUILD_G_ACCOUNT=${{ github.event.pull_request.head.repo.owner.login }}" >> $GITHUB_ENV
         else
           echo "This means the PR is from the same repository"
-          BUILD_G_ACCOUNT="$G_ACCOUNT"
+          echo "BUILD_G_ACCOUNT=${{ github.repository_owner }}" >> $GITHUB_ENV
         fi
     - name: Testing guild-deploy.sh (IO fork of libsodium)
       run: |
@@ -68,8 +68,8 @@ jobs:
           --compress \
           --build-arg BRANCH=$BRANCH \
           --build-arg COMMIT=$COMMIT_SHA \
-          --build-arg G_ACCOUNT=$BUILD_G_ACCOUNT \
-          --tag $REGISTRY/$G_ACCOUNT/pre-merge-${{ matrix.distro }}:guild-deploy-l_$COMMIT_SHA
+          --build-arg G_ACCOUNT==${{ env.BUILD_G_ACCOUNT }} \
+          --tag $REGISTRY/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_$COMMIT_SHA
     - name: Get Image ID
       run: |
         PREMERGE_IMAGE_ID1=$(docker inspect ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }} --format='{{.Id}}')
