@@ -7,6 +7,7 @@ This release primarily focuses on backend performance fixes and work with dbsync
 ### New endpoints added:
 - `/asset_policy_mints` - List of mint/burn count for all assets minted under a policy [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
 - `/block_tx_info` - Equivalent of tx_info but uses blocks as inputs to fetch tx_info against all tx in the block[s] requested, also contains additional flags to control performance and output [#255](https://github.com/cardano-community/koios-artifacts/pull/255)
+- `/cli_protocol_params` - Return protocl-parameters as returned by `cardano-cli` from Koios servers [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
 
 ### Data Input/Output Changes:
 - Output - `/reserve_withdrawals` , `/treasury_withdrawals` - Add `earned_epoch` and `spendable_epoch` fields [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
@@ -15,6 +16,7 @@ This release primarily focuses on backend performance fixes and work with dbsync
 - Output - `/asset_list` - Add `script_hash` field [#263](https://github.com/cardano-community/koios-artifacts/pull/263)
 - Output - `/asset_summary` - Add `addresses` field [#263](https://github.com/cardano-community/koios-artifacts/pull/263)
 - Output - `/asset_addresses` , `/asset_nft_address` and `/policy_asset_addresses` - Add `stake_address` field [#262](https://github.com/cardano-community/koios-artifacts/pull/262)
+- Output - Fix `/script_utxos` as it was incorrectly returning object instead of array for asset_list [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
 
 ### Deprecations:
 - None
@@ -36,6 +38,8 @@ This release primarily focuses on backend performance fixes and work with dbsync
 - Disable running `asset-txo-cache-update` as the endpoints leveraging asset-txo will be moved to koios-lite
 - Convert `block`, `account_list`, `asset_list` `asset_token_registry` from view to function [#263](https://github.com/cardano-community/koios-artifacts/pull/263)
 - `asset_info_cache` - ensure mint tx is only against a positive mint quantity [#262](https://github.com/cardano-community/koios-artifacts/pull/262)
+- Include burnt asset transactions in asset_txs [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- `tx_info` - Fix spend_redeemers CTE Join condition [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
 
 ## [1.1.0] - For all networks.
 
