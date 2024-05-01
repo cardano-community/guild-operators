@@ -7,6 +7,10 @@
     {
       "address": "backbone.mainnet.emurgornd.com",
       "port": 3001
+    },
+    {
+      "address": "backbone.mainnet.cardanofoundation.org",
+      "port": 3001
     }
   ],
   "localRoots": [
@@ -30,8 +34,7 @@
         {"address": "relay1-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
         {"address": "relay2-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
         {"address": "relay1.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Milan" },
-        {"address": "relay2.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" },
-        {"address": "relay3.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" }
+        {"address": "relay2.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" }
       ],
       "advertise": false,
       "trustable": false,
