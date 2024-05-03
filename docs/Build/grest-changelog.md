@@ -1,8 +1,8 @@
 # Koios gRest Changelog
 
-## [1.1.1rc] - For non-mainnet networks.
+## [1.1.1] - For all networks.
 
-This release primarily focuses on backend performance fixes and work with dbsync 13.2.0.1 - while also, we have started preparing compatibility with upcoming koios lite release, to make it a seamless swap for specific endpoints without any impact to consumers. There are no breaking (impact to existing columns or inputs) changes with this release, but we have retired 2 deprecated endpoints that were almost unused on mainnet. Due to the amount of backend changes in queries, there is a chance that we may have missed some data accuracy checks, and - hence - would like to test in non-mainnet networks first before marking final release. Accordingly, any testing/reports of data inconsistency would be welcome.
+This release primarily focuses on backend performance fixes and work with dbsync 13.2.0.2 - while also, we have started preparing compatibility with upcoming koios lite release, to make it a seamless swap for specific endpoints without any impact to consumers. There are no breaking (impact to existing columns or inputs) changes with this release, but we have retired 2 deprecated endpoints that were almost unused on mainnet. Due to the amount of backend changes in queries, there is a chance that we may have missed some data accuracy checks, and - hence - would like to test in non-mainnet networks first before marking final release. Accordingly, any testing/reports of data inconsistency would be welcome.
 
 ### New endpoints added:
 - `/asset_policy_mints` - List of mint/burn count for all assets minted under a policy [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
@@ -17,6 +17,7 @@ This release primarily focuses on backend performance fixes and work with dbsync
 - Output - `/asset_summary` - Add `addresses` field [#263](https://github.com/cardano-community/koios-artifacts/pull/263)
 - Output - `/asset_addresses` , `/asset_nft_address` and `/policy_asset_addresses` - Add `stake_address` field [#262](https://github.com/cardano-community/koios-artifacts/pull/262)
 - Output - Fix `/script_utxos` as it was incorrectly returning object instead of array for asset_list [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Output - `/tx_info` - Add `plutus_contract` -> `spends_input` to `plutus_contracts` to point the input transaction being consumed by the script [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
 
 ### Deprecations:
 - None

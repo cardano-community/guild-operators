@@ -5,6 +5,7 @@
   "NodeConfigFile": "/opt/cardano/cnode/files/config.json",
   "PrometheusPort": 8080,
   "RequiresNetworkMagic": "RequiresNoMagic",
+  "EnableFutureGenesis": false,
   "defaultBackends": [
     "KatipBK"
   ],
