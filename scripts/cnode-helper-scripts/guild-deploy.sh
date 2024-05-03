@@ -379,9 +379,10 @@ download_cnodebins() {
   curl -m 200 -sfL https://github.com/intersectmbo/cardano-addresses/releases/download/3.12.0/cardano-addresses-3.12.0-linux64.tar.gz -o caddress.tar.gz || err_exit " Could not download cardano-wallet's latest release archive from GitHub!"
   tar zxf caddress.tar.gz --strip-components 1 bin/cardano-address &>/dev/null
   rm -f caddress.tar.gz
-  [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (bin/cardano-address) not found after extracting package!"
+  [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (cardano-address) not found after extracting package!"
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
     echo -e "\n  Downloading Cardano DB Sync archive created from GitHub.."
+
     # TODO: Replace CI Build artifact against 13.2.0.2 tag with release from github artefacts once available
     #curl -m 200 -sfL https://github.com/IntersectMBO/cardano-db-sync/releases/download/13.2.0.2/cardano-db-sync-13.2.0.1-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.2.0.2 from GitHub!"
     curl -m 200 -sfL https://ci.iog.io/build/3736263/download/1/cardano-db-sync-13.2.0.2-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.2.0.2 from GitHub!"
