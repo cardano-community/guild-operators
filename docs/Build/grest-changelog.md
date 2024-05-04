@@ -1,5 +1,47 @@
 # Koios gRest Changelog
 
+## [1.1.1] - For all networks.
+
+This release primarily focuses on backend performance fixes and work with dbsync 13.2.0.2 - while also, we have started preparing compatibility with upcoming koios lite release, to make it a seamless swap for specific endpoints without any impact to consumers. There are no breaking (impact to existing columns or inputs) changes with this release, but we have retired 2 deprecated endpoints that were almost unused on mainnet. Due to the amount of backend changes in queries, there is a chance that we may have missed some data accuracy checks, and - hence - would like to test in non-mainnet networks first before marking final release. Accordingly, any testing/reports of data inconsistency would be welcome.
+
+### New endpoints added:
+- `/asset_policy_mints` - List of mint/burn count for all assets minted under a policy [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- `/block_tx_info` - Equivalent of tx_info but uses blocks as inputs to fetch tx_info against all tx in the block[s] requested, also contains additional flags to control performance and output [#255](https://github.com/cardano-community/koios-artifacts/pull/255)
+- `/cli_protocol_params` - Return protocl-parameters as returned by `cardano-cli` from Koios servers [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+
+### Data Input/Output Changes:
+- Output - `/reserve_withdrawals` , `/treasury_withdrawals` - Add `earned_epoch` and `spendable_epoch` fields [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Output - `/block` - Add `parent_hash` field [#263](https://github.com/cardano-community/koios-artifacts/pull/263)
+- Output - `/account_list` - Add `stake_address_hex` and `script_hash` fields [#263](https://github.com/cardano-community/koios-artifacts/pull/263)
+- Output - `/asset_list` - Add `script_hash` field [#263](https://github.com/cardano-community/koios-artifacts/pull/263)
+- Output - `/asset_summary` - Add `addresses` field [#263](https://github.com/cardano-community/koios-artifacts/pull/263)
+- Output - `/asset_addresses` , `/asset_nft_address` and `/policy_asset_addresses` - Add `stake_address` field [#262](https://github.com/cardano-community/koios-artifacts/pull/262)
+- Output - Fix `/script_utxos` as it was incorrectly returning object instead of array for asset_list [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Output - `/tx_info` - Add `plutus_contract` -> `spends_input` to `plutus_contracts` to point the input transaction being consumed by the script [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+
+### Deprecations:
+- None
+
+### Retirements:
+- `asset_address_list` and `asset_policy_info` endpoints are now retired, as they were marked as deprecated in Koios 1.0.10 , and we have seen it's usage to be negligible (only a single hit in 48 hours on mainnet while marking this release). [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+
+### Chores:
+- Retire `stake_distribution_new_accounts` and `stake_snapshot_cache` cache, as we directly perform lookup on live tables for newly registered accounts [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Active stake cache no longer reads the logs, but instead relies on newly added `epoch_sync_progress table` [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Reduce asset_info_cache rollback lookup from 1000 to 250 [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Replace `consumed_by_tx_in_id` references in SQL by `consumed_by_tx_id` [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- `pool_history_cache` now breaks into populating 500 epochs at a time (on guildnet, this query used to run for hours against ~20K epochs) [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Accomodate splitting of `reward` table into `instant_reward` [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Add a check in `stake_distribution_cache` to ensure that epoch info cache was run for current - 1 epoch. [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Change return type for internal function `grest.cip67_strip_label` from `text` to `bytea` [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Remove any references to `tx_in` as it is no longer required [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Remove references to `pool_offline_data` with `off_chain_pool_data` [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- Disable running `asset-txo-cache-update` as the endpoints leveraging asset-txo will be moved to koios-lite
+- Convert `block`, `account_list`, `asset_list` `asset_token_registry` from view to function [#263](https://github.com/cardano-community/koios-artifacts/pull/263)
+- `asset_info_cache` - ensure mint tx is only against a positive mint quantity [#262](https://github.com/cardano-community/koios-artifacts/pull/262)
+- Include burnt asset transactions in asset_txs [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+- `tx_info` - Fix spend_redeemers CTE Join condition [#269](https://github.com/cardano-community/koios-artifacts/pull/269)
+
 ## [1.1.0] - For all networks.
 
 This will be first major [breaking] release for Koios consumers in a while, and will be rolled out under new base prefix (`/api/v1`).
@@ -16,7 +58,6 @@ The major work with this release was to start making use of newer flags in dbsyn
 - Add top 3 assets for preview/preprod to asset-txo-cache [#250](https://github.com/cardano-community/koios-artifacts/pull/250)
 - Bump schema version for koios-1.1.0 [#250](https://github.com/cardano-community/koios-artifacts/pull/250)
 - Minor patch for output data type (`pool_registrations` and `pool_retirements`) [#249](https://github.com/cardano-community/koios-artifacts/pull/249)
-
 
 ## [1.1.0rc] - For all networks.
 

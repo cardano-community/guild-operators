@@ -113,12 +113,12 @@ SGVERSION=v1.1.1
   set_cron_variables() {
     local job=$1
     [[ ${PGDATABASE} != cexplorer ]] && sed -e "s@DB_NAME=.*@DB_NAME=${PGDATABASE}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
-    [[ ${job} == populate-next-epoch-nonce ]] &&
-      sed -e "s@NWMAGIC=.*@NWMAGIC=${NWMAGIC}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh" &&
-      sed -e "s@EPOCH_LENGTH=.*@EPOCH_LENGTH=${EPOCH_LENGTH}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh" &&
-      sed -e "s@PROM_URL=.*@PROM_URL=http://${PROM_HOST}:${PROM_PORT}/metrics@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
-      sed -e "s@CCLI=.*@CCLI=${CCLI}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
-      sed -e "s@CARDANO_NODE_SOCKET_PATH=.*@CARDANO_NODE_SOCKET_PATH=${CARDANO_NODE_SOCKET_PATH}@" -i "${CRON_SCRIPTS_DIR}/${job}.sh"
+    sed -e "s@NWMAGIC=.*@NWMAGIC=${NWMAGIC}@" \
+      -e "s@EPOCH_LENGTH=.*@EPOCH_LENGTH=${EPOCH_LENGTH}@" \
+      -e "s@PROM_URL=.*@PROM_URL=http://${PROM_HOST}:${PROM_PORT}/metrics@" \
+      -e "s@CCLI=.*@CCLI=${CCLI}@" \
+      -e "s@CARDANO_NODE_SOCKET_PATH=.*@CARDANO_NODE_SOCKET_PATH=${CARDANO_NODE_SOCKET_PATH}@" \
+      -i "${CRON_SCRIPTS_DIR}/${job}.sh"
     # update last modified date of all json files to trigger cron job to process all
     [[ -d "${HOME}/git/${CNODE_VNAME}-token-registry" ]] && find "${HOME}/git/${CNODE_VNAME}-token-registry" -mindepth 2 -maxdepth 2 -type f -name "*.json" -exec touch {} +
   }
@@ -164,6 +164,10 @@ SGVERSION=v1.1.1
     get_cron_job_executable "asset-info-cache-update"
     set_cron_variables "asset-info-cache-update"
     install_cron_job "asset-info-cache-update" "*/2 * * * *"
+
+    get_cron_job_executable "cli-protocol-params-update"
+    set_cron_variables "cli-protocol-params-update"
+    install_cron_job "cli-protocol-params-update" "*/5 * * * *"
 
     # Only (legacy) testnet and mainnet asset registries supported
     # In absence of official messaging, current (soon to be reset) preprod/preview networks use same registry as testnet. TBC - once there is an update from IO on these
@@ -303,7 +307,7 @@ SGVERSION=v1.1.1
     printf "\n[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
     major_v="2.9"
-    minor_v="2"
+    minor_v="6"
     haproxy_url="http://www.haproxy.org/download/${major_v}/src/haproxy-${major_v}.${minor_v}.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
@@ -436,7 +440,7 @@ SGVERSION=v1.1.1
 			
 			backend ogmios
 			  balance first
-			  http-request set-path \"%[path,regsub(^/api/v1/ogmios/,/)]\"
+			  http-request set-path \"%[path,regsub(^/api/v1/ogmios.*,/)]\"
 			  option httpchk GET /health
 			  http-check expect status 200
 			  default-server inter 20s fall 1 rise 2
@@ -485,7 +489,7 @@ SGVERSION=v1.1.1
 			WantedBy=multi-user.target
 			EOF"
     printf "\n  HAProxy Service"
-    [[ ! -f /usr/sbin/haproxy ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-haproxy.service
+    [[ -f /usr/sbin/haproxy ]] && sudo bash -c "cat <<-EOF > /etc/systemd/system/${CNODE_VNAME}-haproxy.service
 			[Unit]
 			Description=HAProxy Load Balancer
 			After=network-online.target
