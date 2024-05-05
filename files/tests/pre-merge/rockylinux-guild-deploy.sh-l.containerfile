@@ -14,7 +14,7 @@ ENV \
 
 WORKDIR /
 
-RUN dnf -y --allowerasing install findutils &&\
+RUN dnf -y --allowerasing install findutils jq &&\
     dnf clean all &&\
     mkdir -pv /root/.local/bin /root/.ghcup/bin &&\
     curl -s -f -k -o guild-deploy.sh "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh" &&\

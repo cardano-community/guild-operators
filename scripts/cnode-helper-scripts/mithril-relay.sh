@@ -1,4 +1,8 @@
 #!/bin/bash
+# shellcheck disable=SC2086
+#shellcheck source=/dev/null
+
+. "$(dirname $0)"/mithril.library
 
 ######################################
 # User Variables - Change as desired #
@@ -26,15 +30,17 @@ RELAY_LISTENING_IP=()
 usage() {
   cat <<-EOF
 		
-		$(basename "$0") [-d] [-l]
+		$(basename "$0") [-d] [-l] [-u] [-h]
+		A script to setup Cardano Mithril relays
 		
-		Cardano Mithril relay wrapper script!!
 		-d  Install squid and configure as a relay
 		-l  Install nginx and configure as a load balancer
+		-u  Skip update check
 		-h  Show this help text
 		
 		EOF
 }
+
 
 generate_nginx_conf() {
   sudo bash -c "cat > /etc/nginx/nginx.conf <<'EOF'
@@ -123,76 +129,103 @@ generate_squid_conf() {
 	EOF"
 }
 
+deploy_nginx_load_balancer() {
+  # Install nginx and configure load balancing
+  echo -e "\nInstalling nginx load balancer"
+  sudo apt-get update
+  sudo apt-get install -y nginx
+
+  # Read the listening IP addresses from user input
+  while true; do
+    read -r -p "Enter the IP address of a relay: " ip
+    RELAY_LISTENING_IP+=("${ip}")
+    read -r -p "Are there more relays? (y/n) " yn
+    case ${yn} in
+      [Nn]*) break ;;
+          *) continue ;;
+    esac
+  done
+
+  # Read the listening IP for the load balancer
+  read -r -p "Enter the IP address of the load balancer (press Enter to use default 127.0.0.1): " SIDECAR_LISTENING_IP
+  SIDECAR_LISTENING_IP=${SIDECAR_LISTENING_IP:-127.0.0.1}
+  echo "Using IP address ${SIDECAR_LISTENING_IP} for the load balancer configuration."
+
+  # Read the listening port from user input
+  read -r -p "Enter the relay's listening port (press Enter to use default 3132): " RELAY_LISTENING_PORT
+  RELAY_LISTENING_PORT=${RELAY_LISTENING_PORT:-3132}
+  echo "Using port ${RELAY_LISTENING_PORT} for relay's listening port."
+
+  # Generate the nginx configuration file
+  generate_nginx_conf
+  # Restart nginx and check status
+  echo -e "\nStarting Mithril relay sidecar (nginx load balancer)"
+  sudo systemctl restart nginx
+  sudo systemctl status nginx
+
+}
+
+deploy_squid_proxy() {
+  # Install squid and make a backup of the config file
+  echo -e "\nInstalling squid proxy"
+  sudo apt-get update
+  sudo apt-get install -y squid
+  sudo cp /etc/squid/squid.conf /etc/squid/squid.conf.bak
+
+  # Read the listening IP addresses from user input
+  while true; do
+    read -r -p "Enter the IP address of your Block Producer: " ip
+    BLOCK_PRODUCER_IP+=("${ip}")
+    read -r -p "Are there more block producers? (y/n) " yn
+    case ${yn} in
+      [Nn]*) break ;;
+          *) continue ;;
+    esac
+  done
+
+  # Read the listening port from user input
+  read -r -p "Enter the relay's listening port (press Enter to use default 3132): " RELAY_LISTENING_PORT
+  RELAY_LISTENING_PORT=${RELAY_LISTENING_PORT:-3132}
+  echo "Using port ${RELAY_LISTENING_PORT} for relay's listening port."
+  generate_squid_conf
+
+  # Restart squid and check status
+  echo -e "\nStarting Mithril relay (squid proxy)"
+  sudo systemctl restart squid
+  sudo systemctl status squid
+
+  # Inform the user to create the appropriate firewall rule
+  for ip in "${RELAY_LISTENING_IP[@]}"; do
+    echo "Create the appropriate firewall rule: sudo ufw allow from ${ip} to any port ${RELAY_LISTENING_PORT} proto tcp"
+  done
+}
+
+stop_relays() {
+  echo "  Stopping squid proxy and nginx load balancers.."
+  sudo systemctl stop squid 2>/dev/null
+  sudo systemctl stop nginx 2>/dev/null
+  sleep 5
+  exit 0
+}
+
+#####################
+# Execution/Main    #
+#####################
+
 # Parse command line arguments
-while getopts :dlh opt; do
+while getopts :dlsuh opt; do
   case ${opt} in
     d)
-      # Install squid and make a backup of the config file
-      echo -e "\nInstalling squid proxy"
-      sudo apt-get update
-      sudo apt-get install -y squid
-      sudo cp /etc/squid/squid.conf /etc/squid/squid.conf.bak
-
-      # Read the listening IP addresses from user input
-      while true; do
-        read -r -p "Enter the IP address of your Block Producer: " ip
-        BLOCK_PRODUCER_IP+=("${ip}")
-        read -r -p "Are there more block producers? (y/n) " yn
-        case ${yn} in
-          [Nn]*) break ;;
-              *) continue ;;
-        esac
-      done
-
-      # Read the listening port from user input
-      read -r -p "Enter the relay's listening port (press Enter to use default 3132): " RELAY_LISTENING_PORT
-      RELAY_LISTENING_PORT=${RELAY_LISTENING_PORT:-3132}
-      echo "Using port ${RELAY_LISTENING_PORT} for relay's listening port."
-      generate_squid_conf
-
-      # Restart squid and check status
-      echo -e "\nStarting Mithril relay (squid proxy)"
-      sudo systemctl restart squid
-      sudo systemctl status squid
-
-      # Inform the user to create the appropriate firewall rule
-      for ip in "${RELAY_LISTENING_IP[@]}"; do
-        echo "Create the appropriate firewall rule: sudo ufw allow from ${ip} to any port ${RELAY_LISTENING_PORT} proto tcp"
-      done
+      INSTALL_SQUID_PROXY=Y
       ;;
     l)
-      # Install nginx and configure load balancing
-      echo -e "\nInstalling nginx load balancer"
-      sudo apt-get update
-      sudo apt-get install -y nginx
-
-      # Read the listening IP addresses from user input
-      while true; do
-        read -r -p "Enter the IP address of a relay: " ip
-        RELAY_LISTENING_IP+=("${ip}")
-        read -r -p "Are there more relays? (y/n) " yn
-        case ${yn} in
-          [Nn]*) break ;;
-              *) continue ;;
-        esac
-      done
-
-      # Read the listening IP for the load balancer
-      read -r -p "Enter the IP address of the load balancer (press Enter to use default 127.0.0.1): " SIDECAR_LISTENING_IP
-      SIDECAR_LISTENING_IP=${SIDECAR_LISTENING_IP:-127.0.0.1}
-      echo "Using IP address ${SIDECAR_LISTENING_IP} for the load balancer configuration."
-
-      # Read the listening port from user input
-      read -r -p "Enter the relay's listening port (press Enter to use default 3132): " RELAY_LISTENING_PORT
-      RELAY_LISTENING_PORT=${RELAY_LISTENING_PORT:-3132}
-      echo "Using port ${RELAY_LISTENING_PORT} for relay's listening port."
-
-      # Generate the nginx configuration file
-      generate_nginx_conf
-      # Restart nginx and check status
-      echo -e "\nStarting Mithril relay sidecar (nginx load balancer)"
-      sudo systemctl restart nginx
-      sudo systemctl status nginx
+      INSTALL_NGINX_LOAD_BALANCER=Y
+      ;;
+    u) 
+      export SKIP_UPDATE='Y'
+      ;;
+    s)
+      STOP_RELAYS=Y
       ;;
     h)
       usage
@@ -219,4 +252,16 @@ done
 if [[ ${OPTIND} -eq 1 ]]; then
   usage
   exit 1
+fi
+
+[[ "${STOP_RELAYS}" == "Y" ]] && stop_relays
+
+update_check "$@"
+
+if [[ ${INSTALL_SQUID_PROXY} = Y ]]; then
+  deploy_squid_proxy
+fi
+
+if [[ ${INSTALL_NGINX_LOAD_BALANCER} = Y ]]; then
+  deploy_nginx_load_balancer
 fi

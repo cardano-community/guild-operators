@@ -2,7 +2,7 @@
 # shellcheck disable=SC2086
 #shellcheck source=/dev/null
 
-. "$(dirname $0)"/env offline
+. "$(dirname $0)"/mithril.library
 
 ######################################
 # User Variables - Change as desired #
@@ -16,9 +16,6 @@
 # Do NOT modify code below           #
 ######################################
 
-U_ID=$(id -u)
-G_ID=$(id -g)
-
 #####################
 # Functions         #
 #####################
@@ -26,102 +23,36 @@ G_ID=$(id -g)
 usage() {
   cat <<-EOF
 		
-		Usage: $(basename "$0") [-d] [-u]
+		Usage: $(basename "$0") [-d] [-D] [-e] [-k] [-r] [-s] [-u] [-h]
+		A script to setup, run and verify Cardano Mithril Signer
 		
-		Cardano Mithril signer wrapper script !!
 		-d    Deploy mithril-signer as a systemd service
-		-u    Update mithril environment file
+		-D    Run mithril-signer as a daemon
+		-e    Update mithril environment file
+		-k    Stop signer using SIGINT
+		-r    Verify signer registration
+		-s    Verify signer signature
+		-u    Skip update check
 		-h    Show this help text
 		
 		EOF
 }
 
-set_defaults() {
-  [[ -z "${MITHRILBIN}" ]] && MITHRILBIN="${HOME}"/.local/bin/mithril-signer
-  if [[ -z "${POOL_NAME}" ]] || [[ "${POOL_NAME}" == "CHANGE_ME" ]]; then
-    echo "ERROR: The POOL_NAME must be set before deploying mithril-signer as a systemd service!!"
-    exit 1
-  else
-    case "${NETWORK_NAME,,}" in
-      mainnet|preprod|guild)
-      RELEASE="release"
-      ;;
-      preview)
-      RELEASE="pre-release"
-      ;;
-      *)
-      echo "ERROR: The NETWORK_NAME must be set to Mainnet, PreProd, Preview, or Guild before mithril-signer can be deployed!!"
-      exit 1
-    esac
-  fi
-}
-
-pre_startup_sanity() {
-  [[ ! -f "${MITHRILBIN}" ]] && MITHRILBIN="$(command -v mithril-signer)"
-  if [[ ! -S "${CARDANO_NODE_SOCKET_PATH}" ]]; then
-    echo "ERROR: Could not locate socket file at ${CARDANO_NODE_SOCKET_PATH}, the node may not have completed startup !!"
-    exit 1
-  fi
+mithril_init() {
+  [[ ! -f "${CNODE_HOME}"/mithril/mithril.env ]] && generate_environment_file
+  for line in $(cat "${CNODE_HOME}"/mithril/mithril.env); do
+    export "${line}"
+  done
   # Move logs to archive
-  [[ -f "${LOG_DIR}"/mithril-signer.log ]] && mv "${LOG_DIR}"/mithril-signer.log "${LOG_DIR}"/archive/
-}
-
-get_relay_endpoint() {
-  read -r -p "Enter the IP address of the relay endpoint: " RELAY_ENDPOINT_IP
-  read -r -p "Enter the port of the relay endpoint (press Enter to use default 3132): " RELAY_PORT
-  RELAY_PORT=${RELAY_PORT:-3132}
-  echo "Using RELAY_ENDPOINT=${RELAY_ENDPOINT_IP}:${RELAY_PORT} for the Mithril signer relay endpoint."
-}
-
-generate_environment_file() {
-  if [[ ! -d "${CNODE_HOME}/mithril/data-stores" ]]; then
-    sudo mkdir -p "${CNODE_HOME}"/mithril/data-stores
-    sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"/mithril 2>/dev/null
-  fi
-  # Inquire about the relay endpoint
-  read -r -p "Are you using a relay endpoint? (y/n, press Enter to use default y): " ENABLE_RELAY_ENDPOINT
-  ENABLE_RELAY_ENDPOINT=${ENABLE_RELAY_ENDPOINT:-y}
-  if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
-    get_relay_endpoint
-  else
-    echo "Using a naive Mithril configuration without a mithril relay."
-  fi
-
-  # Generate the full set of environment variables required by Mithril signer use case
-  export ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.addr
-  export ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.vkey
-  sudo bash -c "cat <<-'EOF' > ${CNODE_HOME}/mithril/mithril.env
-	KES_SECRET_KEY_PATH=${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}
-	OPERATIONAL_CERTIFICATE_PATH=${POOL_DIR}/${POOL_OPCERT_FILENAME}
-	NETWORK=${NETWORK_NAME,,}
-	RELEASE=${RELEASE}
-	AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK_NAME,,}.api.mithril.network/aggregator
-	RUN_INTERVAL=60000
-	DB_DIRECTORY=${CNODE_HOME}/db
-	CARDANO_NODE_SOCKET_PATH=${CARDANO_NODE_SOCKET_PATH}
-	CARDANO_CLI_PATH=${HOME}/.local/bin/cardano-cli
-	DATA_STORES_DIRECTORY=${CNODE_HOME}/mithril/data-stores
-	STORE_RETENTION_LIMITS=5
-	ERA_READER_ADAPTER_TYPE=cardano-chain
-	ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address "$(wget -q -O - "${ERA_READER_ADDRESS}")" --arg verification_key "$(wget -q -O - "${ERA_READER_VKEY}")" '{"address": $address, "verification_key": $verification_key}')
-	GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
-	PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME})
-	SNAPSHOT_DIGEST=latest
-	EOF" && sudo chown $USER:$USER "${CNODE_HOME}"/mithril/mithril.env
-    
-    if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
-      sudo bash -c "echo  RELAY_ENDPOINT=http://${RELAY_ENDPOINT_IP}:${RELAY_PORT} >> ${CNODE_HOME}/mithril/mithril.env"
-    fi
+  [[ -d "${LOG_DIR}"/archive ]] || mkdir -p "${LOG_DIR}"/archive
+  [[ -f "${LOG_DIR}"/$(basename "${0::-3}").log ]] && mv "${LOG_DIR}/$(basename "${0::-3}")".log "${LOG_DIR}"/archive/ ; touch "${LOG_DIR}/$(basename "${0::-3}")".log
 }
 
 deploy_systemd() {
-  echo "Creating ${CNODE_VNAME}-mithril-signer systemd service environment file.."
-  if [[ ! -f "${CNODE_HOME}"/mithril/mithril.env ]]; then
-    generate_environment_file && echo "Mithril environment file created successfully!!"
-  fi
+  echo "Creating ${CNODE_VNAME}-$(basename "${0::-3}") systemd service environment file.."
 
-  echo "Deploying ${CNODE_VNAME}-mithril-signer as systemd service.."
-  sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}-mithril-signer.service
+  echo "Deploying ${CNODE_VNAME}-$(basename "${0::-3}") as systemd service.."
+  sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}-$(basename "${0::-3}").service
 	[Unit]
 	Description=Cardano Mithril signer service
 	StartLimitIntervalSec=0
@@ -136,35 +67,116 @@ deploy_systemd() {
 	RestartSec=60
 	User=${USER}
 	EnvironmentFile=${CNODE_HOME}/mithril/mithril.env
-	ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/mithril-signer -vv\"
+	ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/$(basename "${0::-3}") -vv\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
 	StandardOutput=syslog
 	StandardError=syslog
-	SyslogIdentifier=${CNODE_VNAME}-mithril-signer
+	SyslogIdentifier=${CNODE_VNAME}-$(basename "${0::-3}")
 	TimeoutStopSec=5
 	KillMode=mixed
 	
 	[Install]
 	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_VNAME}-mithril-signer.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-mithril-signer.service
+	EOF" && echo "${CNODE_VNAME}-$(basename "${0::-3}").service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-"$(basename "${0::-3}")".service
 }
 
-###################
-# Execution       #
-###################
+stop_signer() {
+  CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}" 2>/dev/null) # env was only called in offline mode
+  kill -2 ${CNODE_PID} 2>/dev/null
+  # touch clean "${CNODE_HOME}"/db/clean # Disabled as it's a bit hacky, but only runs when SIGINT is passed to node process. Should not be needed if node does it's job
+  echo "  Sending SIGINT to $(basename "${0::-3}") process.."
+  sleep 5
+  exit 0
+}
+
+
+user_interrupt_received() {
+  echo "  SIGINT received, stopping $(basename "${0::-3}").." |tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1
+  stop_signer
+
+}
+
+verify_signer_registration() {
+  set -e
+
+  if [ -z "$AGGREGATOR_ENDPOINT" ] || [ -z "$PARTY_ID" ]; then
+      echo ">> ERROR: Required environment variables AGGREGATOR_ENDPOINT and/or PARTY_ID are not set."
+      exit 1
+  fi
+
+  CURRENT_EPOCH=$(curl -s "$AGGREGATOR_ENDPOINT/epoch-settings" -H 'accept: application/json' | jq -r '.epoch')
+  SIGNERS_REGISTERED_RESPONSE=$(curl -s "$AGGREGATOR_ENDPOINT/signers/registered/$CURRENT_EPOCH" -H 'accept: application/json')
+
+  if echo "$SIGNERS_REGISTERED_RESPONSE" | grep -q "$PARTY_ID"; then
+      echo ">> Congrats, your signer node is registered!"
+  else
+      echo ">> Oops, your signer node is not registered. Party ID not found among the signers registered at epoch ${CURRENT_EPOCH}."
+  fi
+
+}
+
+verify_signer_signature() {
+  set -e
+
+  if [ -z "$AGGREGATOR_ENDPOINT" ] || [ -z "$PARTY_ID" ]; then
+      echo ">> ERROR: Required environment variables AGGREGATOR_ENDPOINT and/or PARTY_ID are not set."
+      exit 1
+  fi
+
+  CERTIFICATES_RESPONSE=$(curl -s "$AGGREGATOR_ENDPOINT/certificates" -H 'accept: application/json')
+  CERTIFICATES_COUNT=$(echo "$CERTIFICATES_RESPONSE" | jq '. | length')
+
+  echo "$CERTIFICATES_RESPONSE" | jq -r '.[] | .hash' | while read -r HASH; do
+      RESPONSE=$(curl -s "$AGGREGATOR_ENDPOINT/certificate/$HASH" -H 'accept: application/json')
+      SIGNER_COUNT=$(echo "$RESPONSE" | jq '.metadata.signers | length')
+      for (( i=0; i < SIGNER_COUNT; i++ )); do
+          PARTY_ID_RESPONSE=$(echo "$RESPONSE" | jq -r ".metadata.signers[$i].party_id")
+          if [[ "$PARTY_ID_RESPONSE" == "$PARTY_ID" ]]; then
+              echo ">> Congrats, you have signed this certificate: $AGGREGATOR_ENDPOINT/certificate/$HASH !"
+              exit 1
+          fi
+      done
+  done
+
+  echo ">> Oops, your party id was not found in the last ${CERTIFICATES_COUNT} certificates. Please try again later."
+
+}
+
+
+#####################
+# Execution / Main  #
+#####################
 
 # Parse command line options
-while getopts :duh opt; do
+while getopts :dDekrsuh opt; do
   case ${opt} in
-    d ) DEPLOY_SYSTEMD="Y" ;;
-    u ) UPDATE_ENVIRONMENT="Y" ;;
+    d ) 
+      DEPLOY_SYSTEMD="Y" ;;
+    D )
+      SIGNER_DAEMON="Y"
+      ;;
+    e ) 
+      export UPDATE_ENVIRONMENT="Y"
+      ;;
+    k )
+      STOP_SIGNER="Y"
+      ;;
+    r )
+      VERIFY_REGISTRATION="Y"
+      ;;
+    s )
+      VERIFY_SIGNATURE="Y"
+      ;;
+    u )
+      export SKIP_UPDATE="Y"
+      ;;
     h)
       usage
       exit 0
       ;;
     \?)
-      echo "Invalid option: -${OPTARG}" >&2
+      echo "Invalid $(basename "$0") option: -${OPTARG}" >&2
       usage
       exit 1
       ;;
@@ -176,32 +188,46 @@ while getopts :duh opt; do
   esac
 done
 
-# Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
-[[ ! -f "$(dirname $0)"/env ]] && echo -e "\nCommon env file missing, please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
-. "$(dirname $0)"/env
-case $? in
-  1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;
-  2) clear ;;
-esac
+[[ "${STOP_SIGNER}" == "Y" ]] && stop_signer
+
+# Check for updates
+update_check "$@"
 
 # Set defaults and do basic sanity checks
 set_defaults
+
+
 #Deploy systemd if -d argument was specified
-if [[ "${UPDATE_ENVIRONMENT}" == "Y" && "${DEPLOY_SYSTEMD}" == "Y" ]]; then
-  generate_environment_file && echo "Environment file updated successfully" && deploy_systemd && echo "Mithril signer service successfully deployed" && exit 0
-  exit 2
-elif [[ "${UPDATE_ENVIRONMENT}" == "Y" ]]; then
-  generate_environment_file && echo "Environment file updated successfully" && exit 0
-  exit 2
-elif [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
-  deploy_systemd && echo "Mithril signer service successfully deployed" && exit 0
-  exit 2
+if [[ "${UPDATE_ENVIRONMENT}" == "Y" ]]; then
+  generate_environment_file
+  exit 0
+else
+  mithril_init
+  if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
+    if deploy_systemd ; then
+      echo "Mithril signer Systemd service successfully deployed"
+      exit 0
+    else
+      echo "Failed to deploy Mithril signer Systemd service"
+      exit 2
+    fi
+  elif [[ "${VERIFY_REGISTRATION}" == "Y" ]]; then
+    # Verify signer registration
+    echo "Verifying Mithril Signer registration.."
+    verify_signer_registration
+    exit 0
+  elif [[ "${VERIFY_SIGNATURE}" == "Y" ]]; then
+    # Verify signer signature
+    echo "Verifying Mithril Signer signature.."
+    verify_signer_signature
+    exit 0
+  elif [[ "${SIGNER_DAEMON}" == "Y" ]]; then
+    # Run Mithril Signer Server
+    echo "Starting Mithril Signer Server.."
+    trap 'user_interrupt_received' INT
+    if ! "${MITHRILBIN}" -vv | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1 ; then
+      echo "Failed to start Mithril Signer Server" | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1
+      exit 1
+    fi
+  fi
 fi
-
-pre_startup_sanity
-
-# Run Mithril Signer Server
-echo "Sourcing the Mithril Signer environment file.."
-. "${CNODE_HOME}"/mithril/mithril.env
-echo "Starting Mithril Signer Server.."
-"${MITHRILBIN}" -vvv >> "${LOG_DIR}"/mithril-signer.log 2>&1

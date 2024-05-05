@@ -7,12 +7,13 @@ loadbalancer. It provides functionalities such as:
 ## Usage
 
 ```bash
-Usage: mithril-relay.sh [-d] [-l]
+bash [-d] [-l] [-u] [-h]
+A script to setup Cardano Mithril relays
 
-Options:
-    -d  Install squid and configure as a relay
-    -l  Install nginx and configure as a load balancer
-    -h  Show this help text
+-d  Install squid and configure as a relay
+-l  Install nginx and configure as a load balancer
+-u  Skip update check
+-h  Show this help text
 ```
 
 # Description

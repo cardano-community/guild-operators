@@ -65,9 +65,9 @@ pre_startup_sanity() {
 mithril_snapshot_download() {
   [[ -z "${MITHRIL_CLIENT}" ]] && MITHRIL_CLIENT="${CNODE_HOME}"/scripts/mithril-client.sh
   if [[ ! -f "${MITHRIL_CLIENT}" ]] || [[ ! -e "${MITHRIL_CLIENT}" ]]; then 
-    echo "ERROR: Could not locate mithril-client.sh script or script is not executable. Skipping mithril snapshot download!!"
+    echo "ERROR: Could not locate mithril-client.sh script or script is not executable. Skipping mithril cardano-db snapshot download!!"
   else
-    "${MITHRIL_CLIENT}" snapshot download
+    "${MITHRIL_CLIENT}" cardano-db download
   fi
 }
 

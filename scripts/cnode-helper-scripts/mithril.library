@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2034,SC2086,SC2230,SC2206,SC2140,SC2059,SC2154
+#shellcheck source=/dev/null
+
+######################################
+# Do NOT modify code below           #
+######################################
+
+. "$(dirname $0)"/env offline
+
+U_ID=$(id -u)
+G_ID=$(id -g)
+MITHRILBIN="${HOME}"/.local/bin/$(basename "${0::-3}")
+
+compare_versions() {
+  local min_version=$1
+  local test_version=$2
+  if [[ $(printf '%s\n' "$min_version" "$test_version" | sort -V | head -n1) = "$min_version" ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+set_node_minimum_version() {
+  response_file=$(mktemp)
+  status_code=$(curl -s -o "$response_file" -w "%{http_code}" https://raw.githubusercontent.com/input-output-hk/mithril/${MITHRIL_LATEST_VERSION}/networks.json)
+
+  if [[ "$status_code" -eq 404 ]]; then
+    NODE_MINIMUM_VERSION=""
+  else
+    NODE_MINIMUM_VERSION=$(jq -r ".${NETWORK}.\"cardano-minimum-version\".\"mithril-signer\"" "$response_file")
+  fi
+  rm -f "$response_file"
+}
+
+update_check() {
+  # Check availability of checkUpdate function
+  if [[ ! $(command -v checkUpdate) ]]; then
+    echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
+    exit 1
+  fi
+  # Check if flag is set by script to skip update check
+  [[ ${SKIP_UPDATE} == Y ]] && return 0
+  # Check if flag is set by user as a global (container environments etc.) to skip update check
+  if [[ ${UPDATE_CHECK} = Y ]]; then
+    echo "Checking for script updates..."
+    # check for env update
+    ENV_UPDATED=${BATCH_AUTO_UPDATE}
+    checkUpdate "${PARENT}"/env N N N
+    case $? in
+      1) ENV_UPDATED=Y ;;
+      2) exit 1 ;;
+    esac
+    # check for mithril.library update
+    checkUpdate "${PARENT}"/mithril.library N N N
+    # borrow ENV_UPDATED for mithril.library updates
+    case $? in
+      1) ENV_UPDATED=Y ;;
+      2) exit 1 ;;
+    esac
+    # check the script update
+    checkUpdate "${PARENT}"/"$(basename "$0")" ${ENV_UPDATED}
+    case $? in
+      1) echo ""; $0 "-u" "$@"; exit 0 ;; # re-launch script with same args skipping update check
+      2) exit 1 ;;
+    esac
+  fi
+}
+
+
+set_defaults() {
+  MITHRIL_LATEST_VERSION=$(curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/release-versions/mithril-latest.txt)
+  set_node_minimum_version
+  NODE_CURRENT_VERSION=$(cardano-node --version | awk 'NR==1{print $2}')
+
+  [[ -z "${MITHRILBIN}" ]] && MITHRILBIN="${HOME}"/.local/bin/"$(basename "${0::-3}")"
+  if [[ $(basename "${0::-3}") == "mithril-signer" ]] && { [[ -z "${POOL_NAME}" ]] || [[ "${POOL_NAME}" == "CHANGE_ME" ]]; }; then
+    echo "ERROR: The POOL_NAME must be set before deploying mithril-signer as a systemd service!!"
+    exit 1
+  else
+    case "${NETWORK_NAME,,}" in
+      mainnet|preprod|guild)
+      RELEASE="release"
+      ;;
+      preview|sanchonet)
+      RELEASE="pre-release"
+      ;;
+      *)
+      echo "ERROR: The NETWORK_NAME must be set to mainnet, preprod, preview, or sanchonet before $(basename "${0::-3}") can be deployed!!"
+      exit 1
+    esac
+  fi
+  AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK_NAME,,}.api.mithril.network/aggregator
+  GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
+}
+
+create_data_stores_directory() {
+	if [[ ! -d "${CNODE_HOME}/mithril/data-stores" ]]; then
+		sudo mkdir -p "${CNODE_HOME}"/mithril/data-stores
+		sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"/mithril 2>/dev/null
+	fi
+}
+
+set_env_file_ownership() {
+	chown $USER:$USER "${CNODE_HOME}"/mithril/mithril.env
+}
+
+
+check_mithril_environment_file_exists() {
+ local env_file="${CNODE_HOME}/mithril/mithril.env"
+
+  if [[ -f "$env_file" ]]; then
+    if [[ "$UPDATE_ENVIRONMENT" != "Y" ]]; then
+      echo "Error: $env_file already exists. To update it, set UPDATE_ENVIRONMENT to 'Y'." >&2
+      return 1
+    else
+      echo "Updating $env_file..."
+    fi
+  else
+    echo "Creating $env_file..."
+  fi
+}
+
+get_relay_endpoint() {
+  read -r -p "Enter the IP address of the relay endpoint: " RELAY_ENDPOINT_IP
+  read -r -p "Enter the port of the relay endpoint (press Enter to use default 3132): " RELAY_PORT
+  RELAY_PORT=${RELAY_PORT:-3132}
+  echo "Using RELAY_ENDPOINT=${RELAY_ENDPOINT_IP}:${RELAY_PORT} for the Mithril signer relay endpoint."
+}
+
+update_mithril_environment_for_signer() {
+  echo "Info: Setting all environment variables, supporting the Mithril signer use case."
+  # Inquire about the relay endpoint
+  read -r -p "Are you using a relay endpoint? (y/n, press Enter to use default y): " ENABLE_RELAY_ENDPOINT
+  ENABLE_RELAY_ENDPOINT=${ENABLE_RELAY_ENDPOINT:-y}
+  if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
+    get_relay_endpoint
+  else
+    echo "Using a naive Mithril configuration without a mithril relay."
+  fi
+  # Generate the full set of environment variables required by Mithril signer use case
+  export ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.addr
+  export ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.vkey
+  sudo bash -c "cat <<-'EOF' > ${CNODE_HOME}/mithril/mithril.env
+		KES_SECRET_KEY_PATH=${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}
+		OPERATIONAL_CERTIFICATE_PATH=${POOL_DIR}/${POOL_OPCERT_FILENAME}
+		NETWORK=${NETWORK_NAME,,}
+		RELEASE=${RELEASE}
+		AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK_NAME,,}.api.mithril.network/aggregator
+		RUN_INTERVAL=60000
+		DB_DIRECTORY=${CNODE_HOME}/db
+		CARDANO_NODE_SOCKET_PATH=${CARDANO_NODE_SOCKET_PATH}
+		CARDANO_CLI_PATH=${HOME}/.local/bin/cardano-cli
+		DATA_STORES_DIRECTORY=${CNODE_HOME}/mithril/data-stores
+		STORE_RETENTION_LIMITS=5
+		ERA_READER_ADAPTER_TYPE=cardano-chain
+		ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address "$(wget -q -O - "${ERA_READER_ADDRESS}")" --arg verification_key "$(wget -q -O - "${ERA_READER_VKEY}")" '{"address": $address, "verification_key": $verification_key}')
+		GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
+		PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME}-bech32)
+		SNAPSHOT_DIGEST=latest
+		EOF"
+
+  if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
+    sudo bash -c "echo RELAY_ENDPOINT=http://${RELAY_ENDPOINT_IP}:${RELAY_PORT} >> ${CNODE_HOME}/mithril/mithril.env"
+  fi
+}
+
+update_mithril_environment_for_client() {
+  echo "Info: Setting minimal environment variables supporting only the Mithril client use case."
+  bash -c "cat <<-'EOF' > ${CNODE_HOME}/mithril/mithril.env
+		NETWORK=${NETWORK_NAME,,}
+		RELEASE=${RELEASE}
+		AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK_NAME,,}.api.mithril.network/aggregator
+		DB_DIRECTORY=${CNODE_HOME}/db
+		GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
+		SNAPSHOT_DIGEST=latest
+		EOF"
+}
+
+component_environment_setup() {
+  check_mithril_environment_file_exists
+  
+  if [[ -n "${POOL_NAME}" ]] && [[ "${POOL_NAME}" != "CHANGE_ME" ]] && [[ "$(basename "$0")" == "mithril-signer.sh" ]]; then
+    update_mithril_environment_for_signer
+  else
+    update_mithril_environment_for_client
+  fi
+}
+
+generate_environment_file() {
+	create_data_stores_directory
+	component_environment_setup
+	set_env_file_ownership
+}
+
