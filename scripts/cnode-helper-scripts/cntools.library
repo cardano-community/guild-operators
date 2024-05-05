@@ -617,7 +617,7 @@ selectWallet() {
         wallet_dirs_filtered+=("${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str})")
       fi
     else
-      wallet_dirs_filtered+=(${dir})
+      wallet_dirs_filtered+=("${dir}")
     fi
   done
 
