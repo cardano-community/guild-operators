@@ -77,14 +77,15 @@ function usage() {
 }
 
 function chk_version() {
-  instance_vr=$(curl -sfkL "${GURL}/control_table?key=eq.version&select=last_value" | jq -r '.[0].last_value' 2>/dev/null)
-  monitor_vr=$(curl -sfkL "${API_STRUCT_DEFINITION}" | grep ^\ \ version|awk '{print $2}' 2>/dev/null)
+  ctrl_tbl=$(curl -skL "${GURL}/control_table")
+  instance_vr=$(jq -r 'map(select(.key == "version"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
+  monitor_vr=$(grep ^\ \ version "${LOCAL_SPEC}" |awk '{print $2}' 2>/dev/null)
 
   if [[ -z "${instance_vr}" ]] || [[ "${instance_vr}" == "[]" ]]; then
     log_err "Could not fetch the grest version for ${GURL} using control_table endpoint (response received: ${instance_vr})!!"
     optexit
   elif [[ "${instance_vr}" != "${monitor_vr}" ]]; then
-    log_err "Version mismatch: ${GURL} is at version : ${instance_vr} while ${API_STRUCT_DEFINITION} is on version: ${monitor_vr}!!"
+    log_err "Version mismatch: ${GURL} is at version : ${instance_vr} while ${API_STRUCT_DEFINITION} (cached) is on version: ${monitor_vr}!!"
     optexit
   fi
 }
@@ -129,7 +130,6 @@ function chk_rpcs() {
 }
 
 function chk_cache_status() {
-  ctrl_tbl=$(curl -skL "${GURL}/control_table")
   last_stakedist_block=$(jq -r 'map(select(.key == "stake_distribution_lbh"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
   last_poolhist_update=$(jq -r 'map(select(.key == "pool_history_cache_last_updated"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
   last_actvstake_epoch=$(jq -r 'map(select(.key == "last_active_stake_validated_epoch"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
