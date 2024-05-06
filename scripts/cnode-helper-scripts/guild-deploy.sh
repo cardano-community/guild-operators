@@ -638,6 +638,7 @@ populate_cnode() {
   updateWithCustomConfig "mithril-client.sh"
   updateWithCustomConfig "mithril-relay.sh"
   updateWithCustomConfig "mithril-signer.sh"
+  updateWithCustomConfig "mithril.library"
   
   find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
   chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
