@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086,SC2046,SC1078,SC2059
+# shellcheck disable=SC2086,SC2046,SC1078,SC2059,SC2143
 # shellcheck source=/dev/null
 
 ##########################################
@@ -76,16 +76,6 @@ SGVERSION=v1.1.1
 
   jqDecode() {
     base64 --decode <<<$2 | jq -r "$1"
-  }
-
-  deploy_rpc() {
-    file_name=$(jqDecode '.name' "${1}")
-    [[ -z ${file_name} || ${file_name} != *.sql ]] && return
-    dl_url=$(jqDecode '.download_url //empty' "${1}")
-    [[ -z ${dl_url} ]] && return
-    ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && printf "\n \e[31mERROR\e[0m: download failed: ${dl_url%.json}" && return 1
-    printf "\n      Deploying Function :   \e[32m${file_name%.sql}\e[0m"
-    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${rpc_sql} 2>&1) && printf "\n        \e[31mERROR\e[0m: ${output}"
   }
 
   get_cron_job_executable() {
@@ -231,6 +221,8 @@ SGVERSION=v1.1.1
     # sudo chown -R ${USER} "${CNODE_HOME}"/scripts "${CNODE_HOME}"/files "${CNODE_HOME}"/priv
     dirs -c # clear dir stack
     mkdir -p ~/tmp
+    [[ -d /opt/cardano/cnode/priv ]] && [[ "$(stat -c '%a' /opt/cardano/cnode/priv | tr -d \ )" -lt 750 ]] && sudo chmod 750 "${CNODE_HOME}"/priv
+    [[ -f /opt/cardano/cnode/priv/grest.conf ]] && [[ "$(stat -c '%a' /opt/cardano/cnode/priv/grest.conf | tr -d \ )" -lt 640 ]] && sudo chmod 640 "${CNODE_HOME}"/priv/grest.conf
   }
 
   common_update() {
@@ -290,11 +282,12 @@ SGVERSION=v1.1.1
       pgrest_binary=linux-static-x64.tar.xz
     fi
     #pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep ${pgrest_binary})"
-    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v12.0.2/postgrest-v12.0.2-${pgrest_binary}" # Fix PostgREST to v11.2.2 until v12 headers are updated
+    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v12.0.2/postgrest-v12.0.2-${pgrest_binary}"
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
       [[ ! $(id -u authenticator 2>/dev/null) ]] && sudo useradd authenticator -d /home/authenticator -m
+      [[ ! $(id -nG authenticator 2>/dev/null | grep -q "${USER}") ]] && sudo usermod -a -G "${USER}" authenticator
       [[ ! -d /home/authenticator/.local/bin ]] && sudo mkdir -p /home/authenticator/.local/bin
       sudo mv -f ./postgrest /home/authenticator/.local/bin/
       sudo chown -R authenticator:authenticator /home/authenticator
@@ -585,6 +578,17 @@ SGVERSION=v1.1.1
     recreate_grest_schema
   }
 
+  deploy_rpc() {
+    file_name=$(basename "${1}")
+    dir_name=$(basename $(dirname "${1}"))
+    [[ -z ${file_name} || ${file_name} != *.sql ]] && return
+    dl_url="${1}"
+    [[ -z ${dl_url} ]] && return
+    ! rpc_sql=$(curl -s -f -m ${CURL_TIMEOUT} ${dl_url} 2>/dev/null) && printf "\n     \e[31mERROR\e[0m: download failed: ${dl_url}" && return 1
+    printf "\n    Deploying Function :   \e[32m${dir_name}/${file_name}\e[0m"
+    ! output=$(psql "${PGDATABASE}" -v "ON_ERROR_STOP=1" <<<${rpc_sql} 2>&1) && printf "\n        \e[31mERROR\e[0m: ${output}"
+  }
+
   # Description : Deployment list (will only proceed if sync status check passes):
   #             : 1) grest DB basics - schema, web_anon user, basic grest-specific tables
   #             : 2) RPC endpoints - with SQL sourced from files/grest/rpc/**.sql
@@ -601,23 +605,13 @@ SGVERSION=v1.1.1
     fi
 
     printf "\n  Downloading DBSync RPC functions from Guild Operators GitHub store..."
-    if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/${G_ACCOUNT}/koios-artifacts/contents/files/grest/rpc?ref=${SGVERSION} 2>&1); then
+    if ! rpc_file_list=$(curl -s -f -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/koios-artifacts/git/trees/${SGVERSION}?recursive=1" | grep "files/grest/rpc.*.sql" | grep -v db-scripts | sed -e 's#^.*.files/grest#https://raw.githubusercontent.com/'"${G_ACCOUNT}"'/koios-artifacts/'"${SGVERSION}"'/files/grest#g' -e 's#",$##g' 2>&1); then
       err_exit "${rpc_file_list}"
     fi
     printf "\n  (Re)Deploying GRest objects to DBSync..."
     populate_genesis_table
-    for row in $(jq -r '.[] | @base64' <<<${rpc_file_list}); do
-      if [[ $(jqDecode '.type' "${row}") = 'dir' ]] && [[ $(jqDecode '.name' "${row}") != 'db-scripts' ]]; then
-        printf "\n    Downloading pSQL executions from subdir $(jqDecode '.name' "${row}")"
-        if ! rpc_file_list_subdir=$(curl -s -m ${CURL_TIMEOUT} "https://api.github.com/repos/${G_ACCOUNT}/koios-artifacts/contents/files/grest/rpc/$(jqDecode '.name' "${row}")?ref=${SGVERSION}"); then
-          printf "\n      \e[31mERROR\e[0m: ${rpc_file_list_subdir}" && continue
-        fi
-        for row2 in $(jq -r '.[] | @base64' <<<${rpc_file_list_subdir}); do
-          deploy_rpc ${row2}
-        done
-      else
-        deploy_rpc ${row}
-      fi
+    for row in ${rpc_file_list}; do
+      deploy_rpc ${row}
     done
     setup_cron_jobs
     printf "\n  All RPC functions successfully added to DBSync! For detailed query specs and examples, visit ${API_DOCS_URL}!\n"
