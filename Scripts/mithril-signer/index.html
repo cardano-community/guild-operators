@@ -1079,12 +1079,17 @@
 functionalities such as deploying the server as a systemd service and updating the
 environment file to contain variables specific to the Mithril Signer.</p>
 <h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">⚓︎</a></h2>
-<div class="highlight"><pre><span></span><code>Usage:<span class="w"> </span>mithril-signer.sh<span class="w"> </span><span class="o">[</span>-d<span class="o">]</span><span class="w"> </span><span class="o">[</span>-u<span class="o">]</span>
+<div class="highlight"><pre><span></span><code>Usage:<span class="w"> </span>bash<span class="w"> </span><span class="o">[</span>-d<span class="o">]</span><span class="w"> </span><span class="o">[</span>-D<span class="o">]</span><span class="w"> </span><span class="o">[</span>-e<span class="o">]</span><span class="w"> </span><span class="o">[</span>-k<span class="o">]</span><span class="w"> </span><span class="o">[</span>-r<span class="o">]</span><span class="w"> </span><span class="o">[</span>-s<span class="o">]</span><span class="w"> </span><span class="o">[</span>-u<span class="o">]</span><span class="w"> </span><span class="o">[</span>-h<span class="o">]</span>
+A<span class="w"> </span>script<span class="w"> </span>to<span class="w"> </span>setup,<span class="w"> </span>run<span class="w"> </span>and<span class="w"> </span>verify<span class="w"> </span>Cardano<span class="w"> </span>Mithril<span class="w"> </span>Signer
 
-Options:
-<span class="w">    </span>-d<span class="w">    </span>Deploy<span class="w"> </span>mithril-signer<span class="w"> </span>as<span class="w"> </span>a<span class="w"> </span>systemd<span class="w"> </span>service
-<span class="w">    </span>-u<span class="w">    </span>Update<span class="w"> </span>mithril<span class="w"> </span>environment<span class="w"> </span>file
-<span class="w">    </span>-h<span class="w">    </span>Show<span class="w"> </span>this<span class="w"> </span><span class="nb">help</span><span class="w"> </span>text
+-d<span class="w">    </span>Deploy<span class="w"> </span>mithril-signer<span class="w"> </span>as<span class="w"> </span>a<span class="w"> </span>systemd<span class="w"> </span>service
+-D<span class="w">    </span>Run<span class="w"> </span>mithril-signer<span class="w"> </span>as<span class="w"> </span>a<span class="w"> </span>daemon
+-e<span class="w">    </span>Update<span class="w"> </span>mithril<span class="w"> </span>environment<span class="w"> </span>file
+-k<span class="w">    </span>Stop<span class="w"> </span>signer<span class="w"> </span>using<span class="w"> </span>SIGINT
+-r<span class="w">    </span>Verify<span class="w"> </span>signer<span class="w"> </span>registration
+-s<span class="w">    </span>Verify<span class="w"> </span>signer<span class="w"> </span>signature
+-u<span class="w">    </span>Skip<span class="w"> </span>update<span class="w"> </span>check
+-h<span class="w">    </span>Show<span class="w"> </span>this<span class="w"> </span><span class="nb">help</span><span class="w"> </span>text
 </code></pre></div>
 <h1 id="description">Description<a class="headerlink" href="#description" title="Permanent link">⚓︎</a></h1>
 <p>This script is a bash script for managing the Mithril Signer Server. It provides

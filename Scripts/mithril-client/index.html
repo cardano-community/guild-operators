@@ -87,7 +87,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#preparing-a-relay-or-block-producer-node" class="md-skip">
+        <a href="#usage" class="md-skip">
           Skip to content
         </a>
       
@@ -743,6 +743,13 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    Usage
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#preparing-a-relay-or-block-producer-node" class="md-nav__link">
     Preparing a Relay or Block Producer Node
   </a>
@@ -1023,6 +1030,13 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    Usage
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#preparing-a-relay-or-block-producer-node" class="md-nav__link">
     Preparing a Relay or Block Producer Node
   </a>
@@ -1066,10 +1080,33 @@
 <p><code>mithril-client.sh</code> is a script to manage the Mithril client, a tool used to set up the Mithril client environment and manage downloading Mithril snapshots and stake distributions. The main features include:</p>
 <ul>
 <li><strong>environment</strong> - Creates a new <code>mithril.env</code> file with all the necessary environment variables for the Mithril client.</li>
-<li><strong>snapshot</strong> - Download, list all or show a specific available Mithril snapshot.</li>
+<li><strong>cardano-db</strong> - Download, list all or show a specific available Mithril snapshot.</li>
 <li><strong>stake-distribution</strong> - Download or list available Mithril stake distributions.</li>
 <li><strong>-u</strong> - Skip script update check.</li>
 </ul>
+<h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">⚓︎</a></h2>
+<div class="highlight"><pre><span></span><code>Usage:<span class="w"> </span>bash<span class="w"> </span><span class="o">[</span>-u<span class="o">]</span><span class="w"> </span>&lt;command&gt;<span class="w"> </span>&lt;subcommand&gt;<span class="w"> </span><span class="o">[</span>&lt;sub<span class="w"> </span>arg&gt;<span class="o">]</span>
+A<span class="w"> </span>script<span class="w"> </span>to<span class="w"> </span>run<span class="w"> </span>Cardano<span class="w"> </span>Mithril<span class="w"> </span>Client
+
+-u<span class="w">          </span>Skip<span class="w"> </span>script<span class="w"> </span>update<span class="w"> </span>check<span class="w"> </span>overriding<span class="w"> </span>UPDATE_CHECK<span class="w"> </span>value<span class="w"> </span><span class="k">in</span><span class="w"> </span>env<span class="w"> </span><span class="o">(</span>must<span class="w"> </span>be<span class="w"> </span>first<span class="w"> </span>argument<span class="w"> </span>to<span class="w"> </span>script<span class="o">)</span>
+
+Commands:
+environment<span class="w">           </span>Manage<span class="w"> </span>mithril<span class="w"> </span>environment<span class="w"> </span>file
+<span class="w">  </span>setup<span class="w">               </span>Setup<span class="w"> </span>mithril<span class="w"> </span>environment<span class="w"> </span>file
+<span class="w">  </span>override<span class="w">            </span>Override<span class="w"> </span>default<span class="w"> </span>variable<span class="w"> </span><span class="k">in</span><span class="w"> </span>the<span class="w"> </span>mithril<span class="w"> </span>environment<span class="w"> </span>file
+<span class="w">  </span>update<span class="w">              </span>Update<span class="w"> </span>mithril<span class="w"> </span>environment<span class="w"> </span>file
+cardano-db<span class="w">            </span>Interact<span class="w"> </span>with<span class="w"> </span>Cardano<span class="w"> </span>DB
+<span class="w">  </span>download<span class="w">            </span>Download<span class="w"> </span>Cardano<span class="w"> </span>DB<span class="w"> </span>from<span class="w"> </span>Mithril<span class="w"> </span>snapshot
+<span class="w">  </span>snapshot<span class="w">            </span>Interact<span class="w"> </span>with<span class="w"> </span>Mithril<span class="w"> </span>snapshots
+<span class="w">    </span>list<span class="w">              </span>List<span class="w"> </span>available<span class="w"> </span>Mithril<span class="w"> </span>snapshots
+<span class="w">      </span>json<span class="w">            </span>List<span class="w"> </span>availble<span class="w"> </span>Mithril<span class="w"> </span>snapshots<span class="w"> </span><span class="k">in</span><span class="w"> </span>JSON<span class="w"> </span>format
+<span class="w">    </span>show<span class="w">              </span>Show<span class="w"> </span>details<span class="w"> </span>of<span class="w"> </span>a<span class="w"> </span>Mithril<span class="w"> </span>snapshot
+<span class="w">      </span>json<span class="w">            </span>Show<span class="w"> </span>details<span class="w"> </span>of<span class="w"> </span>a<span class="w"> </span>Mithril<span class="w"> </span>snapshot<span class="w"> </span><span class="k">in</span><span class="w"> </span>JSON<span class="w"> </span>format
+stake-distribution<span class="w">    </span>Interact<span class="w"> </span>with<span class="w"> </span>Mithril<span class="w"> </span>stake<span class="w"> </span>distributions
+<span class="w">  </span>download<span class="w">            </span>Download<span class="w"> </span>latest<span class="w"> </span>stake<span class="w"> </span>distribution
+<span class="w">  </span>list<span class="w">                </span>List<span class="w"> </span>available<span class="w"> </span>stake<span class="w"> </span>distributions
+<span class="w">    </span>json<span class="w">              </span>Output<span class="w"> </span>latest<span class="w"> </span>Mithril<span class="w"> </span>snapshot<span class="w"> </span><span class="k">in</span><span class="w"> </span>JSON<span class="w"> </span>format
+</code></pre></div>
 <h2 id="preparing-a-relay-or-block-producer-node">Preparing a Relay or Block Producer Node<a class="headerlink" href="#preparing-a-relay-or-block-producer-node" title="Permanent link">⚓︎</a></h2>
 <p>To prepare a relay or block producer node, you should follow these steps:</p>
 <ol>
@@ -1080,22 +1117,22 @@
 <ol>
 <li><strong>Download the latest Mithril snapshot:</strong> Once the environment file is set up, you can download the latest Mithril snapshot by running the script with the <code>snapshot download</code> command. This snapshot contains the latest state of the Cardano blockchain db from a Mithril Aggregator.</li>
 </ol>
-<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>snapshot<span class="w"> </span>download
+<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>cardano-db<span class="w"> </span>download
 </code></pre></div>
 <h2 id="investigating-available-snapshots">Investigating Available Snapshots<a class="headerlink" href="#investigating-available-snapshots" title="Permanent link">⚓︎</a></h2>
 <p>You can investigate the available snapshots by using the <code>snapshot list</code> and <code>snapshot show</code> commands:</p>
 <ul>
 <li><strong>List all available Mithril snapshots:</strong> You can list all available Mithril snapshots by running the script with the <code>snapshot list</code> command. Add <code>json</code> at the end to get the output in JSON format.</li>
 </ul>
-<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>snapshot<span class="w"> </span>list
-./mithril-client.sh<span class="w"> </span>snapshot<span class="w"> </span>list<span class="w"> </span>json
+<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>cardano-dbsnapshot<span class="w"> </span>list
+./mithril-client.sh<span class="w"> </span>cardano-dbsnapshot<span class="w"> </span>list<span class="w"> </span>json
 </code></pre></div>
 <ul>
 <li><strong>Show details of a specific Mithril snapshot:</strong> You can show details of a specific Mithril snapshot by running the script with the <code>snapshot show &lt;DIGEST&gt;</code> command, where <code>&lt;DIGEST&gt;</code> is the digest of the snapshot. Add <code>json</code> at the end to get the output in JSON format.</li>
 </ul>
-<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>snapshot<span class="w"> </span>show<span class="w"> </span>&lt;DIGEST&gt;
-./mithril-client.sh<span class="w"> </span>snapshot<span class="w"> </span>show<span class="w"> </span>&lt;DIGEST&gt;<span class="w"> </span>json
-./mithril-client.sh<span class="w"> </span>snapshot<span class="w"> </span>show<span class="w"> </span>json<span class="w"> </span>&lt;DIGEST&gt;
+<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>cardano-dbsnapshot<span class="w"> </span>show<span class="w"> </span>&lt;DIGEST&gt;
+./mithril-client.sh<span class="w"> </span>cardano-dbsnapshot<span class="w"> </span>show<span class="w"> </span>&lt;DIGEST&gt;<span class="w"> </span>json
+./mithril-client.sh<span class="w"> </span>cardano-dbsnapshot<span class="w"> </span>show<span class="w"> </span>json<span class="w"> </span>&lt;DIGEST&gt;
 </code></pre></div>
 <h2 id="managing-stake-distributions">Managing Stake Distributions<a class="headerlink" href="#managing-stake-distributions" title="Permanent link">⚓︎</a></h2>
 <p>You can manage stake distributions by using the <code>stake-distribution download</code> and <code>stake-distribution list</code> commands:</p>
