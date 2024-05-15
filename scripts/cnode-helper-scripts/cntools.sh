@@ -2803,6 +2803,13 @@ function main {
                 [[ -z ${ledger_retiring} ]] && p_retiring_epoch=0 || p_retiring_epoch=${ledger_retiring}
                 [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
                 [[ -n "${ledger_pParams}" ]] && pool_registered="${FG_GREEN}YES${NC}" || pool_registered="${FG_RED}NO${NC}"
+                if [[ ${p_retiring_epoch} -gt 0 ]]; then
+                  if [[ ${current_epoch} -lt ${p_retiring_epoch} ]]; then
+                    pool_registered="${FG_YELLOW}YES${NC} - Retiring in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
+                  else
+                    pool_registered="${FG_RED}NO${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
+                  fi
+                fi
               else
                 println OFF "\n${FG_YELLOW}> Querying Koios API for pool information (some data can have a small delay)${NC}"
                 isPoolRegistered ${pool_name} # variables set in isPoolRegistered [pool_info, error_msg, p_<metric>]
