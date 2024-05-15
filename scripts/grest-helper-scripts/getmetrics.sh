@@ -43,10 +43,23 @@ function get-metrics() {
   meminf=$(grep "^Mem" /proc/meminfo)
   load1m=$(( $(awk '{ print $1*100 }' /proc/loadavg) / $(grep -c ^processor /proc/cpuinfo) ))
   memtotal=$(echo "${meminf}" | grep MemTotal | awk '{print $2}')
-  arcused=$(awk -v OFMT='%i' '/^size/ { print $3/1024 }' /proc/spl/kstat/zfs/arcstats 2>/dev/null)
+  ps 2 | grep -sq 'kthreadd' && arcused=$(awk -v OFMT='%i' '/^size/ { print $3/1024 }' /proc/spl/kstat/zfs/arcstats 2>/dev/null)
   [[ -z "${arcused}" ]] && arcused=0
   memused=$(( memtotal - $(echo "${meminf}" | grep MemAvailable | awk '{print $2}') - arcused ))
-  cpuutil=$(awk -v a="$(awk -v OFMT='%i' '/cpu /{print $2+$4,$2+$4+$5}' /proc/stat; sleep 1)" '/cpu /{split(a,b," "); print 100*($2+$4-b[1])/($2+$4+$5-b[2])}'  /proc/stat)
+  # cpu first read
+  cpu_now_a=($(head -n1 /proc/stat))
+  cpu_sum_a="${cpu_now_a[@]:1}"
+  cpu_sum_a=$((${cpu_sum_a// /+}))
+  sleep 1
+  # cpu second read
+  cpu_now_b=($(head -n1 /proc/stat))
+  cpu_sum_b="${cpu_now_b[@]:1}"
+  cpu_sum_b=$((${cpu_sum_b// /+}))
+  # cpu calc
+  cpu_delta=$((cpu_sum_b - cpu_sum_a))
+  cpu_idle=$((cpu_now_b[4]- cpu_now_a[4]))
+  cpu_used=$((cpu_delta - cpu_idle))
+  cpuutil=$((100 * cpu_used / cpu_delta))
   # in Bytes
   pubschsize=$(psql -t --csv -d ${PGDATABASE} -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'public'" | grep "^[0-9]")
   grestschsize=$(psql -t --csv -d ${PGDATABASE} -c "SELECT sum(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))::bigint) FROM pg_tables WHERE schemaname = 'grest'" | grep "^[0-9]")
