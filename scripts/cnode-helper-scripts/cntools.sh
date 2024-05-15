@@ -2797,9 +2797,9 @@ function main {
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 pool_registered="${FG_LGRAY}status unavailable in offline mode${NC}"
               elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                ledger_pParams=$(jq -r '.poolParams // empty' <<< ${pool_params})
-                ledger_fPParams=$(jq -r '.futurePoolParams // empty' <<< ${pool_params})
-                ledger_retiring=$(jq -r '.retiring // empty' <<< ${pool_params})
+                ledger_pParams=$(jq -r '.[].poolParams // empty' <<< ${pool_params})
+                ledger_fPParams=$(jq -r '.[].futurePoolParams // empty' <<< ${pool_params})
+                ledger_retiring=$(jq -r '.[].retiring // empty' <<< ${pool_params})
                 [[ -z ${ledger_retiring} ]] && p_retiring_epoch=0 || p_retiring_epoch=${ledger_retiring}
                 [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
                 [[ -n "${ledger_pParams}" ]] && pool_registered="${FG_GREEN}YES${NC}" || pool_registered="${FG_RED}NO${NC}"
@@ -4995,14 +4995,12 @@ function main {
                     # Let user choose asset on wallet to burn, both base and enterprise, fee payed with same address
                     assets_on_wallet=()
                     getWalletBalance ${wallet_name} true true true true
-                    declare -gA base_assets=(); for idx in "${!assets[@]}"; do [[ -z ${base_addr} || ${idx} != "${base_addr},"* ]] && continue; base_assets[${idx#*,}]=${assets[${idx}]}; done
                     for asset in "${!base_assets[@]}"; do
                       [[ ${asset} = "lovelace" ]] && continue
                       IFS='.' read -ra asset_arr <<< "${asset}"
                       [[ -z ${asset_arr[1]} ]] && asset_ascii_name="" || asset_ascii_name=$(hexToAscii ${asset_arr[1]})
                       assets_on_wallet+=( "${asset} (${asset_ascii_name}) [base addr]" )
                     done
-                    declare -gA pay_assets=(); for idx in "${!assets[@]}"; do [[ -z ${pay_addr} || ${idx} != "${pay_addr},"* ]] && continue; pay_assets[${idx#*,}]=${assets[${idx}]}; done
                     for asset in "${!pay_assets[@]}"; do
                       [[ ${asset} = "lovelace" ]] && continue
                       IFS='.' read -ra asset_arr <<< "${asset}"

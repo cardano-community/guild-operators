@@ -1236,6 +1236,7 @@ getBalanceKoios() {
 #             : asset  >  optional: [true|false] fetch additional koios asset data (default = false)
 getWalletBalance() {
   addr_list=()
+  declare -gA base_assets=(); declare -gA pay_assets=()
   [[ $2 = true ]] && declare -gA balances=()
   [[ $5 = true ]] && asset_info=true || asset_info=false
   if [[ $3 != false ]] && getBaseAddress $1 && [[ -n ${base_addr} ]]; then
@@ -1247,6 +1248,7 @@ getWalletBalance() {
       else
         getBalance ${base_addr}
         base_lovelace=${assets[lovelace]:-0}
+        for idx in "${!assets[@]}"; do base_assets[${idx}]=${assets[${idx}]}; done
       fi
     fi
   else
@@ -1261,6 +1263,7 @@ getWalletBalance() {
       else
         getBalance ${pay_addr}
         pay_lovelace=${assets[lovelace]:-0}
+        for idx in "${!assets[@]}"; do pay_assets[${idx}]=${assets[${idx}]}; done
       fi
     fi
   else
@@ -1268,8 +1271,14 @@ getWalletBalance() {
   fi
   if [[ ${#addr_list[@]} -gt 0 ]]; then
     getBalanceKoios ${asset_info}
-    [[ -n ${base_addr} ]] && base_lovelace=${assets["${base_addr},lovelace"]:-0}
-    [[ -n ${pay_addr}  ]] && pay_lovelace=${assets["${pay_addr},lovelace"]:-0}
+    if [[ -n ${base_addr} ]]; then
+      base_lovelace=${assets["${base_addr},lovelace"]:-0}
+      for idx in "${!assets[@]}"; do [[ ${idx} != "${base_addr},"* ]] && continue; base_assets[${idx#*,}]=${assets[${idx}]}; done
+    fi
+    if [[ -n ${pay_addr} ]]; then
+      pay_lovelace=${assets["${pay_addr},lovelace"]:-0}
+      for idx in "${!assets[@]}"; do [[ ${idx} != "${pay_addr},"* ]] && continue; pay_assets[${idx#*,}]=${assets[${idx}]}; done
+    fi
   fi
 }
 
