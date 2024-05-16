@@ -308,7 +308,7 @@ cncliLeaderlog() {
 				INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
 				VALUES (${curr_epoch}, '${epoch_nonce}', '${pool_id}', '${sigma}', ${d}, ${epoch_slots_ideal}, ${max_performance}, '${active_stake}', '${total_active_stake}');
 				EOF
-      if [[ block_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${curr_epoch};" 2>/dev/null) && ${block_cnt} -gt 0 ]]; then
+      if block_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${curr_epoch};" 2>/dev/null) && [[ ${block_cnt} -gt 0 ]]; then
         echo -e "\nPruning ${block_cnt} entries from blocklog db for epoch ${curr_epoch}\n"
         sqlite3 "${BLOCKLOG_DB}" "DELETE FROM blocklog WHERE epoch=${curr_epoch};" 2>/dev/null
       fi
