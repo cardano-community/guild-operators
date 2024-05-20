@@ -2400,12 +2400,12 @@ assembleTx() {
 submitTx() {
   tx_signed="$1"
 
-  if [[ -n ${KOIOS_API} ]]; then
-    txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
-    xxd -p -r <<< $(jq .cborHex ${tx.signed}) > ${txdata}
-    println ACTION "curl -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
-    curl -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx"
-  else
+  #if [[ -n ${KOIOS_API} ]]; then
+  #  txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
+  #  xxd -p -r <<< $(jq .cborHex ${tx.signed}) > ${txdata}
+  #  println ACTION "curl -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
+  #  curl -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx"
+  #else
     submit_command=(
       ${CCLI} ${NETWORK_ERA} transaction submit
       --tx-file "${tx_signed}"
@@ -2413,7 +2413,7 @@ submitTx() {
     )
     println ACTION "${submit_command[@]}"
     "${submit_command[@]}"
-  fi
+  #fi
 }
 
 # Command     : transformRawTx [raw tx file]
