@@ -116,7 +116,7 @@ function chk_rpc_struct() {
   api_endpts="$(grep ^\ \ / "${LOCAL_SPEC}" | awk '{print $1}' | sed -e 's#:##' | sort)"
   for endpt in ${api_endpts}
   do
-    echo "${srvr_spec}" | grep -e "paths.*.${endpt}"
+    echo "${srvr_spec}" | grep -e "paths.*.${endpt}_get" -e "paths.*.${endpt}_post"
   done
 }
 

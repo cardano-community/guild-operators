@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=v1.1.1
+SGVERSION=v1.1.2
 
 ######## Functions ########
   usage() {
@@ -221,6 +221,9 @@ SGVERSION=v1.1.1
     # sudo chown -R ${USER} "${CNODE_HOME}"/scripts "${CNODE_HOME}"/files "${CNODE_HOME}"/priv
     dirs -c # clear dir stack
     mkdir -p ~/tmp
+    [[ ! $(id -u authenticator 2>/dev/null) ]] && sudo useradd authenticator -d /home/authenticator -m
+    [[ ! $(id -nG authenticator 2>/dev/null | grep -q "${USER}") ]] && sudo usermod -a -G "${USER}" authenticator
+    [[ ! -d /home/authenticator/.local/bin ]] && sudo mkdir -p /home/authenticator/.local/bin
     [[ -d /opt/cardano/cnode/priv ]] && [[ "$(stat -c '%a' /opt/cardano/cnode/priv | tr -d \ )" -lt 750 ]] && sudo chmod 750 "${CNODE_HOME}"/priv
     [[ -f /opt/cardano/cnode/priv/grest.conf ]] && [[ "$(stat -c '%a' /opt/cardano/cnode/priv/grest.conf | tr -d \ )" -lt 640 ]] && sudo chmod 640 "${CNODE_HOME}"/priv/grest.conf
   }
@@ -286,9 +289,6 @@ SGVERSION=v1.1.1
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
-      [[ ! $(id -u authenticator 2>/dev/null) ]] && sudo useradd authenticator -d /home/authenticator -m
-      [[ ! $(id -nG authenticator 2>/dev/null | grep -q "${USER}") ]] && sudo usermod -a -G "${USER}" authenticator
-      [[ ! -d /home/authenticator/.local/bin ]] && sudo mkdir -p /home/authenticator/.local/bin
       sudo mv -f ./postgrest /home/authenticator/.local/bin/
       sudo chown -R authenticator:authenticator /home/authenticator
     else
@@ -574,6 +574,7 @@ SGVERSION=v1.1.1
   # Description : Fully reset the grest node from the database POV.
   reset_grest() {
     local tr_dir="${HOME}/git/${CNODE_VNAME}-token-registry"
+    sudo systemctl stop ${CNODE_VNAME}-postgrest.service
     [[ -d "${tr_dir}" ]] && rm -rf "${tr_dir}"
     recreate_grest_schema
   }

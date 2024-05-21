@@ -1,5 +1,15 @@
 # Koios gRest Changelog
 
+## [1.1.2] - For all networks.
+
+This release is minor bugfix for data consistency changes behind the scenes. It has no impact to any of the API endpoints.
+
+### Chores:
+
+- Performance optimisation for `pool_info` : Add a pool_delegators_list RPC that brings across only minimal information required by pool_info, thereby improving it's performance [#281](https://github.com/cardano-community/koios-artifacts/pull/281)
+- Fix `pool_history` stats for latest epochs by restricting cache to current - 3 epoch while calculating the subsequent information using live status from the database [#282](https://github.com/cardano-community/koios-artifacts/pull/282)
+- Fix rewards/treasury/reserves calculation in `account_info` , `account_info_cached` and `stake_distribution_cache`.
+
 ## [1.1.1] - For all networks.
 
 This release primarily focuses on backend performance fixes and work with dbsync 13.2.0.2 - while also, we have started preparing compatibility with upcoming koios lite release, to make it a seamless swap for specific endpoints without any impact to consumers. There are no breaking (impact to existing columns or inputs) changes with this release, but we have retired 2 deprecated endpoints that were almost unused on mainnet. Due to the amount of backend changes in queries, there is a chance that we may have missed some data accuracy checks, and - hence - would like to test in non-mainnet networks first before marking final release. Accordingly, any testing/reports of data inconsistency would be welcome.
