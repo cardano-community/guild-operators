@@ -274,7 +274,7 @@ cncliLeaderlog() {
   if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${curr_epoch};" 2>/dev/null) -eq 1 && ${subarg} != "force" ]]; then
     echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
   else
-    echo "Running leaderlogs for epoch ${curr_epoch} and adding leader slots not already in DB"
+    echo "Running leaderlogs for epoch ${curr_epoch}"
     if [[ ${USE_KOIOS_API} = Y ]]; then 
       getKoiosData || exit 1
     else
@@ -308,6 +308,10 @@ cncliLeaderlog() {
 				INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
 				VALUES (${curr_epoch}, '${epoch_nonce}', '${pool_id}', '${sigma}', ${d}, ${epoch_slots_ideal}, ${max_performance}, '${active_stake}', '${total_active_stake}');
 				EOF
+      if block_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${curr_epoch};" 2>/dev/null) && [[ ${block_cnt} -gt 0 ]]; then
+        echo -e "\nPruning ${block_cnt} entries from blocklog db for epoch ${curr_epoch}\n"
+        sqlite3 "${BLOCKLOG_DB}" "DELETE FROM blocklog WHERE epoch=${curr_epoch};" 2>/dev/null
+      fi
       block_cnt=0
       while read -r assigned_slot; do
         block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
@@ -335,7 +339,7 @@ cncliLeaderlog() {
     slot_for_next_nonce=$(echo "(${slotnum} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (3 * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc) # firstSlotOfNextEpoch - stabilityWindow(3 * k / f)
     curr_epoch=${epochnum}
     next_epoch=$((curr_epoch+1))
-    if [[ ${slotnum} -gt $(( slot_for_next_nonce + 300 )) ]]; then # Run leaderlogs for next epoch (with 5 min delay)
+    if [[ ${slotnum} -gt $(( slot_for_next_nonce + 600 )) ]]; then # Run leaderlogs for next epoch (with 10 min delay)
       if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${next_epoch};" 2>/dev/null) -eq 1 ]]; then # Leaderlogs already calculated for next epoch, skipping!
         if [[ -t 1 ]]; then # manual execution
           [[ ${subarg} != "force" ]] && echo "Leaderlogs already calculated for epoch ${next_epoch}, skipping!" && break
