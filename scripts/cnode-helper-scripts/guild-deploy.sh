@@ -73,7 +73,7 @@ usage() {
 		-s    Selective Install, only deploy specific components as below:
 		  p   Install common pre-requisite OS-level Dependencies for most tools on this repo (Default: skip)
 		  b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
-		  l   Build and Install libsodium fork from IO repositories (Default: skip)
+		  l   Build and Install libsodium + libsecp fork from IO repositories (Default: skip)
 		  m   Download latest (released) binaries for mithril-signer, mithril-client (Default: skip)
 		  f   Force overwrite entire content of scripts and config files (backups of existing ones will be created) (Default: skip)
 		  d   Download latest (released) binaries for bech32, cardano-address, cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api (Default: skip)
@@ -155,15 +155,12 @@ update_check() {
 common_init() {
   dirs -c # clear dir stack
   set_defaults
-  mkdir -p "${HOME}"/tmp
+  mkdir -p "${HOME}"/tmp "${HOME}"/git > /dev/null 2>&1
   [[ ! -d "${HOME}"/.local/bin ]] && mkdir -p "${HOME}"/.local/bin
   if ! grep -q '/.local/bin' "${HOME}"/.bashrc; then
     echo -e '\nexport PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}"/.bashrc
   fi
   NODE_DEPS="$(curl -sfL "${URL_RAW}"/files/node-deps.json)"
-  BLST_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".blst' <<< ${NODE_DEPS})"
-  SODIUM_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".secp256k1' <<< ${NODE_DEPS})"
-  SECP256K1_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".sodium' <<< ${NODE_DEPS})"
 }
 
 ### Update file retaining existing custom configs
@@ -207,7 +204,9 @@ os_dependencies() {
   if [[ "${OS_ID}" =~ ebian ]] || [[ "${OS_ID}" =~ buntu ]] || [[ "${DISTRO}" =~ ebian ]] || [[ "${DISTRO}" =~ buntu ]]; then
     #Debian/Ubuntu
     pkgmgrcmd="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
-    pkg_list="python3 pkg-config libssl-dev libncursesw5 libtinfo-dev systemd libsystemd-dev libsodium-dev tmux git jq libtool bc gnupg aptitude libtool secure-delete iproute2 tcptraceroute sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip llvm clang libnuma-dev libpq-dev build-essential libffi-dev libgmp-dev zlib1g-dev make g++ autoconf automake liblmdb-dev procps xxd"
+    libncurses_pkg="libncursesw5"
+    [[ -f /etc/debian_version ]] && grep -q trixie /etc/debian_version && libncurses_pkg="libncursesw6"
+    pkg_list="python3 pkg-config libssl-dev ${libncurses_pkg} libtinfo-dev systemd libsystemd-dev libsodium-dev tmux git jq libtool bc gnupg aptitude libtool secure-delete iproute2 tcptraceroute sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip llvm clang libnuma-dev libpq-dev build-essential libffi-dev libgmp-dev zlib1g-dev make g++ autoconf automake liblmdb-dev procps xxd"
   elif [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     #CentOS/RHEL/Fedora/RockyLinux
     pkgmgrcmd="yum"
@@ -254,26 +253,6 @@ os_dependencies() {
     echo -e "\nIt would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
     err_exit
   fi
-  # Cannot verify the version and availability of libsecp256k1 package built previously, hence have to re-install each time
-  echo -e "\n[Re]-Install libsecp256k1 ..."
-  mkdir -p "${HOME}"/git > /dev/null 2>&1 # To hold git repositories that will be used for building binaries
-  pushd "${HOME}"/git >/dev/null || err_exit
-  [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
-  pushd secp256k1 >/dev/null || err_exit
-  git fetch >/dev/null 2>&1
-  [[ -z "${SECP256K1_REF}" ]] && SECP256K1_REF="ac83be33"
-  git checkout ${SECP256K1_REF} &>/dev/null
-  ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
-  ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
-  make > make.log 2>&1 || err_exit " Could not complete \"make\" for libsecp256k1 package, please try to run it manually to diagnose!"
-  make check >>make.log 2>&1
-  $sudo make install > install.log 2>&1
-  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
-    echo -e "\nexport LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
-    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-  fi
-  echo -e "\nlibsecp256k1 installed to /usr/local/lib/"
-  build_libblst
 }
 
 # Build Dependencies for cabal builds
@@ -308,11 +287,13 @@ build_dependencies() {
     echo -e "\n Installing Cabal v${BOOTSTRAP_HASKELL_CABAL_VERSION}.."
     ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION} >/dev/null 2>&1 || err_exit " Executing \"ghcup install cabal ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
   fi
+  build_libblst
 }
 
 # Build fork of libsodium
 build_libsodium() {
   echo -e "\nBuilding libsodium ..."
+  SODIUM_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".secp256k1' <<< ${NODE_DEPS})"
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
     echo -e "\nexport LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
@@ -328,10 +309,34 @@ build_libsodium() {
   make > make.log 2>&1 || err_exit  " Could not complete \"make\" for libsodium package, please try to run it manually to diagnose!"
   $sudo make install > install.log 2>&1
   echo -e "\nIOG fork of libsodium installed to /usr/local/lib/"
+  # Cannot verify the version and availability of libsecp256k1 package built previously, hence have to re-install each time
+  build_libsecp
+}
+
+build_libsecp() {
+  echo -e "\n[Re]-Install libsecp256k1 ..."
+  SECP256K1_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".sodium' <<< ${NODE_DEPS})"
+  pushd "${HOME}"/git >/dev/null || err_exit
+  [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
+  pushd secp256k1 >/dev/null || err_exit
+  git fetch >/dev/null 2>&1
+  [[ -z "${SECP256K1_REF}" ]] && SECP256K1_REF="ac83be33"
+  git checkout ${SECP256K1_REF} &>/dev/null
+  ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
+  ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
+  make > make.log 2>&1 || err_exit " Could not complete \"make\" for libsecp256k1 package, please try to run it manually to diagnose!"
+  make check >>make.log 2>&1
+  $sudo make install > install.log 2>&1
+  if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
+    echo -e "\nexport LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+  fi
+  echo -e "\nlibsecp256k1 installed to /usr/local/lib/"
 }
 
 build_libblst() {
   echo -e "\nBuilding BLST..."
+  BLST_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".blst' <<< ${NODE_DEPS})"
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
     echo -e "\nexport LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
