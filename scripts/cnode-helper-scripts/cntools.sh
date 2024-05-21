@@ -4371,18 +4371,30 @@ function main {
           println OFF " Developer & Advanced features\n"\
 						" ) Metadata       - create and optionally post metadata on-chain"\
 						" ) Multi-Asset    - multi-asset nanagement"\
-						" ) Multi-Sig      - create a multi-sig/native script wallet"\
 						" ) Delete Keys    - delete all sign/cold keys from CNTools (wallet|pool|asset)"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+          #println OFF " Developer & Advanced features\n"\
+#						" ) Metadata       - create and optionally post metadata on-chain"\
+#						" ) Multi-Asset    - multi-asset nanagement"\
+#						" ) Multi-Sig      - create a multi-sig/native script wallet"\
+#						" ) Delete Keys    - delete all sign/cold keys from CNTools (wallet|pool|asset)"\
+#						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Operation\n"
-          select_opt "[m] Metadata" "[a] Multi-Asset" "[s] Multi-Sig" "[x] Delete Private Keys" "[h] Home"
+          select_opt "[m] Metadata" "[a] Multi-Asset" "[x] Delete Private Keys" "[h] Home"
           case $? in
             0) SUBCOMMAND="metadata" ;;
             1) SUBCOMMAND="multi-asset" ;;
-            2) SUBCOMMAND="multi-sig" ;;
-            3) SUBCOMMAND="del-keys" ;;
-            4) break ;;
+            2) SUBCOMMAND="del-keys" ;;
+            3) break ;;
           esac
+          #select_opt "[m] Metadata" "[a] Multi-Asset" "[s] Multi-Sig" "[x] Delete Private Keys" "[h] Home"
+          #case $? in
+          #  0) SUBCOMMAND="metadata" ;;
+          #  1) SUBCOMMAND="multi-asset" ;;
+          #  2) SUBCOMMAND="multi-sig" ;;
+          #  3) SUBCOMMAND="del-keys" ;;
+          #  4) break ;;
+          #esac
           case $SUBCOMMAND in  
             metadata)
               clear
