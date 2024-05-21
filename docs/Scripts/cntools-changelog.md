@@ -6,6 +6,15 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0] - 2024-01-19
+#### Added
+- New light mode using Koios API instead of local node for blockchain queries. Mode can be selected at runtime using -l (light), -n (node, default) or -o (offline).
+#### Changed
+- Improved submission handling
+- Removed complicated file descriptor re-direction for logging. This simplified the code and improves screen printing speed as special hacks around FDs could be removed.
+#### Fixed
+- Update handling and reload of script.
+
 ## [12.1.0] - 2024-01-19
 #### Changed
 - ADA price discovery through CoinGecko in set currency incl 24hr change. Shown in main UI, wallet list & show as well as pool show. Disabled by default.
