@@ -253,7 +253,7 @@ checkUserVariables() {
 #             : $1 = executable to validate
 cmdAvailable() {
   if ! command -v "$1" &>/dev/null; then
-    printf "${FG_RED}ERROR${NC}: need '$1' (command not found)\nplease install with your packet manager of choice(apt/yum etc..) and relaunch CNTools\nhttps://command-not-found.com/$1" 1>&2
+    printf "${FG_RED}ERROR${NC}: need '$1' (command not found)\nplease install with your packet manager of choice(apt/dnf etc..) and relaunch CNTools\nhttps://command-not-found.com/$1" 1>&2
     return 1
   fi
   return 0

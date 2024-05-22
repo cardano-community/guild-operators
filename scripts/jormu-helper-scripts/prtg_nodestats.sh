@@ -2,7 +2,7 @@
 
 # Checklist:
 # - If you're not sure of how to make use of this script and setup yourself to PRTG monitor, check in Private Testnet group.
-# - Ensure jq is installed via Package Manager of your OS (eg: sudo yum install jq).
+# - Ensure jq is installed via Package Manager of your OS (eg: sudo dnf install jq).
 # - The comment on the last line "| python -m json.tool" is just present for easy human readability, and needs python to be pre-installed on the system.
 # - The script uses sudo to execute netstat commands. Replace as necessary on your local system.
 # - Ensure jcli is in the $PATH and accessible for the user thats running httpd/busybox.
