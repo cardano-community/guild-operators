@@ -1,5 +1,6 @@
 !!! tip "Reminder !!"
-    - Since the network has to get along without the P2P network module for the time being, it needs static topology files. This "TopologyUpdater" service, which is far from being perfect due to its centralization factor, is intended to be a **temporary** solution to allow everyone to activate their relay nodes without having to postpone and wait for manual topology completion requests.
+    - As of node 8.9.2, it is recommended to run node with P2P config enabled. If running node with P2P, one does not require to run topology updater anymore.
+    - Since the network had to get along without the P2P network module for a while, it needed static topology files. This "TopologyUpdater" service, which was far from being perfect due to its centralization factor, was intended to be a **temporary** solution to allow everyone to activate their relay nodes without having to postpone and wait for manual topology completion requests.
     - You should **NOT** set up topologyUpdater for your block producing nodes.
 
 The topologyUpdater shell script must be executed on the relay node as a cronjob **exactly every 60 minutes**. After **4 consecutive requests (3 hours)** the node is considered a new relay node in listed in the topology file. If the node is turned off, it's automatically delisted after 3 hours.
