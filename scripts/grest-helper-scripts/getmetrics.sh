@@ -9,10 +9,10 @@
 
 #RESTAPI_HOST=127.0.0.1        # Destination PostgREST host
 #RESTAPI_PORT=8050             # Destination PostgREST port
-#HAPROXY_PORT=8053             # Destination HAProxy port
 #DBSYNC_PROM_HOST=127.0.0.1    # Destination DBSync Prometheus Host
 #DBSYNC_PROM_PORT=8080         # Destination DBSync Prometheus port
 #PGDATABASE=cexplorer          # Destination Postgres database
+#PGOPTIONS='--statement_timeout=1s' # Default Options for psql session
 
 ######################################
 # Do NOT modify code below           #
@@ -21,9 +21,9 @@
 . "$(dirname $0)"/env
 exec 2>/dev/null
 
+[[ -z ${PGOPTIONS} ]] && PGOPTIONS='--statement_timeout=1s'
 [[ -z ${RESTAPI_HOST} ]] && RESTAPI_HOST=127.0.0.1
 [[ -z ${RESTAPI_PORT} ]] && RESTAPI_PORT=8050
-[[ -z ${HAPROXY_PORT} ]] && HAPROXY_PORT=8053
 [[ -z ${DBSYNC_PROM_HOST} ]] && DBSYNC_PROM_HOST=127.0.0.1
 [[ -z ${DBSYNC_PROM_PORT} ]] && DBSYNC_PROM_PORT=8080
 [[ -z ${PGDATABASE} ]] && PGDATABASE=cexplorer
