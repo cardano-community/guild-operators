@@ -193,7 +193,7 @@ updateWithCustomConfig() {
 add_epel_repository() {
   if [[ "${1}" =~ Fedora ]]; then return; fi
   echo -e "\n  Enabling epel repository..."
-  ! grep -q ^epel <<< "$(yum repolist)" && $sudo yum ${3} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
+  ! grep -q ^epel <<< "$(dnf repolist)" && $sudo dnf ${3} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
 }
 
 # OS Dependencies
@@ -209,8 +209,8 @@ os_dependencies() {
     pkg_list="python3 pkg-config libssl-dev ${libncurses_pkg} libtinfo-dev systemd libsystemd-dev libsodium-dev tmux git jq libtool bc gnupg aptitude libtool secure-delete iproute2 tcptraceroute sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip llvm clang libnuma-dev libpq-dev build-essential libffi-dev libgmp-dev zlib1g-dev make g++ autoconf automake liblmdb-dev procps xxd"
   elif [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     #CentOS/RHEL/Fedora/RockyLinux
-    pkgmgrcmd="yum"
-    pkg_list="python3 coreutils ncurses-devel ncurses-libs openssl-devel systemd systemd-devel libsodium-devel tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz wget unzip procps-ng llvm clang numactl-devel libffi-devel gmp-devel zlib-devel make gcc-c++ autoconf udev lmdb-devel xxd"
+    pkgmgrcmd="dnf"
+    pkg_list="python3 coreutils ncurses-devel ncurses-libs openssl-devel systemd systemd-devel libsodium-devel tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz wget unzip procps-ng llvm clang numactl-devel libffi-devel gmp-devel zlib-devel make gcc-c++ autoconf udev lmdb-devel vim-common"
     if [[ "${VERSION_ID}" == "2" ]] ; then
       #AmazonLinux2
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"

@@ -307,8 +307,8 @@ SGVERSION=v1.1.2
       if command -v apt-get >/dev/null; then
         sudo apt-get -y install libpcre3-dev >/dev/null || err_exit "'sudo apt-get -y install libpcre3-dev' failed!"
       fi
-      if command -v yum >/dev/null; then
-        sudo yum -y install pcre-devel >/dev/null || err_exit "'sudo yum -y install prce-devel' failed!"
+      if command -v dnf >/dev/null; then
+        sudo dnf -y install pcre-devel >/dev/null || err_exit "'sudo dnf -y install prce-devel' failed!"
       fi
       cd haproxy-${major_v}.${minor_v} || return
       make clean >/dev/null
@@ -327,8 +327,8 @@ SGVERSION=v1.1.2
       printf "\nInstalling socat .."
       if command -v apt-get >/dev/null; then
         sudo apt-get -y install socat >/dev/null || err_exit "'sudo apt-get -y install socat' failed!"
-      elif command -v yum >/dev/null; then
-        sudo yum -y install socat >/dev/null || err_exit "'sudo yum -y install socat' failed!"
+      elif command -v dnf >/dev/null; then
+        sudo dnf -y install socat >/dev/null || err_exit "'sudo dnf -y install socat' failed!"
       else
         err_exit "'socat' not found in \$PATH, needed to for node exporter monitoring!"
       fi
