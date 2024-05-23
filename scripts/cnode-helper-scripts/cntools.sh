@@ -333,7 +333,7 @@ function main {
           println " >> WALLET"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println OFF " Wallet Management\n\n ) New         - create a new wallet"\
-						" ) Import      - import a Daedalus/Yoroi 24/25 mnemonic or Ledger/Trezor HW wallet"\
+						" ) Import      - import a 24/15 mnemonic or Ledger/Trezor HW wallet"\
 						" ) Register    - register a wallet on chain"\
 						" ) De-Register - De-Register (retire) a registered wallet"\
 						" ) List        - list all available wallets in a compact view"\
@@ -413,7 +413,7 @@ function main {
                 println " >> WALLET >> IMPORT"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println OFF " Wallet Import\n"\
-									" ) Mnemonic  - Daedalus/Yoroi 24 or 25 word mnemonic"\
+									" ) Mnemonic  - 24 or 15 word mnemonic"\
 									" ) HW Wallet - Ledger/Trezor hardware wallet"\
 									"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Wallet Import Operation\n"
@@ -542,14 +542,13 @@ function main {
                     println DEBUG "${FG_YELLOW}Using a mnemonic imported wallet in CNTools comes with a few limitations${NC}"
                     echo
                     println DEBUG "Only the first address in the HD wallet is extracted and because of this the following apply:"
-                    println DEBUG " ${FG_LGRAY}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
-                    println DEBUG " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all ADA through Daedalus/Yoroi to address shown in CNTools"
-                    println DEBUG " ${FG_LGRAY}>${NC} Only use receive address shown in CNTools"
-                    println DEBUG " ${FG_LGRAY}>${NC} Only spend ADA from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
+                    println DEBUG " ${FG_LGRAY}>${NC} Address above should match the first address seen in the wallet where mnemonic was generated, please verify!!!"
+                    println DEBUG " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, and balance doesn't match, send all ADA to address shown in CNTools"
+                    println DEBUG " ${FG_LGRAY}>${NC} Only use receive address shown in CNTools (enable 'Single Address Mode' in wallet if available)"
                     echo
                     println DEBUG "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
                     println DEBUG " ${FG_LGRAY}>${NC} Wallet can be restored from saved 24 or 15 word mnemonic if keys are lost/deleted"
-                    println DEBUG " ${FG_LGRAY}>${NC} Track rewards in Daedalus/Yoroi"
+                    println DEBUG " ${FG_LGRAY}>${NC} Wallet can be shared and used in multiple wallets, including CNTools"
                     echo
                     println DEBUG "Please read more about HD wallets at:"
                     println DEBUG "https://cardano-community.github.io/support-faq/wallets?id=heirarchical-deterministic-hd-wallets"

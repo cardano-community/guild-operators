@@ -26,10 +26,14 @@ See [CNCLI](../Scripts/cncli.md) and [Log Monitor](../Scripts/logmonitor.md) sec
 
 Koios CNTools can operate in following modes:
 
-- Advanced - When CNTools is launched with `-a` runtime argument, this launches CNTools exposing a new `Advanced` menu, which allows users to manage (create/mint/burn) new assets.
-- Online - When all wallet and pool keys are available on the hot node, use this option. This is the default mode when you start CNTools without parameters.
+- Online - The default mode using either a local node or Koios API to query the blockchain.
+  - Local `-n` - The local node is used to query the blockchain for needed data. This is the default mode when you start CNTools without parameters.
+  - Light `-l` - Koios query layer is used and removes the need for a local node deployment. This mode is both quicker and lighter on resources but comes with a third party dependency.
 - Hybrid - When running in online mode, this option can be used in menus to create offline transaction files that can be passed to Offline CNTools to sign.
-- Offline - When CNTools is launched with `-o` runtime argument, this launches CNTools with limited set of features. This mode **does not require access to cardano-node**. It is mainly used to create Wallet/Pool and access `Transaction >> Sign` to sign an offline transaction file created in Hybrid mode.
+- Offline `-o` - Launches CNTools with a limited set of features. This mode **does not require access to cardano-node or access to an internet connection**. It is mainly used to create Wallet/Pool and access `Transaction >> Sign` to sign an offline transaction file created in Hybrid mode.
+- Advanced `-a` - Exposes a new `Advanced` menu, which allows users to manage (create/mint/burn) new assets.
+
+In addition to above mentioned runtime arguments to launch CNTools in different modes, it can also be persisted by editing User Variables section within `cntools.sh` script.
 
 #### Download and Update
 The update functionality is provided from within CNTools. In case of breaking changes, please follow the prompts post-upgrade. If stuck, it's always best to re-run the latest `guild-deploy.sh` before proceeding.
