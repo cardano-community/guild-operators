@@ -29,7 +29,7 @@ set_node_minimum_version() {
   if [[ "$status_code" -eq 404 ]]; then
     NODE_MINIMUM_VERSION=""
   else
-    NODE_MINIMUM_VERSION=$(jq -r ".${NETWORK}.\"cardano-minimum-version\".\"mithril-signer\"" "$response_file")
+    NODE_MINIMUM_VERSION=$(jq -r ".${NETWORK_NAME,,}.\"cardano-minimum-version\".\"mithril-signer\"" "$response_file")
   fi
   rm -f "$response_file"
 }
