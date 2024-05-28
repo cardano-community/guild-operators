@@ -5372,6 +5372,7 @@ function main {
                     println " >> ADVANCED >> MULTISIG >> DERIVE KEYS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
+                    println DEBUG "# Select wallet to derive multisig keys for (only wallets with missing keys shown)"
                     selectWallet "non-ms"
                     case $? in
                       1) waitToProceed; continue ;;
