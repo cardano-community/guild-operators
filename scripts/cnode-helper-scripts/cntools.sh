@@ -33,7 +33,7 @@
 # If disabled standard tty input is used
 #ENABLE_DIALOG=false
 
-# Enable advanced/developer features like metadata transactions, multi-asset management etc. [true|false] (not needed for SPO usage)
+# Enable advanced/developer features like metadata transactions, asset management etc. [true|false] (not needed for SPO usage)
 #ENABLE_ADVANCED=false
 
 # Price fetching currency. Disable by setting value 'off' [off|usd|eur|...] (default: off) (https://api.coingecko.com/api/v3/simple/supported_vs_currencies)
@@ -78,7 +78,7 @@ usage() {
 		-n    Local mode   - run CNTools in local node mode (default)
 		-l    Light mode   - run CNTools using Koios query layer for full functionallity without a local node
 		-o    Offline mode - run CNTools with a limited set of functionallity without external communication useful for air-gapped mode
-		-a    Enable advanced/developer features like metadata transactions, multi-asset management etc (not needed for SPO usage)
+		-a    Enable advanced/developer features like metadata transactions, asset management etc (not needed for SPO usage)
 		-u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Run CNTools and look for updates on alternate branch instead of master (only for testing/development purposes)
 		-v    Print CNTools version
@@ -284,7 +284,7 @@ function main {
 			" ) Transaction - Sign and Submit a cold transaction (hybrid/offline mode)"\
 			"$([[ -f "${BLOCKLOG_DB}" ]] && echo " ) Blocks      - show core node leader schedule & block production statistics")"\
 			" ) Backup      - backup & restore of wallet/pool/config"\
-			"$([[ ${ADVANCED_MODE} = true ]] && echo " ) Advanced    - Developer and advanced features: metadata, multi-assets, ...")"\
+			"$([[ ${ADVANCED_MODE} = true ]] && echo " ) Advanced    - Developer and advanced features: metadata, assets, ...")"\
 			" ) Refresh     - reload home screen content"\
 			"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     println DEBUG "$(printf "%84s" "Epoch $(getEpoch) - $(timeLeft "$(timeUntilNextEpoch)") until next")"
@@ -599,7 +599,7 @@ function main {
                     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
                     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
                     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-                    if ! unlockHWDevice "extract ${FG_LGRAY}payment keys${NC}"; then safeDel "${WALLET_FOLDER}/${wallet_name}"; continue; fi
+                    if ! unlockHWDevice "extract ${FG_LGRAY}payment keys${NC}"; then safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue; fi
                     println ACTION "cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --path 1852H/1815H/0H/2/0 --verification-key-file ${payment_vk_file} --verification-key-file ${stake_vk_file} --hw-signing-file ${payment_sk_file} --hw-signing-file ${stake_sk_file}"
                     if ! stdout=$(cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --path 1852H/1815H/0H/2/0 --verification-key-file "${payment_vk_file}" --verification-key-file "${stake_vk_file}" --hw-signing-file "${payment_sk_file}" --hw-signing-file "${stake_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
@@ -1476,7 +1476,7 @@ function main {
               println DEBUG " Valid entry:"
               println DEBUG "   ${FG_LGRAY}>${NC} Integer (e.g. 15) or Decimal (e.g. 956.1235), commas allowed as thousand separator"
               println DEBUG "   ${FG_LGRAY}>${NC} The string '${FG_YELLOW}all${NC}' sends all available funds in source wallet"
-              println DEBUG " Multi-Asset Info:"
+              println DEBUG " Asset Info:"
               println DEBUG "   ${FG_LGRAY}>${NC} If '${FG_YELLOW}all${NC}' is used and the wallet contain multiple assets,"
               println DEBUG "   ${FG_LGRAY}>${NC} you will be asked to transfer all assets (incl ADA) to the destination address"
               println DEBUG " Minimum Amount: ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA"
@@ -4350,15 +4350,15 @@ function main {
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println OFF " Developer & Advanced features\n"\
 						" ) Metadata       - create and optionally post metadata on-chain"\
-						" ) Multi-Asset    - multi-asset nanagement"\
+						" ) Asset          - asset nanagement"\
 						" ) Multisig       - create a multi-signature wallet"\
 						" ) Delete Keys    - delete all sign/cold keys from CNTools (wallet|pool|asset)"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Operation\n"
-          select_opt "[m] Metadata" "[a] Multi-Asset" "[s] Multisig" "[x] Delete Private Keys" "[h] Home"
+          select_opt "[m] Metadata" "[a] Asset" "[s] Multisig" "[x] Delete Private Keys" "[h] Home"
           case $? in
             0) SUBCOMMAND="metadata" ;;
-            1) SUBCOMMAND="multi-asset" ;;
+            1) SUBCOMMAND="asset" ;;
             2) SUBCOMMAND="multisig" ;;
             3) SUBCOMMAND="del-keys" ;;
             4) break ;;
@@ -4507,13 +4507,13 @@ function main {
               println "Metadata successfully posted on-chain"
               waitToProceed && continue
               ;; ###################################################################
-            multi-asset)
-              while true; do # Multi-Asset loop
+            asset)
+              while true; do # Asset loop
                 clear
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println " >> ADVANCED >> MULTI-ASSET"
+                println " >> ADVANCED >> ASSET"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println OFF " Multi-Asset Token Management\n"\
+                println OFF " Asset Token Management\n"\
 									" ) Create Policy  - create a new asset policy"\
 									" ) List Assets    - list created/minted policies/assets (local)"\
 									" ) Show Asset     - show minted asset information"\
@@ -4523,7 +4523,7 @@ function main {
 									" ) Burn Asset     - burn a given amount of assets in selected wallet"\
 									" ) Register Asset - create/update JSON submission file for Cardano Token Registry"\
 									"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println DEBUG " Select Multi-Asset Operation\n"
+                println DEBUG " Select Asset Operation\n"
                 select_opt "[c] Create Policy" "[l] List Assets" "[s] Show Asset" "[d] Decrypt / Unlock Policy" "[e] Encrypt / Lock Policy" "[m] Mint Asset" "[x] Burn Asset" "[r] Register Asset" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="create-policy" ;;
@@ -4541,7 +4541,7 @@ function main {
                   create-policy)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> CREATE POLICY"
+                    println " >> ADVANCED >> ASSET >> CREATE POLICY"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     getAnswerAnyCust policy_name "Internal name to give the generated policy"
@@ -4605,7 +4605,7 @@ function main {
                   list-assets)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> LIST ASSETS"
+                    println " >> ADVANCED >> ASSET >> LIST ASSETS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitToProceed && continue
                     while IFS= read -r -d '' policy; do
@@ -4636,7 +4636,7 @@ function main {
                   show-asset)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> SHOW ASSET"
+                    println " >> ADVANCED >> ASSET >> SHOW ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitToProceed && continue
                     println DEBUG "# Select minted asset to show information for"
@@ -4684,7 +4684,7 @@ function main {
                   decrypt-policy)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> DECRYPT / UNLOCK POLICY"
+                    println " >> ADVANCED >> ASSET >> DECRYPT / UNLOCK POLICY"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitToProceed && continue
@@ -4727,14 +4727,14 @@ function main {
                     if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
                       echo
                       println DEBUG "${FG_YELLOW}Policy files are now unprotected${NC}"
-                      println DEBUG "Use 'ADVANCED >> MULTI-ASSET >> ENCRYPT / LOCK POLICY' to re-lock"
+                      println DEBUG "Use 'ADVANCED >> ASSET >> ENCRYPT / LOCK POLICY' to re-lock"
                     fi
                     waitToProceed && continue
                     ;; ###################################################################
                   encrypt-policy)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> ENCRYPT / LOCK POLICY"
+                    println " >> ADVANCED >> ASSET >> ENCRYPT / LOCK POLICY"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitToProceed && continue
@@ -4786,14 +4786,14 @@ function main {
                     if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
                       echo
                       println DEBUG "${FG_BLUE}INFO${NC}: policy files are now protected"
-                      println DEBUG "Use 'ADVANCED >> MULTI-ASSET >> DECRYPT / UNLOCK POLICY' to unlock"
+                      println DEBUG "Use 'ADVANCED >> ASSET >> DECRYPT / UNLOCK POLICY' to unlock"
                     fi
                     waitToProceed && continue
                     ;; ###################################################################
                   mint-asset)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> MINT ASSET"
+                    println " >> ADVANCED >> ASSET >> MINT ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -4945,7 +4945,7 @@ function main {
                   burn-asset)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> BURN ASSET"
+                    println " >> ADVANCED >> ASSET >> BURN ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -5093,7 +5093,7 @@ function main {
                   register-asset)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> REGISTER ASSET"
+                    println " >> ADVANCED >> ASSET >> REGISTER ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     if ! cmdAvailable "token-metadata-creator"; then
@@ -5237,8 +5237,8 @@ function main {
                     waitToProceed && continue
                     
                     ;; ###################################################################
-                esac # advanced >> multi-asset sub OPERATION
-              done # Multi-Asset loop
+                esac # advanced >> asset sub OPERATION
+              done # Asset loop
               ;; ###################################################################
             multisig)
               while true; do # Multisig loop
@@ -5394,7 +5394,7 @@ function main {
                         ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
                         ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_SK_FILENAME}"
                         ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
-                        if ! unlockHWDevice "extract ${FG_LGRAY}multisig keys${NC}"; then continue; fi
+                        if ! unlockHWDevice "extract ${FG_LGRAY}multisig keys${NC}"; then waitToProceed && continue; fi
                         println ACTION "cardano-hw-cli address key-gen --path 1854H/1815H/0H/0/0 --path 1854H/1815H/0H/2/0 --verification-key-file ${ms_payment_vk_file} --verification-key-file ${ms_stake_vk_file} --hw-signing-file ${ms_payment_sk_file} --hw-signing-file ${ms_stake_sk_file}"
                         if ! stdout=$(cardano-hw-cli address key-gen --path 1854H/1815H/0H/0/0 --path 1854H/1815H/0H/2/0 --verification-key-file "${ms_payment_vk_file}" --verification-key-file "${ms_stake_vk_file}" --hw-signing-file "${ms_payment_sk_file}" --hw-signing-file "${ms_stake_sk_file}" 2>&1); then
                           println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig key extraction!\n${stdout}"; waitToProceed && continue
@@ -5488,14 +5488,14 @@ function main {
                     chmod 600 "${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}"*
                     echo
                     getCredentials ${wallet_name}
-                    println "Wallet       : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Credentials"
-                    println "Payment      : ${ms_pay_cred}"
-                    println "Stake        : ${ms_stake_cred}"
+                    println "Wallet   : ${FG_GREEN}${wallet_name}${NC}"
+                    println "Multisig Credentials"
+                    println "Payment  : ${ms_pay_cred}"
+                    println "Stake    : ${ms_stake_cred}"
                     waitToProceed && continue
                     ;; ###################################################################
-                esac # advanced >> multi-asset sub OPERATION
-              done # Multi-Asset loop
+                esac # advanced >> multisig sub OPERATION
+              done # Multisig loop
               ;; ###################################################################
             del-keys)
               clear
