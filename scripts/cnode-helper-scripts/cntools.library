@@ -625,7 +625,7 @@ selectWallet() {
     fi
   done
 
-  if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then tput rc && tput ed; fi
+  if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" && ${mode} != "non-ms" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then tput rc && tput ed; fi
   if [[ ${#wallet_dirs_filtered[@]} -eq 0 ]]; then
     if [[ ${mode} = "balance" ]]; then
       println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets with funds available for selection! Required files:\n$(printf '%b\n' "$@")"
