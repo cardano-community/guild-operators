@@ -20,7 +20,7 @@
         {"address": "preprod-test.ahlnet.nu", "port": 2101, "pool": "AHL"},
         {"address": "154.12.248.114", "port": 6000, "pool": "HOM1"},
         {"address": "tn-preprod.psilobyte.io", "port": 4101, "pool": "PSBT"},
-        {"address": "209.145.50.190", "port": 18000, "pool": "RDLRT"}
+        {"address": "c.rdlrt.top", "port": 18000, "pool": "RDLRT"}
       ],
       "advertise": false,
       "trustable": false,

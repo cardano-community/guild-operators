@@ -34,7 +34,7 @@ Please familiarise with the syntax of `guild-deploy.sh` before proceeding. The u
 
 ``` bash
 
-Usage: guild-deploy.sh [-n <mainnet|preprod|guild|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][f][d][c][o][w][x]]
+Usage: guild-deploy.sh [-n <mainnet|preprod|guild|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][f][d][c][o][w][x]]
 Set up dependencies for building/using common tools across cardano ecosystem.
 The script will always update dynamic content from existing scripts retaining existing user variables
 
