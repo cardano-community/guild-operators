@@ -13,7 +13,7 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=0
+CNTOOLS_MINOR_VERSION=1
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
 CNTOOLS_PATCH_VERSION=0
 
@@ -433,7 +433,7 @@ selectDir() {
 
 # Command     : selectWallet [mode] [file1 file2 ... | wallet_name1 wallet_name1 ... ]
 # Description : A helper function to select a CNTools wallet
-# Parameters  : mode       >  a string containing some of the following: none|encrypted|non-reg|reg|balance|delegate|reward|assets to be added next to wallet in selection menu
+# Parameters  : mode       >  a string containing some of the following: none|encrypted|non-reg|reg|balance|delegate|reward|assets|non-ms to be added next to wallet in selection menu
 #             : arg array  >  array of files required to exist in wallet folder for it to be selectable **OR** the name of wallet to exclude from selection
 # Return      : populates ${wallet_name} variable with wallet selection
 selectWallet() {
@@ -449,7 +449,7 @@ selectWallet() {
   wallet_dirs=()
 
   if ! getDirs "${WALLET_FOLDER}"; then return 1; fi # dirs() array populated with all wallet folders
-  if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" ]]; then
+  if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" && ${mode} != "non-ms" ]]; then
     tput sc
     wallet_count=${#dirs[@]}
     if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
@@ -483,6 +483,10 @@ selectWallet() {
       else
         wallet_dirs+=("${dir} (${FG_YELLOW}unprotected${NC})")
       fi
+    elif [[ ${mode} = "non-ms" ]]; then
+      ms_payment_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
+      ms_stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+      if [[ -f "${ms_payment_vk_file}" || -f "${ms_stake_vk_file}" ]]; then continue; else wallet_dirs+=("${dir}"); fi
     elif [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
       if [[ ${mode} = "reg" || ${mode} = "non-reg" ]]; then
         if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
@@ -545,7 +549,7 @@ selectWallet() {
   if [[ -n ${KOIOS_API} ]]; then
     if [[ ${#addr_list[@]} -gt 0 ]]; then
       getBalanceKoios false
-      for key in ${!assets[@]}; do
+      for key in "${!assets[@]}"; do
         if [[ ${key} = *lovelace ]]; then
           _address=${key%,*}
           balances[${_address}]=${assets[${key}]}
@@ -983,12 +987,14 @@ verifyTx() {
 # Command     : getPayAddress [wallet name]
 # Description : create and save payment address
 # Parameters  : wallet name  >  the name of the wallet
-# Return      : populates ${pay_addr}
+# Return      : populates ${pay_addr} ${is_pay_script_addr}
 getPayAddress() {
+  unset pay_addr is_pay_script_addr
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
+  payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
   payment_addr_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_ADDR_FILENAME}"
+  [[ -f "${payment_script_file}" ]] && is_pay_script_addr=true || is_pay_script_addr=false
   [[ -f ${payment_addr_file} ]] && pay_addr=$(cat "${payment_addr_file}") && return 0
-  pay_addr=""
   if [[ -f "${payment_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
     if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
@@ -996,6 +1002,14 @@ getPayAddress() {
       return 0
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during payment address creation!\n${stdout}"
+    fi
+  elif [[ -f "${payment_script_file}" ]]; then
+    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-script-file ${payment_script_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-script-file "${payment_script_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+      pay_addr=$(cat "${payment_addr_file}")
+      return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during payment script address creation!\n${stdout}"
     fi
   fi
   return 1
@@ -1007,11 +1021,12 @@ getPayAddress() {
 # Return      : populates ${base_addr}
 getBaseAddress() {
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
-  payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
+  payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
+  stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
   base_addr_file="${WALLET_FOLDER}/${1}/${WALLET_BASE_ADDR_FILENAME}"
   [[ -f ${base_addr_file} ]] && base_addr=$(cat "${base_addr_file}") && return 0
-  base_addr=""
+  unset base_addr
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
     if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
@@ -1020,9 +1035,25 @@ getBaseAddress() {
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${stdout}"
     fi
+  elif [[ -f "${payment_script_file}" && -f "${stake_script_file}" ]]; then
+    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-script-file ${payment_script_file} --stake-script-file ${stake_script_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-script-file "${payment_script_file}" --stake-script-file "${stake_script_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+      base_addr=$(cat "${base_addr_file}")
+      return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${stdout}"
+    fi
   elif [[ -f "${payment_script_file}" && -f "${stake_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-script-file ${payment_script_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
     if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-script-file "${payment_script_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+      base_addr=$(cat "${base_addr_file}")
+      return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${stdout}"
+    fi
+  elif [[ -f "${payment_vk_file}" && -f "${stake_script_file}" ]]; then
+    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --stake-script-file ${stake_script_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --stake-script-file "${stake_script_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       base_addr=$(cat "${base_addr_file}")
       return 0
     else
@@ -1042,12 +1073,14 @@ getBaseAddress() {
 # Command     : getRewardAddress [wallet name]
 # Description : create, store and save reward address
 # Parameters  : wallet name  >  the name of the wallet
-# Return      : populates ${reward_addr}
+# Return      : populates ${reward_addr} ${is_reward_script_addr}
 getRewardAddress() {
+  unset reward_addr is_reward_script_addr
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
+  stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
   stake_addr_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_ADDR_FILENAME}"
+  [[ -f "${stake_script_file}" ]] && is_reward_script_addr=true || is_reward_script_addr=false
   [[ -f ${stake_addr_file} ]] && reward_addr=$(cat "${stake_addr_file}") && return 0
-  reward_addr=""
   if [[ -f "${stake_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file ${stake_vk_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
     if stdout=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
@@ -1055,6 +1088,14 @@ getRewardAddress() {
       return 0
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during reward address creation!\n${stdout}"
+    fi
+  elif [[ -f "${stake_script_file}" ]]; then
+    println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-script-file ${stake_script_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-script-file "${stake_script_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+      reward_addr=$(cat "${stake_addr_file}")
+      return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during reward script address creation!\n${stdout}"
     fi
   elif [[ -f "${1}" ]]; then
     getRewardAddressFromKey ${1}
@@ -1075,54 +1116,66 @@ getRewardAddressFromKey() {
   fi
 }
 
-# Command     : getPayScriptAddress [wallet name]
-# Description : create, store and save multi-sig payment script address
-# Parameters  : wallet name  >  the name of the wallet
-# Return      : populates ${pay_script_addr}
-getPayScriptAddress() {
-  payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
-  payment_script_addr_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_ADDR_FILENAME}"
-  [[ -f ${payment_script_addr_file} ]] && pay_script_addr=$(cat "${payment_script_addr_file}") && return 0
-  unset pay_script_addr
-  if [[ -f "${payment_script_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-script-file ${payment_script_file} --out-file ${payment_script_addr_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-script-file "${payment_script_file}" --out-file "${payment_script_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
-      pay_script_addr=$(cat "${payment_script_addr_file}")
-      return 0
-    else
-      println LOG "\n${FG_RED}ERROR${NC}: failure during payment script address creation!\n${stdout}"
-    fi
-  fi
-  return 1
-}
-
 # Command     : getCredentials [wallet name]
-# Description : create and save wallet credentials (key hash) for payment and stake keys
+# Description : create and save wallet credentials (key hash) for payment and stake keys (incl multisig)
 # Parameters  : wallet name  >  the name of the wallet
-# Return      : populates ${pay_cred} & ${stake_cred}
+# Return      : populates ${pay_cred} & ${stake_cred} ${ms_pay_cred} & ${ms_stake_cred}
 getCredentials() {
+  unset pay_cred stake_cred ms_pay_cred ms_stake_cred
   payment_cred_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_CRED_FILENAME}"
   stake_cred_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_CRED_FILENAME}"
-  [[ -f ${payment_cred_file} && -f ${stake_cred_file} ]] && pay_cred=$(cat "${payment_cred_file}") && stake_cred=$(cat "${stake_cred_file}") && return 0
-  unset pay_cred stake_cred
-  payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
-  stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
-  if [[ -f "${payment_vk_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${payment_vk_file} --out-file ${payment_cred_file}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_cred_file}" 2>&1); then
-      pay_cred=$(cat "${payment_cred_file}")
-    else
-      println LOG "\n${FG_RED}ERROR${NC}: failure during payment key hash creation!\n${stdout}"
-      return 1
+  ms_payment_cred_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_CRED_FILENAME}"
+  ms_stake_cred_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_CRED_FILENAME}"
+  [[ -f ${payment_cred_file} ]] && pay_cred=$(cat "${payment_cred_file}")
+  [[ -f ${stake_cred_file} ]] && stake_cred=$(cat "${stake_cred_file}")
+  [[ -f ${ms_payment_cred_file} ]] && ms_pay_cred=$(cat "${ms_payment_cred_file}")
+  [[ -f ${ms_stake_cred_file} ]] && ms_stake_cred=$(cat "${ms_stake_cred_file}")
+  if [[ -z ${pay_cred} ]]; then
+    payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
+    if [[ -f "${payment_vk_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${payment_vk_file} --out-file ${payment_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_cred_file}" 2>&1); then
+        pay_cred=$(cat "${payment_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during payment key hash creation!\n${stdout}"
+        return 1
+      fi
     fi
   fi
-  if [[ -f "${stake_vk_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cred_file}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cred_file}" 2>&1); then
-      stake_cred=$(cat "${stake_cred_file}")
-    else
-      println LOG "\n${FG_RED}ERROR${NC}: failure during stake key hash creation!\n${stdout}"
-      return 1
+  if [[ -z ${stake_cred} ]]; then
+    stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
+    if [[ -f "${stake_vk_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cred_file}" 2>&1); then
+        stake_cred=$(cat "${stake_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during stake key hash creation!\n${stdout}"
+        return 1
+      fi
+    fi
+  fi
+  if [[ -z ${ms_pay_cred} ]]; then
+    ms_payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
+    if [[ -f "${ms_payment_vk_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${ms_payment_vk_file} --out-file ${ms_payment_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${ms_payment_vk_file}" --out-file "${ms_payment_cred_file}" 2>&1); then
+        ms_pay_cred=$(cat "${ms_payment_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during multisig payment key hash creation!\n${stdout}"
+        return 1
+      fi
+    fi
+  fi
+  if [[ -z ${ms_stake_cred} ]]; then
+    ms_stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+    if [[ -f "${ms_stake_vk_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file ${ms_stake_vk_file} --out-file ${ms_stake_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file "${ms_stake_vk_file}" --out-file "${ms_stake_cred_file}" 2>&1); then
+        ms_stake_cred=$(cat "${ms_stake_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during multisig stake key hash creation!\n${stdout}"
+        return 1
+      fi
     fi
   fi
 }
@@ -1429,7 +1482,7 @@ isWalletRegistered() {
 }
 
 # Command     : getWalletType [wallet name]
-# Description : check if wallet is a hardware wallet, 0=yes, 1=cli, 2=cli & encrypted, 3=signing keys missing, 4=verification keys missing, 5=multi-sig
+# Description : check if wallet is a hardware wallet, 0=hw, 1=cli, 2=cli & encrypted, 3=signing keys missing, 4=verification keys missing, 5=multisig
 # Parameters  : wallet name  >  the name of the wallet
 getWalletType() {
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
@@ -1437,6 +1490,7 @@ getWalletType() {
   payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}"
+  stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
   if [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}" ]]; then # CNTools wallet
     if [[ $(jq -r '.description' "${payment_vk_file}") = *"Hardware"* ]]; then
       payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}"
@@ -1447,11 +1501,22 @@ getWalletType() {
     else
       [[ ${op_mode} = "online" && ( ! -f ${payment_sk_file} || ! -f ${stake_sk_file} ) ]] && return 3 || return 1
     fi
-  elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}" ]]; then # CNTools multi-sig wallet
+  elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}" || -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}" ]]; then # CNTools multisig wallet
     return 5
   else
     return 4
   fi
+}
+
+# Command     : getAllMultisigKeys [script]
+# Description : parse json multisig script for all signatures
+# Parameters  : script      > the native script in json format
+# Return      : populates: ${script_sig_list} (associative array that acts as a set)
+getAllMultisigKeys() {
+  declare -gA script_sig_list=()
+  while read -r _keyHash; do
+    script_sig_list[${_keyHash}]=1
+  done < <( jq -r '.. | select(.type?=="sig") | .keyHash' <<< "$1" )
 }
 
 # Command     : getPoolType [pool name]
@@ -1578,20 +1643,29 @@ registerStakeWallet() {
   )
 
   if ! buildTx; then return 1; fi
-  
-  if [[ ${op_mode} = "hybrid" ]]; then
+
+  getWalletType ${wallet_name}
+  wallet_type=$?
+
+  if [[ ${op_mode} = "hybrid" || ${wallet_type} -eq 5 ]]; then
     if ! buildOfflineJSON "Wallet Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + KEY_DEPOSIT ))\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! offlineJSON=$(jq ". += { \"script-file\": [] }" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' stake script\", script: $(jq -c . "${stake_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
+    println "$([[ ${wallet_type} -eq 5 ]] && echo "Multisig" || echo "Offline") transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
     println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
     println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
     println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
@@ -2238,7 +2312,7 @@ deRegisterPool() {
   if ! getTTL; then return 1; fi
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    for key in ${!assets[@]}; do
+    for key in "${!assets[@]}"; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     utxo_cnt=${utxos_cnt[${addr}]}
@@ -2450,7 +2524,7 @@ sendMetadata() {
   if ! getTTL; then return 1; fi
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    for key in ${!assets[@]}; do
+    for key in "${!assets[@]}"; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     utxo_cnt=${utxos_cnt[${addr}]}
@@ -2533,7 +2607,7 @@ mintAsset() {
   [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    for key in ${!assets[@]}; do
+    for key in "${!assets[@]}"; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     index_prefix="${addr},"
@@ -2638,7 +2712,7 @@ mintAsset() {
 burnAsset() {
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    for key in ${!assets[@]}; do
+    for key in "${!assets[@]}"; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     index_prefix="${addr},"
@@ -3130,7 +3204,7 @@ submitPoll() {
   POOL_ID_HASH=$(cat ${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME})
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    for key in ${!assets[@]}; do
+    for key in "${!assets[@]}"; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     utxo_cnt=${utxos_cnt[${addr}]}
@@ -3232,7 +3306,7 @@ submitPoll() {
       if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
       if ! submitTx "${tx_signed}"; then return 1; fi
       println "Poll ${FG_GREEN}${poll_txId}${NC} ballot casted to the network"
-      waitToProceed && continue
+      waitToProceed && return
   esac
 }
 
