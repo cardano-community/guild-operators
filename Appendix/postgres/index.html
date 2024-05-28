@@ -1093,7 +1093,7 @@ It is recommended to customise these as per your needs for Production builds.</p
 <span class="w">  </span><span class="nv">RELEASE</span><span class="o">=</span><span class="k">$(</span>lsb_release<span class="w"> </span>-cs<span class="k">)</span>
 <span class="w">  </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;deb [arch=amd64] http://apt.postgresql.org/pub/repos/apt/ </span><span class="si">${</span><span class="nv">RELEASE</span><span class="si">}</span><span class="s2">&quot;</span>-pgdg<span class="w"> </span>main<span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w">  </span>/etc/apt/sources.list.d/pgdg.list
 <span class="w">  </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
-<span class="w">  </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>-y<span class="w"> </span>install<span class="w"> </span>postgresql-15<span class="w"> </span>postgresql-server-dev-15<span class="w"> </span>postgresql-contrib<span class="w"> </span>libghc-hdbc-postgresql-dev
+<span class="w">  </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>-y<span class="w"> </span>install<span class="w"> </span>postgresql-16<span class="w"> </span>postgresql-server-dev-16<span class="w"> </span>postgresql-contrib<span class="w"> </span>libghc-hdbc-postgresql-dev
 <span class="w">  </span>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>postgresql
 <span class="w">  </span>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>postgresql
 <span class="k">else</span>
