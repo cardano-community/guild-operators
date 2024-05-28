@@ -19,7 +19,7 @@ if [ -z "${OS_ID##*debian*}" ]; then
   RELEASE=$(lsb_release -cs)
   echo "deb [arch=amd64] http://apt.postgresql.org/pub/repos/apt/ ${RELEASE}"-pgdg main | sudo tee  /etc/apt/sources.list.d/pgdg.list
   sudo apt-get update
-  sudo apt-get -y install postgresql-15 postgresql-server-dev-15 postgresql-contrib libghc-hdbc-postgresql-dev
+  sudo apt-get -y install postgresql-16 postgresql-server-dev-16 postgresql-contrib libghc-hdbc-postgresql-dev
   sudo systemctl restart postgresql
   sudo systemctl enable postgresql
 else

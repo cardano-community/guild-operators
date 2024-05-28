@@ -26,10 +26,10 @@ set_node_minimum_version() {
   response_file=$(mktemp)
   status_code=$(curl -s -o "$response_file" -w "%{http_code}" https://raw.githubusercontent.com/input-output-hk/mithril/${MITHRIL_LATEST_VERSION}/networks.json)
 
-  if [[ "$status_code" -eq 404 ]]; then
+  if [[ "$status_code" -ge 400 ]]; then
     NODE_MINIMUM_VERSION=""
   else
-    NODE_MINIMUM_VERSION=$(jq -r ".${NETWORK}.\"cardano-minimum-version\".\"mithril-signer\"" "$response_file")
+    NODE_MINIMUM_VERSION=$(jq -r ".${NETWORK_NAME,,}.\"cardano-minimum-version\".\"mithril-signer\"" "$response_file")
   fi
   rm -f "$response_file"
 }
