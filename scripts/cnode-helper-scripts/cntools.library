@@ -614,11 +614,11 @@ selectWallet() {
       [[ -v asset_cnt[${base_addr}] ]] && base_asset_str=" + ${FG_LBLUE}${asset_cnt[${base_addr}]}${NC} additional assets" || unset base_asset_str
       [[ -v asset_cnt[${pay_addr}] ]] && pay_asset_str=" + ${FG_LBLUE}${asset_cnt[${pay_addr}]}${NC} additional assets" || unset pay_asset_str
       if [[ ${base_lovelace} -gt 0 && ${pay_lovelace} -gt 0 ]]; then
-        wallet_dirs_filtered+=("${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str} | Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
+        wallet_dirs_filtered+=("${wallet_dir} (Base Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str} | Payment Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
       elif [[ ${pay_lovelace} -gt 0 ]]; then
-        wallet_dirs_filtered+=("${wallet_dir} (Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
+        wallet_dirs_filtered+=("${wallet_dir} (Payment Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
       else
-        wallet_dirs_filtered+=("${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str})")
+        wallet_dirs_filtered+=("${wallet_dir} (Base Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str})")
       fi
     else
       wallet_dirs_filtered+=("${dir}")
@@ -995,13 +995,12 @@ verifyTx() {
 # Command     : getPayAddress [wallet name]
 # Description : create and save payment address
 # Parameters  : wallet name  >  the name of the wallet
-# Return      : populates ${pay_addr} ${is_pay_script_addr}
+# Return      : populates ${pay_addr}
 getPayAddress() {
-  unset pay_addr is_pay_script_addr
+  unset pay_addr
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
   payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
   payment_addr_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_ADDR_FILENAME}"
-  [[ -f "${payment_script_file}" ]] && is_pay_script_addr=true || is_pay_script_addr=false
   [[ -f ${payment_addr_file} ]] && pay_addr=$(cat "${payment_addr_file}") && return 0
   if [[ -f "${payment_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
@@ -1785,7 +1784,7 @@ deregisterStakeWallet() {
 #             : supports fee to be payed by sender(default) or receiver by reducing amount to send
 sendAssets() {
 
-  [[ $(cat "${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${s_addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+  [[ $(cat "${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${s_addr}" ]] && wallet_source="payment" || wallet_source="base"
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     utxo_cnt=${utxos_cnt[${s_addr}]}
@@ -2315,7 +2314,7 @@ modifyPool() {
 # Description : Retire pool
 deRegisterPool() {
 
-  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="payment" || wallet_source="base"
 
   if ! getTTL; then return 1; fi
 
@@ -2516,7 +2515,7 @@ rotatePoolKeys() {
 # Description : post metadata file on chain using specified wallet to pay for the transaction fee
 sendMetadata() {
 
-  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="payment" || wallet_source="base"
 
   if [[ ${metatype} = "no-schema" ]]; then
     metafile_param="--json-metadata-no-schema --metadata-json-file ${metafile}"
@@ -2612,7 +2611,7 @@ sendMetadata() {
 # Description : mint a custom asset using specified wallet to pay for the transaction fee
 mintAsset() {
 
-  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="payment" || wallet_source="base"
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     for key in "${!assets[@]}"; do
@@ -3208,7 +3207,7 @@ to_cbor() {
 # Description : sign and submit a CIP-0094 poll answer
 submitPoll() {
 
-  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="payment" || wallet_source="base"
   POOL_ID_HASH=$(cat ${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME})
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then

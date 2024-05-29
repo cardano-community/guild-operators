@@ -398,11 +398,11 @@ function main {
               getPayAddress ${wallet_name}
               getRewardAddress ${wallet_name}
               getCredentials ${wallet_name}
-              println "New Wallet         : ${FG_GREEN}${wallet_name}${NC}"
-              println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-              println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+              println "New Wallet      : ${FG_GREEN}${wallet_name}${NC}"
+              println "Base Address    : ${FG_LGRAY}${base_addr}${NC}"
+              println "Payment Address : ${FG_LGRAY}${pay_addr}${NC}"
               println DEBUG "\nYou can now send and receive ADA using the above addresses."
-              println DEBUG "Note that Enterprise Address will not take part in staking."
+              println DEBUG "Note that Payment Address will not take part in staking."
               println DEBUG "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
               waitToProceed && continue
               ;; ###################################################################
@@ -524,11 +524,11 @@ function main {
                       waitToProceed && continue
                     fi
                     echo
-                    println "Wallet Imported    : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-                    println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                    println "Wallet Imported : ${FG_GREEN}${wallet_name}${NC}"
+                    println "Base Address    : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Payment Address : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
-                    println DEBUG "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
+                    println DEBUG "You can now send and receive ADA using the above addresses. Note that Payment Address will not take part in staking"
                     println DEBUG "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
                     echo
                     println DEBUG "${FG_YELLOW}Using a mnemonic imported wallet in CNTools comes with a few limitations${NC}"
@@ -603,10 +603,10 @@ function main {
                     getRewardAddress ${wallet_name}
                     echo
                     println "HW Wallet Imported : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-                    println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                    println "Base Address       : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Payment Address    : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
-                    println DEBUG "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
+                    println DEBUG "You can now send and receive ADA using the above addresses. Note that Payment Address will not take part in staking"
                     echo
                     println DEBUG "All transaction signing is now done through hardware device, please follow directions in both CNTools and the device display!"
                     println DEBUG "${FG_YELLOW}Using an imported hardware wallet in CNTools comes with a few limitations${NC}"
@@ -789,13 +789,7 @@ function main {
                 fi
                 if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                   [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
-                  if [[ -n ${pay_addr} ]]; then
-                    if [[ ${is_pay_script_addr} = true ]]; then
-                      println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Script Addr" "${pay_addr}")"
-                    else
-                      println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Enterprise Addr" "${pay_addr}")"
-                    fi
-                  fi
+                  [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Payment Addr" "${pay_addr}")"
                 else
                   if [[ -n ${base_addr} ]]; then
                     lovelace=0
@@ -833,7 +827,7 @@ function main {
                     fi
                     getPriceString ${lovelace}
                     if [[ ${lovelace} -gt 0 ]]; then
-                      [[ ${is_pay_script_addr} = true ]] && address_type"Script" || address_type"Enterprise"
+                      [[ -f "${payment_script_file}" ]] && address_type="Payment"
                       println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "${address_type} Address" "${pay_addr}")"
                       if [[ ${asset_cnt} -eq 0 ]]; then
                         println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "${address_type} Funds" "$(formatLovelace ${lovelace})")"
@@ -925,7 +919,7 @@ function main {
                     total_lovelace=$((total_lovelace + base_lovelace))
                   else
                     [[ -z ${pay_addr} ]] && continue
-                    [[ ${is_pay_script_addr} = true ]] && address_type"Script" || address_type"Enterprise"
+                    address_type="Payment"
                     address=${pay_addr}
                     if [[ -n ${KOIOS_API} ]]; then
                       pay_lovelace=${assets["${pay_addr},lovelace"]}
@@ -1036,11 +1030,7 @@ function main {
 
               [[ -n ${base_addr} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
               if [[ -n ${pay_addr} ]]; then
-                if [[ ${is_pay_script_addr} ]]; then
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Address" "${pay_script_addr}")"
-                else
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Enterprise Address" "${pay_addr}")"
-                fi
+                println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment Address" "${pay_addr}")"
               fi
               [[ -n ${reward_addr} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
               if [[ -n ${pay_cred} || -n ${stake_cred} || -n ${ms_pay_cred} || -n ${ms_stake_cred} ]]; then
@@ -1143,8 +1133,8 @@ function main {
                 esac
               else
                 println "${FG_RED}WARN${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not empty!"
-                [[ ${base_lovelace} -gt 0 ]] && println "Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
-                [[ ${pay_lovelace} -gt 0 ]] && println "Enterprise Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
+                [[ ${base_lovelace} -gt 0 ]] && println "Base Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
+                [[ ${pay_lovelace} -gt 0 ]] && println "Payment Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
                 [[ ${reward_lovelace} -gt 0 ]] && println "Rewards : ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} ADA"
                 echo
                 println DEBUG "${FG_RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
@@ -1332,10 +1322,10 @@ function main {
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "Select source wallet address"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
-                select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                 case $? in
                   0) s_addr="${base_addr}" ;;
                   1) s_addr="${pay_addr}" ;;
@@ -1345,12 +1335,12 @@ function main {
               elif [[ ${pay_lovelace} -gt 0 ]]; then
                 s_addr="${pay_addr}"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA\n" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA\n" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
               elif [[ ${base_lovelace} -gt 0 ]]; then
                 s_addr="${base_addr}"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA\n" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA\n" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
                 println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
@@ -1371,8 +1361,8 @@ function main {
                   getBaseAddress ${d_wallet}
                   getPayAddress ${d_wallet}
                   if [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" && -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
-                    # Both base and enterprise address available, let user choose what to use
-                    select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                    # Both base and payment address available, let user choose what to use
+                    select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                     case $? in
                       0) d_addr="${base_addr}" ;;
                       1) d_addr="${pay_addr}" ;;
@@ -1572,7 +1562,7 @@ function main {
               getAddressBalance ${d_addr} true
               d_balance=${lovelace}
               getPayAddress ${s_wallet}
-              [[ "${pay_addr}" = "${s_addr}" ]] && s_wallet_type=" (Enterprise)" || s_wallet_type=""
+              [[ "${pay_addr}" = "${s_addr}" ]] && s_wallet_type=" (payment)" || s_wallet_type=""
               echo
               println "Transaction"
               println "  From          : ${FG_GREEN}${s_wallet}${NC}${s_wallet_type}"
@@ -1583,7 +1573,7 @@ function main {
               done
               if [[ -n "${d_wallet}" ]]; then
                 getPayAddress ${d_wallet}
-                [[ "${pay_addr}" = "${d_addr}" ]] && d_wallet_type=" (Enterprise)" || d_wallet_type=""
+                [[ "${pay_addr}" = "${d_addr}" ]] && d_wallet_type=" (payment)" || d_wallet_type=""
                 println "  To            : ${FG_GREEN}${d_wallet}${NC}${d_wallet_type}"
               else
                 println "  To            : ${FG_LGRAY}${d_addr}${NC}"
@@ -2626,10 +2616,10 @@ function main {
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "\n# Select wallet address to use"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
-                select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                 case $? in
                   0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
                   1) addr="${pay_addr}";  lovelace=${pay_lovelace} ;;
@@ -2639,13 +2629,13 @@ function main {
                 addr="${pay_addr}"
                 lovelace=${pay_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
               elif [[ ${base_lovelace} -gt 0 ]]; then
                 addr="${base_addr}"
                 lovelace=${base_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -3315,10 +3305,10 @@ function main {
                     # Both payment and base address available with funds, let user choose what to use
                     println DEBUG "\n# Select wallet address to use"
                     if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                      println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                      println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                      println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                     fi
-                    select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                    select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                     case $? in
                       0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
                       1) addr="${pay_addr}";  lovelace=${pay_lovelace} ;;
@@ -3328,7 +3318,7 @@ function main {
                     addr="${pay_addr}"
                     lovelace=${pay_lovelace}
                     if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                      println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                     fi
                   elif [[ ${base_lovelace} -gt 0 ]]; then
                     addr="${base_addr}"
@@ -3534,7 +3524,7 @@ function main {
               println DEBUG "Transaction type : ${FG_GREEN}${otx_type}${NC}"
               if wallet_name=$(jq -er '."wallet-name"' <<< ${offlineJSON}); then 
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA, payed by ${FG_GREEN}${wallet_name}${NC}"
-                [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+                [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="payment" || wallet_source="base"
               else
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA"
               fi
@@ -4464,11 +4454,11 @@ function main {
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "Select source wallet address"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
                 echo
-                select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                 case $? in
                   0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
                   1) addr="${pay_addr}";  lovelace=${pay_lovelace} ;;
@@ -4478,13 +4468,13 @@ function main {
                 addr="${pay_addr}"
                 lovelace=${pay_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
               elif [[ ${base_lovelace} -gt 0 ]]; then
                 addr="${base_addr}"
                 lovelace=${base_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
                 println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -4879,11 +4869,11 @@ function main {
                       # Both payment and base address available with funds, let user choose what to use
                       println DEBUG "Select source wallet address"
                       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                       fi
                       echo
-                      select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                      select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                       case $? in
                         0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
                         1) addr="${pay_addr}" ; lovelace=${pay_lovelace} ;;
@@ -4894,13 +4884,13 @@ function main {
                       addr="${pay_addr}"
                       lovelace=${pay_lovelace}
                       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA\n" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA\n" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                       fi
                     elif [[ ${base_lovelace} -gt 0 ]]; then
                       addr="${base_addr}"
                       lovelace=${base_lovelace}
                       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA\n" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA\n" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
                       fi
                     else
                       println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -4971,7 +4961,7 @@ function main {
                         0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet for asset burning!" && waitToProceed && continue ;;
                       esac
                     fi
-                    # Let user choose asset on wallet to burn, both base and enterprise, fee payed with same address
+                    # Let user choose asset on wallet to burn, both base and payment, fee payed with same address
                     assets_on_wallet=()
                     getWalletBalance ${wallet_name} true true true true
                     for asset in "${!base_assets[@]}"; do
@@ -4984,7 +4974,7 @@ function main {
                       [[ ${asset} = "lovelace" ]] && continue
                       IFS='.' read -ra asset_arr <<< "${asset}"
                       [[ -z ${asset_arr[1]} ]] && asset_ascii_name="" || asset_ascii_name=$(hexToAscii ${asset_arr[1]})
-                      assets_on_wallet+=( "${asset} (${asset_ascii_name}) [enterprise addr]" )
+                      assets_on_wallet+=( "${asset} (${asset_ascii_name}) [payment addr]" )
                     done
                     echo
                     [[ ${#assets_on_wallet[@]} -eq 0 ]] && println ERROR "${FG_RED}ERROR${NC}: Wallet doesn't contain any assets!" && waitToProceed && continue
@@ -5003,7 +4993,7 @@ function main {
                       lovelace=${base_assets[lovelace]}
                     else
                       addr=${pay_addr}
-                      wallet_source="enterprise"
+                      wallet_source="payment"
                       curr_asset_amount=${pay_assets[${asset}]}
                       lovelace=${pay_assets[lovelace]}
                     fi
@@ -5357,9 +5347,9 @@ function main {
                     getRewardAddress ${ms_wallet_name}
                     echo
                     println "New Multisig Wallet : ${FG_GREEN}${ms_wallet_name}${NC}"
-                    println "Address              : ${FG_LGRAY}${base_addr}${NC}"
-                    println "Payment Address      : ${FG_LGRAY}${pay_addr}${NC}"
-                    println "Reward Address       : ${FG_LGRAY}${reward_addr}${NC}"
+                    println "Address             : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Payment Address     : ${FG_LGRAY}${pay_addr}${NC}"
+                    println "Reward Address      : ${FG_LGRAY}${reward_addr}${NC}"
                     println DEBUG "\nYou can now send and receive ADA using the above 'Address' or 'Payment Address'."
                     println DEBUG "Note that Payment Address will not take part in staking."
                     waitToProceed && continue
