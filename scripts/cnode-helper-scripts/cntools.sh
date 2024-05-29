@@ -781,6 +781,12 @@ function main {
                 else
                   println "${FG_GREEN}${wallet_name}${NC}"
                 fi
+                getWalletType ${wallet_name}
+                case $? in
+                  0) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Hardware")" ;;
+                  1) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "CLI")" ;;
+                  5) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Multisig")" ;;
+                esac
                 getBaseAddress ${wallet_name}
                 getPayAddress ${wallet_name}
                 if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
@@ -788,7 +794,7 @@ function main {
                   continue
                 fi
                 if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                  [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
+                  [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Base Address" "${base_addr}")"
                   [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Payment Addr" "${pay_addr}")"
                 else
                   if [[ -n ${base_addr} ]]; then
@@ -805,11 +811,11 @@ function main {
                       asset_cnt=$(( ${#assets[@]} - 1 ))
                     fi
                     getPriceString ${lovelace}
-                    println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
+                    println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Base Address"  "${base_addr}")"
                     if [[ ${asset_cnt} -eq 0 ]]; then
-                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds"  "$(formatLovelace ${lovelace})")"
+                      println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Base Funds"  "$(formatLovelace ${lovelace})")"
                     else
-                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
+                      println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
                     fi
                   fi
                   if [[ -n ${pay_addr} ]]; then
@@ -827,12 +833,11 @@ function main {
                     fi
                     getPriceString ${lovelace}
                     if [[ ${lovelace} -gt 0 ]]; then
-                      [[ -f "${payment_script_file}" ]] && address_type="Payment"
-                      println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "${address_type} Address" "${pay_addr}")"
+                      println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Payment Addr" "${pay_addr}")"
                       if [[ ${asset_cnt} -eq 0 ]]; then
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "${address_type} Funds" "$(formatLovelace ${lovelace})")"
+                        println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Payment Funds" "$(formatLovelace ${lovelace})")"
                       else
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "${address_type} Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
+                        println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Payment Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
                       fi
                     fi
                   fi
@@ -845,7 +850,7 @@ function main {
                   fi
                   if [[ ${reward_lovelace} -gt 0 ]]; then
                     getPriceString ${reward_lovelace}
-                    println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
+                    println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
                     if [[ -n ${delegation_pool_id} ]]; then
                       unset poolName
                       while IFS= read -r -d '' pool; do
@@ -1005,15 +1010,25 @@ function main {
               esac
 
               if [[ -f ${payment_script_file} ]]; then
-                if timelock_after=$(jq -er '.scripts[0].type' "${payment_script_file}") && [[ ${timelock_after} = "after" ]]; then
-                  timelock_slot=$(jq -r '.scripts[0].slot' "${payment_script_file}")
-                  timelock_date=$(getDateFromSlot ${timelock_slot} '%(%F %T %Z)T')
-                  [[ $(getSlotTipRef) -gt ${timelock_slot} ]] && timelock_color="${FG_GREEN}" || timelock_color="${FG_YELLOW}"
+                unset timelock_after atleast total_signers
+                while read -r _slot; do
+                  timelock_after=${_slot}
+                  break
+                done < <( jq -r '.. | select(.type?=="after") | .slot' <<< "$1" )
+                while IFS=',' read -r _required _total; do
+                  atleast=${_required}
+                  total_signers=${_total}
+                  break
+                done < <( jq -r '.. | select(.type?=="atLeast") | "\(.required),\(.scripts|length)"' <<< "$1" )
+                if [[ -n ${timelock_after} ]]; then
+                  timelock_date=$(getDateFromSlot ${timelock_after} '%(%F %T %Z)T')
+                  [[ $(getSlotTipRef) -gt ${timelock_after} ]] && timelock_color="${FG_GREEN}" || timelock_color="${FG_YELLOW}"
                   println "$(printf "%-20s ${FG_DGRAY}:${NC} ${timelock_color}%s${NC}" "Time Locked Until" "${timelock_date}")"
                 fi
-                if atleast=$(jq -er '.scripts[1].type' "${payment_script_file}") && [[ ${atleast} = "atLeast" ]]; then
-                  cred_header="Multisig Creds ($(jq -r '.scripts[1].scripts|length' "${payment_script_file}"))"
-                  while read -r _sig; do
+                if [[ -n ${atleast} ]]; then
+                  cred_header="Multisig Creds (${total_signers})"
+                  getAllMultisigKeys "$(cat ${payment_script_file})"
+                  for _sig in "${script_sig_list[@]}"; do
                     unset wallet_str
                     while IFS= read -r -d '' wallet; do
                       getCredentials "$(basename ${wallet})"
@@ -1023,8 +1038,8 @@ function main {
                     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                     println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}%s" "${cred_header}" "${_sig}" "${wallet_str}")"
                     unset cred_header
-                  done < <( jq -r '.scripts[1].scripts[].keyHash' "${payment_script_file}")
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Required signers" "$(jq -r '.scripts[1].required' "${payment_script_file}")")"
+                  done
+                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Required signers" "${atleast}")"
                 fi
               fi
 
@@ -5262,6 +5277,8 @@ function main {
                     # Wallet key filenames
                     ms_pay_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
                     ms_stake_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SCRIPT_FILENAME}"
+                    ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
+                    ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
                     if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
                       println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
                       println "      Choose another name or delete the existing one"
@@ -5341,6 +5358,7 @@ function main {
                     if ! stdout=$(jq -e . <<< "${stake_script}" > "${ms_stake_script_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during stake script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
                     fi
+
                     chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
                     getBaseAddress ${ms_wallet_name}
                     getPayAddress ${ms_wallet_name}
