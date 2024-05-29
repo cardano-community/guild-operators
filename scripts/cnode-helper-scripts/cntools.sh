@@ -479,14 +479,6 @@ function main {
                     stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
                     payment_xpub=$(cardano-address key public ${caddr_arg} <<< ${payment_xprv})
                     stake_xpub=$(cardano-address key public ${caddr_arg} <<< ${stake_xprv})
-                    [[ "${NWMAGIC}" == "764824073" ]] && network_tag=1 || network_tag=0
-                    base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
-                    if [[ "${caddr_v}" == 2* ]] && [[ "${NWMAGIC}" != "764824073" ]]; then
-                      println LOG "TestNet, converting address to 'addr_test'"
-                      base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
-                    fi
-                    println LOG "Base address candidate = ${base_addr_candidate}"
-                    println LOG "Address Inspection:\n$(cardano-address address inspect <<< ${base_addr_candidate})"
                     pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
                     ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
                     cat <<-EOF > "${payment_sk_file}"
@@ -5291,25 +5283,27 @@ function main {
                     println OFF "Select wallet(s) / credentials (key hashes) to include in multisig wallet"
                     println OFF "${FG_YELLOW}!${NC} Please use 1854H (multisig) derived keys according to CIP-1854!"
                     println OFF "${FG_YELLOW}!${NC} Only wallets with these keys will be listed, use 'Derive Keys' option to generate them."
+                    echo
+                    selected_wallets=()
                     while true; do
-                      println DEBUG "\nSelect wallet or manually enter credentials?"
+                      println DEBUG "Select wallet or manually enter credentials?"
                       select_opt "[w] Wallet" "[c] Credentials" "[Esc] Cancel"
-                      echo
                       case $? in
-                        0) selectWallet "balance" "${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}" "${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+                        0) selectWallet "balance" "${selected_wallets[@]}" "${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}" "${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
                           case $? in
                             1) waitToProceed; continue ;;
                             2) continue ;;
                           esac
                           getCredentials ${wallet_name}
-                          [[ -z ${ms_pay_cred} ]] && println ERROR "${FG_RED}ERROR${NC}: wallet multisig payment credentials not set!" && waitToProceed && continue
-                          [[ -z ${ms_stake_cred} ]] && println ERROR "${FG_RED}ERROR${NC}: wallet multisig stake credentials not set!" && waitToProceed && continue
+                          [[ -z ${ms_pay_cred} ]] && println ERROR "\n${FG_RED}ERROR${NC}: wallet multisig payment credentials not set!" && waitToProceed && continue
+                          [[ -z ${ms_stake_cred} ]] && println ERROR "\n${FG_RED}ERROR${NC}: wallet multisig stake credentials not set!" && waitToProceed && continue
                           key_hashes[${ms_pay_cred}]="${ms_stake_cred}"
+                          selected_wallets+=("${wallet_name}")
                           ;;
                         1) getAnswerAnyCust ms_pay_cred "Multisig Payment Credential (key hash)"
-                          [[ ${#ms_pay_cred} -ne 56 ]] && println ERROR "${FG_RED}ERROR${NC}: invalid payment credential entered!" && waitToProceed && continue
+                          [[ ${#ms_pay_cred} -ne 56 ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid payment credential entered!" && waitToProceed && continue
                           getAnswerAnyCust ms_stake_cred "Multisig Stake Credential (key hash)"
-                          [[ ${#ms_stake_cred} -ne 56 ]] && println ERROR "${FG_RED}ERROR${NC}: invalid stake credential entered!" && waitToProceed && continue
+                          [[ ${#ms_stake_cred} -ne 56 ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid stake credential entered!" && waitToProceed && continue
                           key_hashes[${ms_pay_cred}]="${ms_stake_cred}"
                           ;;
                         2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
@@ -5445,11 +5439,6 @@ function main {
                             stake_xprv=$(cardano-address key child 1854H/1815H/0H/2/0 <<< ${root_prv})
                             payment_xpub=$(cardano-address key public ${caddr_arg} <<< ${payment_xprv})
                             stake_xpub=$(cardano-address key public ${caddr_arg} <<< ${stake_xprv})
-                            [[ "${NWMAGIC}" == "764824073" ]] && network_tag=1 || network_tag=0
-                            base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
-                            if [[ "${caddr_v}" == 2* ]] && [[ "${NWMAGIC}" != "764824073" ]]; then
-                              base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
-                            fi
                             pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
                             ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
                             cat <<-EOF > "${ms_payment_sk_file}"
