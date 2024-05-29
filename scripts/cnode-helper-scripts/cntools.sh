@@ -641,7 +641,7 @@ function main {
               echo
               println DEBUG "# Select wallet to register (only non-registered wallets shown)"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "non-reg"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -652,7 +652,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "non-reg"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -690,7 +690,7 @@ function main {
               echo
               println DEBUG "# Select wallet to de-register (only registered wallets shown)"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "reg"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -701,7 +701,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "reg"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -815,7 +815,7 @@ function main {
                     if [[ ${asset_cnt} -eq 0 ]]; then
                       println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Base Funds"  "$(formatLovelace ${lovelace})")"
                     else
-                      println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
+                      println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Base Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
                     fi
                   fi
                   if [[ -n ${pay_addr} ]]; then
@@ -1042,7 +1042,7 @@ function main {
                 fi
               fi
 
-              [[ -n ${base_addr} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
+              [[ -n ${base_addr} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Base Address" "${base_addr}")"
               if [[ -n ${pay_addr} ]]; then
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment Address" "${pay_addr}")"
               fi
@@ -1311,7 +1311,7 @@ function main {
               # source wallet
               println DEBUG "# Select ${FG_YELLOW}source${NC} wallet"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                selectWallet "balance"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1322,7 +1322,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                selectWallet "balance"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1614,7 +1614,7 @@ function main {
               echo
               println DEBUG "# Select wallet to delegate"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "delegate"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1625,7 +1625,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "delegate"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1635,10 +1635,10 @@ function main {
               getWalletBalance ${wallet_name} true true false true
               if [[ ${base_lovelace} -gt 0 ]]; then
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds on address:"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
-                println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
+                println ERROR "\n${FG_RED}ERROR${NC}: no base funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
                 waitToProceed && continue
               fi
               getWalletRewards ${wallet_name}
@@ -1708,7 +1708,7 @@ function main {
               echo
               println DEBUG "# Select wallet to withdraw funds from"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "reward"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1719,7 +1719,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "reward"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1733,11 +1733,11 @@ function main {
                 println ERROR "Failed to locate any rewards associated with the chosen wallet, please try another one"
                 waitToProceed && continue
               elif [[ ${base_lovelace} -eq 0 ]]; then
-                println ERROR "${FG_YELLOW}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
+                println ERROR "${FG_YELLOW}WARN${NC}: No funds on base address, please send funds to base address of wallet to cover withdraw transaction fee"
                 waitToProceed && continue
               fi
-              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds"  "$(formatLovelace ${base_lovelace})")"
-              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")"
+              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Base Funds" "$(formatLovelace ${base_lovelace})")"
+              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")"
               if ! withdrawRewards; then
                 waitToProceed && continue
               fi
@@ -1746,8 +1746,7 @@ function main {
               getWalletBalance ${wallet_name} true true false
               echo
               println "Rewards successfully withdrawn"
-              println "New Balance"
-              println "  Funds   : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
+              println "Base Funds (new balance) : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
               waitToProceed && continue
               ;; ###################################################################
           esac # funds sub OPERATION
@@ -2222,7 +2221,7 @@ function main {
                         fi
                         getWalletBalance ${wallet_name} true true false true
                         if [[ ${base_lovelace} -eq 0 ]]; then
-                          println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
+                          println ERROR "${FG_RED}ERROR${NC}: no funds available on base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                           waitToProceed && continue 2
                         fi
                         println DEBUG "# Wallet Registration Transaction"
@@ -2252,7 +2251,7 @@ function main {
               if [[ ${reuse_wallets} = 'N' ]]; then
                 println DEBUG "# Select main ${FG_YELLOW}owner/pledge${NC} wallet (normal CLI wallet)"
                 if [[ ${op_mode} = "online" ]]; then
-                  if ! selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+                  if ! selectWallet "delegate"; then # ${wallet_name} populated by selectWallet function
                     [[ "${dir_name}" != "[Esc] Cancel" ]] && waitToProceed; continue
                   fi
                   getWalletType ${wallet_name}
@@ -2265,7 +2264,7 @@ function main {
                     3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                   esac
                 else
-                  selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                  selectWallet "delegate"
                   case $? in
                     1) waitToProceed; continue ;;
                     2) continue ;;
@@ -2280,7 +2279,7 @@ function main {
                   fi
                   getWalletBalance ${wallet_name} true true false true
                   if [[ ${base_lovelace} -eq 0 ]]; then
-                    println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
+                    println ERROR "${FG_RED}ERROR${NC}: no funds available on base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                     waitToProceed && continue
                   fi
                   println DEBUG "# Wallet Registration Transaction"
@@ -2296,7 +2295,7 @@ function main {
                   select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
                   case $? in
                     0) break ;;
-                    1) if selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[@]}"; then # ${wallet_name} populated by selectWallet function
+                    1) if selectWallet "delegate" "${owner_wallets[@]}"; then # ${wallet_name} populated by selectWallet function
                         getWalletType ${wallet_name}
                         case $? in
                           0) hw_owner_wallets='Y' ;;
@@ -2328,7 +2327,7 @@ function main {
                 select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
                 case $? in
                   0) reward_wallet="${owner_wallets[0]}" ;;
-                  1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[0]}"; then # ${wallet_name} populated by selectWallet function
+                  1) if ! selectWallet "none" "${owner_wallets[0]}"; then # ${wallet_name} populated by selectWallet function
                       [[ "${dir_name}" != "[Esc] Cancel" ]] && waitToProceed; continue
                     fi
                     reward_wallet="${wallet_name}"
@@ -2346,7 +2345,7 @@ function main {
 
               getWalletBalance ${owner_wallets[0]} true true false true
               if [[ ${base_lovelace} -eq 0 ]]; then
-                println ERROR "\n${FG_RED}ERROR${NC}: no funds available in owner wallet ${FG_GREEN}${owner_wallets[0]}${NC}"
+                println ERROR "\n${FG_RED}ERROR${NC}: no funds available on owner wallet base address ${FG_GREEN}${owner_wallets[0]}${NC}"
                 waitToProceed && continue
               fi
 
@@ -2604,7 +2603,7 @@ function main {
               fi
               println DEBUG "# Select wallet for pool de-registration transaction fee"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                selectWallet "balance"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -2616,7 +2615,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                selectWallet "balance"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -3293,7 +3292,7 @@ function main {
                   echo
                   println DEBUG "# Select wallet for the ballot cast transaction fee"
                   if [[ ${op_mode} = "online" ]]; then
-                    selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                    selectWallet "balance"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
@@ -3305,7 +3304,7 @@ function main {
                       3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                     esac
                   else
-                    selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                    selectWallet "balance"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
@@ -3339,7 +3338,7 @@ function main {
                     addr="${base_addr}"
                     lovelace=${base_lovelace}
                     if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                      println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
                     fi
                   else
                     println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -4441,7 +4440,7 @@ function main {
               esac
               println DEBUG "\n# Select wallet to pay for metadata transaction fee"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
+                selectWallet "balance"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -4861,7 +4860,7 @@ function main {
                     esac
                     println DEBUG "\n# Select wallet to mint assets on (also used for transaction fee)"
                     if [[ ${op_mode} = "online" ]]; then
-                      selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
+                      selectWallet "balance"
                       case $? in
                         1) waitToProceed; continue ;;
                         2) continue ;;
@@ -4954,7 +4953,7 @@ function main {
                     echo
                     println DEBUG "# Select wallet with assets to burn"
                     if [[ ${op_mode} = "online" ]]; then
-                      selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
+                      selectWallet "balance"
                       case $? in
                         1) waitToProceed; continue ;;
                         2) continue ;;
