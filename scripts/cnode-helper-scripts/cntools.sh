@@ -1010,16 +1010,17 @@ function main {
               esac
 
               if [[ -f ${payment_script_file} ]]; then
-                unset timelock_after atleast total_signers
+                unset timelock_after atleast total_signers script_sig_list
                 while read -r _slot; do
                   timelock_after=${_slot}
                   break
                 done < <( jq -r '.. | select(.type?=="after") | .slot' "${payment_script_file}" )
-                while IFS=',' read -r _required _total; do
+                while IFS=',' read -r _required _total _sig_list; do
                   atleast=${_required}
                   total_signers=${_total}
+                  IFS=' ' read -a script_sig_list <<< "${_sig_list}"
                   break
-                done < <( jq -r '.. | select(.type?=="atLeast") | "\(.required),\(.scripts|length)"' "${payment_script_file}" )
+                done < <( jq -r '.. | select(.type?=="atLeast") | "\(.required),\(.scripts|length),\(.scripts|map(.keyHash)|@tsv)"' "${payment_script_file}" )
                 if [[ -n ${timelock_after} ]]; then
                   timelock_date=$(getDateFromSlot ${timelock_after} '%(%F %T %Z)T')
                   [[ $(getSlotTipRef) -gt ${timelock_after} ]] && timelock_color="${FG_GREEN}" || timelock_color="${FG_YELLOW}"
@@ -1027,7 +1028,6 @@ function main {
                 fi
                 if [[ -n ${atleast} ]]; then
                   cred_header="Multisig Creds (${total_signers})"
-                  getAllMultisigKeys "$(cat ${payment_script_file})"
                   for _sig in "${script_sig_list[@]}"; do
                     unset wallet_str
                     while IFS= read -r -d '' wallet; do
