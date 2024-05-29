@@ -1014,12 +1014,12 @@ function main {
                 while read -r _slot; do
                   timelock_after=${_slot}
                   break
-                done < <( jq -r '.. | select(.type?=="after") | .slot' <<< "$1" )
+                done < <( jq -r '.. | select(.type?=="after") | .slot' "${payment_script_file}" )
                 while IFS=',' read -r _required _total; do
                   atleast=${_required}
                   total_signers=${_total}
                   break
-                done < <( jq -r '.. | select(.type?=="atLeast") | "\(.required),\(.scripts|length)"' <<< "$1" )
+                done < <( jq -r '.. | select(.type?=="atLeast") | "\(.required),\(.scripts|length)"' "${payment_script_file}" )
                 if [[ -n ${timelock_after} ]]; then
                   timelock_date=$(getDateFromSlot ${timelock_after} '%(%F %T %Z)T')
                   [[ $(getSlotTipRef) -gt ${timelock_after} ]] && timelock_color="${FG_GREEN}" || timelock_color="${FG_YELLOW}"
