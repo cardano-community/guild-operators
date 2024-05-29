@@ -3671,12 +3671,12 @@ function main {
                     println DEBUG "${FG_GREEN}Successfully added!${NC}"
                     tx_sign_files+=( "${file}" )
                   done
-                  for otx_script_file in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
-                    _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
+                  for otx_script in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
+                    _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
                     otx_script_name=$(_jq '.name')
-                    otx_script="$(_jq '.script' 2>/dev/null)"
-                    getAllMultisigKeys "${otx_script}"
-                    for sig in "${script_sig_list}"; do
+                    otx_script_scripts="$(_jq '.script' 2>/dev/null)"
+                    getAllMultisigKeys "${otx_script_scripts}"
+                    for sig in "${!script_sig_list[@]}"; do
                       echo "sig: $sig"
                     done
                   done

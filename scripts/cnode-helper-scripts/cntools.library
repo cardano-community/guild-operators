@@ -1520,6 +1520,7 @@ getWalletType() {
 # Parameters  : script      > the native script in json format
 # Return      : populates: ${script_sig_list} (associative array that acts as a set)
 getAllMultisigKeys() {
+  unset script_sig_list
   declare -gA script_sig_list=()
   while read -r _keyHash; do
     script_sig_list[${_keyHash}]=1
@@ -1665,12 +1666,12 @@ registerStakeWallet() {
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + KEY_DEPOSIT ))\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"script-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if [[ ${wallet_type} -eq 5 ]]; then
-      if ! offlineJSON=$(jq ". += { \"script-file\": [] }" <<< ${offlineJSON}); then return 1; fi
       if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
       if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' stake script\", script: $(jq -c . "${stake_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
     else
-      if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
       if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
       if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     fi
