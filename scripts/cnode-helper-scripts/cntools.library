@@ -1597,10 +1597,16 @@ registerStakeWallet() {
   fi
 
   stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+  stake_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SCRIPT_FILENAME}"
   stake_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_CERT_FILENAME}"
-  
-  println ACTION "${CCLI} ${NETWORK_ERA} stake-address registration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cert_file}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}" 2>&1); then
+
+  if [[ -f ${stake_script_file} ]]; then
+    stake_param=("--stake-script-file" "${stake_script_file}")
+  else
+    stake_param=("--stake-verification-key-file" "${stake_vk_file}")
+  fi
+  println ACTION "${CCLI} ${NETWORK_ERA} stake-address registration-certificate ${stake_param[*]} --out-file ${stake_cert_file}"
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address registration-certificate "${stake_param[@]}" --out-file "${stake_cert_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake registration certificate creation!\n${stdout}"; return 1
   fi
 
@@ -1672,10 +1678,15 @@ registerStakeWallet() {
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "$([[ ${wallet_type} -eq 5 ]] && echo "Multisig" || echo "Offline") transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
+    if [[ ${wallet_type} -eq 5 ]]; then
+      println "Multisig wallet registration transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
