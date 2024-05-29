@@ -628,18 +628,26 @@ selectWallet() {
   if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" && ${mode} != "non-ms" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then tput rc && tput ed; fi
   if [[ ${#wallet_dirs_filtered[@]} -eq 0 ]]; then
     if [[ ${mode} = "balance" ]]; then
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets with funds available for selection! Required files:\n$(printf '%b\n' "$@")"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available for selection!"
     elif [[ ${mode} = "delegate" ]]; then
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that can be delegated or used as pool pledge/owner/reward wallet! Required files:\n$(printf '%b\n' "$@")"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available that can be delegated or used as pool pledge/owner/reward wallet! Required files:\n$(printf '%b\n' "$@")"
     elif [[ ${mode} = "reward" ]]; then
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that have rewards to withdraw or signing keys to do so!"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available that have rewards to withdraw or signing keys to do so!"
     elif [[ ${mode} = "reg" ]]; then
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that are registered on chain!"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available that are registered on chain!"
     elif [[ ${mode} = "non-reg" ]]; then
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that are unregistered!"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available that are unregistered!"
     else
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available for selection! Required files:\n$(printf '%b\n' "$@")"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available for selection! Required files:\n$(printf '%b\n' "$@")"
     fi
+    required_files=()
+    already_selected_wallets=()
+    for arg in "$@"; do
+      [[ ${arg} = *"."* ]] && required_files+=("${arg}")
+      [[ ${arg} != *"."* ]] && already_selected_wallets+=("${arg}")
+    done
+    [[ "${#already_selected_wallets[@]}" -gt 0 ]] && println INFO "Already selected wallets:\n$(printf '%b\n' "${already_selected_wallets[@]}")"
+    [[ "${#required_files[@]}" -gt 0 ]] && println INFO "Required files:\n$(printf '%b\n' "${required_files[@]}")"
     return 1
   fi
 
