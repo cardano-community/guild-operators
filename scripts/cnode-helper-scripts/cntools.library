@@ -646,8 +646,8 @@ selectWallet() {
       [[ ${arg} = *"."* ]] && required_files+=("${arg}")
       [[ ${arg} != *"."* ]] && already_selected_wallets+=("${arg}")
     done
-    [[ "${#already_selected_wallets[@]}" -gt 0 ]] && println INFO "Already selected wallets:\n$(printf '%b\n' "${already_selected_wallets[@]}")"
-    [[ "${#required_files[@]}" -gt 0 ]] && println INFO "Required files:\n$(printf '%b\n' "${required_files[@]}")"
+    [[ "${#already_selected_wallets[@]}" -gt 0 ]] && println INFO "Already selected wallets:\n$(printf '  %b\n' "${already_selected_wallets[@]}")"
+    [[ "${#required_files[@]}" -gt 0 ]] && println INFO "Required files:\n$(printf '  %b\n' "${required_files[@]}")"
     return 1
   fi
 

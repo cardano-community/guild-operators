@@ -5271,7 +5271,7 @@ function main {
                     fi
                     # Wallet key filenames
                     ms_pay_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
-                    ms_stake_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
+                    ms_stake_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SCRIPT_FILENAME}"
                     if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
                       println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
                       println "      Choose another name or delete the existing one"
@@ -5287,7 +5287,7 @@ function main {
                     selected_wallets=()
                     while true; do
                       println DEBUG "Select wallet or manually enter credentials?"
-                      select_opt "[w] Wallet" "[c] Credentials" "[Esc] Cancel"
+                      select_opt "[w] Wallet" "[c] Credentials" "[d] I'm done" "[Esc] Cancel"
                       case $? in
                         0) selectWallet "balance" "${selected_wallets[@]}" "${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}" "${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
                           case $? in
@@ -5306,7 +5306,8 @@ function main {
                           [[ ${#ms_stake_cred} -ne 56 ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid stake credential entered!" && waitToProceed && continue
                           key_hashes[${ms_pay_cred}]="${ms_stake_cred}"
                           ;;
-                        2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
+                        2) break ;;
+                        3) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
                       esac
                       println DEBUG "\nMultisig size: ${#key_hashes[@]} - Add more wallets / credentials to multisig?"
                       select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
@@ -5316,6 +5317,9 @@ function main {
                         2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
                       esac
                     done
+                    if [[ ${#key_hashes[@]} -eq 0 ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: no signers added, please add at least one"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
+                    fi
                     println DEBUG "\n${#key_hashes[@]} wallets / credentials added to multisig, how many are required to witness the transaction?"
                     getAnswerAnyCust required_sig_cnt "Required signatures"
                     if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
