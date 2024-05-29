@@ -1018,7 +1018,7 @@ function main {
                 while IFS=',' read -r _required _total _sig_list; do
                   atleast=${_required}
                   total_signers=${_total}
-                  IFS=' ' read -a script_sig_list <<< "${_sig_list}"
+                  IFS=$'\t' read -ra script_sig_list <<< "${_sig_list}"
                   break
                 done < <( jq -r '.. | select(.type?=="atLeast") | "\(.required),\(.scripts|length),\(.scripts|map(.keyHash)|@tsv)"' "${payment_script_file}" )
                 if [[ -n ${timelock_after} ]]; then
