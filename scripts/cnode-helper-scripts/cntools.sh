@@ -895,7 +895,6 @@ function main {
                 println ERROR "\n${FG_RED}ERROR${NC}: wallet missing pay/base addr files or vkey/script files to generate them!"
                 waitToProceed && continue
               fi
-              getCredentials ${wallet_name}
               getRewardAddress ${wallet_name}
               if [[ -n ${KOIOS_API} ]]; then
                 tput sc
@@ -1048,6 +1047,7 @@ function main {
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment Address" "${pay_addr}")"
               fi
               [[ -n ${reward_addr} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
+              getCredentials ${wallet_name}
               if [[ -n ${pay_cred} || -n ${stake_cred} || -n ${ms_pay_cred} || -n ${ms_stake_cred} ]]; then
                 println "$(printf "%-20s ${FG_DGRAY}${NC}" "Credentials")"
               fi
