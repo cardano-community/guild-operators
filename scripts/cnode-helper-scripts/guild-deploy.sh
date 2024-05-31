@@ -107,9 +107,9 @@ set_defaults() {
   [[ -z "${BRANCH}" ]] && BRANCH="master"
   [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
+  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="8.9.3"
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
-  CARDANO_NODE_VERSION="8.9.2"
   REPO="https://github.com/${G_ACCOUNT}/guild-operators"
   REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
   URL_RAW="${REPO_RAW}/${BRANCH}"
@@ -204,13 +204,22 @@ os_dependencies() {
   if [[ "${OS_ID}" =~ ebian ]] || [[ "${OS_ID}" =~ buntu ]] || [[ "${DISTRO}" =~ ebian ]] || [[ "${DISTRO}" =~ buntu ]]; then
     #Debian/Ubuntu
     pkgmgrcmd="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
-    libncurses_pkg="libncursesw5"
-    [[ -f /etc/debian_version ]] && grep -q trixie /etc/debian_version && libncurses_pkg="libncursesw6"
-    pkg_list="python3 pkg-config libssl-dev ${libncurses_pkg} libtinfo-dev systemd libsystemd-dev libsodium-dev tmux git jq libtool bc gnupg libtool secure-delete iproute2 tcptraceroute sqlite3 bsdmainutils libusb-1.0-0-dev libudev-dev unzip llvm clang libnuma-dev libpq-dev build-essential libffi-dev libgmp-dev zlib1g-dev make g++ autoconf automake liblmdb-dev procps xxd"
+    pkg_list="python3 pkg-config systemd tmux git jq libtool bc gnupg libtool secure-delete iproute2 tcptraceroute sqlite3 bsdmainutils unzip procps xxd"
+    if [[ "${LIBSODIUM_FORK}" == "Y" ]] || [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
+      pkg_list="${pkg_list} build-essential make g++ autoconf automake"
+    fi
+    if [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
+      libncurses_pkg="libncursesw5"
+      [[ -f /etc/debian_version ]] && grep -q trixie /etc/debian_version && libncurses_pkg="libncursesw6"
+      pkg_list="${pkg_list} ${libncurses_pkg} libtinfo-dev libnuma-dev libpq-dev liblmdb-dev libffi-dev libgmp-dev libssl-dev libsystemd-dev libsodium-dev zlib1g-dev llvm clang"
+    fi
+    if [[ "${INSTALL_CWHCLI}" == "Y" ]]; then
+      pkg_list="${pkg_list} libusb-1.0-0-dev libudev-dev"
+    fi
   elif [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     #CentOS/RHEL/Fedora/RockyLinux
     pkgmgrcmd="dnf"
-    pkg_list="python3 coreutils ncurses-devel ncurses-libs openssl-devel systemd systemd-devel libsodium-devel tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz wget unzip procps-ng llvm clang numactl-devel libffi-devel gmp-devel zlib-devel make gcc-c++ autoconf udev lmdb-devel vim-common"
+    pkg_list="python3 coreutils systemd tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz unzip procps-ng udev vim-common"
     if [[ "${VERSION_ID}" == "2" ]] ; then
       #AmazonLinux2
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
@@ -228,14 +237,13 @@ os_dependencies() {
       pkg_opts="${pkg_opts} --allowerasing"
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
     fi
-    add_epel_repository "${DISTRO}" "${VERSION_ID}" "${pkg_opts}"
-    if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
-      echo -e "\n  Symlink updates not required for ncurse libs, skipping.."
-    else
-      echo -e "\n  Updating symlinks for ncurse libs.."
-      $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
-      $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
+    if [[ "${LIBSODIUM_FORK}" == "Y" ]] || [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
+      pkg_list="${pkg_list} make gcc-c++ autoconf automake"
     fi
+    if [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
+      pkg_list="${pkg_list} ncurses-libs ncurses-devel openssl-devel systemd-devel libsodium-devel llvm clang numactl-devel libffi-devel gmp-devel zlib-devel lmdb-devel"
+    fi
+    add_epel_repository "${DISTRO}" "${VERSION_ID}" "${pkg_opts}"
   else
     echo -e "\nWe have no automated procedures for this ${DISTRO} system"
     err_exit
@@ -252,6 +260,15 @@ os_dependencies() {
     echo -e "\n  $sudo ${pkgmgrcmd} ${pkg_opts} install ${pkg_list}"
     echo -e "\nIt would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
     err_exit
+  fi
+  if [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
+    if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
+      echo -e "\n  Symlink updates not required for ncurse libs, skipping.."
+    else
+      echo -e "\n  Updating symlinks for ncurse libs.."
+      $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
+      $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
+    fi
   fi
 }
 
@@ -654,13 +671,13 @@ parse_args() {
   if [[ -n "${S_ARGS}" ]]; then
     [[ "${S_ARGS}" =~ "p" ]] && INSTALL_OS_DEPS="Y"
     [[ "${S_ARGS}" =~ "b" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y"
-    [[ "${S_ARGS}" =~ "l" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y" && INSTALL_LIBSODIUM_FORK="Y"
+    [[ "${S_ARGS}" =~ "l" ]] && INSTALL_OS_DEPS="Y" && INSTALL_LIBSODIUM_FORK="Y"
     [[ "${S_ARGS}" =~ "m" ]] && INSTALL_MITHRIL="Y"
     [[ "${S_ARGS}" =~ "f" ]] && FORCE_OVERWRITE="Y" && POPULATE_CNODE="F"
     [[ "${S_ARGS}" =~ "d" ]] && INSTALL_CNODEBINS="Y"
     [[ "${S_ARGS}" =~ "c" ]] && INSTALL_CNCLI="Y"
     [[ "${S_ARGS}" =~ "o" ]] && INSTALL_OGMIOS="Y"
-    [[ "${S_ARGS}" =~ "w" ]] && INSTALL_CWHCLI="Y"
+    [[ "${S_ARGS}" =~ "w" ]] && INSTALL_OS_DEPS="Y" && INSTALL_CWHCLI="Y"
     [[ "${S_ARGS}" =~ "x" ]] && INSTALL_CARDANO_SIGNER="Y"
   else
     echo -e "\nNothing to do.."
