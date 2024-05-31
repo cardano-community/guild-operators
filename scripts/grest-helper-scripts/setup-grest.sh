@@ -200,11 +200,10 @@ SGVERSION=v1.1.2
 
   parse_args() {
     if [[ -z "${I_ARGS}" ]]; then
-      ! command -v haproxy >/dev/null && INSTALL_HAPROXY="Y"
+      [[ ! -f /usr/sbin/haproxy ]] && INSTALL_HAPROXY="Y"
       [[ ! -f "${CNODE_HOME}"/scripts/grest-exporter.sh ]] && INSTALL_MONITORING_AGENTS="Y"
       # absence of haproxy.cfg or grest.conf at mentioned path would mean setup is not updated, or has not been run - hence, overwrite all
-      [[ ! -f "${HAPROXY_CFG}" ]] && OVERWRITE_CONFIG="Y"
-      [[ ! -f "${CNODE_HOME}"/priv/grest.conf ]] && OVERWRITE_CONFIG="Y"
+      [[ ! -f "${HAPROXY_CFG}" ]] || [[ ! -f "${CNODE_HOME}"/priv/grest.conf ]] && OVERWRITE_CONFIG="Y"
     else
       [[ "${I_ARGS}" =~ "p" ]] && INSTALL_POSTGREST="Y" && DB_QRY_UPDATES="Y"
       [[ "${I_ARGS}" =~ "r" ]] && INSTALL_HAPROXY="Y"
@@ -305,11 +304,14 @@ SGVERSION=v1.1.2
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
-        sudo apt-get -y install libpcre3-dev >/dev/null || err_exit "'sudo apt-get -y install libpcre3-dev' failed!"
+        pkg_installer="apt-get"
+        pkg_list="build-essential make g++ autoconf automake libpcre-dev libssl-dev libsystemd-dev zlib1g-dev"
       fi
       if command -v dnf >/dev/null; then
-        sudo dnf -y install pcre-devel >/dev/null || err_exit "'sudo dnf -y install prce-devel' failed!"
+        pkg_installer="dng"
+        pkg_list="make gcc gcc-c++ autoconf automake pcre-devel openssl-devel systemd-devel zlib-devel"
       fi
+      sudo ${pkg_installer} -y install ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y install ${pkg_list}' failed!"
       cd haproxy-${major_v}.${minor_v} || return
       make clean >/dev/null
       make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 USE_PROMEX=1 >/dev/null

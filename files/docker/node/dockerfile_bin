@@ -23,7 +23,7 @@ ENV \
     UPDATE_CHECK=N
 
 RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
-    && apt install -y curl wget gnupg git udev jq \
+    && apt install -y curl wget udev jq \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
@@ -49,7 +49,6 @@ RUN set -x && apt update \
     && chmod +x ./guild-deploy.sh && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s p \
     && ls /opt/ \
     && mkdir -p $CNODE_HOME/priv/files \
-    && apt-get -y remove libpq-dev build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
@@ -59,9 +58,6 @@ RUN set -x && export SUDO='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
     && export G_ACCOUNT=${G_ACCOUNT} \
     && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s dcmowx \
-    && cd /usr/bin \
-    && wget http://www.vdberg.org/~richard/tcpping \
-    && chmod 755 tcpping \
     && chown -R guild:guild $CNODE_HOME \
     && mv /root/.local/bin /home/guild/.local/ \
     && chown -R guild:guild /home/guild/.*
@@ -98,7 +94,6 @@ RUN  curl -sL -H "Accept: application/vnd.github.everest-preview+json" -H "Conte
 
 # ENTRY SCRIPT
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/banner.txt \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/guild-topology.sh \
     https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/block_watcher.sh \
     https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/healthcheck.sh /home/guild/.scripts/
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh \
