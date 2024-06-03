@@ -3677,7 +3677,63 @@ function main {
                     otx_script_scripts="$(_jq '.script' 2>/dev/null)"
                     getAllMultisigKeys "${otx_script_scripts}"
                     for sig in "${!script_sig_list[@]}"; do
-                      echo "sig: $sig"
+                      unset skey_path
+                      # look for signing key in wallet folder
+                      while IFS= read -r -d '' w_file; do
+                        if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" ]]; then
+                          ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                          if [[ $(jq -er '.type' "${w_file}" 2>/dev/null) = *"Extended"* ]]; then
+                            ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
+                            mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
+                          fi
+                          grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${w_file}" && break
+                        elif [[ ${w_file} = */"${WALLET_HW_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_HW_STAKE_SK_FILENAME}" ]]; then
+                          grep -q "${otx_vkey_cborHex:4}" "${w_file}" && skey_path="${w_file}" && break # strip 5820 prefix
+                        fi
+                      done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -print0 2>/dev/null)
+                      # matching multisig participant wallet found?
+                      if [[ -n ${skey_path} ]]; then
+                        println DEBUG "\nFound a match for ${otx_signing_name}, use this file ? : ${FG_LGRAY}${skey_path}${NC}"
+                        select_opt "[y] Yes" "[n] No, continue with manual selection"
+                        case $? in
+                          0)  println DEBUG "${FG_GREEN}Successfully added!${NC}"
+                              tx_sign_files+=( "${skey_path}" )
+                              continue ;;
+                          1)  : ;; # do nothing
+                        esac
+                      fi
+                      # choose
+                      fileDialog "\nEnter path to signing key for multisig participant of ${otx_signing_name}" "${WALLET_FOLDER}/"
+                      [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
+                      if [[ $(jq -er '.description' "${file}" 2>/dev/null) = *"Hardware"* ]]; then
+                        if ! grep -q "${otx_vkey_cborHex:4}" "${file}"; then # strip 5820 prefix
+                          println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
+                          println ERROR "Provided hardware signing key's verification cborXPubKeyHex: $(jq -r .cborXPubKeyHex "${file}")"
+                          println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex:4}"
+                          waitToProceed && continue 2
+                        fi
+                      else
+                        println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
+                        if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey 2>&1); then
+                          println ERROR "\n${FG_RED}ERROR${NC}: failure during verification key creation!\n${stdout}"; waitToProceed && continue 2
+                        fi
+                        if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
+                          println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
+                          if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" 2>&1); then
+                            println ERROR "\n${FG_RED}ERROR${NC}: failure during non-extended verification key creation!\n${stdout}"; waitToProceed && continue 2
+                          fi
+                          mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
+                        fi
+                        if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
+                          println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
+                          println ERROR "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey)"
+                          println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex}"
+                          waitToProceed && continue 2
+                        fi
+                      fi
+
+                      println DEBUG "${FG_GREEN}Successfully added!${NC}"
+                      tx_sign_files+=( "${file}" )
                     done
                   done
                   if [[ ${#tx_sign_files[@]} -gt 0 ]]; then
