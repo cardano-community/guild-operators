@@ -1123,6 +1123,23 @@ getRewardAddressFromKey() {
   fi
 }
 
+# Command     : getCredential [type] [file]
+# Description : create and save wallet credentials (key hash) for payment and stake keys (incl multisig)
+# Parameters  : type  >  payment | stake
+#             : file  >  path to verification file
+# Return      : populates ${cred}
+getCredential() {
+  unset cred
+  [[ ! -f "$2" ]] && return 1
+  [[ $1 = payment ]] && CLI_ARGS=("--payment-verification-key-file" "$2") || CLI_ARGS=("--stake-verification-key-file" "$2")
+  println ACTION "${CCLI} ${NETWORK_ERA} address key-hash ${CLI_ARGS[*]}"
+  if ! cred=$(${CCLI} ${NETWORK_ERA} address key-hash "${CLI_ARGS[@]}" 2>&1); then
+    println LOG "\n${FG_RED}ERROR${NC}: failure during key hash creation!\n${cred}"
+    unset cred
+    return 1
+  fi
+}
+
 # Command     : getCredentials [wallet name]
 # Description : create and save wallet credentials (key hash) for payment and stake keys (incl multisig)
 # Parameters  : wallet name  >  the name of the wallet
@@ -1498,10 +1515,19 @@ getWalletType() {
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}"
   stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
+  ms_payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
+  ms_payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_SK_FILENAME}"
+  ms_stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+  ms_stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
   if [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}" ]]; then # CNTools wallet
-    if [[ $(jq -r '.description' "${payment_vk_file}") = *"Hardware"* ]]; then
+    wallet_desc=$(jq -r '.description' "${payment_vk_file}")
+    if [[ ${wallet_desc} = *"Hardware"* ]]; then
       payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}"
       stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}"
+      ms_payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_PAY_VK_FILENAME}"
+      ms_payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_PAY_SK_FILENAME}"
+      ms_stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_VK_FILENAME}"
+      ms_stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_SK_FILENAME}"
       [[ ${op_mode} = "online" && ( ! -f ${payment_sk_file} || ! -f ${stake_sk_file} ) ]] && return 3 || return 0
     elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}.gpg" || -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}.gpg" ]]; then
       return 2
@@ -1525,6 +1551,50 @@ getAllMultisigKeys() {
   while read -r _keyHash; do
     script_sig_list[${_keyHash}]=1
   done < <( jq -r '.. | select(.type?=="sig") | .keyHash' <<< "$1" )
+}
+
+# Command     : validateMultisigScript [verbose] [script] [sigs...]
+# Description : parse json multisig script to check if needed signatures exist
+#             : NOTE !! please unset required_total before calling this function
+# Parameters  : verbose     > true|false, print time lock warnings
+#             : script      > the native script in json format
+#             : sigs        > array of creds for wallets found
+# Return      : 0 = success, 1 = failed, populates ${required_total} with total needed signatures
+validateMultisigScript() {
+  local found=0
+  local required=1
+  local verbose=$1
+  local script=$2
+  shift
+  IFS=',' read -r _type _scripts _scripts_cnt _required <<< "$(jq -cr '"\(.type),\(.scripts|@base64),\(.scripts|length),\(.required)"' <<< "${script}")"
+  if [[ ${_type} = atLeast ]]; then
+    required=${_required}
+  elif [[ ${_type} = all ]]; then
+    required=${_scripts_cnt}
+  fi
+  while IFS=',' read -r __type __key_hash __slot __script; do
+    if [[ ${__type} = sig ]]; then
+      for _sig in "$@"; do
+        [[ ${_sig} = "${__key_hash}" ]] && ((found++))
+      done
+    elif [[ ${__type} = before ]]; then
+      if [[ $(getSlotTipRef) -lt ${__slot} ]]; then
+        ((found++))
+      else
+        [[ ${verbose} = true ]] && println ERROR "${FG_RED}Time locked!${NC} This script is locked with a before condition that has passed, before slot = ${__slot}, current slot = $(getSlotTipRef)"
+      fi
+    elif [[ ${__type} = after ]]; then
+      if [[ $(getSlotTipRef) -gt ${__slot} ]]; then
+        ((found++))
+      else
+        [[ ${verbose} = true ]] && println ERROR "${FG_RED}Time locked!${NC} This script is locked with an after condition that has yet to pass, after slot = ${__slot}, current slot = $(getSlotTipRef)"
+      fi
+    else
+      validateMultisigScript ${verbose} "$(base64 -d <<< ${__script})" "$@" && ((found++))
+    fi
+  done < <( base64 -d <<< ${_scripts} | jq -cr '.[] | "\(.type),\(.keyHash),\(.slot),\(.|@base64)"' )
+  required_total=$(( required_total + required ))
+  [[ ${found} -ge ${required} ]] && return 0 || return 1
 }
 
 # Command     : getPoolType [pool name]
@@ -1600,13 +1670,17 @@ registerStakeWallet() {
     waitToProceed "press any key to continue with registration"
   fi
 
-  stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-  stake_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SCRIPT_FILENAME}"
   stake_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_CERT_FILENAME}"
 
   if [[ ${wallet_type} -eq 5 ]]; then
+    unset required_total
+    validateMultisigScript false "$(cat "${payment_script_file}")"
+    witness_cnt=$(( required_total + 1 ))
+    validateMultisigScript false "$(cat "${stake_script_file}")"
+    witness_cnt=$(( witness_cnt + required_total + 1 ))
     stake_param=("--stake-script-file" "${stake_script_file}")
   else
+    witness_cnt=2
     stake_param=("--stake-verification-key-file" "${stake_vk_file}")
   fi
   println ACTION "${CCLI} ${NETWORK_ERA} stake-address registration-certificate ${stake_param[*]} --out-file ${stake_cert_file}"
@@ -1631,7 +1705,7 @@ registerStakeWallet() {
 
   if ! buildTx; then return 1; fi
   
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
   
   newBalance=$(( base_lovelace - min_fee - KEY_DEPOSIT ))
   println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${KEY_DEPOSIT}))"
@@ -1674,6 +1748,12 @@ registerStakeWallet() {
     else
       if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
       if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_script_file}"; then return 1; fi
+      if ! offlineJSON=$(jq ".witness += [{ name: \"Wallet '${wallet_name}' payment script\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
+      if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_script_file}"; then return 1; fi
+      if ! offlineJSON=$(jq ".witness += [{ name: \"Wallet '${wallet_name}' stake script\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
     fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
@@ -2879,9 +2959,21 @@ witnessTx() {
   unset isHW
   for skey in "$@"; do
     [[ -z ${skey//[[:blank:]]/} ]] && continue
+    skey_name=$(basename "${skey}")
     if [[ ! -f "${skey}" ]]; then
       println ERROR "\n${FG_RED}ERROR${NC}: file not found: ${skey}"
       return 1
+    elif [[ ${skey_name} = "${WALLET_PAY_SCRIPT_FILENAME}" || ${skey_name} = "${WALLET_STAKE_SCRIPT_FILENAME}" ]]; then
+      tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
+      witness_command=(
+        ${CCLI} transaction witness
+        --tx-body-file "${tx_raw}"
+        --script-file "${skey}"
+        ${NETWORK_IDENTIFIER}
+        --out-file "${tx_witness}"
+      )
+      println ACTION "${witness_command[@]}"
+      if ! stdout=$("${witness_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: during transaction signing !!\n${stdout}" && return 1; fi
     elif [[ $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
       if [[ ${isHW} = 'Y' ]]; then
         # just add key and output to witness_command()
