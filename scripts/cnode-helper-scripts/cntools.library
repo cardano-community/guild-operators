@@ -1758,6 +1758,7 @@ registerStakeWallet() {
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
