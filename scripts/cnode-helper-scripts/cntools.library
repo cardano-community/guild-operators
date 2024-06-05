@@ -1730,10 +1730,7 @@ registerStakeWallet() {
   )
 
   if [[ ${wallet_type} -eq 5 ]]; then
-    build_args+=(
-      --tx-in-script-file "${payment_script_file}"
-      --certificate-script-file "${stake_script_file}"
-    )
+    build_args+=( --tx-in-script-file "${payment_script_file}" )
   fi
 
   if ! buildTx; then return 1; fi
