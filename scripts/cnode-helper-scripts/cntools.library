@@ -1719,19 +1719,21 @@ registerStakeWallet() {
   println LOG "Key Deposit is ${KEY_DEPOSIT}"
 
   getAssetsTxOut
+
+  unset script_args
+  if [[ ${wallet_type} -eq 5 ]]; then
+    script_args=( --tx-in-script-file "${payment_script_file}" )
+  fi
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
     --certificate-file "${stake_cert_file}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
-
-  if [[ ${wallet_type} -eq 5 ]]; then
-    build_args+=( --tx-in-script-file "${payment_script_file}" )
-  fi
 
   if ! buildTx; then return 1; fi
   
