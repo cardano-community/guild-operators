@@ -1675,9 +1675,9 @@ registerStakeWallet() {
   if [[ ${wallet_type} -eq 5 ]]; then
     unset required_total
     validateMultisigScript false "$(cat "${payment_script_file}")"
-    witness_cnt=$(( required_total + 1 ))
+    witness_cnt=required_total
     validateMultisigScript false "$(cat "${stake_script_file}")"
-    witness_cnt=$(( witness_cnt + required_total + 1 ))
+    witness_cnt=$(( witness_cnt + required_total ))
     stake_param=("--stake-script-file" "${stake_script_file}")
   else
     witness_cnt=2
@@ -1702,6 +1702,13 @@ registerStakeWallet() {
     --certificate-file "${stake_cert_file}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
+
+  if [[ ${wallet_type} -eq 5 ]]; then
+    build_args+=(
+      --tx-in-script-file "${payment_script_file}"
+      --certificate-script-file "${stake_script_file}"
+    )
+  fi
 
   if ! buildTx; then return 1; fi
   
@@ -1748,12 +1755,6 @@ registerStakeWallet() {
     else
       if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
       if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    fi
-    if [[ ${wallet_type} -eq 5 ]]; then
-      if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_script_file}"; then return 1; fi
-      if ! offlineJSON=$(jq ".witness += [{ name: \"Wallet '${wallet_name}' payment script\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
-      if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_script_file}"; then return 1; fi
-      if ! offlineJSON=$(jq ".witness += [{ name: \"Wallet '${wallet_name}' stake script\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
     fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
@@ -2963,17 +2964,6 @@ witnessTx() {
     if [[ ! -f "${skey}" ]]; then
       println ERROR "\n${FG_RED}ERROR${NC}: file not found: ${skey}"
       return 1
-    elif [[ ${skey_name} = "${WALLET_PAY_SCRIPT_FILENAME}" || ${skey_name} = "${WALLET_STAKE_SCRIPT_FILENAME}" ]]; then
-      tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
-      witness_command=(
-        ${CCLI} transaction witness
-        --tx-body-file "${tx_raw}"
-        --script-file "${skey}"
-        ${NETWORK_IDENTIFIER}
-        --out-file "${tx_witness}"
-      )
-      println ACTION "${witness_command[@]}"
-      if ! stdout=$("${witness_command[@]}" 2>&1); then println ERROR "\n${FG_RED}ERROR${NC}: during transaction signing !!\n${stdout}" && return 1; fi
     elif [[ $(jq -r '.description' "${skey}") = *"Hardware"* ]]; then # HW signing key
       if [[ ${isHW} = 'Y' ]]; then
         # just add key and output to witness_command()
