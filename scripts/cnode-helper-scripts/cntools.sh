@@ -1051,10 +1051,12 @@ function main {
               if [[ -n ${pay_cred} || -n ${stake_cred} || -n ${ms_pay_cred} || -n ${ms_stake_cred} ]]; then
                 println "$(printf "%-20s ${FG_DGRAY}${NC}" "Credentials")"
               fi
-              [[ -n ${pay_cred} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment" "${pay_cred}")"
-              [[ -n ${stake_cred} ]]      && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Stake" "${stake_cred}")"
-              [[ -n ${ms_pay_cred} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Multisig Payment" "${ms_pay_cred}")"
-              [[ -n ${ms_stake_cred} ]]   && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Multisig Stake" "${ms_stake_cred}")"
+              [[ -n ${pay_cred} ]]          && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment" "${pay_cred}")"
+              [[ -n ${stake_cred} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Stake" "${stake_cred}")"
+              [[ -n ${ms_pay_cred} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Multisig Payment" "${ms_pay_cred}")"
+              [[ -n ${ms_stake_cred} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Multisig Stake" "${ms_stake_cred}")"
+              [[ -n ${script_pay_cred} ]]   && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Payment" "${script_pay_cred}")"
+              [[ -n ${script_stake_cred} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Stake" "${script_stake_cred}")"
 
               if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
                 if [[ -n ${reward_addr} ]]; then
@@ -5453,11 +5455,14 @@ function main {
                     getBaseAddress ${ms_wallet_name}
                     getPayAddress ${ms_wallet_name}
                     getRewardAddress ${ms_wallet_name}
+                    getCredentials ${ms_wallet_name}
                     echo
                     println "New Multisig Wallet : ${FG_GREEN}${ms_wallet_name}${NC}"
                     println "Address             : ${FG_LGRAY}${base_addr}${NC}"
                     println "Payment Address     : ${FG_LGRAY}${pay_addr}${NC}"
                     println "Reward Address      : ${FG_LGRAY}${reward_addr}${NC}"
+                    println "Payment Credential  : ${FG_LGRAY}${script_pay_cred}${NC}"
+                    println "Reward Credential   : ${FG_LGRAY}${script_stake_cred}${NC}"
                     println DEBUG "\nYou can now send and receive ADA using the above 'Address' or 'Payment Address'."
                     println DEBUG "Note that Payment Address will not take part in staking."
                     waitToProceed && continue

@@ -1143,17 +1143,21 @@ getCredential() {
 # Command     : getCredentials [wallet name]
 # Description : create and save wallet credentials (key hash) for payment and stake keys (incl multisig)
 # Parameters  : wallet name  >  the name of the wallet
-# Return      : populates ${pay_cred} & ${stake_cred} ${ms_pay_cred} & ${ms_stake_cred}
+# Return      : populates ${pay_cred} & ${stake_cred} ${ms_pay_cred} & ${ms_stake_cred} ${script_pay_cred} & ${script_stake_cred}
 getCredentials() {
   unset pay_cred stake_cred ms_pay_cred ms_stake_cred
   payment_cred_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_CRED_FILENAME}"
   stake_cred_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_CRED_FILENAME}"
   ms_payment_cred_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_CRED_FILENAME}"
   ms_stake_cred_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_CRED_FILENAME}"
+  script_payment_cred_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_CRED_FILENAME}"
+  script_stake_cred_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_CRED_FILENAME}"
   [[ -f ${payment_cred_file} ]] && pay_cred=$(cat "${payment_cred_file}")
   [[ -f ${stake_cred_file} ]] && stake_cred=$(cat "${stake_cred_file}")
   [[ -f ${ms_payment_cred_file} ]] && ms_pay_cred=$(cat "${ms_payment_cred_file}")
   [[ -f ${ms_stake_cred_file} ]] && ms_stake_cred=$(cat "${ms_stake_cred_file}")
+  [[ -f ${script_payment_cred_file} ]] && script_pay_cred=$(cat "${script_payment_cred_file}")
+  [[ -f ${script_stake_cred_file} ]] && script_stake_cred=$(cat "${script_stake_cred_file}")
   if [[ -z ${pay_cred} ]]; then
     payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
     if [[ -f "${payment_vk_file}" ]]; then
@@ -1198,6 +1202,30 @@ getCredentials() {
         ms_stake_cred=$(cat "${ms_stake_cred_file}")
       else
         println LOG "\n${FG_RED}ERROR${NC}: failure during multisig stake key hash creation!\n${stdout}"
+        return 1
+      fi
+    fi
+  fi
+  if [[ -z ${script_pay_cred} ]]; then
+    payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
+    if [[ -f "${payment_script_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} transaction policyid --script-file ${payment_script_file} --out-file ${script_payment_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} transaction policyid --script-file "${payment_script_file}" --out-file "${script_payment_cred_file}" 2>&1); then
+        script_pay_cred=$(cat "${script_payment_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during script payment policy creation!\n${stdout}"
+        return 1
+      fi
+    fi
+  fi
+  if [[ -z ${script_stake_cred} ]]; then
+    stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
+    if [[ -f "${stake_script_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} transaction policyid --script-file ${stake_script_file} --out-file ${script_stake_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} transaction policyid --script-file "${stake_script_file}" --out-file "${script_stake_cred_file}" 2>&1); then
+        script_stake_cred=$(cat "${script_stake_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during script stake policy creation!\n${stdout}"
         return 1
       fi
     fi
@@ -1675,12 +1703,10 @@ registerStakeWallet() {
   if [[ ${wallet_type} -eq 5 ]]; then
     unset required_total
     validateMultisigScript false "$(cat "${payment_script_file}")"
-    witness_cnt=required_total
-    validateMultisigScript false "$(cat "${stake_script_file}")"
-    witness_cnt=$(( witness_cnt + required_total ))
+    witness_cnt=${required_total}
     stake_param=("--stake-script-file" "${stake_script_file}")
   else
-    witness_cnt=2
+    witness_cnt=1
     stake_param=("--stake-verification-key-file" "${stake_vk_file}")
   fi
   println ACTION "${CCLI} ${NETWORK_ERA} stake-address registration-certificate ${stake_param[*]} --out-file ${stake_cert_file}"
@@ -1751,10 +1777,8 @@ registerStakeWallet() {
     if ! offlineJSON=$(jq ". += { \"script-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     if [[ ${wallet_type} -eq 5 ]]; then
       if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
-      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' stake script\", script: $(jq -c . "${stake_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
     else
       if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
@@ -1767,12 +1791,11 @@ registerStakeWallet() {
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
       println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
-      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}"
     fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
   echo
