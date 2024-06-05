@@ -22,6 +22,7 @@
 #CNCLI_DIR="${CNODE_HOME}/guild-db/cncli" # path to folder for cncli sqlite db
 #CNODE_HOST="127.0.0.1"                   # IP Address to connect to Cardano Node (using remote host can have severe impact on performance, do not modify unless you're absolutely certain)
 #SLEEP_RATE=60                            # CNCLI leaderlog/validate: time to wait until next check (in seconds)
+#LEADERLOG_SLOT_DELAY=600                 # CNCLI leaderlog: require at least these many slots to have passed before calculating leaderlogs for next epoch
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
@@ -126,6 +127,20 @@ getLedgerData() { # getNodeMetrics expected to have been already run
   return 0
 }
 
+getConsensus() {
+  getProtocolParams
+  if versionCheck "10.0" "${PROT_VERSION}"; then
+    consensus="cpraos"
+    stability_window_factor=4
+  elif versionCheck "8.0" "${PROT_VERSION}"; then
+    consensus="praos"
+    stability_window_factor=3
+  else
+    consensus="tpraos"
+    stability_window_factor=3
+  fi
+}
+
 getKoiosData() {
   [[ -z ${KOIOS_API} ]] && return 1
   if ! stake_snapshot=$(curl -sSL -f -d _pool_bech32=${POOL_ID_BECH32} "${KOIOS_API}/pool_stake_snapshot" 2>&1); then
@@ -209,6 +224,7 @@ cncliInit() {
   [[ -z "${USE_KOIOS_API}" ]] && USE_KOIOS_API=Y
   [[ -z "${CNODE_HOST}" ]] && CNODE_HOST="127.0.0.1"
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
+  [[ -z "${LEADERLOG_SLOT_DELAY}" ]] && LEADERLOG_SLOT_DELAY=600
   [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
   [[ -z "${CONFIRM_BLOCK_CNT}" ]] && CONFIRM_BLOCK_CNT=15
   [[ -z "${PT_HOST}" ]] && PT_HOST="127.0.0.1"
@@ -268,8 +284,7 @@ cncliLeaderlog() {
   
   [[ ${subarg} != "force" ]] && echo "Node in sync, sleeping for ${SLEEP_RATE}s before running leaderlogs for current epoch" && sleep ${SLEEP_RATE}
   getNodeMetrics
-  getProtocolParams
-  if versionCheck "8.0" "${PROT_VERSION}"; then consensus="praos"; else consensus="tpraos"; fi
+  getConsensus
   curr_epoch=${epochnum}
   if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${curr_epoch};" 2>/dev/null) -eq 1 && ${subarg} != "force" ]]; then
     echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
@@ -329,17 +344,16 @@ cncliLeaderlog() {
   while true; do
     [[ ${subarg} != "force" ]] && sleep ${SLEEP_RATE}
     getNodeMetrics
-    getProtocolParams
-    if versionCheck "8.0" "${PROT_VERSION}"; then consensus="praos"; else consensus="tpraos"; fi
+    getConsensus
     if ! cncliDBinSync; then # verify that cncli DB is still in sync
       echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... checking again in ${SLEEP_RATE}s"
       [[ ${subarg} = force ]] && sleep ${SLEEP_RATE}
       continue
     fi
-    slot_for_next_nonce=$(echo "(${slotnum} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (3 * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc) # firstSlotOfNextEpoch - stabilityWindow(3 * k / f)
+    slot_for_next_nonce=$(echo "(${slotnum} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (${stability_window_factor} * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc) # firstSlotOfNextEpoch - stabilityWindow((3|4) * k / f)
     curr_epoch=${epochnum}
     next_epoch=$((curr_epoch+1))
-    if [[ ${slotnum} -gt $(( slot_for_next_nonce + 600 )) ]]; then # Run leaderlogs for next epoch (with 10 min delay)
+    if [[ ${slotnum} -gt $(( slot_for_next_nonce + LEADERLOG_SLOT_DELAY )) ]]; then # Run leaderlogs for next epoch, with set delay
       if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${next_epoch};" 2>/dev/null) -eq 1 ]]; then # Leaderlogs already calculated for next epoch, skipping!
         if [[ -t 1 ]]; then # manual execution
           [[ ${subarg} != "force" ]] && echo "Leaderlogs already calculated for epoch ${next_epoch}, skipping!" && break

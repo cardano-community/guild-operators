@@ -10,7 +10,7 @@ on:
     paths:
       - scripts/cnode-helper-scripts/guild-deploy.sh
       - scripts/cnode-helper-scripts/cabal-build-all.sh
-      - files/tests/pre-merge/debian-guild-deploy.sh-l.containerfile
+      - files/tests/pre-merge/ubuntu-guild-deploy.sh.containerfile
 
 jobs:
   guild-deploy-and-build:
@@ -61,10 +61,10 @@ jobs:
           echo "This means the PR is from the same repository"
           echo "BUILD_G_ACCOUNT=${{ github.repository_owner }}" >> $GITHUB_ENV
         fi
-    - name: Testing guild-deploy.sh (IO fork of libsodium)
+    - name: Testing guild-deploy.sh (with libsodium)
       run: |
         docker build . \
-          --file files/tests/pre-merge/${{ matrix.distro }}-guild-deploy.sh-l.containerfile \
+          --file files/tests/pre-merge/${{ matrix.distro }}-guild-deploy.sh.containerfile \
           --compress \
           --build-arg BRANCH=$BRANCH \
           --build-arg COMMIT=$COMMIT_SHA \
@@ -77,11 +77,11 @@ jobs:
     - name: Push pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }}
       run: |
         docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }}
-    - name: Testing cabal-build-all.sh (IO fork of libsodium)
+    - name: Testing cabal-build-all.sh (with libsodium)
       run: |
         echo "Working from PR Branch ${{ env.G_ACCOUNT }}/guild-operators/${{ env.BRANCH }} on COMMIT_SHA ${{ env.COMMIT_SHA }}"
         docker build . \
-        --file files/tests/pre-merge/${{ matrix.distro }}-cabal-l.containerfile \
+        --file files/tests/pre-merge/${{ matrix.distro }}-cabal.containerfile \
         --compress \
         --build-arg BRANCH=${{ env.BRANCH }} \
         --build-arg COMMIT=${{ env.COMMIT_SHA }} \
