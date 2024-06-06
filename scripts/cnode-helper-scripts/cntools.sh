@@ -3636,7 +3636,7 @@ function main {
                 fi
 
                 if [[ ${otx_signing_name} = "Pool "* ]]; then dialog_start_path="${POOL_FOLDER}"
-                elif [[ ${otx_signing_name} = "Asset "* ]]; then dialog_start_path="${POOL_FOLDER}"
+                elif [[ ${otx_signing_name} = "Asset "* ]]; then dialog_start_path="${ASSET_FOLDER}"
                 else dialog_start_path="${WALLET_FOLDER}"; fi
                 fileDialog "\nEnter path to ${otx_signing_name}" "${dialog_start_path}/"
                 [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2

@@ -1838,7 +1838,7 @@ deregisterStakeWallet() {
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake deregistration certificate creation!\n${stdout}"; return 1
   fi
 
-  if ! getTTL; then return 1; fi
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   
   println LOG "Key Deposit is ${KEY_DEPOSIT}"
 
@@ -1955,7 +1955,7 @@ sendAssets() {
     witness_cnt=1
   fi
 
-  if ! getTTL; then return 1; fi
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
 
   if [[ -n ${metafile} && -f ${metafile} ]]; then
     metafile_param="--json-metadata-no-schema --metadata-json-file ${metafile}"
@@ -2121,7 +2121,7 @@ delegate() {
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake delegation certificate creation!\n${stdout}"; return 1
   fi
 
-  if ! getTTL; then return 1; fi
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   
   getAssetsTxOut
   
@@ -2240,7 +2240,7 @@ withdrawRewards() {
     witness_cnt=2
   fi
 
-  if ! getTTL; then return 1; fi
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   
   getAssetsTxOut
 
@@ -2339,8 +2339,6 @@ registerPool() {
     tx_in=${tx_in_arr[${base_addr}]}
   fi
   
-  if ! getTTL; then return 1; fi
-  
   println LOG "Pool Deposit is ${POOL_DEPOSIT}"
   
   owner_delegation_cert=""
@@ -2369,6 +2367,8 @@ registerPool() {
     fi
   done
   witness_cnt=$(( witness_cnt + 1 )) # cold key witness
+
+  if ! getTTL "$([[ ${hasScriptOwner} = true ]] && echo true)"; then return 1; fi
   
   owner_delegation_cert=""
   if [[ ${delegate_owner_wallet} = 'Y' ]]; then
@@ -2502,8 +2502,6 @@ modifyPool() {
     utxo_cnt=${utxos_cnt[${base_addr}]}
     tx_in=${tx_in_arr[${base_addr}]}
   fi
-  
-  if ! getTTL; then return 1; fi
 
   # owner payment + cold + multi-owners(main owner included)
   unset witness_cnt hasScriptOwner
@@ -2528,6 +2526,8 @@ modifyPool() {
     fi
   done
   witness_cnt=$(( witness_cnt + 1 )) # cold key witness
+
+  if ! getTTL "$([[ ${hasScriptOwner} = true ]] && echo true)"; then return 1; fi
   
   getAssetsTxOut
   
@@ -2662,7 +2662,7 @@ deRegisterPool() {
     witness_cnt=2
   fi
 
-  if ! getTTL; then return 1; fi
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     for key in "${!assets[@]}"; do
@@ -2899,7 +2899,7 @@ sendMetadata() {
     witness_cnt=1
   fi
 
-  if ! getTTL; then return 1; fi
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     for key in "${!assets[@]}"; do
@@ -3025,7 +3025,7 @@ mintAsset() {
   fi
 
   if [[ ${policy_ttl} -eq 0 ]]; then 
-    if ! getTTL; then return 1; fi
+    if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   else
     ttl=${policy_ttl}
     tip_ref=$(getSlotTipRef)
@@ -3158,7 +3158,7 @@ burnAsset() {
   fi
 
   if [[ ${policy_ttl} -eq 0 ]]; then 
-    if ! getTTL; then return 1; fi
+    if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   else
     ttl=${policy_ttl}
     tip_ref=$(getSlotTipRef)
@@ -3676,7 +3676,7 @@ submitPoll() {
     witness_cnt=2
   fi
 
-  if ! getTTL; then return 1; fi
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
 
   getAssetsTxOut
 
