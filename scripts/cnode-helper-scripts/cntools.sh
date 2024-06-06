@@ -3695,7 +3695,7 @@ function main {
                 for sig in "${!script_sig_list[@]}"; do
                   for otx_witness in $(jq -r '.witness[] | @base64' <<< "${offlineJSON}"); do
                     __jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
-                    [[ ${sig} = $(__jq '.name') ]] && continue 2 # offline transaction already witnessed by this signing key
+                    [[ ${sig} = $(__jq '.name') ]] && script_sig_creds+=( ${sig} ) && continue 2 # offline transaction already witnessed by this signing key
                   done
                   unset skey_path
                   # look for matching credential in wallet folder
