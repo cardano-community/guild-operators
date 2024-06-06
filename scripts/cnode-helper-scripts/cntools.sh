@@ -3802,7 +3802,7 @@ function main {
                 done
                 if ! assembleTx "${TMP_DIR}/tx.raw"; then waitToProceed && continue; fi
                 if jq ". += { \"signed-txBody\": $(jq -c . "${tx_signed}") }" <<< "${offlineJSON}" > "${offline_tx}"; then
-                  println "Offline transaction successfully assembled and signed by all needed signing keys"
+                  println "\nTransaction successfully assembled and signed by all needed signing keys"
                   println "please submit on online node before ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}!"
                 else
                   println ERROR "${FG_RED}ERROR${NC}: failed to write signed tx body to offline transaction file!"
