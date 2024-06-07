@@ -512,11 +512,11 @@ function main {
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during stake signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
                     println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}"2>&1); then
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
                     println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/stake.evkey --verification-key-file ${stake_vk_file}"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}"2>&1); then
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
                     chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
