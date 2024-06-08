@@ -3722,6 +3722,7 @@ function main {
                       0)  if ! witnessTx "${TMP_DIR}/tx.raw" "${skey_path}"; then waitToProceed && continue 2; fi
                           if ! offlineJSON=$(jq ".witness += [{ name: \"${sig}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
                           jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
+                          script_sig_creds+=( ${sig} )
                           continue ;;
                       1)  continue ;;
                     esac
@@ -3730,49 +3731,53 @@ function main {
                     select_opt "[p] Enter path" "[s] Skip participant"
                     selection=$?
                   fi
-                  [[ ${selection} -eq 1 ]] && continue
-                  # choose
-                  fileDialog "\nEnter path to signing key for multisig participant" "${WALLET_FOLDER}/"
-                  [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
-                  file_desc=$(jq -er '.description' "${file}" 2>/dev/null)
-                  if [[ ${file_desc} = *"Hardware"* ]]; then
-                    dir_path=$(dirname "${file}")
-                    if ! vkey=$(jq -er .cborXPubKeyHex "${file}"); then
-                      println ERROR "${FG_RED}ERROR${NC}: signing key provided is invalid, missing field 'cborXPubKeyHex'" && continue
-                    fi
-                    vkey=${vkey:4:64}
-                    # find vkey file in same folder
-                    if ! vkey_file=$(grep -l "cborHex.*${vkey}" "${dir_path}"/*); then
-                      println ERROR "${FG_RED}ERROR${NC}: unable to find a matching verification key file for provided hardware signing key in same folder" && continue
-                    fi
-                    vkey_file=$(echo "${vkey_file}" | head -n 1) # make sure there is a single match
-                    [[ ${file_desc} = *"Payment"* ]] && cred_type=payment || cred_type=stake
-                    getCredential ${cred_type} ${vkey_file}
+                  if [[ ${selection} -eq 1 ]]; then
+                    continue
                   else
-                    println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during verification key creation!\n${stdout}"; waitToProceed && continue 2
-                    fi
-                    file_type=$(jq -r '.type' "${file}")
-                    if [[ ${file_type} = *"Extended"* ]]; then
-                      println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
-                      if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" 2>&1); then
-                        println ERROR "\n${FG_RED}ERROR${NC}: failure during non-extended verification key creation!\n${stdout}"; waitToProceed && continue 2
+                    # choose
+                    fileDialog "\nEnter path to signing key for multisig participant" "${WALLET_FOLDER}/"
+                    [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
+                    file_desc=$(jq -er '.description' "${file}" 2>/dev/null)
+                    if [[ ${file_desc} = *"Hardware"* ]]; then
+                      dir_path=$(dirname "${file}")
+                      if ! vkey=$(jq -er .cborXPubKeyHex "${file}"); then
+                        println ERROR "${FG_RED}ERROR${NC}: signing key provided is invalid, missing field 'cborXPubKeyHex'" && continue
                       fi
-                      mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
+                      vkey=${vkey:4:64}
+                      # find vkey file in same folder
+                      if ! vkey_file=$(grep -l "cborHex.*${vkey}" "${dir_path}"/*); then
+                        println ERROR "${FG_RED}ERROR${NC}: unable to find a matching verification key file for provided hardware signing key in same folder" && continue
+                      fi
+                      vkey_file=$(echo "${vkey_file}" | head -n 1) # make sure there is a single match
+                      [[ ${file_desc} = *"Payment"* ]] && cred_type=payment || cred_type=stake
+                      getCredential ${cred_type} ${vkey_file}
+                    else
+                      println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
+                      if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey 2>&1); then
+                        println ERROR "\n${FG_RED}ERROR${NC}: failure during verification key creation!\n${stdout}"; waitToProceed && continue 2
+                      fi
+                      file_type=$(jq -r '.type' "${file}")
+                      if [[ ${file_type} = *"Extended"* ]]; then
+                        println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
+                        if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" 2>&1); then
+                          println ERROR "\n${FG_RED}ERROR${NC}: failure during non-extended verification key creation!\n${stdout}"; waitToProceed && continue 2
+                        fi
+                        mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
+                      fi
+                      [[ ${file_type} = *"Payment"* ]] && cred_type=payment || cred_type=stake
+                      getCredential ${cred_type} "${TMP_DIR}"/tmp.vkey
                     fi
-                    [[ ${file_type} = *"Payment"* ]] && cred_type=payment || cred_type=stake
-                    getCredential ${cred_type} "${TMP_DIR}"/tmp.vkey
+                    if [[ ${cred} != ${sig} ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with credential in multisig script:${FG_LGRAY}${otx_script_name}${NC}"
+                      println ERROR "Provided signing key's credential  : ${FG_LGRAY}${cred}${NC}"
+                      println ERROR "Looking for credential             : ${FG_LGRAY}${sig}${NC}"
+                      waitToProceed && continue
+                    fi
+                    if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitToProceed && continue 2; fi
+                    if ! offlineJSON=$(jq ".witness += [{ name: \"${sig}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
+                    jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
+                    script_sig_creds+=( ${sig} )
                   fi
-                  if [[ ${cred} != ${sig} ]]; then
-                    println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with credential in multisig script:${FG_LGRAY}${otx_script_name}${NC}"
-                    println ERROR "Provided signing key's credential  : ${FG_LGRAY}${cred}${NC}"
-                    println ERROR "Looking for credential             : ${FG_LGRAY}${sig}${NC}"
-                    waitToProceed && continue
-                  fi
-                  if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitToProceed && continue 2; fi
-                  if ! offlineJSON=$(jq ".witness += [{ name: \"${sig}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
-                  jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
                   # Check if script meets requirement
                   if validateMultisigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
                     # script successfully validated, no more signatures needed
