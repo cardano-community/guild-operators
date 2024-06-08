@@ -6,7 +6,11 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [13.0.0] - 2024-01-19
+## [13.0.2] - 2024-06-07
+#### Fixed
+- Mnemonic import.
+
+## [13.0.0] - 2024-06-07
 #### Added
 - New light mode using Koios API instead of local node for blockchain queries. Mode can be selected at runtime using -l (light), -n (node, default) or -o (offline).
 #### Changed

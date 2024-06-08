@@ -2,8 +2,6 @@
 # shellcheck disable=SC2086
 #shellcheck source=/dev/null
 
-. "$(dirname $0)"/mithril.library
-
 ######################################
 # User Variables - Change as desired #
 # Common variables set in env file   #
@@ -187,6 +185,8 @@ while getopts :dDekrsuh opt; do
       ;;
   esac
 done
+
+. "$(dirname $0)"/mithril.library
 
 [[ "${STOP_SIGNER}" == "Y" ]] && stop_signer
 

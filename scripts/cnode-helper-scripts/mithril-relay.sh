@@ -2,8 +2,6 @@
 # shellcheck disable=SC2086
 #shellcheck source=/dev/null
 
-. "$(dirname $0)"/mithril.library
-
 ######################################
 # User Variables - Change as desired #
 # Common variables set in env file   #
@@ -253,6 +251,8 @@ if [[ ${OPTIND} -eq 1 ]]; then
   usage
   exit 1
 fi
+
+. "$(dirname $0)"/mithril.library
 
 [[ "${STOP_RELAYS}" == "Y" ]] && stop_relays
 

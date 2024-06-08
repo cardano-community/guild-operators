@@ -2,8 +2,6 @@
 # shellcheck disable=SC2086
 #shellcheck source=/dev/null
 
-. "$(dirname $0)"/mithril.library
-
 ######################################
 # User Variables - Change as desired #
 # Common variables set in env file   #
@@ -174,6 +172,8 @@ list_stake_distributions() {
 #####################
 # Execution/Main    #
 #####################
+
+. "$(dirname $0)"/mithril.library
 
 update_check "$@"
 
