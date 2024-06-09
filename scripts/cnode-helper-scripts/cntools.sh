@@ -358,53 +358,93 @@ function main {
           esac
           case $SUBCOMMAND in
             new)
-              clear
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> WALLET >> NEW"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              echo
-              getAnswerAnyCust wallet_name "Name of new wallet"
-              # Remove unwanted characters from wallet name
-              wallet_name=${wallet_name//[^[:alnum:]]/_}
-              if [[ -z "${wallet_name}" ]]; then
-                println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                waitToProceed && continue
-              fi
-              echo
-              if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-                println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-                waitToProceed && continue
-              fi
-              # Wallet key filenames
-              payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-              payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-              stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-              stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-              if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-                println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
-                println "      Choose another name or delete the existing one"
-                waitToProceed && continue
-              fi
-              println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${payment_vk_file} --signing-key-file ${payment_sk_file}"
-              if ! stdout=$(${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-              fi
-              println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
-              if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-              fi
-              chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
-              getBaseAddress ${wallet_name}
-              getPayAddress ${wallet_name}
-              getRewardAddress ${wallet_name}
-              getCredentials ${wallet_name}
-              println "New Wallet         : ${FG_GREEN}${wallet_name}${NC}"
-              println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-              println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
-              println DEBUG "\nYou can now send and receive ADA using the above addresses."
-              println DEBUG "Note that Enterprise Address will not take part in staking."
-              println DEBUG "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
-              waitToProceed && continue
+              while true; do # Wallet >> New loop
+                clear
+                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println " >> WALLET >> NEW"
+                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println OFF " Wallet New\n"\
+                  " ) Mnemonic - based on 24 word generated passphrase (recommended)"\
+                  " ) CLI      - one-time generated keys"\
+                  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println DEBUG " Select Wallet Creation Type\n"
+                select_opt "[m] Mnemonic" "[c] CLI" "[b] Back" "[h] Home"
+                case $? in
+                  0) SUBCOMMAND="mnemonic" ;;
+                  1) SUBCOMMAND="cli" ;;
+                  2) break ;;
+                  3) break 2 ;;
+                esac
+                case $SUBCOMMAND in
+                  mnemonic)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> WALLET >> NEW >> MNEMONIC"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    createNewWallet || continue
+                    unset mnemonic
+                    createMnemonicWallet || continue
+                    echo
+                    println "Wallet Imported    : ${FG_GREEN}${wallet_name}${NC}"
+                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                    echo
+                    word_len=0
+                    for word in "${words[@]}"; do
+                      [[ ${#word} -gt ${word_len} ]] && word_len=${#word}
+                    done
+                    println DEBUG "${FG_YELLOW}IMPORTANT!${NC} Please write down and store below words in a secure place to be able to restore wallet at a later time."
+                    for i in "${!words[@]}"; do
+                      idx=$(( i + 1 ))
+                      printf "%2s: ${FG_GREEN}%-${word_len}s${NC}  " "$idx" "${words[$i]}"
+                      [[ $(( idx % 4 )) -eq 0 ]] && echo
+                    done
+                    unset words
+                    echo
+                    printWalletInfo
+                    waitToProceed && continue
+                    ;; ###################################################################
+                  cli)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> WALLET >> NEW >> CLI"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    createNewWallet || continue
+                    # Wallet key filenames
+                    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+                    payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+                    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+                    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+                    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
+                      println "      Choose another name or delete the existing one"
+                      waitToProceed && continue
+                    fi
+                    println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${payment_vk_file} --signing-key-file ${payment_sk_file}"
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
+                    fi
+                    println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
+                    fi
+                    chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
+                    getBaseAddress ${wallet_name}
+                    getPayAddress ${wallet_name}
+                    getRewardAddress ${wallet_name}
+                    getCredentials ${wallet_name}
+                    println "New Wallet         : ${FG_GREEN}${wallet_name}${NC}"
+                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                    println DEBUG "\nYou can now send and receive ADA using the above addresses."
+                    println DEBUG "Note that Enterprise Address will not take part in staking."
+                    println DEBUG "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
+                    waitToProceed && continue
+                    ;; ###################################################################
+                esac # wallet >> new sub OPERATION
+              done # Wallet >> new loop
               ;; ###################################################################
             import)
               while true; do # Wallet >> Import loop
@@ -431,29 +471,7 @@ function main {
                     println " >> WALLET >> IMPORT >> MNEMONIC"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    if ! cmdAvailable "bech32" &>/dev/null || \
-                      ! cmdAvailable "cardano-address" &>/dev/null; then
-                      println ERROR "${FG_RED}ERROR${NC}: bech32 and/or cardano-address not found in '\$PATH'" 
-                      println ERROR "Please run updated guild-deploy.sh and re-build/re-download cardano-node"
-                      waitToProceed && continue
-                    fi
-                    getAnswerAnyCust wallet_name "Name of imported wallet"
-                    # Remove unwanted characters from wallet name
-                    wallet_name=${wallet_name//[^[:alnum:]]/_}
-                    if [[ -z "${wallet_name}" ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                      waitToProceed && continue
-                    fi
-                    echo
-                    if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-                      println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-                      waitToProceed && continue
-                    fi
-                    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
-                      println "      Choose another name or delete the existing one"
-                      waitToProceed && continue
-                    fi
+                    createNewWallet || continue
                     getAnswerAnyCust mnemonic false "24 or 15 word mnemonic(space separated)"
                     echo
                     IFS=" " read -r -a words <<< "${mnemonic}"
@@ -463,98 +481,15 @@ function main {
                       unset mnemonic; unset words
                       waitToProceed && continue
                     fi
-                    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-                    payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-                    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-                    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-                    caddr_v="$(cardano-address -v | awk '{print $1}')"
-                    [[ "${caddr_v}" == 3* ]] && caddr_arg="--with-chain-code" || caddr_arg=""
-                    if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
-                      echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
-                      unset mnemonic; unset words
-                      waitToProceed && continue
-                    fi
-                    unset mnemonic; unset words
-                    payment_xprv=$(cardano-address key child 1852H/1815H/0H/0/0 <<< ${root_prv})
-                    stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
-                    payment_xpub=$(cardano-address key public ${caddr_arg} <<< ${payment_xprv})
-                    stake_xpub=$(cardano-address key public ${caddr_arg} <<< ${stake_xprv})
-                    [[ "${NWMAGIC}" == "764824073" ]] && network_tag=1 || network_tag=0
-                    base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
-                    if [[ "${caddr_v}" == 2* ]] && [[ "${NWMAGIC}" != "764824073" ]]; then
-                      println LOG "TestNet, converting address to 'addr_test'"
-                      base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
-                    fi
-                    println LOG "Base address candidate = ${base_addr_candidate}"
-                    println LOG "Address Inspection:\n$(cardano-address address inspect <<< ${base_addr_candidate})"
-                    pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
-                    ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
-                    cat <<-EOF > "${payment_sk_file}"
-											{
-											    "type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
-											    "description": "Payment Signing Key",
-											    "cborHex": "5880${pes_key}"
-											}
-											EOF
-                    cat <<-EOF > "${stake_sk_file}"
-											{
-											    "type": "StakeExtendedSigningKeyShelley_ed25519_bip32",
-											    "description": "",
-											    "cborHex": "5880${ses_key}"
-											}
-											EOF
-                    println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_DIR}/payment.evkey"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_DIR}/payment.evkey" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_DIR}/stake.evkey"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_DIR}/stake.evkey" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/stake.evkey --verification-key-file ${stake_vk_file}"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
-                    chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
-                    getBaseAddress ${wallet_name}
-                    getPayAddress ${wallet_name}
-                    getRewardAddress ${wallet_name}
-                    getCredentials ${wallet_name}
-                    if [[ ${base_addr} != "${base_addr_candidate}" ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: base address generated doesn't match base address candidate."
-                      println ERROR "base_addr[${FG_LGRAY}${base_addr}${NC}]\n!=\nbase_addr_candidate[${FG_LGRAY}${base_addr_candidate}${NC}]"
-                      println ERROR "Create a GitHub issue and include log file from failed CNTools session."
-                      echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
-                      waitToProceed && continue
-                    fi
+                    createMnemonicWallet || continue
                     echo
                     println "Wallet Imported    : ${FG_GREEN}${wallet_name}${NC}"
                     println "Address            : ${FG_LGRAY}${base_addr}${NC}"
                     println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
-                    println DEBUG "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
-                    println DEBUG "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
-                    echo
-                    println DEBUG "${FG_YELLOW}Using a mnemonic imported wallet in CNTools comes with a few limitations${NC}"
-                    echo
-                    println DEBUG "Only the first address in the HD wallet is extracted and because of this the following apply:"
-                    println DEBUG " ${FG_LGRAY}>${NC} Address above should match the first address seen in the wallet where mnemonic was generated, please verify!!!"
-                    println DEBUG " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, and balance doesn't match, send all ADA to address shown in CNTools"
-                    println DEBUG " ${FG_LGRAY}>${NC} Only use receive address shown in CNTools (enable 'Single Address Mode' in wallet if available)"
-                    echo
-                    println DEBUG "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
-                    println DEBUG " ${FG_LGRAY}>${NC} Wallet can be restored from saved 24 or 15 word mnemonic if keys are lost/deleted"
-                    println DEBUG " ${FG_LGRAY}>${NC} Wallet can be shared and used in multiple wallets, including CNTools"
-                    echo
-                    println DEBUG "Please read more about HD wallets at:"
-                    println DEBUG "https://cardano-community.github.io/support-faq/wallets?id=heirarchical-deterministic-hd-wallets"
+                    printWalletInfo
                     waitToProceed && continue
                     ;; ###################################################################
-
                   hardware)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -579,22 +514,7 @@ function main {
                       waitToProceed && continue
                     fi
                     if ! HWCLIversionCheck; then waitToProceed && continue; fi
-                    getAnswerAnyCust wallet_name "Name of imported wallet"
-                    # Remove unwanted characters from wallet name
-                    wallet_name=${wallet_name//[^[:alnum:]]/_}
-                    if [[ -z "${wallet_name}" ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                      waitToProceed && continue
-                    fi
-                    if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-                      println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-                      waitToProceed && continue
-                    fi
-                    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
-                      println "      Choose another name or delete the existing one"
-                      waitToProceed && continue
-                    fi
+                    createNewWallet || continue
                     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_PAY_SK_FILENAME}"
                     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
                     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
@@ -619,21 +539,7 @@ function main {
                     println "Address            : ${FG_LGRAY}${base_addr}${NC}"
                     println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
-                    println DEBUG "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
-                    echo
-                    println DEBUG "All transaction signing is now done through hardware device, please follow directions in both CNTools and the device display!"
-                    println DEBUG "${FG_YELLOW}Using an imported hardware wallet in CNTools comes with a few limitations${NC}"
-                    echo
-                    println DEBUG "Most operations like delegation and sending funds is seamless. For pool registration/modification however the following apply:"
-                    println DEBUG " ${FG_LGRAY}>${NC} Pool owner has to be a CLI wallet with enough funds to pay for pool registration deposit and transaction fee"
-                    println DEBUG " ${FG_LGRAY}>${NC} Add the hardware wallet containing the pledge as a multi-owner to the pool"
-                    println DEBUG " ${FG_LGRAY}>${NC} The hardware wallet can be used as the reward wallet, but has to be included as a multi-owner if it should be counted to pledge"
-                    echo
-                    println DEBUG "Only the first address in the HD wallet is extracted and because of this the following apply if also synced with Daedalus/Yoroi:"
-                    println DEBUG " ${FG_LGRAY}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
-                    println DEBUG " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all ADA through Daedalus/Yoroi to address shown in CNTools"
-                    println DEBUG " ${FG_LGRAY}>${NC} Only use the address shown in CNTools to receive funds"
-                    println DEBUG " ${FG_LGRAY}>${NC} Only spend ADA from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
+                    printWalletInfo
                     waitToProceed && continue
                     ;; ###################################################################
                 esac # wallet >> import sub OPERATION

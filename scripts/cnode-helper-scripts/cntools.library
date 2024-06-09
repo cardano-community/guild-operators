@@ -1493,6 +1493,173 @@ getTTL() {
   println LOG "Current slot is ${tip_ref}, setting ttl to ${ttl}"
 }
 
+# Command     : getCustomDerivationPath
+# Description : ask user for custom derivation path (account and key index)
+# Return      : populates: ${acct_idx} ${key_idx}
+getCustomDerivationPath() {
+  println DEBUG "\nEnter a custom account index to derive keys for (enter for default)"
+  getAnswerAnyCust acct_idx "Account (default: 0)"
+  acct_idx=${acct_idx:-0}
+  if ! isNumber ${acct_idx}; then
+    println ERROR "${FG_RED}ERROR${NC}: Invalid account index, must be a number!"
+    waitToProceed && return 1
+  fi
+  println DEBUG "\nEnter a custom key index to derive keys for (enter for default)"
+  getAnswerAnyCust key_idx "Key index (default: 0)"
+  key_idx=${key_idx:-0}
+  if ! isNumber ${key_idx}; then
+    println ERROR "${FG_RED}ERROR${NC}: Invalid key index, must be a number!"
+    waitToProceed && return 1
+  fi
+  return 0
+}
+
+# Command     : createNewWallet
+# Description : creates a new empty wallet folder
+createNewWallet() {
+  getAnswerAnyCust wallet_name "Name of imported wallet"
+  # Remove unwanted characters from wallet name
+  wallet_name=${wallet_name//[^[:alnum:]]/_}
+  if [[ -z "${wallet_name}" ]]; then
+    println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
+    waitToProceed && return 1
+  fi
+  echo
+  if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
+    println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
+    waitToProceed && return 1
+  fi
+  if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+    println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
+    println "      Choose another name or delete the existing one"
+    waitToProceed && return 1
+  fi
+  return 0
+}
+
+# Command     : createNewWallet
+# Description : creates a new
+# Return      : populates: ${acct_idx} ${key_idx}
+createMnemonicWallet() {
+  if ! cmdAvailable "bech32" &>/dev/null || \
+    ! cmdAvailable "cardano-address" &>/dev/null; then
+    println ERROR "${FG_RED}ERROR${NC}: bech32 and/or cardano-address not found in '\$PATH'"
+    println ERROR "Please run updated guild-deploy.sh and re-build/re-download cardano-node"
+    waitToProceed && return 1
+  fi
+  payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+  payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+  stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+  stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+  isImport=true
+  if [[ -z ${mnemonic} ]]; then
+    println ACTION "cardano-address recovery-phrase generate"
+    mnemonic=$(cardano-address recovery-phrase generate)
+    isImport=false
+  fi
+  IFS=" " read -r -a words <<< "${mnemonic}"
+  if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
+    println ERROR "${FG_RED}ERROR${NC}: 24 or 15 words expected, found ${FG_RED}${#words[@]}${NC}"
+    echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+    unset mnemonic; unset words
+    waitToProceed && return 1
+  fi
+  getCustomDerivationPath || return 1
+  caddr_v="$(cardano-address -v | awk '{print $1}')"
+  [[ "${caddr_v}" == 3* ]] && caddr_arg="--with-chain-code" || caddr_arg=""
+  println ACTION "cardano-address key from-recovery-phrase Shelley <<< <mnemonic words>"
+  if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
+    echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+    unset mnemonic; unset words
+    waitToProceed && return 1
+  fi
+  unset mnemonic
+  [[ ${isImport} = true ]] && unset words
+  println ACTION "cardano-address key child "1852H/1815H/${acct_idx}H/0/${key_idx}" <<< <root private key>"
+  payment_xprv=$(cardano-address key child "1852H/1815H/${acct_idx}H/0/${key_idx}" <<< ${root_prv})
+  println ACTION "cardano-address key child "1852H/1815H/${acct_idx}H/2/${key_idx}" <<< <root private key>"
+  stake_xprv=$(cardano-address key child "1852H/1815H/${acct_idx}H/2/${key_idx}" <<< ${root_prv})
+  println ACTION "cardano-address key public ${caddr_arg} <<< <payment xprv>"
+  payment_xpub=$(cardano-address key public ${caddr_arg} <<< ${payment_xprv})
+  println ACTION "cardano-address key public ${caddr_arg} <<< <stake xprv>"
+  stake_xpub=$(cardano-address key public ${caddr_arg} <<< ${stake_xprv})
+  [[ "${NWMAGIC}" == "764824073" ]] && network_tag=1 || network_tag=0
+  println ACTION "cardano-address address delegation ${stake_xpub} <<< $(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})"
+  base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
+  if [[ "${caddr_v}" == 2* ]] && [[ "${NWMAGIC}" != "764824073" ]]; then
+    println LOG "TestNet, converting address to 'addr_test'"
+    println ACTION "bech32 addr_test <<< ${base_addr_candidate}"
+    base_addr_candidate=$(bech32 addr_test <<< ${base_addr_candidate})
+  fi
+  println LOG "Base address candidate = ${base_addr_candidate}"
+  println LOG "Address Inspection:\n$(cardano-address address inspect <<< ${base_addr_candidate})"
+  println ACTION "\$(bech32 <<< \${payment_xprv} | cut -b -128)\$(bech32 <<< ${payment_xpub})"
+  pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
+  println ACTION "\$(bech32 <<< \${stake_xprv} | cut -b -128)\$(bech32 <<< ${stake_xpub})"
+  ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
+  cat <<-EOF > "${payment_sk_file}"
+		{
+				"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
+				"description": "Payment Signing Key",
+				"cborHex": "5880${pes_key}"
+		}
+		EOF
+  cat <<-EOF > "${stake_sk_file}"
+		{
+				"type": "StakeExtendedSigningKeyShelley_ed25519_bip32",
+				"description": "",
+				"cborHex": "5880${ses_key}"
+		}
+		EOF
+  println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_DIR}/payment.evkey"
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_DIR}/payment.evkey" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during payment signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
+  println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_DIR}/stake.evkey"
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_DIR}/stake.evkey" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during stake signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
+  println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
+  println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/stake.evkey --verification-key-file ${stake_vk_file}"
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
+  chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
+  getBaseAddress ${wallet_name}
+  getPayAddress ${wallet_name}
+  getRewardAddress ${wallet_name}
+  getCredentials ${wallet_name}
+  if [[ ${base_addr} != "${base_addr_candidate}" ]]; then
+    println ERROR "${FG_RED}ERROR${NC}: base address generated doesn't match base address candidate."
+    println ERROR "base_addr[${FG_LGRAY}${base_addr}${NC}]\n!=\nbase_addr_candidate[${FG_LGRAY}${base_addr_candidate}${NC}]"
+    println ERROR "Create a GitHub issue and include log file from failed CNTools session."
+    echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
+    waitToProceed && return 1
+  fi
+  return 0
+}
+
+printWalletInfo() {
+  println DEBUG "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
+  println DEBUG "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
+  echo
+  println DEBUG "${FG_YELLOW}Using a mnemonic or hardware wallet in CNTools comes with a few limitations${NC}"
+  echo
+  println DEBUG "Only the specified address in the HD wallet is extracted and because of this the following apply if used elsewhere:"
+  println DEBUG " ${FG_LGRAY}>${NC} If restored wallet balance doesn't match, send all ADA to address shown in CNTools"
+  println DEBUG " ${FG_LGRAY}>${NC} Only use receive address shown in CNTools (enable 'Single Address Mode' in wallet if available)"
+  echo
+  println DEBUG "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
+  println DEBUG " ${FG_LGRAY}>${NC} Wallet can be restored from saved mnemonic/hardware device if keys are lost/deleted"
+  println DEBUG " ${FG_LGRAY}>${NC} Wallet can be shared and used in multiple wallets concurrently, including CNTools"
+  echo
+  println DEBUG "Please read more about HD wallets at:"
+  println DEBUG "https://cardano-community.github.io/support-faq/wallets?id=heirarchical-deterministic-hd-wallets"
+}
+
 # Command     : buildOfflineJSON [type]
 # Description : construct a json containing all data for offline signing
 # Parameters  : type  >  type of transaction, e.g 'payment'
