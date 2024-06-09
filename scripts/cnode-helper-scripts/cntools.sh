@@ -3596,7 +3596,7 @@ function main {
                 for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
                   [[ ${otx_witness_name} = ${otx_signing_name} ]] && hasWitness=true && break
                 done
-                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_witness_name}${NC} ${FG_RED}\u274c${NC}" || println DEBUG "${FG_LGRAY}${otx_witness_name}${NC} ${FG_GREEN}\u2714${NC}"
+                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_RED}\u274c${NC}" || println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_GREEN}\u2714${NC}"
               done
               for otx_script in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
                 _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
@@ -3611,10 +3611,9 @@ function main {
                   for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
                     [[ ${otx_witness_name} = ${sig} ]] && hasWitness=true && break
                   done
-                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${otx_witness_name}${NC} ${FG_RED}\u274c${NC}" || println DEBUG "  ${FG_LGRAY}${otx_witness_name}${NC} ${FG_GREEN}\u2714${NC}"
+                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}\u274c${NC}" || println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_GREEN}\u2714${NC}"
                 done
               done
-              echo
               for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
                 _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
                 otx_signing_name=$(_jq '.name')
