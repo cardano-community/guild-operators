@@ -3729,7 +3729,7 @@ function main {
                 if validateMultisigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
                   # script successfully validated, no more signatures needed
                   println DEBUG "\n${FG_LGRAY}${otx_script_name}${NC} validation ${FG_GREEN}passed${NC}! No more signatures needed!"
-                  break
+                  continue
                 fi
                 # loop again if needed
                 for sig in "${missing_creds[@]}"; do
