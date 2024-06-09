@@ -3609,7 +3609,7 @@ function main {
                 for sig in "${!script_sig_list[@]}"; do
                   unset hasWitness
                   for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
-                    [[ ${otx_witness_name} = ${otx_signing_name} ]] && hasWitness=true && break
+                    [[ ${otx_witness_name} = ${sig} ]] && hasWitness=true && break
                   done
                   [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${otx_witness_name}${NC} ${FG_RED}\u274c${NC}" || println DEBUG "  ${FG_LGRAY}${otx_witness_name}${NC} ${FG_GREEN}\u2714${NC}"
                 done
