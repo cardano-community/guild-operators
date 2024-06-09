@@ -3710,7 +3710,6 @@ function main {
                 if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
                 jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
               done
-              script_sig_creds=()
               unset script_failed pay_script_signers stake_script_signers
               for otx_script in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
                 _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
@@ -3719,6 +3718,7 @@ function main {
                 getAllMultisigKeys "${otx_script_scripts}"
                 # loop once to add all already signed creds
                 missing_creds=()
+                script_sig_creds=()
                 for sig in "${!script_sig_list[@]}"; do
                   for otx_witness in $(jq -r '.witness[] | @base64' <<< "${offlineJSON}"); do
                     __jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
