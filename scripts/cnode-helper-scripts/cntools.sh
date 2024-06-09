@@ -3590,6 +3590,31 @@ function main {
                   ;;
                 *) println ERROR "${FG_RED}ERROR${NC}: unsupported type: ${otx_type}" && waitToProceed && continue ;;
               esac
+              println DEBUG "\nSigning keys required:"
+              for otx_signing_name in $(jq -r '."signing-file"[].name' <<< "${offlineJSON}"); do
+                unset hasWitness
+                for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
+                  [[ ${otx_witness_name} = ${otx_signing_name} ]] && hasWitness=true && break
+                done
+                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_witness_name}${NC} ${FG_RED}\u274c${NC}" || println DEBUG "${FG_LGRAY}${otx_witness_name}${NC} ${FG_GREEN}\u2714${NC}"
+              done
+              for otx_script in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
+                _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
+                otx_script_name=$(_jq '.name')
+                otx_script_scripts="$(_jq '.script' 2>/dev/null)"
+                getAllMultisigKeys "${otx_script_scripts}"
+                unset required_total
+                validateMultisigScript false "${otx_script_scripts}"
+                println DEBUG "${FG_LGRAY}${otx_script_name}${NC} - required signatures: ${FG_LBLUE}${required_total}${NC}"
+                for sig in "${!script_sig_list[@]}"; do
+                  unset hasWitness
+                  for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
+                    [[ ${otx_witness_name} = ${otx_signing_name} ]] && hasWitness=true && break
+                  done
+                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${otx_witness_name}${NC} ${FG_RED}\u274c${NC}" || println DEBUG "  ${FG_LGRAY}${otx_witness_name}${NC} ${FG_GREEN}\u2714${NC}"
+                done
+              done
+              echo
               for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
                 _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
                 otx_signing_name=$(_jq '.name')
@@ -3697,6 +3722,12 @@ function main {
                     __jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
                     [[ ${sig} = $(__jq '.name') ]] && script_sig_creds+=( ${sig} ) && continue 2 # offline transaction already witnessed by this signing key
                   done
+                  # Check if script meets requirement
+                  if validateMultisigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
+                    # script successfully validated, no more signatures needed
+                    println DEBUG "\n${FG_LGRAY}${otx_script_name}${NC} validation ${FG_GREEN}passed${NC}! No more signatures needed!"
+                    break
+                  fi
                   unset skey_path
                   # look for matching credential in wallet folder
                   while IFS= read -r -d '' wallet; do
