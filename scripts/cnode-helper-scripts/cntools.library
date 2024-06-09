@@ -1497,7 +1497,7 @@ getTTL() {
 # Description : ask user for custom derivation path (account and key index)
 # Return      : populates: ${acct_idx} ${key_idx}
 getCustomDerivationPath() {
-  println DEBUG "\nEnter a custom account index to derive keys for (enter for default)"
+  println DEBUG "Enter a custom account index to derive keys for (enter for default)"
   getAnswerAnyCust acct_idx "Account (default: 0)"
   acct_idx=${acct_idx:-0}
   if ! isNumber ${acct_idx}; then
@@ -1646,7 +1646,7 @@ printWalletInfo() {
   println DEBUG "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
   println DEBUG "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
   echo
-  println DEBUG "${FG_YELLOW}Using a mnemonic or hardware wallet in CNTools comes with a few limitations${NC}"
+  println DEBUG "${FG_FG_LBLUE}INFO!${NC} Using a mnemonic or hardware wallet in CNTools comes with a few limitations"
   echo
   println DEBUG "Only the specified address in the HD wallet is extracted and because of this the following apply if used elsewhere:"
   println DEBUG " ${FG_LGRAY}>${NC} If restored wallet balance doesn't match, send all ADA to address shown in CNTools"
