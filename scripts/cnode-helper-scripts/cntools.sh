@@ -3717,11 +3717,23 @@ function main {
                 otx_script_name=$(_jq '.name')
                 otx_script_scripts="$(_jq '.script' 2>/dev/null)"
                 getAllMultisigKeys "${otx_script_scripts}"
+                # loop once to add all already signed creds
+                missing_creds=()
                 for sig in "${!script_sig_list[@]}"; do
                   for otx_witness in $(jq -r '.witness[] | @base64' <<< "${offlineJSON}"); do
                     __jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
                     [[ ${sig} = $(__jq '.name') ]] && script_sig_creds+=( ${sig} ) && continue 2 # offline transaction already witnessed by this signing key
                   done
+                  missing_creds+=( "${sig}" )
+                done
+                # Check if script meets requirement
+                if validateMultisigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
+                  # script successfully validated, no more signatures needed
+                  println DEBUG "\n${FG_LGRAY}${otx_script_name}${NC} validation ${FG_GREEN}passed${NC}! No more signatures needed!"
+                  break
+                fi
+                # loop again if needed
+                for sig in "${missing_creds[@]}"; do
                   # Check if script meets requirement
                   if validateMultisigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
                     # script successfully validated, no more signatures needed
@@ -3808,12 +3820,6 @@ function main {
                     if ! offlineJSON=$(jq ".witness += [{ name: \"${sig}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
                     jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
                     script_sig_creds+=( ${sig} )
-                  fi
-                  # Check if script meets requirement
-                  if validateMultisigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
-                    # script successfully validated, no more signatures needed
-                    println DEBUG "\n${FG_LGRAY}${otx_script_name}${NC} validation ${FG_GREEN}passed${NC}! No more signatures needed!"
-                    break
                   fi
                 done
                 unset required_total
