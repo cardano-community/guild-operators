@@ -310,6 +310,7 @@ build_dependencies() {
 
 # Build fork of libsodium
 build_libsodium() {
+  build_libsecp
   echo -e "\nBuilding libsodium ..."
   SODIUM_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".sodium' <<< ${NODE_DEPS})"
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
@@ -671,7 +672,7 @@ parse_args() {
   if [[ -n "${S_ARGS}" ]]; then
     [[ "${S_ARGS}" =~ "p" ]] && INSTALL_OS_DEPS="Y"
     [[ "${S_ARGS}" =~ "b" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y"
-    [[ "${S_ARGS}" =~ "l" ]] && INSTALL_OS_DEPS="Y" && INSTALL_LIBSODIUM_FORK="Y"
+    [[ "${S_ARGS}" =~ "l" ]] && INSTALL_OS_DEPS="Y" && LIBSODIUM_FORK="Y"
     [[ "${S_ARGS}" =~ "m" ]] && INSTALL_MITHRIL="Y"
     [[ "${S_ARGS}" =~ "f" ]] && FORCE_OVERWRITE="Y" && POPULATE_CNODE="F"
     [[ "${S_ARGS}" =~ "d" ]] && INSTALL_CNODEBINS="Y"
@@ -694,7 +695,7 @@ main_flow() {
   [[ "${UPDATE_CHECK}" == "Y" ]] && update_check
   [[ "${INSTALL_OS_DEPS}" == "Y" ]] && os_dependencies
   [[ "${WANT_BUILD_DEPS}" == "Y" ]] && build_dependencies
-  [[ "${INSTALL_LIBSODIUM_FORK}" == "Y" ]] && build_libsodium
+  [[ "${LIBSODIUM_FORK}" == "Y" ]] && build_libsodium
   [[ "${INSTALL_MITHRIL}" == "Y" ]] && download_mithril
   [[ "${FORCE_OVERWRITE}" == "Y" ]] && POPULATE_CNODE="F" && populate_cnode
   [[ "${POPULATE_CNODE}" == "Y" ]] && populate_cnode
