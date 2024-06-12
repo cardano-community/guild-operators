@@ -5220,18 +5220,7 @@ function main {
                     println " >> ADVANCED >> MULTISIG >> CREATE WALLET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    getAnswerAnyCust ms_wallet_name "Name of multisig wallet"
-                    # Remove unwanted characters from wallet name
-                    ms_wallet_name=${ms_wallet_name//[^[:alnum:]]/_}
-                    if [[ -z "${ms_wallet_name}" ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                      waitToProceed && continue
-                    fi
-                    echo
-                    if ! mkdir -p "${WALLET_FOLDER}/${ms_wallet_name}"; then
-                      println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${ms_wallet_name}"
-                      waitToProceed && continue
-                    fi
+                    createNewWallet || continue
                     # Wallet key filenames
                     ms_pay_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
                     ms_stake_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SCRIPT_FILENAME}"
