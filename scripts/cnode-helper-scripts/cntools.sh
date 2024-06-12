@@ -1575,7 +1575,8 @@ function main {
               fi
               echo
               if ! verifyTx ${s_addr}; then waitToProceed && continue; fi
-              s_balance=${assets[${index_prefix}lovelace]}
+              getAddressBalance ${s_addr} true
+              s_balance=${lovelace}
               getAddressBalance ${d_addr} true
               d_balance=${lovelace}
               getPayAddress ${s_wallet}
@@ -3596,7 +3597,7 @@ function main {
                 for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
                   [[ ${otx_witness_name} = ${otx_signing_name} ]] && hasWitness=true && break
                 done
-                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_RED}\u274c${NC}" || println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_GREEN}\u2714${NC}"
+                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_RED}x${NC}" || println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_GREEN}\u2714${NC}"
               done
               for otx_script in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
                 _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
@@ -3611,7 +3612,7 @@ function main {
                   for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
                     [[ ${otx_witness_name} = ${sig} ]] && hasWitness=true && break
                   done
-                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}\u274c${NC}" || println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_GREEN}\u2714${NC}"
+                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}x${NC}" || println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_GREEN}\u2714${NC}"
                 done
               done
               for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
