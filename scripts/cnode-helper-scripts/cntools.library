@@ -13,7 +13,7 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=0
+CNTOOLS_MINOR_VERSION=1
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
 CNTOOLS_PATCH_VERSION=2
 
@@ -250,7 +250,7 @@ fileDialog() {
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
     getAnswerAnyCust file "$1" && return
   else
-    println DEBUG false "${1}: "
+    println DEBUG "${1}: "
     waitToProceed "Press any key to open the file explorer [cancel to skip!]"
   fi
   dialogSetup
@@ -269,7 +269,7 @@ dirDialog() {
   if [[ ${ENABLE_DIALOG} = "false" ]]; then
     getAnswerAnyCust dir "$1" && return
   else
-    println DEBUG false "${1}: "
+    println DEBUG "${1}: "
     waitToProceed "Press any key to open the file explorer [cancel to skip!]"
   fi
   dialogSetup
@@ -303,7 +303,7 @@ key_input()        { key2=""
                      else echo ${key1}; fi; }
 opt_shortcut()     { [[ "$1" =~ ^\[([[:alnum:]]+)\].* ]] && echo ${BASH_REMATCH[1]}; }
 opt_firstchar()    { printf "${1:0:1}" | tr '[:upper:]' '[:lower:]'; }
-clrbuf()           { read -r -t 0.1 -s -e; stty echo echok; }
+clrbuf()           { read -r -t 0.1 -s; stty echo echok; }
 selectOption() {
 
   # initially print empty new lines (scroll down if at bottom of screen)
@@ -433,7 +433,7 @@ selectDir() {
 
 # Command     : selectWallet [mode] [file1 file2 ... | wallet_name1 wallet_name1 ... ]
 # Description : A helper function to select a CNTools wallet
-# Parameters  : mode       >  a string containing some of the following: none|encrypted|non-reg|reg|balance|delegate|reward|assets to be added next to wallet in selection menu
+# Parameters  : mode       >  a string containing some of the following: none|encrypted|non-reg|reg|balance|delegate|reward|assets|non-ms to be added next to wallet in selection menu
 #             : arg array  >  array of files required to exist in wallet folder for it to be selectable **OR** the name of wallet to exclude from selection
 # Return      : populates ${wallet_name} variable with wallet selection
 selectWallet() {
@@ -449,7 +449,7 @@ selectWallet() {
   wallet_dirs=()
 
   if ! getDirs "${WALLET_FOLDER}"; then return 1; fi # dirs() array populated with all wallet folders
-  if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" ]]; then
+  if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" && ${mode} != "non-ms" ]]; then
     tput sc
     wallet_count=${#dirs[@]}
     if [[ ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
@@ -483,6 +483,10 @@ selectWallet() {
       else
         wallet_dirs+=("${dir} (${FG_YELLOW}unprotected${NC})")
       fi
+    elif [[ ${mode} = "non-ms" ]]; then
+      ms_payment_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
+      ms_stake_vk_file="${WALLET_FOLDER}/${dir}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+      if [[ -f "${ms_payment_vk_file}" || -f "${ms_stake_vk_file}" ]]; then continue; else wallet_dirs+=("${dir}"); fi
     elif [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
       if [[ ${mode} = "reg" || ${mode} = "non-reg" ]]; then
         if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
@@ -610,32 +614,40 @@ selectWallet() {
       [[ -v asset_cnt[${base_addr}] ]] && base_asset_str=" + ${FG_LBLUE}${asset_cnt[${base_addr}]}${NC} additional assets" || unset base_asset_str
       [[ -v asset_cnt[${pay_addr}] ]] && pay_asset_str=" + ${FG_LBLUE}${asset_cnt[${pay_addr}]}${NC} additional assets" || unset pay_asset_str
       if [[ ${base_lovelace} -gt 0 && ${pay_lovelace} -gt 0 ]]; then
-        wallet_dirs_filtered+=("${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str} | Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
+        wallet_dirs_filtered+=("${wallet_dir} (Base Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str} | Payment Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
       elif [[ ${pay_lovelace} -gt 0 ]]; then
-        wallet_dirs_filtered+=("${wallet_dir} (Enterprise Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
+        wallet_dirs_filtered+=("${wallet_dir} (Payment Funds: ${FG_LBLUE}$(formatLovelace ${pay_lovelace})${NC} ADA${pay_asset_str})")
       else
-        wallet_dirs_filtered+=("${wallet_dir} (Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str})")
+        wallet_dirs_filtered+=("${wallet_dir} (Base Funds: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA${base_asset_str})")
       fi
     else
       wallet_dirs_filtered+=("${dir}")
     fi
   done
 
-  if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then tput rc && tput ed; fi
+  if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${mode} != "none" && ${mode} != "non-ms" && ${wallet_count} -le ${WALLET_SELECTION_FILTER_LIMIT} ]]; then tput rc && tput ed; fi
   if [[ ${#wallet_dirs_filtered[@]} -eq 0 ]]; then
     if [[ ${mode} = "balance" ]]; then
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets with funds available for selection! Required files:\n$(printf '%b\n' "$@")"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available for selection!"
     elif [[ ${mode} = "delegate" ]]; then
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that can be delegated or used as pool pledge/owner/reward wallet! Required files:\n$(printf '%b\n' "$@")"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available that can be delegated or used as pool pledge/owner/reward wallet! Required files:\n$(printf '%b\n' "$@")"
     elif [[ ${mode} = "reward" ]]; then
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that have rewards to withdraw or signing keys to do so!"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available that have rewards to withdraw or signing keys to do so!"
     elif [[ ${mode} = "reg" ]]; then
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that are registered on chain!"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available that are registered on chain!"
     elif [[ ${mode} = "non-reg" ]]; then
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available that are unregistered!"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available that are unregistered!"
     else
-      println ERROR "\n${FG_YELLOW}WARN${NC}: No wallets available for selection! Required files:\n$(printf '%b\n' "$@")"
+      println INFO "\n${FG_YELLOW}WARN${NC}: No wallets available for selection! Required files:\n$(printf '%b\n' "$@")"
     fi
+    required_files=()
+    already_selected_wallets=()
+    for arg in "$@"; do
+      [[ ${arg} = *"."* ]] && required_files+=("${arg}")
+      [[ ${arg} != *"."* ]] && already_selected_wallets+=("${arg}")
+    done
+    [[ "${#already_selected_wallets[@]}" -gt 0 ]] && println INFO "Already selected wallets:\n$(printf '  %b\n' "${already_selected_wallets[@]}")"
+    [[ "${#required_files[@]}" -gt 0 ]] && println INFO "Required files:\n$(printf '  %b\n' "${required_files[@]}")"
     return 1
   fi
 
@@ -985,10 +997,11 @@ verifyTx() {
 # Parameters  : wallet name  >  the name of the wallet
 # Return      : populates ${pay_addr}
 getPayAddress() {
+  unset pay_addr
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
+  payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
   payment_addr_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_ADDR_FILENAME}"
   [[ -f ${payment_addr_file} ]] && pay_addr=$(cat "${payment_addr_file}") && return 0
-  pay_addr=""
   if [[ -f "${payment_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
     if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
@@ -996,6 +1009,14 @@ getPayAddress() {
       return 0
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during payment address creation!\n${stdout}"
+    fi
+  elif [[ -f "${payment_script_file}" ]]; then
+    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-script-file ${payment_script_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-script-file "${payment_script_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+      pay_addr=$(cat "${payment_addr_file}")
+      return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during payment script address creation!\n${stdout}"
     fi
   fi
   return 1
@@ -1007,11 +1028,12 @@ getPayAddress() {
 # Return      : populates ${base_addr}
 getBaseAddress() {
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
-  payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
+  payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
+  stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
   base_addr_file="${WALLET_FOLDER}/${1}/${WALLET_BASE_ADDR_FILENAME}"
   [[ -f ${base_addr_file} ]] && base_addr=$(cat "${base_addr_file}") && return 0
-  base_addr=""
+  unset base_addr
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
     if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
@@ -1020,9 +1042,25 @@ getBaseAddress() {
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${stdout}"
     fi
+  elif [[ -f "${payment_script_file}" && -f "${stake_script_file}" ]]; then
+    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-script-file ${payment_script_file} --stake-script-file ${stake_script_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-script-file "${payment_script_file}" --stake-script-file "${stake_script_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+      base_addr=$(cat "${base_addr_file}")
+      return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${stdout}"
+    fi
   elif [[ -f "${payment_script_file}" && -f "${stake_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-script-file ${payment_script_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
     if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-script-file "${payment_script_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+      base_addr=$(cat "${base_addr_file}")
+      return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${stdout}"
+    fi
+  elif [[ -f "${payment_vk_file}" && -f "${stake_script_file}" ]]; then
+    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --stake-script-file ${stake_script_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --stake-script-file "${stake_script_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       base_addr=$(cat "${base_addr_file}")
       return 0
     else
@@ -1042,12 +1080,14 @@ getBaseAddress() {
 # Command     : getRewardAddress [wallet name]
 # Description : create, store and save reward address
 # Parameters  : wallet name  >  the name of the wallet
-# Return      : populates ${reward_addr}
+# Return      : populates ${reward_addr} ${is_reward_script_addr}
 getRewardAddress() {
+  unset reward_addr is_reward_script_addr
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
+  stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
   stake_addr_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_ADDR_FILENAME}"
+  [[ -f "${stake_script_file}" ]] && is_reward_script_addr=true || is_reward_script_addr=false
   [[ -f ${stake_addr_file} ]] && reward_addr=$(cat "${stake_addr_file}") && return 0
-  reward_addr=""
   if [[ -f "${stake_vk_file}" ]]; then
     println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file ${stake_vk_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
     if stdout=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
@@ -1055,6 +1095,14 @@ getRewardAddress() {
       return 0
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during reward address creation!\n${stdout}"
+    fi
+  elif [[ -f "${stake_script_file}" ]]; then
+    println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-script-file ${stake_script_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-script-file "${stake_script_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+      reward_addr=$(cat "${stake_addr_file}")
+      return 0
+    else
+      println LOG "\n${FG_RED}ERROR${NC}: failure during reward script address creation!\n${stdout}"
     fi
   elif [[ -f "${1}" ]]; then
     getRewardAddressFromKey ${1}
@@ -1075,54 +1123,111 @@ getRewardAddressFromKey() {
   fi
 }
 
-# Command     : getPayScriptAddress [wallet name]
-# Description : create, store and save multi-sig payment script address
-# Parameters  : wallet name  >  the name of the wallet
-# Return      : populates ${pay_script_addr}
-getPayScriptAddress() {
-  payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
-  payment_script_addr_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_ADDR_FILENAME}"
-  [[ -f ${payment_script_addr_file} ]] && pay_script_addr=$(cat "${payment_script_addr_file}") && return 0
-  unset pay_script_addr
-  if [[ -f "${payment_script_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-script-file ${payment_script_file} --out-file ${payment_script_addr_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-script-file "${payment_script_file}" --out-file "${payment_script_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
-      pay_script_addr=$(cat "${payment_script_addr_file}")
-      return 0
-    else
-      println LOG "\n${FG_RED}ERROR${NC}: failure during payment script address creation!\n${stdout}"
-    fi
+# Command     : getCredential [type] [file]
+# Description : create and save wallet credentials (key hash) for payment and stake keys (incl multisig)
+# Parameters  : type  >  payment | stake
+#             : file  >  path to verification file
+# Return      : populates ${cred}
+getCredential() {
+  unset cred
+  [[ ! -f "$2" ]] && return 1
+  [[ $1 = payment ]] && CLI_ARGS=("--payment-verification-key-file" "$2") || CLI_ARGS=("--stake-verification-key-file" "$2")
+  println ACTION "${CCLI} ${NETWORK_ERA} address key-hash ${CLI_ARGS[*]}"
+  if ! cred=$(${CCLI} ${NETWORK_ERA} address key-hash "${CLI_ARGS[@]}" 2>&1); then
+    println LOG "\n${FG_RED}ERROR${NC}: failure during key hash creation!\n${cred}"
+    unset cred
+    return 1
   fi
-  return 1
 }
 
 # Command     : getCredentials [wallet name]
-# Description : create and save wallet credentials (key hash) for payment and stake keys
+# Description : create and save wallet credentials (key hash) for payment and stake keys (incl multisig)
 # Parameters  : wallet name  >  the name of the wallet
-# Return      : populates ${pay_cred} & ${stake_cred}
+# Return      : populates ${pay_cred} & ${stake_cred} ${ms_pay_cred} & ${ms_stake_cred} ${script_pay_cred} & ${script_stake_cred}
 getCredentials() {
+  unset pay_cred stake_cred ms_pay_cred ms_stake_cred
   payment_cred_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_CRED_FILENAME}"
   stake_cred_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_CRED_FILENAME}"
-  [[ -f ${payment_cred_file} && -f ${stake_cred_file} ]] && pay_cred=$(cat "${payment_cred_file}") && stake_cred=$(cat "${stake_cred_file}") && return 0
-  unset pay_cred stake_cred
-  payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
-  stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
-  if [[ -f "${payment_vk_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${payment_vk_file} --out-file ${payment_cred_file}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_cred_file}" 2>&1); then
-      pay_cred=$(cat "${payment_cred_file}")
-    else
-      println LOG "\n${FG_RED}ERROR${NC}: failure during payment key hash creation!\n${stdout}"
-      return 1
+  ms_payment_cred_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_CRED_FILENAME}"
+  ms_stake_cred_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_CRED_FILENAME}"
+  script_payment_cred_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_CRED_FILENAME}"
+  script_stake_cred_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_CRED_FILENAME}"
+  [[ -f ${payment_cred_file} ]] && pay_cred=$(cat "${payment_cred_file}")
+  [[ -f ${stake_cred_file} ]] && stake_cred=$(cat "${stake_cred_file}")
+  [[ -f ${ms_payment_cred_file} ]] && ms_pay_cred=$(cat "${ms_payment_cred_file}")
+  [[ -f ${ms_stake_cred_file} ]] && ms_stake_cred=$(cat "${ms_stake_cred_file}")
+  [[ -f ${script_payment_cred_file} ]] && script_pay_cred=$(cat "${script_payment_cred_file}")
+  [[ -f ${script_stake_cred_file} ]] && script_stake_cred=$(cat "${script_stake_cred_file}")
+  if [[ -z ${pay_cred} ]]; then
+    payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
+    if [[ -f "${payment_vk_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${payment_vk_file} --out-file ${payment_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_cred_file}" 2>&1); then
+        pay_cred=$(cat "${payment_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during payment key hash creation!\n${stdout}"
+        return 1
+      fi
     fi
   fi
-  if [[ -f "${stake_vk_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cred_file}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cred_file}" 2>&1); then
-      stake_cred=$(cat "${stake_cred_file}")
-    else
-      println LOG "\n${FG_RED}ERROR${NC}: failure during stake key hash creation!\n${stdout}"
-      return 1
+  if [[ -z ${stake_cred} ]]; then
+    stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
+    if [[ -f "${stake_vk_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cred_file}" 2>&1); then
+        stake_cred=$(cat "${stake_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during stake key hash creation!\n${stdout}"
+        return 1
+      fi
+    fi
+  fi
+  if [[ -z ${ms_pay_cred} ]]; then
+    ms_payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
+    if [[ -f "${ms_payment_vk_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${ms_payment_vk_file} --out-file ${ms_payment_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${ms_payment_vk_file}" --out-file "${ms_payment_cred_file}" 2>&1); then
+        ms_pay_cred=$(cat "${ms_payment_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during multisig payment key hash creation!\n${stdout}"
+        return 1
+      fi
+    fi
+  fi
+  if [[ -z ${ms_stake_cred} ]]; then
+    ms_stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+    if [[ -f "${ms_stake_vk_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file ${ms_stake_vk_file} --out-file ${ms_stake_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file "${ms_stake_vk_file}" --out-file "${ms_stake_cred_file}" 2>&1); then
+        ms_stake_cred=$(cat "${ms_stake_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during multisig stake key hash creation!\n${stdout}"
+        return 1
+      fi
+    fi
+  fi
+  if [[ -z ${script_pay_cred} ]]; then
+    payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
+    if [[ -f "${payment_script_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} transaction policyid --script-file ${payment_script_file} --out-file ${script_payment_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} transaction policyid --script-file "${payment_script_file}" --out-file "${script_payment_cred_file}" 2>&1); then
+        script_pay_cred=$(cat "${script_payment_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during script payment policy creation!\n${stdout}"
+        return 1
+      fi
+    fi
+  fi
+  if [[ -z ${script_stake_cred} ]]; then
+    stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
+    if [[ -f "${stake_script_file}" ]]; then
+      println ACTION "${CCLI} ${NETWORK_ERA} transaction policyid --script-file ${stake_script_file} --out-file ${script_stake_cred_file}"
+      if stdout=$(${CCLI} ${NETWORK_ERA} transaction policyid --script-file "${stake_script_file}" --out-file "${script_stake_cred_file}" 2>&1); then
+        script_stake_cred=$(cat "${script_stake_cred_file}")
+      else
+        println LOG "\n${FG_RED}ERROR${NC}: failure during script stake policy creation!\n${stdout}"
+        return 1
+      fi
     fi
   fi
 }
@@ -1429,7 +1534,7 @@ isWalletRegistered() {
 }
 
 # Command     : getWalletType [wallet name]
-# Description : check if wallet is a hardware wallet, 0=yes, 1=cli, 2=cli & encrypted, 3=signing keys missing, 4=verification keys missing, 5=multi-sig
+# Description : check if wallet is a hardware wallet, 0=hw, 1=cli, 2=cli & encrypted, 3=signing keys missing, 4=verification keys missing, 5=multisig
 # Parameters  : wallet name  >  the name of the wallet
 getWalletType() {
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
@@ -1437,21 +1542,87 @@ getWalletType() {
   payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
   stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
   stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}"
+  stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
+  ms_payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
+  ms_payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_SK_FILENAME}"
+  ms_stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+  ms_stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
   if [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}" ]]; then # CNTools wallet
-    if [[ $(jq -r '.description' "${payment_vk_file}") = *"Hardware"* ]]; then
+    wallet_desc=$(jq -r '.description' "${payment_vk_file}")
+    if [[ ${wallet_desc} = *"Hardware"* ]]; then
       payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}"
       stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_STAKE_SK_FILENAME}"
+      ms_payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_PAY_VK_FILENAME}"
+      ms_payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_PAY_SK_FILENAME}"
+      ms_stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_VK_FILENAME}"
+      ms_stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_SK_FILENAME}"
       [[ ${op_mode} = "online" && ( ! -f ${payment_sk_file} || ! -f ${stake_sk_file} ) ]] && return 3 || return 0
     elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SK_FILENAME}.gpg" || -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SK_FILENAME}.gpg" ]]; then
       return 2
     else
       [[ ${op_mode} = "online" && ( ! -f ${payment_sk_file} || ! -f ${stake_sk_file} ) ]] && return 3 || return 1
     fi
-  elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}" ]]; then # CNTools multi-sig wallet
+  elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}" || -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}" ]]; then # CNTools multisig wallet
     return 5
   else
     return 4
   fi
+}
+
+# Command     : getAllMultisigKeys [script]
+# Description : parse json multisig script for all signatures
+# Parameters  : script      > the native script in json format
+# Return      : populates: ${script_sig_list} (associative array that acts as a set)
+getAllMultisigKeys() {
+  unset script_sig_list
+  declare -gA script_sig_list=()
+  while read -r _keyHash; do
+    script_sig_list[${_keyHash}]=1
+  done < <( jq -r '.. | select(.type?=="sig") | .keyHash' <<< "$1" )
+}
+
+# Command     : validateMultisigScript [verbose] [script] [sigs...]
+# Description : parse json multisig script to check if needed signatures exist
+#             : NOTE !! please unset required_total before calling this function
+# Parameters  : verbose     > true|false, print time lock warnings
+#             : script      > the native script in json format
+#             : sigs        > array of creds for wallets found
+# Return      : 0 = success, 1 = failed, populates ${required_total} with total needed signatures
+validateMultisigScript() {
+  local found=0
+  local required=1
+  local verbose=$1
+  local script=$2
+  shift
+  IFS=',' read -r _type _scripts _scripts_cnt _required <<< "$(jq -cr '"\(.type),\(.scripts|@base64),\(.scripts|length),\(.required)"' <<< "${script}")"
+  if [[ ${_type} = atLeast ]]; then
+    required=${_required}
+  elif [[ ${_type} = all ]]; then
+    required=${_scripts_cnt}
+  fi
+  while IFS=',' read -r __type __key_hash __slot __script; do
+    if [[ ${__type} = sig ]]; then
+      for _sig in "$@"; do
+        [[ ${_sig} = "${__key_hash}" ]] && ((found++))
+      done
+    elif [[ ${__type} = before ]]; then
+      if [[ $(getSlotTipRef) -lt ${__slot} ]]; then
+        ((found++))
+      else
+        [[ ${verbose} = true ]] && println ERROR "${FG_RED}Time locked!${NC} This script is locked with a before condition that has passed, before slot = ${__slot}, current slot = $(getSlotTipRef)"
+      fi
+    elif [[ ${__type} = after ]]; then
+      if [[ $(getSlotTipRef) -gt ${__slot} ]]; then
+        ((found++))
+      else
+        [[ ${verbose} = true ]] && println ERROR "${FG_RED}Time locked!${NC} This script is locked with an after condition that has yet to pass, after slot = ${__slot}, current slot = $(getSlotTipRef)"
+      fi
+    else
+      validateMultisigScript ${verbose} "$(base64 -d <<< ${__script})" "$@" && ((found++))
+    fi
+  done < <( base64 -d <<< ${_scripts} | jq -cr '.[] | "\(.type),\(.keyHash),\(.slot),\(.|@base64)"' )
+  required_total=$(( required_total + required ))
+  [[ ${found} -ge ${required} ]] && return 0 || return 1
 }
 
 # Command     : getPoolType [pool name]
@@ -1474,11 +1645,11 @@ getPoolType() {
   fi
 }
 
-# Command     : getTTL
+# Command     : getTTL [force, true|false]
 # Description : query node for slot tip and calculate/get TTL from input depending on op_mode
 getTTL() {
   tip_ref=$(getSlotTipRef)
-  if [[ ${op_mode} = "hybrid" ]]; then
+  if [[ ${op_mode} = "hybrid" || $1 = true ]]; then
     println DEBUG "\nHow long do you want the transaction to be valid?"
     getAnswerAnyCust ttl_enter "TTL (in seconds, default: 1800/30min)"
     ttl_enter=${ttl_enter:-1800}
@@ -1670,6 +1841,9 @@ buildOfflineJSON() {
   if ! offlineJSON=$(jq ". += { \"date-created\": \"$(date --iso-8601=s)\" }" <<< ${offlineJSON}); then return 1; fi
   if ! offlineJSON=$(jq ". += { \"date-expire\": \"$(date --iso-8601=s --date="@$(($(date +%s)+ttl_enter))")\" }" <<< ${offlineJSON}); then return 1; fi
   if ! offlineJSON=$(jq ". += { ttl: \"${ttl}\" }" <<< ${offlineJSON}); then return 1; fi
+  if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
+  if ! offlineJSON=$(jq ". += { \"script-file\": [] }" <<< ${offlineJSON}); then return 1; fi
+  if ! offlineJSON=$(jq ". += { witness: [] }" <<< ${offlineJSON}); then return 1; fi
 }
 
 # Command     : registerStakeWallet [wallet name] [optional: skip validation]
@@ -1681,6 +1855,9 @@ registerStakeWallet() {
   wallet_name=$1
   wallet_source="base"
 
+  getWalletType ${wallet_name}
+  wallet_type=$?
+
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     utxo_cnt=${utxos_cnt[${base_addr}]}
     tx_in=${tx_in_arr[${base_addr}]}
@@ -1691,22 +1868,37 @@ registerStakeWallet() {
     waitToProceed "press any key to continue with registration"
   fi
 
-  stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
   stake_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_CERT_FILENAME}"
-  
-  println ACTION "${CCLI} ${NETWORK_ERA} stake-address registration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cert_file}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address registration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cert_file}" 2>&1); then
+
+  if [[ ${wallet_type} -eq 5 ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultisigScript false "$(cat "${payment_script_file}")"
+    witness_cnt=${required_total}
+    stake_param=("--stake-script-file" "${stake_script_file}")
+  else
+    witness_cnt=1
+    stake_param=("--stake-verification-key-file" "${stake_vk_file}")
+  fi
+  println ACTION "${CCLI} ${NETWORK_ERA} stake-address registration-certificate ${stake_param[*]} --out-file ${stake_cert_file}"
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address registration-certificate "${stake_param[@]}" --out-file "${stake_cert_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake registration certificate creation!\n${stdout}"; return 1
   fi
 
-  if ! getTTL; then return 1; fi
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
 
   println LOG "Key Deposit is ${KEY_DEPOSIT}"
 
   getAssetsTxOut
+
+  unset script_args
+  if [[ ${wallet_type} -eq 5 ]]; then
+    script_args=( --tx-in-script-file "${payment_script_file}" )
+  fi
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
@@ -1716,7 +1908,7 @@ registerStakeWallet() {
 
   if ! buildTx; then return 1; fi
   
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
   
   newBalance=$(( base_lovelace - min_fee - KEY_DEPOSIT ))
   println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${KEY_DEPOSIT}))"
@@ -1737,6 +1929,7 @@ registerStakeWallet() {
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -1745,27 +1938,33 @@ registerStakeWallet() {
   )
 
   if ! buildTx; then return 1; fi
-  
+
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + KEY_DEPOSIT ))\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
+    if [[ ${wallet_type} -eq 5 ]]; then
+      println "Multisig wallet registration transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
-  if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
+  if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
   echo
@@ -1781,25 +1980,51 @@ deregisterStakeWallet() {
 
   wallet_source="base"
 
+  getWalletType ${wallet_name}
+  wallet_type=$?
+
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     utxo_cnt=${utxos_cnt[${base_addr}]}
     tx_in=${tx_in_arr[${base_addr}]}
   fi
 
+  if [[ ${wallet_type} -eq 5 ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultisigScript false "$(cat "${payment_script_file}")"
+    witness_cnt=${required_total}
+    unset required_total
+    validateMultisigScript false "$(cat "${stake_script_file}")"
+    witness_cnt=$(( witness_cnt + required_total ))
+    stake_param=("--stake-script-file" "${stake_script_file}")
+  else
+    witness_cnt=2
+    stake_param=("--stake-verification-key-file" "${stake_vk_file}")
+  fi
+
   stake_dereg_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_DEREG_FILENAME}"
-  println ACTION "${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate --stake-verification-key-file ${stake_vk_file} --out-file ${stake_dereg_file}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_dereg_file}" 2>&1); then
+  println ACTION "${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate ${stake_param[*]} --out-file ${stake_dereg_file}"
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate "${stake_param[@]}" --out-file "${stake_dereg_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake deregistration certificate creation!\n${stdout}"; return 1
   fi
 
-  if ! getTTL; then return 1; fi
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   
   println LOG "Key Deposit is ${KEY_DEPOSIT}"
 
   getAssetsTxOut
 
+  unset script_args
+  if [[ ${wallet_type} -eq 5 ]]; then
+    script_args=(
+      --tx-in-script-file "${payment_script_file}"
+      --certificate-script-file "${stake_script_file}"
+    )
+  fi
+
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
@@ -1809,7 +2034,7 @@ deregisterStakeWallet() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   newBalance=$(( base_lovelace + KEY_DEPOSIT - min_fee ))
   println LOG "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) + $(formatLovelace ${KEY_DEPOSIT}) - $(formatLovelace ${min_fee}))"
@@ -1830,6 +2055,7 @@ deregisterStakeWallet() {
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -1845,17 +2071,26 @@ deregisterStakeWallet() {
     if ! offlineJSON=$(jq ". += { \"amount-returned\": \"${KEY_DEPOSIT}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' stake script\", script: $(jq -c . "${stake_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
+    if [[ ${wallet_type} -eq 5 ]]; then
+      println "Multisig wallet de-registration transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -1870,14 +2105,26 @@ deregisterStakeWallet() {
 #             : supports fee to be payed by sender(default) or receiver by reducing amount to send
 sendAssets() {
 
-  [[ $(cat "${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${s_addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+  [[ $(cat "${WALLET_FOLDER}/${s_wallet}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${s_addr}" ]] && wallet_source="payment" || wallet_source="base"
+
+  getWalletType ${s_wallet}
+  wallet_type=$?
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     utxo_cnt=${utxos_cnt[${s_addr}]}
     tx_in=${tx_in_arr[${s_addr}]}
   fi
 
-  if ! getTTL; then return 1; fi
+  if [[ ${wallet_type} -eq 5 ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultisigScript false "$(cat "${payment_script_file}")"
+    witness_cnt=${required_total}
+  else
+    witness_cnt=1
+  fi
+
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
 
   if [[ -n ${metafile} && -f ${metafile} ]]; then
     metafile_param="--json-metadata-no-schema --metadata-json-file ${metafile}"
@@ -1898,8 +2145,14 @@ sendAssets() {
     [[ ${assets_to_send[${idx}]} -gt 0 ]] && assets_tx_out_d+="+${assets_to_send[${idx}]} ${idx}"
   done
 
+  unset script_args
+  if [[ ${wallet_type} -eq 5 ]]; then
+    script_args=( --tx-in-script-file "${payment_script_file}" )
+  fi
+
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --invalid-hereafter ${ttl}
     --fee 0
     ${metafile_param}
@@ -1913,10 +2166,11 @@ sendAssets() {
 
   if ! buildTx; then return 1; fi
   
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} ${outCount} 1 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} ${outCount} ${witness_cnt} || return 1
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     ${metafile_param}
@@ -1976,15 +2230,23 @@ sendAssets() {
     fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${s_wallet}' payment signing key\", vkey: $(jq -c . "${s_payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${s_wallet}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${s_wallet}' payment signing key\", vkey: $(jq -c . "${s_payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Source Wallet ${FG_GREEN}${s_wallet} ${FG_LGRAY}$(basename ${s_payment_sk_file})${NC}"  
+    if [[ ${wallet_type} -eq 5 ]]; then
+      println "Multisig wallet transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Source Wallet ${FG_GREEN}${s_wallet} ${FG_LGRAY}$(basename ${s_payment_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -1999,17 +2261,49 @@ delegate() {
 
   wallet_source="base"
 
+  getWalletType ${wallet_name}
+  wallet_type=$?
+
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     utxo_cnt=${utxos_cnt[${base_addr}]}
     tx_in=${tx_in_arr[${base_addr}]}
   fi
 
-  if ! getTTL; then return 1; fi
+  if [[ ${wallet_type} -eq 5 ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultisigScript false "$(cat "${payment_script_file}")"
+    witness_cnt=${required_total}
+    unset required_total
+    validateMultisigScript false "$(cat "${stake_script_file}")"
+    witness_cnt=$(( witness_cnt + required_total ))
+    stake_param=("--stake-script-file" "${stake_script_file}")
+  else
+    witness_cnt=2
+    stake_param=("--stake-verification-key-file" "${stake_vk_file}")
+  fi
+
+  pool_delegcert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
+  println ACTION "${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate ${stake_param[*]} --stake-pool-id ${pool_id} --out-file ${pool_delegcert_file}"
+  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate "${stake_param[@]}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during stake delegation certificate creation!\n${stdout}"; return 1
+  fi
+
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   
   getAssetsTxOut
   
+  unset script_args
+  if [[ ${wallet_type} -eq 5 ]]; then
+    script_args=(
+      --tx-in-script-file "${payment_script_file}"
+      --certificate-script-file "${stake_script_file}"
+    )
+  fi
+
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2019,7 +2313,7 @@ delegate() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   newBalance=$(( base_lovelace - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) )"
@@ -2040,6 +2334,7 @@ delegate() {
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -2058,17 +2353,26 @@ delegate() {
     fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' stake script\", script: $(jq -c . "${stake_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
+    if [[ ${wallet_type} -eq 5 ]]; then
+      println "Multisig wallet delegation transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2083,17 +2387,41 @@ withdrawRewards() {
 
   wallet_source="base"
 
+  getWalletType ${wallet_name}
+  wallet_type=$?
+
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     utxo_cnt=${utxos_cnt[${base_addr}]}
     tx_in=${tx_in_arr[${base_addr}]}
   fi
 
-  if ! getTTL; then return 1; fi
+  if [[ ${wallet_type} -eq 5 ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultisigScript false "$(cat "${payment_script_file}")"
+    witness_cnt=${required_total}
+    unset required_total
+    validateMultisigScript false "$(cat "${stake_script_file}")"
+    witness_cnt=$(( witness_cnt + required_total ))
+  else
+    witness_cnt=2
+  fi
+
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   
   getAssetsTxOut
+
+  unset script_args
+  if [[ ${wallet_type} -eq 5 ]]; then
+    script_args=(
+      --tx-in-script-file "${payment_script_file}"
+      --withdrawal-script-file "${stake_script_file}"
+    )
+  fi
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2102,7 +2430,7 @@ withdrawRewards() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   newBalance=$(( base_lovelace - min_fee + reward_lovelace ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) )"
@@ -2123,6 +2451,7 @@ withdrawRewards() {
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --withdrawal ${reward_addr}+${reward_lovelace}
     --invalid-hereafter ${ttl}
@@ -2138,17 +2467,26 @@ withdrawRewards() {
     if ! offlineJSON=$(jq ". += { rewards: \"${reward_lovelace}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' stake script\", script: $(jq -c . "${stake_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}" 
+    if [[ ${wallet_type} -eq 5 ]]; then
+      println "Multisig wallet withdrawal transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${stake_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2166,14 +2504,37 @@ registerPool() {
     tx_in=${tx_in_arr[${base_addr}]}
   fi
   
-  if ! getTTL; then return 1; fi
-  
   println LOG "Pool Deposit is ${POOL_DEPOSIT}"
   
   owner_delegation_cert=""
   [[ ${delegate_owner_wallet} = 'Y' ]] && owner_delegation_cert="--certificate-file ${owner_delegation_cert_file}"
-  
-  witness_count=$(( 2 + ${#owner_wallets[@]} )) # owner payment + cold + multi-owners(main owner included)
+
+  # owner payment + cold + multi-owners(main owner included)
+  unset witness_cnt hasScriptOwner
+  script_args=()
+  for index in "${!owner_wallets[@]}"; do
+    getWalletType ${owner_wallets[${index}]}
+    if [[ ${wallet_type} -eq 5 ]]; then
+      op_mode=hybrid
+      hasScriptOwner=true
+      if [[ ${index} -eq 0 ]]; then
+        unset required_total
+        validateMultisigScript false "$(cat "${payment_script_file}")"
+        witness_cnt=${required_total}
+        script_args+=( --tx-in-script-file "${payment_script_file}" )
+      fi
+      unset required_total
+      validateMultisigScript false "$(cat "${stake_script_file}")"
+      witness_cnt=$(( witness_cnt + required_total ))
+      script_args+=( --certificate-script-file "${stake_script_file}" )
+    else
+      [[ ${index} -eq 0 ]] && witness_cnt=1
+      witness_cnt=$(( witness_cnt + 1 ))
+    fi
+  done
+  witness_cnt=$(( witness_cnt + 1 )) # cold key witness
+
+  if ! getTTL "$([[ ${hasScriptOwner} = true ]] && echo true)"; then return 1; fi
   
   owner_delegation_cert=""
   if [[ ${delegate_owner_wallet} = 'Y' ]]; then
@@ -2184,6 +2545,7 @@ registerPool() {
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2194,7 +2556,7 @@ registerPool() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_count} || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
   
   newBalance=$(( base_lovelace - min_fee - POOL_DEPOSIT ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${POOL_DEPOSIT}) )"
@@ -2215,6 +2577,7 @@ registerPool() {
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -2245,28 +2608,39 @@ registerPool() {
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"$(( min_fee + POOL_DEPOSIT ))\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     for index in "${!owner_wallets[@]}"; do
+      getWalletType ${owner_wallets[${index}]}
       if [[ ${index} -eq 0 ]]; then
-        if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #1 '${owner_wallets[0]}' payment signing key\", vkey: $(jq -c . "${owner_payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+        if [[ ${wallet_type} -eq 5 ]]; then
+          if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Owner #1 '${owner_wallets[0]}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+        else
+          if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #1 '${owner_wallets[0]}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+        fi
       fi
-      stake_vk_file="${WALLET_FOLDER}/${owner_wallets[${index}]}/${WALLET_STAKE_VK_FILENAME}"
-      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #$((index+1)) '${owner_wallets[${index}]}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if [[ ${wallet_type} -eq 5 ]]; then
+        if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Owner #$((index+1)) '${owner_wallets[${index}]}' stake script\", script: $(jq -c . "${stake_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      else
+        if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #$((index+1)) '${owner_wallets[${index}]}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      fi
     done
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { witness: [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}${POOL_COLDKEY_SK_FILENAME}${NC}" 
-    println DEBUG "Owner #1 ${FG_GREEN}${owner_wallets[0]} ${FG_LGRAY}${WALLET_PAY_SK_FILENAME}${NC} & ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}" 
-    for index in "${!owner_wallets[@]}"; do
-      [[ ${index} -eq 0 ]] && continue # skip main owner
-      println DEBUG "Owner #$((index+1)) ${FG_GREEN}${owner_wallets[${index}]} ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
-    done
+    if [[ ${hasScriptOwner} = true ]]; then
+      println "Pool registration transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with owner wallets and pool cold key."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}${POOL_COLDKEY_SK_FILENAME}${NC}"
+      println DEBUG "Owner #1 ${FG_GREEN}${owner_wallets[0]} ${FG_LGRAY}${WALLET_PAY_SK_FILENAME}${NC} & ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
+      for index in "${!owner_wallets[@]}"; do
+        [[ ${index} -eq 0 ]] && continue # skip main owner
+        println DEBUG "Owner #$((index+1)) ${FG_GREEN}${owner_wallets[${index}]} ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
+      done
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2291,15 +2665,39 @@ modifyPool() {
     utxo_cnt=${utxos_cnt[${base_addr}]}
     tx_in=${tx_in_arr[${base_addr}]}
   fi
-  
-  if ! getTTL; then return 1; fi
 
-  witness_count=$(( 2 + ${#owner_wallets[@]} )) # owner payment + cold + multi-owners(main owner included)
+  # owner payment + cold + multi-owners(main owner included)
+  unset witness_cnt hasScriptOwner
+  script_args=()
+  for index in "${!owner_wallets[@]}"; do
+    getWalletType ${owner_wallets[${index}]}
+    if [[ ${wallet_type} -eq 5 ]]; then
+      op_mode=hybrid
+      hasScriptOwner=true
+      if [[ ${index} -eq 0 ]]; then
+        unset required_total
+        validateMultisigScript false "$(cat "${payment_script_file}")"
+        witness_cnt=${required_total}
+        script_args+=( --tx-in-script-file "${payment_script_file}" )
+      fi
+      unset required_total
+      validateMultisigScript false "$(cat "${stake_script_file}")"
+      witness_cnt=$(( witness_cnt + required_total ))
+      script_args+=( --certificate-script-file "${stake_script_file}" )
+    else
+      [[ ${index} -eq 0 ]] && witness_cnt=1
+      witness_cnt=$(( witness_cnt + 1 ))
+    fi
+  done
+  witness_cnt=$(( witness_cnt + 1 )) # cold key witness
+
+  if ! getTTL "$([[ ${hasScriptOwner} = true ]] && echo true)"; then return 1; fi
   
   getAssetsTxOut
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2309,7 +2707,7 @@ modifyPool() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_count} || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
   
   newBalance=$(( base_lovelace - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) )"
@@ -2330,6 +2728,7 @@ modifyPool() {
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -2359,28 +2758,39 @@ modifyPool() {
     if ! offlineJSON=$(jq ". += { \"pool-reg-cert\": $(jq -c . "${pool_regcert_file}") }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
     for index in "${!owner_wallets[@]}"; do
+      getWalletType ${owner_wallets[${index}]}
       if [[ ${index} -eq 0 ]]; then
-        if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #1 '${owner_wallets[0]}' payment signing key\", vkey: $(jq -c . "${owner_payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+        if [[ ${wallet_type} -eq 5 ]]; then
+          if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Owner #1 '${owner_wallets[0]}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+        else
+          if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #1 '${owner_wallets[0]}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+        fi
       fi
-      stake_vk_file="${WALLET_FOLDER}/${owner_wallets[${index}]}/${WALLET_STAKE_VK_FILENAME}"
-      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #$((index+1)) '${owner_wallets[${index}]}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if [[ ${wallet_type} -eq 5 ]]; then
+        if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Owner #$((index+1)) '${owner_wallets[${index}]}' stake script\", script: $(jq -c . "${stake_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      else
+        if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Owner #$((index+1)) '${owner_wallets[${index}]}' stake signing key\", vkey: $(jq -c . "${stake_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      fi
     done
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { witness: [] }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
-    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}${POOL_COLDKEY_SK_FILENAME}${NC}"
-    println DEBUG "Owner #1 ${FG_GREEN}${owner_wallets[0]} ${FG_LGRAY}${WALLET_PAY_SK_FILENAME}${NC} & ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
-    for index in "${!owner_wallets[@]}"; do
-      [[ ${index} -eq 0 ]] && continue # skip main owner
-      println DEBUG "Owner #$((index+1)) ${FG_GREEN}${owner_wallets[${index}]} ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
-    done
+    if [[ ${hasScriptOwner} = true ]]; then
+      println "Pool update transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with owner wallets and pool cold key."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}${POOL_COLDKEY_SK_FILENAME}${NC}"
+      println DEBUG "Owner #1 ${FG_GREEN}${owner_wallets[0]} ${FG_LGRAY}${WALLET_PAY_SK_FILENAME}${NC} & ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
+      for index in "${!owner_wallets[@]}"; do
+        [[ ${index} -eq 0 ]] && continue # skip main owner
+        println DEBUG "Owner #$((index+1)) ${FG_GREEN}${owner_wallets[${index}]} ${FG_LGRAY}${WALLET_STAKE_SK_FILENAME}${NC}"
+      done
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
 
@@ -2400,12 +2810,24 @@ modifyPool() {
 # Description : Retire pool
 deRegisterPool() {
 
-  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="payment" || wallet_source="base"
 
-  if ! getTTL; then return 1; fi
+  getWalletType ${wallet_name}
+  wallet_type=$?
+
+  if [[ ${wallet_type} -eq 5 ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultisigScript false "$(cat "${payment_script_file}")"
+    witness_cnt=$(( required_total + 1 ))
+  else
+    witness_cnt=2
+  fi
+
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    for key in ${!assets[@]}; do
+    for key in "${!assets[@]}"; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     utxo_cnt=${utxos_cnt[${addr}]}
@@ -2416,8 +2838,14 @@ deRegisterPool() {
 
   getAssetsTxOut
 
+  unset script_args
+  if [[ ${wallet_type} -eq 5 ]]; then
+    script_args=( --tx-in-script-file "${payment_script_file}" )
+  fi
+
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2427,7 +2855,7 @@ deRegisterPool() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   newBalance=$(( lovelace - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
@@ -2448,6 +2876,7 @@ deRegisterPool() {
 
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -2478,26 +2907,31 @@ deRegisterPool() {
     if ! offlineJSON=$(jq ". += { \"retire-epoch\": \"${epoch_enter}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
-    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}$(basename ${pool_coldkey_sk_file})${NC}"
+    if [[ ${wallet_type} -eq 5 ]]; then
+      println "Pool de-registration transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+      println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}$(basename ${pool_coldkey_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
-
-  getWalletType ${wallet_name}
 
   if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${pool_coldkey_sk_file}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
-
 }
 
 # Command     : rotatePoolKeys
@@ -2601,7 +3035,10 @@ rotatePoolKeys() {
 # Description : post metadata file on chain using specified wallet to pay for the transaction fee
 sendMetadata() {
 
-  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="payment" || wallet_source="base"
+
+  getWalletType ${wallet_name}
+  wallet_type=$?
 
   if [[ ${metatype} = "no-schema" ]]; then
     metafile_param="--json-metadata-no-schema --metadata-json-file ${metafile}"
@@ -2614,10 +3051,19 @@ sendMetadata() {
     return 1
   fi
 
-  if ! getTTL; then return 1; fi
+  if [[ ${wallet_type} -eq 5 ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultisigScript false "$(cat "${payment_script_file}")"
+    witness_cnt=${required_total}
+  else
+    witness_cnt=1
+  fi
+
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    for key in ${!assets[@]}; do
+    for key in "${!assets[@]}"; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     utxo_cnt=${utxos_cnt[${addr}]}
@@ -2628,8 +3074,14 @@ sendMetadata() {
 
   getAssetsTxOut
 
+  unset script_args
+  if [[ ${wallet_type} -eq 5 ]]; then
+    script_args=( --tx-in-script-file "${payment_script_file}" )
+  fi
+
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
@@ -2639,7 +3091,7 @@ sendMetadata() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 1 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
   
   newBalance=$(( lovelace - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
@@ -2660,6 +3112,7 @@ sendMetadata() {
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
@@ -2675,15 +3128,23 @@ sendMetadata() {
     if ! offlineJSON=$(jq ". += { metadata: $(jq -c . "${metafile}") }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}" 
+    if [[ ${wallet_type} -eq 5 ]]; then
+      println "Metadata transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2697,10 +3158,13 @@ sendMetadata() {
 # Description : mint a custom asset using specified wallet to pay for the transaction fee
 mintAsset() {
 
-  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="payment" || wallet_source="base"
+
+  getWalletType ${wallet_name}
+  wallet_type=$?
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    for key in ${!assets[@]}; do
+    for key in "${!assets[@]}"; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     index_prefix="${addr},"
@@ -2711,8 +3175,17 @@ mintAsset() {
     unset index_prefix
   fi
 
+  if [[ ${wallet_type} -eq 5 ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultisigScript false "$(cat "${payment_script_file}")"
+    witness_cnt=$(( required_total + 1 ))
+  else
+    witness_cnt=2
+  fi
+
   if [[ ${policy_ttl} -eq 0 ]]; then 
-    if ! getTTL; then return 1; fi
+    if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   else
     ttl=${policy_ttl}
     tip_ref=$(getSlotTipRef)
@@ -2722,8 +3195,14 @@ mintAsset() {
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".$(asciiToHex "${asset_name}")"
   getAssetsTxOut "${index_prefix}${policy_id}${asset_name_out}" "${assets_to_mint}"
   
+  unset script_args
+  if [[ ${wallet_type} -eq 5 ]]; then
+    script_args=( --tx-in-script-file "${payment_script_file}" )
+  fi
+
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "${assets_to_mint} ${policy_id}${asset_name_out}"
     --mint-script-file "${policy_script_file}"
@@ -2735,7 +3214,7 @@ mintAsset() {
 
   if ! buildTx; then return 1; fi
   
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   newBalance=$(( lovelace - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
@@ -2756,6 +3235,7 @@ mintAsset() {
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --mint "${assets_to_mint} ${policy_id}${asset_name_out}"
     --mint-script-file "${policy_script_file}"
@@ -2780,17 +3260,25 @@ mintAsset() {
     fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Asset '${policy_sk_file}' policy signing key\", vkey: $(jq -c . "${policy_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
-    println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
+    if [[ ${wallet_type} -eq 5 ]]; then
+      println "Asset mint transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+      println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2804,8 +3292,11 @@ mintAsset() {
 # Description : burn custom assets on specified wallet
 burnAsset() {
 
+  getWalletType ${wallet_name}
+  wallet_type=$?
+
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    for key in ${!assets[@]}; do
+    for key in "${!assets[@]}"; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     index_prefix="${addr},"
@@ -2816,8 +3307,17 @@ burnAsset() {
     unset index_prefix
   fi
 
+  if [[ ${wallet_type} -eq 5 ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultisigScript false "$(cat "${payment_script_file}")"
+    witness_cnt=$(( required_total + 1 ))
+  else
+    witness_cnt=2
+  fi
+
   if [[ ${policy_ttl} -eq 0 ]]; then 
-    if ! getTTL; then return 1; fi
+    if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   else
     ttl=${policy_ttl}
     tip_ref=$(getSlotTipRef)
@@ -2827,8 +3327,14 @@ burnAsset() {
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
   getAssetsTxOut "${index_prefix}${policy_id}${asset_name_out}" "-${assets_to_burn}"
   
+  unset script_args
+  if [[ ${wallet_type} -eq 5 ]]; then
+    script_args=( --tx-in-script-file "${payment_script_file}" )
+  fi
+
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${addr}+0${assets_tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
     --mint-script-file "${policy_script_file}"
@@ -2840,7 +3346,7 @@ burnAsset() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   newBalance=$(( lovelace - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
@@ -2861,6 +3367,7 @@ burnAsset() {
   
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
     --mint-script-file "${policy_script_file}"
@@ -2885,17 +3392,25 @@ burnAsset() {
     fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Asset '${policy_sk_file}' policy signing key\", vkey: $(jq -c . "${policy_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}" 
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:" 
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
-    println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
+    if [[ ${wallet_type} -eq 5 ]]; then
+      println "Asset burn transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+      println DEBUG "Policy ${FG_GREEN}${policy_name} ${FG_LGRAY}$(basename ${policy_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
   
@@ -2953,6 +3468,7 @@ witnessTx() {
   unset isHW
   for skey in "$@"; do
     [[ -z ${skey//[[:blank:]]/} ]] && continue
+    skey_name=$(basename "${skey}")
     if [[ ! -f "${skey}" ]]; then
       println ERROR "\n${FG_RED}ERROR${NC}: file not found: ${skey}"
       return 1
@@ -3293,11 +3809,14 @@ to_cbor() {
 # Description : sign and submit a CIP-0094 poll answer
 submitPoll() {
 
-  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+  getWalletType ${wallet_name}
+  wallet_type=$?
+
+  [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="payment" || wallet_source="base"
   POOL_ID_HASH=$(cat ${POOL_FOLDER}/${pool_name}/${POOL_ID_FILENAME})
 
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    for key in ${!assets[@]}; do
+    for key in "${!assets[@]}"; do
       [[ ${key} != "${addr},"* ]] && unset 'assets[$key]'
     done
     utxo_cnt=${utxos_cnt[${addr}]}
@@ -3306,7 +3825,16 @@ submitPoll() {
     getBalance ${addr}
   fi
 
-  if ! getTTL; then return 1; fi
+  if [[ ${wallet_type} -eq 5 ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultisigScript false "$(cat "${payment_script_file}")"
+    witness_cnt=$(( required_total + 1 ))
+  else
+    witness_cnt=2
+  fi
+
+  if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
 
   getAssetsTxOut
 
@@ -3315,8 +3843,14 @@ submitPoll() {
     metafile_param+=" --json-metadata-no-schema --metadata-json-file ${metafile}"
   fi
 
+  unset script_args
+  if [[ ${wallet_type} -eq 5 ]]; then
+    script_args=( --tx-in-script-file "${payment_script_file}" )
+  fi
+
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee 0
@@ -3327,7 +3861,7 @@ submitPoll() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   newBalance=$(( lovelace - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
@@ -3348,6 +3882,7 @@ submitPoll() {
 
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -3376,21 +3911,28 @@ submitPoll() {
     if ! offlineJSON=$(jq ". += { \"poll-answer\": \"${optionString[${answer}]}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"signing-file\": [] }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${wallet_type} -eq 5 ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${wallet_name}' payment script\", script: $(jq -c . "${payment_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
-    println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}$(basename ${pool_coldkey_sk_file})${NC}"
+    if [[ ${wallet_type} -eq 5 ]]; then
+      println "CIP-0094 poll transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+      println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}$(basename ${pool_coldkey_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
 
-  getWalletType ${wallet_name}
   echo "Transaction Fee: $(formatLovelace ${min_fee}) ADA"
   println "\n# Do you want to publish this answer for pool ${pool_name} on ${NETWORK_NAME}?"
   select_opt "[n] No" "[y] Yes"
@@ -3399,7 +3941,7 @@ submitPoll() {
       if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
       if ! submitTx "${tx_signed}"; then return 1; fi
       println "Poll ${FG_GREEN}${poll_txId}${NC} ballot casted to the network"
-      waitToProceed && continue
+      waitToProceed && return
   esac
 }
 

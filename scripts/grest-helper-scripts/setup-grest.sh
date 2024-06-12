@@ -305,7 +305,7 @@ SGVERSION=v1.1.2
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
         pkg_installer="apt-get"
-        pkg_list="build-essential make g++ autoconf automake libpcre-dev libssl-dev libsystemd-dev zlib1g-dev"
+        pkg_list="build-essential make g++ autoconf automake libpcre3-dev libssl-dev libsystemd-dev zlib1g-dev"
       fi
       if command -v dnf >/dev/null; then
         pkg_installer="dnf"

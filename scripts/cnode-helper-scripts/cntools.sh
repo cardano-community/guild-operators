@@ -33,7 +33,7 @@
 # If disabled standard tty input is used
 #ENABLE_DIALOG=false
 
-# Enable advanced/developer features like metadata transactions, multi-asset management etc. [true|false] (not needed for SPO usage)
+# Enable advanced/developer features like metadata transactions, asset management etc. [true|false] (not needed for SPO usage)
 #ENABLE_ADVANCED=false
 
 # Price fetching currency. Disable by setting value 'off' [off|usd|eur|...] (default: off) (https://api.coingecko.com/api/v3/simple/supported_vs_currencies)
@@ -78,7 +78,7 @@ usage() {
 		-n    Local mode   - run CNTools in local node mode (default)
 		-l    Light mode   - run CNTools using Koios query layer for full functionallity without a local node
 		-o    Offline mode - run CNTools with a limited set of functionallity without external communication useful for air-gapped mode
-		-a    Enable advanced/developer features like metadata transactions, multi-asset management etc (not needed for SPO usage)
+		-a    Enable advanced/developer features like metadata transactions, asset management etc (not needed for SPO usage)
 		-u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Run CNTools and look for updates on alternate branch instead of master (only for testing/development purposes)
 		-v    Print CNTools version
@@ -284,7 +284,7 @@ function main {
 			" ) Transaction - Sign and Submit a cold transaction (hybrid/offline mode)"\
 			"$([[ -f "${BLOCKLOG_DB}" ]] && echo " ) Blocks      - show core node leader schedule & block production statistics")"\
 			" ) Backup      - backup & restore of wallet/pool/config"\
-			"$([[ ${ADVANCED_MODE} = true ]] && echo " ) Advanced    - Developer and advanced features: metadata, multi-assets, ...")"\
+			"$([[ ${ADVANCED_MODE} = true ]] && echo " ) Advanced    - Developer and advanced features: metadata, assets, ...")"\
 			" ) Refresh     - reload home screen content"\
 			"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     println DEBUG "$(printf "%84s" "Epoch $(getEpoch) - $(timeLeft "$(timeUntilNextEpoch)") until next")"
@@ -483,9 +483,9 @@ function main {
                     fi
                     createMnemonicWallet || continue
                     echo
-                    println "Wallet Imported    : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-                    println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                    println "Wallet Imported : ${FG_GREEN}${wallet_name}${NC}"
+                    println "Base Address    : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Payment Address : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
                     printWalletInfo
                     waitToProceed && continue
@@ -510,7 +510,7 @@ function main {
                       waitToProceed && continue
                     fi
                     if [[ ! -x $(command -v cardano-hw-cli) ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli binary doesn't have execution persmission, please fix!"
+                      println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli binary doesn't have execution permission, please fix!"
                       waitToProceed && continue
                     fi
                     if ! HWCLIversionCheck; then waitToProceed && continue; fi
@@ -519,25 +519,20 @@ function main {
                     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
                     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
                     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-                    if ! unlockHWDevice "extract ${FG_LGRAY}payment keys${NC}"; then safeDel "${WALLET_FOLDER}/${wallet_name}"; continue; fi
-                    println ACTION "cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file ${payment_vk_file} --hw-signing-file ${payment_sk_file}"
-                    if ! stdout=$(cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --verification-key-file "${payment_vk_file}" --hw-signing-file "${payment_sk_file}" 2>&1); then
+                    if ! unlockHWDevice "extract ${FG_LGRAY}payment keys${NC}"; then safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue; fi
+                    println ACTION "cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --path 1852H/1815H/0H/2/0 --verification-key-file ${payment_vk_file} --verification-key-file ${stake_vk_file} --hw-signing-file ${payment_sk_file} --hw-signing-file ${stake_sk_file}"
+                    if ! stdout=$(cardano-hw-cli address key-gen --path 1852H/1815H/0H/0/0 --path 1852H/1815H/0H/2/0 --verification-key-file "${payment_vk_file}" --verification-key-file "${stake_vk_file}" --hw-signing-file "${payment_sk_file}" --hw-signing-file "${stake_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
                     jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" "${payment_vk_file}"
-                    println DEBUG "${FG_BLUE}INFO${NC}: repeat and follow instructions on hardware device to extract the ${FG_LGRAY}stake keys${NC}"
-                    println ACTION "cardano-hw-cli address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file ${stake_vk_file} --hw-signing-file ${stake_sk_file}"
-                    if ! stdout=$(cardano-hw-cli address key-gen --path 1852H/1815H/0H/2/0 --verification-key-file "${stake_vk_file}" --hw-signing-file "${stake_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
                     jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" "${stake_vk_file}"
                     getBaseAddress ${wallet_name}
                     getPayAddress ${wallet_name}
                     getRewardAddress ${wallet_name}
                     echo
                     println "HW Wallet Imported : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-                    println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                    println "Base Address       : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Payment Address    : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
                     printWalletInfo
                     waitToProceed && continue
@@ -560,7 +555,7 @@ function main {
               echo
               println DEBUG "# Select wallet to register (only non-registered wallets shown)"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "non-reg"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -571,7 +566,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "non-reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "non-reg"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -609,7 +604,7 @@ function main {
               echo
               println DEBUG "# Select wallet to de-register (only registered wallets shown)"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "reg"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -620,7 +615,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "reg" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "reg"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -689,7 +684,7 @@ function main {
                   postfix="- ${FG_LGRAY}UNREGISTERED${NC}"
                 fi
                 getWalletType ${wallet_name}
-                [[ $? -eq 5 ]] && postfix="${postfix} (${FG_LGRAY}multi-sig${NC})"
+                [[ $? -eq 5 ]] && postfix="${postfix} (${FG_LGRAY}multisig${NC})"
                 [[ ${enc_files} -gt 0 ]] && postfix="${postfix} (${FG_YELLOW}encrypted${NC})"
                 if [[ ${enc_files} -gt 0 && ${registered} = "yes" ]]; then
                   println "${FG_GREEN}${wallet_name}${NC} - ${FG_LGRAY}REGISTERED${NC} (${FG_YELLOW}encrypted${NC})"
@@ -700,17 +695,21 @@ function main {
                 else
                   println "${FG_GREEN}${wallet_name}${NC}"
                 fi
+                getWalletType ${wallet_name}
+                case $? in
+                  0) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Hardware")" ;;
+                  1) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "CLI")" ;;
+                  5) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Multisig")" ;;
+                esac
                 getBaseAddress ${wallet_name}
                 getPayAddress ${wallet_name}
-                getPayScriptAddress ${wallet_name}
-                if [[ -z ${base_addr} && -z ${pay_addr} && -z ${pay_script_addr} ]]; then
-                  println ERROR "${FG_RED}ERROR${NC}: wallet missing pay/base/script addr files or vkey/script files to generate them!"
+                if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
+                  println ERROR "${FG_RED}ERROR${NC}: wallet missing pay/base addr files or vkey/script files to generate them!"
                   continue
                 fi
                 if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                  [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
-                  [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Enterprise Addr" "${pay_addr}")"
-                  [[ -n ${pay_script_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Script Addr" "${pay_script_addr}")"
+                  [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Base Address" "${base_addr}")"
+                  [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Payment Addr" "${pay_addr}")"
                 else
                   if [[ -n ${base_addr} ]]; then
                     lovelace=0
@@ -726,11 +725,11 @@ function main {
                       asset_cnt=$(( ${#assets[@]} - 1 ))
                     fi
                     getPriceString ${lovelace}
-                    println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
+                    println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Base Address"  "${base_addr}")"
                     if [[ ${asset_cnt} -eq 0 ]]; then
-                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds"  "$(formatLovelace ${lovelace})")"
+                      println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Base Funds"  "$(formatLovelace ${lovelace})")"
                     else
-                      println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
+                      println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Base Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
                     fi
                   fi
                   if [[ -n ${pay_addr} ]]; then
@@ -748,34 +747,11 @@ function main {
                     fi
                     getPriceString ${lovelace}
                     if [[ ${lovelace} -gt 0 ]]; then
-                      println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Enterprise Address"  "${pay_addr}")"
+                      println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Payment Addr" "${pay_addr}")"
                       if [[ ${asset_cnt} -eq 0 ]]; then
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Enterprise Funds" "$(formatLovelace ${lovelace})")"
+                        println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Payment Funds" "$(formatLovelace ${lovelace})")"
                       else
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Enterprise Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
-                      fi
-                    fi
-                  fi
-                  if [[ -n ${pay_script_addr} ]]; then
-                    lovelace=0
-                    asset_cnt=0
-                    if [[ -n ${KOIOS_API} ]]; then
-                      for key in "${!assets[@]}"; do
-                        [[ ${key} = "${pay_script_addr},lovelace" ]] && lovelace=${assets["${pay_script_addr},lovelace"]} && continue
-                        [[ ${key} = "${pay_script_addr},"* ]] && ((asset_cnt++))
-                      done
-                    else
-                      getBalance ${pay_script_addr}
-                      lovelace=${assets[lovelace]}
-                      asset_cnt=$(( ${#assets[@]} - 1 ))
-                    fi
-                    getPriceString ${lovelace}
-                    if [[ ${lovelace} -gt 0 ]]; then
-                      println "$(printf "%-19s : ${FG_LGRAY}%s${NC}" "Script Address"  "${pay_script_addr}")"
-                      if [[ ${asset_cnt} -eq 0 ]]; then
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Script Funds" "$(formatLovelace ${lovelace})")"
-                      else
-                        println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Script Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
+                        println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Payment Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
                       fi
                     fi
                   fi
@@ -788,7 +764,7 @@ function main {
                   fi
                   if [[ ${reward_lovelace} -gt 0 ]]; then
                     getPriceString ${reward_lovelace}
-                    println "$(printf "%-19s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
+                    println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
                     if [[ -n ${delegation_pool_id} ]]; then
                       unset poolName
                       while IFS= read -r -d '' pool; do
@@ -829,12 +805,10 @@ function main {
               fi
               getBaseAddress ${wallet_name}
               getPayAddress ${wallet_name}
-              getPayScriptAddress ${wallet_name}
-              if [[ -z ${base_addr} && -z ${pay_addr} && -z ${pay_script_addr} ]]; then
-                println ERROR "\n${FG_RED}ERROR${NC}: wallet missing pay/base/script addr files or vkey/script files to generate them!"
+              if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
+                println ERROR "\n${FG_RED}ERROR${NC}: wallet missing pay/base addr files or vkey/script files to generate them!"
                 waitToProceed && continue
               fi
-              getCredentials ${wallet_name}
               getRewardAddress ${wallet_name}
               if [[ -n ${KOIOS_API} ]]; then
                 tput sc
@@ -842,7 +816,6 @@ function main {
                 addr_list=()
                 [[ -n ${base_addr} ]] && addr_list+=("${base_addr}")
                 [[ -n ${pay_addr} ]] && addr_list+=("${pay_addr}")
-                [[ -n ${pay_script_addr} ]] && addr_list+=("${pay_script_addr}")
                 reward_addr_list=("${reward_addr}")
                 [[ ${#addr_list[@]} -gt 0 ]] && getBalanceKoios
                 [[ ${#reward_addr_list[@]} -gt 0 ]] && getRewardInfoKoios
@@ -850,7 +823,7 @@ function main {
               fi
               total_lovelace=0
               if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
-                for i in {1..3}; do
+                for i in {1..2}; do
                   if [[ $i -eq 1 ]]; then
                     [[ -z ${base_addr} ]] && continue
                     address_type="Base"
@@ -862,32 +835,19 @@ function main {
                       base_lovelace=${assets[lovelace]}
                     fi
                     total_lovelace=$((total_lovelace + base_lovelace))
-                  elif [[ $i -eq 2 ]]; then
+                  else
                     [[ -z ${pay_addr} ]] && continue
-                    address_type="Enterprise"
+                    address_type="Payment"
                     address=${pay_addr}
                     if [[ -n ${KOIOS_API} ]]; then
                       pay_lovelace=${assets["${pay_addr},lovelace"]}
-                      [[ ${utxos_cnt["${pay_addr}"]:-0} -eq 0 ]] && continue # Dont print Enterprise if empty
+                      [[ ${utxos_cnt["${pay_addr}"]:-0} -eq 0 ]] && continue # Dont print if empty
                     else
                       getBalance ${pay_addr}
                       pay_lovelace=${assets[lovelace]}
-                      [[ ${utxo_cnt} -eq 0 ]] && continue # Dont print Enterprise if empty
+                      [[ ${utxo_cnt} -eq 0 ]] && continue # Dont print if empty
                     fi
                     total_lovelace=$((total_lovelace + pay_lovelace))
-                  else
-                    [[ -z ${pay_script_addr} ]] && continue
-                    address_type="Script"
-                    address=${pay_script_addr}
-                    if [[ -n ${KOIOS_API} ]]; then
-                      pay_script_lovelace=${assets["${pay_script_addr},lovelace"]}
-                      [[ ${utxos_cnt["${pay_script_addr}"]:-0} -eq 0 ]] && continue # Dont print Script if empty
-                    else
-                      getBalance ${pay_script_addr}
-                      pay_script_lovelace=${assets[lovelace]}
-                      [[ ${utxo_cnt} -eq 0 ]] && continue # Dont print Script if empty
-                    fi
-                    total_lovelace=$((total_lovelace + pay_script_lovelace))
                   fi
 
                   echo
@@ -959,39 +919,58 @@ function main {
               case $? in
                 0) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Hardware")" ;;
                 1) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "CLI")" ;;
-                5) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Multi-Sig")" ;;
+                5) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Multisig")" ;;
               esac
 
               if [[ -f ${payment_script_file} ]]; then
-                if timelock_after=$(jq -er '.scripts[0].type' "${payment_script_file}") && [[ ${timelock_after} = "after" ]]; then
-                  timelock_slot=$(jq -r '.scripts[0].slot' "${payment_script_file}")
-                  timelock_date=$(getDateFromSlot ${timelock_slot} '%(%F %T %Z)T')
-                  [[ $(getSlotTipRef) -gt ${timelock_slot} ]] && timelock_color="${FG_GREEN}" || timelock_color="${FG_YELLOW}"
+                unset timelock_after atleast total_signers script_sig_list
+                while read -r _slot; do
+                  timelock_after=${_slot}
+                  break
+                done < <( jq -r '.. | select(.type?=="after") | .slot' "${payment_script_file}" )
+                while IFS=',' read -r _required _total _sig_list; do
+                  atleast=${_required}
+                  total_signers=${_total}
+                  IFS=$'\t' read -ra script_sig_list <<< "${_sig_list}"
+                  break
+                done < <( jq -r '.. | select(.type?=="atLeast") | "\(.required),\(.scripts|length),\(.scripts|map(.keyHash)|@tsv)"' "${payment_script_file}" )
+                if [[ -n ${timelock_after} ]]; then
+                  timelock_date=$(getDateFromSlot ${timelock_after} '%(%F %T %Z)T')
+                  [[ $(getSlotTipRef) -gt ${timelock_after} ]] && timelock_color="${FG_GREEN}" || timelock_color="${FG_YELLOW}"
                   println "$(printf "%-20s ${FG_DGRAY}:${NC} ${timelock_color}%s${NC}" "Time Locked Until" "${timelock_date}")"
                 fi
-                if atleast=$(jq -er '.scripts[1].type' "${payment_script_file}") && [[ ${atleast} = "atLeast" ]]; then
-                  cred_header="Multi-Sig Creds ($(jq -r '.scripts[1].scripts|length' "${payment_script_file}"))"
-                  while read -r _sig; do
+                if [[ -n ${atleast} ]]; then
+                  cred_header="Multisig Creds (${total_signers})"
+                  for _sig in "${script_sig_list[@]}"; do
                     unset wallet_str
                     while IFS= read -r -d '' wallet; do
                       getCredentials "$(basename ${wallet})"
-                      if [[ ${pay_cred} = ${_sig} ]]; then
+                      if [[ ${ms_pay_cred} = ${_sig} ]]; then
                         wallet_str=" (${FG_GREEN}$(basename ${wallet})${NC})" && break
                       fi
                     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                     println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}%s" "${cred_header}" "${_sig}" "${wallet_str}")"
                     unset cred_header
-                  done < <( jq -r '.scripts[1].scripts[].keyHash' "${payment_script_file}")
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Required signers" "$(jq -r '.scripts[1].required' "${payment_script_file}")")"
+                  done
+                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Required signers" "${atleast}")"
                 fi
               fi
 
-              [[ -n ${base_addr} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
-              [[ -n ${pay_addr} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Enterprise Address" "${pay_addr}")"
-              [[ -n ${pay_script_addr} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Address" "${pay_script_addr}")"
+              [[ -n ${base_addr} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Base Address" "${base_addr}")"
+              if [[ -n ${pay_addr} ]]; then
+                println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment Address" "${pay_addr}")"
+              fi
               [[ -n ${reward_addr} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
-              [[ -n ${pay_cred} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment Credential" "${pay_cred}")"
-              [[ -n ${stake_cred} ]]      && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Stake Credential" "${stake_cred}")"
+              getCredentials ${wallet_name}
+              if [[ -n ${pay_cred} || -n ${stake_cred} || -n ${ms_pay_cred} || -n ${ms_stake_cred} ]]; then
+                println "$(printf "%-20s ${FG_DGRAY}${NC}" "Credentials")"
+              fi
+              [[ -n ${pay_cred} ]]          && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment" "${pay_cred}")"
+              [[ -n ${stake_cred} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Stake" "${stake_cred}")"
+              [[ -n ${ms_pay_cred} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Multisig Payment" "${ms_pay_cred}")"
+              [[ -n ${ms_stake_cred} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Multisig Stake" "${ms_stake_cred}")"
+              [[ -n ${script_pay_cred} ]]   && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Payment" "${script_pay_cred}")"
+              [[ -n ${script_stake_cred} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Stake" "${script_stake_cred}")"
 
               if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
                 if [[ -n ${reward_addr} ]]; then
@@ -1085,8 +1064,8 @@ function main {
                 esac
               else
                 println "${FG_RED}WARN${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not empty!"
-                [[ ${base_lovelace} -gt 0 ]] && println "Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
-                [[ ${pay_lovelace} -gt 0 ]] && println "Enterprise Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
+                [[ ${base_lovelace} -gt 0 ]] && println "Base Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
+                [[ ${pay_lovelace} -gt 0 ]] && println "Payment Funds : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
                 [[ ${reward_lovelace} -gt 0 ]] && println "Rewards : ${FG_LBLUE}$(formatLovelace ${reward_lovelace})${NC} ADA"
                 echo
                 println DEBUG "${FG_RED}WARN${NC}: Deleting this wallet is final and you can not recover it unless you have a backup\n"
@@ -1248,7 +1227,7 @@ function main {
               # source wallet
               println DEBUG "# Select ${FG_YELLOW}source${NC} wallet"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                selectWallet "balance"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1259,7 +1238,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                selectWallet "balance"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1274,10 +1253,10 @@ function main {
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "Select source wallet address"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
-                select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                 case $? in
                   0) s_addr="${base_addr}" ;;
                   1) s_addr="${pay_addr}" ;;
@@ -1287,12 +1266,12 @@ function main {
               elif [[ ${pay_lovelace} -gt 0 ]]; then
                 s_addr="${pay_addr}"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA\n" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA\n" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
               elif [[ ${base_lovelace} -gt 0 ]]; then
                 s_addr="${base_addr}"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA\n" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA\n" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
                 println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${s_wallet}${NC}"
@@ -1313,8 +1292,8 @@ function main {
                   getBaseAddress ${d_wallet}
                   getPayAddress ${d_wallet}
                   if [[ -n "${base_addr}" && "${base_addr}" != "${s_addr}" && -n "${pay_addr}" && "${pay_addr}" != "${s_addr}" ]]; then
-                    # Both base and enterprise address available, let user choose what to use
-                    select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                    # Both base and payment address available, let user choose what to use
+                    select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                     case $? in
                       0) d_addr="${base_addr}" ;;
                       1) d_addr="${pay_addr}" ;;
@@ -1410,7 +1389,7 @@ function main {
               println DEBUG " Valid entry:"
               println DEBUG "   ${FG_LGRAY}>${NC} Integer (e.g. 15) or Decimal (e.g. 956.1235), commas allowed as thousand separator"
               println DEBUG "   ${FG_LGRAY}>${NC} The string '${FG_YELLOW}all${NC}' sends all available funds in source wallet"
-              println DEBUG " Multi-Asset Info:"
+              println DEBUG " Asset Info:"
               println DEBUG "   ${FG_LGRAY}>${NC} If '${FG_YELLOW}all${NC}' is used and the wallet contain multiple assets,"
               println DEBUG "   ${FG_LGRAY}>${NC} you will be asked to transfer all assets (incl ADA) to the destination address"
               println DEBUG " Minimum Amount: ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA"
@@ -1514,7 +1493,7 @@ function main {
               getAddressBalance ${d_addr} true
               d_balance=${lovelace}
               getPayAddress ${s_wallet}
-              [[ "${pay_addr}" = "${s_addr}" ]] && s_wallet_type=" (Enterprise)" || s_wallet_type=""
+              [[ "${pay_addr}" = "${s_addr}" ]] && s_wallet_type=" (payment)" || s_wallet_type=""
               echo
               println "Transaction"
               println "  From          : ${FG_GREEN}${s_wallet}${NC}${s_wallet_type}"
@@ -1525,7 +1504,7 @@ function main {
               done
               if [[ -n "${d_wallet}" ]]; then
                 getPayAddress ${d_wallet}
-                [[ "${pay_addr}" = "${d_addr}" ]] && d_wallet_type=" (Enterprise)" || d_wallet_type=""
+                [[ "${pay_addr}" = "${d_addr}" ]] && d_wallet_type=" (payment)" || d_wallet_type=""
                 println "  To            : ${FG_GREEN}${d_wallet}${NC}${d_wallet_type}"
               else
                 println "  To            : ${FG_LGRAY}${d_addr}${NC}"
@@ -1551,7 +1530,7 @@ function main {
               echo
               println DEBUG "# Select wallet to delegate"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "delegate"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1562,7 +1541,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "delegate"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1572,10 +1551,10 @@ function main {
               getWalletBalance ${wallet_name} true true false true
               if [[ ${base_lovelace} -gt 0 ]]; then
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds in wallet:"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds on address:"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
-                println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
+                println ERROR "\n${FG_RED}ERROR${NC}: no base funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
                 waitToProceed && continue
               fi
               getWalletRewards ${wallet_name}
@@ -1607,12 +1586,6 @@ function main {
                   ;;
                 2) continue ;;
               esac
-              stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-              pool_delegcert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
-              println ACTION "${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file ${stake_vk_file} --stake-pool-id ${pool_id} --out-file ${pool_delegcert_file}"
-              if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate --stake-verification-key-file "${stake_vk_file}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake delegation certificate creation!\n${stdout}"; waitToProceed && continue
-              fi
               if ! delegate; then
                 if [[ ${op_mode} = "online" ]]; then
                   echo && println ERROR "${FG_RED}ERROR${NC}: failure during delegation, removing newly created delegation certificate file"
@@ -1645,7 +1618,7 @@ function main {
               echo
               println DEBUG "# Select wallet to withdraw funds from"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "reward"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1656,7 +1629,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "reward" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                selectWallet "reward"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -1670,11 +1643,11 @@ function main {
                 println ERROR "Failed to locate any rewards associated with the chosen wallet, please try another one"
                 waitToProceed && continue
               elif [[ ${base_lovelace} -eq 0 ]]; then
-                println ERROR "${FG_YELLOW}WARN${NC}: No funds in base address, please send funds to base address of wallet to cover withdraw transaction fee"
+                println ERROR "${FG_YELLOW}WARN${NC}: No funds on base address, please send funds to base address of wallet to cover withdraw transaction fee"
                 waitToProceed && continue
               fi
-              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Funds"  "$(formatLovelace ${base_lovelace})")"
-              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Rewards"  "$(formatLovelace ${reward_lovelace})")"
+              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Base Funds" "$(formatLovelace ${base_lovelace})")"
+              println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")"
               if ! withdrawRewards; then
                 waitToProceed && continue
               fi
@@ -1683,8 +1656,7 @@ function main {
               getWalletBalance ${wallet_name} true true false
               echo
               println "Rewards successfully withdrawn"
-              println "New Balance"
-              println "  Funds   : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
+              println "Base Funds (new balance) : ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"
               waitToProceed && continue
               ;; ###################################################################
           esac # funds sub OPERATION
@@ -2159,7 +2131,7 @@ function main {
                         fi
                         getWalletBalance ${wallet_name} true true false true
                         if [[ ${base_lovelace} -eq 0 ]]; then
-                          println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
+                          println ERROR "${FG_RED}ERROR${NC}: no funds available on base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                           waitToProceed && continue 2
                         fi
                         println DEBUG "# Wallet Registration Transaction"
@@ -2189,7 +2161,7 @@ function main {
               if [[ ${reuse_wallets} = 'N' ]]; then
                 println DEBUG "# Select main ${FG_YELLOW}owner/pledge${NC} wallet (normal CLI wallet)"
                 if [[ ${op_mode} = "online" ]]; then
-                  if ! selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"; then # ${wallet_name} populated by selectWallet function
+                  if ! selectWallet "delegate"; then # ${wallet_name} populated by selectWallet function
                     [[ "${dir_name}" != "[Esc] Cancel" ]] && waitToProceed; continue
                   fi
                   getWalletType ${wallet_name}
@@ -2202,7 +2174,7 @@ function main {
                     3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                   esac
                 else
-                  selectWallet "delegate" "${WALLET_PAY_VK_FILENAME}" "${WALLET_STAKE_VK_FILENAME}"
+                  selectWallet "delegate"
                   case $? in
                     1) waitToProceed; continue ;;
                     2) continue ;;
@@ -2217,7 +2189,7 @@ function main {
                   fi
                   getWalletBalance ${wallet_name} true true false true
                   if [[ ${base_lovelace} -eq 0 ]]; then
-                    println ERROR "${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
+                    println ERROR "${FG_RED}ERROR${NC}: no funds available on base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                     waitToProceed && continue
                   fi
                   println DEBUG "# Wallet Registration Transaction"
@@ -2233,7 +2205,7 @@ function main {
                   select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
                   case $? in
                     0) break ;;
-                    1) if selectWallet "delegate" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[@]}"; then # ${wallet_name} populated by selectWallet function
+                    1) if selectWallet "delegate" "${owner_wallets[@]}"; then # ${wallet_name} populated by selectWallet function
                         getWalletType ${wallet_name}
                         case $? in
                           0) hw_owner_wallets='Y' ;;
@@ -2265,7 +2237,7 @@ function main {
                 select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
                 case $? in
                   0) reward_wallet="${owner_wallets[0]}" ;;
-                  1) if ! selectWallet "none" "${WALLET_STAKE_VK_FILENAME}" "${owner_wallets[0]}"; then # ${wallet_name} populated by selectWallet function
+                  1) if ! selectWallet "none" "${owner_wallets[0]}"; then # ${wallet_name} populated by selectWallet function
                       [[ "${dir_name}" != "[Esc] Cancel" ]] && waitToProceed; continue
                     fi
                     reward_wallet="${wallet_name}"
@@ -2283,7 +2255,7 @@ function main {
 
               getWalletBalance ${owner_wallets[0]} true true false true
               if [[ ${base_lovelace} -eq 0 ]]; then
-                println ERROR "\n${FG_RED}ERROR${NC}: no funds available in owner wallet ${FG_GREEN}${owner_wallets[0]}${NC}"
+                println ERROR "\n${FG_RED}ERROR${NC}: no funds available on owner wallet base address ${FG_GREEN}${owner_wallets[0]}${NC}"
                 waitToProceed && continue
               fi
 
@@ -2541,7 +2513,7 @@ function main {
               fi
               println DEBUG "# Select wallet for pool de-registration transaction fee"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                selectWallet "balance"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -2553,7 +2525,7 @@ function main {
                   3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                 esac
               else
-                selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                selectWallet "balance"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -2568,10 +2540,10 @@ function main {
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "\n# Select wallet address to use"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
-                select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                 case $? in
                   0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
                   1) addr="${pay_addr}";  lovelace=${pay_lovelace} ;;
@@ -2581,13 +2553,13 @@ function main {
                 addr="${pay_addr}"
                 lovelace=${pay_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
               elif [[ ${base_lovelace} -gt 0 ]]; then
                 addr="${base_addr}"
                 lovelace=${base_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
                 println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -3230,7 +3202,7 @@ function main {
                   echo
                   println DEBUG "# Select wallet for the ballot cast transaction fee"
                   if [[ ${op_mode} = "online" ]]; then
-                    selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                    selectWallet "balance"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
@@ -3242,7 +3214,7 @@ function main {
                       3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
                     esac
                   else
-                    selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                    selectWallet "balance"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
@@ -3257,10 +3229,10 @@ function main {
                     # Both payment and base address available with funds, let user choose what to use
                     println DEBUG "\n# Select wallet address to use"
                     if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                      println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                      println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                      println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                     fi
-                    select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                    select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                     case $? in
                       0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
                       1) addr="${pay_addr}";  lovelace=${pay_lovelace} ;;
@@ -3270,13 +3242,13 @@ function main {
                     addr="${pay_addr}"
                     lovelace=${pay_lovelace}
                     if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                      println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                     fi
                   elif [[ ${base_lovelace} -gt 0 ]]; then
                     addr="${base_addr}"
                     lovelace=${base_lovelace}
                     if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                      println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
                     fi
                   else
                     println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -3456,7 +3428,7 @@ function main {
               println " >> TRANSACTION >> SIGN"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
-              fileDialog "Enter path to offline tx file to sign" "${TMP_DIR}/" && echo
+              fileDialog "Enter path to transaction file to sign" "${TMP_DIR}/" && echo
               offline_tx=${file}
               [[ -z "${offline_tx}" ]] && continue
               if [[ ! -f "${offline_tx}" ]]; then
@@ -3476,20 +3448,19 @@ function main {
               println DEBUG "Transaction type : ${FG_GREEN}${otx_type}${NC}"
               if wallet_name=$(jq -er '."wallet-name"' <<< ${offlineJSON}); then 
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA, payed by ${FG_GREEN}${wallet_name}${NC}"
-                [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="enterprise" || wallet_source="base"
+                [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="payment" || wallet_source="base"
               else
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA"
               fi
               println DEBUG "Created          : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_created}")${NC}"
               if [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]]; then
                 println DEBUG "Expire           : ${FG_RED}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
-                println ERROR "\n${FG_RED}ERROR${NC}: offline transaction expired!  please create a new one with long enough Time To Live (TTL)"
+                println ERROR "\n${FG_RED}ERROR${NC}: Transaction expired!  please create a new one with long enough Time To Live (TTL)"
                 waitToProceed && continue
               else
                 println DEBUG "Expire           : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
               fi
               tx_witness_files=()
-              tx_sign_files=()
               case "${otx_type}" in
                 Wallet*|Payment|"Pool De-Registration"|Metadata|Asset*|"Poll Cast")
                   echo
@@ -3522,106 +3493,6 @@ function main {
                   [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Title            : ${FG_LGRAY}$(jq -r '."poll-title"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Question         : ${FG_LGRAY}$(jq -r '."poll-question"' <<< ${offlineJSON})${NC}"
                   [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Answer           : ${FG_LGRAY}$(jq -r '."poll-answer"' <<< ${offlineJSON})${NC}"
-                  for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
-                    _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
-                    otx_signing_name=$(_jq '.name')
-                    otx_vkey_cborHex="$(_jq '.vkey.cborHex' 2>/dev/null)"
-                    
-                    skey_path=""
-                    # look for signing key in wallet folder
-                    while IFS= read -r -d '' w_file; do
-                      if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" ]]; then
-                        ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
-                        if [[ $(jq -er '.type' "${w_file}" 2>/dev/null) = *"Extended"* ]]; then
-                          ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
-                          mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
-                        fi
-                        grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${w_file}" && break
-                      elif [[ ${w_file} = */"${WALLET_HW_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_HW_STAKE_SK_FILENAME}" ]]; then
-                        grep -q "${otx_vkey_cborHex:4}" "${w_file}" && skey_path="${w_file}" && break # strip 5820 prefix
-                      fi
-                    done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -print0 2>/dev/null)
-                    # look for cold signing key in pool folder
-                    if [[ -z ${skey_path} ]]; then
-                      while IFS= read -r -d '' p_file; do
-                        ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${p_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
-                        grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${p_file}" && break
-                      done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}" -print0 2>/dev/null)
-                    fi
-                    # look for signing key in asset folder
-                    if [[ -z ${skey_path} ]]; then
-                      while IFS= read -r -d '' a_file; do
-                        ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${a_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
-                        grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${a_file}" && break
-                      done < <(find "${ASSET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${ASSET_POLICY_SK_FILENAME}" -print0 2>/dev/null)
-                    fi
-
-                    if [[ -n ${skey_path} ]]; then
-                      println DEBUG "\nFound a match for ${otx_signing_name}, use this file ? : ${FG_LGRAY}${skey_path}${NC}"
-                      select_opt "[y] Yes" "[n] No, continue with manual selection"
-                      case $? in
-                        0)  println DEBUG "${FG_GREEN}Successfully added!${NC}"
-                            tx_sign_files+=( "${skey_path}" )
-                            continue ;;
-                        1)  : ;; # do nothing
-                      esac
-                    fi
-
-                    if [[ ${otx_signing_name} = "Pool "* ]]; then dialog_start_path="${POOL_FOLDER}"
-                    elif [[ ${otx_signing_name} = "Asset "* ]]; then dialog_start_path="${POOL_FOLDER}"
-                    else dialog_start_path="${WALLET_FOLDER}"; fi
-                    fileDialog "\nEnter path to ${otx_signing_name}" "${dialog_start_path}/"
-                    [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
-                    if [[ ${file} = "${ASSET_POLICY_SCRIPT_FILENAME}" ]]; then
-                      if ! grep -q "$(_jq '.script.keyHash')" "${file}"; then
-                        println ERROR "${FG_RED}ERROR${NC}: script file provided doesn't match with script hash in offline transaction for: ${otx_signing_name}"
-                        println ERROR "Provided asset script keyHash: $(jq -r '.keyHash' "${file}")"
-                        println ERROR "Transaction asset script keyHash: $(_jq '.script.keyHash')"
-                        waitToProceed && continue 2
-                      fi
-                    elif [[ $(jq -er '.description' "${file}" 2>/dev/null) = *"Hardware"* ]]; then
-                      if ! grep -q "${otx_vkey_cborHex:4}" "${file}"; then # strip 5820 prefix
-                        println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-                        println ERROR "Provided hardware signing key's verification cborXPubKeyHex: $(jq -r .cborXPubKeyHex "${file}")"
-                        println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex:4}"
-                        waitToProceed && continue 2
-                      fi
-                    else
-                      println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
-                      if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey 2>&1); then
-                        println ERROR "\n${FG_RED}ERROR${NC}: failure during verification key creation!\n${stdout}"; waitToProceed && continue 2
-                      fi
-                      if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
-                        println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
-                        if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" 2>&1); then
-                          println ERROR "\n${FG_RED}ERROR${NC}: failure during non-extended verification key creation!\n${stdout}"; waitToProceed && continue 2
-                        fi
-                        mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
-                      fi
-                      if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
-                        println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-                        println ERROR "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey)"
-                        println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex}"
-                        waitToProceed && continue 2
-                      fi
-                    fi
-                    
-                    println DEBUG "${FG_GREEN}Successfully added!${NC}"
-                    tx_sign_files+=( "${file}" )
-                  done
-                  if [[ ${#tx_sign_files[@]} -gt 0 ]]; then
-                    if ! witnessTx "${TMP_DIR}/tx.raw" "${tx_sign_files[@]}"; then waitToProceed && continue; fi
-                    if ! assembleTx "${TMP_DIR}/tx.raw"; then waitToProceed && continue; fi
-                    echo
-                    if jq ". += { \"signed-txBody\": $(jq -c . "${tx_signed}") }" <<< "${offlineJSON}" > "${offline_tx}"; then
-                      println "Offline transaction successfully signed"
-                      println "please move ${offline_tx} back to online node and submit before ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}!"
-                    else
-                      println ERROR "${FG_RED}ERROR${NC}: failed to write signed tx body to offline transaction file!"
-                    fi
-                  else
-                    println ERROR "\n${FG_YELLOW}WARN${NC}: no signing keys added!"
-                  fi
                   ;;
                 "Pool Registration"|"Pool Update")
                   echo
@@ -3630,114 +3501,270 @@ function main {
                   println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} ADA"
                   println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
                   println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} ADA"
-                  for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
-                    _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
-                    otx_signing_name=$(_jq '.name')
-                    otx_vkey_cborHex="$(_jq '.vkey.cborHex')"
-
-                    for otx_witness in $(jq -r '.witness[] | @base64' <<< "${offlineJSON}"); do
-                      __jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
-                      [[ $(_jq '.name') = $(__jq '.name') ]] && continue 2 # offline transaction already witnessed by this signing key
-                    done
-
-                    skey_path=""
-                    # look for signing key in wallet folder
-                    while IFS= read -r -d '' w_file; do
-                      if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" ]]; then
-                        ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
-                        if [[ $(jq -er '.type' "${w_file}" 2>/dev/null) = *"Extended"* ]]; then
-                          ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
-                          mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
-                        fi
-                        grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${w_file}" && break
-                      elif [[ ${w_file} = */"${WALLET_HW_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_HW_STAKE_SK_FILENAME}" ]]; then
-                        grep -q "${otx_vkey_cborHex:4}" "${w_file}" && skey_path="${w_file}" && break # strip 5820 prefix
-                      fi
-                    done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -print0 2>/dev/null)
-                    # look for cold signing key in pool folder
-                    if [[ -z ${skey_path} ]]; then
-                      while IFS= read -r -d '' p_file; do
-                        ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${p_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
-                        grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${p_file}" && break
-                      done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}" -print0 2>/dev/null)
+                  ;;
+                *) println ERROR "${FG_RED}ERROR${NC}: unsupported type: ${otx_type}" && waitToProceed && continue ;;
+              esac
+              println DEBUG "\nSigning keys required:"
+              for otx_signing_name in $(jq -r '."signing-file"[].name' <<< "${offlineJSON}"); do
+                unset hasWitness
+                for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
+                  [[ ${otx_witness_name} = ${otx_signing_name} ]] && hasWitness=true && break
+                done
+                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_RED}\u274c${NC}" || println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_GREEN}\u2714${NC}"
+              done
+              for otx_script in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
+                _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
+                otx_script_name=$(_jq '.name')
+                otx_script_scripts="$(_jq '.script' 2>/dev/null)"
+                getAllMultisigKeys "${otx_script_scripts}"
+                unset required_total
+                validateMultisigScript false "${otx_script_scripts}"
+                println DEBUG "${FG_LGRAY}${otx_script_name}${NC} - required signatures: ${FG_LBLUE}${required_total}${NC}"
+                for sig in "${!script_sig_list[@]}"; do
+                  unset hasWitness
+                  for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
+                    [[ ${otx_witness_name} = ${sig} ]] && hasWitness=true && break
+                  done
+                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}\u274c${NC}" || println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_GREEN}\u2714${NC}"
+                done
+              done
+              for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
+                _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
+                otx_signing_name=$(_jq '.name')
+                otx_vkey_cborHex="$(_jq '.vkey.cborHex' 2>/dev/null)"
+                skey_path=""
+                for otx_witness in $(jq -r '.witness[] | @base64' <<< "${offlineJSON}"); do
+                  __jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
+                  [[ $(_jq '.name') = $(__jq '.name') ]] && continue 2 # offline transaction already witnessed by this signing key
+                done
+                # look for signing key in wallet folder
+                while IFS= read -r -d '' w_file; do
+                  if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" ]]; then
+                    ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                    if [[ $(jq -er '.type' "${w_file}" 2>/dev/null) = *"Extended"* ]]; then
+                      ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
+                      mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                     fi
+                    grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${w_file}" && break
+                  elif [[ ${w_file} = */"${WALLET_HW_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_HW_STAKE_SK_FILENAME}" ]]; then
+                    grep -q "${otx_vkey_cborHex:4}" "${w_file}" && skey_path="${w_file}" && break # strip 5820 prefix
+                  fi
+                done < <(find "${WALLET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -print0 2>/dev/null)
+                # look for cold signing key in pool folder
+                if [[ -z ${skey_path} ]]; then
+                  while IFS= read -r -d '' p_file; do
+                    ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${p_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                    grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${p_file}" && break
+                  done < <(find "${POOL_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${POOL_COLDKEY_SK_FILENAME}" -print0 2>/dev/null)
+                fi
+                # look for signing key in asset folder
+                if [[ -z ${skey_path} ]]; then
+                  while IFS= read -r -d '' a_file; do
+                    ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${a_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
+                    grep -q "${otx_vkey_cborHex}" "${TMP_DIR}"/tmp.vkey && skey_path="${a_file}" && break
+                  done < <(find "${ASSET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name "${ASSET_POLICY_SK_FILENAME}" -print0 2>/dev/null)
+                fi
 
-                    if [[ -n ${skey_path} ]]; then
-                      println DEBUG "\nFound a match for ${otx_signing_name}, use this file ? : ${FG_LGRAY}${skey_path}${NC}"
-                      select_opt "[y] Yes" "[n] No, continue with manual selection" "[s] Skip"
-                      case $? in
-                        0)  if ! witnessTx "${TMP_DIR}/tx.raw" "${skey_path}"; then waitToProceed && continue 2; fi
-                            if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
-                            jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
-                            continue ;;
-                        1)  selection=0 ;;
-                        2)  continue ;;
-                      esac
-                    else
-                      println DEBUG "\nDo you want to sign ${otx_type} with: ${FG_LGRAY}${otx_signing_name}${NC} ?"
-                      select_opt "[y] Yes" "[s] Skip"
-                      selection=$?
+                if [[ -n ${skey_path} ]]; then
+                  println DEBUG "\nFound a match for ${otx_signing_name}, use this file ? : ${FG_LGRAY}${skey_path}${NC}"
+                  select_opt "[y] Yes" "[s] Skip"
+                  case $? in
+                    0)  if ! witnessTx "${TMP_DIR}/tx.raw" "${skey_path}"; then waitToProceed && continue 2; fi
+                        if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
+                        jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
+                        continue ;;
+                    1)  continue ;;
+                  esac
+                else
+                  println DEBUG "\nDo you want to sign ${otx_type} with: ${FG_LGRAY}${otx_signing_name}${NC} ?"
+                  select_opt "[y] Yes" "[s] Skip"
+                  selection=$?
+                fi
+                [[ ${selection} -eq 1 ]] && continue
+                if [[ ${otx_signing_name} = "Pool "* ]]; then dialog_start_path="${POOL_FOLDER}"
+                elif [[ ${otx_signing_name} = "Asset "* ]]; then dialog_start_path="${ASSET_FOLDER}"
+                else dialog_start_path="${WALLET_FOLDER}"; fi
+                fileDialog "\nEnter path to ${otx_signing_name}" "${dialog_start_path}/"
+                [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
+                if [[ ${file} = "${ASSET_POLICY_SCRIPT_FILENAME}" ]]; then
+                  if ! grep -q "$(_jq '.script.keyHash')" "${file}"; then
+                    println ERROR "${FG_RED}ERROR${NC}: script file provided doesn't match with script hash in transaction for: ${otx_signing_name}"
+                    println ERROR "Provided asset script keyHash: $(jq -r '.keyHash' "${file}")"
+                    println ERROR "Transaction asset script keyHash: $(_jq '.script.keyHash')"
+                    waitToProceed && continue 2
+                  fi
+                elif [[ $(jq -er '.description' "${file}" 2>/dev/null) = *"Hardware"* ]]; then
+                  if ! grep -q "${otx_vkey_cborHex:4}" "${file}"; then # strip 5820 prefix
+                    println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in transaction for: ${otx_signing_name}"
+                    println ERROR "Provided hardware signing key's verification cborXPubKeyHex: $(jq -r .cborXPubKeyHex "${file}")"
+                    println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex:4}"
+                    waitToProceed && continue 2
+                  fi
+                else
+                  println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
+                  if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey 2>&1); then
+                    println ERROR "\n${FG_RED}ERROR${NC}: failure during verification key creation!\n${stdout}"; waitToProceed && continue 2
+                  fi
+                  if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
+                    println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during non-extended verification key creation!\n${stdout}"; waitToProceed && continue 2
                     fi
-
-                    case ${selection} in
-                      0) [[ ${otx_signing_name} = "Pool "* ]] && dialog_start_path="${POOL_FOLDER}" || dialog_start_path="${WALLET_FOLDER}"
-                          fileDialog "Enter path to ${otx_signing_name}" "${dialog_start_path}/"
-                          [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
-                          if [[ $(jq -r '.description' "${file}") = *"Hardware"* ]]; then
-                            if ! grep -q "${otx_vkey_cborHex:4}" "${file}"; then # strip 5820 prefix
-                              println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-                              println ERROR "Provided hardware signing key's verification cborXPubKeyHex: $(jq -r .cborXPubKeyHex "${file}")"
-                              println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex:4}"
-                              waitToProceed && continue 2
-                            fi
-                          else
-                            println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
-                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during verification key creation!\n${stdout}"; waitToProceed && continue 2
-                            fi
-                            if [[ $(jq -r '.type' "${file}") = *"Extended"* ]]; then
-                              println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
-                              if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" 2>&1); then
-                                println ERROR "\n${FG_RED}ERROR${NC}: failure during non-extended verification key creation!\n${stdout}"; waitToProceed && continue 2
-                              fi
-                              mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
-                            fi
-                            if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
-                              println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in offline transaction for: ${otx_signing_name}"
-                              println ERROR "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey)"
-                              println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex}"
-                              waitToProceed && continue 2
-                            fi
-                          fi
-                          if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitToProceed && continue 2; fi
-                          if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
+                    mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
+                  fi
+                  if [[ ${otx_vkey_cborHex} != $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey) ]]; then
+                    println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with verification key in transaction for: ${otx_signing_name}"
+                    println ERROR "Provided signing key's verification cborHex: $(jq -r .cborHex "${TMP_DIR}"/tmp.vkey)"
+                    println ERROR "Transaction verification cborHex: ${otx_vkey_cborHex}"
+                    waitToProceed && continue 2
+                  fi
+                fi
+                if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitToProceed && continue 2; fi
+                if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
+                jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
+              done
+              unset script_failed pay_script_signers stake_script_signers
+              for otx_script in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
+                _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
+                otx_script_name=$(_jq '.name')
+                otx_script_scripts="$(_jq '.script' 2>/dev/null)"
+                getAllMultisigKeys "${otx_script_scripts}"
+                # loop once to add all already signed creds
+                missing_creds=()
+                script_sig_creds=()
+                for sig in "${!script_sig_list[@]}"; do
+                  for otx_witness in $(jq -r '.witness[] | @base64' <<< "${offlineJSON}"); do
+                    __jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
+                    [[ ${sig} = $(__jq '.name') ]] && script_sig_creds+=( ${sig} ) && continue 2 # offline transaction already witnessed by this signing key
+                  done
+                  missing_creds+=( "${sig}" )
+                done
+                # Check if script meets requirement
+                if validateMultisigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
+                  # script successfully validated, no more signatures needed
+                  println DEBUG "\n${FG_LGRAY}${otx_script_name}${NC} validation ${FG_GREEN}passed${NC}! No more signatures needed!"
+                  continue
+                fi
+                # loop again if needed
+                for sig in "${missing_creds[@]}"; do
+                  # Check if script meets requirement
+                  if validateMultisigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
+                    # script successfully validated, no more signatures needed
+                    println DEBUG "\n${FG_LGRAY}${otx_script_name}${NC} validation ${FG_GREEN}passed${NC}! No more signatures needed!"
+                    break
+                  fi
+                  unset skey_path
+                  # look for matching credential in wallet folder
+                  while IFS= read -r -d '' wallet; do
+                    wallet_name=$(basename ${wallet})
+                    getWalletType "${wallet_name}"
+                    getCredentials "${wallet_name}"
+                    if [[ ${ms_pay_cred} = "${sig}" ]]; then
+                      skey_path="${ms_payment_sk_file}"; break
+                    elif [[ ${ms_stake_cred} = "${sig}" ]]; then
+                      skey_path="${ms_stake_sk_file}"; break
+                    elif [[ ${pay_cred} = "${sig}" ]]; then
+                      skey_path="${payment_sk_file}"; break
+                    elif [[ ${stake_cred} = "${sig}" ]]; then
+                      skey_path="${stake_sk_file}"; break
+                    fi
+                  done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
+                  [[ -n ${skey_path} && ! -f "${skey_path}" ]] && println ERROR "\n${FG_YELLOW}WARN${NC}: Wallet match found but signing key missing: ${skey_path}" && unset skey_path
+                  # matching multisig participant wallet found?
+                  if [[ -n ${skey_path} ]]; then
+                    println DEBUG "\nFound a matching wallet for ${FG_LGRAY}${otx_script_name}${NC}, use this file ? : ${FG_LGRAY}${skey_path}${NC}"
+                    select_opt "[y] Yes" "[s] Skip participant"
+                    case $? in
+                      0)  if ! witnessTx "${TMP_DIR}/tx.raw" "${skey_path}"; then waitToProceed && continue 2; fi
+                          if ! offlineJSON=$(jq ".witness += [{ name: \"${sig}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
                           jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
-                          ;;
+                          script_sig_creds+=( ${sig} )
+                          continue ;;
                       1)  continue ;;
                     esac
-                  done
-                  echo
-                  if [[ $(jq -r '."signing-file" | length' <<< "${offlineJSON}") -eq $(jq -r '.witness | length' <<< "${offlineJSON}") ]]; then # witnessed by all signing keys
-                    tx_witness_files=()
-                    for otx_witness in $(jq -r '.witness[] | @base64' <<< "${offlineJSON}"); do
-                      _jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
-                      tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
-                      jq -r . <<< "$(_jq '.witnessBody')" > "${tx_witness}"
-                      tx_witness_files+=( "${tx_witness}" )
-                    done
-                    if ! assembleTx "${TMP_DIR}/tx.raw"; then waitToProceed && continue; fi
-                    if jq ". += { \"signed-txBody\": $(jq -c . "${tx_signed}") }" <<< "${offlineJSON}" > "${offline_tx}"; then
-                      println "Offline transaction successfully assembled and signed by all signing keys"
-                      println "please move ${offline_tx} back to online node and submit before ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}!"
-                    else
-                      println ERROR "${FG_RED}ERROR${NC}: failed to write signed tx body to offline transaction file!"
-                    fi
                   else
-                    println "Offline transaction need to be signed by ${FG_LBLUE}$(jq -r '."signing-file" | length' <<< "${offlineJSON}")${NC} signing keys, signed by ${FG_LBLUE}$(jq -r '.witness | length' <<< "${offlineJSON}")${NC} so far!"
+                    println DEBUG "\nNo match found, continue with manual input to signature file for ${FG_LGRAY}${otx_script_name}${NC} with credential below?\n${FG_LGRAY}${sig}${NC}"
+                    select_opt "[p] Enter path" "[s] Skip participant"
+                    selection=$?
                   fi
-                  ;;
-                *) println ERROR "${FG_RED}ERROR${NC}: unsupported offline tx type: ${otx_type}" && waitToProceed && continue ;;
-              esac
+                  if [[ ${selection} -eq 1 ]]; then
+                    continue
+                  else
+                    # choose
+                    fileDialog "\nEnter path to signing key for multisig participant" "${WALLET_FOLDER}/"
+                    [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
+                    file_desc=$(jq -er '.description' "${file}" 2>/dev/null)
+                    if [[ ${file_desc} = *"Hardware"* ]]; then
+                      dir_path=$(dirname "${file}")
+                      if ! vkey=$(jq -er .cborXPubKeyHex "${file}"); then
+                        println ERROR "${FG_RED}ERROR${NC}: signing key provided is invalid, missing field 'cborXPubKeyHex'" && continue
+                      fi
+                      vkey=${vkey:4:64}
+                      # find vkey file in same folder
+                      if ! vkey_file=$(grep -l "cborHex.*${vkey}" "${dir_path}"/*); then
+                        println ERROR "${FG_RED}ERROR${NC}: unable to find a matching verification key file for provided hardware signing key in same folder" && continue
+                      fi
+                      vkey_file=$(echo "${vkey_file}" | head -n 1) # make sure there is a single match
+                      [[ ${file_desc} = *"Payment"* ]] && cred_type=payment || cred_type=stake
+                      getCredential ${cred_type} ${vkey_file}
+                    else
+                      println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
+                      if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey 2>&1); then
+                        println ERROR "\n${FG_RED}ERROR${NC}: failure during verification key creation!\n${stdout}"; waitToProceed && continue 2
+                      fi
+                      file_type=$(jq -r '.type' "${file}")
+                      if [[ ${file_type} = *"Extended"* ]]; then
+                        println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
+                        if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" 2>&1); then
+                          println ERROR "\n${FG_RED}ERROR${NC}: failure during non-extended verification key creation!\n${stdout}"; waitToProceed && continue 2
+                        fi
+                        mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
+                      fi
+                      [[ ${file_type} = *"Payment"* ]] && cred_type=payment || cred_type=stake
+                      getCredential ${cred_type} "${TMP_DIR}"/tmp.vkey
+                    fi
+                    if [[ ${cred} != ${sig} ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with credential in multisig script:${FG_LGRAY}${otx_script_name}${NC}"
+                      println ERROR "Provided signing key's credential  : ${FG_LGRAY}${cred}${NC}"
+                      println ERROR "Looking for credential             : ${FG_LGRAY}${sig}${NC}"
+                      waitToProceed && continue
+                    fi
+                    if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitToProceed && continue 2; fi
+                    if ! offlineJSON=$(jq ".witness += [{ name: \"${sig}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
+                    jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
+                    script_sig_creds+=( ${sig} )
+                  fi
+                done
+                unset required_total
+                if ! validateMultisigScript true "${otx_script_scripts}" "${script_sig_creds[@]}"; then
+                  # script failed validation
+                  script_failed=true
+                  println ERROR "\n${FG_LGRAY}${otx_script_name}${NC} validation ${FG_RED}failed${NC}! Unable to submit transaction until needed signatures are added and/or time lock conditions if set pass!"
+                  println DEBUG "If external participant signatures are needed, pass transaction file along to add additional signatures."
+                  waitToProceed
+                fi
+                [[ ${otx_script_name} = *payment* ]] && pay_script_signers=${required_total} || stake_script_signers=${required_total}
+              done
+              signatures_needed=$(( $(jq -r '."signing-file" | length' <<< "${offlineJSON}") + pay_script_signers + stake_script_signers ))
+              witness_cnt=$(jq -r '.witness | length' <<< "${offlineJSON}")
+              if [[ ${witness_cnt} -ge ${signatures_needed} && -z ${script_failed} ]]; then # witnessed by all needed signing keys
+                tx_witness_files=()
+                for otx_witness in $(jq -r '.witness[] | @base64' <<< "${offlineJSON}"); do
+                  _jq() { base64 -d <<< ${otx_witness} | jq -r "${1}"; }
+                  tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
+                  jq -r . <<< "$(_jq '.witnessBody')" > "${tx_witness}"
+                  tx_witness_files+=( "${tx_witness}" )
+                done
+                if ! assembleTx "${TMP_DIR}/tx.raw"; then waitToProceed && continue; fi
+                if jq ". += { \"signed-txBody\": $(jq -c . "${tx_signed}") }" <<< "${offlineJSON}" > "${offline_tx}"; then
+                  println "\nTransaction successfully assembled and signed by all needed signing keys"
+                  println "please submit on online node before ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}!"
+                else
+                  println ERROR "${FG_RED}ERROR${NC}: failed to write signed tx body to offline transaction file!"
+                fi
+              else
+                println "Transaction need to be signed by ${FG_LBLUE}${signatures_needed}${NC} signing keys, signed by ${FG_LBLUE}${witness_cnt}${NC} so far!"
+              fi
               waitToProceed && continue
               ;; ###################################################################
             submit)
@@ -3838,9 +3865,12 @@ function main {
                     fi
                   fi
                   echo
-                  println "Offline transaction successfully submitted and set to be included in next block!"
-                  echo 
-                  println DEBUG "Delete submitted offline transaction file?"
+                  if [[ -n ${KOIOS_API} ]]; then
+                    verifyTx
+                  else
+                    println "Offline transaction successfully submitted and set to be included in next block!"
+                  fi
+                  println DEBUG "\nDelete submitted offline transaction file?"
                   select_opt "[y] Yes" "[n] No"
                   case $? in
                     0) rm -f "${offline_tx}" ;;
@@ -4275,31 +4305,19 @@ function main {
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println OFF " Developer & Advanced features\n"\
 						" ) Metadata       - create and optionally post metadata on-chain"\
-						" ) Multi-Asset    - multi-asset nanagement"\
+						" ) Asset          - asset nanagement"\
+						" ) Multisig       - create a multi-signature wallet"\
 						" ) Delete Keys    - delete all sign/cold keys from CNTools (wallet|pool|asset)"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-          #println OFF " Developer & Advanced features\n"\
-#						" ) Metadata       - create and optionally post metadata on-chain"\
-#						" ) Multi-Asset    - multi-asset nanagement"\
-#						" ) Multi-Sig      - create a multi-sig/native script wallet"\
-#						" ) Delete Keys    - delete all sign/cold keys from CNTools (wallet|pool|asset)"\
-#						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Operation\n"
-          select_opt "[m] Metadata" "[a] Multi-Asset" "[x] Delete Private Keys" "[h] Home"
+          select_opt "[m] Metadata" "[a] Asset" "[s] Multisig" "[x] Delete Private Keys" "[h] Home"
           case $? in
             0) SUBCOMMAND="metadata" ;;
-            1) SUBCOMMAND="multi-asset" ;;
-            2) SUBCOMMAND="del-keys" ;;
-            3) break ;;
+            1) SUBCOMMAND="asset" ;;
+            2) SUBCOMMAND="multisig" ;;
+            3) SUBCOMMAND="del-keys" ;;
+            4) break ;;
           esac
-          #select_opt "[m] Metadata" "[a] Multi-Asset" "[s] Multi-Sig" "[x] Delete Private Keys" "[h] Home"
-          #case $? in
-          #  0) SUBCOMMAND="metadata" ;;
-          #  1) SUBCOMMAND="multi-asset" ;;
-          #  2) SUBCOMMAND="multi-sig" ;;
-          #  3) SUBCOMMAND="del-keys" ;;
-          #  4) break ;;
-          #esac
           case $SUBCOMMAND in  
             metadata)
               clear
@@ -4381,7 +4399,7 @@ function main {
               esac
               println DEBUG "\n# Select wallet to pay for metadata transaction fee"
               if [[ ${op_mode} = "online" ]]; then
-                selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
+                selectWallet "balance"
                 case $? in
                   1) waitToProceed; continue ;;
                   2) continue ;;
@@ -4409,11 +4427,11 @@ function main {
                 # Both payment and base address available with funds, let user choose what to use
                 println DEBUG "Select source wallet address"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
                 echo
-                select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                 case $? in
                   0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
                   1) addr="${pay_addr}";  lovelace=${pay_lovelace} ;;
@@ -4423,13 +4441,13 @@ function main {
                 addr="${pay_addr}"
                 lovelace=${pay_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                  println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                 fi
               elif [[ ${base_lovelace} -gt 0 ]]; then
                 addr="${base_addr}"
                 lovelace=${base_lovelace}
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                  println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
                 fi
               else
                 println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -4444,13 +4462,13 @@ function main {
               println "Metadata successfully posted on-chain"
               waitToProceed && continue
               ;; ###################################################################
-            multi-asset)
-              while true; do # Multi-Asset loop
+            asset)
+              while true; do # Asset loop
                 clear
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println " >> ADVANCED >> MULTI-ASSET"
+                println " >> ADVANCED >> ASSET"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println OFF " Multi-Asset Token Management\n"\
+                println OFF " Asset Token Management\n"\
 									" ) Create Policy  - create a new asset policy"\
 									" ) List Assets    - list created/minted policies/assets (local)"\
 									" ) Show Asset     - show minted asset information"\
@@ -4460,7 +4478,7 @@ function main {
 									" ) Burn Asset     - burn a given amount of assets in selected wallet"\
 									" ) Register Asset - create/update JSON submission file for Cardano Token Registry"\
 									"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println DEBUG " Select Multi-Asset Operation\n"
+                println DEBUG " Select Asset Operation\n"
                 select_opt "[c] Create Policy" "[l] List Assets" "[s] Show Asset" "[d] Decrypt / Unlock Policy" "[e] Encrypt / Lock Policy" "[m] Mint Asset" "[x] Burn Asset" "[r] Register Asset" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="create-policy" ;;
@@ -4478,7 +4496,7 @@ function main {
                   create-policy)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> CREATE POLICY"
+                    println " >> ADVANCED >> ASSET >> CREATE POLICY"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     getAnswerAnyCust policy_name "Internal name to give the generated policy"
@@ -4542,7 +4560,7 @@ function main {
                   list-assets)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> LIST ASSETS"
+                    println " >> ADVANCED >> ASSET >> LIST ASSETS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitToProceed && continue
                     while IFS= read -r -d '' policy; do
@@ -4573,7 +4591,7 @@ function main {
                   show-asset)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> SHOW ASSET"
+                    println " >> ADVANCED >> ASSET >> SHOW ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitToProceed && continue
                     println DEBUG "# Select minted asset to show information for"
@@ -4621,7 +4639,7 @@ function main {
                   decrypt-policy)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> DECRYPT / UNLOCK POLICY"
+                    println " >> ADVANCED >> ASSET >> DECRYPT / UNLOCK POLICY"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitToProceed && continue
@@ -4664,14 +4682,14 @@ function main {
                     if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
                       echo
                       println DEBUG "${FG_YELLOW}Policy files are now unprotected${NC}"
-                      println DEBUG "Use 'ADVANCED >> MULTI-ASSET >> ENCRYPT / LOCK POLICY' to re-lock"
+                      println DEBUG "Use 'ADVANCED >> ASSET >> ENCRYPT / LOCK POLICY' to re-lock"
                     fi
                     waitToProceed && continue
                     ;; ###################################################################
                   encrypt-policy)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> ENCRYPT / LOCK POLICY"
+                    println " >> ADVANCED >> ASSET >> ENCRYPT / LOCK POLICY"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitToProceed && continue
@@ -4723,14 +4741,14 @@ function main {
                     if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
                       echo
                       println DEBUG "${FG_BLUE}INFO${NC}: policy files are now protected"
-                      println DEBUG "Use 'ADVANCED >> MULTI-ASSET >> DECRYPT / UNLOCK POLICY' to unlock"
+                      println DEBUG "Use 'ADVANCED >> ASSET >> DECRYPT / UNLOCK POLICY' to unlock"
                     fi
                     waitToProceed && continue
                     ;; ###################################################################
                   mint-asset)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> MINT ASSET"
+                    println " >> ADVANCED >> ASSET >> MINT ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -4801,7 +4819,7 @@ function main {
                     esac
                     println DEBUG "\n# Select wallet to mint assets on (also used for transaction fee)"
                     if [[ ${op_mode} = "online" ]]; then
-                      selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
+                      selectWallet "balance"
                       case $? in
                         1) waitToProceed; continue ;;
                         2) continue ;;
@@ -4824,11 +4842,11 @@ function main {
                       # Both payment and base address available with funds, let user choose what to use
                       println DEBUG "Select source wallet address"
                       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Funds :"  "$(formatLovelace ${base_lovelace})")"
-                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                       fi
                       echo
-                      select_opt "[b] Base (default)" "[e] Enterprise" "[Esc] Cancel"
+                      select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
                       case $? in
                         0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
                         1) addr="${pay_addr}" ; lovelace=${pay_lovelace} ;;
@@ -4839,13 +4857,13 @@ function main {
                       addr="${pay_addr}"
                       lovelace=${pay_lovelace}
                       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA\n" "Enterprise Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                        println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA\n" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
                       fi
                     elif [[ ${base_lovelace} -gt 0 ]]; then
                       addr="${base_addr}"
                       lovelace=${base_lovelace}
                       if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA\n" "Funds :"  "$(formatLovelace ${base_lovelace})")"
+                        println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA\n" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
                       fi
                     else
                       println ERROR "${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
@@ -4882,7 +4900,7 @@ function main {
                   burn-asset)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> BURN ASSET"
+                    println " >> ADVANCED >> ASSET >> BURN ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -4894,7 +4912,7 @@ function main {
                     echo
                     println DEBUG "# Select wallet with assets to burn"
                     if [[ ${op_mode} = "online" ]]; then
-                      selectWallet "balance" "${WALLET_PAY_SK_FILENAME}"
+                      selectWallet "balance"
                       case $? in
                         1) waitToProceed; continue ;;
                         2) continue ;;
@@ -4916,7 +4934,7 @@ function main {
                         0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet for asset burning!" && waitToProceed && continue ;;
                       esac
                     fi
-                    # Let user choose asset on wallet to burn, both base and enterprise, fee payed with same address
+                    # Let user choose asset on wallet to burn, both base and payment, fee payed with same address
                     assets_on_wallet=()
                     getWalletBalance ${wallet_name} true true true true
                     for asset in "${!base_assets[@]}"; do
@@ -4929,7 +4947,7 @@ function main {
                       [[ ${asset} = "lovelace" ]] && continue
                       IFS='.' read -ra asset_arr <<< "${asset}"
                       [[ -z ${asset_arr[1]} ]] && asset_ascii_name="" || asset_ascii_name=$(hexToAscii ${asset_arr[1]})
-                      assets_on_wallet+=( "${asset} (${asset_ascii_name}) [enterprise addr]" )
+                      assets_on_wallet+=( "${asset} (${asset_ascii_name}) [payment addr]" )
                     done
                     echo
                     [[ ${#assets_on_wallet[@]} -eq 0 ]] && println ERROR "${FG_RED}ERROR${NC}: Wallet doesn't contain any assets!" && waitToProceed && continue
@@ -4948,7 +4966,7 @@ function main {
                       lovelace=${base_assets[lovelace]}
                     else
                       addr=${pay_addr}
-                      wallet_source="enterprise"
+                      wallet_source="payment"
                       curr_asset_amount=${pay_assets[${asset}]}
                       lovelace=${pay_assets[lovelace]}
                     fi
@@ -5030,7 +5048,7 @@ function main {
                   register-asset)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTI-ASSET >> REGISTER ASSET"
+                    println " >> ADVANCED >> ASSET >> REGISTER ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     if ! cmdAvailable "token-metadata-creator"; then
@@ -5174,109 +5192,273 @@ function main {
                     waitToProceed && continue
                     
                     ;; ###################################################################
-                esac # advanced >> multi-asset sub OPERATION
-              done # Multi-Asset loop
+                esac # advanced >> asset sub OPERATION
+              done # Asset loop
               ;; ###################################################################
-            multi-sig)
-              clear
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> ADVANCED >> MULTI-SIG"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              echo
-              getAnswerAnyCust ms_wallet_name "Name of multi-sig wallet"
-              # Remove unwanted characters from wallet name
-              ms_wallet_name=${ms_wallet_name//[^[:alnum:]]/_}
-              if [[ -z "${ms_wallet_name}" ]]; then
-                println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                waitToProceed && continue
-              fi
-              echo
-              if ! mkdir -p "${WALLET_FOLDER}/${ms_wallet_name}"; then
-                println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${ms_wallet_name}"
-                waitToProceed && continue
-              fi
-              # Wallet key filenames
-              ms_stake_vk_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-              ms_stake_sk_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-              ms_pay_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
-              if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-                println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
-                println "      Choose another name or delete the existing one"
-                waitToProceed && continue
-              fi
-              declare -gA key_hashes=() # key hashes as keys to assosiative array to act as a set
-              unset timelock_after
-              println OFF "Select wallet(s) / payment credentials (key hash) to include in multi-sig wallet"
-              while true; do
-                println DEBUG "\nSelect wallet or manually enter credential?"
-                select_opt "[w] Wallet" "[c] Payment Credential" "[Esc] Cancel"
-                echo
+            multisig)
+              while true; do # Multisig loop
+                clear
+                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println " >> ADVANCED >> MULTISIG"
+                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println OFF " Multi Signature Wallet Management\n"\
+                  " ) Create Wallet  - create a new multi-signature wallet"\
+                  " ) Derive Keys    - derive multisig keys using the 1854H paths according to CIP-1854"\
+                  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println DEBUG " Select Multisig Operation\n"
+                select_opt "[c] Create" "[d] Derive Keys" "[b] Back" "[h] Home"
                 case $? in
-                  0) selectWallet "balance" "${WALLET_PAY_VK_FILENAME}"
+                  0) SUBCOMMAND="create-ms-wallet" ;;
+                  1) SUBCOMMAND="derive-ms-keys" ;;
+                  2) break ;;
+                  3) break 2 ;;
+                esac
+                case $SUBCOMMAND in
+                  create-ms-wallet)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> ADVANCED >> MULTISIG >> CREATE WALLET"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    getAnswerAnyCust ms_wallet_name "Name of multisig wallet"
+                    # Remove unwanted characters from wallet name
+                    ms_wallet_name=${ms_wallet_name//[^[:alnum:]]/_}
+                    if [[ -z "${ms_wallet_name}" ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
+                      waitToProceed && continue
+                    fi
+                    echo
+                    if ! mkdir -p "${WALLET_FOLDER}/${ms_wallet_name}"; then
+                      println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${ms_wallet_name}"
+                      waitToProceed && continue
+                    fi
+                    # Wallet key filenames
+                    ms_pay_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
+                    ms_stake_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SCRIPT_FILENAME}"
+                    ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
+                    ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+                    if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
+                      println "      Choose another name or delete the existing one"
+                      waitToProceed && continue
+                    fi
+                    # pay key hashes as keys to assosiative array to act as a set, with stake key hash as value
+                    declare -gA key_hashes=()
+                    unset timelock_after
+                    println OFF "Select wallet(s) / credentials (key hashes) to include in multisig wallet"
+                    println OFF "${FG_YELLOW}!${NC} Please use 1854H (multisig) derived keys according to CIP-1854!"
+                    println OFF "${FG_YELLOW}!${NC} Only wallets with these keys will be listed, use 'Derive Keys' option to generate them."
+                    echo
+                    selected_wallets=()
+                    while true; do
+                      println DEBUG "Select wallet or manually enter credentials?"
+                      select_opt "[w] Wallet" "[c] Credentials" "[d] I'm done" "[Esc] Cancel"
+                      case $? in
+                        0) selectWallet "balance" "${selected_wallets[@]}" "${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}" "${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+                          case $? in
+                            1) waitToProceed; continue ;;
+                            2) continue ;;
+                          esac
+                          getCredentials ${wallet_name}
+                          [[ -z ${ms_pay_cred} ]] && println ERROR "\n${FG_RED}ERROR${NC}: wallet multisig payment credentials not set!" && waitToProceed && continue
+                          [[ -z ${ms_stake_cred} ]] && println ERROR "\n${FG_RED}ERROR${NC}: wallet multisig stake credentials not set!" && waitToProceed && continue
+                          key_hashes[${ms_pay_cred}]="${ms_stake_cred}"
+                          selected_wallets+=("${wallet_name}")
+                          ;;
+                        1) getAnswerAnyCust ms_pay_cred "Multisig Payment Credential (key hash)"
+                          [[ ${#ms_pay_cred} -ne 56 ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid payment credential entered!" && waitToProceed && continue
+                          getAnswerAnyCust ms_stake_cred "Multisig Stake Credential (key hash)"
+                          [[ ${#ms_stake_cred} -ne 56 ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid stake credential entered!" && waitToProceed && continue
+                          key_hashes[${ms_pay_cred}]="${ms_stake_cred}"
+                          ;;
+                        2) break ;;
+                        3) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
+                      esac
+                      println DEBUG "\nMultisig size: ${#key_hashes[@]} - Add more wallets / credentials to multisig?"
+                      select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+                      case $? in
+                        0) break ;;
+                        1) : ;;
+                        2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
+                      esac
+                    done
+                    if [[ ${#key_hashes[@]} -eq 0 ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: no signers added, please add at least one"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
+                    fi
+                    println DEBUG "\n${#key_hashes[@]} wallets / credentials added to multisig, how many are required to witness the transaction?"
+                    getAnswerAnyCust required_sig_cnt "Required signatures"
+                    if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
+                    fi
+                    println DEBUG "\nAdd time lock to multisig wallet by only allowing spending from wallet after a certain epoch start?"
+                    select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+                    case $? in
+                      0) : ;;
+                      1) getAnswerAnyCust epoch_no "Epoch"
+                        if ! isNumber ${epoch_no}; then println ERROR "${FG_RED}ERROR${NC}: invalid epoch number entered!"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue; fi
+                        timelock_after=$(getEpochStart ${epoch_no})
+                        ;;
+                      2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue ;;
+                    esac
+                    # build multisig script
+                    pay_script=$(jq -n --argjson req_sig "${required_sig_cnt}" '{type:"atLeast",required:$req_sig,scripts:[]}')
+                    stake_script="${pay_script}"
+                    for sig in "${!key_hashes[@]}"; do
+                      pay_script=$(jq --arg sig "${sig}" '.scripts += [{type:"sig",keyHash:$sig}]' <<< "${pay_script}")
+                      stake_script=$(jq --arg sig "${key_hashes[${sig}]}" '.scripts += [{type:"sig",keyHash:$sig}]' <<< "${stake_script}")
+                    done
+                    if [[ -n ${timelock_after} ]]; then
+                      pay_script=$(jq -n --argjson after "${timelock_after}" --argjson sig_script "${jsonscript}" '{type:"all",scripts:[{type:"after",slot:$after},$sig_script]}')
+                    fi
+                    if ! stdout=$(jq -e . <<< "${pay_script}" > "${ms_pay_script_file}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
+                    fi
+                    if ! stdout=$(jq -e . <<< "${stake_script}" > "${ms_stake_script_file}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
+                    fi
+
+                    chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
+                    getBaseAddress ${ms_wallet_name}
+                    getPayAddress ${ms_wallet_name}
+                    getRewardAddress ${ms_wallet_name}
+                    getCredentials ${ms_wallet_name}
+                    echo
+                    println "New Multisig Wallet : ${FG_GREEN}${ms_wallet_name}${NC}"
+                    println "Address             : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Payment Address     : ${FG_LGRAY}${pay_addr}${NC}"
+                    println "Reward Address      : ${FG_LGRAY}${reward_addr}${NC}"
+                    println "Payment Credential  : ${FG_LGRAY}${script_pay_cred}${NC}"
+                    println "Reward Credential   : ${FG_LGRAY}${script_stake_cred}${NC}"
+                    println DEBUG "\nYou can now send and receive ADA using the above 'Address' or 'Payment Address'."
+                    println DEBUG "Note that Payment Address will not take part in staking."
+                    waitToProceed && continue
+                    ;; ###################################################################
+                  derive-ms-keys)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> ADVANCED >> MULTISIG >> DERIVE KEYS"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    println DEBUG "# Select wallet to derive multisig keys for (only wallets with missing keys shown)"
+                    selectWallet "non-ms"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
+                    getWalletType ${wallet_name}
+                    case $? in
+                      0) # Hardware wallet
+                        if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
+                          println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli executable not found in path!"
+                          println ERROR "Please run '${FG_YELLOW}guild-deploy.sh -s w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}guild-deploy.sh -h${NC}' shows all available options"
+                          waitToProceed && continue
+                        fi
+                        if [[ ! -x $(command -v cardano-hw-cli) ]]; then
+                          println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli binary doesn't have execution permission, please fix!"
+                          waitToProceed && continue
+                        fi
+                        if ! HWCLIversionCheck; then waitToProceed && continue; fi
+                        ms_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_PAY_SK_FILENAME}"
+                        ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
+                        ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_SK_FILENAME}"
+                        ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+                        if ! unlockHWDevice "extract ${FG_LGRAY}multisig keys${NC}"; then waitToProceed && continue; fi
+                        println ACTION "cardano-hw-cli address key-gen --path 1854H/1815H/0H/0/0 --path 1854H/1815H/0H/2/0 --verification-key-file ${ms_payment_vk_file} --verification-key-file ${ms_stake_vk_file} --hw-signing-file ${ms_payment_sk_file} --hw-signing-file ${ms_stake_sk_file}"
+                        if ! stdout=$(cardano-hw-cli address key-gen --path 1854H/1815H/0H/0/0 --path 1854H/1815H/0H/2/0 --verification-key-file "${ms_payment_vk_file}" --verification-key-file "${ms_stake_vk_file}" --hw-signing-file "${ms_payment_sk_file}" --hw-signing-file "${ms_stake_sk_file}" 2>&1); then
+                          println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig key extraction!\n${stdout}"; waitToProceed && continue
+                        fi
+                        jq '.description = "Multisig Payment Hardware Verification Key"' "${ms_payment_vk_file}" > "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" "${ms_payment_vk_file}"
+                        jq '.description = "Multisig Stake Hardware Verification Key"' "${ms_stake_vk_file}" > "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" "${ms_stake_vk_file}"
+                        ;;
+                      *)
+                        ms_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_SK_FILENAME}"
+                        ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
+                        ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
+                        ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+                        println DEBUG "Is selected wallet a CLI generated wallet or derived from mnemonic?"
+                        select_opt "[c] CLI" "[m] Mnemonic"
+                        case $? in
+                          0) println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${ms_payment_vk_file} --signing-key-file ${ms_payment_sk_file}"
+                            if ! stdout=$(${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${ms_payment_vk_file}" --signing-key-file "${ms_payment_sk_file}" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment key creation!\n${stdout}"; waitToProceed && continue
+                            fi
+                            println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${ms_stake_vk_file} --signing-key-file ${ms_stake_sk_file}"
+                            if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${ms_stake_vk_file}" --signing-key-file "${ms_stake_sk_file}" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake key creation!\n${stdout}"; waitToProceed && continue
+                            fi
+                            ;;
+                          1) if ! cmdAvailable "bech32" &>/dev/null || \
+                              ! cmdAvailable "cardano-address" &>/dev/null; then
+                              println ERROR "${FG_RED}ERROR${NC}: bech32 and/or cardano-address not found in '\$PATH'"
+                              println ERROR "Please run updated guild-deploy.sh and re-build/re-download cardano-node"
+                              waitToProceed && continue
+                            fi
+                            getAnswerAnyCust mnemonic false "24 or 15 word mnemonic(space separated)"
+                            echo
+                            IFS=" " read -r -a words <<< "${mnemonic}"
+                            if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
+                              println ERROR "${FG_RED}ERROR${NC}: 24 or 15 words expected, found ${FG_RED}${#words[@]}${NC}"
+                              unset mnemonic; unset words
+                              waitToProceed && continue
+                            fi
+                            caddr_v="$(cardano-address -v | awk '{print $1}')"
+                            [[ "${caddr_v}" == 3* ]] && caddr_arg="--with-chain-code" || caddr_arg=""
+                            if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
+                              unset mnemonic; unset words
+                              waitToProceed && continue
+                            fi
+                            unset mnemonic; unset words
+                            payment_xprv=$(cardano-address key child 1854H/1815H/0H/0/0 <<< ${root_prv})
+                            stake_xprv=$(cardano-address key child 1854H/1815H/0H/2/0 <<< ${root_prv})
+                            payment_xpub=$(cardano-address key public ${caddr_arg} <<< ${payment_xprv})
+                            stake_xpub=$(cardano-address key public ${caddr_arg} <<< ${stake_xprv})
+                            pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
+                            ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
+                            cat <<-EOF > "${ms_payment_sk_file}"
+															{
+																	"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
+																	"description": "Multisig Payment Signing Key",
+																	"cborHex": "5880${pes_key}"
+															}
+															EOF
+                            cat <<-EOF > "${ms_stake_sk_file}"
+															{
+																	"type": "StakeExtendedSigningKeyShelley_ed25519_bip32",
+																	"description": "Multisig Stake Signing Key",
+																	"cborHex": "5880${ses_key}"
+															}
+															EOF
+                            println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${ms_payment_sk_file} --verification-key-file ${TMP_DIR}/ms_payment.evkey"
+                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${ms_payment_sk_file}" --verification-key-file "${TMP_DIR}/ms_payment.evkey" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment signing key extraction!\n${stdout}"; waitToProceed && continue
+                            fi
+                            println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${ms_stake_sk_file} --verification-key-file ${TMP_DIR}/ms_stake.evkey"
+                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${ms_stake_sk_file}" --verification-key-file "${TMP_DIR}/ms_stake.evkey" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake signing key extraction!\n${stdout}"; waitToProceed && continue
+                            fi
+                            println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_payment.evkey --verification-key-file ${ms_payment_vk_file}"
+                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_payment.evkey" --verification-key-file "${ms_payment_vk_file}" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment verification key extraction!\n${stdout}"; waitToProceed && continue
+                            fi
+                            println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_stake.evkey --verification-key-file ${ms_stake_vk_file}"
+                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_stake.evkey" --verification-key-file "${ms_stake_vk_file}" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake verification key extraction!\n${stdout}"; waitToProceed && continue
+                            fi
+                            ;;
+                        esac
+                        ;;
+                    esac
+                    chmod 600 "${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}"*
+                    echo
                     getCredentials ${wallet_name}
-                    [[ -z ${pay_cred} ]] && println ERROR "${FG_RED}ERROR${NC}: wallet payment credentials not set!" && waitToProceed && continue
-                    key_hashes[${pay_cred}]=1
-                    ;;
-                  1) getAnswerAnyCust pay_cred "Payment Credential (key hash)"
-                    [[ ${#pay_cred} -ne 56 ]] && println ERROR "${FG_RED}ERROR${NC}: invalid payment credential entered!" && waitToProceed && continue
-                    key_hashes[${pay_cred}]=1
-                    ;;
-                  2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
-                esac
-                println DEBUG "\nMulti-Sig size: ${#key_hashes[@]} - Add more wallets / credentials to multi-sig?"
-                select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
-                case $? in
-                  0) break ;;
-                  1) : ;;
-                  2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
-                esac
-              done
-              println DEBUG "\n${#key_hashes[@]} wallets / credentials added to multi-sig, how many are required to witness the transaction?"
-              getAnswerAnyCust required_sig_cnt "Required signatures"
-              if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
-                println ERROR "\n${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
-              fi
-              println DEBUG "\nAdd time lock to multi-sig wallet by only allowing spending from wallet after a certain epoch start?"
-              select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
-              case $? in
-                0) : ;;
-                1) getAnswerAnyCust epoch_no "Epoch"
-                  if ! isNumber ${epoch_no}; then println ERROR "${FG_RED}ERROR${NC}: invalid epoch number entered!"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue; fi
-                  timelock_after=$(getEpochStart ${epoch_no})
-                  ;;
-                2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue ;;
-              esac
-              # build multi-sig script
-              jsonscript=$(jq -n --argjson req_sig "${required_sig_cnt}" '{type:"atLeast",required:$req_sig,scripts:[]}')
-              for sig in "${!key_hashes[@]}"; do
-                jsonscript=$(jq --arg sig "${sig}" '.scripts += [{type:"sig",keyHash:$sig}]' <<< "${jsonscript}")
-              done
-              if [[ -n ${timelock_after} ]]; then
-                jsonscript=$(jq -n --argjson after "${timelock_after}" --argjson sig_script "${jsonscript}" '{type:"all",scripts:[{type:"after",slot:$after},$sig_script]}')
-              fi
-              if ! stdout=$(jq -e . <<< "${jsonscript}" > "${ms_pay_script_file}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
-              fi
-              println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${ms_stake_vk_file} --signing-key-file ${ms_stake_sk_file}"
-              if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${ms_stake_vk_file}" --signing-key-file "${ms_stake_sk_file}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
-              fi
-              chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
-              getBaseAddress ${ms_wallet_name}
-              getPayScriptAddress ${ms_wallet_name}
-              getRewardAddress ${ms_wallet_name}
-              echo
-              println "New Multi-Sig Wallet : ${FG_GREEN}${ms_wallet_name}${NC}"
-              println "Address              : ${FG_LGRAY}${base_addr}${NC}"
-              println "Script Address       : ${FG_LGRAY}${pay_script_addr}${NC}"
-              println "Reward Address       : ${FG_LGRAY}${reward_addr}${NC}"
-              println DEBUG "\nYou can now send and receive ADA using the above 'Address' or 'Script Address'."
-              println DEBUG "Note that Script Address will not take part in staking."
-              waitToProceed && continue
+                    println "Wallet   : ${FG_GREEN}${wallet_name}${NC}"
+                    println "Multisig Credentials"
+                    println "Payment  : ${ms_pay_cred}"
+                    println "Stake    : ${ms_stake_cred}"
+                    waitToProceed && continue
+                    ;; ###################################################################
+                esac # advanced >> multisig sub OPERATION
+              done # Multisig loop
               ;; ###################################################################
             del-keys)
               clear
