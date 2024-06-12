@@ -3608,11 +3608,19 @@ function main {
                 validateMultisigScript false "${otx_script_scripts}"
                 println DEBUG "${FG_LGRAY}${otx_script_name}${NC} - required signatures: ${FG_LBLUE}${required_total}${NC}"
                 for sig in "${!script_sig_list[@]}"; do
-                  unset hasWitness
+                  unset hasWitness found_wallet_name
                   for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
                     [[ ${otx_witness_name} = ${sig} ]] && hasWitness=true && break
                   done
-                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}x${NC}" || println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_GREEN}\u2714${NC}"
+                  while IFS= read -r -d '' wallet; do
+                    wallet_name=$(basename ${wallet})
+                    getWalletType "${wallet_name}"
+                    getCredentials "${wallet_name}"
+                    if [[ ${ms_pay_cred} = "${sig}" || ${ms_stake_cred} = "${sig}" || ${pay_cred} = "${sig}" || ${stake_cred} = "${sig}" ]]; then
+                      found_wallet_name="${wallet_name}"; break
+                    fi
+                  done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
+                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}x${NC}" || println DEBUG "  ${FG_LGRAY}$([[ -n ${found_wallet_name} ]] && echo ${found_wallet_name} || echo ${sig})${NC} ${FG_GREEN}\u2714${NC}"
                 done
               done
               for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
