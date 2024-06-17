@@ -63,6 +63,9 @@
 #WALLET_STAKE_CERT_FILENAME="stake.cert"
 #WALLET_STAKE_DEREG_FILENAME="stake.dereg"
 #WALLET_DELEGCERT_FILENAME="delegation.cert"
+#WALLET_VOTE_CATALYST_VK_FILENAME="vote-catalyst.vkey"
+#WALLET_VOTE_CATALYST_SK_FILENAME="vote-catalyst.skey"
+#WALLET_VOTE_CATALYST_QR_FILENAME="vote-catalyst-qrcode_::TS::.png" # ::TS:: replaced by current timestamp
 
 #WALLET_MULTISIG_PREFIX="ms_"                           # Filename for multisig files, uses separate keys derived using the 1854H paths
 
@@ -259,6 +262,9 @@ cmdAvailable() {
   if ! command -v "$1" &>/dev/null; then
     printf "${FG_RED}ERROR${NC}: need '$1' (command not found)\nplease install with your packet manager of choice(apt/dnf etc..) and relaunch CNTools\nhttps://command-not-found.com/$1" 1>&2
     return 1
+  elif [[ ! -x $(command -v "$1") ]]; then
+    printf "${FG_RED}ERROR${NC}: '$1' missing executable permission, please fix" 1>&2
+    return 2
   fi
   return 0
 }
@@ -867,6 +873,9 @@ set_default_vars() {
   [[ -z ${WALLET_STAKE_CERT_FILENAME} ]] && WALLET_STAKE_CERT_FILENAME="stake.cert"
   [[ -z ${WALLET_STAKE_DEREG_FILENAME} ]] && WALLET_STAKE_DEREG_FILENAME="stake.dereg"
   [[ -z ${WALLET_DELEGCERT_FILENAME} ]] && WALLET_DELEGCERT_FILENAME="delegation.cert"
+  [[ -z ${WALLET_VOTE_CATALYST_VK_FILENAME} ]] && WALLET_VOTE_CATALYST_VK_FILENAME="vote-catalyst.vkey"
+  [[ -z ${WALLET_VOTE_CATALYST_SK_FILENAME} ]] && WALLET_VOTE_CATALYST_SK_FILENAME="vote-catalyst.skey"
+  [[ -z ${WALLET_VOTE_CATALYST_QR_FILENAME} ]] && WALLET_VOTE_CATALYST_QR_FILENAME="vote-catalyst-qrcode_::TS::.png"
   [[ -z ${WALLET_MULTISIG_PREFIX} ]] && WALLET_MULTISIG_PREFIX="ms_"
   [[ -z ${POOL_ID_FILENAME} ]] && POOL_ID_FILENAME="pool.id"
   [[ -z ${POOL_HOTKEY_VK_FILENAME} ]] && POOL_HOTKEY_VK_FILENAME="hot.vkey"
