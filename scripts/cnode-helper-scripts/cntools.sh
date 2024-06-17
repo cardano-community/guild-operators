@@ -314,12 +314,13 @@ function main {
     else
       echo
     fi
-    select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[t] Transaction" "$([[ -f "${BLOCKLOG_DB}" ]] && echo "[b] Blocks")" "[z] Backup & Restore" "$([[ ${ADVANCED_MODE} = true ]] && echo "[a] Advanced")" "[r] Refresh" "[q] Quit"
+    select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[t] Transaction" "[v] Vote" "$([[ -f "${BLOCKLOG_DB}" ]] && echo "[b] Blocks")" "[z] Backup & Restore" "$([[ ${ADVANCED_MODE} = true ]] && echo "[a] Advanced")" "[r] Refresh" "[q] Quit"
     case ${selected_value} in
       "[w]"*) OPERATION="wallet" ;;
       "[f]"*) OPERATION="funds" ;;
       "[p]"*) OPERATION="pool" ;;
       "[t]"*) OPERATION="transaction" ;;
+      "[v]"*) OPERATION="vote" ;;
       "[b]"*) OPERATION="blocks" ;;
       "[z]"*) OPERATION="backup" ;;
       "[a]"*) OPERATION="advanced" ;;
