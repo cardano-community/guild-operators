@@ -3652,8 +3652,8 @@ function main {
               getWalletType ${wallet_name}
               case $? in
                 0) isHWwallet=true ;;
-                2) ${op_mode} = "online" && println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
-                3) ${op_mode} = "online" && println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
+                2) [[ ${op_mode} = "online" ]] && println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                3) [[ ${op_mode} = "online" ]] && println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
               esac
               if ! isWalletRegistered ${wallet_name}; then
                 println ERROR "\n${FG_RED}ERROR${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not a registered wallet on chain, please register/delegate it before Catalyst registration."
