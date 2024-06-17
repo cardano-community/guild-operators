@@ -282,6 +282,7 @@ function main {
 			" ) Funds       - send, withdraw and delegate"\
 			" ) Pool        - pool creation and management"\
 			" ) Transaction - Sign and Submit a cold transaction (hybrid/offline mode)"\
+			" ) Vote        - project funding (Catalyst) and blockchain governance"\
 			"$([[ -f "${BLOCKLOG_DB}" ]] && echo " ) Blocks      - show core node leader schedule & block production statistics")"\
 			" ) Backup      - backup & restore of wallet/pool/config"\
 			"$([[ ${ADVANCED_MODE} = true ]] && echo " ) Advanced    - Developer and advanced features: metadata, assets, ...")"\
@@ -313,12 +314,13 @@ function main {
     else
       echo
     fi
-    select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[t] Transaction" "$([[ -f "${BLOCKLOG_DB}" ]] && echo "[b] Blocks")" "[z] Backup & Restore" "$([[ ${ADVANCED_MODE} = true ]] && echo "[a] Advanced")" "[r] Refresh" "[q] Quit"
+    select_opt "[w] Wallet" "[f] Funds" "[p] Pool" "[t] Transaction" "[v] Vote" "$([[ -f "${BLOCKLOG_DB}" ]] && echo "[b] Blocks")" "[z] Backup & Restore" "$([[ ${ADVANCED_MODE} = true ]] && echo "[a] Advanced")" "[r] Refresh" "[q] Quit"
     case ${selected_value} in
       "[w]"*) OPERATION="wallet" ;;
       "[f]"*) OPERATION="funds" ;;
       "[p]"*) OPERATION="pool" ;;
       "[t]"*) OPERATION="transaction" ;;
+      "[v]"*) OPERATION="vote" ;;
       "[b]"*) OPERATION="blocks" ;;
       "[z]"*) OPERATION="backup" ;;
       "[a]"*) OPERATION="advanced" ;;
@@ -358,53 +360,93 @@ function main {
           esac
           case $SUBCOMMAND in
             new)
-              clear
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> WALLET >> NEW"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              echo
-              getAnswerAnyCust wallet_name "Name of new wallet"
-              # Remove unwanted characters from wallet name
-              wallet_name=${wallet_name//[^[:alnum:]]/_}
-              if [[ -z "${wallet_name}" ]]; then
-                println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                waitToProceed && continue
-              fi
-              echo
-              if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-                println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-                waitToProceed && continue
-              fi
-              # Wallet key filenames
-              payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-              payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-              stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-              stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-              if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-                println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
-                println "      Choose another name or delete the existing one"
-                waitToProceed && continue
-              fi
-              println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${payment_vk_file} --signing-key-file ${payment_sk_file}"
-              if ! stdout=$(${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-              fi
-              println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
-              if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-              fi
-              chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
-              getBaseAddress ${wallet_name}
-              getPayAddress ${wallet_name}
-              getRewardAddress ${wallet_name}
-              getCredentials ${wallet_name}
-              println "New Wallet      : ${FG_GREEN}${wallet_name}${NC}"
-              println "Base Address    : ${FG_LGRAY}${base_addr}${NC}"
-              println "Payment Address : ${FG_LGRAY}${pay_addr}${NC}"
-              println DEBUG "\nYou can now send and receive ADA using the above addresses."
-              println DEBUG "Note that Payment Address will not take part in staking."
-              println DEBUG "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
-              waitToProceed && continue
+              while true; do # Wallet >> New loop
+                clear
+                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println " >> WALLET >> NEW"
+                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println OFF " Wallet New\n"\
+                  " ) Mnemonic - based on 24 word generated passphrase (recommended)"\
+                  " ) CLI      - one-time generated keys"\
+                  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println DEBUG " Select Wallet Creation Type\n"
+                select_opt "[m] Mnemonic" "[c] CLI" "[b] Back" "[h] Home"
+                case $? in
+                  0) SUBCOMMAND="mnemonic" ;;
+                  1) SUBCOMMAND="cli" ;;
+                  2) break ;;
+                  3) break 2 ;;
+                esac
+                case $SUBCOMMAND in
+                  mnemonic)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> WALLET >> NEW >> MNEMONIC"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    createNewWallet || continue
+                    unset mnemonic
+                    createMnemonicWallet || continue
+                    echo
+                    println "Wallet Imported    : ${FG_GREEN}${wallet_name}${NC}"
+                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                    echo
+                    word_len=0
+                    for word in "${words[@]}"; do
+                      [[ ${#word} -gt ${word_len} ]] && word_len=${#word}
+                    done
+                    println DEBUG "${FG_YELLOW}IMPORTANT!${NC} Please write down and store below words in a secure place to be able to restore wallet at a later time."
+                    for i in "${!words[@]}"; do
+                      idx=$(( i + 1 ))
+                      printf "%2s: ${FG_GREEN}%-${word_len}s${NC}  " "$idx" "${words[$i]}"
+                      [[ $(( idx % 4 )) -eq 0 ]] && echo
+                    done
+                    unset words
+                    echo
+                    printWalletInfo
+                    waitToProceed && continue
+                    ;; ###################################################################
+                  cli)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> WALLET >> NEW >> CLI"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    createNewWallet || continue
+                    # Wallet key filenames
+                    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
+                    payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
+                    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
+                    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
+                    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
+                      println "      Choose another name or delete the existing one"
+                      waitToProceed && continue
+                    fi
+                    println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${payment_vk_file} --signing-key-file ${payment_sk_file}"
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
+                    fi
+                    println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
+                    if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
+                    fi
+                    chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
+                    getBaseAddress ${wallet_name}
+                    getPayAddress ${wallet_name}
+                    getRewardAddress ${wallet_name}
+                    getCredentials ${wallet_name}
+                    println "New Wallet         : ${FG_GREEN}${wallet_name}${NC}"
+                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                    println DEBUG "\nYou can now send and receive ADA using the above addresses."
+                    println DEBUG "Note that Enterprise Address will not take part in staking."
+                    println DEBUG "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
+                    waitToProceed && continue
+                    ;; ###################################################################
+                esac # wallet >> new sub OPERATION
+              done # Wallet >> new loop
               ;; ###################################################################
             import)
               while true; do # Wallet >> Import loop
@@ -431,29 +473,7 @@ function main {
                     println " >> WALLET >> IMPORT >> MNEMONIC"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    if ! cmdAvailable "bech32" &>/dev/null || \
-                      ! cmdAvailable "cardano-address" &>/dev/null; then
-                      println ERROR "${FG_RED}ERROR${NC}: bech32 and/or cardano-address not found in '\$PATH'" 
-                      println ERROR "Please run updated guild-deploy.sh and re-build/re-download cardano-node"
-                      waitToProceed && continue
-                    fi
-                    getAnswerAnyCust wallet_name "Name of imported wallet"
-                    # Remove unwanted characters from wallet name
-                    wallet_name=${wallet_name//[^[:alnum:]]/_}
-                    if [[ -z "${wallet_name}" ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                      waitToProceed && continue
-                    fi
-                    echo
-                    if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-                      println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-                      waitToProceed && continue
-                    fi
-                    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
-                      println "      Choose another name or delete the existing one"
-                      waitToProceed && continue
-                    fi
+                    createNewWallet || continue
                     getAnswerAnyCust mnemonic false "24 or 15 word mnemonic(space separated)"
                     echo
                     IFS=" " read -r -a words <<< "${mnemonic}"
@@ -463,90 +483,15 @@ function main {
                       unset mnemonic; unset words
                       waitToProceed && continue
                     fi
-                    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-                    payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-                    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-                    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-                    caddr_v="$(cardano-address -v | awk '{print $1}')"
-                    [[ "${caddr_v}" == 3* ]] && caddr_arg="--with-chain-code" || caddr_arg=""
-                    if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
-                      echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
-                      unset mnemonic; unset words
-                      waitToProceed && continue
-                    fi
-                    unset mnemonic; unset words
-                    payment_xprv=$(cardano-address key child 1852H/1815H/0H/0/0 <<< ${root_prv})
-                    stake_xprv=$(cardano-address key child 1852H/1815H/0H/2/0 <<< ${root_prv})
-                    payment_xpub=$(cardano-address key public ${caddr_arg} <<< ${payment_xprv})
-                    stake_xpub=$(cardano-address key public ${caddr_arg} <<< ${stake_xprv})
-                    pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
-                    ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
-                    cat <<-EOF > "${payment_sk_file}"
-											{
-											    "type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
-											    "description": "Payment Signing Key",
-											    "cborHex": "5880${pes_key}"
-											}
-											EOF
-                    cat <<-EOF > "${stake_sk_file}"
-											{
-											    "type": "StakeExtendedSigningKeyShelley_ed25519_bip32",
-											    "description": "",
-											    "cborHex": "5880${ses_key}"
-											}
-											EOF
-                    println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_DIR}/payment.evkey"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_DIR}/payment.evkey" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_DIR}/stake.evkey"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_DIR}/stake.evkey" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/stake.evkey --verification-key-file ${stake_vk_file}"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
-                    chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
-                    getBaseAddress ${wallet_name}
-                    getPayAddress ${wallet_name}
-                    getRewardAddress ${wallet_name}
-                    getCredentials ${wallet_name}
-                    if [[ ${base_addr} != "${base_addr_candidate}" ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: base address generated doesn't match base address candidate."
-                      println ERROR "base_addr[${FG_LGRAY}${base_addr}${NC}]\n!=\nbase_addr_candidate[${FG_LGRAY}${base_addr_candidate}${NC}]"
-                      println ERROR "Create a GitHub issue and include log file from failed CNTools session."
-                      echo && safeDel "${WALLET_FOLDER}/${wallet_name}"
-                      waitToProceed && continue
-                    fi
+                    createMnemonicWallet || continue
                     echo
                     println "Wallet Imported : ${FG_GREEN}${wallet_name}${NC}"
                     println "Base Address    : ${FG_LGRAY}${base_addr}${NC}"
                     println "Payment Address : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
-                    println DEBUG "You can now send and receive ADA using the above addresses. Note that Payment Address will not take part in staking"
-                    println DEBUG "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
-                    echo
-                    println DEBUG "${FG_YELLOW}Using a mnemonic imported wallet in CNTools comes with a few limitations${NC}"
-                    echo
-                    println DEBUG "Only the first address in the HD wallet is extracted and because of this the following apply:"
-                    println DEBUG " ${FG_LGRAY}>${NC} Address above should match the first address seen in the wallet where mnemonic was generated, please verify!!!"
-                    println DEBUG " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, and balance doesn't match, send all ADA to address shown in CNTools"
-                    println DEBUG " ${FG_LGRAY}>${NC} Only use receive address shown in CNTools (enable 'Single Address Mode' in wallet if available)"
-                    echo
-                    println DEBUG "Some of the advantages of using a mnemonic imported wallet instead of CLI are:"
-                    println DEBUG " ${FG_LGRAY}>${NC} Wallet can be restored from saved 24 or 15 word mnemonic if keys are lost/deleted"
-                    println DEBUG " ${FG_LGRAY}>${NC} Wallet can be shared and used in multiple wallets, including CNTools"
-                    echo
-                    println DEBUG "Please read more about HD wallets at:"
-                    println DEBUG "https://cardano-community.github.io/support-faq/wallets?id=heirarchical-deterministic-hd-wallets"
+                    printWalletInfo
                     waitToProceed && continue
                     ;; ###################################################################
-
                   hardware)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -562,31 +507,12 @@ function main {
                     esac
                     echo
                     if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
-                      println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli executable not found in path!"
+                      println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli not found in path or executable permission not set."
                       println ERROR "Please run '${FG_YELLOW}guild-deploy.sh -s w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}guild-deploy.sh -h${NC}' shows all available options"
                       waitToProceed && continue
                     fi
-                    if [[ ! -x $(command -v cardano-hw-cli) ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli binary doesn't have execution permission, please fix!"
-                      waitToProceed && continue
-                    fi
                     if ! HWCLIversionCheck; then waitToProceed && continue; fi
-                    getAnswerAnyCust wallet_name "Name of imported wallet"
-                    # Remove unwanted characters from wallet name
-                    wallet_name=${wallet_name//[^[:alnum:]]/_}
-                    if [[ -z "${wallet_name}" ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                      waitToProceed && continue
-                    fi
-                    if ! mkdir -p "${WALLET_FOLDER}/${wallet_name}"; then
-                      println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${wallet_name}"
-                      waitToProceed && continue
-                    fi
-                    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
-                      println "      Choose another name or delete the existing one"
-                      waitToProceed && continue
-                    fi
+                    createNewWallet || continue
                     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_PAY_SK_FILENAME}"
                     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
                     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
@@ -606,21 +532,7 @@ function main {
                     println "Base Address       : ${FG_LGRAY}${base_addr}${NC}"
                     println "Payment Address    : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
-                    println DEBUG "You can now send and receive ADA using the above addresses. Note that Payment Address will not take part in staking"
-                    echo
-                    println DEBUG "All transaction signing is now done through hardware device, please follow directions in both CNTools and the device display!"
-                    println DEBUG "${FG_YELLOW}Using an imported hardware wallet in CNTools comes with a few limitations${NC}"
-                    echo
-                    println DEBUG "Most operations like delegation and sending funds is seamless. For pool registration/modification however the following apply:"
-                    println DEBUG " ${FG_LGRAY}>${NC} Pool owner has to be a CLI wallet with enough funds to pay for pool registration deposit and transaction fee"
-                    println DEBUG " ${FG_LGRAY}>${NC} Add the hardware wallet containing the pledge as a multi-owner to the pool"
-                    println DEBUG " ${FG_LGRAY}>${NC} The hardware wallet can be used as the reward wallet, but has to be included as a multi-owner if it should be counted to pledge"
-                    echo
-                    println DEBUG "Only the first address in the HD wallet is extracted and because of this the following apply if also synced with Daedalus/Yoroi:"
-                    println DEBUG " ${FG_LGRAY}>${NC} Address above should match the first address seen in Daedalus/Yoroi, please verify!!!"
-                    println DEBUG " ${FG_LGRAY}>${NC} If restored wallet contain funds since before, send all ADA through Daedalus/Yoroi to address shown in CNTools"
-                    println DEBUG " ${FG_LGRAY}>${NC} Only use the address shown in CNTools to receive funds"
-                    println DEBUG " ${FG_LGRAY}>${NC} Only spend ADA from CNTools, if spent through Daedalus/Yoroi balance seen in CNTools wont match"
+                    printWalletInfo
                     waitToProceed && continue
                     ;; ###################################################################
                 esac # wallet >> import sub OPERATION
@@ -672,7 +584,7 @@ function main {
               if ! registerStakeWallet ${wallet_name} "true"; then
                 waitToProceed && continue
               fi
-              println "\n${FG_GREEN}${wallet_name}${NC} successfully registered on chain!"
+              println "${FG_GREEN}${wallet_name}${NC} successfully registered on chain!"
               waitToProceed && continue
               ;; ###################################################################
             deregister)
@@ -3208,286 +3120,6 @@ function main {
               fi
               waitToProceed && continue
               ;; ###################################################################
-            vote)
-              clear
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> POOL >> VOTE (CIP-0094)"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              # check for required command line tools (xxd hexdump)
-              if ! cmdAvailable "xxd"; then 
-                myExit 1 "xxd is a hexdump tool to generate the CBOR encoded poll answer"
-              fi
-              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available to pay for poll ballot casts!${NC}" && waitToProceed && continue
-              if [[ -z ${KOIOS_API} ]]; then
-                echo && println ERROR "${FG_YELLOW}Koios API required!${NC}" && waitToProceed && continue
-              fi
-              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitToProceed && continue
-              else
-                if ! selectOpMode; then continue; fi
-              fi
-              epoch=$(getEpoch)
-              echo 
-              echo "Current ${NETWORK_NAME} epoch: ${epoch}"
-              NETWORK_NAME_LOWER=$(echo "$NETWORK_NAME" | awk '{print tolower($0)}')
-              println LOG "Query ${NETWORK_NAME} polls ..."
-              println ACTION "curl -sSL -f -H \"Content-Type: application/json\" ${CIP0094_POLL_URL}"
-              if ! polls=$(curl -sSL -f -H "Content-Type: application/json"  "${CIP0094_POLL_URL}" | jq -r .networks.${NETWORK_NAME_LOWER} 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during CIP0094 poll query!\n${polls}"; waitToProceed && continue
-              fi
-              poll_index=$(echo $polls | jq '. | length')
-              if [[ "$poll_index" -gt 0 ]]; then
-                poll_index_act=0
-                poll_index_cnt=0
-                declare poll_index_txIds=()
-                declare poll_index_titles=()
-                echo "Polls currently open for Pool answers:"
-                while read poll; do
-                  poll_index_cnt=$((poll_index_cnt+1))
-                  if [[ "$epoch" -ge "$(jq '.epoch_cast' <<< $poll)" ]] && [[ "$epoch" -lt "$(jq '.epoch_delegation' <<< $poll)" ]]; then
-                    # list polls who actually are open for SPO ballot casts (filter upcoming and passed ones)
-                    poll_index_act=$((poll_index_act+1))
-                    poll_index_txIds+=("$(jq -r '[.tx_id] | @tsv' <<< $poll)")
-                    poll_index_titles+=("$(jq -r '[.title] | @tsv' <<< $poll)")
-                    echo -e "$poll_index_act) $(jq -r '[.tx_id, .title] | @tsv' <<< $poll)"
-                  fi
-                done < <(echo $polls | jq -c .[])
-                if [[ "$poll_index_act" -gt 0 ]]; then 
-                  while :; do
-                    read -p "Please select a poll: " poll_index_selected
-                    [[ $poll_index_selected =~ ^[[:digit:]]+$ ]] || continue
-                      if [[ "$poll_index_selected" -lt "1" ]] || [[ "$poll_index_selected" -gt "$poll_index_act" ]]; then
-                      continue
-                    fi
-                    break
-                  done
-                  poll_txId=${poll_index_txIds[$((poll_index_selected-1))]}
-                  poll_title=${poll_index_titles[$(($poll_index_selected-1))]}
-                  echo
-                  println DEBUG "# Select the voting pool"
-                  if [[ ${op_mode} = "online" ]]; then
-                    selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
-                    case $? in
-                      1) waitToProceed; continue ;;
-                      2) continue ;;
-                    esac
-                    getPoolType ${pool_name}
-                    case $? in
-                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
-                      3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitToProceed && continue ;;
-                    esac
-                  else
-                    selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
-                    case $? in
-                      1) waitToProceed; continue ;;
-                      2) continue ;;
-                    esac
-                    getPoolType ${pool_name}
-                  fi
-                  echo
-                  println DEBUG "# Select wallet for the ballot cast transaction fee"
-                  if [[ ${op_mode} = "online" ]]; then
-                    selectWallet "balance"
-                    case $? in
-                      1) waitToProceed; continue ;;
-                      2) continue ;;
-                    esac
-                    getWalletType ${wallet_name}
-                    case $? in
-                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitToProceed && continue ;;
-                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
-                      3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
-                    esac
-                  else
-                    selectWallet "balance"
-                    case $? in
-                      1) waitToProceed; continue ;;
-                      2) continue ;;
-                    esac
-                    getWalletType ${wallet_name}
-                    case $? in
-                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitToProceed && continue ;;
-                    esac
-                  fi
-                  getWalletBalance ${wallet_name} true true true true
-                  if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
-                    # Both payment and base address available with funds, let user choose what to use
-                    println DEBUG "\n# Select wallet address to use"
-                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
-                      println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
-                    fi
-                    select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
-                    case $? in
-                      0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
-                      1) addr="${pay_addr}";  lovelace=${pay_lovelace} ;;
-                      2) continue ;;
-                    esac
-                  elif [[ ${pay_lovelace} -gt 0 ]]; then
-                    addr="${pay_addr}"
-                    lovelace=${pay_lovelace}
-                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
-                    fi
-                  elif [[ ${base_lovelace} -gt 0 ]]; then
-                    addr="${base_addr}"
-                    lovelace=${base_lovelace}
-                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                      println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
-                    fi
-                  else
-                    println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
-                    waitToProceed && continue
-                  fi
-                  echo
-                  echo "Query ${NETWORK_NAME} ${poll_txId} metadata from Koios API..."
-                  println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_tx_hashes\":[\"${poll_txId}\"]}' ${KOIOS_API}/tx_metadata"
-                  if ! tx=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_tx_hashes":["'${poll_txId}'"]}' "${KOIOS_API}/tx_metadata" 2>&1); then
-                    println ERROR "\n${FG_RED}ERROR${NC}: failure during Koios tx metadata query!\n${tx}"; waitToProceed && continue
-                  fi
-                  tx_meta=$(echo ${tx} | jq -r ".[0].metadata.\"94\" // empty" 2> /dev/null  )
-                  if [[ ! -z ${tx_meta} ]]; then
-                    echo "OK: Metadata has a CIP-0094 label"
-                    #Variables for the Question and the Options
-                    #this code part was originaly written by SPO Scripts (https://github.com/gitmachtl/scripts/blob/master/cardano/testnet/13a_spoPoll.sh)
-                    questionString=""   #string that holds the question
-                    optionString=()     #array of options
-                    #Question found now convert it to cbor
-                    cborStr="" #setup a clear new cbor string variable
-                    cborStr+=$(to_cbor "map" 1) #map 1
-                    cborStr+=$(to_cbor "unsigned" 94) #unsigned 94
-                    cborStr+=$(to_cbor "map" 2) #map 2
-                    cborStr+=$(to_cbor "unsigned" 0) #unsigned 0
-                    #Add QuestionStrings
-                    questionStrLength=$(jq -r ".\"0\" | length" <<< ${tx_meta} 2> /dev/null)
-                    if [[ ${questionStrLength} -eq 0 ]]; then
-                        echo -e "\n${FG_RED}ERROR - No question string included\n${NC}" && waitToProceed && continue
-                    fi
-                    cborStr+=$(to_cbor "array" ${questionStrLength}) #array with the number of entries
-                    for (( tmpCnt=0; tmpCnt<${questionStrLength}; tmpCnt++ ))
-                    do
-                        strEntry=$(jq -r ".\"0\"[${tmpCnt}]" <<< ${tx_meta} 2> /dev/null)
-                        cborStr+=$(to_cbor "string" "${strEntry}") #string
-                        questionString+="${strEntry}"
-                    done
-                    cborStr+=$(to_cbor "unsigned" 1) #unsigned 1
-                    #Add OptionsStrings
-                    optionsStrLength=$(jq -r ".\"1\" | length" <<< ${tx_meta} 2> /dev/null)
-                    if [[ ${optionsStrLength} -eq 0 ]]; then
-                        echo -e "\n${FG_RED}ERROR - No option strings included\n${NC}" && waitToProceed && continue
-                    fi
-                    cborStr+=$(to_cbor "array" ${optionsStrLength}) #array with the number of options
-                    
-                    for (( tmpCnt=0; tmpCnt<${optionsStrLength}; tmpCnt++ ))
-                    do
-                        optionEntryStrLength=$(jq -r ".\"1\"[${tmpCnt}] | length" <<< ${tx_meta} 2> /dev/null)
-                        cborStr+=$(to_cbor "array" ${optionEntryStrLength}) #array with the number of entries
-                        for (( tmpCnt2=0; tmpCnt2<${optionEntryStrLength}; tmpCnt2++ ))
-                        do
-                            strEntry=$(jq -r ".\"1\"[${tmpCnt}][${tmpCnt2}]" <<< ${tx_meta} 2> /dev/null)
-                            cborStr+=$(to_cbor "string" "${strEntry}") #string
-                            optionString[${tmpCnt}]+="${strEntry}"
-                        done
-                    done
-                    #Show the question and the available answer options
-                    echo
-                    echo -e "${FG_GREEN}Question${NC}: ${questionString}"
-                    echo
-                    echo -e "There are ${optionsStrLength} answer option(s) available:"
-                    for (( tmpCnt=0; tmpCnt<${optionsStrLength}; tmpCnt++ ))
-                    do
-                     echo -e "[${FG_YELLOW}${tmpCnt}${NC}] ${optionString[${tmpCnt}]}"
-                    done
-                    echo
-                    #Read in the answer, loop until a valid answer index is given
-                    answer="-1"
-                    while [ -z "${answer##*[!0-9]*}" ] || [[ ${answer} -lt 0 ]] || [[ ${answer} -ge ${optionsStrLength} ]];
-                    do
-                        read -p $'Please indicate an answer (by index): ' answer
-                        if [[ ${answer} == "" ]]; then 
-                          echo && println "${FG_YELLOW}No answer${NC}" && waitToProceed && continue
-                        fi
-                    done
-                    echo
-                    echo -e "Your answer is '${optionString[${answer}]}'."
-                    echo
-                    #Generating the answer cbor
-                    questionHash=$(echo -n "${cborStr}" | xxd -r -ps | b2sum -l 256 -b | cut -d' ' -f 1)
-                    #Make a new cborStr with the answer
-                    cborStr="" #setup a clear new cbor string variable
-                    cborStr+=$(to_cbor "map" 1) #map 1
-                    cborStr+=$(to_cbor "unsigned" 94) #unsigned 94
-                    cborStr+=$(to_cbor "map" 2) #map 2
-                    cborStr+=$(to_cbor "unsigned" 2) #unsigned 2
-                    cborStr+=$(to_cbor "bytes" "${questionHash}") #bytearray of the blake2b-256 hash of the question cbor
-                    cborStr+=$(to_cbor "unsigned" 3) #unsigned 3
-                    cborStr+=$(to_cbor "unsigned" ${answer}) #unsigned - answer index
-                    #CBOR Answer is ready, write it out to disc
-                    cborFile="${TMP_DIR}/CIP-0094_${poll_txId}_answer.cbor"
-                    #echo -ne "Writing '${cborFile}' to disc ... "
-                    xxd -r -ps <<< ${cborStr} 2> /dev/null > ${cborFile}
-                    if [ $? -ne 0 ]; then echo -e "\n\n${FG_RED}ERROR, could not write to file!\n\n${NC}"; exit 1; fi
-                    # Optional metadata/message
-                    println "# Add a message to the answer? (Poll Dashboards will show this message)"
-                    select_opt "[n] No" "[y] Yes"
-                    case $? in
-                      0)  unset metafile ;;
-                      1)  metafile="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
-                          DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
-                          println OFF "\nA maximum of 64 characters(bytes) is allowed per line."
-                          println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
-                          waitToProceed "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
-                          ${DEFAULTEDITOR} "${metafile}"
-                          if [[ ! -f "${metafile}" ]]; then
-                            println ERROR "${FG_RED}ERROR${NC}: file not found"
-                            println ERROR "File: ${FG_LGRAY}${metafile}${NC}"
-                            waitToProceed && continue
-                          fi
-                          tput cuu 4 && tput ed
-                          if [[ ! -s ${metafile} ]]; then
-                            println "Message empty, skip and continue with answer without message? No to abort!"
-                            select_opt "[y] Yes" "[n] No"
-                            case $? in
-                              0) unset metafile ;;
-                              1) continue ;;
-                            esac
-                          else
-                            tx_msg='{"674":{"msg":[]}}'
-                            error=""
-                            while IFS="" read -r line || [[ -n "${line}" ]]; do
-                              line_bytes=$(echo -n "${line}" | wc -c)
-                              if [[ ${line_bytes} -gt 64 ]]; then
-                                error="${FG_RED}ERROR${NC}: line contains more that 64 bytes(characters) [${line_bytes}]\nLine: ${FG_LGRAY}${line}${NC}" && break
-                              fi
-                              if ! tx_msg=$(jq -er ".\"674\".msg += [\"${line}\"]" <<< "${tx_msg}" 2>&1); then
-                                error="${FG_RED}ERROR${NC}: ${tx_msg}" && break
-                              fi
-                            done < "${metafile}"
-                            [[ -n ${error} ]] && println ERROR "${error}" && waitToProceed && continue
-                            jq -c . <<< "${tx_msg}" > "${metafile}"
-                            jq -r . "${metafile}" && echo
-                            println LOG "Transaction message: ${tx_msg}"
-                          fi
-                          ;;
-                    esac
-                    if ! submitPoll; then
-                      waitToProceed && continue
-                    fi
-                  else
-                    echo && println "${FG_YELLOW}Cannot find valid metadata for this transaction${NC}" 
-                    waitToProceed && continue
-                  fi
-                else
-                  echo && println "${FG_YELLOW}There are currently no active polls in ${NETWORK_NAME}${NC}" 
-                  waitToProceed && continue
-                fi
-              else
-                echo && println "${FG_YELLOW}There are currently no polls in ${NETWORK_NAME}${NC}" 
-                waitToProceed && continue
-              fi
-              ;; ###################################################################
           esac # pool sub OPERATION
         done # Pool loop
         ;; ###################################################################
@@ -3978,6 +3610,525 @@ function main {
               ;; ###################################################################
           esac # transaction sub OPERATION
         done # Transaction loop
+        ;; ###################################################################
+      vote)
+        while true; do # Vote loop
+          clear
+          println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+          println " >> VOTE"
+          println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+          println OFF " Voting and Governance\n"\
+            " ) Catalyst Registration - register wallet for Catalyst, Cardanos project funding platform"\
+            " ) Catalyst QR           - show QR code from previous Catalyst registration"\
+            " ) SPO polls             - on-chain SPO polls in accordance with CIP-0094"\
+            "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+          println DEBUG " Select Transaction Operation\n"
+          select_opt "[c] Catalyst registration" "[q] Catalyst QR" "[p] SPO poll" "[h] Home"
+          case $? in
+            0) SUBCOMMAND="catalyst_reg" ;;
+            1) SUBCOMMAND="catalyst_qr" ;;
+            2) SUBCOMMAND="spo_poll" ;;
+            3) break ;;
+          esac
+          case $SUBCOMMAND in
+            catalyst_reg)
+              clear
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              println " >> VOTE >> CATALYST REGISTRATION"
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                println ERROR "\n${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                waitToProceed && continue
+              else
+                if ! selectOpMode; then continue; fi
+              fi
+              println DEBUG "# Select wallet to register for Catalyst"
+              unset isHWwallet
+              selectWallet "balance"
+              case $? in
+                1) waitToProceed; continue ;;
+                2) continue ;;
+              esac
+              getWalletType ${wallet_name}
+              case $? in
+                0) isHWwallet=true ;;
+                2) ${op_mode} = "online" && println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                3) ${op_mode} = "online" && println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
+              esac
+              if ! isWalletRegistered ${wallet_name}; then
+                println ERROR "\n${FG_RED}ERROR${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not a registered wallet on chain, please register/delegate it before Catalyst registration."
+                waitToProceed && continue
+              fi
+              getWalletBalance ${wallet_name} true true true true
+              if [[ ${base_lovelace} -gt 0 ]]; then
+                addr="${base_addr}"
+                lovelace=${base_lovelace}
+                if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                  println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                fi
+              else
+                println ERROR "\n${FG_RED}ERROR${NC}: no base funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
+                waitToProceed && continue
+              fi
+              getBaseAddress ${wallet_name}
+              download_catalyst_toolbox || continue
+              metafile="${TMP_DIR}/catalyst_reg_metadata_$(printf '%(%s)T\n' -1).cbor"
+              metatype="cbor"
+              if ! cmdAvailable "cardano-signer" &>/dev/null; then
+                println ERROR "\n${FG_RED}ERROR${NC}: prerequisite tool cardano-signer missing or not executable, please install using ${FG_LGRAY}guild-deploy.sh${NC}"
+                waitToProceed && continue
+              fi
+              catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
+              catalyst_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_VK_FILENAME}"
+              catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
+              if [[ ! -f "${catalyst_vk_file}" && ! -f "${catalyst_sk_file}" ]]; then
+                println ACTION "cardano-signer keygen --cip36 --out-skey ${catalyst_sk_file} --out-vkey ${catalyst_vk_file}"
+                if ! stdout=$(cardano-signer keygen --cip36 --out-skey "${catalyst_sk_file}" --out-vkey "${catalyst_vk_file}" 2>&1); then
+                  println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst key creation!\n${stdout}"; waitToProceed && continue
+                fi
+              fi
+              generateCatalystBech32 ${wallet_name} || continue
+              if [[ -f "${catalyst_qr_file}" ]]; then
+                println "A previous registration found, continue with registration and overwrite?"
+                select_opt "[y] Yes" "[n] No"
+                case $? in
+                  0) : ;; # do nothing
+                  1) waitToProceed && continue ;;
+                esac
+              fi
+              if [[ -z ${isHWwallet} ]]; then
+                catalyst_meta_cmd=(
+                  cardano-signer sign --cip36
+                  ${NETWORK_IDENTIFIER}
+                  --payment-address "${base_addr}"
+                  --vote-public-key "${catalyst_vk_file}"
+                  --secret-key "${stake_sk_file}"
+                  --out-cbor "${metafile}"
+                )
+              else
+                # HW Wallet
+                if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
+                  println ERROR "\n${FG_RED}ERROR${NC}: prerequisite tool cardano-hw-cli missing or not executable, please install using ${FG_LGRAY}guild-deploy.sh${NC}"
+                  waitToProceed && continue
+                fi
+                if ! HWCLIversionCheck; then waitToProceed && continue; fi
+                if ! unlockHWDevice "create Catalyst vote metadata"; then waitToProceed && continue; fi
+                current_slot=$(getSlotTipRef)
+                catalyst_meta_cmd=(
+                  cardano-hw-cli vote registration-metadata
+                  ${NETWORK_IDENTIFIER}
+                  --vote-public-key-file "${catalyst_vk_file}"
+                  --payment-address "${base_addr}"
+                  --stake-signing-key-hwsfile "${stake_sk_file}"
+                  --nonce ${current_slot}
+                  --payment-address-signing-key-hwsfile "${payment_sk_file}"
+                  --metadata-cbor-out-file "${metafile}"
+                )
+              fi
+              println ACTION "${catalyst_meta_cmd[*]}"
+              if ! stdout=$("${catalyst_meta_cmd[@]}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst metadata creation!\n${stdout}"; waitToProceed && continue
+              fi
+              if ! sendMetadata; then
+                waitToProceed && continue
+              fi
+              echo
+              if ! verifyTx ${addr}; then waitToProceed && continue; fi
+              echo
+              println "Catalyst registration metadata successfully posted on-chain"
+              while true; do
+                echo
+                getAnswerAnyCust pin_enter "Enter a 4-Digit PIN"
+                if ! isNumber ${pin_enter} || [[ ${#pin_enter} -ne 4 ]]; then
+                  println ERROR "\n${FG_RED}ERROR${NC}: invalid PIN entered! Please try again"
+                  continue
+                fi
+                break
+              done
+              # save QR
+              catalyst_qr_cmd=(
+                catalyst-toolbox qr-code encode
+                --pin ${pin_enter}
+                --input "${catalyst_sk_file_bech32}"
+                --output "${catalyst_qr_file}"
+                --opts img
+              )
+              println ACTION "${catalyst_qr_cmd[*]}"
+              if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
+              fi
+              # print QR
+              println DEBUG "QR Code image generated: ${catalyst_qr_file}"
+              catalyst_qr_cmd=(
+                catalyst-toolbox qr-code encode
+                --pin ${pin_enter}
+                --input "${catalyst_sk_file_bech32}"
+                --opts img
+              )
+              println ACTION "${catalyst_qr_cmd[*]}"
+              "${catalyst_qr_cmd[@]}"
+              println DEBUG "\nScan QR code using Catalyst app on mobile device"
+              println DEBUG "iOS:     https://apps.apple.com/in/app/catalyst-voting/id1517473397"
+              println DEBUG "Android: https://play.google.com/store/apps/details?id=io.iohk.vitvoting"
+              println DEBUG "\nCardano Catalyst Telegram Announcements Channel: https://t.me/cardanocatalyst"
+              waitToProceed && continue
+              ;; ###################################################################
+            catalyst_qr)
+              clear
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              println " >> VOTE >> CATALYST QR CODE"
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              echo
+              println DEBUG "# Select a Catalyst registered wallet"
+              selectWallet "none" "${WALLET_VOTE_CATALYST_SK_FILENAME}"
+              case $? in
+                1) waitToProceed; continue ;;
+                2) continue ;;
+              esac
+              download_catalyst_toolbox || continue
+              while true; do
+                echo
+                getAnswerAnyCust pin_enter "Enter 4-Digit PIN"
+                if ! isNumber ${pin_enter} || [[ ${#pin_enter} -ne 4 ]]; then
+                  println ERROR "\n${FG_RED}ERROR${NC}: invalid PIN entered! Please try again"
+                  continue
+                fi
+                break
+              done
+              catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
+              catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
+              generateCatalystBech32 ${wallet_name} || continue
+              unset save_catalyst_qr
+              if [[ -f "${catalyst_qr_file}" ]]; then
+                catalyst_qr_cmd=(
+                  catalyst-toolbox qr-code verify
+                  --stop-at-fail
+                  --pin ${pin_enter}
+                  --file "${catalyst_qr_file}"
+                  --opts img
+                )
+                println ACTION "${catalyst_qr_cmd[*]}"
+                if ! "${catalyst_qr_cmd[@]}" &>/dev/null; then
+                  println "PIN code invalid, overwrite existing QR code with updated PIN code?"
+                  select_opt "[y] Yes" "[n] No (return)" "[c] Continue (display QR code)"
+                  case $? in
+                    0) save_catalyst_qr=true ;;
+                    1) continue ;;
+                    2) : ;;
+                  esac
+                fi
+              else
+                save_catalyst_qr=true
+              fi
+              if [[ ${save_catalyst_qr} = true ]]; then
+                catalyst_qr_cmd=(
+                  catalyst-toolbox qr-code encode
+                  --pin ${pin_enter}
+                  --input "${catalyst_sk_file_bech32}"
+                  --output "${catalyst_qr_file}"
+                  --opts img
+                )
+                println ACTION "${catalyst_qr_cmd[*]}"
+                if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
+                  println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
+                fi
+              fi
+              catalyst_qr_cmd=(
+                catalyst-toolbox qr-code encode
+                --pin ${pin_enter}
+                --input "${catalyst_sk_file_bech32}"
+                --opts img
+              )
+              println ACTION "${catalyst_qr_cmd[*]}"
+              "${catalyst_qr_cmd[@]}"
+              println DEBUG "\nScan QR code using Catalyst app on mobile device"
+              println DEBUG "iOS:     https://apps.apple.com/in/app/catalyst-voting/id1517473397"
+              println DEBUG "Android: https://play.google.com/store/apps/details?id=io.iohk.vitvoting"
+              println DEBUG "\nCardano Catalyst Telegram Announcements Channel: https://t.me/cardanocatalyst"
+              waitToProceed && continue
+              ;; ###################################################################
+            spo_poll)
+              clear
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              println " >> VOTE >> SPO POLL (CIP-0094)"
+              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+              # check for required command line tools (xxd hexdump)
+              if ! cmdAvailable "xxd"; then
+                myExit 1 "xxd is a hexdump tool to generate the CBOR encoded poll answer"
+              fi
+              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
+              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available to pay for poll ballot casts!${NC}" && waitToProceed && continue
+              if [[ -z ${KOIOS_API} ]]; then
+                echo && println ERROR "${FG_YELLOW}Koios API required!${NC}" && waitToProceed && continue
+              fi
+              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                waitToProceed && continue
+              else
+                if ! selectOpMode; then continue; fi
+              fi
+              epoch=$(getEpoch)
+              echo
+              echo "Current ${NETWORK_NAME} epoch: ${epoch}"
+              NETWORK_NAME_LOWER=$(echo "$NETWORK_NAME" | awk '{print tolower($0)}')
+              println LOG "Query ${NETWORK_NAME} polls ..."
+              println ACTION "curl -sSL -f -H \"Content-Type: application/json\" ${CIP0094_POLL_URL}"
+              if ! polls=$(curl -sSL -f -H "Content-Type: application/json"  "${CIP0094_POLL_URL}" | jq -r .networks.${NETWORK_NAME_LOWER} 2>&1); then
+                println ERROR "\n${FG_RED}ERROR${NC}: failure during CIP0094 poll query!\n${polls}"; waitToProceed && continue
+              fi
+              poll_index=$(echo $polls | jq '. | length')
+              if [[ "$poll_index" -gt 0 ]]; then
+                poll_index_act=0
+                poll_index_cnt=0
+                declare poll_index_txIds=()
+                declare poll_index_titles=()
+                echo "Polls currently open for Pool answers:"
+                while read poll; do
+                  poll_index_cnt=$((poll_index_cnt+1))
+                  if [[ "$epoch" -ge "$(jq '.epoch_cast' <<< $poll)" ]] && [[ "$epoch" -lt "$(jq '.epoch_delegation' <<< $poll)" ]]; then
+                    # list polls who actually are open for SPO ballot casts (filter upcoming and passed ones)
+                    poll_index_act=$((poll_index_act+1))
+                    poll_index_txIds+=("$(jq -r '[.tx_id] | @tsv' <<< $poll)")
+                    poll_index_titles+=("$(jq -r '[.title] | @tsv' <<< $poll)")
+                    echo -e "$poll_index_act) $(jq -r '[.tx_id, .title] | @tsv' <<< $poll)"
+                  fi
+                done < <(echo $polls | jq -c .[])
+                if [[ "$poll_index_act" -gt 0 ]]; then
+                  while :; do
+                    read -p "Please select a poll: " poll_index_selected
+                    [[ $poll_index_selected =~ ^[[:digit:]]+$ ]] || continue
+                      if [[ "$poll_index_selected" -lt "1" ]] || [[ "$poll_index_selected" -gt "$poll_index_act" ]]; then
+                      continue
+                    fi
+                    break
+                  done
+                  poll_txId=${poll_index_txIds[$((poll_index_selected-1))]}
+                  poll_title=${poll_index_titles[$(($poll_index_selected-1))]}
+                  echo
+                  println DEBUG "# Select the voting pool"
+                  if [[ ${op_mode} = "online" ]]; then
+                    selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
+                    case $? in
+                      1) waitToProceed; continue ;;
+                      2) continue ;;
+                    esac
+                    getPoolType ${pool_name}
+                    case $? in
+                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                      3) println ERROR "${FG_RED}ERROR${NC}: signing keys missing from pool!" && waitToProceed && continue ;;
+                    esac
+                  else
+                    selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
+                    case $? in
+                      1) waitToProceed; continue ;;
+                      2) continue ;;
+                    esac
+                    getPoolType ${pool_name}
+                  fi
+                  echo
+                  println DEBUG "# Select wallet for the ballot cast transaction fee"
+                  if [[ ${op_mode} = "online" ]]; then
+                    selectWallet "balance"
+                    case $? in
+                      1) waitToProceed; continue ;;
+                      2) continue ;;
+                    esac
+                    getWalletType ${wallet_name}
+                    case $? in
+                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitToProceed && continue ;;
+                      2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                      3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
+                    esac
+                  else
+                    selectWallet "balance"
+                    case $? in
+                      1) waitToProceed; continue ;;
+                      2) continue ;;
+                    esac
+                    getWalletType ${wallet_name}
+                    case $? in
+                      0) println ERROR "${FG_RED}ERROR${NC}: please use a CLI wallet to pay for transaction fee!" && waitToProceed && continue ;;
+                    esac
+                  fi
+                  getWalletBalance ${wallet_name} true true true true
+                  if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
+                    # Both payment and base address available with funds, let user choose what to use
+                    println DEBUG "\n# Select wallet address to use"
+                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                      println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                      println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                    fi
+                    select_opt "[b] Base (default)" "[e] Payment" "[Esc] Cancel"
+                    case $? in
+                      0) addr="${base_addr}"; lovelace=${base_lovelace} ;;
+                      1) addr="${pay_addr}";  lovelace=${pay_lovelace} ;;
+                      2) continue ;;
+                    esac
+                  elif [[ ${pay_lovelace} -gt 0 ]]; then
+                    addr="${pay_addr}"
+                    lovelace=${pay_lovelace}
+                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                      println DEBUG "\n$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
+                    fi
+                  elif [[ ${base_lovelace} -gt 0 ]]; then
+                    addr="${base_addr}"
+                    lovelace=${base_lovelace}
+                    if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                      println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                    fi
+                  else
+                    println ERROR "\n${FG_RED}ERROR${NC}: no funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
+                    waitToProceed && continue
+                  fi
+                  echo
+                  echo "Query ${NETWORK_NAME} ${poll_txId} metadata from Koios API..."
+                  println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_tx_hashes\":[\"${poll_txId}\"]}' ${KOIOS_API}/tx_metadata"
+                  if ! tx=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_tx_hashes":["'${poll_txId}'"]}' "${KOIOS_API}/tx_metadata" 2>&1); then
+                    println ERROR "\n${FG_RED}ERROR${NC}: failure during Koios tx metadata query!\n${tx}"; waitToProceed && continue
+                  fi
+                  tx_meta=$(echo ${tx} | jq -r ".[0].metadata.\"94\" // empty" 2> /dev/null  )
+                  if [[ ! -z ${tx_meta} ]]; then
+                    echo "OK: Metadata has a CIP-0094 label"
+                    #Variables for the Question and the Options
+                    #this code part was originaly written by SPO Scripts (https://github.com/gitmachtl/scripts/blob/master/cardano/testnet/13a_spoPoll.sh)
+                    questionString=""   #string that holds the question
+                    optionString=()     #array of options
+                    #Question found now convert it to cbor
+                    cborStr="" #setup a clear new cbor string variable
+                    cborStr+=$(to_cbor "map" 1) #map 1
+                    cborStr+=$(to_cbor "unsigned" 94) #unsigned 94
+                    cborStr+=$(to_cbor "map" 2) #map 2
+                    cborStr+=$(to_cbor "unsigned" 0) #unsigned 0
+                    #Add QuestionStrings
+                    questionStrLength=$(jq -r ".\"0\" | length" <<< ${tx_meta} 2> /dev/null)
+                    if [[ ${questionStrLength} -eq 0 ]]; then
+                        echo -e "\n${FG_RED}ERROR - No question string included\n${NC}" && waitToProceed && continue
+                    fi
+                    cborStr+=$(to_cbor "array" ${questionStrLength}) #array with the number of entries
+                    for (( tmpCnt=0; tmpCnt<${questionStrLength}; tmpCnt++ ))
+                    do
+                        strEntry=$(jq -r ".\"0\"[${tmpCnt}]" <<< ${tx_meta} 2> /dev/null)
+                        cborStr+=$(to_cbor "string" "${strEntry}") #string
+                        questionString+="${strEntry}"
+                    done
+                    cborStr+=$(to_cbor "unsigned" 1) #unsigned 1
+                    #Add OptionsStrings
+                    optionsStrLength=$(jq -r ".\"1\" | length" <<< ${tx_meta} 2> /dev/null)
+                    if [[ ${optionsStrLength} -eq 0 ]]; then
+                        echo -e "\n${FG_RED}ERROR - No option strings included\n${NC}" && waitToProceed && continue
+                    fi
+                    cborStr+=$(to_cbor "array" ${optionsStrLength}) #array with the number of options
+
+                    for (( tmpCnt=0; tmpCnt<${optionsStrLength}; tmpCnt++ ))
+                    do
+                        optionEntryStrLength=$(jq -r ".\"1\"[${tmpCnt}] | length" <<< ${tx_meta} 2> /dev/null)
+                        cborStr+=$(to_cbor "array" ${optionEntryStrLength}) #array with the number of entries
+                        for (( tmpCnt2=0; tmpCnt2<${optionEntryStrLength}; tmpCnt2++ ))
+                        do
+                            strEntry=$(jq -r ".\"1\"[${tmpCnt}][${tmpCnt2}]" <<< ${tx_meta} 2> /dev/null)
+                            cborStr+=$(to_cbor "string" "${strEntry}") #string
+                            optionString[${tmpCnt}]+="${strEntry}"
+                        done
+                    done
+                    #Show the question and the available answer options
+                    echo
+                    echo -e "${FG_GREEN}Question${NC}: ${questionString}"
+                    echo
+                    echo -e "There are ${optionsStrLength} answer option(s) available:"
+                    for (( tmpCnt=0; tmpCnt<${optionsStrLength}; tmpCnt++ ))
+                    do
+                     echo -e "[${FG_YELLOW}${tmpCnt}${NC}] ${optionString[${tmpCnt}]}"
+                    done
+                    echo
+                    #Read in the answer, loop until a valid answer index is given
+                    answer="-1"
+                    while [ -z "${answer##*[!0-9]*}" ] || [[ ${answer} -lt 0 ]] || [[ ${answer} -ge ${optionsStrLength} ]];
+                    do
+                        read -p $'Please indicate an answer (by index): ' answer
+                        if [[ ${answer} == "" ]]; then
+                          echo && println "${FG_YELLOW}No answer${NC}" && waitToProceed && continue
+                        fi
+                    done
+                    echo
+                    echo -e "Your answer is '${optionString[${answer}]}'."
+                    echo
+                    #Generating the answer cbor
+                    questionHash=$(echo -n "${cborStr}" | xxd -r -ps | b2sum -l 256 -b | cut -d' ' -f 1)
+                    #Make a new cborStr with the answer
+                    cborStr="" #setup a clear new cbor string variable
+                    cborStr+=$(to_cbor "map" 1) #map 1
+                    cborStr+=$(to_cbor "unsigned" 94) #unsigned 94
+                    cborStr+=$(to_cbor "map" 2) #map 2
+                    cborStr+=$(to_cbor "unsigned" 2) #unsigned 2
+                    cborStr+=$(to_cbor "bytes" "${questionHash}") #bytearray of the blake2b-256 hash of the question cbor
+                    cborStr+=$(to_cbor "unsigned" 3) #unsigned 3
+                    cborStr+=$(to_cbor "unsigned" ${answer}) #unsigned - answer index
+                    #CBOR Answer is ready, write it out to disc
+                    cborFile="${TMP_DIR}/CIP-0094_${poll_txId}_answer.cbor"
+                    #echo -ne "Writing '${cborFile}' to disc ... "
+                    xxd -r -ps <<< ${cborStr} 2> /dev/null > ${cborFile}
+                    if [ $? -ne 0 ]; then echo -e "\n\n${FG_RED}ERROR, could not write to file!\n\n${NC}"; exit 1; fi
+                    # Optional metadata/message
+                    println "# Add a message to the answer? (Poll Dashboards will show this message)"
+                    select_opt "[n] No" "[y] Yes"
+                    case $? in
+                      0)  unset metafile ;;
+                      1)  metafile="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
+                          DEFAULTEDITOR="$(command -v nano &>/dev/null && echo 'nano' || echo 'vi')"
+                          println OFF "\nA maximum of 64 characters(bytes) is allowed per line."
+                          println OFF "${FG_YELLOW}Please don't change default file path when saving.${NC}"
+                          waitToProceed "press any key to open '${FG_LGRAY}${DEFAULTEDITOR}${NC}' text editor"
+                          ${DEFAULTEDITOR} "${metafile}"
+                          if [[ ! -f "${metafile}" ]]; then
+                            println ERROR "${FG_RED}ERROR${NC}: file not found"
+                            println ERROR "File: ${FG_LGRAY}${metafile}${NC}"
+                            waitToProceed && continue
+                          fi
+                          tput cuu 4 && tput ed
+                          if [[ ! -s ${metafile} ]]; then
+                            println "Message empty, skip and continue with answer without message? No to abort!"
+                            select_opt "[y] Yes" "[n] No"
+                            case $? in
+                              0) unset metafile ;;
+                              1) continue ;;
+                            esac
+                          else
+                            tx_msg='{"674":{"msg":[]}}'
+                            error=""
+                            while IFS="" read -r line || [[ -n "${line}" ]]; do
+                              line_bytes=$(echo -n "${line}" | wc -c)
+                              if [[ ${line_bytes} -gt 64 ]]; then
+                                error="${FG_RED}ERROR${NC}: line contains more that 64 bytes(characters) [${line_bytes}]\nLine: ${FG_LGRAY}${line}${NC}" && break
+                              fi
+                              if ! tx_msg=$(jq -er ".\"674\".msg += [\"${line}\"]" <<< "${tx_msg}" 2>&1); then
+                                error="${FG_RED}ERROR${NC}: ${tx_msg}" && break
+                              fi
+                            done < "${metafile}"
+                            [[ -n ${error} ]] && println ERROR "${error}" && waitToProceed && continue
+                            jq -c . <<< "${tx_msg}" > "${metafile}"
+                            jq -r . "${metafile}" && echo
+                            println LOG "Transaction message: ${tx_msg}"
+                          fi
+                          ;;
+                    esac
+                    if ! submitPoll; then
+                      waitToProceed && continue
+                    fi
+                  else
+                    echo && println "${FG_YELLOW}Cannot find valid metadata for this transaction${NC}"
+                    waitToProceed && continue
+                  fi
+                else
+                  echo && println "${FG_YELLOW}There are currently no active polls in ${NETWORK_NAME}${NC}"
+                  waitToProceed && continue
+                fi
+              else
+                echo && println "${FG_YELLOW}There are currently no polls in ${NETWORK_NAME}${NC}"
+                waitToProceed && continue
+              fi
+              ;; ###################################################################
+          esac # vote sub OPERATION
+        done # vote loop
         ;; ###################################################################
       blocks)
         clear
@@ -5315,18 +5466,7 @@ function main {
                     println " >> ADVANCED >> MULTISIG >> CREATE WALLET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    getAnswerAnyCust ms_wallet_name "Name of multisig wallet"
-                    # Remove unwanted characters from wallet name
-                    ms_wallet_name=${ms_wallet_name//[^[:alnum:]]/_}
-                    if [[ -z "${ms_wallet_name}" ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: Empty wallet name, please retry!"
-                      waitToProceed && continue
-                    fi
-                    echo
-                    if ! mkdir -p "${WALLET_FOLDER}/${ms_wallet_name}"; then
-                      println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for wallet:\n${WALLET_FOLDER}/${ms_wallet_name}"
-                      waitToProceed && continue
-                    fi
+                    createNewWallet || continue
                     # Wallet key filenames
                     ms_pay_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
                     ms_stake_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SCRIPT_FILENAME}"
@@ -5444,12 +5584,8 @@ function main {
                     case $? in
                       0) # Hardware wallet
                         if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
-                          println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli executable not found in path!"
+                          println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli not found in path or executable permission not set."
                           println ERROR "Please run '${FG_YELLOW}guild-deploy.sh -s w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}guild-deploy.sh -h${NC}' shows all available options"
-                          waitToProceed && continue
-                        fi
-                        if [[ ! -x $(command -v cardano-hw-cli) ]]; then
-                          println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli binary doesn't have execution permission, please fix!"
                           waitToProceed && continue
                         fi
                         if ! HWCLIversionCheck; then waitToProceed && continue; fi
