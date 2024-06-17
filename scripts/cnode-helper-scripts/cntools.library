@@ -89,14 +89,19 @@ println() {
   shift
   local newline="\n"
   if [[ $1 = false && $# -gt 2 ]]; then unset newline; shift; elif [[ $1 = true && $# -gt 2 ]]; then shift; fi
+  local msg_list=()
+  for msg in "$@"; do
+    [[ -z ${msg} ]] && continue
+    msg_list+=( "${msg}" )
+  done
   case $log_level in
-    OFF) printf "%b${newline}" "$@" ;;
-    LOG) logln "DEBUG" "$@" ;;
-    DEBUG) printf "%b${newline}" "$@"; logln "DEBUG" "$@" ;;
-    INFO) printf "%b${newline}" "$@"; logln "INFO" "$@" ;;
-    ACTION) logln "ACTION" "$@" ;;
-    ERROR) printf "%b${newline}" "$@"; logln "ERROR" "$@" ;;
-    *) println INFO "${log_level}" "$@" ;;
+    OFF) printf "%b${newline}" "${msg_list[@]}" ;;
+    LOG) logln "DEBUG" "${msg_list[@]}" ;;
+    DEBUG) printf "%b${newline}" "${msg_list[@]}"; logln "DEBUG" "${msg_list[@]}" ;;
+    INFO) printf "%b${newline}" "${msg_list[@]}"; logln "INFO" "${msg_list[@]}" ;;
+    ACTION) logln "ACTION" "${msg_list[@]}" ;;
+    ERROR) printf "%b${newline}" "${msg_list[@]}"; logln "ERROR" "${msg_list[@]}" ;;
+    *) println INFO "${log_level}" "${msg_list[@]}" ;;
   esac
 }
 
@@ -149,6 +154,43 @@ protectionPreRequisites() {
     rm -f "${TMP_DIR}"/test
   fi
   return 0
+}
+
+# Command     : download_catalyst_toolbox
+# Description : Downloads Catalyst Toolbox
+download_catalyst_toolbox() {
+  cmdAvailable "catalyst-toolbox" &>/dev/null && return 0
+  println DEBUG "Downloading prerequisite tool: catalyst-toolbox"
+  local ARCH; ARCH=$(uname -a)
+  if [[ ${ARCH,,} != *x86_64*linux* ]]; then
+    println ERROR "\n${FG_RED}ERROR${NC}: Only x86_64 architecture on Linux supported, please manually build for your system from:\nhttps://github.com/input-output-hk/catalyst-core"
+    waitToProceed && return 1
+  fi
+  rm -rf /tmp/catalyst-toolbox-bin && mkdir /tmp/catalyst-toolbox-bin
+  pushd /tmp/catalyst-toolbox-bin >/dev/null || return 1
+  if curl -sL -f -m ${CURL_TIMEOUT} -o "${HOME}"/.local/bin/catalyst-toolbox "https://share.koios.rest/api/public/dl/Q0m8-F2X%2Fbinaries%2Fcatalyst-toolbox-x86_64-gnu"; then
+    chmod +x "${HOME}"/.local/bin/catalyst-toolbox
+    local catalyst_toolbox_version; catalyst_toolbox_version=$(catalyst-toolbox --full-version)
+    println DEBUG "  ${catalyst_toolbox_version%% - *} ${FG_GREEN}installed!${NC}"
+  else
+    println ERROR "\n${FG_RED}ERROR${NC}: Download of Catalyst Toolbox from Koios share failed! Please retry or build it manually from:\nhttps://github.com/input-output-hk/catalyst-core"
+    waitToProceed && return 1
+  fi
+  return 0
+}
+
+# Command     : generateCatalystBech32 [wallet name]
+# Description : create and store Catalyst signing key in bech32 format (ed25519extended)
+# Parameters  : wallet name  >  the name of the wallet
+generateCatalystBech32() {
+  catalyst_sk_file="${WALLET_FOLDER}/${1}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
+  catalyst_sk_file_bech32="${catalyst_sk_file}-bech32"
+  [[ -f "${catalyst_sk_file_bech32}" ]] && return 0
+  println ACTION "jq -r .cborHex ${catalyst_sk_file} | cut -c 5-132 | bech32 ed25519e_sk"
+  if ! stdout=$(jq -r .cborHex "${catalyst_sk_file}" | cut -c 5-132 | bech32 "ed25519e_sk" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst signing key bech32 conversion!\n${stdout}"; waitToProceed && return 1
+  fi
+  echo ${stdout} > "${catalyst_sk_file_bech32}"
 }
 
 # Command     : safeDel [path]
