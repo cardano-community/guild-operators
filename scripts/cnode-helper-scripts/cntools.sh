@@ -3691,6 +3691,7 @@ function main {
               if [[ -z ${isHWwallet} ]]; then
                 catalyst_meta_cmd=(
                   cardano-signer sign --cip36
+                  ${NETWORK_IDENTIFIER}
                   --payment-address "${base_addr}"
                   --vote-public-key "${catalyst_vk_file}"
                   --secret-key "${stake_sk_file}"
