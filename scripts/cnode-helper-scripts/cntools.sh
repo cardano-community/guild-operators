@@ -3687,6 +3687,7 @@ function main {
                   println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst key creation!\n${stdout}"; waitToProceed && continue
                 fi
               fi
+              generateCatalystBech32 ${wallet_name} || continue
               if [[ -f "${catalyst_qr_file}" ]]; then
                 println "A previous registration found, continue with registration and overwrite?"
                 select_opt "[y] Yes" "[n] No"
@@ -3748,7 +3749,7 @@ function main {
               catalyst_qr_cmd=(
                 catalyst-toolbox qr-code encode
                 --pin ${pin_enter}
-                --input <(cat "${catalyst_sk_file}" | jq -r .cborHex | cut -c 5-132 | bech32 "ed25519e_sk")
+                --input "${catalyst_sk_file_bech32}"
                 --output "${catalyst_qr_file}"
                 --opts img
               )
@@ -3761,7 +3762,7 @@ function main {
               catalyst_qr_cmd=(
                 catalyst-toolbox qr-code encode
                 --pin ${pin_enter}
-                --input <(cat "${catalyst_sk_file}" | jq -r .cborHex | cut -c 5-132 | bech32 "ed25519e_sk")
+                --input "${catalyst_sk_file_bech32}"
                 --opts img
               )
               println ACTION "${catalyst_qr_cmd[*]}"
@@ -3798,6 +3799,7 @@ function main {
               done
               catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
               catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
+              generateCatalystBech32 ${wallet_name} || continue
               if [[ -f "${catalyst_qr_file}" ]]; then
                 catalyst_qr_cmd=(
                   catalyst-toolbox qr-code verify
@@ -3815,7 +3817,7 @@ function main {
                       catalyst_qr_cmd=(
                         catalyst-toolbox qr-code encode
                         --pin ${pin_enter}
-                        --input <(cat "${catalyst_sk_file}" | jq -r .cborHex | cut -c 5-132 | bech32 "ed25519e_sk")
+                        --input "${catalyst_sk_file_bech32}"
                         --output "${catalyst_qr_file}"
                         --opts img
                       )
@@ -3832,7 +3834,7 @@ function main {
               catalyst_qr_cmd=(
                 catalyst-toolbox qr-code encode
                 --pin ${pin_enter}
-                --input "${catalyst_sk_file}"
+                --input "${catalyst_sk_file_bech32}"
                 --opts img
               )
               println ACTION "${catalyst_qr_cmd[*]}"

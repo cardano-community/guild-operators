@@ -179,6 +179,20 @@ download_catalyst_toolbox() {
   return 0
 }
 
+# Command     : generateCatalystBech32 [wallet name]
+# Description : create and store Catalyst signing key in bech32 format (ed25519extended)
+# Parameters  : wallet name  >  the name of the wallet
+generateCatalystBech32() {
+  catalyst_sk_file="${WALLET_FOLDER}/${1}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
+  catalyst_sk_file_bech32="${catalyst_sk_file}-bech32"
+  [[ -f "${catalyst_sk_file_bech32}" ]] && return 0
+  println ACTION "jq -r .cborHex ${catalyst_sk_file} | cut -c 5-132 | bech32 ed25519e_sk"
+  if ! stdout=$(jq -r .cborHex "${catalyst_sk_file}" | cut -c 5-132 | bech32 "ed25519e_sk" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst signing key bech32 conversion!\n${stdout}"; waitToProceed && return 1
+  fi
+  echo ${stdout} > "${catalyst_sk_file_bech32}"
+}
+
 # Command     : safeDel [path]
 # Description : unlock and use secure delete (srm) if available to delete file|dir
 # Note        : srm mainly effective for traditional magnetic HDDs and non copy-on-write or journal file systems
