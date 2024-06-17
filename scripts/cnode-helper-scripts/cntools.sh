@@ -3766,9 +3766,7 @@ function main {
                 --opts img
               )
               println ACTION "${catalyst_qr_cmd[*]}"
-              if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code display!\n${stdout}"; waitToProceed && continue
-              fi
+              "${catalyst_qr_cmd[@]}"
               println DEBUG "\nScan QR code using Catalyst app on mobile device"
               println DEBUG "iOS:     https://apps.apple.com/in/app/catalyst-voting/id1517473397"
               println DEBUG "Android: https://play.google.com/store/apps/details?id=io.iohk.vitvoting"
@@ -3838,9 +3836,7 @@ function main {
                 --opts img
               )
               println ACTION "${catalyst_qr_cmd[*]}"
-              if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
-              fi
+              "${catalyst_qr_cmd[@]}"
               println DEBUG "\nScan QR code using Catalyst app on mobile device"
               println DEBUG "iOS:     https://apps.apple.com/in/app/catalyst-voting/id1517473397"
               println DEBUG "Android: https://play.google.com/store/apps/details?id=io.iohk.vitvoting"
