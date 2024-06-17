@@ -3618,234 +3618,253 @@ function main {
           println " >> VOTE"
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println OFF " Voting and Governance\n"\
-            " ) Catalyst Registration - register wallet for Catalyst, Cardanos project funding platform"\
-            " ) Catalyst QR           - show QR code from previous Catalyst registration"\
-            " ) SPO polls             - on-chain SPO polls in accordance with CIP-0094"\
+            " ) Catalyst      - project funding platform"\
+            " ) SPO polls     - on-chain SPO polls in accordance with CIP-0094"\
             "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-          println DEBUG " Select Transaction Operation\n"
-          select_opt "[c] Catalyst registration" "[q] Catalyst QR" "[p] SPO poll" "[h] Home"
+          println DEBUG " Select Vote Operation\n"
+          select_opt "[c] Catalyst" "[p] SPO poll" "[h] Home"
           case $? in
-            0) SUBCOMMAND="catalyst_reg" ;;
-            1) SUBCOMMAND="catalyst_qr" ;;
-            2) SUBCOMMAND="spo_poll" ;;
-            3) break ;;
+            0) SUBCOMMAND="catalyst" ;;
+            1) SUBCOMMAND="spo_poll" ;;
+            2) break ;;
           esac
           case $SUBCOMMAND in
-            catalyst_reg)
-              clear
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> VOTE >> CATALYST REGISTRATION"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                println ERROR "\n${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitToProceed && continue
-              else
-                if ! selectOpMode; then continue; fi
-              fi
-              println DEBUG "# Select wallet to register for Catalyst"
-              unset isHWwallet
-              selectWallet "balance"
-              case $? in
-                1) waitToProceed; continue ;;
-                2) continue ;;
-              esac
-              getWalletType ${wallet_name}
-              case $? in
-                0) isHWwallet=true ;;
-                2) [[ ${op_mode} = "online" ]] && println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
-                3) [[ ${op_mode} = "online" ]] && println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
-              esac
-              if ! isWalletRegistered ${wallet_name}; then
-                println ERROR "\n${FG_RED}ERROR${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not a registered wallet on chain, please register/delegate it before Catalyst registration."
-                waitToProceed && continue
-              fi
-              getWalletBalance ${wallet_name} true true true true
-              if [[ ${base_lovelace} -gt 0 ]]; then
-                addr="${base_addr}"
-                lovelace=${base_lovelace}
-                if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
-                  println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
-                fi
-              else
-                println ERROR "\n${FG_RED}ERROR${NC}: no base funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
-                waitToProceed && continue
-              fi
-              getBaseAddress ${wallet_name}
-              download_catalyst_toolbox || continue
-              metafile="${TMP_DIR}/catalyst_reg_metadata_$(printf '%(%s)T\n' -1).cbor"
-              metatype="cbor"
-              if ! cmdAvailable "cardano-signer" &>/dev/null; then
-                println ERROR "\n${FG_RED}ERROR${NC}: prerequisite tool cardano-signer missing or not executable, please install using ${FG_LGRAY}guild-deploy.sh${NC}"
-                waitToProceed && continue
-              fi
-              catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
-              catalyst_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_VK_FILENAME}"
-              catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
-              if [[ ! -f "${catalyst_vk_file}" && ! -f "${catalyst_sk_file}" ]]; then
-                println ACTION "cardano-signer keygen --cip36 --out-skey ${catalyst_sk_file} --out-vkey ${catalyst_vk_file}"
-                if ! stdout=$(cardano-signer keygen --cip36 --out-skey "${catalyst_sk_file}" --out-vkey "${catalyst_vk_file}" 2>&1); then
-                  println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst key creation!\n${stdout}"; waitToProceed && continue
-                fi
-              fi
-              generateCatalystBech32 ${wallet_name} || continue
-              if [[ -f "${catalyst_qr_file}" ]]; then
-                println "A previous registration found, continue with registration and overwrite?"
-                select_opt "[y] Yes" "[n] No"
+            catalyst)
+              while true; do # Vote loop
+                clear
+                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println " >> VOTE >> CATALYST"
+                println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println OFF " Catalyst\n"\
+                  " ) Register      - register wallet for Catalyst"\
+                  " ) Display QR    - show QR code from previous Catalyst registration"\
+                  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                println DEBUG " Select Catalyst Operation\n"
+                select_opt "[c] Catalyst registration" "[q] Catalyst QR" "[p] SPO poll" "[h] Home"
                 case $? in
-                  0) : ;; # do nothing
-                  1) waitToProceed && continue ;;
+                  0) SUBCOMMAND="catalyst_reg" ;;
+                  1) SUBCOMMAND="catalyst_qr" ;;
+                  3) break ;;
                 esac
-              fi
-              if [[ -z ${isHWwallet} ]]; then
-                catalyst_meta_cmd=(
-                  cardano-signer sign --cip36
-                  ${NETWORK_IDENTIFIER}
-                  --payment-address "${base_addr}"
-                  --vote-public-key "${catalyst_vk_file}"
-                  --secret-key "${stake_sk_file}"
-                  --out-cbor "${metafile}"
-                )
-              else
-                # HW Wallet
-                if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
-                  println ERROR "\n${FG_RED}ERROR${NC}: prerequisite tool cardano-hw-cli missing or not executable, please install using ${FG_LGRAY}guild-deploy.sh${NC}"
-                  waitToProceed && continue
-                fi
-                if ! HWCLIversionCheck; then waitToProceed && continue; fi
-                if ! unlockHWDevice "create Catalyst vote metadata"; then waitToProceed && continue; fi
-                current_slot=$(getSlotTipRef)
-                catalyst_meta_cmd=(
-                  cardano-hw-cli vote registration-metadata
-                  ${NETWORK_IDENTIFIER}
-                  --vote-public-key-file "${catalyst_vk_file}"
-                  --payment-address "${base_addr}"
-                  --stake-signing-key-hwsfile "${stake_sk_file}"
-                  --nonce ${current_slot}
-                  --payment-address-signing-key-hwsfile "${payment_sk_file}"
-                  --metadata-cbor-out-file "${metafile}"
-                )
-              fi
-              println ACTION "${catalyst_meta_cmd[*]}"
-              if ! stdout=$("${catalyst_meta_cmd[@]}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst metadata creation!\n${stdout}"; waitToProceed && continue
-              fi
-              if ! sendMetadata; then
-                waitToProceed && continue
-              fi
-              echo
-              if ! verifyTx ${addr}; then waitToProceed && continue; fi
-              echo
-              println "Catalyst registration metadata successfully posted on-chain"
-              while true; do
-                echo
-                getAnswerAnyCust pin_enter "Enter a 4-Digit PIN"
-                if ! isNumber ${pin_enter} || [[ ${#pin_enter} -ne 4 ]]; then
-                  println ERROR "\n${FG_RED}ERROR${NC}: invalid PIN entered! Please try again"
-                  continue
-                fi
-                break
-              done
-              # save QR
-              catalyst_qr_cmd=(
-                catalyst-toolbox qr-code encode
-                --pin ${pin_enter}
-                --input "${catalyst_sk_file_bech32}"
-                --output "${catalyst_qr_file}"
-                --opts img
-              )
-              println ACTION "${catalyst_qr_cmd[*]}"
-              if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
-                println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
-              fi
-              # print QR
-              println DEBUG "QR Code image generated: ${catalyst_qr_file}"
-              catalyst_qr_cmd=(
-                catalyst-toolbox qr-code encode
-                --pin ${pin_enter}
-                --input "${catalyst_sk_file_bech32}"
-                --opts img
-              )
-              println ACTION "${catalyst_qr_cmd[*]}"
-              "${catalyst_qr_cmd[@]}"
-              println DEBUG "\nScan QR code using Catalyst app on mobile device"
-              println DEBUG "iOS:     https://apps.apple.com/in/app/catalyst-voting/id1517473397"
-              println DEBUG "Android: https://play.google.com/store/apps/details?id=io.iohk.vitvoting"
-              println DEBUG "\nCardano Catalyst Telegram Announcements Channel: https://t.me/cardanocatalyst"
-              waitToProceed && continue
-              ;; ###################################################################
-            catalyst_qr)
-              clear
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> VOTE >> CATALYST QR CODE"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              echo
-              println DEBUG "# Select a Catalyst registered wallet"
-              selectWallet "none" "${WALLET_VOTE_CATALYST_SK_FILENAME}"
-              case $? in
-                1) waitToProceed; continue ;;
-                2) continue ;;
-              esac
-              download_catalyst_toolbox || continue
-              while true; do
-                echo
-                getAnswerAnyCust pin_enter "Enter 4-Digit PIN"
-                if ! isNumber ${pin_enter} || [[ ${#pin_enter} -ne 4 ]]; then
-                  println ERROR "\n${FG_RED}ERROR${NC}: invalid PIN entered! Please try again"
-                  continue
-                fi
-                break
-              done
-              catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
-              catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
-              generateCatalystBech32 ${wallet_name} || continue
-              unset save_catalyst_qr
-              if [[ -f "${catalyst_qr_file}" ]]; then
-                catalyst_qr_cmd=(
-                  catalyst-toolbox qr-code verify
-                  --stop-at-fail
-                  --pin ${pin_enter}
-                  --file "${catalyst_qr_file}"
-                  --opts img
-                )
-                println ACTION "${catalyst_qr_cmd[*]}"
-                if ! "${catalyst_qr_cmd[@]}" &>/dev/null; then
-                  println "PIN code invalid, overwrite existing QR code with updated PIN code?"
-                  select_opt "[y] Yes" "[n] No (return)" "[c] Continue (display QR code)"
-                  case $? in
-                    0) save_catalyst_qr=true ;;
-                    1) continue ;;
-                    2) : ;;
-                  esac
-                fi
-              else
-                save_catalyst_qr=true
-              fi
-              if [[ ${save_catalyst_qr} = true ]]; then
-                catalyst_qr_cmd=(
-                  catalyst-toolbox qr-code encode
-                  --pin ${pin_enter}
-                  --input "${catalyst_sk_file_bech32}"
-                  --output "${catalyst_qr_file}"
-                  --opts img
-                )
-                println ACTION "${catalyst_qr_cmd[*]}"
-                if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
-                  println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
-                fi
-              fi
-              catalyst_qr_cmd=(
-                catalyst-toolbox qr-code encode
-                --pin ${pin_enter}
-                --input "${catalyst_sk_file_bech32}"
-                --opts img
-              )
-              println ACTION "${catalyst_qr_cmd[*]}"
-              "${catalyst_qr_cmd[@]}"
-              println DEBUG "\nScan QR code using Catalyst app on mobile device"
-              println DEBUG "iOS:     https://apps.apple.com/in/app/catalyst-voting/id1517473397"
-              println DEBUG "Android: https://play.google.com/store/apps/details?id=io.iohk.vitvoting"
-              println DEBUG "\nCardano Catalyst Telegram Announcements Channel: https://t.me/cardanocatalyst"
-              waitToProceed && continue
+                case $SUBCOMMAND in
+                  catalyst_reg)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> VOTE >> CATALYST >> REGISTER"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                      waitToProceed && continue
+                    else
+                      if ! selectOpMode; then continue; fi
+                    fi
+                    println DEBUG "# Select wallet to register for Catalyst"
+                    unset isHWwallet
+                    selectWallet "balance"
+                    case $? in
+                      1) waitToProceed; continue ;;
+                      2) continue ;;
+                    esac
+                    getWalletType ${wallet_name}
+                    case $? in
+                      0) isHWwallet=true ;;
+                      2) [[ ${op_mode} = "online" ]] && println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
+                      3) [[ ${op_mode} = "online" ]] && println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
+                    esac
+                    if ! isWalletRegistered ${wallet_name}; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: wallet ${FG_GREEN}${wallet_name}${NC} not a registered wallet on chain, please register/delegate it before Catalyst registration."
+                      waitToProceed && continue
+                    fi
+                    getWalletBalance ${wallet_name} true true true true
+                    if [[ ${base_lovelace} -gt 0 ]]; then
+                      addr="${base_addr}"
+                      lovelace=${base_lovelace}
+                      if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
+                        println DEBUG "\n$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
+                      fi
+                    else
+                      println ERROR "\n${FG_RED}ERROR${NC}: no base funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
+                      waitToProceed && continue
+                    fi
+                    getBaseAddress ${wallet_name}
+                    download_catalyst_toolbox || continue
+                    metafile="${TMP_DIR}/catalyst_reg_metadata_$(printf '%(%s)T\n' -1).cbor"
+                    metatype="cbor"
+                    if ! cmdAvailable "cardano-signer" &>/dev/null; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: prerequisite tool cardano-signer missing or not executable, please install using ${FG_LGRAY}guild-deploy.sh${NC}"
+                      waitToProceed && continue
+                    fi
+                    catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
+                    catalyst_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_VK_FILENAME}"
+                    catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
+                    if [[ ! -f "${catalyst_vk_file}" && ! -f "${catalyst_sk_file}" ]]; then
+                      println ACTION "cardano-signer keygen --cip36 --out-skey ${catalyst_sk_file} --out-vkey ${catalyst_vk_file}"
+                      if ! stdout=$(cardano-signer keygen --cip36 --out-skey "${catalyst_sk_file}" --out-vkey "${catalyst_vk_file}" 2>&1); then
+                        println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst key creation!\n${stdout}"; waitToProceed && continue
+                      fi
+                    fi
+                    generateCatalystBech32 ${wallet_name} || continue
+                    if [[ -f "${catalyst_qr_file}" ]]; then
+                      println "A previous registration found, continue with registration and overwrite?"
+                      select_opt "[y] Yes" "[n] No"
+                      case $? in
+                        0) : ;; # do nothing
+                        1) waitToProceed && continue ;;
+                      esac
+                    fi
+                    if [[ -z ${isHWwallet} ]]; then
+                      catalyst_meta_cmd=(
+                        cardano-signer sign --cip36
+                        ${NETWORK_IDENTIFIER}
+                        --payment-address "${base_addr}"
+                        --vote-public-key "${catalyst_vk_file}"
+                        --secret-key "${stake_sk_file}"
+                        --out-cbor "${metafile}"
+                      )
+                    else
+                      # HW Wallet
+                      if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
+                        println ERROR "\n${FG_RED}ERROR${NC}: prerequisite tool cardano-hw-cli missing or not executable, please install using ${FG_LGRAY}guild-deploy.sh${NC}"
+                        waitToProceed && continue
+                      fi
+                      if ! HWCLIversionCheck; then waitToProceed && continue; fi
+                      if ! unlockHWDevice "create Catalyst vote metadata"; then waitToProceed && continue; fi
+                      current_slot=$(getSlotTipRef)
+                      catalyst_meta_cmd=(
+                        cardano-hw-cli vote registration-metadata
+                        ${NETWORK_IDENTIFIER}
+                        --vote-public-key-file "${catalyst_vk_file}"
+                        --payment-address "${base_addr}"
+                        --stake-signing-key-hwsfile "${stake_sk_file}"
+                        --nonce ${current_slot}
+                        --payment-address-signing-key-hwsfile "${payment_sk_file}"
+                        --metadata-cbor-out-file "${metafile}"
+                      )
+                    fi
+                    println ACTION "${catalyst_meta_cmd[*]}"
+                    if ! stdout=$("${catalyst_meta_cmd[@]}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst metadata creation!\n${stdout}"; waitToProceed && continue
+                    fi
+                    if ! sendMetadata; then
+                      waitToProceed && continue
+                    fi
+                    echo
+                    if ! verifyTx ${addr}; then waitToProceed && continue; fi
+                    echo
+                    println "Catalyst registration metadata successfully posted on-chain"
+                    while true; do
+                      echo
+                      getAnswerAnyCust pin_enter "Enter a 4-Digit PIN"
+                      if ! isNumber ${pin_enter} || [[ ${#pin_enter} -ne 4 ]]; then
+                        println ERROR "\n${FG_RED}ERROR${NC}: invalid PIN entered! Please try again"
+                        continue
+                      fi
+                      break
+                    done
+                    # save QR
+                    catalyst_qr_cmd=(
+                      catalyst-toolbox qr-code encode
+                      --pin ${pin_enter}
+                      --input "${catalyst_sk_file_bech32}"
+                      --output "${catalyst_qr_file}"
+                      --opts img
+                    )
+                    println ACTION "${catalyst_qr_cmd[*]}"
+                    if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
+                    fi
+                    # print QR
+                    println DEBUG "QR Code image generated: ${catalyst_qr_file}"
+                    catalyst_qr_cmd=(
+                      catalyst-toolbox qr-code encode
+                      --pin ${pin_enter}
+                      --input "${catalyst_sk_file_bech32}"
+                      --opts img
+                    )
+                    println ACTION "${catalyst_qr_cmd[*]}"
+                    "${catalyst_qr_cmd[@]}"
+                    println DEBUG "\nScan QR code using Catalyst app on mobile device"
+                    println DEBUG "iOS:     https://apps.apple.com/in/app/catalyst-voting/id1517473397"
+                    println DEBUG "Android: https://play.google.com/store/apps/details?id=io.iohk.vitvoting"
+                    println DEBUG "\nCardano Catalyst Telegram Announcements Channel: https://t.me/cardanocatalyst"
+                    waitToProceed && continue
+                    ;; ###################################################################
+                  catalyst_qr)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> VOTE >> CATALYST >> QR CODE"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    println DEBUG "# Select a Catalyst registered wallet"
+                    selectWallet "none" "${WALLET_VOTE_CATALYST_SK_FILENAME}"
+                    case $? in
+                      1) waitToProceed; continue ;;
+                      2) continue ;;
+                    esac
+                    download_catalyst_toolbox || continue
+                    while true; do
+                      echo
+                      getAnswerAnyCust pin_enter "Enter 4-Digit PIN"
+                      if ! isNumber ${pin_enter} || [[ ${#pin_enter} -ne 4 ]]; then
+                        println ERROR "\n${FG_RED}ERROR${NC}: invalid PIN entered! Please try again"
+                        continue
+                      fi
+                      break
+                    done
+                    catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
+                    catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
+                    generateCatalystBech32 ${wallet_name} || continue
+                    unset save_catalyst_qr
+                    if [[ -f "${catalyst_qr_file}" ]]; then
+                      catalyst_qr_cmd=(
+                        catalyst-toolbox qr-code verify
+                        --stop-at-fail
+                        --pin ${pin_enter}
+                        --file "${catalyst_qr_file}"
+                        --opts img
+                      )
+                      println ACTION "${catalyst_qr_cmd[*]}"
+                      if ! "${catalyst_qr_cmd[@]}" &>/dev/null; then
+                        println "PIN code invalid, overwrite existing QR code with updated PIN code?"
+                        select_opt "[y] Yes" "[n] No (return)" "[c] Continue (display QR code)"
+                        case $? in
+                          0) save_catalyst_qr=true ;;
+                          1) continue ;;
+                          2) : ;;
+                        esac
+                      fi
+                    else
+                      save_catalyst_qr=true
+                    fi
+                    if [[ ${save_catalyst_qr} = true ]]; then
+                      catalyst_qr_cmd=(
+                        catalyst-toolbox qr-code encode
+                        --pin ${pin_enter}
+                        --input "${catalyst_sk_file_bech32}"
+                        --output "${catalyst_qr_file}"
+                        --opts img
+                      )
+                      println ACTION "${catalyst_qr_cmd[*]}"
+                      if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
+                        println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
+                      fi
+                    fi
+                    catalyst_qr_cmd=(
+                      catalyst-toolbox qr-code encode
+                      --pin ${pin_enter}
+                      --input "${catalyst_sk_file_bech32}"
+                      --opts img
+                    )
+                    println ACTION "${catalyst_qr_cmd[*]}"
+                    "${catalyst_qr_cmd[@]}"
+                    println DEBUG "\nScan QR code using Catalyst app on mobile device"
+                    println DEBUG "iOS:     https://apps.apple.com/in/app/catalyst-voting/id1517473397"
+                    println DEBUG "Android: https://play.google.com/store/apps/details?id=io.iohk.vitvoting"
+                    println DEBUG "\nCardano Catalyst Telegram Announcements Channel: https://t.me/cardanocatalyst"
+                    waitToProceed && continue
+                    ;; ###################################################################
+                esac # vote sub OPERATION
+              done # vote loop
               ;; ###################################################################
             spo_poll)
               clear
