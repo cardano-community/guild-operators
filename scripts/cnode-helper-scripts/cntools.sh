@@ -584,7 +584,7 @@ function main {
               if ! registerStakeWallet ${wallet_name} "true"; then
                 waitToProceed && continue
               fi
-              println "\n${FG_GREEN}${wallet_name}${NC} successfully registered on chain!"
+              println "${FG_GREEN}${wallet_name}${NC} successfully registered on chain!"
               waitToProceed && continue
               ;; ###################################################################
             deregister)
@@ -3636,9 +3636,8 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               println " >> VOTE >> CATALYST REGISTRATION"
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              echo
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                println ERROR "\n${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
                 waitToProceed && continue
               else
                 if ! selectOpMode; then continue; fi
