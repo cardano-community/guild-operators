@@ -3611,7 +3611,7 @@ function main {
           esac # transaction sub OPERATION
         done # Transaction loop
         ;; ###################################################################
-      transaction)
+      vote)
         while true; do # Vote loop
           clear
           println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
