@@ -3798,6 +3798,7 @@ function main {
               catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
               catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
               generateCatalystBech32 ${wallet_name} || continue
+              unset save_catalyst_qr
               if [[ -f "${catalyst_qr_file}" ]]; then
                 catalyst_qr_cmd=(
                   catalyst-toolbox qr-code verify
@@ -3811,22 +3812,25 @@ function main {
                   println "PIN code invalid, overwrite existing QR code with updated PIN code?"
                   select_opt "[y] Yes" "[n] No (return)" "[c] Continue (display QR code)"
                   case $? in
-                    0) # save QR
-                      catalyst_qr_cmd=(
-                        catalyst-toolbox qr-code encode
-                        --pin ${pin_enter}
-                        --input "${catalyst_sk_file_bech32}"
-                        --output "${catalyst_qr_file}"
-                        --opts img
-                      )
-                      println ACTION "${catalyst_qr_cmd[*]}"
-                      if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
-                        println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
-                      fi
-                      ;;
+                    0) save_catalyst_qr=true ;;
                     1) continue ;;
                     2) : ;;
                   esac
+                fi
+              else
+                save_catalyst_qr=true
+              fi
+              if [[ ${save_catalyst_qr} = true ]]; then
+                catalyst_qr_cmd=(
+                  catalyst-toolbox qr-code encode
+                  --pin ${pin_enter}
+                  --input "${catalyst_sk_file_bech32}"
+                  --output "${catalyst_qr_file}"
+                  --opts img
+                )
+                println ACTION "${catalyst_qr_cmd[*]}"
+                if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
+                  println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
                 fi
               fi
               catalyst_qr_cmd=(
