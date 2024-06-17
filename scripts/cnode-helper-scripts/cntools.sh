@@ -3672,8 +3672,7 @@ function main {
               fi
               getBaseAddress ${wallet_name}
               download_catalyst_toolbox || continue
-              timestamp=$(printf '%(%s)T\n' -1)
-              metafile="${TMP_DIR}/catalyst_reg_metadata_${timestamp}.cbor"
+              metafile="${TMP_DIR}/catalyst_reg_metadata_$(printf '%(%s)T\n' -1).cbor"
               metatype="cbor"
               if ! cmdAvailable "cardano-signer" &>/dev/null; then
                 println ERROR "\n${FG_RED}ERROR${NC}: prerequisite tool cardano-signer missing or not executable, please install using ${FG_LGRAY}guild-deploy.sh${NC}"
@@ -3681,12 +3680,20 @@ function main {
               fi
               catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
               catalyst_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_VK_FILENAME}"
-              catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME//::TS::/${timestamp}}"
+              catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
               if [[ ! -f "${catalyst_vk_file}" && ! -f "${catalyst_sk_file}" ]]; then
                 println ACTION "cardano-signer keygen --cip36 --out-skey ${catalyst_sk_file} --out-vkey ${catalyst_vk_file}"
                 if ! stdout=$(cardano-signer keygen --cip36 --out-skey "${catalyst_sk_file}" --out-vkey "${catalyst_vk_file}" 2>&1); then
                   println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst key creation!\n${stdout}"; waitToProceed && continue
                 fi
+              fi
+              if [[ -f "${catalyst_qr_file}" ]]; then
+                println "A previous registration found, continue with registration and overwrite?"
+                select_opt "[y] Yes" "[n] No"
+                case $? in
+                  0) : ;; # do nothing
+                  1) waitToProceed && continue ;;
+                esac
               fi
               if [[ -z ${isHWwallet} ]]; then
                 catalyst_meta_cmd=(
@@ -3737,28 +3744,34 @@ function main {
                 fi
                 break
               done
+              # save QR
               catalyst_qr_cmd=(
                 catalyst-toolbox qr-code encode
                 --pin ${pin_enter}
-                --input "${catalyst_sk_file}"
+                --input <(cat "${catalyst_sk_file}" | jq -r .cborHex | cut -c 5-132 | bech32 "ed25519e_sk")
                 --output "${catalyst_qr_file}"
-                img
+                --opts img
               )
               println ACTION "${catalyst_qr_cmd[*]}"
               if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
                 println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
               fi
+              # print QR
               println DEBUG "QR Code image generated: ${catalyst_qr_file}"
               catalyst_qr_cmd=(
                 catalyst-toolbox qr-code encode
                 --pin ${pin_enter}
                 --input <(cat "${catalyst_sk_file}" | jq -r .cborHex | cut -c 5-132 | bech32 "ed25519e_sk")
-                img
+                --opts img
               )
               println ACTION "${catalyst_qr_cmd[*]}"
               if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
                 println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code display!\n${stdout}"; waitToProceed && continue
               fi
+              println DEBUG "\nScan QR code using Catalyst app on mobile device"
+              println DEBUG "iOS:     https://apps.apple.com/in/app/catalyst-voting/id1517473397"
+              println DEBUG "Android: https://play.google.com/store/apps/details?id=io.iohk.vitvoting"
+              println DEBUG "\nCardano Catalyst Telegram Announcements Channel: https://t.me/cardanocatalyst"
               waitToProceed && continue
               ;; ###################################################################
             catalyst_qr)
@@ -3784,16 +3797,52 @@ function main {
                 break
               done
               catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
+              catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
+              if [[ -f "${catalyst_qr_file}" ]]; then
+                catalyst_qr_cmd=(
+                  catalyst-toolbox qr-code verify
+                  --stop-at-fail
+                  --pin ${pin_enter}
+                  --file "${catalyst_qr_file}"
+                  --opts img
+                )
+                println ACTION "${catalyst_qr_cmd[*]}"
+                if ! "${catalyst_qr_cmd[@]}" &>/dev/null; then
+                  println "PIN code invalid, overwrite existing QR code with updated PIN code?"
+                  select_opt "[y] Yes" "[n] No (return)" "[c] Continue (display QR code)"
+                  case $? in
+                    0) # save QR
+                      catalyst_qr_cmd=(
+                        catalyst-toolbox qr-code encode
+                        --pin ${pin_enter}
+                        --input <(cat "${catalyst_sk_file}" | jq -r .cborHex | cut -c 5-132 | bech32 "ed25519e_sk")
+                        --output "${catalyst_qr_file}"
+                        --opts img
+                      )
+                      println ACTION "${catalyst_qr_cmd[*]}"
+                      if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
+                        println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
+                      fi
+                      ;;
+                    1) continue ;;
+                    2) : ;;
+                  esac
+                fi
+              fi
               catalyst_qr_cmd=(
                 catalyst-toolbox qr-code encode
                 --pin ${pin_enter}
                 --input "${catalyst_sk_file}"
-                img
+                --opts img
               )
               println ACTION "${catalyst_qr_cmd[*]}"
               if ! stdout=$("${catalyst_qr_cmd[@]}" 2>&1); then
                 println ERROR "\n${FG_RED}ERROR${NC}: failure during catalyst QR code creation!\n${stdout}"; waitToProceed && continue
               fi
+              println DEBUG "\nScan QR code using Catalyst app on mobile device"
+              println DEBUG "iOS:     https://apps.apple.com/in/app/catalyst-voting/id1517473397"
+              println DEBUG "Android: https://play.google.com/store/apps/details?id=io.iohk.vitvoting"
+              println DEBUG "\nCardano Catalyst Telegram Announcements Channel: https://t.me/cardanocatalyst"
               waitToProceed && continue
               ;; ###################################################################
             spo_poll)
