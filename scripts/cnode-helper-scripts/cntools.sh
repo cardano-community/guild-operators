@@ -3905,7 +3905,6 @@ function main {
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during Catalyst verification query!\n${catalyst_status}"; waitToProceed && continue
                     fi
                     echo
-                    println DEBUG "Wallet name:      ${FG_GREEN}${wallet_name}${NC}"
                     if [[ ${catalyst_status} = *error\":* ]]; then
                       println DEBUG "Status:           ${FG_YELLOW}$(jq -r .error <<< "${catalyst_status}")${NC}"
                       waitToProceed && continue
