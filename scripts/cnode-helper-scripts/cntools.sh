@@ -3913,7 +3913,7 @@ function main {
                     while IFS=',' read -r _last_updated _final _voting_power _delegations_count _delegator_addresses; do
                       final_color=$([[ ${_final} = false ]] && echo "${FG_YELLOW}" || echo "${FG_GREEN}")
                       println DEBUG "Status:           ${FG_GREEN}registered${NC}"
-                      println DEBUG "Last updated:     ${FG_LGRAY}$(printf '%(%F %T %Z)T' "$(date -d"${last_updated}" +%s)")${NC}"
+                      println DEBUG "Last updated:     ${FG_LGRAY}$(printf '%(%F %T %Z)T' "$(date -d"${_last_updated}" +%s)")${NC}"
                       println DEBUG "Is Finalized:     ${final_color}${_final}${NC}"
                       println DEBUG "Voting power:     ${FG_LBLUE}$(formatLovelace ${_voting_power})${NC}"
                       println DEBUG "Delegation count: ${FG_LBLUE}${_delegations_count}${NC}"
@@ -3939,7 +3939,7 @@ function main {
                           println DEBUG "Raw power:        ${FG_LBLUE}$(formatLovelace ${_raw_power})${NC}"
                         done < <( jq -cr '"\(.reward_address),\(.reward_payable),\(.raw_power)"' <<< "${delegator_status}" )
                       done
-                    done < <( jq -cr '"\(.last_updated),\(.final),\(.voter_info.voting_power),\(.voter_info.voting_power),\(.voter_info.delegations_count),\(.voter_info.delegator_addresses | join(";"))"' <<< "${catalyst_status}" )
+                    done < <( jq -cr '"\(.last_updated),\(.final),\(.voter_info.voting_power),\(.voter_info.delegations_count),\(.voter_info.delegator_addresses | join(";"))"' <<< "${catalyst_status}" )
                     waitToProceed && continue
                     ;; ###################################################################
                 esac # vote sub OPERATION
