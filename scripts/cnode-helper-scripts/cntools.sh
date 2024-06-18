@@ -2174,6 +2174,9 @@ function main {
                       waitToProceed && continue ;;
                     2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
                     3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
+                    5) println ERROR "${FG_RED}ERROR${NC}: multisig wallet pool owners not supported!"
+                      println ERROR "Use a CLI wallet as owner with enough funds to pay for pool deposit and registration transaction fee"
+                      waitToProceed && continue ;;
                   esac
                 else
                   selectWallet "delegate"
@@ -2212,15 +2215,17 @@ function main {
                         case $? in
                           0) hw_owner_wallets='Y' ;;
                           2) if [[ ${op_mode} = "online" ]]; then
-                                println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted for wallet ${FG_GREEN}${wallet_name}${NC}, please decrypt before use!"
-                                waitToProceed && continue 2
-                              fi ;;
+                              println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted for wallet ${FG_GREEN}${wallet_name}${NC}, please decrypt before use!"
+                              waitToProceed && continue 2
+                            fi ;;
                           3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
-                              waitToProceed "Did you mean to run in Hybrid mode?  press any key to return home!" && continue 2 ;;
+                            waitToProceed "Did you mean to run in Hybrid mode?  press any key to return home!" && continue 2 ;;
                           4) if [[ ! -f "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}" ]]; then # ignore if payment vkey is missing
-                                println ERROR "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
-                                println DEBUG "Add another owner?" && continue 
-                              fi ;;
+                              println ERROR "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
+                              println DEBUG "Add another owner?" && continue
+                            fi ;;
+                          5) println ERROR "${FG_RED}ERROR${NC}: multisig wallet pool owner not supported!"
+                            waitToProceed && println DEBUG "Add more owners?" && continue ;;
                         esac
                       else
                         println DEBUG "Add more owners?" && continue
@@ -2252,6 +2257,7 @@ function main {
                     esac
                     ;;
                   2) continue ;;
+                  5) println ERROR "${FG_RED}ERROR${NC}: multisig wallet as rewards wallet not supported!" && waitToProceed && continue ;;
                 esac
               fi
 
