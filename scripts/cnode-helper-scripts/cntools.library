@@ -50,6 +50,7 @@ printf -v launch_modes_info "${FG_BLUE}INFO${NC}: Available launch modes, re-run
 [[ -z ${ENABLE_DIALOG} ]] && ENABLE_DIALOG=false
 [[ ${ENABLE_ADVANCED} = "true" ]] && ADVANCED_MODE="true"
 [[ -z ${CHECK_KES} ]] && CHECK_KES=true
+[[ -z ${CATALYST_API} ]] && CATALYST_API=https://api.projectcatalyst.io/api/v1
 [[ -z ${CNTOOLS_LOG} ]] && CNTOOLS_LOG="${LOG_DIR}/cntools-history.log"
 [[ -z ${CURRENCY} ]] && CURRENCY="off" || CURRENCY=${CURRENCY,,}
 [[ ${CURRENCY} = off || ${NETWORK_NAME} != Mainnet ]] && unset CURRENCY_URL || CURRENCY_URL="https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=${CURRENCY}&include_24hr_change=true"

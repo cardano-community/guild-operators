@@ -42,6 +42,9 @@
 # Runtime mode, offline | local | light (default local)
 # CNTOOLS_MODE=local
 
+# Project Catalyst API (only for mainnet)
+#CATALYST_API=https://api.projectcatalyst.io/api/v1
+
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -3636,14 +3639,16 @@ function main {
                 println " >> VOTE >> CATALYST"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println OFF " Catalyst\n"\
-                  " ) Register      - register wallet for Catalyst"\
-                  " ) Display QR    - show QR code from previous Catalyst registration"\
+                  " ) Register    - register wallet for Catalyst"\
+                  " ) Display QR  - show QR code from previous Catalyst registration"\
+                  " ) Verify      - check registration status for own or external vote key"\
                   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Catalyst Operation\n"
                 select_opt "[c] Catalyst registration" "[q] Catalyst QR" "[p] SPO poll" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="catalyst_reg" ;;
                   1) SUBCOMMAND="catalyst_qr" ;;
+                  2) SUBCOMMAND="catalyst_verify" ;;
                   3) break ;;
                 esac
                 case $SUBCOMMAND in
@@ -3861,6 +3866,80 @@ function main {
                     println DEBUG "iOS:     https://apps.apple.com/in/app/catalyst-voting/id1517473397"
                     println DEBUG "Android: https://play.google.com/store/apps/details?id=io.iohk.vitvoting"
                     println DEBUG "\nCardano Catalyst Telegram Announcements Channel: https://t.me/cardanocatalyst"
+                    waitToProceed && continue
+                    ;; ###################################################################
+                  catalyst_verify)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> VOTE >> CATALYST >> VERIFY"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                      waitToProceed && continue
+                    fi
+                    if [[ ${NWMAGIC} != "764824073" ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: Catalyst registration verification only available for Mainnet at this time!"
+                      waitToProceed && continue
+                    fi
+                    println DEBUG "Select wallet or enter vote public key?"
+                    select_opt "[w] Wallet" "[p] Vote public key"
+                    case $? in
+                      0) println DEBUG "\n# Select a Catalyst registered wallet"
+                         selectWallet "none" "${WALLET_VOTE_CATALYST_VK_FILENAME}"
+                         case $? in
+                           1) waitToProceed; continue ;;
+                           2) continue ;;
+                         esac
+                         catalyst_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_VK_FILENAME}"
+                         vote_key_hex="$(jq -r .cborHex "${catalyst_vk_file}" | cut -c 5-)"
+                        ;;
+                      1) getAnswerAnyCust vote_key_hex "Enter public key"
+                         if [[ ${#vote_key_hex} -ne 64 ]]; then
+                           println ERROR "\n${FG_RED}ERROR${NC}: invalid pub key, expected 64 characters! Supply public key in hex format without prefix (5820 or 0x)"; waitToProceed && continue
+                         fi
+                        ;;
+                    esac
+                    voter_status_url="${CATALYST_API}/registration/voter/0x${vote_key_hex}?with_delegators=true"
+                    println ACTION "curl -sSL -m ${CURL_TIMEOUT} -f -H \"Content-Type: application/json\" ${voter_status_url}"
+                    if ! catalyst_status=$(curl -sSL -m ${CURL_TIMEOUT} -f -H "Content-Type: application/json" "${voter_status_url}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during Catalyst verification query!\n${catalyst_status}"; waitToProceed && continue
+                    fi
+                    echo
+                    println DEBUG "Wallet name:      ${FG_GREEN}${wallet_name}${NC}"
+                    if [[ ${catalyst_status} = *error\":* ]]; then
+                      println DEBUG "Status:           ${FG_YELLOW}$(jq -r .error <<< "${catalyst_status}")${NC}"
+                      waitToProceed && continue
+                    fi
+                    while IFS=',' read -r _last_updated _final _voting_power _delegations_count _delegator_addresses; do
+                      final_color=$([[ ${_final} = false ]] && echo "${FG_YELLOW}" || echo "${FG_GREEN}")
+                      println DEBUG "Status:           ${FG_GREEN}registered${NC}"
+                      println DEBUG "Last updated:     ${FG_LGRAY}$(printf '%(%F %T %Z)T' "$(date -d"${last_updated}" +%s)")${NC}"
+                      println DEBUG "Is Finalized:     ${final_color}${_final}${NC}"
+                      println DEBUG "Voting power:     ${FG_LBLUE}$(formatLovelace ${_voting_power})${NC}"
+                      println DEBUG "Delegation count: ${FG_LBLUE}${_delegations_count}${NC}"
+                      for pubkey_hex in ${_delegator_addresses//;/ }; do
+                        echo
+                        unset delegation_wallet
+                        wallet_match=$(grep -r ${pubkey_hex:2} ${WALLET_FOLDER} | head -n1)
+                        if [[ -n ${wallet_match} ]]; then
+                          println DEBUG "Wallet:           ${FG_GREEN}$(basename ${wallet_match%/*})${NC}"
+                        fi
+                        println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key ${pubkey_hex:2} ${NETWORK_IDENTIFIER}"
+                        stake_addr=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key ${pubkey_hex:2} ${NETWORK_IDENTIFIER})
+                        println DEBUG "Stake address:    ${FG_LGRAY}${stake_addr}${NC}"
+                        delegator_status_url="${CATALYST_API}/registration/delegations/${pubkey_hex}"
+                        println ACTION "curl -sSL -m ${CURL_TIMEOUT} -f -H \"Content-Type: application/json\" ${delegator_status_url}"
+                        if ! delegator_status=$(curl -sSL -m ${CURL_TIMEOUT} -f -H "Content-Type: application/json" "${delegator_status_url}" 2>&1); then
+                          println ERROR "${FG_RED}ERROR${NC}: failure during Catalyst delegation query!\n${delegator_status}"; continue
+                        fi
+                        while IFS=',' read -r _reward_address _reward_payable _raw_power; do
+                          payable_color=$([[ ${_reward_payable} = false ]] && echo "${FG_YELLOW}" || echo "${FG_GREEN}")
+                          println DEBUG "Reward address:   ${FG_LGRAY}${_reward_address}${NC}"
+                          println DEBUG "Reward payable:   ${payable_color}${_reward_payable}${NC}"
+                          println DEBUG "Raw power:        ${FG_LBLUE}$(formatLovelace ${_raw_power})${NC}"
+                        done < <( jq -cr '"\(.reward_address),\(.reward_payable),\(.raw_power)"' <<< "${delegator_status}" )
+                      done
+                    done < <( jq -cr '"\(.last_updated),\(.final),\(.voter_info.voting_power),\(.voter_info.voting_power),\(.voter_info.delegations_count),\(.voter_info.delegator_addresses | join(";"))"' <<< "${catalyst_status}" )
                     waitToProceed && continue
                     ;; ###################################################################
                 esac # vote sub OPERATION
