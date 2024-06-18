@@ -5293,11 +5293,10 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     createNewWallet || continue
+                    ms_wallet_name="${wallet_name}"
                     # Wallet key filenames
                     ms_pay_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
                     ms_stake_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SCRIPT_FILENAME}"
-                    ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
-                    ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
                     if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
                       println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
                       println "      Choose another name or delete the existing one"
