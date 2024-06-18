@@ -298,14 +298,14 @@ SGVERSION=v1.1.2
   deploy_haproxy() {
     printf "\n[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
-    major_v="2.9"
-    minor_v="6"
+    major_v="3.0"
+    minor_v="2"
     haproxy_url="http://www.haproxy.org/download/${major_v}/src/haproxy-${major_v}.${minor_v}.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
         pkg_installer="apt-get"
-        pkg_list="build-essential make g++ autoconf automake libpcre3-dev libssl-dev libsystemd-dev zlib1g-dev"
+        pkg_list="build-essential make g++ autoconf automake libpcre2-dev libssl-dev libsystemd-dev zlib1g-dev"
       fi
       if command -v dnf >/dev/null; then
         pkg_installer="dnf"
@@ -314,7 +314,7 @@ SGVERSION=v1.1.2
       sudo ${pkg_installer} -y install ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y install ${pkg_list}' failed!"
       cd haproxy-${major_v}.${minor_v} || return
       make clean >/dev/null
-      make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_PCRE=1 USE_SYSTEMD=1 USE_PROMEX=1 >/dev/null
+      make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_STATIC_PCRE2=1 USE_SYSTEMD=1 USE_PROMEX=1 >/dev/null
       sudo make install-bin >/dev/null
       sudo cp -f /usr/local/sbin/haproxy /usr/sbin/
     else
