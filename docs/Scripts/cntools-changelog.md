@@ -10,8 +10,10 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 #### Added
 - Multisig wallet support through advanced menu item.
 - Custom mnemonic derivation path on mnemonic/hardware import and creation of new mnemonic(seedphrase) generated wallet.
-- New Vote menu option to hold everything related to voting on Cardano incl Catalyst registration integration.
+- New Vote menu option to hold everything related to voting on Cardano. Catalyst integration so far but governance features according to CIP-1694 to be added in an upcoming version.
 - For a more in-depth list, see https://github.com/cardano-community/guild-operators/pull/1776
+#### Changed
+- Removed CIP-0095 SPO poll
 
 ## [13.0.2] - 2024-06-07
 #### Fixed
