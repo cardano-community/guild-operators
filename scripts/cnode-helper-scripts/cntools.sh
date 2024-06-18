@@ -3917,6 +3917,7 @@ function main {
                       println DEBUG "Is Finalized:     ${final_color}${_final}${NC}"
                       println DEBUG "Voting power:     ${FG_LBLUE}$(formatLovelace ${_voting_power})${NC}"
                       println DEBUG "Delegation count: ${FG_LBLUE}${_delegations_count}${NC}"
+                      println DEBUG "\n# Delegator list:"
                       for pubkey_hex in ${_delegator_addresses//;/ }; do
                         echo
                         unset delegation_wallet
