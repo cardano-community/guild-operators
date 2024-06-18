@@ -3644,7 +3644,7 @@ function main {
                   " ) Verify      - check registration status for own or external vote key"\
                   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Catalyst Operation\n"
-                select_opt "[c] Catalyst registration" "[q] Catalyst QR" "[p] SPO poll" "[h] Home"
+                select_opt "[r] Registration" "[q] Display QR" "[v] Verify" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="catalyst_reg" ;;
                   1) SUBCOMMAND="catalyst_qr" ;;
