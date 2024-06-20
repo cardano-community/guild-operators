@@ -1871,7 +1871,7 @@ printWalletInfo() {
   println DEBUG " ${FG_LGRAY}>${NC} Wallet can be shared and used in multiple wallets concurrently, including CNTools"
   echo
   println DEBUG "Please read more about HD wallets at:"
-  println DEBUG "https://cardano-community.github.io/support-faq/wallets?id=heirarchical-deterministic-hd-wallets"
+  println DEBUG "https://cardano-community.github.io/support-faq/Wallets/wallets/#heirarchical-deterministic-hd-wallets"
 }
 
 # Command     : buildOfflineJSON [type]
