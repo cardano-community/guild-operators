@@ -3601,12 +3601,9 @@ function main {
                     fi
                   fi
                   echo
-                  if [[ -n ${KOIOS_API} ]]; then
-                    verifyTx
-                  else
-                    println "Offline transaction successfully submitted and set to be included in next block!"
-                  fi
-                  println DEBUG "\nDelete submitted offline transaction file?"
+                  verifyTx
+                  echo
+                  println DEBUG "Delete submitted offline transaction file?"
                   select_opt "[y] Yes" "[n] No"
                   case $? in
                     0) rm -f "${offline_tx}" ;;
