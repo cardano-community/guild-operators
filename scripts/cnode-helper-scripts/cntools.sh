@@ -5352,7 +5352,7 @@ function main {
                       println ERROR "\n${FG_RED}ERROR${NC}: no signers added, please add at least one"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
                     fi
                     println DEBUG "\n${#key_hashes[@]} wallets / credentials added to multisig, how many are required to witness the transaction?"
-                    getAnswerAnyCust required_sig_cnt "Required signatures"
+                    getAnswerAnyCust required_sig_cnt "Number of Required signatures"
                     if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
                       println ERROR "\n${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
                     fi

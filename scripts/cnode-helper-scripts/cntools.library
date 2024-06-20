@@ -1731,7 +1731,7 @@ getCustomDerivationPath() {
 # Command     : createNewWallet
 # Description : creates a new empty wallet folder
 createNewWallet() {
-  getAnswerAnyCust wallet_name "Name of imported wallet"
+  getAnswerAnyCust wallet_name "Name of wallet (non-alphanumeric characters will be replaced with a space)"
   # Remove unwanted characters from wallet name
   wallet_name=${wallet_name//[^[:alnum:]]/_}
   if [[ -z "${wallet_name}" ]]; then
