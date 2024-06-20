@@ -994,8 +994,8 @@ verifyTx() {
       ! num_confirmations=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_tx_hashes":["'${tx_id}'"]}' "${KOIOS_API}/tx_status?select=num_confirmations" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${num_confirmations}\n" && return 1 # print error and return
       result=$(tail -n +2 <<< ${num_confirmations})
     else
-      println ACTION "${CCLI} ${NETWORK_ERA} query utxo --tx-in ${tx_id}#0 ${NETWORK_IDENTIFIER}"
-      result=$(${CCLI} ${NETWORK_ERA} query utxo --tx-in "${tx_id}#0" ${NETWORK_IDENTIFIER})
+      println ACTION "${CCLI} ${NETWORK_ERA} query utxo --tx-in ${tx_id}#0 ${NETWORK_IDENTIFIER}| tail -n +3"
+      result=$(${CCLI} ${NETWORK_ERA} query utxo --tx-in "${tx_id}#0" ${NETWORK_IDENTIFIER}| tail -n +3)
     fi
     [[ -n "${result}" ]] && { println DEBUG "\nTx put on chain !!"; break; } || printf .
   done
