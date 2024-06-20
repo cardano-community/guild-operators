@@ -2466,6 +2466,7 @@ withdrawRewards() {
     ${tx_in}
     "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
+    --withdrawal ${reward_addr}+${reward_lovelace}
     --invalid-hereafter ${ttl}
     --fee 0
     --out-file "${TMP_DIR}"/tx0.tmp
