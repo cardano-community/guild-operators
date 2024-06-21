@@ -448,16 +448,16 @@ function main {
                     if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
-                    println ACTION "${CCLI} ${NETWORK_ERA} governance drep key-gen --verification-key-file ${drep_vk_file} --signing-key-file ${drep_sk_file}"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} governance drep key-gen --verification-key-file "${drep_vk_file}" --signing-key-file "${drep_sk_file}" 2>&1); then
+                    println ACTION "${CCLI} conway governance drep key-gen --verification-key-file ${drep_vk_file} --signing-key-file ${drep_sk_file}"
+                    if ! stdout=$(${CCLI} conway governance drep key-gen --verification-key-file "${drep_vk_file}" --signing-key-file "${drep_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during governance drep key creation!\n${stdout}"; waitToProceed && continue
                     fi
-                    println ACTION "${CCLI} ${NETWORK_ERA} governance committee key-gen-cold --cold-verification-key-file ${cc_cold_vk_file} --cold-signing-key-file ${cc_cold_sk_file}"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} governance committee key-gen-cold --cold-verification-key-file "${cc_cold_vk_file}" --cold-signing-key-file "${cc_cold_sk_file}" 2>&1); then
+                    println ACTION "${CCLI} conway governance committee key-gen-cold --cold-verification-key-file ${cc_cold_vk_file} --cold-signing-key-file ${cc_cold_sk_file}"
+                    if ! stdout=$(${CCLI} conway governance committee key-gen-cold --cold-verification-key-file "${cc_cold_vk_file}" --cold-signing-key-file "${cc_cold_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during governance committee cold key creation!\n${stdout}"; waitToProceed && continue
                     fi
-                    println ACTION "${CCLI} ${NETWORK_ERA} governance committee key-gen-hot --verification-key-file ${cc_hot_vk_file} --signing-key-file ${cc_hot_sk_file}"
-                    if ! stdout=$(${CCLI} ${NETWORK_ERA} governance committee key-gen-hot --verification-key-file "${cc_hot_vk_file}" --signing-key-file "${cc_hot_sk_file}" 2>&1); then
+                    println ACTION "${CCLI} conway governance committee key-gen-hot --verification-key-file ${cc_hot_vk_file} --signing-key-file ${cc_hot_sk_file}"
+                    if ! stdout=$(${CCLI} conway governance committee key-gen-hot --verification-key-file "${cc_hot_vk_file}" --signing-key-file "${cc_hot_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during governance committee hot key creation!\n${stdout}"; waitToProceed && continue
                     fi
                     println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${ms_payment_vk_file} --signing-key-file ${ms_payment_sk_file}"
@@ -4098,16 +4098,16 @@ function main {
                         println DEBUG "Is selected wallet a CLI generated wallet or derived from mnemonic?"
                         select_opt "[c] CLI" "[m] Mnemonic"
                         case $? in
-                          0) println ACTION "${CCLI} ${NETWORK_ERA} governance drep key-gen --verification-key-file ${drep_vk_file} --signing-key-file ${drep_sk_file}"
-                            if ! stdout=$(${CCLI} ${NETWORK_ERA} governance drep key-gen --verification-key-file "${drep_vk_file}" --signing-key-file "${drep_sk_file}" 2>&1); then
+                          0) println ACTION "${CCLI} conway governance drep key-gen --verification-key-file ${drep_vk_file} --signing-key-file ${drep_sk_file}"
+                            if ! stdout=$(${CCLI} conway governance drep key-gen --verification-key-file "${drep_vk_file}" --signing-key-file "${drep_sk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during governance drep key creation!\n${stdout}"; waitToProceed && continue
                             fi
-                            println ACTION "${CCLI} ${NETWORK_ERA} governance committee key-gen-cold --cold-verification-key-file ${cc_cold_vk_file} --cold-signing-key-file ${cc_cold_sk_file}"
-                            if ! stdout=$(${CCLI} ${NETWORK_ERA} governance committee key-gen-cold --cold-verification-key-file "${cc_cold_vk_file}" --cold-signing-key-file "${cc_cold_sk_file}" 2>&1); then
+                            println ACTION "${CCLI} conway governance committee key-gen-cold --cold-verification-key-file ${cc_cold_vk_file} --cold-signing-key-file ${cc_cold_sk_file}"
+                            if ! stdout=$(${CCLI} conway governance committee key-gen-cold --cold-verification-key-file "${cc_cold_vk_file}" --cold-signing-key-file "${cc_cold_sk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during governance committee cold key creation!\n${stdout}"; waitToProceed && continue
                             fi
-                            println ACTION "${CCLI} ${NETWORK_ERA} governance committee key-gen-hot --verification-key-file ${cc_hot_vk_file} --signing-key-file ${cc_hot_sk_file}"
-                            if ! stdout=$(${CCLI} ${NETWORK_ERA} governance committee key-gen-hot --verification-key-file "${cc_hot_vk_file}" --signing-key-file "${cc_hot_sk_file}" 2>&1); then
+                            println ACTION "${CCLI} conway governance committee key-gen-hot --verification-key-file ${cc_hot_vk_file} --signing-key-file ${cc_hot_sk_file}"
+                            if ! stdout=$(${CCLI} conway governance committee key-gen-hot --verification-key-file "${cc_hot_vk_file}" --signing-key-file "${cc_hot_sk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during governance committee hot key creation!\n${stdout}"; waitToProceed && continue
                             fi
                             ;;

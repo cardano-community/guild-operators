@@ -185,7 +185,7 @@ download_catalyst_toolbox() {
 # Description : create and store Catalyst signing key in bech32 format (ed25519extended)
 # Parameters  : wallet name  >  the name of the wallet
 generateCatalystBech32() {
-  catalyst_sk_file="${WALLET_FOLDER}/${1}/${WALLET_CATALYST_SK_FILENAME}"
+  catalyst_sk_file="${WALLET_FOLDER}/${1}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
   catalyst_sk_file_bech32="${catalyst_sk_file}-bech32"
   [[ -f "${catalyst_sk_file_bech32}" ]] && return 0
   println ACTION "jq -r .cborHex ${catalyst_sk_file} | cut -c 5-132 | bech32 ed25519e_sk"
@@ -1044,12 +1044,12 @@ getGovKeyInfo() {
   drep_vk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_VK_FILENAME}"
   cc_cold_vk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_COLD_VK_FILENAME}"
   if [[ -f ${drep_vk_file} ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} governance drep id --drep-verification-key-file ${drep_vk_file}"
-    drep_id=$(${CCLI} ${NETWORK_ERA} governance drep id --drep-verification-key-file "${drep_vk_file}")
+    println ACTION "${CCLI} conway governance drep id --drep-verification-key-file ${drep_vk_file}"
+    drep_id=$(${CCLI} conway governance drep id --drep-verification-key-file "${drep_vk_file}")
   fi
   if [[ -f ${cc_cold_vk_file} ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} governance committee key-hash --verification-key-file ${cc_cold_vk_file}"
-    cc_hash=$(${CCLI} ${NETWORK_ERA} governance committee key-hash --verification-key-file "${cc_cold_vk_file}")
+    println ACTION "${CCLI} conway governance committee key-hash --verification-key-file ${cc_cold_vk_file}"
+    cc_hash=$(${CCLI} conway governance committee key-hash --verification-key-file "${cc_cold_vk_file}")
   fi
 }
 
