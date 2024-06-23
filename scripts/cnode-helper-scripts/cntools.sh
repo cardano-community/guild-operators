@@ -4018,21 +4018,27 @@ function main {
                 println DEBUG " ${FG_YELLOW}!! Work In Progress !!${NC}"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println OFF " Governance\n"\
-                  " ) Status        - show wallet governance information and status"\
+                  " ) Info & Status - show wallet governance information and status"\
+                  " ) Delegate      - delegate wallet vote power to a DRep, own, external, or one the pre-defined 'abstain' / 'no confidence'"\
+                  " ) DRep Reg      - register wallet as a DRep for voting"\
+                  " ) Cast Vote     - Vote on governance actions as an SPO, DRep, or Committee member"\
                   " ) Derive Keys   - derive delegate representative (DRep) and committee member keys (if needed)"\
                   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Catalyst Operation\n"
-                select_opt "[r] Registration" "[q] Display QR" "[v] Verify" "[h] Home"
+                select_opt "[i] Info & Status" "[d] Delegate" "[r] DRep Registration" "[v] Cast vote" "[k] Derive Keys" "[h] Home"
                 case $? in
-                  0) SUBCOMMAND="derive-gov-keys" ;;
-                  1) SUBCOMMAND="status" ;;
-                  2) break ;;
+                  0) SUBCOMMAND="info-status" ;;
+                  1) SUBCOMMAND="delegate" ;;
+                  2) SUBCOMMAND="drep-reg" ;;
+                  3) SUBCOMMAND="vote" ;;
+                  4) SUBCOMMAND="derive-gov-keys" ;;
+                  5) break ;;
                 esac
                 case $SUBCOMMAND in
-                  status)
+                  info-status)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> VOTE >> GOVERNANCE >> STATUS"
+                    println " >> VOTE >> GOVERNANCE >> INFO & STATUS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     println DEBUG "# Select wallet (derive governance keys if missing)"
@@ -4046,6 +4052,51 @@ function main {
                     println "Wallet         : ${FG_GREEN}${wallet_name}${NC}"
                     println "DRep Id        : ${FG_LGRAY}${drep_id}${NC}"
                     println "Committee Hash : ${FG_LGRAY}${cc_hash}${NC}"
+                    waitToProceed && continue
+                    ;; ###################################################################
+                  delegate)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> VOTE >> GOVERNANCE >> DELEGATE"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    println DEBUG "# Select wallet"
+                    selectWallet "balance" "${WALLET_STAKE_VK_FILENAME}"
+                    case $? in
+                      1) waitToProceed; continue ;;
+                      2) continue ;;
+                    esac
+                    # TODO: implement
+                    println DEBUG "Coming soon!"
+                    waitToProceed && continue
+                    ;; ###################################################################
+                  drep-reg)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> VOTE >> GOVERNANCE >> DREP REGISTRATION"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    println DEBUG "# Select wallet (derive governance keys if missing)"
+                    selectWallet "balance" "${WALLET_GOV_DREP_VK_FILENAME}" "${WALLET_GOV_DREP_SK_FILENAME}"
+                    case $? in
+                      1) waitToProceed; continue ;;
+                      2) continue ;;
+                    esac
+                    # TODO: implement
+                    println DEBUG "Coming soon!"
+                    waitToProceed && continue
+                    ;; ###################################################################
+                  vote)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> VOTE >> GOVERNANCE >> CAST VOTE"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    # TODO: implement
+                    println DEBUG "Coming soon!"
+                    #  - select mode SPO, DRep, Committee member
+                    #  - take gov action id as input
+                    #  - verify the content of the governance action
                     waitToProceed && continue
                     ;; ###################################################################
                   derive-gov-keys)
