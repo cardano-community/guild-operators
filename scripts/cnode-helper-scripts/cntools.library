@@ -1042,12 +1042,16 @@ getPayAddress() {
 getGovKeyInfo() {
   unset drep_id cc_hash
   drep_vk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_VK_FILENAME}"
+  drep_id_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_ID_FILENAME}"
   cc_cold_vk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_COLD_VK_FILENAME}"
-  if [[ -f ${drep_vk_file} ]]; then
+  cc_hash_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_HASH_FILENAME}"
+  [[ -f ${drep_id_file} ]] && drep_id=$(cat "${drep_id_file}")
+  [[ -f ${cc_hash_file} ]] && cc_hash=$(cat "${cc_hash_file}")
+  if [[ -z ${drep_id} && -f ${drep_vk_file} ]]; then
     println ACTION "${CCLI} conway governance drep id --drep-verification-key-file ${drep_vk_file}"
     drep_id=$(${CCLI} conway governance drep id --drep-verification-key-file "${drep_vk_file}")
   fi
-  if [[ -f ${cc_cold_vk_file} ]]; then
+  if [[ -z ${cc_hash} && -f ${cc_cold_vk_file} ]]; then
     println ACTION "${CCLI} conway governance committee key-hash --verification-key-file ${cc_cold_vk_file}"
     cc_hash=$(${CCLI} conway governance committee key-hash --verification-key-file "${cc_cold_vk_file}")
   fi

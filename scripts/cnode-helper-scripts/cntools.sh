@@ -4082,8 +4082,19 @@ function main {
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
-                    # TODO: implement
-                    println DEBUG "Coming soon!"
+                    drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
+                    drep_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_ID_FILENAME}"
+                    DREP_REG_CMD=(
+                      ${CCLI} conway governance drep registration-certificate
+                      --drep-verification-key-file "${drep_vk_file}"
+                      --key-reg-deposit-amt ${DREP_DEPOSIT}
+                      --out-file "${drep_cert_file}"
+                    )
+                    println ACTION "${DREP_REG_CMD[*]}"
+                    if ! stdout=$("${DREP_REG_CMD[@]}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep certificate creation!\n${stdout}"; waitToProceed && continue
+                    fi
+                    # TODO: create drep reg tx
                     waitToProceed && continue
                     ;; ###################################################################
                   vote)
@@ -4131,8 +4142,20 @@ function main {
                         cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
                         cc_hot_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_HW_CC_HOT_SK_FILENAME}"
                         if ! unlockHWDevice "extract ${FG_LGRAY}governance keys${NC}"; then waitToProceed && continue; fi
-                        println ACTION "cardano-hw-cli address key-gen --path 1852H/1815H/${acct_idx}H/3/${key_idx} --path 1852H/1815H/${acct_idx}H/4/${key_idx} --path 1852H/1815H/${acct_idx}H/5/${key_idx} --verification-key-file ${drep_vk_file} --verification-key-file ${cc_cold_vk_file} --verification-key-file ${cc_hot_vk_file} --hw-signing-file ${drep_sk_file} --hw-signing-file ${cc_cold_sk_file} --hw-signing-file ${cc_hot_sk_file}"
-                        if ! stdout=$(cardano-hw-cli address key-gen --path 1854H/1815H/${acct_idx}H/3/${key_idx} --path 1852H/1815H/${acct_idx}H/4/${key_idx} --path 1852H/1815H/${acct_idx}H/5/${key_idx} --verification-key-file "${drep_vk_file}" --verification-key-file "${cc_cold_vk_file}" --verification-key-file "${cc_hot_vk_file}" --hw-signing-file "${drep_sk_file}" --hw-signing-file "${cc_cold_sk_file}" --hw-signing-file "${cc_hot_sk_file}" 2>&1); then
+                        HW_CLI_CMD=(
+                          cardano-hw-cli address key-gen
+                          --path 1854H/1815H/${acct_idx}H/3/${key_idx}
+                          --path 1852H/1815H/${acct_idx}H/4/${key_idx}
+                          --path 1852H/1815H/${acct_idx}H/5/${key_idx}
+                          --verification-key-file "${drep_vk_file}"
+                          --verification-key-file "${cc_cold_vk_file}"
+                          --verification-key-file "${cc_hot_vk_file}"
+                          --hw-signing-file "${drep_sk_file}"
+                          --hw-signing-file "${cc_cold_sk_file}"
+                          --hw-signing-file "${cc_hot_sk_file}"
+                        )
+                        println ACTION "${HW_CLI_CMD[*]}"
+                        if ! stdout=$("${HW_CLI_CMD[@]}" 2>&1); then
                           println ERROR "\n${FG_RED}ERROR${NC}: failure during governance key extraction!\n${stdout}"; waitToProceed && continue
                         fi
                         jq '.description = "DRep Hardware Signing Key"' "${drep_vk_file}" > "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" "${drep_vk_file}"
