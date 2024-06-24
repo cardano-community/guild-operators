@@ -1,5 +1,23 @@
 # Koios gRest Changelog
 
+## [1.1.3] - For all networks.
+
+Another minor update release
+
+### Data Input/Output Changes:
+
+- `policy_asset_mints` , `policy_asset_info`, `asset_info` - Will return latest mint transaction that has metadata (instead of latest mint transaction) details (excluding burn transactions)
+- `block_tx_info`, `tx_info` -> `collateral_tx_out` -> `asset_list` - Outputs for collateral tx out are never created on-chain and thus, cannot be queried from `ma_tx_out`. Instead a rough description of assets involved are saved , which is now returned as info from ledger. This is returned as-is from dbsync and does not adhere to `asset_list` schema we use in other endpoints.
+
+
+### Chores:
+
+- Remove unused info from `asset_info_cache` - `first_mint_tx_id` , `first_mint_keys` , `last_mint_keys` are not used/required [#286]
+- Add `last_mint_meta_tx_id` field to `asset_info_cache` - to return latest asset that does have metadata [#286]
+- Reduce redundant cache information for pool stake as we now only retain 3 epochs in pool_active_stake_cache as the rest is already in `pool_history_cache` [#289]
+- Retire v0 SQL files (endpoints were already removed) from repository [#286]
+- Overwrite next epoch once on every execution (this is to avoid nonce mismatch if calculated too early from node) [#286]
+
 ## [1.1.2] - For all networks.
 
 This release is minor bugfix for data consistency changes behind the scenes. It has no impact to any of the API endpoints.
