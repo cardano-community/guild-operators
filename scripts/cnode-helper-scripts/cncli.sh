@@ -159,6 +159,7 @@ getKoiosData() {
 
 #################################
 
+# shellcheck disable=SC2120
 cncliInit() {
   if renice_cmd="$(command -v renice)"; then ${renice_cmd} -n 19 $$ >/dev/null; fi
   [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
@@ -392,6 +393,10 @@ cncliLeaderlog() {
 					INSERT OR IGNORE INTO epochdata (epoch, epoch_nonce, pool_id, sigma, d, epoch_slots_ideal, max_performance, active_stake, total_active_stake)
 					VALUES (${next_epoch}, '${epoch_nonce}', '${pool_id}', '${sigma}', ${d}, ${epoch_slots_ideal}, ${max_performance}, '${active_stake}', '${total_active_stake}');
 					EOF
+        if block_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${next_epoch};" 2>/dev/null) && [[ ${block_cnt} -gt 0 ]]; then
+          echo -e "\nPruning ${block_cnt} entries from blocklog db for epoch ${next_epoch}\n"
+          sqlite3 "${BLOCKLOG_DB}" "DELETE FROM blocklog WHERE epoch=${next_epoch};" 2>/dev/null
+        fi
         block_cnt=0
         while read -r assigned_slot; do
           block_slot=$(jq -r '.slot' <<< "${assigned_slot}")
