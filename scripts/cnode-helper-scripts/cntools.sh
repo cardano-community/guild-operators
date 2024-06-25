@@ -4191,6 +4191,9 @@ function main {
                               println ERROR "Please run updated guild-deploy.sh and re-build/re-download cardano-node"
                               waitToProceed && continue
                             fi
+                            # TODO: remove when its clear how this can be done for gov keys
+                            println DEBUG "Coming soon..."
+                            waitToProceed && continue
                             getAnswerAnyCust mnemonic false "24 or 15 word mnemonic(space separated)"
                             echo
                             IFS=" " read -r -a words <<< "${mnemonic}"
@@ -4215,23 +4218,24 @@ function main {
                             drep_es_key=$(bech32 <<< ${drep_xprv} | cut -b -128)$(bech32 <<< ${drep_xpub})
                             cc_cold_es_key=$(bech32 <<< ${cc_cold_xprv} | cut -b -128)$(bech32 <<< ${cc_cold_xpub})
                             cc_hot_es_key=$(bech32 <<< ${cc_hot_xprv} | cut -b -128)$(bech32 <<< ${cc_hot_xpub})
+                            #TODO: Update type when cardano
                             cat <<-EOF > "${drep_sk_file}"
 															{
-																	"type": "DRepExtendedSigningKey_ed25519_bip32",
-																	"description": "DRep Signing Key",
+																	"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
+																	"description": "Delegate Representative Signing Key",
 																	"cborHex": "5880${drep_es_key}"
 															}
 															EOF
                             cat <<-EOF > "${cc_cold_sk_file}"
 															{
-																	"type": "ConstitutionalCommitteeColdExtendedSigningKey_ed25519_bip32",
+																	"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
 																	"description": "Constitutional Committee Cold Signing Key",
 																	"cborHex": "5880${cc_cold_es_key}"
 															}
 															EOF
                             cat <<-EOF > "${cc_hot_sk_file}"
 															{
-																	"type": "ConstitutionalCommitteeHotExtendedSigningKey_ed25519_bip32",
+																	"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
 																	"description": "Constitutional Committee Hot Signing Key",
 																	"cborHex": "5880${cc_hot_es_key}"
 															}
