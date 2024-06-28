@@ -6,7 +6,7 @@
   "LastKnownBlockVersion-Alt": 0,
   "LastKnownBlockVersion-Major": 3,
   "LastKnownBlockVersion-Minor": 1,
-  "MinNodeVersion": "8.9.2",
+  "MinNodeVersion": "8.9.4",
   "PeerSharing": true,
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",
