@@ -1003,8 +1003,8 @@ fi
 node_version="$(${CNODEBIN} version | head -1 | cut -d' ' -f2)"
 cli_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
 
-if ! versionCheck "8.9.2" "${node_version}" || ! versionCheck "8.20.3.0" "${cli_version}"; then
-  echo -e "\nKoios scripts have now been upgraded to support cardano-node 8.9.x ('${node_version}' found) / cardano-cli 8.20.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.1.2 to switch scripts to an older branch).\n\n"
+if ! versionCheck "8.9.4" "${node_version}" || ! versionCheck "8.20.3.0" "${cli_version}"; then
+  echo -e "\nKoios scripts have now been upgraded to support cardano-node 8.9.x ('${node_version}' found) / cardano-cli 8.20.3.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.1.2 to switch scripts to an older branch).\n\n"
   return 1
 fi
 
@@ -1065,8 +1065,8 @@ else
   [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
   [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
   # if genesis files not found, exit with rc 1
-  [[ ! -f "${CONWAY_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${CONWAY_GENESIS_JSON}" && return 1
-  [[ ! -f "${ALONZO_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${ALONZO_GENESIS_JSON}" && return 1
+  [[ ! -f "${CONWAY_GENESIS_JSON}" ]] && echo "Conway genesis file not found: ${CONWAY_GENESIS_JSON}" && return 1
+  [[ ! -f "${ALONZO_GENESIS_JSON}" ]] && echo "Alonzo genesis file not found: ${ALONZO_GENESIS_JSON}" && return 1
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
   [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
   GENESIS_HASH="$(${CCLI} ${NETWORK_ERA} genesis hash --genesis "${GENESIS_JSON}")"
