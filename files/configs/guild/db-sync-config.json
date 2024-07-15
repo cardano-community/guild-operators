@@ -33,8 +33,10 @@
       "enable": true
     },
     "governance": "enable",
+    "json_type": "text",
     "offchain_pool_data": "enable",
-    "json_type": "text"
+    "pool_stat": "enable",
+    "tx_cbor": "enable"
   },
   "minSeverity": "Info",
   "options": {
