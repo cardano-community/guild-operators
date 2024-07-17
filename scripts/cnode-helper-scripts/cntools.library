@@ -1767,8 +1767,8 @@ createMnemonicWallet() {
   ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
   ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
   ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
-  ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
-  ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+  ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_SK_FILENAME}"
+  ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
   isImport=true
   if [[ -z ${mnemonic} ]]; then
     println ACTION "cardano-address recovery-phrase generate"

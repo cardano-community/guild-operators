@@ -818,7 +818,7 @@ function main {
                   continue
                 fi
                 if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                  [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Base Address" "${base_addr}")"
+                  [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
                   [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Payment Addr" "${pay_addr}")"
                 else
                   if [[ -n ${base_addr} ]]; then
@@ -835,9 +835,9 @@ function main {
                       asset_cnt=$(( ${#assets[@]} - 1 ))
                     fi
                     getPriceString ${lovelace}
-                    println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Base Address"  "${base_addr}")"
+                    println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
                     if [[ ${asset_cnt} -eq 0 ]]; then
-                      println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Base Funds"  "$(formatLovelace ${lovelace})")"
+                      println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds"  "$(formatLovelace ${lovelace})")"
                     else
                       println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Base Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
                     fi
@@ -1066,14 +1066,14 @@ function main {
                 fi
               fi
 
-              [[ -n ${base_addr} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Base Address" "${base_addr}")"
+              [[ -n ${base_addr} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
               if [[ -n ${pay_addr} ]]; then
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment Address" "${pay_addr}")"
               fi
               [[ -n ${reward_addr} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
               getCredentials ${wallet_name}
               if [[ -n ${pay_cred} || -n ${stake_cred} || -n ${ms_pay_cred} || -n ${ms_stake_cred} ]]; then
-                println "$(printf "%-20s ${FG_DGRAY}${NC}" "Credentials")"
+                println "$(printf "%-20s ${FG_DGRAY}${NC}" "# Credentials")"
               fi
               [[ -n ${pay_cred} ]]          && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment" "${pay_cred}")"
               [[ -n ${stake_cred} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Stake" "${stake_cred}")"
