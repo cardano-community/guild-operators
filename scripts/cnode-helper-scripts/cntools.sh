@@ -394,9 +394,9 @@ function main {
                     unset mnemonic
                     createMnemonicWallet || continue
                     echo
-                    println "Wallet Imported    : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-                    println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                    println "Wallet Imported : ${FG_GREEN}${wallet_name}${NC}"
+                    println "Address         : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Payment Address : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
                     word_len=0
                     for word in "${words[@]}"; do
@@ -435,6 +435,8 @@ function main {
                     ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
                     ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
                     ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+                    ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_SK_FILENAME}"
+                    ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
                     if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
                       println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
                       println "      Choose another name or delete the existing one"
@@ -468,16 +470,20 @@ function main {
                     if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${ms_stake_vk_file}" --signing-key-file "${ms_stake_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake key creation!\n${stdout}"; waitToProceed && continue
                     fi
+                    println ACTION "${CCLI} conway governance drep key-gen --verification-key-file ${ms_drep_vk_file} --signing-key-file ${ms_drep_sk_file}"
+                    if ! stdout=$(${CCLI} conway governance drep key-gen --verification-key-file "${ms_drep_vk_file}" --signing-key-file "${ms_drep_sk_file}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig governance drep key creation!\n${stdout}"; waitToProceed && continue
+                    fi
                     chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
                     getBaseAddress ${wallet_name}
                     getPayAddress ${wallet_name}
                     getRewardAddress ${wallet_name}
                     getCredentials ${wallet_name}
-                    println "New Wallet         : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-                    println "Enterprise Address : ${FG_LGRAY}${pay_addr}${NC}"
+                    println "New Wallet      : ${FG_GREEN}${wallet_name}${NC}"
+                    println "Address         : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Payment Address : ${FG_LGRAY}${pay_addr}${NC}"
                     println DEBUG "\nYou can now send and receive ADA using the above addresses."
-                    println DEBUG "Note that Enterprise Address will not take part in staking."
+                    println DEBUG "Note that Payment Address will not take part in staking."
                     println DEBUG "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
                     waitToProceed && continue
                     ;; ###################################################################
@@ -522,14 +528,13 @@ function main {
                     createMnemonicWallet || continue
                     echo
                     println "Wallet Imported : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Base Address    : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Address         : ${FG_LGRAY}${base_addr}${NC}"
                     println "Payment Address : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
                     printWalletInfo
                     waitToProceed && continue
                     ;; ###################################################################
                   hardware)
-                    #TODO: revisit and add governance keys once hw-cli is in final state
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> WALLET >> IMPORT >> HARDWARE WALLET"
@@ -555,46 +560,88 @@ function main {
                     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
                     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
                     stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-                    drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
                     drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_HW_DREP_SK_FILENAME}"
-                    cc_cold_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_COLD_VK_FILENAME}"
+                    drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
                     cc_cold_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_HW_CC_COLD_SK_FILENAME}"
-                    cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
+                    cc_cold_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_COLD_VK_FILENAME}"
                     cc_hot_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_HW_CC_HOT_SK_FILENAME}"
+                    cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
                     ms_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_PAY_SK_FILENAME}"
                     ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
                     ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_SK_FILENAME}"
                     ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+                    ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_HW_DREP_SK_FILENAME}"
+                    ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
                     if ! unlockHWDevice "extract ${FG_LGRAY}keys${NC}"; then safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue; fi
-                    HW_DERIVATION_CMD=(
-                      cardano-hw-cli address key-gen
-                      --path 1852H/1815H/${acct_idx}H/0/${key_idx}
-                      --path 1852H/1815H/${acct_idx}H/2/${key_idx}
-                      --path 1854H/1815H/${acct_idx}H/0/${key_idx}
-                      --path 1854H/1815H/${acct_idx}H/2/${key_idx}
-                      --verification-key-file "${payment_vk_file}"
-                      --verification-key-file "${stake_vk_file}"
-                      --verification-key-file "${ms_payment_vk_file}"
-                      --verification-key-file "${ms_stake_vk_file}"
-                      --hw-signing-file "${payment_sk_file}"
-                      --hw-signing-file "${stake_sk_file}"
-                      --hw-signing-file "${ms_payment_sk_file}"
-                      --hw-signing-file "${ms_stake_sk_file}"
-                    )
+                    println "Include governance (drep & committee) keys (only Ledger supported)?"
+                    select_opt "[n] No" "[y] Yes"
+                    case $? in
+                      0)
+                        HW_DERIVATION_CMD=(
+                          cardano-hw-cli address key-gen
+                          --path 1852H/1815H/${acct_idx}H/0/${key_idx}
+                          --path 1852H/1815H/${acct_idx}H/2/${key_idx}
+                          --path 1854H/1815H/${acct_idx}H/0/${key_idx}
+                          --path 1854H/1815H/${acct_idx}H/2/${key_idx}
+                          --verification-key-file "${payment_vk_file}"
+                          --verification-key-file "${stake_vk_file}"
+                          --verification-key-file "${ms_payment_vk_file}"
+                          --verification-key-file "${ms_stake_vk_file}"
+                          --hw-signing-file "${payment_sk_file}"
+                          --hw-signing-file "${stake_sk_file}"
+                          --hw-signing-file "${ms_payment_sk_file}"
+                          --hw-signing-file "${ms_stake_sk_file}"
+                        )
+                        ;; # do nothing
+                      1)
+                        HW_DERIVATION_CMD=(
+                          cardano-hw-cli address key-gen
+                          --path 1852H/1815H/${acct_idx}H/0/${key_idx}
+                          --path 1852H/1815H/${acct_idx}H/2/${key_idx}
+                          --path 1852H/1815H/${acct_idx}H/3/${key_idx}
+                          --path 1852H/1815H/${acct_idx}H/4/${key_idx}
+                          --path 1852H/1815H/${acct_idx}H/5/${key_idx}
+                          --path 1854H/1815H/${acct_idx}H/0/${key_idx}
+                          --path 1854H/1815H/${acct_idx}H/2/${key_idx}
+                          --path 1854H/1815H/${acct_idx}H/3/${key_idx}
+                          --verification-key-file "${payment_vk_file}"
+                          --verification-key-file "${stake_vk_file}"
+                          --verification-key-file "${drep_vk_file}"
+                          --verification-key-file "${cc_cold_vk_file}"
+                          --verification-key-file "${cc_hot_sk_file}"
+                          --verification-key-file "${ms_payment_vk_file}"
+                          --verification-key-file "${ms_stake_vk_file}"
+                          --verification-key-file "${ms_drep_vk_file}"
+                          --hw-signing-file "${payment_sk_file}"
+                          --hw-signing-file "${stake_sk_file}"
+                          --hw-signing-file "${drep_sk_file}"
+                          --hw-signing-file "${cc_cold_sk_file}"
+                          --hw-signing-file "${cc_hot_sk_file}"
+                          --hw-signing-file "${ms_payment_sk_file}"
+                          --hw-signing-file "${ms_stake_sk_file}"
+                          --hw-signing-file "${ms_drep_sk_file}"
+                        )
+                        ;;
+                    esac
                     println ACTION "${HW_DERIVATION_CMD[*]}"
                     if ! stdout=$("${HW_DERIVATION_CMD[@]}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
                     jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" "${payment_vk_file}"
                     jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" "${stake_vk_file}"
+                    jq '.description = "Delegate Representative Hardware Verification Key"' "${drep_vk_file}" > "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" "${drep_vk_file}"
+                    jq '.description = "Constitutional Committee Cold Hardware Verification Key"' "${cc_cold_vk_file}" > "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" "${cc_cold_vk_file}"
+                    jq '.description = "Constitutional Committee Hot Hardware Verification Key"' "${cc_hot_sk_file}" > "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" "${cc_hot_sk_file}"
                     jq '.description = "Multisig Payment Hardware Verification Key"' "${ms_payment_vk_file}" > "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" "${ms_payment_vk_file}"
                     jq '.description = "Multisig Stake Hardware Verification Key"' "${ms_stake_vk_file}" > "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" "${ms_stake_vk_file}"
+                    jq '.description = "Multisig Delegate Representative Hardware Verification Key"' "${ms_drep_vk_file}" > "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" "${ms_drep_vk_file}"
                     getBaseAddress ${wallet_name}
                     getPayAddress ${wallet_name}
                     getRewardAddress ${wallet_name}
+                    getCredentials ${wallet_name}
                     echo
                     println "HW Wallet Imported : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Base Address       : ${FG_LGRAY}${base_addr}${NC}"
+                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
                     println "Payment Address    : ${FG_LGRAY}${pay_addr}${NC}"
                     echo
                     printWalletInfo
@@ -3764,9 +3811,9 @@ function main {
                       println ERROR "\n${FG_RED}ERROR${NC}: prerequisite tool cardano-signer missing or not executable, please install using ${FG_LGRAY}guild-deploy.sh${NC}"
                       waitToProceed && continue
                     fi
-                    catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
-                    catalyst_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_VK_FILENAME}"
-                    catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
+                    catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_CATALYST_SK_FILENAME}"
+                    catalyst_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_CATALYST_VK_FILENAME}"
+                    catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_CATALYST_QR_FILENAME}"
                     if [[ ! -f "${catalyst_vk_file}" && ! -f "${catalyst_sk_file}" ]]; then
                       println ACTION "cardano-signer keygen --cip36 --out-skey ${catalyst_sk_file} --out-vkey ${catalyst_vk_file}"
                       if ! stdout=$(cardano-signer keygen --cip36 --out-skey "${catalyst_sk_file}" --out-vkey "${catalyst_vk_file}" 2>&1); then
@@ -3866,7 +3913,7 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     println DEBUG "# Select a Catalyst registered wallet"
-                    selectWallet "none" "${WALLET_VOTE_CATALYST_SK_FILENAME}"
+                    selectWallet "none" "${WALLET_CATALYST_SK_FILENAME}"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
@@ -3881,8 +3928,8 @@ function main {
                       fi
                       break
                     done
-                    catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
-                    catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_QR_FILENAME}"
+                    catalyst_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_CATALYST_SK_FILENAME}"
+                    catalyst_qr_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_CATALYST_QR_FILENAME}"
                     generateCatalystBech32 ${wallet_name} || continue
                     unset save_catalyst_qr
                     if [[ -f "${catalyst_qr_file}" ]]; then
@@ -3950,12 +3997,12 @@ function main {
                     select_opt "[w] Wallet" "[p] Vote public key"
                     case $? in
                       0) println DEBUG "\n# Select a Catalyst registered wallet"
-                         selectWallet "none" "${WALLET_VOTE_CATALYST_VK_FILENAME}"
+                         selectWallet "none" "${WALLET_CATALYST_VK_FILENAME}"
                          case $? in
                            1) waitToProceed; continue ;;
                            2) continue ;;
                          esac
-                         catalyst_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_VOTE_CATALYST_VK_FILENAME}"
+                         catalyst_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_CATALYST_VK_FILENAME}"
                          vote_key_hex="$(jq -r .cborHex "${catalyst_vk_file}" | cut -c 5-)"
                         ;;
                       1) getAnswerAnyCust vote_key_hex "Enter public key"
@@ -4126,9 +4173,6 @@ function main {
                     getWalletType ${wallet_name}
                     case $? in
                       0) # Hardware wallet
-                        #TODO: revisit once hw cli reach final state
-                        println DEBUG "\n${FG_YELLOW}Hardware governance support to be implemented in a future version${NC}"
-                        waitToProceed && continue
                         if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
                           println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli not found in path or executable permission not set."
                           println ERROR "Please run '${FG_YELLOW}guild-deploy.sh -s w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}guild-deploy.sh -h${NC}' shows all available options"
@@ -4141,26 +4185,35 @@ function main {
                         cc_cold_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_HW_CC_COLD_SK_FILENAME}"
                         cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
                         cc_hot_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_HW_CC_HOT_SK_FILENAME}"
+                        ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_HW_DREP_SK_FILENAME}"
+                        ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
+                        if [[ -f ${drep_sk_file} || -f ${cc_cold_sk_file} || -f ${cc_hot_sk_file} || -f ${ms_drep_sk_file} ]]; then
+                          println ERROR "\n${FG_RED}ERROR${NC}: some governance signing keys already exist! Please backup and remove if needed\n${stdout}"; waitToProceed && continue
+                        fi
                         if ! unlockHWDevice "extract ${FG_LGRAY}governance keys${NC}"; then waitToProceed && continue; fi
                         HW_CLI_CMD=(
                           cardano-hw-cli address key-gen
-                          --path 1854H/1815H/${acct_idx}H/3/${key_idx}
+                          --path 1852H/1815H/${acct_idx}H/3/${key_idx}
                           --path 1852H/1815H/${acct_idx}H/4/${key_idx}
                           --path 1852H/1815H/${acct_idx}H/5/${key_idx}
+                          --path 1854H/1815H/${acct_idx}H/3/${key_idx}
                           --verification-key-file "${drep_vk_file}"
                           --verification-key-file "${cc_cold_vk_file}"
                           --verification-key-file "${cc_hot_vk_file}"
+                          --verification-key-file "${ms_drep_vk_file}"
                           --hw-signing-file "${drep_sk_file}"
                           --hw-signing-file "${cc_cold_sk_file}"
                           --hw-signing-file "${cc_hot_sk_file}"
+                          --hw-signing-file "${ms_drep_sk_file}"
                         )
                         println ACTION "${HW_CLI_CMD[*]}"
                         if ! stdout=$("${HW_CLI_CMD[@]}" 2>&1); then
                           println ERROR "\n${FG_RED}ERROR${NC}: failure during governance key extraction!\n${stdout}"; waitToProceed && continue
                         fi
-                        jq '.description = "DRep Hardware Signing Key"' "${drep_vk_file}" > "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" "${drep_vk_file}"
-                        jq '.description = "Constitutional Committee Cold Hardware Signing Key"' "${cc_cold_vk_file}" > "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" "${cc_cold_vk_file}"
-                        jq '.description = "Constitutional Committee Hot Hardware Signing Key"' "${cc_hot_vk_file}" > "${TMP_DIR}/$(basename "${cc_hot_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_hot_vk_file}").tmp" "${cc_hot_vk_file}"
+                        jq '.description = "Delegate Representative Hardware Verification Key"' "${drep_vk_file}" > "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" "${drep_vk_file}"
+                        jq '.description = "Constitutional Committee Cold Hardware Verification Key"' "${cc_cold_vk_file}" > "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" "${cc_cold_vk_file}"
+                        jq '.description = "Constitutional Committee Hot Hardware Verification Key"' "${cc_hot_sk_file}" > "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" "${cc_hot_sk_file}"
+                        jq '.description = "Multisig Delegate Representative Hardware Verification Key"' "${ms_drep_vk_file}" > "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" "${ms_drep_vk_file}"
                         ;;
                       *)
                         drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
@@ -4169,6 +4222,11 @@ function main {
                         cc_cold_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_COLD_SK_FILENAME}"
                         cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
                         cc_hot_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_SK_FILENAME}"
+                        ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
+                        ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_SK_FILENAME}"
+                        if [[ -f ${drep_sk_file} || -f ${cc_cold_sk_file} || -f ${cc_hot_sk_file} || -f ${ms_drep_sk_file} ]]; then
+                          println ERROR "\n${FG_RED}ERROR${NC}: some governance signing keys already exist! Please backup and remove if needed\n${stdout}"; waitToProceed && continue
+                        fi
                         println DEBUG "Is selected wallet a CLI generated wallet or derived from mnemonic?"
                         select_opt "[c] CLI" "[m] Mnemonic"
                         case $? in
@@ -4184,6 +4242,10 @@ function main {
                             if ! stdout=$(${CCLI} conway governance committee key-gen-hot --verification-key-file "${cc_hot_vk_file}" --signing-key-file "${cc_hot_sk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during governance committee hot key creation!\n${stdout}"; waitToProceed && continue
                             fi
+                            println ACTION "${CCLI} conway governance drep key-gen --verification-key-file ${ms_drep_vk_file} --signing-key-file ${ms_drep_sk_file}"
+                            if ! stdout=$(${CCLI} conway governance drep key-gen --verification-key-file "${ms_drep_vk_file}" --signing-key-file "${ms_drep_sk_file}" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig governance drep key creation!\n${stdout}"; waitToProceed && continue
+                            fi
                             ;;
                           1) if ! cmdAvailable "bech32" &>/dev/null || \
                               ! cmdAvailable "cardano-address" &>/dev/null; then
@@ -4191,9 +4253,6 @@ function main {
                               println ERROR "Please run updated guild-deploy.sh and re-build/re-download cardano-node"
                               waitToProceed && continue
                             fi
-                            # TODO: remove when its clear how this can be done for gov keys
-                            println DEBUG "Coming soon..."
-                            waitToProceed && continue
                             getAnswerAnyCust mnemonic false "24 or 15 word mnemonic(space separated)"
                             echo
                             IFS=" " read -r -a words <<< "${mnemonic}"
@@ -4212,57 +4271,74 @@ function main {
                             drep_xprv=$(cardano-address key child 1852H/1815H/${acct_idx}H/3/${key_idx} <<< ${root_prv})
                             cc_cold_xprv=$(cardano-address key child 1852H/1815H/${acct_idx}H/4/${key_idx} <<< ${root_prv})
                             cc_hot_xprv=$(cardano-address key child 1852H/1815H/${acct_idx}H/5/${key_idx} <<< ${root_prv})
+                            ms_drep_xprv=$(cardano-address key child 1854H/1815H/${acct_idx}H/3/${key_idx} <<< ${root_prv})
                             drep_xpub=$(cardano-address key public ${caddr_arg} <<< ${drep_xprv})
                             cc_cold_xpub=$(cardano-address key public ${caddr_arg} <<< ${cc_cold_xprv})
                             cc_hot_xpub=$(cardano-address key public ${caddr_arg} <<< ${cc_hot_xprv})
+                            ms_drep_xpub=$(cardano-address key public ${caddr_arg} <<< ${ms_drep_xprv})
                             drep_es_key=$(bech32 <<< ${drep_xprv} | cut -b -128)$(bech32 <<< ${drep_xpub})
                             cc_cold_es_key=$(bech32 <<< ${cc_cold_xprv} | cut -b -128)$(bech32 <<< ${cc_cold_xpub})
                             cc_hot_es_key=$(bech32 <<< ${cc_hot_xprv} | cut -b -128)$(bech32 <<< ${cc_hot_xpub})
-                            #TODO: Update type when cardano
+                            ms_drep_es_key=$(bech32 <<< ${ms_drep_xprv} | cut -b -128)$(bech32 <<< ${ms_drep_xpub})
                             cat <<-EOF > "${drep_sk_file}"
 															{
-																	"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
+																	"type": "DRepExtendedSigningKey_ed25519_bip32",
 																	"description": "Delegate Representative Signing Key",
 																	"cborHex": "5880${drep_es_key}"
 															}
 															EOF
                             cat <<-EOF > "${cc_cold_sk_file}"
 															{
-																	"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
+																	"type": "ConstitutionalCommitteeColdExtendedSigningKey_ed25519_bip32",
 																	"description": "Constitutional Committee Cold Signing Key",
 																	"cborHex": "5880${cc_cold_es_key}"
 															}
 															EOF
                             cat <<-EOF > "${cc_hot_sk_file}"
 															{
-																	"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
+																	"type": "ConstitutionalCommitteeHotExtendedSigningKey_ed25519_bip32",
 																	"description": "Constitutional Committee Hot Signing Key",
 																	"cborHex": "5880${cc_hot_es_key}"
 															}
 															EOF
-                            println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${drep_sk_file} --verification-key-file ${TMP_DIR}/gov-drep.evkey"
-                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${drep_sk_file}" --verification-key-file "${TMP_DIR}/gov-drep.evkey" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during drep signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+                            cat <<-EOF > "${ms_drep_sk_file}"
+															{
+																	"type": "DRepExtendedSigningKey_ed25519_bip32",
+																	"description": "MultiSig Delegate Representative Signing Key",
+																	"cborHex": "5880${drep_es_key}"
+															}
+															EOF
+                            println ACTION "${CCLI} conway key verification-key --signing-key-file ${drep_sk_file} --verification-key-file ${TMP_DIR}/drep.evkey"
+                            if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${drep_sk_file}" --verification-key-file "${TMP_DIR}/drep.evkey" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${cc_cold_sk_file} --verification-key-file ${TMP_DIR}/gov-cc-cold.evkey"
-                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${cc_cold_sk_file}" --verification-key-file "${TMP_DIR}/gov-cc-cold.evkey" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-cold signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+                            println ACTION "${CCLI} conway key verification-key --signing-key-file ${cc_cold_sk_file} --verification-key-file ${TMP_DIR}/cc-cold.evkey"
+                            if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${cc_cold_sk_file}" --verification-key-file "${TMP_DIR}/cc-cold.evkey" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-cold extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${cc_hot_sk_file} --verification-key-file ${TMP_DIR}/gov-cc-hot.evkey"
-                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${cc_hot_sk_file}" --verification-key-file "${TMP_DIR}/gov-cc-hot.evkey" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-hot signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+                            println ACTION "${CCLI} conway key verification-key --signing-key-file ${cc_hot_sk_file} --verification-key-file ${TMP_DIR}/cc-hot.evkey"
+                            if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${cc_hot_sk_file}" --verification-key-file "${TMP_DIR}/cc-hot.evkey" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-hot extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/gov-drep.evkey --verification-key-file ${drep_vk_file}"
-                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/gov-drep.evkey" --verification-key-file "${drep_vk_file}" 2>&1); then
+                            println ACTION "${CCLI} conway key verification-key --signing-key-file ${ms_drep_sk_file} --verification-key-file ${TMP_DIR}/ms_drep.evkey"
+                            if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${ms_drep_sk_file}" --verification-key-file "${TMP_DIR}/ms_drep.evkey" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+                            fi
+                            println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/drep.evkey --verification-key-file ${drep_vk_file}"
+                            if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/drep.evkey" --verification-key-file "${drep_vk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/gov-cc-cold.evkey --verification-key-file ${cc_cold_vk_file}"
-                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/gov-cc-cold.evkey" --verification-key-file "${cc_cold_vk_file}" 2>&1); then
+                            println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-cold.evkey --verification-key-file ${cc_cold_vk_file}"
+                            if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-cold.evkey" --verification-key-file "${cc_cold_vk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-cold verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/gov-cc-hot.evkey --verification-key-file ${cc_hot_vk_file}"
-                            if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/gov-cc-hot.evkey" --verification-key-file "${cc_hot_vk_file}" 2>&1); then
+                            println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-hot.evkey --verification-key-file ${cc_hot_vk_file}"
+                            if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-hot.evkey" --verification-key-file "${cc_hot_vk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-hot verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+                            fi
+                            println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_drep.evkey --verification-key-file ${ms_drep_vk_file}"
+                            if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_drep.evkey" --verification-key-file "${ms_drep_vk_file}" 2>&1); then
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
                             ;;
                         esac
@@ -5745,6 +5821,9 @@ function main {
                         ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
                         ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_SK_FILENAME}"
                         ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+                        if [[ -f ${ms_payment_sk_file} || -f ${ms_stake_sk_file} ]]; then
+                          println ERROR "\n${FG_RED}ERROR${NC}: multisig payment and/or stake signing keys already exist! Please backup and remove if needed\n${stdout}"; waitToProceed && continue
+                        fi
                         if ! unlockHWDevice "extract ${FG_LGRAY}multisig keys${NC}"; then waitToProceed && continue; fi
                         HW_DERIVATION_CMD=(
                           cardano-hw-cli address key-gen
@@ -5767,6 +5846,9 @@ function main {
                         ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
                         ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
                         ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+                        if [[ -f ${ms_payment_sk_file} || -f ${ms_stake_sk_file} ]]; then
+                          println ERROR "\n${FG_RED}ERROR${NC}: multisig payment and/or stake signing keys already exist! Please backup and remove if needed\n${stdout}"; waitToProceed && continue
+                        fi
                         println DEBUG "Is selected wallet a CLI generated wallet or derived from mnemonic?"
                         select_opt "[c] CLI" "[m] Mnemonic"
                         case $? in

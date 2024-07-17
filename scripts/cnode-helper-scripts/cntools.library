@@ -185,7 +185,7 @@ download_catalyst_toolbox() {
 # Description : create and store Catalyst signing key in bech32 format (ed25519extended)
 # Parameters  : wallet name  >  the name of the wallet
 generateCatalystBech32() {
-  catalyst_sk_file="${WALLET_FOLDER}/${1}/${WALLET_VOTE_CATALYST_SK_FILENAME}"
+  catalyst_sk_file="${WALLET_FOLDER}/${1}/${WALLET_CATALYST_SK_FILENAME}"
   catalyst_sk_file_bech32="${catalyst_sk_file}-bech32"
   [[ -f "${catalyst_sk_file_bech32}" ]] && return 0
   println ACTION "jq -r .cborHex ${catalyst_sk_file} | cut -c 5-132 | bech32 ed25519e_sk"
@@ -1757,18 +1757,18 @@ createMnemonicWallet() {
   payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
   stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
   stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-#  drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
-#  drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
-#  cc_cold_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_COLD_VK_FILENAME}"
-#  cc_cold_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_COLD_SK_FILENAME}"
-#  cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
-#  cc_hot_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_SK_FILENAME}"
+  drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
+  drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
+  cc_cold_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_COLD_VK_FILENAME}"
+  cc_cold_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_COLD_SK_FILENAME}"
+  cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
+  cc_hot_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_SK_FILENAME}"
   ms_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_SK_FILENAME}"
   ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
   ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
   ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
-#  ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
-#  ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
+  ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
+  ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
   isImport=true
   if [[ -z ${mnemonic} ]]; then
     println ACTION "cardano-address recovery-phrase generate"
@@ -1797,34 +1797,34 @@ createMnemonicWallet() {
   payment_xprv=$(cardano-address key child "1852H/1815H/${acct_idx}H/0/${key_idx}" <<< ${root_prv})
   println ACTION "cardano-address key child "1852H/1815H/${acct_idx}H/2/${key_idx}" <<< <root private key>"
   stake_xprv=$(cardano-address key child "1852H/1815H/${acct_idx}H/2/${key_idx}" <<< ${root_prv})
-#  println ACTION "cardano-address key child "1852H/1815H/${acct_idx}H/3/${key_idx}" <<< <root private key>"
-#  drep_xprv=$(cardano-address key child "1852H/1815H/${acct_idx}H/3/${key_idx}" <<< ${root_prv})
-#  println ACTION "cardano-address key child "1852H/1815H/${acct_idx}H/4/${key_idx}" <<< <root private key>"
-#  cc_cold_xprv=$(cardano-address key child "1852H/1815H/${acct_idx}H/4/${key_idx}" <<< ${root_prv})
-#  println ACTION "cardano-address key child "1852H/1815H/${acct_idx}H/5/${key_idx}" <<< <root private key>"
-#  cc_hot_xprv=$(cardano-address key child "1852H/1815H/${acct_idx}H/5/${key_idx}" <<< ${root_prv})
+  println ACTION "cardano-address key child "1852H/1815H/${acct_idx}H/3/${key_idx}" <<< <root private key>"
+  drep_xprv=$(cardano-address key child "1852H/1815H/${acct_idx}H/3/${key_idx}" <<< ${root_prv})
+  println ACTION "cardano-address key child "1852H/1815H/${acct_idx}H/4/${key_idx}" <<< <root private key>"
+  cc_cold_xprv=$(cardano-address key child "1852H/1815H/${acct_idx}H/4/${key_idx}" <<< ${root_prv})
+  println ACTION "cardano-address key child "1852H/1815H/${acct_idx}H/5/${key_idx}" <<< <root private key>"
+  cc_hot_xprv=$(cardano-address key child "1852H/1815H/${acct_idx}H/5/${key_idx}" <<< ${root_prv})
   println ACTION "cardano-address key child "1854H/1815H/${acct_idx}H/0/${key_idx}" <<< <root private key>"
   ms_payment_xprv=$(cardano-address key child "1854H/1815H/${acct_idx}H/0/${key_idx}" <<< ${root_prv})
   println ACTION "cardano-address key child "1854H/1815H/${acct_idx}H/2/${key_idx}" <<< <root private key>"
   ms_stake_xprv=$(cardano-address key child "1854H/1815H/${acct_idx}H/2/${key_idx}" <<< ${root_prv})
-#  println ACTION "cardano-address key child "1854H/1815H/${acct_idx}H/3/${key_idx}" <<< <root private key>"
-#  ms_drep_xprv=$(cardano-address key child "1854H/1815H/${acct_idx}H/3/${key_idx}" <<< ${root_prv})
+  println ACTION "cardano-address key child "1854H/1815H/${acct_idx}H/3/${key_idx}" <<< <root private key>"
+  ms_drep_xprv=$(cardano-address key child "1854H/1815H/${acct_idx}H/3/${key_idx}" <<< ${root_prv})
   println ACTION "cardano-address key public ${caddr_arg} <<< <payment xprv>"
   payment_xpub=$(cardano-address key public ${caddr_arg} <<< ${payment_xprv})
   println ACTION "cardano-address key public ${caddr_arg} <<< <stake xprv>"
   stake_xpub=$(cardano-address key public ${caddr_arg} <<< ${stake_xprv})
-#  println ACTION "cardano-address key public ${caddr_arg} <<< <drep xprv>"
-#  drep_xpub=$(cardano-address key public ${caddr_arg} <<< ${drep_xprv})
-#  println ACTION "cardano-address key public ${caddr_arg} <<< <cc_cold xprv>"
-#  cc_cold_xpub=$(cardano-address key public ${caddr_arg} <<< ${cc_cold_xprv})
-#  println ACTION "cardano-address key public ${caddr_arg} <<< <cc_hot xprv>"
-#  cc_hot_xpub=$(cardano-address key public ${caddr_arg} <<< ${cc_hot_xprv})
+  println ACTION "cardano-address key public ${caddr_arg} <<< <drep xprv>"
+  drep_xpub=$(cardano-address key public ${caddr_arg} <<< ${drep_xprv})
+  println ACTION "cardano-address key public ${caddr_arg} <<< <cc_cold xprv>"
+  cc_cold_xpub=$(cardano-address key public ${caddr_arg} <<< ${cc_cold_xprv})
+  println ACTION "cardano-address key public ${caddr_arg} <<< <cc_hot xprv>"
+  cc_hot_xpub=$(cardano-address key public ${caddr_arg} <<< ${cc_hot_xprv})
   println ACTION "cardano-address key public ${caddr_arg} <<< <payment xprv>"
   ms_payment_xpub=$(cardano-address key public ${caddr_arg} <<< ${ms_payment_xprv})
   println ACTION "cardano-address key public ${caddr_arg} <<< <stake xprv>"
   ms_stake_xpub=$(cardano-address key public ${caddr_arg} <<< ${ms_stake_xprv})
-#  println ACTION "cardano-address key public ${caddr_arg} <<< <drep xprv>"
-#  ms_drep_xpub=$(cardano-address key public ${caddr_arg} <<< ${ms_drep_xprv})
+  println ACTION "cardano-address key public ${caddr_arg} <<< <drep xprv>"
+  ms_drep_xpub=$(cardano-address key public ${caddr_arg} <<< ${ms_drep_xprv})
   [[ "${NWMAGIC}" == "764824073" ]] && network_tag=1 || network_tag=0
   println ACTION "cardano-address address delegation ${stake_xpub} <<< $(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})"
   base_addr_candidate=$(cardano-address address delegation ${stake_xpub} <<< "$(cardano-address address payment --network-tag ${network_tag} <<< ${payment_xpub})")
@@ -1839,18 +1839,18 @@ createMnemonicWallet() {
   pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
   println ACTION "\$(bech32 <<< \${stake_xprv} | cut -b -128)\$(bech32 <<< ${stake_xpub})"
   ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
-#  println ACTION "\$(bech32 <<< \${drep_xprv} | cut -b -128)\$(bech32 <<< ${drep_xpub})"
-#  drep_es_key=$(bech32 <<< ${drep_xprv} | cut -b -128)$(bech32 <<< ${drep_xpub})
-#  println ACTION "\$(bech32 <<< \${cc_cold_xprv} | cut -b -128)\$(bech32 <<< ${cc_cold_xpub})"
-#  cc_cold_es_key=$(bech32 <<< ${cc_cold_xprv} | cut -b -128)$(bech32 <<< ${cc_cold_xpub})
-#  println ACTION "\$(bech32 <<< \${cc_hot_xprv} | cut -b -128)\$(bech32 <<< ${cc_hot_xpub})"
-#  cc_hot_es_key=$(bech32 <<< ${cc_hot_xprv} | cut -b -128)$(bech32 <<< ${cc_hot_xpub})
+  println ACTION "\$(bech32 <<< \${drep_xprv} | cut -b -128)\$(bech32 <<< ${drep_xpub})"
+  drep_es_key=$(bech32 <<< ${drep_xprv} | cut -b -128)$(bech32 <<< ${drep_xpub})
+  println ACTION "\$(bech32 <<< \${cc_cold_xprv} | cut -b -128)\$(bech32 <<< ${cc_cold_xpub})"
+  cc_cold_es_key=$(bech32 <<< ${cc_cold_xprv} | cut -b -128)$(bech32 <<< ${cc_cold_xpub})
+  println ACTION "\$(bech32 <<< \${cc_hot_xprv} | cut -b -128)\$(bech32 <<< ${cc_hot_xpub})"
+  cc_hot_es_key=$(bech32 <<< ${cc_hot_xprv} | cut -b -128)$(bech32 <<< ${cc_hot_xpub})
   println ACTION "\$(bech32 <<< \${ms_payment_xprv} | cut -b -128)\$(bech32 <<< ${ms_payment_xpub})"
   ms_pes_key=$(bech32 <<< ${ms_payment_xprv} | cut -b -128)$(bech32 <<< ${ms_payment_xpub})
   println ACTION "\$(bech32 <<< \${ms_stake_xprv} | cut -b -128)\$(bech32 <<< ${ms_stake_xpub})"
   ms_ses_key=$(bech32 <<< ${ms_stake_xprv} | cut -b -128)$(bech32 <<< ${ms_stake_xpub})
-#  println ACTION "\$(bech32 <<< \${ms_drep_xprv} | cut -b -128)\$(bech32 <<< ${ms_drep_xpub})"
-#  ms_drep_es_key=$(bech32 <<< ${ms_drep_xprv} | cut -b -128)$(bech32 <<< ${ms_drep_xpub})
+  println ACTION "\$(bech32 <<< \${ms_drep_xprv} | cut -b -128)\$(bech32 <<< ${ms_drep_xpub})"
+  ms_drep_es_key=$(bech32 <<< ${ms_drep_xprv} | cut -b -128)$(bech32 <<< ${ms_drep_xpub})
   cat <<-EOF > "${payment_sk_file}"
 		{
 				"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
@@ -1865,27 +1865,27 @@ createMnemonicWallet() {
 				"cborHex": "5880${ses_key}"
 		}
 		EOF
-#	cat <<-EOF > "${drep_sk_file}"
-#		{
-#				"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
-#				"description": "Delegate Representative Signing Key",
-#				"cborHex": "5880${drep_es_key}"
-#		}
-#		EOF
-#	cat <<-EOF > "${cc_cold_sk_file}"
-#		{
-#				"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
-#				"description": "Constitutional Committee Cold Signing Key",
-#				"cborHex": "5880${cc_cold_es_key}"
-#		}
-#		EOF
-#	cat <<-EOF > "${cc_hot_sk_file}"
-#		{
-#				"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
-#				"description": "Constitutional Committee Hot Signing Key",
-#				"cborHex": "5880${cc_hot_es_key}"
-#		}
-#		EOF
+	cat <<-EOF > "${drep_sk_file}"
+		{
+				"type": "DRepExtendedSigningKey_ed25519_bip32",
+				"description": "Delegate Representative Signing Key",
+				"cborHex": "5880${drep_es_key}"
+		}
+		EOF
+	cat <<-EOF > "${cc_cold_sk_file}"
+		{
+				"type": "ConstitutionalCommitteeColdExtendedSigningKey_ed25519_bip32",
+				"description": "Constitutional Committee Cold Signing Key",
+				"cborHex": "5880${cc_cold_es_key}"
+		}
+		EOF
+	cat <<-EOF > "${cc_hot_sk_file}"
+		{
+				"type": "ConstitutionalCommitteeHotExtendedSigningKey_ed25519_bip32",
+				"description": "Constitutional Committee Hot Signing Key",
+				"cborHex": "5880${cc_hot_es_key}"
+		}
+		EOF
 	cat <<-EOF > "${ms_payment_sk_file}"
 		{
 				"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
@@ -1900,45 +1900,45 @@ createMnemonicWallet() {
 				"cborHex": "5880${ses_key}"
 		}
 		EOF
-# 	cat <<-EOF > "${ms_drep_sk_file}"
-#		{
-#				"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
-#				"description": "MultiSig Delegate Representative Signing Key",
-#				"cborHex": "5880${drep_es_key}"
-#		}
-#		EOF
+ 	cat <<-EOF > "${ms_drep_sk_file}"
+		{
+				"type": "DRepExtendedSigningKey_ed25519_bip32",
+				"description": "MultiSig Delegate Representative Signing Key",
+				"cborHex": "5880${drep_es_key}"
+		}
+		EOF
   println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_DIR}/payment.evkey"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_DIR}/payment.evkey" 2>&1); then
-    println ERROR "\n${FG_RED}ERROR${NC}: failure during payment signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during payment extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
   println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_DIR}/stake.evkey"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_DIR}/stake.evkey" 2>&1); then
-    println ERROR "\n${FG_RED}ERROR${NC}: failure during stake signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during stake extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-#  println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${drep_sk_file} --verification-key-file ${TMP_DIR}/gov-drep.evkey"
-#  if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${drep_sk_file}" --verification-key-file "${TMP_DIR}/gov-drep.evkey" 2>&1); then
-#    println ERROR "\n${FG_RED}ERROR${NC}: failure during drep signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
-#  fi
-#  println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${cc_cold_sk_file} --verification-key-file ${TMP_DIR}/gov-cc-cold.evkey"
-#  if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${cc_cold_sk_file}" --verification-key-file "${TMP_DIR}/gov-cc-cold.evkey" 2>&1); then
-#    println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-cold signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
-#  fi
-#  println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${cc_hot_sk_file} --verification-key-file ${TMP_DIR}/gov-cc-hot.evkey"
-#  if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${cc_hot_sk_file}" --verification-key-file "${TMP_DIR}/gov-cc-hot.evkey" 2>&1); then
-#    println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-hot signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
-#  fi
+  println ACTION "${CCLI} conway key verification-key --signing-key-file ${drep_sk_file} --verification-key-file ${TMP_DIR}/drep.evkey"
+  if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${drep_sk_file}" --verification-key-file "${TMP_DIR}/drep.evkey" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
+  println ACTION "${CCLI} conway key verification-key --signing-key-file ${cc_cold_sk_file} --verification-key-file ${TMP_DIR}/cc-cold.evkey"
+  if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${cc_cold_sk_file}" --verification-key-file "${TMP_DIR}/cc-cold.evkey" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-cold extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
+  println ACTION "${CCLI} conway key verification-key --signing-key-file ${cc_hot_sk_file} --verification-key-file ${TMP_DIR}/cc-hot.evkey"
+  if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${cc_hot_sk_file}" --verification-key-file "${TMP_DIR}/cc-hot.evkey" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-hot extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
   println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${ms_payment_sk_file} --verification-key-file ${TMP_DIR}/ms_payment.evkey"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${ms_payment_sk_file}" --verification-key-file "${TMP_DIR}/ms_payment.evkey" 2>&1); then
-    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
   println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${ms_stake_sk_file} --verification-key-file ${TMP_DIR}/ms_stake.evkey"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${ms_stake_sk_file}" --verification-key-file "${TMP_DIR}/ms_stake.evkey" 2>&1); then
-    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-#  println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${ms_drep_sk_file} --verification-key-file ${TMP_DIR}/ms_gov-drep.evkey"
-#  if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${ms_drep_sk_file}" --verification-key-file "${TMP_DIR}/ms_gov-drep.evkey" 2>&1); then
-#    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig drep signing key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
-#  fi
+  println ACTION "${CCLI} conway key verification-key --signing-key-file ${ms_drep_sk_file} --verification-key-file ${TMP_DIR}/ms_drep.evkey"
+  if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${ms_drep_sk_file}" --verification-key-file "${TMP_DIR}/ms_drep.evkey" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
   println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
@@ -1947,18 +1947,18 @@ createMnemonicWallet() {
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-#  println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/gov-drep.evkey --verification-key-file ${drep_vk_file}"
-#  if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/gov-drep.evkey" --verification-key-file "${drep_vk_file}" 2>&1); then
-#    println ERROR "\n${FG_RED}ERROR${NC}: failure during drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
-#  fi
-#  println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/gov-cc-cold.evkey --verification-key-file ${cc_cold_vk_file}"
-#  if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/gov-cc-cold.evkey" --verification-key-file "${cc_cold_vk_file}" 2>&1); then
-#    println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-cold verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
-#  fi
-#  println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/gov-cc-hot.evkey --verification-key-file ${cc_hot_vk_file}"
-#  if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/gov-cc-hot.evkey" --verification-key-file "${cc_hot_vk_file}" 2>&1); then
-#    println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-hot verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
-#  fi
+  println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/drep.evkey --verification-key-file ${drep_vk_file}"
+  if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/drep.evkey" --verification-key-file "${drep_vk_file}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
+  println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-cold.evkey --verification-key-file ${cc_cold_vk_file}"
+  if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-cold.evkey" --verification-key-file "${cc_cold_vk_file}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-cold verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
+  println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-hot.evkey --verification-key-file ${cc_hot_vk_file}"
+  if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-hot.evkey" --verification-key-file "${cc_hot_vk_file}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-hot verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
   println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_payment.evkey --verification-key-file ${ms_payment_vk_file}"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_payment.evkey" --verification-key-file "${ms_payment_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
@@ -1967,10 +1967,10 @@ createMnemonicWallet() {
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_stake.evkey" --verification-key-file "${ms_stake_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-#  println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_gov-drep.evkey --verification-key-file ${ms_drep_vk_file}"
-#  if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_gov-drep.evkey" --verification-key-file "${ms_drep_vk_file}" 2>&1); then
-#    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
-#  fi
+  println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_drep.evkey --verification-key-file ${ms_drep_vk_file}"
+  if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_drep.evkey" --verification-key-file "${ms_drep_vk_file}" 2>&1); then
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+  fi
   chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
   getBaseAddress ${wallet_name}
   getPayAddress ${wallet_name}
@@ -1987,7 +1987,7 @@ createMnemonicWallet() {
 }
 
 printWalletInfo() {
-  println DEBUG "You can now send and receive ADA using the above addresses. Note that Enterprise Address will not take part in staking"
+  println DEBUG "You can now send and receive ADA using the above addresses. Note that Payment Address will not take part in staking"
   println DEBUG "Wallet will be automatically registered on chain if you choose to delegate or pledge wallet when registering a stake pool"
   echo
   println DEBUG "${FG_FG_LBLUE}INFO!${NC} Using a mnemonic or hardware wallet in CNTools comes with a few limitations"
