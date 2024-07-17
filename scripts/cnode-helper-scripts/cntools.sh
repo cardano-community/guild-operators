@@ -4098,7 +4098,7 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> INFO & STATUS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    if versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     println DEBUG "# Select wallet (derive governance keys if missing)"
@@ -4150,7 +4150,7 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> DELEGATE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    if versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     # TODO: implement
@@ -4172,7 +4172,7 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> DREP REGISTRATION / UPDATE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    if versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     # TODO: implement
@@ -4238,7 +4238,7 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> DREP RETIRE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    if versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     # TODO: implement
