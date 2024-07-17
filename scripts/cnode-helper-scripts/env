@@ -80,6 +80,7 @@
 #WALLET_GOV_CC_COLD_SK_FILENAME="cc-cold.skey"
 #WALLET_GOV_HW_CC_COLD_SK_FILENAME="cc-cold.hwsfile"
 #WALLET_GOV_CC_HASH_FILENAME="cc.hash"
+#WALLET_DERIVATION_PATH_FILENAME="derivation.path"
 
 #WALLET_MULTISIG_PREFIX="ms_"                           # Filename for multisig files, uses separate keys derived using the 1854H paths
 
@@ -906,6 +907,7 @@ set_default_vars() {
   [[ -z ${WALLET_GOV_CC_COLD_SK_FILENAME} ]] && WALLET_GOV_CC_COLD_SK_FILENAME="cc-cold.skey"
   [[ -z ${WALLET_GOV_HW_CC_COLD_SK_FILENAME} ]] && WALLET_GOV_HW_CC_COLD_SK_FILENAME="cc-cold.hwsfile"
   [[ -z ${WALLET_GOV_CC_HASH_FILENAME} ]] && WALLET_GOV_CC_HASH_FILENAME="cc.hash"
+  [[ -z ${WALLET_DERIVATION_PATH_FILENAME} ]] && WALLET_DERIVATION_PATH_FILENAME="derivation.path"
   [[ -z ${WALLET_MULTISIG_PREFIX} ]] && WALLET_MULTISIG_PREFIX="ms_"
   [[ -z ${POOL_ID_FILENAME} ]] && POOL_ID_FILENAME="pool.id"
   [[ -z ${POOL_HOTKEY_VK_FILENAME} ]] && POOL_HOTKEY_VK_FILENAME="hot.vkey"

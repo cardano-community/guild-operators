@@ -1720,6 +1720,19 @@ getCustomDerivationPath() {
   return 0
 }
 
+# Command     : getSavedDerivationPath [derivation_path_file]
+# Description : parse saved derivation path file for acct_idx and key_idx
+# Return      : populates: ${derivation_path} ${acct_idx} ${key_idx}
+getSavedDerivationPath() {
+  unset derivation_path acct_idx key_idx
+  [[ ! -f $1 ]] && return 1
+  derivation_path=$(cat "$1")
+  IFS='/' read -ra array <<< "${derivation_path}"
+  acct_idx="${array[2]//H}"
+  key_idx="${array[4]}"
+  return 0
+}
+
 # Command     : createNewWallet
 # Description : creates a new empty wallet folder
 createNewWallet() {
@@ -1753,6 +1766,7 @@ createMnemonicWallet() {
     println ERROR "Please run updated guild-deploy.sh and re-build/re-download cardano-node"
     waitToProceed && return 1
   fi
+  derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
   payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
   payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
   stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
@@ -1783,6 +1797,7 @@ createMnemonicWallet() {
     waitToProceed && return 1
   fi
   getCustomDerivationPath || return 1
+  echo "1852H/1815H/${acct_idx}H/x/${key_idx}" > "${derivation_path_file}"
   caddr_v="$(cardano-address -v | awk '{print $1}')"
   [[ "${caddr_v}" == 3* ]] && caddr_arg="--with-chain-code" || caddr_arg=""
   println ACTION "cardano-address key from-recovery-phrase Shelley <<< <mnemonic words>"

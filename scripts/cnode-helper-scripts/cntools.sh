@@ -556,6 +556,8 @@ function main {
                     if ! HWCLIversionCheck; then waitToProceed && continue; fi
                     createNewWallet || continue
                     getCustomDerivationPath || continue
+                    derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
+                    echo "1852H/1815H/${acct_idx}H/x/${key_idx}" > "${derivation_path_file}"
                     payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_PAY_SK_FILENAME}"
                     payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
                     stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
@@ -1032,6 +1034,11 @@ function main {
                 5) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Multisig")" ;;
               esac
 
+              derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
+              if getSavedDerivationPath "${derivation_path_file}"; then
+                println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Derivation Path" "${derivation_path}")"
+              fi
+
               if [[ -f ${payment_script_file} ]]; then
                 unset timelock_after atleast total_signers script_sig_list
                 while read -r _slot; do
@@ -1073,7 +1080,7 @@ function main {
               [[ -n ${reward_addr} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
               getCredentials ${wallet_name}
               if [[ -n ${pay_cred} || -n ${stake_cred} || -n ${ms_pay_cred} || -n ${ms_stake_cred} ]]; then
-                println "$(printf "%-20s ${FG_DGRAY}${NC}" "# Credentials")"
+                println "${FG_DGRAY}# Credentials${NC}"
               fi
               [[ -n ${pay_cred} ]]          && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment" "${pay_cred}")"
               [[ -n ${stake_cred} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Stake" "${stake_cred}")"
@@ -1083,6 +1090,7 @@ function main {
               [[ -n ${script_stake_cred} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Stake" "${script_stake_cred}")"
 
               if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
+                println "${FG_DGRAY}# Funds${NC}"
                 if [[ -n ${reward_addr} ]]; then
                   if [[ -n ${KOIOS_API} ]]; then
                     [[ -v rewards_available[${reward_addr}] ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
@@ -4169,7 +4177,6 @@ function main {
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
-                    getCustomDerivationPath || continue
                     getWalletType ${wallet_name}
                     case $? in
                       0) # Hardware wallet
@@ -4188,7 +4195,12 @@ function main {
                         ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_HW_DREP_SK_FILENAME}"
                         ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
                         if [[ -f ${drep_sk_file} || -f ${cc_cold_sk_file} || -f ${cc_hot_sk_file} || -f ${ms_drep_sk_file} ]]; then
-                          println ERROR "\n${FG_RED}ERROR${NC}: some governance signing keys already exist! Please backup and remove if needed\n${stdout}"; waitToProceed && continue
+                          println ERROR "\n${FG_RED}ERROR${NC}: some governance signing keys already exist!\n${stdout}"; waitToProceed && continue
+                        fi
+                        derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
+                        if ! getSavedDerivationPath "${derivation_path_file}"; then
+                          getCustomDerivationPath || continue
+                          echo "1852H/1815H/${acct_idx}H/x/${key_idx}" > "${derivation_path_file}"
                         fi
                         if ! unlockHWDevice "extract ${FG_LGRAY}governance keys${NC}"; then waitToProceed && continue; fi
                         HW_CLI_CMD=(
@@ -4225,7 +4237,7 @@ function main {
                         ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
                         ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_SK_FILENAME}"
                         if [[ -f ${drep_sk_file} || -f ${cc_cold_sk_file} || -f ${cc_hot_sk_file} || -f ${ms_drep_sk_file} ]]; then
-                          println ERROR "\n${FG_RED}ERROR${NC}: some governance signing keys already exist! Please backup and remove if needed\n${stdout}"; waitToProceed && continue
+                          println ERROR "\n${FG_RED}ERROR${NC}: some governance signing keys already exist!\n${stdout}"; waitToProceed && continue
                         fi
                         println DEBUG "Is selected wallet a CLI generated wallet or derived from mnemonic?"
                         select_opt "[c] CLI" "[m] Mnemonic"
@@ -4260,6 +4272,11 @@ function main {
                               println ERROR "${FG_RED}ERROR${NC}: 24 or 15 words expected, found ${FG_RED}${#words[@]}${NC}"
                               unset mnemonic; unset words
                               waitToProceed && continue
+                            fi
+                            derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
+                            if ! getSavedDerivationPath "${derivation_path_file}"; then
+                              getCustomDerivationPath || continue
+                              echo "1852H/1815H/${acct_idx}H/x/${key_idx}" > "${derivation_path_file}"
                             fi
                             caddr_v="$(cardano-address -v | awk '{print $1}')"
                             [[ "${caddr_v}" == 3* ]] && caddr_arg="--with-chain-code" || caddr_arg=""
@@ -5807,7 +5824,6 @@ function main {
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
-                    getCustomDerivationPath || continue
                     getWalletType ${wallet_name}
                     case $? in
                       0) # Hardware wallet
@@ -5822,7 +5838,12 @@ function main {
                         ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_SK_FILENAME}"
                         ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
                         if [[ -f ${ms_payment_sk_file} || -f ${ms_stake_sk_file} ]]; then
-                          println ERROR "\n${FG_RED}ERROR${NC}: multisig payment and/or stake signing keys already exist! Please backup and remove if needed\n${stdout}"; waitToProceed && continue
+                          println ERROR "\n${FG_RED}ERROR${NC}: multisig payment and/or stake signing keys already exist!\n${stdout}"; waitToProceed && continue
+                        fi
+                        derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
+                        if ! getSavedDerivationPath "${derivation_path_file}"; then
+                          getCustomDerivationPath || continue
+                          echo "1852H/1815H/${acct_idx}H/x/${key_idx}" > "${derivation_path_file}"
                         fi
                         if ! unlockHWDevice "extract ${FG_LGRAY}multisig keys${NC}"; then waitToProceed && continue; fi
                         HW_DERIVATION_CMD=(
@@ -5847,7 +5868,7 @@ function main {
                         ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
                         ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
                         if [[ -f ${ms_payment_sk_file} || -f ${ms_stake_sk_file} ]]; then
-                          println ERROR "\n${FG_RED}ERROR${NC}: multisig payment and/or stake signing keys already exist! Please backup and remove if needed\n${stdout}"; waitToProceed && continue
+                          println ERROR "\n${FG_RED}ERROR${NC}: multisig payment and/or stake signing keys already exist!\n${stdout}"; waitToProceed && continue
                         fi
                         println DEBUG "Is selected wallet a CLI generated wallet or derived from mnemonic?"
                         select_opt "[c] CLI" "[m] Mnemonic"
@@ -5874,6 +5895,11 @@ function main {
                               println ERROR "${FG_RED}ERROR${NC}: 24 or 15 words expected, found ${FG_RED}${#words[@]}${NC}"
                               unset mnemonic; unset words
                               waitToProceed && continue
+                            fi
+                            derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
+                            if ! getSavedDerivationPath "${derivation_path_file}"; then
+                              getCustomDerivationPath || continue
+                              echo "1852H/1815H/${acct_idx}H/x/${key_idx}" > "${derivation_path_file}"
                             fi
                             caddr_v="$(cardano-address -v | awk '{print $1}')"
                             [[ "${caddr_v}" == 3* ]] && caddr_arg="--with-chain-code" || caddr_arg=""
