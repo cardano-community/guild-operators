@@ -193,7 +193,6 @@ checkUpdate() {
     fi
   fi
   [[ -n $5 ]] && URL="${URL_RAW}/scripts/$5" || URL="${URL_RAW}/scripts/cnode-helper-scripts"
-  URL_DOCS="${URL_RAW}/docs/Scripts"
   if curl -s -f -m ${CURL_TIMEOUT} -o "${dname}/${fname}".tmp "${URL}/${fname}" 2>/dev/null; then
 
     # make sure script exist, else just rename
@@ -846,6 +845,7 @@ set_default_vars() {
   [[ -z ${G_ACCOUNT} ]] && G_ACCOUNT="cardano-community"
 
   URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
+  URL_DOCS="${URL_RAW}/docs/Scripts"
   export LC_ALL=C.UTF-8
   # special mapping of coreutils gdate to date for MacOS
   if [[ $(uname) == Darwin ]]; then
