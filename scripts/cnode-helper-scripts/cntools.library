@@ -1058,6 +1058,40 @@ getGovKeyInfo() {
   fi
 }
 
+# Command     : getGovKeyInfo [drepId]
+# Description : query status of drep id
+# Return      : populates ${drep_anchor_url} ${drep_anchor_hash} ${drep_deposit} ${drep_expiry} ${vote_power} ${vote_power_total} ${vote_power_pct}
+getDRepStatus() {
+  unset drep_anchor_url drep_anchor_hash drep_deposit drep_expiry vote_power vote_power_total vote_power_pct
+  [[ -z $1 ]] && return 1
+  drep_hash=$(bech32 <<< "$1")
+  println ACTION "${CCLI} conway query drep-state --drep-key-hash ${drep_hash} ${NETWORK_IDENTIFIER} | jq -r .[0][1]"
+  drep_state=$(${CCLI} conway query drep-state --drep-key-hash ${drep_hash} ${NETWORK_IDENTIFIER} | jq -r .[0][1])
+  [[ ${drep_state} = null ]] && return 1
+  IFS=',' read -r drep_anchor_url drep_anchor_hash drep_deposit drep_expiry < <( jq -cr '"\(.anchor.url//""),\(.anchor.dataHash//""),\(.deposit),\(.expiry)"' <<< "${drep_state}" )
+  println ACTION "${CCLI} conway query drep-stake-distribution --drep-key-hash ${drep_hash} ${NETWORK_IDENTIFIER} | jq -r '.[0][1]//0"
+  vote_power=$(${CCLI} conway query drep-stake-distribution --drep-key-hash ${drep_hash} ${NETWORK_IDENTIFIER} | jq -r '.[0][1]//0')
+  println ACTION "${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER} | jq -r '[.[][1]] | add'"
+  vote_power_total=$(${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER} | jq -r '[.[][1]] | add')
+  vote_power_pct=$(fractionToPCT "$(bc -l <<< "${vote_power}/${vote_power_total}")")
+  return 0
+}
+
+# Command     : getWalletVoteDelegation [wallet name] [force]
+# Description : check vote delegation status
+# Parameters  : wallet name  >  the name of the wallet
+# Return      : populates ${vote_delegation}
+getWalletVoteDelegation() {
+  unset vote_delegation
+  if isWalletRegistered $1; then
+    if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
+      vote_delegation=$(jq -r '.[0].voteDelegation//empty' <<< ${stake_address_info})
+      [[ -n ${vote_delegation} ]] && return 0
+    fi
+  fi
+  return 1
+}
+
 # Command     : getBaseAddress [wallet name] | [payment.vkey] [stake.vkey]
 # Description : create, store and save base address
 # Parameters  : wallet name  >  the name of the wallet
