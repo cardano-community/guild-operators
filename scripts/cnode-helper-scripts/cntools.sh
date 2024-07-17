@@ -4098,6 +4098,9 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> INFO & STATUS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
+                    if versionCheck "10.0" "${PROT_VERSION}"; then
+                      println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
+                    fi
                     println DEBUG "# Select wallet (derive governance keys if missing)"
                     selectWallet "none" "${WALLET_GOV_DREP_VK_FILENAME}" "${WALLET_GOV_CC_COLD_VK_FILENAME}"
                     case $? in
