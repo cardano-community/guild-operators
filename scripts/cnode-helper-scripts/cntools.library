@@ -203,8 +203,7 @@ generateCatalystBech32() {
 safeDel() {
   path=$1
   [[ ${ENABLE_CHATTR} = true && -f "${path}" && $(lsattr -R "${path}") =~ -i- ]] && sudo chattr -i "${path}"
-  command -v "srm" &>/dev/null && delcommand='srm' || delcommand='rm'
-  if "${delcommand}" -rf "${path}"; then
+  if rm -rf "${path}"; then
     println "Deleted: ${path}"
   else
     println ERROR "${FG_RED}ERROR${NC}: delete failed for ${path}"
