@@ -4115,15 +4115,21 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> DELEGATE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
+                    if versionCheck "10.0" "${PROT_VERSION}"; then
+                      println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
+                    fi
+                    # TODO: implement
+                    println DEBUG "Coming soon!"
+                    #  - select wallet
+                    #  - choose local drep reg wallet, external drep id (key or script?), always-abstain or always-no-confidence
+                    #  - create delegation cert
+                    #  - submit tx
                     println DEBUG "# Select wallet"
                     selectWallet "balance" "${WALLET_STAKE_VK_FILENAME}"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
-                    # TODO: implement
-                    println DEBUG "Coming soon!"
-                    waitToProceed && continue
                     ;; ###################################################################
                   drep-reg)
                     clear
@@ -4131,6 +4137,16 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> DREP REGISTRATION"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
+                    if versionCheck "10.0" "${PROT_VERSION}"; then
+                      println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
+                    fi
+                    # TODO: implement
+                    println DEBUG "Coming soon!"
+                    #  - select wallet
+                    #  - check if already registered?
+                    #  - create reg cert
+                    #  - submit tx
+                    waitToProceed && continue
                     println DEBUG "# Select wallet (derive governance keys if missing)"
                     selectWallet "balance" "${WALLET_GOV_DREP_VK_FILENAME}" "${WALLET_GOV_DREP_SK_FILENAME}"
                     case $? in
@@ -4138,7 +4154,7 @@ function main {
                       2) continue ;;
                     esac
                     drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
-                    drep_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_ID_FILENAME}"
+                    drep_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_REGISTER_CERT_FILENAME}"
                     DREP_REG_CMD=(
                       ${CCLI} conway governance drep registration-certificate
                       --drep-verification-key-file "${drep_vk_file}"
@@ -4149,7 +4165,6 @@ function main {
                     if ! stdout=$("${DREP_REG_CMD[@]}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep certificate creation!\n${stdout}"; waitToProceed && continue
                     fi
-                    # TODO: create drep reg tx
                     waitToProceed && continue
                     ;; ###################################################################
                   vote)
@@ -4158,6 +4173,9 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> CAST VOTE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
+                    if versionCheck "10.0" "${PROT_VERSION}"; then
+                      println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
+                    fi
                     # TODO: implement
                     println DEBUG "Coming soon!"
                     #  - select mode SPO, DRep, Committee member
