@@ -18,6 +18,7 @@ CNTOOLS_MINOR_VERSION=1
 CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
+DUMMYFEE=20000
 
 ############################################################
 # Default config values                                    #
@@ -2089,7 +2090,7 @@ registerStakeWallet() {
     "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     --certificate-file "${stake_cert_file}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
@@ -2215,7 +2216,7 @@ deregisterStakeWallet() {
     "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     --certificate-file "${stake_dereg_file}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
@@ -2342,7 +2343,7 @@ sendAssets() {
     ${tx_in}
     "${script_args[@]}"
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     ${metafile_param}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
@@ -2494,7 +2495,7 @@ delegate() {
     "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     --certificate-file "${pool_delegcert_file}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
@@ -2613,7 +2614,7 @@ withdrawRewards() {
     --tx-out "${base_addr}+0${assets_tx_out}"
     --withdrawal ${reward_addr}+${reward_lovelace}
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
@@ -2737,7 +2738,7 @@ registerPool() {
     "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     --certificate-file "${pool_regcert_file}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
@@ -2889,7 +2890,7 @@ modifyPool() {
     "${script_args[@]}"
     --tx-out "${base_addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     --certificate-file "${pool_regcert_file}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
@@ -3037,7 +3038,7 @@ deRegisterPool() {
     "${script_args[@]}"
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     --certificate-file "${pool_deregcert_file}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
@@ -3273,7 +3274,7 @@ sendMetadata() {
     "${script_args[@]}"
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     ${metafile_param}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
@@ -3397,7 +3398,7 @@ mintAsset() {
     --mint-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
@@ -3529,7 +3530,7 @@ burnAsset() {
     --mint-script-file "${policy_script_file}"
     ${metafile_param}
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
@@ -3633,7 +3634,6 @@ calcMinFee() {
     --tx-body-file "$1"
     --tx-in-count $2
     --tx-out-count $3
-    ${NETWORK_IDENTIFIER}
     --witness-count $4
     --byron-witness-count 0
     --protocol-params-file "${TMP_DIR}"/protparams.json
@@ -4043,7 +4043,7 @@ submitPoll() {
     "${script_args[@]}"
     --tx-out "${addr}+0${assets_tx_out}"
     --invalid-hereafter ${ttl}
-    --fee 0
+    --fee ${DUMMYFEE}
     ${metafile_param}
     --required-signer-hash "${POOL_ID_HASH}"
     --out-file "${TMP_DIR}"/tx0.tmp
