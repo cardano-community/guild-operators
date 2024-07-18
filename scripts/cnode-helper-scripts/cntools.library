@@ -1080,10 +1080,8 @@ getDRepStatus() {
 # Parameters  : wallet name  >  the name of the wallet
 # Return      : populates ${vote_delegation}
 getWalletVoteDelegation() {
-  unset vote_delegation
   if isWalletRegistered $1; then
     if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-      vote_delegation=$(jq -r '.[0].voteDelegation//empty' <<< ${stake_address_info})
       [[ -n ${vote_delegation} ]] && return 0
     fi
   fi
@@ -1531,10 +1529,7 @@ getWalletRewards() {
   if isWalletRegistered $1; then
     reward_lovelace=0
     if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-      for reward_entry in $(jq -r '.[] | @base64' <<< "${stake_address_info}"); do
-        _jq() { base64 -d <<< ${reward_entry} | jq -r "${1}"; }
-        reward_lovelace=$(( reward_lovelace + $(_jq '.rewardAccountBalance //0') ))
-      done
+      : # do nothing, variables populated through isWalletRegistered
     else
       reward_lovelace=${rewards_available[${reward_addr}]:-0}
     fi
@@ -1575,13 +1570,11 @@ getRewardInfoKoios() {
 # Parameters  : stake address  >  the address from stake.vkey
 # Return      : populates ${reward_lovelace}
 getRewardsFromAddr() {
-  reward_lovelace=0
+  unset stake_address pool_delegation vote_delegation
+  reward_lovelace=0; stake_deposit=0
   println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
   ! stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}) && println "ERROR" "\n${FG_RED}NODE CLI ERROR${NC}: ${stake_address_info}\n" && return 1 # print error and return
-  for reward_entry in $(jq -r '.[] | @base64' <<< "${stake_address_info}"); do
-    _jq() { base64 -d <<< ${reward_entry} | jq -r "${1}"; }
-    reward_lovelace=$(( reward_lovelace + $(_jq '.rewardAccountBalance //0') ))
-  done
+  IFS=',' read -r stake_address reward_lovelace stake_deposit pool_delegation vote_delegation < <( jq -cr '"\(.[0].address//""),\(.[0].rewardAccountBalance//0),\(.[0].delegationDeposit//0),\(.[0].stakeDelegation//""),\(.[0].voteDelegation//"")"' <<< "${stake_address_info}" )
 }
 
 # Command     : isWalletRegistered [wallet name]
@@ -1593,9 +1586,8 @@ isWalletRegistered() {
       [[ ! -v "reward_status[${reward_addr}]" ]] && reward_addr_list=( ${reward_addr} ) && getRewardInfoKoios
       [[ ${reward_status[${reward_addr}]} = registered ]] && return 0
     else
-      println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}"
-      ! stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${reward_addr}) && println "ERROR" "\n${FG_RED}NODE CLI ERROR${NC}: ${stake_address_info}\n" && return 1 # print error and return
-      [[ -n "${stake_address_info}" && $(jq -r 'length' <<< ${stake_address_info}) -gt 0 ]] && return 0
+      getRewardsFromAddr ${reward_addr}
+      [[ -n "${stake_address}" ]] && return 0
     fi
   fi
   return 1
@@ -2101,6 +2093,11 @@ registerStakeWallet() {
     witness_cnt=1
     stake_param=("--stake-verification-key-file" "${stake_vk_file}")
   fi
+
+  if versionCheck "10.0" "${PROT_VERSION}"; then
+    stake_param+=("--key-reg-deposit-amt" ${KEY_DEPOSIT})
+  fi
+
   println ACTION "${CCLI} ${NETWORK_ERA} stake-address registration-certificate ${stake_param[*]} --out-file ${stake_cert_file}"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address registration-certificate "${stake_param[@]}" --out-file "${stake_cert_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake registration certificate creation!\n${stdout}"; return 1
@@ -2221,6 +2218,10 @@ deregisterStakeWallet() {
   else
     witness_cnt=2
     stake_param=("--stake-verification-key-file" "${stake_vk_file}")
+  fi
+
+  if versionCheck "10.0" "${PROT_VERSION}"; then
+    stake_param+=("--key-reg-deposit-amt" ${stake_deposit})
   fi
 
   stake_dereg_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_DEREG_FILENAME}"
