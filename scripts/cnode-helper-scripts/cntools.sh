@@ -869,23 +869,22 @@ function main {
                   fi
                   if [[ -n ${KOIOS_API} ]]; then
                     [[ -v rewards_available[${reward_addr}] ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
-                    delegation_pool_id=${reward_pool[${reward_addr}]}
+                    pool_delegation=${reward_pool[${reward_addr}]}
                   else
                     getWalletRewards ${wallet_name}
-                    delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
                   fi
                   if [[ ${reward_lovelace} -gt 0 ]]; then
                     getPriceString ${reward_lovelace}
                     println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
-                    if [[ -n ${delegation_pool_id} ]]; then
+                    if [[ -n ${pool_delegation} ]]; then
                       unset poolName
                       while IFS= read -r -d '' pool; do
                         getPoolID "$(basename ${pool})"
-                        if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
+                        if [[ "${pool_id_bech32}" = "${pool_delegation}" ]]; then
                           poolName=$(basename ${pool}) && break
                         fi
                       done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-                      println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${delegation_pool_id})${NC}"
+                      println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${pool_delegation})${NC}"
                     fi
                   fi
                 fi
@@ -1094,10 +1093,9 @@ function main {
                 if [[ -n ${reward_addr} ]]; then
                   if [[ -n ${KOIOS_API} ]]; then
                     [[ -v rewards_available[${reward_addr}] ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
-                    delegation_pool_id=${reward_pool[${reward_addr}]}
+                    pool_delegation=${reward_pool[${reward_addr}]}
                   else
                     getRewardsFromAddr ${reward_addr}
-                    delegation_pool_id=$(jq -r '.[0].delegation // empty' <<< "${stake_address_info}")
                   fi
                   total_lovelace=$((total_lovelace + reward_lovelace))
                   getPriceString ${reward_lovelace}
@@ -1105,16 +1103,16 @@ function main {
                 fi
                 getPriceString ${total_lovelace}
                 println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds + Rewards" "$(formatLovelace ${total_lovelace})")"
-                if [[ -n ${delegation_pool_id} ]]; then
+                if [[ -n ${pool_delegation} ]]; then
                   unset poolName
                   while IFS= read -r -d '' pool; do
                     getPoolID "$(basename ${pool})"
-                    if [[ "${pool_id_bech32}" = "${delegation_pool_id}" ]]; then
+                    if [[ "${pool_id_bech32}" = "${pool_delegation}" ]]; then
                       poolName=$(basename ${pool}) && break
                     fi
                   done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                   echo
-                  println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${delegation_pool_id})${NC}"
+                  println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${pool_delegation})${NC}"
                 fi
               fi
               if [[ -z ${pay_addr} || -z ${pay_script_addr} || -z ${base_addr} || -z ${reward_addr} ]]; then
@@ -4275,7 +4273,7 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> CAST VOTE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    if versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     # TODO: implement
