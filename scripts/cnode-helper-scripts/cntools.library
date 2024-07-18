@@ -2380,9 +2380,9 @@ sendAssets() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
   if [[ ${outCount} -eq 1 ]]; then
-    build_args+=( --tx-out "${d_addr}+0${assets_tx_out_d}" )
+    build_args+=( --tx-out "${d_addr}+${assets_to_send[lovelace]}${assets_tx_out_d}" )
   else
-    build_args+=( --tx-out "${s_addr}+0${assets_tx_out_s}" --tx-out "${d_addr}+0${assets_tx_out_d}" )
+    build_args+=( --tx-out "${s_addr}+${assets_left[lovelace]}${assets_tx_out_s}" --tx-out "${d_addr}+${assets_to_send[lovelace]}${assets_tx_out_d}" )
   fi
 
   if ! buildTx; then return 1; fi
