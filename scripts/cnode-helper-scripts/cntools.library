@@ -197,8 +197,7 @@ generateCatalystBech32() {
 }
 
 # Command     : safeDel [path]
-# Description : unlock and use secure delete (srm) if available to delete file|dir
-# Note        : srm mainly effective for traditional magnetic HDDs and non copy-on-write or journal file systems
+# Description : unlock and delete file|dir
 # Parameters  : command  >  The command to check
 safeDel() {
   path=$1
