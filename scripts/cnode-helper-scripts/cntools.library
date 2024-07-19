@@ -1056,21 +1056,33 @@ getGovKeyInfo() {
   fi
 }
 
-# Command     : getGovKeyInfo [drepId]
+# Command     : getDRepStatus [type] [hash]
 # Description : query status of drep id
-# Return      : populates ${drep_anchor_url} ${drep_anchor_hash} ${drep_deposit} ${drep_expiry} ${vote_power} ${vote_power_total} ${vote_power_pct}
+# Return      : populates ${drep_anchor_url} ${drep_anchor_hash} ${drep_deposit} ${drep_expiry}
 getDRepStatus() {
   unset drep_anchor_url drep_anchor_hash drep_deposit drep_expiry vote_power vote_power_total vote_power_pct
-  [[ -z $1 ]] && return 1
-  drep_hash=$(bech32 <<< "$1")
-  println ACTION "${CCLI} conway query drep-state --drep-key-hash ${drep_hash} ${NETWORK_IDENTIFIER} | jq -r .[0][1]"
-  drep_state=$(${CCLI} conway query drep-state --drep-key-hash ${drep_hash} ${NETWORK_IDENTIFIER} | jq -r .[0][1])
+  [[ -z $1 || -z $2 || $1 != keyHash || $1 != scriptHash ]] && return 1
+  [[ $1 = keyHash ]] && hash_type="--drep-key-hash" || hash_type="--drep-script-hash"
+  println ACTION "${CCLI} conway query drep-state ${hash_type} ${2} ${NETWORK_IDENTIFIER} | jq -r .[0][1]"
+  drep_state=$(${CCLI} conway query drep-state --drep-key-hash ${2} ${NETWORK_IDENTIFIER} | jq -r .[0][1])
   [[ ${drep_state} = null ]] && return 1
   IFS=',' read -r drep_anchor_url drep_anchor_hash drep_deposit drep_expiry < <( jq -cr '"\(.anchor.url//""),\(.anchor.dataHash//""),\(.deposit),\(.expiry)"' <<< "${drep_state}" )
-  println ACTION "${CCLI} conway query drep-stake-distribution --drep-key-hash ${drep_hash} ${NETWORK_IDENTIFIER} | jq -r '.[0][1]//0"
-  vote_power=$(${CCLI} conway query drep-stake-distribution --drep-key-hash ${drep_hash} ${NETWORK_IDENTIFIER} | jq -r '.[0][1]//0')
-  println ACTION "${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER} | jq -r '[.[][1]] | add'"
-  vote_power_total=$(${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER} | jq -r '[.[][1]] | add')
+  return 0
+}
+
+# Command     : getDRepVotePower [type] <hash>
+# Description : query status of drep id
+# Return      : populates ${drep_anchor_url} ${drep_anchor_hash} ${drep_deposit} ${drep_expiry} ${vote_power} ${vote_power_total} ${vote_power_pct}
+getDRepVotePower() {
+  unset vote_power vote_power_total vote_power_pct
+  [[ -z $1 ]] && return 1
+  println ACTION "${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
+  all_drep_vote_power=$(${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
+  vote_power_total=$(jq -r '[.[][1]] | add' <<< "${all_drep_vote_power}")
+  search_string="drep-${1}"
+  [[ -n $2 ]] && search_string+="-${2}"
+  vote_power=$(jq -r --arg v "${search_string}" 'first(.[] | select(.[0] == $v)) | .[1]' <<< "${all_drep_vote_power}")
+  [[ -z ${vote_power} ]] && return 1
   vote_power_pct=$(fractionToPCT "$(bc -l <<< "${vote_power}/${vote_power_total}")")
   return 0
 }

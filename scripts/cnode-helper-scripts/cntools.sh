@@ -4105,11 +4105,14 @@ function main {
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
+                    current_epoch=$(getEpoch)
                     echo
                     println "Wallet         : ${FG_GREEN}${wallet_name}${NC}"
                     println "DEBUG" "\nVote Delegation Status"
                     unset walletName
                     if getWalletVoteDelegation ${wallet_name}; then
+                      unset vote_delegation_hash
+                      vote_delegation_type="${vote_delegation%-*}"
                       if [[ ${vote_delegation} = *-* ]]; then
                         vote_delegation_hash="${vote_delegation#*-}"
                         vote_delegation=$(bech32 drep <<< ${vote_delegation_hash})
@@ -4121,11 +4124,13 @@ function main {
                         done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                       fi
                       println "Delegation     : ${FG_LGRAY}${vote_delegation}${NC}${walletName}"
-                      if getDRepStatus ${drep_id}; then
+                      if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
+                        [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
+                        println "DRep expiry    : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                        getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
                         println "Vote power     : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
-                        println "DRep expiry    : epoch ${FG_LBLUE}${drep_expiry}${NC}"
                       else
-                        println "Status         : ${FG_RED}unable to get DRep status, inactive DRep?${NC}"
+                        println "Status         : ${FG_RED}Unable to get DRep status, retired?${NC}"
                       fi
                     else
                       println "Delegation     : ${FG_YELLOW}undelegated${NC}"
@@ -4134,11 +4139,14 @@ function main {
                     getGovKeyInfo ${wallet_name}
                     println "DRep Id        : ${FG_LGRAY}${drep_id}${NC}"
                     println "Committee Hash : ${FG_LGRAY}${cc_hash}${NC}"
-                    if getDRepStatus ${drep_id}; then
+                    drep_hash=$(bech32 <<< "${drep_id}")
+                    if getDRepStatus keyHash ${drep_hash}; then
+                      [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
+                      println "DRep expiry    : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                      getDRepVotePower keyHash ${drep_hash}
                       println "Vote power     : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
-                      println "DRep expiry    : epoch ${FG_LBLUE}${drep_expiry}${NC}"
                     else
-                      println "Status         : ${FG_YELLOW}DRep key not registered or inactive${NC}"
+                      println "Status         : ${FG_YELLOW}DRep key not registered${NC}"
                     fi
                     waitToProceed && continue
                     ;; ###################################################################
