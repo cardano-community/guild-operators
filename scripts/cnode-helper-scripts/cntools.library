@@ -2113,11 +2113,12 @@ registerStakeWallet() {
   if [[ ${wallet_type} -eq 5 ]]; then
     script_args=( --tx-in-script-file "${payment_script_file}" )
   fi
-  
+ 
+  tmpNewBalance=$(( base_lovelace - KEY_DEPOSIT )) 
   build_args=(
     ${tx_in}
     "${script_args[@]}"
-    --tx-out "${base_addr}+0${assets_tx_out}"
+    --tx-out "${base_addr}+${tmpNewBalance}${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
     --certificate-file "${stake_cert_file}"
@@ -2244,10 +2245,11 @@ deregisterStakeWallet() {
     )
   fi
 
+  tmpNewBalance=$(( base_lovelace + KEY_DEPOSIT ))
   build_args=(
     ${tx_in}
     "${script_args[@]}"
-    --tx-out "${base_addr}+0${assets_tx_out}"
+    --tx-out "${base_addr}+${tmpNewBalance}${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
     --certificate-file "${stake_dereg_file}"
@@ -2523,10 +2525,11 @@ delegate() {
     )
   fi
 
+  tmpNewBalance=$(( base_lovelace ))
   build_args=(
     ${tx_in}
     "${script_args[@]}"
-    --tx-out "${base_addr}+0${assets_tx_out}"
+    --tx-out "${base_addr}+${tmpNewBalance}${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
     --certificate-file "${pool_delegcert_file}"
@@ -2641,11 +2644,11 @@ withdrawRewards() {
     )
   fi
  
-  dummyNewBalance=$(( base_lovelace + reward_lovelace )) 
+  tmpNewBalance=$(( base_lovelace + reward_lovelace )) 
   build_args=(
     ${tx_in}
     "${script_args[@]}"
-    --tx-out "${base_addr}+${dummyNewBalance}${assets_tx_out}"
+    --tx-out "${base_addr}+${tmpNewBalance}${assets_tx_out}"
     --withdrawal ${reward_addr}+${reward_lovelace}
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
@@ -2766,11 +2769,12 @@ registerPool() {
   fi
   
   getAssetsTxOut
-  
+ 
+  tmpNewBalance=$(( base_lovelace - POOL_DEPOSIT )) 
   build_args=(
     ${tx_in}
     "${script_args[@]}"
-    --tx-out "${base_addr}+0${assets_tx_out}"
+    --tx-out "${base_addr}+${tmpNewBalance}${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
     --certificate-file "${pool_regcert_file}"
@@ -2918,11 +2922,12 @@ modifyPool() {
   if ! getTTL "$([[ ${hasScriptOwner} = true ]] && echo true)"; then return 1; fi
   
   getAssetsTxOut
-  
+ 
+  tmpNewBalance=$(( base_lovelace )) 
   build_args=(
     ${tx_in}
     "${script_args[@]}"
-    --tx-out "${base_addr}+0${assets_tx_out}"
+    --tx-out "${base_addr}+${tmpNewBalance}${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
     --certificate-file "${pool_regcert_file}"
@@ -3067,10 +3072,11 @@ deRegisterPool() {
     script_args=( --tx-in-script-file "${payment_script_file}" )
   fi
 
+  tmpNewBalance=$(( lovelace ))
   build_args=(
     ${tx_in}
     "${script_args[@]}"
-    --tx-out "${addr}+0${assets_tx_out}"
+    --tx-out "${addr}+${tmpNewBalance}${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
     --certificate-file "${pool_deregcert_file}"
@@ -3303,10 +3309,11 @@ sendMetadata() {
     script_args=( --tx-in-script-file "${payment_script_file}" )
   fi
 
+  tmpNewBalance=$(( lovelace ))
   build_args=(
     ${tx_in}
     "${script_args[@]}"
-    --tx-out "${addr}+0${assets_tx_out}"
+    --tx-out "${addr}+${tmpNewBalance}${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
     ${metafile_param}
@@ -3424,10 +3431,11 @@ mintAsset() {
     script_args=( --tx-in-script-file "${payment_script_file}" )
   fi
 
+  tmpNewBalance=$(( lovelace ))
   build_args=(
     ${tx_in}
     "${script_args[@]}"
-    --tx-out "${addr}+0${assets_tx_out}"
+    --tx-out "${addr}+${tmpNewBalance}${assets_tx_out}"
     --mint "${assets_to_mint} ${policy_id}${asset_name_out}"
     --mint-script-file "${policy_script_file}"
     ${metafile_param}
@@ -3556,10 +3564,11 @@ burnAsset() {
     script_args=( --tx-in-script-file "${payment_script_file}" )
   fi
 
+  tmpNewBalance=$(( lovelace ))
   build_args=(
     ${tx_in}
     "${script_args[@]}"
-    --tx-out "${addr}+0${assets_tx_out}"
+    --tx-out "${addr}+${tmpNewBalance}${assets_tx_out}"
     --mint "-${assets_to_burn} ${policy_id}${asset_name_out}"
     --mint-script-file "${policy_script_file}"
     ${metafile_param}
@@ -4072,10 +4081,11 @@ submitPoll() {
     script_args=( --tx-in-script-file "${payment_script_file}" )
   fi
 
+  tmpNewBalance=$(( lovelace ))
   build_args=(
     ${tx_in}
     "${script_args[@]}"
-    --tx-out "${addr}+0${assets_tx_out}"
+    --tx-out "${addr}+${tmpNewBalance}${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
     ${metafile_param}
