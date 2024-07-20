@@ -4099,6 +4099,7 @@ function main {
                     if ! versionCheck "10.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
+                    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
                     println DEBUG "# Select wallet (derive governance keys if missing)"
                     selectWallet "none" "${WALLET_GOV_DREP_VK_FILENAME}" "${WALLET_GOV_CC_COLD_VK_FILENAME}"
                     case $? in
@@ -4108,45 +4109,49 @@ function main {
                     current_epoch=$(getEpoch)
                     echo
                     println "Wallet         : ${FG_GREEN}${wallet_name}${NC}"
-                    println "DEBUG" "\nVote Delegation Status"
-                    unset walletName
-                    if getWalletVoteDelegation ${wallet_name}; then
-                      unset vote_delegation_hash
-                      vote_delegation_type="${vote_delegation%-*}"
-                      if [[ ${vote_delegation} = *-* ]]; then
-                        vote_delegation_hash="${vote_delegation#*-}"
-                        vote_delegation=$(bech32 drep <<< ${vote_delegation_hash})
-                        while IFS= read -r -d '' _wallet; do
-                          getGovKeyInfo "$(basename ${_wallet})"
-                          if [[ "${drep_id}" = "${vote_delegation}" ]]; then
-                            walletName=" ${FG_GREEN}$(basename ${_wallet})${NC}" && break
-                          fi
-                        done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-                      fi
-                      println "Delegation     : ${FG_LGRAY}${vote_delegation}${NC}${walletName}"
-                      if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
-                        [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                        println "DRep expiry    : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                    if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
+                      println "DEBUG" "\nVote Delegation Status"
+                      unset walletName
+                      if getWalletVoteDelegation ${wallet_name}; then
+                        unset vote_delegation_hash
+                        vote_delegation_type="${vote_delegation%-*}"
+                        if [[ ${vote_delegation} = *-* ]]; then
+                          vote_delegation_hash="${vote_delegation#*-}"
+                          vote_delegation=$(bech32 drep <<< ${vote_delegation_hash})
+                          while IFS= read -r -d '' _wallet; do
+                            getGovKeyInfo "$(basename ${_wallet})"
+                            if [[ "${drep_id}" = "${vote_delegation}" ]]; then
+                              walletName=" ${FG_GREEN}$(basename ${_wallet})${NC}" && break
+                            fi
+                          done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+                        fi
+                        println "Delegation     : ${FG_LGRAY}${vote_delegation}${NC}${walletName}"
+                        if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
+                          [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
+                          println "DRep expiry    : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                        else
+                          println "Status         : ${FG_RED}Unable to get DRep status, retired?${NC}"
+                        fi
                         getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
                         println "Vote power     : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
                       else
-                        println "Status         : ${FG_RED}Unable to get DRep status, retired?${NC}"
+                        println "Delegation     : ${FG_YELLOW}undelegated${NC}"
                       fi
-                    else
-                      println "Delegation     : ${FG_YELLOW}undelegated${NC}"
                     fi
                     println "DEBUG" "\nOwn DRep Status"
                     getGovKeyInfo ${wallet_name}
                     println "DRep Id        : ${FG_LGRAY}${drep_id}${NC}"
                     println "Committee Hash : ${FG_LGRAY}${cc_hash}${NC}"
-                    drep_hash=$(bech32 <<< "${drep_id}")
-                    if getDRepStatus keyHash ${drep_hash}; then
-                      [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                      println "DRep expiry    : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
-                      getDRepVotePower keyHash ${drep_hash}
-                      println "Vote power     : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
-                    else
-                      println "Status         : ${FG_YELLOW}DRep key not registered${NC}"
+                    if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
+                      drep_hash=$(bech32 <<< "${drep_id}")
+                      if getDRepStatus keyHash ${drep_hash}; then
+                        [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
+                        println "DRep expiry    : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                        getDRepVotePower keyHash ${drep_hash}
+                        println "Vote power     : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
+                      else
+                        println "Status         : ${FG_YELLOW}DRep key not registered${NC}"
+                      fi
                     fi
                     waitToProceed && continue
                     ;; ###################################################################
@@ -4159,18 +4164,94 @@ function main {
                     if ! versionCheck "10.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
-                    # TODO: implement
-                    println DEBUG "Coming soon!"
-                    #  - select wallet
-                    #  - choose local drep reg wallet, external drep id (key or script?), always-abstain or always-no-confidence
-                    #  - create delegation cert
-                    #  - submit tx
+                    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                      waitToProceed && continue
+                    else
+                      if ! selectOpMode; then continue; fi
+                    fi
                     println DEBUG "# Select wallet"
                     selectWallet "balance" "${WALLET_STAKE_VK_FILENAME}"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
+                    _wallet_name="${wallet_name}"
+                    if ! isWalletRegistered ${wallet_name}; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: wallet not registered, please register wallet or delegate wallet to a stake pool!"
+                      waitToProceed && continue
+                    fi
+                    unset drep_wallet
+                    println DEBUG "Do you want to delegate to a local CNTools DRep registered wallet, pre-defined type or specify the DRep ID?"
+                    select_opt "[w] CNTools DRep Wallet" "[i] DRep ID" "[a] Always Abstain" "[c] Always No Confidence" "[Esc] Cancel"
+                    case $? in
+                      0) selectWallet "none" "${WALLET_GOV_DREP_VK_FILENAME}"
+                        case $? in
+                          1) waitToProceed; continue ;;
+                          2) continue ;;
+                        esac
+                        drep_wallet="${wallet_name}"
+                        wallet_name="${_wallet_name}"
+                        getGovKeyInfo "${drep_wallet}"
+                        if [[ -z ${drep_id} ]]; then
+                          println ERROR "\n${FG_RED}ERROR${NC}: unable to get DRep id from selected wallet :("
+                          waitToProceed && continue
+                        fi
+                        ;;
+                      1) getAnswerAnyCust drep_id "DRep ID (blank to cancel)"
+                        [[ -z "${drep_id}" ]] && continue
+                        ;;
+                      2) drep_id="alwaysAbstain"; vote_param=("--always-abstain") ;;
+                      3) drep_id="alwaysNoConfidence"; vote_param=("--always-no-confidence") ;;
+                      4) continue ;;
+                    esac
+                    unset drep_expiry
+                    if [[ ${drep_id} != always* ]]; then
+                      drep_hash=$(bech32 <<< "${drep_id}")
+                      getDRepStatus keyHash ${drep_hash}
+                      [[ -z ${drep_expiry} ]] && getDRepStatus scriptHash ${drep_hash}
+                      if [[ -z ${drep_expiry} ]]; then
+                        println ERROR "\n${FG_RED}ERROR${NC}: selected DRep not registered"
+                        waitToProceed && continue
+                      fi
+                      [[ ${hash_type} = keyHash ]] && vote_param=("--drep-key-hash" "${drep_id}") || vote_param=("--drep-script-hash" "${drep_id}")
+                      getDRepVotePower keyHash ${drep_hash}
+                      [[ -z ${vote_power} ]] && getDRepVotePower scriptHash ${drep_hash}
+                      if [[ -z ${vote_power} ]]; then
+                        println ERROR "\n${FG_YELLOW}WARN${NC}: selected DRep has no vote power associated with it"
+                        println DEBUG "Continue anyway?"
+                         select_opt "[y] Yes" "[n] No"
+                         case $? in
+                           0) : ;; # do nothing
+                           1) continue ;;
+                         esac
+                      fi
+                    else
+                      getDRepVotePower "${drep_id}"
+                    fi
+                    getWalletBalance ${wallet_name} true true false true
+                    if [[ ${base_lovelace} -le 0 ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
+                      println DEBUG "Funds for transaction fee needed to create vote delegation transaction"
+                      waitToProceed && continue
+                    fi
+                    if ! voteDelegation; then
+                      [[ -f ${vote_deleg_cert_file} ]] && rm -f ${vote_deleg_cert_file}
+                      waitToProceed && continue
+                    fi
+                    echo
+                    if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
+                    echo
+                    println "${FG_GREEN}${wallet_name}${NC} successfully delegated to DRep!"
+                    println "\nDRep Id         : ${FG_LGRAY}${drep_id}${NC}"
+                    if [[ -n ${drep_expiry} ]]; then
+                      [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
+                      println "DRep expiry     : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                    fi
+                    if [[ -n ${vote_power} ]]; then
+                      println "DRep vote power : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
+                    fi
+                    waitToProceed && continue
                     ;; ###################################################################
                   drep-reg)
                     clear
@@ -4181,20 +4262,21 @@ function main {
                     if ! versionCheck "10.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
-                    # TODO: implement
-                    println DEBUG "Coming soon!"
-                    #  - select wallet
-                    #  - check if already registered to know if a reg or update is needed?
-                    #  - create reg/upd cert
-                    #  - submit tx
-                    waitToProceed && continue
+                    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                      waitToProceed && continue
+                    else
+                      if ! selectOpMode; then continue; fi
+                    fi
                     println DEBUG "# Select wallet (derive governance keys if missing)"
-                    selectWallet "balance" "${WALLET_GOV_DREP_VK_FILENAME}" "${WALLET_GOV_DREP_SK_FILENAME}"
+                    selectWallet "balance" "${WALLET_GOV_DREP_VK_FILENAME}"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
+                    getGovKeyInfo "${drep_wallet}"
                     drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
+                    drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
                     drep_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_REGISTER_CERT_FILENAME}"
                     drep_meta_file="${WALLET_FOLDER}/${wallet_name}/drep_meta.json"
                     unset drep_anchor_url drep_anchor_hash
@@ -4204,7 +4286,7 @@ function main {
                       0) unset drep_meta_file ;;
                       1) getAnswerAnyCust drep_anchor_url "Enter DRep's anchor URL:"
                         if [[ ! "${drep_anchor_url}" =~ https?://.* || ${#drep_anchor_url} -gt 64 ]]; then
-                          println ERROR "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
+                          println ERROR "\n${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
                           waitToProceed && continue
                         fi
                         if curl -sL -f -m ${CURL_TIMEOUT} -o "${drep_meta_file}" ${drep_anchor_url} && jq -er . "${drep_meta_file}" &>/dev/null; then
@@ -4213,19 +4295,31 @@ function main {
                             println ERROR "\n${FG_RED}ERROR${NC}: failure during governance drep metadata hash creation!\n${drep_anchor_hash}"; waitToProceed && continue
                           fi
                         else
-                          println ERROR "${FG_RED}ERROR${NC}: failed to download anchor file or invalid json format"; waitToProceed && continue
+                          println ERROR "\n${FG_RED}ERROR${NC}: failed to download anchor file or invalid json format"; waitToProceed && continue
                         fi
                         println DEBUG "\n# DRep anchor metadata:"
                         jq -r . "${drep_meta_file}"
                         println DEBUG "\n# DRep anchor metadata hash: ${FG_LGRAY}${drep_anchor_hash}${NC}"
                         ;;
                     esac
-                    DREP_REG_CMD=(
-                      ${CCLI} conway governance drep registration-certificate
-                      --drep-verification-key-file "${drep_vk_file}"
-                      --key-reg-deposit-amt ${DREP_DEPOSIT}
-                      --out-file "${drep_cert_file}"
-                    )
+                    unset is_update
+                    if ! getDRepStatus keyHash ${drep_hash}; then
+                      # registration
+                      DREP_REG_CMD=(
+                        ${CCLI} ${NETWORK_ERA} governance drep registration-certificate
+                        --drep-verification-key-file "${drep_vk_file}"
+                        --key-reg-deposit-amt ${DREP_DEPOSIT}
+                        --out-file "${drep_cert_file}"
+                      )
+                    else
+                      # update
+                      is_update=Y
+                      DREP_REG_CMD=(
+                        ${CCLI} ${NETWORK_ERA} governance drep registration-certificate
+                        --drep-verification-key-file "${drep_vk_file}"
+                        --out-file "${drep_cert_file}"
+                      )
+                    fi
                     if [[ -n ${drep_anchor_url} ]]; then
                       DREP_REG_CMD+=(
                         --drep-metadata-url ${drep_anchor_url}
@@ -4235,6 +4329,25 @@ function main {
                     println ACTION "${DREP_REG_CMD[*]}"
                     if ! stdout=$("${DREP_REG_CMD[@]}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep registration certificate creation!\n${stdout}"; waitToProceed && continue
+                    fi
+                    getWalletBalance ${wallet_name} true true false true
+                    if [[ ${base_lovelace} -le 0 ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
+                      println DEBUG "Funds for DRep deposit($(formatLovelace ${DREP_DEPOSIT}) ADA) + transaction fee needed to register the wallet"
+                      waitToProceed && continue
+                    fi
+                    if ! registerDRep; then
+                      [[ -f ${drep_cert_file} ]] && rm -f ${drep_cert_file}
+                      waitToProceed && continue
+                    fi
+                    echo
+                    if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
+                    echo
+                    if [[ -z ${is_update} ]]; then
+                      println "${FG_GREEN}${wallet_name}${NC} successfully registered as DRep on chain!"
+                      println "DRep deposit : ${FG_LBLUE}$(formatLovelace ${DREP_DEPOSIT})${NC} ADA (returned when retired)"
+                    else
+                      println "${FG_GREEN}${wallet_name}${NC} DRep details updated!"
                     fi
                     waitToProceed && continue
                     ;; ###################################################################
@@ -4247,32 +4360,50 @@ function main {
                     if ! versionCheck "10.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
-                    # TODO: implement
-                    println DEBUG "Coming soon!"
-                    #  - select wallet
-                    #  - check if already registered?
-                    #  - get deposit amount from when registered
-                    #  - create retire cert
-                    #  - submit tx
-                    waitToProceed && continue
+                    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                      waitToProceed && continue
+                    else
+                      if ! selectOpMode; then continue; fi
+                    fi
                     println DEBUG "# Select wallet (derive governance keys if missing)"
-                    selectWallet "balance" "${WALLET_GOV_DREP_VK_FILENAME}" "${WALLET_GOV_DREP_SK_FILENAME}"
+                    selectWallet "balance" "${WALLET_GOV_DREP_VK_FILENAME}"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
+                    if ! getDRepStatus ${wallet_name}; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: Wallet not registered as a DRep, unable to retire!"
+                      waitToProceed && continue
+                    fi
                     drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
+                    drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
                     drep_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_RETIRE_CERT_FILENAME}"
                     DREP_RET_CMD=(
-                      ${CCLI} conway governance drep retirement-certificate
+                      ${CCLI} ${NETWORK_ERA} governance drep retirement-certificate
                       --drep-verification-key-file "${drep_vk_file}"
-                      --deposit-amt ${DREP_DEPOSIT}
+                      --deposit-amt ${drep_deposit_amt}
                       --out-file "${drep_cert_file}"
                     )
                     println ACTION "${DREP_RET_CMD[*]}"
                     if ! stdout=$("${DREP_RET_CMD[@]}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep retirement certificate creation!\n${stdout}"; waitToProceed && continue
                     fi
+                    getWalletBalance ${wallet_name} true true false true
+                    if [[ ${base_lovelace} -le 0 ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
+                      println DEBUG "Funds for transaction fee needed to retire the wallet as a DRep"
+                      waitToProceed && continue
+                    fi
+                    if ! retireDRep; then
+                      [[ -f ${drep_cert_file} ]] && rm -f ${drep_cert_file}
+                      waitToProceed && continue
+                    fi
+                    echo
+                    if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
+                    echo
+                    println "${FG_GREEN}${wallet_name}${NC} successfully retired as DRep!"
+                    println "DRep deposit : ${FG_LBLUE}$(formatLovelace ${drep_deposit_amt})${NC} ADA returned"
                     waitToProceed && continue
                     ;; ###################################################################
                   vote)
@@ -4284,11 +4415,133 @@ function main {
                     if ! versionCheck "10.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
-                    # TODO: implement
-                    println DEBUG "Coming soon!"
-                    #  - select mode SPO, DRep, Committee member
-                    #  - take gov action id as input
-                    #  - verify the content of the governance action
+                    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
+                      waitToProceed && continue
+                    else
+                      if ! selectOpMode; then continue; fi
+                    fi
+                    println DEBUG "Select role to vote as"
+                    select_opt "[s] SPO" "[d] DRep" "[c] Committee member" "[Esc] Cancel"
+                    case $? in
+                      0) vote_mode="spo"
+                        selectPool "reg" "${POOL_COLDKEY_VK_FILENAME}"
+                        case $? in
+                          1) waitToProceed; continue ;;
+                          2) continue ;;
+                        esac
+                        println DEBUG "Select wallet to pay for transaction fee"
+                        selectWallet "balance"
+                        case $? in
+                          1) waitToProceed; continue ;;
+                          2) continue ;;
+                        esac
+                        getPoolID "${pool_name}"
+                        pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
+                        pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
+                        ;;
+                      1) vote_mode="drep"
+                        selectWallet "none" "${WALLET_GOV_DREP_VK_FILENAME}"
+                        case $? in
+                          1) waitToProceed; continue ;;
+                          2) continue ;;
+                        esac
+                        drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
+                        drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
+                        ;;
+                      2) vote_mode="committee"
+                        selectWallet "none" "${WALLET_GOV_CC_HOT_VK_FILENAME}"
+                        case $? in
+                          1) waitToProceed; continue ;;
+                          2) continue ;;
+                        esac
+                        cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
+                        cc_hot_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_SK_FILENAME}"
+                        ;;
+                      4) continue ;;
+                    esac
+                    if [[ ${vote_mode} = "drep" || ${vote_mode} = "committee" ]]; then
+                      drep_hash=$(bech32 <<< "${drep_id}")
+                      if ! getDRepVotePower keyHash ${drep_hash}; then
+                        println ERROR "\n${FG_RED}ERROR${NC}: selected wallet has no vote power associated with it"
+                        waitToProceed && continue
+                      fi
+                    fi
+                    getAnswerAnyCust action_id "Governance Action ID [<tx_id>#<action_idx>] (blank to cancel)"
+                    [[ -z "${action_id}" ]] && continue
+                    IFS='#' read -r action_tx_id action_idx <<< "${action_id}"
+                    ! isNumber "${action_idx}" && println ERROR "\n${FG_RED}ERROR${NC}: invalid action id! <tx_id>#<action_idx>" && waitToProceed && continue
+                    getGovAction "${action_tx_id}"
+                    case $? in
+                      1) println ERROR "\n${FG_RED}ERROR${NC}: governance action id not found!"; waitToProceed && continue ;;
+                      2) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor url or content"
+                        println DEBUG "Continue anyway?"
+                        select_opt "[n] No" "[y] Yes"
+                        case $? in
+                          0) continue ;;
+                          1) : ;; # do nothing
+                        esac
+                        ;;
+                      3) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor hash"
+                        println DEBUG "Action hash : ${proposal_hash}"
+                        println DEBUG "Real hash   : ${proposal_meta_hash}"
+                        println DEBUG "Continue anyway?"
+                        select_opt "[n] No" "[y] Yes"
+                        case $? in
+                          0) continue ;;
+                          1) : ;; # do nothing
+                        esac
+                        ;;
+                    esac
+                    println DEBUG "\n# Governance Action Details"
+                    jq -r . <<< "${vote_action}"
+                    echo
+                    if [[ -f "${proposal_meta_file}" ]]; then
+                      println DEBUG "# Governance Action Anchor Content"
+                      jq -er "${proposal_meta_file}" 2>/dev/null || cat "${proposal_meta_file}"
+                      echo
+                    fi
+                    println DEBUG "How do you want to vote?"
+                    select_opt "[y] Yes" "[n] No" "[a] Abstain" "[Esc] Cancel"
+                    case $? in
+                      0) vote_param="--yes" ;;
+                      1) vote_param="--no" ;;
+                      2) vote_param="--abstain" ;;
+                      3) continue ;;
+                    esac
+                    vote_file="${TMP_DIR}/${action_tx_id}_${action_idx}_$(date '+%Y%m%d%H%M%S').vote"
+                    VOTE_CMD=(
+                      ${CCLI} ${NETWORK_ERA} governance vote create
+                      ${vote_param}
+                      --governance-action-tx-id "${action_tx_id}"
+                      --governance-action-index "${action_idx}"
+                      --out-file "${vote_file}"
+                    )
+                    if [[ ${vote_mode} = "spo" ]]; then
+                      VOTE_CMD+=(--cold-verification-key-file "${pool_coldkey_vk_file}")
+                    elif [[ ${vote_mode} = "drep" ]]; then
+                      VOTE_CMD+=(--drep-verification-key-file "${drep_vk_file}")
+                    else
+                      VOTE_CMD+=(--cc-hot-verification-key-file "${cc_hot_vk_file}")
+                    fi
+                    println ACTION "${VOTE_CMD[*]}"
+                    if ! stdout=$("${VOTE_CMD[@]}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during governance vote creation!\n${stdout}"; waitToProceed && continue
+                    fi
+                    getWalletBalance ${wallet_name} true true false true
+                    if [[ ${base_lovelace} -le 0 ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
+                      println DEBUG "Funds for transaction fee needed to cast governance vote"
+                      waitToProceed && continue
+                    fi
+                    if ! governanceVote; then
+                      [[ -f ${vote_file} ]] && rm -f ${vote_file}
+                      waitToProceed && continue
+                    fi
+                    echo
+                    if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
+                    echo
+                    println "${FG_GREEN}${wallet_name}${NC} successfully cast vote!"
                     waitToProceed && continue
                     ;; ###################################################################
                   derive-gov-keys)
@@ -4353,6 +4606,7 @@ function main {
                         jq '.description = "Constitutional Committee Hot Hardware Verification Key"' "${cc_hot_sk_file}" > "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" "${cc_hot_sk_file}"
                         jq '.description = "Multisig Delegate Representative Hardware Verification Key"' "${ms_drep_vk_file}" > "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" "${ms_drep_vk_file}"
                         ;;
+                      5) println ERROR "\n${FG_RED}ERROR${NC}: MultiSig wallets not supported as DRep wallet, only vote delegation supported!\n${stdout}"; waitToProceed && continue ;;
                       *)
                         drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
                         drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
