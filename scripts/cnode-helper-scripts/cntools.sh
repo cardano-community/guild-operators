@@ -3762,12 +3762,13 @@ function main {
                   " ) Verify      - check registration status for own or external vote key"\
                   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Catalyst Operation\n"
-                select_opt "[r] Registration" "[q] Display QR" "[v] Verify" "[h] Home"
+                select_opt "[r] Registration" "[q] Display QR" "[v] Verify" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="catalyst_reg" ;;
                   1) SUBCOMMAND="catalyst_qr" ;;
                   2) SUBCOMMAND="catalyst_verify" ;;
                   3) break ;;
+                  4) break 2 ;;
                 esac
                 case $SUBCOMMAND in
                   catalyst_reg)
@@ -4080,7 +4081,7 @@ function main {
                   " ) MultiSig DRep - create a multi-participant (MultiSig) DRep coalition"\
                   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Catalyst Operation\n"
-                select_opt "[i] Info & Status" "[d] Delegate" "[r] DRep Registration" "[r] DRep Retire" "[v] Cast vote" "[k] Derive Keys" "[m] MultiSig DRep" "[h] Home"
+                select_opt "[i] Info & Status" "[d] Delegate" "[r] DRep Registration" "[r] DRep Retire" "[v] Cast vote" "[k] Derive Keys" "[m] MultiSig DRep" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="info-status" ;;
                   1) SUBCOMMAND="delegate" ;;
@@ -4090,6 +4091,7 @@ function main {
                   5) SUBCOMMAND="create-ms-drep" ;;
                   6) SUBCOMMAND="derive-gov-keys" ;;
                   7) break ;;
+                  8) break 2 ;;
                 esac
                 case $SUBCOMMAND in
                   info-status)
@@ -4111,7 +4113,7 @@ function main {
                     current_epoch=$(getEpoch)
                     drep_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
                     echo
-                    println "Wallet         : ${FG_GREEN}${wallet_name}${NC}"
+                    println "Wallet            : ${FG_GREEN}${wallet_name}${NC}"
                     if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]]; then
                       println "DEBUG" "\nVote Delegation Status"
                       unset walletName
@@ -4128,23 +4130,23 @@ function main {
                             fi
                           done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                         fi
-                        println "Delegation     : ${FG_LGRAY}${vote_delegation}${NC}${walletName}"
+                        println "Delegation        : ${FG_LGRAY}${vote_delegation}${NC}${walletName}"
                         if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
                           [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                          println "DRep expiry    : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                          println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
                         else
-                          println "Status         : ${FG_RED}Unable to get DRep status, retired?${NC}"
+                          println "Status            : ${FG_RED}Unable to get DRep status, retired?${NC}"
                         fi
                         getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
-                        println "Vote power     : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
+                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
                       else
-                        println "Delegation     : ${FG_YELLOW}undelegated${NC}"
+                        println "Delegation        : ${FG_YELLOW}undelegated${NC}"
                       fi
                     fi
                     getGovKeyInfo ${wallet_name}
                     println "DEBUG" "\nOwn DRep Status"
                     if [[ -z ${drep_id} ]]; then
-                      println "Status         : ${FG_YELLOW}Governance keys missing, please derive them if needed${NC}"
+                      println "Status            : ${FG_YELLOW}Governance keys missing, please derive them if needed${NC}"
                       waitToProceed && continue
                     fi
                     if [[ ${drep_id} = drep* ]]; then
@@ -4162,11 +4164,11 @@ function main {
                     if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
                       if getDRepStatus ${hash_type} ${drep_hash}; then
                         [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                        println "DRep expiry    : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                        println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
                         getDRepVotePower keyHash ${drep_hash}
-                        println "Vote power     : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
+                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
                       else
-                        println "Status         : ${FG_YELLOW}DRep key not registered${NC}"
+                        println "Status            : ${FG_YELLOW}DRep key not registered${NC}"
                       fi
                     fi
                     waitToProceed && continue
