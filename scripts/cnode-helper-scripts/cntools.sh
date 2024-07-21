@@ -3303,10 +3303,18 @@ function main {
               else
                 println DEBUG "Expire           : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
               fi
+              echo
               tx_witness_files=()
               case "${otx_type}" in
-                Wallet*|Payment|"Pool De-Registration"|Metadata|Asset*|"Poll Cast")
+                "Pool Registration"|"Pool Update")
                   echo
+                  println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
+                  println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
+                  println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} ADA"
+                  println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
+                  println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} ADA"
+                  ;;
+                *)
                   [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} ADA"
                   if [[ ${otx_type} = "Payment" ]]; then
                     println DEBUG "Source addr      : ${FG_LGRAY}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
@@ -3332,20 +3340,10 @@ function main {
                   [[ ${otx_type} = "Asset Minting" ]] && println DEBUG "Assets Minted    : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
                   [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets To Burn   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
                   [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets Left      : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
-                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Poll ID          : ${FG_LGRAY}$(jq -r '."poll-txId"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Title            : ${FG_LGRAY}$(jq -r '."poll-title"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Question         : ${FG_LGRAY}$(jq -r '."poll-question"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Answer           : ${FG_LGRAY}$(jq -r '."poll-answer"' <<< ${offlineJSON})${NC}"
+                  jq -er '."drep-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep ID          : ${FG_LGRAY}$(jq -r '."drep-id"' <<< ${offlineJSON})${NC}"
+                  jq -er '."action-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Action ID        : ${FG_LGRAY}$(jq -r '."action-id"' <<< ${offlineJSON})${NC}"
+                  jq -er '.vote' <<< ${offlineJSON} &>/dev/null && println DEBUG "Vote             : ${FG_LGRAY}$(jq -r '.vote' <<< ${offlineJSON})${NC}"
                   ;;
-                "Pool Registration"|"Pool Update")
-                  echo
-                  println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
-                  println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
-                  println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} ADA"
-                  println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-                  println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} ADA"
-                  ;;
-                *) println ERROR "${FG_RED}ERROR${NC}: unsupported type: ${otx_type}" && waitToProceed && continue ;;
               esac
               println DEBUG "\nSigning keys required:"
               for otx_signing_name_b64 in $(jq -r '."signing-file"[].name | @base64' <<< "${offlineJSON}"); do
@@ -3683,74 +3681,69 @@ function main {
               else
                 println DEBUG "Expire           : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
               fi
-              case "${otx_type}" in
-                "Wallet Registration"|"Wallet De-Registration"|"Payment"|"Wallet Delegation"|"Wallet Rewards Withdrawal"|"Pool De-Registration"|"Metadata"|"Pool Registration"|"Pool Update"|"Asset Minting"|"Asset Burning"|"Poll Cast")
-                  echo
-                  [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} ADA"
-                  if [[ ${otx_type} = "Payment" ]]; then
-                    println DEBUG "Source addr      : ${FG_LGRAY}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
-                    println DEBUG "Destination addr : ${FG_LGRAY}$(jq -r '."destination-address"' <<< ${offlineJSON})${NC}"
-                    println DEBUG "Amount           : ${FG_LBLUE}$(formatLovelace "$(jq -r '.assets[] | select(.asset=="lovelace") | .amount' <<< ${offlineJSON})")${NC} ${FG_GREEN}ADA${NC}"
-                    for otx_assets in $(jq -r '.assets[] | @base64' <<< "${offlineJSON}"); do
-                      _jq() { base64 -d <<< ${otx_assets} | jq -r "${1}"; }
-                      otx_asset=$(_jq '.asset')
-                      [[ ${otx_asset} = "lovelace" ]] && continue
-                      println DEBUG "                   ${FG_LBLUE}$(formatAsset "$(_jq '.amount')")${NC} ${FG_LGRAY}${otx_asset}${NC}"
-                    done
-                  fi
-                  [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println DEBUG "Rewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} ADA"
-                  jq -er '."pool-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Pool ID          : ${FG_LGRAY}$(jq -r '."pool-id"' <<< ${offlineJSON})${NC}"
-                  if jq -er '."pool-name"' <<< ${offlineJSON} &>/dev/null; then
-                    [[ ${otx_type} != "Pool Registration" ]] && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-name"' <<< ${offlineJSON})${NC}"
-                  fi
-                  [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-ticker"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "To be retired    : epoch ${FG_LGRAY}$(jq -r '."retire-epoch"' <<< ${offlineJSON})${NC}"
-                  jq -er '.metadata' <<< ${offlineJSON} &>/dev/null && println DEBUG "Metadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} ADA"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
-                  [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} ADA"
-                  [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy Name      : ${FG_LGRAY}$(jq -r '."policy-name"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy ID        : ${FG_LGRAY}$(jq -r '."policy-id"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Asset Name       : ${FG_LGRAY}$(jq -r '."asset-name"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Asset Minting" ]] && println DEBUG "Assets To Mint   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
-                  [[ ${otx_type} = "Asset Minting" ]] && println DEBUG "Assets Minted    : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
-                  [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets To Burn   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
-                  [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets Left      : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
-                  if [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && otx_metadata=$(jq -er '.metadata' <<< ${offlineJSON}); then println DEBUG "Metadata         : \n${otx_metadata}\n"; fi
-                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Poll ID          : ${FG_LGRAY}$(jq -r '."poll-txId"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Title            : ${FG_LGRAY}$(jq -r '."poll-title"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Question         : ${FG_LGRAY}$(jq -r '."poll-question"' <<< ${offlineJSON})${NC}"
-                  [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Answer           : ${FG_LGRAY}$(jq -r '."poll-answer"' <<< ${offlineJSON})${NC}"
-                  tx_signed="${TMP_DIR}/tx.signed_$(date +%s)"
-                  println DEBUG "\nProceed to submit transaction?"
-                  select_opt "[y] Yes" "[n] No"
-                  case $? in
-                    0) : ;;
-                    1) continue ;;
-                  esac
-                  echo -e "${otx_signed_txBody}" > "${tx_signed}"
-                  if ! submitTx "${tx_signed}"; then waitToProceed && continue; fi
-                  if [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]]; then
-                    if otx_pool_name=$(jq -er '."pool-name"' <<< ${offlineJSON}); then
-                      if ! jq '."pool-reg-cert"' <<< "${offlineJSON}" > "${POOL_FOLDER}/${otx_pool_name}/${POOL_REGCERT_FILENAME}"; then println ERROR "${FG_RED}ERROR${NC}: failed to write pool cert to disk"; fi
-                      [[ -f "${POOL_FOLDER}/${otx_pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && rm -f "${POOL_FOLDER}/${otx_pool_name}/${POOL_DEREGCERT_FILENAME}" # delete de-registration cert if available
-                    else
-                      println ERROR "${FG_RED}ERROR${NC}: field 'pool-name' not found in: ${offline_tx}"
-                    fi
-                  fi
-                  echo
-                  verifyTx
-                  echo
-                  println DEBUG "Delete submitted offline transaction file?"
-                  select_opt "[y] Yes" "[n] No"
-                  case $? in
-                    0) rm -f "${offline_tx}" ;;
-                    1) : ;;
-                  esac
-                  ;;
-                *) println ERROR "${FG_RED}ERROR${NC}: unsupported offline tx type: ${otx_type}" && waitToProceed && continue ;;
+              echo
+              [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} ADA"
+              if [[ ${otx_type} = "Payment" ]]; then
+                println DEBUG "Source addr      : ${FG_LGRAY}$(jq -r '."source-address"' <<< ${offlineJSON})${NC}"
+                println DEBUG "Destination addr : ${FG_LGRAY}$(jq -r '."destination-address"' <<< ${offlineJSON})${NC}"
+                println DEBUG "Amount           : ${FG_LBLUE}$(formatLovelace "$(jq -r '.assets[] | select(.asset=="lovelace") | .amount' <<< ${offlineJSON})")${NC} ${FG_GREEN}ADA${NC}"
+                for otx_assets in $(jq -r '.assets[] | @base64' <<< "${offlineJSON}"); do
+                  _jq() { base64 -d <<< ${otx_assets} | jq -r "${1}"; }
+                  otx_asset=$(_jq '.asset')
+                  [[ ${otx_asset} = "lovelace" ]] && continue
+                  println DEBUG "                   ${FG_LBLUE}$(formatAsset "$(_jq '.amount')")${NC} ${FG_LGRAY}${otx_asset}${NC}"
+                done
+              fi
+              [[ ${otx_type} = "Wallet Rewards Withdrawal" ]] && println DEBUG "Rewards          : ${FG_LBLUE}$(formatLovelace "$(jq -r '.rewards' <<< ${offlineJSON})")${NC} ADA"
+              jq -er '."pool-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Pool ID          : ${FG_LGRAY}$(jq -r '."pool-id"' <<< ${offlineJSON})${NC}"
+              if jq -er '."pool-name"' <<< ${offlineJSON} &>/dev/null; then
+                [[ ${otx_type} != "Pool Registration" ]] && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-name"' <<< ${offlineJSON})${NC}"
+              fi
+              [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-ticker"' <<< ${offlineJSON})${NC}"
+              [[ ${otx_type} = "Pool De-Registration" ]] && println DEBUG "To be retired    : epoch ${FG_LGRAY}$(jq -r '."retire-epoch"' <<< ${offlineJSON})${NC}"
+              jq -er '.metadata' <<< ${offlineJSON} &>/dev/null && println DEBUG "Metadata         :\n$(jq -r '.metadata' <<< ${offlineJSON})\n"
+              [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pool name        : ${FG_LGRAY}$(jq -r '."pool-metadata".name' <<< ${offlineJSON})${NC}"
+              [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Ticker           : ${FG_LGRAY}$(jq -r '."pool-metadata".ticker' <<< ${offlineJSON})${NC}"
+              [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Pledge           : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-pledge"' <<< ${offlineJSON})")")${NC} ADA"
+              [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Margin           : ${FG_LBLUE}$(jq -r '."pool-margin"' <<< ${offlineJSON})${NC} %"
+              [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]] && println DEBUG "Cost             : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace "$(jq -r '."pool-cost"' <<< ${offlineJSON})")")${NC} ADA"
+              [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy Name      : ${FG_LGRAY}$(jq -r '."policy-name"' <<< ${offlineJSON})${NC}"
+              [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Policy ID        : ${FG_LGRAY}$(jq -r '."policy-id"' <<< ${offlineJSON})${NC}"
+              [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && println DEBUG "Asset Name       : ${FG_LGRAY}$(jq -r '."asset-name"' <<< ${offlineJSON})${NC}"
+              [[ ${otx_type} = "Asset Minting" ]] && println DEBUG "Assets To Mint   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
+              [[ ${otx_type} = "Asset Minting" ]] && println DEBUG "Assets Minted    : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
+              [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets To Burn   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
+              [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets Left      : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
+              if [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && otx_metadata=$(jq -er '.metadata' <<< ${offlineJSON}); then println DEBUG "Metadata         : \n${otx_metadata}\n"; fi
+              [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Poll ID          : ${FG_LGRAY}$(jq -r '."poll-txId"' <<< ${offlineJSON})${NC}"
+              [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Title            : ${FG_LGRAY}$(jq -r '."poll-title"' <<< ${offlineJSON})${NC}"
+              [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Question         : ${FG_LGRAY}$(jq -r '."poll-question"' <<< ${offlineJSON})${NC}"
+              [[ ${otx_type} = "Poll Cast" ]] && println DEBUG "Answer           : ${FG_LGRAY}$(jq -r '."poll-answer"' <<< ${offlineJSON})${NC}"
+              tx_signed="${TMP_DIR}/tx.signed_$(date +%s)"
+              println DEBUG "\nProceed to submit transaction?"
+              select_opt "[y] Yes" "[n] No"
+              case $? in
+                0) : ;;
+                1) continue ;;
+              esac
+              echo -e "${otx_signed_txBody}" > "${tx_signed}"
+              if ! submitTx "${tx_signed}"; then waitToProceed && continue; fi
+              if [[ ${otx_type} = "Pool Registration" || ${otx_type} = "Pool Update" ]]; then
+                if otx_pool_name=$(jq -er '."pool-name"' <<< ${offlineJSON}); then
+                  if ! jq '."pool-reg-cert"' <<< "${offlineJSON}" > "${POOL_FOLDER}/${otx_pool_name}/${POOL_REGCERT_FILENAME}"; then println ERROR "${FG_RED}ERROR${NC}: failed to write pool cert to disk"; fi
+                  [[ -f "${POOL_FOLDER}/${otx_pool_name}/${POOL_DEREGCERT_FILENAME}" ]] && rm -f "${POOL_FOLDER}/${otx_pool_name}/${POOL_DEREGCERT_FILENAME}" # delete de-registration cert if available
+                else
+                  println ERROR "${FG_RED}ERROR${NC}: field 'pool-name' not found in: ${offline_tx}"
+                fi
+              fi
+              echo
+              verifyTx
+              echo
+              println DEBUG "Delete submitted offline transaction file?"
+              select_opt "[y] Yes" "[n] No"
+              case $? in
+                0) rm -f "${offline_tx}" ;;
+                1) : ;;
               esac
               waitToProceed && continue
               ;; ###################################################################
