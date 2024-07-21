@@ -3392,7 +3392,7 @@ function main {
                 done
                 # look for signing key in wallet folder
                 while IFS= read -r -d '' w_file; do
-                  if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" || ${w_file} = */"${WALLET_GOV_DREP_VK_FILENAME}" ]]; then
+                  if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" || ${w_file} = */"${WALLET_GOV_DREP_SK_FILENAME}" ]]; then
                     ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
                     if [[ $(jq -er '.type' "${w_file}" 2>/dev/null) = *"Extended"* ]]; then
                       ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
