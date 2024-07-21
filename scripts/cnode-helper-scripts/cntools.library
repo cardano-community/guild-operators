@@ -1037,22 +1037,42 @@ getPayAddress() {
 }
 
 # Command     : getGovKeyInfo [wallet name]
-# Description : generate DRep id and committee key hash
+# Description : generate DRep ID and committee key hash
 getGovKeyInfo() {
-  unset drep_id cc_hash
+  unset drep_id drep_hash hash_type cc_cold_id cc_hot_id
   drep_vk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_VK_FILENAME}"
+  drep_script_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
   drep_id_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_ID_FILENAME}"
   cc_cold_vk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_COLD_VK_FILENAME}"
-  cc_hash_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_HASH_FILENAME}"
+  cc_cold_id_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_COLD_ID_FILENAME}"
+  cc_hot_vk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
+  cc_hot_id_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_HOT_ID_FILENAME}"
   [[ -f ${drep_id_file} ]] && drep_id=$(cat "${drep_id_file}")
-  [[ -f ${cc_hash_file} ]] && cc_hash=$(cat "${cc_hash_file}")
+  [[ -f ${cc_cold_id_file} ]] && cc_cold_id=$(cat "${cc_cold_id_file}")
+  [[ -f ${cc_hot_id_file} ]] && cc_hot_id=$(cat "${cc_hot_id_file}")
   if [[ -z ${drep_id} && -f ${drep_vk_file} ]]; then
     println ACTION "${CCLI} conway governance drep id --drep-verification-key-file ${drep_vk_file}"
     drep_id=$(${CCLI} conway governance drep id --drep-verification-key-file "${drep_vk_file}")
+  elif [[ -z ${drep_id} && -f ${drep_script_file} ]]; then
+    println ACTION "${CCLI} hash script --script-file ${drep_script_file}"
+    drep_id=$(${CCLI} hash script --script-file "${drep_script_file}")
   fi
-  if [[ -z ${cc_hash} && -f ${cc_cold_vk_file} ]]; then
-    println ACTION "${CCLI} conway governance committee key-hash --verification-key-file ${cc_cold_vk_file}"
-    cc_hash=$(${CCLI} conway governance committee key-hash --verification-key-file "${cc_cold_vk_file}")
+  if [[ -z ${cc_cold_id} && -f ${cc_cold_vk_file} ]]; then
+    println ACTION "bech32 cc_cold <<< \$(${CCLI} conway governance committee key-hash --verification-key-file ${cc_cold_vk_file})"
+    cc_cold_id=$(bech32 cc_cold <<< "$(${CCLI} conway governance committee key-hash --verification-key-file "${cc_cold_vk_file}")")
+  fi
+  if [[ -z ${cc_hot_id} && -f ${cc_hot_vk_file} ]]; then
+    println ACTION "bech32 cc_hot <<< \$(${CCLI} conway governance committee key-hash --verification-key-file ${cc_hot_vk_file})"
+    cc_hot_id=$(bech32 cc_hot <<< "$(${CCLI} conway governance committee key-hash --verification-key-file "${cc_hot_vk_file}")")
+  fi
+  if [[ -n ${drep_id} ]]; then
+    if [[ ${drep_id} = drep* ]]; then
+      hash_type="keyHash"
+      drep_hash="$(bech32 <<< ${drep_id})"
+    else
+      hash_type="scriptHash"
+      drep_hash="${drep_id}"
+    fi
   fi
 }
 
@@ -1225,7 +1245,7 @@ getRewardAddressFromKey() {
 }
 
 # Command     : getCredential [type] [file]
-# Description : create and save wallet credentials (key hash) for payment and stake keys (incl multisig)
+# Description : create and save wallet credentials (key hash) for payment and stake keys (incl MultiSig)
 # Parameters  : type  >  payment | stake
 #             : file  >  path to verification file
 # Return      : populates ${cred}
@@ -1242,11 +1262,10 @@ getCredential() {
 }
 
 # Command     : getCredentials [wallet name]
-# Description : create and save wallet credentials (key hash) for payment and stake keys (incl multisig)
+# Description : create and save wallet credentials (key hash) for payment and stake keys (incl MultiSig)
 # Parameters  : wallet name  >  the name of the wallet
-# Return      : populates ${pay_cred} & ${stake_cred} ${ms_pay_cred} & ${ms_stake_cred} ${script_pay_cred} & ${script_stake_cred}
 getCredentials() {
-  unset pay_cred stake_cred ms_pay_cred ms_stake_cred
+  unset pay_cred stake_cred ms_pay_cred ms_stake_cred script_pay_cred script_stake_cred
   payment_cred_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_CRED_FILENAME}"
   stake_cred_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_CRED_FILENAME}"
   ms_payment_cred_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_CRED_FILENAME}"
@@ -1290,7 +1309,7 @@ getCredentials() {
       if stdout=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${ms_payment_vk_file}" --out-file "${ms_payment_cred_file}" 2>&1); then
         ms_pay_cred=$(cat "${ms_payment_cred_file}")
       else
-        println LOG "\n${FG_RED}ERROR${NC}: failure during multisig payment key hash creation!\n${stdout}"
+        println LOG "\n${FG_RED}ERROR${NC}: failure during MultiSig payment key hash creation!\n${stdout}"
         return 1
       fi
     fi
@@ -1302,7 +1321,7 @@ getCredentials() {
       if stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file "${ms_stake_vk_file}" --out-file "${ms_stake_cred_file}" 2>&1); then
         ms_stake_cred=$(cat "${ms_stake_cred_file}")
       else
-        println LOG "\n${FG_RED}ERROR${NC}: failure during multisig stake key hash creation!\n${stdout}"
+        println LOG "\n${FG_RED}ERROR${NC}: failure during MultiSig stake key hash creation!\n${stdout}"
         return 1
       fi
     fi
@@ -1629,7 +1648,7 @@ isWalletRegistered() {
 }
 
 # Command     : getWalletType [wallet name]
-# Description : check if wallet is a hardware wallet, 0=hw, 1=cli, 2=cli & encrypted, 3=signing keys missing, 4=verification keys missing, 5=multisig
+# Description : check if wallet is a hardware wallet, 0=hw, 1=cli, 2=cli & encrypted, 3=signing keys missing, 4=verification keys missing, 5=MultiSig
 # Parameters  : wallet name  >  the name of the wallet
 getWalletType() {
   payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
@@ -1657,18 +1676,18 @@ getWalletType() {
     else
       [[ ${op_mode} = "online" && ( ! -f ${payment_sk_file} || ! -f ${stake_sk_file} ) ]] && return 3 || return 1
     fi
-  elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}" || -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}" ]]; then # CNTools multisig wallet
+  elif [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}" || -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}" ]]; then # CNTools MultiSig wallet
     return 5
   else
     return 4
   fi
 }
 
-# Command     : getAllMultisigKeys [script]
-# Description : parse json multisig script for all signatures
+# Command     : getAllMultiSigKeys [script]
+# Description : parse json MultiSig script for all signatures
 # Parameters  : script      > the native script in json format
 # Return      : populates: ${script_sig_list} (associative array that acts as a set)
-getAllMultisigKeys() {
+getAllMultiSigKeys() {
   unset script_sig_list
   declare -gA script_sig_list=()
   while read -r _keyHash; do
@@ -1676,14 +1695,14 @@ getAllMultisigKeys() {
   done < <( jq -r '.. | select(.type?=="sig") | .keyHash' <<< "$1" )
 }
 
-# Command     : validateMultisigScript [verbose] [script] [sigs...]
-# Description : parse json multisig script to check if needed signatures exist
+# Command     : validateMultiSigScript [verbose] [script] [sigs...]
+# Description : parse json MultiSig script to check if needed signatures exist
 #             : NOTE !! please unset required_total before calling this function
 # Parameters  : verbose     > true|false, print time lock warnings
 #             : script      > the native script in json format
 #             : sigs        > array of creds for wallets found
 # Return      : 0 = success, 1 = failed, populates ${required_total} with total needed signatures
-validateMultisigScript() {
+validateMultiSigScript() {
   local found=0
   local required=1
   local verbose=$1
@@ -1713,7 +1732,7 @@ validateMultisigScript() {
         [[ ${verbose} = true ]] && println ERROR "${FG_RED}Time locked!${NC} This script is locked with an after condition that has yet to pass, after slot = ${__slot}, current slot = $(getSlotTipRef)"
       fi
     else
-      validateMultisigScript ${verbose} "$(base64 -d <<< ${__script})" "$@" && ((found++))
+      validateMultiSigScript ${verbose} "$(base64 -d <<< ${__script})" "$@" && ((found++))
     fi
   done < <( base64 -d <<< ${_scripts} | jq -cr '.[] | "\(.type),\(.keyHash),\(.slot),\(.|@base64)"' )
   required_total=$(( required_total + required ))
@@ -2004,15 +2023,15 @@ createMnemonicWallet() {
   fi
   println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${ms_payment_sk_file} --verification-key-file ${TMP_DIR}/ms_payment.evkey"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${ms_payment_sk_file}" --verification-key-file "${TMP_DIR}/ms_payment.evkey" 2>&1); then
-    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
   println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${ms_stake_sk_file} --verification-key-file ${TMP_DIR}/ms_stake.evkey"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${ms_stake_sk_file}" --verification-key-file "${TMP_DIR}/ms_stake.evkey" 2>&1); then
-    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
   println ACTION "${CCLI} conway key verification-key --signing-key-file ${ms_drep_sk_file} --verification-key-file ${TMP_DIR}/ms_drep.evkey"
   if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${ms_drep_sk_file}" --verification-key-file "${TMP_DIR}/ms_drep.evkey" 2>&1); then
-    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
   println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}" 2>&1); then
@@ -2036,15 +2055,15 @@ createMnemonicWallet() {
   fi
   println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_payment.evkey --verification-key-file ${ms_payment_vk_file}"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_payment.evkey" --verification-key-file "${ms_payment_vk_file}" 2>&1); then
-    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
   println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_stake.evkey --verification-key-file ${ms_stake_vk_file}"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_stake.evkey" --verification-key-file "${ms_stake_vk_file}" 2>&1); then
-    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
   println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_drep.evkey --verification-key-file ${ms_drep_vk_file}"
   if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_drep.evkey" --verification-key-file "${ms_drep_vk_file}" 2>&1); then
-    println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+    println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
   chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
   getBaseAddress ${wallet_name}
@@ -2121,7 +2140,7 @@ registerStakeWallet() {
   if [[ ${wallet_type} -eq 5 ]]; then
     op_mode=hybrid
     unset required_total
-    validateMultisigScript false "$(cat "${payment_script_file}")"
+    validateMultiSigScript false "$(cat "${payment_script_file}")"
     witness_cnt=${required_total}
     stake_param=("--stake-script-file" "${stake_script_file}")
   else
@@ -2208,8 +2227,8 @@ registerStakeWallet() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     if [[ ${wallet_type} -eq 5 ]]; then
-      println "Multisig wallet registration transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+      println "MultiSig wallet registration transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with MultiSig wallet participants."
     else
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
@@ -2245,10 +2264,10 @@ deregisterStakeWallet() {
   if [[ ${wallet_type} -eq 5 ]]; then
     op_mode=hybrid
     unset required_total
-    validateMultisigScript false "$(cat "${payment_script_file}")"
+    validateMultiSigScript false "$(cat "${payment_script_file}")"
     witness_cnt=${required_total}
     unset required_total
-    validateMultisigScript false "$(cat "${stake_script_file}")"
+    validateMultiSigScript false "$(cat "${stake_script_file}")"
     witness_cnt=$(( witness_cnt + required_total ))
     stake_param=("--stake-script-file" "${stake_script_file}")
   else
@@ -2342,8 +2361,8 @@ deregisterStakeWallet() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     if [[ ${wallet_type} -eq 5 ]]; then
-      println "Multisig wallet de-registration transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+      println "MultiSig wallet de-registration transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with MultiSig wallet participants."
     else
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
@@ -2377,7 +2396,7 @@ sendAssets() {
   if [[ ${wallet_type} -eq 5 ]]; then
     op_mode=hybrid
     unset required_total
-    validateMultisigScript false "$(cat "${payment_script_file}")"
+    validateMultiSigScript false "$(cat "${payment_script_file}")"
     witness_cnt=${required_total}
   else
     witness_cnt=1
@@ -2499,8 +2518,8 @@ sendAssets() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     if [[ ${wallet_type} -eq 5 ]]; then
-      println "Multisig wallet transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+      println "MultiSig wallet transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with MultiSig wallet participants."
     else
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
@@ -2531,10 +2550,10 @@ delegate() {
   if [[ ${wallet_type} -eq 5 ]]; then
     op_mode=hybrid
     unset required_total
-    validateMultisigScript false "$(cat "${payment_script_file}")"
+    validateMultiSigScript false "$(cat "${payment_script_file}")"
     witness_cnt=${required_total}
     unset required_total
-    validateMultisigScript false "$(cat "${stake_script_file}")"
+    validateMultiSigScript false "$(cat "${stake_script_file}")"
     witness_cnt=$(( witness_cnt + required_total ))
     stake_param=("--stake-script-file" "${stake_script_file}")
   else
@@ -2625,8 +2644,8 @@ delegate() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     if [[ ${wallet_type} -eq 5 ]]; then
-      println "Multisig wallet delegation transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+      println "MultiSig wallet delegation transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with MultiSig wallet participants."
     else
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
@@ -2658,10 +2677,10 @@ withdrawRewards() {
   if [[ ${wallet_type} -eq 5 ]]; then
     op_mode=hybrid
     unset required_total
-    validateMultisigScript false "$(cat "${payment_script_file}")"
+    validateMultiSigScript false "$(cat "${payment_script_file}")"
     witness_cnt=${required_total}
     unset required_total
-    validateMultisigScript false "$(cat "${stake_script_file}")"
+    validateMultiSigScript false "$(cat "${stake_script_file}")"
     witness_cnt=$(( witness_cnt + required_total ))
   else
     witness_cnt=2
@@ -2741,8 +2760,8 @@ withdrawRewards() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     if [[ ${wallet_type} -eq 5 ]]; then
-      println "Multisig wallet withdrawal transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+      println "MultiSig wallet withdrawal transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with MultiSig wallet participants."
     else
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
@@ -2781,12 +2800,12 @@ registerPool() {
       hasScriptOwner=true
       if [[ ${index} -eq 0 ]]; then
         unset required_total
-        validateMultisigScript false "$(cat "${payment_script_file}")"
+        validateMultiSigScript false "$(cat "${payment_script_file}")"
         witness_cnt=${required_total}
         script_args+=( --tx-in-script-file "${payment_script_file}" )
       fi
       unset required_total
-      validateMultisigScript false "$(cat "${stake_script_file}")"
+      validateMultiSigScript false "$(cat "${stake_script_file}")"
       witness_cnt=$(( witness_cnt + required_total ))
       script_args+=( --certificate-script-file "${stake_script_file}" )
     else
@@ -2939,12 +2958,12 @@ modifyPool() {
       hasScriptOwner=true
       if [[ ${index} -eq 0 ]]; then
         unset required_total
-        validateMultisigScript false "$(cat "${payment_script_file}")"
+        validateMultiSigScript false "$(cat "${payment_script_file}")"
         witness_cnt=${required_total}
         script_args+=( --tx-in-script-file "${payment_script_file}" )
       fi
       unset required_total
-      validateMultisigScript false "$(cat "${stake_script_file}")"
+      validateMultiSigScript false "$(cat "${stake_script_file}")"
       witness_cnt=$(( witness_cnt + required_total ))
       script_args+=( --certificate-script-file "${stake_script_file}" )
     else
@@ -3082,7 +3101,7 @@ deRegisterPool() {
   if [[ ${wallet_type} -eq 5 ]]; then
     op_mode=hybrid
     unset required_total
-    validateMultisigScript false "$(cat "${payment_script_file}")"
+    validateMultiSigScript false "$(cat "${payment_script_file}")"
     witness_cnt=$(( required_total + 1 ))
   else
     witness_cnt=2
@@ -3184,7 +3203,7 @@ deRegisterPool() {
     echo
     if [[ ${wallet_type} -eq 5 ]]; then
       println "Pool de-registration transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with MultiSig wallet participants."
     else
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
@@ -3319,7 +3338,7 @@ sendMetadata() {
   if [[ ${wallet_type} -eq 5 ]]; then
     op_mode=hybrid
     unset required_total
-    validateMultisigScript false "$(cat "${payment_script_file}")"
+    validateMultiSigScript false "$(cat "${payment_script_file}")"
     witness_cnt=${required_total}
   else
     witness_cnt=1
@@ -3405,7 +3424,7 @@ sendMetadata() {
     echo
     if [[ ${wallet_type} -eq 5 ]]; then
       println "Metadata transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with MultiSig wallet participants."
     else
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
@@ -3444,7 +3463,7 @@ mintAsset() {
   if [[ ${wallet_type} -eq 5 ]]; then
     op_mode=hybrid
     unset required_total
-    validateMultisigScript false "$(cat "${payment_script_file}")"
+    validateMultiSigScript false "$(cat "${payment_script_file}")"
     witness_cnt=$(( required_total + 1 ))
   else
     witness_cnt=2
@@ -3539,7 +3558,7 @@ mintAsset() {
     echo
     if [[ ${wallet_type} -eq 5 ]]; then
       println "Asset mint transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with MultiSig wallet participants."
     else
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
@@ -3577,7 +3596,7 @@ burnAsset() {
   if [[ ${wallet_type} -eq 5 ]]; then
     op_mode=hybrid
     unset required_total
-    validateMultisigScript false "$(cat "${payment_script_file}")"
+    validateMultiSigScript false "$(cat "${payment_script_file}")"
     witness_cnt=$(( required_total + 1 ))
   else
     witness_cnt=2
@@ -3672,7 +3691,7 @@ burnAsset() {
     echo
     if [[ ${wallet_type} -eq 5 ]]; then
       println "Asset burn transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with MultiSig wallet participants."
     else
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
@@ -3704,10 +3723,10 @@ voteDelegation() {
   if [[ ${wallet_type} -eq 5 ]]; then
     op_mode=hybrid
     unset required_total
-    validateMultisigScript false "$(cat "${payment_script_file}")"
+    validateMultiSigScript false "$(cat "${payment_script_file}")"
     witness_cnt=${required_total}
     unset required_total
-    validateMultisigScript false "$(cat "${stake_script_file}")"
+    validateMultiSigScript false "$(cat "${stake_script_file}")"
     witness_cnt=$(( witness_cnt + required_total ))
     stake_param=("--stake-script-file" "${stake_script_file}")
   else
@@ -3801,8 +3820,8 @@ voteDelegation() {
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
     if [[ ${wallet_type} -eq 5 ]]; then
-      println "Multisig wallet vote delegation transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+      println "MultiSig wallet vote delegation transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with MultiSig wallet participants."
     else
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
@@ -3830,11 +3849,27 @@ registerDRep() {
     tx_in=${tx_in_arr[${base_addr}]}
   fi
 
-  if ! getTTL; then return 1; fi
+  if [[ ${hash_type} = "scriptHash" ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultiSigScript false "$(cat "${drep_script_file}")"
+    witness_cnt=$(( required_total + 1 ))
+  else
+    witness_cnt=2
+  fi
+
+  if ! getTTL "$([[ ${hash_type} = "scriptHash" ]] && echo true)"; then return 1; fi
 
   [[ -z ${is_update} ]] && println LOG "DRep deposit is ${FG_LBLUE}$(formatLovelace ${DREP_DEPOSIT})${NC}"
 
   getAssetsTxOut
+
+  unset script_args
+  if [[ ${hash_type} = "scriptHash" ]]; then
+    script_args=(
+      --certificate-script-file "${drep_script_file}"
+    )
+  fi
 
   tmpNewBalance=$(( base_lovelace - DREP_DEPOSIT ))
   build_args=(
@@ -3843,13 +3878,13 @@ registerDRep() {
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
     --certificate-file "${drep_cert_file}"
+    "${script_args[@]}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
-
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   if [[ -z ${is_update} ]]; then
     fee=$(( DREP_DEPOSIT - min_fee ))
@@ -3881,6 +3916,7 @@ registerDRep() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file "${drep_cert_file}"
+    "${script_args[@]}"
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -3892,15 +3928,24 @@ registerDRep() {
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' drep signing key\", vkey: $(jq -c . "${drep_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${hash_type} = "scriptHash" ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${drep_wallet_name}' DRep script\", script: $(jq -c . "${drep_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${drep_wallet_name}' DRep signing key\", vkey: $(jq -c . "${drep_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${drep_sk_file})${NC}"
+    if [[ ${hash_type} = "scriptHash" ]]; then
+      println "MultiSig DRep registration transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with fee wallet and MultiSig DRep participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${drep_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
 
@@ -3922,11 +3967,27 @@ retireDRep() {
     tx_in=${tx_in_arr[${base_addr}]}
   fi
 
-  if ! getTTL; then return 1; fi
+  if [[ ${hash_type} = "scriptHash" ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultiSigScript false "$(cat "${drep_script_file}")"
+    witness_cnt=$(( required_total + 1 ))
+  else
+    witness_cnt=2
+  fi
+
+  if ! getTTL "$([[ ${hash_type} = "scriptHash" ]] && echo true)"; then return 1; fi
 
   println LOG "DRep deposit to be returned is ${FG_LBLUE}$(formatLovelace ${drep_deposit_amt})${NC}"
 
   getAssetsTxOut
+
+  unset script_args
+  if [[ ${hash_type} = "scriptHash" ]]; then
+    script_args=(
+      --certificate-script-file "${drep_script_file}"
+    )
+  fi
 
   tmpNewBalance=$(( base_lovelace + drep_deposit_amt ))
   build_args=(
@@ -3935,12 +3996,13 @@ retireDRep() {
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
     --certificate-file "${drep_cert_file}"
+    "${script_args[@]}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   newBalance=$(( base_lovelace + drep_deposit_amt - min_fee ))
   println LOG "New balance after returned DRep deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) + $(formatLovelace ${drep_deposit_amt}) - $(formatLovelace ${min_fee}))"
@@ -3966,6 +4028,7 @@ retireDRep() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file "${drep_cert_file}"
+    "${script_args[@]}"
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -3977,15 +4040,24 @@ retireDRep() {
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' drep signing key\", vkey: $(jq -c . "${drep_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    if [[ ${hash_type} = "scriptHash" ]]; then
+      if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${drep_wallet_name}' DRep script\", script: $(jq -c . "${drep_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    else
+      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${drep_wallet_name}' DRep signing key\", vkey: $(jq -c . "${drep_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+    fi
     if ! offlineJSON=$(jq ". += { \"signed-txBody\": {} }" <<< ${offlineJSON}); then return 1; fi
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${drep_sk_file})${NC}"
+    if [[ ${hash_type} = "scriptHash" ]]; then
+      println "MultiSig DRep retire transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with fee wallet and MultiSig DRep participants."
+    else
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${drep_sk_file})${NC}"
+    fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
 
@@ -4007,17 +4079,34 @@ governanceVote() {
     tx_in=${tx_in_arr[${base_addr}]}
   fi
 
-  if ! getTTL; then return 1; fi
+  if [[ ${vote_mode} = "drep" && ${hash_type} = "scriptHash" ]]; then
+    op_mode=hybrid
+    unset required_total
+    validateMultiSigScript false "$(cat "${drep_script_file}")"
+    witness_cnt=$(( required_total + 1 ))
+  else
+    witness_cnt=2
+  fi
+
+  if ! getTTL "$([[ ${vote_mode} = "drep" && ${hash_type} = "scriptHash" ]] && echo true)"; then return 1; fi
 
   getAssetsTxOut
+
+  unset script_args
+  if [[ ${vote_mode} = "drep" && ${hash_type} = "scriptHash" ]]; then
+    script_args=(
+      --tx-in-script-file "${drep_script_file}"
+    )
+  fi
 
   tmpNewBalance=${base_lovelace}
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${base_addr}+${tmpNewBalance}${assets_tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${DUMMYFEE}
-    --certificate-file "${drep_cert_file}"
+    --vote-file "${vote_file}"
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
@@ -4044,6 +4133,7 @@ governanceVote() {
 
   build_args=(
     ${tx_in}
+    "${script_args[@]}"
     --tx-out "${tx_out}"
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
@@ -4064,7 +4154,11 @@ governanceVote() {
     if [[ ${vote_mode} = "spo" ]]; then
       if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     elif [[ ${vote_mode} = "drep" ]]; then
-      if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' drep signing key\", vkey: $(jq -c . "${drep_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      if [[ ${hash_type} = "scriptHash" ]]; then
+        if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${drep_wallet_name}' DRep script\", script: $(jq -c . "${drep_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      else
+        if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${drep_wallet_name}' DRep signing key\", vkey: $(jq -c . "${drep_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
+      fi
     else
       if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' committee hot signing key\", vkey: $(jq -c . "${cc_hot_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     fi
@@ -4072,15 +4166,20 @@ governanceVote() {
     offline_tx="${TMP_DIR}/offline_tx_$(jq -r .id <<< ${offlineJSON}).json"
     jq -r . <<< "${offlineJSON}" > "${offline_tx}"
     echo
-    println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-    println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
-    println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
-    if [[ ${vote_mode} = "spo" ]]; then
-      println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}$(basename ${pool_coldkey_sk_file})${NC}"
-    elif [[ ${vote_mode} = "drep" ]]; then
-      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${drep_sk_file})${NC}"
+    if [[ ${vote_mode} = "drep" && ${hash_type} = "scriptHash" ]]; then
+      println "MultiSig DRep vote transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with fee wallet and MultiSig DRep participants."
     else
-      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${cc_hot_sk_file})${NC}"
+      println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
+      println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"
+      println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${payment_sk_file})${NC}"
+      if [[ ${vote_mode} = "spo" ]]; then
+        println DEBUG "Pool ${FG_GREEN}${pool_name} ${FG_LGRAY}$(basename ${pool_coldkey_sk_file})${NC}"
+      elif [[ ${vote_mode} = "drep" ]]; then
+        println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${drep_sk_file})${NC}"
+      else
+        println DEBUG "Wallet ${FG_GREEN}${wallet_name} ${FG_LGRAY}$(basename ${cc_hot_sk_file})${NC}"
+      fi
     fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
@@ -4505,7 +4604,7 @@ submitPoll() {
   if [[ ${wallet_type} -eq 5 ]]; then
     op_mode=hybrid
     unset required_total
-    validateMultisigScript false "$(cat "${payment_script_file}")"
+    validateMultiSigScript false "$(cat "${payment_script_file}")"
     witness_cnt=$(( required_total + 1 ))
   else
     witness_cnt=2
@@ -4601,7 +4700,7 @@ submitPoll() {
     echo
     if [[ ${wallet_type} -eq 5 ]]; then
       println "CIP-0094 poll transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
-      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with multisig wallet participants."
+      println DEBUG "Use CNTools [Transaction >> Sign] to witness the transaction with MultiSig wallet participants."
     else
       println "Offline transaction successfully built and saved to: ${FG_LGRAY}${offline_tx}${NC}"
       println DEBUG "move file to offline computer and sign it using CNTools in offline mode '-o' [Transaction >> Sign] with:"

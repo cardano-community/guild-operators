@@ -464,15 +464,15 @@ function main {
                     fi
                     println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${ms_payment_vk_file} --signing-key-file ${ms_payment_sk_file}"
                     if ! stdout=$(${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${ms_payment_vk_file}" --signing-key-file "${ms_payment_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment key creation!\n${stdout}"; waitToProceed && continue
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment key creation!\n${stdout}"; waitToProceed && continue
                     fi
                     println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${ms_stake_vk_file} --signing-key-file ${ms_stake_sk_file}"
                     if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${ms_stake_vk_file}" --signing-key-file "${ms_stake_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake key creation!\n${stdout}"; waitToProceed && continue
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake key creation!\n${stdout}"; waitToProceed && continue
                     fi
                     println ACTION "${CCLI} conway governance drep key-gen --verification-key-file ${ms_drep_vk_file} --signing-key-file ${ms_drep_sk_file}"
                     if ! stdout=$(${CCLI} conway governance drep key-gen --verification-key-file "${ms_drep_vk_file}" --signing-key-file "${ms_drep_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig governance drep key creation!\n${stdout}"; waitToProceed && continue
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig governance drep key creation!\n${stdout}"; waitToProceed && continue
                     fi
                     chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
                     getBaseAddress ${wallet_name}
@@ -634,9 +634,9 @@ function main {
                     jq '.description = "Delegate Representative Hardware Verification Key"' "${drep_vk_file}" > "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" "${drep_vk_file}"
                     jq '.description = "Constitutional Committee Cold Hardware Verification Key"' "${cc_cold_vk_file}" > "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" "${cc_cold_vk_file}"
                     jq '.description = "Constitutional Committee Hot Hardware Verification Key"' "${cc_hot_sk_file}" > "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" "${cc_hot_sk_file}"
-                    jq '.description = "Multisig Payment Hardware Verification Key"' "${ms_payment_vk_file}" > "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" "${ms_payment_vk_file}"
-                    jq '.description = "Multisig Stake Hardware Verification Key"' "${ms_stake_vk_file}" > "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" "${ms_stake_vk_file}"
-                    jq '.description = "Multisig Delegate Representative Hardware Verification Key"' "${ms_drep_vk_file}" > "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" "${ms_drep_vk_file}"
+                    jq '.description = "MultiSig Payment Hardware Verification Key"' "${ms_payment_vk_file}" > "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" "${ms_payment_vk_file}"
+                    jq '.description = "MultiSig Stake Hardware Verification Key"' "${ms_stake_vk_file}" > "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" "${ms_stake_vk_file}"
+                    jq '.description = "MultiSig Delegate Representative Hardware Verification Key"' "${ms_drep_vk_file}" > "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" "${ms_drep_vk_file}"
                     getBaseAddress ${wallet_name}
                     getPayAddress ${wallet_name}
                     getRewardAddress ${wallet_name}
@@ -796,7 +796,7 @@ function main {
                   postfix="- ${FG_LGRAY}UNREGISTERED${NC}"
                 fi
                 getWalletType ${wallet_name}
-                [[ $? -eq 5 ]] && postfix="${postfix} (${FG_LGRAY}multisig${NC})"
+                [[ $? -eq 5 ]] && postfix="${postfix} (${FG_LGRAY}MultiSig${NC})"
                 [[ ${enc_files} -gt 0 ]] && postfix="${postfix} (${FG_YELLOW}encrypted${NC})"
                 if [[ ${enc_files} -gt 0 && ${registered} = "yes" ]]; then
                   println "${FG_GREEN}${wallet_name}${NC} - ${FG_LGRAY}REGISTERED${NC} (${FG_YELLOW}encrypted${NC})"
@@ -811,7 +811,7 @@ function main {
                 case $? in
                   0) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Hardware")" ;;
                   1) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "CLI")" ;;
-                  5) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Multisig")" ;;
+                  5) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "MultiSig")" ;;
                 esac
                 getBaseAddress ${wallet_name}
                 getPayAddress ${wallet_name}
@@ -1030,7 +1030,7 @@ function main {
               case $? in
                 0) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Hardware")" ;;
                 1) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "CLI")" ;;
-                5) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Multisig")" ;;
+                5) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "MultiSig")" ;;
               esac
 
               derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
@@ -1056,7 +1056,7 @@ function main {
                   println "$(printf "%-20s ${FG_DGRAY}:${NC} ${timelock_color}%s${NC}" "Time Locked Until" "${timelock_date}")"
                 fi
                 if [[ -n ${atleast} ]]; then
-                  cred_header="Multisig Creds (${total_signers})"
+                  cred_header="MultiSig Creds (${total_signers})"
                   for _sig in "${script_sig_list[@]}"; do
                     unset wallet_str
                     while IFS= read -r -d '' wallet; do
@@ -1083,8 +1083,8 @@ function main {
               fi
               [[ -n ${pay_cred} ]]          && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment" "${pay_cred}")"
               [[ -n ${stake_cred} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Stake" "${stake_cred}")"
-              [[ -n ${ms_pay_cred} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Multisig Payment" "${ms_pay_cred}")"
-              [[ -n ${ms_stake_cred} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Multisig Stake" "${ms_stake_cred}")"
+              [[ -n ${ms_pay_cred} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "MultiSig Payment" "${ms_pay_cred}")"
+              [[ -n ${ms_stake_cred} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "MultiSig Stake" "${ms_stake_cred}")"
               [[ -n ${script_pay_cred} ]]   && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Payment" "${script_pay_cred}")"
               [[ -n ${script_stake_cred} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Stake" "${script_stake_cred}")"
 
@@ -2289,7 +2289,7 @@ function main {
                       waitToProceed && continue ;;
                     2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
                     3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
-                    5) println ERROR "${FG_RED}ERROR${NC}: multisig wallet pool owners not supported!"
+                    5) println ERROR "${FG_RED}ERROR${NC}: MultiSig wallet pool owners not supported!"
                       println ERROR "Use a CLI wallet as owner with enough funds to pay for pool deposit and registration transaction fee"
                       waitToProceed && continue ;;
                   esac
@@ -2339,7 +2339,7 @@ function main {
                               println ERROR "${FG_RED}ERROR${NC}: stake verification key missing from wallet ${FG_GREEN}${wallet_name}${NC}!"
                               println DEBUG "Add another owner?" && continue
                             fi ;;
-                          5) println ERROR "${FG_RED}ERROR${NC}: multisig wallet pool owner not supported!"
+                          5) println ERROR "${FG_RED}ERROR${NC}: MultiSig wallet pool owner not supported!"
                             waitToProceed && println DEBUG "Add more owners?" && continue ;;
                         esac
                       else
@@ -2372,7 +2372,7 @@ function main {
                     esac
                     ;;
                   2) continue ;;
-                  5) println ERROR "${FG_RED}ERROR${NC}: multisig wallet as rewards wallet not supported!" && waitToProceed && continue ;;
+                  5) println ERROR "${FG_RED}ERROR${NC}: MultiSig wallet as rewards wallet not supported!" && waitToProceed && continue ;;
                 esac
               fi
 
@@ -3359,9 +3359,9 @@ function main {
                 _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
                 otx_script_name=$(_jq '.name')
                 otx_script_scripts="$(_jq '.script' 2>/dev/null)"
-                getAllMultisigKeys "${otx_script_scripts}"
+                getAllMultiSigKeys "${otx_script_scripts}"
                 unset required_total
-                validateMultisigScript false "${otx_script_scripts}"
+                validateMultiSigScript false "${otx_script_scripts}"
                 println DEBUG "${FG_LGRAY}${otx_script_name}${NC} - required signatures: ${FG_LBLUE}${required_total}${NC}"
                 for sig in "${!script_sig_list[@]}"; do
                   unset hasWitness found_wallet_name
@@ -3479,7 +3479,7 @@ function main {
                 _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
                 otx_script_name=$(_jq '.name')
                 otx_script_scripts="$(_jq '.script' 2>/dev/null)"
-                getAllMultisigKeys "${otx_script_scripts}"
+                getAllMultiSigKeys "${otx_script_scripts}"
                 # loop once to add all already signed creds
                 missing_creds=()
                 script_sig_creds=()
@@ -3491,7 +3491,7 @@ function main {
                   missing_creds+=( "${sig}" )
                 done
                 # Check if script meets requirement
-                if validateMultisigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
+                if validateMultiSigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
                   # script successfully validated, no more signatures needed
                   println DEBUG "\n${FG_LGRAY}${otx_script_name}${NC} validation ${FG_GREEN}passed${NC}! No more signatures needed!"
                   continue
@@ -3499,7 +3499,7 @@ function main {
                 # loop again if needed
                 for sig in "${missing_creds[@]}"; do
                   # Check if script meets requirement
-                  if validateMultisigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
+                  if validateMultiSigScript false "${otx_script_scripts}" "${script_sig_creds[@]}"; then
                     # script successfully validated, no more signatures needed
                     println DEBUG "\n${FG_LGRAY}${otx_script_name}${NC} validation ${FG_GREEN}passed${NC}! No more signatures needed!"
                     break
@@ -3521,7 +3521,7 @@ function main {
                     fi
                   done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
                   [[ -n ${skey_path} && ! -f "${skey_path}" ]] && println ERROR "\n${FG_YELLOW}WARN${NC}: Wallet match found but signing key missing: ${skey_path}" && unset skey_path
-                  # matching multisig participant wallet found?
+                  # matching MultiSig participant wallet found?
                   if [[ -n ${skey_path} ]]; then
                     println DEBUG "\nFound a matching wallet for ${FG_LGRAY}${otx_script_name}${NC}, use this file ? : ${FG_LGRAY}${skey_path}${NC}"
                     select_opt "[y] Yes" "[s] Skip participant"
@@ -3542,7 +3542,7 @@ function main {
                     continue
                   else
                     # choose
-                    fileDialog "\nEnter path to signing key for multisig participant" "${WALLET_FOLDER}/"
+                    fileDialog "\nEnter path to signing key for MultiSig participant" "${WALLET_FOLDER}/"
                     [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
                     file_desc=$(jq -er '.description' "${file}" 2>/dev/null)
                     if [[ ${file_desc} = *"Hardware"* ]]; then
@@ -3575,7 +3575,7 @@ function main {
                       getCredential ${cred_type} "${TMP_DIR}"/tmp.vkey
                     fi
                     if [[ ${cred} != ${sig} ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with credential in multisig script:${FG_LGRAY}${otx_script_name}${NC}"
+                      println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with credential in MultiSig script:${FG_LGRAY}${otx_script_name}${NC}"
                       println ERROR "Provided signing key's credential  : ${FG_LGRAY}${cred}${NC}"
                       println ERROR "Looking for credential             : ${FG_LGRAY}${sig}${NC}"
                       waitToProceed && continue
@@ -3587,7 +3587,7 @@ function main {
                   fi
                 done
                 unset required_total
-                if ! validateMultisigScript true "${otx_script_scripts}" "${script_sig_creds[@]}"; then
+                if ! validateMultiSigScript true "${otx_script_scripts}" "${script_sig_creds[@]}"; then
                   # script failed validation
                   script_failed=true
                   println ERROR "\n${FG_LGRAY}${otx_script_name}${NC} validation ${FG_RED}failed${NC}! Unable to submit transaction until needed signatures are added and/or time lock conditions if set pass!"
@@ -4075,19 +4075,21 @@ function main {
                   " ) Delegate      - delegate wallet vote power to a DRep, own, external, or one the pre-defined 'abstain' / 'no confidence'"\
                   " ) DRep Reg      - register wallet as a DRep for voting"\
                   " ) DRep Retire   - retire wallet as a DRep"\
-                  " ) Cast Vote     - Vote on governance actions as an SPO, DRep, or Committee member"\
+                  " ) Cast Vote     - vote on governance actions as an SPO, DRep, or Committee member"\
                   " ) Derive Keys   - derive delegate representative (DRep) and committee member keys (if needed)"\
+                  " ) MultiSig DRep - create a multi-participant (MultiSig) DRep coalition"\
                   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Catalyst Operation\n"
-                select_opt "[i] Info & Status" "[d] Delegate" "[r] DRep Registration" "[r] DRep Retire" "[v] Cast vote" "[k] Derive Keys" "[h] Home"
+                select_opt "[i] Info & Status" "[d] Delegate" "[r] DRep Registration" "[r] DRep Retire" "[v] Cast vote" "[k] Derive Keys" "[m] MultiSig DRep" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="info-status" ;;
                   1) SUBCOMMAND="delegate" ;;
                   2) SUBCOMMAND="drep-reg" ;;
                   3) SUBCOMMAND="drep-ret" ;;
                   4) SUBCOMMAND="vote" ;;
-                  5) SUBCOMMAND="derive-gov-keys" ;;
-                  6) break ;;
+                  5) SUBCOMMAND="create-ms-drep" ;;
+                  6) SUBCOMMAND="derive-gov-keys" ;;
+                  7) break ;;
                 esac
                 case $SUBCOMMAND in
                   info-status)
@@ -4107,9 +4109,10 @@ function main {
                       2) continue ;;
                     esac
                     current_epoch=$(getEpoch)
+                    drep_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
                     echo
                     println "Wallet         : ${FG_GREEN}${wallet_name}${NC}"
-                    if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
+                    if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]]; then
                       println "DEBUG" "\nVote Delegation Status"
                       unset walletName
                       if getWalletVoteDelegation ${wallet_name}; then
@@ -4138,13 +4141,26 @@ function main {
                         println "Delegation     : ${FG_YELLOW}undelegated${NC}"
                       fi
                     fi
-                    println "DEBUG" "\nOwn DRep Status"
                     getGovKeyInfo ${wallet_name}
-                    println "DRep Id        : ${FG_LGRAY}${drep_id}${NC}"
-                    println "Committee Hash : ${FG_LGRAY}${cc_hash}${NC}"
-                    if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
+                    println "DEBUG" "\nOwn DRep Status"
+                    if [[ -z ${drep_id} ]]; then
+                      println "Status         : ${FG_YELLOW}Governance keys missing, please derive them if needed${NC}"
+                      waitToProceed && continue
+                    fi
+                    if [[ ${drep_id} = drep* ]]; then
+                      println "DRep ID           : ${FG_LGRAY}${drep_id}${NC}"
                       drep_hash=$(bech32 <<< "${drep_id}")
-                      if getDRepStatus keyHash ${drep_hash}; then
+                      hash_type="keyHash"
+                    else
+                      println "DRep ID           : ${FG_LGRAY}$(bech32 drep <<< ${drep_id})${NC}"
+                      println "DRep Script Hash  : ${FG_LGRAY}${drep_id}${NC}"
+                      drep_hash=${drep_id}
+                      hash_type="scriptHash"
+                    fi
+                    println "Committee Cold ID : ${FG_LGRAY}${cc_cold_id}${NC}"
+                    println "Committee Hot ID  : ${FG_LGRAY}${cc_hot_id}${NC}"
+                    if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
+                      if getDRepStatus ${hash_type} ${drep_hash}; then
                         [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                         println "DRep expiry    : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
                         getDRepVotePower keyHash ${drep_hash}
@@ -4181,11 +4197,11 @@ function main {
                       println ERROR "\n${FG_RED}ERROR${NC}: wallet not registered, please register wallet or delegate wallet to a stake pool!"
                       waitToProceed && continue
                     fi
-                    unset drep_wallet
+                    unset drep_wallet drep_hash
                     println DEBUG "Do you want to delegate to a local CNTools DRep registered wallet, pre-defined type or specify the DRep ID?"
                     select_opt "[w] CNTools DRep Wallet" "[i] DRep ID" "[a] Always Abstain" "[c] Always No Confidence" "[Esc] Cancel"
                     case $? in
-                      0) selectWallet "none" "${WALLET_GOV_DREP_VK_FILENAME}"
+                      0) selectWallet "none"
                         case $? in
                           1) waitToProceed; continue ;;
                           2) continue ;;
@@ -4207,7 +4223,7 @@ function main {
                     esac
                     unset drep_expiry
                     if [[ ${drep_id} != always* ]]; then
-                      drep_hash=$(bech32 <<< "${drep_id}")
+                      [[ -z ${drep_hash} ]] && drep_hash=$(bech32 <<< "${drep_id}")
                       getDRepStatus keyHash ${drep_hash}
                       [[ -z ${drep_expiry} ]] && getDRepStatus scriptHash ${drep_hash}
                       if [[ -z ${drep_expiry} ]]; then
@@ -4243,7 +4259,7 @@ function main {
                     if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
                     echo
                     println "${FG_GREEN}${wallet_name}${NC} successfully delegated to DRep!"
-                    println "\nDRep Id         : ${FG_LGRAY}${drep_id}${NC}"
+                    println "\nDRep ID         : ${FG_LGRAY}${drep_id}${NC}"
                     if [[ -n ${drep_expiry} ]]; then
                       [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                       println "DRep expiry     : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
@@ -4268,14 +4284,17 @@ function main {
                     else
                       if ! selectOpMode; then continue; fi
                     fi
-                    println DEBUG "# Select wallet (derive governance keys if missing)"
-                    selectWallet "balance" "${WALLET_GOV_DREP_VK_FILENAME}"
+                    println DEBUG "# Select wallet"
+                    selectWallet "balance"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
                     getGovKeyInfo "${drep_wallet}"
-                    drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
+                    if [[ -z ${drep_id} ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: Wallet missing governance keys, please first derive them!"
+                      waitToProceed && continue
+                    fi
                     drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
                     drep_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_REGISTER_CERT_FILENAME}"
                     drep_meta_file="${WALLET_FOLDER}/${wallet_name}/drep_meta.json"
@@ -4303,11 +4322,16 @@ function main {
                         ;;
                     esac
                     unset is_update
-                    if ! getDRepStatus keyHash ${drep_hash}; then
+                    if [[ ${hash_type} = "scriptHash" ]]; then
+                      drep_reg_param=(--drep-script-hash "${drep_hash}")
+                    else
+                      drep_reg_param=(--drep-verification-key-file "${drep_vk_file}")
+                    fi
+                    if ! getDRepStatus ${hash_type} ${drep_hash}; then
                       # registration
                       DREP_REG_CMD=(
                         ${CCLI} ${NETWORK_ERA} governance drep registration-certificate
-                        --drep-verification-key-file "${drep_vk_file}"
+                        "${drep_reg_param[@]}"
                         --key-reg-deposit-amt ${DREP_DEPOSIT}
                         --out-file "${drep_cert_file}"
                       )
@@ -4316,7 +4340,7 @@ function main {
                       is_update=Y
                       DREP_REG_CMD=(
                         ${CCLI} ${NETWORK_ERA} governance drep registration-certificate
-                        --drep-verification-key-file "${drep_vk_file}"
+                        "${drep_reg_param[@]}"
                         --out-file "${drep_cert_file}"
                       )
                     fi
@@ -4330,10 +4354,19 @@ function main {
                     if ! stdout=$("${DREP_REG_CMD[@]}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep registration certificate creation!\n${stdout}"; waitToProceed && continue
                     fi
+                    drep_wallet_name=${wallet_name}
+                    if [[ ${hash_type} = "scriptHash" ]]; then
+                      println DEBUG "Select wallet to pay for transaction fee"
+                      selectWallet "balance" ${WALLET_PAY_VK_FILENAME}
+                      case $? in
+                        1) waitToProceed; continue ;;
+                        2) continue ;;
+                      esac
+                    fi
                     getWalletBalance ${wallet_name} true true false true
                     if [[ ${base_lovelace} -le 0 ]]; then
                       println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
-                      println DEBUG "Funds for DRep deposit($(formatLovelace ${DREP_DEPOSIT}) ADA) + transaction fee needed to register the wallet"
+                      println DEBUG "Funds for DRep deposit($(formatLovelace ${DREP_DEPOSIT}) ADA) + transaction fee needed to register as DRep"
                       waitToProceed && continue
                     fi
                     if ! registerDRep; then
@@ -4344,10 +4377,10 @@ function main {
                     if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
                     echo
                     if [[ -z ${is_update} ]]; then
-                      println "${FG_GREEN}${wallet_name}${NC} successfully registered as DRep on chain!"
+                      println "${FG_GREEN}${drep_wallet_name}${NC} successfully registered as DRep on chain!"
                       println "DRep deposit : ${FG_LBLUE}$(formatLovelace ${DREP_DEPOSIT})${NC} ADA (returned when retired)"
                     else
-                      println "${FG_GREEN}${wallet_name}${NC} DRep details updated!"
+                      println "${FG_GREEN}${drep_wallet_name}${NC} DRep details updated!"
                     fi
                     waitToProceed && continue
                     ;; ###################################################################
@@ -4367,21 +4400,30 @@ function main {
                       if ! selectOpMode; then continue; fi
                     fi
                     println DEBUG "# Select wallet (derive governance keys if missing)"
-                    selectWallet "balance" "${WALLET_GOV_DREP_VK_FILENAME}"
+                    selectWallet "balance"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
-                    if ! getDRepStatus ${wallet_name}; then
+                    getGovKeyInfo ${wallet_name}
+                    if [[ -z ${drep_id} ]]; then
+                      println ERROR "${FG_RED}ERROR${NC}: Wallet missing governance keys!"
+                      waitToProceed && continue
+                    fi
+                    if ! getDRepStatus ${hash_type} ${drep_hash}; then
                       println ERROR "\n${FG_RED}ERROR${NC}: Wallet not registered as a DRep, unable to retire!"
                       waitToProceed && continue
                     fi
-                    drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
                     drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
                     drep_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_RETIRE_CERT_FILENAME}"
+                    if [[ ${hash_type} = "scriptHash" ]]; then
+                      drep_ret_param=(--drep-script-hash "${drep_hash}")
+                    else
+                      drep_ret_param=(--drep-verification-key-file "${drep_vk_file}")
+                    fi
                     DREP_RET_CMD=(
                       ${CCLI} ${NETWORK_ERA} governance drep retirement-certificate
-                      --drep-verification-key-file "${drep_vk_file}"
+                      "${drep_ret_param[@]}"
                       --deposit-amt ${drep_deposit_amt}
                       --out-file "${drep_cert_file}"
                     )
@@ -4389,10 +4431,19 @@ function main {
                     if ! stdout=$("${DREP_RET_CMD[@]}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep retirement certificate creation!\n${stdout}"; waitToProceed && continue
                     fi
+                    drep_wallet_name=${wallet_name}
+                    if [[ ${hash_type} = "scriptHash" ]]; then
+                      println DEBUG "Select wallet to pay for the transaction fee and that gets the returned DRep deposit"
+                      selectWallet "balance" ${WALLET_PAY_VK_FILENAME}
+                      case $? in
+                        1) waitToProceed; continue ;;
+                        2) continue ;;
+                      esac
+                    fi
                     getWalletBalance ${wallet_name} true true false true
                     if [[ ${base_lovelace} -le 0 ]]; then
                       println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
-                      println DEBUG "Funds for transaction fee needed to retire the wallet as a DRep"
+                      println DEBUG "Funds for transaction fee needed to retire as a DRep"
                       waitToProceed && continue
                     fi
                     if ! retireDRep; then
@@ -4402,7 +4453,7 @@ function main {
                     echo
                     if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
                     echo
-                    println "${FG_GREEN}${wallet_name}${NC} successfully retired as DRep!"
+                    println "${FG_GREEN}${drep_wallet_name}${NC} successfully retired as DRep!"
                     println "DRep deposit : ${FG_LBLUE}$(formatLovelace ${drep_deposit_amt})${NC} ADA returned"
                     waitToProceed && continue
                     ;; ###################################################################
@@ -4441,13 +4492,25 @@ function main {
                         pool_coldkey_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_SK_FILENAME}"
                         ;;
                       1) vote_mode="drep"
-                        selectWallet "none" "${WALLET_GOV_DREP_VK_FILENAME}"
+                        selectWallet "none"
                         case $? in
                           1) waitToProceed; continue ;;
                           2) continue ;;
                         esac
-                        drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
-                        drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
+                        drep_wallet_name="${wallet_name}"
+                        getGovKeyInfo ${drep_wallet_name}
+                        if [[ -z ${hash_type} ]]; then
+                          println ERROR "${FG_RED}ERROR${NC}: Wallet missing governance keys!"
+                          waitToProceed && continue
+                        elif [[ ${hash_type} = "scriptHash" ]]; then
+                          println DEBUG "Select wallet to pay for transaction fee"
+                          selectWallet "balance"
+                          case $? in
+                            1) waitToProceed; continue ;;
+                            2) continue ;;
+                          esac
+                        fi
+                        drep_sk_file="${WALLET_FOLDER}/${drep_wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
                         ;;
                       2) vote_mode="committee"
                         selectWallet "none" "${WALLET_GOV_CC_HOT_VK_FILENAME}"
@@ -4455,14 +4518,15 @@ function main {
                           1) waitToProceed; continue ;;
                           2) continue ;;
                         esac
+                        getGovKeyInfo ${wallet_name}
                         cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
                         cc_hot_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_SK_FILENAME}"
                         ;;
                       4) continue ;;
                     esac
                     if [[ ${vote_mode} = "drep" || ${vote_mode} = "committee" ]]; then
-                      drep_hash=$(bech32 <<< "${drep_id}")
-                      if ! getDRepVotePower keyHash ${drep_hash}; then
+                      [[ ${vote_mode} = "committee" ]] && hash_type="keyHash"
+                      if ! getDRepVotePower ${hash_type} ${drep_hash}; then
                         println ERROR "\n${FG_RED}ERROR${NC}: selected wallet has no vote power associated with it"
                         waitToProceed && continue
                       fi
@@ -4520,7 +4584,11 @@ function main {
                     if [[ ${vote_mode} = "spo" ]]; then
                       VOTE_CMD+=(--cold-verification-key-file "${pool_coldkey_vk_file}")
                     elif [[ ${vote_mode} = "drep" ]]; then
-                      VOTE_CMD+=(--drep-verification-key-file "${drep_vk_file}")
+                      if [[ ${hash_type} = "keyHash" ]]; then
+                        VOTE_CMD+=(--drep-verification-key-file "${drep_vk_file}")
+                      else
+                        VOTE_CMD+=(--drep-script-hash "${drep_hash}")
+                      fi
                     else
                       VOTE_CMD+=(--cc-hot-verification-key-file "${cc_hot_vk_file}")
                     fi
@@ -4541,7 +4609,7 @@ function main {
                     echo
                     if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
                     echo
-                    println "${FG_GREEN}${wallet_name}${NC} successfully cast vote!"
+                    println "successfully cast vote!"
                     waitToProceed && continue
                     ;; ###################################################################
                   derive-gov-keys)
@@ -4604,7 +4672,7 @@ function main {
                         jq '.description = "Delegate Representative Hardware Verification Key"' "${drep_vk_file}" > "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" "${drep_vk_file}"
                         jq '.description = "Constitutional Committee Cold Hardware Verification Key"' "${cc_cold_vk_file}" > "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" "${cc_cold_vk_file}"
                         jq '.description = "Constitutional Committee Hot Hardware Verification Key"' "${cc_hot_sk_file}" > "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" "${cc_hot_sk_file}"
-                        jq '.description = "Multisig Delegate Representative Hardware Verification Key"' "${ms_drep_vk_file}" > "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" "${ms_drep_vk_file}"
+                        jq '.description = "MultiSig Delegate Representative Hardware Verification Key"' "${ms_drep_vk_file}" > "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" "${ms_drep_vk_file}"
                         ;;
                       5) println ERROR "\n${FG_RED}ERROR${NC}: MultiSig wallets not supported as DRep wallet, only vote delegation supported!\n${stdout}"; waitToProceed && continue ;;
                       *)
@@ -4636,7 +4704,7 @@ function main {
                             fi
                             println ACTION "${CCLI} conway governance drep key-gen --verification-key-file ${ms_drep_vk_file} --signing-key-file ${ms_drep_sk_file}"
                             if ! stdout=$(${CCLI} conway governance drep key-gen --verification-key-file "${ms_drep_vk_file}" --signing-key-file "${ms_drep_sk_file}" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig governance drep key creation!\n${stdout}"; waitToProceed && continue
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig governance drep key creation!\n${stdout}"; waitToProceed && continue
                             fi
                             ;;
                           1) if ! cmdAvailable "bech32" &>/dev/null || \
@@ -4719,7 +4787,7 @@ function main {
                             fi
                             println ACTION "${CCLI} conway key verification-key --signing-key-file ${ms_drep_sk_file} --verification-key-file ${TMP_DIR}/ms_drep.evkey"
                             if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${ms_drep_sk_file}" --verification-key-file "${TMP_DIR}/ms_drep.evkey" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
                             println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/drep.evkey --verification-key-file ${drep_vk_file}"
                             if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/drep.evkey" --verification-key-file "${drep_vk_file}" 2>&1); then
@@ -4735,7 +4803,7 @@ function main {
                             fi
                             println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_drep.evkey --verification-key-file ${ms_drep_vk_file}"
                             if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_drep.evkey" --verification-key-file "${ms_drep_vk_file}" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
                             ;;
                         esac
@@ -4744,9 +4812,88 @@ function main {
                     chmod 600 "${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}"*
                     echo
                     getGovKeyInfo ${wallet_name}
-                    println "Wallet         : ${FG_GREEN}${wallet_name}${NC}"
-                    println "DRep Id        : ${FG_LGRAY}${drep_id}${NC}"
-                    println "Committee Hash : ${FG_LGRAY}${cc_hash}${NC}"
+                    println "Wallet            : ${FG_GREEN}${wallet_name}${NC}"
+                    println "DRep ID           : ${FG_LGRAY}${drep_id}${NC}"
+                    println "Committee Cold ID : ${FG_LGRAY}${cc_cold_id}${NC}"
+                    println "Committee Hot ID  : ${FG_LGRAY}${cc_hot_id}${NC}"
+                    waitToProceed && continue
+                    ;; ###################################################################
+                  create-ms-drep)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> VOTE >> GOVERNANCE >> MULTISIG DREP"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    createNewWallet || continue
+                    ms_wallet_name="${wallet_name}"
+                    # Wallet key filenames
+                    drep_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
+                    if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
+                      println "      Choose another name or delete the existing one"
+                      waitToProceed && continue
+                    fi
+                    # drep key hashes as keys to associative array to act as a set
+                    declare -gA key_hashes=()
+                    println OFF "Select wallet(s) / DRep IDs to include in MultiSig DRep"
+                    println OFF "${FG_YELLOW}!${NC} Please use 1854H (MultiSig) derived keys according to CIP-1854!"
+                    println OFF "${FG_YELLOW}!${NC} Only wallets with these keys will be listed, use 'Derive Keys' option to generate them."
+                    echo
+                    selected_wallets=()
+                    while true; do
+                      println DEBUG "Select wallet or manually enter DRep ID?"
+                      select_opt "[w] Wallet" "[i] DRep ID" "[d] I'm done" "[Esc] Cancel"
+                      case $? in
+                        0) selectWallet "none" "${selected_wallets[@]}" "${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
+                          case $? in
+                            1) waitToProceed; continue ;;
+                            2) continue ;;
+                          esac
+                          getGovKeyInfo ${wallet_name}
+                          [[ -z ${drep_id} || ${drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid wallet, DRep keys not found!" && waitToProceed && continue
+                          drep_hash=
+                          key_hashes[$(bech32 <<< "${drep_id}")]=1
+                          selected_wallets+=("${wallet_name}")
+                          ;;
+                        1) getAnswerAnyCust drep_id "MultiSig DRep ID (bech32)"
+                          [[ ${#drep_id} -ne 56 || ${drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
+                          key_hashes[$(bech32 <<< "${drep_id}")]=1
+                          ;;
+                        2) break ;;
+                        3) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
+                      esac
+                      println DEBUG "\nMultiSig size: ${#key_hashes[@]} - Add more wallets / DRep IDs to MultiSig?"
+                      select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+                      case $? in
+                        0) break ;;
+                        1) : ;;
+                        2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
+                      esac
+                    done
+                    if [[ ${#key_hashes[@]} -eq 0 ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: no signers added, please add at least one"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
+                    fi
+                    println DEBUG "\n${#key_hashes[@]} wallets / DRep IDs added to MultiSig, how many are required to witness the transaction?"
+                    getAnswerAnyCust required_sig_cnt "Number of Required signatures"
+                    if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
+                    fi
+                    # build MultiSig script
+                    drep_script=$(jq -n --argjson req_sig "${required_sig_cnt}" '{type:"atLeast",required:$req_sig,scripts:[]}')
+                    for sig in "${!key_hashes[@]}"; do
+                      drep_script=$(jq --arg sig "${sig}" '.scripts += [{type:"sig",keyHash:$sig}]' <<< "${drep_script}")
+                    done
+                    if ! stdout=$(jq -e . <<< "${drep_script}" > "${drep_script_file}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
+                    fi
+
+                    chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
+                    getGovKeyInfo ${ms_wallet_name}
+                    echo
+                    println "New MultiSig DRep : ${FG_GREEN}${ms_wallet_name}${NC}"
+                    println "DRep ID           : ${FG_LGRAY}$(bech32 drep <<< ${drep_id})${NC}"
+                    println "DRep Script Hash  : ${FG_LGRAY}${drep_id}${NC}"
+                    println DEBUG "\nNote that this is not a normal wallet and can only be used to vote as a DRep coalition."
                     waitToProceed && continue
                     ;; ###################################################################
                 esac # vote sub OPERATION
@@ -5167,7 +5314,6 @@ function main {
         esac
         waitToProceed && continue
         ;; ###################################################################
-
       advanced)
         while true; do # Advanced loop
           clear
@@ -5177,11 +5323,11 @@ function main {
           println OFF " Developer & Advanced features\n"\
 						" ) Metadata       - create and optionally post metadata on-chain"\
 						" ) Asset          - asset nanagement"\
-						" ) Multisig       - create a multi-signature wallet"\
+						" ) MultiSig       - create a multi-signature wallet"\
 						" ) Delete Keys    - delete all sign/cold keys from CNTools (wallet|pool|asset)"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Operation\n"
-          select_opt "[m] Metadata" "[a] Asset" "[s] Multisig" "[x] Delete Private Keys" "[h] Home"
+          select_opt "[m] Metadata" "[a] Asset" "[s] MultiSig" "[x] Delete Private Keys" "[h] Home"
           case $? in
             0) SUBCOMMAND="metadata" ;;
             1) SUBCOMMAND="asset" ;;
@@ -6067,16 +6213,16 @@ function main {
               done # Asset loop
               ;; ###################################################################
             multisig)
-              while true; do # Multisig loop
+              while true; do # MultiSig loop
                 clear
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println " >> ADVANCED >> MULTISIG"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println OFF " Multi Signature Wallet Management\n"\
                   " ) Create Wallet  - create a new multi-signature wallet"\
-                  " ) Derive Keys    - derive multisig keys using the 1854H paths according to CIP-1854"\
+                  " ) Derive Keys    - derive MultiSig keys using the 1854H paths according to CIP-1854"\
                   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println DEBUG " Select Multisig Operation\n"
+                println DEBUG " Select MultiSig Operation\n"
                 select_opt "[c] Create" "[d] Derive Keys" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="create-ms-wallet" ;;
@@ -6101,11 +6247,11 @@ function main {
                       println "      Choose another name or delete the existing one"
                       waitToProceed && continue
                     fi
-                    # pay key hashes as keys to assosiative array to act as a set, with stake key hash as value
+                    # pay key hashes as keys to associative array to act as a set, with stake key hash as value
                     declare -gA key_hashes=()
                     unset timelock_after
-                    println OFF "Select wallet(s) / credentials (key hashes) to include in multisig wallet"
-                    println OFF "${FG_YELLOW}!${NC} Please use 1854H (multisig) derived keys according to CIP-1854!"
+                    println OFF "Select wallet(s) / credentials (key hashes) to include in MultiSig wallet"
+                    println OFF "${FG_YELLOW}!${NC} Please use 1854H (MultiSig) derived keys according to CIP-1854!"
                     println OFF "${FG_YELLOW}!${NC} Only wallets with these keys will be listed, use 'Derive Keys' option to generate them."
                     echo
                     selected_wallets=()
@@ -6119,21 +6265,21 @@ function main {
                             2) continue ;;
                           esac
                           getCredentials ${wallet_name}
-                          [[ -z ${ms_pay_cred} ]] && println ERROR "\n${FG_RED}ERROR${NC}: wallet multisig payment credentials not set!" && waitToProceed && continue
-                          [[ -z ${ms_stake_cred} ]] && println ERROR "\n${FG_RED}ERROR${NC}: wallet multisig stake credentials not set!" && waitToProceed && continue
+                          [[ -z ${ms_pay_cred} ]] && println ERROR "\n${FG_RED}ERROR${NC}: wallet MultiSig payment credentials not set!" && waitToProceed && continue
+                          [[ -z ${ms_stake_cred} ]] && println ERROR "\n${FG_RED}ERROR${NC}: wallet MultiSig stake credentials not set!" && waitToProceed && continue
                           key_hashes[${ms_pay_cred}]="${ms_stake_cred}"
                           selected_wallets+=("${wallet_name}")
                           ;;
-                        1) getAnswerAnyCust ms_pay_cred "Multisig Payment Credential (key hash)"
+                        1) getAnswerAnyCust ms_pay_cred "MultiSig Payment Credential (key hash)"
                           [[ ${#ms_pay_cred} -ne 56 ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid payment credential entered!" && waitToProceed && continue
-                          getAnswerAnyCust ms_stake_cred "Multisig Stake Credential (key hash)"
+                          getAnswerAnyCust ms_stake_cred "MultiSig Stake Credential (key hash)"
                           [[ ${#ms_stake_cred} -ne 56 ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid stake credential entered!" && waitToProceed && continue
                           key_hashes[${ms_pay_cred}]="${ms_stake_cred}"
                           ;;
                         2) break ;;
                         3) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
                       esac
-                      println DEBUG "\nMultisig size: ${#key_hashes[@]} - Add more wallets / credentials to multisig?"
+                      println DEBUG "\nMultiSig size: ${#key_hashes[@]} - Add more wallets / credentials to MultiSig?"
                       select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
                       case $? in
                         0) break ;;
@@ -6144,12 +6290,12 @@ function main {
                     if [[ ${#key_hashes[@]} -eq 0 ]]; then
                       println ERROR "\n${FG_RED}ERROR${NC}: no signers added, please add at least one"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
                     fi
-                    println DEBUG "\n${#key_hashes[@]} wallets / credentials added to multisig, how many are required to witness the transaction?"
+                    println DEBUG "\n${#key_hashes[@]} wallets / credentials added to MultiSig, how many are required to witness the transaction?"
                     getAnswerAnyCust required_sig_cnt "Number of Required signatures"
                     if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
                       println ERROR "\n${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
                     fi
-                    println DEBUG "\nAdd time lock to multisig wallet by only allowing spending from wallet after a certain epoch start?"
+                    println DEBUG "\nAdd time lock to MultiSig wallet by only allowing spending from wallet after a certain epoch start?"
                     select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
                     case $? in
                       0) : ;;
@@ -6159,7 +6305,7 @@ function main {
                         ;;
                       2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue ;;
                     esac
-                    # build multisig script
+                    # build MultiSig script
                     pay_script=$(jq -n --argjson req_sig "${required_sig_cnt}" '{type:"atLeast",required:$req_sig,scripts:[]}')
                     stake_script="${pay_script}"
                     for sig in "${!key_hashes[@]}"; do
@@ -6182,7 +6328,7 @@ function main {
                     getRewardAddress ${ms_wallet_name}
                     getCredentials ${ms_wallet_name}
                     echo
-                    println "New Multisig Wallet : ${FG_GREEN}${ms_wallet_name}${NC}"
+                    println "New MultiSig Wallet : ${FG_GREEN}${ms_wallet_name}${NC}"
                     println "Address             : ${FG_LGRAY}${base_addr}${NC}"
                     println "Payment Address     : ${FG_LGRAY}${pay_addr}${NC}"
                     println "Reward Address      : ${FG_LGRAY}${reward_addr}${NC}"
@@ -6198,7 +6344,7 @@ function main {
                     println " >> ADVANCED >> MULTISIG >> DERIVE KEYS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    println DEBUG "# Select wallet to derive multisig keys for (only wallets with missing keys shown)"
+                    println DEBUG "# Select wallet to derive MultiSig keys for (only wallets with missing keys shown)"
                     selectWallet "non-ms"
                     case $? in
                       1) waitToProceed; continue ;;
@@ -6218,14 +6364,14 @@ function main {
                         ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_SK_FILENAME}"
                         ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
                         if [[ -f ${ms_payment_sk_file} || -f ${ms_stake_sk_file} ]]; then
-                          println ERROR "\n${FG_RED}ERROR${NC}: multisig payment and/or stake signing keys already exist!\n${stdout}"; waitToProceed && continue
+                          println ERROR "\n${FG_RED}ERROR${NC}: MultiSig payment and/or stake signing keys already exist!\n${stdout}"; waitToProceed && continue
                         fi
                         derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
                         if ! getSavedDerivationPath "${derivation_path_file}"; then
                           getCustomDerivationPath || continue
                           echo "1852H/1815H/${acct_idx}H/x/${key_idx}" > "${derivation_path_file}"
                         fi
-                        if ! unlockHWDevice "extract ${FG_LGRAY}multisig keys${NC}"; then waitToProceed && continue; fi
+                        if ! unlockHWDevice "extract ${FG_LGRAY}MultiSig keys${NC}"; then waitToProceed && continue; fi
                         HW_DERIVATION_CMD=(
                           cardano-hw-cli address key-gen
                           --path 1854H/1815H/${acct_idx}H/0/${key_idx}
@@ -6239,8 +6385,8 @@ function main {
                         if ! stdout=$("${HW_DERIVATION_CMD[@]}" 2>&1); then
                           println ERROR "\n${FG_RED}ERROR${NC}: failure during key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                         fi
-                        jq '.description = "Multisig Payment Hardware Verification Key"' "${ms_payment_vk_file}" > "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" "${ms_payment_vk_file}"
-                        jq '.description = "Multisig Stake Hardware Verification Key"' "${ms_stake_vk_file}" > "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" "${ms_stake_vk_file}"
+                        jq '.description = "MultiSig Payment Hardware Verification Key"' "${ms_payment_vk_file}" > "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" "${ms_payment_vk_file}"
+                        jq '.description = "MultiSig Stake Hardware Verification Key"' "${ms_stake_vk_file}" > "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" "${ms_stake_vk_file}"
                         ;;
                       *)
                         ms_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_SK_FILENAME}"
@@ -6248,18 +6394,18 @@ function main {
                         ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
                         ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
                         if [[ -f ${ms_payment_sk_file} || -f ${ms_stake_sk_file} ]]; then
-                          println ERROR "\n${FG_RED}ERROR${NC}: multisig payment and/or stake signing keys already exist!\n${stdout}"; waitToProceed && continue
+                          println ERROR "\n${FG_RED}ERROR${NC}: MultiSig payment and/or stake signing keys already exist!\n${stdout}"; waitToProceed && continue
                         fi
                         println DEBUG "Is selected wallet a CLI generated wallet or derived from mnemonic?"
                         select_opt "[c] CLI" "[m] Mnemonic"
                         case $? in
                           0) println ACTION "${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file ${ms_payment_vk_file} --signing-key-file ${ms_payment_sk_file}"
                             if ! stdout=$(${CCLI} ${NETWORK_ERA} address key-gen --verification-key-file "${ms_payment_vk_file}" --signing-key-file "${ms_payment_sk_file}" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment key creation!\n${stdout}"; waitToProceed && continue
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment key creation!\n${stdout}"; waitToProceed && continue
                             fi
                             println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file ${ms_stake_vk_file} --signing-key-file ${ms_stake_sk_file}"
                             if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-gen --verification-key-file "${ms_stake_vk_file}" --signing-key-file "${ms_stake_sk_file}" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake key creation!\n${stdout}"; waitToProceed && continue
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake key creation!\n${stdout}"; waitToProceed && continue
                             fi
                             ;;
                           1) if ! cmdAvailable "bech32" &>/dev/null || \
@@ -6297,32 +6443,32 @@ function main {
                             cat <<-EOF > "${ms_payment_sk_file}"
 															{
 																	"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
-																	"description": "Multisig Payment Signing Key",
+																	"description": "MultiSig Payment Signing Key",
 																	"cborHex": "5880${pes_key}"
 															}
 															EOF
                             cat <<-EOF > "${ms_stake_sk_file}"
 															{
 																	"type": "StakeExtendedSigningKeyShelley_ed25519_bip32",
-																	"description": "Multisig Stake Signing Key",
+																	"description": "MultiSig Stake Signing Key",
 																	"cborHex": "5880${ses_key}"
 															}
 															EOF
                             println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${ms_payment_sk_file} --verification-key-file ${TMP_DIR}/ms_payment.evkey"
                             if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${ms_payment_sk_file}" --verification-key-file "${TMP_DIR}/ms_payment.evkey" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment signing key extraction!\n${stdout}"; waitToProceed && continue
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment signing key extraction!\n${stdout}"; waitToProceed && continue
                             fi
                             println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${ms_stake_sk_file} --verification-key-file ${TMP_DIR}/ms_stake.evkey"
                             if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${ms_stake_sk_file}" --verification-key-file "${TMP_DIR}/ms_stake.evkey" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake signing key extraction!\n${stdout}"; waitToProceed && continue
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake signing key extraction!\n${stdout}"; waitToProceed && continue
                             fi
                             println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_payment.evkey --verification-key-file ${ms_payment_vk_file}"
                             if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_payment.evkey" --verification-key-file "${ms_payment_vk_file}" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig payment verification key extraction!\n${stdout}"; waitToProceed && continue
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment verification key extraction!\n${stdout}"; waitToProceed && continue
                             fi
                             println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_stake.evkey --verification-key-file ${ms_stake_vk_file}"
                             if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_stake.evkey" --verification-key-file "${ms_stake_vk_file}" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during multisig stake verification key extraction!\n${stdout}"; waitToProceed && continue
+                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake verification key extraction!\n${stdout}"; waitToProceed && continue
                             fi
                             ;;
                         esac
@@ -6332,13 +6478,13 @@ function main {
                     echo
                     getCredentials ${wallet_name}
                     println "Wallet   : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Multisig Credentials"
+                    println "MultiSig Credentials"
                     println "Payment  : ${ms_pay_cred}"
                     println "Stake    : ${ms_stake_cred}"
                     waitToProceed && continue
                     ;; ###################################################################
-                esac # advanced >> multisig sub OPERATION
-              done # Multisig loop
+                esac # advanced >> MultiSig sub OPERATION
+              done # MultiSig loop
               ;; ###################################################################
             del-keys)
               clear
