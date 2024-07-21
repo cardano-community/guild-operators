@@ -3957,6 +3957,7 @@ registerDRep() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet DRep Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"drep-wallet-name\": \"${drep_wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
@@ -4067,8 +4068,9 @@ retireDRep() {
   if ! buildTx; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
-    if ! buildOfflineJSON "Wallet DRep Registration"; then return 1; fi
+    if ! buildOfflineJSON "Wallet DRep Retire"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"drep-wallet-name\": \"${drep_wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Wallet '${wallet_name}' payment signing key\", vkey: $(jq -c . "${payment_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
@@ -4176,7 +4178,7 @@ governanceVote() {
   if ! buildTx; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
-    if ! buildOfflineJSON "Wallet DRep Registration"; then return 1; fi
+    if ! buildOfflineJSON "Wallet Governance Vote"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"action-id\": \"${action_id}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { vote: \"${vote_param//-}\" }" <<< ${offlineJSON}); then return 1; fi
@@ -4186,6 +4188,7 @@ governanceVote() {
     if [[ ${vote_mode} = "spo" ]]; then
       if ! offlineJSON=$(jq ".\"signing-file\" += [{ name: \"Pool '${pool_name}' cold signing key\", vkey: $(jq -c . "${pool_coldkey_vk_file}") }]" <<< ${offlineJSON}); then return 1; fi
     elif [[ ${vote_mode} = "drep" ]]; then
+      if ! offlineJSON=$(jq ". += { \"drep-wallet-name\": \"${drep_wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
       if [[ ${hash_type} = "scriptHash" ]]; then
         if ! offlineJSON=$(jq ".\"script-file\" += [{ name: \"Wallet '${drep_wallet_name}' DRep script\", script: $(jq -c . "${drep_script_file}") }]" <<< ${offlineJSON}); then return 1; fi
       else
