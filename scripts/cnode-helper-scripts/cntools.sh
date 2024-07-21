@@ -3348,7 +3348,8 @@ function main {
                 *) println ERROR "${FG_RED}ERROR${NC}: unsupported type: ${otx_type}" && waitToProceed && continue ;;
               esac
               println DEBUG "\nSigning keys required:"
-              for otx_signing_name in $(jq -r '."signing-file"[].name' <<< "${offlineJSON}"); do
+              for otx_signing_name_b64 in $(jq -r '."signing-file"[].name | @base64' <<< "${offlineJSON}"); do
+                otx_signing_name=$(base64 -d <<< "${otx_signing_name_b64}")
                 unset hasWitness
                 for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
                   [[ ${otx_witness_name} = ${otx_signing_name} ]] && hasWitness=true && break
@@ -3372,7 +3373,8 @@ function main {
                     wallet_name=$(basename ${wallet})
                     getWalletType "${wallet_name}"
                     getCredentials "${wallet_name}"
-                    if [[ ${ms_pay_cred} = "${sig}" || ${ms_stake_cred} = "${sig}" || ${pay_cred} = "${sig}" || ${stake_cred} = "${sig}" ]]; then
+                    getGovKeyInfo "${wallet_name}"
+                    if [[ ${ms_pay_cred} = "${sig}" || ${ms_stake_cred} = "${sig}" || ${pay_cred} = "${sig}" || ${stake_cred} = "${sig}" || ${ms_drep_hash} = "${sig}" || ${drep_hash} = "${sig}" ]]; then
                       found_wallet_name="${wallet_name}"; break
                     fi
                   done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
@@ -3390,7 +3392,7 @@ function main {
                 done
                 # look for signing key in wallet folder
                 while IFS= read -r -d '' w_file; do
-                  if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" ]]; then
+                  if [[ ${w_file} = */"${WALLET_PAY_SK_FILENAME}" || ${w_file} = */"${WALLET_STAKE_SK_FILENAME}" || ${w_file} = */"${WALLET_GOV_DREP_VK_FILENAME}" ]]; then
                     ! ${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${w_file}" --verification-key-file "${TMP_DIR}"/tmp.vkey && continue
                     if [[ $(jq -er '.type' "${w_file}" 2>/dev/null) = *"Extended"* ]]; then
                       ! ${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" && continue
@@ -3474,7 +3476,7 @@ function main {
                 if ! offlineJSON=$(jq ".witness += [{ name: \"${otx_signing_name}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
                 jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
               done
-              unset script_failed pay_script_signers stake_script_signers
+              unset script_failed pay_script_signers stake_script_signers drep_script_signers
               for otx_script in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
                 _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
                 otx_script_name=$(_jq '.name')
@@ -3510,6 +3512,7 @@ function main {
                     wallet_name=$(basename ${wallet})
                     getWalletType "${wallet_name}"
                     getCredentials "${wallet_name}"
+                    getGovKeyInfo "${wallet_name}"
                     if [[ ${ms_pay_cred} = "${sig}" ]]; then
                       skey_path="${ms_payment_sk_file}"; break
                     elif [[ ${ms_stake_cred} = "${sig}" ]]; then
@@ -3518,6 +3521,10 @@ function main {
                       skey_path="${payment_sk_file}"; break
                     elif [[ ${stake_cred} = "${sig}" ]]; then
                       skey_path="${stake_sk_file}"; break
+                    elif [[ ${ms_drep_hash} = "${sig}" ]]; then
+                      skey_path="${ms_drep_sk_file}"; break
+                    elif [[ ${drep_hash} = "${sig}" ]]; then
+                      skey_path="${drep_sk_file}"; break
                     fi
                   done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
                   [[ -n ${skey_path} && ! -f "${skey_path}" ]] && println ERROR "\n${FG_YELLOW}WARN${NC}: Wallet match found but signing key missing: ${skey_path}" && unset skey_path
@@ -3556,7 +3563,13 @@ function main {
                         println ERROR "${FG_RED}ERROR${NC}: unable to find a matching verification key file for provided hardware signing key in same folder" && continue
                       fi
                       vkey_file=$(echo "${vkey_file}" | head -n 1) # make sure there is a single match
-                      [[ ${file_desc} = *"Payment"* ]] && cred_type=payment || cred_type=stake
+                      if [[ ${file_desc} = *"Payment"* ]]; then
+                        cred_type=payment
+                      elif [[ ${file_desc} = *"Stake"* ]]; then
+                        cred_type=stake
+                      else
+                        cred_type=drep
+                      fi
                       getCredential ${cred_type} ${vkey_file}
                     else
                       println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
@@ -3571,7 +3584,13 @@ function main {
                         fi
                         mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                       fi
-                      [[ ${file_type} = *"Payment"* ]] && cred_type=payment || cred_type=stake
+                      if [[ ${file_desc} = *"Payment"* ]]; then
+                        cred_type=payment
+                      elif [[ ${file_desc} = *"Stake"* ]]; then
+                        cred_type=stake
+                      else
+                        cred_type=drep
+                      fi
                       getCredential ${cred_type} "${TMP_DIR}"/tmp.vkey
                     fi
                     if [[ ${cred} != ${sig} ]]; then
@@ -3594,9 +3613,15 @@ function main {
                   println DEBUG "If external participant signatures are needed, pass transaction file along to add additional signatures."
                   waitToProceed
                 fi
-                [[ ${otx_script_name} = *payment* ]] && pay_script_signers=${required_total} || stake_script_signers=${required_total}
+                if [[ ${file_desc} = *"payment"* ]]; then
+                  pay_script_signers=${required_total}
+                elif [[ ${file_desc} = *"stake"* ]]; then
+                  stake_script_signers=${required_total}
+                else
+                  drep_script_signers=${required_total}
+                fi
               done
-              signatures_needed=$(( $(jq -r '."signing-file" | length' <<< "${offlineJSON}") + pay_script_signers + stake_script_signers ))
+              signatures_needed=$(( $(jq -r '."signing-file" | length' <<< "${offlineJSON}") + pay_script_signers + stake_script_signers + drep_script_signers ))
               witness_cnt=$(jq -r '.witness | length' <<< "${offlineJSON}")
               if [[ ${witness_cnt} -ge ${signatures_needed} && -z ${script_failed} ]]; then # witnessed by all needed signing keys
                 tx_witness_files=()
@@ -4852,9 +4877,8 @@ function main {
                             2) continue ;;
                           esac
                           getGovKeyInfo ${wallet_name}
-                          [[ -z ${drep_id} || ${drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid wallet, DRep keys not found!" && waitToProceed && continue
-                          drep_hash=
-                          key_hashes[$(bech32 <<< "${drep_id}")]=1
+                          [[ -z ${ms_drep_id} || ${ms_drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid wallet, MultiSig DRep keys not found!" && waitToProceed && continue
+                          key_hashes["${ms_drep_hash}"]=1
                           selected_wallets+=("${wallet_name}")
                           ;;
                         1) getAnswerAnyCust drep_id "MultiSig DRep ID (bech32)"

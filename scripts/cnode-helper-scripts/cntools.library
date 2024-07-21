@@ -986,7 +986,11 @@ lockFile() {
 verifyTx() {
   [[ -z ${tx_id} ]] && println "\n${FG_RED}ERROR${NC}: transaction id not set, unable to verify transaction!" && return 1
   println DEBUG "Waiting for transaction to be seen on chain"
-  println DEBUG "Explore in detail: ${EXPLORER_TX//__tx_id__/${tx_id}}"
+  if [[ ${NWMAGIC} == "764824073" ]]; then
+    println DEBUG "Explore in detail: ${EXPLORER_TX//__tx_id__/${tx_id}}"
+  else
+    println DEBUG "Transaction ID: ${tx_id}"
+  fi
   println DEBUG "${FG_BLUE}INFO${NC}: press any key to cancel and return (won't stop transaction)"
   while :; do
     read -r -n 1 -s -t 5 abort
@@ -1039,17 +1043,24 @@ getPayAddress() {
 # Command     : getGovKeyInfo [wallet name]
 # Description : generate DRep ID and committee key hash
 getGovKeyInfo() {
-  unset drep_id drep_hash hash_type cc_cold_id cc_hot_id
+  unset drep_id drep_hash hash_type cc_cold_id cc_hot_id ms_drep_id ms_drep_hash
   drep_vk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_VK_FILENAME}"
+  drep_sk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_SK_FILENAME}"
   drep_script_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
   drep_id_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_ID_FILENAME}"
   cc_cold_vk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_COLD_VK_FILENAME}"
+  cc_cold_sk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_COLD_SK_FILENAME}"
   cc_cold_id_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_COLD_ID_FILENAME}"
   cc_hot_vk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
+  cc_hot_sk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_HOT_SK_FILENAME}"
   cc_hot_id_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_HOT_ID_FILENAME}"
+  ms_drep_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
+  ms_drep_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_SK_FILENAME}"
+  ms_drep_id_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_ID_FILENAME}"
   [[ -f ${drep_id_file} ]] && drep_id=$(cat "${drep_id_file}")
   [[ -f ${cc_cold_id_file} ]] && cc_cold_id=$(cat "${cc_cold_id_file}")
   [[ -f ${cc_hot_id_file} ]] && cc_hot_id=$(cat "${cc_hot_id_file}")
+  [[ -f ${ms_drep_id_file} ]] && ms_drep_id=$(cat "${ms_drep_id_file}")
   if [[ -z ${drep_id} && -f ${drep_vk_file} ]]; then
     println ACTION "${CCLI} conway governance drep id --drep-verification-key-file ${drep_vk_file}"
     drep_id=$(${CCLI} conway governance drep id --drep-verification-key-file "${drep_vk_file}")
@@ -1065,6 +1076,10 @@ getGovKeyInfo() {
     println ACTION "bech32 cc_hot <<< \$(${CCLI} conway governance committee key-hash --verification-key-file ${cc_hot_vk_file})"
     cc_hot_id=$(bech32 cc_hot <<< "$(${CCLI} conway governance committee key-hash --verification-key-file "${cc_hot_vk_file}")")
   fi
+  if [[ -z ${ms_drep_id} && -f ${ms_drep_vk_file} ]]; then
+    println ACTION "${CCLI} conway governance drep id --drep-verification-key-file ${ms_drep_vk_file}"
+    ms_drep_id=$(${CCLI} conway governance drep id --drep-verification-key-file "${ms_drep_vk_file}")
+  fi
   if [[ -n ${drep_id} ]]; then
     if [[ ${drep_id} = drep* ]]; then
       hash_type="keyHash"
@@ -1073,6 +1088,9 @@ getGovKeyInfo() {
       hash_type="scriptHash"
       drep_hash="${drep_id}"
     fi
+  fi
+  if [[ -n ${ms_drep_id} ]]; then
+    ms_drep_hash="$(bech32 <<< ${ms_drep_id})"
   fi
 }
 
@@ -1246,19 +1264,30 @@ getRewardAddressFromKey() {
 
 # Command     : getCredential [type] [file]
 # Description : create and save wallet credentials (key hash) for payment and stake keys (incl MultiSig)
-# Parameters  : type  >  payment | stake
+# Parameters  : type  >  payment | stake | drep
 #             : file  >  path to verification file
 # Return      : populates ${cred}
 getCredential() {
   unset cred
   [[ ! -f "$2" ]] && return 1
-  [[ $1 = payment ]] && CLI_ARGS=("--payment-verification-key-file" "$2") || CLI_ARGS=("--stake-verification-key-file" "$2")
-  println ACTION "${CCLI} ${NETWORK_ERA} address key-hash ${CLI_ARGS[*]}"
-  if ! cred=$(${CCLI} ${NETWORK_ERA} address key-hash "${CLI_ARGS[@]}" 2>&1); then
-    println LOG "\n${FG_RED}ERROR${NC}: failure during key hash creation!\n${cred}"
-    unset cred
-    return 1
+  if [[ $1 = drep ]]; then
+    println ACTION "${CCLI} conway governance drep id --drep-verification-key-file $2 | bech32"
+    if ! _drep_id=$(${CCLI} conway governance drep id --drep-verification-key-file "$2" 2>&1); then
+      println LOG "\n${FG_RED}ERROR${NC}: failure during key hash creation!\n${cred}"
+      unset cred
+      return 1
+    fi
+    cred=$(bech32 <<< "${_drep_id}")
+  else
+    [[ $1 = payment ]] && CLI_ARGS=("--payment-verification-key-file" "$2") || CLI_ARGS=("--stake-verification-key-file" "$2")
+    println ACTION "${CCLI} ${NETWORK_ERA} address key-hash ${CLI_ARGS[*]}"
+    if ! cred=$(${CCLI} ${NETWORK_ERA} address key-hash "${CLI_ARGS[@]}" 2>&1); then
+      println LOG "\n${FG_RED}ERROR${NC}: failure during key hash creation!\n${cred}"
+      unset cred
+      return 1
+    fi
   fi
+  return 0
 }
 
 # Command     : getCredentials [wallet name]
