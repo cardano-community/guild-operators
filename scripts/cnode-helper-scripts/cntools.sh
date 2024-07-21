@@ -665,7 +665,7 @@ function main {
                 if ! selectOpMode; then continue; fi
               fi
               echo
-              println DEBUG "# Select wallet to register (only non-registered wallets shown)"
+              println DEBUG "Select wallet to register (only non-registered wallets shown)"
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "non-reg"
                 case $? in
@@ -714,7 +714,7 @@ function main {
                 if ! selectOpMode; then continue; fi
               fi
               echo
-              println DEBUG "# Select wallet to de-register (only registered wallets shown)"
+              println DEBUG "Select wallet to de-register (only registered wallets shown)"
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "reg"
                 case $? in
@@ -1135,7 +1135,7 @@ function main {
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, unable to verify wallet balance"
               fi
               echo
-              println DEBUG "# Select wallet to remove"
+              println DEBUG "Select wallet to remove"
               selectWallet "balance"
               case $? in
                 1) waitToProceed; continue ;;
@@ -1203,7 +1203,7 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
               [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
-              println DEBUG "# Select wallet to decrypt"
+              println DEBUG "Select wallet to decrypt"
               selectWallet "encrypted"
               case $? in
                 1) waitToProceed; continue ;;
@@ -1212,7 +1212,7 @@ function main {
               filesUnlocked=0
               keysDecrypted=0
               echo
-              println DEBUG "# Removing write protection from all wallet files"
+              println DEBUG "Removing write protection from all wallet files"
               while IFS= read -r -d '' file; do
                 unlockFile "${file}"
                 filesUnlocked=$((++filesUnlocked))
@@ -1220,7 +1220,7 @@ function main {
               done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
               if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
                 echo
-                println DEBUG "# Decrypting GPG encrypted wallet files"
+                println DEBUG "Decrypting GPG encrypted wallet files"
                 echo
                 if ! getPasswordCust; then # $password variable populated by getPasswordCust function
                   println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
@@ -1251,7 +1251,7 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
               [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
-              println DEBUG "# Select wallet to encrypt"
+              println DEBUG "Select wallet to encrypt"
               selectWallet "encrypted"
               case $? in
                 1) waitToProceed; continue ;;
@@ -1261,7 +1261,7 @@ function main {
               keysEncrypted=0
               if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
                 echo
-                println DEBUG "# Encrypting sensitive wallet keys with GPG"
+                println DEBUG "Encrypting sensitive wallet keys with GPG"
                 echo
                 if ! getPasswordCust confirm; then # $password variable populated by getPasswordCust function
                   println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
@@ -1285,7 +1285,7 @@ function main {
                 waitToProceed && continue
               fi
               echo
-              println DEBUG "# Write protecting all wallet keys with 400 permission and if enabled 'chattr +i'"
+              println DEBUG "Write protecting all wallet keys with 400 permission and if enabled 'chattr +i'"
               while IFS= read -r -d '' file; do
                 [[ ${file} = *.addr ]] && continue
                 lockFile "${file}"
@@ -1341,7 +1341,7 @@ function main {
               echo
               
               # source wallet
-              println DEBUG "# Select ${FG_YELLOW}source${NC} wallet"
+              println DEBUG "Select ${FG_YELLOW}source${NC} wallet"
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "balance"
                 case $? in
@@ -1396,7 +1396,7 @@ function main {
 
               # Destination
               d_wallet=""
-              println DEBUG "# Select ${FG_YELLOW}destination${NC} type"
+              println DEBUG "Select ${FG_YELLOW}destination${NC} type"
               select_opt "[w] Wallet" "[a] Address" "[Esc] Cancel"
               case $? in
                 0) selectWallet "cache"
@@ -1501,7 +1501,7 @@ function main {
                 [[ ${assets_to_send[${idx}]} -gt 0 ]] && assets_tx_out_d+="+${assets_to_send[${idx}]} ${idx}"
               done
               getMinUTxO "${d_addr}+1${assets_tx_out_d}"
-              println DEBUG "\n# Amount to Send (in ADA)"
+              println DEBUG "\nAmount to Send (in ADA)"
               println DEBUG " Valid entry:"
               println DEBUG "   ${FG_LGRAY}>${NC} Integer (e.g. 15) or Decimal (e.g. 956.1235), commas allowed as thousand separator"
               println DEBUG "   ${FG_LGRAY}>${NC} The string '${FG_YELLOW}all${NC}' sends all available funds in source wallet"
@@ -1557,7 +1557,7 @@ function main {
               fi
 
               # Optional metadata/message
-              println "\n# Add a message to the transaction?"
+              println "\nAdd a message to the transaction?"
               select_opt "[n] No" "[y] Yes"
               case $? in
                 0)  unset metafile ;;
@@ -1645,7 +1645,7 @@ function main {
                 if ! selectOpMode; then continue; fi
               fi
               echo
-              println DEBUG "# Select wallet to delegate"
+              println DEBUG "Select wallet to delegate"
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "delegate"
                 case $? in
@@ -1733,7 +1733,7 @@ function main {
                 if ! selectOpMode; then continue; fi
               fi
               echo
-              println DEBUG "# Select wallet to withdraw funds from"
+              println DEBUG "Select wallet to withdraw funds from"
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "reward"
                 case $? in
@@ -1936,7 +1936,7 @@ function main {
               echo
 
               unset isHWpool
-              println DEBUG "# Select pool to register|modify"
+              println DEBUG "Select pool to register|modify"
               [[ ${SUBCOMMAND} = "register" ]] && pool_filter="non-reg" || pool_filter="reg"
               if [[ ${op_mode} = "online" ]]; then
                 selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}" "${POOL_VRF_VK_FILENAME}"
@@ -1961,7 +1961,7 @@ function main {
               fi
               echo
               pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
-              println DEBUG "# Pool Parameters"
+              println DEBUG "Pool Parameters"
               if [[ ${SUBCOMMAND} = "modify" ]]; then
                 if [[ ! -f ${pool_config} ]]; then
                   println "${FG_YELLOW}WARN${NC}: Missing pool config file: ${pool_config}"
@@ -2016,7 +2016,7 @@ function main {
                 println ERROR "\n${FG_RED}ERROR${NC}: cost set lower than allowed"
                 waitToProceed && continue
               fi
-              println DEBUG "\n# Pool Metadata\n"
+              println DEBUG "\nPool Metadata\n"
               pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
               if [[ ! -f "${pool_config}" ]] || ! meta_json_url=$(jq -er .json_url "${pool_config}"); then meta_json_url="https://foo.bat/poolmeta.json"; fi
               getAnswerAnyCust json_url_enter "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url})"
@@ -2104,7 +2104,7 @@ function main {
               fi
               relay_output=""
               relay_array=()
-              println DEBUG "\n# Pool Relay Registration"
+              println DEBUG "\nPool Relay Registration"
               if [[ -f "${pool_config}" && $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
                 println DEBUG "\nPrevious relay configuration:\n"
                 jq -r '["TYPE","ADDRESS","PORT"], (.relays[] | [.type //"-",.address //"-",.port //"-"]) | @tsv' "${pool_config}" | column -t
@@ -2202,7 +2202,7 @@ function main {
               # Old owner/reward wallets
               if [[ -f ${pool_config} ]]; then
 
-                println DEBUG "# Previous Owner(s)/Reward wallets"
+                println DEBUG "Previous Owner(s)/Reward wallets"
                 if jq -er '.pledgeWallet' "${pool_config}" &>/dev/null; then # legacy support
                   owner_wallets+=( "$(jq -r '.pledgeWallet' "${pool_config}")" )
                   println DEBUG "Owner wallet #1 : ${FG_GREEN}${owner_wallets[0]}${NC}"
@@ -2251,7 +2251,7 @@ function main {
                           println ERROR "${FG_RED}ERROR${NC}: no funds available on base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                           waitToProceed && continue 2
                         fi
-                        println DEBUG "# Wallet Registration Transaction"
+                        println DEBUG "Wallet Registration Transaction"
                         if ! registerStakeWallet ${wallet_name}; then waitToProceed && continue 2; fi
                       fi
                     done
@@ -2276,7 +2276,7 @@ function main {
               fi
 
               if [[ ${reuse_wallets} = 'N' ]]; then
-                println DEBUG "# Select main ${FG_YELLOW}owner/pledge${NC} wallet (normal CLI wallet)"
+                println DEBUG "Select main ${FG_YELLOW}owner/pledge${NC} wallet (normal CLI wallet)"
                 if [[ ${op_mode} = "online" ]]; then
                   if ! selectWallet "delegate"; then # ${wallet_name} populated by selectWallet function
                     [[ "${dir_name}" != "[Esc] Cancel" ]] && waitToProceed; continue
@@ -2312,7 +2312,7 @@ function main {
                     println ERROR "${FG_RED}ERROR${NC}: no funds available on base address for wallet ${FG_GREEN}${wallet_name}${NC}, needed to pay for registration fee"
                     waitToProceed && continue
                   fi
-                  println DEBUG "# Wallet Registration Transaction"
+                  println DEBUG "Wallet Registration Transaction"
                   if ! registerStakeWallet ${wallet_name}; then waitToProceed && continue; fi
                 fi
                 owner_wallets+=( "${wallet_name}" )
@@ -2475,11 +2475,11 @@ function main {
               fi
 
               if [[ ${SUBCOMMAND} = "register" ]]; then
-                println DEBUG "\n# Pool Registration Transaction"
+                println DEBUG "\nPool Registration Transaction"
                 registerPool
                 rc=$?
               else
-                println DEBUG "\n# Pool Update Transaction"
+                println DEBUG "\nPool Update Transaction"
                 modifyPool
                 rc=$?
               fi
@@ -2600,7 +2600,7 @@ function main {
                 if ! selectOpMode; then continue; fi
               fi
               echo
-              println DEBUG "# Select pool to retire"
+              println DEBUG "Select pool to retire"
               if [[ ${op_mode} = "online" ]]; then
                 selectPool "${pool_filter}" "${POOL_COLDKEY_VK_FILENAME}"
                 case $? in
@@ -2634,7 +2634,7 @@ function main {
                 println ERROR "${FG_RED}ERROR${NC}: epoch invalid, valid range: ${epoch_start}-${epoch_end}"
                 waitToProceed && continue
               fi
-              println DEBUG "# Select wallet for pool de-registration transaction fee"
+              println DEBUG "Select wallet for pool de-registration transaction fee"
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "balance"
                 case $? in
@@ -2661,7 +2661,7 @@ function main {
               getWalletBalance ${wallet_name} true true true true
               if [[ ${pay_lovelace} -gt 0 && ${base_lovelace} -gt 0 ]]; then
                 # Both payment and base address available with funds, let user choose what to use
-                println DEBUG "\n# Select wallet address to use"
+                println DEBUG "\nSelect wallet address to use"
                 if [[ -n ${wallet_count} && ${wallet_count} -gt ${WALLET_SELECTION_FILTER_LIMIT} ]]; then
                   println DEBUG "$(printf "%s\t\t${FG_LBLUE}%s${NC} ADA" "Base Funds :"  "$(formatLovelace ${base_lovelace})")"
                   println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Payment Funds :"  "$(formatLovelace ${pay_lovelace})")"
@@ -3107,7 +3107,7 @@ function main {
                 println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, please grab correct counter value from online node using pool info!\n"
               fi
               [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
-              println DEBUG "# Select pool to rotate KES keys on"
+              println DEBUG "Select pool to rotate KES keys on"
               selectPool "all" "${POOL_COLDKEY_VK_FILENAME}"
               case $? in
                 1) waitToProceed; continue ;;
@@ -3148,7 +3148,7 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
               [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
-              println DEBUG "# Select pool to decrypt"
+              println DEBUG "Select pool to decrypt"
               selectPool "encrypted"
               case $? in
                 1) waitToProceed; continue ;;
@@ -3157,7 +3157,7 @@ function main {
               filesUnlocked=0
               keysDecrypted=0
               echo
-              println DEBUG "# Removing write protection from all pool files"
+              println DEBUG "Removing write protection from all pool files"
               while IFS= read -r -d '' file; do
                 unlockFile "${file}"
                 filesUnlocked=$((++filesUnlocked))
@@ -3165,7 +3165,7 @@ function main {
               done < <(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -print0)
               if [[ $(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
                 echo
-                println "# Decrypting GPG encrypted pool files"
+                println "Decrypting GPG encrypted pool files"
                 if ! getPasswordCust; then # $password variable populated by getPasswordCust function
                   println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
                   waitToProceed && continue
@@ -3195,7 +3195,7 @@ function main {
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
               echo
               [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
-              println DEBUG "# Select pool to encrypt"
+              println DEBUG "Select pool to encrypt"
               selectPool "encrypted"
               case $? in
                 1) waitToProceed; continue ;;
@@ -3205,7 +3205,7 @@ function main {
               keysEncrypted=0
               if [[ $(find "${POOL_FOLDER}/${pool_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
                 echo
-                println DEBUG "# Encrypting sensitive pool keys with GPG"
+                println DEBUG "Encrypting sensitive pool keys with GPG"
                 if ! getPasswordCust confirm; then # $password variable populated by getPasswordCust function
                   println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
                   waitToProceed && continue
@@ -3227,7 +3227,7 @@ function main {
                 waitToProceed && continue
               fi
               echo
-              println DEBUG "# Write protecting all pool files with 400 permission and if enabled 'chattr +i'"
+              println DEBUG "Write protecting all pool files with 400 permission and if enabled 'chattr +i'"
               while IFS= read -r -d '' file; do
                 lockFile "$file"
                 filesLocked=$((++filesLocked))
@@ -3807,7 +3807,7 @@ function main {
                     else
                       if ! selectOpMode; then continue; fi
                     fi
-                    println DEBUG "# Select wallet to register for Catalyst"
+                    println DEBUG "Select wallet to register for Catalyst"
                     unset isHWwallet
                     selectWallet "balance"
                     case $? in
@@ -3944,7 +3944,7 @@ function main {
                     println " >> VOTE >> CATALYST >> QR CODE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    println DEBUG "# Select a Catalyst registered wallet"
+                    println DEBUG "Select a Catalyst registered wallet"
                     selectWallet "none" "${WALLET_CATALYST_SK_FILENAME}"
                     case $? in
                       1) waitToProceed; continue ;;
@@ -4028,7 +4028,7 @@ function main {
                     println DEBUG "Select wallet or enter vote public key?"
                     select_opt "[w] Wallet" "[p] Vote public key"
                     case $? in
-                      0) println DEBUG "\n# Select a Catalyst registered wallet"
+                      0) println DEBUG "\nSelect a Catalyst registered wallet"
                          selectWallet "none" "${WALLET_CATALYST_VK_FILENAME}"
                          case $? in
                            1) waitToProceed; continue ;;
@@ -4060,7 +4060,7 @@ function main {
                       println DEBUG "Is Finalized:     ${final_color}${_final}${NC}"
                       println DEBUG "Voting power:     ${FG_LBLUE}$(formatLovelace ${_voting_power})${NC}"
                       println DEBUG "Delegation count: ${FG_LBLUE}${_delegations_count}${NC}"
-                      println DEBUG "\n# Delegator list:"
+                      println DEBUG "\nDelegator list:"
                       for pubkey_hex in ${_delegator_addresses//;/ }; do
                         echo
                         unset delegation_wallet
@@ -4129,7 +4129,7 @@ function main {
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
-                    println DEBUG "# Select wallet (derive governance keys if missing)"
+                    println DEBUG "Select wallet (derive governance keys if missing)"
                     selectWallet "none" "${WALLET_GOV_DREP_VK_FILENAME}" "${WALLET_GOV_CC_COLD_VK_FILENAME}"
                     case $? in
                       1) waitToProceed; continue ;;
@@ -4213,7 +4213,7 @@ function main {
                     else
                       if ! selectOpMode; then continue; fi
                     fi
-                    println DEBUG "# Select wallet"
+                    println DEBUG "\nSelect wallet"
                     selectWallet "balance" "${WALLET_STAKE_VK_FILENAME}"
                     case $? in
                       1) waitToProceed; continue ;;
@@ -4225,8 +4225,8 @@ function main {
                       waitToProceed && continue
                     fi
                     unset drep_wallet drep_hash
-                    println DEBUG "Do you want to delegate to a local CNTools DRep registered wallet, pre-defined type or specify the DRep ID?"
-                    select_opt "[w] CNTools DRep Wallet" "[i] DRep ID" "[a] Always Abstain" "[c] Always No Confidence" "[Esc] Cancel"
+                    println DEBUG "\nDo you want to delegate to a local CNTools DRep registered wallet, pre-defined type or specify the DRep?"
+                    select_opt "[w] CNTools DRep Wallet" "[i] DRep (ID or hash)" "[a] Always Abstain" "[c] Always No Confidence" "[Esc] Cancel"
                     case $? in
                       0) selectWallet "none"
                         case $? in
@@ -4241,8 +4241,9 @@ function main {
                           waitToProceed && continue
                         fi
                         ;;
-                      1) getAnswerAnyCust drep_id "DRep ID (blank to cancel)"
+                      1) getAnswerAnyCust drep_id "DRep (blank to cancel)"
                         [[ -z "${drep_id}" ]] && continue
+                        [[ ${drep_id} != drep* ]] && drep_id=$(bech32 drep <<< "${drep_id}")
                         ;;
                       2) drep_id="alwaysAbstain"; vote_param=("--always-abstain") ;;
                       3) drep_id="alwaysNoConfidence"; vote_param=("--always-no-confidence") ;;
@@ -4311,7 +4312,7 @@ function main {
                     else
                       if ! selectOpMode; then continue; fi
                     fi
-                    println DEBUG "# Select wallet"
+                    println DEBUG "\nSelect wallet"
                     selectWallet "balance"
                     case $? in
                       1) waitToProceed; continue ;;
@@ -4326,7 +4327,7 @@ function main {
                     drep_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_REGISTER_CERT_FILENAME}"
                     drep_meta_file="${WALLET_FOLDER}/${wallet_name}/drep_meta.json"
                     unset drep_anchor_url drep_anchor_hash
-                    println DEBUG "Add DRep anchor URL?"
+                    println DEBUG "\nAdd DRep anchor URL?"
                     select_opt "[n] No" "[y] Yes"
                     case $? in
                       0) unset drep_meta_file ;;
@@ -4343,9 +4344,9 @@ function main {
                         else
                           println ERROR "\n${FG_RED}ERROR${NC}: failed to download anchor file or invalid json format"; waitToProceed && continue
                         fi
-                        println DEBUG "\n# DRep anchor metadata:"
+                        println DEBUG "\nDRep anchor metadata:"
                         jq -r . "${drep_meta_file}"
-                        println DEBUG "\n# DRep anchor metadata hash: ${FG_LGRAY}${drep_anchor_hash}${NC}"
+                        println DEBUG "\nDRep anchor metadata hash: ${FG_LGRAY}${drep_anchor_hash}${NC}"
                         ;;
                     esac
                     unset is_update
@@ -4383,7 +4384,7 @@ function main {
                     fi
                     drep_wallet_name=${wallet_name}
                     if [[ ${hash_type} = "scriptHash" ]]; then
-                      println DEBUG "Select wallet to pay for transaction fee"
+                      println DEBUG "\nSelect wallet to pay for transaction fee"
                       selectWallet "balance" ${WALLET_PAY_VK_FILENAME}
                       case $? in
                         1) waitToProceed; continue ;;
@@ -4426,7 +4427,7 @@ function main {
                     else
                       if ! selectOpMode; then continue; fi
                     fi
-                    println DEBUG "# Select wallet (derive governance keys if missing)"
+                    println DEBUG "\nSelect wallet (derive governance keys if missing)"
                     selectWallet "balance"
                     case $? in
                       1) waitToProceed; continue ;;
@@ -4434,7 +4435,7 @@ function main {
                     esac
                     getGovKeyInfo ${wallet_name}
                     if [[ -z ${drep_id} ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: Wallet missing governance keys!"
+                      println ERROR "\n${FG_RED}ERROR${NC}: Wallet missing governance keys!"
                       waitToProceed && continue
                     fi
                     if ! getDRepStatus ${hash_type} ${drep_hash}; then
@@ -4460,7 +4461,7 @@ function main {
                     fi
                     drep_wallet_name=${wallet_name}
                     if [[ ${hash_type} = "scriptHash" ]]; then
-                      println DEBUG "Select wallet to pay for the transaction fee and that gets the returned DRep deposit"
+                      println DEBUG "\nSelect wallet to pay for the transaction fee and that gets the returned DRep deposit"
                       selectWallet "balance" ${WALLET_PAY_VK_FILENAME}
                       case $? in
                         1) waitToProceed; continue ;;
@@ -4499,7 +4500,7 @@ function main {
                     else
                       if ! selectOpMode; then continue; fi
                     fi
-                    println DEBUG "Select role to vote as"
+                    println DEBUG "\nSelect role to vote as"
                     select_opt "[s] SPO" "[d] DRep" "[c] Committee member" "[Esc] Cancel"
                     case $? in
                       0) vote_mode="spo"
@@ -4508,7 +4509,7 @@ function main {
                           1) waitToProceed; continue ;;
                           2) continue ;;
                         esac
-                        println DEBUG "Select wallet to pay for transaction fee"
+                        println DEBUG "\nSelect wallet to pay for transaction fee"
                         selectWallet "balance"
                         case $? in
                           1) waitToProceed; continue ;;
@@ -4527,10 +4528,10 @@ function main {
                         drep_wallet_name="${wallet_name}"
                         getGovKeyInfo ${drep_wallet_name}
                         if [[ -z ${hash_type} ]]; then
-                          println ERROR "${FG_RED}ERROR${NC}: Wallet missing governance keys!"
+                          println ERROR "\n${FG_RED}ERROR${NC}: Wallet missing governance keys!"
                           waitToProceed && continue
                         elif [[ ${hash_type} = "scriptHash" ]]; then
-                          println DEBUG "Select wallet to pay for transaction fee"
+                          println DEBUG "\nSelect wallet to pay for transaction fee"
                           selectWallet "balance"
                           case $? in
                             1) waitToProceed; continue ;;
@@ -4558,6 +4559,7 @@ function main {
                         waitToProceed && continue
                       fi
                     fi
+                    echo
                     getAnswerAnyCust action_id "Governance Action ID [<tx_id>#<action_idx>] (blank to cancel)"
                     [[ -z "${action_id}" ]] && continue
                     IFS='#' read -r action_tx_id action_idx <<< "${action_id}"
@@ -4584,15 +4586,15 @@ function main {
                         esac
                         ;;
                     esac
-                    println DEBUG "\n# Governance Action Details"
+                    println DEBUG "\nGovernance Action Details"
                     jq -r . <<< "${vote_action}"
                     echo
                     if [[ -f "${proposal_meta_file}" ]]; then
-                      println DEBUG "# Governance Action Anchor Content"
+                      println DEBUG "Governance Action Anchor Content"
                       jq -er "${proposal_meta_file}" 2>/dev/null || cat "${proposal_meta_file}"
                       echo
                     fi
-                    println DEBUG "How do you want to vote?"
+                    println DEBUG "\nHow do you want to vote?"
                     select_opt "[y] Yes" "[n] No" "[a] Abstain" "[Esc] Cancel"
                     case $? in
                       0) vote_param="--yes" ;;
@@ -4645,7 +4647,7 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> DERIVE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    println DEBUG "# Select wallet to derive governance keys for (only wallets with missing keys shown)"
+                    println DEBUG "Select wallet to derive governance keys for (only wallets with missing keys shown)"
                     selectWallet "non-gov"
                     case $? in
                       1) waitToProceed; continue ;;
@@ -5440,7 +5442,7 @@ function main {
                 0) : ;; # do nothing
                 1) continue ;;
               esac
-              println DEBUG "\n# Select wallet to pay for metadata transaction fee"
+              println DEBUG "\nSelect wallet to pay for metadata transaction fee"
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "balance"
                 case $? in
@@ -5637,7 +5639,7 @@ function main {
                     println " >> ADVANCED >> ASSET >> SHOW ASSET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitToProceed && continue
-                    println DEBUG "# Select minted asset to show information for"
+                    println DEBUG "Select minted asset to show information for"
                     selectAsset
                     case $? in
                       1) waitToProceed; continue ;;
@@ -5686,7 +5688,7 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitToProceed && continue
-                    println DEBUG "# Select policy to decrypt"
+                    println DEBUG "Select policy to decrypt"
                     selectPolicy "encrypted"
                     case $? in
                       1) waitToProceed; continue ;;
@@ -5695,7 +5697,7 @@ function main {
                     filesUnlocked=0
                     keysDecrypted=0
                     echo
-                    println DEBUG "# Removing write protection from all policy files"
+                    println DEBUG "Removing write protection from all policy files"
                     while IFS= read -r -d '' file; do
                       if [[ ${ENABLE_CHATTR} = true && $(lsattr -R "$file") =~ -i- ]]; then
                         sudo chattr -i "${file}"
@@ -5706,7 +5708,7 @@ function main {
                     done < <(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -print0)
                     if [[ $(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
                       echo
-                      println "# Decrypting GPG encrypted policy key"
+                      println "Decrypting GPG encrypted policy key"
                       if ! getPasswordCust; then # $password variable populated by getPasswordCust function
                         println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
                         waitToProceed && continue
@@ -5736,7 +5738,7 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitToProceed && continue
-                    println DEBUG "# Select policy to encrypt"
+                    println DEBUG "Select policy to encrypt"
                     selectPolicy "encrypted"
                     case $? in
                       1) waitToProceed; continue ;;
@@ -5746,7 +5748,7 @@ function main {
                     keysEncrypted=0
                     if [[ $(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
                       echo
-                      println DEBUG "# Encrypting policy signing key with GPG"
+                      println DEBUG "Encrypting policy signing key with GPG"
                       if ! getPasswordCust confirm; then # $password variable populated by getPasswordCust function
                         println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
                         waitToProceed && continue
@@ -5768,7 +5770,7 @@ function main {
                       waitToProceed && continue
                     fi
                     echo
-                    println DEBUG "# Write protecting all policy files with 400 permission and if enabled 'chattr +i'"
+                    println DEBUG "Write protecting all policy files with 400 permission and if enabled 'chattr +i'"
                     while IFS= read -r -d '' file; do
                       chmod 400 "$file"
                       if [[ ${ENABLE_CHATTR} = true && ! $(lsattr -R "$file") =~ -i- ]]; then
@@ -5802,7 +5804,7 @@ function main {
                     fi
                     echo
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to mint asset with" && waitToProceed && continue
-                    println DEBUG "# Select the policy to use when minting the asset"
+                    println DEBUG "Select the policy to use when minting the asset"
                     selectPolicy "all" "${ASSET_POLICY_SK_FILENAME}" "${ASSET_POLICY_VK_FILENAME}" "${ASSET_POLICY_SCRIPT_FILENAME}" "${ASSET_POLICY_ID_FILENAME}"
                     case $? in
                       1) waitToProceed; continue ;;
@@ -5819,7 +5821,7 @@ function main {
                     [[ ${policy_ttl} -gt 0 && ${policy_ttl} -lt $(getSlotTipRef) ]] && println ERROR "${FG_RED}ERROR${NC}: Policy expired!" && waitToProceed && continue
                     echo
                     if [[ $(find "${policy_folder}" -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
-                      println DEBUG "# Assets minted for this Policy\n"
+                      println DEBUG "Assets minted for this Policy\n"
                       asset_name_maxlen=5; asset_amount_maxlen=12
                       while IFS= read -r -d '' asset; do
                         asset_name=$(jq -r '.name //empty' "${asset}")
@@ -5860,7 +5862,7 @@ function main {
                         metafile_param="--metadata-json-file ${metafile}"
                         ;;
                     esac
-                    println DEBUG "\n# Select wallet to mint assets on (also used for transaction fee)"
+                    println DEBUG "\nSelect wallet to mint assets on (also used for transaction fee)"
                     if [[ ${op_mode} = "online" ]]; then
                       selectWallet "balance"
                       case $? in
@@ -5953,7 +5955,7 @@ function main {
                       if ! selectOpMode; then continue; fi
                     fi
                     echo
-                    println DEBUG "# Select wallet with assets to burn"
+                    println DEBUG "Select wallet with assets to burn"
                     if [[ ${op_mode} = "online" ]]; then
                       selectWallet "balance"
                       case $? in
@@ -5994,7 +5996,7 @@ function main {
                     done
                     echo
                     [[ ${#assets_on_wallet[@]} -eq 0 ]] && println ERROR "${FG_RED}ERROR${NC}: Wallet doesn't contain any assets!" && waitToProceed && continue
-                    println DEBUG "# Select Asset to burn"
+                    println DEBUG "Select Asset to burn"
                     select_opt "${assets_on_wallet[@]}" "[Esc] Cancel"
                     selection=$?
                     [[ ${selected_value} = "[Esc] Cancel" ]] && continue
@@ -6100,7 +6102,7 @@ function main {
                       waitToProceed && continue
                     fi
                     [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to use for Cardano Token Registry" && waitToProceed && continue
-                    println DEBUG "# Select the policy to use for Cardano Token Registry"
+                    println DEBUG "Select the policy to use for Cardano Token Registry"
                     selectPolicy "all" "${ASSET_POLICY_SK_FILENAME}" "${ASSET_POLICY_SCRIPT_FILENAME}" "${ASSET_POLICY_ID_FILENAME}"
                     case $? in
                       1) waitToProceed; continue ;;
@@ -6113,7 +6115,7 @@ function main {
                     policy_id="$(cat "${policy_folder}/${ASSET_POLICY_ID_FILENAME}")"
                     echo
                     if [[ $(find "${policy_folder}" -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
-                      println DEBUG "# Assets previously minted for this Policy\n"
+                      println DEBUG "Assets previously minted for this Policy\n"
                       asset_name_maxlen=5; asset_amount_maxlen=12
                       while IFS= read -r -d '' asset; do
                         asset_filename=$(basename "${asset}")
@@ -6147,7 +6149,7 @@ function main {
                         echo
                       fi
                     fi
-                    println DEBUG "# Enter metadata (optional fields can be left empty)"
+                    println DEBUG "Enter metadata (optional fields can be left empty)"
                     getAnswerAnyCust meta_name "Name        [${FG_RED}required${NC}] (Max. 50 chars) "
                     [[ -z ${meta_name} || ${#meta_name} -gt 50 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata name is a required field and limited to 50 chars in length!" && waitToProceed && continue
                     getAnswerAnyCust meta_desc "Description [${FG_RED}required${NC}] (Max. 500 chars)"
@@ -6370,7 +6372,7 @@ function main {
                     println " >> ADVANCED >> MULTISIG >> DERIVE KEYS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    println DEBUG "# Select wallet to derive MultiSig keys for (only wallets with missing keys shown)"
+                    println DEBUG "Select wallet to derive MultiSig keys for (only wallets with missing keys shown)"
                     selectWallet "non-ms"
                     case $? in
                       1) waitToProceed; continue ;;

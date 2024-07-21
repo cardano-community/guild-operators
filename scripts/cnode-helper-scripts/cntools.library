@@ -4743,7 +4743,7 @@ submitPoll() {
   fi
 
   echo "Transaction Fee: $(formatLovelace ${min_fee}) ADA"
-  println "\n# Do you want to publish this answer for pool ${pool_name} on ${NETWORK_NAME}?"
+  println "\nDo you want to publish this answer for pool ${pool_name} on ${NETWORK_NAME}?"
   select_opt "[n] No" "[y] Yes"
   case $? in
    1) if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${pool_coldkey_sk_file}"; then return 1; fi
