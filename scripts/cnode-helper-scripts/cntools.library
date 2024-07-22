@@ -3922,7 +3922,7 @@ registerDRep() {
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   if [[ -z ${is_update} ]]; then
-    fee=$(( DREP_DEPOSIT - min_fee ))
+    fee=$(( DREP_DEPOSIT + min_fee ))
     newBalance=$(( base_lovelace - fee ))
     println LOG "New balance after DRep deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) - $(formatLovelace ${DREP_DEPOSIT}) - $(formatLovelace ${min_fee}))"
   else
