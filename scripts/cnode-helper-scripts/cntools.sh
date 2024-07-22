@@ -4094,11 +4094,11 @@ function main {
                   " ) DRep Reg / Upd - register wallet as a DRep for voting or submit updated anchor data for already DRep registered wallet"\
                   " ) DRep Retire    - retire wallet as a DRep"\
                   " ) Cast Vote      - vote on governance actions as an SPO, DRep, or Committee member"\
-                  " ) Derive Keys    - derive delegate representative (DRep) and committee member keys (if needed)"\
                   " ) MultiSig DRep  - create a multi-participant (MultiSig) DRep coalition"\
+                  " ) Derive Keys    - derive delegate representative (DRep) and committee member keys (if needed)"\
                   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Catalyst Operation\n"
-                select_opt "[i] Info & Status" "[d] Delegate" "[r] DRep Registration / Update" "[x] DRep Retire" "[v] Cast vote" "[k] Derive Keys" "[m] MultiSig DRep" "[b] Back" "[h] Home"
+                select_opt "[i] Info & Status" "[d] Delegate" "[r] DRep Registration / Update" "[x] DRep Retire" "[v] Cast vote" "[m] MultiSig DRep" "[k] Derive Keys" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="info-status" ;;
                   1) SUBCOMMAND="delegate" ;;
@@ -4232,7 +4232,8 @@ function main {
                         ;;
                       1) getAnswerAnyCust drep_id "DRep (blank to cancel)"
                         [[ -z "${drep_id}" ]] && continue
-                        [[ ${drep_id} != drep* ]] && drep_id=$(bech32 drep <<< "${drep_id}")
+                        [[ ${drep_id} != drep* ]] && drep_id=$(bech32 drep <<< "${drep_id}" 2>/dev/null)
+                        [[ ${#drep_id} -ne 56 || ${drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
                         ;;
                       2) drep_id="alwaysAbstain"; vote_param=("--always-abstain") ;;
                       3) drep_id="alwaysNoConfidence"; vote_param=("--always-no-confidence") ;;
@@ -4638,6 +4639,84 @@ function main {
                     println "successfully cast vote!"
                     waitToProceed && continue
                     ;; ###################################################################
+                  create-ms-drep)
+                    clear
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    println " >> VOTE >> GOVERNANCE >> MULTISIG DREP"
+                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    echo
+                    createNewWallet || continue
+                    ms_wallet_name="${wallet_name}"
+                    # Wallet key filenames
+                    drep_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
+                    if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
+                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
+                      println "      Choose another name or delete the existing one"
+                      waitToProceed && continue
+                    fi
+                    # drep key hashes as keys to associative array to act as a set
+                    declare -gA key_hashes=()
+                    println OFF "Select wallet(s) / DRep IDs to include in MultiSig DRep"
+                    println OFF "${FG_YELLOW}!${NC} Please use 1854H (MultiSig) derived keys according to CIP-1854!"
+                    println OFF "${FG_YELLOW}!${NC} Only wallets with these keys will be listed, use 'Derive Keys' option to generate them."
+                    echo
+                    selected_wallets=()
+                    while true; do
+                      println DEBUG "Select wallet or manually enter DRep ID?"
+                      select_opt "[w] Wallet" "[i] DRep (ID or hash)" "[d] I'm done" "[Esc] Cancel"
+                      case $? in
+                        0) selectWallet "none" "${selected_wallets[@]}" "${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
+                          case $? in
+                            1) waitToProceed; continue ;;
+                            2) continue ;;
+                          esac
+                          getGovKeyInfo ${wallet_name}
+                          [[ -z ${ms_drep_id} || ${ms_drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid wallet, MultiSig DRep keys not found!" && waitToProceed && continue
+                          key_hashes["${ms_drep_hash}"]=1
+                          selected_wallets+=("${wallet_name}")
+                          ;;
+                        1) getAnswerAnyCust drep_id "MultiSig DRep ID (bech32)"
+                          [[ ${drep_id} != drep* ]] && drep_id=$(bech32 drep <<< "${drep_id}" 2>/dev/null)
+                          [[ ${#drep_id} -ne 56 || ${drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
+                          key_hashes[$(bech32 <<< "${drep_id}")]=1
+                          ;;
+                        2) break ;;
+                        3) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
+                      esac
+                      println DEBUG "\nMultiSig size: ${#key_hashes[@]} - Add more wallets / DRep IDs to MultiSig?"
+                      select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
+                      case $? in
+                        0) break ;;
+                        1) : ;;
+                        2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
+                      esac
+                    done
+                    if [[ ${#key_hashes[@]} -eq 0 ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: no signers added, please add at least one"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
+                    fi
+                    println DEBUG "\n${#key_hashes[@]} wallets / DRep IDs added to MultiSig, how many are required to witness the transaction?"
+                    getAnswerAnyCust required_sig_cnt "Number of Required signatures"
+                    if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
+                    fi
+                    # build MultiSig script
+                    drep_script=$(jq -n --argjson req_sig "${required_sig_cnt}" '{type:"atLeast",required:$req_sig,scripts:[]}')
+                    for sig in "${!key_hashes[@]}"; do
+                      drep_script=$(jq --arg sig "${sig}" '.scripts += [{type:"sig",keyHash:$sig}]' <<< "${drep_script}")
+                    done
+                    if ! stdout=$(jq -e . <<< "${drep_script}" > "${drep_script_file}" 2>&1); then
+                      println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
+                    fi
+
+                    chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
+                    getGovKeyInfo ${ms_wallet_name}
+                    echo
+                    println "New MultiSig DRep : ${FG_GREEN}${ms_wallet_name}${NC}"
+                    println "DRep ID           : ${FG_LGRAY}$(bech32 drep <<< ${drep_id} 2>/dev/null)${NC}"
+                    println "DRep Script Hash  : ${FG_LGRAY}${drep_id}${NC}"
+                    println DEBUG "\nNote that this is not a normal wallet and can only be used to vote as a DRep coalition."
+                    waitToProceed && continue
+                    ;; ###################################################################
                   derive-gov-keys)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -4842,83 +4921,6 @@ function main {
                     println "DRep ID           : ${FG_LGRAY}${drep_id}${NC}"
                     println "Committee Cold ID : ${FG_LGRAY}${cc_cold_id}${NC}"
                     println "Committee Hot ID  : ${FG_LGRAY}${cc_hot_id}${NC}"
-                    waitToProceed && continue
-                    ;; ###################################################################
-                  create-ms-drep)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> VOTE >> GOVERNANCE >> MULTISIG DREP"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
-                    createNewWallet || continue
-                    ms_wallet_name="${wallet_name}"
-                    # Wallet key filenames
-                    drep_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
-                    if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
-                      println "      Choose another name or delete the existing one"
-                      waitToProceed && continue
-                    fi
-                    # drep key hashes as keys to associative array to act as a set
-                    declare -gA key_hashes=()
-                    println OFF "Select wallet(s) / DRep IDs to include in MultiSig DRep"
-                    println OFF "${FG_YELLOW}!${NC} Please use 1854H (MultiSig) derived keys according to CIP-1854!"
-                    println OFF "${FG_YELLOW}!${NC} Only wallets with these keys will be listed, use 'Derive Keys' option to generate them."
-                    echo
-                    selected_wallets=()
-                    while true; do
-                      println DEBUG "Select wallet or manually enter DRep ID?"
-                      select_opt "[w] Wallet" "[i] DRep ID" "[d] I'm done" "[Esc] Cancel"
-                      case $? in
-                        0) selectWallet "none" "${selected_wallets[@]}" "${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
-                          case $? in
-                            1) waitToProceed; continue ;;
-                            2) continue ;;
-                          esac
-                          getGovKeyInfo ${wallet_name}
-                          [[ -z ${ms_drep_id} || ${ms_drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid wallet, MultiSig DRep keys not found!" && waitToProceed && continue
-                          key_hashes["${ms_drep_hash}"]=1
-                          selected_wallets+=("${wallet_name}")
-                          ;;
-                        1) getAnswerAnyCust drep_id "MultiSig DRep ID (bech32)"
-                          [[ ${#drep_id} -ne 56 || ${drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
-                          key_hashes[$(bech32 <<< "${drep_id}")]=1
-                          ;;
-                        2) break ;;
-                        3) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
-                      esac
-                      println DEBUG "\nMultiSig size: ${#key_hashes[@]} - Add more wallets / DRep IDs to MultiSig?"
-                      select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
-                      case $? in
-                        0) break ;;
-                        1) : ;;
-                        2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
-                      esac
-                    done
-                    if [[ ${#key_hashes[@]} -eq 0 ]]; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: no signers added, please add at least one"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
-                    fi
-                    println DEBUG "\n${#key_hashes[@]} wallets / DRep IDs added to MultiSig, how many are required to witness the transaction?"
-                    getAnswerAnyCust required_sig_cnt "Number of Required signatures"
-                    if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
-                    fi
-                    # build MultiSig script
-                    drep_script=$(jq -n --argjson req_sig "${required_sig_cnt}" '{type:"atLeast",required:$req_sig,scripts:[]}')
-                    for sig in "${!key_hashes[@]}"; do
-                      drep_script=$(jq --arg sig "${sig}" '.scripts += [{type:"sig",keyHash:$sig}]' <<< "${drep_script}")
-                    done
-                    if ! stdout=$(jq -e . <<< "${drep_script}" > "${drep_script_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
-                    fi
-
-                    chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
-                    getGovKeyInfo ${ms_wallet_name}
-                    echo
-                    println "New MultiSig DRep : ${FG_GREEN}${ms_wallet_name}${NC}"
-                    println "DRep ID           : ${FG_LGRAY}$(bech32 drep <<< ${drep_id})${NC}"
-                    println "DRep Script Hash  : ${FG_LGRAY}${drep_id}${NC}"
-                    println DEBUG "\nNote that this is not a normal wallet and can only be used to vote as a DRep coalition."
                     waitToProceed && continue
                     ;; ###################################################################
                 esac # vote sub OPERATION
