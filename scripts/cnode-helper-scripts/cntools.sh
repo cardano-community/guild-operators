@@ -4311,14 +4311,14 @@ function main {
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
-                    getGovKeyInfo "${drep_wallet}"
+                    drep_wallet_name=${wallet_name}
+                    getGovKeyInfo "${drep_wallet_name}"
                     if [[ -z ${drep_id} ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: Wallet missing governance keys, please first derive them!"
                       waitToProceed && continue
                     fi
-                    drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
-                    drep_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_REGISTER_CERT_FILENAME}"
-                    drep_meta_file="${WALLET_FOLDER}/${wallet_name}/drep_meta.json"
+                    drep_cert_file="${WALLET_FOLDER}/${drep_wallet_name}/${WALLET_GOV_DREP_REGISTER_CERT_FILENAME}"
+                    drep_meta_file="${WALLET_FOLDER}/${drep_wallet_name}/drep_meta.json"
                     unset drep_anchor_url drep_anchor_hash
                     println DEBUG "\nAdd DRep anchor URL?"
                     select_opt "[n] No" "[y] Yes"
@@ -4375,7 +4375,6 @@ function main {
                     if ! stdout=$("${DREP_REG_CMD[@]}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep registration certificate creation!\n${stdout}"; waitToProceed && continue
                     fi
-                    drep_wallet_name=${wallet_name}
                     if [[ ${hash_type} = "scriptHash" ]]; then
                       println DEBUG "\nSelect wallet to pay for transaction fee"
                       selectWallet "balance" ${WALLET_PAY_VK_FILENAME}
@@ -4426,7 +4425,8 @@ function main {
                       1) waitToProceed; continue ;;
                       2) continue ;;
                     esac
-                    getGovKeyInfo ${wallet_name}
+                    drep_wallet_name=${wallet_name}
+                    getGovKeyInfo ${drep_wallet_name}
                     if [[ -z ${drep_id} ]]; then
                       println ERROR "\n${FG_RED}ERROR${NC}: Wallet missing governance keys!"
                       waitToProceed && continue
@@ -4435,8 +4435,7 @@ function main {
                       println ERROR "\n${FG_RED}ERROR${NC}: Wallet not registered as a DRep, unable to retire!"
                       waitToProceed && continue
                     fi
-                    drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
-                    drep_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_RETIRE_CERT_FILENAME}"
+                    drep_cert_file="${WALLET_FOLDER}/${drep_wallet_name}/${WALLET_GOV_DREP_RETIRE_CERT_FILENAME}"
                     if [[ ${hash_type} = "scriptHash" ]]; then
                       drep_ret_param=(--drep-script-hash "${drep_hash}")
                     else
@@ -4452,7 +4451,6 @@ function main {
                     if ! stdout=$("${DREP_RET_CMD[@]}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep retirement certificate creation!\n${stdout}"; waitToProceed && continue
                     fi
-                    drep_wallet_name=${wallet_name}
                     if [[ ${hash_type} = "scriptHash" ]]; then
                       println DEBUG "\nSelect wallet to pay for the transaction fee and that gets the returned DRep deposit"
                       selectWallet "balance" ${WALLET_PAY_VK_FILENAME}
@@ -4531,7 +4529,6 @@ function main {
                             2) continue ;;
                           esac
                         fi
-                        drep_sk_file="${WALLET_FOLDER}/${drep_wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
                         ;;
                       2) vote_mode="committee"
                         selectWallet "none" "${WALLET_GOV_CC_HOT_VK_FILENAME}"
@@ -4540,8 +4537,6 @@ function main {
                           2) continue ;;
                         esac
                         getGovKeyInfo ${wallet_name}
-                        cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
-                        cc_hot_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_SK_FILENAME}"
                         ;;
                       4) continue ;;
                     esac
