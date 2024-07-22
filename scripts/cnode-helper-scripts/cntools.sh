@@ -4502,7 +4502,7 @@ function main {
                           2) continue ;;
                         esac
                         println DEBUG "\nSelect wallet to pay for transaction fee"
-                        selectWallet "balance"
+                        selectWallet "balance" ${WALLET_PAY_VK_FILENAME}
                         case $? in
                           1) waitToProceed; continue ;;
                           2) continue ;;
@@ -4524,7 +4524,7 @@ function main {
                           waitToProceed && continue
                         elif [[ ${hash_type} = "scriptHash" ]]; then
                           println DEBUG "\nSelect wallet to pay for transaction fee"
-                          selectWallet "balance"
+                          selectWallet "balance" ${WALLET_PAY_VK_FILENAME}
                           case $? in
                             1) waitToProceed; continue ;;
                             2) continue ;;

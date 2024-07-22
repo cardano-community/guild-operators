@@ -4020,7 +4020,7 @@ retireDRep() {
     witness_cnt=2
   fi
 
-  if ! getTTL "$([[ ${hash_type} = "scriptHash" ]] && echo true)"; then return 1; fi
+  if ! getTTL; then return 1; fi
 
   println LOG "DRep deposit to be returned is ${FG_LBLUE}$(formatLovelace ${drep_deposit_amt})${NC}"
 
@@ -4133,7 +4133,7 @@ governanceVote() {
     witness_cnt=2
   fi
 
-  if ! getTTL "$([[ ${vote_mode} = "drep" && ${hash_type} = "scriptHash" ]] && echo true)"; then return 1; fi
+  if ! getTTL; then return 1; fi
 
   getAssetsTxOut
 
