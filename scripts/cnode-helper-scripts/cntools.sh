@@ -4251,7 +4251,7 @@ function main {
                         println ERROR "\n${FG_RED}ERROR${NC}: selected DRep not registered"
                         waitToProceed && continue
                       fi
-                      [[ ${hash_type} = keyHash ]] && vote_param=("--drep-key-hash" "${drep_id}") || vote_param=("--drep-script-hash" "${drep_id}")
+                      [[ ${hash_type} = keyHash ]] && vote_param=("--drep-key-hash" "${drep_hash}") || vote_param=("--drep-script-hash" "${drep_hash}")
                       getDRepVotePower keyHash ${drep_hash}
                       [[ -z ${vote_power} ]] && getDRepVotePower scriptHash ${drep_hash}
                       if [[ -z ${vote_power} ]]; then

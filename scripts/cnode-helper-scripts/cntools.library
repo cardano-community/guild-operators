@@ -1099,7 +1099,7 @@ getGovKeyInfo() {
 # Return      : populates ${hash_type} ${drep_anchor_url} ${drep_anchor_hash} ${drep_deposit_amt} ${drep_expiry}
 getDRepStatus() {
   unset hash_type drep_anchor_url drep_anchor_hash drep_deposit_amt drep_expiry
-  [[ -z $1 || -z $2 || $1 != keyHash || $1 != scriptHash ]] && return 1
+  [[ -z $1 || -z $2 || ($1 != keyHash && $1 != scriptHash) ]] && return 1
   hash_type="$1"
   [[ ${hash_type} = keyHash ]] && hash_param="--drep-key-hash" || hash_param="--drep-script-hash"
   println ACTION "${CCLI} conway query drep-state ${hash_param} ${2} ${NETWORK_IDENTIFIER} | jq -r .[0][1]"
