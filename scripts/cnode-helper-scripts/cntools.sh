@@ -4087,7 +4087,6 @@ function main {
                 clear
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println " >> VOTE >> GOVERNANCE (CIP-1694)"
-                println DEBUG " ${FG_YELLOW}!! Work In Progress !!${NC}"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println OFF " Governance\n"\
                   " ) Info & Status  - show wallet governance information and status"\
@@ -4130,8 +4129,6 @@ function main {
                     esac
                     current_epoch=$(getEpoch)
                     drep_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
-                    echo
-                    println "Wallet            : ${FG_GREEN}${wallet_name}${NC}"
                     if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]]; then
                       println "DEBUG" "\nVote Delegation Status"
                       unset walletName
@@ -4156,7 +4153,7 @@ function main {
                           println "Status            : ${FG_RED}Unable to get DRep status, retired?${NC}"
                         fi
                         getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
-                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power:=0}) (${FG_LBLUE}${vote_power_pct:=0} %${NC})${NC}"
+                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
                       else
                         println "Delegation        : ${FG_YELLOW}undelegated${NC}"
                       fi
@@ -4184,7 +4181,7 @@ function main {
                         [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                         println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
                         getDRepVotePower keyHash ${drep_hash}
-                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power:=0}) ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})${NC}"
+                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
                       else
                         println "Status            : ${FG_YELLOW}DRep key not registered${NC}"
                       fi
@@ -4196,9 +4193,8 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> DELEGATE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
                     if ! versionCheck "10.0" "${PROT_VERSION}"; then
-                      println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
+                      println INFO "\n${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
@@ -4292,7 +4288,7 @@ function main {
                       [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                       println "DRep expiry     : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
                     fi
-                    println "DRep vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0}) (${FG_LBLUE}${vote_power_pct:=0} %${NC})${NC}"
+                    println "DRep vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
                     waitToProceed && continue
                     ;; ###################################################################
                   drep-reg)
@@ -4300,9 +4296,8 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> DREP REGISTRATION / UPDATE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
                     if ! versionCheck "10.0" "${PROT_VERSION}"; then
-                      println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
+                      println INFO "\n${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
@@ -4414,9 +4409,8 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> DREP RETIRE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
                     if ! versionCheck "10.0" "${PROT_VERSION}"; then
-                      println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
+                      println INFO "\n${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
@@ -4542,13 +4536,26 @@ function main {
                           2) continue ;;
                         esac
                         getGovKeyInfo ${wallet_name}
+                        if [[ -z ${cc_cold_id} || -z ${cc_hot_id} ]]; then
+                          println ERROR "\n${FG_RED}ERROR${NC}: Wallet missing governance committee keys!"
+                          waitToProceed && continue
+                        fi
                         ;;
                       4) continue ;;
                     esac
-                    if [[ ${vote_mode} = "drep" || ${vote_mode} = "committee" ]]; then
-                      [[ ${vote_mode} = "committee" ]] && hash_type="keyHash"
+                    if [[ ${vote_mode} = "committee" ]]; then
+                      if ! isCommitteeMember $(bech32 <<< ${cc_cold_id}); then
+                        println ERROR "\n${FG_RED}ERROR${NC}: selected wallet is not an active committee member!"
+                        waitToProceed && continue
+                      fi
+                      hash_type="keyHash"
+                    elif [[ ${vote_mode} = "drep" ]]; then
+                      if ! getDRepStatus ${hash_type} ${drep_hash}; then
+                        println ERROR "\n${FG_RED}ERROR${NC}: wallet not registered as a DRep!"
+                        waitToProceed && continue
+                      fi
                       if ! getDRepVotePower ${hash_type} ${drep_hash}; then
-                        println ERROR "\n${FG_RED}ERROR${NC}: selected wallet has no vote power associated with it"
+                        println ERROR "\n${FG_RED}ERROR${NC}: selected wallet has no vote power associated with it!"
                         waitToProceed && continue
                       fi
                     fi
@@ -4579,9 +4586,6 @@ function main {
                         esac
                         ;;
                     esac
-                    println DEBUG "\nGovernance Action Details"
-                    jq -r . <<< "${vote_action}"
-                    echo
                     if [[ -f "${proposal_meta_file}" ]]; then
                       println DEBUG "Governance Action Anchor Content"
                       jq -er "${proposal_meta_file}" 2>/dev/null || cat "${proposal_meta_file}"

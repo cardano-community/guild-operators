@@ -1164,6 +1164,14 @@ getGovAction() {
   return 0
 }
 
+# Command     : isCommitteeMember [hash]
+# Description : check if supplied hash is part of current committee list
+isCommitteeMember() {
+  [[ -z $1 ]] && return 1
+  println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -r '.committee.members | keys[]' | grep -q $1"
+  ${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -r '.committee.members | keys[]' | grep -q $1
+}
+
 # Command     : getBaseAddress [wallet name] | [payment.vkey] [stake.vkey]
 # Description : create, store and save base address
 # Parameters  : wallet name  >  the name of the wallet
