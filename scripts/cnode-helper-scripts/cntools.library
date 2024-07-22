@@ -1123,6 +1123,8 @@ getDRepVotePower() {
   vote_power=$(jq -r --arg v "${search_string}" 'first(.[] | select(.[0] == $v)) | .[1]' <<< "${all_drep_vote_power}")
   [[ -z ${vote_power} ]] && return 1
   vote_power_pct=$(fractionToPCT "$(bc -l <<< "${vote_power}/${vote_power_total}")")
+  [[ -z ${vote_power_pct%.*} || ${vote_power_pct%.*} = 0 ]] && pct_precision=4 || pct_precision=2
+  vote_power_pct=$(printf "%.${pct_precision}f" ${vote_power_pct})
   return 0
 }
 

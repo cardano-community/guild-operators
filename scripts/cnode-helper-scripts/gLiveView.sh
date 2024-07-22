@@ -60,7 +60,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.29.1
+GLV_VERSION=v1.30.0
 
 PARENT="$(dirname $0)"
 
@@ -838,7 +838,7 @@ while true; do
     else
       cpu_util="0.0"
     fi
-    if [[ ${about_to_lead} -gt 0 ]]; then
+    if [[ ${forging_enabled} -eq 1 ]]; then
       [[ ${nodemode} != "Core" ]] && nodemode="Core" && getOpCert && clrScreen
     else
       [[ ${nodemode} != "Relay" ]] && clrScreen && nodemode="Relay"
@@ -959,7 +959,7 @@ while true; do
     if [[ -n ${rttResultsSorted} ]]; then
       echo "${m3divider}" && ((line++))
 
-      printf "${VL}${style_info}   # %24s  I/O RTT   Geolocation${NC}\n" "REMOTE PEER"
+      printf "${VL}${style_info}   # %24s  RTT   Geolocation${NC}\n" "REMOTE PEER"
       header_line=$((line++))
 
       peerNbr=0
@@ -992,11 +992,11 @@ while true; do
         else
           peerLocationFmt="Unknown location"
         fi
-          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_1}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_2}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_3}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_4}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        else printf "${VL} %3s %19s:%-5s %-3s %-5s ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerDIR}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
+          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s %19s:%-5s ${style_status_1}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s %19s:%-5s ${style_status_2}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s %19s:%-5s ${style_status_3}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s %19s:%-5s${style_status_4}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        else printf "${VL} %3s %19s:%-5s %-5s ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
         closeRow
         [[ ${peerNbr} -eq $((peerNbr_start+PEER_LIST_CNT-1)) ]] && break
       done

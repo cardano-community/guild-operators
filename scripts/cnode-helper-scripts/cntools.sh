@@ -4156,7 +4156,7 @@ function main {
                           println "Status            : ${FG_RED}Unable to get DRep status, retired?${NC}"
                         fi
                         getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
-                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}$(printf '%.4f' ${vote_power_pct}) %${NC})${NC}"
+                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
                       else
                         println "Delegation        : ${FG_YELLOW}undelegated${NC}"
                       fi
@@ -4184,7 +4184,7 @@ function main {
                         [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                         println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
                         getDRepVotePower keyHash ${drep_hash}
-                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}$(printf '%.4f' ${vote_power_pct}) %${NC})${NC}"
+                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
                       else
                         println "Status            : ${FG_YELLOW}DRep key not registered${NC}"
                       fi
@@ -4286,7 +4286,7 @@ function main {
                       println "DRep expiry     : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
                     fi
                     if [[ -n ${vote_power} ]]; then
-                      println "DRep vote power : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}$(printf '%.4f' ${vote_power_pct}) %${NC})${NC}"
+                      println "DRep vote power : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
                     fi
                     waitToProceed && continue
                     ;; ###################################################################
