@@ -4099,7 +4099,7 @@ function main {
                   " ) MultiSig DRep  - create a multi-participant (MultiSig) DRep coalition"\
                   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Catalyst Operation\n"
-                select_opt "[i] Info & Status" "[d] Delegate" "[r] DRep Registration" "[x] DRep Retire" "[v] Cast vote" "[k] Derive Keys" "[m] MultiSig DRep" "[b] Back" "[h] Home"
+                select_opt "[i] Info & Status" "[d] Delegate" "[r] DRep Registration / Update" "[x] DRep Retire" "[v] Cast vote" "[k] Derive Keys" "[m] MultiSig DRep" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="info-status" ;;
                   1) SUBCOMMAND="delegate" ;;
@@ -4156,7 +4156,7 @@ function main {
                           println "Status            : ${FG_RED}Unable to get DRep status, retired?${NC}"
                         fi
                         getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
-                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
+                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power:=0}) (${FG_LBLUE}${vote_power_pct:=0} %${NC})${NC}"
                       else
                         println "Delegation        : ${FG_YELLOW}undelegated${NC}"
                       fi
@@ -4184,7 +4184,7 @@ function main {
                         [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                         println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
                         getDRepVotePower keyHash ${drep_hash}
-                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
+                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power:=0}) ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})${NC}"
                       else
                         println "Status            : ${FG_YELLOW}DRep key not registered${NC}"
                       fi
@@ -4251,17 +4251,24 @@ function main {
                         println ERROR "\n${FG_RED}ERROR${NC}: selected DRep not registered"
                         waitToProceed && continue
                       fi
+                      if [[ $(getEpoch) -ge ${drep_expiry} ]]; then
+                        println ERROR "\n${FG_YELLOW}WARN${NC}: selected DRep is marked as inactive and its vote power doesn't currently count, continue anyway?"
+                        select_opt "[y] Yes" "[n] No"
+                        case $? in
+                          0) : ;; # do nothing
+                          1) continue ;;
+                        esac
+                      fi
                       [[ ${hash_type} = keyHash ]] && vote_param=("--drep-key-hash" "${drep_hash}") || vote_param=("--drep-script-hash" "${drep_hash}")
                       getDRepVotePower keyHash ${drep_hash}
                       [[ -z ${vote_power} ]] && getDRepVotePower scriptHash ${drep_hash}
                       if [[ -z ${vote_power} ]]; then
-                        println ERROR "\n${FG_YELLOW}WARN${NC}: selected DRep has no vote power associated with it"
-                        println DEBUG "Continue anyway?"
-                         select_opt "[y] Yes" "[n] No"
-                         case $? in
-                           0) : ;; # do nothing
-                           1) continue ;;
-                         esac
+                        println ERROR "\n${FG_YELLOW}WARN${NC}: selected DRep has no active vote power associated with it, continue?"
+                        select_opt "[y] Yes" "[n] No"
+                        case $? in
+                          0) : ;; # do nothing
+                          1) continue ;;
+                        esac
                       fi
                     else
                       getDRepVotePower "${drep_id}"
@@ -4285,9 +4292,7 @@ function main {
                       [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                       println "DRep expiry     : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
                     fi
-                    if [[ -n ${vote_power} ]]; then
-                      println "DRep vote power : ${FG_LBLUE}$(formatLovelace ${vote_power}) (${FG_LBLUE}${vote_power_pct} %${NC})${NC}"
-                    fi
+                    println "DRep vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0}) (${FG_LBLUE}${vote_power_pct:=0} %${NC})${NC}"
                     waitToProceed && continue
                     ;; ###################################################################
                   drep-reg)
