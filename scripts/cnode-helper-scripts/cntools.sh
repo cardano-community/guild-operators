@@ -4648,7 +4648,7 @@ function main {
                     createNewWallet || continue
                     ms_wallet_name="${wallet_name}"
                     # Wallet key filenames
-                    drep_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
+                    ms_drep_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
                     if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
                       println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
                       println "      Choose another name or delete the existing one"
@@ -4704,10 +4704,9 @@ function main {
                     for sig in "${!key_hashes[@]}"; do
                       drep_script=$(jq --arg sig "${sig}" '.scripts += [{type:"sig",keyHash:$sig}]' <<< "${drep_script}")
                     done
-                    if ! stdout=$(jq -e . <<< "${drep_script}" > "${drep_script_file}" 2>&1); then
+                    if ! stdout=$(jq -e . <<< "${drep_script}" > "${ms_drep_script_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
                     fi
-
                     chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
                     getGovKeyInfo ${ms_wallet_name}
                     echo
