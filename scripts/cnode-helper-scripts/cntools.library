@@ -3901,7 +3901,7 @@ registerDRep() {
     witness_cnt=2
   fi
 
-  if ! getTTL "$([[ ${hash_type} = "scriptHash" ]] && echo true)"; then return 1; fi
+  if ! getTTL; then return 1; fi
 
   [[ -z ${is_update} ]] && println LOG "DRep deposit is ${FG_LBLUE}$(formatLovelace ${DREP_DEPOSIT})${NC}"
 
