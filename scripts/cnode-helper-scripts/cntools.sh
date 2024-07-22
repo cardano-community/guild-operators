@@ -4090,16 +4090,16 @@ function main {
                 println DEBUG " ${FG_YELLOW}!! Work In Progress !!${NC}"
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println OFF " Governance\n"\
-                  " ) Info & Status - show wallet governance information and status"\
-                  " ) Delegate      - delegate wallet vote power to a DRep, own, external, or one the pre-defined 'abstain' / 'no confidence'"\
-                  " ) DRep Reg      - register wallet as a DRep for voting"\
-                  " ) DRep Retire   - retire wallet as a DRep"\
-                  " ) Cast Vote     - vote on governance actions as an SPO, DRep, or Committee member"\
-                  " ) Derive Keys   - derive delegate representative (DRep) and committee member keys (if needed)"\
-                  " ) MultiSig DRep - create a multi-participant (MultiSig) DRep coalition"\
+                  " ) Info & Status  - show wallet governance information and status"\
+                  " ) Delegate       - delegate wallet vote power to a DRep, own, external, or one the pre-defined 'abstain' / 'no confidence'"\
+                  " ) DRep Reg / Upd - register wallet as a DRep for voting or submit updated anchor data for already DRep registered wallet"\
+                  " ) DRep Retire    - retire wallet as a DRep"\
+                  " ) Cast Vote      - vote on governance actions as an SPO, DRep, or Committee member"\
+                  " ) Derive Keys    - derive delegate representative (DRep) and committee member keys (if needed)"\
+                  " ) MultiSig DRep  - create a multi-participant (MultiSig) DRep coalition"\
                   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println DEBUG " Select Catalyst Operation\n"
-                select_opt "[i] Info & Status" "[d] Delegate" "[r] DRep Registration" "[r] DRep Retire" "[v] Cast vote" "[k] Derive Keys" "[m] MultiSig DRep" "[b] Back" "[h] Home"
+                select_opt "[i] Info & Status" "[d] Delegate" "[r] DRep Registration" "[x] DRep Retire" "[v] Cast vote" "[k] Derive Keys" "[m] MultiSig DRep" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="info-status" ;;
                   1) SUBCOMMAND="delegate" ;;
@@ -4324,7 +4324,7 @@ function main {
                     select_opt "[n] No" "[y] Yes"
                     case $? in
                       0) unset drep_meta_file ;;
-                      1) getAnswerAnyCust drep_anchor_url "Enter DRep's anchor URL:"
+                      1) getAnswerAnyCust drep_anchor_url "Enter DRep's anchor URL"
                         if [[ ! "${drep_anchor_url}" =~ https?://.* || ${#drep_anchor_url} -gt 64 ]]; then
                           println ERROR "\n${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
                           waitToProceed && continue
@@ -4360,7 +4360,7 @@ function main {
                       # update
                       is_update=Y
                       DREP_REG_CMD=(
-                        ${CCLI} ${NETWORK_ERA} governance drep registration-certificate
+                        ${CCLI} ${NETWORK_ERA} governance drep update-certificate
                         "${drep_reg_param[@]}"
                         --out-file "${drep_cert_file}"
                       )
