@@ -714,6 +714,21 @@ checkPeers() {
   fi
 }
 
+checkNodeVersion() {
+  version=$("${CNODEBIN}" version)
+  node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
+  node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
+
+  if [[ ${node_version} != "${running_node_version}" || ${node_rev} != "${running_node_rev}" ]]; then
+    clrScreen
+    printf "\n ${style_status_3}Node version mismatch${NC} - running version doesn't match found binary!"
+    printf "\n\n Forgot to restart node after upgrade?"
+    printf "\n\n Deployed version : ${node_version} (${node_rev})"
+    printf "\n Running version  : ${running_node_version} (${running_node_rev})"
+    waitToProceed && clrScreen
+  fi
+}
+
 #####################################
 # Static variables/calculations     #
 #####################################
@@ -731,9 +746,8 @@ if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
   printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct\n"
   waitToProceed && clrScreen
 fi
-version=$("${CNODEBIN}" version)
-node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
-node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
+checkNodeVersion
+
 fail_count=0
 epoch_items_last=0
 screen_upd_cnt=0
@@ -800,9 +814,7 @@ while true; do
     logln "ERROR" "${error_msg}"
     waitForInput && continue
   elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check
-    version=$("${CNODEBIN}" version)
-    node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
-    node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
+    checkNodeVersion
     fail_count=0
     getOpCert
   fi
@@ -868,9 +880,9 @@ while true; do
     fi
   fi
 
-  header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#node_version} + ${#node_rev} + ${#NETWORK_NAME} + 19 ))
+  header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#running_node_version} + ${#running_node_rev} + ${#NETWORK_NAME} + 19 ))
   [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
-  printf "%${header_padding}s > ${style_values_2}%s${NC} - ${style_info}(%s - %s)${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] < \n" "" "${NODE_NAME}" "${nodemode}" "${NETWORK_NAME}" "${node_version}" "${node_rev}" && ((line++))
+  printf "%${header_padding}s > ${style_values_2}%s${NC} - ${style_info}(%s - %s)${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] < \n" "" "${NODE_NAME}" "${nodemode}" "${NETWORK_NAME}" "${running_node_version}" "${running_node_rev}" && ((line++))
 
   ## main section ##
   printf "${tdivider}\n" && ((line++))

@@ -583,7 +583,8 @@ getNodeMetrics() {
     .cardano.node.metrics.connectionManager.unidirectionalConns.val //0,
     .cardano.node.metrics.connectionManager.duplexConns.val //0,
     .cardano.node.metrics.connectionManager.prunableConns.val //0,
-    .cardano.node.metrics.forging_enabled.val //0
+    .cardano.node.metrics.forging_enabled.val //0,
+    .cardano.node.metrics.cardano_build_info.val //"-"
     ] | @tsv' <<< "${node_metrics}")
     read -ra node_metrics_arr <<< ${node_metrics_tsv}
     blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
@@ -603,6 +604,8 @@ getNodeMetrics() {
     conn_incoming=${node_metrics_arr[29]}; conn_outgoing=${node_metrics_arr[30]}
     conn_uni_dir=${node_metrics_arr[31]}; conn_bi_dir=${node_metrics_arr[32]}; conn_duplex=${node_metrics_arr[33]}; conn_prunable=${node_metrics_arr[34]}
     forging_enabled=${node_metrics_arr[35]}
+    [[ ${node_metrics_arr[36]} =~ ,version=\"([0-9.]*)\" ]] && running_node_version=${BASH_REMATCH[1]} || running_node_version="?"
+    [[ ${node_metrics_arr[36]} =~ ,revision=\"([0-9a-f]*)\" ]] && running_node_rev=${BASH_REMATCH[1]:0:8} || running_node_rev="?"
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
     [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
@@ -615,7 +618,6 @@ getNodeMetrics() {
     [[ ${node_metrics} =~ cardano_node_metrics_mempoolBytes_int[[:space:]]([^[:space:]]*) ]] && mempool_bytes=${BASH_REMATCH[1]} || mempool_bytes=0
     [[ ${node_metrics} =~ cardano_node_metrics_currentKESPeriod_int[[:space:]]([^[:space:]]*) ]] && kesperiod=${BASH_REMATCH[1]} || kesperiod=0
     [[ ${node_metrics} =~ cardano_node_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
-    [[ ${node_metrics} =~ cardano_node_metrics_forging_enabled[[:space:]]([^[:space:]]*) ]] && forging_enabled=${BASH_REMATCH[1]} || forging_enabled=0
     [[ ${node_metrics} =~ cardano_node_metrics_Forge_node_is_leader_int[[:space:]]([^[:space:]]*) ]] && isleader=${BASH_REMATCH[1]} || isleader=0
     [[ ${node_metrics} =~ cardano_node_metrics_Forge_adopted_int[[:space:]]([^[:space:]]*) ]] && adopted=${BASH_REMATCH[1]} || adopted=0
     [[ ${node_metrics} =~ cardano_node_metrics_Forge_didnt_adopt_int[[:space:]]([^[:space:]]*) ]] && didntadopt=${BASH_REMATCH[1]} || didntadopt=0
@@ -640,6 +642,9 @@ getNodeMetrics() {
     [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_unidirectionalConns[[:space:]]([^[:space:]]*) ]] && conn_uni_dir=${BASH_REMATCH[1]} || conn_uni_dir=0
     [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_duplexConns[[:space:]]([^[:space:]]*) ]] && conn_bi_dir=${BASH_REMATCH[1]} || conn_bi_dir=0
     [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_prunableConns[[:space:]]([^[:space:]]*) ]] && conn_duplex=${BASH_REMATCH[1]} || conn_duplex=0
+    [[ ${node_metrics} =~ cardano_node_metrics_forging_enabled[[:space:]]([^[:space:]]*) ]] && forging_enabled=${BASH_REMATCH[1]} || forging_enabled=0
+    [[ ${node_metrics} =~ cardano_node_metrics_cardano_build_info[[:space:]].*,version=\"([0-9.]*)\" ]] && running_node_version=${BASH_REMATCH[1]} || running_node_version="?"
+    [[ ${node_metrics} =~ cardano_node_metrics_cardano_build_info[[:space:]].*,revision=\"([0-9a-f]*)\" ]] && running_node_rev=${BASH_REMATCH[1]:0:8} || running_node_rev="?"
   fi
 }
 
