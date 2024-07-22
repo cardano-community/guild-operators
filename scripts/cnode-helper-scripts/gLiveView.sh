@@ -1007,7 +1007,7 @@ while true; do
           if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s %19s:%-5s ${style_status_1}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
         elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s %19s:%-5s ${style_status_2}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
         elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s %19s:%-5s ${style_status_3}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s %19s:%-5s${style_status_4}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s %19s:%-5s ${style_status_4}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
         else printf "${VL} %3s %19s:%-5s %-5s ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
         closeRow
         [[ ${peerNbr} -eq $((peerNbr_start+PEER_LIST_CNT-1)) ]] && break
