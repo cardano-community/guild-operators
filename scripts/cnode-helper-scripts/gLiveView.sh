@@ -723,7 +723,7 @@ checkNodeVersion() {
     clrScreen
     printf "\n ${style_status_3}Node version mismatch${NC} - running version doesn't match found binary!"
     printf "\n\n Forgot to restart node after upgrade?"
-    printf "\n\n Deployed version : ${node_version} (${node_rev})"
+    printf "\n\n Deployed version : ${node_version} (${node_rev}) => ${CNODEBIN}"
     printf "\n Running version  : ${running_node_version} (${running_node_rev})"
     waitToProceed && clrScreen
   fi
