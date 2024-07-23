@@ -3398,7 +3398,7 @@ function main {
                 otx_signing_name=$(base64 -d <<< "${otx_signing_name_b64}")
                 unset hasWitness
                 for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
-                  [[ ${otx_witness_name} = ${otx_signing_name} ]] && hasWitness=true && break
+                  [[ ${otx_witness_name} = "${otx_signing_name}" ]] && hasWitness=true && break
                 done
                 [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_RED}x${NC}" || println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_GREEN}\u2714${NC}"
               done
@@ -3413,7 +3413,7 @@ function main {
                 for sig in "${!script_sig_list[@]}"; do
                   unset hasWitness found_wallet_name
                   for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
-                    [[ ${otx_witness_name} = ${sig} ]] && hasWitness=true && break
+                    [[ ${otx_witness_name} = "${sig}" ]] && hasWitness=true && break
                   done
                   while IFS= read -r -d '' wallet; do
                     wallet_name=$(basename ${wallet})
