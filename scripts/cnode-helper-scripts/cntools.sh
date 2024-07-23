@@ -3342,13 +3342,8 @@ function main {
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA"
               fi
               println DEBUG "Created          : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_created}")${NC}"
-              if [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]]; then
-                println DEBUG "Expire           : ${FG_RED}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
-                println ERROR "\n${FG_RED}ERROR${NC}: Transaction expired!  please create a new one with long enough Time To Live (TTL)"
-                waitToProceed && continue
-              else
-                println DEBUG "Expire           : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
-              fi
+              [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]] && expire_color="${FG_RED}" || expire_color="${FG_LGRAY}"
+              println DEBUG "Expire           : ${expire_color}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
               echo
               tx_witness_files=()
               case "${otx_type}" in
@@ -3427,7 +3422,10 @@ function main {
                   [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}x${NC}" || println DEBUG "  ${FG_LGRAY}$([[ -n ${found_wallet_name} ]] && echo ${found_wallet_name} || echo ${sig})${NC} ${FG_GREEN}\u2714${NC}"
                 done
               done
+
               [[ $(jq -r '."signed-txBody" | length' <<< ${offlineJSON}) -gt 0 ]] && println INFO "\n${FG_GREEN}\u2714${NC} Transaction already signed, please submit transaction to complete!" && waitToProceed && continue
+              [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]] && println ERROR "\n${FG_RED}ERROR${NC}: Transaction expired!  please create a new one with long enough Time To Live (TTL)" && waitToProceed && continue
+
               for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
                 _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
                 otx_signing_name=$(_jq '.name')
@@ -3723,13 +3721,8 @@ function main {
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA"
               fi
               println DEBUG "Created          : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_created}")${NC}"
-              if [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]]; then
-                println DEBUG "Expire           : ${FG_RED}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
-                println ERROR "\n${FG_RED}ERROR${NC}: offline transaction expired!  please create a new one with long enough Time To Live (TTL)"
-                waitToProceed && continue
-              else
-                println DEBUG "Expire           : ${FG_LGRAY}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
-              fi
+              [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]] && expire_color="${FG_RED}" || expire_color="${FG_LGRAY}"
+              println DEBUG "Expire           : ${expire_color}$(date '+%F %T %Z' --date="${otx_date_expire}")${NC}"
               echo
               [[ ${otx_type} = "Wallet De-Registration" ]] && println DEBUG "Amount returned  : ${FG_LBLUE}$(formatLovelace "$(jq -r '."amount-returned"' <<< ${offlineJSON})")${NC} ADA"
               if [[ ${otx_type} = "Payment" ]]; then
@@ -3768,6 +3761,12 @@ function main {
               jq -er '."drep-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep ID          : ${FG_LGRAY}$(jq -r '."drep-id"' <<< ${offlineJSON})${NC}"
               jq -er '."action-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Action ID        : ${FG_LGRAY}$(jq -r '."action-id"' <<< ${offlineJSON})${NC}"
               jq -er '.vote' <<< ${offlineJSON} &>/dev/null && println DEBUG "Vote             : ${FG_LGRAY}$(jq -r '.vote' <<< ${offlineJSON})${NC}"
+
+              if [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]]; then
+                println ERROR "\n${FG_RED}ERROR${NC}: Transaction expired!  please create a new one with long enough Time To Live (TTL)"
+                waitToProceed && continue
+              fi
+
               tx_signed="${TMP_DIR}/tx.signed_$(date +%s)"
               println DEBUG "\nProceed to submit transaction?"
               select_opt "[y] Yes" "[n] No"
