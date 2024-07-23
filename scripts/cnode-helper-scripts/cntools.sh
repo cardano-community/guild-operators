@@ -4212,7 +4212,7 @@ function main {
                               ;;
                           esac
                         fi
-                        getDRepVotePower keyHash ${drep_hash}
+                        getDRepVotePower ${hash_type} ${drep_hash}
                         println "Active Vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
                       else
                         println "Status            : ${FG_YELLOW}DRep key not registered${NC}"
