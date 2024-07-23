@@ -3387,6 +3387,7 @@ function main {
                   [[ ${otx_type} = "Asset Minting" ]] && println DEBUG "Assets Minted    : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
                   [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets To Burn   : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-amount"' <<< ${offlineJSON})")${NC}"
                   [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets Left      : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
+                  jq -er '."drep-wallet-name"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep Wallet      : ${FG_GREEN}$(jq -r '."drep-wallet-name"' <<< ${offlineJSON})${NC}"
                   jq -er '."drep-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep ID          : ${FG_LGRAY}$(jq -r '."drep-id"' <<< ${offlineJSON})${NC}"
                   jq -er '."action-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Action ID        : ${FG_LGRAY}$(jq -r '."action-id"' <<< ${offlineJSON})${NC}"
                   jq -er '.vote' <<< ${offlineJSON} &>/dev/null && println DEBUG "Vote             : ${FG_LGRAY}$(jq -r '.vote' <<< ${offlineJSON})${NC}"
@@ -4650,17 +4651,19 @@ function main {
                     getGovAction "${action_tx_id}"
                     case $? in
                       1) println ERROR "\n${FG_RED}ERROR${NC}: governance action id not found!"; waitToProceed && continue ;;
-                      2) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor url or content, continue?"
+                      2) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor url or content"
                         println DEBUG "URL : ${FG_LGRAY}${proposal_url}${NC}"
+                        println DEBUG "\nContinue?"
                         select_opt "[n] No" "[y] Yes"
                         case $? in
                           0) continue ;;
                           1) : ;; # do nothing
                         esac
                         ;;
-                      3) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor hash, continue?"
-                        println DEBUG "Action hash : ${proposal_hash}"
-                        println DEBUG "Real hash   : ${proposal_meta_hash}"
+                      3) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor hash"
+                        println DEBUG "Action hash : ${FG_LGRAY}${proposal_hash}${NC}"
+                        println DEBUG "Real hash   : ${FG_LGRAY}${proposal_meta_hash}${NC}"
+                        println DEBUG "\nContinue?"
                         select_opt "[n] No" "[y] Yes"
                         case $? in
                           0) continue ;;
@@ -4669,11 +4672,10 @@ function main {
                         ;;
                     esac
                     if [[ -f "${proposal_meta_file}" ]]; then
-                      println DEBUG "Governance Action Anchor Content"
+                      println DEBUG "\nGovernance Action Anchor Content${FG_LGRAY}"
                       jq -er "${proposal_meta_file}" 2>/dev/null || cat "${proposal_meta_file}"
-                      echo
                     fi
-                    println DEBUG "\nHow do you want to vote?"
+                    println DEBUG "${NC}\nHow do you want to vote?"
                     select_opt "[y] Yes" "[n] No" "[a] Abstain" "[Esc] Cancel"
                     case $? in
                       0) vote_param="--yes" ;;
