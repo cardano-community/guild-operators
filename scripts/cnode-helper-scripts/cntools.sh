@@ -1115,14 +1115,11 @@ function main {
                   println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${pool_delegation})${NC}"
                 fi
               fi
-              if [[ -z ${pay_addr} || -z ${pay_script_addr} || -z ${base_addr} || -z ${reward_addr} ]]; then
-                echo
-                if [[ -z ${pay_addr} && -z ${pay_script_addr} ]]; then
-                  println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_PAY_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}' to generate it!"
-                fi
-                [[ -z ${base_addr} ]]   && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_BASE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}/${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
-                [[ -z ${reward_addr} ]] && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_STAKE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
+              if [[ -z ${pay_addr} && -z ${pay_script_addr} ]]; then
+                println "\n${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_PAY_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}' to generate it!"
               fi
+              [[ -z ${base_addr} ]]   && println "\n${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_BASE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}/${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
+              [[ -z ${reward_addr} ]] && println "\n${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_STAKE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
 
               drep_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
               if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]] && versionCheck "10.0" "${PROT_VERSION}"; then
@@ -4653,18 +4650,17 @@ function main {
                     getGovAction "${action_tx_id}"
                     case $? in
                       1) println ERROR "\n${FG_RED}ERROR${NC}: governance action id not found!"; waitToProceed && continue ;;
-                      2) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor url or content"
-                        println DEBUG "Continue anyway?"
+                      2) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor url or content, continue?"
+                        println DEBUG "URL : ${FG_LGRAY}${proposal_url}${NC}"
                         select_opt "[n] No" "[y] Yes"
                         case $? in
                           0) continue ;;
                           1) : ;; # do nothing
                         esac
                         ;;
-                      3) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor hash"
+                      3) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor hash, continue?"
                         println DEBUG "Action hash : ${proposal_hash}"
                         println DEBUG "Real hash   : ${proposal_meta_hash}"
-                        println DEBUG "Continue anyway?"
                         select_opt "[n] No" "[y] Yes"
                         case $? in
                           0) continue ;;

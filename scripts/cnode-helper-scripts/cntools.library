@@ -4182,7 +4182,7 @@ governanceVote() {
 
   if ! buildTx; then return 1; fi
 
-  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 2 || return 1
+  calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   newBalance=$(( base_lovelace - min_fee ))
   println LOG "New balance after subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}))"
