@@ -1068,6 +1068,7 @@ getGovKeyInfo() {
   elif [[ -z ${drep_id} && -f ${drep_script_file} ]]; then
     println ACTION "${CCLI} hash script --script-file ${drep_script_file}"
     drep_id=$(${CCLI} hash script --script-file "${drep_script_file}")
+    printf "${drep_id}" > "${drep_id_file}"
   fi
   if [[ -z ${cc_cold_id} && -f ${cc_cold_vk_file} ]]; then
     println ACTION "bech32 cc_cold <<< \$(${CCLI} conway governance committee key-hash --verification-key-file ${cc_cold_vk_file})"
@@ -1085,14 +1086,13 @@ getGovKeyInfo() {
     printf "${ms_drep_id}" > "${ms_drep_id_file}"
   fi
   if [[ -n ${drep_id} ]]; then
-    if [[ ! -f ${drep_script_file} ]]; then
+    if [[ ${drep_id} = drep* ]]; then
       hash_type="keyHash"
       drep_hash="$(bech32 <<< ${drep_id})"
     else
       hash_type="scriptHash"
       drep_hash="${drep_id}"
       drep_id="$(bech32 drep <<< "${drep_hash}")"
-      [[ ! -f ${drep_id_file} ]] && printf "${drep_id}" > "${drep_id_file}"
     fi
   fi
   if [[ -n ${ms_drep_id} ]]; then
