@@ -1087,6 +1087,7 @@ getGovKeyInfo() {
     else
       hash_type="scriptHash"
       drep_hash="${drep_id}"
+      drep_id="$(bech32 drep <<< "${drep_hash}")"
     fi
   fi
   if [[ -n ${ms_drep_id} ]]; then

@@ -4123,7 +4123,7 @@ function main {
                     fi
                     [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
                     println DEBUG "Select wallet (derive governance keys if missing)"
-                    selectWallet "none" "${WALLET_GOV_DREP_VK_FILENAME}" "${WALLET_GOV_CC_COLD_VK_FILENAME}"
+                    selectWallet "none"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
