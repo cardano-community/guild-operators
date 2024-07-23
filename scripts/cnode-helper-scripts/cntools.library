@@ -1109,6 +1109,25 @@ getDRepStatus() {
   return 0
 }
 
+# Command     : getDRepAnchor [url] [hash]
+# Description : download anchor data and verify hash
+# Return      : populates ${drep_anchor_file} ${drep_anchor_real_hash}
+#             : 0 = ok, 1 = invalid url, 2 = hash doesn't match
+getDRepAnchor() {
+  unset drep_anchor_file drep_anchor_real_hash
+  [[ -z $1 ]] && return 1
+  drep_anchor_file="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
+  if ! curl -sL -m ${CURL_TIMEOUT} -o "${drep_anchor_file}" ${1}; then
+    [[ -f "${drep_anchor_file}" ]] && rm -f "${drep_anchor_file}"
+    unset drep_anchor_file
+    return 1
+  fi
+  println ACTION "${CCLI} hash anchor-data --file-text ${drep_anchor_file}"
+  drep_anchor_real_hash="$(${CCLI} hash anchor-data --file-text "${drep_anchor_file}")"
+  [[ ${drep_anchor_real_hash} != "${2}" ]] && return 2
+  return 0
+}
+
 # Command     : getDRepVotePower [type] <hash>
 # Description : query status of drep id
 # Return      : populates ${vote_power} ${vote_power_total} ${vote_power_pct}

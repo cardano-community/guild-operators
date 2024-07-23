@@ -4147,14 +4147,33 @@ function main {
                           done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                         fi
                         println "Delegation        : ${FG_LGRAY}${vote_delegation}${NC}${walletName}"
-                        if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
+                        if [[ ${vote_delegation} = always* ]]; then
+                          : # do nothing
+                        elif getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
                           [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                           println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                          if [[ -n ${drep_anchor_url} ]]; then
+                            println "DRep anchor url   : ${FG_LGRAY}${drep_anchor_url}${NC}"
+                            getDRepAnchor "${drep_anchor_url}" "${drep_anchor_hash}"
+                            case $? in
+                              0) println "DRep anchor data  :\n${FG_LGRAY}"
+                                jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
+                                println DEBUG "${NC}"
+                                ;;
+                              1) println "DRep anchor data  : ${FG_YELLOW}Invalid URL or currently not available${NC}" ;;
+                              2) println "DRep anchor data  :\n${FG_LGRAY}"
+                                jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
+                                println "${NC}DRep anchor hash  : ${FG_YELLOW}mismatch${NC}"
+                                println "  registered      : ${FG_LGRAY}${drep_anchor_hash}${NC}"
+                                println "  actual          : ${FG_LGRAY}${drep_anchor_real_hash}${NC}"
+                                ;;
+                            esac
+                          fi
                         else
                           println "Status            : ${FG_RED}Unable to get DRep status, retired?${NC}"
                         fi
                         getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
-                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
+                        println "Active Vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
                       else
                         println "Delegation        : ${FG_YELLOW}undelegated${NC}"
                       fi
@@ -4182,7 +4201,7 @@ function main {
                         [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                         println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
                         getDRepVotePower keyHash ${drep_hash}
-                        println "Vote power        : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
+                        println "Active Vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
                       else
                         println "Status            : ${FG_YELLOW}DRep key not registered${NC}"
                       fi
@@ -4285,12 +4304,12 @@ function main {
                     if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
                     echo
                     println "${FG_GREEN}${wallet_name}${NC} successfully delegated to DRep!"
-                    println "\nDRep ID         : ${FG_LGRAY}${drep_id}${NC}"
+                    println "\nDRep ID                : ${FG_LGRAY}${drep_id}${NC}"
                     if [[ -n ${drep_expiry} ]]; then
                       [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                      println "DRep expiry     : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                      println "DRep expiry            : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
                     fi
-                    println "DRep vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
+                    println "Active DRep vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
                     waitToProceed && continue
                     ;; ###################################################################
                   drep-reg)
