@@ -3334,7 +3334,6 @@ function main {
               if ! otx_txFee=$(jq -er '.txFee' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'txFee' not found in: ${offline_tx}" && waitToProceed && continue; fi
               if ! otx_txBody=$(jq -er '.txBody' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'txBody' not found in: ${offline_tx}" && waitToProceed && continue; fi
               echo -e "${otx_txBody}" > "${TMP_DIR}"/tx.raw
-              [[ $(jq -r '."signed-txBody" | length' <<< ${offlineJSON}) -gt 0 ]] && println ERROR "${FG_RED}ERROR${NC}: transaction already signed, please submit transaction to complete!" && waitToProceed && continue
               println DEBUG "Transaction type : ${FG_GREEN}${otx_type}${NC}"
               if wallet_name=$(jq -er '."wallet-name"' <<< ${offlineJSON}); then 
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA, payed by ${FG_GREEN}${wallet_name}${NC}"
@@ -3428,6 +3427,7 @@ function main {
                   [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}x${NC}" || println DEBUG "  ${FG_LGRAY}$([[ -n ${found_wallet_name} ]] && echo ${found_wallet_name} || echo ${sig})${NC} ${FG_GREEN}\u2714${NC}"
                 done
               done
+              [[ $(jq -r '."signed-txBody" | length' <<< ${offlineJSON}) -gt 0 ]] && println INFO "\n${FG_GREEN}\u2714${NC} Transaction already signed, please submit transaction to complete!" && waitToProceed && continue
               for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
                 _jq() { base64 -d <<< ${otx_signing_file} | jq -r "${1}"; }
                 otx_signing_name=$(_jq '.name')
