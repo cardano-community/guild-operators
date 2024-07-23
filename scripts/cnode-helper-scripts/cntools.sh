@@ -1123,6 +1123,56 @@ function main {
                 [[ -z ${base_addr} ]]   && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_BASE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}/${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
                 [[ -z ${reward_addr} ]] && println "${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_STAKE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
               fi
+
+              drep_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
+              if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]] && versionCheck "10.0" "${PROT_VERSION}"; then
+                println "DEBUG" "\nGovernance Vote Delegation Status"
+                unset walletName
+                if getWalletVoteDelegation ${wallet_name}; then
+                  unset vote_delegation_hash
+                  vote_delegation_type="${vote_delegation%-*}"
+                  if [[ ${vote_delegation} = *-* ]]; then
+                    vote_delegation_hash="${vote_delegation#*-}"
+                    vote_delegation=$(bech32 drep <<< ${vote_delegation_hash})
+                    while IFS= read -r -d '' _wallet; do
+                      getGovKeyInfo "$(basename ${_wallet})"
+                      if [[ "${drep_id}" = "${vote_delegation}" ]]; then
+                        walletName=" ${FG_GREEN}$(basename ${_wallet})${NC}" && break
+                      fi
+                    done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+                  fi
+                  println "Delegation        : ${FG_LGRAY}${vote_delegation}${NC}${walletName}"
+                  if [[ ${vote_delegation} = always* ]]; then
+                    : # do nothing
+                  elif getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
+                    [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
+                    println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                    if [[ -n ${drep_anchor_url} ]]; then
+                      println "DRep anchor url   : ${FG_LGRAY}${drep_anchor_url}${NC}"
+                      getDRepAnchor "${drep_anchor_url}" "${drep_anchor_hash}"
+                      case $? in
+                        0) println "DRep anchor data  :\n${FG_LGRAY}"
+                          jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
+                          println DEBUG "${NC}"
+                          ;;
+                        1) println "DRep anchor data  : ${FG_YELLOW}Invalid URL or currently not available${NC}" ;;
+                        2) println "DRep anchor data  :\n${FG_LGRAY}"
+                          jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
+                          println "${NC}DRep anchor hash  : ${FG_YELLOW}mismatch${NC}"
+                          println "  registered      : ${FG_LGRAY}${drep_anchor_hash}${NC}"
+                          println "  actual          : ${FG_LGRAY}${drep_anchor_real_hash}${NC}"
+                          ;;
+                      esac
+                    fi
+                  else
+                    println "Status            : ${FG_RED}Unable to get DRep status, retired?${NC}"
+                  fi
+                  getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
+                  println "Active Vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
+                else
+                  println "Delegation        : ${FG_YELLOW}undelegated${NC} - please note that reward withdrawals will not work in the future until wallet is vote delegated"
+                fi
+              fi
               waitToProceed && continue
               ;; ###################################################################
             remove)
@@ -4175,7 +4225,7 @@ function main {
                         getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
                         println "Active Vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
                       else
-                        println "Delegation        : ${FG_YELLOW}undelegated${NC}"
+                        println "Delegation        : ${FG_YELLOW}undelegated${NC} - please note that reward withdrawals will not work in the future until wallet is vote delegated"
                       fi
                     fi
                     getGovKeyInfo ${wallet_name}
