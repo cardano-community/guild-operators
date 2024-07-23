@@ -4184,28 +4184,43 @@ function main {
                       println "Status            : ${FG_YELLOW}Governance keys missing, please derive them if needed${NC}"
                       waitToProceed && continue
                     fi
-                    if [[ ${drep_id} = drep* ]]; then
-                      println "DRep ID           : ${FG_LGRAY}${drep_id}${NC}"
-                      drep_hash=$(bech32 <<< "${drep_id}")
-                      hash_type="keyHash"
+                    println "DRep ID           : ${FG_LGRAY}${drep_id}${NC}"
+                    println "DRep Hash         : ${FG_LGRAY}${drep_hash}${NC}"
+                    if [[ ${hash_type} = keyHash ]]; then
+                      println "DRep Type         : ${FG_LGRAY}Key${NC}"
                     else
-                      println "DRep ID           : ${FG_LGRAY}$(bech32 drep <<< ${drep_id})${NC}"
-                      println "DRep Script Hash  : ${FG_LGRAY}${drep_id}${NC}"
-                      drep_hash=${drep_id}
-                      hash_type="scriptHash"
+                      println "DRep Type         : ${FG_LGRAY}MultiSig${NC}"
                     fi
-                    println "Committee Cold ID : ${FG_LGRAY}${cc_cold_id}${NC}"
-                    println "Committee Hot ID  : ${FG_LGRAY}${cc_hot_id}${NC}"
                     if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
                       if getDRepStatus ${hash_type} ${drep_hash}; then
                         [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                         println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                        if [[ -n ${drep_anchor_url} ]]; then
+                          println "DRep anchor url   : ${FG_LGRAY}${drep_anchor_url}${NC}"
+                          getDRepAnchor "${drep_anchor_url}" "${drep_anchor_hash}"
+                          case $? in
+                            0) println "DRep anchor data  :\n${FG_LGRAY}"
+                              jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
+                              println DEBUG "${NC}"
+                              ;;
+                            1) println "DRep anchor data  : ${FG_YELLOW}Invalid URL or currently not available${NC}" ;;
+                            2) println "DRep anchor data  :\n${FG_LGRAY}"
+                              jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
+                              println "${NC}DRep anchor hash  : ${FG_YELLOW}mismatch${NC}"
+                              println "  registered      : ${FG_LGRAY}${drep_anchor_hash}${NC}"
+                              println "  actual          : ${FG_LGRAY}${drep_anchor_real_hash}${NC}"
+                              ;;
+                          esac
+                        fi
                         getDRepVotePower keyHash ${drep_hash}
                         println "Active Vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
                       else
                         println "Status            : ${FG_YELLOW}DRep key not registered${NC}"
                       fi
                     fi
+                    echo
+                    println "Committee Cold ID : ${FG_LGRAY}${cc_cold_id}${NC}"
+                    println "Committee Hot ID  : ${FG_LGRAY}${cc_hot_id}${NC}"
                     waitToProceed && continue
                     ;; ###################################################################
                   delegate)
