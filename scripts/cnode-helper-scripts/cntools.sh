@@ -4095,7 +4095,7 @@ function main {
                     while true; do
                       tput rc && tput ed
                       start_idx=$(( (page *  page_entries) - page_entries ))
-                      # loop all actions to find max length of entries
+                      # loop current page to find max length of entries
                       max_len=66 # assume action id (66)
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
                         IFS=',' read -r _action_id _action_type _proposed_in _expires_after _anchor_url <<< "${vote_action}"
@@ -4120,6 +4120,7 @@ function main {
                         ((idx++))
                       done
                       println DEBUG "${border_line}"
+                      [[ ${pages} -eq 1 ]] && waitToProceed && continue 2
                       unset hasPrev hasNext
                       println OFF "\nPage ${FG_LBLUE}${page}${NC} of ${FG_LGRAY}${pages}${NC}\n"
                       if [[ ${page} -gt 1 && ${page} -lt ${pages} ]]; then
@@ -4128,11 +4129,9 @@ function main {
                       elif [[ ${page} -eq 1 && ${page} -lt ${pages} ]]; then
                         hasNext=Y
                         println OFF "${FG_DGRAY}[p] Previous Page${NC} | [n] Next Page | [r] Return"
-                      elif [[ ${page} -gt 1 && ${page} -eq ${pages} ]]; then
+                      else
                         hasPrev=Y
                         println OFF "[p] Previous Page | ${FG_DGRAY}[n] Next Page${NC} | [r] Return"
-                      else
-                        println OFF "${FG_DGRAY}[p] Previous Page${NC} | ${FG_DGRAY}[n] Next Page${NC} | [r] Return"
                       fi
                       read -rsn1 key
                       case ${key} in
