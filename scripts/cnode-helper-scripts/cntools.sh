@@ -3824,8 +3824,8 @@ function main {
                 println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 println OFF " Governance\n"\
                   " ) Info & Status  - show wallet governance information and status"\
-                  " ) Delegate       - delegate wallet vote power to a DRep, own, external, or one the pre-defined 'abstain' / 'no confidence'"\
-                  " ) List proposals - show a list of active proposals to vote on"\
+                  " ) Delegate       - delegate wallet vote power to a DRep (own, external, or one of the pre-defined 'abstain' / 'no confidence')"\
+                  " ) List proposals - show a list of active proposals to vote on and their current vote status"\
                   " ) Cast Vote      - vote on governance actions as an SPO, DRep, or Committee member"\
                   " ) DRep Reg / Upd - register wallet as a DRep for voting or submit updated anchor data for already DRep registered wallet"\
                   " ) DRep Retire    - retire wallet as a DRep"\
