@@ -4118,8 +4118,8 @@ function main {
                         printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url}"
                         printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#drep_yes}-4-${#drep_no}-9))s${NC} |\n" "DRep" "${drep_yes}" "${drep_no}" "${drep_abstain}"
-                        printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#spo_yes}-4-${#spo_no}-9))s${NC} |\n" "DRep" "${spo_yes}" "${spo_no}" "${spo_abstain}"
-                        printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#c_yes}-4-${#c_no}-9))s${NC} |\n" "DRep" "${c_yes}" "${c_no}" "${c_abstain}"
+                        printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#spo_yes}-4-${#spo_no}-9))s${NC} |\n" "SPO" "${spo_yes}" "${spo_no}" "${spo_abstain}"
+                        printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#c_yes}-4-${#c_no}-9))s${NC} |\n" "Committee" "${c_yes}" "${c_no}" "${c_abstain}"
                         ((idx++))
                       done
                       println DEBUG "${border_line}"
