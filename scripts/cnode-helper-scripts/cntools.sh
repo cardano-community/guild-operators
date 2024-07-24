@@ -4090,6 +4090,7 @@ function main {
                     fi
                     page=1
                     pages=$(( (action_cnt + (page_entries - 1)) / page_entries ))
+                    echo
                     tput sc
                     while true; do
                       tput rc && tput ed
@@ -4103,7 +4104,8 @@ function main {
                         [[ ${#_anchor_url} -gt ${max_len} ]] && max_len=${#_anchor_url}
                       done
                       border_line="|$(printf "%$(( max_len + 13 + 5 ))s" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
-                      echo "${border_line}"
+                      println DEBUG "Current epoch: ${FG_LBLUE}$(getEpoch)${NC}"
+                      println DEBUG "\n${border_line}"
                       idx=1
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
                         [[ $idx -ne 1 ]] && printf "|$(printf "%${max_len}s" | tr " " "-")|\n"
@@ -4115,7 +4117,7 @@ function main {
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${_anchor_url}"
                         ((idx++))
                       done
-                      echo "${border_line}"
+                      println DEBUG "${border_line}"
                       unset hasPrev hasNext
                       println OFF "\nPage ${FG_LBLUE}${page}${NC} of ${FG_LGRAY}${pages}${NC}\n"
                       if [[ ${page} -gt 1 && ${page} -lt ${pages} ]]; then
