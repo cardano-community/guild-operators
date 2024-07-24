@@ -4108,11 +4108,11 @@ function main {
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
                         [[ $idx -ne 1 ]] && printf "|$(printf "%${max_len}s" | tr " " "-")|\n"
                         IFS=',' read -r _action_id _action_type _proposed_in _expires_after _anchor_url <<< "${vote_action}"
-                        printf "| %-13s : ${FG_LGRAY}%-s${NC} |\n" "Action ID" "${_action_id}"
-                        printf "| %-13s : ${FG_LGRAY}%-s${NC} |\n" "Type" "${_action_type}"
-                        printf "| %-13s : epoch ${FG_LBLUE}%-s${NC} |\n" "Proposed In" "${_proposed_in}"
-                        printf "| %-13s : epoch ${FG_LBLUE}%-s${NC} |\n" "Expires After" "${_expires_after}"
-                        printf "| %-13s : ${FG_LGRAY}%-s${NC} |\n" "Anchor URL" "${_anchor_url}"
+                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Action ID" "${_action_id}"
+                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Type" "${_action_type}"
+                        printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${_proposed_in}"
+                        printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${_expires_after}"
+                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${_anchor_url}"
                         ((idx++))
                       done
                       echo "${border_line}"
