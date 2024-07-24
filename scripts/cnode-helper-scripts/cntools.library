@@ -1189,6 +1189,14 @@ getGovAction() {
   return 0
 }
 
+getAllGovActions() {
+  vote_action_list=()
+  println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
+  for vote_action in $(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null); do
+    vote_action_list+=( "$(jq -cr '"\((.actionId.txId//"") + "#" + (.actionId.govActionIx//0|tostring)),\(.proposalProcedure.govAction.tag//""),\(.proposedIn//0),\(.expiresAfter//0),\(.proposalProcedure.anchor.url//"")"' <<< "$(base64 -d <<< "${vote_action}")")" )
+  done
+}
+
 # Command     : isCommitteeMember [hash]
 # Description : check if supplied hash is part of current committee list
 isCommitteeMember() {
