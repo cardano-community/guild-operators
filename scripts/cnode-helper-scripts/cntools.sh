@@ -4090,32 +4090,32 @@ function main {
                     fi
                     page=1
                     pages=$(( (action_cnt + (page_entries - 1)) / page_entries ))
-                    # loop all actions to find max length of entries
-                    max_len=82 # assume action id (66) + longest title (13) + spacing (5) is the longest string
-                    for vote_action in "${vote_action_list[@]}"; do
-                      IFS=',' read -r _action_id _action_type _proposed_in _expires_after _anchor_url <<< "${vote_action}"
-                      _action_id_len=$(( ${#_action_id} + 18 )); [[ ${_action_id_len} -gt ${max_len} ]] && max_len=${_action_id_len}
-                      _action_type_len=$(( ${#_action_type} + 18 )); [[ ${_action_type_len} -gt ${max_len} ]] && max_len=${_action_type_len}
-                      _anchor_url_len=$(( ${#_anchor_url} + 18 )); [[ ${_anchor_url_len} -gt ${max_len} ]] && max_len=${_anchor_url_len}
-                    done
-                    header_line="|$(printf "%${max_len}s" | tr " " "=")|"
-                    echo "${header_line}"
                     tput sc
                     while true; do
                       tput rc && tput ed
                       start_idx=$(( (page *  page_entries) - page_entries ))
-                      i=1
+                      # loop all actions to find max length of entries
+                      max_len=66 # assume action id (66)
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
-                        [[ $i -ne 1 ]] && printf "|$(printf "%${max_len}s" | tr " " "-")|"
                         IFS=',' read -r _action_id _action_type _proposed_in _expires_after _anchor_url <<< "${vote_action}"
-                        printf "| %-13s : ${FG_LGRAY}%s${NC} |\n" "Action ID" "${_action_id}"
-                        printf "| %-13s : ${FG_LGRAY}%s${NC} |\n" "Type" "${_action_type}"
-                        printf "| %-13s : epoch ${FG_LBLUE}%s${NC} |\n" "Proposed In" "${_proposed_in}"
-                        printf "| %-13s : epoch ${FG_LBLUE}%s${NC} |\n" "Expires After" "${_expires_after}"
-                        printf "| %-13s : ${FG_LGRAY}%s${NC} |\n" "Anchor URL" "${_anchor_url}"
-                        ((i++))
+                        [[ ${#_action_id} -gt ${max_len} ]] && max_len=${#_action_id}
+                        [[ ${#_action_type} -gt ${max_len} ]] && max_len=${#_action_type}
+                        [[ ${#_anchor_url} -gt ${max_len} ]] && max_len=${#_anchor_url}
                       done
-                      echo "${header_line}"
+                      border_line="|$(printf "%$(( max_len + 13 + 5 ))s" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
+                      echo "${border_line}"
+                      idx=1
+                      for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
+                        [[ $idx -ne 1 ]] && printf "|$(printf "%${max_len}s" | tr " " "-")|\n"
+                        IFS=',' read -r _action_id _action_type _proposed_in _expires_after _anchor_url <<< "${vote_action}"
+                        printf "| %-13s : ${FG_LGRAY}%-s${NC} |\n" "Action ID" "${_action_id}"
+                        printf "| %-13s : ${FG_LGRAY}%-s${NC} |\n" "Type" "${_action_type}"
+                        printf "| %-13s : epoch ${FG_LBLUE}%-s${NC} |\n" "Proposed In" "${_proposed_in}"
+                        printf "| %-13s : epoch ${FG_LBLUE}%-s${NC} |\n" "Expires After" "${_expires_after}"
+                        printf "| %-13s : ${FG_LGRAY}%-s${NC} |\n" "Anchor URL" "${_anchor_url}"
+                        ((idx++))
+                      done
+                      echo "${border_line}"
                       unset hasPrev hasNext
                       println OFF "\nPage ${FG_LBLUE}${page}${NC} of ${FG_LGRAY}${pages}${NC}\n"
                       if [[ ${page} -gt 1 && ${page} -lt ${pages} ]]; then
