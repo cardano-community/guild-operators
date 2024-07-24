@@ -4103,12 +4103,13 @@ function main {
                         [[ ${#_action_type} -gt ${max_len} ]] && max_len=${#_action_type}
                         [[ ${#_anchor_url} -gt ${max_len} ]] && max_len=${#_anchor_url}
                       done
-                      border_line="|$(printf "%$(( max_len + 13 + 5 ))s" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
+                      total_len=$(( max_len + 13 + 5 ))
+                      border_line="|$(printf "%${total_len}s" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
                       println DEBUG "Current epoch: ${FG_LBLUE}$(getEpoch)${NC}"
                       println DEBUG "\n${border_line}"
                       idx=1
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
-                        [[ $idx -ne 1 ]] && printf "|$(printf "%${max_len}s" | tr " " "-")|\n"
+                        [[ $idx -ne 1 ]] && printf "|$(printf "%${total_len}s" | tr " " "-")|\n"
                         IFS=',' read -r _action_id _action_type _proposed_in _expires_after _anchor_url <<< "${vote_action}"
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Action ID" "${_action_id}"
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Type" "${_action_type}"
