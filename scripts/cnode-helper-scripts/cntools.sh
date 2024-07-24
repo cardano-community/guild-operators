@@ -4105,7 +4105,8 @@ function main {
                       done
                       total_len=$(( max_len + 13 + 5 ))
                       border_line="|$(printf "%${total_len}s" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
-                      println DEBUG "Current epoch: ${FG_LBLUE}$(getEpoch)${NC}"
+                      println DEBUG "Current epoch : ${FG_LBLUE}$(getEpoch)${NC}"
+                      println DEBUG "Proposals     : ${FG_LBLUE}${action_cnt}${NC}"
                       println DEBUG "\n${border_line}"
                       idx=1
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
