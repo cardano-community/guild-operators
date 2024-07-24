@@ -2832,7 +2832,7 @@ function main {
               getPoolID ${pool_name}
               tput rc && tput ed
               if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                tput sc && println DEBUG "Quering pool parameters from node, can take a while...\n"
+                tput sc && println DEBUG "Querying pool parameters from node, can take a while...\n"
                 println ACTION "${CCLI} ${NETWORK_ERA} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER}"
                 if ! pool_params=$(${CCLI} ${NETWORK_ERA} query pool-params --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER} 2>&1); then
                   tput rc && tput ed
@@ -3832,12 +3832,12 @@ function main {
                   " ) MultiSig DRep  - create a multi-participant (MultiSig) DRep coalition"\
                   " ) Derive Keys    - derive delegate representative (DRep) and committee member keys (if needed)"\
                   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                println DEBUG " Select Catalyst Operation\n"
+                println DEBUG " Select Governance Operation\n"
                 select_opt "[i] Info & Status" "[d] Delegate" "[l] List Proposals" "[v] Cast vote" "[r] DRep Registration / Update" "[x] DRep Retire" "[m] MultiSig DRep" "[k] Derive Keys" "[b] Back" "[h] Home"
                 case $? in
                   0) SUBCOMMAND="info-status" ;;
                   1) SUBCOMMAND="delegate" ;;
-                  2) SUBCOMMAND="list-actions" ;;
+                  2) SUBCOMMAND="list-proposals" ;;
                   3) SUBCOMMAND="vote" ;;
                   4) SUBCOMMAND="drep-reg" ;;
                   5) SUBCOMMAND="drep-ret" ;;
@@ -4068,20 +4068,22 @@ function main {
                     println "Active DRep vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
                     waitToProceed && continue
                     ;; ###################################################################
-                  list-action)
+                  list-proposals)
                     clear
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> LIST PROPOSALS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
+                    tput sc && println DEBUG "Querying for list of proposals...\n"
                     getAllGovActions
+                    tput rc && tput ed
                     action_cnt=${#vote_action_list[@]}
                     if [[ ${action_cnt} -eq 0 ]]; then
                       println "${FG_YELLOW}No active proposals to vote on!${NC}"
                       waitToProceed && continue
                     fi
-                    getAnswerAnyCust page_entries "Enter number of actions to display per page (enter for 10)"
-                    page_entries=${page_entries:=10}
+                    getAnswerAnyCust page_entries "Enter number of actions to display per page (enter for 5)"
+                    page_entries=${page_entries:=5}
                     if ! isNumber ${page_entries} || [[ ${page_entries} -eq 0 ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid number"
                       waitToProceed && continue
@@ -4089,25 +4091,31 @@ function main {
                     page=1
                     pages=$(( (action_cnt + (page_entries - 1)) / page_entries ))
                     # loop all actions to find max length of entries
-                    action_id_len=66; action_type_len=4; anchor_url_len=3
+                    max_len=82 # assume action id (66) + longest title (13) + spacing (5) is the longest string
                     for vote_action in "${vote_action_list[@]}"; do
                       IFS=',' read -r _action_id _action_type _proposed_in _expires_after _anchor_url <<< "${vote_action}"
-                      [[ ${#_action_id} -gt ${action_id_len} ]] && action_id_len=${#_action_id}
-                      [[ ${#_action_type} -gt ${action_type_len} ]] && action_type_len=${#_action_type}
-                      [[ ${#_anchor_url} -gt ${anchor_url_len} ]] && anchor_url_len=${#_anchor_url}
+                      _action_id_len=$(( ${#_action_id} + 18 )); [[ ${_action_id_len} -gt ${max_len} ]] && max_len=${_action_id_len}
+                      _action_type_len=$(( ${#_action_type} + 18 )); [[ ${_action_type_len} -gt ${max_len} ]] && max_len=${_action_type_len}
+                      _anchor_url_len=$(( ${#_anchor_url} + 18 )); [[ ${_anchor_url_len} -gt ${max_len} ]] && max_len=${_anchor_url_len}
                     done
-                    header_line="|$(printf "%$((1+action_id_len+3+action_type_len+3+11+3+13+3+anchor_url_len+1))s" | tr " " "=")|"
-                    echo "${header_line}"
-                    printf "| %-${action_id_len}s | %-${action_type_len}s | %-11s | %-13s | %-${anchor_url_len}s |\n" "Action ID" "Type" "Proposed In" "Expires After" "URL"
+                    header_line="|$(printf "%${max_len}s" | tr " " "=")|"
                     echo "${header_line}"
                     tput sc
                     while true; do
                       tput rc && tput ed
                       start_idx=$(( (page *  page_entries) - page_entries ))
+                      i=1
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
+                        [[ $i -ne 1 ]] && printf "|$(printf "%${max_len}s" | tr " " "-")|"
                         IFS=',' read -r _action_id _action_type _proposed_in _expires_after _anchor_url <<< "${vote_action}"
-                        printf "| %-${action_id_len}s | %-${action_type_len}s | %-11s | %-13s | %-${anchor_url_len}s |\n" "${_action_id}" "${_action_type}" "${_proposed_in}" "${_expires_after}" "${_anchor_url}"
+                        printf "| %-13s : %s |" "Action ID" "${FG_LGRAY}${_action_id}${NC}"
+                        printf "| %-13s : %s |" "Type" "${FG_LGRAY}${_action_type}${NC}"
+                        printf "| %-13s : %s |" "Proposed In" "epoch ${FG_LBLUE}${_proposed_in}${NC}"
+                        printf "| %-13s : %s |" "Expires After" "epoch ${FG_LBLUE}${_expires_after}${NC}"
+                        printf "| %-13s : %s |" "Anchor URL" "${FG_LGRAY}${_anchor_url}${NC}"
+                        ((i++))
                       done
+                      echo "${header_line}"
                       unset hasPrev hasNext
                       println OFF "\nPage ${FG_LBLUE}${page}${NC} of ${FG_LGRAY}${pages}${NC}\n"
                       if [[ ${page} -gt 1 && ${page} -lt ${pages} ]]; then
