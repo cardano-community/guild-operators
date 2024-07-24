@@ -1193,7 +1193,7 @@ getAllGovActions() {
   vote_action_list=(); _vote_action_list=()
   println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
   for vote_action in $(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null); do
-    _vote_action_list+=( "$(jq -cr '"\((.actionId.txId//"") + "#" + (.actionId.govActionIx//0|tostring)),\(.proposalProcedure.govAction.tag//""),\(.proposedIn//0),\(.expiresAfter//0),\(.proposalProcedure.anchor.url//"")"' <<< "$(base64 -d <<< "${vote_action}")")" )
+    _vote_action_list+=( "$(jq -cr '"\((.actionId.txId//"") + "#" + (.actionId.govActionIx//0|tostring)),\(.proposalProcedure.govAction.tag//""),\(.proposedIn//0),\(.expiresAfter//0),\(.proposalProcedure.anchor.url//""),\(.dRepVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.dRepVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.dRepVotes | reduce(..|select(strings=="Abstain")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="Abstain")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="Abstain")) as $_ (0; .+1))"' <<< "$(base64 -d <<< "${vote_action}")")" )
   done
   # reverse order
   for ((i=${#_vote_action_list[@]}-1; i>=0; i--)); do

@@ -4098,10 +4098,10 @@ function main {
                       # loop current page to find max length of entries
                       max_len=66 # assume action id (66)
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
-                        IFS=',' read -r _action_id _action_type _proposed_in _expires_after _anchor_url <<< "${vote_action}"
-                        [[ ${#_action_id} -gt ${max_len} ]] && max_len=${#_action_id}
-                        [[ ${#_action_type} -gt ${max_len} ]] && max_len=${#_action_type}
-                        [[ ${#_anchor_url} -gt ${max_len} ]] && max_len=${#_anchor_url}
+                        IFS=',' read -r action_id action_type proposed_in expires_after anchor_url <<< "${vote_action}"
+                        [[ ${#action_id} -gt ${max_len} ]] && max_len=${#action_id}
+                        [[ ${#action_type} -gt ${max_len} ]] && max_len=${#action_type}
+                        [[ ${#anchor_url} -gt ${max_len} ]] && max_len=${#anchor_url}
                       done
                       total_len=$(( max_len + 13 + 5 ))
                       border_line="|$(printf "%${total_len}s" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
@@ -4111,12 +4111,15 @@ function main {
                       idx=1
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
                         [[ $idx -ne 1 ]] && printf "|$(printf "%${total_len}s" | tr " " "-")|\n"
-                        IFS=',' read -r _action_id _action_type _proposed_in _expires_after _anchor_url <<< "${vote_action}"
-                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Action ID" "${_action_id}"
-                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Type" "${_action_type}"
-                        printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${_proposed_in}"
-                        printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${_expires_after}"
-                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${_anchor_url}"
+                        IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_no drep_abstain spo_yes spo_no spo_abstain c_yes c_no c_abstain <<< "${vote_action}"
+                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Action ID" "${action_id}"
+                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Type" "${action_type}"
+                        printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${proposed_in}"
+                        printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
+                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url}"
+                        printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#drep_yes}-4-${#drep_no}-9))s${NC} |\n" "DRep" "${drep_yes}" "${drep_no}" "${drep_abstain}"
+                        printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#spo_yes}-4-${#spo_no}-9))s${NC} |\n" "DRep" "${spo_yes}" "${spo_no}" "${spo_abstain}"
+                        printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#c_yes}-4-${#c_no}-9))s${NC} |\n" "DRep" "${c_yes}" "${c_no}" "${c_abstain}"
                         ((idx++))
                       done
                       println DEBUG "${border_line}"
