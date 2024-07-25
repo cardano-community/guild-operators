@@ -3979,7 +3979,7 @@ function main {
                       2) continue ;;
                     esac
                     _wallet_name="${wallet_name}"
-                    getWalletRewards ${wallet_name}
+                    getWalletRewards ${wallet_name} true
                     if [[ ${reward_lovelace} -eq -1 ]]; then
                       if [[ ${op_mode} = "online" ]]; then
                         if ! registerStakeWallet ${wallet_name}; then waitToProceed && continue; fi
@@ -4333,6 +4333,25 @@ function main {
                       println ERROR "${FG_RED}ERROR${NC}: Wallet missing governance keys, please first derive them!"
                       waitToProceed && continue
                     fi
+                    getDRepStatus ${hash_type} ${drep_hash} && is_update=Y || is_update=N
+                    if [[ ${hash_type} = "scriptHash" ]]; then
+                      println DEBUG "\nSelect wallet to pay for transaction fee"
+                      selectWallet "balance" ${WALLET_PAY_VK_FILENAME}
+                      case $? in
+                        1) waitToProceed; continue ;;
+                        2) continue ;;
+                      esac
+                    fi
+                    getWalletBalance ${wallet_name} true true false true
+                    if [[ ${is_update} = Y && ${base_lovelace} -le 0 ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
+                      println DEBUG "Funds for transaction fee needed to update DRep registration"
+                      waitToProceed && continue
+                    elif [[ ${is_update} = N && ${base_lovelace} -le ${DREP_DEPOSIT} ]]; then
+                      println ERROR "\n${FG_RED}ERROR${NC}: insufficient funds in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
+                      println DEBUG "Funds for DRep deposit($(formatLovelace ${DREP_DEPOSIT}) ADA) + transaction fee needed to register as DRep"
+                      waitToProceed && continue
+                    fi
                     drep_cert_file="${WALLET_FOLDER}/${drep_wallet_name}/${WALLET_GOV_DREP_REGISTER_CERT_FILENAME}"
                     drep_meta_file="${WALLET_FOLDER}/${drep_wallet_name}/drep_meta.json"
                     unset drep_anchor_url drep_anchor_hash
@@ -4358,13 +4377,12 @@ function main {
                         println DEBUG "\nDRep anchor metadata hash: ${FG_LGRAY}${drep_anchor_hash}${NC}"
                         ;;
                     esac
-                    unset is_update
                     if [[ ${hash_type} = "scriptHash" ]]; then
                       drep_reg_param=(--drep-script-hash "${drep_hash}")
                     else
                       drep_reg_param=(--drep-verification-key-file "${drep_vk_file}")
                     fi
-                    if ! getDRepStatus ${hash_type} ${drep_hash}; then
+                    if [[ ${is_update} = N ]]; then
                       # registration
                       DREP_REG_CMD=(
                         ${CCLI} ${NETWORK_ERA} governance drep registration-certificate
@@ -4374,7 +4392,6 @@ function main {
                       )
                     else
                       # update
-                      is_update=Y
                       DREP_REG_CMD=(
                         ${CCLI} ${NETWORK_ERA} governance drep update-certificate
                         "${drep_reg_param[@]}"
@@ -4391,20 +4408,6 @@ function main {
                     if ! stdout=$("${DREP_REG_CMD[@]}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during DRep registration certificate creation!\n${stdout}"; waitToProceed && continue
                     fi
-                    if [[ ${hash_type} = "scriptHash" ]]; then
-                      println DEBUG "\nSelect wallet to pay for transaction fee"
-                      selectWallet "balance" ${WALLET_PAY_VK_FILENAME}
-                      case $? in
-                        1) waitToProceed; continue ;;
-                        2) continue ;;
-                      esac
-                    fi
-                    getWalletBalance ${wallet_name} true true false true
-                    if [[ ${base_lovelace} -le 0 ]]; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
-                      println DEBUG "Funds for DRep deposit($(formatLovelace ${DREP_DEPOSIT}) ADA) + transaction fee needed to register as DRep"
-                      waitToProceed && continue
-                    fi
                     if ! registerDRep; then
                       [[ -f ${drep_cert_file} ]] && rm -f ${drep_cert_file}
                       waitToProceed && continue
@@ -4415,6 +4418,7 @@ function main {
                     if [[ -z ${is_update} ]]; then
                       println "${FG_GREEN}${drep_wallet_name}${NC} successfully registered as DRep on chain!"
                       println "DRep deposit : ${FG_LBLUE}$(formatLovelace ${DREP_DEPOSIT})${NC} ADA (returned when retired)"
+                      println DEBUG "\n${FG_YELLOW}NOTE:${NC} A DRep registration does not automatically delegate own wallet stake power to self!"
                     else
                       println "${FG_GREEN}${drep_wallet_name}${NC} DRep details updated!"
                     fi
