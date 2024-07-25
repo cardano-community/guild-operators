@@ -1,10 +1,10 @@
 {
   "poolVotingThresholds": {
-    "committeeNormal": 0.6,
+    "committeeNormal": 0.51,
     "committeeNoConfidence": 0.51,
     "hardForkInitiation": 0.51,
-    "motionNoConfidence": 0.6,
-    "ppSecurityGroup": 0.6
+    "motionNoConfidence": 0.51,
+    "ppSecurityGroup": 0.51
   },
   "dRepVotingThresholds": {
     "motionNoConfidence": 0.67,
@@ -18,13 +18,13 @@
     "ppGovGroup": 0.75,
     "treasuryWithdrawal": 0.67
   },
-  "committeeMinSize": 0,
-  "committeeMaxTermLength": 73,
-  "govActionLifetime": 8,
-  "govActionDeposit": 50000000000,
+  "committeeMinSize": 7,
+  "committeeMaxTermLength": 146,
+  "govActionLifetime": 6,
+  "govActionDeposit": 100000000000,
   "dRepDeposit": 500000000,
   "dRepActivity": 20,
-  "minFeeRefScriptCostPerByte": 44,
+  "minFeeRefScriptCostPerByte": 15,
   "plutusV3CostModel": [
     100788,
     420,
@@ -279,15 +279,25 @@
     1
   ],
   "constitution": {
-    "anchor": {
-      "url": "https://raw.githubusercontent.com/carloslodelar/proposals/main/constitution.txt",
-      "dataHash": "f89cc2469ce31c3dfda2f3e0b56c5c8b4ee4f0e5f66c30a3f12a95298b01179e"
-    }
+      "anchor": {
+          "dataHash": "ca41a91f399259bcefe57f9858e91f6d00e1a38d6d9c63d4052914ea7bd70cb2",
+          "url": "ipfs://bafkreifnwj6zpu3ixa4siz2lndqybyc5wnnt3jkwyutci4e2tmbnj3xrdm"
+      },
+      "script": "fa24fb305126805cf2164c161d852a0e7330cf988f1fe558cf7d4a64"
   },
   "committee": {
     "members": {
-        "keyHash-f42148effa6cbd58ab5a2442db31fbf3be0367b9949c7052edb6026c": 336
+        "scriptHash-df0e83bde65416dade5b1f97e7f115cc1ff999550ad968850783fe50": 580,
+        "scriptHash-b6012034ba0a7e4afbbf2c7a1432f8824aee5299a48e38e41a952686": 580,
+        "scriptHash-ce8b37a72b178a37bbd3236daa7b2c158c9d3604e7aa667e6c6004b7": 580,
+        "scriptHash-f0dc2c00d92a45521267be2d5de1c485f6f9d14466d7e16062897cf7": 580,
+        "scriptHash-349e55f83e9af24813e6cb368df6a80d38951b2a334dfcdf26815558": 580,
+        "scriptHash-84aebcfd3e00d0f87af918fc4b5e00135f407e379893df7e7d392c6a": 580,
+        "scriptHash-e8165b3328027ee0d74b1f07298cb092fd99aa7697a1436f5997f625": 580
     },
-    "threshold": 0.66
+    "threshold": {
+      "numerator": 2,
+      "denominator": 3
+    }
   }
 }
