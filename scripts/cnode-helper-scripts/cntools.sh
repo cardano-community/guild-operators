@@ -1721,8 +1721,7 @@ function main {
                 println ERROR "\n${FG_RED}ERROR${NC}: no base funds available for wallet ${FG_GREEN}${wallet_name}${NC}"
                 waitToProceed && continue
               fi
-              getWalletRewards ${wallet_name}
-              if [[ ${reward_lovelace} -eq -1 ]]; then
+              if ! isWalletRegistered ${wallet_name}; then
                 if [[ ${op_mode} = "online" ]]; then
                   if ! registerStakeWallet ${wallet_name}; then waitToProceed && continue; fi
                   # re-fetch balance to get a fresh set of utxos
@@ -3979,8 +3978,7 @@ function main {
                       2) continue ;;
                     esac
                     _wallet_name="${wallet_name}"
-                    getWalletRewards ${wallet_name} true
-                    if [[ ${reward_lovelace} -eq -1 ]]; then
+                    if ! isWalletRegistered ${wallet_name}; then
                       if [[ ${op_mode} = "online" ]]; then
                         if ! registerStakeWallet ${wallet_name}; then waitToProceed && continue; fi
                       else
