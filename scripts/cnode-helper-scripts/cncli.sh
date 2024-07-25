@@ -135,7 +135,7 @@ getconsensus() {
   if versionCheck "10.0" "${PROT_VERSION}"; then
     consensus="cpraos"
     stability_window_factor=3
-  elif versionCheck "7.0" "${PROT_VERSION}"; then
+  elif versionCheck "8.0" "${PROT_VERSION}"; then
     consensus="praos"
     stability_window_factor=2
   else

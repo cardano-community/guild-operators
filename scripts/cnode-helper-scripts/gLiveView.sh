@@ -60,7 +60,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.29.1
+GLV_VERSION=v1.30.0
 
 PARENT="$(dirname $0)"
 
@@ -401,7 +401,7 @@ clrLine () {
 # Command    : clrScreen
 # Description: clear the screen, move to (0,0), and reset screen update counter
 clrScreen () {
-  printf "\033[2J"
+  clear
   screen_upd_cnt=0
 }
 
@@ -714,6 +714,21 @@ checkPeers() {
   fi
 }
 
+checkNodeVersion() {
+  version=$("${CNODEBIN}" version)
+  node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
+  node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
+
+  if [[ ${node_version} != "${running_node_version}" || ${node_rev} != "${running_node_rev}" ]]; then
+    clrScreen
+    printf "\n ${style_status_3}Node version mismatch${NC} - running version doesn't match found binary!"
+    printf "\n\n Forgot to restart node after upgrade?"
+    printf "\n\n Deployed version : ${node_version} (${node_rev}) => ${CNODEBIN}"
+    printf "\n Running version  : ${running_node_version} (${running_node_rev})\n"
+    waitToProceed && clrScreen
+  fi
+}
+
 #####################################
 # Static variables/calculations     #
 #####################################
@@ -731,9 +746,8 @@ if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
   printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct\n"
   waitToProceed && clrScreen
 fi
-version=$("${CNODEBIN}" version)
-node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
-node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
+checkNodeVersion
+
 fail_count=0
 epoch_items_last=0
 screen_upd_cnt=0
@@ -800,9 +814,7 @@ while true; do
     logln "ERROR" "${error_msg}"
     waitForInput && continue
   elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check
-    version=$("${CNODEBIN}" version)
-    node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
-    node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
+    checkNodeVersion
     fail_count=0
     getOpCert
   fi
@@ -838,7 +850,7 @@ while true; do
     else
       cpu_util="0.0"
     fi
-    if [[ ${about_to_lead} -gt 0 ]]; then
+    if [[ ${forging_enabled} -eq 1 ]]; then
       [[ ${nodemode} != "Core" ]] && nodemode="Core" && getOpCert && clrScreen
     else
       [[ ${nodemode} != "Relay" ]] && clrScreen && nodemode="Relay"
@@ -868,9 +880,9 @@ while true; do
     fi
   fi
 
-  header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#node_version} + ${#node_rev} + ${#NETWORK_NAME} + 19 ))
+  header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#running_node_version} + ${#running_node_rev} + ${#NETWORK_NAME} + 19 ))
   [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
-  printf "%${header_padding}s > ${style_values_2}%s${NC} - ${style_info}(%s - %s)${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] < \n" "" "${NODE_NAME}" "${nodemode}" "${NETWORK_NAME}" "${node_version}" "${node_rev}" && ((line++))
+  printf "%${header_padding}s > ${style_values_2}%s${NC} - ${style_info}(%s - %s)${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] < \n" "" "${NODE_NAME}" "${nodemode}" "${NETWORK_NAME}" "${running_node_version}" "${running_node_rev}" && ((line++))
 
   ## main section ##
   printf "${tdivider}\n" && ((line++))
@@ -959,7 +971,7 @@ while true; do
     if [[ -n ${rttResultsSorted} ]]; then
       echo "${m3divider}" && ((line++))
 
-      printf "${VL}${style_info}   # %24s  I/O RTT   Geolocation${NC}\n" "REMOTE PEER"
+      printf "${VL}${style_info}   # %24s  RTT   Geolocation${NC}\n" "REMOTE PEER"
       header_line=$((line++))
 
       peerNbr=0
@@ -992,11 +1004,11 @@ while true; do
         else
           peerLocationFmt="Unknown location"
         fi
-          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_1}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_2}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_3}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_4}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        else printf "${VL} %3s %19s:%-5s %-3s %-5s ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerDIR}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
+          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s %19s:%-5s ${style_status_1}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s %19s:%-5s ${style_status_2}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s %19s:%-5s ${style_status_3}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s %19s:%-5s ${style_status_4}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        else printf "${VL} %3s %19s:%-5s %-5s ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
         closeRow
         [[ ${peerNbr} -eq $((peerNbr_start+PEER_LIST_CNT-1)) ]] && break
       done

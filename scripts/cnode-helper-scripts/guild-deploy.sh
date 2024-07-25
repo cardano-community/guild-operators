@@ -204,7 +204,7 @@ os_dependencies() {
   if [[ "${OS_ID}" =~ ebian ]] || [[ "${OS_ID}" =~ buntu ]] || [[ "${DISTRO}" =~ ebian ]] || [[ "${DISTRO}" =~ buntu ]]; then
     #Debian/Ubuntu
     pkgmgrcmd="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
-    pkg_list="python3 pkg-config systemd tmux git jq libtool bc gnupg libtool secure-delete iproute2 tcptraceroute sqlite3 bsdmainutils unzip procps xxd"
+    pkg_list="python3 pkg-config systemd tmux git jq libtool bc gnupg libtool iproute2 tcptraceroute sqlite3 bsdmainutils unzip procps xxd"
     if [[ "${LIBSODIUM_FORK}" == "Y" ]] || [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
       pkg_list="${pkg_list} build-essential make g++ autoconf automake"
     fi
@@ -222,7 +222,7 @@ os_dependencies() {
     pkg_list="python3 coreutils systemd tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz unzip procps-ng udev vim-common"
     if [[ "${VERSION_ID}" == "2" ]] ; then
       #AmazonLinux2
-      pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
+      pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig"
     elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
       #RHEL/CentOS/RockyLinux 8/9
       pkg_opts="${pkg_opts} --allowerasing"
@@ -235,7 +235,7 @@ os_dependencies() {
     elif [[ "${DISTRO}" =~ Fedora ]]; then
       #Fedora
       pkg_opts="${pkg_opts} --allowerasing"
-      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
+      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
     fi
     if [[ "${LIBSODIUM_FORK}" == "Y" ]] || [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
       pkg_list="${pkg_list} make gcc-c++ autoconf automake"
@@ -407,7 +407,7 @@ download_cnodebins() {
 
     # TODO: Replace CI Build artifact against 13.2.0.2 tag with release from github artefacts once available
     #curl -m 200 -sfL https://github.com/IntersectMBO/cardano-db-sync/releases/download/13.2.0.2/cardano-db-sync-13.2.0.1-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.2.0.2 from GitHub!"
-    curl -m 200 -sfL https://ci.iog.io/build/3736263/download/1/cardano-db-sync-13.2.0.2-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.2.0.2 from GitHub!"
+    curl -m 200 -sfL https://ci.iog.io/build/3736263/download/1/cardano-db-sync-13.3.0.0-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.3.0.0 from GitHub!"
     tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync &>/dev/null
     [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
     rm -f cnodedbsync.tar.gz

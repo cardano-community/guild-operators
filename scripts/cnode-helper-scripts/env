@@ -50,17 +50,41 @@
 #WALLET_HW_PAY_SK_FILENAME="payment.hwsfile"
 #WALLET_PAY_ADDR_FILENAME="payment.addr"
 #WALLET_PAY_SCRIPT_FILENAME="payment.script"
-#WALLET_PAY_SCRIPT_ADDR_FILENAME="payment-script.addr"
 #WALLET_PAY_CRED_FILENAME="payment.cred"
+#WALLET_PAY_SCRIPT_CRED_FILENAME="payment.script.cred"
 #WALLET_BASE_ADDR_FILENAME="base.addr"
 #WALLET_STAKE_VK_FILENAME="stake.vkey"
 #WALLET_STAKE_SK_FILENAME="stake.skey"
 #WALLET_HW_STAKE_SK_FILENAME="stake.hwsfile"
 #WALLET_STAKE_ADDR_FILENAME="reward.addr"
+#WALLET_STAKE_SCRIPT_FILENAME="stake.script"
 #WALLET_STAKE_CRED_FILENAME="stake.cred"
+#WALLET_STAKE_SCRIPT_CRED_FILENAME="stake.script.cred"
 #WALLET_STAKE_CERT_FILENAME="stake.cert"
 #WALLET_STAKE_DEREG_FILENAME="stake.dereg"
 #WALLET_DELEGCERT_FILENAME="delegation.cert"
+#WALLET_VOTE_CATALYST_VK_FILENAME="catalyst.vkey"
+#WALLET_VOTE_CATALYST_SK_FILENAME="catalyst.skey"
+#WALLET_VOTE_CATALYST_QR_FILENAME="catalyst-qrcode.png"
+#WALLET_GOV_DREP_VK_FILENAME="drep.vkey"
+#WALLET_GOV_DREP_SK_FILENAME="drep.skey"
+#WALLET_GOV_DREP_ID_FILENAME="drep.id"
+#WALLET_GOV_DREP_SCRIPT_FILENAME="drep.script"
+#WALLET_GOV_DREP_REGISTER_CERT_FILENAME="drep-reg.cert"
+#WALLET_GOV_DREP_RETIRE_CERT_FILENAME="drep-ret.cert"
+#WALLET_GOV_VOTE_DELEG_CERT_FILENAME="vote-deleg.cert"
+#WALLET_GOV_HW_DREP_SK_FILENAME="drep.hwsfile"
+#WALLET_GOV_CC_HOT_VK_FILENAME="cc-hot.vkey"
+#WALLET_GOV_CC_HOT_SK_FILENAME="cc-hot.skey"
+#WALLET_GOV_HW_CC_HOT_SK_FILENAME="cc-hot.hwsfile"
+#WALLET_GOV_CC_HOT_ID_FILENAME="cc-hot.id"
+#WALLET_GOV_CC_COLD_VK_FILENAME="cc-cold.vkey"
+#WALLET_GOV_CC_COLD_SK_FILENAME="cc-cold.skey"
+#WALLET_GOV_HW_CC_COLD_SK_FILENAME="cc-cold.hwsfile"
+#WALLET_GOV_CC_COLD_ID_FILENAME="cc-cold.id"
+#WALLET_DERIVATION_PATH_FILENAME="derivation.path"
+
+#WALLET_MULTISIG_PREFIX="ms_"                           # Filename for multisig files, uses separate keys derived using the 1854H paths
 
 #POOL_ID_FILENAME="pool.id"                             # Standardized names for all pool related files
 #POOL_HOTKEY_VK_FILENAME="hot.vkey"
@@ -111,6 +135,13 @@ is_dir() {
 #             : $1=minimal_needed_version
 #             : $2=current_version
 versionCheck() {
+  printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V;
+}
+
+# Description : Specific node/cli version check that take STRICT_VERSION_CHECK into account and only look at Major.Minor
+#             : $1=minimal_needed_version
+#             : $2=current_version
+versionCheckNode() {
   [[ ${STRICT_VERSION_CHECK} = N ]] && return 0
   w_ver=${1//v/}; w_ver_dots=${w_ver//[^.]}; [[ ${#w_ver_dots} -gt 1 && ${w_ver} =~ ^([0-9]+.[0-9]) ]] && w_ver=${BASH_REMATCH[1]}
   c_ver=${2//v/}; c_ver_dots=${c_ver//[^.]}; [[ ${#c_ver_dots} -gt 1 && ${c_ver} =~ ^([0-9]+.[0-9]) ]] && c_ver=${BASH_REMATCH[1]}
@@ -171,7 +202,6 @@ checkUpdate() {
     fi
   fi
   [[ -n $5 ]] && URL="${URL_RAW}/scripts/$5" || URL="${URL_RAW}/scripts/cnode-helper-scripts"
-  URL_DOCS="${URL_RAW}/docs/Scripts"
   if curl -s -f -m ${CURL_TIMEOUT} -o "${dname}/${fname}".tmp "${URL}/${fname}" 2>/dev/null; then
 
     # make sure script exist, else just rename
@@ -255,6 +285,9 @@ cmdAvailable() {
   if ! command -v "$1" &>/dev/null; then
     printf "${FG_RED}ERROR${NC}: need '$1' (command not found)\nplease install with your packet manager of choice(apt/dnf etc..) and relaunch CNTools\nhttps://command-not-found.com/$1" 1>&2
     return 1
+  elif [[ ! -x $(command -v "$1") ]]; then
+    printf "${FG_RED}ERROR${NC}: '$1' missing executable permission, please fix" 1>&2
+    return 2
   fi
   return 0
 }
@@ -549,7 +582,9 @@ getNodeMetrics() {
     .cardano.node.metrics.connectionManager.outgoingConns.val //0,
     .cardano.node.metrics.connectionManager.unidirectionalConns.val //0,
     .cardano.node.metrics.connectionManager.duplexConns.val //0,
-    .cardano.node.metrics.connectionManager.prunableConns.val //0
+    .cardano.node.metrics.connectionManager.prunableConns.val //0,
+    .cardano.node.metrics.forging_enabled.val //0,
+    .cardano.node.metrics.cardano_build_info.val //"-"
     ] | @tsv' <<< "${node_metrics}")
     read -ra node_metrics_arr <<< ${node_metrics_tsv}
     blocknum=${node_metrics_arr[0]}; epochnum=${node_metrics_arr[1]}; slot_in_epoch=${node_metrics_arr[2]}; slotnum=${node_metrics_arr[3]}
@@ -568,6 +603,9 @@ getNodeMetrics() {
     peers_cold=${node_metrics_arr[26]}; peers_warm=${node_metrics_arr[27]}; peers_hot=${node_metrics_arr[28]}
     conn_incoming=${node_metrics_arr[29]}; conn_outgoing=${node_metrics_arr[30]}
     conn_uni_dir=${node_metrics_arr[31]}; conn_bi_dir=${node_metrics_arr[32]}; conn_duplex=${node_metrics_arr[33]}
+    forging_enabled=${node_metrics_arr[34]}
+    [[ ${node_metrics_arr[35]} =~ ,version=\"([0-9.]*)\" ]] && running_node_version=${BASH_REMATCH[1]} || running_node_version="?"
+    [[ ${node_metrics_arr[35]} =~ ,revision=\"([0-9a-f]*)\" ]] && running_node_rev=${BASH_REMATCH[1]:0:8} || running_node_rev="?"
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
     [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
@@ -604,6 +642,9 @@ getNodeMetrics() {
     [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_unidirectionalConns[[:space:]]([^[:space:]]*) ]] && conn_uni_dir=${BASH_REMATCH[1]} || conn_uni_dir=0
     [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_duplexConns[[:space:]]([^[:space:]]*) ]] && conn_bi_dir=${BASH_REMATCH[1]} || conn_bi_dir=0
     [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_prunableConns[[:space:]]([^[:space:]]*) ]] && conn_duplex=${BASH_REMATCH[1]} || conn_duplex=0
+    [[ ${node_metrics} =~ cardano_node_metrics_forging_enabled[[:space:]]([^[:space:]]*) ]] && forging_enabled=${BASH_REMATCH[1]} || forging_enabled=0
+    [[ ${node_metrics} =~ cardano_node_metrics_cardano_build_info[[:space:]].*,version=\"([0-9.]*)\" ]] && running_node_version=${BASH_REMATCH[1]} || running_node_version="?"
+    [[ ${node_metrics} =~ cardano_node_metrics_cardano_build_info[[:space:]].*,revision=\"([0-9a-f]*)\" ]] && running_node_rev=${BASH_REMATCH[1]:0:8} || running_node_rev="?"
   fi
 }
 
@@ -788,13 +829,15 @@ getProtocolParams() {
     fi
   fi
   # Set a collection of commonly used values
-  read -r PROT_MAJOR PROT_MINOR KEY_DEPOSIT POOL_DEPOSIT MIN_POOL_COST POOL_RETIRE_MAX_EPOCH <<<"$(jq -r '[
+  read -r PROT_MAJOR PROT_MINOR KEY_DEPOSIT POOL_DEPOSIT MIN_POOL_COST POOL_RETIRE_MAX_EPOCH DREP_DEPOSIT GOV_ACTION_DEPOSIT <<<"$(jq -r '[
   .protocolVersion.major //0,
   .protocolVersion.minor //0,
   .stakeAddressDeposit //0,
   .stakePoolDeposit //0,
   .minPoolCost //0,
-  .poolRetireMaxEpoch //0
+  .poolRetireMaxEpoch //0,
+  .dRepDeposit //0,
+  .govActionDeposit //0
   ] | @tsv' <<<"${PROT_PARAMS}" 2>/dev/null)"
   PROT_VERSION="${PROT_MAJOR}.${PROT_MINOR}"
   [[ ${PROT_MAJOR} -eq 0 ]] && return 1 || return 0
@@ -819,6 +862,7 @@ set_default_vars() {
   [[ -z ${G_ACCOUNT} ]] && G_ACCOUNT="cardano-community"
 
   URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
+  URL_DOCS="${URL_RAW}/docs/Scripts"
   export LC_ALL=C.UTF-8
   # special mapping of coreutils gdate to date for MacOS
   if [[ $(uname) == Darwin ]]; then
@@ -850,17 +894,40 @@ set_default_vars() {
   [[ -z ${WALLET_HW_PAY_SK_FILENAME} ]] && WALLET_HW_PAY_SK_FILENAME="payment.hwsfile"
   [[ -z ${WALLET_PAY_ADDR_FILENAME} ]] && WALLET_PAY_ADDR_FILENAME="payment.addr"
   [[ -z ${WALLET_PAY_SCRIPT_FILENAME} ]] && WALLET_PAY_SCRIPT_FILENAME="payment.script"
-  [[ -z ${WALLET_PAY_SCRIPT_ADDR_FILENAME} ]] && WALLET_PAY_SCRIPT_ADDR_FILENAME="payment-script.addr"
   [[ -z ${WALLET_PAY_CRED_FILENAME} ]] && WALLET_PAY_CRED_FILENAME="payment.cred"
+  [[ -z ${WALLET_PAY_SCRIPT_CRED_FILENAME} ]] && WALLET_PAY_SCRIPT_CRED_FILENAME="payment.script.cred"
   [[ -z ${WALLET_BASE_ADDR_FILENAME} ]] && WALLET_BASE_ADDR_FILENAME="base.addr"
   [[ -z ${WALLET_STAKE_VK_FILENAME} ]] && WALLET_STAKE_VK_FILENAME="stake.vkey"
   [[ -z ${WALLET_STAKE_SK_FILENAME} ]] && WALLET_STAKE_SK_FILENAME="stake.skey"
   [[ -z ${WALLET_HW_STAKE_SK_FILENAME} ]] && WALLET_HW_STAKE_SK_FILENAME="stake.hwsfile"
   [[ -z ${WALLET_STAKE_ADDR_FILENAME} ]] && WALLET_STAKE_ADDR_FILENAME="reward.addr"
+  [[ -z ${WALLET_STAKE_SCRIPT_FILENAME} ]] && WALLET_STAKE_SCRIPT_FILENAME="stake.script"
   [[ -z ${WALLET_STAKE_CRED_FILENAME} ]] && WALLET_STAKE_CRED_FILENAME="stake.cred"
+  [[ -z ${WALLET_STAKE_SCRIPT_CRED_FILENAME} ]] && WALLET_STAKE_SCRIPT_CRED_FILENAME="stake.script.cred"
   [[ -z ${WALLET_STAKE_CERT_FILENAME} ]] && WALLET_STAKE_CERT_FILENAME="stake.cert"
   [[ -z ${WALLET_STAKE_DEREG_FILENAME} ]] && WALLET_STAKE_DEREG_FILENAME="stake.dereg"
   [[ -z ${WALLET_DELEGCERT_FILENAME} ]] && WALLET_DELEGCERT_FILENAME="delegation.cert"
+  [[ -z ${WALLET_CATALYST_VK_FILENAME} ]] && WALLET_CATALYST_VK_FILENAME="catalyst.vkey"
+  [[ -z ${WALLET_CATALYST_SK_FILENAME} ]] && WALLET_CATALYST_SK_FILENAME="catalyst.skey"
+  [[ -z ${WALLET_CATALYST_QR_FILENAME} ]] && WALLET_CATALYST_QR_FILENAME="catalyst-qrcode.png"
+  [[ -z ${WALLET_GOV_DREP_VK_FILENAME} ]] && WALLET_GOV_DREP_VK_FILENAME="drep.vkey"
+  [[ -z ${WALLET_GOV_DREP_SK_FILENAME} ]] && WALLET_GOV_DREP_SK_FILENAME="drep.skey"
+  [[ -z ${WALLET_GOV_DREP_ID_FILENAME} ]] && WALLET_GOV_DREP_ID_FILENAME="drep.id"
+  [[ -z ${WALLET_GOV_DREP_SCRIPT_FILENAME} ]] && WALLET_GOV_DREP_SCRIPT_FILENAME="drep.script"
+  [[ -z ${WALLET_GOV_DREP_REGISTER_CERT_FILENAME} ]] && WALLET_GOV_DREP_REGISTER_CERT_FILENAME="drep-reg.cert"
+  [[ -z ${WALLET_GOV_DREP_RETIRE_CERT_FILENAME} ]] && WALLET_GOV_DREP_RETIRE_CERT_FILENAME="drep-ret.cert"
+  [[ -z ${WALLET_GOV_VOTE_DELEG_CERT_FILENAME} ]] && WALLET_GOV_VOTE_DELEG_CERT_FILENAME="vote-deleg.cert"
+  [[ -z ${WALLET_GOV_HW_DREP_SK_FILENAME} ]] && WALLET_GOV_HW_DREP_SK_FILENAME="drep.hwsfile"
+  [[ -z ${WALLET_GOV_CC_HOT_VK_FILENAME} ]] && WALLET_GOV_CC_HOT_VK_FILENAME="cc-hot.vkey"
+  [[ -z ${WALLET_GOV_CC_HOT_SK_FILENAME} ]] && WALLET_GOV_CC_HOT_SK_FILENAME="cc-hot.skey"
+  [[ -z ${WALLET_GOV_HW_CC_HOT_SK_FILENAME} ]] && WALLET_GOV_HW_CC_HOT_SK_FILENAME="cc-hot.hwsfile"
+  [[ -z ${WALLET_GOV_CC_HOT_ID_FILENAME} ]] && WALLET_GOV_CC_HOT_ID_FILENAME="cc-hot.id"
+  [[ -z ${WALLET_GOV_CC_COLD_VK_FILENAME} ]] && WALLET_GOV_CC_COLD_VK_FILENAME="cc-cold.vkey"
+  [[ -z ${WALLET_GOV_CC_COLD_SK_FILENAME} ]] && WALLET_GOV_CC_COLD_SK_FILENAME="cc-cold.skey"
+  [[ -z ${WALLET_GOV_HW_CC_COLD_SK_FILENAME} ]] && WALLET_GOV_HW_CC_COLD_SK_FILENAME="cc-cold.hwsfile"
+  [[ -z ${WALLET_GOV_CC_COLD_ID_FILENAME} ]] && WALLET_GOV_CC_COLD_ID_FILENAME="cc-cold.id"
+  [[ -z ${WALLET_DERIVATION_PATH_FILENAME} ]] && WALLET_DERIVATION_PATH_FILENAME="derivation.path"
+  [[ -z ${WALLET_MULTISIG_PREFIX} ]] && WALLET_MULTISIG_PREFIX="ms_"
   [[ -z ${POOL_ID_FILENAME} ]] && POOL_ID_FILENAME="pool.id"
   [[ -z ${POOL_HOTKEY_VK_FILENAME} ]] && POOL_HOTKEY_VK_FILENAME="hot.vkey"
   [[ -z ${POOL_HOTKEY_SK_FILENAME} ]] && POOL_HOTKEY_SK_FILENAME="hot.skey"
@@ -961,8 +1028,8 @@ fi
 node_version="$(${CNODEBIN} version | head -1 | cut -d' ' -f2)"
 cli_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
 
-if ! versionCheck "8.9.4" "${node_version}" || ! versionCheck "8.20.3.0" "${cli_version}"; then
-  echo -e "\nKoios scripts have now been upgraded to support cardano-node 8.9.x ('${node_version}' found) / cardano-cli 8.20.3.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.1.2 to switch scripts to an older branch).\n\n"
+if ! versionCheckNode "9.1.0" "${node_version}" || ! versionCheckNode "9.2.1.0" "${cli_version}"; then
+  echo -e "\nKoios scripts have now been upgraded to support cardano-node 9.1.x ('${node_version}' found) / cardano-cli 9.2.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.9.4 to switch scripts to an older branch).\n\n"
   return 1
 fi
 
