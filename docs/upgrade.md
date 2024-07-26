@@ -1,59 +1,45 @@
-??? example "One-Time major upgrade for Koios Scripts from 20-Jan-2023 (expand for details)"
-    
-    The scripts on guild-operators repository have gone through quite a few changes to accomodate for the below:
-
-    - Replace `prereqs.sh` with `guild-deploy.sh` using minimalistic approach (i.e. anything you need to deploy is now required to be specified using command-line arguments). The old `prereqs.sh` is left as-is but will no longer be maintained.
-    - Improve handling of environment variables for top level folder. Prior to this point, those who were using multiple deployments on same machine were required to have their session's environment set (for instance, using `prereqs.sh -t pvnode` would have created folder structure as `/opt/cardano/pvnode` and replaced `CNODE_HOME` references within scripts with `PVNODE_HOME`. This will no longer be required. The deriving of top level folder will be done relative to scripts folder. Thus, parent of the folder containing `env` file will automatically be treated as top level folder, and no longer depend on external environment variable. One may still use them for their own comfort to switch directories.
-    - The above also helps for manual download of script from github as it will no longer require substituting `CNODE_HOME` references.
-    - Consolidate binaries deployment to `"${HOME}"/.local/bin`. Previously, we could have had binaries deployed to various locations (`"${HOME}"/.cabal/bin` for node/CLI binaries, `"${HOME}"/.cargo/bin` for cncli binary, `"${HOME}"/bin` for downloaded binaries). This occured because of different compilers used different default locations for their output binariess (cargo for rust, cabal for Haskell, etc). The guild-deploy.sh/cabal-build-all.sh scripts will now provision the binaries to be made available to "${HOME}"/.local/bin instead. Ofcourse, as before, you can still customise the location of binaries using variables (eg: `CCLI`, `CNCLI`, `CNODE_HOME`) in `env` file.
-    - Add option to download pre-compiled binaries instead of compiling them - and accordingly - options in `guild-deploy.sh`, giving users both the options.
-    
-    Some of the above required us to add breaking changes to some scripts, but hopefully the above explains the premise for those changes. To ease this one-time upgrade process for existing deployments,  we have tried to come up with the guide below, feel free to edit this file to improve the documents based on your experience. Again, apologies in advance to those who do not agree with the above changes (the old code would ofcourse remain unimpacted at tag `legacy-scripts`, so if you'd like to stick to old scripts , you can use `-b legacy-scripts` for your tools to switch back).  
-
-### Steps for Ugrading
+### Steps for Upgrading
 
 !!! warning
-    Make sure you go through upgrade steps for your setup in a non-mainnet environment first!
+    Make sure you go through upgrade steps for your setup in a non-mainnet environment first!!
 
 
-- Download the latest `guild-deploy.sh` (checkout new syntax with `guild-deploy.sh -h`) to update all the scripts and files from the guild template. The scripts modified with user content (`env`, `gLiveView.sh`, `topologyUpdater.sh`, `cnode.sh`, etc) will be backed up before overwriting. The backed up files will be in the same folder as the original files, and will be named as *`${filename}_bkp<timestamp>`*. More static files (genesis files or some of the scripts themselves) will not be backed up, as they're not expected to be modified.
+- Download the latest `guild-deploy.sh` (always double check syntax of the script with `guild-deploy.sh -h`). The scripts modified with user content (`env`, `gLiveView.sh`, `topologyUpdater.sh`, `cnode.sh`, etc) will be backed up before overwriting. The backed up files will be in the same folder as the original files, and will be named as *`${filename}_bkp<timestamp>`*. More static files (genesis files or some of the scripts themselves) will not be backed up, as they're not expected to be modified.
 
 !!! warning "Remember"
-    Please add any environment-specific parameters (eg: custom top level folder, network flag, etc) to the execution command below, similar to prereqs.sh (check new syntax using `guild-deploy.sh -h`)
+    You are expected to provide appropriate environment-specific parameters (eg: custom top level folder [-p], alternate name for top level folder [-t], network flag [-n], etc) to the examples that pertain to your use case
 
-- A basic (minimal) run of the guild-deploy script that will only update current scripts on mainnet using default paths:
+- Depending on node release, you may be able to simply perform an update-in-place of scripts and node, or for some cases, you may need to overwrite configs as well. Some Examples below:
 
-``` bash
-mkdir "$HOME/tmp";cd "$HOME/tmp"
-curl -sS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
-chmod 700 guild-deploy.sh
-./guild-deploy.sh -s f -b master
-```
+    - A typical run of the guild-deploy script that will perform update in place of current scripts on mainnet and update binaries (alongwith re-compiling libsodium dependencies). In this scenario no config files or user variables in scripts are overwritten. This is typically relevant on minor patch releases of node upgrade:
 
-- Source your bashrc file again , and ensure `"${HOME}"/.local/bin` is now part of your $PATH environment variable.
+      ``` bash
+      mkdir "$HOME/tmp";cd "$HOME/tmp"
+      curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh && chmod 700 guild-deploy.sh
+      ./guild-deploy.sh -s dl -b master -n mainnet -t cnode -p /opt/cardano/cnode
+      ```
+
+    - Another scenario would be when you're required to overwrite configs (eg: node-8.1.2 to node-9.1.0 introduced change in genesis/config/topology file formats). In this case, you'd want to overwrite your config files as well. You should follow changelog in node release notes to verify if you'd need to overwrite configs. Note that every time you do this, you may need to re-add your customisations - if any - to the relevant config files (typically - almost always, you'd have to update the topology.json when overwriting configs). There are backups created of original file in `"${CNODE_HOME}"/files` folder if you'd like to compare/reuse previous version.
+
+      ``` bash
+      mkdir "$HOME/tmp";cd "$HOME/tmp"
+      curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh && chmod 700 guild-deploy.sh
+      ./guild-deploy.sh -s dlf -b master -n mainnet -t cnode -p /opt/cardano/cnode
+      ```
+
+!!! warning "Beware"
+    When upgrading node, depending on node versions (especially for major release) - you'd likely have to wait for node to revalidate/replay ledger. This can take a few hours. Please always plan ahead, do it first on a relay to ensure you've got "${CNODE_HOME}/db" folder ready to copy over (while source and target node have been shutdown) - prior to starting on upgrade on new machine. If mithril for target node version is ready, you can also use [mithril-client](../Scripts/mithril-client.md) to download snapshot instead of replaying, which may save you some time
+
+- Once guild-deploy script has been run, source your bashrc file again (or restart session), and ensure `"${HOME}"/.local/bin` is part of your $PATH environment variable. If your shell does not auto-run bashrc, you may want to set it a call to "${HOME}"/.bashrc in your `.profile`
 
 ``` bash
 source "${HOME}"/.bashrc
 echo "${PATH}"
 ```
 
-- Check and add back your customisations to config files (or simply restore from automatically created backup of your config/topology files).
+### Troubleshooting {: #troubleshooting}
 
-- Since one of the basic changes we start to recommend as part of this revamp is moving your binaries to `"${HOME}"/.local/bin`, you would want to *move* the binaries below from current location:
-    - "${HOME}"/.cabal/bin - Binaries built by `cabal build all` script (eg: `cardano-node`, `cardano-cli`, `bech32`, `cardano-address`, `cardano-submit-api`, `cardano-db-sync`
-    - "${HOME}"/.cargo/bin - Binaries built by `cardano install` (eg: `cncli`)
-    - "${HOME}"/bin - Downloaded binaries from previous `prereqs.sh` (eg: `cardano-hw-cli`)
-
-You can move the binaries by using mv command (for example, if you dont have any other files in these folders, you can use the command below:
-
-!!! note "Note"
-    Ideally, you should shutdown services (eg: cnode, cnode-dbsync, etc) prior to running the below to ensure they run from new location (you can also re-deploy them if you haven't done so in a while, eg: `./cnode.sh -d`). At the end of the guide, you can start them back up.
-
-``` bash
-mv -t "${HOME}"/.local/bin/ "${HOME}"/.cabal/bin/* "${HOME}"/.cargo/bin/* "${HOME}"/bin/*
-```
-
-- We've found users often confuse between $PATH variable resolution between multiple shell sessions, systemd, etc. To avoid this, edit the following files and uncomment and set the following variables to the appropriate paths as per your deployment (eg: `CCLI="${HOME}"/.local/bin/cardano-cli` if following above):
+- We've found users often confuse between $PATH variable resolution between multiple shell sessions, systemd, etc. While if you only used this guide, the binaries should be in "${HOME}/.local/bin", you may have manually downloaded to another location before. To avoid this, you can edit the following files and uncomment and set the following variables to the appropriate paths as per your deployment (eg: `CCLI="${HOME}"/.local/bin/cardano-cli` if following above):
 
     - env : CCLI, CNCLI, CNODEBIN
     - [If applicable] dbsync.sh: DBSYNCBIN
@@ -66,8 +52,14 @@ mv -t "${HOME}"/.local/bin/ "${HOME}"/.cabal/bin/* "${HOME}"/.cargo/bin/* "${HOM
 whereis bech32 cardano-address cardano-cli cardano-db-sync cardano-hw-cli cardano-node cardano-submit-api cncli ogmios
 ```
 
-The above might result in some lines having more than one entry (eg: you might have `cardano-cli` in `"${HOME}"/.cabal/bin` and `"${HOME}"/.local/bin`) - for which you'd want to delete the reference(s) not in `"${HOME}"/.local/bin` , while for other cases - you might have no values (eg: you may not use `cardano-db-sync`, `cncli`, `ogmios` and/or `cardano-hw-cli`. You need not take any actions for the binaries you do not use.
+For some cases - you might have no values (eg: you may not use `cardano-db-sync`, `cncli`, `ogmios` and/or `cardano-hw-cli`. You need not take any actions for the binaries you do not use.
 
-### Support/Improvements
+- If you are having trouble connecting to node post upgrade from gLiveView, typically the first issue you'd want to eliminate is  whether you missed that node might need ledger replay/revalidation (which could take hours as indicated earlier on the page). You can check the node status via `sudo systemctl status cnode`. If the node shows as up, you can monitor logs via `tail -100f "${CNODE_HOME}/logs/node.json`. If you're unable to start node using systemd itself, you can check the systemd output via `sudo journalctl -xeu cnode.service` and scroll back until you see a startup attempt with reason (typically this could be a couple of pages back). If nothing obvious (eg: showing files used as `/files/config.json` instead of `$CNODE_HOME/files/config.json` )comes up from there, you'd want to view node logs to see if there is something recorded in `node.json` instead.
 
-Hope the guide above helps you with the migration, but again - we could've missed some edge cases. If so, please report via chat in [Koios Discussions channel](https://t.me/CardanoKoios) only. Please DO NOT make edits to the script content based on forum/alternate guide/channels, while done with best intentions - there have been solutions put online that modify files unnecessarily instead of correcting configs and disabling updates, such actions will only cause trouble for future updates.
+### Unintended update-in-place {: #unintended}
+
+Let's say you accidentally did an update of the files that you didnt intend to and want to revert all your scripts to previous state. While you have the backups of the scripts created while doing in-place update, you can always make use of branch flag that most scripts that perform update-in-place provide (eg: for gLiveView.sh that you want to restore to 8.1.2 state), this would be `-b node-8.1.2`. The available tags that can be used can be visited [here](https://github.com/cardano-community/guild-operators/tags)
+
+### Support/Improvements {: #support}
+
+Hope the guide above helps you with the migration, but again - we could've missed some edge cases. If so, please report via chat in [Koios Discussions channel](https://t.me/CardanoKoios) or open an issue on github. Please DO NOT make edits to the script content based on forum/alternate guide/channels, while done with best intentions - there have been solutions put online that modify files unnecessarily instead of correcting configs and disabling updates, such actions will only cause trouble for future updates.

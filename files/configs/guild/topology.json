@@ -6,7 +6,7 @@
       ],
       "advertise": false,
       "trustable": true,
-      "valency": 1
+      "hotValency": 1
     },
     {
       "accessPoints": [
@@ -19,7 +19,7 @@
       ],
       "advertise": false,
       "trustable": false,
-      "valency": 3,
+      "hotValency": 3,
       "warmValency": 5
     }
   ],
