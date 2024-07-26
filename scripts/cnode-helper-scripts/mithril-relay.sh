@@ -17,6 +17,7 @@ RELAY_LISTENING_PORT=3132
 # Constants         #
 #####################
 
+ADDITIONAL_ALLOWED_IP=()
 BLOCK_PRODUCER_IP=()
 RELAY_LISTENING_IP=()
 
@@ -39,6 +40,39 @@ usage() {
 		EOF
 }
 
+# Function to read IP addresses into an array with a customizable prompt and confirmation message
+read_ips_from_input() {
+    local -n array_ref=$1     # Use nameref to reference the array passed by name
+    local prompt_message=$2   # Prompt message for IP input
+    local confirm_message=$3  # Confirmation message to ask if there are more IP addresses
+
+    while true; do
+        read -r -p "$prompt_message" ip
+        array_ref+=("${ip}")
+        read -r -p "$confirm_message" yn
+        case ${yn} in
+            [Nn]*) break ;;
+                *) continue ;;
+        esac
+    done
+}
+
+# Function to read optional IP addresses into an array with customizable messages
+read_optional_ips_from_input() {
+    local -n array_ref=$1     # Use nameref to reference the array passed by name
+    local confirm_message=$2  # Confirmation message to ask if there are IP addresses to add
+    local prompt_message=$3   # Prompt message for IP input if the user wants to add more IP addresses
+
+    while true; do
+        read -r -p "$confirm_message" yn
+        case ${yn} in
+            [Nn]*) break ;;
+                *) read -r -p "$prompt_message" ip
+                   array_ref+=("${ip}")
+                   ;;
+        esac
+    done
+}
 
 generate_nginx_conf() {
   sudo bash -c "cat > /etc/nginx/nginx.conf <<'EOF'
@@ -48,21 +82,17 @@ events {
     worker_connections 1024;
 }
 
-http {
+stream {
     upstream mithril_relays {
         $(for ip in "${RELAY_LISTENING_IP[@]}"; do
-		echo -e "            server ${ip}:${RELAY_LISTENING_PORT};"
+		echo -e "            server ${ip}:${RELAY_LISTENING_PORT} max_fails=1 fail_timeout=${#RELAY_LISTENING_IP[@]}0;"
 	done)
     }
 
     server {
         listen ${SIDECAR_LISTENING_IP}:${RELAY_LISTENING_PORT};
-        location / {
-            proxy_pass http://mithril_relays;
-            proxy_set_header Host \$host;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        }
+        proxy_connect_timeout 10;
+        proxy_pass mithril_relays;
     }
 }
 EOF"
@@ -71,27 +101,55 @@ EOF"
 generate_squid_conf() {
   # Write the squid config file
   sudo bash -c "cat <<-'EOF' > /etc/squid/squid.conf
-		# Listening port (port 3132 is recommended)
-		http_port ${RELAY_LISTENING_PORT}
-		
-		EOF"
-
-  # Write the ACLs for each relay IP address
-  sudo bash -c 'echo "# ACLs for IP of the block producers" >> /etc/squid/squid.conf'
-  for ip in "${BLOCK_PRODUCER_IP[@]}"; do
-    sudo bash -c "echo \"acl block_producer_ip src ${ip}\" >> /etc/squid/squid.conf"
-  done
-
-  # Write the rest of the squid config file
-  sudo bash -c "cat <<-'EOF' >> /etc/squid/squid.conf
+	# Listening port (port 3132 is recommended)
+	http_port ${RELAY_LISTENING_PORT}
+	
 	# ACL for aggregator endpoint
 	acl aggregator_domain dstdomain .mithril.network
 	
 	# ACL for SSL port only
 	acl SSL_port port 443
 	
-	# Allowed traffic
-	http_access allow block_producer_ip aggregator_domain SSL_port
+	EOF"
+
+  # Write the ACLs for block producer IP addresses
+  sudo bash -c 'echo "# ACL alias for IP of the block producers" >> /etc/squid/squid.conf'
+  int=0
+  for ip in "${BLOCK_PRODUCER_IP[@]}"; do
+    ((int++))
+    sudo bash -c "echo \"acl block_producer_ip${int} src ${ip}\" >> /etc/squid/squid.conf"
+  done
+  sudo bash -c 'echo "" >> /etc/squid/squid.conf'
+  unset int
+
+  # Write the ACLs for any additional allowed IP addresses
+  if [ ${#ADDITIONAL_ALLOWED_IP[@]} -gt 0 ]; then
+    sudo bash -c 'echo "# ACL alias for any additional IPs" >> /etc/squid/squid.conf'
+    int=0
+    for ip in "${ADDITIONAL_ALLOWED_IP[@]}"; do
+      ((int++))
+      sudo bash -c "echo \"acl additional_allowed_ip${int} src ${ip}\" >> /etc/squid/squid.conf"
+    done
+    sudo bash -c 'echo "" >> /etc/squid/squid.conf'
+    unset int
+  fi
+  
+  # Write the allow rules
+  sudo bash -c 'echo "# Allowed traffic" >> /etc/squid/squid.conf'
+  int=0
+  for ip in "${BLOCK_PRODUCER_IP[@]}"; do
+    ((int++))
+    sudo bash -c "echo \"http_access allow block_producer_ip${int} aggregator_domain SSL_port\" >> /etc/squid/squid.conf"
+  done
+  int=0
+  for ip in "${ADDITIONAL_ALLOWED_IP[@]}"; do
+    ((int++))
+    sudo bash -c "echo \"http_access allow additional_allowed_ip${int} aggregator_domain SSL_port\" >> /etc/squid/squid.conf"
+  done
+  unset int
+
+  # Write the fix chunk of the squid config file
+  sudo bash -c "cat <<-'EOF' >> /etc/squid/squid.conf
 	
 	# Do not disclose relay internal IP
 	forwarded_for delete
@@ -134,15 +192,9 @@ deploy_nginx_load_balancer() {
   sudo apt-get install -y nginx
 
   # Read the listening IP addresses from user input
-  while true; do
-    read -r -p "Enter the IP address of a relay: " ip
-    RELAY_LISTENING_IP+=("${ip}")
-    read -r -p "Are there more relays? (y/n) " yn
-    case ${yn} in
-      [Nn]*) break ;;
-          *) continue ;;
-    esac
-  done
+  read_ips_from_input RELAY_LISTENING_IP \
+    "Enter the IP address of a relay: " \
+    "Are there more relays? (y/n) "
 
   # Read the listening IP for the load balancer
   read -r -p "Enter the IP address of the load balancer (press Enter to use default 127.0.0.1): " SIDECAR_LISTENING_IP
@@ -170,16 +222,15 @@ deploy_squid_proxy() {
   sudo apt-get install -y squid
   sudo cp /etc/squid/squid.conf /etc/squid/squid.conf.bak
 
-  # Read the listening IP addresses from user input
-  while true; do
-    read -r -p "Enter the IP address of your Block Producer: " ip
-    BLOCK_PRODUCER_IP+=("${ip}")
-    read -r -p "Are there more block producers? (y/n) " yn
-    case ${yn} in
-      [Nn]*) break ;;
-          *) continue ;;
-    esac
-  done
+  # Read the block producer IP addresses from user input
+  read_ips_from_input BLOCK_PRODUCER_IP \
+    "Enter the IP address of your Block Producer: " \
+    "Are there more block producers? (y/n) "
+
+  # Read any additional IP addresses from user input
+  read_optional_ips_from_input ADDITIONAL_ALLOWED_IP \
+    "Are there more IP addresses you would like to allow like the local relay IP (to be used for testing, etc.)? (y/n) " \
+    "Enter the IP address you would like to allow: "
 
   # Read the listening port from user input
   read -r -p "Enter the relay's listening port (press Enter to use default 3132): " RELAY_LISTENING_PORT
