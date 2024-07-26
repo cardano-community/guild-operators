@@ -14,7 +14,6 @@
 #DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"          # Path to DBSync repository's schema folder
 #DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"            # Config file for dbsync instance
 #SYSTEMD_PGNAME="postgresql"                                # Name for postgres instance, if changed from default
-#DBSYNC_CONSUMED_TX_OUT="Y"                                 # Add new field consumed_by_tx_in_id in tx_out table (added unless variable is set to "N")
 
 ######################################
 # Do NOT modify code below           #
@@ -44,7 +43,6 @@ set_defaults() {
   [[ -z "${DBSYNC_CONFIG}" ]] && DBSYNC_CONFIG="${CNODE_HOME}/files/dbsync.json"
   [[ -z "${DBSYNC_SCHEMA_DIR}" ]] && DBSYNC_SCHEMA_DIR="${CNODE_HOME}/guild-db/schema"
   [[ -z "${DBSYNC_STATE_DIR}" ]] && DBSYNC_STATE_DIR="${CNODE_HOME}/guild-db/ledger-state"
-  [[ -z "${DBSYNC_CONSUMED_TX_OUT}" ]] && DBSYNC_CONSUMED_TX_OUT="Y"
   [[ -z "${SYSTEMD_PGNAME}" ]] && SYSTEMD_PGNAME="postgresql"
 }
 
@@ -63,7 +61,6 @@ check_defaults() {
 
 check_config_sanity() {
   DBSYNC_VERSION="$(${DBSYNCBIN} --version | awk '{print $2}')"
-  [[ "${DBSYNC_CONSUMED_TX_OUT}" != "N" ]] && versionCheck 13.1.1.3 ${DBSYNC_VERSION} && DBSYNC_ARGS=" --consumed-tx-out"
   BYGENHASH=$("${CCLI}" byron genesis print-genesis-hash --genesis-json "${BYRON_GENESIS_JSON}" 2>/dev/null)
   BYGENHASHCFG=$(jq '.ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
   SHGENHASH=$("${CCLI}" ${NETWORK_ERA} genesis hash --genesis "${GENESIS_JSON}" 2>/dev/null)

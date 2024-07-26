@@ -13,7 +13,7 @@
       ],
       "advertise": false,
       "trustable": true,
-      "valency": 2
+      "hotValency": 2
     },
     {
       "accessPoints": [
@@ -24,7 +24,7 @@
       ],
       "advertise": false,
       "trustable": false,
-      "valency": 2,
+      "hotValency": 2,
       "warmValency": 3
     }
   ],
@@ -34,5 +34,5 @@
       "advertise": false
     }
   ],
-  "useLedgerAfterSlot": 55043150
+  "useLedgerAfterSlot": 64454371
 }

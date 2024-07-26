@@ -77,7 +77,7 @@ function usage() {
 }
 
 function chk_version() {
-  ctrl_tbl=$(curl -skL "${GURL}/control_table")
+  ctrl_tbl=$(curl -m 2 -skL "${GURL}/control_table")
   instance_vr=$(jq -r 'map(select(.key == "version"))[0].last_value' 2>/dev/null <<< "${ctrl_tbl}")
   monitor_vr=$(grep ^\ \ version "${LOCAL_SPEC}" |awk '{print $2}' 2>/dev/null)
 

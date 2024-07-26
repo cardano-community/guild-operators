@@ -2,30 +2,30 @@
 # shellcheck disable=SC2086,SC1090,SC2059,SC2016
 # shellcheck source=/dev/null
 
-unset CNODE_HOME
-
 ##########################################
 # User Variables - Change as desired     #
 # command line flags override set values #
 ##########################################
-#G_ACCOUNT="cardano-community"    # Override github GUILD account if you forked the project
-#NETWORK='mainnet'      # Connect to specified network instead of public network (Default: connect to public cardano network)
-#WANT_BUILD_DEPS='Y'    # Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
-#FORCE_OVERWRITE='N'    # Force overwrite of all files including normally saved user config sections in env, cnode.sh and gLiveView.sh
-                        # topology.json, config.json and genesis files normally saved will also be overwritten
-#LIBSODIUM_FORK='Y'     # Use IOG fork of libsodium instead of official repositories - Recommended as per IOG instructions (Default: IOG fork)
-#INSTALL_CNCLI='N'      # Install/Upgrade and build CNCLI with RUST
-#INSTALL_CWHCLI='N'       # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
-#INSTALL_OGMIOS='N'     # Install Ogmios Server
-#INSTALL_CSIGNER='N'    # Install/Upgrade Cardano Signer
-#CNODE_NAME='cnode'     # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
-#CURL_TIMEOUT=60        # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
-#UPDATE_CHECK='Y'       # Check if there is an updated version of guild-deploy.sh script to download
-#SUDO='Y'               # Used by docker builds to disable sudo, leave unchanged if unsure.
-#SKIP_DBSYNC_DOWNLOAD='N' # When using -i d switch, used by docker builds or users who might not want to download dbsync binary
+#G_ACCOUNT="cardano-community"  # Override github GUILD account if you forked the project
+#NETWORK='mainnet'              # Connect to specified network instead of public network (Default: connect to public cardano network)
+#WANT_BUILD_DEPS='Y'            # Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
+#FORCE_OVERWRITE='N'            # Force overwrite of all config files (topology.json, config.json and genesis files)
+#SCRIPTS_FORCE_OVERWRITE='N'    # Force overwrite of all scripts (including normally saved user config sections in env, cnode.sh and gLiveView.sh)
+#LIBSODIUM_FORK='Y'             # Use IOG fork of libsodium instead of official repositories - Recommended as per IOG instructions (Default: IOG fork)
+#INSTALL_CNCLI='N'              # Install/Upgrade and build CNCLI with RUST
+#INSTALL_CWHCLI='N'             # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
+#INSTALL_OGMIOS='N'             # Install Ogmios Server
+#INSTALL_CSIGNER='N'            # Install/Upgrade Cardano Signer
+#CNODE_NAME='cnode'             # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
+#CURL_TIMEOUT=60                # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
+#UPDATE_CHECK='Y'               # Check if there is an updated version of guild-deploy.sh script to download
+#SUDO='Y'                       # Used by docker builds to disable sudo, leave unchanged if unsure.
+#SKIP_DBSYNC_DOWNLOAD='N'       # When using -i d switch, used by docker builds or users who might not want to download dbsync binary
 ######################################
 # Do NOT modify code below           #
 ######################################
+
+unset CNODE_HOME
 
 PARENT="$(dirname $0)"
 
@@ -61,7 +61,7 @@ versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=avail
 usage() {
   cat <<-EOF >&2
 		
-		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview|sanchonet>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][f][d][c][o][w][x]]
+		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview|sanchonet>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
 		Set up dependencies for building/using common tools across cardano ecosystem.
 		The script will always update dynamic content from existing scripts retaining existing user variables
 		
@@ -75,12 +75,13 @@ usage() {
 		  b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
 		  l   Build and Install libsodium fork from IO repositories (Default: skip)
 		  m   Download latest (released) binaries for mithril-signer, mithril-client (Default: skip)
-		  f   Force overwrite entire content of scripts and config files (backups of existing ones will be created) (Default: skip)
 		  d   Download latest (released) binaries for bech32, cardano-address, cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api (Default: skip)
-		  c   Install/Upgrade CNCLI binary (Default: skip)
-		  o   Install/Upgrade Ogmios Server binary (Default: skip)
-		  w   Install/Upgrade Cardano Hardware CLI (Default: skip)
-		  x   Install/Upgrade Cardano Signer binary (Default: skip)
+		  c   Download latest (released) binaries for CNCLI (Default: skip)
+		  o   Download latest (released) binaries for Ogmios (Default: skip)
+		  w   Download latest (released) binaries for Cardano Hardware CLI (Default: skip)
+		  x   Download latest (released) binaries for Cardano Signer binary (Default: skip)
+		  f   Force overwrite config files (backups of existing ones will be created) (Default: skip)
+		  s   Force overwrite entire content [including user variables] of scripts (Default: skip)
 		
 		EOF
   exit 1
@@ -92,6 +93,7 @@ set_defaults() {
   [[ -z ${NETWORK} ]] && NETWORK='mainnet'
   [[ -z ${WANT_BUILD_DEPS} ]] && WANT_BUILD_DEPS='N'
   [[ -z ${FORCE_OVERWRITE} ]] && FORCE_OVERWRITE='N'
+  [[ -z ${SCRIPTS_FORCE_OVERWRITE} ]] && SCRIPTS_FORCE_OVERWRITE='N'
   [[ -z ${LIBSODIUM_FORK} ]] && LIBSODIUM_FORK='N'
   [[ -z ${INSTALL_MITHRIL} ]] && INSTALL_MITHRIL='N'
   [[ -z ${INSTALL_CNCLI} ]] && INSTALL_CNCLI='N'
@@ -169,7 +171,7 @@ updateWithCustomConfig() {
   [[ $# -ne 2 ]] && subdir="cnode-helper-scripts" || subdir=$2
   curl -s -f -m ${CURL_TIMEOUT} -o ${file}.tmp "${URL_RAW}/scripts/${subdir}/${file}"
   [[ ! -f ${file}.tmp ]] && err_exit "Failed to download '${file}' from GitHub"
-  if [[ -f ${file} && ${FORCE_OVERWRITE} != 'Y' ]]; then
+  if [[ -f ${file} && ${SCRIPTS_FORCE_OVERWRITE} != 'Y' ]]; then
     if grep '^# Do NOT modify' ${file}.tmp >/dev/null 2>&1; then
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
       STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
@@ -204,7 +206,7 @@ os_dependencies() {
   if [[ "${OS_ID}" =~ ebian ]] || [[ "${OS_ID}" =~ buntu ]] || [[ "${DISTRO}" =~ ebian ]] || [[ "${DISTRO}" =~ buntu ]]; then
     #Debian/Ubuntu
     pkgmgrcmd="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
-    pkg_list="python3 pkg-config systemd tmux git jq libtool bc gnupg libtool secure-delete iproute2 tcptraceroute sqlite3 bsdmainutils unzip procps xxd"
+    pkg_list="python3 pkg-config systemd tmux git jq libtool bc gnupg libtool iproute2 tcptraceroute sqlite3 bsdmainutils unzip procps xxd"
     if [[ "${LIBSODIUM_FORK}" == "Y" ]] || [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
       pkg_list="${pkg_list} build-essential make g++ autoconf automake"
     fi
@@ -222,7 +224,7 @@ os_dependencies() {
     pkg_list="python3 coreutils systemd tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz unzip procps-ng udev vim-common"
     if [[ "${VERSION_ID}" == "2" ]] ; then
       #AmazonLinux2
-      pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig srm"
+      pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig"
     elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
       #RHEL/CentOS/RockyLinux 8/9
       pkg_opts="${pkg_opts} --allowerasing"
@@ -235,7 +237,7 @@ os_dependencies() {
     elif [[ "${DISTRO}" =~ Fedora ]]; then
       #Fedora
       pkg_opts="${pkg_opts} --allowerasing"
-      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config srm"
+      pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
     fi
     if [[ "${LIBSODIUM_FORK}" == "Y" ]] || [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
       pkg_list="${pkg_list} make gcc-c++ autoconf automake"
@@ -407,7 +409,7 @@ download_cnodebins() {
 
     # TODO: Replace CI Build artifact against 13.2.0.2 tag with release from github artefacts once available
     #curl -m 200 -sfL https://github.com/IntersectMBO/cardano-db-sync/releases/download/13.2.0.2/cardano-db-sync-13.2.0.1-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.2.0.2 from GitHub!"
-    curl -m 200 -sfL https://ci.iog.io/build/3736263/download/1/cardano-db-sync-13.2.0.2-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.2.0.2 from GitHub!"
+    curl -m 200 -sfL https://ci.iog.io/build/3736263/download/1/cardano-db-sync-13.3.0.0-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync release 13.3.0.0 from GitHub!"
     tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync &>/dev/null
     [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
     rm -f cnodedbsync.tar.gz
@@ -639,7 +641,7 @@ populate_cnode() {
   
   pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
   
-  [[ ${FORCE_OVERWRITE} = 'Y' ]] && echo -e "\nForced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh scripts/mithril-client.sh scripts/mithril-relay.sh scripts/mithril-signer.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required!"
+  [[ ${SCRIPTS_FORCE_OVERWRITE} = 'Y' ]] && echo -e "\nForced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh scripts/mithril-client.sh scripts/mithril-relay.sh scripts/mithril-signer.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required!"
   
   updateWithCustomConfig "blockPerf.sh"
   updateWithCustomConfig "cabal-build-all.sh"
@@ -663,7 +665,7 @@ populate_cnode() {
   updateWithCustomConfig "mithril.library"
   
   find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
-  chmod -R 700 "${CNODE_HOME}"/priv 2>/dev/null
+  chmod 750 "${CNODE_HOME}"/priv 2>/dev/null
 }
 
 # Parse arguments supplied to script
@@ -674,7 +676,8 @@ parse_args() {
     [[ "${S_ARGS}" =~ "b" ]] && INSTALL_OS_DEPS="Y" && WANT_BUILD_DEPS="Y"
     [[ "${S_ARGS}" =~ "l" ]] && INSTALL_OS_DEPS="Y" && LIBSODIUM_FORK="Y"
     [[ "${S_ARGS}" =~ "m" ]] && INSTALL_MITHRIL="Y"
-    [[ "${S_ARGS}" =~ "f" ]] && FORCE_OVERWRITE="Y" && POPULATE_CNODE="F"
+    [[ "${S_ARGS}" =~ "f" ]] && FORCE_OVERWRITE="Y" && POPULATE_CNODE="Y"
+    [[ "${S_ARGS}" =~ "s" ]] && SCRIPTS_FORCE_OVERWRITE="Y" && POPULATE_CNODE="Y"
     [[ "${S_ARGS}" =~ "d" ]] && INSTALL_CNODEBINS="Y"
     [[ "${S_ARGS}" =~ "c" ]] && INSTALL_CNCLI="Y"
     [[ "${S_ARGS}" =~ "o" ]] && INSTALL_OGMIOS="Y"
@@ -697,7 +700,6 @@ main_flow() {
   [[ "${WANT_BUILD_DEPS}" == "Y" ]] && build_dependencies
   [[ "${LIBSODIUM_FORK}" == "Y" ]] && build_libsodium
   [[ "${INSTALL_MITHRIL}" == "Y" ]] && download_mithril
-  [[ "${FORCE_OVERWRITE}" == "Y" ]] && POPULATE_CNODE="F" && populate_cnode
   [[ "${POPULATE_CNODE}" == "Y" ]] && populate_cnode
   [[ "${INSTALL_CNODEBINS}" == "Y" ]] && download_cnodebins
   [[ "${INSTALL_CNCLI}" == "Y" ]] && download_cncli

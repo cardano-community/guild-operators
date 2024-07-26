@@ -6,6 +6,18 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.1.0] - 2024-08-01
+#### Added
+- New Vote menu option to hold everything related to voting on Cardano.
+  - Governance features according to CIP-1694 with Conway era.
+  - Catalyst vote registration.
+- MultiSig wallet support through advanced menu item.
+- Creation of new mnemonic(seed phrase) generated wallet.
+- Custom mnemonic derivation path on mnemonic/hardware import.
+- For a more in-depth list, see https://github.com/cardano-community/guild-operators/pull/1783
+#### Changed
+- Removed CIP-0095 SPO poll
+
 ## [13.0.2] - 2024-06-07
 #### Fixed
 - Mnemonic import.

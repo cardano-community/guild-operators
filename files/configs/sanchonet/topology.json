@@ -10,7 +10,7 @@
       "accessPoints": [],
       "advertise": false,
       "trustable": false,
-      "valency": 1
+      "hotValency": 1
     }
   ],
   "publicRoots": [
@@ -19,5 +19,5 @@
       "advertise": false
     }
   ],
-  "useLedgerAfterSlot": 21599922
+  "useLedgerAfterSlot": 33695977
 }

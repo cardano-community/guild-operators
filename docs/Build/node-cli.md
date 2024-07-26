@@ -1,4 +1,5 @@
 !!! info "Reminder !!"
+    Unless there is a very particular reason you want to compile (eg: running on non-popular OS flavor), you DO NOT "need" to build node binaries - `guild-deploy.sh` already provides an option to download pre-compiled binaries.
     Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
 ### Build Instructions
@@ -40,10 +41,10 @@ Execute `cardano-cli` and `cardano-node` to verify output as below (the exact ve
 
 ```bash
 cardano-cli version
-# cardano-cli 8.x.x - linux-x86_64 - ghc-8.10
+# cardano-cli 9.x.x - linux-x86_64 - ghc-8.10
 # git rev <...>
 cardano-node version
-# cardano-node 8.x.x - linux-x86_64 - ghc-8.10
+# cardano-node 9.x.x - linux-x86_64 - ghc-8.10
 # git rev <...>
 ```
 
@@ -106,7 +107,7 @@ This file tells your node how to connect to other nodes (especially initially to
 !!! important
     On BP, You'd want to set `useLedgerAfterSlot` to `-1` for your Block Producing (Core) node - thereby, telling your Core node to remain in non-P2P mode, and ensure `PeerSharing` is to `false`.
 
-The resultant topology file could look something like below:
+The resultant topology file on a relay could look something like below:
 
 ``` json
 {
@@ -118,25 +119,29 @@ The resultant topology file could look something like below:
     {
       "address": "backbone.mainnet.emurgornd.com",
       "port": 3001
+    },
+    {
+      "address": "backbone.mainnet.cardanofoundation.org",
+      "port": 3001
     }
   ],
   "localRoots": [
     {
       "accessPoints": [
-        {"address": "xx.xx.xx.xx", "port": 6000 },
-        {"address": "xx.xx.xx.yy", "port": 6000 }
+        {"address": "xx.xx.xx.xx", "port": 6000 , "description": "Core"},
+        {"address": "zz.zz.zz.zz", "port": 6000 , "description": "Relay2"}
       ],
       "advertise": false,
       "trustable": true,
-      "valency": 2
+      "hotValency": 2
     },
     {
       "accessPoints": [
         {"address": "node-dus.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "EU/DE/Dusseldorf" },
         {"address": "node-syd.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "OC/AU/Sydney" },
         {"address": "194.36.145.157",                   "port": 6000, "pool": "RDLRT",  "location": "EU/DE/Baden" },
-        {"address": "152.53.18.60",                     "port": 6000, "pool": "RDLRT",  "location": "NA/US/StLouis" },
-        {"address": "148.72.153.168",                   "port": 16000, "pool": "AAA",   "location": "US/StLouis" },
+        {"address": "95.216.38.251",                    "port": 6000, "pool": "RDLRT",  "location": "EU/FI/Helsinki" },
+        {"address": "148.72.153.168",                   "port": 16000, "pool": "AAA",   "location": "NA/US/StLouis" },
         {"address": "78.47.99.41",                      "port": 6000, "pool": "AAA",    "location": "EU/DE/Nuremberg" },
         {"address": "relay1-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
         {"address": "relay2-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
@@ -146,7 +151,7 @@ The resultant topology file could look something like below:
       ],
       "advertise": false,
       "trustable": false,
-      "valency": 5,
+      "hotValency": 5,
       "warmValency": 10
     }
   ],
@@ -156,7 +161,33 @@ The resultant topology file could look something like below:
       "advertise": false
     }
   ],
-  "useLedgerAfterSlot": 119160667
+  "useLedgerAfterSlot": 128908821
+}
+```
+
+Similarly, a typical topology file on a Core could look something like below:
+
+``` json
+{
+  "bootstrapPeers": [],
+  "localRoots": [
+    {
+      "accessPoints": [
+        {"address": "yy.yy.yy.yy", "port": 6000, "description": "Relay1"},
+        {"address": "zz.zz.zz.zz", "port": 6000, "description": "Relay2"}
+      ],
+      "advertise": false,
+      "trustable": true,
+      "hotValency": 2
+    }
+  ],
+  "publicRoots": [
+    {
+      "accessPoints": [],
+      "advertise": false
+    }
+  ],
+  "useLedgerAfterSlot": -1
 }
 ```
 
