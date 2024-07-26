@@ -3980,6 +3980,14 @@ function main {
                     _wallet_name="${wallet_name}"
                     if ! isWalletRegistered ${wallet_name}; then
                       if [[ ${op_mode} = "online" ]]; then
+                        # maybe this block below should be a part of registerStakeWallet?
+                        getWalletBalance ${wallet_name} true true false true
+                        if [[ ${base_lovelace} -lt ${KEY_DEPOSIT} ]]; then
+                          println ERROR "\n${FG_RED}ERROR${NC}: insufficient funds (${base_lovelace}) available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
+                          println DEBUG "Funds for key deposit($(formatLovelace ${KEY_DEPOSIT}) ADA) + transaction fee needed to register the wallet"
+                          waitToProceed && continue
+                        fi
+
                         if ! registerStakeWallet ${wallet_name}; then waitToProceed && continue; fi
                       else
                         println ERROR "\n${FG_YELLOW}The wallet is not a registered wallet on chain and CNTools run in hybrid mode${NC}"

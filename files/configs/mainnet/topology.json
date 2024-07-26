@@ -21,15 +21,15 @@
       ],
       "advertise": false,
       "trustable": true,
-      "valency": 2
+      "hotValency": 2
     },
     {
       "accessPoints": [
         {"address": "node-dus.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "EU/DE/Dusseldorf" },
         {"address": "node-syd.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "OC/AU/Sydney" },
         {"address": "194.36.145.157",                   "port": 6000, "pool": "RDLRT",  "location": "EU/DE/Baden" },
-        {"address": "152.53.18.60",                     "port": 6000, "pool": "RDLRT",  "location": "NA/US/StLouis" },
-        {"address": "148.72.153.168",                   "port": 16000, "pool": "AAA",   "location": "US/StLouis" },
+        {"address": "95.216.38.251",                    "port": 6000, "pool": "RDLRT",  "location": "EU/FI/Helsinki" },
+        {"address": "148.72.153.168",                   "port": 16000, "pool": "AAA",   "location": "NA/US/StLouis" },
         {"address": "78.47.99.41",                      "port": 6000, "pool": "AAA",    "location": "EU/DE/Nuremberg" },
         {"address": "relay1-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
         {"address": "relay2-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
@@ -38,7 +38,7 @@
       ],
       "advertise": false,
       "trustable": false,
-      "valency": 5,
+      "hotValency": 5,
       "warmValency": 10
     }
   ],
@@ -48,5 +48,5 @@
       "advertise": false
     }
   ],
-  "useLedgerAfterSlot": 119160667
+  "useLedgerAfterSlot": 128908821
 }
