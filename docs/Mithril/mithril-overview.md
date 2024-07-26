@@ -143,13 +143,13 @@ steps:
 
 1. **Deploy the Mithril Signer:** Run the `mithril-signer.sh` script:
 
-   1. Use the `-u` flag to update the `mithril.env` file with the Mithril
+   1. Use the `-e` flag to update the `mithril.env` file with the Mithril
       Signer environment variables.
    2. Provide the IP address of your Mithril Relay when prompted.
    3. Optionally provide the relays listening port when prompted to use a port.
 
       ```bash
-        ./mithril-signer.sh -u
+        ./mithril-signer.sh -e
         Enter the IP address of the relay endpoint: 4.5.6.7
         Enter the port of the relay endpoint (press Enter to use default 3132):
         Using RELAY_ENDPOINT=4.5.6.7:3132 for the Mithril signer relay endpoint.
@@ -174,17 +174,17 @@ steps:
 1. **Deploy the Nginx sidecar loadbalancer:** Run the `mithril-relay.sh` script:
 
    1. Use the `-l` flag to deploy the Nginx Mithril Relay.
-   2. Provide the IP address of your Block Producer when prompted to secure
-      the Mithril Relay to only accept traffic from your Block Producer.
-   3. Optionally provide the relays listening port when prompted to use a port
+   2. Provide the IP address of your Mithril Relay(s) when prompted.
+   3. Provide an IP address for your nginx loadbalancer (default 127.0.0.1)
+   4. Optionally provide the relays listening port when prompted to use a port
       other than the default 3132, or just press enter to use the default.
-   4. Create the appropriate firewall rule to allow traffic from your Block
-      Producer to the Mithril Relay.
+   5. Create the appropriate firewall rule to allow traffic from your Block
+      Producer to the Mithril Relay(s).
 
       ```bash
-      ./mithril-relay.sh -d
+      ./mithril-relay.sh -l
 
-      nInstalling nginx load balancer
+      Installing nginx load balancer
       Enter the IP address of a relay: 4.5.6.7
       Are there more relays? (y/n) y
       Enter the IP address of a relay: 8.9.10.11
@@ -204,13 +204,13 @@ steps:
 
 2. **Deploy the Mithril Signer:** Run the `mithril-signer.sh` script:
 
-   1. Use the `-u` flag to update the `mithril.env` file with the Mithril
+   1. Use the `-e` flag to update the `mithril.env` file with the Mithril
       Signer environment variables.
-   2. Provide the IP address of your Mithril Relay when prompted.
-   3. Optionally provide the relays listening port when prompted to use a port.
+   2. Provide the IP address of your nginx loadbalancer when prompted.
+   3. Optionally provide the loadbalancer listening port when prompted to use a port.
 
       ```bash
-          ./mithril-signer.sh -u
+          ./mithril-signer.sh -e
           Enter the IP address of the relay endpoint: 127.0.0.1
           Enter the port of the relay endpoint (press Enter to use default 3132):
           Using RELAY_ENDPOINT=127.0.0.1:3132 for the Mithril signer relay endpoint.
