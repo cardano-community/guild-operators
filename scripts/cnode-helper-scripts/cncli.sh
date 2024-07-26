@@ -9,13 +9,12 @@
 # Common variables set in env file   #
 ######################################
 
-
 #POOL_ID=""                               # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation & pooltool sendtip, lower-case hex pool id
 #POOL_ID_BECH32=""                        # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation with Koios API, lower-case pool id in bech32 format
-#PT_API_KEY=""                            # POOLTOOL: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
-#POOL_TICKER=""                           # POOLTOOL: set the pools ticker, e.g "TCKR"
 #POOL_VRF_SKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for leaderlog calculation, path to pool's vrf.skey file
 #POOL_VRF_VKEY=""                         # Automatically detected if POOL_NAME is set in env. Required for block validation, path to pool's vrf.vkey file
+#PT_API_KEY=""                            # POOLTOOL: set API key, e.g "a47811d3-0008-4ecd-9f3e-9c22bdb7c82d"
+#POOL_TICKER=""                           # POOLTOOL: set the pools ticker, e.g "TCKR"
 #PT_HOST="127.0.0.1"                      # POOLTOOL: connect to a remote node, preferably block producer (default localhost)
 #PT_PORT="${CNODE_PORT}"                  # POOLTOOL: port of node to connect to (default CNODE_PORT from env file)
 #PT_SENDSLOTS_START=30                    # POOLTOOL sendslots: delay after epoch boundary before sending slots (in minutes)
@@ -130,7 +129,7 @@ getLedgerData() { # getNodeMetrics expected to have been already run
   return 0
 }
 
-getconsensus() {
+getConsensus() {
   getProtocolParams
   if versionCheck "10.0" "${PROT_VERSION}"; then
     consensus="cpraos"
@@ -287,7 +286,7 @@ cncliLeaderlog() {
 
   [[ ${subarg} != "force" ]] && echo "Node in sync, sleeping for ${SLEEP_RATE}s before running leaderlogs for current epoch" && sleep ${SLEEP_RATE}
   getNodeMetrics
-  getconsensus
+  getConsensus
   curr_epoch=${epochnum}
   if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${curr_epoch};" 2>/dev/null) -eq 1 && ${subarg} != "force" ]]; then
     echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
@@ -347,13 +346,13 @@ cncliLeaderlog() {
   while true; do
     [[ ${subarg} != "force" ]] && sleep ${SLEEP_RATE}
     getNodeMetrics
-    getconsensus
+    getConsensus
     if ! cncliDBinSync; then # verify that cncli DB is still in sync
       echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... checking again in ${SLEEP_RATE}s"
       [[ ${subarg} = force ]] && sleep ${SLEEP_RATE}
       continue
     fi
-    # firstSlotOfnextEpoch - stabilityWindow((3|4) * k / f)
+    # firstSlotOfNextEpoch - stabilityWindow((3|4) * k / f)
     # due to issues with timing, calculation is moved one tick to 8/10 of epoch for pre conway, and 7/10 post conway.
     slot_for_next_nonce=$(echo "(${slotnum} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (${stability_window_factor} * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc)
     curr_epoch=${epochnum}
@@ -805,11 +804,8 @@ cncliPTsendslots() {
 #################################
 
 cncliEpochData() {
-
   proc_msg="~ CNCLI epochdata table load started ~"
-
   getNodeMetrics
-
   if ! cncliDBinSync; then
     echo ${proc_msg}
     echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... check cncli sync service!"
@@ -819,161 +815,144 @@ cncliEpochData() {
     echo
     checkEpochSlot "${choose_func}"
   fi
-
 }
 
+#################################
+
 loadEpochData() {
-  [[ -z "${POOL_VRF_SKEY}" ]] && POOL_VRF_SKEY="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
-  [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
-  [[ -z "${BLOCKLOG_DIR}" ]] && BLOCKLOG_DB="${CNODE_HOME}/guild-db/blocklog"
-
-  CNCLI_DB="${CNCLI_DIR}/cncli.db"
-  BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
-
   cncliParams="--db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
   csvdir=/tmp ; tmpcsv="${csvdir}/epochdata_tmp.csv" ; csvfile="${csvdir}/epochdata.csv" ; onerow_csv="${csvdir}/one_epochdata.csv"
   > "$tmpcsv" ; > "$csvfile" ; > "$onerow_csv"
 
-allEpochsInBlocklog() {
-  EPOCHS=$(sqlite3 "$BLOCKLOG_DB" "SELECT replace(group_concat(DISTINCT epoch ORDER BY epoch ASC), ',', ' ') AS EPOCHS FROM blocklog;")
-}
+  allEpochsInBlocklog() {
+    EPOCHS=$(sqlite3 "$BLOCKLOG_DB" "SELECT replace(group_concat(DISTINCT epoch ORDER BY epoch ASC), ',', ' ') AS EPOCHS FROM blocklog;")
+  }
 
-getKoiosDataHist() {
-  [[ -z ${KOIOS_API} ]] && return 1
+  getKoiosDataHist() {
+    [[ -z ${KOIOS_API} ]] && return 1
+    if ! pool_hist=$(curl -sSL -f "${KOIOS_API}/pool_history?_pool_bech32=${POOL_ID_BECH32}&_epoch_no=${EPOCH}" 2>&1); then
+      echo "ERROR: Koios pool_stake_snapshot history query failed."
+      return 1
+    fi
+    if ! epoch_hist=$(curl -sSL -f "${KOIOS_API}/epoch_info?_epoch_no=${EPOCH}" 2>&1); then
+      echo "ERROR: Koios epoch_stake_snapshot history query failed."
+      return 1
+    fi
+    pool_stake_hist=$(jq -r '.[].active_stake' <<< "${pool_hist}")
+    active_stake_hist=$(jq -r '.[].active_stake' <<< "${epoch_hist}")
+    return 0
+  }
 
-  if ! pool_hist=$(curl -sSL -f "${KOIOS_API}/pool_history?_pool_bech32=${POOL_ID_BECH32}&_epoch_no=${EPOCH}" 2>&1); then
-    echo "ERROR: Koios pool_stake_snapshot history query failed."
-    return 1
-  fi
+  checkEpochSlot() {
+    getNodeMetrics
+    local func=$1
+    local epochSlot=${slot_in_epoch}
+    if [[ $epochSlot -ge 0 && $epochSlot -le 21600 ]]; then
+      getCurrNextEpoch
+      echo "First six hours of new epoch ${curr_epoch} detected, too early to run this process."
+      echo "Current epochSlot is ${epochSlot}, please try againg after epochSlot 21600"
+      echo
+    else
+      $func
+    fi
+  }
 
-  if ! epoch_hist=$(curl -sSL -f "${KOIOS_API}/epoch_info?_epoch_no=${EPOCH}" 2>&1); then
-    echo "ERROR: Koios epoch_stake_snapshot history query failed."
-    return 1
-  fi
+  getCurrNextEpoch() {
+    getNodeMetrics
+    curr_epoch=${epochnum}
+    next_epoch=$((curr_epoch + 1))
+  }
 
-  pool_stake_hist=$(jq -r '.[].active_stake' <<< "${pool_hist}")
-  active_stake_hist=$(jq -r '.[].active_stake' <<< "${epoch_hist}")
-
-  return 0
-}
-
-checkEpochSlot() {
-  getNodeMetrics
-  local func=$1
-  local epochSlot=${slot_in_epoch}
-
-  if [[ $epochSlot -ge 0 && $epochSlot -le 21600 ]]; then
-    getCurrNextEpoch
-    echo "First six hours of new epoch "$curr_epoch" detected, too early to run this process."
-    echo "Current epochSlot is ${epochSlot}, please try againg after epochSlot 21600"
-    echo
-  else
-    $func
-  fi
-}
-
-getCurrNextEpoch() {
-   getNodeMetrics
-   curr_epoch=${epochnum}
-   next_epoch=$((curr_epoch + 1))
-}
-
-runCurrentEpoch() {
-  getKoiosData
-  echo "Processing current epoch: ${EPOCH}"
-  stake_param_curr="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"
-
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${EPOCH}" --ledger-set current ${stake_param_curr} |
+  runCurrentEpoch() {
+    getKoiosData
+    echo "Processing current epoch: ${EPOCH}"
+    stake_param_curr="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"
+    ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${EPOCH}" --ledger-set current ${stake_param_curr} |
       jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
       sed 's/"//g' >> "$tmpcsv"
-}
+  }
 
-runNextEpoch() {
-  getKoiosData
-  echo "Processing next epoch: ${EPOCH}"
-  stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
-
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --ledger-set next ${stake_param_next} |
+  runNextEpoch() {
+    getKoiosData
+    echo "Processing next epoch: ${EPOCH}"
+    stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
+    ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --ledger-set next ${stake_param_next} |
       jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
       sed 's/"//g' >> "$tmpcsv"
-}
+  }
 
-runPreviousEpochs() {
-  getKoiosDataHist
-  echo "Processing previous epoch: ${EPOCH}"
-  stake_param_prev="--active-stake ${active_stake_hist} --pool-stake ${pool_stake_hist}"
-
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${EPOCH}" --ledger-set prev ${stake_param_prev} |
+  runPreviousEpochs() {
+    getKoiosDataHist
+    echo "Processing previous epoch: ${EPOCH}"
+    stake_param_prev="--active-stake ${active_stake_hist} --pool-stake ${pool_stake_hist}"
+    ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${EPOCH}" --ledger-set prev ${stake_param_prev} |
       jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
       sed 's/"//g' >> "$tmpcsv"
-}
+  }
 
-chooseConsensus() {
-  if (( EPOCH <= 363 )); then
+  chooseConsensus() {
+    if (( EPOCH <= 363 )); then
       consensus="tpraos"
-  elif (( EPOCH >= 364 )); then
+    elif (( EPOCH >= 364 )); then
       consensus="praos"
-  else
+    else
       consensus="cpraos"
-  fi
-}
+    fi
+  }
 
-runLeaderlog() {
-  for EPOCH in "${epochs_array[@]}"; do
+  runLeaderlog() {
+    for EPOCH in "${epochs_array[@]}"; do
       chooseConsensus
       if [[ "$EPOCH" == "$curr_epoch" ]]; then
-          runCurrentEpoch
+        runCurrentEpoch
       elif [[ "$EPOCH" == "${epochs_array[-1]}" && "$EPOCH" == "$next_epoch" ]]; then
-          runNextEpoch
+        runNextEpoch
       else
-          runPreviousEpochs
+        runPreviousEpochs
       fi
-  done
-}
+    done
+  }
 
-runLeaderlogArg() {
-  chooseConsensus
-  if [[ "$EPOCH" == "$curr_epoch" ]]; then
+  runLeaderlogArg() {
+    chooseConsensus
+    if [[ "$EPOCH" == "$curr_epoch" ]]; then
       runCurrentEpoch
-  elif [[ "$EPOCH" == "$next_epoch" ]]; then
+    elif [[ "$EPOCH" == "$next_epoch" ]]; then
       runNextEpoch
-  else
+    else
       runPreviousEpochs
-  fi
-}
+    fi
+  }
 
-processAllEpochs() {
-  epochsList() {
+  processAllEpochs() {
+    epochsList() {
       allEpochsInBlocklog
       getCurrNextEpoch
       IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
-}
-
-  epochsList
-
-  runLeaderlog
-
-  addIdValues() {
+    }
+    epochsList
+    runLeaderlog
+    
+    addIdValues() {
       id=1
       while IFS= read -r row; do
-          echo "$id,$row" >> "$csvfile"
-          ((id++))
+        echo "$id,$row" >> "$csvfile"
+        ((id++))
       done < "$tmpcsv"
-
-  }
-
-  addIdValues
-
-  loadAllEpochs() {
-
-   sqlite3 "$BLOCKLOG_DB" <<EOF
-DROP TABLE IF EXISTS epochdata;
-CREATE TABLE epochdata (id INTEGER PRIMARY KEY AUTOINCREMENT, epoch INTEGER NOT NULL, epoch_nonce TEXT NOT NULL, pool_id TEXT NOT NULL, sigma TEXT NOT NULL, d REAL NOT NULL, epoch_slots_ideal INTEGER NOT NULL, max_performance REAL NOT NULL, active_stake TEXT NOT NULL, total_active_stake TEXT NOT NULL, UNIQUE(epoch,pool_id));
-CREATE INDEX idx_epochdata_epoch ON epochdata (epoch);
-CREATE INDEX idx_epochdata_pool_id ON epochdata (pool_id);
-.mode csv
-.import '$csvfile' epochdata
-EOF
+    }
+    
+    addIdValues
+    
+    loadAllEpochs() {
+    
+      sqlite3 "$BLOCKLOG_DB" <<-EOF
+			DROP TABLE IF EXISTS epochdata;
+			CREATE TABLE epochdata (id INTEGER PRIMARY KEY AUTOINCREMENT, epoch INTEGER NOT NULL, epoch_nonce TEXT NOT NULL, pool_id TEXT NOT NULL, sigma TEXT NOT NULL, d REAL NOT NULL, epoch_slots_ideal INTEGER NOT NULL, max_performance REAL NOT NULL, active_stake TEXT NOT NULL, total_active_stake TEXT NOT NULL, UNIQUE(epoch,pool_id));
+			CREATE INDEX idx_epochdata_epoch ON epochdata (epoch);
+			CREATE INDEX idx_epochdata_pool_id ON epochdata (pool_id);
+			.mode csv
+			.import '$csvfile' epochdata
+			EOF
 
       row_count=$(sqlite3 "$BLOCKLOG_DB" "SELECT COUNT(*) FROM epochdata;")
       echo
@@ -981,85 +960,77 @@ EOF
       echo
       echo "~ CNCLI epochdata table load completed ~"
       echo
-
       rm $csvfile $tmpcsv
+    }
+    loadAllEpochs
   }
-
-  loadAllEpochs
-
-}
-
-processSingleEpoch() {
-
-  check_epoch_exists() {
+  
+  processSingleEpoch() {
+  
+    check_epoch_exists() {
       local epoch=${subarg}
       if [[ ! " ${epochs_array[@]} " =~ " ${epoch} " ]]; then
-          echo "No slots found in blocklog table for epoch $epoch."
-          echo
-          exit 1
+        echo "No slots found in blocklog table for epoch $epoch."
+        echo
+        exit 1
       fi
-  }
-
-  if [[ -n ${subarg} ]]; then
+    }
+  
+    if [[ -n ${subarg} ]]; then
       allEpochsInBlocklog
       getCurrNextEpoch
       IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
       check_epoch_exists "${subarg}"
       EPOCH="${subarg}"
       runLeaderlogArg
-  fi
-
-  get_new_id() {
+    fi
+  
+    get_new_id() {
       ID=$(sqlite3 "$BLOCKLOG_DB" "SELECT max(id) + 1 FROM epochdata;")
-  }
-
-  if [[ -n ${subarg} ]]; then
-
-        get_new_id
-        csv_row=$(cat "$tmpcsv")
-        epoch=$(echo "$csv_row" | cut -d',' -f1)
-        modified_csv_row="${ID},${csv_row}"
-        echo "$modified_csv_row" > "$onerow_csv"
-
-     else
-        echo "No data found in $tmpcsv."
-        exit 1
-
-  fi
-
-  if [[ -n ${subarg} ]]; then
+    }
+  
+    if [[ -n ${subarg} ]]; then
+      get_new_id
+      csv_row=$(cat "$tmpcsv")
+      epoch=$(echo "$csv_row" | cut -d',' -f1)
+      modified_csv_row="${ID},${csv_row}"
+      echo "$modified_csv_row" > "$onerow_csv"
+    else
+      echo "No data found in $tmpcsv."
+      exit 1
+    fi
+  
+    if [[ -n ${subarg} ]]; then
       for EPOCH in "${subarg}" ; do
-         sqlite3 "$BLOCKLOG_DB" "DELETE FROM epochdata WHERE epoch = ${epoch};"
-         sqlite3 "$BLOCKLOG_DB" <<EOF
-.mode csv
-.import "$onerow_csv" epochdata
-EOF
-
-          row_count=$(sqlite3 "$BLOCKLOG_DB" "SELECT COUNT(*) FROM epochdata WHERE epoch = ${epoch};")
-          echo
-          echo "$row_count row has been loaded into epochdata table in blocklog db for epoch ${epoch}"
-          echo
-          echo "~ CNCLI epochdata table load completed ~"
-          echo
-
-          rm $onerow_csv $tmpcsv
+        sqlite3 "$BLOCKLOG_DB" "DELETE FROM epochdata WHERE epoch = ${epoch};"
+        sqlite3 "$BLOCKLOG_DB" <<-EOF
+				.mode csv
+				.import "$onerow_csv" epochdata
+				EOF
+        row_count=$(sqlite3 "$BLOCKLOG_DB" "SELECT COUNT(*) FROM epochdata WHERE epoch = ${epoch};")
+        echo
+        echo "$row_count row has been loaded into epochdata table in blocklog db for epoch ${epoch}"
+        echo
+        echo "~ CNCLI epochdata table load completed ~"
+        echo
+        m $onerow_csv $tmpcsv
       done
+    fi
+  }
+  
+  if [[ "${subcommand}" == "epochdata" ]]; then
+    if [[ ${subarg} =~ ^[0-9]+$ ]]; then
+      epoch=${subarg}
+      choose_func="processSingleEpoch ${epoch}"
+    elif [[ ${subarg} != "all" ]]; then
+      echo
+      echo "ERROR: unknown argument passed to validate command, valid options incl the string 'all' or the epoch number to recalculate"
+      echo
+      exit 1
+    else
+      choose_func="processAllEpochs"
+    fi
   fi
-}
-
-if [[ "${subcommand}" == "epochdata" ]]; then
-  if [[ ${subarg} =~ ^[0-9]+$ ]]; then
-    epoch=${subarg}
-    choose_func="processSingleEpoch ${epoch}"
-  elif [[ ${subarg} != "all" ]]; then
-    echo
-    echo "ERROR: unknown argument passed to validate command, valid options incl the string 'all' or the epoch number to recalculate"
-    echo
-    exit 1
-  else
-    choose_func="processAllEpochs"
-  fi
-fi
 
 }
 
