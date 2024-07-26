@@ -7,7 +7,7 @@
 # Common variables set in env file   #
 ######################################
 
-#NODE_NAME="Cardano Node"                 # Change your node's name prefix here, keep at or below 19 characters!
+#NODE_NAME=""                             # Change your node's name prefix here, keep at or below 19 characters!
 #REFRESH_RATE=2                           # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
 #REPAINT_RATE=10                          # Re-paint entire screen every nth REFRESH_RATE. Complete re-paint can make screen flicker, hence not done for every update
 #LEGACY_MODE=false                        # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
@@ -60,7 +60,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.30.0
+GLV_VERSION=v1.29.1
 
 PARENT="$(dirname $0)"
 
@@ -261,6 +261,7 @@ if [[ ${LEGACY_MODE} = "true" ]]; then
   propdivider=$(printf "${NC}|- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "|")
   resourcesdivider=$(printf "${NC}|- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "|")
   blockdivider=$(printf "${NC}|- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "|")
+  mithrildivider=$(printf "${NC}|- ${style_info}MITHRIL SIGNER${NC} " && printf "%0.s-" $(seq $((width-18))) && printf "|")
   blank_line=$(printf "${NC}|%$((width-1))s|" "")
 else
   VL=$(printf "${NC}\\u2502")
@@ -283,6 +284,7 @@ else
   propdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "\\u2502")
   resourcesdivider=$(printf "${NC}\\u2502- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "\\u2502")
   blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "\\u2502")
+  mithrildivider=$(printf "${NC}\\u2502- ${style_info}MITHRIL SIGNER${NC} " && printf "%0.s-" $(seq $((width-18))) && printf "\\u2502")
   blank_line=$(printf "${NC}\\u2502%$((width-1))s\\u2502" "")
 fi
 
@@ -401,7 +403,7 @@ clrLine () {
 # Command    : clrScreen
 # Description: clear the screen, move to (0,0), and reset screen update counter
 clrScreen () {
-  clear
+  printf "\033[2J"
   screen_upd_cnt=0
 }
 
@@ -714,21 +716,6 @@ checkPeers() {
   fi
 }
 
-checkNodeVersion() {
-  version=$("${CNODEBIN}" version)
-  node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
-  node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
-
-  if [[ ${node_version} != "${running_node_version}" || ${node_rev} != "${running_node_rev}" ]]; then
-    clrScreen
-    printf "\n ${style_status_3}Node version mismatch${NC} - running version doesn't match found binary!"
-    printf "\n\n Forgot to restart node after upgrade?"
-    printf "\n\n Deployed version : ${node_version} (${node_rev}) => ${CNODEBIN}"
-    printf "\n Running version  : ${running_node_version} (${running_node_rev})\n"
-    waitToProceed && clrScreen
-  fi
-}
-
 #####################################
 # Static variables/calculations     #
 #####################################
@@ -746,8 +733,9 @@ if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
   printf "\n After successful node boot or when sync to shelley era has been reached, calculations will be correct\n"
   waitToProceed && clrScreen
 fi
-checkNodeVersion
-
+version=$("${CNODEBIN}" version)
+node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
+node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
 fail_count=0
 epoch_items_last=0
 screen_upd_cnt=0
@@ -814,7 +802,9 @@ while true; do
     logln "ERROR" "${error_msg}"
     waitForInput && continue
   elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check
-    checkNodeVersion
+    version=$("${CNODEBIN}" version)
+    node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
+    node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
     fail_count=0
     getOpCert
   fi
@@ -850,7 +840,7 @@ while true; do
     else
       cpu_util="0.0"
     fi
-    if [[ ${forging_enabled} -eq 1 ]]; then
+    if [[ ${about_to_lead} -gt 0 ]]; then
       [[ ${nodemode} != "Core" ]] && nodemode="Core" && getOpCert && clrScreen
     else
       [[ ${nodemode} != "Relay" ]] && clrScreen && nodemode="Relay"
@@ -880,9 +870,9 @@ while true; do
     fi
   fi
 
-  header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#running_node_version} + ${#running_node_rev} + ${#NETWORK_NAME} + 19 ))
+  header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#node_version} + ${#node_rev} + ${#NETWORK_NAME} + 19 ))
   [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
-  printf "%${header_padding}s > ${style_values_2}%s${NC} - ${style_info}(%s - %s)${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] < \n" "" "${NODE_NAME}" "${nodemode}" "${NETWORK_NAME}" "${running_node_version}" "${running_node_rev}" && ((line++))
+  printf "%${header_padding}s > ${style_values_2}%s${NC} - ${style_info}(%s - %s)${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] < \n" "" "${NODE_NAME}" "${nodemode}" "${NETWORK_NAME}" "${node_version}" "${node_rev}" && ((line++))
 
   ## main section ##
   printf "${tdivider}\n" && ((line++))
@@ -971,7 +961,7 @@ while true; do
     if [[ -n ${rttResultsSorted} ]]; then
       echo "${m3divider}" && ((line++))
 
-      printf "${VL}${style_info}   # %24s  RTT   Geolocation${NC}\n" "REMOTE PEER"
+      printf "${VL}${style_info}   # %24s  I/O RTT   Geolocation${NC}\n" "REMOTE PEER"
       header_line=$((line++))
 
       peerNbr=0
@@ -1004,11 +994,11 @@ while true; do
         else
           peerLocationFmt="Unknown location"
         fi
-          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s %19s:%-5s ${style_status_1}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s %19s:%-5s ${style_status_2}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s %19s:%-5s ${style_status_3}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s %19s:%-5s ${style_status_4}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
-        else printf "${VL} %3s %19s:%-5s %-5s ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
+          if [[ ${peerRTT} -lt 50    ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_1}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 100   ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_2}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 200   ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_3}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        elif [[ ${peerRTT} -lt 99999 ]]; then printf "${VL} %3s %19s:%-5s %-3s ${style_status_4}%-5s${NC} ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerPORT}" "${peerDIR}" "${peerRTT}" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"
+        else printf "${VL} %3s %19s:%-5s %-3s %-5s ${style_values_4}%s" "${peerNbr}" "${peerIP}" "${peerDIR}" "${peerPORT}" "---" "$(alignLeft ${peerLocationWidth} "${peerLocationFmt}")"; fi
         closeRow
         [[ ${peerNbr} -eq $((peerNbr_start+PEER_LIST_CNT-1)) ]] && break
       done
@@ -1428,6 +1418,65 @@ while true; do
       fi
     fi
   fi
+
+      # Mithril Signer Section
+      SERVICE_EXISTS=$(systemctl list-units --type=service --all | grep -q 'cnode-mithril-signer.service'; echo $?)
+      SIGNER_SERVICE_STATUS=$(systemctl status cnode-mithril-signer.service 2>/dev/null | grep 'Active:' | awk '{print $3}' | sed 's/[()]//g')
+      MITHRIL_SIGNER_METRICS=$(curl -s http://127.0.0.1:9090/metrics 2>/dev/null | grep -v -E "HELP|TYPE" | sed 's/mithril_signer_//g')
+
+      if [[ "$nodemode" = "Core" ]] && [[ "$SERVICE_EXISTS" -eq 0 ]] && [[ "$SIGNER_SERVICE_STATUS" == "running" ]]; then
+
+        printf "${mithrildivider}\n" && ((line++))
+
+        get_metric_value() {
+            local metric_name="$1"
+            echo "$MITHRIL_SIGNER_METRICS" | awk -v metric="$metric_name" '{for(i=1;i<=NF;i++){if($i==metric){print $(i+1)}}}'
+        }
+
+        metrics=(
+            "runtime_cycle_total_since_startup"
+            "signer_registration_success_last_epoch"
+            "signer_registration_success_since_startup"
+            "signer_registration_total_since_startup"
+            "signature_registration_success_last_epoch"
+            "signature_registration_success_since_startup"
+            "signature_registration_total_since_startup"
+        )
+
+        cycle_total_VAL=$(get_metric_value "runtime_cycle_total_since_startup")
+        signer_reg_epoch_VAL=$(get_metric_value "signer_registration_success_last_epoch")
+        signer_reg_success_VAL=$(get_metric_value "signer_registration_success_since_startup")
+        signer_reg_total_VAL=$(get_metric_value "signer_registration_total_since_startup")
+        signatures_epoch_VAL=$(get_metric_value "signature_registration_success_last_epoch")
+        signatures_reg_success_VAL=$(get_metric_value "signature_registration_success_since_startup")
+        signatures_reg_total_VAL=$(get_metric_value "signature_registration_total_since_startup")
+
+        if [[ ${VERBOSE} = "Y" ]]; then
+          printf "${VL} Status     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$SIGNER_SERVICE_STATUS"
+          printf "           : Registered Epoch     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_epoch_VAL"
+          closeRow
+          printf "${VL} Registered : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_success_VAL"
+          printf "           : Registered Total     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_total_VAL"
+          closeRow
+          printf "${VL} Cycles     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$cycle_total_VAL"
+          printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_epoch_VAL"
+          closeRow
+          printf "${VL} Signatures : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_reg_success_VAL"
+          printf "           : Total Signatures     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signatures_reg_total_VAL"
+          closeRow
+        else
+          printf "${VL} Status     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$SIGNER_SERVICE_STATUS"
+          printf "           : Registered Epoch     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_epoch_VAL"
+          closeRow
+          printf "${VL} Cycles     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$cycle_total_VAL"
+          printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_epoch_VAL"
+          closeRow
+          printf "${VL} Signatures : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_reg_success_VAL"
+          printf "           : Total Signatures     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signatures_reg_total_VAL"
+          closeRow
+        fi
+      fi
+
 
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clrScreen && continue
 
