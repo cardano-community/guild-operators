@@ -4,20 +4,20 @@
 in setting up and managing the:
 
 - [Mithril Client](https://mithril.network/doc/mithril/mithril-network/client) to
-  download a snapshot for the given network the node is attached to via the
-  [mithril-client.sh](../Scripts/mithril-client.md) script.
+download a snapshot for the given network the node is attached to via the
+[mithril-client.sh](../Scripts/mithril-client.md) script.
 - [Mithril Signer](https://mithril.network/doc/mithril/mithril-network/signer) to
-  participate in the creation of stake based singatures of snapshots via the
-  [mithril-signer.sh](../Scripts/mithril-signer.md) script.
+participate in the creation of stake based singatures of snapshots via the
+[mithril-signer.sh](../Scripts/mithril-signer.md) script.
 - Squid Mithril Relay to provide a relay for submitting the snapshots signatures to a
-  Mithril Aggregator, as described in [Run a Mithril signer as an
-  SPO](https://mithril.network/doc/manual/getting-started/run-signer-node) documentation
-  via the [mithril-relay.sh](../Scripts/mithril-relay.md) script.
+Mithril Aggregator, as described in [Run a Mithril signer as an
+SPO](https://mithril.network/doc/manual/getting-started/run-signer-node) documentation
+via the [mithril-relay.sh](../Scripts/mithril-relay.md) script.
 
 
 The `env` file contains a new environment variable `MITHRIL_DOWNLOAD` that when enabled
 allows the `cnode.sh` script to automatically download the latest Mithril snapshot if
-the local `db` directory is empty. This is useful for new nodes that need to be
+the local `db` directory is empty. This is useful for new nodes that need to be 
 bootstrapped with the latest snapshot to avoid synchronizing the entire blockchain
 from scratch. While also providing a high level of trust that the snapshot is valid
 since it is signed by multiple pool operators.
@@ -74,21 +74,21 @@ snapshots, or show details of a specific snapshot.
 To bootstrap a Cardano node using the Mithril client, follow these steps:
 
 1. **Setup the Cardano Node:** Use the guild tools to setup the Cardano node, either by
-   building the binaries or using pre-compiled binaries. Follow the instructions in the
-   [guild-operators documentation](https://cardano-community.github.io/guild-operators/Build/node-cli/).
+building the binaries or using pre-compiled binaries. Follow the instructions in the
+[guild-operators documentation](https://cardano-community.github.io/guild-operators/Build/node-cli/).
 
 2. **Create the Mithril environment file:** Run the script with the `environment setup`
-   command. This will create a new `mithril.env` file with all the necessary environment
-   variables for the Mithril client.
+command. This will create a new `mithril.env` file with all the necessary environment
+variables for the Mithril client.
 
    ```bash
    ./mithril-client.sh environment setup
    ```
 
 3. **Download the latest Mithril snapshot:** Once the environment file is set up, you
-   can download the latest Mithril snapshot by running the script with the `snapshot
-   download` command. This snapshot contains the latest state of the Cardano blockchain db
-   from a Mithril Aggregator.
+can download the latest Mithril snapshot by running the script with the `snapshot
+download` command. This snapshot contains the latest state of the Cardano blockchain db
+from a Mithril Aggregator.
 
    ```bash
    ./mithril-client.sh snapshot download
