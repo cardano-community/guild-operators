@@ -28,7 +28,7 @@
       ```
 
 !!! warning "Beware"
-    When upgrading node, depending on node versions (especially for major release) - you'd likely have to wait for node to revalidate/replay ledger. This can take a few hours. Please always plan ahead, do it first on a relay to ensure you've got "${CNODE_HOME}/db" folder ready to copy over (while source and target node have been shutdown) - prior to starting on upgrade on new machine. If mithril for target node version is ready, you can also use [mithril-client](../Scripts/mithril-client.md) to download snapshot instead of replaying, which may save you some time
+    When upgrading node, depending on node versions (especially for major release) - you'd likely have to wait for node to revalidate/replay ledger. This can take a few hours. Please always plan ahead, do it first on a relay to ensure you've got "${CNODE_HOME}/db" folder ready to copy over (while source and target node have been shutdown) - prior to starting on upgrade on new machine. If mithril for target node version is ready, you can also use [mithril-client](Scripts/mithril-client.md) to download snapshot instead of replaying, which may save you some time
 
 - Once guild-deploy script has been run, source your bashrc file again (or restart session), and ensure `"${HOME}"/.local/bin` is part of your $PATH environment variable. If your shell does not auto-run bashrc, you may want to set it a call to "${HOME}"/.bashrc in your `.profile`
 
