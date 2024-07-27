@@ -261,6 +261,7 @@ if [[ ${LEGACY_MODE} = "true" ]]; then
   propdivider=$(printf "${NC}|- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "|")
   resourcesdivider=$(printf "${NC}|- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "|")
   blockdivider=$(printf "${NC}|- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "|")
+  mithrildivider=$(printf "${NC}|- ${style_info}MITHRIL SIGNER${NC} " && printf "%0.s-" $(seq $((width-18))) && printf "|")
   blank_line=$(printf "${NC}|%$((width-1))s|" "")
 else
   VL=$(printf "${NC}\\u2502")
@@ -283,6 +284,7 @@ else
   propdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PROPAGATION${NC} " && printf "%0.s-" $(seq $((width-21))) && printf "\\u2502")
   resourcesdivider=$(printf "${NC}\\u2502- ${style_info}NODE RESOURCE USAGE${NC} " && printf "%0.s-" $(seq $((width-23))) && printf "\\u2502")
   blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "\\u2502")
+  mithrildivider=$(printf "${NC}\\u2502- ${style_info}MITHRIL SIGNER${NC} " && printf "%0.s-" $(seq $((width-18))) && printf "\\u2502")
   blank_line=$(printf "${NC}\\u2502%$((width-1))s\\u2502" "")
 fi
 
@@ -401,7 +403,7 @@ clrLine () {
 # Command    : clrScreen
 # Description: clear the screen, move to (0,0), and reset screen update counter
 clrScreen () {
-  clear
+  printf "\033[2J"
   screen_upd_cnt=0
 }
 
@@ -767,6 +769,21 @@ tcols=$(tput cols)   # set initial terminal columns
 printf "${NC}"       # reset and set default color
 
 unset cpu_now cpu_last
+
+####################################
+# Mithril Signer Section Variables #
+####################################
+
+# mithril.env sourcing needed to have values in ${METRICS_SERVER_IP} and ${METRICS_SERVER_PORT}
+. ${CNODE_HOME}/mithril/mithril.env
+
+serviceExists=$(systemctl list-units --type=service --all | grep -q ${CNODE_VNAME}-mithril-signer.service; echo $?)
+
+mithrilSignerVars() {
+signerServiceStatus=$(systemctl status ${CNODE_VNAME}-mithril-signer.service 2>/dev/null | grep 'Active:' | awk '{print $3}' | sed 's/[()]//g')
+metricsEnabled=$(grep -q "ENABLE_METRICS_SERVER=true" ${CNODE_HOME}/mithril/mithril.env && echo "true" || echo "false")
+mithrilSignerMetrics=$(curl -s "http://${METRICS_SERVER_IP}:${METRICS_SERVER_PORT}/metrics" 2>/dev/null | grep -v -E "HELP|TYPE" | sed 's/mithril_signer_//g')
+}
 
 #####################################
 # MAIN LOOP                         #
@@ -1428,6 +1445,70 @@ while true; do
       fi
     fi
   fi
+
+      # Mithril Signer Section
+      mithrilSignerVars
+
+      if [[ "$nodemode" = "Core" ]] && [[ "$serviceExists" -eq 0 ]] && [[ "$signerServiceStatus" == "running" ]] && [[ "$metricsEnabled" == "true" ]]; then
+
+        printf "${mithrildivider}\n" && ((line++))
+
+        get_metric_value() {
+            local metric_name="$1"
+            local metric_value
+            while IFS= read -r line; do
+                if [[ $line =~ $metric_name[[:space:]]+([0-9]+) ]]; then
+                    metric_value="${BASH_REMATCH[1]}"
+                    echo "$metric_value"
+                    return
+                fi
+            done <<< "$mithrilSignerMetrics"
+        }
+
+        metrics=(
+            "runtime_cycle_total_since_startup"
+            "signer_registration_success_last_epoch"
+            "signer_registration_success_since_startup"
+            "signer_registration_total_since_startup"
+            "signature_registration_success_last_epoch"
+            "signature_registration_success_since_startup"
+            "signature_registration_total_since_startup"
+        )
+
+        cycle_total_VAL=$(get_metric_value "runtime_cycle_total_since_startup")
+        signer_reg_epoch_VAL=$(get_metric_value "signer_registration_success_last_epoch")
+        signer_reg_success_VAL=$(get_metric_value "signer_registration_success_since_startup")
+        signer_reg_total_VAL=$(get_metric_value "signer_registration_total_since_startup")
+        signatures_epoch_VAL=$(get_metric_value "signature_registration_success_last_epoch")
+        signatures_reg_success_VAL=$(get_metric_value "signature_registration_success_since_startup")
+        signatures_reg_total_VAL=$(get_metric_value "signature_registration_total_since_startup")
+
+        if [[ ${VERBOSE} = "Y" ]]; then
+          printf "${VL} Status     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signerServiceStatus"
+          printf "           : Registered Epoch     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_epoch_VAL"
+          closeRow
+          printf "${VL} Cycles     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$cycle_total_VAL"
+          printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_epoch_VAL"
+          closeRow
+          printf "${VL} Signatures : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_reg_success_VAL"
+          printf "           : Total Signatures     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signatures_reg_total_VAL"
+          closeRow
+          printf "${VL} Registered : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_success_VAL"
+          printf "           : Registered Total     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_total_VAL"
+          closeRow
+        else
+          printf "${VL} Status     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signerServiceStatus"
+          printf "           : Registered Epoch     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_epoch_VAL"
+          closeRow
+          printf "${VL} Cycles     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$cycle_total_VAL"
+          printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_epoch_VAL"
+          closeRow
+          printf "${VL} Signatures : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_reg_success_VAL"
+          printf "           : Total Signatures     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signatures_reg_total_VAL"
+          closeRow
+        fi
+      fi
+
 
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clrScreen && continue
 
