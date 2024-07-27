@@ -873,19 +873,17 @@ function main {
                   else
                     getWalletRewards ${wallet_name}
                   fi
-                  if [[ ${reward_lovelace} -gt 0 ]]; then
+                  if [[ -n ${pool_delegation} ]]; then
                     getPriceString ${reward_lovelace}
                     println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
-                    if [[ -n ${pool_delegation} ]]; then
-                      unset poolName
-                      while IFS= read -r -d '' pool; do
-                        getPoolID "$(basename ${pool})"
-                        if [[ "${pool_id_bech32}" = "${pool_delegation}" ]]; then
-                          poolName=$(basename ${pool}) && break
-                        fi
-                      done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-                      println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${pool_delegation})${NC}"
-                    fi
+                    unset poolName
+                    while IFS= read -r -d '' pool; do
+                      getPoolID "$(basename ${pool})"
+                      if [[ "${pool_id_bech32}" = "${pool_delegation}" ]]; then
+                        poolName=$(basename ${pool}) && break
+                      fi
+                    done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+                    println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${pool_delegation})${NC}"
                   fi
                 fi
               done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
