@@ -1658,7 +1658,6 @@ getWalletRewards() {
     declare -gA rewards_available=(); declare -gA reward_status=(); declare -gA reward_pool=();
   fi
   if isWalletRegistered $1; then
-    reward_lovelace=0
     if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
       : # do nothing, variables populated through isWalletRegistered
     else
