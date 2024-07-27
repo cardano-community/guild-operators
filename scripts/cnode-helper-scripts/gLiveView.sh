@@ -403,7 +403,7 @@ clrLine () {
 # Command    : clrScreen
 # Description: clear the screen, move to (0,0), and reset screen update counter
 clrScreen () {
-  printf "\033[2J"
+  clear
   screen_upd_cnt=0
 }
 
