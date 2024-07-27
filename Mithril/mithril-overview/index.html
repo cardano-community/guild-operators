@@ -1298,13 +1298,13 @@ Create<span class="w"> </span>the<span class="w"> </span>appropriate<span class=
 <p><strong>Deploy the Mithril Signer:</strong> Run the <code>mithril-signer.sh</code> script:</p>
 </li>
 <li>
-<p>Use the <code>-u</code> flag to update the <code>mithril.env</code> file with the Mithril
+<p>Use the <code>-e</code> flag to update the <code>mithril.env</code> file with the Mithril
       Signer environment variables.</p>
 </li>
 <li>Provide the IP address of your Mithril Relay when prompted.</li>
 <li>
 <p>Optionally provide the relays listening port when prompted to use a port.</p>
-<div class="highlight"><pre><span></span><code><span class="w">  </span>./mithril-signer.sh<span class="w"> </span>-u
+<div class="highlight"><pre><span></span><code><span class="w">  </span>./mithril-signer.sh<span class="w"> </span>-e
 <span class="w">  </span>Enter<span class="w"> </span>the<span class="w"> </span>IP<span class="w"> </span>address<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>relay<span class="w"> </span>endpoint:<span class="w"> </span><span class="m">4</span>.5.6.7
 <span class="w">  </span>Enter<span class="w"> </span>the<span class="w"> </span>port<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>relay<span class="w"> </span>endpoint<span class="w"> </span><span class="o">(</span>press<span class="w"> </span>Enter<span class="w"> </span>to<span class="w"> </span>use<span class="w"> </span>default<span class="w"> </span><span class="m">3132</span><span class="o">)</span>:
 <span class="w">  </span>Using<span class="w"> </span><span class="nv">RELAY_ENDPOINT</span><span class="o">=</span><span class="m">4</span>.5.6.7:3132<span class="w"> </span><span class="k">for</span><span class="w"> </span>the<span class="w"> </span>Mithril<span class="w"> </span>signer<span class="w"> </span>relay<span class="w"> </span>endpoint.
@@ -1331,16 +1331,16 @@ Create<span class="w"> </span>the<span class="w"> </span>appropriate<span class=
 <li>
 <p>Use the <code>-l</code> flag to deploy the Nginx Mithril Relay.</p>
 </li>
-<li>Provide the IP address of your Block Producer when prompted to secure
-      the Mithril Relay to only accept traffic from your Block Producer.</li>
+<li>Provide the IP address of your Mithril Relay(s) when prompted.</li>
+<li>Provide an IP address for your nginx loadbalancer (default 127.0.0.1)</li>
 <li>Optionally provide the relays listening port when prompted to use a port
       other than the default 3132, or just press enter to use the default.</li>
 <li>
 <p>Create the appropriate firewall rule to allow traffic from your Block
-      Producer to the Mithril Relay.</p>
-<div class="highlight"><pre><span></span><code>./mithril-relay.sh<span class="w"> </span>-d
+      Producer to the Mithril Relay(s).</p>
+<div class="highlight"><pre><span></span><code>./mithril-relay.sh<span class="w"> </span>-l
 
-nInstalling<span class="w"> </span>nginx<span class="w"> </span>load<span class="w"> </span>balancer
+Installing<span class="w"> </span>nginx<span class="w"> </span>load<span class="w"> </span>balancer
 Enter<span class="w"> </span>the<span class="w"> </span>IP<span class="w"> </span>address<span class="w"> </span>of<span class="w"> </span>a<span class="w"> </span>relay:<span class="w"> </span><span class="m">4</span>.5.6.7
 Are<span class="w"> </span>there<span class="w"> </span>more<span class="w"> </span>relays?<span class="w"> </span><span class="o">(</span>y/n<span class="o">)</span><span class="w"> </span>y
 Enter<span class="w"> </span>the<span class="w"> </span>IP<span class="w"> </span>address<span class="w"> </span>of<span class="w"> </span>a<span class="w"> </span>relay:<span class="w"> </span><span class="m">8</span>.9.10.11
@@ -1361,13 +1361,13 @@ Starting<span class="w"> </span>Mithril<span class="w"> </span>relay<span class=
 <p><strong>Deploy the Mithril Signer:</strong> Run the <code>mithril-signer.sh</code> script:</p>
 </li>
 <li>
-<p>Use the <code>-u</code> flag to update the <code>mithril.env</code> file with the Mithril
+<p>Use the <code>-e</code> flag to update the <code>mithril.env</code> file with the Mithril
       Signer environment variables.</p>
 </li>
-<li>Provide the IP address of your Mithril Relay when prompted.</li>
+<li>Provide the IP address of your nginx loadbalancer when prompted.</li>
 <li>
-<p>Optionally provide the relays listening port when prompted to use a port.</p>
-<div class="highlight"><pre><span></span><code><span class="w">    </span>./mithril-signer.sh<span class="w"> </span>-u
+<p>Optionally provide the loadbalancer listening port when prompted to use a port.</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span>./mithril-signer.sh<span class="w"> </span>-e
 <span class="w">    </span>Enter<span class="w"> </span>the<span class="w"> </span>IP<span class="w"> </span>address<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>relay<span class="w"> </span>endpoint:<span class="w"> </span><span class="m">127</span>.0.0.1
 <span class="w">    </span>Enter<span class="w"> </span>the<span class="w"> </span>port<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>relay<span class="w"> </span>endpoint<span class="w"> </span><span class="o">(</span>press<span class="w"> </span>Enter<span class="w"> </span>to<span class="w"> </span>use<span class="w"> </span>default<span class="w"> </span><span class="m">3132</span><span class="o">)</span>:
 <span class="w">    </span>Using<span class="w"> </span><span class="nv">RELAY_ENDPOINT</span><span class="o">=</span><span class="m">127</span>.0.0.1:3132<span class="w"> </span><span class="k">for</span><span class="w"> </span>the<span class="w"> </span>Mithril<span class="w"> </span>signer<span class="w"> </span>relay<span class="w"> </span>endpoint.
