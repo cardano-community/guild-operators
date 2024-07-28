@@ -4419,7 +4419,7 @@ function main {
                     echo
                     if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
                     echo
-                    if [[ -z ${is_update} ]]; then
+                    if [[ ${is_update} = N ]]; then
                       println "${FG_GREEN}${drep_wallet_name}${NC} successfully registered as DRep on chain!"
                       println "DRep deposit : ${FG_LBLUE}$(formatLovelace ${DREP_DEPOSIT})${NC} ADA (returned when retired)"
                       println DEBUG "\n${FG_YELLOW}NOTE:${NC} A DRep registration does not automatically delegate own wallet stake power to self!"
