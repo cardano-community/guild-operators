@@ -126,7 +126,7 @@ get_relay_endpoint() {
   read -r -p "Enter the IP address of the relay endpoint: " RELAY_ENDPOINT_IP
   read -r -p "Enter the port of the relay endpoint (press Enter to use default 3132): " RELAY_PORT
   RELAY_PORT=${RELAY_PORT:-3132}
-  echo "Using RELAY_ENDPOINT=${RELAY_ENDPOINT_IP}:${RELAY_PORT} for the Mithril signer relay endpoint."
+  echo "Using RELAY_ENDPOINT=http://${RELAY_ENDPOINT_IP}:${RELAY_PORT} for the Mithril signer relay endpoint."
 }
 
 get_metrics_endpoint() {
