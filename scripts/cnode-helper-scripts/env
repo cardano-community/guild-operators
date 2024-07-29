@@ -110,6 +110,7 @@
 #CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json" # URL for polls to vote against
 
 #MITHRIL_DOWNLOAD="N"                                   # (Y|N) Download latest Mithril snapshot
+#MITHRIL_SIGNER_ENABLED="N"                             # (Y|N) Enable the gLiveView Mithril Signer Section
 
 #STRICT_VERSION_CHECK="Y"                               # (Y|N) Restrict operation to supported major.minor version leaving patch version open. If disabled, any version will be accepted (unsupported)
 
