@@ -1461,7 +1461,7 @@ while true; do
       # Mithril Signer Section
       mithrilSignerVars
 
-      if [[ "$nodemode" = "Core" ]] && [[ "$serviceExists" -eq 0 ]] && [[ "$signerServiceStatus" == "running" ]] && [[ "$metricsEnabled" == "true" ]]; then
+      if [[ "${MITHRIL_SIGNER_ENABLED}" == "Y" ]] ; then
 
         printf "${mithrildivider}\n" && ((line++))
 
