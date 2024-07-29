@@ -1469,7 +1469,7 @@ while true; do
             local metric_name="$1"
             local metric_value
             while IFS= read -r line; do
-                if [[ $line =~ $metric_name[[:space:]]+([0-9]+) ]]; then
+                if [[ $line =~ ${metric_name}[[:space:]]+([0-9]+) ]]; then
                     metric_value="${BASH_REMATCH[1]}"
                     echo "$metric_value"
                     return
