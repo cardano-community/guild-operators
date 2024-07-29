@@ -774,9 +774,6 @@ unset cpu_now cpu_last
 # Mithril Signer Section Variables #
 ####################################
 
-# mithril.env sourcing needed to have values in ${METRICS_SERVER_IP} and ${METRICS_SERVER_PORT}
-. ${CNODE_HOME}/mithril/mithril.env
-
 mithrilSignerVars() {
   # Require MITHRIL_SIGNER_ENABLED or do not proceed to source files or check ports.
   if [[ "${MITHRIL_SIGNER_ENABLED}" == "Y" ]] ; then
