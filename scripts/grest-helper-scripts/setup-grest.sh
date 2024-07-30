@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=v1.2.0a
+SGVERSION=1.2.0a
 
 ######## Functions ########
   usage() {
