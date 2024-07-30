@@ -60,7 +60,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.30.1
+GLV_VERSION=v1.30.2
 
 PARENT="$(dirname $0)"
 
@@ -717,6 +717,8 @@ checkPeers() {
 }
 
 checkNodeVersion() {
+  [[ ${running_node_version} = '?' ]] && return # ignore check if unable to fetch version from running node
+
   version=$("${CNODEBIN}" version)
   node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
   node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
