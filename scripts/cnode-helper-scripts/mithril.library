@@ -83,8 +83,11 @@ set_defaults() {
       mainnet|preprod|guild)
       RELEASE="release"
       ;;
-      preview|sanchonet)
+      preview)
       RELEASE="pre-release"
+      ;;
+      sanchonet)
+      RELEASE="testing"
       ;;
       *)
       echo "ERROR: The NETWORK_NAME must be set to mainnet, preprod, preview, or sanchonet before $(basename "${0::-3}") can be deployed!!"
