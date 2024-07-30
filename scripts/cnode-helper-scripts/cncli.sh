@@ -127,11 +127,18 @@ getLedgerData() { # getNodeMetrics expected to have been already run
 }
 
 getConsensus() {
-  getProtocolParams
+  if [[ -n ${subarg} ]] && [[ ${subarg} != "all" ]]; then
+    getProtocolParamsHist "${subarg}"
+  elif [[ ${subarg} == "all" ]]; then
+    getProtocolParamsHist "${EPOCH}"
+  else
+    getProtocolParams
+  fi
+
   if versionCheck "10.0" "${PROT_VERSION}"; then
     consensus="cpraos"
     stability_window_factor=3
-  elif versionCheck "8.0" "${PROT_VERSION}"; then
+  elif versionCheck "7.0" "${PROT_VERSION}"; then
     consensus="praos"
     stability_window_factor=2
   else
