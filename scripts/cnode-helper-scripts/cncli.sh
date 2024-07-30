@@ -798,9 +798,208 @@ cncliPTsendslots() {
 }
 
 #################################
+# epochdata table load process  #
+#################################
+
+getCurrNextEpoch() {
+  getNodeMetrics
+  curr_epoch=${epochnum}
+  next_epoch=$((curr_epoch+1))
+}
+
+runCurrentEpoch() {
+  getKoiosData
+  echo "Processing current epoch: ${EPOCH}"
+  stake_param_curr="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"
+
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${EPOCH}" --ledger-set current ${stake_param_curr} |
+  jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
+  sed 's/"//g' >> "$tmpcsv"
+}
+
+runNextEpoch() {
+  getKoiosData
+  echo "Processing next epoch: ${EPOCH}"
+  stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
+
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --ledger-set next ${stake_param_next} |
+  jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
+  sed 's/"//g' >> "$tmpcsv"
+}
+
+runPreviousEpochs() {
+  [[ -z ${KOIOS_API} ]] && return 1
+
+  if ! pool_hist=$(curl -sSL -f "${KOIOS_API}/pool_history?_pool_bech32=${POOL_ID_BECH32}&_epoch_no=${EPOCH}" 2>&1); then
+    echo "ERROR: Koios pool_stake_snapshot history query failed."
+    return 1
+  fi
+
+  if ! epoch_hist=$(curl -sSL -f "${KOIOS_API}/epoch_info?_epoch_no=${EPOCH}" 2>&1); then
+    echo "ERROR: Koios epoch_stake_snapshot history query failed."
+    return 1
+  fi
+
+  pool_stake_hist=$(jq -r '.[].active_stake' <<< "${pool_hist}")
+  active_stake_hist=$(jq -r '.[].active_stake' <<< "${epoch_hist}")
+
+  echo "Processing previous epoch: ${EPOCH}"
+  stake_param_prev="--active-stake ${active_stake_hist} --pool-stake ${pool_stake_hist}"
+
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${EPOCH}" --ledger-set prev ${stake_param_prev} |
+  jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
+  sed 's/"//g' >> "$tmpcsv"
+
+  return 0
+
+}
+
+runLeaderlog() {
+ for EPOCH in "${epochs_array[@]}"; do
+   subarg="${EPOCH}"
+   getConsensus "${EPOCH}"
+     if [[ "$EPOCH" == "$curr_epoch" ]]; then
+         runCurrentEpoch
+     elif [[ "$EPOCH" == "${epochs_array[-1]}" && "$EPOCH" == "$next_epoch" ]]; then
+         runNextEpoch
+     else
+         runPreviousEpochs
+     fi
+ done
+}
+
+processAllEpochs() {
+  getCurrNextEpoch
+  IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
+
+  for EPOCH in "${epochs_array[@]}"; do
+    subarg="${EPOCH}"
+    getConsensus "${EPOCH}"
+    if [[ "$EPOCH" == "$curr_epoch" ]]; then
+      runCurrentEpoch
+    elif [[ "$EPOCH" == "$next_epoch" ]]; then
+      runNextEpoch
+    else
+      runPreviousEpochs
+    fi
+  done
+
+  id=1
+  while IFS= read -r row; do
+    echo "$id,$row" >> "$csvfile"
+    ((id++))
+  done < "$tmpcsv"
+
+  sqlite3 "$BLOCKLOG_DB" <<EOF
+DELETE FROM epochdata;
+VACUUM;
+.mode csv
+.import '$csvfile' epochdata
+REINDEX epochdata;
+EOF
+
+  row_count=$(sqlite3 "$BLOCKLOG_DB" "SELECT COUNT(*) FROM epochdata;")
+  echo "$row_count rows have been loaded into epochdata table in blocklog db"
+  echo "~ CNCLI epochdata table load completed ~"
+
+  rm $csvfile $tmpcsv
+}
+
+processSingleEpoch() {
+ if [[ -n ${subarg} ]]; then
+   getCurrNextEpoch
+   IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
+
+   local EPOCH=${subarg}
+   if [[ ! " ${epochs_array[@]} " =~ " ${EPOCH} " ]]; then
+     echo "No slots found in blocklog table for epoch ${EPOCH}."
+     echo
+     exit 1
+   fi
+
+   getConsensus "${EPOCH}"
+   if [[ "$EPOCH" == "$curr_epoch" ]]; then
+     runCurrentEpoch
+   elif [[ "$EPOCH" == "$next_epoch" ]]; then
+     runNextEpoch
+   else
+     runPreviousEpochs
+   fi
+
+   ID=$(sqlite3 "$BLOCKLOG_DB" "SELECT max(id) + 1 FROM epochdata;")
+   csv_row=$(cat "$tmpcsv")
+   modified_csv_row="${ID},${csv_row}"
+   echo "$modified_csv_row" > "$onerow_csv"
+
+   sqlite3 "$BLOCKLOG_DB" "DELETE FROM epochdata WHERE epoch = ${EPOCH};"
+   sqlite3 "$BLOCKLOG_DB" <<EOF
+.mode csv
+.import "$onerow_csv" epochdata
+EOF
+   row_count=$(sqlite3 "$BLOCKLOG_DB" "SELECT COUNT(*) FROM epochdata WHERE epoch = ${EPOCH};")
+   echo "$row_count row has been loaded into epochdata table in blocklog db for epoch ${EPOCH}"
+   echo "~ CNCLI epochdata table load completed ~"
+   echo
+
+   rm $onerow_csv $tmpcsv
+ else
+   echo "No data found in $tmpcsv."
+   exit 1
+ fi
+}
+
+cncliEpochData() {
+  cncliInit
+  cncliParams="--db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
+  EPOCHS=$(sqlite3 "$BLOCKLOG_DB" "SELECT replace(group_concat(DISTINCT epoch ORDER BY epoch ASC), ',', ' ') AS EPOCHS FROM blocklog;")
+  csvdir=/tmp
+  tmpcsv="${csvdir}/epochdata_tmp.csv"
+  csvfile="${csvdir}/epochdata.csv"
+  onerow_csv="${csvdir}/one_epochdata.csv"
+  > "$tmpcsv"
+  > "$csvfile"
+  > "$onerow_csv"
+
+  proc_msg="~ CNCLI epochdata table load started ~"
+
+  getNodeMetrics
+
+  if ! cncliDBinSync; then
+    echo ${proc_msg}
+    echo "CNCLI DB out of sync :( [$(printf "%2.4f %%" ${cncli_sync_prog})] ... check cncli sync service!"
+    exit 1
+  else
+    echo ${proc_msg}
+    local epochSlot=${slot_in_epoch}
+    local waitFromEpochstart=21600 # if within 6 hours of new epoch don't run epochdata
+
+    if [[ $epochSlot -ge 0 && $epochSlot -le $waitFromEpochstart ]]; then
+      getCurrNextEpoch
+      echo "First six hours of new epoch "$curr_epoch" detected, too early to run this process."
+      echo "Current epochSlot is ${epochSlot}, please try againg after epochSlot 21600"
+      echo
+    else
+      if [[ "${subcommand}" == "epochdata" ]]; then
+          if [[ ${subarg} == "all" ]]; then
+             processAllEpochs
+        elif isNumber "${subarg}"; then
+             EPOCH=${subarg}
+             processSingleEpoch ${EPOCH}
+      else
+          echo
+          echo "ERROR: unknown argument passed to validate command, valid options incl the string 'all' or the epoch number to recalculate"
+          echo
+          exit 1
+        fi
+      fi
+    fi
+  fi
+}
+
+#################################
 
 case ${subcommand} in
-  sync ) 
+  sync )
     cncliInit && cncliSync ;;
   leaderlog )
     cncliInit && cncliLeaderlog ;;
@@ -814,5 +1013,8 @@ case ${subcommand} in
     cncliInit && cncliInitBlocklogDB ;;
   metrics )
     cncliMetrics ;; # no cncliInit needed
-  * ) usage ;;
+  epochdata )
+    cncliInit && cncliEpochData ;;
+  * )
+    usage ;;
 esac
