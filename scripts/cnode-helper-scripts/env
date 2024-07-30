@@ -950,6 +950,7 @@ set_default_vars() {
   [[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
   [[ -z ${CIP0094_POLL_URL} ]] && CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json"
   [[ -z ${MITHRIL_DOWNLOAD} ]] && MITHRIL_DOWNLOAD="N"
+  [[ -z ${MITHRIL_SIGNER_ENABLED} ]] && MITHRIL_SIGNER_ENABLED="N"
   [[ -z ${STRICT_VERSION_CHECK} ]] && STRICT_VERSION_CHECK="Y"
   FG_BLACK='\e[30m'
   FG_RED='\e[31m'
