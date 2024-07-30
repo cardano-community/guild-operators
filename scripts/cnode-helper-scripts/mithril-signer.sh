@@ -196,7 +196,6 @@ update_check "$@"
 # Set defaults and do basic sanity checks
 set_defaults
 
-
 #Deploy systemd if -d argument was specified
 if [[ "${UPDATE_ENVIRONMENT}" == "Y" ]]; then
   generate_environment_file
@@ -225,9 +224,20 @@ else
     # Run Mithril Signer Server
     echo "Starting Mithril Signer Server.."
     trap 'user_interrupt_received' INT
-    if ! "${MITHRILBIN}" -vv | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1 ; then
-      echo "Failed to start Mithril Signer Server" | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1
-      exit 1
+
+    if grep -q "ENABLE_METRICS_SERVER=true" ${CNODE_HOME}/mithril/mithril.env; then
+      METRICS_SERVER_PARAMS="--enable-metrics-server --metrics-server-ip ${METRICS_SERVER_IP} --metrics-server-port ${METRICS_SERVER_PORT}"
+      # If ENABLE_METRICS_SERVER is true, then an environment update will enable gLiveView automatically.
+      sudo sed -i 's/#MITHRIL_SIGNER_ENABLED="[YN]"/MITHRIL_SIGNER_ENABLED="Y"/' ${CNODE_HOME}/scripts/env
+      if ! "${MITHRILBIN}" ${METRICS_SERVER_PARAMS} -vv | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1 ; then
+        echo "Failed to start Mithril Signer Server with metrics enabled" | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1
+        exit 1
+      fi
+    else
+      if ! "${MITHRILBIN}" -vv | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1 ; then
+        echo "Failed to start Mithril Signer Server" | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1
+        exit 1
+      fi
     fi
   fi
 fi

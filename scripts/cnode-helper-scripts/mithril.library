@@ -129,7 +129,15 @@ get_relay_endpoint() {
   read -r -p "Enter the IP address of the relay endpoint: " RELAY_ENDPOINT_IP
   read -r -p "Enter the port of the relay endpoint (press Enter to use default 3132): " RELAY_PORT
   RELAY_PORT=${RELAY_PORT:-3132}
-  echo "Using RELAY_ENDPOINT=${RELAY_ENDPOINT_IP}:${RELAY_PORT} for the Mithril signer relay endpoint."
+  echo "Using RELAY_ENDPOINT=http://${RELAY_ENDPOINT_IP}:${RELAY_PORT} for the Mithril signer relay endpoint."
+}
+
+get_metrics_endpoint() {
+  read -r -p "Enter the IP address of the metrics endpoint (press Enter to use default 0.0.0.0): " METRICS_SERVER_IP
+  METRICS_SERVER_IP=${METRICS_SERVER_IP:-0.0.0.0}
+  read -r -p "Enter the port of the metrics endpoint (press Enter to use default 9090): " METRICS_SERVER_PORT
+  METRICS_SERVER_PORT=${METRICS_SERVER_PORT:-9090}
+  echo "Using ${METRICS_SERVER_IP}:${METRICS_SERVER_PORT} for the Mithril signer metrics endpoint."
 }
 
 update_mithril_environment_for_signer() {
@@ -142,6 +150,18 @@ update_mithril_environment_for_signer() {
   else
     echo "Using a naive Mithril configuration without a mithril relay."
   fi
+
+  # Inquire about metrics server
+  read -r -p "Do you want enable prometheus metrics to see mithril-signer information in gLiveView ? (y/n, press Enter to use default y): " ENABLE_MITHRIL_METRICS
+  ENABLE_MITHRIL_METRICS=${ENABLE_MITHRIL_METRICS:-y}
+  if [[ "${ENABLE_MITHRIL_METRICS}" == "y" ]]; then
+    get_metrics_endpoint
+  else
+    echo "Using Mithril configuration without prometheus metrics."
+  fi
+
+
+
   # Generate the full set of environment variables required by Mithril signer use case
   export ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.addr
   export ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.vkey
@@ -167,6 +187,13 @@ update_mithril_environment_for_signer() {
   if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
     sudo bash -c "echo RELAY_ENDPOINT=http://${RELAY_ENDPOINT_IP}:${RELAY_PORT} >> ${CNODE_HOME}/mithril/mithril.env"
   fi
+
+  if [[ "${ENABLE_MITHRIL_METRICS}" == "y" ]]; then
+    sudo bash -c "echo ENABLE_METRICS_SERVER=true >> ${CNODE_HOME}/mithril/mithril.env"
+    sudo bash -c "echo METRICS_SERVER_IP=${METRICS_SERVER_IP} >> ${CNODE_HOME}/mithril/mithril.env"
+    sudo bash -c "echo METRICS_SERVER_PORT=${METRICS_SERVER_PORT} >> ${CNODE_HOME}/mithril/mithril.env"
+  fi
+
 }
 
 update_mithril_environment_for_client() {
