@@ -94,8 +94,6 @@ deploy_systemd() {
 	WorkingDirectory=${CNODE_HOME}/scripts
 	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/dbsync.sh\"
 	KillSignal=SIGINT
-	StandardOutput=syslog
-	StandardError=syslog
 	SyslogIdentifier=${CNODE_VNAME}-dbsync
 	TimeoutStopSec=5
 	KillMode=mixed

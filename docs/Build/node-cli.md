@@ -247,7 +247,7 @@ sudo systemctl status cnode-submit-api.service
 ```
 
 !!! important
-    In case you see the node exit unsuccessfully upon checking status, please verify you've followed the transition process correctly as documented below, and that you do not have another instance of node already running. It would help to check your system logs (`/var/log/syslog` for debian-based and `/var/log/messages` for Red Hat/CentOS/Fedora systems, you can also check `journalctl -f -u <service>` to examine startup attempt for services) for any errors while starting node.
+    In case you see the node exit unsuccessfully upon checking status, please verify you've followed the transition process correctly as documented below, and that you do not have another instance of node already running. It would help to check your system logs, you can also check `journalctl -f -u cnode` to examine startup attempt for services, and scroll up until you see output for node startup attempt) for any errors while starting node.
 
 You can use [gLiveView](../Scripts/gliveview.md) to monitor your node that was started as a systemd service.
 
