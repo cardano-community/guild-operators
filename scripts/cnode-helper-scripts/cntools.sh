@@ -1120,7 +1120,7 @@ function main {
               [[ -z ${reward_addr} ]] && println "\n${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_STAKE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
 
               drep_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
-              if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]] && versionCheck "10.0" "${PROT_VERSION}"; then
+              if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]] && versionCheck "9.0" "${PROT_VERSION}"; then
                 println "DEBUG" "\nGovernance Vote Delegation Status"
                 unset walletName
                 if getWalletVoteDelegation ${wallet_name}; then
@@ -3850,7 +3850,7 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> INFO & STATUS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
@@ -3960,7 +3960,7 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> DELEGATE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "\n${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -4154,7 +4154,7 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> CAST VOTE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -4316,7 +4316,7 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> DREP REGISTRATION / UPDATE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "\n${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -4433,7 +4433,7 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> DREP RETIRE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "\n${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then

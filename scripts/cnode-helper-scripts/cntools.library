@@ -2224,7 +2224,7 @@ registerStakeWallet() {
     stake_param=("--stake-verification-key-file" "${stake_vk_file}")
   fi
 
-  if versionCheck "10.0" "${PROT_VERSION}"; then
+  if versionCheck "9.0" "${PROT_VERSION}"; then
     stake_param+=("--key-reg-deposit-amt" ${KEY_DEPOSIT})
   fi
 
@@ -2354,7 +2354,7 @@ deregisterStakeWallet() {
     stake_param=("--stake-verification-key-file" "${stake_vk_file}")
   fi
 
-  if versionCheck "10.0" "${PROT_VERSION}"; then
+  if versionCheck "9.0" "${PROT_VERSION}"; then
     stake_param+=("--key-reg-deposit-amt" ${stake_deposit})
   fi
 
