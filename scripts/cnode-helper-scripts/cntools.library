@@ -2660,7 +2660,7 @@ delegate() {
     )
   fi
 
-  tmpNewBalance=$(( base_lovelace ))
+  tmpNewBalance=${base_lovelace}
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -3058,7 +3058,7 @@ modifyPool() {
   
   getAssetsTxOut
  
-  tmpNewBalance=$(( base_lovelace )) 
+  tmpNewBalance=${base_lovelace}
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -3839,7 +3839,7 @@ voteDelegation() {
     )
   fi
 
-  tmpNewBalance=$(( base_lovelace ))
+  tmpNewBalance=${base_lovelace}
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -3955,7 +3955,7 @@ registerDRep() {
   if [[ ${is_update} = N ]]; then
     tmpNewBalance=$(( base_lovelace - DREP_DEPOSIT ))
   else
-     tmpNewBalance=$(( base_lovelace ))
+     tmpNewBalance=${base_lovelace}
   fi
 
   build_args=(
