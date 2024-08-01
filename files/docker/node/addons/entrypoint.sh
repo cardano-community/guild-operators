@@ -9,7 +9,10 @@ head -n 8 ~/.scripts/banner.txt
 # shellcheck disable=SC1090
 . ~/.bashrc > /dev/null 2>&1
 
-echo "NETWORK: $NETWORK $POOL_NAME $TOPOLOGY";
+[[ -z "${ENTRYPOINT_PROCESS}" ]] && export ENTRYPOINT_PROCESS=cnode.sh 
+
+echo "NETWORK: $NETWORK $POOL_NAME $TOPOLOGY"
+echo "ENTRYPOINT_PROCESS: $ENTRYPOINT_PROCESS"
 
 [[ -z "${CNODE_HOME}" ]] && export CNODE_HOME=/opt/cardano/cnode 
 [[ -z "${CNODE_PORT}" ]] && export CNODE_PORT=6000
@@ -61,4 +64,4 @@ else
 fi
 
 customise \
-&& exec "$CNODE_HOME"/scripts/cnode.sh
+&& exec "$CNODE_HOME/scripts/$ENTRYPOINT_PROCESS" "$@"
