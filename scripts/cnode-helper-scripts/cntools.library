@@ -3952,7 +3952,12 @@ registerDRep() {
     )
   fi
 
-  tmpNewBalance=$(( base_lovelace - DREP_DEPOSIT ))
+  if [[ ${is_update} = N ]]; then
+    tmpNewBalance=$(( base_lovelace - DREP_DEPOSIT ))
+  else
+     tmpNewBalance=$(( base_lovelace ))
+  fi
+
   build_args=(
     ${tx_in}
     --tx-out "${base_addr}+${tmpNewBalance}${assets_tx_out}"
