@@ -45,10 +45,13 @@ usage() {
 		  force     Manually force leaderlog calculation and overwrite even if already done, exits after leaderlog is calculated
 		validate    Continously monitor and confirm that the blocks made actually was accepted and adopted by chain (deployed as service)
 		  all       One-time re-validation of all blocks in blocklog db
-		  epoch     One-time re-validation of blocks in blocklog db for the specified epoch 
+		  epoch     One-time re-validation of blocks in blocklog db for the specified epoch
+		epochdata   Manually re-calculate leaderlog to load stakepool history into epochdata table of blocklog db. Needs completion of cncli.sh sync and cncli.sh validate processes.
+		  all       One-time re-calculation of all epochs (avg execution duration: 1hr / 50 epochs)
+		  epoch     One-time re-calculation for the specified epoch
 		ptsendtip   Send node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge (deployed as service)
 		ptsendslots Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (deployed as service)
-		  force     Manually force pooltool sendslots submission ignoring configured time window 
+		  force     Manually force pooltool sendslots submission ignoring configured time window
 		init        One-time initialization adding all minted and confirmed blocks to blocklog
 		metrics     Print cncli block metrics in Prometheus format
 		  deploy    Install dependencies and deploy cncli monitoring agent service (available through port specified by CNCLI_PROM_PORT)
@@ -127,12 +130,12 @@ getLedgerData() { # getNodeMetrics expected to have been already run
 }
 
 getConsensus() {
-  if [[ -n ${subarg} ]] && [[ ${subarg} != "all" ]]; then
-    getProtocolParamsHist "${subarg}"
+  if isNumber "$1" ; then
+    getProtocolParamsHist "$1" || return 1
   elif [[ ${subarg} == "all" ]]; then
-    getProtocolParamsHist "${EPOCH}"
+    getProtocolParamsHist "${EPOCH}" || return 1
   else
-    getProtocolParams
+    getProtocolParams || return 1
   fi
 
   if versionCheck "10.0" "${PROT_VERSION}"; then
@@ -811,25 +814,27 @@ cncliPTsendslots() {
 getCurrNextEpoch() {
   getNodeMetrics
   curr_epoch=${epochnum}
-  next_epoch=$((curr_epoch+1))
+  next_epoch=$((curr_epoch + 1))
 }
 
 runCurrentEpoch() {
   getKoiosData
-  echo "Processing current epoch: ${EPOCH}"
+  getCurrNextEpoch
+  echo "Processing current epoch: ${curr_epoch}"
   stake_param_curr="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${EPOCH}" --ledger-set current ${stake_param_curr} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${curr_epoch}" --ledger-set current ${stake_param_curr} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 }
 
 runNextEpoch() {
   getKoiosData
-  echo "Processing next epoch: ${EPOCH}"
+  getCurrNextEpoch
+  echo "Processing next epoch: ${next_epoch}"
   stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --ledger-set next ${stake_param_next} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${next_epoch}" --ledger-set next ${stake_param_next} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 }
@@ -837,12 +842,19 @@ runNextEpoch() {
 runPreviousEpochs() {
   [[ -z ${KOIOS_API} ]] && return 1
 
-  if ! pool_hist=$(curl -sSL -f "${KOIOS_API}/pool_history?_pool_bech32=${POOL_ID_BECH32}&_epoch_no=${EPOCH}" 2>&1); then
+  local one_or_many="${EPOCH}"
+  if [[ -n "$1" && "$1" != "all" ]]; then
+    one_or_many="$1"
+  elif [[ "${subarg}" != "all" && -n "${subarg}" ]]; then
+    one_or_many="${subarg}"
+  fi
+
+  if ! pool_hist=$(curl -sSL -f "${KOIOS_API}/pool_history?_pool_bech32=${POOL_ID_BECH32}&_epoch_no=${one_or_many}" 2>&1); then
     echo "ERROR: Koios pool_stake_snapshot history query failed."
     return 1
   fi
 
-  if ! epoch_hist=$(curl -sSL -f "${KOIOS_API}/epoch_info?_epoch_no=${EPOCH}" 2>&1); then
+  if ! epoch_hist=$(curl -sSL -f "${KOIOS_API}/epoch_info?_epoch_no=${one_or_many}" 2>&1); then
     echo "ERROR: Koios epoch_stake_snapshot history query failed."
     return 1
   fi
@@ -850,29 +862,14 @@ runPreviousEpochs() {
   pool_stake_hist=$(jq -r '.[].active_stake' <<< "${pool_hist}")
   active_stake_hist=$(jq -r '.[].active_stake' <<< "${epoch_hist}")
 
-  echo "Processing previous epoch: ${EPOCH}"
+  echo "Processing previous epoch: ${one_or_many}"
   stake_param_prev="--active-stake ${active_stake_hist} --pool-stake ${pool_stake_hist}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${EPOCH}" --ledger-set prev ${stake_param_prev} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${one_or_many}" --ledger-set prev ${stake_param_prev} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 
   return 0
-
-}
-
-runLeaderlog() {
- for EPOCH in "${epochs_array[@]}"; do
-   subarg="${EPOCH}"
-   getConsensus "${EPOCH}"
-     if [[ "$EPOCH" == "$curr_epoch" ]]; then
-         runCurrentEpoch
-     elif [[ "$EPOCH" == "${epochs_array[-1]}" && "$EPOCH" == "$next_epoch" ]]; then
-         runNextEpoch
-     else
-         runPreviousEpochs
-     fi
- done
 }
 
 processAllEpochs() {
@@ -880,15 +877,14 @@ processAllEpochs() {
   IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
 
   for EPOCH in "${epochs_array[@]}"; do
-    subarg="${EPOCH}"
-    getConsensus "${EPOCH}"
-    if [[ "$EPOCH" == "$curr_epoch" ]]; then
-      runCurrentEpoch
-    elif [[ "$EPOCH" == "$next_epoch" ]]; then
-      runNextEpoch
-    else
-      runPreviousEpochs
-    fi
+    if ! getConsensus "${EPOCH}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${EPOCH}.; return 1"; fi
+     if [[ "$EPOCH" == "$curr_epoch" ]]; then
+       runCurrentEpoch
+     elif [[ "$EPOCH" == "$next_epoch" ]]; then
+       runNextEpoch
+     else
+       runPreviousEpochs
+     fi
   done
 
   id=1
@@ -913,24 +909,24 @@ EOF
 }
 
 processSingleEpoch() {
- if [[ -n ${subarg} ]]; then
-   getCurrNextEpoch
-   IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
+ if isNumber "$1"; then
+     getCurrNextEpoch
+     IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
 
-   local EPOCH=${subarg}
-   if [[ ! " ${epochs_array[@]} " =~ " ${EPOCH} " ]]; then
+   if [[ ! " ${epochs_array[@]} " =~ "$1" ]]; then
      echo "No slots found in blocklog table for epoch ${EPOCH}."
      echo
      exit 1
    fi
 
-   getConsensus "${EPOCH}"
-   if [[ "$EPOCH" == "$curr_epoch" ]]; then
-     runCurrentEpoch
-   elif [[ "$EPOCH" == "$next_epoch" ]]; then
-     runNextEpoch
+   if ! getConsensus "${1}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${1}.; return 1"; fi
+
+   if [[ "$1" == "$curr_epoch" ]]; then
+      runCurrentEpoch
+   elif [[ "$1" == "$next_epoch" ]]; then
+      runNextEpoch
    else
-     runPreviousEpochs
+      runPreviousEpochs
    fi
 
    ID=$(sqlite3 "$BLOCKLOG_DB" "SELECT max(id) + 1 FROM epochdata;")
@@ -938,13 +934,14 @@ processSingleEpoch() {
    modified_csv_row="${ID},${csv_row}"
    echo "$modified_csv_row" > "$onerow_csv"
 
-   sqlite3 "$BLOCKLOG_DB" "DELETE FROM epochdata WHERE epoch = ${EPOCH};"
+   sqlite3 "$BLOCKLOG_DB" "DELETE FROM epochdata WHERE epoch = '$1';"
    sqlite3 "$BLOCKLOG_DB" <<EOF
 .mode csv
 .import "$onerow_csv" epochdata
+REINDEX epochdata;
 EOF
-   row_count=$(sqlite3 "$BLOCKLOG_DB" "SELECT COUNT(*) FROM epochdata WHERE epoch = ${EPOCH};")
-   echo "$row_count row has been loaded into epochdata table in blocklog db for epoch ${EPOCH}"
+   row_count=$(sqlite3 "$BLOCKLOG_DB" "SELECT COUNT(*) FROM epochdata WHERE epoch = '$1';")
+   echo "$row_count row has been loaded into epochdata table in blocklog db for epoch '$1'"
    echo "~ CNCLI epochdata table load completed ~"
    echo
 
@@ -986,12 +983,12 @@ cncliEpochData() {
       echo "Current epochSlot is ${epochSlot}, please try againg after epochSlot 21600"
       echo
     else
+
       if [[ "${subcommand}" == "epochdata" ]]; then
           if [[ ${subarg} == "all" ]]; then
              processAllEpochs
         elif isNumber "${subarg}"; then
-             EPOCH=${subarg}
-             processSingleEpoch ${EPOCH}
+             processSingleEpoch "${subarg}"
       else
           echo
           echo "ERROR: unknown argument passed to validate command, valid options incl the string 'all' or the epoch number to recalculate"
