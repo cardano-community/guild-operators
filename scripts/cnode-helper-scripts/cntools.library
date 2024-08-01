@@ -1662,6 +1662,7 @@ getWalletRewards() {
       : # do nothing, variables populated through isWalletRegistered
     else
       reward_lovelace=${rewards_available[${reward_addr}]:-0}
+      stake_deposit=${reward_stake_deposit[${reward_addr}]}
     fi
   fi
 }
@@ -1672,7 +1673,7 @@ getRewardInfoKoios() {
   # generate different arrays using reward address as key, rewards available, status and delegated pool if any
   # Its assumed that an array called reward_addr_list has been populated with all reward addresses to fetch data for
 
-  declare -gA rewards_available=(); declare -gA reward_status=(); declare -gA reward_pool=();
+  declare -gA rewards_available=(); declare -gA reward_status=(); declare -gA reward_pool=(); declare -gA reward_stake_deposit=();
 
   # set defaults
   for _reward_addr in "${reward_addr_list[@]}"; do
@@ -1683,14 +1684,15 @@ getRewardInfoKoios() {
 
   if [[ -n ${KOIOS_API} && -n ${reward_addr_list+x} ]]; then
     printf -v addr_list_joined '\"%s\",' "${reward_addr_list[@]}"
-    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_stake_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available"
-    ! account_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_stake_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${account_info_list}\n" && return 1 # print error and return
+    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_stake_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available,deposit"
+    ! account_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_stake_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available,deposit" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${account_info_list}\n" && return 1 # print error and return
     [[ -z ${account_info_list} ]] && return
-    while IFS=',' read -r stake_address status delegated_pool rewards_available; do
+    while IFS=',' read -r stake_address status delegated_pool rewards_available deposit; do
       [[ ${stake_address} = stake_address ]] && continue # header line
       reward_status["${stake_address}"]="${status}"
       rewards_available["${stake_address}"]="${rewards_available}"
       [[ -n ${delegated_pool} ]] && reward_pool["${stake_address}"]="${delegated_pool}"
+      reward_stake_deposit["${stake_address}"]="${deposit}"
     done <<< "${account_info_list}"
   fi
 }
