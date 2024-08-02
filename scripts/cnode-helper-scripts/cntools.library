@@ -4205,10 +4205,10 @@ governanceVote() {
   newBalance=$(( base_lovelace - min_fee ))
   println LOG "New balance after subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}))"
 
-  if [[ ${base_lovelace} -lt ${fee} ]]; then
+  if [[ ${base_lovelace} -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
-			"Minimum required: ${FG_LBLUE}$(formatLovelace ${fee})${NC} ADA"
+			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
 

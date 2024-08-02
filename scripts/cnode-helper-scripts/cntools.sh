@@ -4086,12 +4086,15 @@ function main {
                       println "${FG_YELLOW}No active proposals to vote on!${NC}"
                       waitToProceed && continue
                     fi
-                    getAnswerAnyCust page_entries "Enter number of actions to display per page (enter for 5)"
+                    if [[ ${action_cnt} -gt 5 ]]; then
+                      getAnswerAnyCust page_entries "${action_cnt} proposals found. Enter number of actions to display per page (enter for 5)"
+                    fi
                     page_entries=${page_entries:=5}
                     if ! isNumber ${page_entries} || [[ ${page_entries} -eq 0 ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid number"
                       waitToProceed && continue
                     fi
+                    curr_epoch=$(getEpoch)
                     page=1
                     pages=$(( (action_cnt + (page_entries - 1)) / page_entries ))
                     echo
@@ -4119,7 +4122,11 @@ function main {
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Action ID" "${action_id}"
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Type" "${action_type}"
                         printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${proposed_in}"
-                        printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
+                        if [[ ${expires_after} -lt ${curr_epoch} ]]; then
+                          printf "| %-13s : epoch ${FG_RED}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
+                        else
+                          printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
+                        fi
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url}"
                         printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#drep_yes}-4-${#drep_no}-9))s${NC} |\n" "DRep" "${drep_yes}" "${drep_no}" "${drep_abstain}"
                         printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#spo_yes}-4-${#spo_no}-9))s${NC} |\n" "SPO" "${spo_yes}" "${spo_no}" "${spo_abstain}"
