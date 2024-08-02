@@ -132,15 +132,9 @@ getLedgerData() { # getNodeMetrics expected to have been already run
 getConsensus() {
   if isNumber "$1" ; then
     if [[ "$1" == "$next_epoch" ]]; then
-      getProtocolParams || return 1
+       getProtocolParams || return 1
     else
-      getProtocolParamsHist "$1" || return 1
-    fi
-  elif [[ ${subarg} == "all" ]]; then
-    if [[ "$1" == "$next_epoch" ]]; then
-      getProtocolParams || return 1
-    else
-      getProtocolParamsHist "${EPOCH}" || return 1
+       getProtocolParamsHist "$1" || return 1
     fi
   else
     getProtocolParams || return 1
@@ -842,7 +836,7 @@ runNextEpoch() {
   echo "Processing next epoch: ${next_epoch}"
   stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${next_epoch}" --ledger-set next ${stake_param_next} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --ledger-set next ${stake_param_next} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 }
@@ -850,19 +844,12 @@ runNextEpoch() {
 runPreviousEpochs() {
   [[ -z ${KOIOS_API} ]] && return 1
 
-  local one_or_many="${EPOCH}"
-  if [[ -n "$1" && "$1" != "all" ]]; then
-    one_or_many="$1"
-  elif [[ "${subarg}" != "all" && -n "${subarg}" ]]; then
-    one_or_many="${subarg}"
-  fi
-
-  if ! pool_hist=$(curl -sSL -f "${KOIOS_API}/pool_history?_pool_bech32=${POOL_ID_BECH32}&_epoch_no=${one_or_many}" 2>&1); then
+  if ! pool_hist=$(curl -sSL -f "${KOIOS_API}/pool_history?_pool_bech32=${POOL_ID_BECH32}&_epoch_no=${epoch}" 2>&1); then
     echo "ERROR: Koios pool_stake_snapshot history query failed."
     return 1
   fi
 
-  if ! epoch_hist=$(curl -sSL -f "${KOIOS_API}/epoch_info?_epoch_no=${one_or_many}" 2>&1); then
+  if ! epoch_hist=$(curl -sSL -f "${KOIOS_API}/epoch_info?_epoch_no=${epoch}" 2>&1); then
     echo "ERROR: Koios epoch_stake_snapshot history query failed."
     return 1
   fi
@@ -870,10 +857,10 @@ runPreviousEpochs() {
   pool_stake_hist=$(jq -r '.[].active_stake' <<< "${pool_hist}")
   active_stake_hist=$(jq -r '.[].active_stake' <<< "${epoch_hist}")
 
-  echo "Processing previous epoch: ${one_or_many}"
+  echo "Processing previous epoch: ${epoch}"
   stake_param_prev="--active-stake ${active_stake_hist} --pool-stake ${pool_stake_hist}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${one_or_many}" --ledger-set prev ${stake_param_prev} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${epoch}" --ledger-set prev ${stake_param_prev} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 
@@ -884,15 +871,15 @@ processAllEpochs() {
   getCurrNextEpoch
   IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
 
-  for EPOCH in "${epochs_array[@]}"; do
-    if ! getConsensus "${EPOCH}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${EPOCH}.; return 1"; fi
-     if [[ "$EPOCH" == "$curr_epoch" ]]; then
-       runCurrentEpoch
-     elif [[ "$EPOCH" == "$next_epoch" ]]; then
-       runNextEpoch
-     else
-       runPreviousEpochs
-     fi
+  for epoch in "${epochs_array[@]}"; do
+    if ! getConsensus "${epoch}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${epoch}."; return 1; fi
+    if [[ "$epoch" == "$curr_epoch" ]]; then
+      runCurrentEpoch
+    elif [[ "$epoch" == "$next_epoch" ]]; then
+      runNextEpoch
+    else
+      runPreviousEpochs
+    fi
   done
 
   id=1
@@ -917,18 +904,17 @@ EOF
 }
 
 processSingleEpoch() {
- if isNumber "$1"; then
-     getCurrNextEpoch
-     IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
+   getCurrNextEpoch
+   IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
 
-   if [[ ! " ${epochs_array[@]} " =~ "$1" ]]; then
-     echo "No slots found in blocklog table for epoch ${EPOCH}."
-     echo
-     exit 1
+   unset matched
+   for epoch in "${epochs_array[@]}"; do
+     [[ ${epoch} = "$1" ]] && matched=true && break
+   done
+   if [[ -z ${matched} ]]; then
+     echo -e "No slots found in blocklog table for epoch ${EPOCH}.\n"; return 1
    fi
-
-   if ! getConsensus "${1}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${1}.; return 1"; fi
-
+   if ! getConsensus "${1}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${1}."; return 1; fi
    if [[ "$1" == "$curr_epoch" ]]; then
       runCurrentEpoch
    elif [[ "$1" == "$next_epoch" ]]; then
@@ -954,27 +940,16 @@ EOF
    echo
 
    rm $onerow_csv $tmpcsv
- else
-   echo "No data found in $tmpcsv."
-   exit 1
- fi
 }
 
 cncliEpochData() {
-  cncliInit
+  getNodeMetrics
   cncliParams="--db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
-  EPOCHS=$(sqlite3 "$BLOCKLOG_DB" "SELECT replace(group_concat(DISTINCT epoch ORDER BY epoch ASC), ',', ' ') AS EPOCHS FROM blocklog;")
-  csvdir=/tmp
-  tmpcsv="${csvdir}/epochdata_tmp.csv"
-  csvfile="${csvdir}/epochdata.csv"
-  onerow_csv="${csvdir}/one_epochdata.csv"
-  > "$tmpcsv"
-  > "$csvfile"
-  > "$onerow_csv"
+  EPOCHS=$(sqlite3 "$BLOCKLOG_DB" "SELECT group_concat(epoch, ' ') AS EPOCHS FROM (SELECT DISTINCT epoch FROM blocklog ORDER BY epoch ASC);")
+  csvdir=/tmp ; tmpcsv="${csvdir}/epochdata_tmp.csv" ; csvfile="${csvdir}/epochdata.csv" ; onerow_csv="${csvdir}/one_epochdata.csv"
+  > "$tmpcsv" ; > "$csvfile" ; > "$onerow_csv"
 
   proc_msg="~ CNCLI epochdata table load started ~"
-
-  getNodeMetrics
 
   if ! cncliDBinSync; then
     echo ${proc_msg}
@@ -982,10 +957,13 @@ cncliEpochData() {
     exit 1
   else
     echo ${proc_msg}
+    read_genesis
     local epochSlot=${slot_in_epoch}
+    local epochLength=${EPOCH_LENGTH}
+    local remainingSlots=$(( epochLength - epochSlot))
     local waitFromEpochstart=21600 # if within 6 hours of new epoch don't run epochdata
 
-    if [[ $epochSlot -ge 0 && $epochSlot -le $waitFromEpochstart ]]; then
+    if [[ $(( epochLength - remainingSlots)) -le $waitFromEpochstart ]]; then
       getCurrNextEpoch
       echo "First six hours of new epoch "$curr_epoch" detected, too early to run this process."
       echo "Current epochSlot is ${epochSlot}, please try againg after epochSlot 21600"
