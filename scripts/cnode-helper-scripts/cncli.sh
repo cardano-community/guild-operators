@@ -945,7 +945,7 @@ EOF
 cncliEpochData() {
   getNodeMetrics
   cncliParams="--db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
-  EPOCHS=$(sqlite3 "$BLOCKLOG_DB" "SELECT group_concat(epoch, ' ') AS EPOCHS FROM (SELECT DISTINCT epoch FROM blocklog ORDER BY epoch ASC);")
+  EPOCHS=$(sqlite3 "$BLOCKLOG_DB" "SELECT group_concat(epoch,' ') FROM (SELECT DISTINCT epoch FROM blocklog ORDER BY epoch);")
   csvdir=/tmp ; tmpcsv="${csvdir}/epochdata_tmp.csv" ; csvfile="${csvdir}/epochdata.csv" ; onerow_csv="${csvdir}/one_epochdata.csv"
   > "$tmpcsv" ; > "$csvfile" ; > "$onerow_csv"
 
