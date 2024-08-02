@@ -816,7 +816,7 @@ cncliPTsendslots() {
 getCurrNextEpoch() {
   getNodeMetrics
   curr_epoch=${epochnum}
-  next_epoch=$((curr_epoch + 1))
+  next_epoch=$((curr_epoch+1))
 }
 
 runCurrentEpoch() {
