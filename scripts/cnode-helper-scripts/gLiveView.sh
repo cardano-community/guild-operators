@@ -1452,64 +1452,64 @@ while true; do
         closeRow
       fi
     fi
-  fi
-
-  if [[ "${MITHRIL_SIGNER_ENABLED}" == "Y" ]] ; then
-    # Mithril Signer Section
-    mithrilSignerVars
-    printf "${mithrildivider}\n" && ((line++))
-    get_metric_value() {
-      local metric_name="$1"
-      local metric_value
-      while IFS= read -r line; do
-          if [[ $line =~ ${metric_name}[[:space:]]+([0-9]+) ]]; then
-              metric_value="${BASH_REMATCH[1]}"
-              echo "$metric_value"
-              return
-          fi
-      done <<< "$mithrilSignerMetrics"
-    }
-    metrics=(
-        "runtime_cycle_total_since_startup"
-        "signer_registration_success_last_epoch"
-        "signer_registration_success_since_startup"
-        "signer_registration_total_since_startup"
-        "signature_registration_success_last_epoch"
-        "signature_registration_success_since_startup"
-        "signature_registration_total_since_startup"
-    )
-    cycle_total_VAL=$(get_metric_value "runtime_cycle_total_since_startup")
-    signer_reg_epoch_VAL=$(get_metric_value "signer_registration_success_last_epoch")
-    signer_reg_success_VAL=$(get_metric_value "signer_registration_success_since_startup")
-    signer_reg_total_VAL=$(get_metric_value "signer_registration_total_since_startup")
-    signatures_epoch_VAL=$(get_metric_value "signature_registration_success_last_epoch")
-    signatures_reg_success_VAL=$(get_metric_value "signature_registration_success_since_startup")
-    signatures_reg_total_VAL=$(get_metric_value "signature_registration_total_since_startup")
-    if [[ ${VERBOSE} = "Y" ]]; then
-      printf "${VL} Status     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signerServiceStatus"
-      printf "           : Registered Epoch     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_epoch_VAL"
-      closeRow
-      printf "${VL} Cycles     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$cycle_total_VAL"
-      printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_epoch_VAL"
-      closeRow
-      printf "${VL} Signatures : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_reg_success_VAL"
-      printf "           : Total Signatures     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signatures_reg_total_VAL"
-      closeRow
-      printf "${VL} Registered : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_success_VAL"
-      printf "           : Registered Total     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_total_VAL"
-      closeRow
-    else
-      printf "${VL} Status     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signerServiceStatus"
-      printf "           : Registered Epoch     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_epoch_VAL"
-      closeRow
-      printf "${VL} Cycles     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$cycle_total_VAL"
-      printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_epoch_VAL"
-      closeRow
-      printf "${VL} Signatures : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_reg_success_VAL"
-      printf "           : Total Signatures     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signatures_reg_total_VAL"
-      closeRow
+    if [[ "${MITHRIL_SIGNER_ENABLED}" == "Y" ]]; then
+      # Mithril Signer Section
+      mithrilSignerVars
+      printf "${mithrildivider}\n" && ((line++))
+      get_metric_value() {
+        local metric_name="$1"
+        local metric_value
+        while IFS= read -r line; do
+            if [[ $line =~ ${metric_name}[[:space:]]+([0-9]+) ]]; then
+                metric_value="${BASH_REMATCH[1]}"
+                echo "$metric_value"
+                return
+            fi
+        done <<< "$mithrilSignerMetrics"
+      }
+      metrics=(
+          "runtime_cycle_total_since_startup"
+          "signer_registration_success_last_epoch"
+          "signer_registration_success_since_startup"
+          "signer_registration_total_since_startup"
+          "signature_registration_success_last_epoch"
+          "signature_registration_success_since_startup"
+          "signature_registration_total_since_startup"
+      )
+      cycle_total_VAL=$(get_metric_value "runtime_cycle_total_since_startup")
+      signer_reg_epoch_VAL=$(get_metric_value "signer_registration_success_last_epoch")
+      signer_reg_success_VAL=$(get_metric_value "signer_registration_success_since_startup")
+      signer_reg_total_VAL=$(get_metric_value "signer_registration_total_since_startup")
+      signatures_epoch_VAL=$(get_metric_value "signature_registration_success_last_epoch")
+      signatures_reg_success_VAL=$(get_metric_value "signature_registration_success_since_startup")
+      signatures_reg_total_VAL=$(get_metric_value "signature_registration_total_since_startup")
+      if [[ ${VERBOSE} = "Y" ]]; then
+        printf "${VL} Status     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signerServiceStatus"
+        printf "           : Registered Epoch     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_epoch_VAL"
+        closeRow
+        printf "${VL} Cycles     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$cycle_total_VAL"
+        printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_epoch_VAL"
+        closeRow
+        printf "${VL} Signatures : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_reg_success_VAL"
+        printf "           : Total Signatures     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signatures_reg_total_VAL"
+        closeRow
+        printf "${VL} Registered : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_success_VAL"
+        printf "           : Registered Total     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_total_VAL"
+        closeRow
+      else
+        printf "${VL} Status     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signerServiceStatus"
+        printf "           : Registered Epoch     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_epoch_VAL"
+        closeRow
+        printf "${VL} Cycles     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$cycle_total_VAL"
+        printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_epoch_VAL"
+        closeRow
+        printf "${VL} Signatures : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_reg_success_VAL"
+        printf "           : Total Signatures     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signatures_reg_total_VAL"
+        closeRow
+      fi
     fi
   fi
+
 
 
   [[ ${check_peers} = "true" ]] && check_peers=false && show_peers=true && clrScreen && continue
