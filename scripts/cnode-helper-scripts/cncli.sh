@@ -131,9 +131,17 @@ getLedgerData() { # getNodeMetrics expected to have been already run
 
 getConsensus() {
   if isNumber "$1" ; then
-    getProtocolParamsHist "$1" || return 1
+    if [[ "$1" == "$next_epoch" ]]; then
+      getProtocolParams || return 1
+    else
+      getProtocolParamsHist "$1" || return 1
+    fi
   elif [[ ${subarg} == "all" ]]; then
-    getProtocolParamsHist "${EPOCH}" || return 1
+    if [[ "$1" == "$next_epoch" ]]; then
+      getProtocolParams || return 1
+    else
+      getProtocolParamsHist "${EPOCH}" || return 1
+    fi
   else
     getProtocolParams || return 1
   fi
