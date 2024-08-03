@@ -817,22 +817,22 @@ getCurrNextEpoch() {
 
 runCurrentEpoch() {
   getKoiosData
-  getCurrNextEpoch
-  echo "Processing current epoch: ${curr_epoch}"
+  local epoch="$1"
+  echo "Processing current epoch: ${epoch}"
   stake_param_curr="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${curr_epoch}" --ledger-set current ${stake_param_curr} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${epoch}" ${stake_param_curr} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 }
 
 runNextEpoch() {
   getKoiosData
-  getCurrNextEpoch
-  echo "Processing next epoch: ${next_epoch}"
+  local epoch="$1"
+  echo "Processing next epoch: ${1}"
   stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --ledger-set next ${stake_param_next} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${epoch}" ${stake_param_next} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 }
@@ -856,7 +856,7 @@ runPreviousEpochs() {
   echo "Processing previous epoch: ${1}"
   stake_param_prev="--active-stake ${active_stake_hist} --pool-stake ${pool_stake_hist}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${1}" --ledger-set prev ${stake_param_prev} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${epoch}" ${stake_param_prev} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 
@@ -870,9 +870,9 @@ processAllEpochs() {
   for epoch in "${epochs_array[@]}"; do
     if ! getConsensus "${epoch}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${epoch}."; return 1; fi
     if [[ "$epoch" == "$curr_epoch" ]]; then
-      runCurrentEpoch
+      runCurrentEpoch ${epoch}
     elif [[ "$epoch" == "$next_epoch" ]]; then
-      runNextEpoch
+      runNextEpoch ${epoch}
     else
       runPreviousEpochs ${epoch}
     fi
@@ -912,9 +912,9 @@ processSingleEpoch() {
   fi
   if ! getConsensus "${1}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${1}."; return 1; fi
   if [[ "$1" == "$curr_epoch" ]]; then
-     runCurrentEpoch
+     runCurrentEpoch ${epoch}
   elif [[ "$1" == "$next_epoch" ]]; then
-     runNextEpoch
+     runNextEpoch ${epoch}
   else
      runPreviousEpochs ${epoch}
   fi
