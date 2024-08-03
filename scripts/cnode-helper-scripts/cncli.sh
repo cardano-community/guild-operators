@@ -131,13 +131,9 @@ getLedgerData() { # getNodeMetrics expected to have been already run
 
 getConsensus() {
   if isNumber "$1" ; then
-    if [[ "$1" == "$next_epoch" ]]; then
-       getProtocolParams || return 1
-    else
-       getProtocolParamsHist "$1" || return 1
-    fi
+     getProtocolParamsHist "$(( $1 - 1 ))" || return 1
   else
-    getProtocolParams || return 1
+     getProtocolParams || return 1
   fi
 
   if versionCheck "10.0" "${PROT_VERSION}"; then
@@ -843,24 +839,24 @@ runNextEpoch() {
 
 runPreviousEpochs() {
   [[ -z ${KOIOS_API} ]] && return 1
-
-  if ! pool_hist=$(curl -sSL -f "${KOIOS_API}/pool_history?_pool_bech32=${POOL_ID_BECH32}&_epoch_no=${epoch}" 2>&1); then
+  if ! pool_hist=$(curl -sSL -f "${KOIOS_API}/pool_history?_pool_bech32=${POOL_ID_BECH32}&_epoch_no=${1}" 2>&1); then
     echo "ERROR: Koios pool_stake_snapshot history query failed."
     return 1
   fi
 
-  if ! epoch_hist=$(curl -sSL -f "${KOIOS_API}/epoch_info?_epoch_no=${epoch}" 2>&1); then
+  if ! epoch_hist=$(curl -sSL -f "${KOIOS_API}/epoch_info?_epoch_no=${1}" 2>&1); then
     echo "ERROR: Koios epoch_stake_snapshot history query failed."
     return 1
   fi
 
+  local epoch="$1"
   pool_stake_hist=$(jq -r '.[].active_stake' <<< "${pool_hist}")
   active_stake_hist=$(jq -r '.[].active_stake' <<< "${epoch_hist}")
 
-  echo "Processing previous epoch: ${epoch}"
+  echo "Processing previous epoch: ${1}"
   stake_param_prev="--active-stake ${active_stake_hist} --pool-stake ${pool_stake_hist}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${epoch}" --ledger-set prev ${stake_param_prev} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${1}" --ledger-set prev ${stake_param_prev} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 
@@ -878,7 +874,7 @@ processAllEpochs() {
     elif [[ "$epoch" == "$next_epoch" ]]; then
       runNextEpoch
     else
-      runPreviousEpochs
+      runPreviousEpochs ${epoch}
     fi
   done
 
@@ -904,32 +900,32 @@ EOF
 }
 
 processSingleEpoch() {
-   getCurrNextEpoch
-   IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
+  getCurrNextEpoch
+  IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
 
-   unset matched
-   for epoch in "${epochs_array[@]}"; do
-     [[ ${epoch} = "$1" ]] && matched=true && break
-   done
-   if [[ -z ${matched} ]]; then
-     echo -e "No slots found in blocklog table for epoch ${EPOCH}.\n"; return 1
-   fi
-   if ! getConsensus "${1}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${1}."; return 1; fi
-   if [[ "$1" == "$curr_epoch" ]]; then
-      runCurrentEpoch
-   elif [[ "$1" == "$next_epoch" ]]; then
-      runNextEpoch
-   else
-      runPreviousEpochs
-   fi
+  unset matched
+  for epoch in "${epochs_array[@]}"; do
+    [[ ${epoch} = $1 ]] && matched=true && break
+  done
+  if [[ -z ${matched} ]]; then
+    echo -e "No slots found in blocklog table for epoch ${EPOCH}.\n"; return 1
+  fi
+  if ! getConsensus "${1}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${1}."; return 1; fi
+  if [[ "$1" == "$curr_epoch" ]]; then
+     runCurrentEpoch
+  elif [[ "$1" == "$next_epoch" ]]; then
+     runNextEpoch
+  else
+     runPreviousEpochs ${epoch}
+  fi
 
-   ID=$(sqlite3 "$BLOCKLOG_DB" "SELECT max(id) + 1 FROM epochdata;")
-   csv_row=$(cat "$tmpcsv")
-   modified_csv_row="${ID},${csv_row}"
-   echo "$modified_csv_row" > "$onerow_csv"
+  ID=$(sqlite3 "$BLOCKLOG_DB" "SELECT max(id) + 1 FROM epochdata;")
+  csv_row=$(cat "$tmpcsv")
+  modified_csv_row="${ID},${csv_row}"
+  echo "$modified_csv_row" > "$onerow_csv"
 
-   sqlite3 "$BLOCKLOG_DB" "DELETE FROM epochdata WHERE epoch = '$1';"
-   sqlite3 "$BLOCKLOG_DB" <<EOF
+  sqlite3 "$BLOCKLOG_DB" "DELETE FROM epochdata WHERE epoch = '$1';"
+  sqlite3 "$BLOCKLOG_DB" <<EOF
 .mode csv
 .import "$onerow_csv" epochdata
 REINDEX epochdata;

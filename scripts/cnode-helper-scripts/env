@@ -845,13 +845,11 @@ getProtocolParams() {
 }
 
 getProtocolParamsHist() {
-  local epoch="$1"
-
   if [[ -z ${KOIOS_API} ]]; then
     return 1
   fi
 
-  if ! PROT_PARAMS=$(curl -sSL -f -X GET -H "accept: application/json" "${KOIOS_API}/epoch_params?_epoch_no=${epoch}" 2>&1); then
+  if ! PROT_PARAMS=$(curl -sSL -f -X GET -H "accept: application/json" "${KOIOS_API}/epoch_params?_epoch_no=${1}" 2>&1); then
     return 2
   fi
 
