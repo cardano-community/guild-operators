@@ -817,22 +817,20 @@ getCurrNextEpoch() {
 
 runCurrentEpoch() {
   getKoiosData
-  local epoch="$1"
-  echo "Processing current epoch: ${epoch}"
+  echo "Processing current epoch: ${1}"
   stake_param_curr="--active-stake ${active_stake_set} --pool-stake ${pool_stake_set}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${epoch}" ${stake_param_curr} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${1}" ${stake_param_curr} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 }
 
 runNextEpoch() {
   getKoiosData
-  local epoch="$1"
   echo "Processing next epoch: ${1}"
   stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${epoch}" ${stake_param_next} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${1}" ${stake_param_next} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 }
@@ -849,14 +847,13 @@ runPreviousEpochs() {
     return 1
   fi
 
-  local epoch="$1"
   pool_stake_hist=$(jq -r '.[].active_stake' <<< "${pool_hist}")
   active_stake_hist=$(jq -r '.[].active_stake' <<< "${epoch_hist}")
 
   echo "Processing previous epoch: ${1}"
   stake_param_prev="--active-stake ${active_stake_hist} --pool-stake ${pool_stake_hist}"
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${epoch}" ${stake_param_prev} |
+  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${1}" ${stake_param_prev} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
   sed 's/"//g' >> "$tmpcsv"
 
@@ -868,13 +865,14 @@ processAllEpochs() {
   IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
 
   for epoch in "${epochs_array[@]}"; do
-    if ! getConsensus "${epoch}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${epoch}."; return 1; fi
-    if [[ "$epoch" == "$curr_epoch" ]]; then
-      runCurrentEpoch ${epoch}
-    elif [[ "$epoch" == "$next_epoch" ]]; then
-      runNextEpoch ${epoch}
+    set -- "$epoch"
+    if ! getConsensus "${1}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${1}."; return 1; fi
+    if [[ "$1" == "$curr_epoch" ]]; then
+      runCurrentEpoch ${1}
+    elif [[ "$1" == "$next_epoch" ]]; then
+      runNextEpoch ${1}
     else
-      runPreviousEpochs ${epoch}
+      runPreviousEpochs ${1}
     fi
   done
 
@@ -912,11 +910,11 @@ processSingleEpoch() {
   fi
   if ! getConsensus "${1}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${1}."; return 1; fi
   if [[ "$1" == "$curr_epoch" ]]; then
-     runCurrentEpoch ${epoch}
+     runCurrentEpoch ${1}
   elif [[ "$1" == "$next_epoch" ]]; then
-     runNextEpoch ${epoch}
+     runNextEpoch ${1}
   else
-     runPreviousEpochs ${epoch}
+     runPreviousEpochs ${1}
   fi
 
   ID=$(sqlite3 "$BLOCKLOG_DB" "SELECT max(id) + 1 FROM epochdata;")
@@ -924,14 +922,14 @@ processSingleEpoch() {
   modified_csv_row="${ID},${csv_row}"
   echo "$modified_csv_row" > "$onerow_csv"
 
-  sqlite3 "$BLOCKLOG_DB" "DELETE FROM epochdata WHERE epoch = '$1';"
+  sqlite3 "$BLOCKLOG_DB" "DELETE FROM epochdata WHERE epoch = ${1};"
   sqlite3 "$BLOCKLOG_DB" <<EOF
 .mode csv
 .import "$onerow_csv" epochdata
 REINDEX epochdata;
 EOF
-   row_count=$(sqlite3 "$BLOCKLOG_DB" "SELECT COUNT(*) FROM epochdata WHERE epoch = '$1';")
-   echo "$row_count row has been loaded into epochdata table in blocklog db for epoch '$1'"
+   row_count=$(sqlite3 "$BLOCKLOG_DB" "SELECT COUNT(*) FROM epochdata WHERE epoch = ${1};")
+   echo "$row_count row has been loaded into epochdata table in blocklog db for epoch ${1}"
    echo "~ CNCLI epochdata table load completed ~"
    echo
 
