@@ -905,10 +905,10 @@ processSingleEpoch() {
 
   unset matched
   for epoch in "${epochs_array[@]}"; do
-    [[ ${epoch} = $1 ]] && matched=true && break
+    [[ ${epoch} = "$1" ]] && matched=true && break
   done
   if [[ -z ${matched} ]]; then
-    echo -e "No slots found in blocklog table for epoch ${EPOCH}.\n"; return 1
+    echo -e "No slots found in blocklog table for epoch ${1}.\n"; return 1
   fi
   if ! getConsensus "${1}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${1}."; return 1; fi
   if [[ "$1" == "$curr_epoch" ]]; then
