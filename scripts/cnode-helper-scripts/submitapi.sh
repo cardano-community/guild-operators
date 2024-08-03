@@ -65,8 +65,6 @@ deploy_systemd() {
 	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/submitapi.sh\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
-	StandardOutput=syslog
-	StandardError=syslog
 	SyslogIdentifier=${CNODE_VNAME}-submit-api
 	TimeoutStopSec=5
 	KillMode=mixed

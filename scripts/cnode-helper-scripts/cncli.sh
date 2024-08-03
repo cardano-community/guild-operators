@@ -130,13 +130,12 @@ getLedgerData() { # getNodeMetrics expected to have been already run
 }
 
 getConsensus() {
-  if isNumber "$1" ; then
+  if isNumber "$1"; then
      getProtocolParamsHist "$(( $1 - 1 ))" || return 1
   else
      getProtocolParams || return 1
   fi
-
-  if versionCheck "10.0" "${PROT_VERSION}"; then
+  if versionCheck "9.0" "${PROT_VERSION}"; then
     consensus="cpraos"
     stability_window_factor=3
   elif versionCheck "7.0" "${PROT_VERSION}"; then
@@ -617,8 +616,6 @@ WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh metrics serve\"
 KillSignal=SIGINT
 SuccessExitStatus=143
-StandardOutput=syslog
-StandardError=syslog
 SyslogIdentifier=${CNODE_VNAME}_cncli_exporter
 TimeoutStopSec=5
 KillMode=mixed

@@ -476,8 +476,6 @@ SGVERSION=1.2.0a
 			LimitNOFILE=1048576
 			ExecStart=/home/authenticator/.local/bin/postgrest ${CNODE_HOME}/priv/grest.conf
 			ExecReload=/bin/kill -SIGUSR1 \\\$MAINPID
-			StandardOutput=syslog
-			StandardError=syslog
 			SyslogIdentifier=postgrest
 			
 			[Install]
@@ -520,8 +518,6 @@ SGVERSION=1.2.0a
 			ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/grest-exporter.sh\"
 			KillSignal=SIGINT
 			SuccessExitStatus=143
-			StandardOutput=syslog
-			StandardError=syslog
 			SyslogIdentifier=grest_exporter
 			TimeoutStopSec=5
 			KillMode=mixed

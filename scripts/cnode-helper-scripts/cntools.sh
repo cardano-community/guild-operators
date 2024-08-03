@@ -1120,7 +1120,7 @@ function main {
               [[ -z ${reward_addr} ]] && println "\n${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_STAKE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
 
               drep_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
-              if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]] && versionCheck "10.0" "${PROT_VERSION}"; then
+              if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]] && versionCheck "9.0" "${PROT_VERSION}"; then
                 println "DEBUG" "\nGovernance Vote Delegation Status"
                 unset walletName
                 if getWalletVoteDelegation ${wallet_name}; then
@@ -3850,7 +3850,7 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> INFO & STATUS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
@@ -3960,7 +3960,7 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> DELEGATE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "\n${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -4086,12 +4086,15 @@ function main {
                       println "${FG_YELLOW}No active proposals to vote on!${NC}"
                       waitToProceed && continue
                     fi
-                    getAnswerAnyCust page_entries "Enter number of actions to display per page (enter for 5)"
+                    if [[ ${action_cnt} -gt 5 ]]; then
+                      getAnswerAnyCust page_entries "${action_cnt} proposals found. Enter number of actions to display per page (enter for 5)"
+                    fi
                     page_entries=${page_entries:=5}
                     if ! isNumber ${page_entries} || [[ ${page_entries} -eq 0 ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid number"
                       waitToProceed && continue
                     fi
+                    curr_epoch=$(getEpoch)
                     page=1
                     pages=$(( (action_cnt + (page_entries - 1)) / page_entries ))
                     echo
@@ -4119,7 +4122,11 @@ function main {
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Action ID" "${action_id}"
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Type" "${action_type}"
                         printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${proposed_in}"
-                        printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
+                        if [[ ${expires_after} -lt ${curr_epoch} ]]; then
+                          printf "| %-13s : epoch ${FG_RED}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
+                        else
+                          printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
+                        fi
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url}"
                         printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#drep_yes}-4-${#drep_no}-9))s${NC} |\n" "DRep" "${drep_yes}" "${drep_no}" "${drep_abstain}"
                         printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#spo_yes}-4-${#spo_no}-9))s${NC} |\n" "SPO" "${spo_yes}" "${spo_no}" "${spo_abstain}"
@@ -4154,7 +4161,7 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> CAST VOTE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -4316,7 +4323,7 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> DREP REGISTRATION / UPDATE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "\n${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -4433,7 +4440,7 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> DREP RETIRE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    if ! versionCheck "10.0" "${PROT_VERSION}"; then
+                    if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "\n${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
                     if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then

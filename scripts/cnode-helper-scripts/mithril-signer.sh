@@ -68,8 +68,6 @@ deploy_systemd() {
 	ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/$(basename "${0::-3}") -vv\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
-	StandardOutput=syslog
-	StandardError=syslog
 	SyslogIdentifier=${CNODE_VNAME}-$(basename "${0::-3}")
 	TimeoutStopSec=5
 	KillMode=mixed

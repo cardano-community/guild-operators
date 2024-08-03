@@ -50,7 +50,7 @@ You can override the values in the script at the User Variables section shown be
 Services are controlled by `sudo systemctl <status|start|stop|restart> <service name>`  
 All services are configured as child services to `cnode.service` and as such, when an action is taken against this service it's replicated to all child services. E.g running `sudo systemctl start cnode.service` will also start all child services. 
 
-Log output is handled by syslog and end up in the systems standard syslog file, normally `/var/log/syslog`. `journalctl -f -u <service>` can be used to check service output (follow mode). Other logging configurations are not covered here. 
+Log output is handled by journald. `journalctl -f -u <service>` can be used to check service output (follow mode). Other logging configurations are not covered here. 
 
 Recommended workflow to get started with CNCLI blocklog.
 
