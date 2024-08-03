@@ -865,14 +865,13 @@ processAllEpochs() {
   IFS=' ' read -r -a epochs_array <<< "$EPOCHS"
 
   for epoch in "${epochs_array[@]}"; do
-    set -- "$epoch"
-    if ! getConsensus "${1}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${1}."; return 1; fi
-    if [[ "$1" == "$curr_epoch" ]]; then
-      runCurrentEpoch ${1}
-    elif [[ "$1" == "$next_epoch" ]]; then
-      runNextEpoch ${1}
+    if ! getConsensus "${epoch}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${epoch}."; return 1; fi
+    if [[ "$epoch" == "$curr_epoch" ]]; then
+      runCurrentEpoch ${epoch}
+    elif [[ "$epoch" == "$next_epoch" ]]; then
+      runNextEpoch ${epoch}
     else
-      runPreviousEpochs ${1}
+      runPreviousEpochs ${epoch}
     fi
   done
 
