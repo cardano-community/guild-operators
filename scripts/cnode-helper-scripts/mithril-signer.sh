@@ -80,7 +80,7 @@ deploy_systemd() {
 stop_signer() {
   CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}" 2>/dev/null) # env was only called in offline mode
   kill -2 ${CNODE_PID} 2>/dev/null
-  # touch clean "${CNODE_HOME}"/db/clean # Disabled as it's a bit hacky, but only runs when SIGINT is passed to node process. Should not be needed if node does it's job
+  # touch clean "${DB_DIRECTORY}"/clean # Disabled as it's a bit hacky, but only runs when SIGINT is passed to node process. Should not be needed if node does it's job
   echo "  Sending SIGINT to $(basename "${0::-3}") process.."
   sleep 5
   exit 0
