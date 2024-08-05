@@ -320,7 +320,7 @@ build_libsodium() {
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
   fi
   pushd "${HOME}"/git >/dev/null || err_exit
-  [[ ! -d "./libsodium" ]] && git clone https://github.com/intersectmbo/libsodium &>/dev/null
+  [[ ! -d "./libsodium" ]] && git clone https://github.com/intersectmbo/libsodium >/dev/null
   pushd libsodium >/dev/null || err_exit
   git fetch >/dev/null 2>&1
   [[ -z "${SODIUM_REF}" ]] && SODIUM_REF="dbb48cc"

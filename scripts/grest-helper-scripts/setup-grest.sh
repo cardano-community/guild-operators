@@ -295,6 +295,41 @@ SGVERSION=1.2.0a
     fi
   }
 
+  deploy_b32_ext() {
+    printf "\n[Re]Installing pg_bech32 extension.."
+    pushd ~/git >/dev/null || err_exit
+    if command -v apt-get >/dev/null; then
+      pkg_installer="apt-get"
+      pkg_list="build-essential make g++ autoconf autoconf-archive automake libtool pkg-config"
+    fi
+    if command -v dnf >/dev/null; then
+      pkg_installer="dnf"
+      pkg_list="make gcc gcc-c++ autoconf autoconf-archive automake libtool pkgconfig"
+    fi
+    sudo ${pkg_installer} -u install ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y install ${pkg_list}' failed!"
+    sudo ${pkg_installer} -u upgrade ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y upgrade ${pkg_list}' failed!"
+    [[ ! -d "libbech32" ]] && git clone https://github.com/whitslack/libbech32 >/dev/null
+    pushd libbech32 || err_exit
+    git pull >/dev/null || err_exit
+    mkdir -p build-aux/m4
+    curl -sf https://raw.githubusercontent.com/NixOS/patchelf/master/m4/ax_cxx_compile_stdcxx.m4 -o build-aux/m4/ax_cxx_compile_stdcx.m4
+    autoreconf -i
+    ./configure >/dev/null || err_exit "Configure failed for libbech32, please try to compile it manually!"
+    make clean >/dev/null
+    make > /dev/null
+    sudo make install >/dev/null
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+    export PKG_CONFIG_PATH=/usr/local/lib:$PKG_CONFIG_PATH
+    sudo ldconfig
+    pushd ~/git >/dev/null || err_exit
+    [[ ! -d "pg_bech32" ]] && git clone https://github.com/cardano-community/pg_bech32 >/dev/null
+    cd pg_bech32 || err_exit
+    git pull >/dev/null || err_exit
+    make  >/dev/null
+    sudo make install >/dev/null
+    psql -qtAX -d ${PGDATABASE} -c "DROP EXTENSION IF EXISTS pg_bech32;CREATE EXTENSION pg_bech32;" >/dev/null
+  }
+
   deploy_haproxy() {
     printf "\n[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
@@ -653,7 +688,7 @@ SGVERSION=1.2.0a
   [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
   [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs
   [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
-  [[ "${RESET_GREST}" == "Y" ]] && remove_all_grest_cron_jobs && reset_grest
+  [[ "${RESET_GREST}" == "Y" ]] && remove_all_grest_cron_jobs && reset_grest && deploy_b32_ext
   [[ "${DB_QRY_UPDATES}" == "Y" ]] && remove_all_grest_cron_jobs && setup_db_basics && deploy_query_updates && update_grest_version
   pushd -0 >/dev/null || err_exit
   dirs -c
