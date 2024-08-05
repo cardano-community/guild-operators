@@ -1112,7 +1112,7 @@
 <p>The script is best run as a background process. This can be accomplished in many ways but the preferred method is to run it as a systemd service. A terminal multiplexer like tmux or screen could also be used but not covered here.</p>
 <h4 id="run-as-service">Run as service<a class="headerlink" href="#run-as-service" title="Permanent link">⚓︎</a></h4>
 <p>Use the <code>deploy-as-systemd.sh</code> script to create a systemd unit file.
-In this setup the script is started in "service" mode. Error/Warn level log output is handled by syslog and end up in the systems standard syslog file, normally <code>/var/log/syslog</code>. <code>journalctl -f -u cnode-tu-blockperf.service</code> can be used to check service output (follow mode). </p>
+In this setup the script is started in "service" mode. Error/Warn level log output is handled by journald. <code>journalctl -f -u cnode-tu-blockperf.service</code> can be used to check service output (follow mode). </p>
 <p>Outside the cnTools environment call <code>blockPerf.sh -d</code> to install it as a systemd service. </p>
 <h4 id="console-view">Console view<a class="headerlink" href="#console-view" title="Permanent link">⚓︎</a></h4>
 <p>If you run blockPerf local in the console (<code>scripts/blockPerf.sh</code>) , immediately after the appearance of a new block it shows where it came from, how many slots away from the previous block it was, and how many milliseconds the individual steps took.</p>

@@ -1126,7 +1126,7 @@
 <h4 id="run">Run<a class="headerlink" href="#run" title="Permanent link">⚓︎</a></h4>
 <p>Services are controlled by <code>sudo systemctl &lt;status|start|stop|restart&gt; &lt;service name&gt;</code><br />
 All services are configured as child services to <code>cnode.service</code> and as such, when an action is taken against this service it's replicated to all child services. E.g running <code>sudo systemctl start cnode.service</code> will also start all child services. </p>
-<p>Log output is handled by syslog and end up in the systems standard syslog file, normally <code>/var/log/syslog</code>. <code>journalctl -f -u &lt;service&gt;</code> can be used to check service output (follow mode). Other logging configurations are not covered here. </p>
+<p>Log output is handled by journald. <code>journalctl -f -u &lt;service&gt;</code> can be used to check service output (follow mode). Other logging configurations are not covered here. </p>
 <p>Recommended workflow to get started with CNCLI blocklog.</p>
 <ol>
 <li>Install and deploy services according to <a href="#installation">Installation</a> section.</li>

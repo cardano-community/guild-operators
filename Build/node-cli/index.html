@@ -1389,7 +1389,7 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="
 </code></pre></div></p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p>In case you see the node exit unsuccessfully upon checking status, please verify you've followed the transition process correctly as documented below, and that you do not have another instance of node already running. It would help to check your system logs (<code>/var/log/syslog</code> for debian-based and <code>/var/log/messages</code> for Red Hat/CentOS/Fedora systems, you can also check <code>journalctl -f -u &lt;service&gt;</code> to examine startup attempt for services) for any errors while starting node.</p>
+<p>In case you see the node exit unsuccessfully upon checking status, please verify you've followed the transition process correctly as documented below, and that you do not have another instance of node already running. It would help to check your system logs, you can also check <code>journalctl -f -u cnode</code> to examine startup attempt for services, and scroll up until you see output for node startup attempt) for any errors while starting node.</p>
 </div>
 <p>You can use <a href="../../Scripts/gliveview/">gLiveView</a> to monitor your node that was started as a systemd service.</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="nv">$CNODE_HOME</span>/scripts

@@ -999,7 +999,7 @@
 <h5 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">⚓︎</a></h5>
 <p>The script is best run as a background process. This can be accomplished in many ways but the preferred method is to run it as a systemd service. A terminal multiplexer like tmux or screen could also be used but not covered here.</p>
 <p>Use the <code>deploy-as-systemd.sh</code> script to create a systemd unit file (deployed together with <a href="../cncli/">CNCLI</a>).
-Log output is handled by syslog and end up in the systems standard syslog file, normally <code>/var/log/syslog</code>. <code>journalctl -f -u cnode-logmonitor.service</code> can be used to check service output (follow mode). Other logging configurations are not covered here. </p>
+Log output is handled by journald. <code>journalctl -f -u cnode-logmonitor.service</code> can be used to check service output (follow mode). Other logging configurations are not covered here.  </p>
 <h5 id="view-blocklog">View Blocklog<a class="headerlink" href="#view-blocklog" title="Permanent link">⚓︎</a></h5>
 <p>Best viewed in CNTools or gLiveView. See <a href="../cncli/">CNCLI</a> for example output.</p>
 
