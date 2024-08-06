@@ -104,7 +104,7 @@ download_snapshot() {
   if [[ "${DOWNLOAD_SNAPSHOT}" == "Y" ]]; then
     echo "INFO: Downloading latest mithril snapshot.."
     trap 'cleanup_db_directory' INT
-    if ! "${MITHRILBIN}" -v --aggregator-endpoint ${AGGREGATOR_ENDPOINT} cardano-db download --download-dir ${CNODE_HOME} --genesis-verification-key ${GENESIS_VERIFICATION_KEY} ${SNAPSHOT_DIGEST} ; then
+    if ! "${MITHRILBIN}" -v --aggregator-endpoint ${AGGREGATOR_ENDPOINT} cardano-db download --download-dir $(dirname ${DB_DIRECTORY}) --genesis-verification-key ${GENESIS_VERIFICATION_KEY} ${SNAPSHOT_DIGEST} ; then
       cleanup_db_directory
       exit 1
     fi
