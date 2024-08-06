@@ -25,6 +25,7 @@
     },
     {
       "accessPoints": [
+        {"address": "208.118.69.126",                   "port": 3003, "pool": "PSB",    "location": "NA/CA/Edmonton" },
         {"address": "node-dus.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "EU/DE/Dusseldorf" },
         {"address": "node-syd.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "OC/AU/Sydney" },
         {"address": "194.36.145.157",                   "port": 6000, "pool": "RDLRT",  "location": "EU/DE/Baden" },
@@ -39,7 +40,7 @@
       "advertise": false,
       "trustable": false,
       "hotValency": 5,
-      "warmValency": 10
+      "warmValency": 11
     }
   ],
   "publicRoots": [
