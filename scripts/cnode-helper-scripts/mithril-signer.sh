@@ -64,7 +64,7 @@ deploy_systemd() {
 	Restart=always
 	RestartSec=60
 	User=${USER}
-	EnvironmentFile=${CNODE_HOME}/mithril/mithril.env
+	EnvironmentFile=${MITHRIL_HOME}/mithril.env
 	ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/$(basename "${0::-3}") -vv\"
 	KillSignal=SIGINT
 	SuccessExitStatus=143
@@ -239,9 +239,10 @@ else
     echo "Starting Mithril Signer Server.."
     trap 'user_interrupt_received' INT
 
-    if grep -q "ENABLE_METRICS_SERVER=true" ${CNODE_HOME}/mithril/mithril.env; then
+    if grep -q "ENABLE_METRICS_SERVER=true" ${MITHRIL_HOME}/mithril.env; then
       METRICS_SERVER_PARAMS="--enable-metrics-server --metrics-server-ip ${METRICS_SERVER_IP} --metrics-server-port ${METRICS_SERVER_PORT}"
       # If ENABLE_METRICS_SERVER is true, then an environment update will enable gLiveView automatically.
+      # shellcheck disable=SC2154
       sudo sed -i 's/#MITHRIL_SIGNER_ENABLED="[YN]"/MITHRIL_SIGNER_ENABLED="Y"/' ${CNODE_HOME}/scripts/env
       if ! "${MITHRILBIN}" ${METRICS_SERVER_PARAMS} -vv | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1 ; then
         echo "Failed to start Mithril Signer Server with metrics enabled" | tee -a "${LOG_DIR}/$(basename "${0::-3}")".log 2>&1

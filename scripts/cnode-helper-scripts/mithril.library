@@ -99,7 +99,7 @@ set_defaults() {
 }
 
 create_data_stores_directory() {
-	if [[ ! -d "${CNODE_HOME}/mithril/data-stores" ]]; then
+	if [[ ! -d "${MITHRIL_HOME}/data-stores" ]]; then
 		sudo mkdir -p "${CNODE_HOME}"/mithril/data-stores
 		sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}"/mithril 2>/dev/null
 	fi
@@ -111,7 +111,7 @@ set_env_file_ownership() {
 
 
 check_mithril_environment_file_exists() {
- local env_file="${CNODE_HOME}/mithril/mithril.env"
+ local env_file="${MITHRIL_HOME}/mithril.env"
 
   if [[ -f "$env_file" ]]; then
     if [[ "$UPDATE_ENVIRONMENT" != "Y" ]]; then
@@ -165,7 +165,7 @@ update_mithril_environment_for_signer() {
   # Generate the full set of environment variables required by Mithril signer use case
   export ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.addr
   export ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.vkey
-  sudo bash -c "cat <<-'EOF' > ${CNODE_HOME}/mithril/mithril.env
+  sudo bash -c "cat <<-'EOF' > ${MITHRIL_HOME}/mithril.env
 		KES_SECRET_KEY_PATH=${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}
 		OPERATIONAL_CERTIFICATE_PATH=${POOL_DIR}/${POOL_OPCERT_FILENAME}
 		NETWORK=${NETWORK_NAME,,}
@@ -175,7 +175,7 @@ update_mithril_environment_for_signer() {
 		DB_DIRECTORY=${DB_DIR}
 		CARDANO_NODE_SOCKET_PATH=${CARDANO_NODE_SOCKET_PATH}
 		CARDANO_CLI_PATH=${HOME}/.local/bin/cardano-cli
-		DATA_STORES_DIRECTORY=${CNODE_HOME}/mithril/data-stores
+		DATA_STORES_DIRECTORY=${MITHRIL_HOME}/data-stores
 		STORE_RETENTION_LIMITS=5
 		ERA_READER_ADAPTER_TYPE=cardano-chain
 		ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address "$(wget -q -O - "${ERA_READER_ADDRESS}")" --arg verification_key "$(wget -q -O - "${ERA_READER_VKEY}")" '{"address": $address, "verification_key": $verification_key}')
@@ -185,20 +185,20 @@ update_mithril_environment_for_signer() {
 		EOF"
 
   if [[ "${ENABLE_RELAY_ENDPOINT}" == "y" ]]; then
-    sudo bash -c "echo RELAY_ENDPOINT=http://${RELAY_ENDPOINT_IP}:${RELAY_PORT} >> ${CNODE_HOME}/mithril/mithril.env"
+    sudo bash -c "echo RELAY_ENDPOINT=http://${RELAY_ENDPOINT_IP}:${RELAY_PORT} >> ${MITHRIL_HOME}/mithril.env"
   fi
 
   if [[ "${ENABLE_MITHRIL_METRICS}" == "y" ]]; then
-    sudo bash -c "echo ENABLE_METRICS_SERVER=true >> ${CNODE_HOME}/mithril/mithril.env"
-    sudo bash -c "echo METRICS_SERVER_IP=${METRICS_SERVER_IP} >> ${CNODE_HOME}/mithril/mithril.env"
-    sudo bash -c "echo METRICS_SERVER_PORT=${METRICS_SERVER_PORT} >> ${CNODE_HOME}/mithril/mithril.env"
+    sudo bash -c "echo ENABLE_METRICS_SERVER=true >> ${MITHRIL_HOME}/mithril.env"
+    sudo bash -c "echo METRICS_SERVER_IP=${METRICS_SERVER_IP} >> ${MITHRIL_HOME}/mithril.env"
+    sudo bash -c "echo METRICS_SERVER_PORT=${METRICS_SERVER_PORT} >> ${MITHRIL_HOME}/mithril.env"
   fi
 
 }
 
 update_mithril_environment_for_client() {
   echo "Info: Setting minimal environment variables supporting only the Mithril client use case."
-  bash -c "cat <<-'EOF' > ${CNODE_HOME}/mithril/mithril.env
+  bash -c "cat <<-'EOF' > ${MITHRIL_HOME}/mithril.env
 		NETWORK=${NETWORK_NAME,,}
 		RELEASE=${RELEASE}
 		AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK_NAME,,}.api.mithril.network/aggregator

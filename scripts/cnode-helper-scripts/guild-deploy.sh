@@ -588,7 +588,7 @@ setup_folder() {
     echo -e "\nexport ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
   fi
   
-  $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/scripts/archive "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv "${CNODE_HOME}"/mithril/data-stores
+  $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/scripts/archive "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv "${MITHRIL_HOME}"/data-stores
   $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
   
 }

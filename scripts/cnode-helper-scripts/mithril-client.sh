@@ -53,7 +53,7 @@ SKIP_UPDATE=N
 environment_override() {
   local var_to_override="$1"
   local new_value="$2"
-  local env_file="${CNODE_HOME}/mithril/mithril.env"
+  local env_file="${MITHRIL_HOME}/mithril.env"
 
   # Check if the variable exists in the environment file
   if ! grep -q "^${var_to_override}=" "$env_file"; then
@@ -150,7 +150,7 @@ show_snapshot() {
 download_stake_distribution() {
   if [[ "${DOWNLOAD_STAKE_DISTRIBUTION}" == "Y" ]]; then
     echo "INFO: Downloading latest mithril stake distribution.."
-    "${MITHRILBIN}" -v --aggregator-endpoint ${AGGREGATOR_ENDPOINT} mithril-stake-distribution download --download-dir "${CNODE_HOME}/mithril/" ${STAKE_DISTRIBUTION_DIGEST}
+    "${MITHRILBIN}" -v --aggregator-endpoint ${AGGREGATOR_ENDPOINT} mithril-stake-distribution download --download-dir "${MITHRIL_HOME}/" ${STAKE_DISTRIBUTION_DIGEST}
   else
     echo "INFO: Skipping stake distribution download.."
   fi
