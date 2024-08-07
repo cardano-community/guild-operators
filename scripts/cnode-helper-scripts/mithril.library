@@ -153,10 +153,12 @@ set_node_minimum_version() {
   response_file=$(mktemp)
   status_code=$(curl -s -o "$response_file" -w "%{http_code}" https://raw.githubusercontent.com/input-output-hk/mithril/${MITHRIL_LATEST_VERSION}/networks.json)
 
-  if [[ "$status_code" -ge 400 ]]; then
-    NODE_MINIMUM_VERSION=""
-  else
-    NODE_MINIMUM_VERSION=$(jq -r ".${NETWORK_NAME,,}.\"cardano-minimum-version\".\"mithril-signer\"" "$response_file")
+  if [[ "${status_code}" -gt 200 ]]; then
+    echo "ERROR: Failed to download the networks.json file from the mithril repository! curl status code: ${status_code}."
+  elif [[ "${status_code}" -eq 200 ]]; then
+    NETWORK=${NETWORK_NAME,,}
+    NETWORK=${NETWORK:-mainnet}
+    MITHRIL_MINIMUM_NODE_VERSION=$(jq -r ".${NETWORK}.\"cardano-minimum-version\".\"mithril-signer\"" "$response_file")
   fi
   rm -f "$response_file"
 }
