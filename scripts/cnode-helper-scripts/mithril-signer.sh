@@ -96,18 +96,34 @@ user_interrupt_received() {
 verify_signer_registration() {
   set -e
 
-  if [ -z "$AGGREGATOR_ENDPOINT" ] || [ -z "$PARTY_ID" ]; then
+  if [ -z "${AGGREGATOR_ENDPOINT}" ] || [ -z "${PARTY_ID}" ]; then
       echo ">> ERROR: Required environment variables AGGREGATOR_ENDPOINT and/or PARTY_ID are not set."
       exit 1
   fi
 
-  CURRENT_EPOCH=$(curl -s "$AGGREGATOR_ENDPOINT/epoch-settings" -H 'accept: application/json' | jq -r '.epoch')
-  SIGNERS_REGISTERED_RESPONSE=$(curl -s "$AGGREGATOR_ENDPOINT/signers/registered/$CURRENT_EPOCH" -H 'accept: application/json')
+  check_registration() {
+    local EPOCH=$1
+    SIGNERS_REGISTERED_RESPONSE=$(curl -s "${AGGREGATOR_ENDPOINT}/signers/registered/$EPOCH" -H 'accept: application/json')
+    if echo "${SIGNERS_REGISTERED_RESPONSE}" | grep -q "${PARTY_ID}"; then
+        return 0
+    else
+        return 1
+    fi
+  }
 
-  if echo "$SIGNERS_REGISTERED_RESPONSE" | grep -q "$PARTY_ID"; then
-      echo ">> Congrats, your signer node is registered!"
+  CURRENT_EPOCH=$(curl -s "${AGGREGATOR_ENDPOINT}/epoch-settings" -H 'accept: application/json' | jq -r '.epoch')
+  SIGNING_EPOCH=$((CURRENT_EPOCH + 2))
+  TWO_PRIOR_EPOCH=$((CURRENT_EPOCH - 2))
+
+  if check_registration "${CURRENT_EPOCH}" ; then
+      echo ">> Your signer node is registered in the current epoch, it will be able to sign for epoch ${SIGNING_EPOCH}!"
+      if check_registration "${TWO_PRIOR_EPOCH}" ; then
+          echo ">> Your signer node was registered in epoch ${TWO_PRIOR_EPOCH} and can sign for the current epoch ${CURRENT_EPOCH}!"
+      else
+          echo ">> Your signer node is not eligible to sign for the current epoch. Party ID not found among the registered signers for epoch: ${TWO_PRIOR_EPOCHS} (two epochs ago)."
+      fi
   else
-      echo ">> Oops, your signer node is not registered. Party ID not found among the signers registered at epoch ${CURRENT_EPOCH}."
+      echo ">> Oops, your signer node is not registered. Party ID not found among the signers registered at epoch ${CURRENT_EPOCH}. Please try again later."
   fi
 
 }
