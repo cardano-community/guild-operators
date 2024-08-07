@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2086,SC2230,SC2206,SC2140,SC2059,SC2154
-#shellcheck source=/dev/null
+# shellcheck source=/dev/null
 
 ######################################
 # Do NOT modify code below           #
 ######################################
 
-. "$(dirname $0)"/env offline
+CI_MODE='N'
+[[ $1 = "workflow" ]] && CI_MODE='Y'
+
+# Sourcing mithril.library in CI mode is for GitHub Actions workflow to safely
+# update the files/docker/node/release-versions/mithril-latest.txt file without
+# setting it to an incompatible version with the currently suported cardano-node
+# version. There is no need to source the environment file in CI mode.
+if [[ ${CI_MODE} == 'N' ]] ; then
+    . "$(dirname $0)"/env
+fi
 
 #############################
 # Mithril General functions #
@@ -116,11 +125,37 @@ read_optional_ips_from_input() {
     done
 }
 
-set_defaults() {
-  MITHRIL_LATEST_VERSION=$(curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/release-versions/mithril-latest.txt)
-  set_node_minimum_version
-  NODE_CURRENT_VERSION=$(cardano-node --version | awk 'NR==1{print $2}')
+semantic_version_compare () {
+    if [[ "${1}" == "${2}" ]]
+    then
+        echo 0
+        return
+    fi
+    local IFS=.
+    local i semantic_version1=($1) semantic_version2=($2)
+    # fill empty fields in semantic_version1 with zeros
+    for ((i=${#semantic_version1[@]}; i<${#semantic_version2[@]}; i++))
+    do
+        semantic_version1[i]=0
+    done
+    for ((i=0; i<${#semantic_version1[@]}; i++))
+    do
+        if ((10#${semantic_version1[i]:=0} > 10#${semantic_version2[i]:=0}))
+        then
+            echo 1
+            return
+        fi
+        if ((10#${semantic_version1[i]} < 10#${semantic_version2[i]}))
+        then
+            echo 2
+            return
+        fi
+    done
+    echo 0
+    return
+}
 
+set_defaults() {
   [[ -z "${MITHRILBIN}" ]] && MITHRILBIN="${HOME}"/.local/bin/"$(basename "${0::-3}")"
   if [[ $(basename "${0::-3}") == "mithril-signer" ]] && { [[ -z "${POOL_NAME}" ]] || [[ "${POOL_NAME}" == "CHANGE_ME" ]]; }; then
     echo "ERROR: The POOL_NAME must be set before deploying mithril-signer as a systemd service!!"
@@ -147,6 +182,44 @@ set_defaults() {
 
 set_env_file_ownership() {
 	${sudo} chown $USER:$USER "${MITHRIL_HOME}"/mithril.env
+}
+
+check_mithril_upgrade_safe() {
+  MITHRIL_LATEST_VERSION=$(curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/release-versions/mithril-latest.txt)
+  if [[ "${CI_MODE}" == "Y" ]]; then
+    # When run in CI mode, the node version is obtained from the repository
+    NODE_CURRENT_VERSION=$(cat files/docker/node/release-versions/cardano-node-latest.txt)
+  else
+    # When run in non workflow mode, the node version is obtained from the cardano-node binary
+    NODE_CURRENT_VERSION=$(cardano-node --version | awk 'NR==1{print $2}')
+  fi
+  set_node_minimum_version
+  if [[ -n "${MITHRIL_MINIMUM_NODE_VERSION}" ]]; then
+    # Debug output
+    echo "DEBUG: MITHRIL_MINIMUM_NODE_VERSION=${MITHRIL_MINIMUM_NODE_VERSION}"
+
+    RC=$(semantic_version_compare "${NODE_CURRENT_VERSION}" "${MITHRIL_MINIMUM_NODE_VERSION}")
+    if [[ ${RC} -lt 2 ]]; then
+      # Node version is greater than or equal to the minimum required version for latest mithril release
+      # Set MITHRIL_UPGRADE_SAFE to Y to allow mithril upgrade by scripts
+      MITHRIL_UPGRADE_SAFE="Y"
+      echo "INFO: A mithril upgrade is safe."
+      echo "INFO: The latest mithril release version: ${MITHRIL_LATEST_VERSION}."
+      echo "INFO: The current Node version: ${NODE_CURRENT_VERSION}."
+      echo "INFO: The Mithril minimum required node version: ${MITHRIL_MINIMUM_NODE_VERSION}."
+    else
+      # Node version is less than the minimum required version for latest mithril release
+      echo "WARNING: A mithril upgrade is not safe."
+      echo "WARNING: The latest mithril release version: ${MITHRIL_LATEST_VERSION}."
+      echo "WARNING: The current Node version: ${NODE_CURRENT_VERSION}."
+      echo "WARNING: The Mithril minimum required node version: ${MITHRIL_MINIMUM_NODE_VERSION}."
+      echo "WARNING: The latest mithril release does not support the installed node version. Please upgrade the node version first."
+      MITHRIL_UPGRADE_SAFE="N"
+    fi
+  else
+    echo "ERROR: Failed to set the minimum required node version for the latest mithril release. Setting MITHRIL_UPGRADE_SAFE to N."
+    MITHRIL_UPGRADE_SAFE="N"
+  fi
 }
 
 set_node_minimum_version() {
