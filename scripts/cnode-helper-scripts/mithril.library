@@ -195,8 +195,6 @@ check_mithril_upgrade_safe() {
   fi
   set_node_minimum_version
   if [[ -n "${MITHRIL_MINIMUM_NODE_VERSION}" ]]; then
-    # Debug output
-    echo "DEBUG: MITHRIL_MINIMUM_NODE_VERSION=${MITHRIL_MINIMUM_NODE_VERSION}"
 
     RC=$(semantic_version_compare "${NODE_CURRENT_VERSION}" "${MITHRIL_MINIMUM_NODE_VERSION}")
     if [[ ${RC} -lt 2 ]]; then
