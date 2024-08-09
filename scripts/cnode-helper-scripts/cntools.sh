@@ -101,8 +101,9 @@ PARENT="$(dirname $0)"
 # save launch params
 arg_copy=("$@")
 
-while getopts :olaub:v opt; do
+while getopts :nolaub:v opt; do
   case ${opt} in
+    n ) CNTOOLS_MODE="LOCAL" ;;
     o ) CNTOOLS_MODE="OFFLINE" ;;
     l ) CNTOOLS_MODE="LIGHT" ;;
     a ) ADVANCED_MODE="true" ;;
