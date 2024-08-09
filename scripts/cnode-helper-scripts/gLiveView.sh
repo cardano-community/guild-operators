@@ -778,8 +778,8 @@ unset cpu_now cpu_last
 
 mithrilSignerVars() {
   # mithril.env sourcing needed to have values in ${METRICS_SERVER_IP} and ${METRICS_SERVER_PORT}
-  . ${CNODE_HOME}/mithril/mithril.env
-  signerMetricsEnabled=$(grep -q "ENABLE_METRICS_SERVER=true" ${CNODE_HOME}/mithril/mithril.env && echo "true" || echo "false")
+  . ${MITHRIL_HOME}/mithril.env
+  signerMetricsEnabled=$(grep -q "ENABLE_METRICS_SERVER=true" ${MITHRIL_HOME}/mithril.env && echo "true" || echo "false")
   if [[ "${signerMetricsEnabled}" == "true" ]] ; then
     mithrilSignerMetrics=$(curl -s "http://${METRICS_SERVER_IP}:${METRICS_SERVER_PORT}/metrics" 2>/dev/null | grep -v -E "HELP|TYPE" | sed 's/mithril_signer_//g')
     SIGNER_METRICS_HTTP_RESPONSE=$(curl --write-out "%{http_code}" --silent --output /dev/null --connect-timeout 2 http://${METRICS_SERVER_IP}:${METRICS_SERVER_PORT}/metrics)
