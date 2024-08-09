@@ -103,7 +103,7 @@ arg_copy=("$@")
 
 while getopts :nolaub:v opt; do
   case ${opt} in
-    n ) : ;;
+    n ) CNTOOLS_MODE="LOCAL" ;;
     o ) CNTOOLS_MODE="OFFLINE" ;;
     l ) CNTOOLS_MODE="LIGHT" ;;
     a ) ADVANCED_MODE="true" ;;
