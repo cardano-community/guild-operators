@@ -110,6 +110,7 @@
 #CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json" # URL for polls to vote against
 
 #MITHRIL_DOWNLOAD="N"                                   # (Y|N) Download latest Mithril snapshot
+#MITHRIL_HOME="${CNODE_HOME}/mithril"                   # Override default Mithril path
 #MITHRIL_SIGNER_ENABLED="N"                             # (Y|N) Enable the gLiveView Mithril Signer Section
 
 #STRICT_VERSION_CHECK="Y"                               # (Y|N) Restrict operation to supported major.minor version leaving patch version open. If disabled, any version will be accepted (unsupported)
@@ -950,6 +951,7 @@ set_default_vars() {
   [[ -z ${ASSET_POLICY_ID_FILENAME} ]] && ASSET_POLICY_ID_FILENAME="policy.id"
   [[ -z ${CIP0094_POLL_URL} ]] && CIP0094_POLL_URL="https://raw.githubusercontent.com/cardano-foundation/CIP-0094-polls/main/networks/polls.json"
   [[ -z ${MITHRIL_DOWNLOAD} ]] && MITHRIL_DOWNLOAD="N"
+  [[ -z ${MITHRIL_HOME} ]] && MITHRIL_HOME="${CNODE_HOME}/mithril"
   [[ -z ${MITHRIL_SIGNER_ENABLED} ]] && MITHRIL_SIGNER_ENABLED="N"
   [[ -z ${STRICT_VERSION_CHECK} ]] && STRICT_VERSION_CHECK="Y"
   FG_BLACK='\e[30m'
