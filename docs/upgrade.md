@@ -16,7 +16,7 @@
       ``` bash
       mkdir "$HOME/tmp";cd "$HOME/tmp"
       curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh && chmod 700 guild-deploy.sh
-      ./guild-deploy.sh -s dl -b master -n mainnet -t cnode -p /opt/cardano/cnode
+      ./guild-deploy.sh -s dl -b master -n mainnet -t cnode -p /opt/cardano
       ```
 
     - Another scenario would be when you're required to overwrite configs (eg: node-8.1.2 to node-9.1.0 introduced change in genesis/config/topology file formats). In this case, you'd want to overwrite your config files as well. You should follow changelog in node release notes to verify if you'd need to overwrite configs. Note that every time you do this, you may need to re-add your customisations - if any - to the relevant config files (typically - almost always, you'd have to update the topology.json when overwriting configs). There are backups created of original file in `"${CNODE_HOME}"/files` folder if you'd like to compare/reuse previous version.
@@ -24,7 +24,7 @@
       ``` bash
       mkdir "$HOME/tmp";cd "$HOME/tmp"
       curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh && chmod 700 guild-deploy.sh
-      ./guild-deploy.sh -s dlf -b master -n mainnet -t cnode -p /opt/cardano/cnode
+      ./guild-deploy.sh -s dlf -b master -n mainnet -t cnode -p /opt/cardano
       ```
 
 !!! warning "Beware"
