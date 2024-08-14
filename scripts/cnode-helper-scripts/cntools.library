@@ -171,7 +171,7 @@ download_catalyst_toolbox() {
   fi
   rm -rf /tmp/catalyst-toolbox-bin && mkdir /tmp/catalyst-toolbox-bin
   pushd /tmp/catalyst-toolbox-bin >/dev/null || return 1
-  if curl -sL -f -m ${CURL_TIMEOUT} -o "${HOME}"/.local/bin/catalyst-toolbox "https://share.koios.rest/api/public/dl/Q0m8-F2X%2Fbinaries%2Fcatalyst-toolbox-x86_64-gnu"; then
+  if curl -sL -f -m ${CURL_TIMEOUT} "${KOIOS_API_HEADERS[@]}" -o "${HOME}"/.local/bin/catalyst-toolbox "https://share.koios.rest/api/public/dl/Q0m8-F2X%2Fbinaries%2Fcatalyst-toolbox-x86_64-gnu"; then
     chmod +x "${HOME}"/.local/bin/catalyst-toolbox
     local catalyst_toolbox_version; catalyst_toolbox_version=$(catalyst-toolbox --full-version)
     println DEBUG "  ${catalyst_toolbox_version%% - *} ${FG_GREEN}installed!${NC}"
@@ -765,8 +765,9 @@ isPoolRegistered() {
     [[ -f "${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}" ]] && return 2 || return 1
   else
     getPoolID "$1"
-    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_pool_bech32_ids\":[\"${pool_id_bech32}\"]}' ${KOIOS_API}/pool_info"
-    ! pool_info=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1) && error_msg=${pool_info} && return 0
+    HEADERS=("${KOIOS_API_HEADERS[@]}" -H "'Content-Type: application/json'")
+    println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '{\"_pool_bech32_ids\":[\"${pool_id_bech32}\"]}' ${KOIOS_API}/pool_info"
+    ! pool_info=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1) && error_msg=${pool_info} && return 0
     if [[ ${pool_info} = '[]' ]]; then
       return 1
     fi
@@ -833,8 +834,8 @@ getAssetInfo() {
   if [[ ${CNTOOLS_MODE} != "LIGHT" || $# -lt 1 ]]; then
     return 2
   else
-    println ACTION "curl -sSL -f -d _asset_policy=$1 -d _asset_name=$2  ${KOIOS_API}/asset_info"
-    ! asset_info=$(curl -sSL -f -d _asset_policy=$1 -d _asset_name=$2 "${KOIOS_API}/asset_info" 2>&1) && error_msg="${asset_info}" && return 1
+    println ACTION "curl -sSL -f ${KOIOS_API_HEADERS[*]} -d _asset_policy=$1 -d _asset_name=$2  ${KOIOS_API}/asset_info"
+    ! asset_info=$(curl -sSL -f "${KOIOS_API_HEADERS[@]}" -d _asset_policy=$1 -d _asset_name=$2 "${KOIOS_API}/asset_info" 2>&1) && error_msg="${asset_info}" && return 1
     if [[ ${asset_info} = '[]' ]]; then
       return 2
     fi
@@ -999,8 +1000,9 @@ verifyTx() {
       return 1
     fi
     if [[ -n ${KOIOS_API} ]]; then
-      println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_tx_hashes\":[\"${tx_id}\"]' ${KOIOS_API}/tx_status?select=num_confirmations"
-      ! num_confirmations=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_tx_hashes":["'${tx_id}'"]}' "${KOIOS_API}/tx_status?select=num_confirmations" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${num_confirmations}\n" && return 1 # print error and return
+      HEADERS=("${KOIOS_API_HEADERS[@]}" -H "'Content-Type: application/json'" -H "'accept: text/csv'")
+      println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '{\"_tx_hashes\":[\"${tx_id}\"]' ${KOIOS_API}/tx_status?select=num_confirmations"
+      ! num_confirmations=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_tx_hashes":["'${tx_id}'"]}' "${KOIOS_API}/tx_status?select=num_confirmations" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${num_confirmations}\n" && return 1 # print error and return
       result=$(tail -n +2 <<< ${num_confirmations})
     else
       println ACTION "${CCLI} ${NETWORK_ERA} query utxo --tx-in ${tx_id}#0 ${NETWORK_IDENTIFIER}| tail -n +3"
@@ -1503,8 +1505,9 @@ getBalanceKoios() {
   if [[ -n ${KOIOS_API} && -n ${addr_list+x} ]]; then
     printf -v addr_list_joined '\"%s\",' "${addr_list[@]}"
     [[ $1 != false ]] && extended=true || extended=false
-    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_addresses\":[${addr_list_joined%,}],\"_extended\":${extended}}' ${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
-    ! address_utxo_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_addresses":['${addr_list_joined%,}'],"_extended":'${extended}'}' "${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_utxo_list}\n" && return 1 # print error and return
+    HEADERS=("${KOIOS_API_HEADERS[@]}" -H "'Content-Type: application/json'" -H "'accept: text/csv'")
+    println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '{\"_addresses\":[${addr_list_joined%,}],\"_extended\":${extended}}' ${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
+    ! address_utxo_list=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_addresses":['${addr_list_joined%,}'],"_extended":'${extended}'}' "${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_utxo_list}\n" && return 1 # print error and return
     [[ -z ${address_utxo_list} ]] && return
     while IFS=',' read -r _address _tx_hash _tx_index _value _asset_list; do
       [[ ${_address} = address ]] && continue # header line
@@ -1684,8 +1687,9 @@ getRewardInfoKoios() {
 
   if [[ -n ${KOIOS_API} && -n ${reward_addr_list+x} ]]; then
     printf -v addr_list_joined '\"%s\",' "${reward_addr_list[@]}"
-    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -H \"accept: text/csv\" -d '{\"_stake_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available,deposit"
-    ! account_info_list=$(curl -sSL -f -X POST -H "Content-Type: application/json" -H "accept: text/csv" -d '{"_stake_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available,deposit" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${account_info_list}\n" && return 1 # print error and return
+    HEADERS=("${KOIOS_API_HEADERS[@]}" -H "'Content-Type: application/json'" -H "'accept: text/csv'")
+    println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '{\"_stake_addresses\":[${addr_list_joined%,}]}' ${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available,deposit"
+    ! account_info_list=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_stake_addresses":['${addr_list_joined%,}']}' "${KOIOS_API}/account_info?select=stake_address,status,delegated_pool,rewards_available,deposit" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${account_info_list}\n" && return 1 # print error and return
     [[ -z ${account_info_list} ]] && return
     while IFS=',' read -r stake_address status delegated_pool rewards_available deposit; do
       [[ ${stake_address} = stake_address ]] && continue # header line
@@ -3343,8 +3347,9 @@ rotatePoolKeys() {
     fi
   elif [[ -n ${KOIOS_API} ]]; then
     ! getPoolID "${pool_name}" && println "ERROR" "\n${FG_RED}ERROR${NC}: failed to get pool ID!\n" && return 1
-    println ACTION "curl -sSL -f -X POST -H \"Content-Type: application/json\" -d '{\"_pool_bech32_ids\":[\"${pool_id_bech32}\"]}' ${KOIOS_API}/pool_info"
-    ! pool_info=$(curl -sSL -f -X POST -H "Content-Type: application/json" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${pool_info}\n" && p_opcert="" # print error but ignore
+    HEADERS=("${KOIOS_API_HEADERS[@]}" -H "'Content-Type: application/json'")
+    println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '{\"_pool_bech32_ids\":[\"${pool_id_bech32}\"]}' ${KOIOS_API}/pool_info"
+    ! pool_info=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_pool_bech32_ids":["'${pool_id_bech32}'"]}' "${KOIOS_API}/pool_info" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${pool_info}\n" && p_opcert="" # print error but ignore
     if old_counter_nbr=$(jq -er '.[0].op_cert_counter' <<< "${pool_info}" 2>/dev/null); then
       new_counter_nbr=$(( old_counter_nbr + 1 ))
     else
@@ -4470,8 +4475,9 @@ submitTxKoiosSubmitAPI() {
   cborHex=$(jq -er '.cborHex' "$1" 2>/dev/null) || { println ERROR "\n${FG_RED}ERROR${NC}: Invalid tx file format, 'cborHex' missing in: $1"; return 1; }
   txdata="$(mktemp "${TMP_DIR}/tx.signed_XXXXXXXXXX")"
   xxd -p -r <<< ${cborHex} > ${txdata}
-  println ACTION "curl -sfSL -X POST -H \"Content-Type: application/cbor\" --data-binary @${txdata} \"${KOIOS_API}/submittx\""
-  if ! stdout=$(curl -sfSL -X POST -H "Content-Type: application/cbor" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
+  HEADERS=("${KOIOS_API_HEADERS[@]}" -H "'Content-Type: application/cbor'")
+  println ACTION "curl -sfSL -X POST ${HEADERS[*]} --data-binary @${txdata} \"${KOIOS_API}/submittx\""
+  if ! stdout=$(curl -sfSL -X POST "${HEADERS[@]}" --data-binary @${txdata} "${KOIOS_API}/submittx" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!\n${stdout}"; return 1
   fi
   println LOG "Submit result: ${stdout}"
@@ -4485,8 +4491,9 @@ submitTxKoiosOgmios() {
   cborHex=$(jq -er '.cborHex' "$1" 2>/dev/null) || { println ERROR "\n${FG_RED}ERROR${NC}: Invalid tx file format, 'cborHex' missing in: $1"; return 1; }
   jsonrpc=$(jq -n -c --arg cbor "${cborHex}" '{jsonrpc: "2.0", method: "submitTransaction", params: {transaction: {cbor: $cbor}}}')
   unset ogmios_error
-  println ACTION "curl -sSL -X POST  -H \"accept: application/json\" -H \"Content-Type: application/json\" -d \"${jsonrpc}\" \"${KOIOS_API}/ogmios/\""
-  stdout=$(curl -sSL -X POST  -H "accept: application/json" -H "Content-Type: application/json" -d "${jsonrpc}" "${KOIOS_API}/ogmios/" 2>&1)
+  HEADERS=("${KOIOS_API_HEADERS[@]}" -H "'accept: application/json'" -H "'Content-Type: application/json'")
+  println ACTION "curl -sSL -X POST ${HEADERS[*]} -d \"${jsonrpc}\" \"${KOIOS_API}/ogmios/\""
+  stdout=$(curl -sSL -X POST "${HEADERS[@]}" -d "${jsonrpc}" "${KOIOS_API}/ogmios/" 2>&1)
   if [[ -z ${stdout} ]] || ogmios_error=$(jq -er '.error //empty' <<< "${stdout}") || ! jq -er '.result //empty' <<< "${stdout}" &>/dev/null; then
     println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!"
     if [[ -n ${ogmios_error} ]]; then
