@@ -60,7 +60,7 @@ ln -s ~/git/cardano-db-sync/schema $CNODE_HOME/guild-db/schema
 
 #### Restore using Snapshot
 
-If you're running a mainnet/preview/preprod instance of dbsync, you might want to consider use of dbsync snapshots as documented [here](https://github.com/intersectmbo/cardano-db-sync/blob/master/doc/state-snapshot.md). The snapshot files as of recent epoch are available via links in [release notes](https://github.com/intersectmbo/cardano-db-sync/releases).
+If you're running a mainnet/preview/preprod instance of dbsync, you might want to consider use of dbsync snapshots as documented [here](https://github.com/intersectmbo/cardano-db-sync/blob/master/doc/state-snapshot.md). The snapshot files from IO for their default configs as of recent epoch are available via links in [release notes](https://github.com/intersectmbo/cardano-db-sync/releases). Note that the snapshots should only be used pertaining to their specific configs, if using configs from Koios - you'd want to look at snapshots [here](https://share.koios.rest/share/xFdZDfM4/dbsync/) instead.
 
 At high-level, this would involve steps as below (read and update paths as per your environment):
 
