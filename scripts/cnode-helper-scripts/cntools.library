@@ -171,7 +171,7 @@ download_catalyst_toolbox() {
   fi
   rm -rf /tmp/catalyst-toolbox-bin && mkdir /tmp/catalyst-toolbox-bin
   pushd /tmp/catalyst-toolbox-bin >/dev/null || return 1
-  if curl -sL -f -m ${CURL_TIMEOUT} "${KOIOS_API_HEADERS[@]}" -o "${HOME}"/.local/bin/catalyst-toolbox "https://share.koios.rest/api/public/dl/Q0m8-F2X%2Fbinaries%2Fcatalyst-toolbox-x86_64-gnu"; then
+  if curl -sL -f -m ${CURL_TIMEOUT} -o "${HOME}"/.local/bin/catalyst-toolbox "https://share.koios.rest/api/public/dl/Q0m8-F2X%2Fbinaries%2Fcatalyst-toolbox-x86_64-gnu"; then
     chmod +x "${HOME}"/.local/bin/catalyst-toolbox
     local catalyst_toolbox_version; catalyst_toolbox_version=$(catalyst-toolbox --full-version)
     println DEBUG "  ${catalyst_toolbox_version%% - *} ${FG_GREEN}installed!${NC}"
