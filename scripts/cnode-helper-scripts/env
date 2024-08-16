@@ -1194,7 +1194,8 @@ case ${NWMAGIC} in
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v1";;
   4)
     NETWORK_NAME="Sanchonet"
-    SHELLEY_TRANS_EPOCH=0;;
+    SHELLEY_TRANS_EPOCH=0
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://sancho.koios.rest/api/v1";;
   *) 
     NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
