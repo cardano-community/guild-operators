@@ -325,7 +325,7 @@ SGVERSION=v1.2.0a
     [[ ! -d "pg_bech32" ]] && git clone https://github.com/cardano-community/pg_bech32 >/dev/null
     cd pg_bech32 || err_exit
     git pull >/dev/null || err_exit
-    make  >/dev/null
+    make clean && make >/dev/null
     sudo make install >/dev/null
     psql -qtAX -d ${PGDATABASE} -c "DROP EXTENSION IF EXISTS pg_bech32;CREATE EXTENSION pg_bech32;" >/dev/null
   }
