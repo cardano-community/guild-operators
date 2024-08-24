@@ -306,10 +306,10 @@ SGVERSION=v1.2.0a
       pkg_installer="dnf"
       pkg_list="make gcc gcc-c++ autoconf autoconf-archive automake libtool pkgconfig"
     fi
-    sudo ${pkg_installer} -u install ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y install ${pkg_list}' failed!"
-    sudo ${pkg_installer} -u upgrade ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y upgrade ${pkg_list}' failed!"
+    sudo ${pkg_installer} -y install ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y install ${pkg_list}' failed!"
+    sudo ${pkg_installer} -y upgrade ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y upgrade ${pkg_list}' failed!"
     [[ ! -d "libbech32" ]] && git clone https://github.com/whitslack/libbech32 >/dev/null
-    pushd libbech32 || err_exit
+      pushd libbech32 || err_exit
     git pull >/dev/null || err_exit
     mkdir -p build-aux/m4
     curl -sf https://raw.githubusercontent.com/NixOS/patchelf/master/m4/ax_cxx_compile_stdcxx.m4 -o build-aux/m4/ax_cxx_compile_stdcx.m4
