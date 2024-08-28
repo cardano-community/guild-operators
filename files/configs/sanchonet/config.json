@@ -13,7 +13,7 @@
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
-  "SnapshotInterval": 86400,
+  "SnapshotInterval": 43200,
   "MempoolCapacityBytesOverride": 8388608,
   "EnableLogging": true,
   "EnableLogMetrics": false,
