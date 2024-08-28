@@ -12,6 +12,8 @@
   "RequiresNetworkMagic": "RequiresMagic",
   "PBftSignatureThreshold": 1,
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
+  "SnapshotInterval": 86400,
+  "MempoolCapacityBytesOverride": 8388608,
   "EnableLogging": true,
   "EnableLogMetrics": false,
   "TargetNumberOfActivePeers": 10,
