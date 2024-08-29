@@ -1,5 +1,60 @@
 # Koios gRest Changelog
 
+## [1.2.0a] - For all networks.
+
+This release starts providing Conway support providing 14 new endpoints - primarily focusing on new governance data. Also, based on community requests/feedbacks - it introduces a few breaking changes for `tx_info` and `block_tx_info` endpoints. Please go through the changelogs below
+
+### New endpoints added:
+- `/tx_cbor` - Raw transaction CBOR against a transaction [#298]
+- `/drep_epoch_summary` - Summary of voting power and DRep count for each epoch [#298]
+- `/drep_list` - List of all active delegated representatives (DReps) [#298]
+- `/drep_info` - Get detailed information about requested delegated representatives (DReps) [#298]
+- `/drep_metadata` - List metadata for requested delegated representatives (DReps) [#298]
+- `/drep_updates` - List of updates for requested (or all) delegated representatives (DReps) [#298]
+- `/drep_votes` - List of all votes casted by requested delegated representative (DRep) [#298]
+- `/drep_delegators` - List of all delegators to requested delegated representative (DRep) [#298]
+- `/committee_info` - Information about active committee and its members [#298]
+- `/committee_votes` - List of all votes casted by given committee member or collective [#298]
+- `/proposal_list` - List of all governance proposals [#298]
+- `/voter_proposal_list` - List of all governance proposals for specified DRep, SPO or Committee credential [#298]
+- `/proposal_votes` - List of all votes cast on specified governance action [#298]
+- `/pool_votes` - List of all votes casted by a pool [#298]
+
+### Data Input/Output Changes:
+
+- Input - `/block_tx_info`, `/tx_info` - `collateral_tx_out` -> `asset_list` - Outputs for collateral tx out are never created on-chain and thus, cannot be queried from `ma_tx_out`. Instead a rough description of assets involved are saved , which is now returned as info from ledger. This is returned as-is from dbsync and does not adhere to `asset_list` schema we use in other endpoints. [#298]
+- Input - `/tx_info` , `/block_tx_info` - These endpoints now require you to specify what all information you'd like to retrieve from a transaction, providing flags `_inputs` ,  `_metadata`, `_assets` , `_withdrawals`, `_certs`, `_scripts`, `_bytecode`, `_governance` [#298]
+- Output - `/policy_asset_mints` , `/policy_asset_info`, `/asset_info` - Will return latest mint transaction that has metadata (instead of latest mint transaction) details (excluding burn transactions)  [#298]
+- Output - `/account_info` , `/pool_info` , `/pool_list` - Add `deposit` field to output for deposit associated with registration [#298]
+- Output - `/account_info` - Add `delegated_drep` field to the output [#298]
+- Output - `/block_tx_info` , `/tx_info` - Add `treasury_deposit`, `voting_procedures` and `proposal_procedures` to the output [#298]
+- Output - `/epoch_params` - Add various fields to `epoch_params` as per Conway protocol parameters [#298]
+- Output - `/pool_metadata`, `/pool_relays` - Remove `pool_status` field from output (it's already listed in pool_info and list) [#298]
+- Output - `/pool_updates` - owners is now a JSONB field instead of JSONB array [#298]
+
+### Deprecations:
+- None
+
+### Retirements:
+- None
+
+### Chores:
+
+- Remove unused info from `asset_info_cache` - `first_mint_tx_id` , `first_mint_keys` , `last_mint_keys` are not used/required [#286]
+- Add `last_mint_meta_tx_id` field to `asset_info_cache` - to return latest asset that does have metadata [#286]
+- Reduce redundant cache information for pool stake as we now only retain 3 epochs in pool_active_stake_cache as the rest is already in `pool_history_cache` [#289]
+- Retire v0 SQL files (endpoints were already removed) from repository [#286]
+- Overwrite next epoch once on every execution (this is to avoid nonce mismatch if calculated too early from node) [#286]
+- Reduce reliance on pool_info_cache where possible to query live metadata [#298]
+- Make use of `pool_stat` instead of `epoch_stake` for `pool_history_cache` [#294]
+- `instant_reward` table in dbsync moved to `reward_rest`
+- `ada_pots` : `deposit` now split into three different types of deposits
+
+[#298]: https://github.com/cardano-community/koios-artifacts/pull/298
+[#289]: https://github.com/cardano-community/koios-artifacts/pull/289
+[#286]: https://github.com/cardano-community/koios-artifacts/pull/286
+[#294]: https://github.com/cardano-community/koios-artifacts/pull/294
+
 ## [1.1.2] - For all networks.
 
 This release is minor bugfix for data consistency changes behind the scenes. It has no impact to any of the API endpoints.

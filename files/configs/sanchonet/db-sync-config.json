@@ -36,6 +36,7 @@
     "json_type": "text",
     "offchain_pool_data": "enable",
     "pool_stat": "enable",
+    "pool_stats": "enable",
     "tx_cbor": "enable"
   },
   "minSeverity": "Info",

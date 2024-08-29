@@ -968,6 +968,7 @@ set_default_vars() {
   STANDOUT='\e[7m'
   BOLD='\e[1m'
   NC='\e[0m'
+  set -o posix
 }
 
 read_genesis() {
