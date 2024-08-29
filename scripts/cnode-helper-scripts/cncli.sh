@@ -210,7 +210,9 @@ cncliInit() {
     echo "sleeping for 10s and testing again..."
     sleep 10
   done
-  
+
+  test_koios
+
   TMP_DIR="${TMP_DIR}/cncli"
   if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files: ${TMP_DIR}"; exit 1; fi
   
