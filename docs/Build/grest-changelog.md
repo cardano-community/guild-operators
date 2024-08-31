@@ -1,6 +1,34 @@
 # Koios gRest Changelog
 
-## [1.2.0a] - For all networks.
+## [1.2.0] - For all networks.
+
+This is a finalised release that builds on `1.2.0a` to provide support for CIP-129 and add a summary of votes for given proposal. The changes accordingly are primarily only targetting Governance endpoints. This will be the version used for mainnet upgrade as well. Please go through the changelogs below
+
+### New endpoints added:
+- `/proposal_voting_summary` - Get a summary of votes cast on specified governance action [#300]
+
+### Data Input/Output Changes:
+- Input - `/commitee_votes` - Will require `_cc_hot_id` which will accept committee member hot key formatted in bech32 as per CIP-0005/129 [#300]
+- Input - `/voter_proposal_list` - Will require `_voter_id` which will accept DRep/SPO/Committee member formatted in bech32 as per CIP-0005/129 [#300]
+- Input - `/proposal_votes` - Will require `_proposal_id` which will accept government proposal ID formatted in bech32 as per CIP-129 [#300]
+- Output - `/drep_metadata` , `/drep_updates`, - added column `has_script` which shows if given credential is a script hash [#300]
+- Output - `/drep_votes` , `/proposal_list` ,  `/committee_info` - added column `proposal_id` to show proposal action ID in accordance with CIP-129 [#300]
+- Output - `/proposal_votes` , - `voter` is renamed to `voter_id` and shows DRep/Pool/Committee member formatted in bech32 as per CIP-129 [#300]
+- Output - Any references to drep in output columns is now assumed to be in CIP-129 format [#300]
+
+### Deprecations:
+- None
+
+### Retirements:
+- None
+
+### Chores:
+- Change indexing for dreps from view to hex [#300]
+- Extend utility functions for CIP-129 conversions from hex [#300]
+
+[#300]: https://github.com/cardano-community/koios-artifacts/pull/300
+
+## [1.2.0a] - For non-mainnet networks.
 
 This release starts providing Conway support providing 14 new endpoints - primarily focusing on new governance data. Also, based on community requests/feedbacks - it introduces a few breaking changes for `tx_info` and `block_tx_info` endpoints. Please go through the changelogs below
 
