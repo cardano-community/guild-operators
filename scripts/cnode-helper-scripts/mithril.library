@@ -14,7 +14,7 @@ CI_MODE='N'
 # setting it to an incompatible version with the currently suported cardano-node
 # version. There is no need to source the environment file in CI mode.
 if [[ ${CI_MODE} == 'N' ]] ; then
-    . "$(dirname $0)"/env
+    . "$(dirname $0)"/env offline
 fi
 
 #############################
