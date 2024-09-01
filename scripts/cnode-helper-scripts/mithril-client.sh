@@ -55,10 +55,12 @@ SKIP_UPDATE=N
 #####################
 
 function parse_opt_for_help() {
-  if [[ $1 == "-h" ]] || [[ $1 == "--help" ]] || [[ $@ =~ "-h" ]]; then
+  for value in "$@"; do
+    if [[ $value == "-h" ]] || [[ $value == "--help" ]]; then
       usage
       exit 0
-  fi
+    fi
+  done
 }
 
 function main() {
