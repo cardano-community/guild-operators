@@ -28,7 +28,7 @@ exec 2>/dev/null
 [[ -z ${DBSYNC_PROM_PORT} ]] && DBSYNC_PROM_PORT=8080
 [[ -z ${PGDATABASE} ]] && PGDATABASE=cexplorer
 
-function get-metrics() {
+function get_metrics() {
   shopt -s expand_aliases
   if [ -n "$SERVED" ]; then
     echo "Content-type: text/plain" # Tells the browser what kind of content to expect
@@ -99,4 +99,4 @@ function get-metrics() {
   done
 }
 
-get-metrics
+get_metrics
