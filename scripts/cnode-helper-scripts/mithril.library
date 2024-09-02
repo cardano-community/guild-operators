@@ -14,7 +14,7 @@ CI_MODE='N'
 # setting it to an incompatible version with the currently suported cardano-node
 # version. There is no need to source the environment file in CI mode.
 if [[ ${CI_MODE} == 'N' ]] ; then
-    . "$(dirname $0)"/env
+    . "$(dirname $0)"/env offline
 fi
 
 #############################
@@ -235,16 +235,17 @@ set_node_minimum_version() {
 }
 
 update_check() {
-  # Check availability of checkUpdate function
-  if [[ ! $(command -v checkUpdate) ]]; then
-    echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
-    exit 1
-  fi
-  # Check if flag is set by script to skip update check
-  [[ ${SKIP_UPDATE} == Y ]] && return 0
-  # Check if flag is set by user as a global (container environments etc.) to skip update check
-  if [[ ${UPDATE_CHECK} = Y ]]; then
+  # Check if flag is set by user as a global or script to skip update check
+  if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
+
     echo "Checking for script updates..."
+
+    # Check availability of checkUpdate function
+    if [[ ! $(command -v checkUpdate) ]]; then
+      echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
+      exit 1
+    fi
+
     # check for env update
     ENV_UPDATED=${BATCH_AUTO_UPDATE}
     checkUpdate "${PARENT}"/env N N N
@@ -252,13 +253,14 @@ update_check() {
       1) ENV_UPDATED=Y ;;
       2) exit 1 ;;
     esac
+
     # check for mithril.library update
     checkUpdate "${PARENT}"/mithril.library N N N
-    # borrow ENV_UPDATED for mithril.library updates
     case $? in
       1) ENV_UPDATED=Y ;;
       2) exit 1 ;;
     esac
+
     # check the script update
     checkUpdate "${PARENT}"/"$(basename "$0")" ${ENV_UPDATED}
     case $? in

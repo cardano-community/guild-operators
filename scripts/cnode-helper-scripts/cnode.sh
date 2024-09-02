@@ -63,7 +63,7 @@ mithril_snapshot_download() {
   if [[ ! -f "${MITHRIL_CLIENT}" ]] || [[ ! -e "${MITHRIL_CLIENT}" ]]; then 
     echo "ERROR: Could not locate mithril-client.sh script or script is not executable. Skipping mithril cardano-db snapshot download!!"
   else
-    "${MITHRIL_CLIENT}" cardano-db download
+    "${MITHRIL_CLIENT}" -u cardano-db download
   fi
 }
 

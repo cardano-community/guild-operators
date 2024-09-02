@@ -13,7 +13,7 @@
   "RequiresNetworkMagic": "RequiresNoMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
   "SnapshotInterval": 86400,
-  "MempoolCapacityBytesOverride": 8388608,
+  "MempoolCapacityBytesOverride": 67108864,
   "EnableLogging": true,
   "EnableLogMetrics": false,
   "TargetNumberOfActivePeers": 20,
