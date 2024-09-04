@@ -385,10 +385,11 @@ getDecimalPlaces() {
 #             : $2 = normal | pretty (default)
 #             : $3 = full | trim (default, removes trailing zeros from fraction)
 formatLovelace() {
+  local frac
   if isNumber $1; then
     [[ $1 -eq 0 ]] && echo 0 && return
-    [[ $1 -le 999999 ]] && printf '%s' "$(local frac=$(printf '%06d' "$1"); [[ -z $3 || $3 = 'trim' ]] && ([[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '0.%s' "${BASH_REMATCH[1]}") || printf '0.%s' "${frac}")" && return
-    [[ -z $3 || $3 = 'trim' ]] && fraction="$(local frac=${1: -6}; [[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '.%s' "${BASH_REMATCH[1]}")" || fraction=".${1: -6}"
+    [[ $1 -le 999999 ]] && printf '%s' "$(frac=$(printf '%06d' "$1"); [[ -z $3 || $3 = 'trim' ]] && ([[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '0.%s' "${BASH_REMATCH[1]}") || printf '0.%s' "${frac}")" && return
+    [[ -z $3 || $3 = 'trim' ]] && fraction="$(frac=${1: -6}; [[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '.%s' "${BASH_REMATCH[1]}")" || fraction=".${1: -6}"
     [[ ${fraction} = '.' ]] && fraction=""
     [[ -z $2 || $2 = 'pretty' ]] && printf '%s%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${fraction}" || printf '%s%s' "${1::-6}" "${fraction}"
   else
@@ -976,7 +977,9 @@ set_default_vars() {
   STANDOUT='\e[7m'
   BOLD='\e[1m'
   NC='\e[0m'
-  set -o posix
+  # Due to bug introduced in bash upstream at 5.2.21, need to temporarily enable POSIX mode for newer bash versions, until fix is live
+  # https://github.com/bminor/bash/commit/e327891b52513bef0b34aac625c44f8fa6811f53
+  versionCheck 5.2.20 ${BASH_VERSION//(*/} && set -o posix
 }
 
 read_genesis() {
