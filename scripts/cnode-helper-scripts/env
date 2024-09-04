@@ -37,6 +37,7 @@
 #KOIOS_API="https://api.koios.rest/api/v1"              # Koios API for blockchain queries instead of local cli lookup.
                                                         # Leave commented for automatic network detection between MainNet, Preview, Preprod or Guild network.
                                                         # https://www.koios.rest/
+#KOIOS_API_TOKEN=""                                     # The Koios API token to use for authenticated requests. If left empty, unauthenticated requests will be made.
 #DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries" # [advanced feature] Folder containing DB-Sync chain analysis queries
 #G_ACCOUNT="cardano-community"             # Override default github repository if you forked project
 
@@ -819,8 +820,8 @@ slotInterval() {
 # 3 : Koios - general error
 getProtocolParams() {
   if [[ -n ${KOIOS_API} ]]; then
-    [[ $(type -t println) = function ]] && println ACTION "curl -sSL -f -X GET -H \"accept: application/json\" ${KOIOS_API}/cli_protocol_params"
-    if ! PROT_PARAMS=$(curl -sSL -f -X GET -H "accept: application/json" "${KOIOS_API}/cli_protocol_params" 2>&1); then
+    [[ $(type -t println) = function ]] && println ACTION "curl -sSL -f -X GET ${KOIOS_API_HEADERS[*]} ${KOIOS_API}/cli_protocol_params"
+    if ! PROT_PARAMS=$(curl -sSL -f -X GET "${KOIOS_API_HEADERS[@]}" "${KOIOS_API}/cli_protocol_params" 2>&1); then
       return 3
     fi
   else
@@ -955,6 +956,13 @@ set_default_vars() {
   [[ -z ${MITHRIL_HOME} ]] && MITHRIL_HOME="${CNODE_HOME}/mithril"
   [[ -z ${MITHRIL_SIGNER_ENABLED} ]] && MITHRIL_SIGNER_ENABLED="N"
   [[ -z ${STRICT_VERSION_CHECK} ]] && STRICT_VERSION_CHECK="Y"
+  if [[ -z "${KOIOS_API_HEADERS[*]}" ]] ; then
+    if [[ -n "${KOIOS_API_TOKEN}" ]] ; then
+      KOIOS_API_HEADERS=(-H "'Authorization: Bearer ${KOIOS_API_TOKEN}'")
+    else
+      KOIOS_API_HEADERS=()
+    fi
+  fi
   FG_BLACK='\e[30m'
   FG_RED='\e[31m'
   FG_GREEN='\e[32m'
@@ -992,7 +1000,7 @@ read_genesis() {
 
 test_koios() {
   # make sure KOIOS_API is reachable, else fall back to cli
-  [[ ${ENABLE_KOIOS} = 'Y' && -n ${KOIOS_API} && $(curl -sfk -o /dev/null -w "%{http_code}" -m 5 ${KOIOS_API}/tip | awk '{print $1}') = "200" ]] || unset KOIOS_API
+  [[ ${ENABLE_KOIOS} = 'Y' && -n ${KOIOS_API} && $(curl -sfk -o /dev/null -w "%{http_code}" -m 5 "${KOIOS_API_HEADERS[@]}" ${KOIOS_API}/tip | awk '{print $1}') = "200" ]] || unset KOIOS_API
 }
 
 [[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory

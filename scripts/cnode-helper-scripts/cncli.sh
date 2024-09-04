@@ -140,8 +140,8 @@ getConsensus() {
 }
 
 getKoiosData() {
-  if ! stake_snapshot=$(curl -sSL -f -d _pool_bech32=${POOL_ID_BECH32} "${KOIOS_API}/pool_stake_snapshot" 2>&1); then
-    echo "ERROR: Koios pool_stake_snapshot query failed: curl -sSL -f -d _pool_bech32=${POOL_ID_BECH32} ${KOIOS_API}/pool_stake_snapshot"
+  if ! stake_snapshot=$(curl -sSL -f "${KOIOS_API_HEADERS[@]}" -d _pool_bech32=${POOL_ID_BECH32} "${KOIOS_API}/pool_stake_snapshot" 2>&1); then
+    echo "ERROR: Koios pool_stake_snapshot query failed: curl -sSL -f ${KOIOS_API_HEADERS[*]} -d _pool_bech32=${POOL_ID_BECH32} ${KOIOS_API}/pool_stake_snapshot"
     return 1
   fi
   read -ra stake_mark <<<"$(jq -r '.[] | select(.snapshot=="Mark") | [.pool_stake, .active_stake, .nonce] | @tsv' <<< ${stake_snapshot})"
