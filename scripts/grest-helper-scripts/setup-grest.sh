@@ -299,7 +299,7 @@ SGVERSION=v1.2.0
     printf "\n[Re]Installing pg_bech32 extension.."
     pushd ~/git >/dev/null || err_exit
     if command -v apt-get >/dev/null; then
-      pkg_installer="apt-get"
+      pkg_installer="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
       pkg_list="build-essential make g++ autoconf autoconf-archive automake libtool pkg-config"
     fi
     if command -v dnf >/dev/null; then
@@ -339,7 +339,7 @@ SGVERSION=v1.2.0
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
-        pkg_installer="apt-get"
+        pkg_installer="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
         pkg_list="build-essential make g++ autoconf automake libpcre2-dev libssl-dev libsystemd-dev zlib1g-dev"
       fi
       if command -v dnf >/dev/null; then
