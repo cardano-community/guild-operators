@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=v1.2.0a
+SGVERSION=v1.2.0
 
 ######## Functions ########
   usage() {
@@ -299,17 +299,17 @@ SGVERSION=v1.2.0a
     printf "\n[Re]Installing pg_bech32 extension.."
     pushd ~/git >/dev/null || err_exit
     if command -v apt-get >/dev/null; then
-      pkg_installer="apt-get"
+      pkg_installer="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
       pkg_list="build-essential make g++ autoconf autoconf-archive automake libtool pkg-config"
     fi
     if command -v dnf >/dev/null; then
       pkg_installer="dnf"
       pkg_list="make gcc gcc-c++ autoconf autoconf-archive automake libtool pkgconfig"
     fi
-    sudo ${pkg_installer} -u install ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y install ${pkg_list}' failed!"
-    sudo ${pkg_installer} -u upgrade ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y upgrade ${pkg_list}' failed!"
+    sudo ${pkg_installer} -y install ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y install ${pkg_list}' failed!"
+    sudo ${pkg_installer} -y upgrade ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y upgrade ${pkg_list}' failed!"
     [[ ! -d "libbech32" ]] && git clone https://github.com/whitslack/libbech32 >/dev/null
-    pushd libbech32 || err_exit
+      pushd libbech32 || err_exit
     git pull >/dev/null || err_exit
     mkdir -p build-aux/m4
     curl -sf https://raw.githubusercontent.com/NixOS/patchelf/master/m4/ax_cxx_compile_stdcxx.m4 -o build-aux/m4/ax_cxx_compile_stdcx.m4
@@ -325,7 +325,7 @@ SGVERSION=v1.2.0a
     [[ ! -d "pg_bech32" ]] && git clone https://github.com/cardano-community/pg_bech32 >/dev/null
     cd pg_bech32 || err_exit
     git pull >/dev/null || err_exit
-    make  >/dev/null
+    make clean && make >/dev/null
     sudo make install >/dev/null
     psql -qtAX -d ${PGDATABASE} -c "DROP EXTENSION IF EXISTS pg_bech32;CREATE EXTENSION pg_bech32;" >/dev/null
   }
@@ -339,7 +339,7 @@ SGVERSION=v1.2.0a
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
       if command -v apt-get >/dev/null; then
-        pkg_installer="apt-get"
+        pkg_installer="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
         pkg_list="build-essential make g++ autoconf automake libpcre2-dev libssl-dev libsystemd-dev zlib1g-dev"
       fi
       if command -v dnf >/dev/null; then
@@ -683,12 +683,12 @@ SGVERSION=v1.2.0a
   set_environment_variables
   parse_args
   common_update
-  [[ "${INSTALL_POSTGREST}" == "Y" ]] && setup_db_basics && deploy_postgrest
-  [[ "${INSTALL_HAPROXY}" == "Y" ]] && deploy_haproxy
-  [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]] && deploy_monitoring_agents
-  [[ "${OVERWRITE_CONFIG}" == "Y" ]] && deploy_configs
-  [[ "${OVERWRITE_SYSTEMD}" == "Y" ]] && deploy_systemd
-  [[ "${RESET_GREST}" == "Y" ]] && remove_all_grest_cron_jobs && reset_grest && deploy_b32_ext
-  [[ "${DB_QRY_UPDATES}" == "Y" ]] && remove_all_grest_cron_jobs && setup_db_basics && deploy_query_updates && update_grest_version
+  if [[ "${INSTALL_POSTGREST}" == "Y" ]]; then setup_db_basics; deploy_postgrest; fi
+  if [[ "${INSTALL_HAPROXY}" == "Y" ]]; then deploy_haproxy; fi
+  if [[ "${INSTALL_MONITORING_AGENTS}" == "Y" ]]; then deploy_monitoring_agents; fi
+  if [[ "${OVERWRITE_CONFIG}" == "Y" ]]; then deploy_configs; fi
+  if [[ "${OVERWRITE_SYSTEMD}" == "Y" ]]; then deploy_systemd; fi
+  if [[ "${RESET_GREST}" == "Y" ]]; then remove_all_grest_cron_jobs; reset_grest; deploy_b32_ext; fi
+  if [[ "${DB_QRY_UPDATES}" == "Y" ]]; then remove_all_grest_cron_jobs; setup_db_basics; deploy_query_updates; update_grest_version; fi
   pushd -0 >/dev/null || err_exit
   dirs -c

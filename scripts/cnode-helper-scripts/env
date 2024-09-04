@@ -37,6 +37,7 @@
 #KOIOS_API="https://api.koios.rest/api/v1"              # Koios API for blockchain queries instead of local cli lookup.
                                                         # Leave commented for automatic network detection between MainNet, Preview, Preprod or Guild network.
                                                         # https://www.koios.rest/
+#KOIOS_API_TOKEN=""                                     # The Koios API token to use for authenticated requests. If left empty, unauthenticated requests will be made.
 #DBSYNC_QUERY_FOLDER="${CNODE_HOME}/files/dbsync/queries" # [advanced feature] Folder containing DB-Sync chain analysis queries
 #G_ACCOUNT="cardano-community"             # Override default github repository if you forked project
 
@@ -384,10 +385,11 @@ getDecimalPlaces() {
 #             : $2 = normal | pretty (default)
 #             : $3 = full | trim (default, removes trailing zeros from fraction)
 formatLovelace() {
+  local frac
   if isNumber $1; then
     [[ $1 -eq 0 ]] && echo 0 && return
-    [[ $1 -le 999999 ]] && printf '%s' "$(local frac=$(printf '%06d' "$1"); [[ -z $3 || $3 = 'trim' ]] && ([[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '0.%s' "${BASH_REMATCH[1]}") || printf '0.%s' "${frac}")" && return
-    [[ -z $3 || $3 = 'trim' ]] && fraction="$(local frac=${1: -6}; [[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '.%s' "${BASH_REMATCH[1]}")" || fraction=".${1: -6}"
+    [[ $1 -le 999999 ]] && printf '%s' "$(frac=$(printf '%06d' "$1"); [[ -z $3 || $3 = 'trim' ]] && ([[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '0.%s' "${BASH_REMATCH[1]}") || printf '0.%s' "${frac}")" && return
+    [[ -z $3 || $3 = 'trim' ]] && fraction="$(frac=${1: -6}; [[ ${frac} =~ (^[0-9]*[1-9])?0*$ ]]; printf '.%s' "${BASH_REMATCH[1]}")" || fraction=".${1: -6}"
     [[ ${fraction} = '.' ]] && fraction=""
     [[ -z $2 || $2 = 'pretty' ]] && printf '%s%s' "$(sed ':a;s/\B[0-9]\{3\}\>/,&/;ta' <<< ${1::-6})" "${fraction}" || printf '%s%s' "${1::-6}" "${fraction}"
   else
@@ -818,8 +820,8 @@ slotInterval() {
 # 3 : Koios - general error
 getProtocolParams() {
   if [[ -n ${KOIOS_API} ]]; then
-    [[ $(type -t println) = function ]] && println ACTION "curl -sSL -f -X GET -H \"accept: application/json\" ${KOIOS_API}/cli_protocol_params"
-    if ! PROT_PARAMS=$(curl -sSL -f -X GET -H "accept: application/json" "${KOIOS_API}/cli_protocol_params" 2>&1); then
+    [[ $(type -t println) = function ]] && println ACTION "curl -sSL -f -X GET ${KOIOS_API_HEADERS[*]} ${KOIOS_API}/cli_protocol_params"
+    if ! PROT_PARAMS=$(curl -sSL -f -X GET "${KOIOS_API_HEADERS[@]}" "${KOIOS_API}/cli_protocol_params" 2>&1); then
       return 3
     fi
   else
@@ -972,6 +974,13 @@ set_default_vars() {
   [[ -z ${MITHRIL_HOME} ]] && MITHRIL_HOME="${CNODE_HOME}/mithril"
   [[ -z ${MITHRIL_SIGNER_ENABLED} ]] && MITHRIL_SIGNER_ENABLED="N"
   [[ -z ${STRICT_VERSION_CHECK} ]] && STRICT_VERSION_CHECK="Y"
+  if [[ -z "${KOIOS_API_HEADERS[*]}" ]] ; then
+    if [[ -n "${KOIOS_API_TOKEN}" ]] ; then
+      KOIOS_API_HEADERS=(-H "'Authorization: Bearer ${KOIOS_API_TOKEN}'")
+    else
+      KOIOS_API_HEADERS=()
+    fi
+  fi
   FG_BLACK='\e[30m'
   FG_RED='\e[31m'
   FG_GREEN='\e[32m'
@@ -986,6 +995,9 @@ set_default_vars() {
   STANDOUT='\e[7m'
   BOLD='\e[1m'
   NC='\e[0m'
+  # Due to bug introduced in bash upstream at 5.2.21, need to temporarily enable POSIX mode for newer bash versions, until fix is live
+  # https://github.com/bminor/bash/commit/e327891b52513bef0b34aac625c44f8fa6811f53
+  versionCheck 5.2.20 ${BASH_VERSION//(*/} && set -o posix
 }
 
 read_genesis() {
@@ -1006,7 +1018,7 @@ read_genesis() {
 
 test_koios() {
   # make sure KOIOS_API is reachable, else fall back to cli
-  [[ ${ENABLE_KOIOS} = 'Y' && -n ${KOIOS_API} && $(curl -sfk -o /dev/null -w "%{http_code}" -m 5 ${KOIOS_API}/tip | awk '{print $1}') = "200" ]] || unset KOIOS_API
+  [[ ${ENABLE_KOIOS} = 'Y' && -n ${KOIOS_API} && $(curl -sfk -o /dev/null -w "%{http_code}" -m 5 "${KOIOS_API_HEADERS[@]}" ${KOIOS_API}/tip | awk '{print $1}') = "200" ]] || unset KOIOS_API
 }
 
 [[ ${0} != '-bash' ]] && PARENT=$(dirname $0) || PARENT="$(pwd)" # If sourcing at terminal, $0 would be "-bash" , which is invalid. Thus, fallback to present working directory
@@ -1050,7 +1062,7 @@ fi
 node_version="$(${CNODEBIN} version | head -1 | cut -d' ' -f2)"
 cli_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
 
-if ! versionCheckNode "9.1.0" "${node_version}" || ! versionCheckNode "9.2.1.0" "${cli_version}"; then
+if ! versionCheckNode "9.1.1" "${node_version}" || ! versionCheckNode "9.2.1.0" "${cli_version}"; then
   echo -e "\nKoios scripts have now been upgraded to support cardano-node 9.1.x ('${node_version}' found) / cardano-cli 9.2.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.9.4 to switch scripts to an older branch).\n\n"
   return 1
 fi
@@ -1212,7 +1224,8 @@ case ${NWMAGIC} in
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v1";;
   4)
     NETWORK_NAME="Sanchonet"
-    SHELLEY_TRANS_EPOCH=0;;
+    SHELLEY_TRANS_EPOCH=0
+    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://sancho.koios.rest/api/v1";;
   *) 
     NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0

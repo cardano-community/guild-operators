@@ -25,7 +25,6 @@
 #CONFIRM_SLOT_CNT=600                     # CNCLI validate: require at least these many slots to have passed before validating
 #CONFIRM_BLOCK_CNT=15                     # CNCLI validate: require at least these many blocks on top of minted before validating
 #BATCH_AUTO_UPDATE=N                      # Set to Y to automatically update the script if a new version is available without user interaction
-#USE_KOIOS_API=Y                          # Use Koios API in cncli leaderlog instead of local stake-snapshot query to reduce system resources. (default true)
 #CNCLI_PROM_PORT=12799                    # Set Prometheus port for cncli block metrics available through metrics operation (default: 12799)
 
 ######################################
@@ -148,9 +147,8 @@ getConsensus() {
 }
 
 getKoiosData() {
-  [[ -z ${KOIOS_API} ]] && return 1
-  if ! stake_snapshot=$(curl -sSL -f -d _pool_bech32=${POOL_ID_BECH32} "${KOIOS_API}/pool_stake_snapshot" 2>&1); then
-    echo "ERROR: Koios pool_stake_snapshot query failed: curl -sSL -f -d _pool_bech32=${POOL_ID_BECH32} ${KOIOS_API}/pool_stake_snapshot"
+  if ! stake_snapshot=$(curl -sSL -f "${KOIOS_API_HEADERS[@]}" -d _pool_bech32=${POOL_ID_BECH32} "${KOIOS_API}/pool_stake_snapshot" 2>&1); then
+    echo "ERROR: Koios pool_stake_snapshot query failed: curl -sSL -f ${KOIOS_API_HEADERS[*]} -d _pool_bech32=${POOL_ID_BECH32} ${KOIOS_API}/pool_stake_snapshot"
     return 1
   fi
   read -ra stake_mark <<<"$(jq -r '.[] | select(.snapshot=="Mark") | [.pool_stake, .active_stake, .nonce] | @tsv' <<< ${stake_snapshot})"
@@ -217,7 +215,9 @@ cncliInit() {
     echo "sleeping for 10s and testing again..."
     sleep 10
   done
-  
+
+  test_koios
+
   TMP_DIR="${TMP_DIR}/cncli"
   if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files: ${TMP_DIR}"; exit 1; fi
   
@@ -228,7 +228,6 @@ cncliInit() {
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   if ! mkdir -p "${CNCLI_DIR}" 2>/dev/null; then echo "ERROR: Failed to create CNCLI DB directory: ${CNCLI_DIR}"; exit 1; fi
   CNCLI_DB="${CNCLI_DIR}/cncli.db"
-  [[ -z "${USE_KOIOS_API}" ]] && USE_KOIOS_API=Y
   [[ -z "${CNODE_HOST}" ]] && CNODE_HOST="127.0.0.1"
   [[ -z "${SLEEP_RATE}" ]] && SLEEP_RATE=60
   [[ -z "${CONFIRM_SLOT_CNT}" ]] && CONFIRM_SLOT_CNT=600
@@ -296,7 +295,7 @@ cncliLeaderlog() {
     echo "Leaderlogs already calculated for epoch ${curr_epoch}, skipping!"
   else
     echo "Running leaderlogs for epoch ${curr_epoch}"
-    if [[ ${USE_KOIOS_API} = Y ]]; then 
+    if [[ -n ${KOIOS_API} ]]; then 
       getKoiosData || exit 1
     else
       getLedgerData || exit 1
@@ -368,7 +367,7 @@ cncliLeaderlog() {
         else continue; fi
       fi
       echo "Running leaderlogs for next epoch[${next_epoch}]"
-      if [[ ${USE_KOIOS_API} = Y ]]; then
+      if [[ -n ${KOIOS_API} ]]; then
         if ! getKoiosData; then sleep 60; continue; fi # Sleep for 1 min before retrying to query koios again in case of error
       else
         if ! getLedgerData; then sleep 300; continue; fi # Sleep for 5 min before retrying to query stake snapshot in case of error

@@ -20,10 +20,11 @@
 usage() {
   cat <<-EOF
         
-		Usage: $(basename "$0") [-u] <command> <subcommand> [<sub arg>]
+		Usage: $(basename "$0") [-h] [-u] <command> <subcommand> [<sub arg>]
 		A script to run Cardano Mithril Client
 		
-		-u          Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
+		[ -h | --help]         Print this help
+		[ -u | --skip-update ] Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
 		    
 			Commands:
 			environment           Manage mithril environment file
@@ -46,14 +47,25 @@ EOF
 }
 
 SKIP_UPDATE=N
-[[ $1 = "-u" ]] && export SKIP_UPDATE=Y && shift
+[[ $1 =~ "-u" ]] || [[ $1 =~ "--skip-update" ]] && export SKIP_UPDATE=Y && shift
 
 
 #####################
 # Execution/Main    #
 #####################
 
+function parse_opt_for_help() {
+  for value in "$@"; do
+    if [[ $value == "-h" ]] || [[ $value == "--help" ]]; then
+      usage
+      exit 0
+    fi
+  done
+}
+
 function main() {
+  parse_opt_for_help "$@"
+
   . "$(dirname $0)"/mithril.library
 
   update_check "$@"
@@ -135,9 +147,7 @@ function main() {
       esac
       ;;
     *)
-      echo "Invalid $(basename "$0") command: $1" >&2
       usage
-      exit 1
       ;;
   esac
 
