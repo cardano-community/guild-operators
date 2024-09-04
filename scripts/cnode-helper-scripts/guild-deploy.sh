@@ -451,7 +451,8 @@ download_cardanohwcli() {
   rm -rf /tmp/chwcli-bin && mkdir -p /tmp/chwcli-bin
   pushd /tmp/chwcli-bin >/dev/null || err_exit
   rm -rf cardano-hw-cli*
-  vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
+  #vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
+  vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases | jq -r '.[0].assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
   if curl -sL -f -m ${CURL_TIMEOUT} -o cardano-hw-cli_linux-x64.tar.gz ${vchc_asset_url}; then
     tar zxf cardano-hw-cli_linux-x64.tar.gz &>/dev/null
     rm -f cardano-hw-cli_linux-x64.tar.gz

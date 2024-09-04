@@ -1,8 +1,8 @@
 name: SH Linter
 
 on:
-  push:
-    branches: [ '*' ]
+#  push:
+#    branches: [ '*' ]
 #     branches: [ master,alpha ]
   pull_request:
     branches: [ '*' ]
