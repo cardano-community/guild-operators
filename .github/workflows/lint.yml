@@ -1,0 +1,29 @@
+name: SH Linter
+
+on:
+  push:
+    branches: [ '*' ]
+#     branches: [ master,alpha ]
+  pull_request:
+    branches: [ '*' ]
+
+jobs:
+  shlint:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v4
+    - name: SH Lint Check
+      uses: ludeeus/action-shellcheck@master
+      with:
+        scandir: "./scripts"
+        severity: "error"
+        additional_files: "./scripts/cnode-helper-scripts/env, ./scripts/cnode-helper-scripts/cntools.library, ./scripts/cnode-helper-scripts/mithril.library"
+  jsonlint:
+    name: JSON and YAML Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: JSON/YAML Validate
+      uses: GrantBirki/json-yaml-validate@v3.2.1
