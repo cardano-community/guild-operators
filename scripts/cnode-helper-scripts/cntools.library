@@ -13,7 +13,7 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=1
+CNTOOLS_MINOR_VERSION=2
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
 CNTOOLS_PATCH_VERSION=0
 
@@ -1059,6 +1059,12 @@ getGovKeyInfo() {
   ms_drep_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
   ms_drep_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_SK_FILENAME}"
   ms_drep_id_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_ID_FILENAME}"
+  if [[ -f "${drep_vk_file}" && $(jq -r '.description' "${drep_vk_file}") = *"Hardware"* ]]; then # Hardware wallet
+    drep_sk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_HW_DREP_SK_FILENAME}"
+    cc_cold_sk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_HW_CC_COLD_SK_FILENAME}"
+    cc_hot_sk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_HW_CC_HOT_SK_FILENAME}"
+    ms_drep_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_HW_DREP_SK_FILENAME}"
+  fi
   [[ -f ${drep_id_file} ]] && drep_id=$(cat "${drep_id_file}")
   [[ -f ${cc_cold_id_file} ]] && cc_cold_id=$(cat "${cc_cold_id_file}")
   [[ -f ${cc_hot_id_file} ]] && cc_hot_id=$(cat "${cc_hot_id_file}")
@@ -1743,7 +1749,7 @@ getWalletType() {
   ms_payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_SK_FILENAME}"
   ms_stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
   ms_stake_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
-  if [[ -f "${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}" && -f "${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}" ]]; then # CNTools wallet
+  if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then # CNTools wallet
     wallet_desc=$(jq -r '.description' "${payment_vk_file}")
     if [[ ${wallet_desc} = *"Hardware"* ]]; then
       payment_sk_file="${WALLET_FOLDER}/${1}/${WALLET_HW_PAY_SK_FILENAME}"
@@ -2292,7 +2298,7 @@ registerStakeWallet() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Registration"; then return 1; fi
@@ -2426,7 +2432,7 @@ deregisterStakeWallet() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet De-Registration"; then return 1; fi
@@ -2577,7 +2583,7 @@ sendAssets() {
     fi
   fi
   
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Payment"; then return 1; fi
@@ -2706,7 +2712,7 @@ delegate() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Delegation"; then return 1; fi
@@ -2825,7 +2831,7 @@ withdrawRewards() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Rewards Withdrawal"; then return 1; fi
@@ -2953,17 +2959,7 @@ registerPool() {
   )
   [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
 
-  if ! buildTx; then return 1; fi
-
-  needHWCLI=false
-  for index in "${!owner_wallets[@]}"; do
-    stake_vk_file="${WALLET_FOLDER}/${owner_wallets[${index}]}/${WALLET_STAKE_VK_FILENAME}"
-    [[ $(jq .description "${stake_vk_file}") = *Hardware* ]] && needHWCLI=true && break
-  done
-  if [[ ${needHWCLI} = true ]]; then
-    if ! HWCLIversionCheck; then return 1; fi
-    if ! transformRawTx "${TMP_DIR}"/tx.raw; then return 1; fi
-  fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Registration"; then return 1; fi
@@ -3104,17 +3100,7 @@ modifyPool() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
-
-  needHWCLI=false
-  for index in "${!owner_wallets[@]}"; do
-    stake_vk_file="${WALLET_FOLDER}/${owner_wallets[${index}]}/${WALLET_STAKE_VK_FILENAME}"
-    [[ $(jq .description "${stake_vk_file}") = *Hardware* ]] && needHWCLI=true && break
-  done
-  if [[ ${needHWCLI} = true ]]; then
-    if ! HWCLIversionCheck; then return 1; fi
-    if ! transformRawTx "${TMP_DIR}"/tx.raw; then return 1; fi
-  fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Update"; then return 1; fi
@@ -3253,15 +3239,7 @@ deRegisterPool() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
-
-  needHWCLI=false
-  pay_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-  [[ $(jq .description "${pay_vk_file}") = *Hardware* ]] && needHWCLI=true
-  if [[ ${needHWCLI} = true ]]; then
-    if ! HWCLIversionCheck; then return 1; fi
-    if ! transformRawTx "${TMP_DIR}"/tx.raw; then return 1; fi
-  fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool De-Registration"; then return 1; fi
@@ -3491,7 +3469,7 @@ sendMetadata() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Metadata"; then return 1; fi
@@ -3617,7 +3595,7 @@ mintAsset() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Asset Minting"; then return 1; fi
@@ -3750,7 +3728,7 @@ burnAsset() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Asset Burning"; then return 1; fi
@@ -3886,7 +3864,7 @@ voteDelegation() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Vote Delegation"; then return 1; fi
@@ -4011,7 +3989,7 @@ registerDRep() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet DRep Registration"; then return 1; fi
@@ -4124,7 +4102,7 @@ retireDRep() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet DRep Retire"; then return 1; fi
@@ -4234,7 +4212,7 @@ governanceVote() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx; then return 1; fi
+  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Governance Vote"; then return 1; fi
@@ -4290,14 +4268,18 @@ governanceVote() {
   if ! submitTx "${tx_signed}"; then return 1; fi
 }
 
-# Command     : buildTx [build_args]
+# Command     : buildTx [out_file]
 # Description : Helper function to build a raw transaction
 #             : populate an array variable called 'build_args' with all data
-# Parameters  : build_args  >  an array with all the arguments to assemble the transaction
+# Parameters  : out_file  >  output file of tx build command needed for HW transform
 buildTx() {
   println ACTION "${CCLI} ${NETWORK_ERA} transaction build-raw ${build_args[*]}"
   if ! stdout=$(${CCLI} ${NETWORK_ERA} transaction build-raw "${build_args[@]}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during transaction building!\n${stdout}"; return 1
+  fi
+  if [[ -n $1 ]] && command -v "cardano-hw-cli" &>/dev/null; then
+    HWCLIversionCheck || return 1
+    transformRawTx "$1" || return 1
   fi
 }
 
@@ -4549,8 +4531,8 @@ HWCLIversionCheck() {
   println ACTION "cardano-hw-cli version"
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
   println LOG "cardano-hw-cli version: ${HWCLI_version}"
-  if ! versionCheck "1.14.0" "${HWCLI_version}"; then
-    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.14.0${NC} !!"
+  if ! versionCheck "1.16.0" "${HWCLI_version}"; then
+    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.16.0${NC} !!"
     println ERROR "Please run ${FG_LGRAY}guild-deploy.sh -s w${NC} to upgrade to the latest version."
     return 1
   fi

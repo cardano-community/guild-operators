@@ -606,7 +606,6 @@ function main {
                           --path 1852H/1815H/${acct_idx}H/5/${key_idx}
                           --path 1854H/1815H/${acct_idx}H/0/${key_idx}
                           --path 1854H/1815H/${acct_idx}H/2/${key_idx}
-                          --path 1854H/1815H/${acct_idx}H/3/${key_idx}
                           --verification-key-file "${payment_vk_file}"
                           --verification-key-file "${stake_vk_file}"
                           --verification-key-file "${drep_vk_file}"
@@ -614,7 +613,6 @@ function main {
                           --verification-key-file "${cc_hot_sk_file}"
                           --verification-key-file "${ms_payment_vk_file}"
                           --verification-key-file "${ms_stake_vk_file}"
-                          --verification-key-file "${ms_drep_vk_file}"
                           --hw-signing-file "${payment_sk_file}"
                           --hw-signing-file "${stake_sk_file}"
                           --hw-signing-file "${drep_sk_file}"
@@ -622,7 +620,6 @@ function main {
                           --hw-signing-file "${cc_hot_sk_file}"
                           --hw-signing-file "${ms_payment_sk_file}"
                           --hw-signing-file "${ms_stake_sk_file}"
-                          --hw-signing-file "${ms_drep_sk_file}"
                         )
                         ;;
                     esac
@@ -630,6 +627,9 @@ function main {
                     if ! stdout=$("${HW_DERIVATION_CMD[@]}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
+                    # make a copy of 1852 DRep keys to 1854 multisig due to lacking HW support
+                    cp "${drep_sk_file}" "${ms_drep_sk_file}"
+                    cp "${drep_vk_file}" "${ms_drep_vk_file}"
                     jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" "${payment_vk_file}"
                     jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" "${stake_vk_file}"
                     jq '.description = "Delegate Representative Hardware Verification Key"' "${drep_vk_file}" > "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" "${drep_vk_file}"
@@ -4282,7 +4282,7 @@ function main {
                     esac
                     vote_file="${TMP_DIR}/${action_tx_id}_${action_idx}_$(date '+%Y%m%d%H%M%S').vote"
                     VOTE_CMD=(
-                      ${CCLI} ${NETWORK_ERA} governance vote create
+                      ${CCLI} conway governance vote create
                       ${vote_param}
                       --governance-action-tx-id "${action_tx_id}"
                       --governance-action-index "${action_idx}"
@@ -4397,7 +4397,7 @@ function main {
                     if [[ ${is_update} = N ]]; then
                       # registration
                       DREP_REG_CMD=(
-                        ${CCLI} ${NETWORK_ERA} governance drep registration-certificate
+                        ${CCLI} conway governance drep registration-certificate
                         "${drep_reg_param[@]}"
                         --key-reg-deposit-amt ${DREP_DEPOSIT}
                         --out-file "${drep_cert_file}"
@@ -4405,7 +4405,7 @@ function main {
                     else
                       # update
                       DREP_REG_CMD=(
-                        ${CCLI} ${NETWORK_ERA} governance drep update-certificate
+                        ${CCLI} conway governance drep update-certificate
                         "${drep_reg_param[@]}"
                         --out-file "${drep_cert_file}"
                       )
@@ -4473,7 +4473,7 @@ function main {
                       drep_ret_param=(--drep-verification-key-file "${drep_vk_file}")
                     fi
                     DREP_RET_CMD=(
-                      ${CCLI} ${NETWORK_ERA} governance drep retirement-certificate
+                      ${CCLI} conway governance drep retirement-certificate
                       "${drep_ret_param[@]}"
                       --deposit-amt ${drep_deposit_amt}
                       --out-file "${drep_cert_file}"
@@ -4627,20 +4627,19 @@ function main {
                           --path 1852H/1815H/${acct_idx}H/3/${key_idx}
                           --path 1852H/1815H/${acct_idx}H/4/${key_idx}
                           --path 1852H/1815H/${acct_idx}H/5/${key_idx}
-                          --path 1854H/1815H/${acct_idx}H/3/${key_idx}
                           --verification-key-file "${drep_vk_file}"
                           --verification-key-file "${cc_cold_vk_file}"
                           --verification-key-file "${cc_hot_vk_file}"
-                          --verification-key-file "${ms_drep_vk_file}"
                           --hw-signing-file "${drep_sk_file}"
                           --hw-signing-file "${cc_cold_sk_file}"
                           --hw-signing-file "${cc_hot_sk_file}"
-                          --hw-signing-file "${ms_drep_sk_file}"
                         )
                         println ACTION "${HW_CLI_CMD[*]}"
                         if ! stdout=$("${HW_CLI_CMD[@]}" 2>&1); then
                           println ERROR "\n${FG_RED}ERROR${NC}: failure during governance key extraction!\n${stdout}"; waitToProceed && continue
                         fi
+                        cp "${drep_sk_file}" "${ms_drep_sk_file}"
+                        cp "${drep_vk_file}" "${ms_drep_vk_file}"
                         jq '.description = "Delegate Representative Hardware Verification Key"' "${drep_vk_file}" > "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" "${drep_vk_file}"
                         jq '.description = "Constitutional Committee Cold Hardware Verification Key"' "${cc_cold_vk_file}" > "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" "${cc_cold_vk_file}"
                         jq '.description = "Constitutional Committee Hot Hardware Verification Key"' "${cc_hot_sk_file}" > "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" "${cc_hot_sk_file}"
