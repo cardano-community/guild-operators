@@ -3393,7 +3393,7 @@ function main {
                 for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
                   [[ ${otx_witness_name} = "${otx_signing_name}" ]] && hasWitness=true && break
                 done
-                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_RED}\u274C${NC}" || println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_GREEN}\u2714${NC}"
+                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_RED}x${NC}" || println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_GREEN}\u2714${NC}"
               done
               for otx_script in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
                 _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
