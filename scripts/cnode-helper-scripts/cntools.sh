@@ -4098,10 +4098,8 @@ function main {
                     curr_epoch=$(getEpoch)
                     page=1
                     pages=$(( (action_cnt + (page_entries - 1)) / page_entries ))
-                    echo
-                    tput sc
                     while true; do
-                      tput rc && tput ed
+                      clear
                       start_idx=$(( (page *  page_entries) - page_entries ))
                       # loop current page to find max length of entries
                       max_len=66 # assume action id (66)
@@ -4127,10 +4125,10 @@ function main {
                           [[ ${#spo_no} -gt ${max_no_len} ]] && max_no_len=${#spo_no}
                           [[ ${#cc_yes} -gt ${max_yes_len} ]] && max_yes_len=${#cc_yes}
                           [[ ${#cc_no} -gt ${max_no_len} ]] && max_no_len=${#cc_no}
-                          drep_yes_power="$(formatLovelace ${drep_yes_power})"; max_yes_power_len=${#drep_yes_power}
-                          drep_no_power="$(formatLovelace ${drep_no_power})"; max_no_power_len=${#drep_no_power}
-                          spo_yes_power="$(formatLovelace ${spo_yes_power})"; [[ ${#spo_yes_power} -gt ${max_yes_power_len} ]] && max_yes_power_len=${#spo_yes_power}
-                          spo_no_power="$(formatLovelace ${spo_no_power})"; [[ ${#spo_no_power} -gt ${max_no_power_len} ]] && max_no_power_len=${#spo_no_power}
+                          drep_yes_power="$(formatLovelaceHuman ${drep_yes_power})"; max_yes_power_len=${#drep_yes_power}
+                          drep_no_power="$(formatLovelaceHuman ${drep_no_power})"; max_no_power_len=${#drep_no_power}
+                          spo_yes_power="$(formatLovelaceHuman ${spo_yes_power})"; [[ ${#spo_yes_power} -gt ${max_yes_power_len} ]] && max_yes_power_len=${#spo_yes_power}
+                          spo_no_power="$(formatLovelaceHuman ${spo_no_power})"; [[ ${#spo_no_power} -gt ${max_no_power_len} ]] && max_no_power_len=${#spo_no_power}
                           max_yes_pct_len=${#drep_yes_pct}
                           max_no_pct_len=${#drep_no_pct}
                           [[ ${#spo_yes_pct} -gt ${max_yes_pct_len} ]] && max_yes_pct_len=${#spo_yes_pct}
@@ -4148,10 +4146,10 @@ function main {
                         fi
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url}"
                         if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-                          chars_left=$((max_len-max_yes_len-max_yes_pct_len-max_yes_power_len-max_no_len-max_no_pct_len-max_no_power_len-10))
+                          chars_left=$((max_len-max_yes_len-max_yes_pct_len-max_yes_power_len-max_no_len-max_no_pct_len-max_no_power_len-17))
                           printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} (${FG_LBLUE}%-${max_yes_pct_len}s${NC}%% ${FG_LBLUE}%-${max_yes_power_len}s${NC}) No=${FG_LBLUE}%-${max_no_len}s${NC} (${FG_LBLUE}%-${max_no_pct_len}s${NC}%% ${FG_LBLUE}%-${max_no_power_len}s${NC}) %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_yes_pct}" "${drep_yes_power}" "${drep_no}" "${drep_no_pct}" "${drep_no_power}" "|"
                           printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} (${FG_LBLUE}%-${max_yes_pct_len}s${NC}%% ${FG_LBLUE}%-${max_yes_power_len}s${NC}) No=${FG_LBLUE}%-${max_no_len}s${NC} (${FG_LBLUE}%-${max_no_pct_len}s${NC}%% ${FG_LBLUE}%-${max_no_power_len}s${NC}) %${chars_left}s\n" "SPO" "${drep_yes}" "${spo_yes_pct}" "${spo_yes_power}" "${spo_no}" "${spo_no_pct}" "${spo_no_power}" "|"
-                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} (${FG_LBLUE}%-${max_yes_pct_len}s${NC}%%%-$((max_yes_power_len+1))s No=${FG_LBLUE}%-${max_no_len}s${NC} (${FG_LBLUE}%-${max_no_pct_len}s${NC}%%%-$((max_no_power_len+1))s %${chars_left}s\n" "Committee" "${cc_yes}" "${cc_yes_pct}" ")" "${cc_no}" "${cc_no_pct}" ")" "|"
+                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} (${FG_LBLUE}%-${max_yes_pct_len}s${NC}%%%-$((max_yes_power_len+2))s No=${FG_LBLUE}%-${max_no_len}s${NC} (${FG_LBLUE}%-${max_no_pct_len}s${NC}%%%-$((max_no_power_len+2))s %${chars_left}s\n" "Committee" "${cc_yes}" "${cc_yes_pct}" ")" "${cc_no}" "${cc_no_pct}" ")" "|"
                         else
                           printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#drep_yes}-4-${#drep_no}-9))s${NC} |\n" "DRep" "${drep_yes}" "${drep_no}" "${drep_abstain}"
                           printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#spo_yes}-4-${#spo_no}-9))s${NC} |\n" "SPO" "${spo_yes}" "${spo_no}" "${spo_abstain}"
