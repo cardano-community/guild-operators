@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.2.0] - 2024-09-08
+#### Added
+- Adds `light` mode support for all governance functions.
+
 ## [13.1.0] - 2024-08-01
 #### Added
 - New Vote menu option to hold everything related to voting on Cardano.
