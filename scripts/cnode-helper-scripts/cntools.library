@@ -1168,9 +1168,10 @@ getDRepVotePower() {
     if [[ ${drep_hash} != "$2" ]] || ! isNumber ${drep_vote_power}; then
       getDRepStatus "$1" "$2" || return 1
     fi
+    current_epoch=$(getEpoch)
     HEADERS=("${KOIOS_API_HEADERS[@]}" -H "accept: text/csv")
-    println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/drep_epoch_summary?select=amount"
-    ! vote_power_total=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/drep_epoch_summary?select=amount" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${all_drep_vote_power}\n" && return 1 # print error and return
+    println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/drep_epoch_summary?_epoch_no=${current_epoch}&select=amount"
+    vote_power_total=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/drep_epoch_summary?_epoch_no=${current_epoch}&select=amount") || return 1
     vote_power_total=$(tail -n +2 <<< ${vote_power_total})
     vote_power="${drep_vote_power}"
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
