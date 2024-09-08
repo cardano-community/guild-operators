@@ -4104,7 +4104,7 @@ function main {
                       # loop current page to find max length of entries
                       max_len=66 # assume action id (66)
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
-                        IFS=',' read -r -a vote_action_arr
+                        IFS=',' read -r -a vote_action_arr <<< "${vote_action}"
                         [[ ${#vote_action_arr[0]} -gt ${max_len} ]] && max_len=${#vote_action_arr[0]}
                         [[ ${#vote_action_arr[4]} -gt ${max_len} ]] && max_len=${#vote_action_arr[4]}
                       done
@@ -4161,7 +4161,7 @@ function main {
                           printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} -> ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP | No=${FG_LBLUE}%-${max_no_len}s${NC} -> ${FG_LBLUE}%${max_no_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP %${chars_left}s\n" "SPO" "${drep_yes}" "${spo_yes_pct}" "${spo_yes_power}" "${spo_no}" "${spo_no_pct}" "${spo_no_power}" "|"
                           printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} -> ${FG_LBLUE}%${max_yes_pct_len}s${NC}%%%$((max_yes_power_len+6))s | No=${FG_LBLUE}%-${max_no_len}s${NC} -> ${FG_LBLUE}%${max_no_pct_len}s${NC}%%%$((max_no_power_len+6))s %${chars_left}s\n" "Committee" "${cc_yes}" "${cc_yes_pct}" " " "${cc_no}" "${cc_no_pct}" " " "|"
                         else
-                          chars_left=$((max_len-max_yes_len-max_no_len-max_abstain_len-17))
+                          chars_left=$((max_len-max_yes_len-max_no_len-max_abstain_len-16))
                           printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} No=${FG_LBLUE}%-${max_no_len}s${NC} Abstain=${FG_LBLUE}%-${max_abstain_len}s${NC} %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_no}" "${drep_abstain}" "|"
                           printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} No=${FG_LBLUE}%-${max_no_len}s${NC} Abstain=${FG_LBLUE}%-${max_abstain_len}s${NC} %${chars_left}s\n" "SPO" "${spo_yes}" "${spo_no}" "${spo_abstain}" "|"
                           printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} No=${FG_LBLUE}%-${max_no_len}s${NC} Abstain=${FG_LBLUE}%-${max_abstain_len}s${NC} %${chars_left}s\n" "Committee" "${cc_yes}" "${cc_no}" "${cc_abstain}" "|"
