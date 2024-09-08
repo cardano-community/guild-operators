@@ -1116,9 +1116,9 @@ getDRepStatus() {
     HEADERS=("${KOIOS_API_HEADERS[@]}" -H "Content-Type: application/json" -H "accept: text/csv")
     println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '{\"_drep_ids\":[\"${_param}\"]}' ${KOIOS_API}/drep_info?select=registered,deposit,active,expires_epoch_no,amount,url,hash"
     ! drep_info_list=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_drep_ids":["'${_param}'"]}' "${KOIOS_API}/drep_info?select=registered,deposit,active,expires_epoch_no,amount,url,hash" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${drep_info_list}\n" && return 1 # print error and return
-    [[ -z ${drep_info_list} ]] && return
+    [[ -z ${drep_info_list} ]] && return 1
     while IFS=',' read -r _registered _deposit _active _expires_epoch_no _amount _url _hash; do
-      [[ ${_registered} = f ]] && break
+      [[ ${_registered} != t ]] && return 1
       drep_hash=${2}
       drep_anchor_url="${_url}"
       drep_anchor_hash="${_hash}"
