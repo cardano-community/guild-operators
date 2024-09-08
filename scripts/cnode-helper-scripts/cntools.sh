@@ -4584,6 +4584,10 @@ function main {
                             1) waitToProceed; continue ;;
                             2) continue ;;
                           esac
+                          getWalletType ${wallet_name}
+                          if [[ $? -eq 0 ]]; then
+                            println ERROR "\n${FG_YELLOW}HW wallets currently not supported in a MultiSig DRep, please select only normal mnemonic or cli wallets${NC}" && waitToProceed && continue
+                          fi
                           getGovKeyInfo ${wallet_name}
                           [[ -z ${ms_drep_id} || ${ms_drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid wallet, MultiSig DRep keys not found!" && waitToProceed && continue
                           key_hashes["${ms_drep_hash}"]=1
