@@ -1111,11 +1111,11 @@ getGovKeyInfo() {
   fi
   if [[ -n ${cc_cold_id} ]]; then
     cc_cold_hash=$(bech32 <<< "${cc_cold_id}")
-    cc_cold_id_cip129=$(bech32 <<< "12${cc_cold_hash}")
+    cc_cold_id_cip129=$(bech32 cc_cold <<< "12${cc_cold_hash}")
   fi
   if [[ -n ${cc_hot_id} ]]; then
     cc_hot_hash=$(bech32 <<< "${cc_hot_id}")
-    cc_hot_id_cip129=$(bech32 <<< "02${cc_hot_hash}")
+    cc_hot_id_cip129=$(bech32 cc_hot <<< "02${cc_hot_hash}")
   fi
 }
 
