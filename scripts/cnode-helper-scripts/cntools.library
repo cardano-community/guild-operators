@@ -1045,7 +1045,7 @@ getPayAddress() {
 # Command     : getGovKeyInfo [wallet name]
 # Description : generate DRep ID and committee key hash
 getGovKeyInfo() {
-  unset drep_id drep_hash hash_type cc_cold_id cc_hot_id ms_drep_id ms_drep_hash
+  unset drep_id drep_id_cip129 drep_hash hash_type cc_cold_hash cc_cold_id cc_cold_id_cip129 cc_hot_hash cc_hot_id cc_hot_id_cip129 ms_drep_id ms_drep_hash
   drep_vk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_VK_FILENAME}"
   drep_sk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_SK_FILENAME}"
   drep_script_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
@@ -1101,25 +1101,114 @@ getGovKeyInfo() {
     else
       hash_type="scriptHash"
       drep_hash="${drep_id}"
-      drep_id="$(bech32 drep <<< "${drep_hash}")"
+      drep_id="$(bech32 drep_script <<< "${drep_hash}")"
       drep_id_cip129="$(bech32 drep <<< "23${drep_hash}")"
     fi
   fi
   if [[ -n ${ms_drep_id} ]]; then
     ms_drep_hash="$(bech32 <<< ${ms_drep_id})"
+    ms_drep_id=$(bech32 drep_script <<< "${ms_drep_hash}")
   fi
+  if [[ -n ${cc_cold_id} ]]; then
+    cc_cold_hash=$(bech32 <<< "${cc_cold_id}")
+    cc_cold_id_cip129=$(bech32 <<< "12${cc_cold_hash}")
+  fi
+  if [[ -n ${cc_hot_id} ]]; then
+    cc_hot_hash=$(bech32 <<< "${cc_hot_id}")
+    cc_hot_id_cip129=$(bech32 <<< "02${cc_hot_hash}")
+  fi
+}
+
+# Command     : getDRepIds [type] [hash]
+getDRepIds() {
+  unset drep_id drep_id_cip129
+  [[ -z $1 || -z $2 ]] && return 1
+  if [[ $1 = keyHash ]]; then
+    drep_id="$(bech32 drep <<< ${2})"
+    drep_id_cip129="$(bech32 drep <<< "22${2}")"
+  else
+    drep_id="$(bech32 drep_script <<< ${2})"
+    drep_id_cip129="$(bech32 drep <<< "23${2}")"
+  fi
+}
+
+# Command     : parseDRepId [drep_id]
+parseDRepId() {
+  unset drep_id drep_id_cip129 drep_hash hash_type
+  [[ -z $1 ]] && return 1
+  drep_hash=$(bech32 <<< $1)
+  if [[ ${#drep_hash} -eq 56 ]]; then
+    if [[ $1 = drep_script* ]]; then
+      hash_type=scriptHash
+      drep_id=$(bech32 drep_script <<< "${drep_hash}")
+      drep_id_cip129=$(bech32 drep <<< "23${drep_hash}")
+    else
+      hash_type=keyHash
+      drep_id=$(bech32 drep <<< "${drep_hash}")
+      drep_id_cip129=$(bech32 drep <<< "22${drep_hash}")
+    fi
+  elif [[ ${#drep_hash} -eq 58 ]]; then
+    if [[ ${drep_hash:0:2} = 23 ]]; then
+      hash_type=scriptHash
+      drep_hash=${drep_hash:2}
+      drep_id=$(bech32 drep_script <<< "${drep_hash}")
+      drep_id_cip129=$1
+    else
+      hash_type=keyHash
+      drep_hash=${drep_hash:2}
+      drep_id=$(bech32 drep <<< "${drep_hash}")
+      drep_id_cip129=$1
+    fi
+  fi
+}
+
+# Command     : getCCIds [type] [hash]
+getCCIds() {
+  unset cc_cold_id cc_hot_id cc_cold_id_cip129 cc_hot_id_cip129
+  [[ -z $1 || -z $2 ]] && return 1
+  if [[ $1 = keyHash ]]; then
+    cc_cold_id="$(bech32 cc_cold <<< ${2})"
+    cc_hot_id="$(bech32 cc_hot <<< ${2})"
+    cc_cold_id_cip129="$(bech32 cc_cold <<< "12${2}")"
+    cc_hot_id_cip129="$(bech32 cc_cold <<< "02${2}")"
+  else
+    cc_cold_id="$(bech32 cc_cold_script <<< ${2})"
+    cc_hot_id="$(bech32 cc_hot_script <<< ${2})"
+    cc_cold_id_cip129="$(bech32 cc_cold <<< "13${2}")"
+    cc_hot_id_cip129="$(bech32 cc_cold <<< "03${2}")"
+  fi
+}
+
+# Command     : getGovActionId [tx_id] [index]
+getGovActionId() {
+  unset action_id action_id_cip129
+  [[ -z $1 || -z $2 ]] && return 1
+  action_id="${1}#${2}"
+  action_id_cip129=$(bech32 gov_action <<< "${1}$(printf '%02x' ${2})")
+}
+
+# Command     : parseGovActionId [gov_action_id]
+parseGovActionId() {
+  unset action_tx_id action_idx
+  [[ -z $1 ]] && return 1
+  action_hex=$(bech32 <<< "${1}")
+  action_tx_id=${action_hex:0:64}
+  action_idx=$(printf "%d" "0x${action_hex:64}")
 }
 
 # Command     : getDRepStatus [type] [hash]
 # Description : query status of drep id
-# Return      : populates ${hash_type} ${drep_anchor_url} ${drep_anchor_hash} ${drep_deposit_amt} ${drep_expiry} ${drep_active} ${drep_vote_power}
+# Return      : populates ${hash_type} ${drep_hash} ${drep_anchor_url} ${drep_anchor_hash} ${drep_deposit_amt} ${drep_expiry} ${drep_active} ${drep_vote_power}
 getDRepStatus() {
   unset hash_type drep_anchor_url drep_anchor_hash drep_deposit_amt drep_expiry drep_active drep_vote_power
   [[ -z $1 || -z $2 || ($1 != keyHash && $1 != scriptHash) ]] && return 1
   hash_type="$1"
+  drep_hash="$2"
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    if [[ ${2} = always* ]]; then
-      _param="drep_${2,,}"
+    if [[ ${2} = alwaysAbstain ]]; then
+      _param="drep_always_abstain"
+    elif [[ ${2} = alwaysNoConfidence ]]; then
+     _param="drep_always_no_confidence"
     else
       [[ ${hash_type} = keyHash ]] && _param=$(bech32 drep <<< "22${2}") || _param=$(bech32 drep <<< "23${2}")
     fi
@@ -1129,7 +1218,6 @@ getDRepStatus() {
     [[ -z ${drep_info_list} ]] && return 1
     while IFS=',' read -r _registered _deposit _active _expires_epoch_no _amount _url _hash; do
       [[ ${_registered} != t ]] && return 1
-      drep_hash=${2}
       drep_anchor_url="${_url}"
       drep_anchor_hash="${_hash}"
       drep_deposit_amt="${_deposit}"
@@ -1175,7 +1263,9 @@ getDRepVotePower() {
   unset vote_power vote_power_total vote_power_pct
   [[ -z $1 ]] && return 1
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    if [[ ${drep_hash} != "$2" ]] || ! isNumber ${drep_vote_power}; then
+    if [[ $1 = always* ]]; then
+      getDRepStatus "-" "$1" || return 1
+    elif [[ ${drep_hash} != "$2" ]] || ! isNumber ${drep_vote_power}; then
       getDRepStatus "$1" "$2" || return 1
     fi
     current_epoch=$(getEpoch)
@@ -3963,7 +4053,9 @@ voteDelegation() {
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Vote Delegation"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
-    if ! offlineJSON=$(jq ". += { \"drep-id\": \"${drep_id}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"drep-hash\": \"${drep_hash}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"drep-id-cip105\": \"${drep_id}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"drep-id-cip129\": \"${drep_id_cip129}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi
     if [[ ${wallet_type} -eq 5 ]]; then
@@ -4312,6 +4404,7 @@ governanceVote() {
     if ! buildOfflineJSON "Wallet Governance Vote"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { \"action-id\": \"${action_id}\" }" <<< ${offlineJSON}); then return 1; fi
+    if ! offlineJSON=$(jq ". += { \"action-id-cip129\": \"${action_id_cip129}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { vote: \"${vote_param//-}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txFee: \"${min_fee}\" }" <<< ${offlineJSON}); then return 1; fi
     if ! offlineJSON=$(jq ". += { txBody: $(jq -c . "${TMP_DIR}"/tx.raw) }" <<< ${offlineJSON}); then return 1; fi

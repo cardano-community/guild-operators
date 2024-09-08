@@ -8,7 +8,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [13.2.0] - 2024-09-08
 #### Added
-- Adds `light` mode support for all governance functions.
+- `light` mode support for all governance functions.
+- CIP-129 support
 
 ## [13.1.0] - 2024-08-01
 #### Added

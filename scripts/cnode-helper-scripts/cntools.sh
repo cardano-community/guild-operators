@@ -1123,15 +1123,19 @@ function main {
                   vote_delegation_type="${vote_delegation%-*}"
                   if [[ ${vote_delegation} = *-* ]]; then
                     vote_delegation_hash="${vote_delegation#*-}"
-                    vote_delegation=$(bech32 drep <<< ${vote_delegation_hash})
                     while IFS= read -r -d '' _wallet; do
                       getGovKeyInfo "$(basename ${_wallet})"
-                      if [[ "${drep_id}" = "${vote_delegation}" ]]; then
+                      if [[ "${drep_hash}" = "${vote_delegation_hash}" ]]; then
                         walletName=" ${FG_GREEN}$(basename ${_wallet})${NC}" && break
                       fi
                     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                   fi
-                  println "Delegation        : ${FG_LGRAY}${vote_delegation}${NC}${walletName}"
+                  getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
+                  println "Delegation        : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                  println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                  if [[ -n ${walletName} ]]; then
+                    println "                  : Wallet  => ${walletName}"
+                  fi
                   if [[ ${vote_delegation} = always* ]]; then
                     : # do nothing
                   elif getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
@@ -3750,8 +3754,11 @@ function main {
               [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets Left      : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
               if [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && otx_metadata=$(jq -er '.metadata' <<< ${offlineJSON}); then println DEBUG "Metadata         : \n${otx_metadata}\n"; fi
               jq -er '."drep-wallet-name"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep Wallet      : ${FG_GREEN}$(jq -r '."drep-wallet-name"' <<< ${offlineJSON})${NC}"
-              jq -er '."drep-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep ID          : ${FG_LGRAY}$(jq -r '."drep-id"' <<< ${offlineJSON})${NC}"
+              jq -er '."drep-hash"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep Hash        : ${FG_LGRAY}$(jq -r '."drep-hash"' <<< ${offlineJSON})${NC}"
+              jq -er '."drep-id-cip105"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep ID CIP-105  : ${FG_LGRAY}$(jq -r '."drep-id-cip105"' <<< ${offlineJSON})${NC}"
+              jq -er '."drep-id-cip129"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep ID CIP-129  : ${FG_LGRAY}$(jq -r '."drep-id-cip129"' <<< ${offlineJSON})${NC}"
               jq -er '."action-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Action ID        : ${FG_LGRAY}$(jq -r '."action-id"' <<< ${offlineJSON})${NC}"
+              jq -er '."action-id-cip129"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Action ID CIP-129: ${FG_LGRAY}$(jq -r '."action-id-cip129"' <<< ${offlineJSON})${NC}"
               jq -er '.vote' <<< ${offlineJSON} &>/dev/null && println DEBUG "Vote             : ${FG_LGRAY}$(jq -r '.vote' <<< ${offlineJSON})${NC}"
 
               if [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]]; then
@@ -3865,15 +3872,19 @@ function main {
                         vote_delegation_type="${vote_delegation%-*}"
                         if [[ ${vote_delegation} = *-* ]]; then
                           vote_delegation_hash="${vote_delegation#*-}"
-                          vote_delegation=$(bech32 drep <<< ${vote_delegation_hash})
                           while IFS= read -r -d '' _wallet; do
                             getGovKeyInfo "$(basename ${_wallet})"
-                            if [[ "${drep_id}" = "${vote_delegation}" ]]; then
+                            if [[ ${drep_hash} = "${vote_delegation_hash}" ]]; then
                               walletName=" ${FG_GREEN}$(basename ${_wallet})${NC}" && break
                             fi
                           done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                         fi
-                        println "Delegation        : ${FG_LGRAY}${vote_delegation}${NC}${walletName}"
+                        getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
+                        println "Delegation        : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                        println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                        if [[ -n ${walletName} ]]; then
+                          println "                  : Wallet  => ${walletName}"
+                        fi
                         if [[ ${vote_delegation} = always* ]]; then
                           : # do nothing
                         elif getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
@@ -3911,7 +3922,8 @@ function main {
                       println "Status            : ${FG_YELLOW}Governance keys missing, please derive them if needed${NC}"
                       waitToProceed && continue
                     fi
-                    println "DRep ID           : ${FG_LGRAY}${drep_id}${NC}"
+                    println "DRep ID           : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
                     println "DRep Hash         : ${FG_LGRAY}${drep_hash}${NC}"
                     if [[ ${hash_type} = keyHash ]]; then
                       println "DRep Type         : ${FG_LGRAY}Key${NC}"
@@ -3946,8 +3958,10 @@ function main {
                       fi
                     fi
                     echo
-                    println "Committee Cold ID : ${FG_LGRAY}${cc_cold_id}${NC}"
-                    println "Committee Hot ID  : ${FG_LGRAY}${cc_hot_id}${NC}"
+                    println "Committee Cold ID : CIP-105 => ${FG_LGRAY}${cc_cold_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${cc_cold_id_cip129}${NC}"
+                    println "Committee Hot ID  : CIP-105 => ${FG_LGRAY}${cc_hot_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${cc_hot_id_cip129}${NC}"
                     waitToProceed && continue
                     ;; ###################################################################
                   delegate)
@@ -3955,6 +3969,7 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> DELEGATE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    unset drep_id_cip129
                     if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "\n${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
@@ -4005,10 +4020,10 @@ function main {
                           waitToProceed && continue
                         fi
                         ;;
-                      1) getAnswerAnyCust drep_id "DRep (blank to cancel)"
+                      1) getAnswerAnyCust drep_id "DRep ID [CIP-105 or CIP-129] (blank to cancel)"
                         [[ -z "${drep_id}" ]] && continue
-                        [[ ${drep_id} != drep* ]] && drep_id=$(bech32 drep <<< "${drep_id}" 2>/dev/null)
-                        [[ ${#drep_id} -ne 56 || ${drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
+                        parseDRepId "${drep_id}"
+                        [[ -z ${drep_id} ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
                         ;;
                       2) drep_id="alwaysAbstain"; vote_param=("--always-abstain") ;;
                       3) drep_id="alwaysNoConfidence"; vote_param=("--always-no-confidence") ;;
@@ -4016,9 +4031,7 @@ function main {
                     esac
                     unset drep_expiry
                     if [[ ${drep_id} != always* ]]; then
-                      [[ -z ${drep_hash} ]] && drep_hash=$(bech32 <<< "${drep_id}")
-                      getDRepStatus keyHash ${drep_hash}
-                      [[ -z ${drep_expiry} ]] && getDRepStatus scriptHash ${drep_hash}
+                      getDRepStatus ${hash_type} ${drep_hash}
                       if [[ -z ${drep_expiry} ]]; then
                         println ERROR "\n${FG_RED}ERROR${NC}: selected DRep not registered"
                         waitToProceed && continue
@@ -4059,7 +4072,11 @@ function main {
                     if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
                     echo
                     println "${FG_GREEN}${wallet_name}${NC} successfully delegated to DRep!"
-                    println "\nDRep ID                : ${FG_LGRAY}${drep_id}${NC}"
+                    echo
+                    println "DRep ID                : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                    if [[ -n ${drep_id_cip129} ]]; then
+                      println "                       : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                    fi
                     if [[ -n ${drep_expiry} ]]; then
                       [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                       println "DRep expiry            : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
@@ -4096,7 +4113,7 @@ function main {
                       clear
                       start_idx=$(( (page *  page_entries) - page_entries ))
                       # loop current page to find max length of entries
-                      max_len=66 # assume action id (66)
+                      max_len=70 # assume action id in CIP-129 format (70)
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
                         IFS=',' read -r -a vote_action_arr <<< "${vote_action}"
                         [[ ${#vote_action_arr[0]} -gt ${max_len} ]] && max_len=${#vote_action_arr[0]}
@@ -4140,7 +4157,10 @@ function main {
                           [[ ${#cc_no} -gt ${max_no_len} ]] && max_no_len=${#cc_no}
                           [[ ${#cc_abstain} -gt ${max_abstain_len} ]] && max_abstain_len=${#cc_abstain}
                         fi
+                        IFS='#' read -r proposal_tx_id proposal_index <<< "${action_id}"
+                        getGovActionId ${proposal_tx_id} ${proposal_index}
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Action ID" "${action_id}"
+                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "  CIP-129" "${action_id_cip129}"
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Type" "${action_type}"
                         printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${proposed_in}"
                         if [[ ${expires_after} -lt ${curr_epoch} ]]; then
@@ -4253,7 +4273,7 @@ function main {
                       4) continue ;;
                     esac
                     if [[ ${vote_mode} = "committee" ]]; then
-                      isCommitteeMember $(bech32 <<< ${cc_cold_id}) $(bech32 <<< ${cc_cold_id})
+                      isCommitteeMember $(bech32 <<< ${cc_cold_id}) $(bech32 <<< ${cc_hot_id})
                       case $? in
                         0) : ;; # ok
                         1) println ERROR "\n${FG_RED}ERROR${NC}: selected wallet is not an active committee member!"
@@ -4273,10 +4293,11 @@ function main {
                       fi
                     fi
                     echo
-                    getAnswerAnyCust action_id "Governance Action ID [<tx_id>#<action_idx>] (blank to cancel)"
+                    getAnswerAnyCust action_id "Governance Action ID [<tx_id>#<action_idx> | CIP-129] (blank to cancel)"
                     [[ -z "${action_id}" ]] && continue
-                    IFS='#' read -r action_tx_id action_idx <<< "${action_id}"
-                    ! isNumber "${action_idx}" && println ERROR "\n${FG_RED}ERROR${NC}: invalid action id! <tx_id>#<action_idx>" && waitToProceed && continue
+                    [[ ${action_id} = gov_action* ]] && parseGovActionId ${action_id} || IFS='#' read -r action_tx_id action_idx <<< "${action_id}"
+                    ! isNumber "${action_idx}" && println ERROR "\n${FG_RED}ERROR${NC}: invalid action id!" && waitToProceed && continue
+                    getGovActionId "${action_tx_id}" "${action_idx}"
                     getGovAction "${action_tx_id}" "${action_idx}"
                     case $? in
                       1) println ERROR "\n${FG_RED}ERROR${NC}: governance action id not found!"; waitToProceed && continue ;;
@@ -4593,10 +4614,11 @@ function main {
                           key_hashes["${ms_drep_hash}"]=1
                           selected_wallets+=("${wallet_name}")
                           ;;
-                        1) getAnswerAnyCust drep_id "MultiSig DRep ID (bech32)"
-                          [[ ${drep_id} != drep* ]] && drep_id=$(bech32 drep <<< "${drep_id}" 2>/dev/null)
-                          [[ ${#drep_id} -ne 56 || ${drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
-                          key_hashes[$(bech32 <<< "${drep_id}")]=1
+                        1) getAnswerAnyCust drep_id "MultiSig DRep ID [CIP-105 or CIP-129] (blank to cancel)"
+                          [[ -z "${drep_id}" ]] && continue
+                          parseDRepId "${drep_id}"
+                          [[ -z ${drep_id} ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
+                          key_hashes[${drep_hash})]=1
                           ;;
                         2) break ;;
                         3) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
@@ -4627,10 +4649,12 @@ function main {
                     fi
                     chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
                     getGovKeyInfo ${ms_wallet_name}
+                    getDRepIds scriptHash ${ms_drep_hash}
                     echo
                     println "New MultiSig DRep : ${FG_GREEN}${ms_wallet_name}${NC}"
-                    println "DRep ID           : ${FG_LGRAY}$(bech32 drep <<< ${drep_id} 2>/dev/null)${NC}"
-                    println "DRep Script Hash  : ${FG_LGRAY}${drep_id}${NC}"
+                    println "DRep ID           : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                    println "DRep Script Hash  : ${FG_LGRAY}${ms_drep_hash}${NC}"
                     println DEBUG "\nNote that this is not a normal wallet and can only be used to vote as a DRep coalition."
                     waitToProceed && continue
                     ;; ###################################################################
@@ -4834,9 +4858,12 @@ function main {
                     echo
                     getGovKeyInfo ${wallet_name}
                     println "Wallet            : ${FG_GREEN}${wallet_name}${NC}"
-                    println "DRep ID           : ${FG_LGRAY}${drep_id}${NC}"
-                    println "Committee Cold ID : ${FG_LGRAY}${cc_cold_id}${NC}"
-                    println "Committee Hot ID  : ${FG_LGRAY}${cc_hot_id}${NC}"
+                    println "DRep ID           : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                    println "Committee Cold ID : CIP-105 => ${FG_LGRAY}${cc_cold_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${cc_cold_id_cip129}${NC}"
+                    println "Committee Hot ID  : CIP-105 => ${FG_LGRAY}${cc_hot_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${cc_hot_id_cip129}${NC}"
                     waitToProceed && continue
                     ;; ###################################################################
                 esac # vote sub OPERATION
