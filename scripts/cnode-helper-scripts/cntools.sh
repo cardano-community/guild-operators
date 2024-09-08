@@ -4259,10 +4259,14 @@ function main {
                       4) continue ;;
                     esac
                     if [[ ${vote_mode} = "committee" ]]; then
-                      if ! isCommitteeMember $(bech32 <<< ${cc_cold_id}); then
-                        println ERROR "\n${FG_RED}ERROR${NC}: selected wallet is not an active committee member!"
-                        waitToProceed && continue
-                      fi
+                      isCommitteeMember $(bech32 <<< ${cc_cold_id}) $(bech32 <<< ${cc_cold_id})
+                      case $? in
+                        0) : ;; # ok
+                        1) println ERROR "\n${FG_RED}ERROR${NC}: selected wallet is not an active committee member!"
+                           waitToProceed && continue ;;
+                        2) println ERROR "\n${FG_RED}ERROR${NC}: selected wallet is an active committee member but have not authorized hot credential for voting!"
+                           waitToProceed && continue ;;
+                      esac
                       hash_type="keyHash"
                     elif [[ ${vote_mode} = "drep" ]]; then
                       if ! getDRepStatus ${hash_type} ${drep_hash}; then

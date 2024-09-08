@@ -1272,12 +1272,22 @@ getAllGovActions() {
   fi
 }
 
-# Command     : isCommitteeMember [hash]
+# Command     : isCommitteeMember [cold hash] [hot hash]
 # Description : check if supplied hash is part of current committee list
+# Return      : 0 = valid member, 1 = not a member, 2 = not authorized
 isCommitteeMember() {
-  [[ -z $1 ]] && return 1
-  println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -r '.committee.members | keys[]' | grep -q $1"
-  ${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -r '.committee.members | keys[]' | grep -q $1
+  [[ -z $1 || -z $2 ]] && return 1
+  if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
+    HEADERS=("${KOIOS_API_HEADERS[@]}" -H "accept: application/json")
+    println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/committee_info?select=members | tail -n +2"
+    members=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/committee_info?select=members" | tail -n +2)
+  elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
+    println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -r '.committee.members | keys[]' | grep -q $1"
+    members=$(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -r '.committee.members | keys[]')
+  fi
+  grep -q $1 <<< "${members}" || return 1
+  grep -q $2 <<< "${members}" || return 2
+  return 0
 }
 
 # Command     : getBaseAddress [wallet name] | [payment.vkey] [stake.vkey]
