@@ -1058,6 +1058,7 @@ getGovKeyInfo() {
   cc_hot_id_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_CC_HOT_ID_FILENAME}"
   ms_drep_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
   ms_drep_sk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_SK_FILENAME}"
+  ms_drep_id_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_ID_FILENAME}"
   if [[ -f "${drep_vk_file}" && $(jq -r '.description' "${drep_vk_file}") = *"Hardware"* ]]; then # Hardware wallet
     drep_sk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_HW_DREP_SK_FILENAME}"
     cc_cold_sk_file="${WALLET_FOLDER}/${1}/${WALLET_GOV_HW_CC_COLD_SK_FILENAME}"
@@ -1067,6 +1068,7 @@ getGovKeyInfo() {
   [[ -f ${drep_id_file} ]] && drep_id=$(cat "${drep_id_file}")
   [[ -f ${cc_cold_id_file} ]] && cc_cold_id=$(cat "${cc_cold_id_file}")
   [[ -f ${cc_hot_id_file} ]] && cc_hot_id=$(cat "${cc_hot_id_file}")
+  [[ -f ${ms_drep_id_file} ]] && ms_drep_id=$(cat "${ms_drep_id_file}")
   if [[ -z ${drep_id} && -f ${drep_vk_file} ]]; then
     println ACTION "${CCLI} conway governance drep id --drep-verification-key-file ${drep_vk_file}"
     drep_id=$(${CCLI} conway governance drep id --drep-verification-key-file "${drep_vk_file}")
@@ -1075,6 +1077,11 @@ getGovKeyInfo() {
     println ACTION "${CCLI} hash script --script-file ${drep_script_file}"
     drep_id=$(${CCLI} hash script --script-file "${drep_script_file}")
     printf "${drep_id}" > "${drep_id_file}"
+  fi
+  if [[ -z ${ms_drep_id} && -f ${ms_drep_vk_file} ]]; then
+    println ACTION "${CCLI} conway governance drep id --drep-verification-key-file ${ms_drep_vk_file}"
+    ms_drep_id=$(${CCLI} conway governance drep id --drep-verification-key-file "${ms_drep_vk_file}")
+    printf "${ms_drep_id}" > "${ms_drep_id_file}"
   fi
   if [[ -z ${cc_cold_id} && -f ${cc_cold_vk_file} ]]; then
     println ACTION "bech32 cc_cold <<< \$(${CCLI} conway governance committee key-hash --verification-key-file ${cc_cold_vk_file})"
@@ -1097,6 +1104,9 @@ getGovKeyInfo() {
       drep_id="$(bech32 drep <<< "${drep_hash}")"
       drep_id_cip129="$(bech32 drep <<< "23${drep_hash}")"
     fi
+  fi
+  if [[ -n ${ms_drep_id} ]]; then
+    ms_drep_hash="$(bech32 <<< ${ms_drep_id})"
   fi
 }
 
@@ -1231,6 +1241,10 @@ getGovAction() {
     vote_action=$(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -r --arg govActionId "$1" 'first(.proposals | to_entries[] | select(.value.actionId.txId | contains($govActionId))) | .value')
     [[ -z ${vote_action} ]] && return 1
     IFS=',' read -r proposal_url proposal_hash < <( jq -cr '"\(.proposalProcedure.anchor.url//""),\(.proposalProcedure.anchor.dataHash//"")"' <<< "${vote_action}" )
+  else
+    return 1
+  fi
+  if [[ -n ${proposal_url} ]]; then
     proposal_meta_file="${TMP_DIR}/metadata_$(date '+%Y%m%d%H%M%S').json"
     [[ "${proposal_url}" = ipfs://* ]] && _proposal_url="https://ipfs.io/ipfs/${proposal_url:7}" || _proposal_url="${proposal_url}"
     [[ ! "${_proposal_url}" =~ https?://.* ]] && return 2
@@ -1241,8 +1255,6 @@ getGovAction() {
     println ACTION "${CCLI} hash anchor-data --file-text ${proposal_meta_file}"
     proposal_meta_hash="$(${CCLI} hash anchor-data --file-text "${proposal_meta_file}")"
     [[ ${proposal_meta_hash} != "${proposal_hash}" ]] && return 3
-  else
-    return 1
   fi
   return 0
 }
