@@ -4101,10 +4101,10 @@ function main {
                       waitToProceed && continue
                     fi
                     if [[ ${action_cnt} -gt 5 ]]; then
-                      getAnswerAnyCust page_entries "${action_cnt} proposals found. Enter number of actions to display per page (enter for 5)"
+                      getAnswerAnyCust page_entries "${action_cnt} proposals found. Enter number of actions to display per page (enter for 4)"
                     fi
-                    page_entries=${page_entries:=5}
-                    if ! isNumber ${page_entries} || [[ ${page_entries} -eq 0 ]]; then
+                    page_entries=${page_entries:=4}
+                    if ! isNumber ${page_entries} || [[ ${page_entries} -lt 1 ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid number"
                       waitToProceed && continue
                     fi
@@ -4113,6 +4113,32 @@ function main {
                     pages=$(( (action_cnt + (page_entries - 1)) / page_entries ))
                     while true; do
                       clear
+                      if [[ ${show_details} = Y ]]; then
+                        tput sc && println DEBUG "\nFetching proposal details and metadata...\n"
+                        getGovAction "${action_tx_id}" "${action_idx}"
+                        res=$?
+                        tput rc && tput ed
+                        case ${res} in
+                          1) println ERROR "\n${FG_RED}ERROR${NC}: governance action id not found!"
+                             waitToProceed && continue ;;
+                          2) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor url or content"
+                             println DEBUG "URL : ${FG_LGRAY}${proposal_url}${NC}"
+                             waitToProceed ;;
+                          3) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor hash"
+                             println DEBUG "Action hash : ${FG_LGRAY}${proposal_hash}${NC}"
+                             println DEBUG "Real hash   : ${FG_LGRAY}${proposal_meta_hash}${NC}"
+                             waitToProceed ;;
+                        esac
+                        println DEBUG "\nGovernance Action Details${FG_LGRAY}"
+                        jq -er <<< "${vote_action}" 2>/dev/null || echo "${vote_action}"
+                        println DEBUG "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                        if [[ -f "${proposal_meta_file}" ]]; then
+                          println DEBUG "\nGovernance Action Anchor Content${FG_LGRAY}"
+                          jq -er "${proposal_meta_file}" 2>/dev/null || cat "${proposal_meta_file}"
+                        fi
+                        unset show_details
+                        waitToProceed && continue
+                      fi
                       start_idx=$(( (page *  page_entries) - page_entries ))
                       # loop current page to find max length of entries
                       max_len=70 # assume action id in CIP-129 format (70)
@@ -4190,19 +4216,25 @@ function main {
                       println OFF "\nPage ${FG_LBLUE}${page}${NC} of ${FG_LGRAY}${pages}${NC}\n"
                       if [[ ${page} -gt 1 && ${page} -lt ${pages} ]]; then
                         hasPrev=Y; hasNext=Y
-                        println OFF "[p] Previous Page | [n] Next Page | [r] Return"
+                        println OFF "[p] Previous Page | [n] Next Page | [r] Return | [d] Details"
                       elif [[ ${page} -eq 1 && ${page} -lt ${pages} ]]; then
                         hasNext=Y
-                        println OFF "${FG_DGRAY}[p] Previous Page${NC} | [n] Next Page | [r] Return"
+                        println OFF "${FG_DGRAY}[p] Previous Page${NC} | [n] Next Page | [r] Return | [d] Details"
                       else
                         hasPrev=Y
-                        println OFF "[p] Previous Page | ${FG_DGRAY}[n] Next Page${NC} | [r] Return"
+                        println OFF "[p] Previous Page | ${FG_DGRAY}[n] Next Page${NC} | [r] Return | [d] Details"
                       fi
                       read -rsn1 key
                       case ${key} in
                         r ) continue 2 ;;
                         p ) [[ -n ${hasPrev} ]] && ((page--)) ;;
                         n ) [[ -n ${hasNext} ]] && ((page++)) ;;
+                        d ) getAnswerAnyCust action_id "\nGovernance Action ID [<tx_id>#<action_idx> | CIP-129] (blank to cancel)"
+                            [[ -z "${action_id}" ]] && continue
+                            [[ ${action_id} = gov_action* ]] && parseGovActionId ${action_id} || IFS='#' read -r action_tx_id action_idx <<< "${action_id}"
+                            ! isNumber "${action_idx}" && println ERROR "\n${FG_RED}ERROR${NC}: invalid action id!" && waitToProceed && continue
+                            show_details=Y
+                            ;;
                       esac
                     done
                     ;; ###################################################################
