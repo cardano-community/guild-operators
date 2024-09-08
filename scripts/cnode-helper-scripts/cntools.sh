@@ -1126,7 +1126,7 @@ function main {
                     while IFS= read -r -d '' _wallet; do
                       getGovKeyInfo "$(basename ${_wallet})"
                       if [[ "${drep_hash}" = "${vote_delegation_hash}" ]]; then
-                        walletName=" ${FG_GREEN}$(basename ${_wallet})${NC}" && break
+                        walletName="$(basename ${_wallet})" && break
                       fi
                     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                   fi
@@ -1134,7 +1134,7 @@ function main {
                   println "Delegation        : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
                   println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
                   if [[ -n ${walletName} ]]; then
-                    println "                  : Wallet  => ${walletName}"
+                    println "                  : Wallet  => ${FG_GREEN}${walletName}${NC}"
                   fi
                   if [[ ${vote_delegation} = always* ]]; then
                     : # do nothing
@@ -3875,7 +3875,7 @@ function main {
                           while IFS= read -r -d '' _wallet; do
                             getGovKeyInfo "$(basename ${_wallet})"
                             if [[ ${drep_hash} = "${vote_delegation_hash}" ]]; then
-                              walletName=" ${FG_GREEN}$(basename ${_wallet})${NC}" && break
+                              walletName="$(basename ${_wallet})" && break
                             fi
                           done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                         fi
@@ -3883,7 +3883,7 @@ function main {
                         println "Delegation        : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
                         println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
                         if [[ -n ${walletName} ]]; then
-                          println "                  : Wallet  => ${walletName}"
+                          println "                  : Wallet  => ${FG_GREEN}${walletName}${NC}"
                         fi
                         if [[ ${vote_delegation} = always* ]]; then
                           : # do nothing
@@ -3957,11 +3957,13 @@ function main {
                         println "Status            : ${FG_YELLOW}DRep key not registered${NC}"
                       fi
                     fi
-                    echo
-                    println "Committee Cold ID : CIP-105 => ${FG_LGRAY}${cc_cold_id}${NC}"
-                    println "                  : CIP-129 => ${FG_LGRAY}${cc_cold_id_cip129}${NC}"
-                    println "Committee Hot ID  : CIP-105 => ${FG_LGRAY}${cc_hot_id}${NC}"
-                    println "                  : CIP-129 => ${FG_LGRAY}${cc_hot_id_cip129}${NC}"
+                    if [[ -n ${cc_cold_id} ]]; then
+                      echo
+                      println "Committee Cold ID : CIP-105 => ${FG_LGRAY}${cc_cold_id}${NC}"
+                      println "                  : CIP-129 => ${FG_LGRAY}${cc_cold_id_cip129}${NC}"
+                      println "Committee Hot ID  : CIP-105 => ${FG_LGRAY}${cc_hot_id}${NC}"
+                      println "                  : CIP-129 => ${FG_LGRAY}${cc_hot_id_cip129}${NC}"
+                    fi
                     waitToProceed && continue
                     ;; ###################################################################
                   delegate)
@@ -4005,7 +4007,7 @@ function main {
                     fi
                     unset drep_wallet drep_hash
                     println DEBUG "\nDo you want to delegate to a local CNTools DRep registered wallet, pre-defined type or specify the DRep?"
-                    select_opt "[w] CNTools DRep Wallet" "[i] DRep (ID or hash)" "[a] Always Abstain" "[c] Always No Confidence" "[Esc] Cancel"
+                    select_opt "[w] CNTools DRep Wallet" "[i] DRep ID" "[a] Always Abstain" "[c] Always No Confidence" "[Esc] Cancel"
                     case $? in
                       0) selectWallet "none"
                         case $? in
