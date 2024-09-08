@@ -1114,8 +1114,8 @@ getDRepStatus() {
       [[ ${hash_type} = keyHash ]] && _param=$(bech32 drep <<< "22${2}") || _param=$(bech32 drep <<< "23${2}")
     fi
     HEADERS=("${KOIOS_API_HEADERS[@]}" -H "Content-Type: application/json" -H "accept: text/csv")
-    println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '{\"_drep_ids\":['${_param}']}' ${KOIOS_API}/drep_info?select=registered,deposit,active,expires_epoch_no,amount,url,hash"
-    ! drep_info_list=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_drep_ids":['${_param}']}' "${KOIOS_API}/drep_info?select=registered,deposit,active,expires_epoch_no,amount,url,hash" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${drep_info_list}\n" && return 1 # print error and return
+    println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '{\"_drep_ids\":[\"${_param}\"]}' ${KOIOS_API}/drep_info?select=registered,deposit,active,expires_epoch_no,amount,url,hash"
+    ! drep_info_list=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_drep_ids":["'${_param}"']}' "${KOIOS_API}/drep_info?select=registered,deposit,active,expires_epoch_no,amount,url,hash" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${drep_info_list}\n" && return 1 # print error and return
     [[ -z ${drep_info_list} ]] && return
     while IFS=',' read -r _registered _deposit _active _expires_epoch_no _amount _url _hash; do
       [[ ${_registered} = f ]] && break

@@ -541,13 +541,7 @@ function main {
                     println " >> WALLET >> IMPORT >> HARDWARE WALLET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    println DEBUG "Supported HW wallets: Ledger S, Ledger X, Trezor Model T"
-                    println "Is your hardware wallet one of these models?"
-                    select_opt "[y] Yes" "[n] No"
-                    case $? in
-                      0) : ;; # do nothing
-                      1) waitToProceed "Unsupported hardware wallet, press any key to return home" && continue ;;
-                    esac
+                    println DEBUG "${FG_BLUE}NOTE${NC}: Make sure your hardware wallet supported by Cardano and cardano-hw-cli utility"
                     echo
                     if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
                       println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli not found in path or executable permission not set."
