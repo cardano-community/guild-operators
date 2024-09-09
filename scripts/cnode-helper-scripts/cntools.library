@@ -356,7 +356,7 @@ selectOption() {
   clrbuf
   local startrow=-1
   for i in {1..10}; do
-    local cursor_row=$(get_cursor_row)
+    local cursor_row;cursor_row=$(get_cursor_row)
     isNumber ${cursor_row} && startrow=$(( cursor_row - $# - 1 )) && break
   done
   [[ ${startrow} -eq -1 ]] && return 255
@@ -3986,7 +3986,7 @@ voteDelegation() {
   VOTE_DELEG_CMD=(
     ${CCLI} ${NETWORK_ERA} stake-address vote-delegation-certificate
     "${stake_param[@]}"
-    "${vote_param[@]}"
+    "${vote_param_arr[@]}"
     --out-file "${vote_deleg_cert_file}"
   )
   println ACTION "${VOTE_DELEG_CMD[*]}"
@@ -4667,7 +4667,7 @@ submitTxKoiosOgmios() {
     println ERROR "\n${FG_RED}ERROR${NC}: Transaction submit failed !!"
     if [[ -n ${ogmios_error} ]]; then
       jq -r . <<< "${ogmios_error}"
-      println LOG $(jq -rc . <<< "${ogmios_error}")
+      println LOG "$(jq -rc . <<< ${ogmios_error})"
     else
       println ERROR "Submit API error: ${stdout}"
     fi
@@ -4771,9 +4771,9 @@ to_cbor() {
       elif [[ $(bc <<< "${value} < 256") -eq 1 ]]; then printf -v cbor "%04x" $((0x1800 + 10#${value})) #2bytes total: first 0x1800 + 1 lower byte value
       elif [[ $(bc <<< "${value} < 65536") -eq 1 ]]; then printf -v cbor "%06x" $((0x190000 + 10#${value})) #3bytes total: first 0x190000 + 2 lowerbytes value
       elif [[ $(bc <<< "${value} < 4294967296") -eq 1 ]]; then printf -v cbor "%10x" $((0x1A00000000 + 10#${value})) #5bytes total: 0x1A00000000 + 4 lower bytes value
-      elif [[ $(bc <<< "${value} < 18446744073709551616") -eq 1 ]]; then local tmp="00$(bc <<< "obase=16;ibase=10;${value}+498062089990157893632")"; cbor="${tmp: -18}" #9bytes total: first 0x1B0000000000000000 + 8 lower bytes value
+      elif [[ $(bc <<< "${value} < 18446744073709551616") -eq 1 ]]; then local tmp;tmp="00$(bc <<< "obase=16;ibase=10;${value}+498062089990157893632")"; cbor="${tmp: -18}" #9bytes total: first 0x1B0000000000000000 + 8 lower bytes value
       #if value does not fit into an 8byte unsigned integer, the cbor representation is tag2(pos.bignum)+bytearray of the value
-      else local cbor=$(to_cbor "tag" 2); local tmp="00$(bc <<< "obase=16;ibase=10;${value}")"; tmp=${tmp: -$(( (${#tmp}-1)/2*2 ))}; local cbor+=$(to_cbor "bytes" ${tmp}) #fancy calc to get a leading zero in the hex array if needed
+      else local cbor;cbor=$(to_cbor "tag" 2); local tmp;tmp="00$(bc <<< "obase=16;ibase=10;${value}")"; tmp=${tmp: -$(( (${#tmp}-1)/2*2 ))}; local cbor;cbor+=$(to_cbor "bytes" ${tmp}) #fancy calc to get a leading zero in the hex array if needed
       fi
       ;;
     #bytestring - input is a hexstring
@@ -4803,14 +4803,14 @@ to_cbor() {
     ###
     #negative - input is a negative unsigned integer, range is selected via a bc query because bash can't handle big numbers
     negative )
-      local value=$(bc <<< "${value//-/} -1") #negative representation in cbor is the neg. number as a pos. number minus 1, so a -500 will be represented as a 499
+      local value;value="$(bc <<< "${value//-/} -1")" #negative representation in cbor is the neg. number as a pos. number minus 1, so a -500 will be represented as a 499
       if [[ $(bc <<< "${value} < 24") -eq 1 ]]; then printf -v cbor "%02x" $((0x20 + 10#${value})) #1byte total 0x20 value below 24
       elif [[ $(bc <<< "${value} < 256") -eq 1 ]]; then printf -v cbor "%04x" $((0x3800 + 10#${value})) #2bytes total: first 0x2000 + 0x1800 + 1 lower byte value
       elif [[ $(bc <<< "${value} < 65536") -eq 1 ]]; then printf -v cbor "%06x" $((0x390000 + 10#${value})) #3bytes total: first 0x200000 + 0x190000 + 2 lowerbytes value
       elif [[ $(bc <<< "${value} < 4294967296") -eq 1 ]]; then printf -v cbor "%10x" $((0x3A00000000 + 10#${value})) #5bytes total: 0x2000000000 + 0x1A00000000 + 4 lower bytes value
-      elif [[ $(bc <<< "${value} < 18446744073709551616") -eq 1 ]]; then local tmp="00$(bc <<< "obase=16;ibase=10;${value}+1088357900348863545344")"; cbor="${tmp: -18}" #9bytes total: first 0x3B0000000000000000 + 8 lower bytes value
+      elif [[ $(bc <<< "${value} < 18446744073709551616") -eq 1 ]]; then local tmp;tmp="00$(bc <<< "obase=16;ibase=10;${value}+1088357900348863545344")"; cbor="${tmp: -18}" #9bytes total: first 0x3B0000000000000000 + 8 lower bytes value
       #if value does not fit into an 8byte unsigned integer, the cbor representation is tag3(neg.bignum)+bytearray of the value
-      else local cbor=$(to_cbor "tag" 3); local tmp="00$(bc <<< "obase=16;ibase=10;${value}")"; tmp=${tmp: -$(( (${#tmp}-1)/2*2 ))}; local cbor+=$(to_cbor "bytes" ${tmp}) #fancy calc to get a leading zero in the hex array if needed
+      else local cbor;cbor=$(to_cbor "tag" 3); local tmp;tmp="00$(bc <<< "obase=16;ibase=10;${value}")"; tmp=${tmp: -$(( (${#tmp}-1)/2*2 ))}; local cbor;cbor+=$(to_cbor "bytes" ${tmp}) #fancy calc to get a leading zero in the hex array if needed
       fi
       ;;
     #tag - input is an unsigned integer
@@ -4822,8 +4822,8 @@ to_cbor() {
       ;;
     #textstring - input is a utf8-string
     string )
-      local value=$(echo -ne "${value}" | xxd -p -c 65536 | tr -d '\n') #convert the given string into a hexstring and process it further like a bytearray
-      local bytesLength=$(( ${#value} / 2 ))  #bytesLength is length of value /2 because of hex encoding (2chars -> 1byte)
+      local value;value="$(echo -ne "${value}" | xxd -p -c 65536 | tr -d '\n')" #convert the given string into a hexstring and process it further like a bytearray
+      local bytesLength;bytesLength=$(( ${#value} / 2 ))  #bytesLength is length of value /2 because of hex encoding (2chars -> 1byte)
       if [[ ${bytesLength} -lt 24 ]]; then printf -v cbor "%02x${value}" $((0x60 + 10#${bytesLength})) #1byte total 0x60 + lower part value & bytearrayitself
       elif [[ ${bytesLength} -lt 256 ]]; then printf -v cbor "%04x${value}" $((0x7800 + 10#${bytesLength})) #2bytes total: first 0x6000 + 0x1800 + 1 lower byte value & bytearrayitself
       elif [[ ${bytesLength} -lt 65536 ]]; then printf -v cbor "%06x${value}" $((0x790000 + 10#${bytesLength})) #3bytes total: first 0x600000 + 0x190000 + 2 lower bytes value & bytearrayitself
@@ -4867,6 +4867,6 @@ getPriceString() {
     ada_value=$(bc -l <<< "${price_now}*($1/1000000)")
     getDecimalPlaces ${ada_value}
     decimals=$?
-    price_str=$(LC_NUMERIC=C printf " (${FG_LBLUE}%s${NC} ${CURRENCY^^})" "$(formatAsset $(LC_NUMERIC=C printf "%.${decimals}f" "${ada_value}"))")
+    price_str=$(LC_NUMERIC=C printf " (${FG_LBLUE}%s${NC} ${CURRENCY^^})" "$(formatAsset "$(LC_NUMERIC=C printf "%.${decimals}f" "${ada_value}")")")
   fi
 }
