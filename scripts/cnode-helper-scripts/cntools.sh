@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028,SC1091
+# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028,SC1091,SC2206
 
 ######################################
 # User Variables - Change as desired #
@@ -1054,7 +1054,7 @@ function main {
                     unset wallet_str
                     while IFS= read -r -d '' wallet; do
                       getCredentials "$(basename ${wallet})"
-                      if [[ ${ms_pay_cred} = ${_sig} ]]; then
+                      if [[ ${ms_pay_cred} = "${_sig}" ]]; then
                         wallet_str=" (${FG_GREEN}$(basename ${wallet})${NC})" && break
                       fi
                     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -1518,12 +1518,12 @@ function main {
                       if [[ ${asset_amount} -gt ${assets_left[${selection_arr[0]}]} ]]; then
                         println ERROR "${FG_RED}ERROR${NC}: you cant send more assets than available on address!" && continue
                       elif [[ ${asset_amount} -eq ${assets_left[${selection_arr[0]}]} ]]; then
-                        unset assets_left[${selection_arr[0]}]
+                        unset "assets_left[${selection_arr[0]}]"
                       else
                         assets_left[${selection_arr[0]}]=$(( assets_left[${selection_arr[0]}] - asset_amount ))
                       fi
                       assets_to_send[${selection_arr[0]}]=${asset_amount}
-                      unset assets_on_addr["${selected_value}"]
+                      unset "assets_on_addr[${selected_value}]"
                       [[ ${#assets_on_addr[@]} -eq 0 ]] && break
                       println DEBUG "Add more assets?"
                       select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
@@ -2018,7 +2018,7 @@ function main {
               echo
               pledge_ada=50000 # default pledge
               [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-              getAnswerAnyCust pledge_enter "Pledge (in ADA, default: $(formatLovelace $(ADAToLovelace ${pledge_ada}))"
+              getAnswerAnyCust pledge_enter "Pledge (in ADA, default: $(formatLovelace "$(ADAToLovelace ${pledge_ada})")"
               pledge_enter="${pledge_enter//,}"
               if [[ -n "${pledge_enter}" ]]; then
                 if ! ADAToLovelace "${pledge_enter}" >/dev/null; then
@@ -2578,7 +2578,7 @@ function main {
                 println "Owner #$((index+1))      : ${FG_GREEN}${owner_wallets[${index}]}${NC}"
               done
               println "Reward Wallet : ${FG_GREEN}${reward_wallet}${NC}"
-              println "Pledge        : ${FG_LBLUE}$(formatLovelace $(ADAToLovelace ${pledge_ada}))${NC} ADA"
+              println "Pledge        : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace ${pledge_ada})")${NC} ADA"
               println "Margin        : ${FG_LBLUE}${margin}${NC} %"
               println "Cost          : ${FG_LBLUE}$(formatLovelace ${cost_lovelace})${NC} ADA"
               if [[ ${SUBCOMMAND} = "register" ]]; then
@@ -2932,9 +2932,9 @@ function main {
                 conf_cost=$(jq -r '.costADA //0' "${pool_config}")
                 conf_owner=$(jq -r '.pledgeWallet //"unknown"' "${pool_config}")
                 conf_reward=$(jq -r '.rewardWallet //"unknown"' "${pool_config}")
-                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Pledge" "$(formatLovelace $(ADAToLovelace "${conf_pledge}"))")"
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Pledge" "$(formatLovelace "$(ADAToLovelace ${conf_pledge})")")"
                 println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Margin" "${conf_margin}")"
-                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Cost" "$(formatLovelace $(ADAToLovelace "${conf_cost}"))")"
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Cost" "$(formatLovelace "$(ADAToLovelace ${conf_cost})")")"
                 println "$(printf "%-21s : ${FG_GREEN}%s${NC} (%s)" "Owner Wallet" "${conf_owner}" "primary only, use online mode for multi-owner")"
                 println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward Wallet" "${conf_reward}")"
                 relay_title="Relay(s)"
@@ -3634,7 +3634,7 @@ function main {
                       fi
                       getCredential ${cred_type} "${TMP_DIR}"/tmp.vkey
                     fi
-                    if [[ ${cred} != ${sig} ]]; then
+                    if [[ ${cred} != "${sig}" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with credential in MultiSig script:${FG_LGRAY}${otx_script_name}${NC}"
                       println ERROR "Provided signing key's credential  : ${FG_LGRAY}${cred}${NC}"
                       println ERROR "Looking for credential             : ${FG_LGRAY}${sig}${NC}"
@@ -4027,8 +4027,8 @@ function main {
                         parseDRepId "${drep_id}"
                         [[ -z ${drep_id} ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
                         ;;
-                      2) drep_id="alwaysAbstain"; vote_param=("--always-abstain") ;;
-                      3) drep_id="alwaysNoConfidence"; vote_param=("--always-no-confidence") ;;
+                      2) drep_id="alwaysAbstain"; vote_param_arr=("--always-abstain") ;;
+                      3) drep_id="alwaysNoConfidence"; vote_param_arr=("--always-no-confidence") ;;
                       4) continue ;;
                     esac
                     unset drep_expiry
@@ -4046,7 +4046,7 @@ function main {
                           1) continue ;;
                         esac
                       fi
-                      [[ ${hash_type} = keyHash ]] && vote_param=("--drep-key-hash" "${drep_hash}") || vote_param=("--drep-script-hash" "${drep_hash}")
+                      [[ ${hash_type} = keyHash ]] && vote_param_arr=("--drep-key-hash" "${drep_hash}") || vote_param_arr=("--drep-script-hash" "${drep_hash}")
                       getDRepVotePower keyHash ${drep_hash}
                       [[ -z ${vote_power} ]] && getDRepVotePower scriptHash ${drep_hash}
                       if [[ -z ${vote_power} ]]; then
@@ -4307,7 +4307,7 @@ function main {
                       4) continue ;;
                     esac
                     if [[ ${vote_mode} = "committee" ]]; then
-                      isCommitteeMember $(bech32 <<< ${cc_cold_id}) $(bech32 <<< ${cc_hot_id})
+                      isCommitteeMember "$(bech32 <<< ${cc_cold_id})" "$(bech32 <<< ${cc_hot_id})"
                       case $? in
                         0) : ;; # ok
                         1) println ERROR "\n${FG_RED}ERROR${NC}: selected wallet is not an active committee member!"

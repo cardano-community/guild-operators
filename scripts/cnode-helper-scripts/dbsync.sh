@@ -60,7 +60,6 @@ check_defaults() {
 }
 
 check_config_sanity() {
-  DBSYNC_VERSION="$(${DBSYNCBIN} --version | awk '{print $2}')"
   BYGENHASH=$("${CCLI}" byron genesis print-genesis-hash --genesis-json "${BYRON_GENESIS_JSON}" 2>/dev/null)
   BYGENHASHCFG=$(jq '.ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
   SHGENHASH=$("${CCLI}" ${NETWORK_ERA} genesis hash --genesis "${GENESIS_JSON}" 2>/dev/null)
