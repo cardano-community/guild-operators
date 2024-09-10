@@ -4203,7 +4203,7 @@ function main {
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url}"
                         if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
                           if [[ ${action_type} = "InfoAction" ]]; then
-                            chars_left=$((max_len-max_yes_len-max_yes_power_len-max_no_len-max_no_power_len-max_yes_pct_len-36))
+                            chars_left=$((max_len-max_yes_len-max_yes_power_len-max_no_len-max_no_power_len-max_yes_pct_len-35))
                             printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC} @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC} @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_yes_power}" "${drep_no}" "${drep_no_power}" "${drep_yes_pct}" "|"
                             printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC} @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC} @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% %${chars_left}s\n" "SPO" "${spo_yes}" "${spo_yes_power}" "${spo_no}" "${spo_no_power}" "${spo_yes_pct}" "|"
                             printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC}  ${FG_LBLUE}%$((max_yes_power_len+4))s${NC}  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC}  ${FG_LBLUE}%$((max_no_power_len+4))s${NC}  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% %${chars_left}s\n" "Committee" "${cc_yes}" " " "${cc_no}" " " "${cc_yes_pct}" "|"
