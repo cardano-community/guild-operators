@@ -160,11 +160,12 @@ if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
     fi
 
     # check for env update
+    OFFLINE_MODE=N
     ENV_UPDATED=N
     checkUpdate env N N N
     case $? in
       1) ENV_UPDATED=Y ;;
-      2) myExit 1 ;;
+      2) myExit 1 "ERROR: Was unable to check for updates on previous run querying from github, please retry!";;
     esac
 
     # source common env variables in case it was updated
