@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=2
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -1370,6 +1370,12 @@ getAllGovActions() {
       println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/proposal_voting_summary?_proposal_id=${_proposal_id}&select=drep_yes_votes_cast,drep_yes_vote_power,drep_yes_pct,drep_no_votes_cast,drep_no_vote_power,drep_no_pct,pool_yes_votes_cast,pool_yes_vote_power,pool_yes_pct,pool_no_votes_cast,pool_no_vote_power,pool_no_pct,committee_yes_votes_cast,committee_yes_pct,committee_no_votes_cast,committee_no_pct"
       _vote_action_votes=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_voting_summary?_proposal_id=${_proposal_id}&select=drep_yes_votes_cast,drep_yes_vote_power,drep_yes_pct,drep_no_votes_cast,drep_no_vote_power,drep_no_pct,pool_yes_votes_cast,pool_yes_vote_power,pool_yes_pct,pool_no_votes_cast,pool_no_vote_power,pool_no_pct,committee_yes_votes_cast,committee_yes_pct,committee_no_votes_cast,committee_no_pct" 2>&1) || continue
       IFS=',' read -r drep_yes_votes_cast drep_yes_vote_power drep_yes_pct drep_no_votes_cast drep_no_vote_power drep_no_pct pool_yes_votes_cast pool_yes_vote_power pool_yes_pct pool_no_votes_cast pool_no_vote_power pool_no_pct committee_yes_votes_cast committee_yes_pct committee_no_votes_cast committee_no_pct <<< "$(tail -n +2 <<< ${_vote_action_votes})"
+      drep_yes_pct=$(printf '%.4g' "${drep_yes_pct}")
+      drep_no_pct=$(printf '%.4g' "${drep_no_pct}")
+      pool_yes_pct=$(printf '%.4g' "${pool_yes_pct}")
+      pool_no_pct=$(printf '%.4g' "${pool_no_pct}")
+      committee_yes_pct=$(printf '%.4g' "${committee_yes_pct}")
+      committee_no_pct=$(printf '%.4g' "${committee_no_pct}")
       if [[ ${_proposal_type} = "ParameterChange" ]]; then
         param_proposal_unescaped=${_param_proposal:1: -1} # remove first and last char (quotation)
         param_proposal_unescaped=$(sed 's/""/"/g' <<< "${param_proposal_unescaped}") # remove all double quotes, sed seems to perform better than bash string manipulation
@@ -1403,7 +1409,6 @@ getAllGovActions() {
 # Return      : sets isParameterSecurityGroup isNetworkGroup isEconomicGroup isTechnicalGroup isGovernanceGroup
 getParameterChangeGroups() {
   unset isParameterSecurityGroup isNetworkGroup isEconomicGroup isTechnicalGroup isGovernanceGroup
-  [[ -z ${vote_action} ]] && return 1
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     [[ $parameterChange =~ (\"max_block_size\"|\"max_tx_size\"|\"max_bh_size\"|\"max_val_size\"|\"max_block_ex_|\"min_fee_a\"|\"min_fee_b\"|\"coins_per_utxo_size\"|\"gov_action_deposit\"|\"min_fee_ref_script_cost_per_byte\") ]] && isParameterSecurityGroup=Y
     [[ $parameterChange =~ (\"max_block_size\"|\"max_tx_size\"|\"max_bh_size\"|\"max_val_size\"|\"max_tx_ex_|\"max_block_ex_|\"max_collateral_inputs\") ]] && isNetworkGroup=Y
@@ -1424,7 +1429,7 @@ getParameterChangeGroups() {
 # Return      : Threshold for each type returned as a percentage. '-' if not valid for type.
 getVoteThreshold() {
   case ${1} in
-    "InfoAction") : ;; # no thresholds
+    "InfoAction") unset drep_vt spo_vt cc_vt ;; # no thresholds
     "NoConfidence")
       drep_vt=${dvt_motionNoConf}
       spo_vt=${pvt_motionNoConf}
@@ -1467,7 +1472,6 @@ getVoteThreshold() {
       unset spo_vt
       cc_vt=${cc_threshold}
       ;;
-    *) unset drep_vt spo_vt cc_vt
   esac
 }
 
@@ -1534,11 +1538,11 @@ getCurrentCommittee() {
     HEADERS=("${KOIOS_API_HEADERS[@]}" -H "accept: application/json")
     println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/committee_info"
     committee_info=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/committee_info")
-    cc_threshold=$(jq -r '(.[0].quorum_numerator //0) / (.[0].quorum_denominator //1) * 100' <<< "${committee_info}")
+    cc_threshold=$(printf '%.4g' "$(jq -r '(.[0].quorum_numerator //0) / (.[0].quorum_denominator //1) * 100' <<< "${committee_info}")")
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
     println ACTION "${CCLI} conway query committee-state ${NETWORK_IDENTIFIER}"
     committee_info=$(${CCLI} conway query committee-state ${NETWORK_IDENTIFIER})
-    cc_threshold=$(jq -r '(.threshold //0) * 100' <<< "${committee_info}")
+    cc_threshold=$(printf '%.4g' "$(jq -r '(.threshold //0) * 100' <<< "${committee_info}")")
   fi
 }
 
