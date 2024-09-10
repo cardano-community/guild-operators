@@ -1004,6 +1004,8 @@ set_default_vars() {
   STANDOUT='\e[7m'
   BOLD='\e[1m'
   NC='\e[0m'
+  ICON_CROSS='❌'
+  ICON_CHECK='✅'
   # Due to bug introduced in bash upstream at 5.2.21, need to temporarily enable POSIX mode for newer bash versions, until fix is live
   # https://github.com/bminor/bash/commit/e327891b52513bef0b34aac625c44f8fa6811f53
   versionCheck 5.2.20 ${BASH_VERSION//(*/} && set -o posix

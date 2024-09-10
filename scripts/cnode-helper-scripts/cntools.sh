@@ -3392,7 +3392,7 @@ function main {
                 for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
                   [[ ${otx_witness_name} = "${otx_signing_name}" ]] && hasWitness=true && break
                 done
-                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_RED}x${NC}" || println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_GREEN}\u2714${NC}"
+                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_RED}${ICON_CROSS}${NC}" || println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_GREEN}${ICON_CHECK}${NC}"
               done
               for otx_script in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
                 _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
@@ -3416,11 +3416,11 @@ function main {
                       found_wallet_name="${wallet_name}"; break
                     fi
                   done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
-                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}x${NC}" || println DEBUG "  ${FG_LGRAY}$([[ -n ${found_wallet_name} ]] && echo ${found_wallet_name} || echo ${sig})${NC} ${FG_GREEN}\u2714${NC}"
+                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}${ICON_CROSS}${NC}" || println DEBUG "  ${FG_LGRAY}$([[ -n ${found_wallet_name} ]] && echo ${found_wallet_name} || echo ${sig})${NC} ${FG_GREEN}${ICON_CHECK}${NC}"
                 done
               done
 
-              [[ $(jq -r '."signed-txBody" | length' <<< ${offlineJSON}) -gt 0 ]] && println INFO "\n${FG_GREEN}\u2714${NC} Transaction already signed, please submit transaction to complete!" && waitToProceed && continue
+              [[ $(jq -r '."signed-txBody" | length' <<< ${offlineJSON}) -gt 0 ]] && println INFO "\n${FG_GREEN}${ICON_CHECK}${NC} Transaction already signed, please submit transaction to complete!" && waitToProceed && continue
               [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]] && println ERROR "\n${FG_RED}ERROR${NC}: Transaction expired!  please create a new one with long enough Time To Live (TTL)" && waitToProceed && continue
 
               for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
@@ -4157,7 +4157,7 @@ function main {
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
                         [[ $idx -ne 1 ]] && printf "|$(printf "%${total_len}s" | tr " " "-")|\n"
                         if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-                          IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_yes_power drep_yes_pct drep_no drep_no_power drep_no_pct spo_yes spo_yes_power spo_yes_pct spo_no spo_no_power spo_no_pct cc_yes cc_yes_pct cc_no cc_no_pct <<< "${vote_action}"
+                          IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_yes_power drep_yes_pct drep_no drep_no_power drep_no_pct spo_yes spo_yes_power spo_yes_pct spo_no spo_no_power spo_no_pct cc_yes cc_yes_pct cc_no cc_no_pct drep_vt spo_vt cc_vt <<< "${vote_action}"
                           max_yes_len=${#drep_yes}
                           max_no_len=${#drep_no}
                           [[ ${#spo_yes} -gt ${max_yes_len} ]] && max_yes_len=${#spo_yes}
@@ -4174,8 +4174,11 @@ function main {
                           [[ ${#spo_no_pct} -gt ${max_no_pct_len} ]] && max_no_pct_len=${#spo_no_pct}
                           [[ ${#cc_yes_pct} -gt ${max_yes_pct_len} ]] && max_yes_pct_len=${#cc_yes_pct}
                           [[ ${#cc_no_pct} -gt ${max_no_pct_len} ]] && max_no_pct_len=${#cc_no_pct}
+                          max_vt_len=${#drep_vt}
+                          [[ ${#spo_vt} -gt ${max_vt_len} ]] && max_vt_len=${#spo_vt}
+                          [[ ${#cc_vt} -gt ${max_vt_len} ]] && max_vt_len=${#cc_vt}
                         else
-                          IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_no drep_abstain spo_yes spo_no spo_abstain cc_yes cc_no cc_abstain <<< "${vote_action}"
+                          IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_no drep_abstain spo_yes spo_no spo_abstain cc_yes cc_no cc_abstain drep_vt spo_vt cc_vt <<< "${vote_action}"
                           max_yes_len=${#drep_yes}
                           max_no_len=${#drep_no}
                           max_abstain_len=${#drep_abstain}
@@ -4199,10 +4202,25 @@ function main {
                         fi
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url}"
                         if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-                          chars_left=$((max_len-max_yes_len-max_yes_pct_len-max_yes_power_len-max_no_len-max_no_pct_len-max_no_power_len-31))
-                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} -> ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP | No=${FG_LBLUE}%-${max_no_len}s${NC} -> ${FG_LBLUE}%${max_no_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_yes_pct}" "${drep_yes_power}" "${drep_no}" "${drep_no_pct}" "${drep_no_power}" "|"
-                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} -> ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP | No=${FG_LBLUE}%-${max_no_len}s${NC} -> ${FG_LBLUE}%${max_no_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP %${chars_left}s\n" "SPO" "${spo_yes}" "${spo_yes_pct}" "${spo_yes_power}" "${spo_no}" "${spo_no_pct}" "${spo_no_power}" "|"
-                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} -> ${FG_LBLUE}%${max_yes_pct_len}s${NC}%%%$((max_yes_power_len+6))s | No=${FG_LBLUE}%-${max_no_len}s${NC} -> ${FG_LBLUE}%${max_no_pct_len}s${NC}%%%$((max_no_power_len+6))s %${chars_left}s\n" "Committee" "${cc_yes}" "${cc_yes_pct}" " " "${cc_no}" "${cc_no_pct}" " " "|"
+                          chars_left=$((max_len-max_yes_len-max_yes_power_len-max_no_len-max_no_power_len-max_yes_pct_len-max_vt_len-25))
+                          if [[ -n ${drep_vt} ]]; then
+                            (( $(bc -l <<< "${drep_yes_pct} >= ${drep_vt}") )) && vote_status="${FG_GREEN}${ICON_CHECK}${NC}" || vote_status="${FG_RED}${ICON_CROSS}${NC}"
+                            printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC} @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC} @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% ${FG_LGRAY}of${NC} ${FG_LBLUE}%${max_vt_len}s${NC}%% ${vote_status} %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_yes_power}" "${drep_no}" "${drep_no_power}" "${drep_yes_pct}" "${drep_vt}" "|"
+                          else
+                            printf "| %-13s : ${FG_DGRAY}%-${max_len}s${NC} |\n" 'DRep' 'N|A'
+                          fi
+                          if [[ -n ${spo_vt} ]]; then
+                            (( $(bc -l <<< "${spo_yes_pct} >= ${spo_vt}") )) && vote_status="${FG_GREEN}${ICON_CHECK}${NC}" || vote_status="${FG_RED}${ICON_CROSS}${NC}"
+                            printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC} @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC} @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% ${FG_LGRAY}of${NC} ${FG_LBLUE}%${max_vt_len}s${NC}%% ${vote_status} %${chars_left}s\n" "SPO" "${spo_yes}" "${spo_yes_power}" "${spo_no}" "${spo_no_power}" "${spo_yes_pct}" "${spo_vt}" "|"
+                          else
+                            printf "| %-13s : ${FG_DGRAY}%-${max_len}s${NC} |\n" 'SPO' 'N|A'
+                          fi
+                          if [[ -n ${cc_vt} ]]; then
+                            (( $(bc -l <<< "${cc_yes_pct} >= ${cc_vt}") )) && vote_status="${FG_GREEN}${ICON_CHECK}${NC}" || vote_status="${FG_RED}${ICON_CROSS}${NC}"
+                            printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC}  ${FG_LBLUE}%$((max_yes_power_len+4))s${NC}  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC}  ${FG_LBLUE}%$((max_no_power_len+6))s${NC}  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% ${FG_LGRAY}of${NC} ${FG_LBLUE}%${max_vt_len}s${NC}%% ${vote_status} %${chars_left}s\n" "Committee" "${cc_yes}" " " "${cc_no}" " " "${cc_yes_pct}" "${cc_vt}" "|"
+                          else
+                            printf "| %-13s : ${FG_DGRAY}%-${max_len}s${NC} |\n" 'Committee' 'N|A'
+                          fi
                         else
                           chars_left=$((max_len-max_yes_len-max_no_len-max_abstain_len-16))
                           printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} No=${FG_LBLUE}%-${max_no_len}s${NC} Abstain=${FG_LBLUE}%-${max_abstain_len}s${NC} %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_no}" "${drep_abstain}" "|"
@@ -4315,6 +4333,8 @@ function main {
                            waitToProceed && continue ;;
                         2) println ERROR "\n${FG_RED}ERROR${NC}: selected wallet is an active committee member but have not authorized hot credential for voting!"
                            waitToProceed && continue ;;
+                        3) println ERROR "\n${FG_RED}ERROR${NC}: selected wallet has resigned as a committee member!"
+                           waitToProceed && continue ;;
                       esac
                       hash_type="keyHash"
                     elif [[ ${vote_mode} = "drep" ]]; then
@@ -4355,6 +4375,12 @@ function main {
                           1) : ;; # do nothing
                         esac
                         ;;
+                    esac
+                    isAllowedToVote ${vote_mode} ${proposal_type} ${isParameterSecurityGroup}
+                    case $? in
+                      1) println ERROR "\n${FG_RED}ERROR${NC}: Voter of type '${vote_mode}' is not allowed to vote on an action of type '${proposal_type}'!"; waitToProceed && continue ;;
+                      2) println ERROR "\n${FG_RED}ERROR${NC}: This proposal does not contain a parameter of the SecurityGroup, so voter of type '${vote_mode}' is not allowed to vote!"; waitToProceed && continue ;;
+                      3) println ERROR "\n${FG_RED}ERROR${NC}: Voter of type '${vote_mode}' is not allowed to vote on an action of type '${proposal_type}' during Conway bootstrap phase (Chang-1)!"; waitToProceed && continue ;;
                     esac
                     println DEBUG "\nPrint governance action details?"
                     select_opt "[y] Yes" "[n] No"
