@@ -584,7 +584,7 @@ selectWallet() {
           [[ -n ${reward_addr} ]] && reward_addr_list+=(${reward_addr})
         else
           getWalletRewards ${dir}
-          [[ ${reward_lovelace} -eq 0 ]] && continue
+          [[ ${reward_lovelace} -le 0 ]] && continue
           rewards_available[${reward_addr}]=${reward_lovelace}
         fi
         wallet_dirs+=("${dir}_balance_")
