@@ -398,6 +398,19 @@ formatLovelace() {
   fi
 }
 
+# Description : Print lovelace/number in human readable format with suffix.
+formatLovelaceHuman() {
+  if isNumber $1; then
+    if _ada=$(LovelaceToADA $1 0); then
+      [[ ${_ada} -lt 1000 ]] && printf ${_ada} && return 0
+      [[ ${_ada} -lt 1000000 ]] && printf "%.1fK" "$(bc -l <<< "${_ada}/1000")" && return 0
+      [[ ${_ada} -lt 1000000000 ]] && printf "%.1fM" "$(bc -l <<< "${_ada}/1000000")" && return 0
+      printf "%.1fB" "$(bc -l <<< "${_ada}/1000000000")" && return 0
+    fi
+  fi
+  return 1
+}
+
 # Description : Pretty print Ada/Token value
 #             : $1 = Amount as Integer
 formatAsset() {
@@ -419,6 +432,20 @@ ADAToLovelace() {
     echo "$1 * 1000000 / 1" | bc # /1 is to remove decimals from bc command
   else
     printf "${FG_RED}ERROR${NC}: must be a valid integer or decimal number" 1>&2
+    return 1
+  fi
+}
+
+# Description : Convert number in Lovelace to Ada
+#             : $1 = Amount in Lovelace
+#             : $2 = number of decimal places (default 6)
+LovelaceToADA() {
+  [[ -z $1 ]] && return 1
+  if isNumber $1; then
+    decimals=${2}
+    printf "%.${decimals:=6}f" "$(bc -l <<< "${1}/1000000")"
+  else
+    printf "${FG_RED}ERROR${NC}: must be a valid integer number" 1>&2
     return 1
   fi
 }
@@ -1232,7 +1259,7 @@ case ${NWMAGIC} in
 esac
 
 NETWORK_ERA=$(${CCLI} latest query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq -r '.era //empty' | tr '[:upper:]' '[:lower:]')
-[[ -z ${NETWORK_ERA} ]] && NETWORK_ERA=latest
+[[ -z ${NETWORK_ERA} ]] && NETWORK_ERA=conway
 
 [[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
 

@@ -152,12 +152,12 @@ fi
 
 unset logfile
 if [[ "${CONFIG##*.}" = "json" ]] && [[ -f ${CONFIG} ]]; then
-  errors=0
   logfile=$(jq -r '.setupScribes[] | select (.scFormat == "ScJson") | .scName' "${CONFIG}")
-  [[ -z "${logfile}" ]] && echo -e "${RED}Error:${NC} Failed to locate json logfile in node configuration file\na setupScribe of format ScJson with extension .json expected" && errors=1
+  [[ -z "${logfile}" ]] && echo -e "${RED}Error:${NC} Failed to locate json logfile in node configuration file\na setupScribe of format ScJson with extension .json expected" && exit 1
   [[ -z ${EKG_HOST} ]] && EKG_HOST=127.0.0.1
   [[ -z ${EKG_PORT} ]] && EKG_PORT=$(jq .hasEKG $CONFIG)
-  [[ -z "${EKG_PORT}" ]] && echo -e "ERROR: Failed to locate the EKG Port in node configuration file" && errors=1
+  [[ -z "${EKG_PORT}" ]] && echo -e "ERROR: Failed to locate the EKG Port in node configuration file" && exit 1
+  [[ -z "${AddrBlacklist}" ]] &&
   NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
   checkFixConfig '["TraceChainSyncClient"]' true "alert";
   checkFixConfig '["TraceBlockFetchClient"]' true "alert";
@@ -190,22 +190,22 @@ pidfile=${CNODE_HOME}/blockPerf-running.pid
 if [[ -f ${pidfile} && "${PARSE_MANUAL}" != "Y" ]]; then
     echo "WARN: This script is already running on this node for ${NETWORK_NAME} network (probably as a service)" && exit 1
 else
-    trap "rm -f -- '$pidfile'" EXIT
+    trap "rm -f -- "'$pidfile'"" EXIT
     echo $! > $pidfile
 fi
 
 missingTbh=true; missingCbf=true; 
 
 getDeltaMS() {
-  echo $(echo "$2 $4" | awk -F '[:, ]' '{print ($1*3600000+$2*60000+$3*1000+$4)-($5*3600000+$6*60000+$7*1000+$8) }' || 0)
+  echo "$(echo "$2 $4" | awk -F '[:, ]' '{print ($1*3600000+$2*60000+$3*1000+$4)-($5*3600000+$6*60000+$7*1000+$8) }' || 0)"
 }
 
 getSlotDate() {
-  echo $(date -d @$(( $1 + $NETWORK_UTIME_OFFSET )) +'%F %T')
+  echo "$(date -d @$(( $1 + $NETWORK_UTIME_OFFSET )) +'%F %T')"
 }
 
 reportBlock() {
-  if [[ ! -z "${blockLog}" ]]; then
+  if [[ -n "${blockLog}" ]]; then
     blockLogLineCycles=0
     while IFS= read -r blockLogLine;do
       # parse block and propagation metrics from different log kinds
@@ -251,11 +251,11 @@ reportBlock() {
             read -ra line_data_arr <<< ${sbx}
             blockTimeSfrX=$(date -d ${line_data_arr[0]} +"%F %T,%3N" || 0)
             blockTimeG=${line_data_arr[1]}
-            [ ! -z "$blockTimeAb" ] && break
+            [[ -n "$blockTimeAb" ]] && break
           fi
           ;;
         TraceAddBlockEvent.AddedToCurrentChain|TraceAddBlockEvent.SwitchedToAFork)
-          [ -z "$blockTimeAb" ] && blockTimeAb=$(date -d $(jq -r .at <<< $blockLogLine) +"%F %T,%3N" || 0)
+          [ -z "$blockTimeAb" ] && blockTimeAb=$(date -d "$(jq -r .at <<< $blockLogLine)" +"%F %T,%3N" || 0)
           [ ! $missingCbf ] && break
           ;;
       esac;
@@ -271,22 +271,22 @@ reportBlock() {
     echo "WARN: blockheight:${iblockHeight} (block hash not found in logs)"
   fi
   [[ -z  ${slotHeightPrev} ]] && slotHeightPrev=${blockSlot} # first monitored block only 
-  if [[ ! -z ${blockTimeTbh} ]]; then
+  if [[ -n ${blockTimeTbh} ]]; then
     # calculate delta-milliseconds from original slottime
     deltaSlotTbh=$(getDeltaMS ${blockTimeTbh} ${blockSlotTime},000)
     deltaTbhSfr=$(( $(getDeltaMS ${blockTimeSfrX} ${blockSlotTime},000) - deltaSlotTbh))
-    [ ! -z "$blockTimeCbf" ] && deltaSfrCbf=$(( $(getDeltaMS ${blockTimeCbf} ${blockSlotTime},000) - deltaTbhSfr - deltaSlotTbh)) || deltaSfrCbf="NULL"
-    [ ! -z "$blockTimeAb" ] && deltaCbfAb=$(( $(getDeltaMS ${blockTimeAb} ${blockSlotTime},000) - deltaSfrCbf - deltaTbhSfr - deltaSlotTbh)) || deltaCbfAb="NULL"
+    [[ -n "$blockTimeCbf" ]] && deltaSfrCbf=$(( $(getDeltaMS ${blockTimeCbf} ${blockSlotTime},000) - deltaTbhSfr - deltaSlotTbh)) || deltaSfrCbf="NULL"
+    [[ -n "$blockTimeAb" ]] && deltaCbfAb=$(( $(getDeltaMS ${blockTimeAb} ${blockSlotTime},000) - deltaSfrCbf - deltaTbhSfr - deltaSlotTbh)) || deltaCbfAb="NULL"
     [[ "$deltaCbfAb" -lt 0 ]] && deltaCbfAb=0  # rare cases of ab logged before cbf (can be removed after fixed in node )
     # may blacklist some internal IPs, to not expose them to common views (api.clio.one)
-    if [[ "$AddrBlacklist" == *"$blockTimeTbhAddr"* ]]; then
+    if [[ -z "${AddrBlacklist}" ]] || [[ "$AddrBlacklist" == *"$blockTimeTbhAddr"* ]]; then
       blockTimeTbhAddrPublic="0.0.0.0"
       blockTimeTbhPortPublic="0"
     else
       blockTimeTbhAddrPublic=$blockTimeTbhAddr
       blockTimeTbhPortPublic=$blockTimeTbhPort
     fi
-    if [[ "$AddrBlacklist" == *"$blockTimeCbfAddr"* ]]; then
+    if [[ -z "${AddrBlacklist}" ]] || [[ "$AddrBlacklist" == *"$blockTimeCbfAddr"* ]]; then
       blockTimeCbfAddrPublic="0.0.0.0"
       blockTimeCbfPortPublic="0"
     else
@@ -302,7 +302,7 @@ reportBlock() {
       #echo -e "blockheight:${iblockHeight} (negative delta) \n  bhash:${blockHash}\n  tbh:${blockTimeTbh} ${deltaSlotTbh}\n  sfr:${blockTimeSfrX} ${deltaTbhSfr}\n  cbf:${blockTimeCbf} ${deltaSfrCbf}\n  ab:${blockTimeAb} ${deltaCbfAb} \n blockTimeCbfAddr: $blockTimeCbfAddr \n blockTimeCbfPort: $blockTimeCbfPort \n sbx: $sbx \n line_tsv: $line_tsv \n \n blockLogLine: \n${blockLogLine} \n\n ${blockLog}" > zzz_debug_WARN_block_${iblockHeight}.json
     else
       if [[ "${deltaSlotTbh}" -lt 60000 ]] && [[ "$((blockSlot-slotHeightPrev))" -lt 200 ]]; then
-        [[ ${SELFISH_MODE} != "Y" ]] && result=$(curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&bpv=${BP_VERSION}&nport=${CNODE_PORT}&bn=${iblockHeight}&slot=${blockSlot}&tbh=${deltaSlotTbh}&tbhAddr=${blockTimeTbhAddrPublic}&tbhPort=${blockTimeTbhPortPublic}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&g=${blockTimeG}&size=${blockSize}&addr=${blockTimeCbfAddrPublic}&port=${blockTimeCbfPortPublic}&bh=${blockHash}&bpenv=${envBP}" &)
+        [[ ${SELFISH_MODE} != "Y" ]] && curl -4 -s "https://api.clio.one/blocklog/v1/?magic=${NWMAGIC}&bpv=${BP_VERSION}&nport=${CNODE_PORT}&bn=${iblockHeight}&slot=${blockSlot}&tbh=${deltaSlotTbh}&tbhAddr=${blockTimeTbhAddrPublic}&tbhPort=${blockTimeTbhPortPublic}&sfr=${deltaTbhSfr}&cbf=${deltaSfrCbf}&ab=${deltaCbfAb}&g=${blockTimeG}&size=${blockSize}&addr=${blockTimeCbfAddrPublic}&port=${blockTimeCbfPortPublic}&bh=${blockHash}&bpenv=${envBP}"
         [[ ${SERVICE_MODE} != "Y" ]] && echo -e "${FG_YELLOW}Block:.... ${iblockHeight} ( ${blockHash:0:10} ...)\n${NC} Slot..... ${blockSlot} ($((blockSlot-slotHeightPrev))s)\n ......... ${blockSlotTime}\n Header... ${blockTimeTbh} (+${deltaSlotTbh} ms) from ${blockTimeTbhAddr}:${blockTimeTbhPort}\n RequestX. ${blockTimeSfrX} (+${deltaTbhSfr} ms)\n Block.... ${blockTimeCbf} (+${deltaSfrCbf} ms) from ${blockTimeCbfAddr}:${blockTimeCbfPort}\n Adopted.. ${blockTimeAb} (+${deltaCbfAb} ms)\n Size..... ${blockSize} bytes\n delay.... ${blockDelay} sec"
       else
         # skip block reporting while node is synching up
@@ -313,14 +313,14 @@ reportBlock() {
   fi
   # prepare for next round
   slotHeightPrev=$blockSlot; 
-  blockTimeTbh=""; missingTbh=true; blockTimeSfr1=""; blockTimeSfrX=""; blockTimeCbf=""; missingCbf=true; blockTimeCbfAddr=""; blockTimeCbfPort=""; blockTimeAb=""; blockSlot=""; blockSlotTime=""
-  blockDelay=""; blockSize=""; blockTimeDeltaSlots=0; deltaCbf=""; deltaSfr=""; deltaAb=""; blockTimeTbhAddr=""; blockTimeTbhPort="";
+  blockTimeTbh=""; missingTbh=true; blockTimeSfrX=""; blockTimeCbf=""; missingCbf=true; blockTimeCbfAddr=""; blockTimeCbfPort=""; blockTimeAb=""; blockSlot=""; blockSlotTime=""
+  blockDelay=""; blockSize=""; blockTimeTbhAddr=""; blockTimeTbhPort="";
 }
 
 if [[ "${PARSE_MANUAL}" == "Y" ]]; then
   # manually parse for a certain block (no EKG tracing, no online reporting)
   echo "INFO: manual parse mode"
-  if [[ $2 -gt 0  &&  ! -z $3 ]]; then
+  if [[ $2 -gt 0  &&  -n $3 ]]; then
     SELFISH_MODE=Y # don't report this block online
     SERVICE_MODE=N # only show console output
     iblockHeight=$2
@@ -343,7 +343,7 @@ echo "blockPerf $BP_VERSION"
 echo "parsing ${logfile} for ${NETWORK_NAME} blocks (networkmagic: ${NWMAGIC})"
 
 # on (re)start wait until node metrics become available
-while true [ -z $(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0') ]
+while true [[ -z "$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0')" ]]
 do
     blockHeightPrev=$(curl -s -H 'Accept: application/json' http://${EKG_HOST}:${EKG_PORT}/ | jq -r '.cardano.node.metrics.blockNum.int.val //0')
     if [ -z $blockHeightPrev ] || [ $blockHeightPrev == 0 ] ; then
@@ -383,9 +383,9 @@ do
       for (( iblockHeight=$blockHeightPrev+1; iblockHeight<=$blockHeight; iblockHeight++ ))
       do  #catch up from previous to current blockheight
         blockHash=$(grep -m 1 ":$iblockHeight" ${logfile} | jq -r .data.block)
-        if [ ! -z $blockHash ]; then
+        if [[ -n $blockHash ]]; then
           blockLog=$(grep "${blockHash:0:10}" ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
-          if [ $(echo "$blockLog" | grep -h -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' | jq -r .data.kind | sort | uniq | wc -l) -lt 4 ]; then 
+          if [[ "$(echo "${blockLog}" | grep -h -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' | jq -r .data.kind | sort | uniq | wc -l)" -lt 4 ]]; then 
             # grep'ed blockLog is incomplete (4 steps) probably because of log rotation. so let's grep from all logs
             blockLog=$(grep -h -E ${blockHash:0:10} ${logfile/.json/-*} ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
           fi
@@ -400,15 +400,14 @@ do
       blockHeightPrev=$blockHeight; 
     fi
   elif [ "$forks" -gt "$forksPrev" ] ; then # another new Block (instead of previous one)
-    forkMode=1
     blockHash=$(grep -E -m 1 "SwitchedToAFork+.*${slotNum}" ${logfile} | jq -r .data.newtip)
     blockHash=${blockHash:0:64}
     if [[ ${#blockHash} -lt 64 ]] ; then # Minimalverbosity only logs first 6chr of blockHash in SwitchedToAFork line
       blockHash=$(grep -m 1 "${blockHash}+.*$slotNum" ${logfile} | jq -r .data.block)
     fi
-    if [ ! -z $blockHash ]; then
+    if [[ -n $blockHash ]]; then
       blockLog=$(grep "${blockHash}" ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork')
-      if [ $(echo "$blockLog" | grep -h -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' | jq -r .data.kind | sort | uniq | wc -l) -lt 4 ]; then 
+      if [[ "$(echo "${blockLog}" | grep -h -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' | jq -r .data.kind | sort | uniq | wc -l)" -lt 4 ]]; then 
         # grep'ed blockLog is incomplete (4 steps) probably because of log rotation. so let's grep from all logs
         blockLog=$(grep -h -E ${blockHash:0:10} ${logfile/.json/-*} ${logfile} | grep -E 'TraceDownloadedHeader|SendFetchRequest|CompletedBlockFetch|AddedToCurrentChain|SwitchedToAFork' )
         fi
@@ -423,7 +422,6 @@ do
     fi
     [[ ${SERVICE_MODE} != "Y" ]] && echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     forksPrev=$forks; 
-    forkMode=0
   fi
   sleep 1 # slot and second
   if [ "$forks" -lt "$forksPrev" ] ; then # node restarted meanwhile

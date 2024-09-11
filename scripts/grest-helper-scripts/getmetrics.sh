@@ -47,13 +47,13 @@ function get_metrics() {
   [[ -z "${arcused}" ]] && arcused=0
   memused=$(( memtotal - $(echo "${meminf}" | grep MemAvailable | awk '{print $2}') - arcused ))
   # cpu first read
-  cpu_now_a=($(head -n1 /proc/stat))
-  cpu_sum_a="${cpu_now_a[@]:1}"
+  IFS=" " read -r -a cpu_now_a <<< "$(head -n1 /proc/stat)"
+  cpu_sum_a="${cpu_now_a[*]:1}"
   cpu_sum_a=$((${cpu_sum_a// /+}))
   sleep 1
   # cpu second read
-  cpu_now_b=($(head -n1 /proc/stat))
-  cpu_sum_b="${cpu_now_b[@]:1}"
+  IFS=" " read -r -a cpu_now_b <<< "$(head -n1 /proc/stat)"
+  cpu_sum_b="${cpu_now_b[*]:1}"
   cpu_sum_b=$((${cpu_sum_b// /+}))
   # cpu calc
   cpu_delta=$((cpu_sum_b - cpu_sum_a))

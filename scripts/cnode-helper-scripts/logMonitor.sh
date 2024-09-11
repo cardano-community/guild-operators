@@ -139,7 +139,7 @@ return_code=$?
 if [[ $return_code -eq 0 || $return_code -eq 2 ]]; then
   :
 else
-  echo "ERROR: Received exit code: ${?} from ${PARENT}/env."
+  echo "ERROR: Received exit code: ${return_code} from ${PARENT}/env."
   exit 1
 fi
 

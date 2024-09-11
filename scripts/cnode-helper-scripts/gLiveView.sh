@@ -127,7 +127,7 @@ if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   if command -v cncli >/dev/null && command -v systemctl >/dev/null && systemctl is-active --quiet ${CNODE_VNAME}-cncli-sync.service 2>/dev/null; then
     vcur=$(cncli -V | awk '{print $2}')
     vrem=$(curl -s https://api.github.com/repos/${G_ACCOUNT}/cncli/releases/latest | jq -r .tag_name)
-    [[ ${vcur} != ${vrem} ]] && printf "${FG_MAGENTA}CNCLI current version (${vcur}) different from repo (${vrem}), consider upgrading!.${NC}" && waitToProceed
+    [[ "${vcur}" != "${vrem}" ]] && printf "${FG_MAGENTA}CNCLI current version (${vcur}) different from repo (${vrem}), consider upgrading!.${NC}" && waitToProceed
   fi
 
   echo "Checking for script updates..."
@@ -583,7 +583,7 @@ checkPeers() {
       peerPORT=$(cut -d: -f2 <<< "${peer}")
     fi
 
-    if [[ -z ${peerIP} || -z ${peerPORT} || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = 127.0.0.1) || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = ${ext_ip_resolve} && ${peerPORT} = ${CNODE_PORT}) ]]; then
+    if [[ -z ${peerIP} || -z ${peerPORT} || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = 127.0.0.1) || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = "${ext_ip_resolve}" && ${peerPORT} = "${CNODE_PORT}") ]]; then
       continue
     fi
 
@@ -604,12 +604,12 @@ checkPeers() {
       peerPORT=$(cut -d: -f2 <<< "${peer}")
     fi
 
-    if [[ -z ${peerIP} || -z ${peerPORT} || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = 127.0.0.1) || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = ${ext_ip_resolve} && ${peerPORT} = ${CNODE_PORT}) ]]; then
+    if [[ -z ${peerIP} || -z ${peerPORT} || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = 127.0.0.1) || (${HIDE_DUPLICATE_IPS} = 'Y' && ${peerIP} = "${ext_ip_resolve}" && ${peerPORT} = "${CNODE_PORT}") ]]; then
       continue
     fi
 
     if [[ ${HIDE_DUPLICATE_IPS} = 'Y' ]]; then
-      local peerIndex=$(getArrayIndex "${peerIP};" "${peersFiltered[@]}")
+      local peerIndex;peerIndex=$(getArrayIndex "${peerIP};" "${peersFiltered[@]}")
       if [[ ${peerIndex} -ge 0 ]]; then
         if [[ ${peersFiltered[$peerIndex]} != *o ]]; then
           peersFiltered[$peerIndex]="${peerIP};${peerPORT};i+o"
@@ -623,7 +623,7 @@ checkPeers() {
 
   done
 
-  IFS=$'\n' peersFiltered=($(sort <<<"${peersFiltered[*]}")); unset IFS
+  IFS=$'\n' read -r -a peersFiltered <<< "$(sort <<<"${peersFiltered[*]}")"; unset IFS
 
   peerCNT=${#peersFiltered[@]}
 
@@ -823,7 +823,7 @@ while true; do
     tcols=$(tput cols)   # update terminal columns
   done
 
-  [[ ${oldLine} != ${line} ]] && oldLine=$line && clrScreen # redraw everything, total height changed
+  [[ "${oldLine}" != "${line}" ]] && oldLine=$line && clrScreen # redraw everything, total height changed
 
   line=1; mvPos 1 1 # reset position
 

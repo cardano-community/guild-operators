@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028,SC1091
+# shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028,SC1091,SC2206
 
 ######################################
 # User Variables - Change as desired #
@@ -160,11 +160,12 @@ if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
     fi
 
     # check for env update
+    OFFLINE_MODE=N
     ENV_UPDATED=N
     checkUpdate env N N N
     case $? in
       1) ENV_UPDATED=Y ;;
-      2) myExit 1 ;;
+      2) myExit 1 "ERROR: Was unable to check for updates on previous run querying from github, please retry!";;
     esac
 
     # source common env variables in case it was updated
@@ -541,13 +542,7 @@ function main {
                     println " >> WALLET >> IMPORT >> HARDWARE WALLET"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    println DEBUG "Supported HW wallets: Ledger S, Ledger X, Trezor Model T"
-                    println "Is your hardware wallet one of these models?"
-                    select_opt "[y] Yes" "[n] No"
-                    case $? in
-                      0) : ;; # do nothing
-                      1) waitToProceed "Unsupported hardware wallet, press any key to return home" && continue ;;
-                    esac
+                    println DEBUG "${FG_BLUE}NOTE${NC}: Make sure your hardware wallet supported by Cardano and cardano-hw-cli utility"
                     echo
                     if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
                       println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli not found in path or executable permission not set."
@@ -606,7 +601,6 @@ function main {
                           --path 1852H/1815H/${acct_idx}H/5/${key_idx}
                           --path 1854H/1815H/${acct_idx}H/0/${key_idx}
                           --path 1854H/1815H/${acct_idx}H/2/${key_idx}
-                          --path 1854H/1815H/${acct_idx}H/3/${key_idx}
                           --verification-key-file "${payment_vk_file}"
                           --verification-key-file "${stake_vk_file}"
                           --verification-key-file "${drep_vk_file}"
@@ -614,7 +608,6 @@ function main {
                           --verification-key-file "${cc_hot_sk_file}"
                           --verification-key-file "${ms_payment_vk_file}"
                           --verification-key-file "${ms_stake_vk_file}"
-                          --verification-key-file "${ms_drep_vk_file}"
                           --hw-signing-file "${payment_sk_file}"
                           --hw-signing-file "${stake_sk_file}"
                           --hw-signing-file "${drep_sk_file}"
@@ -622,7 +615,6 @@ function main {
                           --hw-signing-file "${cc_hot_sk_file}"
                           --hw-signing-file "${ms_payment_sk_file}"
                           --hw-signing-file "${ms_stake_sk_file}"
-                          --hw-signing-file "${ms_drep_sk_file}"
                         )
                         ;;
                     esac
@@ -630,6 +622,9 @@ function main {
                     if ! stdout=$("${HW_DERIVATION_CMD[@]}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
+                    # make a copy of 1852 DRep keys to 1854 multisig due to lacking HW support
+                    cp "${drep_sk_file}" "${ms_drep_sk_file}"
+                    cp "${drep_vk_file}" "${ms_drep_vk_file}"
                     jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" "${payment_vk_file}"
                     jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" "${stake_vk_file}"
                     jq '.description = "Delegate Representative Hardware Verification Key"' "${drep_vk_file}" > "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" "${drep_vk_file}"
@@ -870,7 +865,7 @@ function main {
                   fi
                   if [[ -n ${KOIOS_API} ]]; then
                     [[ -v rewards_available[${reward_addr}] ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
-                    pool_delegation=${reward_pool[${reward_addr}]}
+                    pool_delegation=${pool_delegations[${reward_addr}]}
                   else
                     getWalletRewards ${wallet_name}
                   fi
@@ -1060,7 +1055,7 @@ function main {
                     unset wallet_str
                     while IFS= read -r -d '' wallet; do
                       getCredentials "$(basename ${wallet})"
-                      if [[ ${ms_pay_cred} = ${_sig} ]]; then
+                      if [[ ${ms_pay_cred} = "${_sig}" ]]; then
                         wallet_str=" (${FG_GREEN}$(basename ${wallet})${NC})" && break
                       fi
                     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -1092,7 +1087,7 @@ function main {
                 if [[ -n ${reward_addr} ]]; then
                   if [[ -n ${KOIOS_API} ]]; then
                     [[ -v rewards_available[${reward_addr}] ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
-                    pool_delegation=${reward_pool[${reward_addr}]}
+                    pool_delegation=${pool_delegations[${reward_addr}]}
                   else
                     getRewardsFromAddr ${reward_addr}
                   fi
@@ -1129,15 +1124,19 @@ function main {
                   vote_delegation_type="${vote_delegation%-*}"
                   if [[ ${vote_delegation} = *-* ]]; then
                     vote_delegation_hash="${vote_delegation#*-}"
-                    vote_delegation=$(bech32 drep <<< ${vote_delegation_hash})
                     while IFS= read -r -d '' _wallet; do
                       getGovKeyInfo "$(basename ${_wallet})"
-                      if [[ "${drep_id}" = "${vote_delegation}" ]]; then
-                        walletName=" ${FG_GREEN}$(basename ${_wallet})${NC}" && break
+                      if [[ "${drep_hash}" = "${vote_delegation_hash}" ]]; then
+                        walletName="$(basename ${_wallet})" && break
                       fi
                     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                   fi
-                  println "Delegation        : ${FG_LGRAY}${vote_delegation}${NC}${walletName}"
+                  getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
+                  println "Delegation        : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                  println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                  if [[ -n ${walletName} ]]; then
+                    println "                  : Wallet  => ${FG_GREEN}${walletName}${NC}"
+                  fi
                   if [[ ${vote_delegation} = always* ]]; then
                     : # do nothing
                   elif getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
@@ -1520,12 +1519,12 @@ function main {
                       if [[ ${asset_amount} -gt ${assets_left[${selection_arr[0]}]} ]]; then
                         println ERROR "${FG_RED}ERROR${NC}: you cant send more assets than available on address!" && continue
                       elif [[ ${asset_amount} -eq ${assets_left[${selection_arr[0]}]} ]]; then
-                        unset assets_left[${selection_arr[0]}]
+                        unset "assets_left[${selection_arr[0]}]"
                       else
                         assets_left[${selection_arr[0]}]=$(( assets_left[${selection_arr[0]}] - asset_amount ))
                       fi
                       assets_to_send[${selection_arr[0]}]=${asset_amount}
-                      unset assets_on_addr["${selected_value}"]
+                      unset "assets_on_addr[${selected_value}]"
                       [[ ${#assets_on_addr[@]} -eq 0 ]] && break
                       println DEBUG "Add more assets?"
                       select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
@@ -2020,7 +2019,7 @@ function main {
               echo
               pledge_ada=50000 # default pledge
               [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-              getAnswerAnyCust pledge_enter "Pledge (in ADA, default: $(formatLovelace $(ADAToLovelace ${pledge_ada}))"
+              getAnswerAnyCust pledge_enter "Pledge (in ADA, default: $(formatLovelace "$(ADAToLovelace ${pledge_ada})")"
               pledge_enter="${pledge_enter//,}"
               if [[ -n "${pledge_enter}" ]]; then
                 if ! ADAToLovelace "${pledge_enter}" >/dev/null; then
@@ -2580,7 +2579,7 @@ function main {
                 println "Owner #$((index+1))      : ${FG_GREEN}${owner_wallets[${index}]}${NC}"
               done
               println "Reward Wallet : ${FG_GREEN}${reward_wallet}${NC}"
-              println "Pledge        : ${FG_LBLUE}$(formatLovelace $(ADAToLovelace ${pledge_ada}))${NC} ADA"
+              println "Pledge        : ${FG_LBLUE}$(formatLovelace "$(ADAToLovelace ${pledge_ada})")${NC} ADA"
               println "Margin        : ${FG_LBLUE}${margin}${NC} %"
               println "Cost          : ${FG_LBLUE}$(formatLovelace ${cost_lovelace})${NC} ADA"
               if [[ ${SUBCOMMAND} = "register" ]]; then
@@ -2934,9 +2933,9 @@ function main {
                 conf_cost=$(jq -r '.costADA //0' "${pool_config}")
                 conf_owner=$(jq -r '.pledgeWallet //"unknown"' "${pool_config}")
                 conf_reward=$(jq -r '.rewardWallet //"unknown"' "${pool_config}")
-                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Pledge" "$(formatLovelace $(ADAToLovelace "${conf_pledge}"))")"
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Pledge" "$(formatLovelace "$(ADAToLovelace ${conf_pledge})")")"
                 println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Margin" "${conf_margin}")"
-                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Cost" "$(formatLovelace $(ADAToLovelace "${conf_cost}"))")"
+                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Cost" "$(formatLovelace "$(ADAToLovelace ${conf_cost})")")"
                 println "$(printf "%-21s : ${FG_GREEN}%s${NC} (%s)" "Owner Wallet" "${conf_owner}" "primary only, use online mode for multi-owner")"
                 println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward Wallet" "${conf_reward}")"
                 relay_title="Relay(s)"
@@ -3636,7 +3635,7 @@ function main {
                       fi
                       getCredential ${cred_type} "${TMP_DIR}"/tmp.vkey
                     fi
-                    if [[ ${cred} != ${sig} ]]; then
+                    if [[ ${cred} != "${sig}" ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: signing key provided doesn't match with credential in MultiSig script:${FG_LGRAY}${otx_script_name}${NC}"
                       println ERROR "Provided signing key's credential  : ${FG_LGRAY}${cred}${NC}"
                       println ERROR "Looking for credential             : ${FG_LGRAY}${sig}${NC}"
@@ -3756,8 +3755,11 @@ function main {
               [[ ${otx_type} = "Asset Burning" ]] && println DEBUG "Assets Left      : ${FG_LBLUE}$(formatAsset "$(jq -r '."asset-minted"' <<< ${offlineJSON})")${NC}"
               if [[ ${otx_type} = "Asset Minting" || ${otx_type} = "Asset Burning" ]] && otx_metadata=$(jq -er '.metadata' <<< ${offlineJSON}); then println DEBUG "Metadata         : \n${otx_metadata}\n"; fi
               jq -er '."drep-wallet-name"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep Wallet      : ${FG_GREEN}$(jq -r '."drep-wallet-name"' <<< ${offlineJSON})${NC}"
-              jq -er '."drep-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep ID          : ${FG_LGRAY}$(jq -r '."drep-id"' <<< ${offlineJSON})${NC}"
+              jq -er '."drep-hash"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep Hash        : ${FG_LGRAY}$(jq -r '."drep-hash"' <<< ${offlineJSON})${NC}"
+              jq -er '."drep-id-cip105"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep ID CIP-105  : ${FG_LGRAY}$(jq -r '."drep-id-cip105"' <<< ${offlineJSON})${NC}"
+              jq -er '."drep-id-cip129"' <<< ${offlineJSON} &>/dev/null && println DEBUG "DRep ID CIP-129  : ${FG_LGRAY}$(jq -r '."drep-id-cip129"' <<< ${offlineJSON})${NC}"
               jq -er '."action-id"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Action ID        : ${FG_LGRAY}$(jq -r '."action-id"' <<< ${offlineJSON})${NC}"
+              jq -er '."action-id-cip129"' <<< ${offlineJSON} &>/dev/null && println DEBUG "Action ID CIP-129: ${FG_LGRAY}$(jq -r '."action-id-cip129"' <<< ${offlineJSON})${NC}"
               jq -er '.vote' <<< ${offlineJSON} &>/dev/null && println DEBUG "Vote             : ${FG_LGRAY}$(jq -r '.vote' <<< ${offlineJSON})${NC}"
 
               if [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]]; then
@@ -3871,15 +3873,19 @@ function main {
                         vote_delegation_type="${vote_delegation%-*}"
                         if [[ ${vote_delegation} = *-* ]]; then
                           vote_delegation_hash="${vote_delegation#*-}"
-                          vote_delegation=$(bech32 drep <<< ${vote_delegation_hash})
                           while IFS= read -r -d '' _wallet; do
                             getGovKeyInfo "$(basename ${_wallet})"
-                            if [[ "${drep_id}" = "${vote_delegation}" ]]; then
-                              walletName=" ${FG_GREEN}$(basename ${_wallet})${NC}" && break
+                            if [[ ${drep_hash} = "${vote_delegation_hash}" ]]; then
+                              walletName="$(basename ${_wallet})" && break
                             fi
                           done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                         fi
-                        println "Delegation        : ${FG_LGRAY}${vote_delegation}${NC}${walletName}"
+                        getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
+                        println "Delegation        : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                        println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                        if [[ -n ${walletName} ]]; then
+                          println "                  : Wallet  => ${FG_GREEN}${walletName}${NC}"
+                        fi
                         if [[ ${vote_delegation} = always* ]]; then
                           : # do nothing
                         elif getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
@@ -3917,7 +3923,8 @@ function main {
                       println "Status            : ${FG_YELLOW}Governance keys missing, please derive them if needed${NC}"
                       waitToProceed && continue
                     fi
-                    println "DRep ID           : ${FG_LGRAY}${drep_id}${NC}"
+                    println "DRep ID           : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
                     println "DRep Hash         : ${FG_LGRAY}${drep_hash}${NC}"
                     if [[ ${hash_type} = keyHash ]]; then
                       println "DRep Type         : ${FG_LGRAY}Key${NC}"
@@ -3951,9 +3958,13 @@ function main {
                         println "Status            : ${FG_YELLOW}DRep key not registered${NC}"
                       fi
                     fi
-                    echo
-                    println "Committee Cold ID : ${FG_LGRAY}${cc_cold_id}${NC}"
-                    println "Committee Hot ID  : ${FG_LGRAY}${cc_hot_id}${NC}"
+                    if [[ -n ${cc_cold_id} ]]; then
+                      echo
+                      println "Committee Cold ID : CIP-105 => ${FG_LGRAY}${cc_cold_id}${NC}"
+                      println "                  : CIP-129 => ${FG_LGRAY}${cc_cold_id_cip129}${NC}"
+                      println "Committee Hot ID  : CIP-105 => ${FG_LGRAY}${cc_hot_id}${NC}"
+                      println "                  : CIP-129 => ${FG_LGRAY}${cc_hot_id_cip129}${NC}"
+                    fi
                     waitToProceed && continue
                     ;; ###################################################################
                   delegate)
@@ -3961,6 +3972,7 @@ function main {
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     println " >> VOTE >> GOVERNANCE >> DELEGATE"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    unset drep_id_cip129
                     if ! versionCheck "9.0" "${PROT_VERSION}"; then
                       println INFO "\n${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
                     fi
@@ -3996,7 +4008,7 @@ function main {
                     fi
                     unset drep_wallet drep_hash
                     println DEBUG "\nDo you want to delegate to a local CNTools DRep registered wallet, pre-defined type or specify the DRep?"
-                    select_opt "[w] CNTools DRep Wallet" "[i] DRep (ID or hash)" "[a] Always Abstain" "[c] Always No Confidence" "[Esc] Cancel"
+                    select_opt "[w] CNTools DRep Wallet" "[i] DRep ID" "[a] Always Abstain" "[c] Always No Confidence" "[Esc] Cancel"
                     case $? in
                       0) selectWallet "none"
                         case $? in
@@ -4011,20 +4023,18 @@ function main {
                           waitToProceed && continue
                         fi
                         ;;
-                      1) getAnswerAnyCust drep_id "DRep (blank to cancel)"
+                      1) getAnswerAnyCust drep_id "DRep ID [CIP-105 or CIP-129] (blank to cancel)"
                         [[ -z "${drep_id}" ]] && continue
-                        [[ ${drep_id} != drep* ]] && drep_id=$(bech32 drep <<< "${drep_id}" 2>/dev/null)
-                        [[ ${#drep_id} -ne 56 || ${drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
+                        parseDRepId "${drep_id}"
+                        [[ -z ${drep_id} ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
                         ;;
-                      2) drep_id="alwaysAbstain"; vote_param=("--always-abstain") ;;
-                      3) drep_id="alwaysNoConfidence"; vote_param=("--always-no-confidence") ;;
+                      2) drep_id="alwaysAbstain"; vote_param_arr=("--always-abstain") ;;
+                      3) drep_id="alwaysNoConfidence"; vote_param_arr=("--always-no-confidence") ;;
                       4) continue ;;
                     esac
                     unset drep_expiry
                     if [[ ${drep_id} != always* ]]; then
-                      [[ -z ${drep_hash} ]] && drep_hash=$(bech32 <<< "${drep_id}")
-                      getDRepStatus keyHash ${drep_hash}
-                      [[ -z ${drep_expiry} ]] && getDRepStatus scriptHash ${drep_hash}
+                      getDRepStatus ${hash_type} ${drep_hash}
                       if [[ -z ${drep_expiry} ]]; then
                         println ERROR "\n${FG_RED}ERROR${NC}: selected DRep not registered"
                         waitToProceed && continue
@@ -4037,7 +4047,7 @@ function main {
                           1) continue ;;
                         esac
                       fi
-                      [[ ${hash_type} = keyHash ]] && vote_param=("--drep-key-hash" "${drep_hash}") || vote_param=("--drep-script-hash" "${drep_hash}")
+                      [[ ${hash_type} = keyHash ]] && vote_param_arr=("--drep-key-hash" "${drep_hash}") || vote_param_arr=("--drep-script-hash" "${drep_hash}")
                       getDRepVotePower keyHash ${drep_hash}
                       [[ -z ${vote_power} ]] && getDRepVotePower scriptHash ${drep_hash}
                       if [[ -z ${vote_power} ]]; then
@@ -4065,7 +4075,11 @@ function main {
                     if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
                     echo
                     println "${FG_GREEN}${wallet_name}${NC} successfully delegated to DRep!"
-                    println "\nDRep ID                : ${FG_LGRAY}${drep_id}${NC}"
+                    echo
+                    println "DRep ID                : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                    if [[ -n ${drep_id_cip129} ]]; then
+                      println "                       : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                    fi
                     if [[ -n ${drep_expiry} ]]; then
                       [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
                       println "DRep expiry            : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
@@ -4088,28 +4102,51 @@ function main {
                       waitToProceed && continue
                     fi
                     if [[ ${action_cnt} -gt 5 ]]; then
-                      getAnswerAnyCust page_entries "${action_cnt} proposals found. Enter number of actions to display per page (enter for 5)"
+                      getAnswerAnyCust page_entries "${action_cnt} proposals found. Enter number of actions to display per page (enter for 4)"
                     fi
-                    page_entries=${page_entries:=5}
-                    if ! isNumber ${page_entries} || [[ ${page_entries} -eq 0 ]]; then
+                    page_entries=${page_entries:=4}
+                    if ! isNumber ${page_entries} || [[ ${page_entries} -lt 1 ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid number"
                       waitToProceed && continue
                     fi
                     curr_epoch=$(getEpoch)
                     page=1
                     pages=$(( (action_cnt + (page_entries - 1)) / page_entries ))
-                    echo
-                    tput sc
                     while true; do
-                      tput rc && tput ed
+                      clear
+                      if [[ ${show_details} = Y ]]; then
+                        tput sc && println DEBUG "\nFetching proposal details and metadata...\n"
+                        getGovAction "${action_tx_id}" "${action_idx}"
+                        res=$?
+                        tput rc && tput ed
+                        case ${res} in
+                          1) println ERROR "\n${FG_RED}ERROR${NC}: governance action id not found!"
+                             waitToProceed && continue ;;
+                          2) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor url or content"
+                             println DEBUG "URL : ${FG_LGRAY}${proposal_url}${NC}"
+                             waitToProceed ;;
+                          3) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor hash"
+                             println DEBUG "Action hash : ${FG_LGRAY}${proposal_hash}${NC}"
+                             println DEBUG "Real hash   : ${FG_LGRAY}${proposal_meta_hash}${NC}"
+                             waitToProceed ;;
+                        esac
+                        println DEBUG "\nGovernance Action Details${FG_LGRAY}"
+                        jq -er <<< "${vote_action}" 2>/dev/null || echo "${vote_action}"
+                        println DEBUG "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                        if [[ -f "${proposal_meta_file}" ]]; then
+                          println DEBUG "\nGovernance Action Anchor Content${FG_LGRAY}"
+                          jq -er "${proposal_meta_file}" 2>/dev/null || cat "${proposal_meta_file}"
+                        fi
+                        unset show_details
+                        waitToProceed && continue
+                      fi
                       start_idx=$(( (page *  page_entries) - page_entries ))
                       # loop current page to find max length of entries
-                      max_len=66 # assume action id (66)
+                      max_len=70 # assume action id in CIP-129 format (70)
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
-                        IFS=',' read -r action_id action_type proposed_in expires_after anchor_url <<< "${vote_action}"
-                        [[ ${#action_id} -gt ${max_len} ]] && max_len=${#action_id}
-                        [[ ${#action_type} -gt ${max_len} ]] && max_len=${#action_type}
-                        [[ ${#anchor_url} -gt ${max_len} ]] && max_len=${#anchor_url}
+                        IFS=',' read -r -a vote_action_arr <<< "${vote_action}"
+                        [[ ${#vote_action_arr[0]} -gt ${max_len} ]] && max_len=${#vote_action_arr[0]}
+                        [[ ${#vote_action_arr[4]} -gt ${max_len} ]] && max_len=${#vote_action_arr[4]}
                       done
                       total_len=$(( max_len + 13 + 5 ))
                       border_line="|$(printf "%${total_len}s" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
@@ -4119,8 +4156,40 @@ function main {
                       idx=1
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
                         [[ $idx -ne 1 ]] && printf "|$(printf "%${total_len}s" | tr " " "-")|\n"
-                        IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_no drep_abstain spo_yes spo_no spo_abstain c_yes c_no c_abstain <<< "${vote_action}"
+                        if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
+                          IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_yes_power drep_yes_pct drep_no drep_no_power drep_no_pct spo_yes spo_yes_power spo_yes_pct spo_no spo_no_power spo_no_pct cc_yes cc_yes_pct cc_no cc_no_pct <<< "${vote_action}"
+                          max_yes_len=${#drep_yes}
+                          max_no_len=${#drep_no}
+                          [[ ${#spo_yes} -gt ${max_yes_len} ]] && max_yes_len=${#spo_yes}
+                          [[ ${#spo_no} -gt ${max_no_len} ]] && max_no_len=${#spo_no}
+                          [[ ${#cc_yes} -gt ${max_yes_len} ]] && max_yes_len=${#cc_yes}
+                          [[ ${#cc_no} -gt ${max_no_len} ]] && max_no_len=${#cc_no}
+                          drep_yes_power="$(formatLovelaceHuman ${drep_yes_power})"; max_yes_power_len=${#drep_yes_power}
+                          drep_no_power="$(formatLovelaceHuman ${drep_no_power})"; max_no_power_len=${#drep_no_power}
+                          spo_yes_power="$(formatLovelaceHuman ${spo_yes_power})"; [[ ${#spo_yes_power} -gt ${max_yes_power_len} ]] && max_yes_power_len=${#spo_yes_power}
+                          spo_no_power="$(formatLovelaceHuman ${spo_no_power})"; [[ ${#spo_no_power} -gt ${max_no_power_len} ]] && max_no_power_len=${#spo_no_power}
+                          max_yes_pct_len=${#drep_yes_pct}
+                          max_no_pct_len=${#drep_no_pct}
+                          [[ ${#spo_yes_pct} -gt ${max_yes_pct_len} ]] && max_yes_pct_len=${#spo_yes_pct}
+                          [[ ${#spo_no_pct} -gt ${max_no_pct_len} ]] && max_no_pct_len=${#spo_no_pct}
+                          [[ ${#cc_yes_pct} -gt ${max_yes_pct_len} ]] && max_yes_pct_len=${#cc_yes_pct}
+                          [[ ${#cc_no_pct} -gt ${max_no_pct_len} ]] && max_no_pct_len=${#cc_no_pct}
+                        else
+                          IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_no drep_abstain spo_yes spo_no spo_abstain cc_yes cc_no cc_abstain <<< "${vote_action}"
+                          max_yes_len=${#drep_yes}
+                          max_no_len=${#drep_no}
+                          max_abstain_len=${#drep_abstain}
+                          [[ ${#spo_yes} -gt ${max_yes_len} ]] && max_yes_len=${#spo_yes}
+                          [[ ${#spo_no} -gt ${max_no_len} ]] && max_no_len=${#spo_no}
+                          [[ ${#spo_abstain} -gt ${max_abstain_len} ]] && max_abstain_len=${#spo_abstain}
+                          [[ ${#cc_yes} -gt ${max_yes_len} ]] && max_yes_len=${#cc_yes}
+                          [[ ${#cc_no} -gt ${max_no_len} ]] && max_no_len=${#cc_no}
+                          [[ ${#cc_abstain} -gt ${max_abstain_len} ]] && max_abstain_len=${#cc_abstain}
+                        fi
+                        IFS='#' read -r proposal_tx_id proposal_index <<< "${action_id}"
+                        getGovActionId ${proposal_tx_id} ${proposal_index}
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Action ID" "${action_id}"
+                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "  CIP-129" "${action_id_cip129}"
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Type" "${action_type}"
                         printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${proposed_in}"
                         if [[ ${expires_after} -lt ${curr_epoch} ]]; then
@@ -4129,9 +4198,17 @@ function main {
                           printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
                         fi
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url}"
-                        printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#drep_yes}-4-${#drep_no}-9))s${NC} |\n" "DRep" "${drep_yes}" "${drep_no}" "${drep_abstain}"
-                        printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#spo_yes}-4-${#spo_no}-9))s${NC} |\n" "SPO" "${spo_yes}" "${spo_no}" "${spo_abstain}"
-                        printf "| %-13s : Yes=${FG_LBLUE}%s${NC} No=${FG_LBLUE}%s${NC} Abstain=${FG_LBLUE}%-$((max_len-4-${#c_yes}-4-${#c_no}-9))s${NC} |\n" "Committee" "${c_yes}" "${c_no}" "${c_abstain}"
+                        if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
+                          chars_left=$((max_len-max_yes_len-max_yes_pct_len-max_yes_power_len-max_no_len-max_no_pct_len-max_no_power_len-31))
+                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} -> ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP | No=${FG_LBLUE}%-${max_no_len}s${NC} -> ${FG_LBLUE}%${max_no_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_yes_pct}" "${drep_yes_power}" "${drep_no}" "${drep_no_pct}" "${drep_no_power}" "|"
+                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} -> ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP | No=${FG_LBLUE}%-${max_no_len}s${NC} -> ${FG_LBLUE}%${max_no_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP %${chars_left}s\n" "SPO" "${spo_yes}" "${spo_yes_pct}" "${spo_yes_power}" "${spo_no}" "${spo_no_pct}" "${spo_no_power}" "|"
+                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} -> ${FG_LBLUE}%${max_yes_pct_len}s${NC}%%%$((max_yes_power_len+6))s | No=${FG_LBLUE}%-${max_no_len}s${NC} -> ${FG_LBLUE}%${max_no_pct_len}s${NC}%%%$((max_no_power_len+6))s %${chars_left}s\n" "Committee" "${cc_yes}" "${cc_yes_pct}" " " "${cc_no}" "${cc_no_pct}" " " "|"
+                        else
+                          chars_left=$((max_len-max_yes_len-max_no_len-max_abstain_len-16))
+                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} No=${FG_LBLUE}%-${max_no_len}s${NC} Abstain=${FG_LBLUE}%-${max_abstain_len}s${NC} %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_no}" "${drep_abstain}" "|"
+                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} No=${FG_LBLUE}%-${max_no_len}s${NC} Abstain=${FG_LBLUE}%-${max_abstain_len}s${NC} %${chars_left}s\n" "SPO" "${spo_yes}" "${spo_no}" "${spo_abstain}" "|"
+                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} No=${FG_LBLUE}%-${max_no_len}s${NC} Abstain=${FG_LBLUE}%-${max_abstain_len}s${NC} %${chars_left}s\n" "Committee" "${cc_yes}" "${cc_no}" "${cc_abstain}" "|"
+                        fi
                         ((idx++))
                       done
                       println DEBUG "${border_line}"
@@ -4140,19 +4217,25 @@ function main {
                       println OFF "\nPage ${FG_LBLUE}${page}${NC} of ${FG_LGRAY}${pages}${NC}\n"
                       if [[ ${page} -gt 1 && ${page} -lt ${pages} ]]; then
                         hasPrev=Y; hasNext=Y
-                        println OFF "[p] Previous Page | [n] Next Page | [r] Return"
+                        println OFF "[p] Previous Page | [n] Next Page | [r] Return | [d] Details"
                       elif [[ ${page} -eq 1 && ${page} -lt ${pages} ]]; then
                         hasNext=Y
-                        println OFF "${FG_DGRAY}[p] Previous Page${NC} | [n] Next Page | [r] Return"
+                        println OFF "${FG_DGRAY}[p] Previous Page${NC} | [n] Next Page | [r] Return | [d] Details"
                       else
                         hasPrev=Y
-                        println OFF "[p] Previous Page | ${FG_DGRAY}[n] Next Page${NC} | [r] Return"
+                        println OFF "[p] Previous Page | ${FG_DGRAY}[n] Next Page${NC} | [r] Return | [d] Details"
                       fi
                       read -rsn1 key
                       case ${key} in
                         r ) continue 2 ;;
                         p ) [[ -n ${hasPrev} ]] && ((page--)) ;;
                         n ) [[ -n ${hasNext} ]] && ((page++)) ;;
+                        d ) getAnswerAnyCust action_id "\nGovernance Action ID [<tx_id>#<action_idx> | CIP-129] (blank to cancel)"
+                            [[ -z "${action_id}" ]] && continue
+                            [[ ${action_id} = gov_action* ]] && parseGovActionId ${action_id} || IFS='#' read -r action_tx_id action_idx <<< "${action_id}"
+                            ! isNumber "${action_idx}" && println ERROR "\n${FG_RED}ERROR${NC}: invalid action id!" && waitToProceed && continue
+                            show_details=Y
+                            ;;
                       esac
                     done
                     ;; ###################################################################
@@ -4225,10 +4308,14 @@ function main {
                       4) continue ;;
                     esac
                     if [[ ${vote_mode} = "committee" ]]; then
-                      if ! isCommitteeMember $(bech32 <<< ${cc_cold_id}); then
-                        println ERROR "\n${FG_RED}ERROR${NC}: selected wallet is not an active committee member!"
-                        waitToProceed && continue
-                      fi
+                      isCommitteeMember "$(bech32 <<< ${cc_cold_id})" "$(bech32 <<< ${cc_hot_id})"
+                      case $? in
+                        0) : ;; # ok
+                        1) println ERROR "\n${FG_RED}ERROR${NC}: selected wallet is not an active committee member!"
+                           waitToProceed && continue ;;
+                        2) println ERROR "\n${FG_RED}ERROR${NC}: selected wallet is an active committee member but have not authorized hot credential for voting!"
+                           waitToProceed && continue ;;
+                      esac
                       hash_type="keyHash"
                     elif [[ ${vote_mode} = "drep" ]]; then
                       if ! getDRepStatus ${hash_type} ${drep_hash}; then
@@ -4241,11 +4328,12 @@ function main {
                       fi
                     fi
                     echo
-                    getAnswerAnyCust action_id "Governance Action ID [<tx_id>#<action_idx>] (blank to cancel)"
+                    getAnswerAnyCust action_id "Governance Action ID [<tx_id>#<action_idx> | CIP-129] (blank to cancel)"
                     [[ -z "${action_id}" ]] && continue
-                    IFS='#' read -r action_tx_id action_idx <<< "${action_id}"
-                    ! isNumber "${action_idx}" && println ERROR "\n${FG_RED}ERROR${NC}: invalid action id! <tx_id>#<action_idx>" && waitToProceed && continue
-                    getGovAction "${action_tx_id}"
+                    [[ ${action_id} = gov_action* ]] && parseGovActionId ${action_id} || IFS='#' read -r action_tx_id action_idx <<< "${action_id}"
+                    ! isNumber "${action_idx}" && println ERROR "\n${FG_RED}ERROR${NC}: invalid action id!" && waitToProceed && continue
+                    getGovActionId "${action_tx_id}" "${action_idx}"
+                    getGovAction "${action_tx_id}" "${action_idx}"
                     case $? in
                       1) println ERROR "\n${FG_RED}ERROR${NC}: governance action id not found!"; waitToProceed && continue ;;
                       2) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor url or content"
@@ -4268,9 +4356,23 @@ function main {
                         esac
                         ;;
                     esac
+                    println DEBUG "\nPrint governance action details?"
+                    select_opt "[y] Yes" "[n] No"
+                    case $? in
+                      0) println DEBUG "\nGovernance Action Details${FG_LGRAY}"
+                         jq -er <<< "${vote_action}" 2>/dev/null || echo "${vote_action}"
+                         ;;
+                      1) : ;; # do nothing
+                    esac
                     if [[ -f "${proposal_meta_file}" ]]; then
-                      println DEBUG "\nGovernance Action Anchor Content${FG_LGRAY}"
-                      jq -er "${proposal_meta_file}" 2>/dev/null || cat "${proposal_meta_file}"
+                      println DEBUG "\nPrint anchor content?"
+                      select_opt "[y] Yes" "[n] No"
+                      case $? in
+                        0) println DEBUG "\nGovernance Action Anchor Content${FG_LGRAY}"
+                           jq -er "${proposal_meta_file}" 2>/dev/null || cat "${proposal_meta_file}"
+                           ;;
+                        1) : ;; # do nothing
+                      esac
                     fi
                     println DEBUG "${NC}\nHow do you want to vote?"
                     select_opt "[y] Yes" "[n] No" "[a] Abstain" "[Esc] Cancel"
@@ -4282,7 +4384,7 @@ function main {
                     esac
                     vote_file="${TMP_DIR}/${action_tx_id}_${action_idx}_$(date '+%Y%m%d%H%M%S').vote"
                     VOTE_CMD=(
-                      ${CCLI} ${NETWORK_ERA} governance vote create
+                      ${CCLI} conway governance vote create
                       ${vote_param}
                       --governance-action-tx-id "${action_tx_id}"
                       --governance-action-index "${action_idx}"
@@ -4397,7 +4499,7 @@ function main {
                     if [[ ${is_update} = N ]]; then
                       # registration
                       DREP_REG_CMD=(
-                        ${CCLI} ${NETWORK_ERA} governance drep registration-certificate
+                        ${CCLI} conway governance drep registration-certificate
                         "${drep_reg_param[@]}"
                         --key-reg-deposit-amt ${DREP_DEPOSIT}
                         --out-file "${drep_cert_file}"
@@ -4405,7 +4507,7 @@ function main {
                     else
                       # update
                       DREP_REG_CMD=(
-                        ${CCLI} ${NETWORK_ERA} governance drep update-certificate
+                        ${CCLI} conway governance drep update-certificate
                         "${drep_reg_param[@]}"
                         --out-file "${drep_cert_file}"
                       )
@@ -4473,7 +4575,7 @@ function main {
                       drep_ret_param=(--drep-verification-key-file "${drep_vk_file}")
                     fi
                     DREP_RET_CMD=(
-                      ${CCLI} ${NETWORK_ERA} governance drep retirement-certificate
+                      ${CCLI} conway governance drep retirement-certificate
                       "${drep_ret_param[@]}"
                       --deposit-amt ${drep_deposit_amt}
                       --out-file "${drep_cert_file}"
@@ -4538,15 +4640,20 @@ function main {
                             1) waitToProceed; continue ;;
                             2) continue ;;
                           esac
+                          getWalletType ${wallet_name}
+                          if [[ $? -eq 0 ]]; then
+                            println ERROR "\n${FG_YELLOW}HW wallets currently not supported in a MultiSig DRep, please select only normal mnemonic or cli wallets${NC}" && waitToProceed && continue
+                          fi
                           getGovKeyInfo ${wallet_name}
                           [[ -z ${ms_drep_id} || ${ms_drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid wallet, MultiSig DRep keys not found!" && waitToProceed && continue
                           key_hashes["${ms_drep_hash}"]=1
                           selected_wallets+=("${wallet_name}")
                           ;;
-                        1) getAnswerAnyCust drep_id "MultiSig DRep ID (bech32)"
-                          [[ ${drep_id} != drep* ]] && drep_id=$(bech32 drep <<< "${drep_id}" 2>/dev/null)
-                          [[ ${#drep_id} -ne 56 || ${drep_id} != drep* ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
-                          key_hashes[$(bech32 <<< "${drep_id}")]=1
+                        1) getAnswerAnyCust drep_id "MultiSig DRep ID [CIP-105 or CIP-129] (blank to cancel)"
+                          [[ -z "${drep_id}" ]] && continue
+                          parseDRepId "${drep_id}"
+                          [[ -z ${drep_id} ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
+                          key_hashes[${drep_hash})]=1
                           ;;
                         2) break ;;
                         3) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
@@ -4577,10 +4684,12 @@ function main {
                     fi
                     chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
                     getGovKeyInfo ${ms_wallet_name}
+                    getDRepIds scriptHash ${ms_drep_hash}
                     echo
                     println "New MultiSig DRep : ${FG_GREEN}${ms_wallet_name}${NC}"
-                    println "DRep ID           : ${FG_LGRAY}$(bech32 drep <<< ${drep_id} 2>/dev/null)${NC}"
-                    println "DRep Script Hash  : ${FG_LGRAY}${drep_id}${NC}"
+                    println "DRep ID           : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                    println "DRep Script Hash  : ${FG_LGRAY}${ms_drep_hash}${NC}"
                     println DEBUG "\nNote that this is not a normal wallet and can only be used to vote as a DRep coalition."
                     waitToProceed && continue
                     ;; ###################################################################
@@ -4627,20 +4736,19 @@ function main {
                           --path 1852H/1815H/${acct_idx}H/3/${key_idx}
                           --path 1852H/1815H/${acct_idx}H/4/${key_idx}
                           --path 1852H/1815H/${acct_idx}H/5/${key_idx}
-                          --path 1854H/1815H/${acct_idx}H/3/${key_idx}
                           --verification-key-file "${drep_vk_file}"
                           --verification-key-file "${cc_cold_vk_file}"
                           --verification-key-file "${cc_hot_vk_file}"
-                          --verification-key-file "${ms_drep_vk_file}"
                           --hw-signing-file "${drep_sk_file}"
                           --hw-signing-file "${cc_cold_sk_file}"
                           --hw-signing-file "${cc_hot_sk_file}"
-                          --hw-signing-file "${ms_drep_sk_file}"
                         )
                         println ACTION "${HW_CLI_CMD[*]}"
                         if ! stdout=$("${HW_CLI_CMD[@]}" 2>&1); then
                           println ERROR "\n${FG_RED}ERROR${NC}: failure during governance key extraction!\n${stdout}"; waitToProceed && continue
                         fi
+                        cp "${drep_sk_file}" "${ms_drep_sk_file}"
+                        cp "${drep_vk_file}" "${ms_drep_vk_file}"
                         jq '.description = "Delegate Representative Hardware Verification Key"' "${drep_vk_file}" > "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" "${drep_vk_file}"
                         jq '.description = "Constitutional Committee Cold Hardware Verification Key"' "${cc_cold_vk_file}" > "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" "${cc_cold_vk_file}"
                         jq '.description = "Constitutional Committee Hot Hardware Verification Key"' "${cc_hot_sk_file}" > "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" "${cc_hot_sk_file}"
@@ -4785,9 +4893,12 @@ function main {
                     echo
                     getGovKeyInfo ${wallet_name}
                     println "Wallet            : ${FG_GREEN}${wallet_name}${NC}"
-                    println "DRep ID           : ${FG_LGRAY}${drep_id}${NC}"
-                    println "Committee Cold ID : ${FG_LGRAY}${cc_cold_id}${NC}"
-                    println "Committee Hot ID  : ${FG_LGRAY}${cc_hot_id}${NC}"
+                    println "DRep ID           : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                    println "Committee Cold ID : CIP-105 => ${FG_LGRAY}${cc_cold_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${cc_cold_id_cip129}${NC}"
+                    println "Committee Hot ID  : CIP-105 => ${FG_LGRAY}${cc_hot_id}${NC}"
+                    println "                  : CIP-129 => ${FG_LGRAY}${cc_hot_id_cip129}${NC}"
                     waitToProceed && continue
                     ;; ###################################################################
                 esac # vote sub OPERATION
