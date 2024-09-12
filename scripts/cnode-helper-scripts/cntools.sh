@@ -4219,6 +4219,12 @@ function main {
                         ((idx++))
                       done
                       println DEBUG "${border_line}"
+                      println DEBUG "\n${FG_BLUE}INFO${NC}"
+                      println DEBUG "${FG_GREEN}YES${NC} = Total power of 'yes' votes"
+                      println DEBUG "${FG_RED}NO${NC}  = Total power of 'no' votes, including buckets of 'no vote cate' and 'always no confidence'"
+                      println DEBUG "      ${FG_LGRAY}For motion of no confidence, 'always no confidence' power is switched to yes bucket${NC}"
+                      println DEBUG "${FG_LBLUE}PCT${NC} = Percent of yes votes compared to total valid vote power. If above vote threshold for all, proposal is to be enacted."
+                      println DEBUG "\n${FG_LGRAY}Info action doesn't have any threshold.${NC}"
                       [[ ${pages} -eq 1 ]] && waitToProceed && continue 2
                       unset hasPrev hasNext
                       println OFF "\nPage ${FG_LBLUE}${page}${NC} of ${FG_LGRAY}${pages}${NC}\n"

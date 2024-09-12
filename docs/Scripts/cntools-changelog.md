@@ -9,7 +9,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [13.2.1] - 2024-09-10
 #### Added
 - Added gov vote validation for role and type
-- Gov proposal list when run in `light` mode now have additional vote data
+- Gov proposal list now have additional vote data
 
 ## [13.2.0] - 2024-09-08
 #### Added
