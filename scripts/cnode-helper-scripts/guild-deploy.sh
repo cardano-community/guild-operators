@@ -397,8 +397,11 @@ download_cnodebins() {
   echo -e "\n  Downloading Cardano Node archive created from GitHub.."
   rm -f cardano-node cardano-address
   curl -m 200 -sfL https://github.com/intersectmbo/cardano-node/releases/download/${CARDANO_NODE_VERSION}/cardano-node-${CARDANO_NODE_VERSION}-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node release ${CARDANO_NODE_VERSION} from GitHub!"
-  tar zxf cnode.tar.gz --strip-components 2 ./bin/cardano-node ./bin/cardano-cli ./bin/cardano-submit-api ./bin/bech32 &>/dev/null
+  tar zxf cnode.tar.gz --strip-components 2 ./bin/cardano-node ./bin/cardano-submit-api ./bin/bech32 &>/dev/null
   rm -f cnode.tar.gz
+  curl -m 200 -sfL https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-9.4.1.0/cardano-cli-9.4.1.0-x86_64-linux.tar.gz -o ccli.tar.gz || err_exit " Could not download cardano-cli from GitHub!"
+  tar zxf ccli.tar.gz --strip-components 1 cardano-cli-x86_64-linux &>/dev/null && mv cardano-cli-x86_64 cardano-cli
+  rm -f ccli.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
   echo -e "\n  Downloading Github release package for Cardano Addresses"
   curl -m 200 -sfL https://github.com/intersectmbo/cardano-addresses/releases/download/3.12.0/cardano-addresses-3.12.0-linux64.tar.gz -o caddress.tar.gz || err_exit " Could not download cardano-addresses latest release archive from GitHub!"
