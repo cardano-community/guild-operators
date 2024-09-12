@@ -1391,21 +1391,21 @@ getAllGovActions() {
     println ACTION "${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
     all_drep_vote_power=$(${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
     # sum of all drep stake distribution entries without the alwaysAbstain and alwaysNoConfidence
-    drep_power_total_no_abstain=$(jq -r '[.[] | select(.[0] == "drep-always-abstain" | not) | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null)
+    drep_power_total_no_abstain=$(jq -r '[.[] | select(.[0] == "drep-alwaysAbstain" | not) | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null)
     # get current Pool distribution (available from cardano-cli 9.3.0.0)
     unset all_spo_vote_power spo_power_total
     if versionCheckNode "9.3.0.0" "${cli_version}"; then
       println ACTION "${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER}"
       all_spo_vote_power=$(${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER})
-      spo_power_total=$(jq -r '[.[][1]] | add' <<< "${poolStakeDistributionJSON}" 2>/dev/null)
+      spo_power_total=$(jq -r '[.[][1]] | add' <<< "${all_spo_vote_power}" 2>/dev/null)
     fi
     # get committee vote power (sum of authorized committee members)
-    println ACTION "${CCLI} conway query committee-state ${NETWORK_IDENTIFIER} | jq -r 'reduce(select(.committee[].hotCredsAuthStatus.tag|strings==\"MemberAuthorized\")) as \$_ (0; .+1)'"
-    cc_power_authorized=$(${CCLI} conway query committee-state ${NETWORK_IDENTIFIER} | jq -r 'reduce(select(.committee[].hotCredsAuthStatus.tag|strings=="MemberAuthorized")) as $_ (0; .+1)' 2>/dev/null)
+    cc_power_authorized=$(jq -r 'reduce(select(.committee[].hotCredsAuthStatus.tag|strings=="MemberAuthorized")) as $_ (0; .+1)' <<< "${committee_info}")
     vote_action_list=(); _vote_action_list=()
     println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
     for vote_action in $(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null); do
-      if [[ $(jq -r '.proposalProcedure.govAction.tag') = "ParameterChange" ]]; then
+      IFS=',' read -r proposal_id proposal_type proposed_epoch expiration meta_url drep_yes_votes_cast drep_no_votes_cast spo_yes_votes_cast spo_no_votes_cast cc_yes_votes_cast cc_no_votes_cast < <( jq -cr '"\((.actionId.txId//"") + "#" + (.actionId.govActionIx//0|tostring)),\(.proposalProcedure.govAction.tag//""),\(.proposedIn//0),\(.expiresAfter//0),\(.proposalProcedure.anchor.url//""),\(.dRepVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.dRepVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1))"' <<< "$(base64 -d <<< "${vote_action}")" )
+      if [[ $(jq -r '.proposalProcedure.govAction.tag' <<< "$(base64 -d <<< "${vote_action}")") = "ParameterChange" ]]; then
         parameterChange=$(jq -e '.proposalProcedure.govAction.contents[1] | keys[]' <<< "$(base64 -d <<< "${vote_action}")")
         getParameterChangeGroups
       fi
@@ -1419,22 +1419,26 @@ getAllGovActions() {
       drep_no_vote_power="$(jq -r --argjson v "${drep_no_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_drep_vote_power}")"
       drep_abstain_vote_power="$(jq -r --argjson v "${drep_abstain_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_drep_vote_power}")"
       drep_power_total=$(( drep_power_total_no_abstain - drep_abstain_vote_power ))
+      if [[ ${proposal_type} = "NoConfidence" ]]; then
+        # add alwaysNoConfidence power to yes vote
+        drep_yes_vote_power=$(( drep_yes_vote_power + $(jq -r '[.[] | select(.[0] == "drep-alwaysNoConfidence") | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null) ))
+      fi
       # calculate percentages
-      drep_yes_pct=$(printf '%.4g' "$(bc -l <<< "${drep_yes_vote_power}*100/${drep_power_total}")")
-      drep_no_pct=$(printf '%.4g' "$(bc -l <<< "${drep_no_vote_power}*100/${drep_power_total}")")
+      drep_yes_pct=$(printf '%.4g' "$(bc -l <<< "(${drep_yes_vote_power}/${drep_power_total})*100")")
+      drep_no_pct=$(printf '%.4g' "$(bc -l <<< "(${drep_no_vote_power}/${drep_power_total})*100")")
       if [[ -n ${spo_power_total} ]]; then
         # get list of spo voters based on vote
         spo_yes_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="VoteYes") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
         spo_no_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="VoteNo") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
         spo_abstain_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="Abstain") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
         # get sum of vote power for each type
-        spo_yes_vote_power="$(jq -r --argjson v "${spo_yes_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_drep_vote_power}")"
-        spo_no_vote_power="$(jq -r --argjson v "${spo_no_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_drep_vote_power}")"
-        spo_abstain_vote_power="$(jq -r --argjson v "${spo_abstain_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_drep_vote_power}")"
-        spo_power_total=$(( drep_power_total_no_abstain - spo_abstain_vote_power ))
+        spo_yes_vote_power="$(jq -r --argjson v "${spo_yes_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
+        spo_no_vote_power="$(jq -r --argjson v "${spo_no_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
+        spo_abstain_vote_power="$(jq -r --argjson v "${spo_abstain_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
+        spo_power_total=$(( spo_power_total - spo_abstain_vote_power ))
         # calculate percentages
-        spo_yes_pct=$(printf '%.4g' "$(bc -l <<< "${spo_yes_vote_power}*100/${spo_power_total}")")
-        spo_no_pct=$(printf '%.4g' "$(bc -l <<< "${spo_no_vote_power}*100/${spo_power_total}")")
+        spo_yes_pct=$(printf '%.4g' "$(bc -l <<< "(${spo_yes_vote_power}/${spo_power_total})*100")")
+        spo_no_pct=$(printf '%.4g' "$(bc -l <<< "(${spo_no_vote_power}/${spo_power_total})*100")")
       else
         unset spo_yes_vote_power spo_no_vote_power spo_yes_pct spo_no_pct
       fi
@@ -1448,10 +1452,9 @@ getAllGovActions() {
         cc_yes_pct=0
         cc_no_pct=0
       else
-        cc_yes_pct=$(printf '%.4g' "$(bc -l <<< "${cc_yes_voters}*100/${cc_power_total}")")
-        cc_no_pct=$(printf '%.4g' "$(bc -l <<< "${cc_no_voters}*100/${cc_power_total}")")
+        cc_yes_pct=$(printf '%.4g' "$(bc -l <<< "(${cc_yes_voters}/${cc_power_total})*100")")
+        cc_no_pct=$(printf '%.4g' "$(bc -l <<< "(${cc_no_voters}/${cc_power_total})*100")")
       fi
-      IFS=',' read -r proposal_id proposal_type proposed_epoch expiration meta_url drep_yes_votes_cast drep_no_votes_cast spo_yes_votes_cast spo_no_votes_cast cc_yes_votes_cast cc_no_votes_cast < <( jq -cr '"\((.actionId.txId//"") + "#" + (.actionId.govActionIx//0|tostring)),\(.proposalProcedure.govAction.tag//""),\(.proposedIn//0),\(.expiresAfter//0),\(.proposalProcedure.anchor.url//""),\(.dRepVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.dRepVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1))"' <<< "$(base64 -d <<< "${vote_action}")" )
       vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt}" )
     done
     # reverse order
@@ -1599,7 +1602,7 @@ getCurrentCommittee() {
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
     println ACTION "${CCLI} conway query committee-state ${NETWORK_IDENTIFIER}"
     committee_info=$(${CCLI} conway query committee-state ${NETWORK_IDENTIFIER})
-    cc_threshold=$(printf '%.4g' "$(jq -r '(.threshold //0) * 100' <<< "${committee_info}")")
+    cc_threshold=$(printf '%.4g' "$(jq -r '(.threshold.numerator //0) / (.threshold.denominator //1) * 100' <<< "${committee_info}")")
   fi
 }
 
