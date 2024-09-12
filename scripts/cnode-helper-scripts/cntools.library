@@ -1419,13 +1419,16 @@ getAllGovActions() {
       drep_no_vote_power="$(jq -r --argjson v "${drep_no_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_drep_vote_power}")"
       drep_abstain_vote_power="$(jq -r --argjson v "${drep_abstain_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_drep_vote_power}")"
       drep_power_total=$(( drep_power_total_no_abstain - drep_abstain_vote_power ))
+      drep_no_vote_power_total=$(( drep_power_total - drep_yes_vote_power )) # total drep power - always abstain - proposal abstain - proposal yes
       if [[ ${proposal_type} = "NoConfidence" ]]; then
         # add alwaysNoConfidence power to yes vote
-        drep_yes_vote_power=$(( drep_yes_vote_power + $(jq -r '[.[] | select(.[0] == "drep-alwaysNoConfidence") | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null) ))
+        drep_always_no_confidence="$(jq -r '[.[] | select(.[0] == "drep-alwaysNoConfidence") | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null)"
+        drep_yes_vote_power=$(( drep_yes_vote_power + drep_always_no_confidence ))
+        drep_no_vote_power_total=$(( drep_no_vote_power_total - (drep_always_no_confidence * 2) ))
       fi
       # calculate percentages
       drep_yes_pct=$(printf '%.4g' "$(bc -l <<< "(${drep_yes_vote_power}/${drep_power_total})*100")")
-      drep_no_pct=$(printf '%.4g' "$(bc -l <<< "(${drep_no_vote_power}/${drep_power_total})*100")")
+      drep_no_pct=$(printf '%.4g' "$(bc -l <<< "(${drep_no_vote_power_total}/${drep_power_total})*100")")
       if [[ -n ${spo_power_total} ]]; then
         # get list of spo voters based on vote
         spo_yes_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="VoteYes") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
@@ -1436,9 +1439,10 @@ getAllGovActions() {
         spo_no_vote_power="$(jq -r --argjson v "${spo_no_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
         spo_abstain_vote_power="$(jq -r --argjson v "${spo_abstain_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
         spo_power_total=$(( spo_power_total - spo_abstain_vote_power ))
+        spo_no_vote_power_total=$(( spo_power_total - spo_yes_vote_power )) # total spo power - proposal abstain - proposal yes
         # calculate percentages
         spo_yes_pct=$(printf '%.4g' "$(bc -l <<< "(${spo_yes_vote_power}/${spo_power_total})*100")")
-        spo_no_pct=$(printf '%.4g' "$(bc -l <<< "(${spo_no_vote_power}/${spo_power_total})*100")")
+        spo_no_pct=$(printf '%.4g' "$(bc -l <<< "(${spo_no_vote_power_total}/${spo_power_total})*100")")
       else
         unset spo_yes_vote_power spo_no_vote_power spo_yes_pct spo_no_pct
       fi
@@ -1447,15 +1451,16 @@ getAllGovActions() {
       cc_no_voters="$(jq '[.committeeVotes | to_entries[] | select(.value=="VoteYes")] | length' <<< "$(base64 -d <<< "${vote_action}")")"
       cc_abstain_voters="$(jq '[.committeeVotes | to_entries[] | select(.value=="VoteYes")] | length' <<< "$(base64 -d <<< "${vote_action}")")"
       cc_power_total=$(( cc_power_authorized - cc_abstain_voters ))
+      cc_no_voters_total=$(( cc_power_total - cc_yes_voters )) # total cc power - proposal abstain - proposal yes
       # calculate percentages
       if [[ ${cc_power_total} -eq 0 ]]; then
         cc_yes_pct=0
         cc_no_pct=0
       else
         cc_yes_pct=$(printf '%.4g' "$(bc -l <<< "(${cc_yes_voters}/${cc_power_total})*100")")
-        cc_no_pct=$(printf '%.4g' "$(bc -l <<< "(${cc_no_voters}/${cc_power_total})*100")")
+        cc_no_pct=$(printf '%.4g' "$(bc -l <<< "(${cc_no_voters_total}/${cc_power_total})*100")")
       fi
-      vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt}" )
+      vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power_total},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power_total},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt}" )
     done
     # reverse order
     for ((i=${#_vote_action_list[@]}-1; i>=0; i--)); do
