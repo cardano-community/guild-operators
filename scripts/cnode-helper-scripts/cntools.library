@@ -1376,6 +1376,7 @@ getAllGovActions() {
       pool_no_pct=$(printf '%.2f' "${pool_no_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       committee_yes_pct=$(printf '%.2f' "${committee_yes_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       committee_no_pct=$(printf '%.2f' "${committee_no_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      unset isParameterSecurityGroup
       if [[ ${_proposal_type} = "ParameterChange" ]]; then
         param_proposal_unescaped=${_param_proposal:1: -1} # remove first and last char (quotation)
         param_proposal_unescaped=$(sed 's/""/"/g' <<< "${param_proposal_unescaped}") # remove all double quotes, sed seems to perform better than bash string manipulation
@@ -1383,7 +1384,7 @@ getAllGovActions() {
         getParameterChangeGroups
       fi
       getVoteThreshold ${_proposal_type}
-      vote_action_list+=( "${_proposal_tx_hash}#${_proposal_index},${_proposal_type},${_proposed_epoch},$((_expiration-1)),${_meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power},${drep_no_pct},${pool_yes_votes_cast},${pool_yes_vote_power},${pool_yes_pct},${pool_no_votes_cast},${pool_no_vote_power},${pool_no_pct},${committee_yes_votes_cast},${committee_yes_pct},${committee_no_votes_cast},${committee_no_pct},${drep_vt},${spo_vt},${cc_vt}" )
+      vote_action_list+=( "${_proposal_tx_hash}#${_proposal_index},${_proposal_type},${_proposed_epoch},$((_expiration-1)),${_meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power},${drep_no_pct},${pool_yes_votes_cast},${pool_yes_vote_power},${pool_yes_pct},${pool_no_votes_cast},${pool_no_vote_power},${pool_no_pct},${committee_yes_votes_cast},${committee_yes_pct},${committee_no_votes_cast},${committee_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
     done <<< "$(tail -n +2 <<< ${_vote_action_list})"
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
     getCurrentCommittee; getParameterThresholds # to fetch thresholds
@@ -1405,6 +1406,7 @@ getAllGovActions() {
     println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
     for vote_action in $(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null); do
       IFS=',' read -r proposal_id proposal_type proposed_epoch expiration meta_url drep_yes_votes_cast drep_no_votes_cast spo_yes_votes_cast spo_no_votes_cast cc_yes_votes_cast cc_no_votes_cast < <( jq -cr '"\((.actionId.txId//"") + "#" + (.actionId.govActionIx//0|tostring)),\(.proposalProcedure.govAction.tag//""),\(.proposedIn//0),\(.expiresAfter//0),\(.proposalProcedure.anchor.url//""),\(.dRepVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.dRepVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1))"' <<< "$(base64 -d <<< "${vote_action}")" )
+      unset isParameterSecurityGroup
       if [[ $(jq -r '.proposalProcedure.govAction.tag' <<< "$(base64 -d <<< "${vote_action}")") = "ParameterChange" ]]; then
         parameterChange=$(jq -e '.proposalProcedure.govAction.contents[1] | keys[]' <<< "$(base64 -d <<< "${vote_action}")")
         getParameterChangeGroups
@@ -1460,7 +1462,7 @@ getAllGovActions() {
         cc_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${cc_yes_voters}/${cc_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
         cc_no_pct=$(printf '%.2f' "$(bc -l <<< "(${cc_no_voters_total}/${cc_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       fi
-      vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power_total},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power_total},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt}" )
+      vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power_total},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power_total},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
     done
     # reverse order
     for ((i=${#_vote_action_list[@]}-1; i>=0; i--)); do
