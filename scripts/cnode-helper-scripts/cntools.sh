@@ -4183,39 +4183,73 @@ function main {
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Action ID" "${action_id}"
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "  CIP-129" "${action_id_cip129}"
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Type" "${action_type}"
-                        printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${proposed_in}"
+                        printf "| %-13s : ${FG_LGRAY}epoch${NC} ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${proposed_in}"
                         if [[ ${expires_after} -lt ${curr_epoch} ]]; then
-                          printf "| %-13s : epoch ${FG_RED}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
+                          printf "| %-13s : ${FG_LGRAY}epoch${NC} ${FG_RED}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
                         else
-                          printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
+                          printf "| %-13s : ${FG_LGRAY}epoch${NC} ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
                         fi
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url}"
-                        if [[ ${action_type} = "InfoAction" ]]; then
-                          chars_left=$((max_len-max_yes_len-max_yes_power_len-max_no_len-max_no_power_len-max_yes_pct_len-35))
-                          printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC} @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC} @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_yes_power}" "${drep_no}" "${drep_no_power}" "${drep_yes_pct}" "|"
-                          printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC} @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC} @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% %${chars_left}s\n" "SPO" "${spo_yes}" "${spo_yes_power}" "${spo_no}" "${spo_no_power}" "${spo_yes_pct}" "|"
-                          printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC}  ${FG_LBLUE}%$((max_yes_power_len+4))s${NC}  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC}  ${FG_LBLUE}%$((max_no_power_len+4))s${NC}  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% %${chars_left}s\n" "Committee" "${cc_yes}" " " "${cc_no}" " " "${cc_yes_pct}" "|"
-                        else
-                          chars_left=$((max_len-max_yes_len-max_yes_power_len-max_no_len-max_no_power_len-max_yes_pct_len-max_vt_len-44))
-                          if [[ -n ${drep_vt} ]]; then
-                            (( $(bc -l <<< "${drep_yes_pct} >= ${drep_vt}") )) && vote_status="${FG_GREEN}${ICON_CHECK}${NC}" || vote_status="${FG_RED}${ICON_CROSS}${NC}"
-                            printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC} @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC} @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% ${FG_LGRAY}of${NC} ${FG_LBLUE}%-${max_vt_len}s${NC}%%  ${vote_status} %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_yes_power}" "${drep_no}" "${drep_no_power}" "${drep_yes_pct}" "${drep_vt}" "|"
-                          else
-                            printf "| %-13s : ${FG_DGRAY}%-${max_len}s${NC} |\n" 'DRep' 'N|A'
-                          fi
-                          if [[ -n ${spo_vt} ]]; then
-                            (( $(bc -l <<< "${spo_yes_pct} >= ${spo_vt}") )) && vote_status="${FG_GREEN}${ICON_CHECK}${NC}" || vote_status="${FG_RED}${ICON_CROSS}${NC}"
-                            printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC} @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC} @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% ${FG_LGRAY}of${NC} ${FG_LBLUE}%-${max_vt_len}s${NC}%%  ${vote_status} %${chars_left}s\n" "SPO" "${spo_yes}" "${spo_yes_power}" "${spo_no}" "${spo_no_power}" "${spo_yes_pct}" "${spo_vt}" "|"
-                          else
-                            printf "| %-13s : ${FG_DGRAY}%-${max_len}s${NC} |\n" 'SPO' 'N|A'
-                          fi
-                          if [[ -n ${cc_vt} ]]; then
-                            (( $(bc -l <<< "${cc_yes_pct} >= ${cc_vt}") )) && vote_status="${FG_GREEN}${ICON_CHECK}${NC}" || vote_status="${FG_RED}${ICON_CROSS}${NC}"
-                            printf "| %-13s : Yes = ${FG_LBLUE}%-${max_yes_len}s${NC}  ${FG_LBLUE}%$((max_yes_power_len+4))s${NC}  <>  No = ${FG_LBLUE}%-${max_no_len}s${NC}  ${FG_LBLUE}%$((max_no_power_len+4))s${NC}  =>  ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% ${FG_LGRAY}of${NC} ${FG_LBLUE}%-${max_vt_len}s${NC}%%  ${vote_status} %${chars_left}s\n" "Committee" "${cc_yes}" " " "${cc_no}" " " "${cc_yes_pct}" "${cc_vt}" "|"
-                          else
-                            printf "| %-13s : ${FG_DGRAY}%-${max_len}s${NC} |\n" 'Committee' 'N|A'
-                          fi
+                        three_col_width=$(( max_len / 3 ))
+                        three_col_start=18
+                        three_col_2_start=$(( three_col_start + three_col_width ))
+                        three_col_3_start=$(( three_col_2_start + three_col_width ))
+                        # Header
+                        printf "|${FG_LGRAY}$(printf "%17s" | tr " " "-")${NC}${FG_BLACK}\e[42mYES${NC}${FG_LGRAY}$(printf "%$((three_col_width-3))s" | tr " " "-")${NC}${FG_BLACK}\e[41mNO${NC}${FG_LGRAY}$(printf "%$((three_col_width-2))s" | tr " " "-")${NC}${FG_BLACK}\e[47mSTATUS${NC}${FG_LGRAY}$(printf "%$(((max_len-(2*three_col_width))-5))s" | tr " " "-")${NC}|\n"
+                        # DRep YES
+                        printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_yes_power_len}s${NC} ${FG_LGRAY}VP${NC}" "DRep" "${drep_yes}" "${drep_yes_power}"
+                        # move to second column
+                        printf "\033[72D\033[${three_col_2_start}C"
+                        # DRep NO
+                        printf "${FG_LBLUE}%-${max_no_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_no_power_len}s${NC} ${FG_LGRAY}VP${NC}" "${drep_no}" "${drep_no_power}"
+                        # move to third column
+                        printf "\033[72D\033[${three_col_3_start}C"
+                        # DRep STATUS
+                        if [[ -n ${drep_vt} ]]; then
+                          (( $(bc -l <<< "${drep_yes_pct} >= ${drep_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
                         fi
+                        printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#drep_yes_pct}+1))s${NC}" "${drep_yes_pct}" "%"
+                        if [[ -n ${drep_vt} ]]; then
+                          printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%${max_vt_len}s${NC} ${FG_LGRAY}%-$((max_vt_len-${#drep_vt}+1))s${NC}" "${drep_vt}" "%"
+                        fi
+                        # move to end and close line
+                        printf "\033[72D\033[${total_len}C |\n"
+                        # SPO YES
+                        printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_yes_power_len}s${NC} ${FG_LGRAY}VP${NC}" "SPO" "${spo_yes}" "${spo_yes_power}"
+                        # move to second column
+                        printf "\033[72D\033[${three_col_2_start}C"
+                        # SPO NO
+                        printf "${FG_LBLUE}%-${max_no_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_no_power_len}s${NC} ${FG_LGRAY}VP${NC}" "${spo_no}" "${spo_no_power}"
+                        # move to third column
+                        printf "\033[72D\033[${three_col_3_start}C"
+                        # SPO STATUS
+                        if [[ -n ${spo_vt} ]]; then
+                          (( $(bc -l <<< "${spo_yes_pct} >= ${spo_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
+                        fi
+                        printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#spo_yes_pct}+1))s${NC}" "${spo_yes_pct}" "%"
+                        if [[ -n ${spo_vt} ]]; then
+                          printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%${max_vt_len}s${NC} ${FG_LGRAY}%-$((max_vt_len-${#spo_vt}+1))s${NC}" "${spo_vt}" "%"
+                        fi
+                        # move to end and close line
+                        printf "\033[72D\033[${total_len}C |\n"
+                        # CC YES
+                        printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC}" "Committee" "${cc_yes}"
+                        # move to second column
+                        printf "\033[72D\033[${three_col_2_start}C"
+                        # CC NO
+                        printf "${FG_LBLUE}%-${max_no_len}s${NC}" "${cc_no}"
+                        # move to third column
+                        printf "\033[72D\033[${three_col_3_start}C"
+                        # CC STATUS
+                        if [[ -n ${cc_vt} ]]; then
+                          (( $(bc -l <<< "${cc_yes_pct} >= ${cc_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
+                        fi
+                        printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#cc_yes_pct}+1))s${NC}" "${cc_yes_pct}" "%"
+                        if [[ -n ${cc_vt} ]]; then
+                          printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%${max_vt_len}s${NC} ${FG_LGRAY}%-$((max_vt_len-${#cc_vt}+1))s${NC}" "${cc_vt}" "%"
+                        fi
+                        # move to end and close line
+                        printf "\033[72D\033[${total_len}C |\n"
                         ((idx++))
                       done
                       println DEBUG "${border_line}"

@@ -1370,12 +1370,12 @@ getAllGovActions() {
       println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/proposal_voting_summary?_proposal_id=${_proposal_id}&select=drep_yes_votes_cast,drep_yes_vote_power,drep_yes_pct,drep_no_votes_cast,drep_no_vote_power,drep_no_pct,pool_yes_votes_cast,pool_yes_vote_power,pool_yes_pct,pool_no_votes_cast,pool_no_vote_power,pool_no_pct,committee_yes_votes_cast,committee_yes_pct,committee_no_votes_cast,committee_no_pct"
       _vote_action_votes=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_voting_summary?_proposal_id=${_proposal_id}&select=drep_yes_votes_cast,drep_yes_vote_power,drep_yes_pct,drep_no_votes_cast,drep_no_vote_power,drep_no_pct,pool_yes_votes_cast,pool_yes_vote_power,pool_yes_pct,pool_no_votes_cast,pool_no_vote_power,pool_no_pct,committee_yes_votes_cast,committee_yes_pct,committee_no_votes_cast,committee_no_pct" 2>&1) || continue
       IFS=',' read -r drep_yes_votes_cast drep_yes_vote_power drep_yes_pct drep_no_votes_cast drep_no_vote_power drep_no_pct pool_yes_votes_cast pool_yes_vote_power pool_yes_pct pool_no_votes_cast pool_no_vote_power pool_no_pct committee_yes_votes_cast committee_yes_pct committee_no_votes_cast committee_no_pct <<< "$(tail -n +2 <<< ${_vote_action_votes})"
-      drep_yes_pct=$(printf '%.4g' "${drep_yes_pct}")
-      drep_no_pct=$(printf '%.4g' "${drep_no_pct}")
-      pool_yes_pct=$(printf '%.4g' "${pool_yes_pct}")
-      pool_no_pct=$(printf '%.4g' "${pool_no_pct}")
-      committee_yes_pct=$(printf '%.4g' "${committee_yes_pct}")
-      committee_no_pct=$(printf '%.4g' "${committee_no_pct}")
+      drep_yes_pct=$(printf '%.2f' "${drep_yes_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      drep_no_pct=$(printf '%.2f' "${drep_no_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      pool_yes_pct=$(printf '%.2f' "${pool_yes_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      pool_no_pct=$(printf '%.2f' "${pool_no_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      committee_yes_pct=$(printf '%.2f' "${committee_yes_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      committee_no_pct=$(printf '%.2f' "${committee_no_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       if [[ ${_proposal_type} = "ParameterChange" ]]; then
         param_proposal_unescaped=${_param_proposal:1: -1} # remove first and last char (quotation)
         param_proposal_unescaped=$(sed 's/""/"/g' <<< "${param_proposal_unescaped}") # remove all double quotes, sed seems to perform better than bash string manipulation
@@ -1383,7 +1383,7 @@ getAllGovActions() {
         getParameterChangeGroups
       fi
       getVoteThreshold ${_proposal_type}
-      vote_action_list+=( "${_proposal_tx_hash}#${_proposal_index},${_proposal_type},${_proposed_epoch},${_expiration:=0},${_meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power},${drep_no_pct},${pool_yes_votes_cast},${pool_yes_vote_power},${pool_yes_pct},${pool_no_votes_cast},${pool_no_vote_power},${pool_no_pct},${committee_yes_votes_cast},${committee_yes_pct},${committee_no_votes_cast},${committee_no_pct},${drep_vt},${spo_vt},${cc_vt}" )
+      vote_action_list+=( "${_proposal_tx_hash}#${_proposal_index},${_proposal_type},${_proposed_epoch},$((_expiration-1)),${_meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power},${drep_no_pct},${pool_yes_votes_cast},${pool_yes_vote_power},${pool_yes_pct},${pool_no_votes_cast},${pool_no_vote_power},${pool_no_pct},${committee_yes_votes_cast},${committee_yes_pct},${committee_no_votes_cast},${committee_no_pct},${drep_vt},${spo_vt},${cc_vt}" )
     done <<< "$(tail -n +2 <<< ${_vote_action_list})"
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
     getCurrentCommittee; getParameterThresholds # to fetch thresholds
@@ -1427,8 +1427,8 @@ getAllGovActions() {
         drep_no_vote_power_total=$(( drep_no_vote_power_total - (drep_always_no_confidence * 2) ))
       fi
       # calculate percentages
-      drep_yes_pct=$(printf '%.4g' "$(bc -l <<< "(${drep_yes_vote_power}/${drep_power_total})*100")")
-      drep_no_pct=$(printf '%.4g' "$(bc -l <<< "(${drep_no_vote_power_total}/${drep_power_total})*100")")
+      drep_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${drep_yes_vote_power}/${drep_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      drep_no_pct=$(printf '%.2f' "$(bc -l <<< "(${drep_no_vote_power_total}/${drep_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       if [[ -n ${spo_power_total} ]]; then
         # get list of spo voters based on vote
         spo_yes_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="VoteYes") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
@@ -1441,8 +1441,8 @@ getAllGovActions() {
         spo_power_total=$(( spo_power_total - spo_abstain_vote_power ))
         spo_no_vote_power_total=$(( spo_power_total - spo_yes_vote_power )) # total spo power - proposal abstain - proposal yes
         # calculate percentages
-        spo_yes_pct=$(printf '%.4g' "$(bc -l <<< "(${spo_yes_vote_power}/${spo_power_total})*100")")
-        spo_no_pct=$(printf '%.4g' "$(bc -l <<< "(${spo_no_vote_power_total}/${spo_power_total})*100")")
+        spo_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_yes_vote_power}/${spo_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+        spo_no_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_no_vote_power_total}/${spo_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       else
         unset spo_yes_vote_power spo_no_vote_power spo_yes_pct spo_no_pct
       fi
@@ -1457,8 +1457,8 @@ getAllGovActions() {
         cc_yes_pct=0
         cc_no_pct=0
       else
-        cc_yes_pct=$(printf '%.4g' "$(bc -l <<< "(${cc_yes_voters}/${cc_power_total})*100")")
-        cc_no_pct=$(printf '%.4g' "$(bc -l <<< "(${cc_no_voters_total}/${cc_power_total})*100")")
+        cc_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${cc_yes_voters}/${cc_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+        cc_no_pct=$(printf '%.2f' "$(bc -l <<< "(${cc_no_voters_total}/${cc_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       fi
       vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power_total},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power_total},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt}" )
     done
@@ -1603,11 +1603,11 @@ getCurrentCommittee() {
     HEADERS=("${KOIOS_API_HEADERS[@]}" -H "accept: application/json")
     println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/committee_info"
     committee_info=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/committee_info")
-    cc_threshold=$(printf '%.4g' "$(jq -r '(.[0].quorum_numerator //0) / (.[0].quorum_denominator //1) * 100' <<< "${committee_info}")")
+    cc_threshold=$(printf '%.2f' "$(jq -r '(.[0].quorum_numerator //0) / (.[0].quorum_denominator //1) * 100' <<< "${committee_info}")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
     println ACTION "${CCLI} conway query committee-state ${NETWORK_IDENTIFIER}"
     committee_info=$(${CCLI} conway query committee-state ${NETWORK_IDENTIFIER})
-    cc_threshold=$(printf '%.4g' "$(jq -r '(.threshold.numerator //0) / (.threshold.denominator //1) * 100' <<< "${committee_info}")")
+    cc_threshold=$(printf '%.2f' "$(jq -r '(.threshold.numerator //0) / (.threshold.denominator //1) * 100' <<< "${committee_info}")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
   fi
 }
 
