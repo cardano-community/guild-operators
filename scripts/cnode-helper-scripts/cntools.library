@@ -1462,7 +1462,7 @@ getAllGovActions() {
         cc_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${cc_yes_voters}/${cc_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
         cc_no_pct=$(printf '%.2f' "$(bc -l <<< "(${cc_no_voters_total}/${cc_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       fi
-      vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power_total},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power_total},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
+      _vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power_total},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power_total},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
     done
     # reverse order
     for ((i=${#_vote_action_list[@]}-1; i>=0; i--)); do
