@@ -4196,71 +4196,92 @@ function main {
                         three_col_3_start=$(( three_col_2_start + three_col_width ))
                         # Header
                         printf "|${FG_LGRAY}$(printf "%17s" | tr " " "-")${NC}${FG_BLACK}\e[42mYES${NC}${FG_LGRAY}$(printf "%$((three_col_width-3))s" | tr " " "-")${NC}${FG_BLACK}\e[41mNO${NC}${FG_LGRAY}$(printf "%$((three_col_width-2))s" | tr " " "-")${NC}${FG_BLACK}\e[47mSTATUS${NC}${FG_LGRAY}$(printf "%$(((max_len-(2*three_col_width))-5))s" | tr " " "-")${NC}|\n"
-                        if isAllowedToVote "${action_type}" "drep" "${isParameterSecurityGroup}"; then
+                        tput sc
+                        if isAllowedToVote "drep" "${action_type}" "${isParameterSecurityGroup:=N}"; then
                           # DRep YES
                           printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_yes_power_len}s${NC} ${FG_LGRAY}VP${NC}" "DRep" "${drep_yes}" "${drep_yes_power}"
                           # move to second column
-                          printf "\033[72D\033[${three_col_2_start}C"
+                          tput rc && tput cuf ${three_col_2_start}
                           # DRep NO
                           printf "${FG_LBLUE}%-${max_no_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_no_power_len}s${NC} ${FG_LGRAY}VP${NC}" "${drep_no}" "${drep_no_power}"
                           # move to third column
-                          printf "\033[72D\033[${three_col_3_start}C"
+                          tput rc && tput cuf ${three_col_3_start}
                           # DRep STATUS
                           if [[ -n ${drep_vt} ]]; then
                             (( $(bc -l <<< "${drep_yes_pct} >= ${drep_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
                           fi
                           printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#drep_yes_pct}+1))s${NC}" "${drep_yes_pct}" "%"
                           if [[ -n ${drep_vt} ]]; then
-                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%${max_vt_len}s${NC} ${FG_LGRAY}%-$((max_vt_len-${#drep_vt}+1))s${NC}" "${drep_vt}" "%"
+                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#drep_vt}+1))s${NC}" "${drep_vt}" "%"
                           fi
                           # move to end and close line
-                          printf "\033[72D\033[${total_len}C |\n"
+                          tput rc && tput cuf ${total_len} && printf " |\n"
                         else
-                          printf "| %-13s : ${FG_DGRAY}%-${max_len}s${NC} |\n" 'DRep' 'N|A'
+                          printf "| %-13s : ${FG_DGRAY}N|A${NC}" 'DRep'
+                          # move to second column and print NA
+                          tput rc && tput cuf ${three_col_2_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to third column and print NA
+                          tput rc && tput cuf ${three_col_3_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to end and close line
+                          tput rc && tput cuf ${total_len} && printf " |\n"
                         fi
-                        if isAllowedToVote "${action_type}" "spo" "${isParameterSecurityGroup}"; then
+                        tput sc
+                        if isAllowedToVote "spo" "${action_type}" "${isParameterSecurityGroup:=N}"; then
                           # SPO YES
                           printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_yes_power_len}s${NC} ${FG_LGRAY}VP${NC}" "SPO" "${spo_yes}" "${spo_yes_power}"
                           # move to second column
-                          printf "\033[72D\033[${three_col_2_start}C"
+                          tput rc && tput cuf ${three_col_2_start}
                           # SPO NO
                           printf "${FG_LBLUE}%-${max_no_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_no_power_len}s${NC} ${FG_LGRAY}VP${NC}" "${spo_no}" "${spo_no_power}"
                           # move to third column
-                          printf "\033[72D\033[${three_col_3_start}C"
+                          tput rc && tput cuf ${three_col_3_start}
                           # SPO STATUS
                           if [[ -n ${spo_vt} ]]; then
                             (( $(bc -l <<< "${spo_yes_pct} >= ${spo_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
                           fi
                           printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#spo_yes_pct}+1))s${NC}" "${spo_yes_pct}" "%"
                           if [[ -n ${spo_vt} ]]; then
-                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%${max_vt_len}s${NC} ${FG_LGRAY}%-$((max_vt_len-${#spo_vt}+1))s${NC}" "${spo_vt}" "%"
+                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#spo_vt}+1))s${NC}" "${spo_vt}" "%"
                           fi
                           # move to end and close line
-                          printf "\033[72D\033[${total_len}C |\n"
+                          tput rc && tput cuf ${total_len} && printf " |\n"
                         else
-                          printf "| %-13s : ${FG_DGRAY}%-${max_len}s${NC} |\n" 'SPO' 'N|A'
+                          printf "| %-13s : ${FG_DGRAY}N|A${NC}" 'SPO'
+                          # move to second column and print NA
+                          tput rc && tput cuf ${three_col_2_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to third column and print NA
+                          tput rc && tput cuf ${three_col_3_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to end and close line
+                          tput rc && tput cuf ${total_len} && printf " |\n"
                         fi
-                        if isAllowedToVote "${action_type}" "spo" "${isParameterSecurityGroup}"; then
+                        tput sc
+                        if isAllowedToVote "committee" "${action_type}" "${isParameterSecurityGroup:=N}"; then
                           # CC YES
                           printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC}" "Committee" "${cc_yes}"
                           # move to second column
-                          printf "\033[72D\033[${three_col_2_start}C"
+                          tput rc && tput cuf ${three_col_2_start}
                           # CC NO
                           printf "${FG_LBLUE}%-${max_no_len}s${NC}" "${cc_no}"
                           # move to third column
-                          printf "\033[72D\033[${three_col_3_start}C"
+                          tput rc && tput cuf ${three_col_3_start}
                           # CC STATUS
                           if [[ -n ${cc_vt} ]]; then
                             (( $(bc -l <<< "${cc_yes_pct} >= ${cc_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
                           fi
                           printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#cc_yes_pct}+1))s${NC}" "${cc_yes_pct}" "%"
                           if [[ -n ${cc_vt} ]]; then
-                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%${max_vt_len}s${NC} ${FG_LGRAY}%-$((max_vt_len-${#cc_vt}+1))s${NC}" "${cc_vt}" "%"
+                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#cc_vt}+1))s${NC}" "${cc_vt}" "%"
                           fi
                           # move to end and close line
-                          printf "\033[72D\033[${total_len}C |\n"
+                          tput rc && tput cuf ${total_len} && printf " |\n"
                         else
-                          printf "| %-13s : ${FG_DGRAY}%-${max_len}s${NC} |\n" 'Committee' 'N|A'
+                          printf "| %-13s : ${FG_DGRAY}N|A${NC}" 'Committee'
+                          # move to second column and print NA
+                          tput rc && tput cuf ${three_col_2_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to third column and print NA
+                          tput rc && tput cuf ${three_col_3_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to end and close line
+                          tput rc && tput cuf ${total_len} && printf " |\n"
                         fi
                         ((idx++))
                       done
@@ -4268,7 +4289,7 @@ function main {
                       println DEBUG "\n- ${FG_BLUE}INFO${NC} -"
                       println DEBUG "${FG_GREEN}YES${NC}    = Total power of 'yes' votes."
                       println DEBUG "${FG_RED}NO${NC}     = Total power of 'no' votes, including buckets of 'no vote cast' and 'always no confidence'."
-                      println DEBUG "      ${FG_LGRAY}For motion of no confidence, 'always no confidence' power is switched to yes bucket.${NC}"
+                      println DEBUG "         ${FG_LGRAY}For motion of no confidence, 'always no confidence' power is switched to yes bucket.${NC}"
                       println DEBUG "${FG_DGRAY}STATUS${NC} = Percent of yes votes compared to total valid vote power. If above vote threshold for all, proposal is to be enacted."
                       println DEBUG "\n${FG_LGRAY}Info action doesn't have any threshold.${NC}"
                       [[ ${pages} -eq 1 ]] && waitToProceed && continue 2
