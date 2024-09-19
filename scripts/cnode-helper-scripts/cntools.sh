@@ -3392,7 +3392,7 @@ function main {
                 for otx_witness_name in $(jq -r '.witness[].name' <<< "${offlineJSON}"); do
                   [[ ${otx_witness_name} = "${otx_signing_name}" ]] && hasWitness=true && break
                 done
-                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_RED}x${NC}" || println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_GREEN}\u2714${NC}"
+                [[ -z ${hasWitness} ]] && println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_RED}${ICON_CROSS}${NC}" || println DEBUG "${FG_LGRAY}${otx_signing_name}${NC} ${FG_GREEN}${ICON_CHECK}${NC}"
               done
               for otx_script in $(jq -r '."script-file"[] | @base64' <<< "${offlineJSON}"); do
                 _jq() { base64 -d <<< ${otx_script} | jq -r "${1}"; }
@@ -3416,11 +3416,11 @@ function main {
                       found_wallet_name="${wallet_name}"; break
                     fi
                   done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
-                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}x${NC}" || println DEBUG "  ${FG_LGRAY}$([[ -n ${found_wallet_name} ]] && echo ${found_wallet_name} || echo ${sig})${NC} ${FG_GREEN}\u2714${NC}"
+                  [[ -z ${hasWitness} ]] && println DEBUG "  ${FG_LGRAY}${sig}${NC} ${FG_RED}${ICON_CROSS}${NC}" || println DEBUG "  ${FG_LGRAY}$([[ -n ${found_wallet_name} ]] && echo ${found_wallet_name} || echo ${sig})${NC} ${FG_GREEN}${ICON_CHECK}${NC}"
                 done
               done
 
-              [[ $(jq -r '."signed-txBody" | length' <<< ${offlineJSON}) -gt 0 ]] && println INFO "\n${FG_GREEN}\u2714${NC} Transaction already signed, please submit transaction to complete!" && waitToProceed && continue
+              [[ $(jq -r '."signed-txBody" | length' <<< ${offlineJSON}) -gt 0 ]] && println INFO "\n${FG_GREEN}${ICON_CHECK}${NC} Transaction already signed, please submit transaction to complete!" && waitToProceed && continue
               [[ $(date '+%s' --date="${otx_date_expire}") -lt $(date '+%s') ]] && println ERROR "\n${FG_RED}ERROR${NC}: Transaction expired!  please create a new one with long enough Time To Live (TTL)" && waitToProceed && continue
 
               for otx_signing_file in $(jq -r '."signing-file"[] | @base64' <<< "${offlineJSON}"); do
@@ -4149,69 +4149,148 @@ function main {
                         [[ ${#vote_action_arr[4]} -gt ${max_len} ]] && max_len=${#vote_action_arr[4]}
                       done
                       total_len=$(( max_len + 13 + 5 ))
-                      border_line="|$(printf "%${total_len}s" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
+                      border_line="|$(printf "%${total_len}s" "" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
                       println DEBUG "Current epoch : ${FG_LBLUE}$(getEpoch)${NC}"
                       println DEBUG "Proposals     : ${FG_LBLUE}${action_cnt}${NC}"
                       println DEBUG "\n${border_line}"
                       idx=1
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
-                        [[ $idx -ne 1 ]] && printf "|$(printf "%${total_len}s" | tr " " "-")|\n"
-                        if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-                          IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_yes_power drep_yes_pct drep_no drep_no_power drep_no_pct spo_yes spo_yes_power spo_yes_pct spo_no spo_no_power spo_no_pct cc_yes cc_yes_pct cc_no cc_no_pct <<< "${vote_action}"
-                          max_yes_len=${#drep_yes}
-                          max_no_len=${#drep_no}
-                          [[ ${#spo_yes} -gt ${max_yes_len} ]] && max_yes_len=${#spo_yes}
-                          [[ ${#spo_no} -gt ${max_no_len} ]] && max_no_len=${#spo_no}
-                          [[ ${#cc_yes} -gt ${max_yes_len} ]] && max_yes_len=${#cc_yes}
-                          [[ ${#cc_no} -gt ${max_no_len} ]] && max_no_len=${#cc_no}
-                          drep_yes_power="$(formatLovelaceHuman ${drep_yes_power})"; max_yes_power_len=${#drep_yes_power}
-                          drep_no_power="$(formatLovelaceHuman ${drep_no_power})"; max_no_power_len=${#drep_no_power}
-                          spo_yes_power="$(formatLovelaceHuman ${spo_yes_power})"; [[ ${#spo_yes_power} -gt ${max_yes_power_len} ]] && max_yes_power_len=${#spo_yes_power}
-                          spo_no_power="$(formatLovelaceHuman ${spo_no_power})"; [[ ${#spo_no_power} -gt ${max_no_power_len} ]] && max_no_power_len=${#spo_no_power}
-                          max_yes_pct_len=${#drep_yes_pct}
-                          max_no_pct_len=${#drep_no_pct}
-                          [[ ${#spo_yes_pct} -gt ${max_yes_pct_len} ]] && max_yes_pct_len=${#spo_yes_pct}
-                          [[ ${#spo_no_pct} -gt ${max_no_pct_len} ]] && max_no_pct_len=${#spo_no_pct}
-                          [[ ${#cc_yes_pct} -gt ${max_yes_pct_len} ]] && max_yes_pct_len=${#cc_yes_pct}
-                          [[ ${#cc_no_pct} -gt ${max_no_pct_len} ]] && max_no_pct_len=${#cc_no_pct}
-                        else
-                          IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_no drep_abstain spo_yes spo_no spo_abstain cc_yes cc_no cc_abstain <<< "${vote_action}"
-                          max_yes_len=${#drep_yes}
-                          max_no_len=${#drep_no}
-                          max_abstain_len=${#drep_abstain}
-                          [[ ${#spo_yes} -gt ${max_yes_len} ]] && max_yes_len=${#spo_yes}
-                          [[ ${#spo_no} -gt ${max_no_len} ]] && max_no_len=${#spo_no}
-                          [[ ${#spo_abstain} -gt ${max_abstain_len} ]] && max_abstain_len=${#spo_abstain}
-                          [[ ${#cc_yes} -gt ${max_yes_len} ]] && max_yes_len=${#cc_yes}
-                          [[ ${#cc_no} -gt ${max_no_len} ]] && max_no_len=${#cc_no}
-                          [[ ${#cc_abstain} -gt ${max_abstain_len} ]] && max_abstain_len=${#cc_abstain}
-                        fi
+                        [[ $idx -ne 1 ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n"
+                        # calculate length of strings
+                        IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_yes_power drep_yes_pct drep_no drep_no_power drep_no_pct spo_yes spo_yes_power spo_yes_pct spo_no spo_no_power spo_no_pct cc_yes cc_yes_pct cc_no cc_no_pct drep_vt spo_vt cc_vt isParameterSecurityGroup <<< "${vote_action}"
+                        max_yes_len=${#drep_yes}
+                        max_no_len=${#drep_no}
+                        [[ ${#spo_yes} -gt ${max_yes_len} ]] && max_yes_len=${#spo_yes}
+                        [[ ${#spo_no} -gt ${max_no_len} ]] && max_no_len=${#spo_no}
+                        [[ ${#cc_yes} -gt ${max_yes_len} ]] && max_yes_len=${#cc_yes}
+                        [[ ${#cc_no} -gt ${max_no_len} ]] && max_no_len=${#cc_no}
+                        drep_yes_power="$(formatLovelaceHuman ${drep_yes_power})"; max_yes_power_len=${#drep_yes_power}
+                        drep_no_power="$(formatLovelaceHuman ${drep_no_power})"; max_no_power_len=${#drep_no_power}
+                        spo_yes_power="$(formatLovelaceHuman ${spo_yes_power})"; [[ ${#spo_yes_power} -gt ${max_yes_power_len} ]] && max_yes_power_len=${#spo_yes_power}
+                        spo_no_power="$(formatLovelaceHuman ${spo_no_power})"; [[ ${#spo_no_power} -gt ${max_no_power_len} ]] && max_no_power_len=${#spo_no_power}
+                        max_yes_pct_len=${#drep_yes_pct}
+                        max_no_pct_len=${#drep_no_pct}
+                        [[ ${#spo_yes_pct} -gt ${max_yes_pct_len} ]] && max_yes_pct_len=${#spo_yes_pct}
+                        [[ ${#spo_no_pct} -gt ${max_no_pct_len} ]] && max_no_pct_len=${#spo_no_pct}
+                        [[ ${#cc_yes_pct} -gt ${max_yes_pct_len} ]] && max_yes_pct_len=${#cc_yes_pct}
+                        [[ ${#cc_no_pct} -gt ${max_no_pct_len} ]] && max_no_pct_len=${#cc_no_pct}
+                        max_vt_len=${#drep_vt}
+                        [[ ${#spo_vt} -gt ${max_vt_len} ]] && max_vt_len=${#spo_vt}
+                        [[ ${#cc_vt} -gt ${max_vt_len} ]] && max_vt_len=${#cc_vt}
+                        # print data
                         IFS='#' read -r proposal_tx_id proposal_index <<< "${action_id}"
                         getGovActionId ${proposal_tx_id} ${proposal_index}
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Action ID" "${action_id}"
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "  CIP-129" "${action_id_cip129}"
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Type" "${action_type}"
-                        printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${proposed_in}"
+                        printf "| %-13s : ${FG_LGRAY}epoch${NC} ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${proposed_in}"
                         if [[ ${expires_after} -lt ${curr_epoch} ]]; then
-                          printf "| %-13s : epoch ${FG_RED}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
+                          printf "| %-13s : ${FG_LGRAY}epoch${NC} ${FG_RED}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
                         else
-                          printf "| %-13s : epoch ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
+                          printf "| %-13s : ${FG_LGRAY}epoch${NC} ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
                         fi
                         printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url}"
-                        if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-                          chars_left=$((max_len-max_yes_len-max_yes_pct_len-max_yes_power_len-max_no_len-max_no_pct_len-max_no_power_len-31))
-                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} -> ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP | No=${FG_LBLUE}%-${max_no_len}s${NC} -> ${FG_LBLUE}%${max_no_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_yes_pct}" "${drep_yes_power}" "${drep_no}" "${drep_no_pct}" "${drep_no_power}" "|"
-                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} -> ${FG_LBLUE}%${max_yes_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_yes_power_len}s${NC} VP | No=${FG_LBLUE}%-${max_no_len}s${NC} -> ${FG_LBLUE}%${max_no_pct_len}s${NC}%% @ ${FG_LBLUE}%${max_no_power_len}s${NC} VP %${chars_left}s\n" "SPO" "${spo_yes}" "${spo_yes_pct}" "${spo_yes_power}" "${spo_no}" "${spo_no_pct}" "${spo_no_power}" "|"
-                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} -> ${FG_LBLUE}%${max_yes_pct_len}s${NC}%%%$((max_yes_power_len+6))s | No=${FG_LBLUE}%-${max_no_len}s${NC} -> ${FG_LBLUE}%${max_no_pct_len}s${NC}%%%$((max_no_power_len+6))s %${chars_left}s\n" "Committee" "${cc_yes}" "${cc_yes_pct}" " " "${cc_no}" "${cc_no_pct}" " " "|"
+                        three_col_width=$(( max_len / 3 ))
+                        three_col_start=18
+                        three_col_2_start=$(( three_col_start + three_col_width ))
+                        three_col_3_start=$(( three_col_2_start + three_col_width ))
+                        # Header
+                        printf "|${FG_LGRAY}$(printf "%17s" "" | tr " " "-")${NC}${FG_BLACK}\e[42mYES${NC}${FG_LGRAY}$(printf "%$((three_col_width-3))s" " " | tr "" "-")${NC}${FG_BLACK}\e[41mNO${NC}${FG_LGRAY}$(printf "%$((three_col_width-2))s" "" | tr " " "-")${NC}${FG_BLACK}\e[47mSTATUS${NC}${FG_LGRAY}$(printf "%$(((max_len-(2*three_col_width))-5))s" "" | tr " " "-")${NC}|\n"
+                        tput sc
+                        if isAllowedToVote "drep" "${action_type}" "${isParameterSecurityGroup:=N}"; then
+                          # DRep YES
+                          printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_yes_power_len}s${NC} ${FG_LGRAY}VP${NC}" "DRep" "${drep_yes}" "${drep_yes_power}"
+                          # move to second column
+                          tput rc && tput cuf ${three_col_2_start}
+                          # DRep NO
+                          printf "${FG_LBLUE}%-${max_no_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_no_power_len}s${NC} ${FG_LGRAY}VP${NC}" "${drep_no}" "${drep_no_power}"
+                          # move to third column
+                          tput rc && tput cuf ${three_col_3_start}
+                          # DRep STATUS
+                          if [[ -n ${drep_vt} ]]; then
+                            (( $(bc -l <<< "${drep_yes_pct} >= ${drep_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
+                          fi
+                          printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#drep_yes_pct}+1))s${NC}" "${drep_yes_pct}" "%"
+                          if [[ -n ${drep_vt} ]]; then
+                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#drep_vt}+1))s${NC}" "${drep_vt}" "%"
+                          fi
+                          # move to end and close line
+                          tput rc && tput cuf ${total_len} && printf " |\n"
                         else
-                          chars_left=$((max_len-max_yes_len-max_no_len-max_abstain_len-16))
-                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} No=${FG_LBLUE}%-${max_no_len}s${NC} Abstain=${FG_LBLUE}%-${max_abstain_len}s${NC} %${chars_left}s\n" "DRep" "${drep_yes}" "${drep_no}" "${drep_abstain}" "|"
-                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} No=${FG_LBLUE}%-${max_no_len}s${NC} Abstain=${FG_LBLUE}%-${max_abstain_len}s${NC} %${chars_left}s\n" "SPO" "${spo_yes}" "${spo_no}" "${spo_abstain}" "|"
-                          printf "| %-13s : Yes=${FG_LBLUE}%-${max_yes_len}s${NC} No=${FG_LBLUE}%-${max_no_len}s${NC} Abstain=${FG_LBLUE}%-${max_abstain_len}s${NC} %${chars_left}s\n" "Committee" "${cc_yes}" "${cc_no}" "${cc_abstain}" "|"
+                          printf "| %-13s : ${FG_DGRAY}N|A${NC}" 'DRep'
+                          # move to second column and print NA
+                          tput rc && tput cuf ${three_col_2_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to third column and print NA
+                          tput rc && tput cuf ${three_col_3_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to end and close line
+                          tput rc && tput cuf ${total_len} && printf " |\n"
+                        fi
+                        tput sc
+                        if isAllowedToVote "spo" "${action_type}" "${isParameterSecurityGroup:=N}"; then
+                          # SPO YES
+                          printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_yes_power_len}s${NC} ${FG_LGRAY}VP${NC}" "SPO" "${spo_yes}" "${spo_yes_power}"
+                          # move to second column
+                          tput rc && tput cuf ${three_col_2_start}
+                          # SPO NO
+                          printf "${FG_LBLUE}%-${max_no_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_no_power_len}s${NC} ${FG_LGRAY}VP${NC}" "${spo_no}" "${spo_no_power}"
+                          # move to third column
+                          tput rc && tput cuf ${three_col_3_start}
+                          # SPO STATUS
+                          if [[ -n ${spo_vt} ]]; then
+                            (( $(bc -l <<< "${spo_yes_pct} >= ${spo_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
+                          fi
+                          printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#spo_yes_pct}+1))s${NC}" "${spo_yes_pct}" "%"
+                          if [[ -n ${spo_vt} ]]; then
+                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#spo_vt}+1))s${NC}" "${spo_vt}" "%"
+                          fi
+                          # move to end and close line
+                          tput rc && tput cuf ${total_len} && printf " |\n"
+                        else
+                          printf "| %-13s : ${FG_DGRAY}N|A${NC}" 'SPO'
+                          # move to second column and print NA
+                          tput rc && tput cuf ${three_col_2_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to third column and print NA
+                          tput rc && tput cuf ${three_col_3_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to end and close line
+                          tput rc && tput cuf ${total_len} && printf " |\n"
+                        fi
+                        tput sc
+                        if isAllowedToVote "committee" "${action_type}" "${isParameterSecurityGroup:=N}"; then
+                          # CC YES
+                          printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC}" "Committee" "${cc_yes}"
+                          # move to second column
+                          tput rc && tput cuf ${three_col_2_start}
+                          # CC NO
+                          printf "${FG_LBLUE}%-${max_no_len}s${NC}" "${cc_no}"
+                          # move to third column
+                          tput rc && tput cuf ${three_col_3_start}
+                          # CC STATUS
+                          if [[ -n ${cc_vt} ]]; then
+                            (( $(bc -l <<< "${cc_yes_pct} >= ${cc_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
+                          fi
+                          printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#cc_yes_pct}+1))s${NC}" "${cc_yes_pct}" "%"
+                          if [[ -n ${cc_vt} ]]; then
+                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#cc_vt}+1))s${NC}" "${cc_vt}" "%"
+                          fi
+                          # move to end and close line
+                          tput rc && tput cuf ${total_len} && printf " |\n"
+                        else
+                          printf "| %-13s : ${FG_DGRAY}N|A${NC}" 'Committee'
+                          # move to second column and print NA
+                          tput rc && tput cuf ${three_col_2_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to third column and print NA
+                          tput rc && tput cuf ${three_col_3_start} && printf "${FG_DGRAY}N|A${NC}"
+                          # move to end and close line
+                          tput rc && tput cuf ${total_len} && printf " |\n"
                         fi
                         ((idx++))
                       done
                       println DEBUG "${border_line}"
+                      println DEBUG "\n${FG_GREEN}YES${NC}    = Total power of 'yes' votes."
+                      println DEBUG "${FG_RED}NO${NC}     = Total power of 'no' votes, including buckets of 'no vote cast' and 'always no confidence'."
+                      println DEBUG "         ${FG_LGRAY}For motion of no confidence, 'always no confidence' power is switched to yes bucket.${NC}"
+                      println DEBUG "${FG_DGRAY}STATUS${NC} = Percent of yes votes compared to total valid vote power. If above vote threshold for all, proposal is to be enacted."
+                      println DEBUG "\n${FG_LGRAY}Info action doesn't have any threshold.${NC}"
                       [[ ${pages} -eq 1 ]] && waitToProceed && continue 2
                       unset hasPrev hasNext
                       println OFF "\nPage ${FG_LBLUE}${page}${NC} of ${FG_LGRAY}${pages}${NC}\n"
@@ -4315,6 +4394,8 @@ function main {
                            waitToProceed && continue ;;
                         2) println ERROR "\n${FG_RED}ERROR${NC}: selected wallet is an active committee member but have not authorized hot credential for voting!"
                            waitToProceed && continue ;;
+                        3) println ERROR "\n${FG_RED}ERROR${NC}: selected wallet has resigned as a committee member!"
+                           waitToProceed && continue ;;
                       esac
                       hash_type="keyHash"
                     elif [[ ${vote_mode} = "drep" ]]; then
@@ -4355,6 +4436,12 @@ function main {
                           1) : ;; # do nothing
                         esac
                         ;;
+                    esac
+                    isAllowedToVote ${vote_mode} ${proposal_type} ${isParameterSecurityGroup}
+                    case $? in
+                      1) println ERROR "\n${FG_RED}ERROR${NC}: Voter of type '${vote_mode}' is not allowed to vote on an action of type '${proposal_type}'!"; waitToProceed && continue ;;
+                      2) println ERROR "\n${FG_RED}ERROR${NC}: This proposal does not contain a parameter of the SecurityGroup, so voter of type '${vote_mode}' is not allowed to vote!"; waitToProceed && continue ;;
+                      3) println ERROR "\n${FG_RED}ERROR${NC}: Voter of type '${vote_mode}' is not allowed to vote on an action of type '${proposal_type}' during Conway bootstrap phase (Chang-1)!"; waitToProceed && continue ;;
                     esac
                     println DEBUG "\nPrint governance action details?"
                     select_opt "[y] Yes" "[n] No"
@@ -5257,9 +5344,9 @@ function main {
                  [[ ${ideal_len} -lt 5 ]] && ideal_len=5
                  luck_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(max_performance) FROM epochdata WHERE epoch BETWEEN ${first_epoch} and ${current_epoch} ORDER BY LENGTH(max_performance) DESC LIMIT 1;")
                  [[ $((luck_len+1)) -le 4 ]] && luck_len=4 || luck_len=$((luck_len+1))
-                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" "" | tr " " "="; printf '|\n'
                  printf "| %-5s | %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Epoch" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid"
-                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" "" | tr " " "="; printf '|\n'
                  while [[ ${current_epoch} -gt ${first_epoch} ]]; do
                    invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='invalid';" 2>/dev/null)
                    missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='missed';" 2>/dev/null)
@@ -5277,7 +5364,7 @@ function main {
                    printf "| ${FG_LGRAY}%-5s${NC} | ${FG_LGRAY}%-6s${NC} | ${FG_LGRAY}%-${ideal_len}s${NC} | ${FG_LGRAY}%-${luck_len}s${NC} | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${current_epoch}" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}"
                    ((current_epoch--))
                  done
-                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" "" | tr " " "="; printf '|\n'
                else
                  println OFF "Block Status:\n"
                  println OFF "Leader    - Scheduled to make block at this slot"
@@ -5336,11 +5423,11 @@ function main {
                fi
                [[ ${#epoch_stats[0]} -gt 5 ]] && ideal_len=${#epoch_stats[0]} || ideal_len=5
                [[ ${#epoch_stats[1]} -gt 4 ]] && luck_len=${#epoch_stats[1]} || luck_len=4
-               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "="; printf '|\n'
+               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" "" | tr " " "="; printf '|\n'
                printf "| %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid"
-               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "="; printf '|\n'
+               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" "" | tr " " "="; printf '|\n'
                printf "| ${FG_LGRAY}%-6s${NC} | ${FG_LGRAY}%-${ideal_len}s${NC} | ${FG_LGRAY}%-${luck_len}s${NC} | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}"
-               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" | tr " " "="; printf '|\n'
+               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" "" | tr " " "="; printf '|\n'
                echo
                # print block table
                block_cnt=1
@@ -5358,31 +5445,31 @@ function main {
                hash_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(hash) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(hash) DESC LIMIT 1;")
                [[ ${hash_len} -lt 4 ]] && hash_len=4
                if [[ ${view} -eq 1 ]]; then
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" "" | tr " " "="; printf '|\n'
                  printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At"
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" "" | tr " " "="; printf '|\n'
                  while IFS='|' read -r status block slot slot_in_epoch at; do
                    at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
                    [[ ${block} -eq 0 ]] && block="-"
                    printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${block_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${slot_in_epoch_len}s${NC} | ${FG_LGRAY}%-${at_len}s${NC} |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}"
                    ((block_cnt++))
                  done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" "" | tr " " "="; printf '|\n'
                elif [[ ${view} -eq 2 ]]; then
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" "" | tr " " "="; printf '|\n'
                  printf "| %-${#leader_cnt}s | %-${status_len}s | %-${slot_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Slot" "Size" "Hash"
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" "" | tr " " "="; printf '|\n'
                  while IFS='|' read -r status slot size hash; do
                    [[ ${size} -eq 0 ]] && size="-"
                    [[ -z ${hash} ]] && hash="-"
                    printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${size_len}s${NC} | ${FG_LGRAY}%-${hash_len}s${NC} |\n" "${block_cnt}" "${status}" "${slot}" "${size}" "${hash}"
                    ((block_cnt++))
                  done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, slot, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" "" | tr " " "="; printf '|\n'
                elif [[ ${view} -eq 3 ]]; then
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" "" | tr " " "="; printf '|\n'
                  printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At" "Size" "Hash"
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" "" | tr " " "="; printf '|\n'
                  while IFS='|' read -r status block slot slot_in_epoch at size hash; do
                    at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
                    [[ ${block} -eq 0 ]] && block="-"
@@ -5391,7 +5478,7 @@ function main {
                    printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${block_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${slot_in_epoch_len}s${NC} | ${FG_LGRAY}%-${at_len}s${NC} | ${FG_LGRAY}%-${size_len}s${NC} | ${FG_LGRAY}%-${hash_len}s${NC} |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}" "${size}" "${hash}"
                    ((block_cnt++))
                  done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" | tr " " "="; printf '|\n'
+                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" "" | tr " " "="; printf '|\n'
                elif [[ ${view} -eq 4 ]]; then
                  println OFF "Block Status:\n"
                  println OFF "Leader    - Scheduled to make block at this slot"
