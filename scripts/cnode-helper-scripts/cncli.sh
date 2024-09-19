@@ -901,7 +901,8 @@ processSingleEpoch() {
     [[ ${epoch} = "$1" ]] && matched=true && break
   done
   if [[ -z ${matched} ]]; then
-    echo -e "No slots found in blocklog table for epoch ${1}.\n"; return 1
+    echo -e "No slots found in blocklog table for epoch ${1}.\n"
+    echo -e "choose from epochs in list:\n $EPOCHS"; return 1
   fi
   if ! getConsensus "${1}"; then echo "ERROR: Failed to fetch protocol parameters for epoch ${1}."; return 1; fi
   if [[ "$1" == "$curr_epoch" ]]; then
@@ -936,7 +937,7 @@ cncliEpochData() {
   cncliParams="--db ${CNCLI_DB} --byron-genesis ${BYRON_GENESIS_JSON} --shelley-genesis ${GENESIS_JSON} --pool-id ${POOL_ID} --pool-vrf-skey ${POOL_VRF_SKEY} --tz UTC"
   EPOCHS=$(sqlite3 "$BLOCKLOG_DB" "SELECT group_concat(epoch,' ') FROM (SELECT DISTINCT epoch FROM blocklog ORDER BY epoch);")
   csvdir=/tmp ; tmpcsv="${csvdir}/epochdata_tmp.csv" ; csvfile="${csvdir}/epochdata.csv" ; onerow_csv="${csvdir}/one_epochdata.csv"
-  > "$tmpcsv" ; > "$csvfile" ; > "$onerow_csv"
+  true > "$tmpcsv" ; true > "$csvfile" ; true > "$onerow_csv"
 
   proc_msg="~ CNCLI epochdata table load started ~"
 
@@ -946,30 +947,18 @@ cncliEpochData() {
     exit 1
   else
     echo ${proc_msg}
-    read_genesis
-    local epochSlot=${slot_in_epoch}
-    local epochLength=${EPOCH_LENGTH}
-    local remainingSlots=$(( epochLength - epochSlot))
-    local waitFromEpochstart=21600 # if within 6 hours of new epoch don't run epochdata
+    getLedgerData
 
-    if [[ $(( epochLength - remainingSlots)) -le $waitFromEpochstart ]]; then
-      getCurrNextEpoch
-      echo "First six hours of new epoch "$curr_epoch" detected, too early to run this process."
-      echo "Current epochSlot is ${epochSlot}, please try againg after epochSlot 21600"
-      echo
+    if [[ "${subcommand}" == "epochdata" ]]; then
+        if [[ ${subarg} == "all" ]]; then
+           processAllEpochs
+      elif isNumber "${subarg}"; then
+           processSingleEpoch "${subarg}"
     else
-
-      if [[ "${subcommand}" == "epochdata" ]]; then
-          if [[ ${subarg} == "all" ]]; then
-             processAllEpochs
-        elif isNumber "${subarg}"; then
-             processSingleEpoch "${subarg}"
-      else
-          echo
-          echo "ERROR: unknown argument passed to validate command, valid options incl the string 'all' or the epoch number to recalculate"
-          echo
-          exit 1
-        fi
+        echo
+        echo "ERROR: unknown argument passed to validate command, valid options incl the string 'all' or the epoch number to recalculate"
+        echo
+        exit 1
       fi
     fi
   fi
