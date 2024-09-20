@@ -60,7 +60,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.30.2
+GLV_VERSION=v1.30.3
 
 PARENT="$(dirname $0)"
 
@@ -623,7 +623,7 @@ checkPeers() {
 
   done
 
-  IFS=$'\n' read -r -a peersFiltered <<< "$(sort <<<"${peersFiltered[*]}")"; unset IFS
+  readarray -td '' peersFiltered < <(printf '%s\0' "${peersFiltered[@]}" | sort -z)
 
   peerCNT=${#peersFiltered[@]}
 
