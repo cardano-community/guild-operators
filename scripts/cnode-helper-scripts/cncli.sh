@@ -818,17 +818,28 @@ runCurrentEpoch() {
 
   ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${1}" ${stake_param_curr} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
-  sed 's/"//g' >> "$tmpcsv"
+  tr -d '"' >> "$tmpcsv"
 }
 
 runNextEpoch() {
   getKoiosData
-  echo "Processing next epoch: ${1}"
-  stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
+  getNodeMetrics
+  getConsensus
+  slot_for_next_nonce=$(echo "(${slotnum} - ${slot_in_epoch} + ${EPOCH_LENGTH}) - (${stability_window_factor} * ${BYRON_K} / ${ACTIVE_SLOTS_COEFF})" | bc)
+  curr_epoch=${epochnum}
+  next_epoch=$((curr_epoch+1))
 
-  ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${1}" ${stake_param_next} |
-  jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
-  sed 's/"//g' >> "$tmpcsv"
+  if [[ ${slotnum} -gt ${slot_for_next_nonce} ]]; then
+      if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM epochdata WHERE epoch=${next_epoch};" 2>/dev/null) -eq 1 ]]; then
+        echo "Leaderlogs already calculated for epoch ${next_epoch}, skipping!" && return 1
+      else
+        echo "Processing next epoch: ${1}"
+        stake_param_next="--active-stake ${active_stake_mark} --pool-stake ${pool_stake_mark}"
+        ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${1}" ${stake_param_next} |
+        jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
+        tr -d '"' >> "$tmpcsv"
+      fi
+  fi
 }
 
 runPreviousEpochs() {
@@ -851,7 +862,7 @@ runPreviousEpochs() {
 
   ${CNCLI} leaderlog ${cncliParams} --consensus "${consensus}" --epoch="${1}" ${stake_param_prev} |
   jq -r '[.epoch, .epochNonce, .poolId, .sigma, .d, .epochSlotsIdeal, .maxPerformance, .activeStake, .totalActiveStake] | @csv' |
-  sed 's/"//g' >> "$tmpcsv"
+  tr -d '"' >> "$tmpcsv"
 
   return 0
 }
