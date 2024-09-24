@@ -8,6 +8,7 @@
 ##########################################
 #G_ACCOUNT="cardano-community"  # Override github GUILD account if you forked the project
 #NETWORK='mainnet'              # Connect to specified network instead of public network (Default: connect to public cardano network)
+#CARDANO_NODE_VERSION='9.2.0'   # Override cardano node version
 #WANT_BUILD_DEPS='Y'            # Skip installing OS level dependencies (Default: will check and install any missing OS level prerequisites)
 #FORCE_OVERWRITE='N'            # Force overwrite of all config files (topology.json, config.json and genesis files)
 #SCRIPTS_FORCE_OVERWRITE='N'    # Force overwrite of all scripts (including normally saved user config sections in env, cnode.sh and gLiveView.sh)
