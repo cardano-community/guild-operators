@@ -60,11 +60,11 @@ versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=avail
 
 usage() {
   cat <<-EOF >&2
-		
+
 		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview|sanchonet>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
 		Set up dependencies for building/using common tools across cardano ecosystem.
 		The script will always update dynamic content from existing scripts retaining existing user variables
-		
+
 		-n    Connect to specified network instead of mainnet network (Default: connect to cardano mainnet network) eg: -n guild
 		-p    Parent folder path underneath which the top-level folder will be created (Default: /opt/cardano)
 		-t    Alternate name for top level folder - only alpha-numeric chars allowed (Default: cnode)
@@ -82,7 +82,7 @@ usage() {
 		  x   Download latest (released) binaries for Cardano Signer binary (Default: skip)
 		  f   Force overwrite config files (backups of existing ones will be created) (Default: skip)
 		  s   Force overwrite entire content [including user variables] of scripts (Default: skip)
-		
+
 		EOF
   exit 1
 }
@@ -109,7 +109,7 @@ set_defaults() {
   [[ -z "${BRANCH}" ]] && BRANCH="master"
   [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
-  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt")" || CARDANO_NODE_VERSION=9.1.1
+  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "9.1.1")"
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
   [[ -z ${MITHRIL_HOME} ]] && MITHRIL_HOME="${CNODE_HOME}/mithril"
@@ -144,7 +144,7 @@ update_check() {
         mv -f "${PARENT}"/guild-deploy.sh.tmp "${PARENT}"/guild-deploy.sh && \
         chmod 755 "${PARENT}"/guild-deploy.sh && \
         echo -e "\nUpdate applied successfully, please run the script again!\n" && \
-        exit 0; 
+        exit 0;
       } || {
         echo -e "Update failed!\n\nPlease manually download latest version of guild-deploy.sh script from GitHub" && \
         exit 1;
@@ -373,7 +373,7 @@ build_libblst() {
 		exec_prefix=\${prefix}
 		libdir=\${exec_prefix}/lib
 		includedir=\${prefix}/include
-		
+
 		Name: libblst
 		Description: Multilingual BLS12-381 signature library
 		URL: https://github.com/supranational/blst
@@ -394,13 +394,13 @@ download_cnodebins() {
   [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The build archives are not available for ARM, you might need to build them!"
   echo -e "\nDownloading binaries.."
   pushd "${HOME}"/tmp >/dev/null || err_exit
-  echo -e "\n  Downloading Cardano Node archive created from GitHub.."
+  echo -e "\n  Downloading Cardano Node ${CARDANO_NODE_VERSION} archive created from GitHub.."
   rm -f cardano-node cardano-address
   curl -m 200 -sfL https://github.com/intersectmbo/cardano-node/releases/download/${CARDANO_NODE_VERSION}/cardano-node-${CARDANO_NODE_VERSION}-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node release ${CARDANO_NODE_VERSION} from GitHub!"
   tar zxf cnode.tar.gz --strip-components 2 ./bin/cardano-node ./bin/cardano-submit-api ./bin/bech32 &>/dev/null
   rm -f cnode.tar.gz
   curl -m 200 -sfL https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-9.4.1.0/cardano-cli-9.4.1.0-x86_64-linux.tar.gz -o ccli.tar.gz || err_exit " Could not download cardano-cli from GitHub!"
-  tar zxf ccli.tar.gz --strip-components 1 cardano-cli-x86_64-linux &>/dev/null && mv cardano-cli-x86_64 cardano-cli
+  tar zxf ccli.tar.gz --strip-components 0 cardano-cli-x86_64-linux &>/dev/null && mv cardano-cli-x86_64-linux cardano-cli
   rm -f ccli.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
   echo -e "\n  Downloading Github release package for Cardano Addresses"
@@ -466,7 +466,7 @@ download_cardanohwcli() {
       mkdir -p "${HOME}"/.local/bin
       rm -rf "${HOME}"/bin/cardano-hw-cli # Remove duplicate file in $PATH (old convention)
       if [ -f "${HOME}"/.local/bin/cardano-hw-cli ]; then
-        rm -rf "${HOME}"/.local/bin/cardano-hw-cli 
+        rm -rf "${HOME}"/.local/bin/cardano-hw-cli
       fi
       pushd "${HOME}"/.local/bin >/dev/null || err_exit
       mv -f /tmp/chwcli-bin/cardano-hw-cli/* ./
@@ -583,17 +583,17 @@ download_mithril() {
 # Create folder structure and set up permissions/ownerships
 setup_folder() {
   echo -e "\nCreating Folder Structure .."
-  
+
   if grep -q "export ${CNODE_VNAME}_HOME=" "${HOME}"/.bashrc; then
     echo -e "\nEnvironment Variable already set up!"
   else
     echo -e "\nSetting up Environment Variable"
     echo -e "\nexport ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
   fi
-  
+
   $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/scripts/archive "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv "${MITHRIL_HOME}"/data-stores
   $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
-  
+
 }
 
 # Download and update scripts for cnode
@@ -602,7 +602,7 @@ populate_cnode() {
   echo -e "\nDownloading files..."
   pushd "${CNODE_HOME}"/files >/dev/null || err_exit
   echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
-  
+
   local err_msg=" Had Trouble downloading the file:"
   # Download node config, genesis and topology from template
   #NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-playground/main/static/book.play.dev.cardano.org/environments"
@@ -641,11 +641,11 @@ populate_cnode() {
     rm -f config.json.tmp
     rm -f dbsync.json.tmp
   fi
-  
+
   pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
-  
+
   [[ ${SCRIPTS_FORCE_OVERWRITE} = 'Y' ]] && echo -e "\nForced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh scripts/mithril-client.sh scripts/mithril-relay.sh scripts/mithril-signer.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required!"
-  
+
   updateWithCustomConfig "blockPerf.sh"
   updateWithCustomConfig "cabal-build-all.sh"
   updateWithCustomConfig "cncli.sh"
@@ -666,7 +666,7 @@ populate_cnode() {
   updateWithCustomConfig "mithril-relay.sh"
   updateWithCustomConfig "mithril-signer.sh"
   updateWithCustomConfig "mithril.library"
-  
+
   find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
   chmod 750 "${CNODE_HOME}"/priv 2>/dev/null
 }
