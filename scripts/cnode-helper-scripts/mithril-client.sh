@@ -94,7 +94,7 @@ function main() {
       esac
       ;;
     cardano-db)
-      mithril_init client
+      mithril_init client || exit 1
       case $2 in
         download)
           check_db_dir
@@ -124,7 +124,7 @@ function main() {
       esac
       ;;
     stake-distribution)
-      mithril_init client
+      mithril_init client || exit 1
       case $2 in
         download)
           download_stake_distribution

@@ -97,7 +97,7 @@ function main() {
     generate_environment_file
     exit 0
   else
-    mithril_init
+    mithril_init signer || exit 1
     if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
       if deploy_systemd ; then
         echo "Mithril signer Systemd service successfully deployed"
