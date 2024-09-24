@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=2
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -171,7 +171,7 @@ download_catalyst_toolbox() {
   fi
   rm -rf /tmp/catalyst-toolbox-bin && mkdir /tmp/catalyst-toolbox-bin
   pushd /tmp/catalyst-toolbox-bin >/dev/null || return 1
-  if curl -sL -f -m ${CURL_TIMEOUT} -o "${HOME}"/.local/bin/catalyst-toolbox "https://share.koios.rest/api/public/dl/Q0m8-F2X%2Fbinaries%2Fcatalyst-toolbox-x86_64-gnu"; then
+  if curl -sL -f -m ${CURL_TIMEOUT} -o "${HOME}"/.local/bin/catalyst-toolbox "https://share.koios.rest/api/public/dl/xFdZDfM4%2Fbin%2Fcatalyst-toolbox"; then
     chmod +x "${HOME}"/.local/bin/catalyst-toolbox
     local catalyst_toolbox_version; catalyst_toolbox_version=$(catalyst-toolbox --full-version)
     println DEBUG "  ${catalyst_toolbox_version%% - *} ${FG_GREEN}installed!${NC}"

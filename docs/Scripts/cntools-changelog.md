@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.2.2] - 2024-09-23
+#### Fixed
+- URL for share.koios.rest to download catalyst-toolbox
+
 ## [13.2.1] - 2024-09-10
 #### Added
 - Added gov vote validation for role and type
