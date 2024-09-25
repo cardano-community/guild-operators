@@ -874,6 +874,24 @@ getProtocolParams() {
   [[ ${PROT_MAJOR} -eq 0 ]] && return 1 || return 0
 }
 
+getProtocolParamsHist() {
+  if [[ -z ${KOIOS_API} ]]; then
+    return 1
+  fi
+
+  if ! PROT_PARAMS=$(curl -sSL -f -X GET -H "accept: application/json" "${KOIOS_API}/epoch_params?_epoch_no=${1}" 2>&1); then
+    return 2
+  fi
+
+  # Extract historical protocol major and minor versions in TSV format
+  read -r PROT_MAJOR PROT_MINOR <<<"$(jq -r '.[0] | [
+    .protocol_major //0,
+    .protocol_minor //0
+  ] | @tsv' <<<"${PROT_PARAMS}" 2>/dev/null)"
+  PROT_VERSION="${PROT_MAJOR}.${PROT_MINOR}"
+
+}
+
 telegramSend() {
   if [[ -z "${TG_BOT_TOKEN}" ]] || [[ -z "${TG_CHAT_ID}" ]]; then
     echo "Warn: to use the telegramSend function you must first set the bot and chat id in the env file"
