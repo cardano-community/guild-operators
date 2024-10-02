@@ -939,6 +939,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#tuning-your-instance" class="md-nav__link">
+    Tuning your instance
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#create-user-in-postgres" class="md-nav__link">
     Create User in Postgres
   </a>
@@ -948,13 +955,6 @@
         <li class="md-nav__item">
   <a href="#verify-login-to-postgres-instance" class="md-nav__link">
     Verify Login to postgres instance
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#tuning-your-instance" class="md-nav__link">
-    Tuning your instance
   </a>
   
 </li>
@@ -1035,6 +1035,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#tuning-your-instance" class="md-nav__link">
+    Tuning your instance
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#create-user-in-postgres" class="md-nav__link">
     Create User in Postgres
   </a>
@@ -1044,13 +1051,6 @@
         <li class="md-nav__item">
   <a href="#verify-login-to-postgres-instance" class="md-nav__link">
     Verify Login to postgres instance
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#tuning-your-instance" class="md-nav__link">
-    Tuning your instance
   </a>
   
 </li>
@@ -1093,41 +1093,16 @@ It is recommended to customise these as per your needs for Production builds.</p
 <span class="w">  </span><span class="nv">RELEASE</span><span class="o">=</span><span class="k">$(</span>lsb_release<span class="w"> </span>-cs<span class="k">)</span>
 <span class="w">  </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;deb [arch=amd64] http://apt.postgresql.org/pub/repos/apt/ </span><span class="si">${</span><span class="nv">RELEASE</span><span class="si">}</span><span class="s2">&quot;</span>-pgdg<span class="w"> </span>main<span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w">  </span>/etc/apt/sources.list.d/pgdg.list
 <span class="w">  </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
-<span class="w">  </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>-y<span class="w"> </span>install<span class="w"> </span>postgresql-16<span class="w"> </span>postgresql-server-dev-16<span class="w"> </span>postgresql-contrib<span class="w"> </span>libghc-hdbc-postgresql-dev
-<span class="w">  </span>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>postgresql
+<span class="w">  </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>-y<span class="w"> </span>install<span class="w"> </span>postgresql-17<span class="w"> </span>postgresql-server-dev-17<span class="w"> </span>postgresql-contrib<span class="w"> </span>libghc-hdbc-postgresql-dev
 <span class="w">  </span>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>postgresql
 <span class="k">else</span>
 <span class="w">  </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;We have no automated procedures for this </span><span class="si">${</span><span class="nv">DISTRO</span><span class="si">}</span><span class="s2"> system&quot;</span>
 <span class="k">fi</span>
 </code></pre></div>
-<h4 id="create-user-in-postgres">Create User in Postgres<a class="headerlink" href="#create-user-in-postgres" title="Permanent link">⚓︎</a></h4>
-<p>Login to Postgres instance as superuser:</p>
-<div class="highlight"><pre><span></span><code><span class="nb">echo</span><span class="w"> </span><span class="k">$(</span>whoami<span class="k">)</span>
-<span class="c1"># &lt;user&gt;</span>
-sudo<span class="w"> </span>su<span class="w"> </span>postgres
-psql
-</code></pre></div>
-<p>Note the <user> returned as the output of <code>echo $(whoami)</code> command. Replace all instance of <user> in the documentation below.
-Execute the below in psql prompt. Replace <strong><username></strong> and <strong>PasswordYouWant</strong> with your OS user (output of <code>echo $(whoami)</code> command executed above) and a password you'd like to authenticate to Postgres with:</p>
-<p><div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">ROLE</span><span class="w"> </span><span class="o">&lt;</span><span class="k">user</span><span class="o">&gt;</span><span class="w"> </span><span class="n">SUPERUSER</span><span class="w"> </span><span class="n">LOGIN</span><span class="p">;</span>
-<span class="k">ALTER</span><span class="w"> </span><span class="k">USER</span><span class="w"> </span><span class="o">&lt;</span><span class="k">user</span><span class="o">&gt;</span><span class="w"> </span><span class="n">PASSWORD</span><span class="w"> </span><span class="s1">&#39;PasswordYouWant&#39;</span><span class="p">;</span>
-<span class="err">\</span><span class="n">q</span>
-</code></pre></div>
-Type <code>exit</code> at shell to return to your user from postgres</p>
-<h4 id="verify-login-to-postgres-instance">Verify Login to postgres instance<a class="headerlink" href="#verify-login-to-postgres-instance" title="Permanent link">⚓︎</a></h4>
-<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">PGPASSFILE</span><span class="o">=</span><span class="nv">$CNODE_HOME</span>/priv/.pgpass
-<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;/var/run/postgresql:5432:cexplorer:*:*&quot;</span><span class="w"> </span>&gt;<span class="w"> </span><span class="nv">$PGPASSFILE</span>
-chmod<span class="w"> </span><span class="m">0600</span><span class="w"> </span><span class="nv">$PGPASSFILE</span>
-psql<span class="w"> </span>postgres
-<span class="c1"># psql (15.0)</span>
-<span class="c1"># Type &quot;help&quot; for help.</span>
-<span class="c1"># </span>
-<span class="c1"># postgres=#</span>
-</code></pre></div>
 <h4 id="tuning-your-instance">Tuning your instance<a class="headerlink" href="#tuning-your-instance" title="Permanent link">⚓︎</a></h4>
-<p>Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing <code>/etc/postgresql/15/main/postgresql.conf</code>.
+<p>Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing <code>/etc/postgresql/17/main/postgresql.conf</code>.
 Typically, you might find a lot of common standard practices parameters available in tuning guides. For our consideration, it would be nice to start with some baselines - for which we will use inputs from example <a href="https://pgtune.leopard.in.ua/#/">here</a>, which would need to be customised further to your environment and resources.</p>
-<p>In a typical Koios [gRest] setup, we use below for minimum viable specs (i.e. 64GB RAM, &gt; 8 CPUs, &gt;16K IOPs for <code>ioping -q -S512M -L -c 10 -s8k .</code> output when postgres data directory is on ZFS configured with max arc of 4GB), we find the below configuration to be the best common setup:</p>
+<p>In a typical Koios [gRest] setup, we use below for <em>minimum</em> viable specs (i.e. 64GB RAM, &gt; 8 CPUs, &gt;16K IOPs for <code>ioping -q -S512M -L -c 10 -s8k .</code> output when postgres data directory is on ZFS configured with max arc of 4GB), we find the below configuration to be the best common setup:</p>
 <table>
 <thead>
 <tr>
@@ -1139,7 +1114,7 @@ Typically, you might find a lot of common standard practices parameters availabl
 <tbody>
 <tr>
 <td>data_directory</td>
-<td>'/opt/cardano/cnode/guild-db/pgdb/15'</td>
+<td>'/opt/cardano/cnode/guild-db/pgdb/17'</td>
 <td>Move postgres data directory to ZFS mount at /opt/cardano/cnode, ensure it's writable by postgres user</td>
 </tr>
 <tr>
@@ -1229,7 +1204,7 @@ Typically, you might find a lot of common standard practices parameters availabl
 </tr>
 </tbody>
 </table>
-<p>In addition to above, due to the nature of usage by dbsync (synching from node and restart traversing back to last saved ledger-state snapshot), we leverage data retention on blockchain - as we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your <code>/etc/postgresql/15/main/postgresql.conf</code>:</p>
+<p>In addition to above, due to the nature of usage by dbsync (synching from node and restart traversing back to last saved ledger-state snapshot), we leverage data retention on blockchain - as we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your <code>/etc/postgresql/17/main/postgresql.conf</code>:</p>
 <table>
 <thead>
 <tr>
@@ -1253,6 +1228,29 @@ Typically, you might find a lot of common standard practices parameters availabl
 </tbody>
 </table>
 <p>Once your changes are done, ensure to restart postgres service using <code>sudo systemctl restart postgresql</code>.</p>
+<h4 id="create-user-in-postgres">Create User in Postgres<a class="headerlink" href="#create-user-in-postgres" title="Permanent link">⚓︎</a></h4>
+<p>Login to Postgres instance as superuser:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">echo</span><span class="w"> </span><span class="k">$(</span>whoami<span class="k">)</span>
+<span class="c1"># &lt;user&gt;</span>
+sudo<span class="w"> </span>su<span class="w"> </span>postgres
+psql
+</code></pre></div>
+<p>Note the <user> returned as the output of <code>echo $(whoami)</code> command. Replace all instance of <user> in the documentation below.
+Execute the below in psql prompt. Replace <strong><username></strong> and <strong>PasswordYouWant</strong> with your OS user (output of <code>echo $(whoami)</code> command executed above) and a password you'd like to authenticate to Postgres with:</p>
+<p><div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">ROLE</span><span class="w"> </span><span class="o">&lt;</span><span class="k">user</span><span class="o">&gt;</span><span class="w"> </span><span class="n">SUPERUSER</span><span class="w"> </span><span class="n">LOGIN</span><span class="p">;</span>
+<span class="err">\</span><span class="n">q</span>
+</code></pre></div>
+Type <code>exit</code> at shell to return to your user from postgres</p>
+<h4 id="verify-login-to-postgres-instance">Verify Login to postgres instance<a class="headerlink" href="#verify-login-to-postgres-instance" title="Permanent link">⚓︎</a></h4>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">PGPASSFILE</span><span class="o">=</span><span class="nv">$CNODE_HOME</span>/priv/.pgpass
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;/var/run/postgresql:5432:cexplorer:*:*&quot;</span><span class="w"> </span>&gt;<span class="w"> </span><span class="nv">$PGPASSFILE</span>
+chmod<span class="w"> </span><span class="m">0600</span><span class="w"> </span><span class="nv">$PGPASSFILE</span>
+psql<span class="w"> </span>postgres
+<span class="c1"># psql (17.0)</span>
+<span class="c1"># Type &quot;help&quot; for help.</span>
+<span class="c1"># </span>
+<span class="c1"># postgres=#</span>
+</code></pre></div>
 
 
   
