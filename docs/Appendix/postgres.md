@@ -19,58 +19,23 @@ if [ -z "${OS_ID##*debian*}" ]; then
   RELEASE=$(lsb_release -cs)
   echo "deb [arch=amd64] http://apt.postgresql.org/pub/repos/apt/ ${RELEASE}"-pgdg main | sudo tee  /etc/apt/sources.list.d/pgdg.list
   sudo apt-get update
-  sudo apt-get -y install postgresql-16 postgresql-server-dev-16 postgresql-contrib libghc-hdbc-postgresql-dev
-  sudo systemctl restart postgresql
+  sudo apt-get -y install postgresql-17 postgresql-server-dev-17 postgresql-contrib libghc-hdbc-postgresql-dev
   sudo systemctl enable postgresql
 else
   echo "We have no automated procedures for this ${DISTRO} system"
 fi
 ```
 
-#### Create User in Postgres
-
-Login to Postgres instance as superuser:
-
-``` bash
-echo $(whoami)
-# <user>
-sudo su postgres
-psql
-```
-
-Note the <user> returned as the output of `echo $(whoami)` command. Replace all instance of <user> in the documentation below.
-Execute the below in psql prompt. Replace **<username>** and **PasswordYouWant** with your OS user (output of `echo $(whoami)` command executed above) and a password you'd like to authenticate to Postgres with:
-
-``` sql
-CREATE ROLE <user> SUPERUSER LOGIN;
-ALTER USER <user> PASSWORD 'PasswordYouWant';
-\q
-```
-Type `exit` at shell to return to your user from postgres
-
-#### Verify Login to postgres instance
-
-``` bash
-export PGPASSFILE=$CNODE_HOME/priv/.pgpass
-echo "/var/run/postgresql:5432:cexplorer:*:*" > $PGPASSFILE
-chmod 0600 $PGPASSFILE
-psql postgres
-# psql (15.0)
-# Type "help" for help.
-# 
-# postgres=#
-```
-
 #### Tuning your instance
 
-Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing `/etc/postgresql/15/main/postgresql.conf`.
+Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing `/etc/postgresql/17/main/postgresql.conf`.
 Typically, you might find a lot of common standard practices parameters available in tuning guides. For our consideration, it would be nice to start with some baselines - for which we will use inputs from example [here](https://pgtune.leopard.in.ua/#/), which would need to be customised further to your environment and resources.
 
-In a typical Koios [gRest] setup, we use below for minimum viable specs (i.e. 64GB RAM, > 8 CPUs, >16K IOPs for `ioping -q -S512M -L -c 10 -s8k .` output when postgres data directory is on ZFS configured with max arc of 4GB), we find the below configuration to be the best common setup:
+In a typical Koios [gRest] setup, we use below for *minimum* viable specs (i.e. 64GB RAM, > 8 CPUs, >16K IOPs for `ioping -q -S512M -L -c 10 -s8k .` output when postgres data directory is on ZFS configured with max arc of 4GB), we find the below configuration to be the best common setup:
 
 | Parameter                        | Value                                 | Comment                                                                                                |
 |----------------------------------|---------------------------------------|--------------------------------------------------------------------------------------------------------|
-| data_directory                   | '/opt/cardano/cnode/guild-db/pgdb/15' | Move postgres data directory to ZFS mount at /opt/cardano/cnode, ensure it's writable by postgres user |
+| data_directory                   | '/opt/cardano/cnode/guild-db/pgdb/17' | Move postgres data directory to ZFS mount at /opt/cardano/cnode, ensure it's writable by postgres user |
 | effective_cache_size             | 8GB                                   | Be conservative as Node and DBSync by themselves will need ~32-40GB of RAM if ledger-state is enabled  |
 | effective_io_concurrency         | 4                                     | Can go higher if you have substantially higher IOPs/IO throughputs                                     |
 | lc_time                          | 'en_US.UTF-8'                         | Just to use standard server-side time formatting between instances, can adapt to your preferences      |
@@ -89,7 +54,7 @@ In a typical Koios [gRest] setup, we use below for minimum viable specs (i.e. 64
 | wal_buffers                      | 16MB                                  | WAL consumption in shared buffer (disabled later)                                                      |
 | work_mem                         | 16MB                                  | Base memory size before writing to temporary disk files                                                |
 
-In addition to above, due to the nature of usage by dbsync (synching from node and restart traversing back to last saved ledger-state snapshot), we leverage data retention on blockchain - as we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your `/etc/postgresql/15/main/postgresql.conf`:
+In addition to above, due to the nature of usage by dbsync (synching from node and restart traversing back to last saved ledger-state snapshot), we leverage data retention on blockchain - as we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your `/etc/postgresql/17/main/postgresql.conf`:
 
 | Parameter          | Value   |
 |--------------------|---------|
@@ -98,3 +63,36 @@ In addition to above, due to the nature of usage by dbsync (synching from node a
 | synchronous_commit | off     |
 
 Once your changes are done, ensure to restart postgres service using `sudo systemctl restart postgresql`.
+
+#### Create User in Postgres
+
+Login to Postgres instance as superuser:
+
+``` bash
+echo $(whoami)
+# <user>
+sudo su postgres
+psql
+```
+
+Note the <user> returned as the output of `echo $(whoami)` command. Replace all instance of <user> in the documentation below.
+Execute the below in psql prompt. Replace **<username>** and **PasswordYouWant** with your OS user (output of `echo $(whoami)` command executed above) and a password you'd like to authenticate to Postgres with:
+
+``` sql
+CREATE ROLE <user> SUPERUSER LOGIN;
+\q
+```
+Type `exit` at shell to return to your user from postgres
+
+#### Verify Login to postgres instance
+
+``` bash
+export PGPASSFILE=$CNODE_HOME/priv/.pgpass
+echo "/var/run/postgresql:5432:cexplorer:*:*" > $PGPASSFILE
+chmod 0600 $PGPASSFILE
+psql postgres
+# psql (17.0)
+# Type "help" for help.
+# 
+# postgres=#
+```
