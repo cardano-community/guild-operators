@@ -29,6 +29,7 @@
 #BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
 #BLOCKLOG_TZ="UTC"                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 #SHELLEY_TRANS_EPOCH=208                                # Override automatic detection of shelley epoch start, e.g 208 for mainnet
+#NETWORK_NAME=                                          # Override automatic detection of network name by magic
 #TG_BOT_TOKEN=""                                        # Uncomment and set to enable telegramSend function. To create your own BOT-token and Chat-Id follow guide at:
 #TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/Scripts/sendalerts
 #TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state
@@ -1237,27 +1238,27 @@ read_genesis
 [[ ${NWMAGIC} == "764824073" ]] && NETWORK_IDENTIFIER="--mainnet" || NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
 case ${NWMAGIC} in
   764824073) 
-    NETWORK_NAME="Mainnet"
-    SHELLEY_TRANS_EPOCH=208
+    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Mainnet"
+    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://api.koios.rest/api/v1" ;;
   141)
-    NETWORK_NAME="Guild"
-    SHELLEY_TRANS_EPOCH=2
+    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Guild"
+    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=2
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v1";;
   1)
-    NETWORK_NAME="PreProd"
-    SHELLEY_TRANS_EPOCH=4
+    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="PreProd"
+    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=4
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preprod.koios.rest/api/v1";;
   2)
-    NETWORK_NAME="Preview"
-    SHELLEY_TRANS_EPOCH=0
+    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Preview"
+    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v1";;
   4)
-    NETWORK_NAME="Sanchonet"
-    SHELLEY_TRANS_EPOCH=0
+    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Sanchonet"
+    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://sancho.koios.rest/api/v1";;
   *) 
-    NETWORK_NAME="Custom"
+    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
 esac
 
