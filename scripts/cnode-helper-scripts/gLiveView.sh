@@ -60,7 +60,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.30.3
+GLV_VERSION=v1.30.4
 
 PARENT="$(dirname $0)"
 
@@ -538,13 +538,9 @@ getOpCert () {
     fi
   fi
   if [[ -f ${opcert_file} ]]; then
-    op_cert_tsv=$(jq -r '[
-    .qKesNodeStateOperationalCertificateNumber //"?",
-    .qKesOnDiskOperationalCertificateNumber //"?"
-    ] | @tsv' <<<"$(${CCLI} ${NETWORK_ERA} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}" | grep "^[{ }]")")
-    read -ra op_cert_arr <<< ${op_cert_tsv}
-    isNumber ${op_cert_arr[0]} && op_cert_chain=${op_cert_arr[0]}
-    isNumber ${op_cert_arr[1]} && op_cert_disk=${op_cert_arr[1]}
+    op_cert="$(${CCLI} ${NETWORK_ERA} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}")"
+    [[ ${op_cert} =~ qKesNodeStateOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] && op_cert_chain="${BASH_REMATCH[1]}"
+    [[ ${op_cert} =~ qKesOnDiskOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] && op_cert_disk="${BASH_REMATCH[1]}"
   fi
 }
 
