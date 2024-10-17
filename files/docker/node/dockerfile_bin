@@ -64,7 +64,7 @@ RUN set -x && export SUDO='N' \
 
 # Add final tools in a separate layer to shrink the largest layer
 RUN apt-get update \
-    && apt-get install -y procps libcap2 libselinux1 libc6 libsodium-dev ncurses-bin iproute2 xz-utils netbase coreutils dnsutils net-tools procps tcptraceroute bc usbip sqlite3 python3 tmux ncurses-base libtool autoconf tcptraceroute util-linux less openssl bsdmainutils dialog vim \
+    && apt-get install -y procps libcap2 libselinux1 libc6 libsodium-dev ncurses-bin iproute2 xz-utils netbase coreutils dnsutils net-tools procps tcptraceroute bc usbip sqlite3 python3 tmux ncurses-base libtool autoconf tcptraceroute util-linux less openssl bsdmainutils dialog vim socat \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
