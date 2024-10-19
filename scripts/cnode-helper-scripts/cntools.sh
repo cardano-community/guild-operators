@@ -2195,8 +2195,8 @@ function main {
                       ;;
                     1) getAnswerAnyCust relay_ip_enter "Enter relays's IPv4/v6 address"
                       if [[ -n "${relay_ip_enter}" ]]; then
-                        if ! isValidIPv4 "${relay_ip_enter}" && ! isValidIPv6 "${relay_ip_enter}"; then
-                          println ERROR "${FG_RED}ERROR${NC}: invalid IPv4/v6 address format!"
+                        if ! isValidIPv4 "${relay_ip_enter}" && ! isValidIPv6 "${relay_ip_enter}" && ! isValidHostnameOrDomain "${relay_ip_enter}"; then
+                            println ERROR "${FG_RED}ERROR${NC}: Invalid IPv4/v6 address format or hostname/domain name format!"
                         else
                           getAnswerAnyCust relay_port_enter "Enter relays's port"
                           if [[ -n "${relay_port_enter}" ]]; then
