@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=2
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=3
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -3382,7 +3382,11 @@ registerPool() {
   )
   [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${hw_owner_wallets} = 'Y' || ${hw_reward_wallet} = 'Y' || ${isHWpool} = 'Y' ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Registration"; then return 1; fi

@@ -199,7 +199,7 @@ if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
       clear
       if [[ ! -f "${PARENT}/cntools-changelog.md" ]]; then
         # special case for first installation or 5.0.0 upgrade, print release notes until previous major version
-        echo -e "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_DIR}"/cntools-changelog.md | head -n -2)" | less -X
+        echo -e "~ CNTools - What's New ~\n\n" "$(sed -n "/\[${CNTOOLS_MAJOR_VERSION}\.${CNTOOLS_MINOR_VERSION}\.${CNTOOLS_PATCH_VERSION}\]/,/\[$((CNTOOLS_MAJOR_VERSION-1))\.[0-9]\.[0-9]\]/p" "${TMP_DIR}"/cntools-changelog.md | head -n -2)" "\n [Press 'q' to quit and proceed to CNTools main menu]\n" | less -X
       else
         # print release notes from current until previously installed version
         [[ $(cat "${PARENT}/cntools-changelog.md") =~ \[([[:digit:]]+)\.([[:digit:]]+)\.([[:digit:]]+)\] ]]
