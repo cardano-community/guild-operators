@@ -495,6 +495,17 @@ isValidIPv4() {
   return 1
 }
 
+# Description : Helper function to validate hostname or domain name
+#             : $1 = hostname or domain name
+isValidHostnameOrDomain() {
+  local name=$1
+  [[ -z ${name} ]] && return 1
+
+  # Regular expression for valid hostnames and domain names
+  hostname_regex="^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9_\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9_\-]*[A-Za-z0-9])$"
+
+  # Check if the input matches the hostname/domain name format
+  if [[ ${name} =~ ${hostname_regex} ]]; then
     return 0
   fi
   return 1
