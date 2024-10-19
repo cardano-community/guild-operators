@@ -495,17 +495,6 @@ isValidIPv4() {
   return 1
 }
 
-# Description : Helper function to validate hostname or domain name
-#             : $1 = hostname or domain name
-isValidHostnameOrDomain() {
-  local name=$1
-  [[ -z ${name} ]] && return 1
-
-  # Regular expression for valid hostnames and domain names
-  hostname_regex="^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9_\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9_\-]*[A-Za-z0-9])$"
-
-  # Check if the input matches the hostname/domain name format
-  if [[ ${name} =~ ${hostname_regex} ]]; then
     return 0
   fi
   return 1
@@ -1180,8 +1169,14 @@ fi
 
 [[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3
 [[ -z ${EKG_HOST} ]] && EKG_HOST=127.0.0.1
-if ! isValidIPv4 "${EKG_HOST}" && ! isValidIPv6 "${EKG_HOST}" && ! isValidHostnameOrDomain "${EKG_HOST}"; then
-  echo "Not a valid IP or hostname set for EKG host, please check the env file (currently it is ${EKG_HOST})!"
+if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+  IFS='.' read -ra EKG_OCTETS <<< ${EKG_HOST}
+  if ! [[ ${EKG_OCTETS[0]} -le 255 && ${EKG_OCTETS[1]} -le 255 && ${EKG_OCTETS[2]} -le 255 && ${EKG_OCTETS[3]} -le 255 ]]; then
+    echo "Not a valid IP range set for EKG host, please check env file for value of EKG_HOST (currently it is ${EKG_HOST} )!"
+    return 1
+  fi
+else
+  echo "Not a valid IP format set for EKG host, please check env file!"
   return 1
 fi
 
