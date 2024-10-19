@@ -1180,14 +1180,8 @@ fi
 
 [[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3
 [[ -z ${EKG_HOST} ]] && EKG_HOST=127.0.0.1
-if [[ ${EKG_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-  IFS='.' read -ra EKG_OCTETS <<< ${EKG_HOST}
-  if ! [[ ${EKG_OCTETS[0]} -le 255 && ${EKG_OCTETS[1]} -le 255 && ${EKG_OCTETS[2]} -le 255 && ${EKG_OCTETS[3]} -le 255 ]]; then
-    echo "Not a valid IP range set for EKG host, please check env file for value of EKG_HOST (currently it is ${EKG_HOST} )!"
-    return 1
-  fi
-else
-  echo "Not a valid IP format set for EKG host, please check env file!"
+if ! isValidIPv4 "${EKG_HOST}" && ! isValidHostnameOrDomain "${EKG_HOST}"; then
+  echo "Not a valid IP or hostname set for EKG host, please check the env file (currently it is ${EKG_HOST})!"
   return 1
 fi
 
