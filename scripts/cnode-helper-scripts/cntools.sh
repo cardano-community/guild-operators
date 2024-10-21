@@ -2202,7 +2202,7 @@ function main {
                           if [[ -n "${relay_port_enter}" ]]; then
                             if ! isNumber ${relay_port_enter} || [[ ${relay_port_enter} -lt 1 || ${relay_port_enter} -gt 65535 ]]; then
                               println ERROR "${FG_RED}ERROR${NC}: invalid port number!"
-                            elif isValidIPv4 "${relay_ip_enter}"; then
+                            elif isValidIPv4 "${relay_ip_enter}" || isValidHostnameOrDomain "${relay_ip_enter}"; then
                               relay_array+=( "type" "IPv4" "address" "${relay_ip_enter}" "port" "${relay_port_enter}" )
                               relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ip_enter} "
                             else
