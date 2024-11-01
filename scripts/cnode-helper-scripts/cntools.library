@@ -4777,7 +4777,7 @@ witnessTx() {
     else
       tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
-        ${CCLI} transaction witness
+        ${CCLI} ${NETWORK_ERA} transaction witness
         --tx-body-file "${tx_raw}"
         --signing-key-file "${skey}"
         ${NETWORK_IDENTIFIER}
@@ -4872,7 +4872,7 @@ submitTxNode() {
 # Info        : tx_id set to hash of transaction body
 getTxId() {
   txid_command=(
-    ${CCLI} transaction txid
+    ${CCLI} ${NETWORK_ERA} transaction txid
     --tx-file "$1"
   )
   println ACTION "${txid_command[@]}"
