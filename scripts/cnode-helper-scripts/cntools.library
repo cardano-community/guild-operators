@@ -1393,7 +1393,7 @@ getAllGovActions() {
     all_drep_vote_power=$(${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
     # sum of all drep stake distribution entries without the alwaysAbstain and alwaysNoConfidence
     drep_power_total_no_abstain=$(jq -r '[.[] | select(.[0] == "drep-alwaysAbstain" | not) | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null)
-    # get current Pool distribution (available from cardano-cli 9.3.0.0)
+    # get current Pool distribution
     unset all_spo_vote_power spo_power_total
     println ACTION "${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER}"
     all_spo_vote_power=$(${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER})
