@@ -17,7 +17,8 @@
   ],
   "insert_options": {
     "tx_out": {
-      "value": "consumed"
+      "value": "consumed",
+      "use_address_table": true
     },
     "ledger": "enable",
     "shelley": {
@@ -36,7 +37,6 @@
     "json_type": "text",
     "offchain_pool_data": "enable",
     "pool_stat": "enable",
-    "pool_stats": "enable",
     "tx_cbor": "enable"
   },
   "minSeverity": "Info",
