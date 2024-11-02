@@ -1395,11 +1395,9 @@ getAllGovActions() {
     drep_power_total_no_abstain=$(jq -r '[.[] | select(.[0] == "drep-alwaysAbstain" | not) | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null)
     # get current Pool distribution (available from cardano-cli 9.3.0.0)
     unset all_spo_vote_power spo_power_total
-    if versionCheckNode "9.3.0.0" "${cli_version}"; then
-      println ACTION "${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER}"
-      all_spo_vote_power=$(${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER})
-      spo_power_total=$(jq -r '[.[][1]] | add' <<< "${all_spo_vote_power}" 2>/dev/null)
-    fi
+    println ACTION "${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER}"
+    all_spo_vote_power=$(${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER})
+    spo_power_total=$(jq -r '[.[][1]] | add' <<< "${all_spo_vote_power}" 2>/dev/null)
     # get committee vote power (sum of authorized committee members)
     cc_power_authorized=$(jq -r 'reduce(select(.committee[].hotCredsAuthStatus.tag|strings=="MemberAuthorized")) as $_ (0; .+1)' <<< "${committee_info}")
     vote_action_list=(); _vote_action_list=()
