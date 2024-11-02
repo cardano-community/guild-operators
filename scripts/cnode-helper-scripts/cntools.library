@@ -13,9 +13,9 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=2
+CNTOOLS_MINOR_VERSION=3
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -2690,7 +2690,7 @@ registerStakeWallet() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
   
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
   
@@ -2721,7 +2721,11 @@ registerStakeWallet() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Registration"; then return 1; fi
@@ -2824,7 +2828,7 @@ deregisterStakeWallet() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
@@ -2855,7 +2859,11 @@ deregisterStakeWallet() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet De-Registration"; then return 1; fi
@@ -2956,7 +2964,7 @@ sendAssets() {
     build_args+=( --tx-out "${s_addr}+${assets_left[lovelace]}${assets_tx_out_s}" --tx-out "${d_addr}+${assets_to_send[lovelace]}${assets_tx_out_d}" )
   fi
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
   
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} ${outCount} ${witness_cnt} || return 1
   
@@ -3006,7 +3014,11 @@ sendAssets() {
     fi
   fi
   
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Payment"; then return 1; fi
@@ -3104,7 +3116,7 @@ delegate() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
@@ -3135,7 +3147,11 @@ delegate() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Delegation"; then return 1; fi
@@ -3223,7 +3239,7 @@ withdrawRewards() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
@@ -3254,7 +3270,11 @@ withdrawRewards() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Rewards Withdrawal"; then return 1; fi
@@ -3350,7 +3370,7 @@ registerPool() {
   )
   [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
   
@@ -3496,7 +3516,7 @@ modifyPool() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
   
@@ -3527,7 +3547,11 @@ modifyPool() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Update"; then return 1; fi
@@ -3635,7 +3659,7 @@ deRegisterPool() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
@@ -3666,7 +3690,11 @@ deRegisterPool() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool De-Registration"; then return 1; fi
@@ -3865,7 +3893,7 @@ sendMetadata() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
   
@@ -3896,7 +3924,11 @@ sendMetadata() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Metadata"; then return 1; fi
@@ -3989,7 +4021,7 @@ mintAsset() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
   
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
@@ -4022,7 +4054,11 @@ mintAsset() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Asset Minting"; then return 1; fi
@@ -4122,7 +4158,7 @@ burnAsset() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
@@ -4155,7 +4191,11 @@ burnAsset() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
   
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Asset Burning"; then return 1; fi
@@ -4260,7 +4300,7 @@ voteDelegation() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
@@ -4291,7 +4331,11 @@ voteDelegation() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Vote Delegation"; then return 1; fi
@@ -4380,7 +4424,7 @@ registerDRep() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
@@ -4418,7 +4462,11 @@ registerDRep() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet DRep Registration"; then return 1; fi
@@ -4499,7 +4547,7 @@ retireDRep() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
@@ -4531,7 +4579,11 @@ retireDRep() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet DRep Retire"; then return 1; fi
@@ -4610,7 +4662,7 @@ governanceVote() {
     --out-file "${TMP_DIR}"/tx0.tmp
   )
 
-  if ! buildTx; then return 1; fi
+  buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
@@ -4641,7 +4693,11 @@ governanceVote() {
     --out-file "${TMP_DIR}"/tx.raw
   )
 
-  if ! buildTx "${TMP_DIR}/tx.raw"; then return 1; fi
+  if [[ ${wallet_type} -eq 0 ]]; then
+    buildTx "${TMP_DIR}/tx.raw" || return 1
+  else
+    buildTx || return 1
+  fi
 
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet Governance Vote"; then return 1; fi
