@@ -1359,7 +1359,7 @@ getGovAction() {
 # Command     : getAllGovActions
 # Return      : csv array of governance actions with different data depending on LIGHT VS LOCAL mode
 getAllGovActions() {
-  unset vote_action_list _vote_action_list _vote_action_votes own_drep_votes own_spo_votes own_cc_votes
+  unset vote_action_list _vote_action_list _vote_action_summary _vote_action_votes own_drep_votes own_spo_votes own_cc_votes
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     getCurrentCommittee; getParameterThresholds # to fetch thresholds
     HEADERS=("${KOIOS_API_HEADERS[@]}" -H "accept: text/csv")
@@ -1368,8 +1368,8 @@ getAllGovActions() {
     vote_action_list=()
     while IFS=',' read -r _block_time _ratified_epoch _enacted_epoch _dropped_epoch _expired_epoch _proposal_id _proposal_tx_hash _proposal_index _proposal_type _proposed_epoch _expiration _meta_url _param_proposal; do
       println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/proposal_voting_summary?_proposal_id=${_proposal_id}&select=drep_yes_votes_cast,drep_yes_vote_power,drep_yes_pct,drep_no_votes_cast,drep_no_vote_power,drep_no_pct,pool_yes_votes_cast,pool_yes_vote_power,pool_yes_pct,pool_no_votes_cast,pool_no_vote_power,pool_no_pct,committee_yes_votes_cast,committee_yes_pct,committee_no_votes_cast,committee_no_pct"
-      _vote_action_votes=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_voting_summary?_proposal_id=${_proposal_id}&select=drep_yes_votes_cast,drep_yes_vote_power,drep_yes_pct,drep_no_votes_cast,drep_no_vote_power,drep_no_pct,pool_yes_votes_cast,pool_yes_vote_power,pool_yes_pct,pool_no_votes_cast,pool_no_vote_power,pool_no_pct,committee_yes_votes_cast,committee_yes_pct,committee_no_votes_cast,committee_no_pct" 2>&1) || continue
-      IFS=',' read -r drep_yes_votes_cast drep_yes_vote_power drep_yes_pct drep_no_votes_cast drep_no_vote_power drep_no_pct pool_yes_votes_cast pool_yes_vote_power pool_yes_pct pool_no_votes_cast pool_no_vote_power pool_no_pct committee_yes_votes_cast committee_yes_pct committee_no_votes_cast committee_no_pct <<< "$(tail -n +2 <<< ${_vote_action_votes})"
+      _vote_action_summary=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_voting_summary?_proposal_id=${_proposal_id}&select=drep_yes_votes_cast,drep_yes_vote_power,drep_yes_pct,drep_no_votes_cast,drep_no_vote_power,drep_no_pct,pool_yes_votes_cast,pool_yes_vote_power,pool_yes_pct,pool_no_votes_cast,pool_no_vote_power,pool_no_pct,committee_yes_votes_cast,committee_yes_pct,committee_no_votes_cast,committee_no_pct" 2>&1) || continue
+      IFS=',' read -r drep_yes_votes_cast drep_yes_vote_power drep_yes_pct drep_no_votes_cast drep_no_vote_power drep_no_pct pool_yes_votes_cast pool_yes_vote_power pool_yes_pct pool_no_votes_cast pool_no_vote_power pool_no_pct committee_yes_votes_cast committee_yes_pct committee_no_votes_cast committee_no_pct <<< "$(tail -n +2 <<< ${_vote_action_summary})"
       drep_yes_pct=$(printf '%.2f' "${drep_yes_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       drep_no_pct=$(printf '%.2f' "${drep_no_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       pool_yes_pct=$(printf '%.2f' "${pool_yes_pct}" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
@@ -1384,6 +1384,25 @@ getAllGovActions() {
         getParameterChangeGroups
       fi
       getVoteThreshold ${_proposal_type}
+      println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/proposal_votes?_proposal_id=${_proposal_id}&select=voter_role,voter_hex,vote"
+      _vote_action_votes=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_votes?_proposal_id=${_proposal_id}&select=voter_role,voter_hex,vote" 2>&1) || continue
+      while IFS= read -r -d '' wallet; do
+        wallet_name=$(basename ${wallet})
+        getGovKeyInfo ${wallet_name}
+        while IFS= read -r vote; do
+          IFS=',' read -ra vote_arr <<< "${vote}"
+          [[ ${vote_arr[0]} = DRep && ${vote_arr[1]} = "${drep_hash}" ]] && own_drep_votes+=( "${_proposal_tx_hash}#${_proposal_index};${wallet_name};${vote_arr[2]}" )
+          [[ ${vote_arr[0]} = ConstitutionalCommittee && ${vote_arr[1]} = "${cc_hot_hash}" ]] && own_cc_votes+=( "${_proposal_tx_hash}#${_proposal_index};${wallet_name};${vote_arr[2]}" )
+        done <<< "${_vote_action_votes}"
+      done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+      while IFS= read -r -d '' pool; do
+        pool_name=$(basename ${pool})
+        getPoolID ${pool_name} || continue
+        while IFS= read -r vote; do
+          IFS=',' read -ra vote_arr <<< "${vote}"
+          [[ ${vote_arr[0]} = SPO && ${vote_arr[1]} = "${pool_id}" ]] && own_spo_votes+=( "${_proposal_tx_hash}#${_proposal_index};${pool_name};${vote_arr[2]}" ) && continue 2
+        done <<< "${_vote_action_votes}"
+      done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
       vote_action_list+=( "${_proposal_tx_hash}#${_proposal_index},${_proposal_type},${_proposed_epoch},$((_expiration-1)),${_meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power},${drep_no_pct},${pool_yes_votes_cast},${pool_yes_vote_power},${pool_yes_pct},${pool_no_votes_cast},${pool_no_vote_power},${pool_no_pct},${committee_yes_votes_cast},${committee_yes_pct},${committee_no_votes_cast},${committee_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
     done <<< "$(tail -n +2 <<< ${_vote_action_list})"
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
