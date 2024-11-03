@@ -4143,11 +4143,6 @@ function main {
                       start_idx=$(( (page *  page_entries) - page_entries ))
                       # loop current page to find max length of entries
                       max_len=70 # assume action id in CIP-129 format (70)
-                      for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
-                        IFS=',' read -r -a vote_action_arr <<< "${vote_action}"
-                        [[ ${#vote_action_arr[0]} -gt ${max_len} ]] && max_len=${#vote_action_arr[0]}
-                        [[ ${#vote_action_arr[4]} -gt ${max_len} ]] && max_len=${#vote_action_arr[4]}
-                      done
                       total_len=$(( max_len + 13 + 5 ))
                       border_line="|$(printf "%${total_len}s" "" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
                       println DEBUG "Current epoch : ${FG_LBLUE}$(getEpoch)${NC}"
@@ -4177,6 +4172,14 @@ function main {
                         max_vt_len=${#drep_vt}
                         [[ ${#spo_vt} -gt ${max_vt_len} ]] && max_vt_len=${#spo_vt}
                         [[ ${#cc_vt} -gt ${max_vt_len} ]] && max_vt_len=${#cc_vt}
+                        anchor_url_arr=()
+                        anchor_url_start=0
+                        while true; do
+                          anchor_url_chunk=${anchor_url:$anchor_url_start:$max_len}
+                          [[ -z ${anchor_url_chunk} ]] && break
+                          anchor_url_arr+=( ${anchor_url_chunk} )
+                          anchor_url_start+=max_len
+                        done
                         # print data
                         IFS='#' read -r proposal_tx_id proposal_index <<< "${action_id}"
                         getGovActionId ${proposal_tx_id} ${proposal_index}
@@ -4189,7 +4192,11 @@ function main {
                         else
                           printf "| %-13s : ${FG_LGRAY}epoch${NC} ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
                         fi
-                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url}"
+                        for i in "${!anchor_url_arr[@]}"; do
+                          [[ $i -eq 0 ]] && anchor_label="Anchor URL" || anchor_label=""
+                          printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "${anchor_label}" "${anchor_url_arr[$i]}"
+                        done
+                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url_arr[0]}"
                         three_col_width=$(( max_len / 3 ))
                         three_col_start=18
                         three_col_2_start=$(( three_col_start + three_col_width ))
