@@ -4175,10 +4175,10 @@ function main {
                         anchor_url_arr=()
                         anchor_url_start=0
                         while true; do
-                          anchor_url_chunk=${anchor_url:$anchor_url_start:$max_len}
+                          anchor_url_chunk=${anchor_url:${anchor_url_start}:${max_len}}
                           [[ -z ${anchor_url_chunk} ]] && break
                           anchor_url_arr+=( ${anchor_url_chunk} )
-                          anchor_url_start+=max_len
+                          anchor_url_start=$(( anchor_url_start + max_len ))
                         done
                         # print data
                         IFS='#' read -r proposal_tx_id proposal_index <<< "${action_id}"
