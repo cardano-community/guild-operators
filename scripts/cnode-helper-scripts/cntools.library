@@ -1495,8 +1495,8 @@ getAllGovActions() {
       
       # get list of cc voters based on vote
       cc_yes_voters="$(jq '[.committeeVotes | to_entries[] | select(.value=="VoteYes")] | length' <<< "$(base64 -d <<< "${vote_action}")")"
-      cc_no_voters="$(jq '[.committeeVotes | to_entries[] | select(.value=="VoteYes")] | length' <<< "$(base64 -d <<< "${vote_action}")")"
-      cc_abstain_voters="$(jq '[.committeeVotes | to_entries[] | select(.value=="VoteYes")] | length' <<< "$(base64 -d <<< "${vote_action}")")"
+      cc_no_voters="$(jq '[.committeeVotes | to_entries[] | select(.value=="VoteNo")] | length' <<< "$(base64 -d <<< "${vote_action}")")"
+      cc_abstain_voters="$(jq '[.committeeVotes | to_entries[] | select(.value=="Abstain")] | length' <<< "$(base64 -d <<< "${vote_action}")")"
       cc_power_total=$(( cc_power_authorized - cc_abstain_voters ))
       cc_no_voters_total=$(( cc_power_total - cc_yes_voters )) # total cc power - proposal abstain - proposal yes
       # calculate percentages
