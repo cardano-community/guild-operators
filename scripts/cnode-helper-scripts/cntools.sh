@@ -4101,10 +4101,10 @@ function main {
                       println "${FG_YELLOW}No active proposals to vote on!${NC}"
                       waitToProceed && continue
                     fi
-                    if [[ ${action_cnt} -gt 5 ]]; then
-                      getAnswerAnyCust page_entries "${action_cnt} proposals found. Enter number of actions to display per page (enter for 4)"
+                    if [[ ${action_cnt} -gt 3 ]]; then
+                      getAnswerAnyCust page_entries "${action_cnt} proposals found. Enter number of actions to display per page (enter for 3)"
                     fi
-                    page_entries=${page_entries:=4}
+                    page_entries=${page_entries:=3}
                     if ! isNumber ${page_entries} || [[ ${page_entries} -lt 1 ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid number"
                       waitToProceed && continue
@@ -4147,10 +4147,9 @@ function main {
                       border_line="|$(printf "%${total_len}s" "" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
                       println DEBUG "Current epoch : ${FG_LBLUE}$(getEpoch)${NC}"
                       println DEBUG "Proposals     : ${FG_LBLUE}${action_cnt}${NC}"
-                      println DEBUG "\n${border_line}"
                       idx=1
                       for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
-                        [[ $idx -ne 1 ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n"
+                        println DEBUG "\n${border_line}"
                         # calculate length of strings
                         IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_yes_power drep_yes_pct drep_no drep_no_power drep_no_pct spo_yes spo_yes_power spo_yes_pct spo_no spo_no_power spo_no_pct cc_yes cc_yes_pct cc_no cc_no_pct drep_vt spo_vt cc_vt isParameterSecurityGroup <<< "${vote_action}"
                         max_yes_len=${#drep_yes}
@@ -4295,6 +4294,7 @@ function main {
                             IFS=';' read -ra own_vote_arr <<< "${own_vote}"
                             [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
                             if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_LGRAY}"; fi
+                            tput sc
                             printf "| You voted ${vote_color}%s${NC} with pool ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
                             tput rc && tput cuf ${total_len} && printf " |\n"
                           fi
@@ -4304,7 +4304,8 @@ function main {
                             IFS=';' read -ra own_vote_arr <<< "${own_vote}"
                             [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
                             if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_LGRAY}"; fi
-                            printf "| You voted ${vote_color}%s${NC} with pool ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
+                            tput sc
+                            printf "| You voted ${vote_color}%s${NC} with DRep wallet ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
                             tput rc && tput cuf ${total_len} && printf " |\n"
                           fi
                         done
@@ -4313,13 +4314,13 @@ function main {
                             IFS=';' read -ra own_vote_arr <<< "${own_vote}"
                             [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
                             if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_LGRAY}"; fi
-                            printf "| You voted ${vote_color}%s${NC} with pool ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
+                            tput sc
+                            printf "| You voted ${vote_color}%s${NC} with committee wallet ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
                             tput rc && tput cuf ${total_len} && printf " |\n"
                           fi
                         done
-                        ((idx++))
+                        println DEBUG "${border_line}"
                       done
-                      println DEBUG "${border_line}"
                       println DEBUG "\n${FG_GREEN}YES${NC}    = Total power of 'yes' votes."
                       println DEBUG "${FG_RED}NO${NC}     = Total power of 'no' votes, including buckets of 'no vote cast' and 'always no confidence'."
                       println DEBUG "         ${FG_LGRAY}For motion of no confidence, 'always no confidence' power is switched to yes bucket.${NC}"
