@@ -4196,7 +4196,6 @@ function main {
                           [[ $i -eq 0 ]] && anchor_label="Anchor URL" || anchor_label=""
                           printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "${anchor_label}" "${anchor_url_arr[$i]}"
                         done
-                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Anchor URL" "${anchor_url_arr[0]}"
                         three_col_width=$(( max_len / 3 ))
                         three_col_start=18
                         three_col_2_start=$(( three_col_start + three_col_width ))
