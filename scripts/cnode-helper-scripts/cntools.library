@@ -1359,7 +1359,7 @@ getGovAction() {
 # Command     : getAllGovActions
 # Return      : csv array of governance actions with different data depending on LIGHT VS LOCAL mode
 getAllGovActions() {
-  unset vote_action_list _vote_action_list _vote_action_votes
+  unset vote_action_list _vote_action_list _vote_action_votes own_drep_votes own_spo_votes own_cc_votes
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     getCurrentCommittee; getParameterThresholds # to fetch thresholds
     HEADERS=("${KOIOS_API_HEADERS[@]}" -H "accept: text/csv")
@@ -1410,6 +1410,7 @@ getAllGovActions() {
         getParameterChangeGroups
       fi
       getVoteThreshold "$(jq -r '.proposalProcedure.govAction.tag' <<< "$(base64 -d <<< "${vote_action}")")"
+      
       # get list of drep voters based on vote
       drep_yes_voters="$(jq '[.dRepVotes | to_entries[] | select(.value=="VoteYes") | ("drep-" + .key)]' <<< "$(base64 -d <<< "${vote_action}")")"
       drep_no_voters="$(jq '[.dRepVotes | to_entries[] | select(.value=="VoteNo") | ("drep-" + .key)]' <<< "$(base64 -d <<< "${vote_action}")")"
@@ -1429,23 +1430,50 @@ getAllGovActions() {
       # calculate percentages
       drep_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${drep_yes_vote_power}/${drep_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       drep_no_pct=$(printf '%.2f' "$(bc -l <<< "(${drep_no_vote_power_total}/${drep_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
-      if [[ -n ${spo_power_total} ]]; then
-        # get list of spo voters based on vote
-        spo_yes_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="VoteYes") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
-        spo_no_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="VoteNo") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
-        spo_abstain_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="Abstain") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
-        # get sum of vote power for each type
-        spo_yes_vote_power="$(jq -r --argjson v "${spo_yes_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
-        spo_no_vote_power="$(jq -r --argjson v "${spo_no_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
-        spo_abstain_vote_power="$(jq -r --argjson v "${spo_abstain_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
-        spo_power_total=$(( spo_power_total - spo_abstain_vote_power ))
-        spo_no_vote_power_total=$(( spo_power_total - spo_yes_vote_power )) # total spo power - proposal abstain - proposal yes
-        # calculate percentages
-        spo_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_yes_vote_power}/${spo_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
-        spo_no_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_no_vote_power_total}/${spo_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
-      else
-        unset spo_yes_vote_power spo_no_vote_power spo_yes_pct spo_no_pct
-      fi
+      # find votes by own DReps
+      while IFS= read -r -d '' wallet; do
+        wallet_name=$(basename ${wallet})
+        getGovKeyInfo ${wallet_name}
+        [[ -z ${drep_hash} ]] && continue
+        for drep in ${drep_yes_voters[@]}; do
+          [[ ${drep} = *"${hash_type}-${drep_hash}"* ]] && own_drep_votes+=( "${proposal_id};${wallet_name};Yes" ) && continue 2
+        done
+        for drep in ${drep_no_voters[@]}; do
+          [[ ${drep} = *"${hash_type}-${drep_hash}"* ]] && own_drep_votes+=( "${proposal_id};${wallet_name};No" ) && continue 2
+        done
+        for drep in ${drep_abstain_voters[@]}; do
+          [[ ${drep} = *"${hash_type}-${drep_hash}"* ]] && own_drep_votes+=( "${proposal_id};${wallet_name};Abstain" ) && continue 2
+        done
+      done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+      
+      # get list of spo voters based on vote
+      spo_yes_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="VoteYes") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
+      spo_no_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="VoteNo") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
+      spo_abstain_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="Abstain") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
+      # get sum of vote power for each type
+      spo_yes_vote_power="$(jq -r --argjson v "${spo_yes_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
+      spo_no_vote_power="$(jq -r --argjson v "${spo_no_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
+      spo_abstain_vote_power="$(jq -r --argjson v "${spo_abstain_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
+      spo_power_total=$(( spo_power_total - spo_abstain_vote_power ))
+      spo_no_vote_power_total=$(( spo_power_total - spo_yes_vote_power )) # total spo power - proposal abstain - proposal yes
+      # calculate percentages
+      spo_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_yes_vote_power}/${spo_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      spo_no_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_no_vote_power_total}/${spo_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      # find votes by own pools
+      while IFS= read -r -d '' pool; do
+        pool_name=$(basename ${pool})
+        getPoolID ${pool_name} || continue
+        for spo in ${spo_yes_voters[@]}; do
+          [[ ${spo} = *"${pool_id}"* ]] && own_spo_votes+=( "${proposal_id};${pool_name};Yes" ) && continue 2
+        done
+        for spo in ${spo_no_voters[@]}; do
+          [[ ${spo} = *"${pool_id}"* ]] && own_spo_votes+=( "${proposal_id};${pool_name};No" ) && continue 2
+        done
+        for spo in ${spo_abstain_voters[@]}; do
+          [[ ${spo} = *"${pool_id}"* ]] && own_spo_votes+=( "${proposal_id};${pool_name};Abstain" ) && continue 2
+        done
+      done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+      
       # get list of cc voters based on vote
       cc_yes_voters="$(jq '[.committeeVotes | to_entries[] | select(.value=="VoteYes")] | length' <<< "$(base64 -d <<< "${vote_action}")")"
       cc_no_voters="$(jq '[.committeeVotes | to_entries[] | select(.value=="VoteYes")] | length' <<< "$(base64 -d <<< "${vote_action}")")"
@@ -1460,6 +1488,21 @@ getAllGovActions() {
         cc_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${cc_yes_voters}/${cc_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
         cc_no_pct=$(printf '%.2f' "$(bc -l <<< "(${cc_no_voters_total}/${cc_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       fi
+      while IFS= read -r -d '' wallet; do
+        wallet_name=$(basename ${wallet})
+        getGovKeyInfo ${wallet_name}
+        [[ -z ${cc_hot_hash} ]] && continue
+        for cc_hot in ${cc_yes_voters[@]}; do
+          [[ ${cc_hot} = *"${cc_hot_hash}"* ]] && own_cc_votes+=( "${proposal_id};${wallet_name};Yes" ) && continue 2
+        done
+        for cc_hot in ${cc_no_voters[@]}; do
+          [[ ${cc_hot} = *"${cc_hot_hash}"* ]] && own_cc_votes+=( "${proposal_id};${wallet_name};No" ) && continue 2
+        done
+        for cc_hot in ${cc_abstain_voters[@]}; do
+          [[ ${cc_hot} = *"${cc_hot_hash}"* ]] && own_cc_votes+=( "${proposal_id};${wallet_name};Abstain" ) && continue 2
+        done
+      done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+      
       _vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power_total},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power_total},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
     done
     # reverse order

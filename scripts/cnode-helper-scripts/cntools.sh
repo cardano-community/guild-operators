@@ -4201,7 +4201,7 @@ function main {
                         three_col_2_start=$(( three_col_start + three_col_width ))
                         three_col_3_start=$(( three_col_2_start + three_col_width ))
                         # Header
-                        printf "|${FG_LGRAY}$(printf "%17s" "" | tr " " "-")${NC}${FG_BLACK}\e[42mYES${NC}${FG_LGRAY}$(printf "%$((three_col_width-3))s" " " | tr "" "-")${NC}${FG_BLACK}\e[41mNO${NC}${FG_LGRAY}$(printf "%$((three_col_width-2))s" "" | tr " " "-")${NC}${FG_BLACK}\e[47mSTATUS${NC}${FG_LGRAY}$(printf "%$(((max_len-(2*three_col_width))-5))s" "" | tr " " "-")${NC}|\n"
+                        printf "|${FG_LGRAY}$(printf "%17s" "" | tr " " "-")${NC}${FG_BLACK}\e[42mYES${NC}${FG_LGRAY}$(printf "%$((three_col_width-3))s" " " | tr " " "-")${NC}${FG_BLACK}\e[41mNO${NC}${FG_LGRAY}$(printf "%$((three_col_width-2))s" "" | tr " " "-")${NC}${FG_BLACK}\e[47mSTATUS${NC}${FG_LGRAY}$(printf "%$(((max_len-(2*three_col_width))-5))s" "" | tr " " "-")${NC}|\n"
                         tput sc
                         if isAllowedToVote "drep" "${action_type}" "${isParameterSecurityGroup:=N}"; then
                           # DRep YES
@@ -4289,6 +4289,34 @@ function main {
                           # move to end and close line
                           tput rc && tput cuf ${total_len} && printf " |\n"
                         fi
+                        unset printed_own
+                        for own_vote in ${own_spo_votes}; do
+                          if [[ ${own_vote} = "${action_id}"* ]]; then
+                            IFS=';' read -ra own_vote_arr <<< "${own_vote}"
+                            [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
+                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_LGRAY}"; fi
+                            printf "| You voted ${vote_color}%s${NC} with pool ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
+                            tput rc && tput cuf ${total_len} && printf " |\n"
+                          fi
+                        done
+                        for own_vote in ${own_drep_votes}; do
+                          if [[ ${own_vote} = "${action_id}"* ]]; then
+                            IFS=';' read -ra own_vote_arr <<< "${own_vote}"
+                            [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
+                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_LGRAY}"; fi
+                            printf "| You voted ${vote_color}%s${NC} with pool ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
+                            tput rc && tput cuf ${total_len} && printf " |\n"
+                          fi
+                        done
+                        for own_vote in ${own_cc_votes}; do
+                          if [[ ${own_vote} = "${action_id}"* ]]; then
+                            IFS=';' read -ra own_vote_arr <<< "${own_vote}"
+                            [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
+                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_LGRAY}"; fi
+                            printf "| You voted ${vote_color}%s${NC} with pool ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
+                            tput rc && tput cuf ${total_len} && printf " |\n"
+                          fi
+                        done
                         ((idx++))
                       done
                       println DEBUG "${border_line}"
