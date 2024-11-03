@@ -4293,7 +4293,7 @@ function main {
                           if [[ ${own_vote} = "${action_id}"* ]]; then
                             IFS=';' read -ra own_vote_arr <<< "${own_vote}"
                             [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
-                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_LGRAY}"; fi
+                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_DGRAY}"; fi
                             tput sc
                             printf "| You voted ${vote_color}%s${NC} with pool ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
                             tput rc && tput cuf ${total_len} && printf " |\n"
@@ -4303,7 +4303,7 @@ function main {
                           if [[ ${own_vote} = "${action_id}"* ]]; then
                             IFS=';' read -ra own_vote_arr <<< "${own_vote}"
                             [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
-                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_LGRAY}"; fi
+                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_DGRAY}"; fi
                             tput sc
                             printf "| You voted ${vote_color}%s${NC} with DRep wallet ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
                             tput rc && tput cuf ${total_len} && printf " |\n"
@@ -4313,7 +4313,7 @@ function main {
                           if [[ ${own_vote} = "${action_id}"* ]]; then
                             IFS=';' read -ra own_vote_arr <<< "${own_vote}"
                             [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
-                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_LGRAY}"; fi
+                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_DGRAY}"; fi
                             tput sc
                             printf "| You voted ${vote_color}%s${NC} with committee wallet ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
                             tput rc && tput cuf ${total_len} && printf " |\n"
