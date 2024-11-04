@@ -2177,6 +2177,11 @@ getRewardInfoKoios() {
       rewards_available["${stake_address}"]="${rewards_available}"
       [[ -n ${delegated_pool} ]] && pool_delegations["${stake_address}"]="${delegated_pool}"
       if [[ -n ${delegated_drep} ]]; then
+        if [[ ${delegated_drep} = always_abstain ]]; then
+          vote_delegations["${stake_address}"]="alwaysAbstain"; return
+        elif [[ ${delegated_drep} = always_no_confidence ]]; then
+          vote_delegations["${stake_address}"]="alwaysNoConfidence"; return
+        fi
         # convert to cli format <type>-<hash>
         vote_delegation_raw=$(bech32 <<< "${delegated_drep}")
         if [[ ${vote_delegation_raw:0:2} = '22' ]]; then
