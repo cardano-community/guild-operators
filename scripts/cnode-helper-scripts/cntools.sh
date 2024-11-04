@@ -1177,7 +1177,7 @@ function main {
                   println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA (${FG_LBLUE}%s${NC} %%)" "Active Vote power" "$(formatLovelace ${vote_power:=0})" "${vote_power_pct:=0}")"
                 else
                   if versionCheck "10.0" "${PROT_VERSION}"; then 
-                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC} - %s" "Delegation" "undelegated" "please note that reward withdrawals will not work in the future until wallet is vote delegated")"
+                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC} - %s" "Delegation" "undelegated" "please note that reward withdrawals will not work until wallet is vote delegated")"
                   else
                     println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Delegation" "undelegated")"
                   fi
@@ -1824,6 +1824,10 @@ function main {
               fi
               println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Base Funds" "$(formatLovelace ${base_lovelace})")"
               println DEBUG "$(printf "%s\t${FG_LBLUE}%s${NC} ADA" "Rewards" "$(formatLovelace ${reward_lovelace})")"
+              if versionCheck "10.0" "${PROT_VERSION}" && ! getWalletVoteDelegation ${wallet_name}; then
+                println ERROR "Reward withdrawal is blocked until wallet is vote delegated to a DRep or one of the predefined roles."
+                waitToProceed && continue
+              fi
               if ! withdrawRewards; then
                 waitToProceed && continue
               fi
@@ -3941,7 +3945,7 @@ function main {
                         println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA (${FG_LBLUE}%s${NC} %%)" "Active Vote power" "$(formatLovelace ${vote_power:=0})" "${vote_power_pct:=0}")"
                       else
                         if versionCheck "10.0" "${PROT_VERSION}"; then 
-                          println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC} - %s" "Delegation" "undelegated" "please note that reward withdrawals will not work in the future until wallet is vote delegated")"
+                          println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC} - %s" "Delegation" "undelegated" "please note that reward withdrawals will not work until wallet is vote delegated")"
                         else
                           println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Delegation" "undelegated")"
                         fi
