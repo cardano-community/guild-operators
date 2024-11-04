@@ -1132,8 +1132,8 @@ function main {
                     done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                   fi
                   getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
-                  println "Delegation        : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
-                  println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                  println "Delegation        : CIP-105 => ${FG_LGRAY}${vote_delegation_type} ${drep_id}${NC}"
+                  println "                  : CIP-129 => ${FG_LGRAY}${vote_delegation_type} ${drep_id_cip129}${NC}"
                   if [[ -n ${walletName} ]]; then
                     println "                  : Wallet  => ${FG_GREEN}${walletName}${NC}"
                   fi
@@ -3881,8 +3881,8 @@ function main {
                           done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                         fi
                         getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
-                        println "Delegation        : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
-                        println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
+                        println "Delegation        : CIP-105 => ${FG_LGRAY}${vote_delegation_type} ${drep_id}${NC}"
+                        println "                  : CIP-129 => ${FG_LGRAY}${vote_delegation_type} ${drep_id_cip129}${NC}"
                         if [[ -n ${walletName} ]]; then
                           println "                  : Wallet  => ${FG_GREEN}${walletName}${NC}"
                         fi
