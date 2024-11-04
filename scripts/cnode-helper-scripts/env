@@ -163,7 +163,7 @@ err_exit() {
 
 # Description : Query user for yes or no answer
 getAnswer() {
-  getAnswerAny answer "$* (yes/no)"
+  getAnswerAny answer "$* ([y]es / [n]o)"
   while : ; do
     case $answer in
       [Yy]*) return 0 ;;
