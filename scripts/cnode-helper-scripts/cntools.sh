@@ -1147,7 +1147,7 @@ function main {
                       println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "MultiSig")"
                     fi
                     if [[ -n ${walletName} ]]; then
-                      println "                  : Wallet  => ${FG_GREEN}${walletName}${NC}"
+                      println "$(printf "%-20s ${FG_DGRAY}: Wallet  =>${NC} ${FG_GREEN}%s${NC}" "" "${walletName}")"
                     fi
                     if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
                       [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
@@ -3905,9 +3905,13 @@ function main {
                           getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
                           println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "Delegation" "${drep_id}")"
                           println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${drep_id_cip129}")"
-                          println "$(printf "%-20s ${FG_DGRAY}: type    =>${NC} ${FG_LGRAY}%s${NC}" "" "${vote_delegation_type}")"
+                          if [[ ${vote_delegation_type} = keyHash ]]; then
+                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "Key")"
+                          else
+                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "MultiSig")"
+                          fi
                           if [[ -n ${walletName} ]]; then
-                            println "                  : Wallet  => ${FG_GREEN}${walletName}${NC}"
+                            println "$(printf "%-20s ${FG_DGRAY}: Wallet  =>${NC} ${FG_GREEN}%s${NC}" "" "${walletName}")"
                           fi
                           if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
                             [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
