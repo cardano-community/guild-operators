@@ -1141,13 +1141,17 @@ function main {
                     getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
                     println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "Delegation" "${drep_id}")"
                     println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${drep_id_cip129}")"
-                    println "$(printf "%-20s ${FG_DGRAY}: type    =>${NC} ${FG_LGRAY}%s${NC}" "" "${vote_delegation_type}")"
+                    if [[ ${vote_delegation_type} = keyHash ]]; then
+                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "Key")"
+                    else
+                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "MultiSig")"
+                    fi
                     if [[ -n ${walletName} ]]; then
                       println "                  : Wallet  => ${FG_GREEN}${walletName}${NC}"
                     fi
                     if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
                       [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                      println "$(printf "%-20s ${FG_DGRAY}:${NC} epoch ${FG_LGRAY}%s${NC}%s" "DRep expiry" "${drep_expiry}" "${expire_status}")"
+                      println "$(printf "%-20s ${FG_DGRAY}:${NC} epoch ${FG_LBLUE}%s${NC} - %s" "DRep expiry" "${drep_expiry}" "${expire_status}")"
                       if [[ -n ${drep_anchor_url} ]]; then
                         println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep anchor url" "${drep_anchor_url}")"
                         getDRepAnchor "${drep_anchor_url}" "${drep_anchor_hash}"
@@ -1166,16 +1170,16 @@ function main {
                         esac
                       fi
                     else
-                      println "Status            : ${FG_RED}Unable to get DRep status, retired?${NC}"
+                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_RED}%s${NC}" "Status" "Unable to get DRep status, retired?")"
                     fi
                   fi
                   getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
-                  println "Active Vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
+                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA (${FG_LBLUE}%s${NC} %%)" "Active Vote power" "$(formatLovelace ${vote_power:=0})" "${vote_power_pct:=0}")"
                 else
                   if versionCheck "10.0" "${PROT_VERSION}"; then 
-                    println "Delegation        : ${FG_YELLOW}undelegated${NC} - please note that reward withdrawals will not work until wallet is vote delegated"
+                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC} - %s" "Delegation" "undelegated" "please note that reward withdrawals will not work in the future until wallet is vote delegated")"
                   else
-                    println "Delegation        : ${FG_YELLOW}undelegated${NC}"
+                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Delegation" "undelegated")"
                   fi
                 fi
               fi
@@ -3907,7 +3911,7 @@ function main {
                           fi
                           if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
                             [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                            println "$(printf "%-20s ${FG_DGRAY}:${NC} epoch ${FG_LGRAY}%s${NC}%s" "DRep expiry" "${drep_expiry}" "${expire_status}")"
+                            println "$(printf "%-20s ${FG_DGRAY}:${NC} epoch ${FG_LBLUE}%s${NC} - %s" "DRep expiry" "${drep_expiry}" "${expire_status}")"
                             if [[ -n ${drep_anchor_url} ]]; then
                               println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep anchor url" "${drep_anchor_url}")"
                               getDRepAnchor "${drep_anchor_url}" "${drep_anchor_hash}"
@@ -3926,62 +3930,66 @@ function main {
                               esac
                             fi
                           else
-                            println "Status            : ${FG_RED}Unable to get DRep status, retired?${NC}"
+                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_RED}%s${NC}" "Status" "Unable to get DRep status, retired?")"
                           fi
                         fi
                         getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
-                        println "Active Vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
+                        println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA (${FG_LBLUE}%s${NC} %%)" "Active Vote power" "$(formatLovelace ${vote_power:=0})" "${vote_power_pct:=0}")"
                       else
-                        println "Delegation        : ${FG_YELLOW}undelegated${NC} - please note that reward withdrawals will not work in the future until wallet is vote delegated"
+                        if versionCheck "10.0" "${PROT_VERSION}"; then 
+                          println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC} - %s" "Delegation" "undelegated" "please note that reward withdrawals will not work in the future until wallet is vote delegated")"
+                        else
+                          println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Delegation" "undelegated")"
+                        fi
                       fi
                     fi
                     getGovKeyInfo ${wallet_name}
                     println "DEBUG" "\nOwn DRep Status"
                     if [[ -z ${drep_id} ]]; then
-                      println "Status            : ${FG_YELLOW}Governance keys missing, please derive them if needed${NC}"
+                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Status" "Governance keys missing, please derive them if needed")"
                       waitToProceed && continue
                     fi
-                    println "DRep ID           : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
-                    println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
-                    println "DRep Hash         : ${FG_LGRAY}${drep_hash}${NC}"
+                    println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "DRep ID" "${drep_id}")"
+                    println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${drep_id_cip129}")"
+                    println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "DRep Hash" "${drep_hash}")"
                     if [[ ${hash_type} = keyHash ]]; then
-                      println "DRep Type         : ${FG_LGRAY}Key${NC}"
+                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "Key")"
                     else
-                      println "DRep Type         : ${FG_LGRAY}MultiSig${NC}"
+                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "MultiSig")"
                     fi
                     if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
                       if getDRepStatus ${hash_type} ${drep_hash}; then
                         [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                        println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                        println "$(printf "%-20s ${FG_DGRAY}:${NC} epoch ${FG_LBLUE}%s${NC} - %s" "DRep expiry" "${drep_expiry}" "${expire_status}")"
                         if [[ -n ${drep_anchor_url} ]]; then
-                          println "DRep anchor url   : ${FG_LGRAY}${drep_anchor_url}${NC}"
+                          println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep anchor url" "${drep_anchor_url}")"
                           getDRepAnchor "${drep_anchor_url}" "${drep_anchor_hash}"
                           case $? in
-                            0) println "DRep anchor data  :\n${FG_LGRAY}"
+                            0) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
                               jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
                               println DEBUG "${NC}"
                               ;;
-                            1) println "DRep anchor data  : ${FG_YELLOW}Invalid URL or currently not available${NC}" ;;
-                            2) println "DRep anchor data  :\n${FG_LGRAY}"
+                            1) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor data" "Invalid URL or currently not available")" ;;
+                            2) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
                               jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
-                              println "${NC}DRep anchor hash  : ${FG_YELLOW}mismatch${NC}"
-                              println "  registered      : ${FG_LGRAY}${drep_anchor_hash}${NC}"
-                              println "  actual          : ${FG_LGRAY}${drep_anchor_real_hash}${NC}"
+                              println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor hash" "mismatch")"
+                              println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  registered" "${drep_anchor_hash}")"
+                              println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  actual" "${drep_anchor_real_hash}")"
                               ;;
                           esac
                         fi
                         getDRepVotePower ${hash_type} ${drep_hash}
-                        println "Active Vote power : ${FG_LBLUE}$(formatLovelace ${vote_power:=0})${NC} ADA (${FG_LBLUE}${vote_power_pct:=0} %${NC})"
+                        println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA (${FG_LBLUE}%s${NC} %%)" "Active Vote power" "$(formatLovelace ${vote_power:=0})" "${vote_power_pct:=0}")"
                       else
-                        println "Status            : ${FG_YELLOW}DRep key not registered${NC}"
+                        println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Status" "DRep key not registered")"
                       fi
                     fi
                     if [[ -n ${cc_cold_id} ]]; then
                       echo
-                      println "Committee Cold ID : CIP-105 => ${FG_LGRAY}${cc_cold_id}${NC}"
-                      println "                  : CIP-129 => ${FG_LGRAY}${cc_cold_id_cip129}${NC}"
-                      println "Committee Hot ID  : CIP-105 => ${FG_LGRAY}${cc_hot_id}${NC}"
-                      println "                  : CIP-129 => ${FG_LGRAY}${cc_hot_id_cip129}${NC}"
+                      println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "Committee Cold ID" "${cc_cold_id}")"
+                      println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${cc_cold_id_cip129}")"
+                      println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "Committee Hot ID" "${cc_hot_id}")"
+                      println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${cc_hot_id_cip129}")"
                     fi
                     waitToProceed && continue
                     ;; ###################################################################
