@@ -1124,9 +1124,9 @@ function main {
                   vote_delegation_type="${vote_delegation%-*}"
                   if [[ ${vote_delegation} = always* ]]; then
                     if [[ ${vote_delegation} = alwaysAbstain ]]; then
-                      println "Delegation        : ${FG_LGRAY}Always abstain${NC}"
+                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Delegation" "Always abstain")"
                     else
-                      println "Delegation        : ${FG_LGRAY}Always no confidence${NC}"
+                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Delegation" "Always no confidence")"
                     fi
                   else
                     if [[ ${vote_delegation} = *-* ]]; then
@@ -1139,28 +1139,29 @@ function main {
                       done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                     fi
                     getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
-                    println "Delegation        : CIP-105 => ${FG_LGRAY}${vote_delegation_type} ${drep_id}${NC}"
-                    println "                  : CIP-129 => ${FG_LGRAY}${vote_delegation_type} ${drep_id_cip129}${NC}"
+                    println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "Delegation" "${drep_id}")"
+                    println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${drep_id_cip129}")"
+                    println "$(printf "%-20s ${FG_DGRAY}: type    =>${NC} ${FG_LGRAY}%s${NC}" "" "${vote_delegation_type}")"
                     if [[ -n ${walletName} ]]; then
                       println "                  : Wallet  => ${FG_GREEN}${walletName}${NC}"
                     fi
                     if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
                       [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                      println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                      println "$(printf "%-20s ${FG_DGRAY}:${NC} epoch ${FG_LGRAY}%s${NC}%s" "DRep expiry" "${drep_expiry}" "${expire_status}")"
                       if [[ -n ${drep_anchor_url} ]]; then
-                        println "DRep anchor url   : ${FG_LGRAY}${drep_anchor_url}${NC}"
+                        println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep anchor url" "${drep_anchor_url}")"
                         getDRepAnchor "${drep_anchor_url}" "${drep_anchor_hash}"
                         case $? in
-                          0) println "DRep anchor data  :\n${FG_LGRAY}"
+                          0) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
                             jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
                             println DEBUG "${NC}"
                             ;;
-                          1) println "DRep anchor data  : ${FG_YELLOW}Invalid URL or currently not available${NC}" ;;
-                          2) println "DRep anchor data  :\n${FG_LGRAY}"
+                          1) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor data" "Invalid URL or currently not available")" ;;
+                          2) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
                             jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
-                            println "${NC}DRep anchor hash  : ${FG_YELLOW}mismatch${NC}"
-                            println "  registered      : ${FG_LGRAY}${drep_anchor_hash}${NC}"
-                            println "  actual          : ${FG_LGRAY}${drep_anchor_real_hash}${NC}"
+                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor hash" "mismatch")"
+                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  registered" "${drep_anchor_hash}")"
+                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  actual" "${drep_anchor_real_hash}")"
                             ;;
                         esac
                       fi
@@ -3883,9 +3884,9 @@ function main {
                         vote_delegation_type="${vote_delegation%-*}"
                         if [[ ${vote_delegation} = always* ]]; then
                           if [[ ${vote_delegation} = alwaysAbstain ]]; then
-                            println "Delegation        : ${FG_LGRAY}Always abstain${NC}"
+                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Delegation" "Always abstain")"
                           else
-                            println "Delegation        : ${FG_LGRAY}Always no confidence${NC}"
+                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Delegation" "Always no confidence")"
                           fi
                         else
                           if [[ ${vote_delegation} = *-* ]]; then
@@ -3898,28 +3899,29 @@ function main {
                             done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
                           fi
                           getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
-                          println "Delegation        : CIP-105 => ${FG_LGRAY}${vote_delegation_type} ${drep_id}${NC}"
-                          println "                  : CIP-129 => ${FG_LGRAY}${vote_delegation_type} ${drep_id_cip129}${NC}"
+                          println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "Delegation" "${drep_id}")"
+                          println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${drep_id_cip129}")"
+                          println "$(printf "%-20s ${FG_DGRAY}: type    =>${NC} ${FG_LGRAY}%s${NC}" "" "${vote_delegation_type}")"
                           if [[ -n ${walletName} ]]; then
                             println "                  : Wallet  => ${FG_GREEN}${walletName}${NC}"
                           fi
                           if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
                             [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                            println "DRep expiry       : epoch ${FG_LBLUE}${drep_expiry}${NC} - ${expire_status}"
+                            println "$(printf "%-20s ${FG_DGRAY}:${NC} epoch ${FG_LGRAY}%s${NC}%s" "DRep expiry" "${drep_expiry}" "${expire_status}")"
                             if [[ -n ${drep_anchor_url} ]]; then
-                              println "DRep anchor url   : ${FG_LGRAY}${drep_anchor_url}${NC}"
+                              println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep anchor url" "${drep_anchor_url}")"
                               getDRepAnchor "${drep_anchor_url}" "${drep_anchor_hash}"
                               case $? in
-                                0) println "DRep anchor data  :\n${FG_LGRAY}"
+                                0) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
                                   jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
                                   println DEBUG "${NC}"
                                   ;;
-                                1) println "DRep anchor data  : ${FG_YELLOW}Invalid URL or currently not available${NC}" ;;
-                                2) println "DRep anchor data  :\n${FG_LGRAY}"
+                                1) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor data" "Invalid URL or currently not available")" ;;
+                                2) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
                                   jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
-                                  println "${NC}DRep anchor hash  : ${FG_YELLOW}mismatch${NC}"
-                                  println "  registered      : ${FG_LGRAY}${drep_anchor_hash}${NC}"
-                                  println "  actual          : ${FG_LGRAY}${drep_anchor_real_hash}${NC}"
+                                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor hash" "mismatch")"
+                                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  registered" "${drep_anchor_hash}")"
+                                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  actual" "${drep_anchor_real_hash}")"
                                   ;;
                               esac
                             fi
