@@ -4251,7 +4251,7 @@ function main {
                           fi
                           printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#drep_yes_pct}+1))s${NC}" "${drep_yes_pct}" "%"
                           if [[ -n ${drep_vt} ]]; then
-                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#drep_vt}+1))s${NC}" "${drep_vt}" "%"
+                            printf ", ${FG_LGRAY}VT:${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#drep_vt}+1))s${NC}" "${drep_vt}" "%"
                           fi
                           # move to end and close line
                           tput rc && tput cuf ${total_len} && printf " |\n"
@@ -4280,7 +4280,7 @@ function main {
                           fi
                           printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#spo_yes_pct}+1))s${NC}" "${spo_yes_pct}" "%"
                           if [[ -n ${spo_vt} ]]; then
-                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#spo_vt}+1))s${NC}" "${spo_vt}" "%"
+                            printf ", ${FG_LGRAY}VT:${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#spo_vt}+1))s${NC}" "${spo_vt}" "%"
                           fi
                           # move to end and close line
                           tput rc && tput cuf ${total_len} && printf " |\n"
@@ -4309,7 +4309,7 @@ function main {
                           fi
                           printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#cc_yes_pct}+1))s${NC}" "${cc_yes_pct}" "%"
                           if [[ -n ${cc_vt} ]]; then
-                            printf " ${FG_LGRAY}of${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#cc_vt}+1))s${NC}" "${cc_vt}" "%"
+                            printf ", ${FG_LGRAY}VT:${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#cc_vt}+1))s${NC}" "${cc_vt}" "%"
                           fi
                           # move to end and close line
                           tput rc && tput cuf ${total_len} && printf " |\n"
