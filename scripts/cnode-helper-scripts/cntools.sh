@@ -1859,10 +1859,9 @@ function main {
 						" ) Rotate   - rotate pool KES keys"\
 						" ) Decrypt  - remove write protection and decrypt pool"\
 						" ) Encrypt  - encrypt pool cold keys and make all files immutable"\
-						" ) Vote     - cast a CIP-0094 Poll ballot"\
 						"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
           println DEBUG " Select Pool Operation\n"
-          select_opt "[n] New" "[i] Import" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[v] Vote" "[h] Home"
+          select_opt "[n] New" "[i] Import" "[r] Register" "[m] Modify" "[x] Retire" "[l] List" "[s] Show" "[o] Rotate" "[d] Decrypt" "[e] Encrypt" "[h] Home"
           case $? in
             0) SUBCOMMAND="new" ;;
             1) SUBCOMMAND="import" ;;
@@ -1874,8 +1873,7 @@ function main {
             7) SUBCOMMAND="rotate" ;;
             8) SUBCOMMAND="decrypt" ;;
             9) SUBCOMMAND="encrypt" ;;
-            10) SUBCOMMAND="vote" ;;
-            11) break ;;
+            10) break ;;
           esac
           case $SUBCOMMAND in
             new)
