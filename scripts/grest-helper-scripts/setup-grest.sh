@@ -306,8 +306,7 @@ SGVERSION=v1.3.0
       pkg_installer="dnf"
       pkg_list="make gcc gcc-c++ autoconf autoconf-archive automake libtool pkgconfig"
     fi
-    sudo ${pkg_installer} -y install ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y install ${pkg_list}' failed!"
-    sudo ${pkg_installer} -y upgrade ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y upgrade ${pkg_list}' failed!"
+    sudo ${pkg_installer} -y install ${pkg_list} --upgrade >/dev/null || err_exit "'sudo ${pkg_installer} -y install ${pkg_list}' failed!"
     [[ ! -d "libbech32" ]] && git clone https://github.com/whitslack/libbech32 >/dev/null
       pushd libbech32 || err_exit
     git pull >/dev/null || err_exit
