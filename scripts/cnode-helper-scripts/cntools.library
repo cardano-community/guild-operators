@@ -5033,7 +5033,7 @@ submitTxKoiosOgmios() {
       jq -r . <<< "${ogmios_error}"
       println LOG "$(jq -rc . <<< ${ogmios_error})"
     else
-      println ERROR "Submit API error: ${stdout}"
+      println ERROR "Ogmios API error: ${stdout}"
     fi
     return 1
   fi
