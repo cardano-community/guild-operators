@@ -6,6 +6,18 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.3.0] - 2024-11-21
+#### Added
+- Own votes cast (SPO|DRep|CC) shown in proposal list.
+#### Changed
+- Protocol version 10 check on withdrawal if not vote delegated to show informative error if needed.
+- Only transform transaction for HW when a HW wallet is used as source.
+- Remove deprecated CIP-0094 vote command from CNTools pool menu.
+- Adoptions for Koios v1.3.0 queries (DRep status)
+#### Fixed
+- Wallet DRep delegation status to pre-defined types
+- Proposal list vote summary didn't show correct data for all types
+
 ## [13.2.3] - 2024-10-16
 #### Fixed
 - Edge case fix for pool registration when cardano-hw-cli is present
