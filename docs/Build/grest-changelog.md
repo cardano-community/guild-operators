@@ -1,5 +1,41 @@
 # Koios gRest Changelog
 
+## [1.3.0] - For all networks.
+
+This release adds support for cardano db sync 13.6.0.1, alongwith underlying components supporting Conway HF. The major chunk of work for this release is behind the scenes, with minor value additions to input/output schema.
+
+## New endpoints added:
+- None
+
+### Data Input/Output Changes:
+- Input - `/tx_info` - Fix for `_bytecode` flag set to false not setting all byte fields to null [#306]
+- Input - `/tx_info` - `_scripts` flag set to false will no longer suppress `reference_inputs`, `collateral_inputs` or `collateral_outputs` [#306]
+- Output - `/proposal_voting_summary` - Add new fields `drep_abstain_votes_cast`, `pool_abstain_votes_cast` and `committee_abstain_votes_cast` [#303]
+- Output - `/drep_info`, `/drep_metadata` - Rename `url` to `meta_url` and `hash` to `meta_hash` , keeping it consistent with other endpoints [#306]
+- Output - `/tx_cbor` - Add new fields `block_hash`, `block_height`, `epoch_no`, `absolute_slot`, `tx_timestamp` [#306]
+- Output - `/pool_info` - Add new fields `reward_addr_delegated_drep` and `voting_power` [#306]
+
+### Deprecations:
+- None
+
+### Retirements:
+- None
+
+### Chores:
+- Fix for when both key and script was registered with same hash [#302]
+- Fix for drep_script format according to CIP-105, implementation was in conflict with pre-defined roles [#302]
+- Pool stat fix, rollback to previous code until DBSync gets a fix [#302]
+- Replace usage of `view` column with own bech32 utility functions [#302]
+- Drop stake_address.view and drep_hash.view indexes and replace with hex correspondants [#303]
+- Update active_stake_cache_update to directly check epoch_stake_progress in function instead of bash [#306]
+- Account for stake de-registration in account_info for vote delegation [#306]
+- Changes in SQLs (and indexes) due to new address table available since DBSync v13.6.0.1 [#306]
+- Updated vote logic due to changes added for pool voting [#306]
+
+[#302]: https://github.com/cardano-community/koios-artifacts/pull/302
+[#303]: https://github.com/cardano-community/koios-artifacts/pull/303
+[#306]: https://github.com/cardano-community/koios-artifacts/pull/306
+
 ## [1.2.0] - For all networks.
 
 This is a finalised release that builds on `1.2.0a` to provide support for CIP-129 and add a summary of votes for given proposal. The changes accordingly are primarily only targetting Governance endpoints. This will be the version used for mainnet upgrade as well. Please go through the changelogs below
