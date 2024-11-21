@@ -1,15 +1,15 @@
 {
   "poolVotingThresholds": {
-    "committeeNormal": 0.65,
-    "committeeNoConfidence": 0.65,
+    "committeeNormal": 0.51,
+    "committeeNoConfidence": 0.51,
     "hardForkInitiation": 0.51,
-    "motionNoConfidence": 0.6,
-    "ppSecurityGroup": 0.6
+    "motionNoConfidence": 0.51,
+    "ppSecurityGroup": 0.51
   },
   "dRepVotingThresholds": {
     "motionNoConfidence": 0.67,
     "committeeNormal": 0.67,
-    "committeeNoConfidence": 0.65,
+    "committeeNoConfidence": 0.6,
     "updateToConstitution": 0.75,
     "hardForkInitiation": 0.6,
     "ppNetworkGroup": 0.67,
@@ -18,9 +18,9 @@
     "ppGovGroup": 0.75,
     "treasuryWithdrawal": 0.67
   },
-  "committeeMinSize": 5,
-  "committeeMaxTermLength": 146,
-  "govActionLifetime": 14,
+  "committeeMinSize": 0,
+  "committeeMaxTermLength": 1000,
+  "govActionLifetime": 60,
   "govActionDeposit": 100000000000,
   "dRepDeposit": 500000000,
   "dRepActivity": 20,
@@ -280,19 +280,18 @@
   ],
   "constitution": {
     "anchor": {
-      "url": "ipfs://QmQq5hWDNzvDR1ForEktAHrdCQmfSL2u5yctNpzDwoSBu4",
-      "dataHash": "23b43bebac48a4acc39e578715aa06635d6d900fa3ea7441dfffd6e43b914f7b"
+      "dataHash": "ca41a91f399259bcefe57f9858e91f6d00e1a38d6d9c63d4052914ea7bd70cb2",
+      "url": "ipfs://bafkreifnwj6zpu3ixa4siz2lndqybyc5wnnt3jkwyutci4e2tmbnj3xrdm"
     },
-    "script": "edcd84c10e36ae810dc50847477083069db796219b39ccde790484e0"
+    "script": "fa24fb305126805cf2164c161d852a0e7330cf988f1fe558cf7d4a64"
   },
   "committee": {
     "members": {
-      "scriptHash-7ceede7d6a89e006408e6b7c6acb3dd094b3f6817e43b4a36d01535b": 500,
-      "scriptHash-6095e643ea6f1cccb6e463ec34349026b3a48621aac5d512655ab1bf": 500,
-      "scriptHash-27999ed757d6dac217471ae61d69b1b067b8b240d9e3ff36eb66b5d0": 500,
-      "scriptHash-87f867a31c0f81360d4d7dcddb6b025ba8383db9bf77a2af7797799d": 500,
-      "scriptHash-a19a7ba1caede8f3ab3e5e2a928b3798d7d011af18fbd577f7aeb0ec": 500
+      "keyHash-77c0a65f9302bccab35b44adc1823cb66c88a66c97cf3de8236dd718": 1000
     },
-    "threshold": 0.67
+    "threshold": {
+      "numerator": 2,
+      "denominator": 3
+    }
   }
 }

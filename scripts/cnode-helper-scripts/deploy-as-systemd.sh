@@ -12,56 +12,39 @@ PARENT="$(dirname "$0")"
 
 vname="${CNODE_VNAME}"
 
-echo -e "\e[32m~~ Cardano Node ~~\e[0m"
-echo "launches the main cnode.sh script to deploy cardano-node"
-echo
-./cnode.sh -d
+removeService() {
+  [[ -z $1 || ! -f "/etc/systemd/system/$1" ]] && return
+  sudo systemctl disable "$1" >/dev/null
+  sudo rm -f "/etc/systemd/system/$1" >/dev/null
+}
+
+echo -e "\n${FG_GREEN}~~ Cardano Node ~~${NC}\n"
+getAnswer "Deploy service?" && ./cnode.sh -d
 
 if grep -q "^PGPASSFILE=" "${CNODE_HOME}/scripts/dbsync.sh" 2> /dev/null || [[ -f "${CNODE_HOME}/priv/.pgpass" ]]; then
-  echo -e "\e[32m~~ Cardano DB Sync ~~\e[0m"
-  echo "launches the dbsync.sh script to deploy cardano-db-sync"
-  echo
-  ./dbsync.sh -d
+  echo -e "\n${FG_GREEN}~~ Cardano DB Sync ~~${NC}\n"
+  getAnswer "Deploy service?" && ./dbsync.sh -d || removeService "${vname}-dbsync.service"
 fi
 
-echo -e "\e[32m~~ Cardano Submit API ~~\e[0m"
-echo "Deploy Cardano Submit API as systemd service? [y|n]"
-echo
-read -rsn1 yn
-if [[ ${yn} = [Yy]* ]]; then
-  ./submitapi.sh -d
+echo -e "\n${FG_GREEN}~~ Cardano Submit API ~~${NC}\n"
+getAnswer "Deploy service?" && ./submitapi.sh -d || removeService "${vname}-submitapi.service"
+
+if command -v mithril-signer >/dev/null 2>&1; then
+  echo -e "\n${FG_GREEN}~~ Mithril Signer ~~${NC}\n"
+  getAnswer "Deploy service?" && ./mithril-signer.sh -d || removeService "${vname}-mithril-signer.service"
 fi
 
-if command -v mithril-signer >/dev/null 2>&1 ; then
-  echo -e "\e[32m~~ Mithril Signer ~~\e[0m"
-  echo "Deploy Mithril Signer as a systemd service? [y|n]"
-  read -rsn1 yn
-  if [[ ${yn} = [Yy]* ]]; then
-    ./mithril-signer.sh -d
-  else
-    if [[ -f /etc/systemd/system/${vname}-mithril-signer.service ]]; then
-      sudo systemctl disable ${vname}-mithril-signer.service
-      sudo rm -f /etc/systemd/system/${vname}-mithril-signer.service
-    fi
-  fi
+if command -v ogmios >/dev/null 2>&1; then
+  echo -e "\n${FG_GREEN}~~ Cardano Ogmios Server ~~${NC}\n"
+  getAnswer "Deploy service?" && ./ogmios.sh -d || removeService "${vname}-ogmios.service"
 fi
 
-if command -v ogmios >/dev/null 2>&1 ; then
-  echo -e "\e32m~~ Cardano Ogmios Server ~~\e[0m"
-  echo "launches the ogmios.sh script to deploy ogmios"
-  echo
-  ./ogmios.sh -d
-fi
-
-echo
-echo -e "\e[32m~~ Topology Updater ~~\e[0m"
+echo -e "\n${FG_GREEN}~~ Topology Updater ~~${NC}"
 echo "An intermediate centralized solution for relay nodes to handle the static topology files until P2P network module is implemented on protocol level."
 echo "A service file is deployed that once every 60 min send a message to API. After 4 consecutive successful requests (3 hours) the relay is accepted and available for others to fetch. If the node is turned off, it’s automatically delisted after 3 hours."
 echo "For more info, visit https://cardano-community.github.io/guild-operators/Scripts/topologyupdater"
 echo
-echo "Deploy Topology Updater as systemd services? (only for relay nodes) [y|n]"
-read -rsn1 yn
-if [[ ${yn} = [Yy]* ]]; then
+if getAnswer "Deploy services? (only for relay nodes)"; then
   sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-tu-push.service
 [Unit]
 Description=Cardano Node - Topology Updater - node alive push
@@ -130,40 +113,22 @@ AccuracySec=1s
 WantedBy=timers.target ${vname}.service
 EOF"
 else
-  if [[ -f /etc/systemd/system/${vname}-tu-fetch.service ]]; then
-    sudo systemctl disable ${vname}-tu-fetch.service
-    sudo rm -f /etc/systemd/system/${vname}-tu-fetch.service
-  fi
-  if [[ -f /etc/systemd/system/${vname}-tu-push.timer ]]; then
-    sudo systemctl disable ${vname}-tu-push.timer
-    sudo rm -f /etc/systemd/system/${vname}-tu-push.timer
-  fi
-  if [[ -f /etc/systemd/system/${vname}-tu-push.service ]]; then
-    sudo rm -f /etc/systemd/system/${vname}-tu-push.service
-  fi
-  if [[ -f /etc/systemd/system/${vname}-tu-restart.timer ]]; then
-    sudo systemctl disable ${vname}-tu-restart.timer
-    sudo rm -f /etc/systemd/system/${vname}-tu-restart.timer
-  fi
-  if [[ -f /etc/systemd/system/${vname}-tu-restart.service ]]; then
-    sudo rm -f /etc/systemd/system/${vname}-tu-restart.service
-  fi
+  removeService ${vname}-tu-fetch.service
+  removeService ${vname}-tu-push.timer
+  removeService ${vname}-tu-push.service
+  removeService ${vname}-tu-restart.timer
+  removeService ${vname}-tu-restart.service
 fi
 
-echo
-echo -e "\e[32m~~ Leaderlog / PoolTool SendSlots ~~\e[0m"
-echo "A collection of services that together creates a blocklog of current and upcoming blocks"
-echo "Dependant on ${vname}.service and when started|stopped|restarted all these companion services will apply the same action"
-echo "${vname}-cncli-sync        : Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB"
-echo "${vname}-cncli-leaderlog   : Loops through all slots in current epoch to calculate leader schedule"
-echo "${vname}-cncli-validate    : Confirms that the block made actually was accepted and adopted by chain"
-echo -e "${vname}-cncli-ptsendslots : Securely sends PoolTool the number of slots you have assigned for an epoch and validates the correctness of your past epochs (\e[36moptional\e[0m)"
-echo -e "${vname}-logmonitor        : Parses JSON log of cardano-node for traces of interest to give instant adopted status and invalid status (\e[36moptional\e[0m)"
-echo
-if command -v "${CNCLI}" >/dev/null; then
-  echo "Deploy Blocklog as systemd services? [y|n]"
-  read -rsn1 yn
-  if [[ ${yn} = [Yy]* ]]; then
+if command -v cncli >/dev/null 2>&1; then
+  echo -e "${FG_GREEN}~~ CNCLI ~~${NC}"
+  echo "A collection of services that together creates a blocklog of current and upcoming blocks"
+  echo "Dependant on ${vname}.service and when started|stopped|restarted all these companion services will apply the same action"
+  echo "${vname}-cncli-sync        : Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB"
+  echo "${vname}-cncli-leaderlog   : Loops through all slots in current epoch to calculate leader schedule"
+  echo "${vname}-cncli-validate    : Confirms that the block made actually was accepted and adopted by chain"
+  echo
+  if getAnswer "Deploy services?"; then
     sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-cncli-sync.service
 [Unit]
 Description=Cardano Node - CNCLI Sync
@@ -228,15 +193,11 @@ KillMode=mixed
 [Install]
 WantedBy=${vname}-cncli-sync.service
 EOF"
-    echo
-    echo -e "\e[32m~~ PoolTool SendSlots ~~\e[0m"
+    echo -e "\n${FG_GREEN}~~ PoolTool SendSlots ~~${NC}"
     echo "Securely sends pooltool the number of slots you have assigned for an epoch and validates the correctness of your past epochs"
     echo
-    if command -v "${CNCLI}" >/dev/null; then
-      echo "Deploy PoolTool SendSlots as systemd services? [y|n]"
-      read -rsn1 yn
-      if [[ ${yn} = [Yy]* ]]; then
-        sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-cncli-ptsendslots.service
+    if getAnswer "Deploy service?"; then
+      sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-cncli-ptsendslots.service
 [Unit]
 Description=Cardano Node - CNCLI PoolTool SendSlots
 BindsTo=${vname}-cncli-sync.service
@@ -259,88 +220,20 @@ KillMode=mixed
 [Install]
 WantedBy=${vname}-cncli-sync.service
 EOF"
-      else
-        if [[ -f /etc/systemd/system/${vname}-cncli-ptsendslots.service ]]; then
-          sudo systemctl disable ${vname}-cncli-ptsendslots.service
-          sudo rm -f /etc/systemd/system/${vname}-cncli-ptsendslots.service
-        fi
-      fi
     else
-      echo "cncli executable not found... skipping!"
-    fi
-    echo
-    echo -e "\e[32m~~ Log Monitor ~~\e[0m"
-    echo "Parses JSON log of cardano-node for traces of interest to give instant adopted status and invalid status"
-    echo "Optional to use, blocklog will function but without above mentioned features"
-    echo
-    echo "Deploy Log Monitor as systemd services? [y|n]"
-    read -rsn1 yn
-    if [[ ${yn} = [Yy]* ]]; then
-      sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-logmonitor.service
-[Unit]
-Description=Cardano Node - Log Monitor
-BindsTo=${vname}.service
-After=${vname}.service
-
-[Service]
-Type=simple
-Restart=on-failure
-RestartSec=1
-User=$USER
-WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/logMonitor.sh\"
-ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/logMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
-KillSignal=SIGINT
-SuccessExitStatus=143
-SyslogIdentifier=${vname}-logmonitor
-TimeoutStopSec=5
-KillMode=mixed
-
-[Install]
-WantedBy=${vname}.service
-EOF"
-    else
-      if [[ -f /etc/systemd/system/${vname}-logmonitor.service ]]; then
-        sudo systemctl disable ${vname}-logmonitor.service
-        sudo rm -f /etc/systemd/system/${vname}-logmonitor.service
-      fi
+      removeService ${vname}-cncli-ptsendslots.service
     fi
   else
-    if [[ -f /etc/systemd/system/${vname}-cncli-sync.service ]]; then
-      sudo systemctl disable ${vname}-cncli-sync.service
-      sudo rm -f /etc/systemd/system/${vname}-cncli-sync.service
-    fi
-    if [[ -f /etc/systemd/system/${vname}-cncli-leaderlog.service ]]; then
-      sudo systemctl disable ${vname}-cncli-leaderlog.service
-      sudo rm -f /etc/systemd/system/${vname}-cncli-leaderlog.service
-    fi
-    if [[ -f /etc/systemd/system/${vname}-cncli-validate.service ]]; then
-      sudo systemctl disable ${vname}-cncli-validate.service
-      sudo rm -f /etc/systemd/system/${vname}-cncli-validate.service
-    fi
-    if [[ -f /etc/systemd/system/${vname}-cncli-ptsendslots.service ]]; then
-      sudo systemctl disable ${vname}-cncli-ptsendslots.service
-      sudo rm -f /etc/systemd/system/${vname}-cncli-ptsendslots.service
-    fi
-    if [[ -f /etc/systemd/system/${vname}-logmonitor.service ]]; then
-      sudo systemctl disable ${vname}-logmonitor.service
-      sudo rm -f /etc/systemd/system/${vname}-logmonitor.service
-    fi
+    removeService ${vname}-cncli-sync.service
+    removeService ${vname}-cncli-leaderlog.service
+    removeService ${vname}-cncli-validate.service
+    removeService ${vname}-cncli-ptsendslots.service
   fi
-else
-  echo "cncli executable not found... skipping!"
-fi
-
-
-echo
-echo -e "\e[32m~~ PoolTool SendTip ~~\e[0m"
-echo "Countinously sends node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge"
-echo "Dependant on ${vname}.service and when started|stopped|restarted ptsendtip services will apply the same action"
-echo
-if command -v "${CNCLI}" >/dev/null; then
-  echo "Deploy PoolTool SendTip as systemd services? [y|n]"
-  read -rsn1 yn
-  if [[ ${yn} = [Yy]* ]]; then
+  echo -e "\n${FG_GREEN}~~ PoolTool SendTip ~~${NC}"
+  echo "Countinously sends node tip to PoolTool for network analysis and to show that your node is alive and well with a green badge"
+  echo "Dependant on ${vname}.service and when started|stopped|restarted ptsendtip services will apply the same action"
+  echo
+  if getAnswer "Deploy service?"; then
     sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-cncli-ptsendtip.service
 [Unit]
 Description=Cardano Node - CNCLI PoolTool SendTip
@@ -365,33 +258,49 @@ KillMode=mixed
 WantedBy=${vname}.service
 EOF"
   else
-    if [[ -f /etc/systemd/system/${vname}-cncli-ptsendtip.service ]]; then
-      sudo systemctl disable ${vname}-cncli-ptsendtip.service
-      sudo rm -f /etc/systemd/system/${vname}-cncli-ptsendtip.service
-    fi
+    removeService ${vname}-cncli-ptsendtip.service
   fi
-else
-  echo "cncli executable not found... skipping!"
 fi
 
+echo -e "\n${FG_GREEN}~~ Log Monitor ~~${NC}"
+echo "Parses JSON log of cardano-node for traces of interest to give instant adopted status and invalid status"
+echo "Optional to use, often used as a complement to CNCLI services but functions on its own"
 echo
-echo -e "\e[32m~~ BlockPerf / Propagation performance ~~\e[0m"
+if getAnswer "Deploy service?"; then
+  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-logmonitor.service
+[Unit]
+Description=Cardano Node - Log Monitor
+BindsTo=${vname}.service
+After=${vname}.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=1
+User=$USER
+WorkingDirectory=${CNODE_HOME}/scripts
+ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/logMonitor.sh\"
+ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/logMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
+KillSignal=SIGINT
+SuccessExitStatus=143
+SyslogIdentifier=${vname}-logmonitor
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=${vname}.service
+EOF"
+else
+  removeService ${vname}-logmonitor.service
+fi
+
+echo -e "\n${FG_GREEN}~~ BlockPerf / Propagation performance ~~${NC}"
 echo "A service parsing the node block propagation times from announced header to adopted block"
 echo "sends block propagation time data to TopologyUpdater for common network analysis and performance comparison"
 echo "${vname}-tu-blockperf          : Parses JSON log of cardano-node for block network propagation times"
 echo
-echo "Deploy BlockPerf as systemd services? [y|n]"
-read -rsn1 yn
-if [[ ${yn} = [Yy]* ]]; then
-  ./blockPerf.sh -d
-else
-  if [[ -f /etc/systemd/system/${vname}-tu-blockperf.service ]]; then
-    sudo systemctl disable ${vname}-tu-blockperf.service
-    sudo rm -f /etc/systemd/system/${vname}-tu-blockperf.service
-  fi
-fi
+getAnswer "Deploy service?" && ./blockPerf.sh -d || removeService "${vname}-tu-blockperf.service"
 
-echo
 sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && sudo systemctl enable ${vname}-logmonitor.service
 [[ -f /etc/systemd/system/${vname}-tu-fetch.service ]] && sudo systemctl enable ${vname}-tu-fetch.service
@@ -405,10 +314,9 @@ sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}-cncli-ptsendslots.service ]] && sudo systemctl enable ${vname}-cncli-ptsendslots.service
 [[ -f /etc/systemd/system/${vname}-mithril-signer.service ]] && sudo systemctl enable ${vname}-mithril-signer.service
 
-
 echo
 echo "If not done already, update 'User Variables' section in relevant script in ${CNODE_HOME}/scripts/ folder"
-echo -e "E.g \e[36menv\e[0m, \e[36mcnode.sh\e[0m, \e[36mcncli.sh\e[0m, \e[36mgLiveView.sh\e[0m, \e[36mtopologyUpdater.sh\e[0m"
-echo -e "You can then start/restart the node with \e[32msudo systemctl restart ${vname}\e[0m"
+echo -e "E.g ${FG_CYAN}env${NC}, ${FG_CYAN}cnode.sh${NC}, ${FG_CYAN}cncli.sh${NC}, ${FG_CYAN}gLiveView.sh${NC}, ${FG_CYAN}topologyUpdater.sh${NC}"
+echo -e "You can then start/restart the node with ${FG_GREEN}sudo systemctl restart ${vname}${NC}"
 echo "This will automatically start all installed companion services due to service dependency"
 echo
