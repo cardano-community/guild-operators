@@ -2,14 +2,14 @@
 
 ## [1.3.0] - For all networks.
 
-This release adds support for cardano db sync 13.6.0.1, alongwith underlying components supporting Conway HF. The major chunk of work for this release is behind the scenes, with minor value additions to input/output schema.
+This release adds support for cardano db sync 13.6.0.2, alongwith underlying components supporting Conway HF. The major chunk of work for this release is behind the scenes, with minor value additions to input/output schema.
 
 ## New endpoints added:
 - None
 
 ### Data Input/Output Changes:
-- Input - `/tx_info` - Fix for `_bytecode` flag set to false not setting all byte fields to null [#306]
-- Input - `/tx_info` - `_scripts` flag set to false will no longer suppress `reference_inputs`, `collateral_inputs` or `collateral_outputs` [#306]
+- Input - `/block_tx_info` and `/tx_info` - Fix for `_bytecode` flag set to false not setting all byte fields to null [#306]
+- Input - `/block_tx_info` and `/tx_info` - `_scripts` flag set to false will no longer suppress `reference_inputs`, `collateral_inputs` or `collateral_outputs` [#306]
 - Output - `/proposal_voting_summary` - Add new fields `drep_abstain_votes_cast`, `pool_abstain_votes_cast` and `committee_abstain_votes_cast` [#303]
 - Output - `/drep_info`, `/drep_metadata` - Rename `url` to `meta_url` and `hash` to `meta_hash` , keeping it consistent with other endpoints [#306]
 - Output - `/tx_cbor` - Add new fields `block_hash`, `block_height`, `epoch_no`, `absolute_slot`, `tx_timestamp` [#306]
