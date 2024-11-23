@@ -237,9 +237,12 @@ kes_rotation_needed="no"
 if [[ ${CHECK_KES} = true ]]; then
 
   while IFS= read -r -d '' pool; do
+    if [[ ! -f "${pool}/${POOL_CURRENT_KES_START}" ]]; then
+      continue
+    fi
+
     unset pool_kes_start
-    [[ ${CNTOOLS_MODE} = "LOCAL" ]] && getNodeMetrics
-    [[ (-z ${remaining_kes_periods} || ${remaining_kes_periods} -eq 0) && -f "${pool}/${POOL_CURRENT_KES_START}" ]] && unset remaining_kes_periods && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"  
+    unset remaining_kes_periods && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"  
   
     if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitToProceed && continue; fi
 
@@ -2802,11 +2805,9 @@ function main {
                 [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
                 println "$(printf "%-21s : %s" "Registered" "${pool_registered}")"
                 unset pool_kes_start
-                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  getNodeMetrics
-                else
-                  [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
-                fi
+                unset remaining_kes_periods
+                [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
+
                 if ! kesExpiration ${pool_kes_start}; then 
                   println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC}%s${FG_GREEN}%s${NC}" "KES expiration date" "ERROR" ": failure during KES calculation for " "$(basename ${pool})")"
                 else
@@ -3119,7 +3120,6 @@ function main {
                   println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Saturation" "${p_live_saturation}")"
                 fi
 
-                unset pool_kes_start
                 if [[ -n ${KOIOS_API} ]]; then
                   [[ ${p_op_cert_counter} != null ]] && kes_counter_str="${FG_LBLUE}${p_op_cert_counter}${FG_LGRAY} - use counter ${FG_LBLUE}$((p_op_cert_counter+1))${FG_LGRAY} for rotation in offline mode.${NC}" || kes_counter_str="${FG_LGRAY}No blocks minted so far with active operational certificate. Use counter ${FG_LBLUE}0${FG_LGRAY} for rotation in offline mode.${NC}"
                   println "$(printf "%-21s : %s" "KES counter" "${kes_counter_str}")"
@@ -3137,9 +3137,12 @@ function main {
                   fi
                   println "$(printf "%-21s : %s" "KES counter" "${kes_counter_str}")"
                   getNodeMetrics
-                else
-                  [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
                 fi
+
+                unset pool_kes_start
+                [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
+                unset remaining_kes_periods
+
                 if ! kesExpiration ${pool_kes_start}; then 
                   println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC}%s${FG_GREEN}%s${NC}" "KES expiration date" "ERROR" ": failure during KES calculation for " "$(basename ${pool})")"
                 else
