@@ -241,8 +241,8 @@ if [[ ${CHECK_KES} = true ]]; then
       continue
     fi
 
-    unset pool_kes_start
-    unset remaining_kes_periods && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"  
+    unset remaining_kes_periods
+    pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"  
   
     if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitToProceed && continue; fi
 

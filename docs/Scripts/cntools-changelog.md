@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.3.1] - 2024-11-25
+#### Fixed
+- Corrected KES expiration information calculation on cntools launch, pool -> list and pool -> show screens
+
 ## [13.3.0] - 2024-11-21
 #### Added
 - Own votes cast (SPO|DRep|CC) shown in proposal list.

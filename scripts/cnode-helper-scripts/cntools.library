@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=3
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -762,7 +762,7 @@ isPoolRegistered() {
   unset p_active_epoch_no p_vrf_key_hash p_margin p_fixed_cost p_pledge p_reward_addr p_owners p_relays p_meta_url p_meta_hash p_meta_json p_pool_status
   unset p_retiring_epoch p_op_cert p_op_cert_counter p_active_stake p_epoch_block_cnt p_live_stake p_live_delegators p_live_saturation
   if [[ ${CNTOOLS_MODE} != "LIGHT" ]]; then
-    [[ -f "${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}" ]] && return 2 || (rm -rf "${POOL_FOLDER}/${1}/${POOL_CURRENT_KES_START}" && return 1)
+    [[ -f "${POOL_FOLDER}/${1}/${POOL_REGCERT_FILENAME}" ]] && return 2 || (rm -f "${POOL_FOLDER}/${1}/${POOL_CURRENT_KES_START}" && return 1)
   else
     getPoolID "$1"
     HEADERS=("${KOIOS_API_HEADERS[@]}" -H "Content-Type: application/json")
