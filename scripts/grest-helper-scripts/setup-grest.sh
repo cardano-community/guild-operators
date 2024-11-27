@@ -284,7 +284,7 @@ SGVERSION=v1.3.0
       pgrest_binary=linux-static-x64.tar.xz
     fi
     #pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep ${pgrest_binary})"
-    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v12.0.2/postgrest-v12.0.2-${pgrest_binary}"
+    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v12.2.3/postgrest-v12.2.3-${pgrest_binary}"
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
@@ -332,8 +332,8 @@ SGVERSION=v1.3.0
   deploy_haproxy() {
     printf "\n[Re]Installing HAProxy.."
     pushd ~/tmp >/dev/null || err_exit
-    major_v="3.0"
-    minor_v="2"
+    major_v="3.1"
+    minor_v="0"
     haproxy_url="http://www.haproxy.org/download/${major_v}/src/haproxy-${major_v}.${minor_v}.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
@@ -348,7 +348,7 @@ SGVERSION=v1.3.0
       sudo ${pkg_installer} -y install ${pkg_list} >/dev/null || err_exit "'sudo ${pkg_installer} -y install ${pkg_list}' failed!"
       cd haproxy-${major_v}.${minor_v} || return
       make clean >/dev/null
-      make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_STATIC_PCRE2=1 USE_SYSTEMD=1 USE_PROMEX=1 >/dev/null
+      make -j $(nproc) TARGET=linux-glibc USE_ZLIB=1 USE_LIBCRYPT=1 USE_OPENSSL=1 USE_STATIC_PCRE2=1 USE_PROMEX=1 >/dev/null
       sudo make install-bin >/dev/null
       sudo cp -f /usr/local/sbin/haproxy /usr/sbin/
     else
@@ -393,8 +393,10 @@ SGVERSION=v1.3.0
 			db-anon-role = "web_anon"
 			server-host = "127.0.0.1"
 			server-port = 8050
+			admin-server-port = 8060
+			db-hoisted-tx-settings = ""
 			db-aggregates-enabled = true
-			#db-plan-enabled = false
+			db-plan-enabled = true
 			#server-timing-enabled = true
 			#jwt-secret = "secret-token"
 			#db-pool = 10
