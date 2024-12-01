@@ -109,7 +109,7 @@ set_defaults() {
   [[ -z "${BRANCH}" ]] && BRANCH="master"
   [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
-  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "10.1.2")"
+  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "10.1.3")"
   [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "10.1.1.0")"
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
@@ -412,7 +412,7 @@ download_cnodebins() {
   [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (cardano-address) not found after extracting package!"
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
     echo -e "\n  Downloading Cardano DB Sync 13.6.0.2 archive from GitHub.."
-    curl -m 200 -sfL https://github.com/IntersectMBO/cardano-db-sync/releases/download/13.6.0.2/cardano-db-sync-13.6.0.2-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync from release artefacts on GitHub!"
+    curl -m 200 -sfL https://github.com/IntersectMBO/cardano-db-sync/releases/download/13.6.0.4/cardano-db-sync-13.6.0.2-linux.tar.gz -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync from release artefacts on GitHub!"
     #curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.5.0.1-linux.tar.gz" -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync from release artefacts on GitHub!"
     tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync &>/dev/null
     [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
