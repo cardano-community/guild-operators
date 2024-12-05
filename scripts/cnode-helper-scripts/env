@@ -1230,7 +1230,7 @@ IP_VERSION=$(tr '[:upper:]' '[:lower:]' <<< "${IP_VERSION}")
 [[ -z ${USE_EKG} ]] && USE_EKG='Y'
 CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.--port ${CNODE_PORT}")
 
-if [[ -n "${CNODE_PID}" ]]; then
+if [[ ${OFFLINE_MODE} = "N" && -n "${CNODE_PID}" ]]; then
   if [[ "${USE_EKG}" == "N" ]]; then
     if { [[ "${use_lsof}" != 'Y' && -z "$(ss -lnpt | grep "pid=${CNODE_PID}," | awk -v port=":${PROM_PORT}" '$4 ~ port {print $4}')" ]]; } || { [[ "${use_lsof}" == 'Y' && -z "$(lsof -Pnl -i4 +M | grep LISTEN | awk -v pid="${CNODE_PID}" -v port=":${PROM_PORT}" '$2 == pid && $9 ~ port {print $9}')" ]]; }; then
       echo "ERROR: You specified ${PROM_PORT} as your Prometheus port, but it looks like the cardano-node (PID: ${CNODE_PID} ) is not listening on this port. Please update the config or kill the conflicting process first."
