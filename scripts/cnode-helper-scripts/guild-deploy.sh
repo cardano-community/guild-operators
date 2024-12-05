@@ -314,7 +314,6 @@ build_dependencies() {
 
 # Build fork of libsodium
 build_libsodium() {
-  build_libsecp
   echo -e "\nBuilding libsodium ..."
   SODIUM_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".sodium' <<< ${NODE_DEPS})"
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
