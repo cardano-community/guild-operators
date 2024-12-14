@@ -115,7 +115,7 @@ jobs:
         IMAGE_NAME="$REGISTRY/$REPO/cardano-node"
         CNVERSION=${{ needs.set_environment_vars.outputs.cnversion }}
         SHA=${{ needs.set_environment_vars.outputs.short_sha }}
-        IMAGE_TAGS="$IMAGE_NAME:test,$IMAGE_NAME:$CNVERSION-$SHA,$IMAGE_NAME:$GUILD_DEPLOY_BRANCH-$SHA"
+        IMAGE_TAGS="$IMAGE_NAME:test,$IMAGE_NAME:$CNVERSION,$IMAGE_NAME:$GUILD_DEPLOY_BRANCH-$SHA"
         echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
         echo "IMAGE_TAGS=$IMAGE_TAGS" >> $GITHUB_ENV
     - uses: actions/checkout@v3
