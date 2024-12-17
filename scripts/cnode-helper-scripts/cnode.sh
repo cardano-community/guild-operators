@@ -43,6 +43,23 @@ set_defaults() {
   [[ ${IP_VERSION} = "6" || ${IP_VERSION} = "mix" ]] && host_addr+=("--host-ipv6-addr" "${CNODE_LISTEN_IP6}")
 }
 
+check_config_sanity() {
+  BYGENHASH=$("${CCLI}" byron genesis print-genesis-hash --genesis-json "${BYRON_GENESIS_JSON}" 2>/dev/null)
+  BYGENHASHCFG=$(jq '.ByronGenesisHash' <"${CONFIG}" 2>/dev/null)
+  SHGENHASH=$("${CCLI}" ${NETWORK_ERA} genesis hash --genesis "${GENESIS_JSON}" 2>/dev/null)
+  SHGENHASHCFG=$(jq '.ShelleyGenesisHash' <"${CONFIG}" 2>/dev/null)
+  ALGENHASH=$("${CCLI}" ${NETWORK_ERA} genesis hash --genesis "${ALONZO_GENESIS_JSON}" 2>/dev/null)
+  ALGENHASHCFG=$(jq '.AlonzoGenesisHash' <"${CONFIG}" 2>/dev/null)
+  CWGENHASH=$("${CCLI}" ${NETWORK_ERA} genesis hash --genesis "${CONWAY_GENESIS_JSON}" 2>/dev/null)
+  CWGENHASHCFG=$(jq '.ConwayGenesisHash' <"${CONFIG}" 2>/dev/null)
+  # If hash are missing/do not match, add that to the end of config. We could have sorted it based on logic, but that would mess up sdiff comparison outputs
+  if [[ "${BYGENHASH}" != "${BYGENHASHCFG}" ]] || [[ "${SHGENHASH}" != "${SHGENHASHCFG}" ]] || [[ "${ALGENHASH}" != "${ALGENHASHCFG}" ]] || [[ "${CWGENHASH}" != "${CWGENHASHCFG}" ]]; then
+    cp "${CONFIG}" "${CONFIG}".tmp
+    jq --arg BYGENHASH ${BYGENHASH} --arg SHGENHASH ${SHGENHASH} --arg ALGENHASH ${ALGENHASH} --arg CWGENHASH ${CWGENHASH} '.ByronGenesisHash = $BYGENHASH | .ShelleyGenesisHash = $SHGENHASH | .AlonzoGenesisHash = $ALGENHASH | .ConwayGenesisHash = $CWGENHASH' <"${CONFIG}" >"${CONFIG}".tmp
+    [[ -s "${CONFIG}".tmp ]] && mv -f "${CONFIG}".tmp "${CONFIG}"
+  fi
+}
+
 pre_startup_sanity() {
   # Check if node is already running, or if stale socket file is left
   if [[ -S "${CARDANO_NODE_SOCKET_PATH}" ]]; then
@@ -56,6 +73,7 @@ pre_startup_sanity() {
   fi
   # Move logs to archive
   [[ $(find "${LOG_DIR}"/node*.json 2>/dev/null | wc -l) -gt 0 ]] && mv "${LOG_DIR}"/node*.json "${LOG_DIR}"/archive/
+  check_config_sanity
 }
 
 mithril_snapshot_download() {
