@@ -41,7 +41,7 @@ jobs:
     - name: Set TESTING
       id: set_testing
       run: |
-        echo "testing=${{ github.event_name == 'push' && (steps.vars.outputs.branch != 'master' || needs.set_environment_vars.outputs.guild_deploy_branch == 'docker-alpha') || github.event.inputs.testing }}" >> $GITHUB_OUTPUT
+        echo "testing=${{ github.event_name == 'push' && (steps.vars.outputs.branch != 'master') || github.event.inputs.testing }}" >> $GITHUB_OUTPUT
     - uses: actions/checkout@v3
       with:
         ref: ${{ steps.set_guild_deploy_branch.outputs.guild_deploy_branch }}
@@ -55,7 +55,7 @@ jobs:
         echo "cnversion=$(cat files/docker/node/release-versions/cardano-node-latest.txt)" >> $GITHUB_OUTPUT
   build_production:
     needs: set_environment_vars
-    if: needs.set_environment_vars.outputs.testing == 'false' && (needs.set_environment_vars.outputs.guild_deploy_branch == 'master' || needs.set_environment_vars.outputs.guild_deploy_branch == 'docker-alpha')
+    if: needs.set_environment_vars.outputs.testing == 'false' && (needs.set_environment_vars.outputs.guild_deploy_branch == 'master')
     env:
       REGISTRY: docker.io
     runs-on: ubuntu-latest

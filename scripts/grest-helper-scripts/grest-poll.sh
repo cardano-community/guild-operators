@@ -37,7 +37,7 @@ function chk_upd() {
   curr_hour=$(date +%H)
   if [[ ! -f "${PARENT}"/.last_grest_poll ]]; then
     echo "${curr_hour}" > "${PARENT}"/.last_grest_poll
-    curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null
+    curl -m 2 -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null
   else
     last_hour=$(cat "${PARENT}"/.last_grest_poll)
     [[ "${curr_hour}" == "${last_hour}" ]] && SKIP_UPDATE=Y || echo "${curr_hour}" > "${PARENT}"/.last_grest_poll
@@ -55,7 +55,7 @@ function chk_upd() {
     exit 1
   fi
   
-  curl -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null
+  curl -m 2 -sfkL "${API_STRUCT_DEFINITION}" -o "${LOCAL_SPEC}" 2>/dev/null
 
   checkUpdate "${PARENT}"/grest-poll.sh Y N N grest-helper-scripts
   [[ "$?" == "2" ]] && echo "ERROR: checkUpdate Failed" && exit 1

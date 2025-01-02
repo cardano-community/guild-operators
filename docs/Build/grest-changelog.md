@@ -1,5 +1,29 @@
 # Koios gRest Changelog
 
+
+## [1.3.1] - For all networks.
+
+This is a minor value-addition patch release over v1.3.0, addressing feedback from community from initial exposure to Conway functionality. There arent any breaking changes, but there are two new endpoints alongwith addition of fields to existing ones.
+
+## New endpoints added:
+- `/block_tx_cbor` - Get Raw transactions in CBOR format for given block hashes [#319]
+- `/drep_history` - Get history for dreps voting power distribution [#319]
+
+### Data Input/Output Changes:
+- Output - `/totals` - Add new fields `fees`, `deposits_stake`, `deposits_dreps` and `deposits_proposals` [#319]
+- Output - `/proposal_summary` - Add new fields `drep_active_yes_vote_power`, `drep_active_no_vote_power`, `drep_active_abstain_vote_power`, `drep_always_abstain_vote_power`, `pool_active_yes_vote_power`, `pool_active_no_vote_power`, `pool_active_abstain_vote_power` [#319]
+
+### Deprecations:
+- `block_tx_info` - Wasnt optimal for resources (and worked around payload limit for `tx_info`), use `block_tx_cbor` is much more scalable and non-breaking [#319]
+
+### Retirements:
+- None
+
+### Chores:
+- Fix for drep_info regarding active state (was missing by 1) [#319]
+- Fix Typo in API Specs (Preferred => Prefer) [#319]
+- Return is_valid field as-is from dbsync, current behaviour of showing true was invalid [#319]
+
 ## [1.3.0] - For all networks.
 
 This release adds support for cardano db sync 13.6.0.2, alongwith underlying components supporting Conway HF. The major chunk of work for this release is behind the scenes, with minor value additions to input/output schema.
