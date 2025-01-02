@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=v1.3.0
+SGVERSION=v1.3.1
 
 ######## Functions ########
   usage() {
@@ -233,7 +233,7 @@ SGVERSION=v1.3.0
     grep "^  /" "${CNODE_HOME}"/files/koiosapi.yaml | grep -v -e submittx -e "#RPC" | sed -e 's#^  /#/#' | cut -d: -f1 | sort > "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
     echo "/control_table" >> "${CNODE_HOME}"/files/grestrpcs 2>/dev/null
     checkUpdate grest-poll.sh Y N N grest-helper-scripts >/dev/null
-    sed -i "s# API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"# API_STRUCT_DEFINITION=\"https://${KOIOS_SRV}/koiosapi.yaml\"#g" grest-poll.sh
+    sed -i "s|^#API_STRUCT_DEFINITION=\"https://api.koios.rest/koiosapi.yaml\"|API_STRUCT_DEFINITION=\"https://${KOIOS_SRV}/koiosapi.yaml\"|g" grest-poll.sh
     checkUpdate checkstatus.sh Y N N grest-helper-scripts >/dev/null
     checkUpdate getmetrics.sh Y N N grest-helper-scripts >/dev/null
   }
