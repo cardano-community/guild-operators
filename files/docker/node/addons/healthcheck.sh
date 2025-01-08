@@ -38,7 +38,7 @@ check_process() {
 
     for (( CHECK=1; CHECK<=RETRIES; CHECK++ )); do
         # Check CPU usage of the process
-        CPU_USAGE=$(ps -C "$process_name" -o %cpu= | awk '{s+=$1} END {print s}')
+        CPU_USAGE=$(ps -C "$process_name" -o %cpu= | awk '{s+=$1} END {print int(s + 0.5)}')
 
         # Check if CPU usage exceeds threshold
         if (( CPU_USAGE > cpu_threshold )); then
