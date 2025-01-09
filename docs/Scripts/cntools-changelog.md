@@ -6,7 +6,7 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [13.3.?2?] - 2025-??-??
+## [13.3.2] - 2025-01-09
 #### Fixed
 - Corrected predefined Drep wallet data querying in light (api) mode - should address StringToDecodeMissingSeparatorChar errors
 
