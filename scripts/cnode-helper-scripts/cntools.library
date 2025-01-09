@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=3
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -2178,9 +2178,9 @@ getRewardInfoKoios() {
       rewards_available["${stake_address}"]="${rewards_available}"
       [[ -n ${delegated_pool} ]] && pool_delegations["${stake_address}"]="${delegated_pool}"
       if [[ -n ${delegated_drep} ]]; then
-        if [[ ${delegated_drep} = always_abstain ]]; then
+        if [[ ${delegated_drep} = drep_always_abstain ]]; then
           vote_delegations["${stake_address}"]="alwaysAbstain"; return
-        elif [[ ${delegated_drep} = always_no_confidence ]]; then
+        elif [[ ${delegated_drep} = drep_always_no_confidence ]]; then
           vote_delegations["${stake_address}"]="alwaysNoConfidence"; return
         fi
         # convert to cli format <type>-<hash>
