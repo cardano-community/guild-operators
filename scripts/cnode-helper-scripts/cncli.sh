@@ -117,7 +117,7 @@ getPoolVrfVkeyCborHex() {
 }
 
 getLedgerData() { # getNodeMetrics expected to have been already run
-  if ! stake_snapshot=$(${CCLI} ${NETWORK_ERA} query stake-snapshot --stake-pool-id ${POOL_ID} ${NETWORK_IDENTIFIER} 2>&1); then
+  if ! stake_snapshot=$(${CCLI} query stake-snapshot --stake-pool-id ${POOL_ID} ${NETWORK_IDENTIFIER} 2>&1); then
     echo "ERROR: stake-snapshot query failed: ${stake_snapshot}"
     return 1
   fi

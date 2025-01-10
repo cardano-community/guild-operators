@@ -840,10 +840,10 @@ getPoolID() {
   pool_id_bech32=""
   pool_coldkey_vk_file="${pool_dir}/${POOL_COLDKEY_VK_FILENAME}"
   if [[ -f ${pool_coldkey_vk_file} ]]; then
-    [[ $(type -t println) = function ]] && println ACTION "${CCLI} ${NETWORK_ERA} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file} --output-format hex"
-    [[ $(type -t println) = function ]] && println ACTION "${CCLI} ${NETWORK_ERA} stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file}"
-    if ! pool_id=$(${CCLI} ${NETWORK_ERA} stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null) || \
-       ! pool_id_bech32=$(${CCLI} ${NETWORK_ERA} stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null); then
+    [[ $(type -t println) = function ]] && println ACTION "${CCLI} latest stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file} --output-format hex"
+    [[ $(type -t println) = function ]] && println ACTION "${CCLI} latest stake-pool id --cold-verification-key-file ${pool_coldkey_vk_file}"
+    if ! pool_id=$(${CCLI} latest stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" --output-format hex 2>/dev/null) || \
+       ! pool_id_bech32=$(${CCLI} latest stake-pool id --cold-verification-key-file "${pool_coldkey_vk_file}" 2>/dev/null); then
       return 1
     fi
     echo ${pool_id} > "${pool_id_file}"
@@ -870,7 +870,7 @@ getProtocolParams() {
       return 3
     fi
   else
-    PROT_PARAMS="$(${CCLI} ${NETWORK_ERA} query protocol-parameters ${NETWORK_IDENTIFIER} 2>&1)"
+    PROT_PARAMS="$(${CCLI} query protocol-parameters ${NETWORK_IDENTIFIER} 2>&1)"
     if grep -q "Network.Socket.connect" <<< "${PROT_PARAMS}"; then
       return 1
     elif [[ -z "${PROT_PARAMS}" ]] || ! jq -er . <<< "${PROT_PARAMS}" &>/dev/null; then
