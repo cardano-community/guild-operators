@@ -36,7 +36,7 @@ check_process() {
     local process_name="$1"
     local cpu_threshold="$2"
 
-    for (( CHECK=1; CHECK<=RETRIES; CHECK++ )); do
+    for (( CHECK=0; CHECK<=RETRIES; CHECK++ )); do
         # Check CPU usage of the process
         CPU_USAGE=$(ps -C "$process_name" -o %cpu= | awk '{s+=$1} END {print int(s + 0.5)}')
 
