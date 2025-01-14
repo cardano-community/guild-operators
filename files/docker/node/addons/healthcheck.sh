@@ -149,7 +149,6 @@ check_process() {
             continue
         fi
 
-        # Check if ENTRYPOINT_PROCESS is in the SLEEPING_SCRIPTS array
         if ! pgrep -x "$process_name" > /dev/null && ! pgrep -x "sleep" > /dev/null; then
             echo "Error: '$process_name' is not running, and no 'sleep' process found"
             return 3  # Return 3 if the process is not running and sleep is not found
