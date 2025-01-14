@@ -1934,7 +1934,7 @@ getBalance() {
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
   
-  if [[ -z ${1} ]] || ! utxo_raw=$({CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
+  if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
   [[ -z ${utxo_raw} ]] && return
   
   while IFS= read -r line; do
@@ -2203,8 +2203,8 @@ getRewardInfoKoios() {
 getRewardsFromAddr() {
   unset stake_address pool_delegation vote_delegation
   reward_lovelace=0; stake_deposit=0
-  println ACTION "{CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
-  ! stake_address_info=$({CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}) && println "ERROR" "\n${FG_RED}NODE CLI ERROR${NC}: ${stake_address_info}\n" && return 1 # print error and return
+  println ACTION "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
+  ! stake_address_info=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}) && println "ERROR" "\n${FG_RED}NODE CLI ERROR${NC}: ${stake_address_info}\n" && return 1 # print error and return
   IFS=',' read -r stake_address reward_lovelace stake_deposit pool_delegation vote_delegation < <( jq -cr '"\(.[0].address//""),\(.[0].rewardAccountBalance//0),\(.[0].delegationDeposit//0),\(.[0].stakeDelegation//""),\(.[0].voteDelegation//"")"' <<< "${stake_address_info}" )
 }
 
@@ -3859,8 +3859,8 @@ rotatePoolKeys() {
       println ERROR "\n${FG_RED}ERROR${NC}: failure during operational certificate counter creation!\n${stdout}"; return 1
     fi
   elif [[ -f ${pool_opcert_file} ]]; then
-    println ACTION "{CCLI} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
-    if ! kes_period_info=$({CCLI} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
+    println ACTION "${CCLI} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
+    if ! kes_period_info=$(${CCLI} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
       println "ERROR" "\n${FG_RED}ERROR${NC}: failed to grab counter from node: [${kes_period_info}]\n" && return 1
     fi
     if old_counter_nbr=$(awk '/{/,0' <<< "${kes_period_info}" | jq -er '.qKesNodeStateOperationalCertificateNumber' 2>/dev/null); then
