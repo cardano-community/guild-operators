@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=3
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=2
+CNTOOLS_PATCH_VERSION=3
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -571,7 +571,7 @@ selectWallet() {
           getBalance ${base_addr}
           balances["${base_addr}"]=${assets[lovelace]}
           if [[ -n ${reward_addr} ]]; then
-            delegation_pool_id=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
+            delegation_pool_id=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
             [[ -n ${delegation_pool_id} ]] && pool_delegations[${reward_addr}]=${delegation_pool_id}
           fi
         else
@@ -1006,8 +1006,8 @@ verifyTx() {
       ! num_confirmations=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_tx_hashes":["'${tx_id}'"]}' "${KOIOS_API}/tx_status?select=num_confirmations" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${num_confirmations}\n" && return 1 # print error and return
       result=$(tail -n +2 <<< ${num_confirmations})
     else
-      println ACTION "${CCLI} ${NETWORK_ERA} query utxo --tx-in ${tx_id}#0 ${NETWORK_IDENTIFIER}| tail -n +3"
-      result=$(${CCLI} ${NETWORK_ERA} query utxo --tx-in "${tx_id}#0" ${NETWORK_IDENTIFIER}| tail -n +3)
+      println ACTION "${CCLI} query utxo --tx-in ${tx_id}#0 ${NETWORK_IDENTIFIER}| tail -n +3"
+      result=$(${CCLI} query utxo --tx-in "${tx_id}#0" ${NETWORK_IDENTIFIER}| tail -n +3)
     fi
     [[ -n "${result}" ]] && { println DEBUG "\nTx put on chain !!"; break; } || printf .
   done
@@ -1024,16 +1024,16 @@ getPayAddress() {
   payment_addr_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_ADDR_FILENAME}"
   [[ -f ${payment_addr_file} ]] && pay_addr=$(cat "${payment_addr_file}") && return 0
   if [[ -f "${payment_vk_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println ACTION "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       pay_addr=$(cat "${payment_addr_file}")
       return 0
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during payment address creation!\n${stdout}"
     fi
   elif [[ -f "${payment_script_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-script-file ${payment_script_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-script-file "${payment_script_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println ACTION "${CCLI} address build --payment-script-file ${payment_script_file} --out-file ${payment_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} address build --payment-script-file "${payment_script_file}" --out-file "${payment_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       pay_addr=$(cat "${payment_addr_file}")
       return 0
     else
@@ -1071,8 +1071,8 @@ getGovKeyInfo() {
   [[ -f ${cc_hot_id_file} ]] && cc_hot_id=$(cat "${cc_hot_id_file}")
   [[ -f ${ms_drep_id_file} ]] && ms_drep_id=$(cat "${ms_drep_id_file}")
   if [[ -z ${drep_id} && -f ${drep_vk_file} ]]; then
-    println ACTION "${CCLI} conway governance drep id --drep-verification-key-file ${drep_vk_file}"
-    drep_id=$(${CCLI} conway governance drep id --drep-verification-key-file "${drep_vk_file}")
+    println ACTION "${CCLI} latest governance drep id --drep-verification-key-file ${drep_vk_file}"
+    drep_id=$(${CCLI} latest governance drep id --drep-verification-key-file "${drep_vk_file}")
     printf "${drep_id}" > "${drep_id_file}"
   elif [[ -z ${drep_id} && -f ${drep_script_file} ]]; then
     println ACTION "${CCLI} hash script --script-file ${drep_script_file}"
@@ -1080,18 +1080,18 @@ getGovKeyInfo() {
     printf "${drep_id}" > "${drep_id_file}"
   fi
   if [[ -z ${ms_drep_id} && -f ${ms_drep_vk_file} ]]; then
-    println ACTION "${CCLI} conway governance drep id --drep-verification-key-file ${ms_drep_vk_file}"
-    ms_drep_id=$(${CCLI} conway governance drep id --drep-verification-key-file "${ms_drep_vk_file}")
+    println ACTION "${CCLI} latest governance drep id --drep-verification-key-file ${ms_drep_vk_file}"
+    ms_drep_id=$(${CCLI} latest governance drep id --drep-verification-key-file "${ms_drep_vk_file}")
     printf "${ms_drep_id}" > "${ms_drep_id_file}"
   fi
   if [[ -z ${cc_cold_id} && -f ${cc_cold_vk_file} ]]; then
-    println ACTION "bech32 cc_cold <<< \$(${CCLI} conway governance committee key-hash --verification-key-file ${cc_cold_vk_file})"
-    cc_cold_id=$(bech32 cc_cold <<< "$(${CCLI} conway governance committee key-hash --verification-key-file "${cc_cold_vk_file}")")
+    println ACTION "bech32 cc_cold <<< \$(${CCLI} latest governance committee key-hash --verification-key-file ${cc_cold_vk_file})"
+    cc_cold_id=$(bech32 cc_cold <<< "$(${CCLI} latest governance committee key-hash --verification-key-file "${cc_cold_vk_file}")")
     printf "${cc_cold_id}" > "${cc_cold_id_file}"
   fi
   if [[ -z ${cc_hot_id} && -f ${cc_hot_vk_file} ]]; then
-    println ACTION "bech32 cc_hot <<< \$(${CCLI} conway governance committee key-hash --verification-key-file ${cc_hot_vk_file})"
-    cc_hot_id=$(bech32 cc_hot <<< "$(${CCLI} conway governance committee key-hash --verification-key-file "${cc_hot_vk_file}")")
+    println ACTION "bech32 cc_hot <<< \$(${CCLI} latest governance committee key-hash --verification-key-file ${cc_hot_vk_file})"
+    cc_hot_id=$(bech32 cc_hot <<< "$(${CCLI} latest governance committee key-hash --verification-key-file "${cc_hot_vk_file}")")
     printf "${cc_hot_id}" > "${cc_hot_id_file}"
   fi
   if [[ -n ${drep_id} ]]; then
@@ -1706,40 +1706,40 @@ getBaseAddress() {
   [[ -f ${base_addr_file} ]] && base_addr=$(cat "${base_addr_file}") && return 0
   unset base_addr
   if [[ -f "${payment_vk_file}" && -f "${stake_vk_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println ACTION "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       base_addr=$(cat "${base_addr_file}")
       return 0
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${stdout}"
     fi
   elif [[ -f "${payment_script_file}" && -f "${stake_script_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-script-file ${payment_script_file} --stake-script-file ${stake_script_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-script-file "${payment_script_file}" --stake-script-file "${stake_script_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println ACTION "${CCLI} address build --payment-script-file ${payment_script_file} --stake-script-file ${stake_script_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} address build --payment-script-file "${payment_script_file}" --stake-script-file "${stake_script_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       base_addr=$(cat "${base_addr_file}")
       return 0
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${stdout}"
     fi
   elif [[ -f "${payment_script_file}" && -f "${stake_vk_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-script-file ${payment_script_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-script-file "${payment_script_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println ACTION "${CCLI} address build --payment-script-file ${payment_script_file} --stake-verification-key-file ${stake_vk_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} address build --payment-script-file "${payment_script_file}" --stake-verification-key-file "${stake_vk_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       base_addr=$(cat "${base_addr_file}")
       return 0
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${stdout}"
     fi
   elif [[ -f "${payment_vk_file}" && -f "${stake_script_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${payment_vk_file} --stake-script-file ${stake_script_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${payment_vk_file}" --stake-script-file "${stake_script_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println ACTION "${CCLI} address build --payment-verification-key-file ${payment_vk_file} --stake-script-file ${stake_script_file} --out-file ${base_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} address build --payment-verification-key-file "${payment_vk_file}" --stake-script-file "${stake_script_file}" --out-file "${base_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       base_addr=$(cat "${base_addr_file}")
       return 0
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${stdout}"
     fi
   elif [[ $# -eq 2 && -f "${1}" && -f "${2}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file ${1} --stake-verification-key-file ${2} ${NETWORK_IDENTIFIER}"
-    if base_addr=$(${CCLI} ${NETWORK_ERA} address build --payment-verification-key-file "${1}" --stake-verification-key-file "${2}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println ACTION "${CCLI} address build --payment-verification-key-file ${1} --stake-verification-key-file ${2} ${NETWORK_IDENTIFIER}"
+    if base_addr=$(${CCLI} address build --payment-verification-key-file "${1}" --stake-verification-key-file "${2}" ${NETWORK_IDENTIFIER} 2>&1); then
       return 0
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during base address creation!\n${base_addr}"
@@ -1760,16 +1760,16 @@ getRewardAddress() {
   [[ -f "${stake_script_file}" ]] && is_reward_script_addr=true || is_reward_script_addr=false
   [[ -f ${stake_addr_file} ]] && reward_addr=$(cat "${stake_addr_file}") && return 0
   if [[ -f "${stake_vk_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file ${stake_vk_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println ACTION "${CCLI} latest stake-address build --stake-verification-key-file ${stake_vk_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} latest stake-address build --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       reward_addr=$(cat "${stake_addr_file}")
       return 0
     else
       println LOG "\n${FG_RED}ERROR${NC}: failure during reward address creation!\n${stdout}"
     fi
   elif [[ -f "${stake_script_file}" ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-script-file ${stake_script_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
-    if stdout=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-script-file "${stake_script_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+    println ACTION "${CCLI} latest stake-address build --stake-script-file ${stake_script_file} --out-file ${stake_addr_file} ${NETWORK_IDENTIFIER}"
+    if stdout=$(${CCLI} latest stake-address build --stake-script-file "${stake_script_file}" --out-file "${stake_addr_file}" ${NETWORK_IDENTIFIER} 2>&1); then
       reward_addr=$(cat "${stake_addr_file}")
       return 0
     else
@@ -1787,8 +1787,8 @@ getRewardAddress() {
 # Parameters  : stake key  >  path to stake.vkey file
 # Return      : populates ${reward_addr}
 getRewardAddressFromKey() {
-  println ACTION "${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file ${1} ${NETWORK_IDENTIFIER}"
-  if ! reward_addr=$(${CCLI} ${NETWORK_ERA} stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>&1); then
+  println ACTION "${CCLI} latest stake-address build --stake-verification-key-file ${1} ${NETWORK_IDENTIFIER}"
+  if ! reward_addr=$(${CCLI} latest stake-address build --stake-verification-key-file "${1}" ${NETWORK_IDENTIFIER} 2>&1); then
     println LOG "\n${FG_RED}ERROR${NC}: failure during reward address creation!\n${base_addr}"
     return 1
   fi
@@ -1803,8 +1803,8 @@ getCredential() {
   unset cred
   [[ ! -f "$2" ]] && return 1
   if [[ $1 = drep ]]; then
-    println ACTION "${CCLI} conway governance drep id --drep-verification-key-file $2 | bech32"
-    if ! _drep_id=$(${CCLI} conway governance drep id --drep-verification-key-file "$2" 2>&1); then
+    println ACTION "${CCLI} latest governance drep id --drep-verification-key-file $2 | bech32"
+    if ! _drep_id=$(${CCLI} latest governance drep id --drep-verification-key-file "$2" 2>&1); then
       println LOG "\n${FG_RED}ERROR${NC}: failure during key hash creation!\n${cred}"
       unset cred
       return 1
@@ -1812,8 +1812,8 @@ getCredential() {
     cred=$(bech32 <<< "${_drep_id}")
   else
     [[ $1 = payment ]] && CLI_ARGS=("--payment-verification-key-file" "$2") || CLI_ARGS=("--stake-verification-key-file" "$2")
-    println ACTION "${CCLI} ${NETWORK_ERA} address key-hash ${CLI_ARGS[*]}"
-    if ! cred=$(${CCLI} ${NETWORK_ERA} address key-hash "${CLI_ARGS[@]}" 2>&1); then
+    println ACTION "${CCLI} address key-hash ${CLI_ARGS[*]}"
+    if ! cred=$(${CCLI} address key-hash "${CLI_ARGS[@]}" 2>&1); then
       println LOG "\n${FG_RED}ERROR${NC}: failure during key hash creation!\n${cred}"
       unset cred
       return 1
@@ -1842,8 +1842,8 @@ getCredentials() {
   if [[ -z ${pay_cred} ]]; then
     payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_VK_FILENAME}"
     if [[ -f "${payment_vk_file}" ]]; then
-      println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${payment_vk_file} --out-file ${payment_cred_file}"
-      if stdout=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_cred_file}" 2>&1); then
+      println ACTION "${CCLI} address key-hash --payment-verification-key-file ${payment_vk_file} --out-file ${payment_cred_file}"
+      if stdout=$(${CCLI} address key-hash --payment-verification-key-file "${payment_vk_file}" --out-file "${payment_cred_file}" 2>&1); then
         pay_cred=$(cat "${payment_cred_file}")
       else
         println LOG "\n${FG_RED}ERROR${NC}: failure during payment key hash creation!\n${stdout}"
@@ -1854,8 +1854,8 @@ getCredentials() {
   if [[ -z ${stake_cred} ]]; then
     stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_VK_FILENAME}"
     if [[ -f "${stake_vk_file}" ]]; then
-      println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cred_file}"
-      if stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cred_file}" 2>&1); then
+      println ACTION "${CCLI} latest stake-address key-hash --stake-verification-key-file ${stake_vk_file} --out-file ${stake_cred_file}"
+      if stdout=$(${CCLI} latest stake-address key-hash --stake-verification-key-file "${stake_vk_file}" --out-file "${stake_cred_file}" 2>&1); then
         stake_cred=$(cat "${stake_cred_file}")
       else
         println LOG "\n${FG_RED}ERROR${NC}: failure during stake key hash creation!\n${stdout}"
@@ -1866,8 +1866,8 @@ getCredentials() {
   if [[ -z ${ms_pay_cred} ]]; then
     ms_payment_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
     if [[ -f "${ms_payment_vk_file}" ]]; then
-      println ACTION "${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file ${ms_payment_vk_file} --out-file ${ms_payment_cred_file}"
-      if stdout=$(${CCLI} ${NETWORK_ERA} address key-hash --payment-verification-key-file "${ms_payment_vk_file}" --out-file "${ms_payment_cred_file}" 2>&1); then
+      println ACTION "${CCLI} address key-hash --payment-verification-key-file ${ms_payment_vk_file} --out-file ${ms_payment_cred_file}"
+      if stdout=$(${CCLI} address key-hash --payment-verification-key-file "${ms_payment_vk_file}" --out-file "${ms_payment_cred_file}" 2>&1); then
         ms_pay_cred=$(cat "${ms_payment_cred_file}")
       else
         println LOG "\n${FG_RED}ERROR${NC}: failure during MultiSig payment key hash creation!\n${stdout}"
@@ -1878,8 +1878,8 @@ getCredentials() {
   if [[ -z ${ms_stake_cred} ]]; then
     ms_stake_vk_file="${WALLET_FOLDER}/${1}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
     if [[ -f "${ms_stake_vk_file}" ]]; then
-      println ACTION "${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file ${ms_stake_vk_file} --out-file ${ms_stake_cred_file}"
-      if stdout=$(${CCLI} ${NETWORK_ERA} stake-address key-hash --stake-verification-key-file "${ms_stake_vk_file}" --out-file "${ms_stake_cred_file}" 2>&1); then
+      println ACTION "${CCLI} latest stake-address key-hash --stake-verification-key-file ${ms_stake_vk_file} --out-file ${ms_stake_cred_file}"
+      if stdout=$(${CCLI} latest stake-address key-hash --stake-verification-key-file "${ms_stake_vk_file}" --out-file "${ms_stake_cred_file}" 2>&1); then
         ms_stake_cred=$(cat "${ms_stake_cred_file}")
       else
         println LOG "\n${FG_RED}ERROR${NC}: failure during MultiSig stake key hash creation!\n${stdout}"
@@ -1890,8 +1890,8 @@ getCredentials() {
   if [[ -z ${script_pay_cred} ]]; then
     payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
     if [[ -f "${payment_script_file}" ]]; then
-      println ACTION "${CCLI} ${NETWORK_ERA} transaction policyid --script-file ${payment_script_file} --out-file ${script_payment_cred_file}"
-      if stdout=$(${CCLI} ${NETWORK_ERA} transaction policyid --script-file "${payment_script_file}" --out-file "${script_payment_cred_file}" 2>&1); then
+      println ACTION "${CCLI} latest transaction policyid --script-file ${payment_script_file} --out-file ${script_payment_cred_file}"
+      if stdout=$(${CCLI} latest transaction policyid --script-file "${payment_script_file}" --out-file "${script_payment_cred_file}" 2>&1); then
         script_pay_cred=$(cat "${script_payment_cred_file}")
       else
         println LOG "\n${FG_RED}ERROR${NC}: failure during script payment policy creation!\n${stdout}"
@@ -1902,8 +1902,8 @@ getCredentials() {
   if [[ -z ${script_stake_cred} ]]; then
     stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
     if [[ -f "${stake_script_file}" ]]; then
-      println ACTION "${CCLI} ${NETWORK_ERA} transaction policyid --script-file ${stake_script_file} --out-file ${script_stake_cred_file}"
-      if stdout=$(${CCLI} ${NETWORK_ERA} transaction policyid --script-file "${stake_script_file}" --out-file "${script_stake_cred_file}" 2>&1); then
+      println ACTION "${CCLI} latest transaction policyid --script-file ${stake_script_file} --out-file ${script_stake_cred_file}"
+      if stdout=$(${CCLI} latest transaction policyid --script-file "${stake_script_file}" --out-file "${script_stake_cred_file}" 2>&1); then
         script_stake_cred=$(cat "${script_stake_cred_file}")
       else
         println LOG "\n${FG_RED}ERROR${NC}: failure during script stake policy creation!\n${stdout}"
@@ -1918,8 +1918,8 @@ getCredentials() {
 # Parameters  : address  >  the wallet address to query
 # Return      : populates ${address_info}
 getAddressInfo() {
-  println ACTION "${CCLI} ${NETWORK_ERA} address info --address $1"
-  if ! address_info=$(${CCLI} ${NETWORK_ERA} address info --address $1 2>&1); then
+  println ACTION "${CCLI} address info --address $1"
+  if ! address_info=$(${CCLI} address info --address $1 2>&1); then
     println LOG "\n${FG_RED}ERROR${NC}: failure during reward address creation!\n${base_addr}"
     return 1
   fi
@@ -1934,7 +1934,7 @@ getBalance() {
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
   
-  if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} ${NETWORK_ERA} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
+  if [[ -z ${1} ]] || ! utxo_raw=$({CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
   [[ -z ${utxo_raw} ]] && return
   
   while IFS= read -r line; do
@@ -2119,7 +2119,7 @@ getAssetsTxOut() {
 getMinUTxO() {
   unset min_utxo_out
   min_utxo_args=(
-    ${NETWORK_ERA}
+    latest
     transaction calculate-min-required-utxo
     --protocol-params-file "${TMP_DIR}"/protparams.json
     --tx-out "$1"
@@ -2203,8 +2203,8 @@ getRewardInfoKoios() {
 getRewardsFromAddr() {
   unset stake_address pool_delegation vote_delegation
   reward_lovelace=0; stake_deposit=0
-  println ACTION "${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
-  ! stake_address_info=$(${CCLI} ${NETWORK_ERA} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}) && println "ERROR" "\n${FG_RED}NODE CLI ERROR${NC}: ${stake_address_info}\n" && return 1 # print error and return
+  println ACTION "{CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
+  ! stake_address_info=$({CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}) && println "ERROR" "\n${FG_RED}NODE CLI ERROR${NC}: ${stake_address_info}\n" && return 1 # print error and return
   IFS=',' read -r stake_address reward_lovelace stake_deposit pool_delegation vote_delegation < <( jq -cr '"\(.[0].address//""),\(.[0].rewardAccountBalance//0),\(.[0].delegationDeposit//0),\(.[0].stakeDelegation//""),\(.[0].voteDelegation//"")"' <<< "${stake_address_info}" )
 }
 
@@ -2578,68 +2578,68 @@ createMnemonicWallet() {
 				"cborHex": "5880${drep_es_key}"
 		}
 		EOF
-  println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_DIR}/payment.evkey"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_DIR}/payment.evkey" 2>&1); then
+  println ACTION "${CCLI} key verification-key --signing-key-file ${payment_sk_file} --verification-key-file ${TMP_DIR}/payment.evkey"
+  if ! stdout=$(${CCLI} key verification-key --signing-key-file "${payment_sk_file}" --verification-key-file "${TMP_DIR}/payment.evkey" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during payment extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_DIR}/stake.evkey"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_DIR}/stake.evkey" 2>&1); then
+  println ACTION "${CCLI} key verification-key --signing-key-file ${stake_sk_file} --verification-key-file ${TMP_DIR}/stake.evkey"
+  if ! stdout=$(${CCLI} key verification-key --signing-key-file "${stake_sk_file}" --verification-key-file "${TMP_DIR}/stake.evkey" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} conway key verification-key --signing-key-file ${drep_sk_file} --verification-key-file ${TMP_DIR}/drep.evkey"
-  if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${drep_sk_file}" --verification-key-file "${TMP_DIR}/drep.evkey" 2>&1); then
+  println ACTION "${CCLI} latest key verification-key --signing-key-file ${drep_sk_file} --verification-key-file ${TMP_DIR}/drep.evkey"
+  if ! stdout=$(${CCLI} latest key verification-key --signing-key-file "${drep_sk_file}" --verification-key-file "${TMP_DIR}/drep.evkey" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} conway key verification-key --signing-key-file ${cc_cold_sk_file} --verification-key-file ${TMP_DIR}/cc-cold.evkey"
-  if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${cc_cold_sk_file}" --verification-key-file "${TMP_DIR}/cc-cold.evkey" 2>&1); then
+  println ACTION "${CCLI} latest key verification-key --signing-key-file ${cc_cold_sk_file} --verification-key-file ${TMP_DIR}/cc-cold.evkey"
+  if ! stdout=$(${CCLI} latest key verification-key --signing-key-file "${cc_cold_sk_file}" --verification-key-file "${TMP_DIR}/cc-cold.evkey" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-cold extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} conway key verification-key --signing-key-file ${cc_hot_sk_file} --verification-key-file ${TMP_DIR}/cc-hot.evkey"
-  if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${cc_hot_sk_file}" --verification-key-file "${TMP_DIR}/cc-hot.evkey" 2>&1); then
+  println ACTION "${CCLI} latest key verification-key --signing-key-file ${cc_hot_sk_file} --verification-key-file ${TMP_DIR}/cc-hot.evkey"
+  if ! stdout=$(${CCLI} latest key verification-key --signing-key-file "${cc_hot_sk_file}" --verification-key-file "${TMP_DIR}/cc-hot.evkey" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-hot extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${ms_payment_sk_file} --verification-key-file ${TMP_DIR}/ms_payment.evkey"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${ms_payment_sk_file}" --verification-key-file "${TMP_DIR}/ms_payment.evkey" 2>&1); then
+  println ACTION "${CCLI} key verification-key --signing-key-file ${ms_payment_sk_file} --verification-key-file ${TMP_DIR}/ms_payment.evkey"
+  if ! stdout=$(${CCLI} key verification-key --signing-key-file "${ms_payment_sk_file}" --verification-key-file "${TMP_DIR}/ms_payment.evkey" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${ms_stake_sk_file} --verification-key-file ${TMP_DIR}/ms_stake.evkey"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${ms_stake_sk_file}" --verification-key-file "${TMP_DIR}/ms_stake.evkey" 2>&1); then
+  println ACTION "${CCLI} key verification-key --signing-key-file ${ms_stake_sk_file} --verification-key-file ${TMP_DIR}/ms_stake.evkey"
+  if ! stdout=$(${CCLI} key verification-key --signing-key-file "${ms_stake_sk_file}" --verification-key-file "${TMP_DIR}/ms_stake.evkey" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} conway key verification-key --signing-key-file ${ms_drep_sk_file} --verification-key-file ${TMP_DIR}/ms_drep.evkey"
-  if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${ms_drep_sk_file}" --verification-key-file "${TMP_DIR}/ms_drep.evkey" 2>&1); then
+  println ACTION "${CCLI} latest key verification-key --signing-key-file ${ms_drep_sk_file} --verification-key-file ${TMP_DIR}/ms_drep.evkey"
+  if ! stdout=$(${CCLI} latest key verification-key --signing-key-file "${ms_drep_sk_file}" --verification-key-file "${TMP_DIR}/ms_drep.evkey" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}" 2>&1); then
+  println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/payment.evkey --verification-key-file ${payment_vk_file}"
+  if ! stdout=$(${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/payment.evkey" --verification-key-file "${payment_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during payment verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/stake.evkey --verification-key-file ${stake_vk_file}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}" 2>&1); then
+  println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/stake.evkey --verification-key-file ${stake_vk_file}"
+  if ! stdout=$(${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/stake.evkey" --verification-key-file "${stake_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/drep.evkey --verification-key-file ${drep_vk_file}"
-  if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/drep.evkey" --verification-key-file "${drep_vk_file}" 2>&1); then
+  println ACTION "${CCLI} latest key non-extended-key --extended-verification-key-file ${TMP_DIR}/drep.evkey --verification-key-file ${drep_vk_file}"
+  if ! stdout=$(${CCLI} latest key non-extended-key --extended-verification-key-file "${TMP_DIR}/drep.evkey" --verification-key-file "${drep_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-cold.evkey --verification-key-file ${cc_cold_vk_file}"
-  if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-cold.evkey" --verification-key-file "${cc_cold_vk_file}" 2>&1); then
+  println ACTION "${CCLI} latest key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-cold.evkey --verification-key-file ${cc_cold_vk_file}"
+  if ! stdout=$(${CCLI} latest key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-cold.evkey" --verification-key-file "${cc_cold_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-cold verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-hot.evkey --verification-key-file ${cc_hot_vk_file}"
-  if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-hot.evkey" --verification-key-file "${cc_hot_vk_file}" 2>&1); then
+  println ACTION "${CCLI} latest key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-hot.evkey --verification-key-file ${cc_hot_vk_file}"
+  if ! stdout=$(${CCLI} latest key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-hot.evkey" --verification-key-file "${cc_hot_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-hot verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_payment.evkey --verification-key-file ${ms_payment_vk_file}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_payment.evkey" --verification-key-file "${ms_payment_vk_file}" 2>&1); then
+  println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_payment.evkey --verification-key-file ${ms_payment_vk_file}"
+  if ! stdout=$(${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_payment.evkey" --verification-key-file "${ms_payment_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_stake.evkey --verification-key-file ${ms_stake_vk_file}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_stake.evkey" --verification-key-file "${ms_stake_vk_file}" 2>&1); then
+  println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_stake.evkey --verification-key-file ${ms_stake_vk_file}"
+  if ! stdout=$(${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_stake.evkey" --verification-key-file "${ms_stake_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
-  println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_drep.evkey --verification-key-file ${ms_drep_vk_file}"
-  if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_drep.evkey" --verification-key-file "${ms_drep_vk_file}" 2>&1); then
+  println ACTION "${CCLI} latest key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_drep.evkey --verification-key-file ${ms_drep_vk_file}"
+  if ! stdout=$(${CCLI} latest key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_drep.evkey" --verification-key-file "${ms_drep_vk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
   fi
   chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
@@ -2729,8 +2729,8 @@ registerStakeWallet() {
     stake_param+=("--key-reg-deposit-amt" ${KEY_DEPOSIT})
   fi
 
-  println ACTION "${CCLI} ${NETWORK_ERA} stake-address registration-certificate ${stake_param[*]} --out-file ${stake_cert_file}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address registration-certificate "${stake_param[@]}" --out-file "${stake_cert_file}" 2>&1); then
+  println ACTION "${CCLI} latest stake-address registration-certificate ${stake_param[*]} --out-file ${stake_cert_file}"
+  if ! stdout=$(${CCLI} latest stake-address registration-certificate "${stake_param[@]}" --out-file "${stake_cert_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake registration certificate creation!\n${stdout}"; return 1
   fi
 
@@ -2864,8 +2864,8 @@ deregisterStakeWallet() {
   fi
 
   stake_dereg_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_DEREG_FILENAME}"
-  println ACTION "${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate ${stake_param[*]} --out-file ${stake_dereg_file}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address deregistration-certificate "${stake_param[@]}" --out-file "${stake_dereg_file}" 2>&1); then
+  println ACTION "${CCLI} latest stake-address deregistration-certificate ${stake_param[*]} --out-file ${stake_dereg_file}"
+  if ! stdout=$(${CCLI} latest stake-address deregistration-certificate "${stake_param[@]}" --out-file "${stake_dereg_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake deregistration certificate creation!\n${stdout}"; return 1
   fi
 
@@ -3154,8 +3154,8 @@ delegate() {
   fi
 
   pool_delegcert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DELEGCERT_FILENAME}"
-  println ACTION "${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate ${stake_param[*]} --stake-pool-id ${pool_id} --out-file ${pool_delegcert_file}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} stake-address stake-delegation-certificate "${stake_param[@]}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}" 2>&1); then
+  println ACTION "${CCLI} latest stake-address stake-delegation-certificate ${stake_param[*]} --stake-pool-id ${pool_id} --out-file ${pool_delegcert_file}"
+  if ! stdout=$(${CCLI} latest stake-address stake-delegation-certificate "${stake_param[@]}" --stake-pool-id "${pool_id}" --out-file "${pool_delegcert_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during stake delegation certificate creation!\n${stdout}"; return 1
   fi
 
@@ -3818,8 +3818,8 @@ rotatePoolKeys() {
   pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
 
   if [[ ! -f ${pool_coldkey_vk_file} ]]; then # lets re-generate it from cold signing key
-    println ACTION "${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file ${pool_coldkey_sk_file} --verification-key-file ${pool_coldkey_vk_file}"
-    if ! stdout=$(${CCLI} ${NETWORK_ERA} key verification-key --signing-key-file "${pool_coldkey_sk_file}" --verification-key-file "${pool_coldkey_vk_file}" 2>&1); then
+    println ACTION "${CCLI} key verification-key --signing-key-file ${pool_coldkey_sk_file} --verification-key-file ${pool_coldkey_vk_file}"
+    if ! stdout=$(${CCLI} key verification-key --signing-key-file "${pool_coldkey_sk_file}" --verification-key-file "${pool_coldkey_vk_file}" 2>&1); then
       println ERROR "\n${FG_RED}ERROR${NC}: failure during cold verification key creation!\n${stdout}"; return 1
     fi
     println ACTION "jq '.description = \"Stake Pool Operator Verification Key\"' ${pool_coldkey_vk_file}"
@@ -3833,15 +3833,15 @@ rotatePoolKeys() {
   current_kes_period=$(getCurrentKESperiod)
   echo "${current_kes_period}" > ${pool_saved_kes_start}
 
-  println ACTION "${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" 2>&1); then
+  println ACTION "${CCLI} node key-gen-KES --verification-key-file ${pool_hotkey_vk_file} --signing-key-file ${pool_hotkey_sk_file}"
+  if ! stdout=$(${CCLI} node key-gen-KES --verification-key-file "${pool_hotkey_vk_file}" --signing-key-file "${pool_hotkey_sk_file}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during KES key creation!\n${stdout}"; return 1
   fi
 
   p_opcert=""
   if [[ $# -eq 1 ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $1 --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-    if ! stdout=$(${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $1 --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" 2>&1); then
+    println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value $1 --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+    if ! stdout=$(${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value $1 --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" 2>&1); then
       println ERROR "\n${FG_RED}ERROR${NC}: failure during operational certificate counter creation!\n${stdout}"; return 1
     fi
   elif [[ -n ${KOIOS_API} ]]; then
@@ -3854,13 +3854,13 @@ rotatePoolKeys() {
     else
       new_counter_nbr=0 # null returned = no block on chain for this pool
     fi
-    println ACTION "${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-    if ! stdout=$(${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" 2>&1); then
+    println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+    if ! stdout=$(${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" 2>&1); then
       println ERROR "\n${FG_RED}ERROR${NC}: failure during operational certificate counter creation!\n${stdout}"; return 1
     fi
   elif [[ -f ${pool_opcert_file} ]]; then
-    println ACTION "${CCLI} ${NETWORK_ERA} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
-    if ! kes_period_info=$(${CCLI} ${NETWORK_ERA} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
+    println ACTION "{CCLI} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
+    if ! kes_period_info=$({CCLI} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
       println "ERROR" "\n${FG_RED}ERROR${NC}: failed to grab counter from node: [${kes_period_info}]\n" && return 1
     fi
     if old_counter_nbr=$(awk '/{/,0' <<< "${kes_period_info}" | jq -er '.qKesNodeStateOperationalCertificateNumber' 2>/dev/null); then
@@ -3868,8 +3868,8 @@ rotatePoolKeys() {
     else
       new_counter_nbr=0 # null returned = no block on chain for this pool
     fi
-    println ACTION "${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
-    if ! stdout=$(${CCLI} ${NETWORK_ERA} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" 2>&1); then
+    println ACTION "${CCLI} node new-counter --cold-verification-key-file ${pool_coldkey_vk_file} --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file ${pool_opcert_counter_file}"
+    if ! stdout=$(${CCLI} node new-counter --cold-verification-key-file "${pool_coldkey_vk_file}" --counter-value ${new_counter_nbr} --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" 2>&1); then
       println ERROR "\n${FG_RED}ERROR${NC}: failure during operational certificate counter creation!\n${stdout}"; return 1
     fi
   else
@@ -3888,8 +3888,8 @@ rotatePoolKeys() {
       println ERROR "\n${FG_RED}ERROR${NC}: failure during hardware operational certificate creation!\n${stdout}"; return 1
     fi
   else
-    println ACTION "${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
-    if ! stdout=$(${CCLI} ${NETWORK_ERA} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" 2>&1); then
+    println ACTION "${CCLI} node issue-op-cert --kes-verification-key-file ${pool_hotkey_vk_file} --cold-signing-key-file ${pool_coldkey_sk_file} --operational-certificate-issue-counter-file ${pool_opcert_counter_file} --kes-period ${current_kes_period} --out-file ${pool_opcert_file}"
+    if ! stdout=$(${CCLI} node issue-op-cert --kes-verification-key-file "${pool_hotkey_vk_file}" --cold-signing-key-file "${pool_coldkey_sk_file}" --operational-certificate-issue-counter-file "${pool_opcert_counter_file}" --kes-period "${current_kes_period}" --out-file "${pool_opcert_file}" 2>&1); then
       println ERROR "\n${FG_RED}ERROR${NC}: failure during operational certificate creation!\n${stdout}"; return 1
     fi
   fi
@@ -4333,7 +4333,7 @@ voteDelegation() {
 
   vote_deleg_cert_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_VOTE_DELEG_CERT_FILENAME}"
   VOTE_DELEG_CMD=(
-    ${CCLI} ${NETWORK_ERA} stake-address vote-delegation-certificate
+    ${CCLI} latest stake-address vote-delegation-certificate
     "${stake_param[@]}"
     "${vote_param_arr[@]}"
     --out-file "${vote_deleg_cert_file}"
@@ -4825,8 +4825,8 @@ governanceVote() {
 #             : populate an array variable called 'build_args' with all data
 # Parameters  : out_file  >  (optional) output file of tx build command needed for HW transform
 buildTx() {
-  println ACTION "${CCLI} ${NETWORK_ERA} transaction build-raw ${build_args[*]}"
-  if ! stdout=$(${CCLI} ${NETWORK_ERA} transaction build-raw "${build_args[@]}" 2>&1); then
+  println ACTION "${CCLI} latest transaction build-raw ${build_args[*]}"
+  if ! stdout=$(${CCLI} latest transaction build-raw "${build_args[@]}" 2>&1); then
     println ERROR "\n${FG_RED}ERROR${NC}: failure during transaction building!\n${stdout}"; return 1
   fi
   if [[ -n $1 ]] && command -v "cardano-hw-cli" &>/dev/null; then
@@ -4843,7 +4843,7 @@ buildTx() {
 #               $4 = Count of witnesses required to sign the transaction
 calcMinFee() {
   min_fee_args=(
-    ${NETWORK_ERA}
+    latest
     transaction calculate-min-fee
     --tx-body-file "$1"
     --tx-in-count $2
@@ -4899,7 +4899,7 @@ witnessTx() {
     else
       tx_witness="$(mktemp "${TMP_DIR}/tx.witness_XXXXXXXXXX")"
       witness_command=(
-        ${CCLI} ${NETWORK_ERA} transaction witness
+        ${CCLI} latest transaction witness
         --tx-body-file "${tx_raw}"
         --signing-key-file "${skey}"
         ${NETWORK_IDENTIFIER}
@@ -4936,7 +4936,7 @@ assembleTx() {
       fi
     done
     sign_command=(
-      ${CCLI} ${NETWORK_ERA} transaction assemble
+      ${CCLI} latest transaction assemble
       --tx-body-file "${tx_raw}"
       ${tx_witness_out[@]}
       --out-file "${tx_signed}"
@@ -4980,7 +4980,7 @@ submitTx() {
 submitTxNode() {
   getTxId $1 || return $?
   submit_command=(
-    ${CCLI} ${NETWORK_ERA} transaction submit
+    ${CCLI} latest transaction submit
     --tx-file "$1"
     ${NETWORK_IDENTIFIER}
   )
@@ -4994,7 +4994,7 @@ submitTxNode() {
 # Info        : tx_id set to hash of transaction body
 getTxId() {
   txid_command=(
-    ${CCLI} ${NETWORK_ERA} transaction txid
+    ${CCLI} latest transaction txid
     --tx-file "$1"
   )
   println ACTION "${txid_command[@]}"
