@@ -116,7 +116,7 @@ check_node() {
         URL="${KOIOS_API}/tip"
         SECOND=$($CURL -s "${URL}" | $JQ '.[0].block_no')
 
-        for (( CHECK=1; CHECK<=HEALTHCHECK_RETRIES; CHECK++ )); do
+        for (( CHECK=0; CHECK<=HEALTHCHECK_RETRIES; CHECK++ )); do
             if [[ "$FIRST" -eq "$SECOND" ]]; then
                 echo "We're healthy - node: $FIRST == koios: $SECOND"
                 return 0
