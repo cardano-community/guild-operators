@@ -222,8 +222,8 @@ cncliInit() {
   if ! mkdir -p "${TMP_DIR}" 2>/dev/null; then echo "ERROR: Failed to create directory for temporary files: ${TMP_DIR}"; exit 1; fi
   
   [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'guild-deploy.sh'\n" && exit 1
-  CNCLI_VERSION="v$(cncli -V | cut -d' ' -f2)"
-  if ! versionCheck "6.0.0" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, minimum required version is 6.0.0, please upgrade to latest version!"; exit 1; fi
+  CNCLI_VERSION="$(${CNCLI} -V | cut -d' ' -f2)"
+  if ! versionCheck "6.5.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, minimum required version is 6.5.1, please upgrade to latest version!"; exit 1; fi
   
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   if ! mkdir -p "${CNCLI_DIR}" 2>/dev/null; then echo "ERROR: Failed to create CNCLI DB directory: ${CNCLI_DIR}"; exit 1; fi
