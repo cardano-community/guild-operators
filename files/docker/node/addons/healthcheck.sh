@@ -1,73 +1,93 @@
 #!/bin/bash
 # shellcheck source=/dev/null
-#
+# shellcheck disable=SC2317
 ######################################
 # User Variables - Change as desired #
 # Common variables set in env file   #
 ######################################
 
-ENTRYPOINT_PROCESS="${ENTRYPOINT_PROCESS:-cnode.sh}"        # Get the script from ENTRYPOINT_PROCESS or default to "cnode.sh" if not set
-CPU_THRESHOLD="${CPU_THRESHOLD:-80}"                        # The CPU threshold to warn about if the sidecar process exceeds this for more than 60 seconds, defaults to 80%
-RETRIES="${RETRIES:-20}"                                    # The number of retries if tip is not incrementing, or cpu usage is over the threshold
+ENTRYPOINT_PROCESS="${ENTRYPOINT_PROCESS:-cnode.sh}"            # Get the script from ENTRYPOINT_PROCESS or default to "cnode.sh" if not set
+HEALTHCHECK_CPU_THRESHOLD="${HEALTHCHECK_CPU_THRESHOLD:-80}"    # The CPU threshold to warn about if the sidecar process exceeds this for more than 60 seconds, defaults to 80%.
+HEALTHCHECK_RETRIES="${HEALTHCHECK_RETRIES:-20}"                # The number of retries if tip is not incrementing, or cpu usage is over the threshold
+DB_SYNC_ALLOWED_DRIFT="${DB_SYNC_ALLOWED_DRIFT:-3600}"          # The allowed drift in seconds for the DB to be considered in sync
+CNCLI_DB_ALLOWED_DRIFT="${CNCLI_DB_ALLOWED_DRIFT:-300}"         # The allowed drift in slots for the CNCLI DB to be considered in sync
 
 ######################################
 # Do NOT modify code below           #
 ######################################
 
-if [[ "${ENTRYPOINT_PROCESS}" == "cnode.sh" ]]; then
-    source /opt/cardano/cnode/scripts/env
-else
-    # Source in offline mode for sidecar helper scripts
-    source /opt/cardano/cnode/scripts/env offline
-fi
+[[ ${0} != '-bash' ]] && PARENT="$(dirname $0)" || PARENT="$(pwd)"
+# Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
+[[ ! -f "${PARENT}"/env ]] && echo -e "\nCommon env file missing in \"${PARENT}\", please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
+. "${PARENT}"/env offline
 
-# Define a mapping of scripts to their corresponding binaries, when defined check the binary is running and its CPU usage instead of the wrapper script.
-declare -A SCRIPT_TO_BINARY_MAP
-SCRIPT_TO_BINARY_MAP=(
-    ["cncli.sh"]="cncli"
-    ["mithril-signer.sh"]="mithril-signer"
+# Define a mapping of scripts to their corresponding health check functions
+declare -A PROCESS_TO_HEALTHCHECK
+PROCESS_TO_HEALTHCHECK=(
+    ["dbsync.sh"]="check_db_sync"
+    ["cnode.sh"]="check_node"
+    ["cncli.sh"]="check_cncli"
 )
 
-# Define scripts which may sleep between executions of the binary.
-SLEEPING_SCRIPTS=("cncli.sh")
+# FUNCTIONS
+check_cncli() {
+    cncli_pid=$(pgrep -f "${ENTRYPOINT_PROCESS}")
+    cncli_subcmd=$(ps -p "${cncli_pid}" -o cmd= | awk '{print $NF}')
 
-# Function to check if a process is running and its CPU usage
-check_process() {
-    local process_name="$1"
-    local cpu_threshold="$2"
-
-    for (( CHECK=0; CHECK<=RETRIES; CHECK++ )); do
-        # Check CPU usage of the process
-        CPU_USAGE=$(ps -C "$process_name" -o %cpu= | awk '{s+=$1} END {print int(s + 0.5)}')
-
-        # Check if CPU usage exceeds threshold
-        if (( CPU_USAGE > cpu_threshold )); then
-            echo "Warning: High CPU usage detected for '$process_name' ($CPU_USAGE%)"
-            sleep 3  # Retry after a pause
-            continue
-        fi
-
-        # Check if ENTRYPOINT_PROCESS is in the SLEEPING_SCRIPTS array
-        if [[ " ${SLEEPING_SCRIPTS[@]} " =~ " ${ENTRYPOINT_PROCESS} " ]]; then
-            # If the process is in SLEEPING_SCRIPTS, check if either the process or 'sleep' is running
-            if ! pgrep -x "$process_name" > /dev/null && ! pgrep -x "sleep" > /dev/null; then
-                echo "Error: '$process_name' is not running, and no 'sleep' process found"
-                return 3  # Return 3 if the process is not running and sleep is not found
-            fi
+    if [[ "${cncli_subcmd}" != "ptsendtip" ]]; then
+        if check_cncli_db ; then
+            return 0
         else
-            # If the process is not in SLEEPING_SCRIPTS, only check for the specific process
-            if ! pgrep -x "$process_name" > /dev/null; then
-                echo "Error: '$process_name' is not running"
-                return 3  # Return 3 if the process is not running
-            fi
+            return 1
         fi
+    else
+        # No-op. placeholder for check_cncli_ptsendtip
+        :
+        # if ! check_cncli_ptsendtip; then
+        #     return 1
+        # else
+        #     return 0
+    fi
+}
 
-        echo "We're healthy - $process_name"
-        return 0  # Return 0 if the process is healthy
-    done
 
-    echo "Max retries reached for $process_name"
-    return 1  # Return 1 if retries are exhausted
+check_cncli_db() {
+    CCLI=$(which cardano-cli)
+    SQLITE=$(which sqlite3)
+    # Check if the DB is in sync
+    CNCLI_SLOT=$(${SQLITE} "${CNODE_HOME}/guild-db/cncli/cncli.db" 'select slot_number from chain order by id desc limit 1;')
+    NODE_SLOT=$(${CCLI} query tip --testnet-magic "${NWMAGIC}" | jq .slot)
+    if check_tip "${NODE_SLOT}" "${CNCLI_SLOT}" "${CNCLI_DB_ALLOWED_DRIFT}"  ; then
+        echo "We're healthy - DB is in sync"
+        return 0
+    else
+        echo "Error: DB is not in sync"
+        return 1
+    fi
+}
+
+
+check_db_sync() {
+    # Check if the DB is in sync
+    [[ -z "${PGPASSFILE}" ]] && PGPASSFILE="${CNODE_HOME}/priv/.pgpass"
+    if [[ ! -f "${PGPASSFILE}" ]]; then
+        echo "ERROR: The PGPASSFILE (${PGPASSFILE}) not found, please ensure you've followed the instructions on guild-operators website!" && exit 1
+        return 1
+    else
+        # parse the password from the pgpass file
+        IFS=':' read -r PGHOST PGPORT _ PGUSER PGPASSWORD < "${PGPASSFILE}"
+        PGDATABASE=cexplorer
+        export PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD
+    fi
+    CURRENT_TIME=$(date +%s)
+    LATEST_BLOCK_TIME=$(date --date="$(psql -qt -c 'select time from block order by id desc limit 1;')" +%s)
+    if check_tip "${CURRENT_TIME}""${LATEST_BLOCK_TIME}" "${DB_SYNC_ALLOWED_DRIFT}"; then
+        echo "We're healthy - DB is in sync"
+        return 0
+    else
+        echo "Error: DB is not in sync"
+        return 1
+    fi
 }
 
 
@@ -85,9 +105,10 @@ check_node() {
         SECOND=$($CCLI query tip --testnet-magic "${NWMAGIC}" | jq .block)
         if [[ "$FIRST" -ge "$SECOND" ]]; then
             echo "There is a problem"
-            exit 1
+            return 1
         else
             echo "We're healthy - node: $FIRST -> node: $SECOND"
+            return 0
         fi
     else
         CURL=$(which curl)
@@ -95,10 +116,10 @@ check_node() {
         URL="${KOIOS_API}/tip"
         SECOND=$($CURL -s "${URL}" | $JQ '.[0].block_no')
 
-        for (( CHECK=1; CHECK<=RETRIES; CHECK++ )); do
+        for (( CHECK=1; CHECK<=HEALTHCHECK_RETRIES; CHECK++ )); do
             if [[ "$FIRST" -eq "$SECOND" ]]; then
                 echo "We're healthy - node: $FIRST == koios: $SECOND"
-                exit 0
+                return 0
             elif [[ "$FIRST" -lt "$SECOND" ]]; then
                 sleep 3
                 FIRST=$($CCLI query tip --testnet-magic "${NWMAGIC}" | jq .block)
@@ -108,25 +129,66 @@ check_node() {
             fi
         done
         echo "There is a problem"
-        exit 1
+        return 1
     fi
 }
 
+# Function to check if a process is running and its CPU usage
+check_process() {
+    local process_name="$1"
+    local cpu_threshold="$2"
+
+    for (( CHECK=0; CHECK<=HEALTHCHECK_RETRIES; CHECK++ )); do
+        # Check CPU usage of the process
+        CPU_USAGE=$(ps -C "$process_name" -o %cpu= | awk '{s+=$1} END {print s}')
+
+        # Check if CPU usage exceeds threshold
+        if (( CPU_USAGE > cpu_threshold )); then
+            echo "Warning: High CPU usage detected for '$process_name' ($CPU_USAGE%)"
+            sleep 3  # Retry after a pause
+            continue
+        fi
+
+        # Check if ENTRYPOINT_PROCESS is in the SLEEPING_SCRIPTS array
+        if ! pgrep -x "$process_name" > /dev/null && ! pgrep -x "sleep" > /dev/null; then
+            echo "Error: '$process_name' is not running, and no 'sleep' process found"
+            return 3  # Return 3 if the process is not running and sleep is not found
+        fi
+
+        echo "We're healthy - $process_name"
+        return 0  # Return 0 if the process is healthy
+    done
+
+    echo "Max retries reached for $process_name"
+    return 1  # Return 1 if retries are exhausted
+}
+
+
+check_tip() {
+    TIP=$1
+    DB_TIP=$2
+    ALLOWED_DRIFT=$3
+
+    if [[ $(( TIP - DB_TIP )) -lt ${ALLOWED_DRIFT} ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+
 # MAIN
-if [[ "$ENTRYPOINT_PROCESS" == "cnode.sh" ]]; then
-    # The original health check logic for "cnode.sh"
-    check_node
+if [[ -n "${PROCESS_TO_HEALTHCHECK[$ENTRYPOINT_PROCESS]}" ]]; then
+    echo "Checking health for $ENTRYPOINT_PROCESS"
+    eval "${PROCESS_TO_HEALTHCHECK[$ENTRYPOINT_PROCESS]}"
+    exit $?
 else
+    # When 
     # Determine the process name or script to check health
     if [[ -n "${SCRIPT_TO_BINARY_MAP[$ENTRYPOINT_PROCESS]}" ]]; then
         process="${SCRIPT_TO_BINARY_MAP[$ENTRYPOINT_PROCESS]}"
     fi
     echo "Checking health for process: $process"
-    check_process "$process" "$CPU_THRESHOLD"
+    check_process "$process" "$HEALTHCHECK_CPU_THRESHOLD"
     exit $?
 fi
-
-# If all checks pass, return healthy status
-echo "Container is healthy"
-exit 0
-
