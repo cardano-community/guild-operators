@@ -9,6 +9,7 @@
 ENTRYPOINT_PROCESS="${ENTRYPOINT_PROCESS:-cnode.sh}"            # Get the script from ENTRYPOINT_PROCESS or default to "cnode.sh" if not set
 HEALTHCHECK_CPU_THRESHOLD="${HEALTHCHECK_CPU_THRESHOLD:-80}"    # The CPU threshold to warn about if the sidecar process exceeds this for more than 60 seconds, defaults to 80%.
 HEALTHCHECK_RETRIES="${HEALTHCHECK_RETRIES:-20}"                # The number of retries if tip is not incrementing, or cpu usage is over the threshold
+HEALTHCHECK_RETRY_WAIT="${HEALTHCHECK_RETRY_WAIT:-3}"           # The time (in seconds) to wait between retries
 DB_SYNC_ALLOWED_DRIFT="${DB_SYNC_ALLOWED_DRIFT:-3600}"          # The allowed drift in seconds for the DB to be considered in sync
 CNCLI_DB_ALLOWED_DRIFT="${CNCLI_DB_ALLOWED_DRIFT:-300}"         # The allowed drift in slots for the CNCLI DB to be considered in sync
 
@@ -121,10 +122,10 @@ check_node() {
                 echo "We're healthy - node: $FIRST == koios: $SECOND"
                 return 0
             elif [[ "$FIRST" -lt "$SECOND" ]]; then
-                sleep 3
+                sleep "$HEALTHCHECK_RETRY_WAIT"
                 FIRST=$($CCLI query tip --testnet-magic "${NWMAGIC}" | jq .block)
             elif [[ "$FIRST" -gt "$SECOND" ]]; then
-                sleep 3
+                sleep "$HEALTHCHECK_RETRY_WAIT"
                 SECOND=$($CURL "${KOIOS_URL}" | $JQ '.[0].block_no')
             fi
         done
@@ -145,7 +146,7 @@ check_process() {
         # Check if CPU usage exceeds threshold
         if (( CPU_USAGE > cpu_threshold )); then
             echo "Warning: High CPU usage detected for '$process_name' ($CPU_USAGE%)"
-            sleep 3  # Retry after a pause
+            sleep "$HEALTHCHECK_RETRY_WAIT"  # Retry after a pause
             continue
         fi
 
