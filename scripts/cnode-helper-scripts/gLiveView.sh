@@ -538,7 +538,7 @@ getOpCert () {
     fi
   fi
   if [[ -f ${opcert_file} ]]; then
-    op_cert="$(${CCLI} ${NETWORK_ERA} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}")"
+    op_cert="$(${CCLI} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}")"
     [[ ${op_cert} =~ qKesNodeStateOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] && op_cert_chain="${BASH_REMATCH[1]}"
     [[ ${op_cert} =~ qKesOnDiskOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] && op_cert_disk="${BASH_REMATCH[1]}"
   fi
