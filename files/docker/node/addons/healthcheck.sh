@@ -42,12 +42,11 @@ check_cncli() {
             return 1
         fi
     else
-        # No-op. placeholder for check_cncli_ptsendtip
-        :
-        # if ! check_cncli_ptsendtip; then
-        #     return 1
-        # else
-        #     return 0
+        if check_cncli_send_tip; then
+            return 0
+        else
+            return 1
+        fi
     fi
 }
 
@@ -65,6 +64,54 @@ check_cncli_db() {
         echo "Error: DB is not in sync"
         return 1
     fi
+}
+
+
+# Function to check if the tip is successfully being sent to Pooltool
+check_cncli_send_tip() {
+    # Timeout in seconds for capturing the log entry
+    log_entry_timeout=60
+
+    # Get the process ID of cncli
+    process_id=$(pgrep -of cncli) || {
+        echo "Error: cncli process not found."
+        return 1  # Return 1 if the process is not found
+    }
+
+    # Loop through the retries
+    for (( CHECK=0; CHECK<=HEALTHCHECK_RETRIES; CHECK++ )); do
+
+        # Define the error suffix message for retries
+        if [ "$HEALTHCHECK_RETRIES" -ne 0 ]; then
+        error_message_suffix="Attempt $((CHECK + 1)). Retrying in $HEALTHCHECK_RETRY_WAIT seconds."
+        else error_message_suffix="Retries disabled (HEALTHCHECK_RETRIES=0)"
+        fi
+
+        # Capture the next output from cncli that is related to Pooltool
+        pt_log_entry=$(timeout $log_entry_timeout cat /proc/$process_id/fd/1 | grep -i --line-buffered "pooltool" | head -n 1)
+        if [ -z "$pt_log_entry" ]; then
+            echo "Unable to capture cncli output within $log_entry_timeout seconds. $error_message_suffix"
+            sleep $HEALTHCHECK_RETRY_WAIT  # Wait n seconds then retry
+            continue # Retry if the output capture fails
+        fi
+
+        # Define the success message to check for
+        success_status='.*"success":true.*'
+        failure_status='.*"success":false.*'
+
+        # Check if the success message exists in the captured log
+        if echo "$pt_log_entry" | grep -q $success_status; then
+            echo "Healthy: Tip is being sent to Pooltool."
+            return 0  # Return 0 if the success message is found
+        elif echo "$pt_log_entry" | grep -q $failure_status; then
+            failure_message=$(echo "$pt_log_entry" | grep -oP '"message":"\K[^"]+')
+            echo "Failed to send tip. $failure_message"
+            return 1  # Return 1 if the success message is not found
+        fi
+    done
+
+    echo "Error: Max retries reached."
+    return 1  # Return 1 if retries are exhausted
 }
 
 
