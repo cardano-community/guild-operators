@@ -173,7 +173,7 @@ check_node() {
                 FIRST=$($CCLI query tip --testnet-magic "${NWMAGIC}" | jq .block)
             elif [[ "$FIRST" -gt "$SECOND" ]]; then
                 sleep "$HEALTHCHECK_RETRY_WAIT"
-                SECOND=$($CURL "${KOIOS_URL}" | $JQ '.[0].block_no')
+                SECOND=$($CURL "${URL}" | $JQ '.[0].block_no')
             fi
         done
         echo "There is a problem"
