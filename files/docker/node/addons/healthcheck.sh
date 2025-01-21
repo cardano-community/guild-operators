@@ -78,40 +78,31 @@ check_cncli_send_tip() {
         return 1  # Return 1 if the process is not found
     }
 
-    # Loop through the retries
-    for (( CHECK=0; CHECK<=HEALTHCHECK_RETRIES; CHECK++ )); do
+    # Capture the next output from cncli that is related to Pooltool
+    pt_log_entry=$(timeout $log_entry_timeout cat /proc/$process_id/fd/1 | grep --line-buffered "Pooltool" | head -n 1)
+    if [ -z "$pt_log_entry" ]; then
+        echo "Unable to capture cncli output within $log_entry_timeout seconds."
+        return 1  # Return 1 if the output capture fails
+    fi
 
-        # Define the error suffix message for retries
-        if [ "$HEALTHCHECK_RETRIES" -ne 0 ]; then
-        error_message_suffix="Attempt $((CHECK + 1)). Retrying in $HEALTHCHECK_RETRY_WAIT seconds."
-        else error_message_suffix="Retries disabled (HEALTHCHECK_RETRIES=0)"
-        fi
+    # Define the json success message to check for
+    json_success_status='.*"success":true.*'
+    json_failure_status='.*"success":false.*'
 
-        # Capture the next output from cncli that is related to Pooltool
-        pt_log_entry=$(timeout $log_entry_timeout cat /proc/$process_id/fd/1 | grep -i --line-buffered "pooltool" | head -n 1)
-        if [ -z "$pt_log_entry" ]; then
-            echo "Unable to capture cncli output within $log_entry_timeout seconds. $error_message_suffix"
-            sleep $HEALTHCHECK_RETRY_WAIT  # Wait n seconds then retry
-            continue # Retry if the output capture fails
-        fi
-
-        # Define the success message to check for
-        success_status='.*"success":true.*'
-        failure_status='.*"success":false.*'
-
-        # Check if the success message exists in the captured log
-        if echo "$pt_log_entry" | grep -q $success_status; then
-            echo "Healthy: Tip is being sent to Pooltool."
-            return 0  # Return 0 if the success message is found
-        elif echo "$pt_log_entry" | grep -q $failure_status; then
-            failure_message=$(echo "$pt_log_entry" | grep -oP '"message":"\K[^"]+')
-            echo "Failed to send tip. $failure_message"
-            return 1  # Return 1 if the success message is not found
-        fi
-    done
-
-    echo "Error: Max retries reached."
-    return 1  # Return 1 if retries are exhausted
+    # Check if the json success message exists in the captured log
+    if echo "$pt_log_entry" | grep -q $json_success_status; then
+        echo "Healthy: Tip is being sent to Pooltool."
+        return 0  # Return 0 if the success message is found
+    # Check if the json failure message exists in the captured log
+    elif echo "$pt_log_entry" | grep -q $json_failure_status; then
+        failure_message=$(echo "$pt_log_entry" | grep -oP '"message":"\K[^"]+')
+        echo "Failed to send tip. $failure_message"
+        return 1  # Return 1 if the failure message is found
+    # If the log entry does not contain a json success or failure message
+    else
+        echo "Failed to send tip. $pt_log_entry"
+        return 1  # Return 1 if it fails for any other reason
+    fi
 }
 
 
