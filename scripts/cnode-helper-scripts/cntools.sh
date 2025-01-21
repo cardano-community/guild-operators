@@ -3202,9 +3202,9 @@ function main {
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println DEBUG "Copy updated files to pool node replacing existing files:"
                 println DEBUG "${FG_LGRAY}${pool_hotkey_sk_file}${NC}"
-		println DEBUG "${FG_LGRAY}${pool_hotkey_vk_file}${NC}"
+                println DEBUG "${FG_LGRAY}${pool_hotkey_vk_file}${NC}"
                 println DEBUG "${FG_LGRAY}${pool_opcert_file}${NC}"
-		println DEBUG "${FG_LGRAY}${pool_saved_kes_start}${NC}"
+                println DEBUG "${FG_LGRAY}${pool_saved_kes_start}${NC}"
                 echo
               fi
               println DEBUG "Restart your pool node for changes to take effect"
