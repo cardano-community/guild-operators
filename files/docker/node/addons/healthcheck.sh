@@ -79,26 +79,28 @@ check_cncli_send_tip() {
     }
 
     # Capture the next output from cncli that is related to Pooltool
-    pt_log_entry=$(timeout $log_entry_timeout cat /proc/$process_id/fd/1 | grep -i --line-buffered "pooltool" | head -n 1)
+    pt_log_entry=$(timeout $log_entry_timeout cat /proc/$process_id/fd/1 | grep --line-buffered "Pooltool" | head -n 1)
     if [ -z "$pt_log_entry" ]; then
         echo "Unable to capture cncli output within $log_entry_timeout seconds."
         return 1  # Return 1 if the output capture fails
     fi
 
-    # Define the success message to check for
-    success_status='.*"success":true.*'
-    failure_status='.*"success":false.*'
+    # Define the json success message to check for
+    json_success_status='.*"success":true.*'
+    json_failure_status='.*"success":false.*'
 
-    # Check if the success message exists in the captured log
-    if echo "$pt_log_entry" | grep -q $success_status; then
+    # Check if the json success message exists in the captured log
+    if echo "$pt_log_entry" | grep -q $json_success_status; then
         echo "Healthy: Tip is being sent to Pooltool."
         return 0  # Return 0 if the success message is found
-    elif echo "$pt_log_entry" | grep -q $failure_status; then
+    # Check if the json failure message exists in the captured log
+    elif echo "$pt_log_entry" | grep -q $json_failure_status; then
         failure_message=$(echo "$pt_log_entry" | grep -oP '"message":"\K[^"]+')
         echo "Failed to send tip. $failure_message"
         return 1  # Return 1 if the failure message is found
+    # If the log entry does not contain a json success or failure message
     else
-        echo "Failed to send tip. Unknown reason."
+        echo "Failed to send tip. $pt_log_entry"
         return 1  # Return 1 if it fails for any other reason
     fi
 }
