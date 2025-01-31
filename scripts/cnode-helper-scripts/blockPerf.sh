@@ -16,7 +16,7 @@
 
 #CNODE_PORT=6000       # the port on which this node runs (automatically read from cnTools:env   outside cnTools you need to manually set this parameter)
 
-#AddrBlacklist="192.168.1.123, " # uncomment with your block producers or other nodes IP that you do not want to expose to common view
+AddrBlacklist="" # comma spearated list of IP-Adresses you don't want to expose. (block producers or hidden relays) 
 
 ######################################
 # Do NOT modify code below           #
