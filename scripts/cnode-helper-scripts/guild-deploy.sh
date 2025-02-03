@@ -229,7 +229,6 @@ os_dependencies() {
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig"
     elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
       #RHEL/CentOS/RockyLinux 8/9
-      pkg_opts="${pkg_opts} --allowerasing"
       if [[ "${DISTRO}" =~ Rocky ]]; then
         #RockyLinux 8/9
         pkg_list="${pkg_list} --enablerepo=devel,crb libusbx ncurses-compat-libs pkgconf-pkg-config"
@@ -238,7 +237,6 @@ os_dependencies() {
       fi
     elif [[ "${DISTRO}" =~ Fedora ]]; then
       #Fedora
-      pkg_opts="${pkg_opts} --allowerasing"
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
     fi
     if [[ "${LIBSODIUM_FORK}" == "Y" ]] || [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
@@ -266,7 +264,7 @@ os_dependencies() {
     err_exit
   fi
   if [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
-    if [ -f /usr/lib64/libtinfo.so ] && [ -f /usr/lib64/libtinfo.so.5 ]; then
+    if [ -e /usr/lib64/libtinfo.so ] && [ -e /usr/lib64/libtinfo.so.5 ]; then
       echo -e "\n  Symlink updates not required for ncurse libs, skipping.."
     else
       echo -e "\n  Updating symlinks for ncurse libs.."
