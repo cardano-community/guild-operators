@@ -229,6 +229,7 @@ os_dependencies() {
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig"
     elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
       #RHEL/CentOS/RockyLinux 8/9
+      if ${pkgmgrcmd} -h  | grep -q "\--allowerasing"; then pkg_opts="${pkg_opts} --allowerasing"; fi
       if [[ "${DISTRO}" =~ Rocky ]]; then
         #RockyLinux 8/9
         pkg_list="${pkg_list} --enablerepo=devel,crb libusbx ncurses-compat-libs pkgconf-pkg-config"
@@ -237,6 +238,7 @@ os_dependencies() {
       fi
     elif [[ "${DISTRO}" =~ Fedora ]]; then
       #Fedora
+      if ${pkgmgrcmd} -h  | grep -q "\--allowerasing"; then pkg_opts="${pkg_opts} --allowerasing"; fi
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
     fi
     if [[ "${LIBSODIUM_FORK}" == "Y" ]] || [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
