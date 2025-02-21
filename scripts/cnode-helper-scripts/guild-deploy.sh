@@ -426,7 +426,7 @@ download_cnodebins() {
 download_cncli() {
   [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The cncli pre-compiled binary is not available for ARM, you might need to build them!"
   echo -e "\nInstalling CNCLI.."
-  if command -v cncli >/dev/null; then cncli_version="v$(cncli -V 2>/dev/null | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
+  if command -v cncli >/dev/null; then cncli_version="$(cncli -V 2>/dev/null | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
   cncli_git_version="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.tag_name')"
   echo -e "\n  Downloading CNCLI..."
   rm -rf /tmp/cncli-bin && mkdir /tmp/cncli-bin
