@@ -1383,7 +1383,7 @@ getAllGovActions() {
   unset vote_action_list _vote_action_summary _vote_action_votes own_drep_votes own_spo_votes own_cc_votes
   if ! isNumber ${1} || ! isNumber ${2}; then return 1; fi
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    if [[ -n $3 || $3 == true ]]; then
+    if [[ -n $3 && $3 == true ]]; then
       unset _vote_action_list
       getCurrentCommittee; getParameterThresholds # to fetch thresholds
       HEADERS=("${KOIOS_API_HEADERS[@]}" -H "accept: text/csv")
@@ -1394,7 +1394,7 @@ getAllGovActions() {
     idx=-1
     while IFS=',' read -r _block_time _ratified_epoch _enacted_epoch _dropped_epoch _expired_epoch _proposal_id _proposal_tx_hash _proposal_index _proposal_type _proposed_epoch _expiration _meta_url _param_proposal; do
       ((idx++))
-      [[ ${idx} -lt ${2} ]] && break
+      [[ ${idx} -lt ${2} ]] && continue
       [[ ${idx} -ge $(( ${2} + ${1} )) ]] && break
       println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/proposal_voting_summary?_proposal_id=${_proposal_id}&select=drep_yes_votes_cast,drep_yes_vote_power,drep_yes_pct,drep_no_votes_cast,drep_no_vote_power,drep_no_pct,pool_yes_votes_cast,pool_yes_vote_power,pool_yes_pct,pool_no_votes_cast,pool_no_vote_power,pool_no_pct,committee_yes_votes_cast,committee_yes_pct,committee_no_votes_cast,committee_no_pct"
       _vote_action_summary=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_voting_summary?_proposal_id=${_proposal_id}&select=drep_yes_votes_cast,drep_yes_vote_power,drep_yes_pct,drep_no_votes_cast,drep_no_vote_power,drep_no_pct,pool_yes_votes_cast,pool_yes_vote_power,pool_yes_pct,pool_no_votes_cast,pool_no_vote_power,pool_no_pct,committee_yes_votes_cast,committee_yes_pct,committee_no_votes_cast,committee_no_pct" 2>&1) || continue
@@ -1435,7 +1435,7 @@ getAllGovActions() {
       vote_action_list+=( "${_proposal_tx_hash}#${_proposal_index},${_proposal_type},${_proposed_epoch},$((_expiration-1)),${_meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power},${drep_no_pct},${pool_yes_votes_cast},${pool_yes_vote_power},${pool_yes_pct},${pool_no_votes_cast},${pool_no_vote_power},${pool_no_pct},${committee_yes_votes_cast},${committee_yes_pct},${committee_no_votes_cast},${committee_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
     done <<< "$(tail -n +2 <<< ${_vote_action_list})"
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-    if [[ -n $3 || $3 == true ]]; then
+    if [[ -n $3 && $3 == true ]]; then
       _vote_action_list=()
       getCurrentCommittee; getParameterThresholds # to fetch thresholds
       # get current DRep distribution
