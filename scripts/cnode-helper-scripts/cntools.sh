@@ -4133,25 +4133,36 @@ function main {
                     println " >> VOTE >> GOVERNANCE >> LIST PROPOSALS"
                     println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     echo
-                    tput sc && println DEBUG "Querying for list of proposals...\n"
-                    getAllGovActions
+                    tput sc && println DEBUG "Querying for number of active proposals...\n"
+                    if ! getActiveGovActionCount; then
+                      println "${FG_RED}Failed to grab list of proposals!${NC}"
+                      waitToProceed && continue
+                    fi
                     tput rc && tput ed
-                    action_cnt=${#vote_action_list[@]}
-                    if [[ ${action_cnt} -eq 0 ]]; then
+                    if [[ ${vote_action_count} -eq 0 ]]; then
                       println "${FG_YELLOW}No active proposals to vote on!${NC}"
                       waitToProceed && continue
                     fi
-                    if [[ ${action_cnt} -gt 3 ]]; then
-                      getAnswerAnyCust page_entries "${action_cnt} proposals found. Enter number of actions to display per page (enter for 3)"
-                    fi
-                    page_entries=${page_entries:=3}
-                    if ! isNumber ${page_entries} || [[ ${page_entries} -lt 1 ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: invalid number"
-                      waitToProceed && continue
-                    fi
+                    println "${FG_LBLUE}${vote_action_count}${NC} active proposals to vote on found!"
+                    waitToProceed
+                    page_entries=2
                     curr_epoch=$(getEpoch)
                     page=1
-                    pages=$(( (action_cnt + (page_entries - 1)) / page_entries ))
+                    pages=$(( (vote_action_count + (page_entries - 1)) / page_entries ))
+                    start_idx=$(( (page *  page_entries) - page_entries ))
+                    end_idx=$(( page_entries * page )); [[ ${end_idx} -gt ${vote_action_count} ]] && end_idx=${vote_action_count}
+                    tput sc && println DEBUG "\nQuerying for proposals [$((start_idx+1))-${end_idx}]...\n"
+                    getAllGovActions ${page_entries} ${start_idx} true
+                    tput rc && tput ed
+                    action_cnt=${#vote_action_list[@]}
+                    if [[ ${action_cnt} -eq 0 ]]; then
+                      println "${FG_RED}Failed to grab proposals!${NC}"
+                      waitToProceed && continue
+                    fi
+                    vote_action_list_ui=()
+                    for vote_action in "${vote_action_list[@]}"; do
+                      vote_action_list_ui+=( "${vote_action}" )
+                    done
                     while true; do
                       clear
                       if [[ ${show_details} = Y ]]; then
@@ -4186,9 +4197,9 @@ function main {
                       total_len=$(( max_len + 13 + 5 ))
                       border_line="|$(printf "%${total_len}s" "" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
                       println DEBUG "Current epoch : ${FG_LBLUE}$(getEpoch)${NC}"
-                      println DEBUG "Proposals     : ${FG_LBLUE}${action_cnt}${NC}"
+                      println DEBUG "Proposals     : ${FG_LBLUE}${vote_action_count}${NC}"
                       idx=1
-                      for vote_action in "${vote_action_list[@]:${start_idx}:${page_entries}}"; do
+                      for vote_action in "${vote_action_list_ui[@]:${start_idx}:${page_entries}}"; do
                         println DEBUG "\n${border_line}"
                         # calculate length of strings
                         IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_yes_power drep_yes_pct drep_no drep_no_power drep_no_pct spo_yes spo_yes_power spo_yes_pct spo_no spo_no_power spo_no_pct cc_yes cc_yes_pct cc_no cc_no_pct drep_vt spo_vt cc_vt isParameterSecurityGroup <<< "${vote_action}"
@@ -4389,8 +4400,24 @@ function main {
                             [[ ${action_id} = gov_action* ]] && parseGovActionId ${action_id} || IFS='#' read -r action_tx_id action_idx <<< "${action_id}"
                             ! isNumber "${action_idx}" && println ERROR "\n${FG_RED}ERROR${NC}: invalid action id!" && waitToProceed && continue
                             show_details=Y
+                            continue
                             ;;
                       esac
+                      if [[ -n ${hasNext} && ${key} == n ]]; then
+                        clear
+                        start_idx=$(( (page *  page_entries) - page_entries ))
+                        end_idx=$(( page_entries * page )); [[ ${end_idx} -gt ${vote_action_count} ]] && end_idx=${vote_action_count}
+                        println DEBUG "\nQuerying for proposals [$((start_idx+1))-${end_idx}]...\n"
+                        getAllGovActions ${page_entries} ${start_idx} false
+                        action_cnt=${#vote_action_list[@]}
+                        if [[ ${action_cnt} -eq 0 ]]; then
+                          println "${FG_RED}Failed to grab proposals!${NC}"
+                          waitToProceed && continue 2
+                        fi
+                        for vote_action in "${vote_action_list[@]}"; do
+                          vote_action_list_ui+=( "${vote_action}" )
+                        done
+                      fi
                     done
                     ;; ###################################################################
                   vote)

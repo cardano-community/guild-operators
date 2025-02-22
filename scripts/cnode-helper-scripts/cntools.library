@@ -13,9 +13,9 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=3
+CNTOOLS_MINOR_VERSION=4
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=5
+CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -1357,17 +1357,45 @@ getGovAction() {
   return 0
 }
 
+# Command     : getActiveGovActionCount
+# Return      : get a count of currently active governance actions
+getActiveGovActionCount() {
+  if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
+    unset response
+    HEADERS=("${KOIOS_API_HEADERS[@]}" -H "accept: text/csv")
+    println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/proposal_list?select=count()&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null"
+    response=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_list?select=count()&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null" 2>&1) || return 1
+    vote_action_count=$(tail -n +2 <<< ${response})
+  else
+    println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals | length'"
+    vote_action_count=$(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals | length' 2>/dev/null)
+    [[ -z ${vote_action_count} ]] && return 1
+  fi
+}
+
 # Command     : getAllGovActions
+# Parameters  : 1: [int]   number of entries to fetch
+#             : 2: [int]   offset
+#             : 3: [true]  fetch new list of proposals
+#             :    [false] re-use existing data (if any)
 # Return      : csv array of governance actions with different data depending on LIGHT VS LOCAL mode
 getAllGovActions() {
-  unset vote_action_list _vote_action_list _vote_action_summary _vote_action_votes own_drep_votes own_spo_votes own_cc_votes
+  unset vote_action_list _vote_action_summary _vote_action_votes own_drep_votes own_spo_votes own_cc_votes
+  if ! isNumber ${1} || ! isNumber ${2}; then return 1; fi
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-    getCurrentCommittee; getParameterThresholds # to fetch thresholds
-    HEADERS=("${KOIOS_API_HEADERS[@]}" -H "accept: text/csv")
-    println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/proposal_list?select=block_time,ratified_epoch,enacted_epoch,dropped_epoch,expired_epoch,proposal_id,proposal_tx_hash,proposal_index,proposal_type,proposed_epoch,expiration,meta_url,param_proposal&ratified_epoch=is.null&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null&order=block_time.desc"
-    _vote_action_list=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_list?select=block_time,ratified_epoch,enacted_epoch,dropped_epoch,expired_epoch,proposal_id,proposal_tx_hash,proposal_index,proposal_type,proposed_epoch,expiration,meta_url,param_proposal&ratified_epoch=is.null&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null&order=block_time.desc" 2>&1) || return 1
+    if [[ -n $3 || $3 == true ]]; then
+      unset _vote_action_list
+      getCurrentCommittee; getParameterThresholds # to fetch thresholds
+      HEADERS=("${KOIOS_API_HEADERS[@]}" -H "accept: text/csv")
+      println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/proposal_list?select=block_time,ratified_epoch,enacted_epoch,dropped_epoch,expired_epoch,proposal_id,proposal_tx_hash,proposal_index,proposal_type,proposed_epoch,expiration,meta_url,param_proposal&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null&order=block_time.desc"
+      _vote_action_list=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_list?select=block_time,ratified_epoch,enacted_epoch,dropped_epoch,expired_epoch,proposal_id,proposal_tx_hash,proposal_index,proposal_type,proposed_epoch,expiration,meta_url,param_proposal&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null&order=block_time.desc" 2>&1) || return 1
+    fi
     vote_action_list=()
+    idx=-1
     while IFS=',' read -r _block_time _ratified_epoch _enacted_epoch _dropped_epoch _expired_epoch _proposal_id _proposal_tx_hash _proposal_index _proposal_type _proposed_epoch _expiration _meta_url _param_proposal; do
+      ((idx++))
+      [[ ${idx} -lt ${2} ]] && break
+      [[ ${idx} -ge $(( ${2} + ${1} )) ]] && break
       println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/proposal_voting_summary?_proposal_id=${_proposal_id}&select=drep_yes_votes_cast,drep_yes_vote_power,drep_yes_pct,drep_no_votes_cast,drep_no_vote_power,drep_no_pct,pool_yes_votes_cast,pool_yes_vote_power,pool_yes_pct,pool_no_votes_cast,pool_no_vote_power,pool_no_pct,committee_yes_votes_cast,committee_yes_pct,committee_no_votes_cast,committee_no_pct"
       _vote_action_summary=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_voting_summary?_proposal_id=${_proposal_id}&select=drep_yes_votes_cast,drep_yes_vote_power,drep_yes_pct,drep_no_votes_cast,drep_no_vote_power,drep_no_pct,pool_yes_votes_cast,pool_yes_vote_power,pool_yes_pct,pool_no_votes_cast,pool_no_vote_power,pool_no_pct,committee_yes_votes_cast,committee_yes_pct,committee_no_votes_cast,committee_no_pct" 2>&1) || continue
       IFS=',' read -r drep_yes_votes_cast drep_yes_vote_power drep_yes_pct drep_no_votes_cast drep_no_vote_power drep_no_pct pool_yes_votes_cast pool_yes_vote_power pool_yes_pct pool_no_votes_cast pool_no_vote_power pool_no_pct committee_yes_votes_cast committee_yes_pct committee_no_votes_cast committee_no_pct <<< "$(tail -n +2 <<< ${_vote_action_summary})"
@@ -1407,22 +1435,26 @@ getAllGovActions() {
       vote_action_list+=( "${_proposal_tx_hash}#${_proposal_index},${_proposal_type},${_proposed_epoch},$((_expiration-1)),${_meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power},${drep_no_pct},${pool_yes_votes_cast},${pool_yes_vote_power},${pool_yes_pct},${pool_no_votes_cast},${pool_no_vote_power},${pool_no_pct},${committee_yes_votes_cast},${committee_yes_pct},${committee_no_votes_cast},${committee_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
     done <<< "$(tail -n +2 <<< ${_vote_action_list})"
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-    getCurrentCommittee; getParameterThresholds # to fetch thresholds
-    # get current DRep distribution
-    println ACTION "${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
-    all_drep_vote_power=$(${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
-    # sum of all drep stake distribution entries without the alwaysAbstain and alwaysNoConfidence
-    drep_power_total_no_abstain=$(jq -r '[.[] | select(.[0] == "drep-alwaysAbstain" | not) | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null)
-    # get current Pool distribution
-    unset all_spo_vote_power spo_power_total
-    println ACTION "${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER}"
-    all_spo_vote_power=$(${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER})
-    spo_power_total=$(jq -r '[.[][1]] | add' <<< "${all_spo_vote_power}" 2>/dev/null)
-    # get committee vote power (sum of authorized committee members)
-    cc_power_authorized=$(jq -r 'reduce(select(.committee[].hotCredsAuthStatus.tag|strings=="MemberAuthorized")) as $_ (0; .+1)' <<< "${committee_info}")
-    vote_action_list=(); _vote_action_list=()
-    println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
-    for vote_action in $(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null); do
+    if [[ -n $3 || $3 == true ]]; then
+      _vote_action_list=()
+      getCurrentCommittee; getParameterThresholds # to fetch thresholds
+      # get current DRep distribution
+      println ACTION "${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
+      all_drep_vote_power=$(${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
+      # sum of all drep stake distribution entries without the alwaysAbstain and alwaysNoConfidence
+      drep_power_total_no_abstain=$(jq -r '[.[] | select(.[0] == "drep-alwaysAbstain" | not) | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null)
+      # get current Pool distribution
+      unset all_spo_vote_power spo_power_total
+      println ACTION "${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER}"
+      all_spo_vote_power=$(${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER})
+      spo_power_total=$(jq -r '[.[][1]] | add' <<< "${all_spo_vote_power}" 2>/dev/null)
+      # get committee vote power (sum of authorized committee members)
+      cc_power_authorized=$(jq -r 'reduce(select(.committee[].hotCredsAuthStatus.tag|strings=="MemberAuthorized")) as $_ (0; .+1)' <<< "${committee_info}")
+      println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
+      _vote_action_list=$(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null)
+    fi
+    vote_action_list=()
+    for vote_action in "${_vote_action_list[@]:${2}:${1}}"; do
       IFS=',' read -r proposal_id proposal_type proposed_epoch expiration meta_url drep_yes_votes_cast drep_no_votes_cast spo_yes_votes_cast spo_no_votes_cast cc_yes_votes_cast cc_no_votes_cast < <( jq -cr '"\((.actionId.txId//"") + "#" + (.actionId.govActionIx//0|tostring)),\(.proposalProcedure.govAction.tag//""),\(.proposedIn//0),\(.expiresAfter//0),\(.proposalProcedure.anchor.url//""),\(.dRepVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.dRepVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1))"' <<< "$(base64 -d <<< "${vote_action}")" )
       isParameterSecurityGroup=N
       if [[ $(jq -r '.proposalProcedure.govAction.tag' <<< "$(base64 -d <<< "${vote_action}")") = "ParameterChange" ]]; then
