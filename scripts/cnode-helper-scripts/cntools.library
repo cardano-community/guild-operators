@@ -1384,11 +1384,11 @@ getAllGovActions() {
   if ! isNumber ${1} || ! isNumber ${2}; then return 1; fi
   if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
     if [[ -n $3 && $3 == true ]]; then
-      unset _vote_action_list
+      unset vote_action_list_all
       getCurrentCommittee; getParameterThresholds # to fetch thresholds
       HEADERS=("${KOIOS_API_HEADERS[@]}" -H "accept: text/csv")
       println ACTION "curl -sSL -f -X GET ${HEADERS[*]} ${KOIOS_API}/proposal_list?select=block_time,ratified_epoch,enacted_epoch,dropped_epoch,expired_epoch,proposal_id,proposal_tx_hash,proposal_index,proposal_type,proposed_epoch,expiration,meta_url,param_proposal&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null&order=block_time.desc"
-      _vote_action_list=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_list?select=block_time,ratified_epoch,enacted_epoch,dropped_epoch,expired_epoch,proposal_id,proposal_tx_hash,proposal_index,proposal_type,proposed_epoch,expiration,meta_url,param_proposal&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null&order=block_time.desc" 2>&1) || return 1
+      vote_action_list_all=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_list?select=block_time,ratified_epoch,enacted_epoch,dropped_epoch,expired_epoch,proposal_id,proposal_tx_hash,proposal_index,proposal_type,proposed_epoch,expiration,meta_url,param_proposal&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null&order=block_time.desc" 2>&1) || return 1
     fi
     vote_action_list=()
     idx=-1
@@ -1433,10 +1433,11 @@ getAllGovActions() {
         done <<< "${_vote_action_votes}"
       done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
       vote_action_list+=( "${_proposal_tx_hash}#${_proposal_index},${_proposal_type},${_proposed_epoch},$((_expiration-1)),${_meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power},${drep_no_pct},${pool_yes_votes_cast},${pool_yes_vote_power},${pool_yes_pct},${pool_no_votes_cast},${pool_no_vote_power},${pool_no_pct},${committee_yes_votes_cast},${committee_yes_pct},${committee_no_votes_cast},${committee_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
-    done <<< "$(tail -n +2 <<< ${_vote_action_list})"
+    done <<< "$(tail -n +2 <<< ${vote_action_list_all})"
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
     if [[ -n $3 && $3 == true ]]; then
-      _vote_action_list=()
+      unset vote_action_list_all _vote_action_list
+      vote_action_list_all=()
       getCurrentCommittee; getParameterThresholds # to fetch thresholds
       # get current DRep distribution
       println ACTION "${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
@@ -1452,9 +1453,13 @@ getAllGovActions() {
       cc_power_authorized=$(jq -r 'reduce(select(.committee[].hotCredsAuthStatus.tag|strings=="MemberAuthorized")) as $_ (0; .+1)' <<< "${committee_info}")
       println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
       _vote_action_list=$(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null)
+      # reverse order
+      for ((i=${#_vote_action_list[@]}-1; i>=0; i--)); do
+        vote_action_list_all+=( "${_vote_action_list[$i]}" )
+      done
     fi
     vote_action_list=()
-    for vote_action in "${_vote_action_list[@]:${2}:${1}}"; do
+    for vote_action in "${vote_action_list_all[@]:${2}:${1}}"; do
       IFS=',' read -r proposal_id proposal_type proposed_epoch expiration meta_url drep_yes_votes_cast drep_no_votes_cast spo_yes_votes_cast spo_no_votes_cast cc_yes_votes_cast cc_no_votes_cast < <( jq -cr '"\((.actionId.txId//"") + "#" + (.actionId.govActionIx//0|tostring)),\(.proposalProcedure.govAction.tag//""),\(.proposedIn//0),\(.expiresAfter//0),\(.proposalProcedure.anchor.url//""),\(.dRepVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.dRepVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.stakePoolVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteYes")) as $_ (0; .+1)),\(.committeeVotes | reduce(..|select(strings=="VoteNo")) as $_ (0; .+1))"' <<< "$(base64 -d <<< "${vote_action}")" )
       isParameterSecurityGroup=N
       if [[ $(jq -r '.proposalProcedure.govAction.tag' <<< "$(base64 -d <<< "${vote_action}")") = "ParameterChange" ]]; then
@@ -1555,11 +1560,7 @@ getAllGovActions() {
         done
       done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
       
-      _vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power_total},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power_total},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
-    done
-    # reverse order
-    for ((i=${#_vote_action_list[@]}-1; i>=0; i--)); do
-      vote_action_list+=( "${_vote_action_list[$i]}" )
+      vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power_total},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power_total},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
     done
   fi
 }
