@@ -1371,6 +1371,7 @@ getActiveGovActionCount() {
     vote_action_count=$(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals | length' 2>/dev/null)
     [[ -z ${vote_action_count} ]] && return 1
   fi
+  return 0
 }
 
 # Command     : getAllGovActions
@@ -1452,7 +1453,7 @@ getAllGovActions() {
       # get committee vote power (sum of authorized committee members)
       cc_power_authorized=$(jq -r 'reduce(select(.committee[].hotCredsAuthStatus.tag|strings=="MemberAuthorized")) as $_ (0; .+1)' <<< "${committee_info}")
       println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
-      _vote_action_list=$(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null)
+      _vote_action_list=( $(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null) )
       # reverse order
       for ((i=${#_vote_action_list[@]}-1; i>=0; i--)); do
         vote_action_list_all+=( "${_vote_action_list[$i]}" )
