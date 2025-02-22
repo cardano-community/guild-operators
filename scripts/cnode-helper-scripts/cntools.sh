@@ -4151,7 +4151,7 @@ function main {
                     pages=$(( (vote_action_count + (page_entries - 1)) / page_entries ))
                     start_idx=$(( (page *  page_entries) - page_entries ))
                     end_idx=$(( page_entries * page )); [[ ${end_idx} -gt ${vote_action_count} ]] && end_idx=${vote_action_count}
-                    tput sc && println DEBUG "\nQuerying for proposals [$((start_idx+1))-${end_idx}]...\n"
+                    tput sc && println DEBUG "Querying for proposals [$((start_idx+1))-${end_idx}]...\n"
                     getAllGovActions ${page_entries} ${start_idx} true
                     tput rc && tput ed
                     action_cnt=${#vote_action_list[@]}
@@ -4407,7 +4407,8 @@ function main {
                         clear
                         start_idx=$(( (page *  page_entries) - page_entries ))
                         end_idx=$(( page_entries * page )); [[ ${end_idx} -gt ${vote_action_count} ]] && end_idx=${vote_action_count}
-                        println DEBUG "\nQuerying for proposals [$((start_idx+1))-${end_idx}]...\n"
+                        [[ ${#vote_action_list_ui[@]} -ge ${end_idx} ]] && continue
+                        println DEBUG "Querying for proposals [$((start_idx+1))-${end_idx}]...\n"
                         getAllGovActions ${page_entries} ${start_idx} false
                         action_cnt=${#vote_action_list[@]}
                         if [[ ${action_cnt} -eq 0 ]]; then
