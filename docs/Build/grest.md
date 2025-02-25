@@ -39,11 +39,10 @@ Familiarise with the usage options for the setup script , the syntax can be view
 cd "${CNODE_HOME}"/scripts
 ./setup-grest.sh -h
 #
-# Usage: setup-grest.sh [-f] [-i [p][r][m][c][d]] [-u] [-b <branch>]
+# Usage: setup-grest.sh [-i [p][r][m][c][d]] [-u] [-b <branch>]
 # 
-# Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync
+# Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and monitoring
 # 
-# -f    Force overwrite of all files including normally saved user config sections
 # -i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)
 #     p    Install/Update PostgREST binaries by downloading latest release from github.
 #     r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config
@@ -51,9 +50,10 @@ cd "${CNODE_HOME}"/scripts
 #     c    Overwrite haproxy, postgREST configs
 #     d    Overwrite systemd definitions
 # -u    Skip update check for setup script itself
+# -r    Reset grest schema - drop all cron jobs and triggers, and remove all deployed RPC functions and cached tables
 # -q    Run all DB Queries to update on postgres (includes creating grest schema, and re-creating views/genesis table/functions/triggers and setting up cron jobs)
 # -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
-#
+# 
 ```
 
 To run the setup overwriting all standard deployment tasks from a branch (eg: `koios-1.0.9` branch), you may want to use:
