@@ -217,7 +217,7 @@ check_tip() {
     DB_TIP=$2
     ALLOWED_DRIFT=$3
 
-    if [[ $(( TIP - DB_TIP )) -lt ${ALLOWED_DRIFT} ]]; then
+    if [[ $(( TIP - DB_TIP )) -le ${ALLOWED_DRIFT} ]]; then
         return 0
     else
         return 1
