@@ -112,7 +112,7 @@ function chk_tip() {
 }
 
 function chk_rpc_struct() {
-  srvr_spec="$(curl -skL "${1}" | jq '[leaf_paths as $p | { "key": $p | map(tostring) | join("_"), "value": getpath($p) }] | from_entries' | awk '{print $1 " " $2}' | grep -e ^\"paths -e ^\"parameters -e ^\"definitions 2>/dev/null)"
+  srvr_spec="$(curl -skL "${1}" | jq '[paths(scalars) as $p | { "key": $p | map(tostring) | join("_"), "value": getpath($p) }] | from_entries' | awk '{print $1 " " $2}' | grep -e ^\"paths -e ^\"parameters -e ^\"definitions 2>/dev/null)"
   api_endpts="$(grep ^\ \ / "${LOCAL_SPEC}" | awk '{print $1}' | sed -e 's#:##' | sort)"
   for endpt in ${api_endpts}
   do
