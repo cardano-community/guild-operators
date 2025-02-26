@@ -296,7 +296,7 @@ SGVERSION=v1.3.1
   }
 
   deploy_pgcardano_ext() {
-    printf "\n[Re]Installing pg_cardano extension.."
+    printf "\n[Re]Installing pg_cardano extension..\n"
     pushd ~/tmp >/dev/null || err_exit
     ARCH=$(uname -i)
     if [ -z "${ARCH##*aarch64*}" ]; then
