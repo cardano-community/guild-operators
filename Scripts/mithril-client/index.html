@@ -1085,7 +1085,7 @@
 <li><strong>-u</strong> - Skip script update check.</li>
 </ul>
 <h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">⚓︎</a></h2>
-<div class="highlight"><pre><span></span><code>Usage:<span class="w"> </span>bash<span class="w"> </span><span class="o">[</span>-u<span class="o">]</span><span class="w"> </span>&lt;command&gt;<span class="w"> </span>&lt;subcommand&gt;<span class="w"> </span><span class="o">[</span>&lt;sub<span class="w"> </span>arg&gt;<span class="o">]</span>
+<div class="highlight"><pre><span></span><code>Usage:<span class="w"> </span>mithril-client.sh<span class="w"> </span><span class="o">[</span>-u<span class="o">]</span><span class="w"> </span>&lt;command&gt;<span class="w"> </span>&lt;subcommand&gt;<span class="w"> </span><span class="o">[</span>&lt;sub<span class="w"> </span>arg&gt;<span class="o">]</span>
 A<span class="w"> </span>script<span class="w"> </span>to<span class="w"> </span>run<span class="w"> </span>Cardano<span class="w"> </span>Mithril<span class="w"> </span>Client
 
 -u<span class="w">          </span>Skip<span class="w"> </span>script<span class="w"> </span>update<span class="w"> </span>check<span class="w"> </span>overriding<span class="w"> </span>UPDATE_CHECK<span class="w"> </span>value<span class="w"> </span><span class="k">in</span><span class="w"> </span>env<span class="w"> </span><span class="o">(</span>must<span class="w"> </span>be<span class="w"> </span>first<span class="w"> </span>argument<span class="w"> </span>to<span class="w"> </span>script<span class="o">)</span>
@@ -1124,15 +1124,14 @@ stake-distribution<span class="w">    </span>Interact<span class="w"> </span>wit
 <ul>
 <li><strong>List all available Mithril snapshots:</strong> You can list all available Mithril snapshots by running the script with the <code>snapshot list</code> command. Add <code>json</code> at the end to get the output in JSON format.</li>
 </ul>
-<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>cardano-dbsnapshot<span class="w"> </span>list
-./mithril-client.sh<span class="w"> </span>cardano-dbsnapshot<span class="w"> </span>list<span class="w"> </span>json
+<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>cardano-db<span class="w"> </span>snapshot<span class="w"> </span>list
+./mithril-client.sh<span class="w"> </span>cardano-db<span class="w"> </span>snapshot<span class="w"> </span>list<span class="w"> </span>json
 </code></pre></div>
 <ul>
 <li><strong>Show details of a specific Mithril snapshot:</strong> You can show details of a specific Mithril snapshot by running the script with the <code>snapshot show &lt;DIGEST&gt;</code> command, where <code>&lt;DIGEST&gt;</code> is the digest of the snapshot. Add <code>json</code> at the end to get the output in JSON format.</li>
 </ul>
-<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>cardano-dbsnapshot<span class="w"> </span>show<span class="w"> </span>&lt;DIGEST&gt;
-./mithril-client.sh<span class="w"> </span>cardano-dbsnapshot<span class="w"> </span>show<span class="w"> </span>&lt;DIGEST&gt;<span class="w"> </span>json
-./mithril-client.sh<span class="w"> </span>cardano-dbsnapshot<span class="w"> </span>show<span class="w"> </span>json<span class="w"> </span>&lt;DIGEST&gt;
+<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>cardano-db<span class="w"> </span>snapshot<span class="w"> </span>show<span class="w"> </span>&lt;DIGEST&gt;
+./mithril-client.sh<span class="w"> </span>cardano-db<span class="w"> </span>snapshot<span class="w"> </span>show<span class="w"> </span>&lt;DIGEST&gt;<span class="w"> </span>json
 </code></pre></div>
 <h2 id="managing-stake-distributions">Managing Stake Distributions<a class="headerlink" href="#managing-stake-distributions" title="Permanent link">⚓︎</a></h2>
 <p>You can manage stake distributions by using the <code>stake-distribution download</code> and <code>stake-distribution list</code> commands:</p>

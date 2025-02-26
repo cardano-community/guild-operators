@@ -1243,13 +1243,20 @@ variables for the Mithril client.</p>
 </ol>
 <div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>environment<span class="w"> </span>setup
 </code></pre></div>
-<ol>
-<li><strong>Download the latest Mithril snapshot:</strong> Once the environment file is set up, you
+<ul>
+<li>
+<p>Override a default variable in the Mithril environment file: Run the script with the environment override <VARIABLE> <VALUE> command to override a default variable in the mithril.env file.</p>
+<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>environment<span class="w"> </span>override<span class="w"> </span>&lt;VARIABLE&gt;<span class="w"> </span>&lt;VALUE&gt;
+</code></pre></div>
+</li>
+<li>
+<p><strong>Download the latest Mithril snapshot:</strong> Once the environment file is set up, you
 can download the latest Mithril snapshot by running the script with the <code>snapshot
 download</code> command. This snapshot contains the latest state of the Cardano blockchain db
-from a Mithril Aggregator.</li>
-</ol>
-<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>snapshot<span class="w"> </span>download
+from a Mithril Aggregator.</p>
+</li>
+</ul>
+<div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>cardano-db<span class="w"> </span>download
 </code></pre></div>
 <h3 id="participating-in-mithril-network">Participating in Mithril Network<a class="headerlink" href="#participating-in-mithril-network" title="Permanent link">⚓︎</a></h3>
 <p>The Mithril signer is used to participate in the creation of stake based signatures of

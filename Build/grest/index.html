@@ -1142,11 +1142,10 @@ psql<span class="w"> </span>cexplorer
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span><span class="s2">&quot;</span>/scripts
 ./setup-grest.sh<span class="w"> </span>-h
 <span class="c1">#</span>
-<span class="c1"># Usage: setup-grest.sh [-f] [-i [p][r][m][c][d]] [-u] [-b &lt;branch&gt;]</span>
+<span class="c1"># Usage: setup-grest.sh [-i [p][r][m][c][d]] [-u] [-b &lt;branch&gt;]</span>
 <span class="c1"># </span>
-<span class="c1"># Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and dbsync</span>
+<span class="c1"># Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and monitoring</span>
 <span class="c1"># </span>
-<span class="c1"># -f    Force overwrite of all files including normally saved user config sections</span>
 <span class="c1"># -i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)</span>
 <span class="c1">#     p    Install/Update PostgREST binaries by downloading latest release from github.</span>
 <span class="c1">#     r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config</span>
@@ -1154,9 +1153,10 @@ psql<span class="w"> </span>cexplorer
 <span class="c1">#     c    Overwrite haproxy, postgREST configs</span>
 <span class="c1">#     d    Overwrite systemd definitions</span>
 <span class="c1"># -u    Skip update check for setup script itself</span>
+<span class="c1"># -r    Reset grest schema - drop all cron jobs and triggers, and remove all deployed RPC functions and cached tables</span>
 <span class="c1"># -q    Run all DB Queries to update on postgres (includes creating grest schema, and re-creating views/genesis table/functions/triggers and setting up cron jobs)</span>
 <span class="c1"># -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)</span>
-<span class="c1">#</span>
+<span class="c1"># </span>
 </code></pre></div>
 <p>To run the setup overwriting all standard deployment tasks from a branch (eg: <code>koios-1.0.9</code> branch), you may want to use:
 <div class="highlight"><pre><span></span><code>./setup-grest.sh<span class="w"> </span>-f<span class="w"> </span>-i<span class="w"> </span>prmcd<span class="w"> </span>-r<span class="w"> </span>-q<span class="w"> </span>-b<span class="w"> </span>koios-1.0.9
