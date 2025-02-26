@@ -197,7 +197,7 @@ updateWithCustomConfig() {
 add_epel_repository() {
   if [[ "${1}" =~ Fedora ]]; then return; fi
   echo -e "\n  Enabling epel repository..."
-  ! grep -q ^epel <<< "$(dnf repolist)" && $sudo dnf ${3} install https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
+  ! grep -q ^epel <<< "$(dnf repolist)" && $sudo dnf install ${3} https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
 }
 
 # OS Dependencies
@@ -229,7 +229,7 @@ os_dependencies() {
       pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig"
     elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
       #RHEL/CentOS/RockyLinux 8/9
-      if ${pkgmgrcmd} -h  | grep -q "\--allowerasing"; then pkg_opts="${pkg_opts} --allowerasing"; fi
+      if ${pkgmgrcmd} install -h  | grep -q "\ --allowerasing"; then pkg_opts="${pkg_opts} --allowerasing"; fi
       if [[ "${DISTRO}" =~ Rocky ]]; then
         #RockyLinux 8/9
         pkg_list="${pkg_list} --enablerepo=devel,crb libusbx ncurses-compat-libs pkgconf-pkg-config"
@@ -238,7 +238,7 @@ os_dependencies() {
       fi
     elif [[ "${DISTRO}" =~ Fedora ]]; then
       #Fedora
-      if ${pkgmgrcmd} -h  | grep -q "\--allowerasing"; then pkg_opts="${pkg_opts} --allowerasing"; fi
+      if ${pkgmgrcmd} install -h  | grep -q "\ --allowerasing"; then pkg_opts="${pkg_opts} --allowerasing"; fi
       pkg_list="${pkg_list} libusbx ncurses-compat-libs pkgconf-pkg-config"
     fi
     if [[ "${LIBSODIUM_FORK}" == "Y" ]] || [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
@@ -252,16 +252,16 @@ os_dependencies() {
     echo -e "\nWe have no automated procedures for this ${DISTRO} system"
     err_exit
   fi
-  $sudo ${pkgmgrcmd} ${pkg_opts} update > /dev/null;rc=$?
+  $sudo ${pkgmgrcmd} update ${pkg_opts} > /dev/null;rc=$?
   if [[ $rc != 0 ]]; then
     echo -e "\nAn error occured while executing \"${pkgmgrcmd} ${pkg_opts} update\" which indicates an existing issue with your base OS, please investigate manually prior to running the script again"
     err_exit
   fi
   echo -e "\n  Installing missing prerequisite packages, if any.."
-  $sudo ${pkgmgrcmd} ${pkg_opts} install ${pkg_list} > /dev/null;rc=$?
+  $sudo ${pkgmgrcmd} install ${pkg_opts} ${pkg_list} > /dev/null;rc=$?
   if [[ $rc != 0 ]]; then
     echo -e "\nAn error occurred while installing the prerequisite packages, please investigate by using the command below:"
-    echo -e "\n  $sudo ${pkgmgrcmd} ${pkg_opts} install ${pkg_list}"
+    echo -e "\n  $sudo ${pkgmgrcmd} install ${pkg_opts} ${pkg_list}"
     echo -e "\nIt would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
     err_exit
   fi
