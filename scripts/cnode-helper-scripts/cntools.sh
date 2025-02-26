@@ -4512,7 +4512,7 @@ function main {
                         esac
                         ;;
                     esac
-                    isAllowedToVote ${vote_mode} ${proposal_type} ${isParameterSecurityGroup}
+                    isAllowedToVote ${vote_mode} ${proposal_type} ${isParameterSecurityGroup:=N}
                     case $? in
                       1) println ERROR "\n${FG_RED}ERROR${NC}: Voter of type '${vote_mode}' is not allowed to vote on an action of type '${proposal_type}'!"; waitToProceed && continue ;;
                       2) println ERROR "\n${FG_RED}ERROR${NC}: This proposal does not contain a parameter of the SecurityGroup, so voter of type '${vote_mode}' is not allowed to vote!"; waitToProceed && continue ;;

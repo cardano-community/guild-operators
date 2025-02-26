@@ -16,13 +16,13 @@
 
 #CNODE_PORT=6000       # the port on which this node runs (automatically read from cnTools:env   outside cnTools you need to manually set this parameter)
 
-#AddrBlacklist="192.168.1.123, " # uncomment with your block producers or other nodes IP that you do not want to expose to common view
+AddrBlacklist="" # comma spearated list of IP-Adresses you don't want to expose. (block producers or hidden relays) 
 
 ######################################
 # Do NOT modify code below           #
 ######################################
 
-BP_VERSION=v1.3.9
+BP_VERSION=v1.3.10
 
 SKIP_UPDATE=N
 [[ $1 = "-u" ]] && SKIP_UPDATE=Y && shift
@@ -157,8 +157,8 @@ if [[ "${CONFIG##*.}" = "json" ]] && [[ -f ${CONFIG} ]]; then
   [[ -z ${EKG_HOST} ]] && EKG_HOST=127.0.0.1
   [[ -z ${EKG_PORT} ]] && EKG_PORT=$(jq .hasEKG $CONFIG)
   [[ -z "${EKG_PORT}" ]] && echo -e "ERROR: Failed to locate the EKG Port in node configuration file" && exit 1
-  [[ -z "${AddrBlacklist}" ]] &&
-  NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
+								
+  [[ -z "${NWMAGIC}" ]] && NWMAGIC=$(jq -r .networkMagic < ${GENESIS_JSON})
   checkFixConfig '["TraceChainSyncClient"]' true "alert";
   checkFixConfig '["TraceBlockFetchClient"]' true "alert";
   checkFixConfig '["TracingVerbosity"]' "NormalVerbosity" "alert";
@@ -279,14 +279,14 @@ reportBlock() {
     [[ -n "$blockTimeAb" ]] && deltaCbfAb=$(( $(getDeltaMS ${blockTimeAb} ${blockSlotTime},000) - deltaSfrCbf - deltaTbhSfr - deltaSlotTbh)) || deltaCbfAb="NULL"
     [[ "$deltaCbfAb" -lt 0 ]] && deltaCbfAb=0  # rare cases of ab logged before cbf (can be removed after fixed in node )
     # may blacklist some internal IPs, to not expose them to common views (api.clio.one)
-    if [[ -z "${AddrBlacklist}" ]] || [[ "$AddrBlacklist" == *"$blockTimeTbhAddr"* ]]; then
+    if [[ "$AddrBlacklist" == *"$blockTimeTbhAddr"* ]]; then
       blockTimeTbhAddrPublic="0.0.0.0"
       blockTimeTbhPortPublic="0"
     else
       blockTimeTbhAddrPublic=$blockTimeTbhAddr
       blockTimeTbhPortPublic=$blockTimeTbhPort
     fi
-    if [[ -z "${AddrBlacklist}" ]] || [[ "$AddrBlacklist" == *"$blockTimeCbfAddr"* ]]; then
+    if [[ "$AddrBlacklist" == *"$blockTimeCbfAddr"* ]]; then
       blockTimeCbfAddrPublic="0.0.0.0"
       blockTimeCbfPortPublic="0"
     else

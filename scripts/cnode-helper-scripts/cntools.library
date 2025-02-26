@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=3
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=5
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -5083,8 +5083,8 @@ HWCLIversionCheck() {
   println ACTION "cardano-hw-cli version"
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
   println LOG "cardano-hw-cli version: ${HWCLI_version}"
-  if ! versionCheck "1.16.0" "${HWCLI_version}"; then
-    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.16.0${NC} !!"
+  if ! versionCheck "1.17.0" "${HWCLI_version}"; then
+    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.17.0${NC} !!"
     println ERROR "Please run ${FG_LGRAY}guild-deploy.sh -s w${NC} to upgrade to the latest version."
     return 1
   fi

@@ -85,13 +85,19 @@ variables for the Mithril client.
    ./mithril-client.sh environment setup
    ```
 
+   * Override a default variable in the Mithril environment file: Run the script with the environment override <VARIABLE> <VALUE> command to override a default variable in the mithril.env file.
+
+     ```bash
+     ./mithril-client.sh environment override <VARIABLE> <VALUE>
+     ```
+
 3. **Download the latest Mithril snapshot:** Once the environment file is set up, you
 can download the latest Mithril snapshot by running the script with the `snapshot
 download` command. This snapshot contains the latest state of the Cardano blockchain db
 from a Mithril Aggregator.
 
    ```bash
-   ./mithril-client.sh snapshot download
+   ./mithril-client.sh cardano-db download
    ```
 
 ### Participating in Mithril Network
