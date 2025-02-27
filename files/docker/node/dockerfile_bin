@@ -105,7 +105,7 @@ ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLO
 RUN sudo chmod -R a+rx /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh /conf \
     && sudo chown -R guild:guild /home/guild/.* $CNODE_HOME /conf
 
-HEALTHCHECK --start-period=5m --interval=5m --timeout=100s CMD /opt/cardano/cnode/scripts/healthcheck.sh
+HEALTHCHECK --start-period=5m --interval=120s --timeout=120s CMD /opt/cardano/cnode/scripts/healthcheck.sh
 
 ENTRYPOINT ["./entrypoint.sh"]
 

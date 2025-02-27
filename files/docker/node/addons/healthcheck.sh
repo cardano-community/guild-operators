@@ -12,6 +12,8 @@ HEALTHCHECK_RETRIES="${HEALTHCHECK_RETRIES:-20}"                # The number of 
 HEALTHCHECK_RETRY_WAIT="${HEALTHCHECK_RETRY_WAIT:-3}"           # The time (in seconds) to wait between retries
 DB_SYNC_ALLOWED_DRIFT="${DB_SYNC_ALLOWED_DRIFT:-3600}"          # The allowed drift in seconds for the DB to be considered in sync
 CNCLI_DB_ALLOWED_DRIFT="${CNCLI_DB_ALLOWED_DRIFT:-300}"         # The allowed drift in slots for the CNCLI DB to be considered in sync
+CNCLI_SENDTIP_LOG_TIMEOUT="${CNCLI_SENDTIP_LOG_TIMEOUT:-119}"   # log capturing timeout (should one second be lower than container healthcheck '--timeout', which defaults to 120)
+CNCLI_SENDTIP_ALLOWED_DRIFT="${CNCLI_SENDTIP_ALLOWED_DRIFT:-3}" # The allowable difference of the tip moving before it's sent to Pooltool. (Not every tip progression is sent to Pooltool)
 
 ######################################
 # Do NOT modify code below           #
@@ -42,7 +44,7 @@ check_cncli() {
             return 1
         fi
     else
-        if check_cncli_send_tip; then
+        if check_cncli_sendtip; then
             return 0
         else
             return 1
@@ -68,10 +70,7 @@ check_cncli_db() {
 
 
 # Function to check if the tip is successfully being sent to Pooltool
-check_cncli_send_tip() {
-    # Timeout in seconds for capturing the log entry
-    log_entry_timeout=99
-
+check_cncli_sendtip() {
     # Get the process ID of cncli
     process_id=$(pgrep -of cncli) || {
         echo "Error: cncli process not found."
@@ -79,18 +78,19 @@ check_cncli_send_tip() {
     }
 
     # Get the current tip from the node
-    FIRST_TIP=$($CCLI query tip --testnet-magic ${NWMAGIC} | jq .block)
+    first_tip=$($CCLI query tip --testnet-magic ${NWMAGIC} | jq .block)
     # Capture the next output from cncli that is related to Pooltool
-    pt_log_entry=$(timeout $log_entry_timeout cat /proc/$process_id/fd/1 | grep --line-buffered "Pooltool" | head -n 1)
+    pt_log_entry=$(timeout $CNCLI_SENDTIP_LOG_TIMEOUT cat /proc/$process_id/fd/1 | grep --line-buffered "Pooltool" | head -n 1)
     # Get the current tip again
-    SECOND_TIP=$($CCLI query tip --testnet-magic ${NWMAGIC} | jq .block)
+    second_tip=$($CCLI query tip --testnet-magic ${NWMAGIC} | jq .block)
+    # If no output was captured...
     if [ -z "$pt_log_entry" ]; then
-        if [[ "$FIRST_TIP" -eq "$SECOND_TIP" ]]; then
-            echo "Unable to capture cncli output within $log_entry_timeout seconds, but node has not moved tip. (Current tip = $SECOND_TIP)."
-            return 0
+        if check_tip "$second_tip" "$first_tip" "$CNCLI_SENDTIP_ALLOWED_DRIFT"; then
+            echo "Node tip didn't move before the healthcheck timeout was reached. (Current tip = $second_tip)."
+            return 0  # Return 0 if the tip didn't move
         else
-            echo "Unable to capture cncli output within $log_entry_timeout seconds. (Current tip = $SECOND_TIP)."
-            return 1  # Return 1 if the output capture fails
+            echo "Unable to capture cncli output before the healthcheck timeout was reached. (Current tip = $second_tip)."
+            return 1  # Return 1 if the tip did move
         fi
     fi
 
@@ -100,17 +100,17 @@ check_cncli_send_tip() {
 
     # Check if the json success message exists in the captured log
     if echo "$pt_log_entry" | grep -q $json_success_status; then
-        echo "Healthy: Tip sent to Pooltool. (Current tip = $SECOND_TIP)."
+        echo "Healthy: Tip sent to Pooltool. (Current tip = $second_tip)."
         return 0  # Return 0 if the success message is found
     # Check if the json failure message exists in the captured log
     elif echo "$pt_log_entry" | grep -q $json_failure_status; then
         failure_message=$(echo "$pt_log_entry" | grep -oP '"message":"\K[^"]+')
-        echo "Failed to send tip. (Current tip = $SECOND_TIP). $failure_message"
+        echo "Failed to send tip. (Current tip = $second_tip). $failure_message"
         return 1  # Return 1 if the failure message is found
     # If the log entry does not contain a json success or failure message
     else
         # Log the raw output if no json message is found
-        echo "Failed to send tip. (Current tip = $SECOND_TIP). $pt_log_entry"
+        echo "Failed to send tip. (Current tip = $second_tip). $pt_log_entry"
         return 1  # Return 1 if it fails for any other reason
     fi
 }
@@ -213,11 +213,11 @@ check_process() {
 
 
 check_tip() {
-    TIP=$1
-    DB_TIP=$2
+    TIP_X=$1
+    TIP_Y=$2
     ALLOWED_DRIFT=$3
 
-    if [[ $(( TIP - DB_TIP )) -le ${ALLOWED_DRIFT} ]]; then
+    if [[ $(( TIP_X - TIP_Y )) -le ${ALLOWED_DRIFT} ]]; then
         return 0
     else
         return 1
