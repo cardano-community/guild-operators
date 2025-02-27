@@ -818,9 +818,8 @@ kesExpiration() {
     if [[ $# -ne 1 ]] || ! isNumber $1; then return 1; fi
     current_kes_period_ref=$(getCurrentKESperiod)
     remaining_kes_periods=$(( MAX_KES_EVOLUTIONS - ( current_kes_period_ref - $1 ) ))
-  else
-    tip_ref=$(getSlotTipRef)
   fi
+  tip_ref=$(getSlotTipRef)
   current_time_sec=$(printf '%(%s)T\n' -1)
   expiration_time_sec=$(( current_time_sec - ( SLOT_LENGTH * (tip_ref % SLOTS_PER_KES_PERIOD) ) + ( SLOT_LENGTH * SLOTS_PER_KES_PERIOD * remaining_kes_periods ) ))
   expiration_time_sec_diff=$(( expiration_time_sec - current_time_sec ))
