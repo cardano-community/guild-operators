@@ -35,6 +35,7 @@ usage() {
 		-d  Install squid and configure as a relay
 		-l  Install nginx and configure as a load balancer
 		-u  Skip update check
+		-s  Stop relays
 		-h  Show this help text
 		
 		EOF

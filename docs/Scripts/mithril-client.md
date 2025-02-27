@@ -8,7 +8,7 @@
 ## Usage
 
 ```bash
-Usage: bash [-u] <command> <subcommand> [<sub arg>]
+Usage: mithril-client.sh [-u] <command> <subcommand> [<sub arg>]
 A script to run Cardano Mithril Client
 
 -u          Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
@@ -55,16 +55,15 @@ You can investigate the available snapshots by using the `snapshot list` and `sn
 - **List all available Mithril snapshots:** You can list all available Mithril snapshots by running the script with the `snapshot list` command. Add `json` at the end to get the output in JSON format.
 
   ```bash
-  ./mithril-client.sh cardano-dbsnapshot list
-  ./mithril-client.sh cardano-dbsnapshot list json
+  ./mithril-client.sh cardano-db snapshot list
+  ./mithril-client.sh cardano-db snapshot list json
   ```
 
 - **Show details of a specific Mithril snapshot:** You can show details of a specific Mithril snapshot by running the script with the `snapshot show <DIGEST>` command, where `<DIGEST>` is the digest of the snapshot. Add `json` at the end to get the output in JSON format.
 
   ```bash
-  ./mithril-client.sh cardano-dbsnapshot show <DIGEST>
-  ./mithril-client.sh cardano-dbsnapshot show <DIGEST> json
-  ./mithril-client.sh cardano-dbsnapshot show json <DIGEST>
+  ./mithril-client.sh cardano-db snapshot show <DIGEST>
+  ./mithril-client.sh cardano-db snapshot show <DIGEST> json
   ```
 
 ## Managing Stake Distributions
