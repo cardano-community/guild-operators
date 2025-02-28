@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=v1.3.1
+SGVERSION=v1.3.2
 
 ######## Functions ########
   usage() {
@@ -140,7 +140,7 @@ SGVERSION=v1.3.1
     get_cron_job_executable "epoch-info-cache-update"
     set_cron_variables "epoch-info-cache-update"
     ([[ ${NWMAGIC} -eq 141 ]] && install_cron_job "epoch-info-cache-update" "*/5 * * * *") ||
-      install_cron_job "epoch-info-cache-update" "*/15 * * * *"
+      install_cron_job "epoch-info-cache-update" "*/5 * * * *"
 
     get_cron_job_executable "active-stake-cache-update"
     set_cron_variables "active-stake-cache-update"
