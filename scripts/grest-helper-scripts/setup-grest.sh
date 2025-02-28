@@ -281,7 +281,7 @@ SGVERSION=v1.3.2
     if [ -z "${ARCH##*aarch64*}" ]; then
       pgrest_binary=ubuntu-aarch64.tar.xz
     else 
-      pgrest_binary=linux-static-x64.tar.xz
+      pgrest_binary=linux-static-x86-64.tar.xz
     fi
     #pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep ${pgrest_binary})"
     pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v12.2.8/postgrest-v12.2.8-${pgrest_binary}"
