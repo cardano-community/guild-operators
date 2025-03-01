@@ -10,6 +10,7 @@ ENTRYPOINT_PROCESS="${ENTRYPOINT_PROCESS:-cnode.sh}"            # Get the script
 HEALTHCHECK_CPU_THRESHOLD="${HEALTHCHECK_CPU_THRESHOLD:-80}"    # The CPU threshold to warn about if the sidecar process exceeds this for more than 60 seconds, defaults to 80%.
 HEALTHCHECK_RETRIES="${HEALTHCHECK_RETRIES:-20}"                # The number of retries if tip is not incrementing, or cpu usage is over the threshold
 HEALTHCHECK_RETRY_WAIT="${HEALTHCHECK_RETRY_WAIT:-3}"           # The time (in seconds) to wait between retries
+NODE_ALLOWED_DRIFT="${NODE_ALLOWED_DRIFT:-6}"                   # The allowed drift in blocks for the node to be considered in sync
 DB_SYNC_ALLOWED_DRIFT="${DB_SYNC_ALLOWED_DRIFT:-3600}"          # The allowed drift in seconds for the DB to be considered in sync
 CNCLI_DB_ALLOWED_DRIFT="${CNCLI_DB_ALLOWED_DRIFT:-300}"         # The allowed drift in slots for the CNCLI DB to be considered in sync
 CNCLI_SENDTIP_LOG_TIMEOUT="${CNCLI_SENDTIP_LOG_TIMEOUT:-119}"   # log capturing timeout (should one second be lower than container healthcheck '--timeout', which defaults to 120)
@@ -152,6 +153,9 @@ check_db_sync() {
 # Function to check if the node is running and is on tip
 check_node() {
     CCLI=$(which cardano-cli)
+    CURL=$(which curl)
+    JQ=$(which jq)
+    URL="${KOIOS_API}/tip"
 
     # Adjust NETWORK variable if needed
     if [[ "$NETWORK" == "guild-mainnet" ]]; then NETWORK=mainnet; fi
@@ -161,26 +165,22 @@ check_node() {
     if [[ "${ENABLE_KOIOS}" == "N" ]] || [[ -z "${KOIOS_API}" ]]; then
         sleep 60
         SECOND=$($CCLI query tip --testnet-magic "${NWMAGIC}" | jq .block)
-        if [[ "$FIRST" -ge "$SECOND" ]]; then
+        # Subtract 1 from the second tip when using check_tip and drift of 0
+        if check_tip "$FIRST" $(( SECOND - 1)) 0; then
+            echo "We're healthy - node: $FIRST == node: $SECOND"
+            return 0
+        else
             echo "There is a problem"
             return 1
-        else
-            echo "We're healthy - node: $FIRST -> node: $SECOND"
-            return 0
         fi
     else
         SECOND=$($CURL -s "${KOIOS_API_HEADERS[@]}" "${URL}" | $JQ '.[0].block_no')
 
         for (( CHECK=0; CHECK<=HEALTHCHECK_RETRIES; CHECK++ )); do
-            if [[ "$FIRST" -eq "$SECOND" ]]; then
+            # Set BIDIRECTIONAL_DRIFT to 1 since using an API call
+            if check_tip "$FIRST" "$SECOND" "$NODE_ALLOWED_DRIFT" 1; then
                 echo "We're healthy - node: $FIRST == koios: $SECOND"
                 return 0
-            elif [[ "$FIRST" -lt "$SECOND" ]]; then
-                sleep "$HEALTHCHECK_RETRY_WAIT"
-                FIRST=$($CCLI query tip --testnet-magic "${NWMAGIC}" | jq .block)
-            elif [[ "$FIRST" -gt "$SECOND" ]]; then
-                sleep "$HEALTHCHECK_RETRY_WAIT"
-                SECOND=$($CURL "${URL}" | $JQ '.[0].block_no')
             fi
         done
         echo "There is a problem"
