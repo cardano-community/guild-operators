@@ -24,6 +24,15 @@ CNCLI_SENDTIP_ALLOWED_DRIFT="${CNCLI_SENDTIP_ALLOWED_DRIFT:-3}" # The allowable 
 [[ ! -f "${PARENT}"/env ]] && echo -e "\nCommon env file missing in \"${PARENT}\", please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
 . "${PARENT}"/env offline
 
+if [[ -z "${KOIOS_API_HEADERS[*]}" ]] ; then
+    if [[ -n "${KOIOS_API_TOKEN}" ]] ; then
+        KOIOS_API_HEADERS=(-H "'Authorization: Bearer ${KOIOS_API_TOKEN}'")
+    else
+        KOIOS_API_HEADERS=()
+    fi
+fi
+
+
 # Define a mapping of scripts to their corresponding health check functions
 declare -A PROCESS_TO_HEALTHCHECK
 PROCESS_TO_HEALTHCHECK=(
@@ -160,10 +169,7 @@ check_node() {
             return 0
         fi
     else
-        CURL=$(which curl)
-        JQ=$(which jq)
-        URL="${KOIOS_API}/tip"
-        SECOND=$($CURL -s "${URL}" | $JQ '.[0].block_no')
+        SECOND=$($CURL -s "${KOIOS_API_HEADERS[@]}" "${URL}" | $JQ '.[0].block_no')
 
         for (( CHECK=0; CHECK<=HEALTHCHECK_RETRIES; CHECK++ )); do
             if [[ "$FIRST" -eq "$SECOND" ]]; then
