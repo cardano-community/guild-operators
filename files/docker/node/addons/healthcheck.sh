@@ -68,7 +68,7 @@ check_cncli_db() {
     # Check if the DB is in sync
     CNCLI_SLOT=$(${SQLITE} "${CNODE_HOME}/guild-db/cncli/cncli.db" 'select slot_number from chain order by id desc limit 1;')
     NODE_SLOT=$(${CCLI} query tip --testnet-magic "${NWMAGIC}" | jq .slot)
-    if check_tip "${NODE_SLOT}" "${CNCLI_SLOT}" "${CNCLI_DB_ALLOWED_DRIFT}"  ; then
+    if check_tip "${CNCLI_SLOT}" "${NODE_SLOT}" "${CNCLI_DB_ALLOWED_DRIFT}"  ; then
         echo "We're healthy - DB is in sync"
         return 0
     else
@@ -94,7 +94,7 @@ check_cncli_sendtip() {
     second_tip=$($CCLI query tip --testnet-magic ${NWMAGIC} | jq .block)
     # If no output was captured...
     if [ -z "$pt_log_entry" ]; then
-        if check_tip "$second_tip" "$first_tip" "$CNCLI_SENDTIP_ALLOWED_DRIFT"; then
+        if check_tip "$first_tip" "$second_tip" "$CNCLI_SENDTIP_ALLOWED_DRIFT"; then
             echo "Node tip didn't move before the healthcheck timeout was reached. (Current tip = $second_tip)."
             return 0  # Return 0 if the tip didn't move
         else
@@ -137,9 +137,9 @@ check_db_sync() {
         PGDATABASE=cexplorer
         export PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD
     fi
-    CURRENT_TIME=$(date +%s)
     LATEST_BLOCK_TIME=$(date --date="$(psql -qt -c 'select time from block order by id desc limit 1;')" +%s)
-    if check_tip "${CURRENT_TIME}""${LATEST_BLOCK_TIME}" "${DB_SYNC_ALLOWED_DRIFT}"; then
+    CURRENT_TIME=$(date +%s)
+    if check_tip "${LATEST_BLOCK_TIME}" "${CURRENT_TIME}" "${DB_SYNC_ALLOWED_DRIFT}"; then
         echo "We're healthy - DB is in sync"
         return 0
     else
@@ -218,15 +218,39 @@ check_process() {
 }
 
 
-check_tip() {
-    TIP_X=$1
-    TIP_Y=$2
-    ALLOWED_DRIFT=$3
+# Function to check if the tip is progressing or within the allowed drift.
+# FIRST_TIP: The first tip to compare
+# SECOND_TIP: The second tip to compare
+# ALLOWED_DRIFT: The allowed drift between the two tips
+# BIDIRECTIONAL_DRIFT: If set to 1, the function will calculate the absolute diff between the
+#                      tips. This is useful when the tip can move backwards, like with API calls.
+# Returns 0 if the diff of the second tip minus the first tip is between 0 and the allowed drift.
+# Returns 1 if the diff is outside the allowed drift.
 
-    if [[ $(( TIP_X - TIP_Y )) -le ${ALLOWED_DRIFT} ]]; then
-        return 0
+check_tip() {
+    FIRST_TIP=$1
+    SECOND_TIP=$2
+    ALLOWED_DRIFT=${3:-0}
+    BIDIRECTIONAL_DRIFT=${4:-0}
+
+    diff=$(( SECOND_TIP - FIRST_TIP ))
+
+    if [[ ${BIDIRECTIONAL_DRIFT} -eq 1 ]]; then
+        diff=$(( diff < 0 ? -diff : diff ))
+    fi
+
+    if [[ ${ALLOWED_DRIFT} -eq 0 ]]; then
+        if [[ ${diff} -eq 0 ]] ; then
+            return 0
+        else
+            return 1
+        fi
     else
-        return 1
+        if [[ ${diff} -ge 0 && ${diff} -le ${ALLOWED_DRIFT} ]]; then
+            return 0
+        else
+            return 1
+        fi
     fi
 }
 
