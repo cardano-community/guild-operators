@@ -15,9 +15,10 @@ DISTRO=$(grep -i ^NAME= /etc/os-release | cut -d= -f 2)
 
 if [ -z "${OS_ID##*debian*}" ]; then
   #Debian/Ubuntu
-  wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-  RELEASE=$(lsb_release -cs)
-  echo "deb [arch=amd64] http://apt.postgresql.org/pub/repos/apt/ ${RELEASE}"-pgdg main | sudo tee  /etc/apt/sources.list.d/pgdg.list
+  sudo apt install curl ca-certificates -y
+  sudo install -d /usr/share/postgresql-common/pgdg
+  sudo curl -s -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+  sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
   sudo apt-get update
   sudo apt-get -y install postgresql-17 postgresql-server-dev-17 postgresql-contrib libghc-hdbc-postgresql-dev
   sudo systemctl enable postgresql

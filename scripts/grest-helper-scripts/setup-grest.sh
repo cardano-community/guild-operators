@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=v1.3.1
+SGVERSION=v1.3.2
 
 ######## Functions ########
   usage() {
@@ -140,7 +140,7 @@ SGVERSION=v1.3.1
     get_cron_job_executable "epoch-info-cache-update"
     set_cron_variables "epoch-info-cache-update"
     ([[ ${NWMAGIC} -eq 141 ]] && install_cron_job "epoch-info-cache-update" "*/5 * * * *") ||
-      install_cron_job "epoch-info-cache-update" "*/15 * * * *"
+      install_cron_job "epoch-info-cache-update" "*/5 * * * *"
 
     get_cron_job_executable "active-stake-cache-update"
     set_cron_variables "active-stake-cache-update"
@@ -281,7 +281,7 @@ SGVERSION=v1.3.1
     if [ -z "${ARCH##*aarch64*}" ]; then
       pgrest_binary=ubuntu-aarch64.tar.xz
     else 
-      pgrest_binary=linux-static-x64.tar.xz
+      pgrest_binary=linux-static-x86-64.tar.xz
     fi
     #pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep ${pgrest_binary})"
     pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v12.2.8/postgrest-v12.2.8-${pgrest_binary}"

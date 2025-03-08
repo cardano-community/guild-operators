@@ -4665,7 +4665,7 @@ function main {
                       0) unset drep_meta_file ;;
                       1) getAnswerAnyCust drep_anchor_url "Enter DRep's anchor URL"
                         if [[ ! "${drep_anchor_url}" =~ https?://.* || ${#drep_anchor_url} -gt 128 ]]; then
-                          println ERROR "\n${FG_RED}ERROR${NC}: invalid URL format or more than 128 chars in length"
+                          println ERROR "\n${FG_RED}ERROR${NC}: invalid URL format or more than 128 characters in length"
                           waitToProceed && continue
                         fi
                         if curl -sL -f -m ${CURL_TIMEOUT} -o "${drep_meta_file}" ${drep_anchor_url} && jq -er . "${drep_meta_file}" &>/dev/null; then
