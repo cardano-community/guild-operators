@@ -3410,14 +3410,14 @@ function main {
                   --out-file "${calidus_reg_file}"
                 )
                 if [[ ${op_mode} = "hybrid" && ! -f "${calidus_reg_file}" ]]; then
-                  println INFO "\n1. Move '${calidus_vk_file}' to offline machine that contain pool cold key."\
+                  println INFO "\n1. Move '${FG_LGRAY}${calidus_vk_file}${NC}' to offline machine that contain ${FG_GREEN}${pool_name}${NC} pool cold key."\
                     "2. Run below command to generate registration metadata replacing paths as needed."\
-                    "3. Move generated '${POOL_CALIDUS_REG_FILENAME}' file back into pool folder on this machine."\
-                    "4. Rerun this command to complete calidus key registration (keep existing keys).\n"
+                    "3. Move generated '${FG_LGRAY}${POOL_CALIDUS_REG_FILENAME}${NC}' file back into ${FG_GREEN}${pool_name}${NC} pool folder on this machine."\
+                    "4. Rerun this command to complete calidus key registration keeping existing keys.\n"
                   println INFO "${CS_CIP88_META_FILE[*]}"
                   waitToProceed && continue
                 fi
-                println ACTION "${CS_CIP88_META_FILE[*]}"
+                println ACTION "${FG_LGRAY}${CS_CIP88_META_FILE[*]}${NC}"
                 if ! stdout=$("${CS_CIP88_META_FILE[@]}" 2>&1); then
                   println ERROR "\n${FG_RED}ERROR${NC}: failure during calidus metadata generation!\n${stdout}"
                   waitToProceed && continue
