@@ -3357,8 +3357,7 @@ function main {
                 esac
                 getPoolType ${pool_name}
               fi
-              echo
-              metatype="cbor"
+              metatype="no-schema"
               calidus_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_CALIDUS_SK_FILENAME}"
               calidus_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_CALIDUS_VK_FILENAME}"
               calidus_reg_file="${POOL_FOLDER}/${pool_name}/${POOL_CALIDUS_REG_FILENAME}"
@@ -3366,7 +3365,7 @@ function main {
                 CS_CIP88_META_VERIFY=(
                   cardano-signer verify
                   --cip88
-                  --data-hex "$(cat "${calidus_reg_file}")"
+                  --data-file "${calidus_reg_file}"
                 )
                 println ACTION "${CS_CIP88_META_VERIFY[*]}"
                 if ! stdout=$("${CS_CIP88_META_VERIFY[@]}" 2>&1) || [[ ${stdout} = *false* ]]; then
@@ -3407,14 +3406,14 @@ function main {
                   --calidus-public-key "${calidus_vk_file}"
                   --secret-key "${pool_coldkey_sk_file}"
                   --nonce ${current_slot}
-                  --out-cbor "${calidus_reg_file}"
+                  --json
+                  --out-file "${calidus_reg_file}"
                 )
                 if [[ ${op_mode} = "hybrid" && ! -f "${calidus_reg_file}" ]]; then
-                  println INFO "\n${FG_BLUE}HYBRID MODE${NC}:\n"\
-                    " 1. Move '${calidus_vk_file}' to offline machine that contain pool cold key.\n"\
-                    " 2. Run below command to generate registration metadata replacing paths as needed.\n"\
-                    " 3. Move generated '${POOL_CALIDUS_REG_FILENAME}' file back into pool folder on this machine.\n"\
-                    " 4. Rerun this command to complete calidus key registration (keep existing keys).\n\n"
+                  println INFO "\n1. Move '${calidus_vk_file}' to offline machine that contain pool cold key."\
+                    "2. Run below command to generate registration metadata replacing paths as needed."\
+                    "3. Move generated '${POOL_CALIDUS_REG_FILENAME}' file back into pool folder on this machine."\
+                    "4. Rerun this command to complete calidus key registration (keep existing keys).\n"
                   println INFO "${CS_CIP88_META_FILE[*]}"
                   waitToProceed && continue
                 fi
