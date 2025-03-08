@@ -102,6 +102,9 @@
 #POOL_REGCERT_FILENAME="pool.cert"
 #POOL_CURRENT_KES_START="kes.start"
 #POOL_DEREGCERT_FILENAME="pool.dereg"
+#POOL_CALIDUS_VK_FILENAME="calidus.vkey"                # Pool calidus key according to CIP-88 v2
+#POOL_CALIDUS_SK_FILENAME="calidus.skey"
+#POOL_CALIDUS_REG_FILENAME="calidus_reg.json"
 
 #ASSET_FOLDER="${CNODE_HOME}/priv/asset"                # Root folder for Multi-Assets containing minted assets and subfolders for Policy IDs
 #ASSET_POLICY_VK_FILENAME="policy.vkey"                 # Standardized names for all multi-asset related files
@@ -1008,6 +1011,9 @@ set_default_vars() {
   [[ -z ${POOL_REGCERT_FILENAME} ]] && POOL_REGCERT_FILENAME="pool.cert"
   [[ -z ${POOL_CURRENT_KES_START} ]] && POOL_CURRENT_KES_START="kes.start"
   [[ -z ${POOL_DEREGCERT_FILENAME} ]] && POOL_DEREGCERT_FILENAME="pool.dereg"
+  [[ -z ${POOL_CALIDUS_VK_FILENAME} ]] && POOL_CALIDUS_VK_FILENAME="calidus.vkey"
+  [[ -z ${POOL_CALIDUS_SK_FILENAME} ]] && POOL_CALIDUS_SK_FILENAME="calidus.skey"
+  [[ -z ${POOL_CALIDUS_REG_FILENAME} ]] && POOL_CALIDUS_REG_FILENAME="calidus_reg.json"
   [[ -z ${ASSET_FOLDER} ]] && ASSET_FOLDER="${CNODE_HOME}/priv/asset"
   [[ -z ${ASSET_POLICY_VK_FILENAME} ]] && ASSET_POLICY_VK_FILENAME="policy.vkey"
   [[ -z ${ASSET_POLICY_SK_FILENAME} ]] && ASSET_POLICY_SK_FILENAME="policy.skey"
