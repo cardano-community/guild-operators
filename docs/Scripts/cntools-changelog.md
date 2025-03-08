@@ -6,9 +6,13 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [13.3.4] - 2025-01-29
+## [13.4.0] - 2025-03-09
+#### Added
+- Support was added for the pool Calidus key according to CIP-88 standard.
 #### Changed
-- Bump cardano-hw-cli version requirement to 1.17.0
+- Governance proposal list was updated to be more performant by only loading and processing data as you navigate.
+#### Fixed
+- Fix for kesExpiration helper function
 
 ## [13.3.3] - 2025-01-10
 #### Fixed
