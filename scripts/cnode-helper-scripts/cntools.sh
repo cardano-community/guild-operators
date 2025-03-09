@@ -3327,7 +3327,7 @@ function main {
                 waitToProceed && continue
               fi
               cardano_signer_version=$(cardano-signer -version)
-              if ! versionCheck "1.23.0" "${cardano_signer_version##* }"; then
+              if ! versionCheck "1.24.0" "${cardano_signer_version##* }"; then
                 println INFO "${FG_YELLOW}Please upgrade cardano-signer, this feature require at least version 1.23.0, found ${cardano_signer_version##* }!${NC}"; waitToProceed && continue
               fi
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -3395,9 +3395,16 @@ function main {
                     2) continue ;;
                   esac
                 fi
-                println ACTION "${CCLI} address key-gen --verification-key-file ${calidus_vk_file} --signing-key-file ${calidus_sk_file}"
-                if ! stdout=$(${CCLI} address key-gen --verification-key-file "${calidus_vk_file}" --signing-key-file "${calidus_sk_file}" 2>&1); then
-                  println ERROR "\n${FG_RED}ERROR${NC}: failure during calidus key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
+                CS_CALIDUS_KEYS=(
+                  cardano-signer keygen
+                  --path calidus
+                  --out-skey "${calidus_sk_file}"
+                  --out-vkey "${calidus_vk_file}"
+                )
+                println ACTION "${CS_CALIDUS_KEYS[*]}"
+                if ! stdout=$("${CS_CALIDUS_KEYS[@]}" 2>&1); then
+                  println ERROR "\n${FG_RED}ERROR${NC}: failure during calidus key creation!\n${stdout}"
+                  waitToProceed && continue
                 fi
                 current_slot=$(getSlotTipRef)
                 CS_CIP88_META_FILE=(
@@ -3414,10 +3421,10 @@ function main {
                     "2. Run below command to generate registration metadata replacing paths as needed."\
                     "3. Move generated '${FG_LGRAY}${POOL_CALIDUS_REG_FILENAME}${NC}' file back into ${FG_GREEN}${pool_name}${NC} pool folder on this machine."\
                     "4. Rerun this command to complete calidus key registration keeping existing keys.\n"
-                  println INFO "${CS_CIP88_META_FILE[*]}"
+                  println INFO "${FG_LGRAY}${CS_CIP88_META_FILE[*]}${NC}"
                   waitToProceed && continue
                 fi
-                println ACTION "${FG_LGRAY}${CS_CIP88_META_FILE[*]}${NC}"
+                println ACTION "${CS_CIP88_META_FILE[*]}"
                 if ! stdout=$("${CS_CIP88_META_FILE[@]}" 2>&1); then
                   println ERROR "\n${FG_RED}ERROR${NC}: failure during calidus metadata generation!\n${stdout}"
                   waitToProceed && continue
