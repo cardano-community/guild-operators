@@ -3430,7 +3430,7 @@ function main {
                   waitToProceed && continue
                 fi
               fi
-              println DEBUG "Select wallet for calidus registration transaction fee"
+              println DEBUG "\nSelect wallet for calidus registration transaction fee"
               if [[ ${op_mode} = "online" ]]; then
                 selectWallet "balance"
                 case $? in
