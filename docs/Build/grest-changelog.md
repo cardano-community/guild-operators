@@ -1,5 +1,37 @@
 # Koios gRest Changelog
 
+## [1.3.2] - For all networks.
+
+New release with a few new endpoints, based on requests/feedback from community. While there are no breaking changes introduced, as part of flattening account endpoints (as horizontal filtering on JSON does not really work well) - we have also deprecated a few endpoints, these (alongwith `block_tx_info` deprecated in 1.3.1 will be removed at next major release in coming months.
+
+## New endpoints added:
+- `/address_outputs` - Basic transaction output info for given addresses [#319]
+- `/pool_calidus_keys` - List of valid calidus keys for all pools [#319]
+- `/pool_groups` - List of all registered pool and their groups across sources from [pool_groups](https://github.com/cardano-community/pool_groups) repository. This is only relevant for mainnet [#319]
+- `/pool_owner_history` - Return information about pool owner's historical stake and their promised pledge to their pools [#319]
+- `/account_stake_history` - Get history for dreps voting power distribution [#319]
+- `/account_reward_history` - Get the full rewards history (including MIR) for given stake addresses [#319]
+- `/account_update_history` - Get historical updates (registration, deregistration, delegation and withdrawals) for given stake addresses [#319]
+
+### Data Input/Output Changes:
+- Output - `/tip` - Deprecate column `block_no` and use `block_height` to be consistent across all endpoints
+
+
+### Deprecations:
+- `/account_history` - Part of flattening the JSON heirarchy (so that horizontal filtering is optimal), use `/account_stake_history` instead [#319]
+- `/account_rewards` - Part of flattening the JSON heirarchy (so that horizontal filtering is optimal), use `/account_rewards_history` instead [#319]
+- `/account_updates` - Part of flattening the JSON heirarchy (so that horizontal filtering is optimal), use `/account_update_history` instead [#319]
+
+### Chores:
+- Replace [pg_bech32](https://github.com/cardano-community/pg_bech32) library with [pg_cardano](https://github.com/cardano-community/pg_cardano)
+- Improve grest.epoch_info_cache performance
+- `/proposal_voting_summary` - 	Do lookup for gov action id beforehand, Added handling of inactive DRep stake in voting as abstain, unless they voted in epoch of interest
+- `/account_info` - Add limit filters to ensure there is a single hit per account
+
+### Retirements:
+- None
+
+[#319]: https://github.com/cardano-community/koios-artifacts/pull/319
 
 ## [1.3.1] - For all networks.
 
@@ -23,6 +55,8 @@ This is a minor value-addition patch release over v1.3.0, addressing feedback fr
 - Fix for drep_info regarding active state (was missing by 1) [#319]
 - Fix Typo in API Specs (Preferred => Prefer) [#319]
 - Return is_valid field as-is from dbsync, current behaviour of showing true was invalid [#319]
+
+[#319]: https://github.com/cardano-community/koios-artifacts/pull/319
 
 ## [1.3.0] - For all networks.
 
