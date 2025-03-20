@@ -283,7 +283,7 @@ SGVERSION=v1.3.2
   deploy_postgrest() {
     printf "[Re]Installing PostgREST..\n"
     pushd ~/tmp >/dev/null || err_exit
-    ARCH=$(uname -i)
+    ARCH=$(uname -m)
     if [ -z "${ARCH##*aarch64*}" ]; then
       pgrest_binary=ubuntu-aarch64.tar.xz
     else 
@@ -304,12 +304,8 @@ SGVERSION=v1.3.2
   deploy_pgcardano_ext() {
     printf "[Re]Installing pg_cardano extension..\n"
     pushd ~/tmp >/dev/null || err_exit
-    ARCH=$(uname -i)
-    if [ -z "${ARCH##*aarch64*}" ]; then
-      pgcardano_aset_url="https://share.koios.rest/api/public/dl/xFdZDfM4/bin/pg_cardano_linux_aarch64_v1.0.5-p2.tar.gz"
-    else
-      pgcardano_asset_url="https://github.com/cardano-community/pg_cardano/releases/download/v1.0.5-p2/pg_cardano_linux_x64_v1.0.5-p2.tar.gz"
-    fi
+    ARCH=$(uname -m)
+    pgcardano_asset_url="https://share.koios.rest/api/public/dl/xFdZDfM4/bin/pg_cardano_linux_${ARCH}_v1.0.5-p2.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o pg_cardano.tar.gz "${pgcardano_asset_url}"; then
       tar xf pg_cardano.tar.gz &>/dev/null && rm -f pg_cardano.tar.gz
       pushd pg_cardano >/dev/null || err_exit
