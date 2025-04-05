@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.4.1] - 2025-04-05
+#### Fixed
+- Proper check for if a HW device is used in pool update
+
 ## [13.4.0] - 2025-03-09
 #### Added
 - Support was added for the pool Calidus key according to CIP-88 standard.
