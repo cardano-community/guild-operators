@@ -15,6 +15,8 @@
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
+  "SnapshotInterval": 43200,
+  "MempoolCapacityBytesOverride": 8388608,
   "SyncTargetNumberOfActiveBigLedgerPeers": 30,
   "SyncTargetNumberOfActivePeers": 0,
   "SyncTargetNumberOfEstablishedBigLedgerPeers": 50,

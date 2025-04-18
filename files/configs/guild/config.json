@@ -7,6 +7,7 @@
   "LastKnownBlockVersion-Alt": 0,
   "LastKnownBlockVersion-Major": 3,
   "LastKnownBlockVersion-Minor": 1,
+  "MinBigLedgerPeersForTrustedState": 5,
   "MinNodeVersion": "10.2.1",
   "PeerSharing": true,
   "Protocol": "Cardano",
