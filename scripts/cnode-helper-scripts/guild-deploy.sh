@@ -109,8 +109,8 @@ set_defaults() {
   [[ -z "${BRANCH}" ]] && BRANCH="master"
   [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
-  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "10.1.4")"
-  [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "10.1.1.0")"
+  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "10.3.1")"
+  [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "10.7.0.0")"
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
   [[ -z ${MITHRIL_HOME} ]] && MITHRIL_HOME="${CNODE_HOME}/mithril"
@@ -280,8 +280,8 @@ os_dependencies() {
 build_dependencies() {
   echo -e "\nInstalling Haskell build/compiler dependencies (if missing)..."
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
-  export BOOTSTRAP_HASKELL_GHC_VERSION=8.10.7
-  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.10.2.0
+  export BOOTSTRAP_HASKELL_GHC_VERSION=9.6.7
+  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.14.2.0
   if ! command -v ghcup &>/dev/null; then
     echo -e "\nInstalling ghcup (The Haskell Toolchain installer) .."
     BOOTSTRAP_HASKELL_NONINTERACTIVE=1
