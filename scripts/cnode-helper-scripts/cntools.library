@@ -13,9 +13,9 @@
 # Major: Any considerable change in the code base, big feature, workflow or breaking change from previous version
 CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
-CNTOOLS_MINOR_VERSION=4
+CNTOOLS_MINOR_VERSION=5
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=4
+CNTOOLS_PATCH_VERSION=0
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -571,7 +571,7 @@ selectWallet() {
           getBalance ${base_addr}
           balances["${base_addr}"]=${assets[lovelace]}
           if [[ -n ${reward_addr} ]]; then
-            delegation_pool_id=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].delegation // empty')
+            delegation_pool_id=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].stakeDelegation // empty')
             [[ -n ${delegation_pool_id} ]] && pool_delegations[${reward_addr}]=${delegation_pool_id}
           fi
         else
@@ -1006,8 +1006,8 @@ verifyTx() {
       ! num_confirmations=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_tx_hashes":["'${tx_id}'"]}' "${KOIOS_API}/tx_status?select=num_confirmations" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${num_confirmations}\n" && return 1 # print error and return
       result=$(tail -n +2 <<< ${num_confirmations})
     else
-      println ACTION "${CCLI} query utxo --tx-in ${tx_id}#0 ${NETWORK_IDENTIFIER}| tail -n +3"
-      result=$(${CCLI} query utxo --tx-in "${tx_id}#0" ${NETWORK_IDENTIFIER}| tail -n +3)
+      println ACTION "${CCLI} query utxo --tx-in ${tx_id}#0 --output-text ${NETWORK_IDENTIFIER} | tail -n +3"
+      result=$(${CCLI} query utxo --tx-in "${tx_id}#0" --output-text ${NETWORK_IDENTIFIER} | tail -n +3)
     fi
     [[ -n "${result}" ]] && { println DEBUG "\nTx put on chain !!"; break; } || printf .
   done
@@ -1229,8 +1229,8 @@ getDRepStatus() {
     done <<< "$(tail -n +2 <<< ${drep_info_list})"
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
     [[ ${hash_type} = keyHash ]] && hash_param="--drep-key-hash" || hash_param="--drep-script-hash"
-    println ACTION "${CCLI} conway query drep-state ${hash_param} ${2} ${NETWORK_IDENTIFIER} | jq -r .[0][1]"
-    drep_state=$(${CCLI} conway query drep-state ${hash_param} ${2} ${NETWORK_IDENTIFIER} | jq -r .[0][1])
+    println ACTION "${CCLI} latest query drep-state ${hash_param} ${2} ${NETWORK_IDENTIFIER} | jq -r .[0][1]"
+    drep_state=$(${CCLI} latest query drep-state ${hash_param} ${2} ${NETWORK_IDENTIFIER} | jq -r .[0][1])
     [[ ${drep_state} = null ]] && return 1
     IFS=',' read -r drep_anchor_url drep_anchor_hash drep_deposit_amt drep_expiry < <( jq -cr '"\(.anchor.url//""),\(.anchor.dataHash//""),\(.deposit),\(.expiry)"' <<< "${drep_state}" )
     return 0
@@ -1276,8 +1276,8 @@ getDRepVotePower() {
     vote_power_total=$(tail -n +2 <<< ${vote_power_total})
     vote_power="${drep_vote_power}"
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-    println ACTION "${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
-    all_drep_vote_power=$(${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
+    println ACTION "${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
+    all_drep_vote_power=$(${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
     vote_power_total=$(jq -r '[.[][1]] | add' <<< "${all_drep_vote_power}")
     search_string="drep-${1}"
     [[ -n $2 ]] && search_string+="-${2}"
@@ -1334,8 +1334,8 @@ getGovAction() {
     IFS=',' read -r proposal_url proposal_hash proposal_type < <( jq -cr '"\(.meta_url//""),\(.meta_hash//""),\(.proposal_type//"")"' <<< "${vote_action}" )
     [[ ${proposal_type} = "ParameterChange" ]] && parameterChange=$(jq -e '.param_proposal | keys[]' <<< "${vote_action}") && getParameterChangeGroups
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-    println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -r --arg govActionId \"$1\" 'first(.proposals | to_entries[] | select(.value.actionId.txId | contains(\$govActionId))) | .value'"
-    vote_action=$(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -r --arg govActionId "$1" 'first(.proposals | to_entries[] | select(.value.actionId.txId | contains($govActionId))) | .value')
+    println ACTION "${CCLI} latest query gov-state ${NETWORK_IDENTIFIER} | jq -r --arg govActionId \"$1\" 'first(.proposals | to_entries[] | select(.value.actionId.txId | contains(\$govActionId))) | .value'"
+    vote_action=$(${CCLI} latest query gov-state ${NETWORK_IDENTIFIER} | jq -r --arg govActionId "$1" 'first(.proposals | to_entries[] | select(.value.actionId.txId | contains($govActionId))) | .value')
     [[ -z ${vote_action} ]] && return 1
     IFS=',' read -r proposal_url proposal_hash proposal_type < <( jq -cr '"\(.proposalProcedure.anchor.url//""),\(.proposalProcedure.anchor.dataHash//""),\(.proposalProcedure.govAction.tag//"")"' <<< "${vote_action}" )
     [[ ${proposal_type} = "ParameterChange" ]] && parameterChange=$(jq -e '.proposalProcedure.govAction.contents[1] | keys[]' <<< "${vote_action}") && getParameterChangeGroups
@@ -1367,8 +1367,8 @@ getActiveGovActionCount() {
     response=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/proposal_list?select=count()&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null" 2>&1) || return 1
     vote_action_count=$(tail -n +2 <<< ${response})
   else
-    println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals | length'"
-    vote_action_count=$(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals | length' 2>/dev/null)
+    println ACTION "${CCLI} latest query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals | length'"
+    vote_action_count=$(${CCLI} latest query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals | length' 2>/dev/null)
     [[ -z ${vote_action_count} ]] && return 1
   fi
   return 0
@@ -1441,19 +1441,19 @@ getAllGovActions() {
       vote_action_list_all=()
       getCurrentCommittee; getParameterThresholds # to fetch thresholds
       # get current DRep distribution
-      println ACTION "${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
-      all_drep_vote_power=$(${CCLI} conway query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
+      println ACTION "${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
+      all_drep_vote_power=$(${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
       # sum of all drep stake distribution entries without the alwaysAbstain and alwaysNoConfidence
       drep_power_total_no_abstain=$(jq -r '[.[] | select(.[0] == "drep-alwaysAbstain" | not) | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null)
       # get current Pool distribution
       unset all_spo_vote_power spo_power_total
-      println ACTION "${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER}"
-      all_spo_vote_power=$(${CCLI} conway query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER})
-      spo_power_total=$(jq -r '[.[][1]] | add' <<< "${all_spo_vote_power}" 2>/dev/null)
+      println ACTION "${CCLI} latest query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER}"
+      all_spo_vote_power=$(${CCLI} latest query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER})
+      spo_power_total_no_abstain=$(jq -r '[.[] | select(.[2] == "drep-alwaysAbstain" | not) | .[1]] | add //0' <<< "${all_spo_vote_power}" 2>/dev/null)
       # get committee vote power (sum of authorized committee members)
       cc_power_authorized=$(jq -r 'reduce(select(.committee[].hotCredsAuthStatus.tag|strings=="MemberAuthorized")) as $_ (0; .+1)' <<< "${committee_info}")
-      println ACTION "${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
-      _vote_action_list=( $(${CCLI} conway query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null) )
+      println ACTION "${CCLI} latest query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
+      _vote_action_list=( $(${CCLI} latest query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null) )
       # reverse order
       for ((i=${#_vote_action_list[@]}-1; i>=0; i--)); do
         vote_action_list_all+=( "${_vote_action_list[$i]}" )
@@ -1512,8 +1512,14 @@ getAllGovActions() {
       spo_yes_vote_power="$(jq -r --argjson v "${spo_yes_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
       spo_no_vote_power="$(jq -r --argjson v "${spo_no_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
       spo_abstain_vote_power="$(jq -r --argjson v "${spo_abstain_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
-      spo_power_total=$(( spo_power_total - spo_abstain_vote_power ))
+      spo_power_total=$(( spo_power_total_no_abstain - spo_abstain_vote_power ))
       spo_no_vote_power_total=$(( spo_power_total - spo_yes_vote_power )) # total spo power - proposal abstain - proposal yes
+      if [[ ${proposal_type} = "NoConfidence" ]]; then
+        # add alwaysNoConfidence power to yes vote
+        spo_always_no_confidence="$(jq -r '[.[] | select(.[2] == "drep-alwaysNoConfidence") | .[1]] | add //0' <<< "${all_spo_vote_power}" 2>/dev/null)"
+        spo_yes_vote_power=$(( spo_yes_vote_power + spo_always_no_confidence ))
+        spo_no_vote_power_total=$(( spo_no_vote_power_total - (spo_always_no_confidence * 2) ))
+      fi
       # calculate percentages
       spo_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_yes_vote_power}/${spo_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       spo_no_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_no_vote_power_total}/${spo_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
@@ -1521,13 +1527,13 @@ getAllGovActions() {
       while IFS= read -r -d '' pool; do
         pool_name=$(basename ${pool})
         getPoolID ${pool_name} || continue
-        for spo in ${spo_yes_voters[@]}; do
+        for spo in "${spo_yes_voters[@]}"; do
           [[ ${spo} = *"${pool_id}"* ]] && own_spo_votes+=( "${proposal_id};${pool_name};Yes" ) && continue 2
         done
-        for spo in ${spo_no_voters[@]}; do
+        for spo in "${spo_no_voters[@]}"; do
           [[ ${spo} = *"${pool_id}"* ]] && own_spo_votes+=( "${proposal_id};${pool_name};No" ) && continue 2
         done
-        for spo in ${spo_abstain_voters[@]}; do
+        for spo in "${spo_abstain_voters[@]}"; do
           [[ ${spo} = *"${pool_id}"* ]] && own_spo_votes+=( "${proposal_id};${pool_name};Abstain" ) && continue 2
         done
       done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -1550,13 +1556,13 @@ getAllGovActions() {
         wallet_name=$(basename ${wallet})
         getGovKeyInfo ${wallet_name}
         [[ -z ${cc_hot_hash} ]] && continue
-        for cc_hot in ${cc_yes_voters[@]}; do
+        for cc_hot in "${cc_yes_voters[@]}"; do
           [[ ${cc_hot} = *"${cc_hot_hash}"* ]] && own_cc_votes+=( "${proposal_id};${wallet_name};Yes" ) && continue 2
         done
-        for cc_hot in ${cc_no_voters[@]}; do
+        for cc_hot in "${cc_no_voters[@]}"; do
           [[ ${cc_hot} = *"${cc_hot_hash}"* ]] && own_cc_votes+=( "${proposal_id};${wallet_name};No" ) && continue 2
         done
-        for cc_hot in ${cc_abstain_voters[@]}; do
+        for cc_hot in "${cc_abstain_voters[@]}"; do
           [[ ${cc_hot} = *"${cc_hot_hash}"* ]] && own_cc_votes+=( "${proposal_id};${wallet_name};Abstain" ) && continue 2
         done
       done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
@@ -1702,8 +1708,8 @@ getCurrentCommittee() {
     committee_info=$(curl -sSL -f -X GET "${HEADERS[@]}" "${KOIOS_API}/committee_info")
     cc_threshold=$(printf '%.2f' "$(jq -r '(.[0].quorum_numerator //0) / (.[0].quorum_denominator //1) * 100' <<< "${committee_info}")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-    println ACTION "${CCLI} conway query committee-state ${NETWORK_IDENTIFIER}"
-    committee_info=$(${CCLI} conway query committee-state ${NETWORK_IDENTIFIER})
+    println ACTION "${CCLI} latest query committee-state ${NETWORK_IDENTIFIER}"
+    committee_info=$(${CCLI} latest query committee-state ${NETWORK_IDENTIFIER})
     cc_threshold=$(printf '%.2f' "$(jq -r '(.threshold.numerator //0) / (.threshold.denominator //1) * 100' <<< "${committee_info}")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
   fi
 }
@@ -1924,8 +1930,8 @@ getCredentials() {
   if [[ -z ${script_pay_cred} ]]; then
     payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
     if [[ -f "${payment_script_file}" ]]; then
-      println ACTION "${CCLI} hash script --script-file ${payment_script_file} --out-file ${script_payment_cred_file}"
-      if stdout=$(${CCLI} hash script --script-file "${payment_script_file}" --out-file "${script_payment_cred_file}" 2>&1); then
+      println ACTION "${CCLI} latest transaction policyid --script-file ${payment_script_file} --out-file ${script_payment_cred_file}"
+      if stdout=$(${CCLI} latest transaction policyid --script-file "${payment_script_file}" --out-file "${script_payment_cred_file}" 2>&1); then
         script_pay_cred=$(cat "${script_payment_cred_file}")
       else
         println LOG "\n${FG_RED}ERROR${NC}: failure during script payment policy creation!\n${stdout}"
@@ -1936,8 +1942,8 @@ getCredentials() {
   if [[ -z ${script_stake_cred} ]]; then
     stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
     if [[ -f "${stake_script_file}" ]]; then
-      println ACTION "${CCLI} hash script --script-file ${stake_script_file} --out-file ${script_stake_cred_file}"
-      if stdout=$(${CCLI} hash script --script-file "${stake_script_file}" --out-file "${script_stake_cred_file}" 2>&1); then
+      println ACTION "${CCLI} latest transaction policyid --script-file ${stake_script_file} --out-file ${script_stake_cred_file}"
+      if stdout=$(${CCLI} latest transaction policyid --script-file "${stake_script_file}" --out-file "${script_stake_cred_file}" 2>&1); then
         script_stake_cred=$(cat "${script_stake_cred_file}")
       else
         println LOG "\n${FG_RED}ERROR${NC}: failure during script stake policy creation!\n${stdout}"
@@ -1968,7 +1974,7 @@ getBalance() {
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
   
-  if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo ${NETWORK_IDENTIFIER} --address "${1}"); then return 1; fi
+  if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo --address "${1}" ${NETWORK_IDENTIFIER} --output-text); then return 1; fi
   [[ -z ${utxo_raw} ]] && return
   
   while IFS= read -r line; do
@@ -2239,7 +2245,7 @@ getRewardsFromAddr() {
   reward_lovelace=0; stake_deposit=0
   println ACTION "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
   ! stake_address_info=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}) && println "ERROR" "\n${FG_RED}NODE CLI ERROR${NC}: ${stake_address_info}\n" && return 1 # print error and return
-  IFS=',' read -r stake_address reward_lovelace stake_deposit pool_delegation vote_delegation < <( jq -cr '"\(.[0].address//""),\(.[0].rewardAccountBalance//0),\(.[0].delegationDeposit//0),\(.[0].stakeDelegation//""),\(.[0].voteDelegation//"")"' <<< "${stake_address_info}" )
+  IFS=',' read -r stake_address reward_lovelace stake_deposit gov_action_deposits pool_delegation vote_delegation < <( jq -cr '"\(.[0].address//""),\(.[0].rewardAccountBalance//0),\(.[0].stakeRegistrationDeposit//0),\(.[0].govActionDeposits//{}),\(.[0].stakeDelegation//""),\(.[0].voteDelegation//"")"' <<< "${stake_address_info}" )
 }
 
 # Command     : isWalletRegistered [wallet name]
@@ -2752,10 +2758,7 @@ registerStakeWallet() {
     op_mode=hybrid
     unset required_total
     validateMultiSigScript false "$(cat "${payment_script_file}")"
-    witness_cnt=${required_total}
-    unset required_total
-    validateMultiSigScript false "$(cat "${stake_script_file}")"
-    witness_cnt=$(( witness_cnt + required_total ))
+    witness_cnt=$(( required_total + 1 ))
     stake_param=("--stake-script-file" "${stake_script_file}")
   else
     witness_cnt=2
@@ -2779,10 +2782,7 @@ registerStakeWallet() {
 
   unset script_args
   if [[ ${wallet_type} -eq 5 ]]; then
-    script_args=(
-      --tx-in-script-file "${payment_script_file}"
-      --certificate-script-file "${stake_script_file}"
-    )
+    script_args=( --tx-in-script-file "${payment_script_file}" )
   fi
  
   tmpNewBalance=$(( base_lovelace - KEY_DEPOSIT )) 
@@ -2824,6 +2824,7 @@ registerStakeWallet() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file "${stake_cert_file}"
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -2962,6 +2963,7 @@ deregisterStakeWallet() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file "${stake_dereg_file}"
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -3080,6 +3082,7 @@ sendAssets() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     ${metafile_param}
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
   
@@ -3250,6 +3253,7 @@ delegate() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file "${pool_delegcert_file}"
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -3373,6 +3377,7 @@ withdrawRewards() {
     --withdrawal ${reward_addr}+${reward_lovelace}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -3504,6 +3509,7 @@ registerPool() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file "${pool_regcert_file}"
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
   [[ -n ${owner_delegation_cert} ]] && build_args+=( --certificate-file "${owner_delegation_cert}" )
@@ -3650,6 +3656,7 @@ modifyPool() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file "${pool_regcert_file}"
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -3793,6 +3800,7 @@ deRegisterPool() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file "${pool_deregcert_file}"
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -4027,6 +4035,7 @@ sendMetadata() {
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -4157,6 +4166,7 @@ mintAsset() {
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -4294,6 +4304,7 @@ burnAsset() {
     ${metafile_param}
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -4434,6 +4445,7 @@ voteDelegation() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --certificate-file "${vote_deleg_cert_file}"
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -4565,6 +4577,7 @@ registerDRep() {
     --fee ${min_fee}
     --certificate-file "${drep_cert_file}"
     "${script_args[@]}"
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -4682,6 +4695,7 @@ retireDRep() {
     --fee ${min_fee}
     --certificate-file "${drep_cert_file}"
     "${script_args[@]}"
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -4796,6 +4810,7 @@ governanceVote() {
     --invalid-hereafter ${ttl}
     --fee ${min_fee}
     --vote-file "${vote_file}"
+    --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
 
@@ -4979,6 +4994,7 @@ assembleTx() {
       ${CCLI} latest transaction assemble
       --tx-body-file "${tx_raw}"
       ${tx_witness_out[@]}
+      --out-canonical-cbor
       --out-file "${tx_signed}"
     )
     println ACTION "${sign_command[@]}"

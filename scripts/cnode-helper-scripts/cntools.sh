@@ -455,16 +455,16 @@ function main {
                     if ! stdout=$(${CCLI} latest stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
                     fi
-                    println ACTION "${CCLI} conway governance drep key-gen --verification-key-file ${drep_vk_file} --signing-key-file ${drep_sk_file}"
-                    if ! stdout=$(${CCLI} conway governance drep key-gen --verification-key-file "${drep_vk_file}" --signing-key-file "${drep_sk_file}" 2>&1); then
+                    println ACTION "${CCLI} latest governance drep key-gen --verification-key-file ${drep_vk_file} --signing-key-file ${drep_sk_file}"
+                    if ! stdout=$(${CCLI} latest governance drep key-gen --verification-key-file "${drep_vk_file}" --signing-key-file "${drep_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during governance drep key creation!\n${stdout}"; waitToProceed && continue
                     fi
-                    println ACTION "${CCLI} conway governance committee key-gen-cold --cold-verification-key-file ${cc_cold_vk_file} --cold-signing-key-file ${cc_cold_sk_file}"
-                    if ! stdout=$(${CCLI} conway governance committee key-gen-cold --cold-verification-key-file "${cc_cold_vk_file}" --cold-signing-key-file "${cc_cold_sk_file}" 2>&1); then
+                    println ACTION "${CCLI} latest governance committee key-gen-cold --cold-verification-key-file ${cc_cold_vk_file} --cold-signing-key-file ${cc_cold_sk_file}"
+                    if ! stdout=$(${CCLI} latest governance committee key-gen-cold --cold-verification-key-file "${cc_cold_vk_file}" --cold-signing-key-file "${cc_cold_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during governance committee cold key creation!\n${stdout}"; waitToProceed && continue
                     fi
-                    println ACTION "${CCLI} conway governance committee key-gen-hot --verification-key-file ${cc_hot_vk_file} --signing-key-file ${cc_hot_sk_file}"
-                    if ! stdout=$(${CCLI} conway governance committee key-gen-hot --verification-key-file "${cc_hot_vk_file}" --signing-key-file "${cc_hot_sk_file}" 2>&1); then
+                    println ACTION "${CCLI} latest governance committee key-gen-hot --verification-key-file ${cc_hot_vk_file} --signing-key-file ${cc_hot_sk_file}"
+                    if ! stdout=$(${CCLI} latest governance committee key-gen-hot --verification-key-file "${cc_hot_vk_file}" --signing-key-file "${cc_hot_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during governance committee hot key creation!\n${stdout}"; waitToProceed && continue
                     fi
                     println ACTION "${CCLI} address key-gen --verification-key-file ${ms_payment_vk_file} --signing-key-file ${ms_payment_sk_file}"
@@ -475,8 +475,8 @@ function main {
                     if ! stdout=$(${CCLI} latest stake-address key-gen --verification-key-file "${ms_stake_vk_file}" --signing-key-file "${ms_stake_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake key creation!\n${stdout}"; waitToProceed && continue
                     fi
-                    println ACTION "${CCLI} conway governance drep key-gen --verification-key-file ${ms_drep_vk_file} --signing-key-file ${ms_drep_sk_file}"
-                    if ! stdout=$(${CCLI} conway governance drep key-gen --verification-key-file "${ms_drep_vk_file}" --signing-key-file "${ms_drep_sk_file}" 2>&1); then
+                    println ACTION "${CCLI} latest governance drep key-gen --verification-key-file ${ms_drep_vk_file} --signing-key-file ${ms_drep_sk_file}"
+                    if ! stdout=$(${CCLI} latest governance drep key-gen --verification-key-file "${ms_drep_vk_file}" --signing-key-file "${ms_drep_sk_file}" 2>&1); then
                       println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig governance drep key creation!\n${stdout}"; waitToProceed && continue
                     fi
                     chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
@@ -2859,6 +2859,13 @@ function main {
                   println ERROR "${FG_RED}ERROR${NC}: pool-state query failed: ${pool_params}"
                   waitToProceed && continue
                 fi
+                if [[ -n ${pool_coldkey_vk_file} ]]; then
+                  println ACTION "${CCLI} latest query stake-pool-default-vote --spo-verification-key-file ${pool_coldkey_vk_file} ${NETWORK_IDENTIFIER}"
+                  if ! pool_default_vote=$(${CCLI} latest query stake-pool-default-vote --spo-verification-key-file "${pool_coldkey_vk_file}" ${NETWORK_IDENTIFIER} 2>&1); then
+                    println LOG "${FG_RED}ERROR${NC}: stake-pool-default-vote query failed: ${pool_default_vote}"
+                    unset pool_default_vote
+                  fi
+                fi
                 tput rc && tput ed
               fi
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -2898,6 +2905,9 @@ function main {
               println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
               [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
               println "$(printf "%-21s : %s" "Registered" "${pool_registered}")"
+              if [[ -n ${pool_default_vote} ]]; then
+                println "$(printf "%-21s : %s" "Default vote" "${pool_default_vote:8}")"
+              fi
               pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
               pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
@@ -4753,7 +4763,7 @@ function main {
                     esac
                     vote_file="${TMP_DIR}/${action_tx_id}_${action_idx}_$(date '+%Y%m%d%H%M%S').vote"
                     VOTE_CMD=(
-                      ${CCLI} conway governance vote create
+                      ${CCLI} latest governance vote create
                       ${vote_param}
                       --governance-action-tx-id "${action_tx_id}"
                       --governance-action-index "${action_idx}"
@@ -4848,8 +4858,8 @@ function main {
                           waitToProceed && continue
                         fi
                         if curl -sL -f -m ${CURL_TIMEOUT} -o "${drep_meta_file}" ${drep_anchor_url} && jq -er . "${drep_meta_file}" &>/dev/null; then
-                          println ACTION "${CCLI} conway governance drep metadata-hash --drep-metadata-file ${drep_meta_file}"
-                          if ! drep_anchor_hash=$(${CCLI} conway governance drep metadata-hash --drep-metadata-file "${drep_meta_file}" 2>&1); then
+                          println ACTION "${CCLI} latest governance drep metadata-hash --drep-metadata-file ${drep_meta_file}"
+                          if ! drep_anchor_hash=$(${CCLI} latest governance drep metadata-hash --drep-metadata-file "${drep_meta_file}" 2>&1); then
                             println ERROR "\n${FG_RED}ERROR${NC}: failure during governance drep metadata hash creation!\n${drep_anchor_hash}"; waitToProceed && continue
                           fi
                         else
@@ -4868,7 +4878,7 @@ function main {
                     if [[ ${is_update} = N ]]; then
                       # registration
                       DREP_REG_CMD=(
-                        ${CCLI} conway governance drep registration-certificate
+                        ${CCLI} latest governance drep registration-certificate
                         "${drep_reg_param[@]}"
                         --key-reg-deposit-amt ${DREP_DEPOSIT}
                         --out-file "${drep_cert_file}"
@@ -4876,7 +4886,7 @@ function main {
                     else
                       # update
                       DREP_REG_CMD=(
-                        ${CCLI} conway governance drep update-certificate
+                        ${CCLI} latest governance drep update-certificate
                         "${drep_reg_param[@]}"
                         --out-file "${drep_cert_file}"
                       )
@@ -4944,7 +4954,7 @@ function main {
                       drep_ret_param=(--drep-verification-key-file "${drep_vk_file}")
                     fi
                     DREP_RET_CMD=(
-                      ${CCLI} conway governance drep retirement-certificate
+                      ${CCLI} latest governance drep retirement-certificate
                       "${drep_ret_param[@]}"
                       --deposit-amt ${drep_deposit_amt}
                       --out-file "${drep_cert_file}"
@@ -5139,20 +5149,20 @@ function main {
                         println DEBUG "Is selected wallet a CLI generated wallet or derived from mnemonic?"
                         select_opt "[c] CLI" "[m] Mnemonic"
                         case $? in
-                          0) println ACTION "${CCLI} conway governance drep key-gen --verification-key-file ${drep_vk_file} --signing-key-file ${drep_sk_file}"
-                            if ! stdout=$(${CCLI} conway governance drep key-gen --verification-key-file "${drep_vk_file}" --signing-key-file "${drep_sk_file}" 2>&1); then
+                          0) println ACTION "${CCLI} latest governance drep key-gen --verification-key-file ${drep_vk_file} --signing-key-file ${drep_sk_file}"
+                            if ! stdout=$(${CCLI} latest governance drep key-gen --verification-key-file "${drep_vk_file}" --signing-key-file "${drep_sk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during governance drep key creation!\n${stdout}"; waitToProceed && continue
                             fi
-                            println ACTION "${CCLI} conway governance committee key-gen-cold --cold-verification-key-file ${cc_cold_vk_file} --cold-signing-key-file ${cc_cold_sk_file}"
-                            if ! stdout=$(${CCLI} conway governance committee key-gen-cold --cold-verification-key-file "${cc_cold_vk_file}" --cold-signing-key-file "${cc_cold_sk_file}" 2>&1); then
+                            println ACTION "${CCLI} latest governance committee key-gen-cold --cold-verification-key-file ${cc_cold_vk_file} --cold-signing-key-file ${cc_cold_sk_file}"
+                            if ! stdout=$(${CCLI} latest governance committee key-gen-cold --cold-verification-key-file "${cc_cold_vk_file}" --cold-signing-key-file "${cc_cold_sk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during governance committee cold key creation!\n${stdout}"; waitToProceed && continue
                             fi
-                            println ACTION "${CCLI} conway governance committee key-gen-hot --verification-key-file ${cc_hot_vk_file} --signing-key-file ${cc_hot_sk_file}"
-                            if ! stdout=$(${CCLI} conway governance committee key-gen-hot --verification-key-file "${cc_hot_vk_file}" --signing-key-file "${cc_hot_sk_file}" 2>&1); then
+                            println ACTION "${CCLI} latest governance committee key-gen-hot --verification-key-file ${cc_hot_vk_file} --signing-key-file ${cc_hot_sk_file}"
+                            if ! stdout=$(${CCLI} latest governance committee key-gen-hot --verification-key-file "${cc_hot_vk_file}" --signing-key-file "${cc_hot_sk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during governance committee hot key creation!\n${stdout}"; waitToProceed && continue
                             fi
-                            println ACTION "${CCLI} conway governance drep key-gen --verification-key-file ${ms_drep_vk_file} --signing-key-file ${ms_drep_sk_file}"
-                            if ! stdout=$(${CCLI} conway governance drep key-gen --verification-key-file "${ms_drep_vk_file}" --signing-key-file "${ms_drep_sk_file}" 2>&1); then
+                            println ACTION "${CCLI} latest governance drep key-gen --verification-key-file ${ms_drep_vk_file} --signing-key-file ${ms_drep_sk_file}"
+                            if ! stdout=$(${CCLI} latest governance drep key-gen --verification-key-file "${ms_drep_vk_file}" --signing-key-file "${ms_drep_sk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig governance drep key creation!\n${stdout}"; waitToProceed && continue
                             fi
                             ;;
@@ -5222,36 +5232,36 @@ function main {
 																	"cborHex": "5880${drep_es_key}"
 															}
 															EOF
-                            println ACTION "${CCLI} conway key verification-key --signing-key-file ${drep_sk_file} --verification-key-file ${TMP_DIR}/drep.evkey"
-                            if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${drep_sk_file}" --verification-key-file "${TMP_DIR}/drep.evkey" 2>&1); then
+                            println ACTION "${CCLI} latest key verification-key --signing-key-file ${drep_sk_file} --verification-key-file ${TMP_DIR}/drep.evkey"
+                            if ! stdout=$(${CCLI} latest key verification-key --signing-key-file "${drep_sk_file}" --verification-key-file "${TMP_DIR}/drep.evkey" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} conway key verification-key --signing-key-file ${cc_cold_sk_file} --verification-key-file ${TMP_DIR}/cc-cold.evkey"
-                            if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${cc_cold_sk_file}" --verification-key-file "${TMP_DIR}/cc-cold.evkey" 2>&1); then
+                            println ACTION "${CCLI} latest key verification-key --signing-key-file ${cc_cold_sk_file} --verification-key-file ${TMP_DIR}/cc-cold.evkey"
+                            if ! stdout=$(${CCLI} latest key verification-key --signing-key-file "${cc_cold_sk_file}" --verification-key-file "${TMP_DIR}/cc-cold.evkey" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-cold extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} conway key verification-key --signing-key-file ${cc_hot_sk_file} --verification-key-file ${TMP_DIR}/cc-hot.evkey"
-                            if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${cc_hot_sk_file}" --verification-key-file "${TMP_DIR}/cc-hot.evkey" 2>&1); then
+                            println ACTION "${CCLI} latest key verification-key --signing-key-file ${cc_hot_sk_file} --verification-key-file ${TMP_DIR}/cc-hot.evkey"
+                            if ! stdout=$(${CCLI} latest key verification-key --signing-key-file "${cc_hot_sk_file}" --verification-key-file "${TMP_DIR}/cc-hot.evkey" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-hot extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} conway key verification-key --signing-key-file ${ms_drep_sk_file} --verification-key-file ${TMP_DIR}/ms_drep.evkey"
-                            if ! stdout=$(${CCLI} conway key verification-key --signing-key-file "${ms_drep_sk_file}" --verification-key-file "${TMP_DIR}/ms_drep.evkey" 2>&1); then
+                            println ACTION "${CCLI} latest key verification-key --signing-key-file ${ms_drep_sk_file} --verification-key-file ${TMP_DIR}/ms_drep.evkey"
+                            if ! stdout=$(${CCLI} latest key verification-key --signing-key-file "${ms_drep_sk_file}" --verification-key-file "${TMP_DIR}/ms_drep.evkey" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig drep extended verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/drep.evkey --verification-key-file ${drep_vk_file}"
-                            if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/drep.evkey" --verification-key-file "${drep_vk_file}" 2>&1); then
+                            println ACTION "${CCLI} latest key non-extended-key --extended-verification-key-file ${TMP_DIR}/drep.evkey --verification-key-file ${drep_vk_file}"
+                            if ! stdout=$(${CCLI} latest key non-extended-key --extended-verification-key-file "${TMP_DIR}/drep.evkey" --verification-key-file "${drep_vk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-cold.evkey --verification-key-file ${cc_cold_vk_file}"
-                            if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-cold.evkey" --verification-key-file "${cc_cold_vk_file}" 2>&1); then
+                            println ACTION "${CCLI} latest key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-cold.evkey --verification-key-file ${cc_cold_vk_file}"
+                            if ! stdout=$(${CCLI} latest key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-cold.evkey" --verification-key-file "${cc_cold_vk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-cold verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-hot.evkey --verification-key-file ${cc_hot_vk_file}"
-                            if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-hot.evkey" --verification-key-file "${cc_hot_vk_file}" 2>&1); then
+                            println ACTION "${CCLI} latest key non-extended-key --extended-verification-key-file ${TMP_DIR}/cc-hot.evkey --verification-key-file ${cc_hot_vk_file}"
+                            if ! stdout=$(${CCLI} latest key non-extended-key --extended-verification-key-file "${TMP_DIR}/cc-hot.evkey" --verification-key-file "${cc_hot_vk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during cc-hot verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
-                            println ACTION "${CCLI} conway key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_drep.evkey --verification-key-file ${ms_drep_vk_file}"
-                            if ! stdout=$(${CCLI} conway key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_drep.evkey" --verification-key-file "${ms_drep_vk_file}" 2>&1); then
+                            println ACTION "${CCLI} latest key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_drep.evkey --verification-key-file ${ms_drep_vk_file}"
+                            if ! stdout=$(${CCLI} latest key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_drep.evkey" --verification-key-file "${ms_drep_vk_file}" 2>&1); then
                               println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig drep verification key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && return 1
                             fi
                             ;;
