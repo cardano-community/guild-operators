@@ -1179,7 +1179,7 @@ else
   [[ ! -f "${ALONZO_GENESIS_JSON}" ]] && echo "Alonzo genesis file not found: ${ALONZO_GENESIS_JSON}" && return 1
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
   [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
-  GENESIS_HASH="$(${CCLI} latest genesis hash --genesis "${GENESIS_JSON}")"
+  GENESIS_HASH="$(${CCLI} hash genesis-file --genesis "${GENESIS_JSON}")"
   PROTOCOL="${CONFIG_CONTENTS[3]}"
   P2P_ENABLED="${CONFIG_CONTENTS[5]}"
 fi
@@ -1278,9 +1278,6 @@ case ${NWMAGIC} in
     [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
 esac
-
-NETWORK_ERA=$(${CCLI} latest query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq -r '.era //empty' | tr '[:upper:]' '[:lower:]')
-[[ -z ${NETWORK_ERA} ]] && NETWORK_ERA=conway
 
 [[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
 
