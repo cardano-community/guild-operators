@@ -4444,7 +4444,7 @@ function main {
                         three_col_2_start=$(( three_col_start + three_col_width ))
                         three_col_3_start=$(( three_col_2_start + three_col_width ))
                         # Header
-                        printf "|${FG_LGRAY}$(printf "%17s" "" | tr " " "-")${NC}${FG_BLACK}\e[42mYes${NC}${FG_LGRAY}$(printf "%$((three_col_width-3))s" " " | tr " " "-")${NC}${FG_BLACK}\e[41mNo${NC}${FG_LGRAY}$(printf "%$((three_col_width-2))s" "" | tr " " "-")${NC}${FG_BLACK}\e[47mSTATUS${NC}${FG_LGRAY}$(printf "%$(((max_len-(2*three_col_width))-5))s" "" | tr " " "-")${NC}|\n"
+                        printf "|${FG_LGRAY}$(printf "%17s" "" | tr " " "-")${NC}${FG_BLACK}\e[42mYES${NC}${FG_LGRAY}$(printf "%$((three_col_width-3))s" " " | tr " " "-")${NC}${FG_BLACK}\e[41mNO${NC}${FG_LGRAY}$(printf "%$((three_col_width-2))s" "" | tr " " "-")${NC}${FG_BLACK}\e[47mSTATUS${NC}${FG_LGRAY}$(printf "%$(((max_len-(2*three_col_width))-5))s" "" | tr " " "-")${NC}|\n"
                         tput sc
                         if isAllowedToVote "drep" "${action_type}" "${isParameterSecurityGroup:=N}"; then
                           # DRep Yes
