@@ -179,9 +179,8 @@ updateWithCustomConfig() {
       STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
       printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
     else
-      err_exit "Problems encountered while fetching \"${file}\" from Github, could be an issue with connectivity or Github site!"
       rm -f ${file}.tmp
-      return
+      err_exit "Problems encountered while fetching \"${file}\" from Github, could be an issue with connectivity or Github site!"
     fi
   fi
   [[ ! -d ./archive ]] && mkdir archive
@@ -326,9 +325,9 @@ build_libsodium() {
   git fetch >/dev/null 2>&1
   [[ -z "${SODIUM_REF}" ]] && SODIUM_REF="dbb48cc"
   git checkout "${SODIUM_REF}" &>/dev/null
-  ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1
-  ./configure > configure.log >> /tmp/libsodium.log 2>&1
-  make > make.log 2>&1 || err_exit  " Could not complete \"make\" for libsodium package, please try to run it manually to diagnose!"
+  ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1 || cat /tmp/libsodium.log
+  ./configure > configure.log >> /tmp/libsodium.log 2>&1 || cat /tmp/libsodium.log
+  make > make.log 2>&1 || ( cat make.log && err_exit  " Could not complete \"make\" for libsodium package, please try to run it manually to diagnose!" )
   $sudo make install > install.log 2>&1
   echo -e "\nIOG fork of libsodium installed to /usr/local/lib/"
 }
