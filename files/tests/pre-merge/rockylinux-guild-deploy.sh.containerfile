@@ -1,4 +1,4 @@
-FROM rockylinux/rockylinux:9
+FROM --platform=$BUILDPLATFORM rockylinux/rockylinux:9
 ARG G_ACCOUNT
 ARG COMMIT
 ARG BRANCH
