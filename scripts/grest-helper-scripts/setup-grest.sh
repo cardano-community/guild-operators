@@ -211,7 +211,7 @@ SGVERSION=v1.3.2
       # absence of haproxy.cfg or grest.conf at mentioned path would mean setup is not updated, or has not been run - hence, overwrite all
       [[ ! -f "${HAPROXY_CFG}" ]] || [[ ! -f "${CNODE_HOME}"/priv/grest.conf ]] && OVERWRITE_CONFIG="Y"
     else
-      [[ "${I_ARGS}" =~ "p" ]] && INSTALL_POSTGREST="Y" && DB_QRY_UPDATES="Y"
+      [[ "${I_ARGS}" =~ "p" ]] && INSTALL_POSTGREST="Y"
       [[ "${I_ARGS}" =~ "r" ]] && INSTALL_HAPROXY="Y"
       [[ "${I_ARGS}" =~ "m" ]] && INSTALL_MONITORING_AGENTS="Y"
       [[ "${I_ARGS}" =~ "c" ]] && OVERWRITE_CONFIG="Y"
