@@ -215,7 +215,7 @@ os_dependencies() {
     if [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
       libncurses_pkg="libncursesw5"
       [[ -f /etc/debian_version ]] && grep -q trixie /etc/debian_version && libncurses_pkg="libncursesw6"
-      pkg_list="${pkg_list} ${libncurses_pkg} libtinfo-dev libnuma-dev libpq-dev liblmdb-dev libffi-dev libgmp-dev libssl-dev libsystemd-dev libsodium-dev zlib1g-dev llvm clang"
+      pkg_list="${pkg_list} ${libncurses_pkg} libtinfo-dev libnuma-dev libpq-dev liblmdb-dev libffi-dev libgmp-dev libssl-dev libsystemd-dev zlib1g-dev llvm clang"
     fi
     if [[ "${INSTALL_CWHCLI}" == "Y" ]]; then
       pkg_list="${pkg_list} libusb-1.0-0-dev libudev-dev"
@@ -245,7 +245,7 @@ os_dependencies() {
       pkg_list="${pkg_list} make gcc-c++ autoconf automake"
     fi
     if [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
-      pkg_list="${pkg_list} ncurses-libs ncurses-devel openssl-devel systemd-devel libsodium-devel llvm clang numactl-devel libffi-devel gmp-devel zlib-devel lmdb-devel"
+      pkg_list="${pkg_list} ncurses-libs ncurses-devel openssl-devel systemd-devel llvm clang numactl-devel libffi-devel gmp-devel zlib-devel lmdb-devel"
     fi
     add_epel_repository "${DISTRO}" "${VERSION_ID}" "${pkg_opts}"
   else
@@ -281,7 +281,7 @@ build_dependencies() {
   echo -e "\nInstalling Haskell build/compiler dependencies (if missing)..."
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
   export BOOTSTRAP_HASKELL_GHC_VERSION=9.6.7
-  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.14.2.0
+  export BOOTSTRAP_HASKELL_CABAL_VERSION=3.12.1.0
   if ! command -v ghcup &>/dev/null; then
     echo -e "\nInstalling ghcup (The Haskell Toolchain installer) .."
     BOOTSTRAP_HASKELL_NONINTERACTIVE=1
@@ -365,7 +365,7 @@ build_libblst() {
   [[ ! -d "./blst" ]] && git clone https://github.com/supranational/blst &>/dev/null
   pushd blst >/dev/null || err_exit
   git fetch >/dev/null 2>&1
-  [[ -z "${BLST_REF}" ]] && BLST_REF="v0.3.11"
+  [[ -z "${BLST_REF}" ]] && BLST_REF="v0.3.14"
   git checkout ${BLST_REF} &>/dev/null
   ./build.sh >/dev/null 2>&1
   cat <<-EOF >libblst.pc
