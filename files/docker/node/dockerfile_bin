@@ -1,4 +1,4 @@
-FROM debian:stable-slim
+FROM --platform=$BUILDPLATFORM debian:stable-slim
 
 # DEFINE THE PREFERRED STOP SIGNAL
 STOPSIGNAL SIGINT
