@@ -3855,13 +3855,13 @@ function main {
                 if ! validateMultiSigScript true "${otx_script_scripts}" "${script_sig_creds[@]}"; then
                   # script failed validation
                   script_failed=true
-                  println ERROR "\n${FG_LGRAY}${otx_script_name}${NC} validation ${FG_RED}failed${NC}! Unable to submit transaction until needed signatures are added and/or time lock conditions if set pass!"
+                  println ERROR "\nUnable to submit transaction until needed signatures are added and/or time lock conditions if set pass!"
                   println DEBUG "If external participant signatures are needed, pass transaction file along to add additional signatures."
                   waitToProceed
                 fi
-                if [[ ${file_desc} = *"payment"* ]]; then
+                if [[ ${otx_script_name} = *"payment"* ]]; then
                   pay_script_signers=${required_total}
-                elif [[ ${file_desc} = *"stake"* ]]; then
+                elif [[ ${otx_script_name} = *"stake"* ]]; then
                   stake_script_signers=${required_total}
                 else
                   drep_script_signers=${required_total}
