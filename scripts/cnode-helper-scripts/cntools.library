@@ -2752,7 +2752,10 @@ registerStakeWallet() {
     op_mode=hybrid
     unset required_total
     validateMultiSigScript false "$(cat "${payment_script_file}")"
-    witness_cnt=$(( required_total + 1 ))
+    witness_cnt=${required_total}
+    unset required_total
+    validateMultiSigScript false "$(cat "${stake_script_file}")"
+    witness_cnt=$(( witness_cnt + required_total ))
     stake_param=("--stake-script-file" "${stake_script_file}")
   else
     witness_cnt=2
