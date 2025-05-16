@@ -6249,11 +6249,11 @@ function main {
                       ttl=$(( $(getSlotTipRef) + (ttl_enter/SLOT_LENGTH) ))
                       echo "{ \"type\": \"all\", \"scripts\": [ { \"slot\": ${ttl}, \"type\": \"before\" }, { \"keyHash\": \"${policy_key_hash}\", \"type\": \"sig\" } ] }" > "${policy_script_file}"
                     fi
-                    println ACTION "${CCLI} latest transaction policyid --script-file ${policy_script_file}"
-                    if ! policy_id=$(${CCLI} latest transaction policyid --script-file "${policy_script_file}" 2>&1); then
-                      println ERROR "${FG_RED}ERROR${NC}: failure during policy ID generation!\n${policy_id}"; safeDel "${policy_folder}"; waitToProceed && continue
+                    println ACTION "${CCLI} hash script --script-file ${policy_script_file} --out-file ${policy_id_file}"
+                    if ! stdout=$(${CCLI} hash script --script-file "${policy_script_file}" --out-file "${policy_id_file}" 2>&1); then
+                      println ERROR "${FG_RED}ERROR${NC}: failure during policy ID generation!\n${stdout}"; safeDel "${policy_folder}"; waitToProceed && continue
                     fi
-                    echo "${policy_id}" > "${policy_id_file}"
+                    policy_id=$(cat "${policy_id_file}")
                     chmod 600 "${policy_folder}/"*
                     echo
                     println "Policy Name   : ${FG_GREEN}${policy_name}${NC}"
