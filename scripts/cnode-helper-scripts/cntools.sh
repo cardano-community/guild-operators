@@ -3684,7 +3684,7 @@ function main {
                 elif [[ ${otx_signing_name} = "Asset "* ]]; then dialog_start_path="${ASSET_FOLDER}"
                 else dialog_start_path="${WALLET_FOLDER}"; fi
                 fileDialog "\nEnter path to ${otx_signing_name}" "${dialog_start_path}/"
-                [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
+                [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue
                 if [[ ${file} = "${ASSET_POLICY_SCRIPT_FILENAME}" ]]; then
                   if ! grep -q "$(_jq '.script.keyHash')" "${file}"; then
                     println ERROR "${FG_RED}ERROR${NC}: script file provided doesn't match with script hash in transaction for: ${otx_signing_name}"
@@ -3779,7 +3779,7 @@ function main {
                     println DEBUG "\nFound a matching wallet for ${FG_LGRAY}${otx_script_name}${NC}, use this file ? : ${FG_LGRAY}${skey_path}${NC}"
                     select_opt "[y] Yes" "[s] Skip participant"
                     case $? in
-                      0)  if ! witnessTx "${TMP_DIR}/tx.raw" "${skey_path}"; then waitToProceed && continue 2; fi
+                      0)  if ! witnessTx "${TMP_DIR}/tx.raw" "${skey_path}"; then waitToProceed && continue; fi
                           if ! offlineJSON=$(jq ".witness += [{ name: \"${sig}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
                           jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
                           script_sig_creds+=( ${sig} )
@@ -3796,7 +3796,7 @@ function main {
                   else
                     # choose
                     fileDialog "\nEnter path to signing key for MultiSig participant" "${WALLET_FOLDER}/"
-                    [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue 2
+                    [[ ! -f "${file}" ]] && println ERROR "${FG_RED}ERROR${NC}: file not found: ${file}" && waitToProceed && continue
                     file_desc=$(jq -er '.description' "${file}" 2>/dev/null)
                     if [[ ${file_desc} = *"Hardware"* ]]; then
                       dir_path=$(dirname "${file}")
@@ -3820,13 +3820,13 @@ function main {
                     else
                       println ACTION "${CCLI} key verification-key --signing-key-file ${file} --verification-key-file ${TMP_DIR}/tmp.vkey"
                       if ! stdout=$(${CCLI} key verification-key --signing-key-file "${file}" --verification-key-file "${TMP_DIR}"/tmp.vkey 2>&1); then
-                        println ERROR "\n${FG_RED}ERROR${NC}: failure during verification key creation!\n${stdout}"; waitToProceed && continue 2
+                        println ERROR "\n${FG_RED}ERROR${NC}: failure during verification key creation!\n${stdout}"; waitToProceed && continue
                       fi
                       file_type=$(jq -r '.type' "${file}")
                       if [[ ${file_type} = *"Extended"* ]]; then
                         println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/tmp.vkey --verification-key-file ${TMP_DIR}/tmp2.vkey"
                         if ! stdout=$(${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/tmp.vkey" --verification-key-file "${TMP_DIR}/tmp2.vkey" 2>&1); then
-                          println ERROR "\n${FG_RED}ERROR${NC}: failure during non-extended verification key creation!\n${stdout}"; waitToProceed && continue 2
+                          println ERROR "\n${FG_RED}ERROR${NC}: failure during non-extended verification key creation!\n${stdout}"; waitToProceed && continue
                         fi
                         mv -f "${TMP_DIR}/tmp2.vkey" "${TMP_DIR}/tmp.vkey"
                       fi
@@ -3845,7 +3845,7 @@ function main {
                       println ERROR "Looking for credential             : ${FG_LGRAY}${sig}${NC}"
                       waitToProceed && continue
                     fi
-                    if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitToProceed && continue 2; fi
+                    if ! witnessTx "${TMP_DIR}/tx.raw" "${file}"; then waitToProceed && continue; fi
                     if ! offlineJSON=$(jq ".witness += [{ name: \"${sig}\", witnessBody: $(jq -c . "${tx_witness_files[0]}") }]" <<< ${offlineJSON}); then return 1; fi
                     jq -r . <<< "${offlineJSON}" > "${offline_tx}" # save this witness to disk
                     script_sig_creds+=( ${sig} )
@@ -6249,11 +6249,11 @@ function main {
                       ttl=$(( $(getSlotTipRef) + (ttl_enter/SLOT_LENGTH) ))
                       echo "{ \"type\": \"all\", \"scripts\": [ { \"slot\": ${ttl}, \"type\": \"before\" }, { \"keyHash\": \"${policy_key_hash}\", \"type\": \"sig\" } ] }" > "${policy_script_file}"
                     fi
-                    println ACTION "${CCLI} latest transaction policyid --script-file ${policy_script_file}"
-                    if ! policy_id=$(${CCLI} latest transaction policyid --script-file "${policy_script_file}" 2>&1); then
-                      println ERROR "${FG_RED}ERROR${NC}: failure during policy ID generation!\n${policy_id}"; safeDel "${policy_folder}"; waitToProceed && continue
+                    println ACTION "${CCLI} hash script --script-file ${policy_script_file} --out-file ${policy_id_file}"
+                    if ! stdout=$(${CCLI} hash script --script-file "${policy_script_file}" --out-file "${policy_id_file}" 2>&1); then
+                      println ERROR "${FG_RED}ERROR${NC}: failure during policy ID generation!\n${stdout}"; safeDel "${policy_folder}"; waitToProceed && continue
                     fi
-                    echo "${policy_id}" > "${policy_id_file}"
+                    policy_id=$(cat "${policy_id_file}")
                     chmod 600 "${policy_folder}/"*
                     echo
                     println "Policy Name   : ${FG_GREEN}${policy_name}${NC}"
