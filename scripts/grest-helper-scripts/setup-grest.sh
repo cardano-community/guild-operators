@@ -159,6 +159,10 @@ SGVERSION=v1.3.2
     set_cron_variables "cli-protocol-params-update"
     install_cron_job "cli-protocol-params-update" "*/5 * * * *"
 
+    get_cron_job_executable "pool-info-cache-update"
+    set_cron_variables "pool-info-cache-update"
+    install_cron_job "pool-info-cache-update" "*/10 * * * *"
+
     # Preprod/Preview networks use same registry as testnet.
     if [[ ${NWMAGIC} -eq 764824073 || ${NWMAGIC} -eq 1 || ${NWMAGIC} -eq 2 || ${NWMAGIC} -eq 141 ]]; then
       get_cron_job_executable "asset-registry-update"
