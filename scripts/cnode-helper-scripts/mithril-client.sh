@@ -32,9 +32,8 @@ usage() {
 			  override            Override default variable in the mithril environment file
 			  update              Update mithril environment file
 			cardano-db            Interact with Cardano DB
-			  download            Download Cardano DB from Mithril snapshot
-			    immutable         Immutable db only requires node ledger replay
-			    full	      Includes ledger snapshot for fast bootstrap
+			  download            Download Cardano DB from Mithril snapshot (Immutable db only requires node ledger replay)
+			    full	      Includes ledger snapshot for fast node bootstrap
 			  snapshot            Interact with Mithril snapshots
 			    list              List available Mithril snapshots
 			      json            List availble Mithril snapshots in JSON format
@@ -100,14 +99,14 @@ function main() {
       case $2 in
         download)
           case $3 in
-           immutable)
-             check_db_dir
-             download_snapshot
-             ;;
-           full)
-             check_db_dir
-             download_snapshot_withledger
-             ;;
+            full)
+              check_db_dir
+              download_snapshot_withledger
+              ;;
+            *)
+              check_db_dir
+              download_snapshot
+              ;;
           esac
           ;;
         snapshot)
