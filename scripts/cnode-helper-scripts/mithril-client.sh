@@ -101,7 +101,7 @@ function main() {
           case $3 in
             full)
               check_db_dir
-              download_snapshot_withledger
+              download_snapshot_ancillary
               ;;
             *)
               check_db_dir

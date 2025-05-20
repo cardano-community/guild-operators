@@ -330,7 +330,7 @@ download_snapshot() {
   fi
 }
 
-download_snapshot_withledger() {
+download_snapshot_ancillary() {
   if [[ "${DOWNLOAD_SNAPSHOT}" == "Y" ]]; then
     echo "INFO: Downloading latest mithril snapshot (Includes ledger snapshot for fast bootstrap).."
     trap 'cleanup_db_directory' INT
