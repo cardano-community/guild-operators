@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2086,SC2230,SC2206,SC2140,SC2059,SC2154
-# shellcheck source=/dev/null
+#shellcheck source=/dev/null
 
 ######################################
 # Do NOT modify code below           #
@@ -316,12 +316,12 @@ cleanup_db_directory() {
   fi
 }
 
-# mithril client snapshot subcommand
+# mithril client snapshot subcommands
 download_snapshot() {
   if [[ "${DOWNLOAD_SNAPSHOT}" == "Y" ]]; then
-    echo "INFO: Downloading latest mithril snapshot (Immutable db only, requires ledger replay).."
+    echo "INFO: Downloading latest mithril snapshot (Includes ledger snapshot for fast node bootstrap).."
     trap 'cleanup_db_directory' INT
-    if ! "${MITHRILBIN}" -v --aggregator-endpoint ${AGGREGATOR_ENDPOINT} cardano-db download --download-dir "$(dirname ${DB_DIRECTORY})" --genesis-verification-key ${GENESIS_VERIFICATION_KEY} ${SNAPSHOT_DIGEST} ; then
+    if ! "${MITHRILBIN}" -v --aggregator-endpoint ${AGGREGATOR_ENDPOINT} cardano-db download --ancillary-verification-key ${ANCILLARY_VERIFICATION_KEY} --download-dir "$(dirname ${DB_DIRECTORY})" --genesis-verification-key ${GENESIS_VERIFICATION_KEY} --include-ancillary ${SNAPSHOT_DIGEST} ; then
       cleanup_db_directory
       exit 1
     fi
@@ -330,11 +330,11 @@ download_snapshot() {
   fi
 }
 
-download_snapshot_ancillary() {
+download_snapshot_noancillary() {
   if [[ "${DOWNLOAD_SNAPSHOT}" == "Y" ]]; then
-    echo "INFO: Downloading latest mithril snapshot (Includes ledger snapshot for fast bootstrap).."
+    echo "INFO: Downloading latest mithril snapshot (Immutable db only, requires ledger replay from genesis block).."
     trap 'cleanup_db_directory' INT
-    if ! "${MITHRILBIN}" -v --aggregator-endpoint ${AGGREGATOR_ENDPOINT} cardano-db download --ancillary-verification-key ${ANCILLARY_VERIFICATION_KEY} --download-dir "$(dirname ${DB_DIRECTORY})" --genesis-verification-key ${GENESIS_VERIFICATION_KEY} --include-ancillary ${SNAPSHOT_DIGEST} ; then
+    if ! "${MITHRILBIN}" -v --aggregator-endpoint ${AGGREGATOR_ENDPOINT} cardano-db download --download-dir "$(dirname ${DB_DIRECTORY})" --genesis-verification-key ${GENESIS_VERIFICATION_KEY} ${SNAPSHOT_DIGEST} ; then
       cleanup_db_directory
       exit 1
     fi
