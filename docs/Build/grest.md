@@ -56,19 +56,19 @@ cd "${CNODE_HOME}"/scripts
 # 
 ```
 
-To run the setup overwriting all standard deployment tasks from a branch (eg: `koios-1.0.9` branch), you may want to use:
+To run the setup overwriting all standard deployment tasks from a branch (eg: `koios-1.3.2` branch), you may want to use:
 ``` bash
-./setup-grest.sh -f -i prmcd -r -q -b koios-1.0.9
+./setup-grest.sh -i prmcd -r -b koios-1.3.2
 ```
 
 Similarly - if you'd like to re-install all components and force overwrite all configs but not reset cache tables, you may run:
 ``` bash
-./setup-grest.sh -f -i prmcd -q
+./setup-grest.sh -i prmcd -q
 ```
 
 Another example could be to preserve your config, but only update queries using an alternate branch (eg: let's say you want to try the branch `alpha` prior to a tagged release). To do so, you may run:
 ``` bash
-./setup-grest.sh -q -b alpha
+./setup-grest.sh -q
 ```
 
 Please ensure to follow the on-screen instructions, if any (for example restarting deployed services, or updating configs to specify correct target postgres URLs/enable TLS/add peers etc in `${CNODE_HOME}/priv/grest.conf` and `${CNODE_HOME}/files/haproxy.cfg`).

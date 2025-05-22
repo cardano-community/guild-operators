@@ -28,10 +28,8 @@
         {"address": "208.118.69.126",                   "port": 3003, "pool": "PSB",    "location": "NA/CA/Edmonton" },
         {"address": "node-dus.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "EU/DE/Dusseldorf" },
         {"address": "node-syd.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "OC/AU/Sydney" },
-        {"address": "194.36.145.157",                   "port": 6000, "pool": "RDLRT",  "location": "EU/DE/Baden" },
-        {"address": "95.216.38.251",                    "port": 6000, "pool": "RDLRT",  "location": "EU/FI/Helsinki" },
         {"address": "148.72.153.168",                   "port": 16000, "pool": "AAA",   "location": "NA/US/StLouis" },
-        {"address": "78.47.99.41",                      "port": 6000, "pool": "AAA",    "location": "EU/DE/Nuremberg" },
+        {"address": "154.26.154.254",                   "port": 16000, "pool": "AAA",   "location": "OC/AU" },
         {"address": "relay1-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
         {"address": "relay2-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
         {"address": "relay1.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Milan" },
@@ -40,7 +38,7 @@
       "advertise": false,
       "trustable": false,
       "hotValency": 5,
-      "warmValency": 11
+      "warmValency": 9
     }
   ],
   "publicRoots": [
