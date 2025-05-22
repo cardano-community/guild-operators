@@ -100,9 +100,7 @@ from a Mithril Aggregator.
    ./mithril-client.sh cardano-db download
    ```
    
-4. **Download the Mithril snapshot without the ledger state (skip-ancillary):**  
-This option downloads only the final immutable files. The ledger state will be computed  
-from the genesis block when the Cardano node starts, which results in a longer bootstrap time.
+4. **Download the Mithril snapshot without the ledger state (skip-ancillary):** This option downloads only the final immutable files. The ledger state will be computed from the genesis block when the Cardano node starts, which results in a longer bootstrap time.
 
    ```bash
    ./mithril-client.sh cardano-db download skip-ancillary
