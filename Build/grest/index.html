@@ -1158,14 +1158,14 @@ psql<span class="w"> </span>cexplorer
 <span class="c1"># -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)</span>
 <span class="c1"># </span>
 </code></pre></div>
-<p>To run the setup overwriting all standard deployment tasks from a branch (eg: <code>koios-1.0.9</code> branch), you may want to use:
-<div class="highlight"><pre><span></span><code>./setup-grest.sh<span class="w"> </span>-f<span class="w"> </span>-i<span class="w"> </span>prmcd<span class="w"> </span>-r<span class="w"> </span>-q<span class="w"> </span>-b<span class="w"> </span>koios-1.0.9
+<p>To run the setup overwriting all standard deployment tasks from a branch (eg: <code>koios-1.3.2</code> branch), you may want to use:
+<div class="highlight"><pre><span></span><code>./setup-grest.sh<span class="w"> </span>-i<span class="w"> </span>prmcd<span class="w"> </span>-r<span class="w"> </span>-b<span class="w"> </span>koios-1.3.2
 </code></pre></div></p>
 <p>Similarly - if you'd like to re-install all components and force overwrite all configs but not reset cache tables, you may run:
-<div class="highlight"><pre><span></span><code>./setup-grest.sh<span class="w"> </span>-f<span class="w"> </span>-i<span class="w"> </span>prmcd<span class="w"> </span>-q
+<div class="highlight"><pre><span></span><code>./setup-grest.sh<span class="w"> </span>-i<span class="w"> </span>prmcd<span class="w"> </span>-q
 </code></pre></div></p>
 <p>Another example could be to preserve your config, but only update queries using an alternate branch (eg: let's say you want to try the branch <code>alpha</code> prior to a tagged release). To do so, you may run:
-<div class="highlight"><pre><span></span><code>./setup-grest.sh<span class="w"> </span>-q<span class="w"> </span>-b<span class="w"> </span>alpha
+<div class="highlight"><pre><span></span><code>./setup-grest.sh<span class="w"> </span>-q
 </code></pre></div></p>
 <p>Please ensure to follow the on-screen instructions, if any (for example restarting deployed services, or updating configs to specify correct target postgres URLs/enable TLS/add peers etc in <code>${CNODE_HOME}/priv/grest.conf</code> and <code>${CNODE_HOME}/files/haproxy.cfg</code>).</p>
 <p>The default ports used will make haproxy instance available at port 8053 or 8453 if TLS is enabled (you might want to enable firewall rule to open this port to services you would like to access). If you want to prevent unauthenticated access to grest schema, uncomment the jwt-secret and specify a custom <code>secret-token</code>.</p>
