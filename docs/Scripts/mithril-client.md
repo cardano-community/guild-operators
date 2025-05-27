@@ -19,7 +19,8 @@ environment           Manage mithril environment file
   override            Override default variable in the mithril environment file
   update              Update mithril environment file
 cardano-db            Interact with Cardano DB
-  download            Download Cardano DB from Mithril snapshot
+  download            Download Cardano DB from Mithril snapshot (Full)
+    skip-ancillary    Download Cardano DB from Mithril snapshot (Immutable DB only)
   snapshot            Interact with Mithril snapshots
     list              List available Mithril snapshots
       json            List availble Mithril snapshots in JSON format
@@ -47,6 +48,11 @@ To prepare a relay or block producer node, you should follow these steps:
    ```bash
    ./mithril-client.sh cardano-db download
    ```
+
+3. **Download the Mithril snapshot without the ledger state (skip-ancillary):** This option downloads only the immutable db files. The ledger state will be computed from the genesis block when the Cardano node starts, which results in a longer bootstrap time.
+
+   ```bash
+   ./mithril-client.sh cardano-db download skip-ancillary
 
 ## Investigating Available Snapshots
 
