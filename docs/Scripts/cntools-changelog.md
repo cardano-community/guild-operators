@@ -6,9 +6,13 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.4.4] - 2025-05-28
+#### Fixed
+- Delegation to DReps using multi-sig wallets
+
 ## [13.4.3] - 2025-05-17
 #### Fixed
-- Transaction signing fixes for scrips (multisig)
+- Transaction signing fixes for scripts (multisig)
 
 ## [13.4.2] - 2025-05-13
 #### Fixed

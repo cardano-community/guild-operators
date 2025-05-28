@@ -4202,7 +4202,7 @@ function main {
                       if ! selectOpMode; then continue; fi
                     fi
                     println DEBUG "\nSelect wallet"
-                    selectWallet "balance" "${WALLET_STAKE_VK_FILENAME}"
+                    selectWallet "balance"
                     case $? in
                       1) waitToProceed; continue ;;
                       2) continue ;;
