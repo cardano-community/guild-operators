@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2086,SC2230,SC2206,SC2140,SC2059,SC2154
-# shellcheck source=/dev/null
+#shellcheck source=/dev/null
 
 ######################################
 # Do NOT modify code below           #
@@ -278,6 +278,7 @@ update_mithril_environment_for_client() {
 		RELEASE=${RELEASE}
 		AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK_NAME,,}.api.mithril.network/aggregator
 		DB_DIRECTORY=${DB_DIR}
+		ANCILLARY_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/ancillary.vkey)
 		GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
 		SNAPSHOT_DIGEST=latest
 		EOF"
@@ -315,10 +316,23 @@ cleanup_db_directory() {
   fi
 }
 
-# mithril client snapshot subcommand
+# mithril client snapshot subcommands
 download_snapshot() {
   if [[ "${DOWNLOAD_SNAPSHOT}" == "Y" ]]; then
-    echo "INFO: Downloading latest mithril snapshot.."
+    echo "INFO: Downloading latest mithril snapshot (Includes ledger snapshot for fast node bootstrap).."
+    trap 'cleanup_db_directory' INT
+    if ! "${MITHRILBIN}" -v --aggregator-endpoint ${AGGREGATOR_ENDPOINT} cardano-db download --ancillary-verification-key ${ANCILLARY_VERIFICATION_KEY} --download-dir "$(dirname ${DB_DIRECTORY})" --genesis-verification-key ${GENESIS_VERIFICATION_KEY} --include-ancillary ${SNAPSHOT_DIGEST} ; then
+      cleanup_db_directory
+      exit 1
+    fi
+  else
+    echo "INFO: Skipping Cardano DB download.."
+  fi
+}
+
+download_snapshot_noancillary() {
+  if [[ "${DOWNLOAD_SNAPSHOT}" == "Y" ]]; then
+    echo "INFO: Downloading latest mithril snapshot (Immutable db only, requires ledger replay from genesis block).."
     trap 'cleanup_db_directory' INT
     if ! "${MITHRILBIN}" -v --aggregator-endpoint ${AGGREGATOR_ENDPOINT} cardano-db download --download-dir "$(dirname ${DB_DIRECTORY})" --genesis-verification-key ${GENESIS_VERIFICATION_KEY} ${SNAPSHOT_DIGEST} ; then
       cleanup_db_directory
@@ -719,6 +733,7 @@ update_mithril_environment_for_signer() {
 		STORE_RETENTION_LIMITS=5
 		ERA_READER_ADAPTER_TYPE=cardano-chain
 		ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address "$(wget -q -O - "${ERA_READER_ADDRESS}")" --arg verification_key "$(wget -q -O - "${ERA_READER_VKEY}")" '{"address": $address, "verification_key": $verification_key}')
+		ANCILLARY_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/ancillary.vkey)
 		GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
 		PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME}-bech32)
 		SNAPSHOT_DIGEST=latest

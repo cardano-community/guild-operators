@@ -108,12 +108,12 @@ Updating dbsync can have different tasks depending on the versions involved. We 
 
 - Shutdown dbsync (eg: `sudo systemctl stop cnode-dbsync`)
 - Update binaries (either download pre-compiled binaries via [guild-deploy.sh](../basics.md#pre-requisites) or using build instructions above)
-- Go to your git folder, pull and checkout to latest version as in example below (if you were to switch to `13.6.0.2`):
+- Go to your git folder, pull and checkout to latest version as in example below (if you were to switch to `13.6.0.5`):
 
     ``` bash
     cd ~/git/cardano-db-sync
     git pull
-    git checkout 13.6.0.2
+    git checkout 13.6.0.5
     ```
 
 - If going through major version update (eg: 13.x.x.x to 14.x.x.x), you might need to [rebuild and resync db from scratch](#prepare-db-for-sync), you may still follow the section to restore using snapshot to save some time (as long as you use a compatible snapshot).
