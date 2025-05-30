@@ -1116,9 +1116,8 @@ fi
 node_version="$(${CNODEBIN} version | head -1 | cut -d' ' -f2)"
 cli_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
 
-# TODO: Bump minimum version to 10.1.4 once it has been out in wild for a while
-if ! versionCheckNode "10.1.4" "${node_version}" || ! versionCheckNode "10.1.1.0" "${cli_version}"; then
-  echo -e "\nKoios scripts have now been upgraded to support cardano-node 10.1.4 ('${node_version}' found) / cardano-cli 10.1.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.9.4 to switch scripts to an older branch).\n\n"
+if ! versionCheckNode "10.3.1" "${node_version}" || ! versionCheckNode "10.8.0.0" "${cli_version}"; then
+  echo -e "\nKoios scripts have now been upgraded to support cardano-node 10.3.1 ('${node_version}' found) / cardano-cli 10.8.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.9.4 to switch scripts to an older branch).\n\n"
   return 1
 fi
 
@@ -1180,7 +1179,7 @@ else
   [[ ! -f "${ALONZO_GENESIS_JSON}" ]] && echo "Alonzo genesis file not found: ${ALONZO_GENESIS_JSON}" && return 1
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
   [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
-  GENESIS_HASH="$(${CCLI} latest genesis hash --genesis "${GENESIS_JSON}")"
+  GENESIS_HASH="$(${CCLI} hash genesis-file --genesis "${GENESIS_JSON}")"
   PROTOCOL="${CONFIG_CONTENTS[3]}"
   P2P_ENABLED="${CONFIG_CONTENTS[5]}"
 fi
@@ -1279,9 +1278,6 @@ case ${NWMAGIC} in
     [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
 esac
-
-NETWORK_ERA=$(${CCLI} latest query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq -r '.era //empty' | tr '[:upper:]' '[:lower:]')
-[[ -z ${NETWORK_ERA} ]] && NETWORK_ERA=conway
 
 [[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
 

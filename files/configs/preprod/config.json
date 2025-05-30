@@ -1,24 +1,28 @@
 {
   "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
   "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
+  "ConsensusMode": "PraosMode",
   "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
   "EnableP2P": true,
   "LastKnownBlockVersion-Alt": 0,
   "LastKnownBlockVersion-Major": 2,
   "LastKnownBlockVersion-Minor": 0,
-  "MinNodeVersion": "10.1.4",
+  "MinBigLedgerPeersForTrustedState": 5,
+  "MinNodeVersion": "10.2.1",
   "PeerSharing": false,
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
   "SnapshotInterval": 86400,
   "MempoolCapacityBytesOverride": 8388608,
-  "EnableLogging": true,
-  "EnableLogMetrics": false,
+  "SyncTargetNumberOfActiveBigLedgerPeers": 30,
+  "SyncTargetNumberOfActivePeers": 0,
+  "SyncTargetNumberOfEstablishedBigLedgerPeers": 50,
+  "SyncTargetNumberOfKnownBigLedgerPeers": 100,
   "TargetNumberOfActivePeers": 20,
-  "TargetNumberOfEstablishedPeers": 50,
+  "TargetNumberOfEstablishedPeers": 40,
   "TargetNumberOfKnownPeers": 100,
-  "TargetNumberOfRootPeers": 60,
+  "TargetNumberOfRootPeers": 100,
   "TraceAcceptPolicy": true,
   "TraceBlockFetchClient": true,
   "TraceBlockFetchDecisions": false,
@@ -59,6 +63,7 @@
   "TracingVerbosity": "NormalVerbosity",
   "TurnOnLogMetrics": true,
   "TurnOnLogging": true,
+  "UseTraceDispatcher": false,
   "defaultBackends": [
     "KatipBK"
   ],
@@ -95,8 +100,7 @@
     "rpMaxAgeHours": 24
   },
   "setupBackends": [
-    "KatipBK",
-    "EKGViewBK"
+    "KatipBK"
   ],
   "setupScribes": [
     {

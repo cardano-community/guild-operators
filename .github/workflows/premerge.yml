@@ -17,7 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        distro: [rockylinux, ubuntu]
+        platform: [linux/amd64] # [linux/amd64,linux/arm64]
+        distro: [ubuntu, rockylinux]
     env:
       REGISTRY: ghcr.io
       BRANCH: ${{ github.event.inputs.branch || github.head_ref }}
@@ -86,17 +87,17 @@ jobs:
         --build-arg BRANCH=${{ env.BRANCH }} \
         --build-arg COMMIT=${{ env.COMMIT_SHA }} \
         --build-arg G_ACCOUNT=${{ env.BUILD_G_ACCOUNT }} \
-        --tag ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
+        --tag ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal_${{ env.COMMIT_SHA }}
     - name: Get Versions and Image ID
       run: |
-        VERSION_DETAILS=($(docker run --rm ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }} cardano-node --version | awk '/^cardano-node/'))
-        PREMERGE_IMAGE_ID2=$(docker inspect ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }} --format='{{.Id}}')
+        VERSION_DETAILS=($(docker run --rm ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal_${{ env.COMMIT_SHA }} cardano-node --version | awk '/^cardano-node/'))
+        PREMERGE_IMAGE_ID2=$(docker inspect ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal_${{ env.COMMIT_SHA }} --format='{{.Id}}')
         echo "CARDANO_NODE_VERSION=${VERSION_DETAILS[1]}" >> $GITHUB_ENV
         echo "GHC_VERSION=${VERSION_DETAILS[5]}" >> $GITHUB_ENV
         echo "PREMERGE_IMAGE_ID2=${PREMERGE_IMAGE_ID2}" >> $GITHUB_ENV
-    - name: Push pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
+    - name: Push pre-merge-${{ matrix.distro }}:cabal_${{ env.COMMIT_SHA }}
       run: |
-        docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }}
+        docker push ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal_${{ env.COMMIT_SHA }}
     - name: Add summary details
       if: always()
       run: |
@@ -105,7 +106,7 @@ jobs:
         echo "| ---- | ----- |" >> $GITHUB_STEP_SUMMARY
         echo "| Guild Deploy Image | ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:guild-deploy-l_${{ env.COMMIT_SHA }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Guild Deploy Image ID | ${{ env.PREMERGE_IMAGE_ID1 }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Cabal Build Image | ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal-l_${{ env.COMMIT_SHA }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Cabal Build Image | ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal_${{ env.COMMIT_SHA }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Cabal Build Image ID | ${{ env.PREMERGE_IMAGE_ID2 }} |" >> $GITHUB_STEP_SUMMARY
         echo "| G_ACCOUNT | ${{ env.G_ACCOUNT }} |" >> $GITHUB_STEP_SUMMARY
         echo "| BRANCH | ${{ env.BRANCH }} |" >> $GITHUB_STEP_SUMMARY
