@@ -3125,8 +3125,9 @@ function main {
                 
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   # get stake distribution
-                  println "ACTION" "LC_NUMERIC=C printf %.10f \$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep ${pool_id_bech32} | tr -s ' ' | cut -d ' ' -f 2))"
-                  stake_pct=$(fractionToPCT "$(LC_NUMERIC=C printf "%.10f" "$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | grep "${pool_id_bech32}" | tr -s ' ' | cut -d ' ' -f 2)")")
+                  println ACTION "${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | jq '.${pool_id_bech32}'"
+                  stake_distribution=$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | jq ".${pool_id_bech32}" )
+                  stake_pct=$(LC_NUMERIC=C printf "%.10f" "$(jq -r '(.numerator //0) / (.denominator //1) * 100' <<< "${stake_distribution}")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
                   if validateDecimalNbr ${stake_pct}; then
                     println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Stake distribution" "${stake_pct}")"
                   fi
@@ -4084,7 +4085,7 @@ function main {
                     current_epoch=$(getEpoch)
                     drep_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
                     if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]]; then
-                      println "DEBUG" "\nVote Delegation Status"
+                      println DEBUG "\n${BOLD}~~ Vote Delegation Status ~~${NC}"
                       unset walletName
                       if getWalletVoteDelegation ${wallet_name}; then
                         unset vote_delegation_hash
@@ -4151,7 +4152,7 @@ function main {
                       fi
                     fi
                     getGovKeyInfo ${wallet_name}
-                    println "DEBUG" "\nOwn DRep Status"
+                    println DEBUG "\n${BOLD}~~ Own DRep Status ~~${NC}"
                     if [[ -z ${drep_id} ]]; then
                       println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Status" "Governance keys missing, please derive them if needed")"
                       waitToProceed && continue
