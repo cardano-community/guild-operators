@@ -1930,8 +1930,8 @@ getCredentials() {
   if [[ -z ${script_pay_cred} ]]; then
     payment_script_file="${WALLET_FOLDER}/${1}/${WALLET_PAY_SCRIPT_FILENAME}"
     if [[ -f "${payment_script_file}" ]]; then
-      println ACTION "${CCLI} latest transaction policyid --script-file ${payment_script_file} --out-file ${script_payment_cred_file}"
-      if stdout=$(${CCLI} latest transaction policyid --script-file "${payment_script_file}" --out-file "${script_payment_cred_file}" 2>&1); then
+      println ACTION "${CCLI} hash script --script-file ${payment_script_file} --out-file ${script_payment_cred_file}"
+      if stdout=$(${CCLI} hash script --script-file "${payment_script_file}" --out-file "${script_payment_cred_file}" 2>&1); then
         script_pay_cred=$(cat "${script_payment_cred_file}")
       else
         println LOG "\n${FG_RED}ERROR${NC}: failure during script payment policy creation!\n${stdout}"
@@ -1942,8 +1942,8 @@ getCredentials() {
   if [[ -z ${script_stake_cred} ]]; then
     stake_script_file="${WALLET_FOLDER}/${1}/${WALLET_STAKE_SCRIPT_FILENAME}"
     if [[ -f "${stake_script_file}" ]]; then
-      println ACTION "${CCLI} latest transaction policyid --script-file ${stake_script_file} --out-file ${script_stake_cred_file}"
-      if stdout=$(${CCLI} latest transaction policyid --script-file "${stake_script_file}" --out-file "${script_stake_cred_file}" 2>&1); then
+      println ACTION "${CCLI} hash script --script-file ${stake_script_file} --out-file ${script_stake_cred_file}"
+      if stdout=$(${CCLI} hash script --script-file "${stake_script_file}" --out-file "${script_stake_cred_file}" 2>&1); then
         script_stake_cred=$(cat "${script_stake_cred_file}")
       else
         println LOG "\n${FG_RED}ERROR${NC}: failure during script stake policy creation!\n${stdout}"
