@@ -1278,10 +1278,10 @@ getDRepVotePower() {
   elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
     println ACTION "${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
     all_drep_vote_power=$(${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
-    vote_power_total=$(jq -r '[.[][1]] | add' <<< "${all_drep_vote_power}")
+    vote_power_total=$(jq -r '[.[]] | add' <<< "${all_drep_vote_power}")
     search_string="drep-${1}"
     [[ -n $2 ]] && search_string+="-${2}"
-    vote_power=$(jq -r --arg v "${search_string}" 'first(.[] | select(.[0] == $v)) | .[1]' <<< "${all_drep_vote_power}")
+    vote_power=$(jq -r --arg v "${search_string}" '.[$v] //empty' <<< "${all_drep_vote_power}")
     [[ -z ${vote_power} ]] && return 1
   else
     return 1
@@ -1444,7 +1444,7 @@ getAllGovActions() {
       println ACTION "${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
       all_drep_vote_power=$(${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
       # sum of all drep stake distribution entries without the alwaysAbstain and alwaysNoConfidence
-      drep_power_total_no_abstain=$(jq -r '[.[] | select(.[0] == "drep-alwaysAbstain" | not) | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null)
+      drep_power_total_no_abstain=$(jq -r '.["drep-alwaysAbstain"] //0' <<< "${all_drep_vote_power}" 2>/dev/null)
       # get current Pool distribution
       unset all_spo_vote_power spo_power_total
       println ACTION "${CCLI} latest query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER}"
@@ -1474,14 +1474,14 @@ getAllGovActions() {
       drep_no_voters="$(jq '[.dRepVotes | to_entries[] | select(.value=="VoteNo") | ("drep-" + .key)]' <<< "$(base64 -d <<< "${vote_action}")")"
       drep_abstain_voters="$(jq '[.dRepVotes | to_entries[] | select(.value=="Abstain") | ("drep-" + .key)]' <<< "$(base64 -d <<< "${vote_action}")")"
       # get sum of vote power for each type
-      drep_yes_vote_power="$(jq -r --argjson v "${drep_yes_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_drep_vote_power}")"
-      drep_no_vote_power="$(jq -r --argjson v "${drep_no_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_drep_vote_power}")"
-      drep_abstain_vote_power="$(jq -r --argjson v "${drep_abstain_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_drep_vote_power}")"
+      drep_yes_vote_power="$(jq -r --argjson v "${drep_yes_voters}" '[to_entries[] | select(.key | IN($v[]))] | [.[].value] | add //0' <<< "${all_drep_vote_power}")"
+      drep_no_vote_power="$(jq -r --argjson v "${drep_no_voters}" '[to_entries[] | select(.key | IN($v[]))] | [.[].value] | add //0' <<< "${all_drep_vote_power}")"
+      drep_abstain_vote_power="$(jq -r --argjson v "${drep_abstain_voters}" '[to_entries[] | select(.key | IN($v[]))] | [.[].value] | add //0' <<< "${all_drep_vote_power}")"
       drep_power_total=$(( drep_power_total_no_abstain - drep_abstain_vote_power ))
       drep_no_vote_power_total=$(( drep_power_total - drep_yes_vote_power )) # total drep power - always abstain - proposal abstain - proposal yes
       if [[ ${proposal_type} = "NoConfidence" ]]; then
         # add alwaysNoConfidence power to yes vote
-        drep_always_no_confidence="$(jq -r '[.[] | select(.[0] == "drep-alwaysNoConfidence") | .[1]] | add //0' <<< "${all_drep_vote_power}" 2>/dev/null)"
+        drep_always_no_confidence="$(jq -r '.["drep-alwaysNoConfidence"] //0' <<< "${all_drep_vote_power}" 2>/dev/null)"
         drep_yes_vote_power=$(( drep_yes_vote_power + drep_always_no_confidence ))
         drep_no_vote_power_total=$(( drep_no_vote_power_total - (drep_always_no_confidence * 2) ))
       fi
@@ -5051,6 +5051,7 @@ submitTxNode() {
 getTxId() {
   txid_command=(
     ${CCLI} latest transaction txid
+    --output-text
     --tx-file "$1"
   )
   println ACTION "${txid_command[@]}"
