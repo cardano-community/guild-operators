@@ -5068,12 +5068,12 @@ function main {
                     fi
                     chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
                     getGovKeyInfo ${ms_wallet_name}
-                    getDRepIds scriptHash ${ms_drep_hash}
+                    getDRepIds scriptHash ${drep_hash}
                     echo
                     println "New MultiSig DRep : ${FG_GREEN}${ms_wallet_name}${NC}"
                     println "DRep ID           : CIP-105 => ${FG_LGRAY}${drep_id}${NC}"
                     println "                  : CIP-129 => ${FG_LGRAY}${drep_id_cip129}${NC}"
-                    println "DRep Script Hash  : ${FG_LGRAY}${ms_drep_hash}${NC}"
+                    println "DRep Script Hash  : ${FG_LGRAY}${drep_hash}${NC}"
                     println DEBUG "\nNote that this is not a normal wallet and can only be used to vote as a DRep coalition."
                     waitToProceed && continue
                     ;; ###################################################################
