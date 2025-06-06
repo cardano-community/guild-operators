@@ -1,23 +1,32 @@
 {
   "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
   "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
+  "ConsensusMode": "PraosMode",
   "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
   "EnableP2P": true,
   "LastKnownBlockVersion-Alt": 0,
   "LastKnownBlockVersion-Major": 3,
   "LastKnownBlockVersion-Minor": 0,
+  "LedgerDB": {
+    "Backend": "V2InMemory",
+    "NumOfDiskSnapshots": 2,
+    "QueryBatchSize": 100000,
+    "SnapshotInterval": 43200
+  },
   "MaxKnownMajorProtocolVersion": 2,
-  "MinNodeVersion": "10.1.4",
+  "MempoolCapacityBytesOverride": 67108864,
+  "MinBigLedgerPeersForTrustedState": 5,
+  "MinNodeVersion": "10.4.1",
   "PeerSharing": false,
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresNoMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
-  "SnapshotInterval": 86400,
-  "MempoolCapacityBytesOverride": 67108864,
-  "EnableLogging": true,
-  "EnableLogMetrics": false,
+  "SyncTargetNumberOfActiveBigLedgerPeers": 30,
+  "SyncTargetNumberOfActivePeers": 0,
+  "SyncTargetNumberOfEstablishedBigLedgerPeers": 50,
+  "SyncTargetNumberOfKnownBigLedgerPeers": 100,
   "TargetNumberOfActivePeers": 20,
-  "TargetNumberOfEstablishedPeers": 50,
+  "TargetNumberOfEstablishedPeers": 40,
   "TargetNumberOfKnownPeers": 100,
   "TargetNumberOfRootPeers": 60,
   "TraceAcceptPolicy": true,
@@ -60,6 +69,7 @@
   "TracingVerbosity": "NormalVerbosity",
   "TurnOnLogMetrics": true,
   "TurnOnLogging": true,
+  "UseTraceDispatcher": false,
   "defaultBackends": [
     "KatipBK"
   ],
@@ -96,8 +106,7 @@
     "rpMaxAgeHours": 24
   },
   "setupBackends": [
-    "KatipBK",
-    "EKGViewBK"
+    "KatipBK"
   ],
   "setupScribes": [
     {
