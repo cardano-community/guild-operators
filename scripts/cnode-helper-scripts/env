@@ -634,7 +634,7 @@ getNodeMetrics() {
     .cardano.node.metrics.connectionManager.outgoingConns.val //0,
     .cardano.node.metrics.connectionManager.unidirectionalConns.val //0,
     .cardano.node.metrics.connectionManager.duplexConns.val //0,
-    .cardano.node.metrics.connectionManager.prunableConns.val //0,
+    .cardano.node.metrics.connectionManager.fullDuplexConns.val //0,
     .cardano.node.metrics.forging_enabled.val //0,
     .cardano.node.metrics.cardano_build_info.val //"-"
     ] | @tsv' <<< "${node_metrics}")
@@ -693,7 +693,7 @@ getNodeMetrics() {
     [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_outgoingConns[[:space:]]([^[:space:]]*) ]] && conn_outgoing=${BASH_REMATCH[1]} || conn_outgoing=0
     [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_unidirectionalConns[[:space:]]([^[:space:]]*) ]] && conn_uni_dir=${BASH_REMATCH[1]} || conn_uni_dir=0
     [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_duplexConns[[:space:]]([^[:space:]]*) ]] && conn_bi_dir=${BASH_REMATCH[1]} || conn_bi_dir=0
-    [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_prunableConns[[:space:]]([^[:space:]]*) ]] && conn_duplex=${BASH_REMATCH[1]} || conn_duplex=0
+    [[ ${node_metrics} =~ cardano_node_metrics_connectionManager_fullDuplexConns[[:space:]]([^[:space:]]*) ]] && conn_duplex=${BASH_REMATCH[1]} || conn_duplex=0
     [[ ${node_metrics} =~ cardano_node_metrics_forging_enabled[[:space:]]([^[:space:]]*) ]] && forging_enabled=${BASH_REMATCH[1]} || forging_enabled=0
     [[ ${node_metrics} =~ cardano_node_metrics_cardano_build_info[[:space:]].*,version=\"([0-9.]*)\" ]] && running_node_version=${BASH_REMATCH[1]} || running_node_version="?"
     [[ ${node_metrics} =~ cardano_node_metrics_cardano_build_info[[:space:]].*,revision=\"([0-9a-f]*)\" ]] && running_node_rev=${BASH_REMATCH[1]:0:8} || running_node_rev="?"
@@ -1115,9 +1115,8 @@ fi
 node_version="$(${CNODEBIN} version | head -1 | cut -d' ' -f2)"
 cli_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
 
-# TODO: Bump minimum version to 10.1.4 once it has been out in wild for a while
-if ! versionCheckNode "10.1.4" "${node_version}" || ! versionCheckNode "10.1.1.0" "${cli_version}"; then
-  echo -e "\nKoios scripts have now been upgraded to support cardano-node 10.1.4 ('${node_version}' found) / cardano-cli 10.1.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-8.9.4 to switch scripts to an older branch).\n\n"
+if ! versionCheckNode "10.4.1" "${node_version}" || ! versionCheckNode "10.11.0.0" "${cli_version}"; then
+  echo -e "\nKoios scripts have now been upgraded to support cardano-node 10.4.1 ('${node_version}' found) / cardano-cli 10.11.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-10.1.4 to switch scripts to an older branch).\n\n"
   return 1
 fi
 
@@ -1179,7 +1178,7 @@ else
   [[ ! -f "${ALONZO_GENESIS_JSON}" ]] && echo "Alonzo genesis file not found: ${ALONZO_GENESIS_JSON}" && return 1
   [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
   [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
-  GENESIS_HASH="$(${CCLI} latest genesis hash --genesis "${GENESIS_JSON}")"
+  GENESIS_HASH="$(${CCLI} hash genesis-file --genesis "${GENESIS_JSON}")"
   PROTOCOL="${CONFIG_CONTENTS[3]}"
   P2P_ENABLED="${CONFIG_CONTENTS[5]}"
 fi
@@ -1278,9 +1277,6 @@ case ${NWMAGIC} in
     [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
 esac
-
-NETWORK_ERA=$(${CCLI} latest query tip ${NETWORK_IDENTIFIER} 2>/dev/null | jq -r '.era //empty' | tr '[:upper:]' '[:lower:]')
-[[ -z ${NETWORK_ERA} ]] && NETWORK_ERA=conway
 
 [[ ${OFFLINE_MODE} = "N" && ${SHELLEY_TRANS_EPOCH} -eq -1 ]] && getNodeMetrics && getShelleyTransitionEpoch
 
