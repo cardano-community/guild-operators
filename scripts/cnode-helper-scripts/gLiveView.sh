@@ -1158,37 +1158,46 @@ while true; do
     printf "Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((three_col_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
     closeRow
 
-    echo "${conndivider}" && ((line++))
-
     if [[ ${P2P_ENABLED} = true ]]; then
 
       if [[ ${VERBOSE} = "Y" ]]; then
+
+        # divider line
+        printf "${VL}- ${style_info}CONNECTIONS${NC} "
+        printf "%0.s-" $(seq $((three_col_width-15)))
+        printf " INCOMING "
+        printf "%0.s-" $(seq $((three_col_width-10)))
+        printf " OUTGOING "
+        printf "%0.s-" $(seq $((three_col_width-10)))
+        closeRow
         
         # row 1
-        printf "${VL} Cold         : ${style_status_1}%-${three_col_value_width}s${NC}" "${inbound_governor_cold}"
+        printf "${VL} Uni-Dir    : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_uni_dir}"
         mvThreeSecond
-        printf "Cold    : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_cold}"
+        printf "Cold       : ${style_status_1}%-${three_col_value_width}s${NC}" "${inbound_governor_cold}"
         mvThreeThird
-        printf "Uni-Dir : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_uni_dir}"
+        printf "Cold       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_cold}"
         closeRow
   
         # row 2
-        printf "${VL} Warm    : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_warm}"
+        printf "${VL} Bi-Dir     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_bi_dir}"
         mvThreeSecond
-        printf "Warm    : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_warm}"
+        printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_warm}"
         mvThreeThird
-        printf "Bi-Dir  : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_bi_dir}"
+        printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_warm}"
         closeRow
   
         # row 3
-        printf "${VL} Hot     : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
+        printf "${VL} Duplex     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_duplex}"
         mvThreeSecond
-        printf "Hot     : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_hot}"
+        printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
         mvThreeThird
-        printf "Duplex  : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_duplex}"
+        printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_hot}"
         closeRow
       
       else
+
+        echo "${conndivider}" && ((line++))
         
         # row 1
         printf "${VL} Incoming"
@@ -1213,6 +1222,8 @@ while true; do
       fi
 
     else
+
+      echo "${conndivider}" && ((line++))
 
       # row 1
       printf "${VL} P2P        : ${style_status_2}%-${three_col_value_width}s${NC}" "disabled (no peer stats)"
