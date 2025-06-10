@@ -219,14 +219,6 @@ three_col_value_width=$(( three_col_width - 12 ))
 
 # block section use same width as main section
 
-# four column view
-four_col_width=$(( (width-7)/4 ))
-four_col_2_start=$(( four_col_width + 3 ))
-four_col_3_start=$(( four_col_width*2 + 4 ))
-four_col_4_start=$(( four_col_width*3 + 5 ))
-# main section
-four_col_value_width=$(( three_col_width - 7 ))
-
 NC=$(tput sgr0 && printf "${style_base}") # override default NC in env
 
 setTheme # call function to set theme colors
@@ -391,21 +383,6 @@ mvThreeSecond () {
 # Description: move curser to three column view, third column start
 mvThreeThird () {
   printf "\033[72D\033[${three_col_3_start}C"
-}
-# Command    : mvThreeSecond
-# Description: move curser to three column view, second column start
-mvFourSecond () {
-  printf "\033[72D\033[${four_col_2_start}C"
-}
-# Command    : mvThreeThird
-# Description: move curser to three column view, third column start
-mvFourThird () {
-  printf "\033[72D\033[${four_col_3_start}C"
-}
-# Command    : mvThreeThird
-# Description: move curser to three column view, third column start
-mvFourFourth () {
-  printf "\033[72D\033[${four_col_4_start}C"
 }
 # Command    : mvEnd
 # Description: move curser to last column
