@@ -637,8 +637,6 @@ getNodeMetrics() {
     .cardano.node.metrics.connectionManager.fullDuplexConns.val //0,
     .cardano.node.metrics.forging_enabled.val //0,
     .cardano.node.metrics.cardano_build_info.val //"-",
-    .cardano.node.metrics.inboundGovernor.idle.val //0,
-    .cardano.node.metrics.inboundGovernor.cold.val //0,
     .cardano.node.metrics.inboundGovernor.warm.val //0,
     .cardano.node.metrics.inboundGovernor.hot.val //0
     ] | @tsv' <<< "${node_metrics}")
@@ -662,7 +660,7 @@ getNodeMetrics() {
     forging_enabled=${node_metrics_arr[34]}
     [[ ${node_metrics_arr[35]} =~ ,version=\"([0-9.]*)\" ]] && running_node_version=${BASH_REMATCH[1]} || running_node_version="?"
     [[ ${node_metrics_arr[35]} =~ ,revision=\"([0-9a-f]*)\" ]] && running_node_rev=${BASH_REMATCH[1]:0:8} || running_node_rev="?"
-    inbound_governor_idle=${node_metrics_arr[36]}; inbound_governor_cold=${node_metrics_arr[37]}; inbound_governor_warm=${node_metrics_arr[38]}; inbound_governor_hot=${node_metrics_arr[39]};
+    inbound_governor_warm=${node_metrics_arr[36]}; inbound_governor_hot=${node_metrics_arr[37]};
   else
     node_metrics=$(curl -s -m ${EKG_TIMEOUT} "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null)
     [[ ${node_metrics} =~ cardano_node_metrics_blockNum_int[[:space:]]([^[:space:]]*) ]] && blocknum=${BASH_REMATCH[1]} || blocknum=0
@@ -702,8 +700,6 @@ getNodeMetrics() {
     [[ ${node_metrics} =~ cardano_node_metrics_forging_enabled[[:space:]]([^[:space:]]*) ]] && forging_enabled=${BASH_REMATCH[1]} || forging_enabled=0
     [[ ${node_metrics} =~ cardano_node_metrics_cardano_build_info[[:space:]].*,version=\"([0-9.]*)\" ]] && running_node_version=${BASH_REMATCH[1]} || running_node_version="?"
     [[ ${node_metrics} =~ cardano_node_metrics_cardano_build_info[[:space:]].*,revision=\"([0-9a-f]*)\" ]] && running_node_rev=${BASH_REMATCH[1]:0:8} || running_node_rev="?"
-    [[ ${node_metrics} =~ cardano_node_metrics_inboundGovernor_idle[[:space:]]([^[:space:]]*) ]] && inbound_governor_idle=${BASH_REMATCH[1]} || inbound_governor_idle=0
-    [[ ${node_metrics} =~ cardano_node_metrics_inboundGovernor_cold[[:space:]]([^[:space:]]*) ]] && inbound_governor_cold=${BASH_REMATCH[1]} || inbound_governor_cold=0
     [[ ${node_metrics} =~ cardano_node_metrics_inboundGovernor_warm[[:space:]]([^[:space:]]*) ]] && inbound_governor_warm=${BASH_REMATCH[1]} || inbound_governor_warm=0
     [[ ${node_metrics} =~ cardano_node_metrics_inboundGovernor_hot[[:space:]]([^[:space:]]*) ]] && inbound_governor_hot=${BASH_REMATCH[1]} || inbound_governor_hot=0
   fi

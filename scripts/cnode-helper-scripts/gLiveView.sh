@@ -1173,8 +1173,6 @@ while true; do
         
         # row 1
         printf "${VL} Uni-Dir    : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_uni_dir}"
-        mvThreeSecond
-        printf "Cold       : ${style_status_1}%-${three_col_value_width}s${NC}" "${inbound_governor_cold}"
         mvThreeThird
         printf "Cold       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_cold}"
         closeRow
@@ -1205,8 +1203,6 @@ while true; do
         printf "Hot  : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
         mvFourThird
         printf "Warm : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_warm}"
-        mvFourFourth
-        printf "Cold : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_cold}"
         closeRow
   
         # row 2
