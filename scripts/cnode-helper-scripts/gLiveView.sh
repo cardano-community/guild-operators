@@ -1165,9 +1165,9 @@ while true; do
         # divider line
         printf "${VL}- ${style_info}CONNECTIONS${NC} "
         printf "%0.s-" $(seq $((three_col_width-13)))
-        printf " ${style_values_4}\U2B05 INCOMING${NC} "
+        printf " ${style_values_4}Incoming \U2B05${NC} "
         printf "%0.s-" $(seq $((three_col_width-11)))
-        printf " ${style_values_4}\U2B95 OUTGOING${NC} "
+        printf " ${style_values_4}Outgoing \U2B95${NC} "
         printf "%0.s-" $(seq $((three_col_width-10)))
         closeRow
         
@@ -1198,7 +1198,7 @@ while true; do
         echo "${conndivider}" && ((line++))
         
         # row 1
-        printf "${VL} Incoming"
+        printf "${VL} ${style_values_4}\U2B05 Incoming${NC}"
         mvFourSecond
         printf "Hot  : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
         mvFourThird
@@ -1206,7 +1206,7 @@ while true; do
         closeRow
   
         # row 2
-        printf "${VL} Outgoing"
+        printf "${VL} ${style_values_4}\U2B95 Outgoing${NC}"
         mvFourSecond
         printf "Hot  : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_hot}"
         mvFourThird
