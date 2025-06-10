@@ -60,7 +60,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.30.4
+GLV_VERSION=v1.31.0
 
 PARENT="$(dirname $0)"
 
@@ -215,10 +215,17 @@ three_col_width=$(( (width-5)/3 ))
 three_col_2_start=$(( three_col_width + 3 ))
 three_col_3_start=$(( three_col_width*2 + 4 ))
 # main section
-three_col_1_value_width=$(( three_col_width - 12 ))   # minus max width of Block|Slot|Density|Total Tx|Pending Tx + " : "
-three_col_2_value_width=$(( three_col_width - 12 ))   # minus max width of Tip (ref)|Tip (node)|Tip (diff)|Peers In|Peers Out + " : "
-three_col_3_value_width=$(( three_col_width - 12 ))    # minus max width of Mem (RSS)|Mem (Live)|Mem (Heap)|GC Minor|GC Major + " : "
-# block section use same width as main section now
+three_col_value_width=$(( three_col_width - 12 ))
+
+# block section use same width as main section
+
+# four column view
+four_col_width=$(( (width-7)/4 ))
+four_col_2_start=$(( four_col_width + 3 ))
+four_col_3_start=$(( four_col_width*2 + 4 ))
+four_col_4_start=$(( four_col_width*3 + 5 ))
+# main section
+four_col_value_width=$(( three_col_width - 7 ))
 
 NC=$(tput sgr0 && printf "${style_base}") # override default NC in env
 
@@ -384,6 +391,21 @@ mvThreeSecond () {
 # Description: move curser to three column view, third column start
 mvThreeThird () {
   printf "\033[72D\033[${three_col_3_start}C"
+}
+# Command    : mvThreeSecond
+# Description: move curser to three column view, second column start
+mvFourSecond () {
+  printf "\033[72D\033[${four_col_2_start}C"
+}
+# Command    : mvThreeThird
+# Description: move curser to three column view, third column start
+mvFourThird () {
+  printf "\033[72D\033[${four_col_3_start}C"
+}
+# Command    : mvThreeThird
+# Description: move curser to three column view, third column start
+mvFourFourth () {
+  printf "\033[72D\033[${four_col_4_start}C"
 }
 # Command    : mvEnd
 # Description: move curser to last column
@@ -842,16 +864,6 @@ while true; do
 
   if [[ ${show_peers} = "false" ]]; then
 
-    if [[ ${P2P_ENABLED} != true ]]; then
-      if [[ ${use_lsof} = 'Y' ]]; then
-        peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
-        peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}' | wc -l)
-      else
-        peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print}' | wc -l)
-        peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print}' | wc -l)
-      fi
-    fi
-
     mem_rss="$(ps -q ${CNODE_PID} -o rss=)"
     read -ra cpu_now <<< "$(LC_NUMERIC=C awk '/cpu /{printf "%.f %.f", $2+$4,$2+$4+$5}' /proc/stat)"
     if [[ ${#cpu_now[@]} -eq 2 ]]; then
@@ -1111,77 +1123,99 @@ while true; do
     tip_diff=$(( tip_ref - slotnum ))
 
     # row 1 - three col view
-    printf "${VL} Block      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${blocknum}"
+    printf "${VL} Block      : ${style_values_1}%-${three_col_value_width}s${NC}" "${blocknum}"
     mvThreeSecond
-    printf "Tip (ref)  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${tip_ref}"
+    printf "Tip (ref)  : ${style_values_1}%-${three_col_value_width}s${NC}" "${tip_ref}"
     mvThreeThird
-    printf "Forks      : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${forks}"
+    printf "Forks      : ${style_values_1}%-${three_col_value_width}s${NC}" "${forks}"
     closeRow
 
     # row 2
-    printf "${VL} Slot       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${slotnum}"
+    printf "${VL} Slot       : ${style_values_1}%-${three_col_value_width}s${NC}" "${slotnum}"
     mvThreeSecond
     if [[ ${slotnum} -eq 0 ]]; then
-      printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "starting"
+      printf "Status     : ${style_info}%-${three_col_value_width}s${NC}" "starting"
     elif [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
-      printf "Status     : ${style_info}%-${three_col_2_value_width}s${NC}" "syncing"
+      printf "Status     : ${style_info}%-${three_col_value_width}s${NC}" "syncing"
     elif [[ ${tip_diff} -le $(slotInterval) ]]; then
-      printf "Tip (diff) : ${style_status_1}%-${three_col_2_value_width}s${NC}" "${tip_diff} :)"
+      printf "Tip (diff) : ${style_status_1}%-${three_col_value_width}s${NC}" "${tip_diff} :)"
     elif [[ ${tip_diff} -le 600 ]]; then
-      printf "Tip (diff) : ${style_status_2}%-${three_col_2_value_width}s${NC}" "${tip_diff} :|"
+      printf "Tip (diff) : ${style_status_2}%-${three_col_value_width}s${NC}" "${tip_diff} :|"
     else
       sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
-      printf "Syncing    : ${style_info}%-${three_col_2_value_width}s${NC}" "$(LC_NUMERIC=C printf "%2.1f" "${sync_progress}")%"
+      printf "Syncing    : ${style_info}%-${three_col_value_width}s${NC}" "$(LC_NUMERIC=C printf "%2.1f" "${sync_progress}")%"
     fi
     mvThreeThird
-    printf "Total Tx   : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${tx_processed}"
+    printf "Total Tx   : ${style_values_1}%-${three_col_value_width}s${NC}" "${tx_processed}"
     closeRow
 
     # row 3
-    printf "${VL} Slot epoch : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${slot_in_epoch}"
+    printf "${VL} Slot epoch : ${style_values_1}%-${three_col_value_width}s${NC}" "${slot_in_epoch}"
     mvThreeSecond
-    printf "Density    : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${density}"
+    printf "Density    : ${style_values_1}%-${three_col_value_width}s${NC}" "${density}"
     mvThreeThird
     mempool_tx_bytes=$((mempool_bytes/1024))
-    printf "Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((three_col_1_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
+    printf "Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((three_col_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
     closeRow
 
     echo "${conndivider}" && ((line++))
 
     if [[ ${P2P_ENABLED} = true ]]; then
 
-      # row 1
-      printf "${VL} P2P        : ${style_status_1}%-${three_col_2_value_width}s${NC}" "enabled"
-      mvThreeSecond
-      printf "Cold Peers : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_cold}"
-      mvThreeThird
-      printf "Uni-Dir    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_uni_dir}"
-      closeRow
-
-      # row 2
-      printf "${VL} Incoming   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_incoming}"
-      mvThreeSecond
-      printf "Warm Peers : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_warm}"
-      mvThreeThird
-      printf "Bi-Dir     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_bi_dir}"
-      closeRow
-
-      # row 3
-      printf "${VL} Outgoing   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_outgoing}"
-      mvThreeSecond
-      printf "Hot Peers  : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_hot}"
-      mvThreeThird
-      printf "Duplex     : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${conn_duplex}"
-      closeRow
+      if [[ ${VERBOSE} = "Y" ]]; then
+        
+        # row 1
+        printf "${VL} Cold         : ${style_status_1}%-${three_col_value_width}s${NC}" "${inbound_governor_cold}"
+        mvThreeSecond
+        printf "Cold    : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_cold}"
+        mvThreeThird
+        printf "Uni-Dir : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_uni_dir}"
+        closeRow
+  
+        # row 2
+        printf "${VL} Warm    : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_warm}"
+        mvThreeSecond
+        printf "Warm    : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_warm}"
+        mvThreeThird
+        printf "Bi-Dir  : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_bi_dir}"
+        closeRow
+  
+        # row 3
+        printf "${VL} Hot     : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
+        mvThreeSecond
+        printf "Hot     : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_hot}"
+        mvThreeThird
+        printf "Duplex  : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_duplex}"
+        closeRow
+      
+      else
+        
+        # row 1
+        printf "${VL} Incoming"
+        mvFourSecond
+        printf "Hot  : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
+        mvFourThird
+        printf "Warm : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_warm}"
+        mvFourFourth
+        printf "Cold : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_cold}"
+        closeRow
+  
+        # row 2
+        printf "${VL} Outgoing"
+        mvFourSecond
+        printf "Hot  : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_hot}"
+        mvFourThird
+        printf "Warm : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_warm}"
+        mvFourFourth
+        printf "Cold : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_cold}"
+        closeRow
+      
+      fi
 
     else
 
       # row 1
-      printf "${VL} P2P        : ${style_status_2}%-${three_col_2_value_width}s${NC}" "disabled"
-      mvThreeSecond
-      printf "Incoming   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_in}"
-      mvThreeThird
-      printf "Outgoing   : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${peers_out}"
+      printf "${VL} P2P        : ${style_status_2}%-${three_col_value_width}s${NC}" "disabled (no peer stats)"
       closeRow
 
     fi
@@ -1196,7 +1230,7 @@ while true; do
     if [[ ${VERBOSE} = "Y" ]]; then
 
       # row 1
-      printf "${VL} Last Block : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
+      printf "${VL} Last Block : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
       mvThreeSecond
       printf "Served     : ${style_values_1}%s${NC}" "${blocks_served}"
       mvThreeThird
@@ -1204,17 +1238,17 @@ while true; do
       closeRow
 
       # row 2
-      printf "${VL} Within 1s  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#blocks_w1s_pct}))s" "${blocks_w1s_pct}" "%"
+      printf "${VL} Within 1s  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#blocks_w1s_pct}))s" "${blocks_w1s_pct}" "%"
       mvThreeSecond
-      printf "Within 3s  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#blocks_w3s_pct}))s" "${blocks_w3s_pct}" "%"
+      printf "Within 3s  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#blocks_w3s_pct}))s" "${blocks_w3s_pct}" "%"
       mvThreeThird
-      printf "Within 5s  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#blocks_w5s_pct}))s" "${blocks_w5s_pct}" "%"
+      printf "Within 5s  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#blocks_w5s_pct}))s" "${blocks_w5s_pct}" "%"
       closeRow
 
     else
 
       # row 1
-      printf "${VL} Last Block : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
+      printf "${VL} Last Block : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
       mvThreeSecond
       blocks_w5s_value_width=$(( (three_col_width*2) - 23 - 6 - ${#blocks_w1s_pct} - ${#blocks_w3s_pct} ))
       printf "Less than 1|3|5s [%%] : ${style_values_1}%s${NC} | ${style_values_1}%s${NC} | ${style_values_1}%-${blocks_w5s_value_width}s${NC}" "${blocks_w1s_pct}" "${blocks_w3s_pct}" "${blocks_w5s_pct}"
@@ -1233,17 +1267,17 @@ while true; do
       LC_NUMERIC=C printf -v mem_heap_gb "%.1f" "$(bc -l <<<"(${mem_heap}/1073741824)")"
 
       # row 1
-      printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cpu_util}))s" "${cpu_util}" "%"
+      printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cpu_util}))s" "${cpu_util}" "%"
       mvThreeSecond
-      printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
+      printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
       mvThreeThird
       printf "GC Minor   : ${style_values_1}%s${NC}" "${gc_minor}"
       closeRow
 
       # row 2
-      printf "${VL} Disk util  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#disk_usage}))s" "${disk_usage}" "%"
+      printf "${VL} Disk util  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#disk_usage}))s" "${disk_usage}" "%"
       mvThreeSecond
-      printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
+      printf "Mem (Live) : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#mem_live_gb}))s" "${mem_live_gb}" "G"
       mvThreeThird
       printf "GC Major   : ${style_values_1}%s${NC}" "${gc_major}"
       closeRow
@@ -1251,17 +1285,17 @@ while true; do
       # row 3
       printf "${VL}"
       mvThreeSecond
-      printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
+      printf "Mem (Heap) : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#mem_heap_gb}))s" "${mem_heap_gb}" "G"
       closeRow
 
     else
 
       # row 1
-      printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cpu_util}))s" "${cpu_util}" "%"
+      printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cpu_util}))s" "${cpu_util}" "%"
       mvThreeSecond
-      printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
+      printf "Mem (RSS)  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#mem_rss_gb}))s" "${mem_rss_gb}" "G"
       mvThreeThird
-      printf "Disk util  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#disk_usage}))s" "${disk_usage}" "%"
+      printf "Disk util  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#disk_usage}))s" "${disk_usage}" "%"
       closeRow
 
     fi
@@ -1311,32 +1345,32 @@ while true; do
         printf "${VL} Blocks     : ${style_values_1}%s${NC}" "${p_block_count}"
         mvThreeSecond
         compactNumber $((p_active_stake/1000000))
-        printf "Act Stake  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
+        printf "Act Stake  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
         mvThreeThird
         compactNumber $((p_pledge/1000000))
-        printf "Pledge     : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
+        printf "Pledge     : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
         closeRow
 
         # row 2
         compactNumber $((p_fixed_cost/1000000))
-        printf "${VL} Fixed Fee  : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
+        printf "${VL} Fixed Fee  : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
         mvThreeSecond
         compactNumber $((p_live_stake/1000000))
-        printf "Live Stake : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
+        printf "Live Stake : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
         mvThreeThird
         [[ ${p_live_pledge} -ge ${p_pledge} ]] && p_live_pledge_fmt="${style_values_1}" || p_live_pledge_fmt="${style_status_3}"
         compactNumber $((p_live_pledge/1000000))
-        printf "Live Pledge: ${p_live_pledge_fmt}%s${NC}%-$((three_col_3_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
+        printf "Live Pledge: ${p_live_pledge_fmt}%s${NC}%-$((three_col_value_width - ${#cn_value}))s" "${cn_value}" "${cn_suffix}"
         closeRow
 
         # row 3
         margin_fee=$(fractionToPCT ${p_margin})
         ! validateDecimalNbr ${margin_fee} && margin_fee="?"
-        printf "${VL} Margin Fee : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#margin_fee}))s" "${margin_fee}" "%"
+        printf "${VL} Margin Fee : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#margin_fee}))s" "${margin_fee}" "%"
         mvThreeSecond
-        printf "Delegators : ${style_values_1}%-${three_col_3_value_width}s${NC}" "${p_live_delegators}"
+        printf "Delegators : ${style_values_1}%-${three_col_value_width}s${NC}" "${p_live_delegators}"
         mvThreeThird
-        printf "Saturation : ${style_values_1}%s${NC}%-$((three_col_3_value_width - ${#p_live_saturation}))s" "${p_live_saturation}" "%"
+        printf "Saturation : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#p_live_saturation}))s" "${p_live_saturation}" "%"
         closeRow
       fi
 
@@ -1373,27 +1407,27 @@ while true; do
           [[ ${stolen_cnt} -eq 0 ]] && stolen_fmt="${style_values_1}" || stolen_fmt="${style_status_3}"
 
           # row 1
-          printf "${VL} Leader     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${leader_cnt}"
+          printf "${VL} Leader     : ${style_values_1}%-${three_col_value_width}s${NC}" "${leader_cnt}"
           mvThreeSecond
-          printf "Adopted    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${adopted_cnt}"
+          printf "Adopted    : ${style_values_1}%-${three_col_value_width}s${NC}" "${adopted_cnt}"
           mvThreeThird
-          printf "Missed     : ${missed_fmt}%-${three_col_3_value_width}s${NC}" "${missed_cnt}"
+          printf "Missed     : ${missed_fmt}%-${three_col_value_width}s${NC}" "${missed_cnt}"
           closeRow
 
           # row 2
-          printf "${VL} Ideal      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[0]}"
+          printf "${VL} Ideal      : ${style_values_1}%-${three_col_value_width}s${NC}" "${epoch_stats[0]}"
           mvThreeSecond
-          printf "Confirmed  : ${confirmed_fmt}%-${three_col_2_value_width}s${NC}" "${confirmed_cnt}"
+          printf "Confirmed  : ${confirmed_fmt}%-${three_col_value_width}s${NC}" "${confirmed_cnt}"
           mvThreeThird
-          printf "Ghosted    : ${ghosted_fmt}%-${three_col_3_value_width}s${NC}" "${ghosted_cnt}"
+          printf "Ghosted    : ${ghosted_fmt}%-${three_col_value_width}s${NC}" "${ghosted_cnt}"
           closeRow
 
           # row 3
-          printf "${VL} Luck       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[1]}"
+          printf "${VL} Luck       : ${style_values_1}%-${three_col_value_width}s${NC}" "${epoch_stats[1]}"
           mvThreeSecond
-          printf "Invalid    : ${invalid_fmt}%-${three_col_2_value_width}s${NC}" "${invalid_cnt}"
+          printf "Invalid    : ${invalid_fmt}%-${three_col_value_width}s${NC}" "${invalid_cnt}"
           mvThreeThird
-          printf "Stolen     : ${stolen_fmt}%-${three_col_3_value_width}s${NC}" "${stolen_cnt}"
+          printf "Stolen     : ${stolen_fmt}%-${three_col_value_width}s${NC}" "${stolen_cnt}"
           closeRow
 
         else
@@ -1401,19 +1435,19 @@ while true; do
           [[ ${lost_cnt} -eq 0 ]] && lost_fmt="${style_values_1}" || lost_fmt="${style_status_3}"
 
           # row 1
-          printf "${VL} Leader     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${leader_cnt}"
+          printf "${VL} Leader     : ${style_values_1}%-${three_col_value_width}s${NC}" "${leader_cnt}"
           mvThreeSecond
-          printf "Luck       : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[1]}"
+          printf "Luck       : ${style_values_1}%-${three_col_value_width}s${NC}" "${epoch_stats[1]}"
           mvThreeThird
-          printf "Confirmed  : ${confirmed_fmt}%-${three_col_2_value_width}s${NC}" "${confirmed_cnt}"
+          printf "Confirmed  : ${confirmed_fmt}%-${three_col_value_width}s${NC}" "${confirmed_cnt}"
           closeRow
 
           # row 2
-          printf "${VL} Ideal      : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${epoch_stats[0]}"
+          printf "${VL} Ideal      : ${style_values_1}%-${three_col_value_width}s${NC}" "${epoch_stats[0]}"
           mvThreeSecond
-          printf "Adopted    : ${style_values_1}%-${three_col_2_value_width}s${NC}" "${adopted_cnt}"
+          printf "Adopted    : ${style_values_1}%-${three_col_value_width}s${NC}" "${adopted_cnt}"
           mvThreeThird
-          printf "Lost       : ${lost_fmt}%-${three_col_2_value_width}s${NC}" "${lost_cnt}"
+          printf "Lost       : ${lost_fmt}%-${three_col_value_width}s${NC}" "${lost_cnt}"
           closeRow
 
         fi
@@ -1440,11 +1474,11 @@ while true; do
         [[ ${isleader} -ne ${adopted} ]] && adopted_fmt="${style_status_2}" || adopted_fmt="${style_values_2}"
         [[ ${didntadopt} -eq 0 ]] && invalid_fmt="${style_values_1}" || invalid_fmt="${style_status_3}"
 
-        printf "${VL} Leader : ${style_values_1}%-${three_col_1_value_width}s${NC}" "${isleader}"
+        printf "${VL} Leader : ${style_values_1}%-${three_col_value_width}s${NC}" "${isleader}"
         mvThreeSecond
-        printf "Adopted : ${adopted_fmt}%-${three_col_2_value_width}s${NC}" "${adopted}"
+        printf "Adopted : ${adopted_fmt}%-${three_col_value_width}s${NC}" "${adopted}"
         mvThreeThird
-        printf "Invalid : ${invalid_fmt}%-${three_col_3_value_width}s${NC}" "${didntadopt}"
+        printf "Invalid : ${invalid_fmt}%-${three_col_value_width}s${NC}" "${didntadopt}"
         closeRow
       fi
     fi
@@ -1480,27 +1514,27 @@ while true; do
       signatures_reg_success_VAL=$(get_metric_value "signature_registration_success_since_startup")
       signatures_reg_total_VAL=$(get_metric_value "signature_registration_total_since_startup")
       if [[ ${VERBOSE} = "Y" ]]; then
-        printf "${VL} Status     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signerServiceStatus"
-        printf "           : Registered Epoch     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_epoch_VAL"
+        printf "${VL} Status     : ${style_values_2}%-${three_col_value_width}s${NC}" "$signerServiceStatus"
+        printf "           : Registered Epoch     : ${style_values_1}%-${three_col_value_width}s${NC}" "$signer_reg_epoch_VAL"
         closeRow
-        printf "${VL} Cycles     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$cycle_total_VAL"
-        printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_epoch_VAL"
+        printf "${VL} Cycles     : ${style_values_1}%-${three_col_value_width}s${NC}" "$cycle_total_VAL"
+        printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_value_width}s${NC}" "$signatures_epoch_VAL"
         closeRow
-        printf "${VL} Signatures : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_reg_success_VAL"
-        printf "           : Total Signatures     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signatures_reg_total_VAL"
+        printf "${VL} Signatures : ${style_values_2}%-${three_col_value_width}s${NC}" "$signatures_reg_success_VAL"
+        printf "           : Total Signatures     : ${style_values_1}%-${three_col_value_width}s${NC}" "$signatures_reg_total_VAL"
         closeRow
-        printf "${VL} Registered : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_success_VAL"
-        printf "           : Registered Total     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_total_VAL"
+        printf "${VL} Registered : ${style_values_1}%-${three_col_value_width}s${NC}" "$signer_reg_success_VAL"
+        printf "           : Registered Total     : ${style_values_1}%-${three_col_value_width}s${NC}" "$signer_reg_total_VAL"
         closeRow
       else
-        printf "${VL} Status     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signerServiceStatus"
-        printf "           : Registered Epoch     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signer_reg_epoch_VAL"
+        printf "${VL} Status     : ${style_values_2}%-${three_col_value_width}s${NC}" "$signerServiceStatus"
+        printf "           : Registered Epoch     : ${style_values_1}%-${three_col_value_width}s${NC}" "$signer_reg_epoch_VAL"
         closeRow
-        printf "${VL} Cycles     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$cycle_total_VAL"
-        printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_epoch_VAL"
+        printf "${VL} Cycles     : ${style_values_1}%-${three_col_value_width}s${NC}" "$cycle_total_VAL"
+        printf "           : Signing in Epoch     : ${style_values_2}%-${three_col_value_width}s${NC}" "$signatures_epoch_VAL"
         closeRow
-        printf "${VL} Signatures : ${style_values_2}%-${three_col_1_value_width}s${NC}" "$signatures_reg_success_VAL"
-        printf "           : Total Signatures     : ${style_values_1}%-${three_col_1_value_width}s${NC}" "$signatures_reg_total_VAL"
+        printf "${VL} Signatures : ${style_values_2}%-${three_col_value_width}s${NC}" "$signatures_reg_success_VAL"
+        printf "           : Total Signatures     : ${style_values_1}%-${three_col_value_width}s${NC}" "$signatures_reg_total_VAL"
         closeRow
       fi
     fi
