@@ -1198,21 +1198,15 @@ while true; do
         echo "${conndivider}" && ((line++))
         
         # row 1
-        printf "${VL} ${style_values_4}\U2B05 Incoming${NC}"
-        mvFourSecond
-        printf "Hot  : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
-        mvFourThird
-        printf "Warm : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_warm}"
+        printf "${VL} ${style_values_4}\U2B05 Incoming hot|warm${NC}"
+        mvTwoSecond
+        printf ": ${style_values_1}%s${NC} | ${style_values_1}%s${NC}" "${inbound_governor_hot}" "${inbound_governor_warm}"
         closeRow
-  
+
         # row 2
-        printf "${VL} ${style_values_4}\U2B95 Outgoing${NC}"
-        mvFourSecond
-        printf "Hot  : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_hot}"
-        mvFourThird
-        printf "Warm : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_warm}"
-        mvFourFourth
-        printf "Cold : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_cold}"
+        printf "${VL} ${style_values_4}\U2B95 Outgoing hot|warm|cold${NC}"
+        mvTwoSecond
+        printf ": ${style_values_1}%s${NC} | ${style_values_1}%s${NC} | ${style_values_1}%s${NC}" "${peer_selection_hot}" "${peer_selection_warm}" "${peer_selection_cold}"
         closeRow
       
       fi
