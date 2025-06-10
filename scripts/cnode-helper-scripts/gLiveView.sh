@@ -1196,17 +1196,20 @@ while true; do
       else
 
         echo "${conndivider}" && ((line++))
-        
+
+        [[ ${#inbound_governor_hot} -gt ${#peer_selection_hot} ]] && conn_hot_width=${#inbound_governor_hot} || conn_hot_width=${#peer_selection_hot}
+        [[ ${#inbound_governor_warm} -gt ${#peer_selection_warm} ]] && conn_warm_width=${#inbound_governor_warm} || conn_warm_width=${#peer_selection_warm}
+
         # row 1
         printf "${VL} ${style_values_4}\U2B05 Incoming hot|warm${NC}"
         mvTwoSecond
-        printf ": ${style_values_1}%s${NC} | ${style_values_1}%s${NC}" "${inbound_governor_hot}" "${inbound_governor_warm}"
+        printf ": ${style_values_1}%-${conn_hot_width}s${NC} | ${style_values_1}%-${conn_warm_width}s${NC}" "${inbound_governor_hot}" "${inbound_governor_warm}"
         closeRow
 
         # row 2
         printf "${VL} ${style_values_4}\U2B95 Outgoing hot|warm|cold${NC}"
         mvTwoSecond
-        printf ": ${style_values_1}%s${NC} | ${style_values_1}%s${NC} | ${style_values_1}%s${NC}" "${peer_selection_hot}" "${peer_selection_warm}" "${peer_selection_cold}"
+        printf ": ${style_values_1}%-${conn_hot_width}s${NC} | ${style_values_1}%-${conn_warm_width}s${NC} | ${style_values_1}%s${NC}" "${peer_selection_hot}" "${peer_selection_warm}" "${peer_selection_cold}"
         closeRow
       
       fi
