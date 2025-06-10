@@ -33,7 +33,7 @@ setTheme() {
     style_values_1=${FG_LBLUE}            # color of most live values
     style_values_2=${FG_GREEN}            # color of node name
     style_values_3=${STANDOUT}            # color of selected outgoing/incoming paging
-    style_values_4=${FG_LGRAY}               # color of informational text
+    style_values_4=${FG_LGRAY}            # color of informational text
     style_info=${FG_YELLOW}               # info messages
     style_status_1=${FG_GREEN}            # :)
     style_status_2=${FG_YELLOW}           # :|
@@ -45,7 +45,7 @@ setTheme() {
     style_values_1=${FG_BLUE}             # color of most live values
     style_values_2=${FG_GREEN}            # color of node name
     style_values_3=${STANDOUT}            # color of selected outgoing/incoming paging
-    style_values_4=${FG_LGRAY}               # color of informational text
+    style_values_4=${FG_LGRAY}            # color of informational text
     style_info=${FG_YELLOW}               # info messages
     style_status_1=${FG_GREEN}            # :)
     style_status_2=${FG_YELLOW}           # :|
@@ -1164,10 +1164,10 @@ while true; do
 
         # divider line
         printf "${VL}- ${style_info}CONNECTIONS${NC} "
-        printf "%0.s-" $(seq $((three_col_width-15)))
-        printf " INCOMING "
-        printf "%0.s-" $(seq $((three_col_width-10)))
-        printf " OUTGOING "
+        printf "%0.s-" $(seq $((three_col_width-13)))
+        printf " ${style_values_4}\U2B05 INCOMING${NC} "
+        printf "%0.s-" $(seq $((three_col_width-11)))
+        printf " ${style_values_4}\U2B95 OUTGOING${NC} "
         printf "%0.s-" $(seq $((three_col_width-10)))
         closeRow
         
