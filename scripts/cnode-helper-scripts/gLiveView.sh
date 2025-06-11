@@ -1141,59 +1141,37 @@ while true; do
 
     if [[ ${P2P_ENABLED} = true ]]; then
 
+      # divider line
+      printf "${VL}- ${style_info}CONNECTIONS${NC} "
+      printf "%0.s-" $(seq $((three_col_width-13)))
+      printf " ${style_values_4}Incoming ${arrow_left}${NC} "
+      printf "%0.s-" $(seq $((three_col_width-11)))
+      printf " ${style_values_4}Outgoing ${arrow_right}${NC} "
+      printf "%0.s-" $(seq $((three_col_width-10)))
+      closeRow
+
       if [[ ${VERBOSE} = "Y" ]]; then
 
-        # divider line
-        printf "${VL}- ${style_info}CONNECTIONS${NC} "
-        printf "%0.s-" $(seq $((three_col_width-13)))
-        printf " ${style_values_4}Incoming ${arrow_left}${NC} "
-        printf "%0.s-" $(seq $((three_col_width-11)))
-        printf " ${style_values_4}Outgoing ${arrow_right}${NC} "
-        printf "%0.s-" $(seq $((three_col_width-10)))
-        closeRow
-        
-        # row 1
         printf "${VL} Uni-Dir    : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_uni_dir}"
         mvThreeThird
         printf "Cold       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_cold}"
         closeRow
-  
-        # row 2
-        printf "${VL} Bi-Dir     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_bi_dir}"
-        mvThreeSecond
-        printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_warm}"
-        mvThreeThird
-        printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_warm}"
-        closeRow
-  
-        # row 3
-        printf "${VL} Duplex     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_duplex}"
-        mvThreeSecond
-        printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
-        mvThreeThird
-        printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_hot}"
-        closeRow
-      
-      else
 
-        echo "${conndivider}" && ((line++))
-
-        [[ ${#inbound_governor_hot} -gt ${#peer_selection_hot} ]] && conn_hot_width=${#inbound_governor_hot} || conn_hot_width=${#peer_selection_hot}
-        [[ ${#inbound_governor_warm} -gt ${#peer_selection_warm} ]] && conn_warm_width=${#inbound_governor_warm} || conn_warm_width=${#peer_selection_warm}
-
-        # row 1
-        printf "${VL} ${style_values_4}${arrow_left} Incoming hot|warm${NC}"
-        mvTwoSecond
-        printf ": ${style_values_1}%-${conn_hot_width}s${NC} | ${style_values_1}%-${conn_warm_width}s${NC}" "${inbound_governor_hot}" "${inbound_governor_warm}"
-        closeRow
-
-        # row 2
-        printf "${VL} ${style_values_4}${arrow_right} Outgoing hot|warm|cold${NC}"
-        mvTwoSecond
-        printf ": ${style_values_1}%-${conn_hot_width}s${NC} | ${style_values_1}%-${conn_warm_width}s${NC} | ${style_values_1}%s${NC}" "${peer_selection_hot}" "${peer_selection_warm}" "${peer_selection_cold}"
-        closeRow
-      
       fi
+
+      printf "${VL} Bi-Dir     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_bi_dir}"
+      mvThreeSecond
+      printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_warm}"
+      mvThreeThird
+      printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_warm}"
+      closeRow
+
+      printf "${VL} Duplex     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_duplex}"
+      mvThreeSecond
+      printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
+      mvThreeThird
+      printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_hot}"
+      closeRow
 
     else
 
