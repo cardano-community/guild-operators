@@ -262,6 +262,8 @@ if [[ ${LEGACY_MODE} = "true" ]]; then
   blockdivider=$(printf "${NC}|- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "|")
   mithrildivider=$(printf "${NC}|- ${style_info}MITHRIL SIGNER${NC} " && printf "%0.s-" $(seq $((width-18))) && printf "|")
   blank_line=$(printf "${NC}|%$((width-1))s|" "")
+  arrow_right=$(printf ">")
+  arrow_left=$(printf "<")
 else
   VL=$(printf "${NC}\\u2502")
   HL=$(printf "${NC}\\u2500")
@@ -285,6 +287,8 @@ else
   blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "\\u2502")
   mithrildivider=$(printf "${NC}\\u2502- ${style_info}MITHRIL SIGNER${NC} " && printf "%0.s-" $(seq $((width-18))) && printf "\\u2502")
   blank_line=$(printf "${NC}\\u2502%$((width-1))s\\u2502" "")
+  arrow_right=$(printf "\\u2B95")
+  arrow_left=$(printf "\\u2B05")
 fi
 
 #####################################
@@ -1142,9 +1146,9 @@ while true; do
         # divider line
         printf "${VL}- ${style_info}CONNECTIONS${NC} "
         printf "%0.s-" $(seq $((three_col_width-13)))
-        printf " ${style_values_4}Incoming \U2B05${NC} "
+        printf " ${style_values_4}Incoming ${arrow_left}${NC} "
         printf "%0.s-" $(seq $((three_col_width-11)))
-        printf " ${style_values_4}Outgoing \U2B95${NC} "
+        printf " ${style_values_4}Outgoing ${arrow_right}${NC} "
         printf "%0.s-" $(seq $((three_col_width-10)))
         closeRow
         
@@ -1178,13 +1182,13 @@ while true; do
         [[ ${#inbound_governor_warm} -gt ${#peer_selection_warm} ]] && conn_warm_width=${#inbound_governor_warm} || conn_warm_width=${#peer_selection_warm}
 
         # row 1
-        printf "${VL} ${style_values_4}\U2B05 Incoming hot|warm${NC}"
+        printf "${VL} ${style_values_4}${arrow_left} Incoming hot|warm${NC}"
         mvTwoSecond
         printf ": ${style_values_1}%-${conn_hot_width}s${NC} | ${style_values_1}%-${conn_warm_width}s${NC}" "${inbound_governor_hot}" "${inbound_governor_warm}"
         closeRow
 
         # row 2
-        printf "${VL} ${style_values_4}\U2B95 Outgoing hot|warm|cold${NC}"
+        printf "${VL} ${style_values_4}${arrow_right} Outgoing hot|warm|cold${NC}"
         mvTwoSecond
         printf ": ${style_values_1}%-${conn_hot_width}s${NC} | ${style_values_1}%-${conn_warm_width}s${NC} | ${style_values_1}%s${NC}" "${peer_selection_hot}" "${peer_selection_warm}" "${peer_selection_cold}"
         closeRow
