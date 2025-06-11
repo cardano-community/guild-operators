@@ -287,8 +287,8 @@ else
   blockdivider=$(printf "${NC}\\u2502- ${style_info}BLOCK PRODUCTION${NC} " && printf "%0.s-" $(seq $((width-20))) && printf "\\u2502")
   mithrildivider=$(printf "${NC}\\u2502- ${style_info}MITHRIL SIGNER${NC} " && printf "%0.s-" $(seq $((width-18))) && printf "\\u2502")
   blank_line=$(printf "${NC}\\u2502%$((width-1))s\\u2502" "")
-  arrow_right=$(printf "\\u2B95")
-  arrow_left=$(printf "\\u2B05")
+  arrow_right=$(printf "\\u25B6")
+  arrow_left=$(printf "\\u25C0")
 fi
 
 #####################################
