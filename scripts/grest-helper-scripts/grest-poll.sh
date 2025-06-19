@@ -188,6 +188,17 @@ function chk_asset_registry() {
   fi
 }
 
+function chk_pg_cardano_version() {
+  instance_pg_cardano_version=$(curl -m 2 -sfkL "${URLRPC}/pg_cardano_version" 2>/dev/null | jq -r '.[0].extversion')
+  monitor_pg_cardano_version=$(curl -m 2 -sfkL "${API_COMPARE}/pg_cardano_version" 2>/dev/null | jq -r '.[0].extversion')
+  if [[ "${instance_pg_cardano_version}" != "${monitor_pg_cardano_version}" ]]; then
+    log_err "The pg_cardano version from ${GURL} does not seem to match ${API_COMPARE}; " \
+        "instance version: ${instance_pg_cardano_version}, " \
+        "monitor version: ${monitor_pg_cardano_version}"
+    optexit
+  fi
+}
+
 ##################
 # Main Execution #
 ##################
@@ -213,3 +224,4 @@ chk_tip
 chk_cache_status
 chk_limit
 chk_asset_registry
+chk_pg_cardano_version
