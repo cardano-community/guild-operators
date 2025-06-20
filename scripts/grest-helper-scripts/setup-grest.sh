@@ -681,7 +681,7 @@ SGVERSION=v1.3.2
   if [[ "${INSTALL_PG_CARDANO}" == "Y" ]]; then deploy_pgcardano_ext; fi
   if [[ "${OVERWRITE_CONFIG}" == "Y" ]]; then deploy_configs; fi
   if [[ "${OVERWRITE_SYSTEMD}" == "Y" ]]; then deploy_systemd; fi
-  if [[ "${RESET_GREST}" == "Y" ]]; then remove_all_grest_cron_jobs; reset_grest; fi
+  if [[ "${RESET_GREST}" == "Y" ]]; then remove_all_grest_cron_jobs; reset_grest; deploy_pgcardano_ext; fi
   if [[ "${DB_QRY_UPDATES}" == "Y" ]]; then remove_all_grest_cron_jobs; setup_db_basics; deploy_query_updates; update_grest_version; fi
   pushd -0 >/dev/null || err_exit
   dirs -c
