@@ -230,19 +230,21 @@ check_node() {
 
     FIRST=$($CCLI query tip --testnet-magic "${NWMAGIC}" | jq .block)
 
+    # If Koios is disabled:
+    #   Check the difference between the node's tip (FIRST) and the node's tip 60 seconds later (SECOND)
     if [[ "${ENABLE_KOIOS}" == "N" ]] || [[ -z "${KOIOS_API}" ]]; then
         sleep 60
         SECOND=$($CCLI query tip --testnet-magic "${NWMAGIC}" | jq .block)
-        # Subtract 1 from the second tip when using check_tip and drift of 0
-        if check_tip "$FIRST" $(( SECOND - 1)) 0; then
-            echo "We're healthy - node: $FIRST == node: $SECOND"
+        if [[ "$SECOND" -gt "$FIRST" ]]; then
+            echo "We're healthy - node tip progressed from $FIRST to $SECOND in the last 60s"
             return 0
         else
-            echo "There is a problem"
+            echo "Error. The node's tip has not moved forward in the last 60s (Current Tip = $SECOND)"
             return 1
         fi
     else
-    # Query the Koios API and check if the response is valid
+    # If Koios is enabled:
+    #   Query the Koios API and check if the response is valid
     KOIOS_RESPONSE=$(${CURL} -s "${KOIOS_API_HEADERS[@]}" "${URL}")
     if ! echo "${KOIOS_RESPONSE}" | $JQ . &>/dev/null; then
         echo "Error. Koios API query output: \"${KOIOS_RESPONSE}\""
@@ -254,15 +256,15 @@ check_node() {
             return 1
         fi
     fi
-
+        # Check the difference between the node's tip (FIRST) and the Koios API's reported tip (SECOND)
         for (( CHECK=0; CHECK<=HEALTHCHECK_RETRIES; CHECK++ )); do
             # Set BIDIRECTIONAL_DRIFT to 1 since using an API call
             if check_tip "$FIRST" "$SECOND" "$NODE_ALLOWED_DRIFT" 1; then
-                echo "We're healthy - node: $FIRST == koios: $SECOND"
+                echo "We're healthy - tip is within allowed drift (node tip: $FIRST == koios tip: $SECOND)"
                 return 0
             fi
         done
-        echo "There is a problem"
+        echo "Error. Tip is not within allowed drift (node tip: $FIRST == koios tip: $SECOND)"
         return 1
     fi
 }
