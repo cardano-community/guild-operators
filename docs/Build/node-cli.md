@@ -16,13 +16,25 @@ cd cardano-node
 
 #### Build Cardano Node
 
-You can use the instructions below to build the latest release of [cardano-node](https://github.com/intersectmbo/cardano-node). 
+You can use the instructions below to build the latest release of [cardano-node](https://github.com/intersectmbo/cardano-node). We recommend sticking to versions listed [here](https://github.com/cardano-community/guild-operators/tree/master/files/docker/node/release-versions) instead, as these are what scripts were tested against.
 
 ``` bash
 git fetch --tags --recurse-submodules --all
 git pull
-# Replace tag against checkout if you do not want to build the latest released version, we recommend using battle tested node versions - which may not always be latest
 git checkout $(curl -sLf https://api.github.com/repos/intersectmbo/cardano-node/releases/latest | jq -r .tag_name)
+
+# Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
+$CNODE_HOME/scripts/cabal-build-all.sh
+```
+
+#### Build Cardano CLI
+
+You can use the instructions below to build the latest release of [cardano-cli](https://github.com/intersectmbo/cardano-cli). We recommend sticking to versions listed [here](https://github.com/cardano-community/guild-operators/tree/master/files/docker/node/release-versions) instead, as these are what scripts were tested against.
+
+``` bash
+git fetch --tags --recurse-submodules --all
+git pull
+git checkout $(curl -sLf https://api.github.com/repos/intersectmbo/cardano-cli/releases/latest | jq -r .tag_name)
 
 # Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
 $CNODE_HOME/scripts/cabal-build-all.sh
@@ -41,10 +53,10 @@ Execute `cardano-cli` and `cardano-node` to verify output as below (the exact ve
 
 ```bash
 cardano-cli version
-# cardano-cli 10.x.x - linux-x86_64 - ghc-8.10
+# cardano-cli 10.x.x - linux-x86_64 - ghc-9.6
 # git rev <...>
 cardano-node version
-# cardano-node 10.x.x - linux-x86_64 - ghc-8.10
+# cardano-node 10.x.x - linux-x86_64 - ghc-9.6
 # git rev <...>
 ```
 
