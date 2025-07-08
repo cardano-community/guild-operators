@@ -5037,7 +5037,7 @@ function main {
                           [[ -z "${drep_id}" ]] && continue
                           parseDRepId "${drep_id}"
                           [[ -z ${drep_id} ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
-                          key_hashes[${drep_hash})]=1
+                          key_hashes[${drep_hash}]=1
                           ;;
                         2) break ;;
                         3) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
