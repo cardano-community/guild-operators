@@ -2041,7 +2041,7 @@ function main {
               echo
               pledge_ada=50000 # default pledge
               [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-              getAnswerAnyCust pledge_enter "Pledge (in ADA, default: $(formatLovelace "$(ADAToLovelace ${pledge_ada})")"
+              getAnswerAnyCust pledge_enter "Pledge (in ADA, default: $(formatLovelace "$(ADAToLovelace ${pledge_ada})"))"
               pledge_enter="${pledge_enter//,}"
               if [[ -n "${pledge_enter}" ]]; then
                 if ! ADAToLovelace "${pledge_enter}" >/dev/null; then
@@ -5037,7 +5037,7 @@ function main {
                           [[ -z "${drep_id}" ]] && continue
                           parseDRepId "${drep_id}"
                           [[ -z ${drep_id} ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid DRep ID entered!" && waitToProceed && continue
-                          key_hashes[${drep_hash})]=1
+                          key_hashes[${drep_hash}]=1
                           ;;
                         2) break ;;
                         3) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
