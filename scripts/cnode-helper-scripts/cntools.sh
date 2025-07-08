@@ -2041,7 +2041,7 @@ function main {
               echo
               pledge_ada=50000 # default pledge
               [[ -f "${pool_config}" ]] && pledge_ada=$(jq -r '.pledgeADA //0' "${pool_config}")
-              getAnswerAnyCust pledge_enter "Pledge (in ADA, default: $(formatLovelace "$(ADAToLovelace ${pledge_ada})")"
+              getAnswerAnyCust pledge_enter "Pledge (in ADA, default: $(formatLovelace "$(ADAToLovelace ${pledge_ada})"))"
               pledge_enter="${pledge_enter//,}"
               if [[ -n "${pledge_enter}" ]]; then
                 if ! ADAToLovelace "${pledge_enter}" >/dev/null; then
