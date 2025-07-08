@@ -1031,7 +1031,7 @@ set_default_vars() {
   [[ -z ${STRICT_VERSION_CHECK} ]] && STRICT_VERSION_CHECK="Y"
   if [[ -z "${KOIOS_API_HEADERS[*]}" ]] ; then
     if [[ -n "${KOIOS_API_TOKEN}" ]] ; then
-      KOIOS_API_HEADERS=(-H "'Authorization: Bearer ${KOIOS_API_TOKEN}'")
+      KOIOS_API_HEADERS=(-H "Authorization: Bearer ${KOIOS_API_TOKEN}")
     else
       KOIOS_API_HEADERS=()
     fi
