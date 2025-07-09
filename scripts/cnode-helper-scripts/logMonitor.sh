@@ -25,7 +25,7 @@ processLogInfo() {
         sqlite3 "${BLOCKLOG_DB}" "INSERT OR IGNORE INTO blocklog (slot,at,epoch,status) values (${slot},'${at}',${epochnum},'leader');"
       fi
       ;;
-    TraceAdoptedBLock )
+    TraceAdoptedBlock )
       if [[ "$BLOCKLOG_ENABLED" = true ]]; then
         if ! slot="$(jq -er '.data.val.slot' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.val.slot' not found" && :; fi
         if ! hash="$(jq -er '.data.val.blockHash' <<< ${logentry})"; then echo "ERROR[TraceAdoptedBlock]: invalid json schema, '.data.val.blockHash' not found" && :; fi
