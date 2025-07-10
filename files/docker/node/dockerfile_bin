@@ -20,7 +20,8 @@ ENV \
     CARDANO_NODE_SOCKET_PATH=/opt/cardano/cnode/sockets/node.socket \
     PATH=/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.local/bin \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
-    UPDATE_CHECK=N
+    UPDATE_CHECK=N \
+    SUDO=N
 
 RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
     && apt install -y curl wget udev jq \
@@ -43,7 +44,6 @@ RUN set -x && apt update \
     && apt-get update \
     && mkdir -p /root/.local/bin \
     && wget https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh \
-    && export SUDO='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
     && export G_ACCOUNT=${G_ACCOUNT} \
     && chmod +x ./guild-deploy.sh && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s p \
@@ -54,8 +54,7 @@ RUN set -x && apt update \
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
 
-RUN set -x && export SUDO='N' \
-    && export SKIP_DBSYNC_DOWNLOAD='Y' \
+RUN set -x && export SKIP_DBSYNC_DOWNLOAD='Y' \
     && export G_ACCOUNT=${G_ACCOUNT} \
     && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s dcmowx \
     && chown -R guild:guild $CNODE_HOME \
