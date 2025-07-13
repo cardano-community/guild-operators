@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=5
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=0
+CNTOOLS_PATCH_VERSION=1
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -822,6 +822,48 @@ isPoolRegistered() {
 
     [[ ${p_pool_status} = 'registered' ]] && return 2
     [[ ${p_pool_status} = 'retiring' ]] && return 3 || return 4
+  fi
+}
+
+# Command     : isPoolRegistered [pool_name]
+# Description : check if pool has a valid pool calidus key registered
+# Parameters  : pool_name   >  the name of the pool to check
+# Return      : 0 => error quering KOIOS API (error message saved in ${error_msg})
+#               1 => No key registered
+#               2 => registered
+poolCalidusInfo() {
+  unset error_msg
+  if [[ ${CNTOOLS_MODE} != "LIGHT" ]]; then
+    error_msg="Pool calidus key check only possible in light mode" && return 0
+  else
+    getPoolID "$1"
+    HEADERS=("${KOIOS_API_HEADERS[@]}" -H "Content-Type: application/json")
+    println ACTION "curl -sSL -f -X POST ${HEADERS[*]} ${KOIOS_API}/pool_calidus_keys?pool_id_bech32=eq.${pool_id_bech32}"
+    ! pool_calidus=$(curl -sSL -f -X POST "${HEADERS[@]}" "${KOIOS_API}/pool_calidus_keys?pool_id_bech32=eq.${pool_id_bech32}" 2>&1) && error_msg=${pool_calidus} && return 0
+    [[ ${pool_calidus} = '[]' ]] && return 1
+    pool_calidus_tsv=$(jq -r '[
+    .[0].pool_status //"-",
+    .[0].calidus_nonce //0,
+    .[0].calidus_pub_key //"-",
+    .[0].calidus_id_bech32 //"-",
+    .[0].tx_hash //"-",
+    .[0].epoch_no //0,
+    .[0].block_height //0,
+    .[0].block_time //0
+    ] | @tsv' <<< "${pool_calidus}")
+
+    read -ra pool_calidus_arr <<< ${pool_calidus_tsv}
+
+    pc_status=${pool_calidus_arr[0]}
+    pc_nonce=${pool_calidus_arr[1]}
+    pc_pub_key=${pool_calidus_arr[2]}
+    pc_id=${pool_calidus_arr[3]}
+    pc_tx_hash=${pool_calidus_arr[4]}
+    pc_epoch_no=${pool_calidus_arr[5]}
+    pc_block_height=${pool_calidus_arr[6]}
+    pc_block_time=${pool_calidus_arr[7]}
+
+    if [[ ${pc_status} = 'registered' ]]; then return 2; else return 1; fi
   fi
 }
 
