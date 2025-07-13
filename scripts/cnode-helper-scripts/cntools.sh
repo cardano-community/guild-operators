@@ -3439,7 +3439,7 @@ function main {
                 echo
                 word_len=0
                 IFS=' ' read -r -a words < "${TMP_DIR}/calidus.mnemonics"
-                safeDel "${TMP_DIR}/calidus.mnemonics"
+                rm -f "${TMP_DIR}/calidus.mnemonics"
                 for word in "${words[@]}"; do
                   [[ ${#word} -gt ${word_len} ]] && word_len=${#word}
                 done
@@ -3450,7 +3450,6 @@ function main {
                   [[ $(( idx % 4 )) -eq 0 ]] && echo
                 done
                 unset words
-                echo
                 waitToProceed
                 current_slot=$(getSlotTipRef)
                 CS_CIP88_META_FILE=(
