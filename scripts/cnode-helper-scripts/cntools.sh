@@ -3178,6 +3178,18 @@ function main {
                     println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "KES expiration date" "${kes_expiration}")"
                   fi
                 fi
+
+                if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
+                  println "Calidus Key"
+                  poolCalidusInfo ${pool_name}
+                  case $? in
+                    0) println "$(printf "${FG_RED}%-21s${NC} : ${FG_LGRAY}%s${NC}" "  Error" "${error_msg}")" ;;
+                    1) println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "  Status" "No valid key registered")" ;;
+                    2) println "$(printf "%-21s : ${FG_LGRAY}%s${NC} ${FG_LBLUE}%s${NC} (${FG_LGRAY}%s${NC})" "  Status" "Registered epoch" "${pc_epoch_no}" "$(printf '%(%F %T %Z)T' "${pc_block_time}")")"
+                       println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "  Id" "${pc_id}")"
+                       ;;
+                  esac
+                fi
               fi
               waitToProceed && continue
               ;; ###################################################################
@@ -3375,6 +3387,7 @@ function main {
               metatype="no-schema"
               calidus_sk_file="${POOL_FOLDER}/${pool_name}/${POOL_CALIDUS_SK_FILENAME}"
               calidus_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_CALIDUS_VK_FILENAME}"
+              calidus_id_file="${POOL_FOLDER}/${pool_name}/${POOL_CALIDUS_ID_FILENAME}"
               calidus_reg_file="${POOL_FOLDER}/${pool_name}/${POOL_CALIDUS_REG_FILENAME}"
               if [[ -f ${calidus_reg_file} ]]; then
                 CS_CIP88_META_VERIFY=(
@@ -3415,12 +3428,29 @@ function main {
                   --path calidus
                   --out-skey "${calidus_sk_file}"
                   --out-vkey "${calidus_vk_file}"
+                  --out-id "${calidus_id_file}"
+                  --out-mnemonics "${TMP_DIR}/calidus.mnemonics"
                 )
                 println ACTION "${CS_CALIDUS_KEYS[*]}"
                 if ! stdout=$("${CS_CALIDUS_KEYS[@]}" 2>&1); then
                   println ERROR "\n${FG_RED}ERROR${NC}: failure during calidus key creation!\n${stdout}"
                   waitToProceed && continue
                 fi
+                echo
+                word_len=0
+                IFS=' ' read -r -a words < "${TMP_DIR}/calidus.mnemonics"
+                rm -f "${TMP_DIR}/calidus.mnemonics"
+                for word in "${words[@]}"; do
+                  [[ ${#word} -gt ${word_len} ]] && word_len=${#word}
+                done
+                println DEBUG "${FG_YELLOW}OPTIONAL!${NC} Write down and store below words in a secure place to be able to restore the generated pool calidus key in for example a light wallet."
+                for i in "${!words[@]}"; do
+                  idx=$(( i + 1 ))
+                  printf "%2s: ${FG_GREEN}%-${word_len}s${NC}  " "$idx" "${words[$i]}"
+                  [[ $(( idx % 4 )) -eq 0 ]] && echo
+                done
+                unset words
+                waitToProceed
                 current_slot=$(getSlotTipRef)
                 CS_CIP88_META_FILE=(
                   cardano-signer sign
