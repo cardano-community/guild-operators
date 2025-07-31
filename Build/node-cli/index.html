@@ -397,6 +397,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#build-cardano-cli" class="md-nav__link">
+    Build Cardano CLI
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#download-pre-compiled-binary-from-node-release" class="md-nav__link">
     Download pre-compiled Binary from Node release
   </a>
@@ -1104,6 +1111,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#build-cardano-cli" class="md-nav__link">
+    Build Cardano CLI
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#download-pre-compiled-binary-from-node-release" class="md-nav__link">
     Download pre-compiled Binary from Node release
   </a>
@@ -1196,11 +1210,19 @@ git<span class="w"> </span>clone<span class="w"> </span>https://github.com/inter
 <span class="nb">cd</span><span class="w"> </span>cardano-node
 </code></pre></div>
 <h4 id="build-cardano-node">Build Cardano Node<a class="headerlink" href="#build-cardano-node" title="Permanent link">⚓︎</a></h4>
-<p>You can use the instructions below to build the latest release of <a href="https://github.com/intersectmbo/cardano-node">cardano-node</a>. </p>
+<p>You can use the instructions below to build the latest release of <a href="https://github.com/intersectmbo/cardano-node">cardano-node</a>. We recommend sticking to versions listed <a href="https://github.com/cardano-community/guild-operators/tree/master/files/docker/node/release-versions">here</a> instead, as these are what scripts were tested against.</p>
 <div class="highlight"><pre><span></span><code>git<span class="w"> </span>fetch<span class="w"> </span>--tags<span class="w"> </span>--recurse-submodules<span class="w"> </span>--all
 git<span class="w"> </span>pull
-<span class="c1"># Replace tag against checkout if you do not want to build the latest released version, we recommend using battle tested node versions - which may not always be latest</span>
 git<span class="w"> </span>checkout<span class="w"> </span><span class="k">$(</span>curl<span class="w"> </span>-sLf<span class="w"> </span>https://api.github.com/repos/intersectmbo/cardano-node/releases/latest<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.tag_name<span class="k">)</span>
+
+<span class="c1"># Use `-l` argument if you&#39;d like to use system libsodium instead of IOG fork of libsodium while compiling</span>
+<span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
+</code></pre></div>
+<h4 id="build-cardano-cli">Build Cardano CLI<a class="headerlink" href="#build-cardano-cli" title="Permanent link">⚓︎</a></h4>
+<p>You can use the instructions below to build the latest release of <a href="https://github.com/intersectmbo/cardano-cli">cardano-cli</a>. We recommend sticking to versions listed <a href="https://github.com/cardano-community/guild-operators/tree/master/files/docker/node/release-versions">here</a> instead, as these are what scripts were tested against.</p>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>fetch<span class="w"> </span>--tags<span class="w"> </span>--recurse-submodules<span class="w"> </span>--all
+git<span class="w"> </span>pull
+git<span class="w"> </span>checkout<span class="w"> </span><span class="k">$(</span>curl<span class="w"> </span>-sLf<span class="w"> </span>https://api.github.com/repos/intersectmbo/cardano-cli/releases/latest<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.tag_name<span class="k">)</span>
 
 <span class="c1"># Use `-l` argument if you&#39;d like to use system libsodium instead of IOG fork of libsodium while compiling</span>
 <span class="nv">$CNODE_HOME</span>/scripts/cabal-build-all.sh
@@ -1212,10 +1234,10 @@ Instead, you can download the binaries using <a href="https://github.com/interse
 <h3 id="verify">Verify<a class="headerlink" href="#verify" title="Permanent link">⚓︎</a></h3>
 <p>Execute <code>cardano-cli</code> and <code>cardano-node</code> to verify output as below (the exact version and git rev should depend on your checkout tag on github repository):</p>
 <div class="highlight"><pre><span></span><code>cardano-cli<span class="w"> </span>version
-<span class="c1"># cardano-cli 10.x.x - linux-x86_64 - ghc-8.10</span>
+<span class="c1"># cardano-cli 10.x.x - linux-x86_64 - ghc-9.6</span>
 <span class="c1"># git rev &lt;...&gt;</span>
 cardano-node<span class="w"> </span>version
-<span class="c1"># cardano-node 10.x.x - linux-x86_64 - ghc-8.10</span>
+<span class="c1"># cardano-node 10.x.x - linux-x86_64 - ghc-9.6</span>
 <span class="c1"># git rev &lt;...&gt;</span>
 </code></pre></div>
 <h4 id="update-port-number-or-pool-name-for-relative-paths">Update port number or pool name for relative paths<a class="headerlink" href="#update-port-number-or-pool-name-for-relative-paths" title="Permanent link">⚓︎</a></h4>

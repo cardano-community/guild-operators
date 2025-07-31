@@ -436,14 +436,22 @@
 cat<span class="w"> </span>mainnet_pool.sig
 <span class="c1"># ed25519_sig1sn32v3z...d72rg7rc6gs</span>
 </code></pre></div></li>
-<li>Add this signature and owner <em>public</em> key to the extended pool JSON , so that it looks like below:
+<li>
+<p>As an alternative, you can use <a href="https://github.com/gitmachtl/cardano-signer">cardano-signer</a> to generate the signature:
+  <div class="highlight"><pre><span></span><code>cardano-signer<span class="w"> </span>sign<span class="w"> </span>--jcli<span class="w"> </span>--secret-key<span class="w"> </span>~/jormu/account/priv/owner.sk<span class="w"> </span>--data-file<span class="w"> </span><span class="nv">$CNODE_HOME</span>/priv/pool/TEST/pool.id
+<span class="c1"># ed25519_sig1... ed25519_pk1...</span>
+</code></pre></div></p>
+</li>
+<li>
+<p>Add this signature and owner <em>public</em> key to the extended pool JSON , so that it looks like below:
   <div class="highlight"><pre><span></span><code><span class="p">{</span>
 <span class="w">  </span><span class="nt">"itn"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nt">"owner"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ed25519_pk1..."</span><span class="p">,</span>
 <span class="w">    </span><span class="nt">"witness"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ed25519_sig1..."</span>
 <span class="w"> </span><span class="p">}</span>
 <span class="p">}</span>
-</code></pre></div></li>
+</code></pre></div></p>
+</li>
 <li>Host this signature file online at a URL with raw contents easily accessible on the internet (eg: <a href="https://my.pool.com/extended-metadata.json">https://my.pool.com/extended-metadata.json</a>)</li>
 <li>When you register/modify a pool using CNTools, use the above mentioned URL to add to your pool metadata.</li>
 </ul>

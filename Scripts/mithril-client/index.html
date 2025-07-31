@@ -1096,7 +1096,8 @@ environment<span class="w">           </span>Manage<span class="w"> </span>mithr
 <span class="w">  </span>override<span class="w">            </span>Override<span class="w"> </span>default<span class="w"> </span>variable<span class="w"> </span><span class="k">in</span><span class="w"> </span>the<span class="w"> </span>mithril<span class="w"> </span>environment<span class="w"> </span>file
 <span class="w">  </span>update<span class="w">              </span>Update<span class="w"> </span>mithril<span class="w"> </span>environment<span class="w"> </span>file
 cardano-db<span class="w">            </span>Interact<span class="w"> </span>with<span class="w"> </span>Cardano<span class="w"> </span>DB
-<span class="w">  </span>download<span class="w">            </span>Download<span class="w"> </span>Cardano<span class="w"> </span>DB<span class="w"> </span>from<span class="w"> </span>Mithril<span class="w"> </span>snapshot
+<span class="w">  </span>download<span class="w">            </span>Download<span class="w"> </span>Cardano<span class="w"> </span>DB<span class="w"> </span>from<span class="w"> </span>Mithril<span class="w"> </span>snapshot<span class="w"> </span><span class="o">(</span>Full<span class="o">)</span>
+<span class="w">    </span>skip-ancillary<span class="w">    </span>Download<span class="w"> </span>Cardano<span class="w"> </span>DB<span class="w"> </span>from<span class="w"> </span>Mithril<span class="w"> </span>snapshot<span class="w"> </span><span class="o">(</span>Immutable<span class="w"> </span>DB<span class="w"> </span>only<span class="o">)</span>
 <span class="w">  </span>snapshot<span class="w">            </span>Interact<span class="w"> </span>with<span class="w"> </span>Mithril<span class="w"> </span>snapshots
 <span class="w">    </span>list<span class="w">              </span>List<span class="w"> </span>available<span class="w"> </span>Mithril<span class="w"> </span>snapshots
 <span class="w">      </span>json<span class="w">            </span>List<span class="w"> </span>availble<span class="w"> </span>Mithril<span class="w"> </span>snapshots<span class="w"> </span><span class="k">in</span><span class="w"> </span>JSON<span class="w"> </span>format
@@ -1119,6 +1120,11 @@ stake-distribution<span class="w">    </span>Interact<span class="w"> </span>wit
 </ol>
 <div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>cardano-db<span class="w"> </span>download
 </code></pre></div>
+<ol>
+<li><strong>Download the Mithril snapshot without the ledger state (skip-ancillary):</strong> This option downloads only the immutable db files. The ledger state will be computed from the genesis block when the Cardano node starts, which results in a longer bootstrap time.</li>
+</ol>
+<p>```bash
+   ./mithril-client.sh cardano-db download skip-ancillary</p>
 <h2 id="investigating-available-snapshots">Investigating Available Snapshots<a class="headerlink" href="#investigating-available-snapshots" title="Permanent link">⚓︎</a></h2>
 <p>You can investigate the available snapshots by using the <code>snapshot list</code> and <code>snapshot show</code> commands:</p>
 <ul>

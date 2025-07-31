@@ -1258,6 +1258,11 @@ from a Mithril Aggregator.</p>
 </ul>
 <div class="highlight"><pre><span></span><code>./mithril-client.sh<span class="w"> </span>cardano-db<span class="w"> </span>download
 </code></pre></div>
+<ol>
+<li><strong>Download the Mithril snapshot without the ledger state (skip-ancillary):</strong> This option downloads only the immutable db files. The ledger state will be computed from the genesis block when the Cardano node starts, which results in a longer bootstrap time.</li>
+</ol>
+<p>```bash
+   ./mithril-client.sh cardano-db download skip-ancillary</p>
 <h3 id="participating-in-mithril-network">Participating in Mithril Network<a class="headerlink" href="#participating-in-mithril-network" title="Permanent link">⚓︎</a></h3>
 <p>The Mithril signer is used to participate in the creation of stake based signatures of
 snapshots. The Mithril signer can be used to sign a snapshots. The signed snapshot is
