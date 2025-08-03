@@ -1166,7 +1166,7 @@ if ! command -v "jq" &>/dev/null; then
   return 1
 fi
 
-read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile //"null", .ByronGenesisFile //"null", .ShelleyGenesisFile //"null", .Protocol //"Cardano", .TraceChainDb // if (.UseTraceDispatcher == true) then "tracer" end // "null", .EnableP2P //"false", .ConwayGenesisFile //"null"]| @tsv' "${CONFIG}" 2>/dev/null)"
+read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile //"null", .ByronGenesisFile //"null", .ShelleyGenesisFile //"null", .Protocol //"Cardano", .TraceChainDb // (if .UseTraceDispatcher == true then "tracer" else "null" end), .EnableP2P //"false", .ConwayGenesisFile //"null"]| @tsv' "${CONFIG}" 2>/dev/null)"
 if [[ ${CONFIG_CONTENTS[4]} == "null" ]]; then
   echo "Could not find TraceChainDb or new tracing system is not enabled when attempting to parse ${CONFIG} file in JSON format, please double-check the syntax of your config, or simply download it from guild-operators repository!"
   return 1
@@ -1194,7 +1194,7 @@ else
   [[ "${CONFIG_CONTENTS[4]}" == "tracer" ]] && USING_TRACER=true
 
   # If using the new tracer then tracer config must be set
-  if [[ $USING_TRACER && -z "$TRACER_CONFIG" ]]; then
+  if [[ $USING_TRACER == "true" && -z "$TRACER_CONFIG" ]]; then
     echo "Set TRACER_CONFIG to the tracer config file when using cardano-tracer."
     return 1
   fi
@@ -1213,7 +1213,7 @@ if ! isValidIPv4 "${EKG_HOST}" && ! isValidHostnameOrDomain "${EKG_HOST}"; then
 fi
 
 if [[ -z ${EKG_PORT} ]]; then
-  if ! EKG_PORT=$(jq -er '.hasEKG | if .|type=="array" then .[1] else .epPort // . end' "${TRACER_CONFIG}" 2>/dev/null); then
+  if ! EKG_PORT=$(jq -er '.hasEKG | if .|type=="number" or type=="string" then . else .epPort // . end' "${TRACER_CONFIG}" 2>/dev/null); then
     if [[ ${OFFLINE_MODE} = "N" ]]; then
       echo "Could not get 'hasEKG' port in ${TRACER_CONFIG}"
       return 1
@@ -1224,7 +1224,7 @@ elif [[ ! ${EKG_PORT} =~ ^[0-9]+$ ]]; then
   return 1
 fi
 
-if [[ -z ${PROM_HOST} ]]; then PROM_HOST=$(jq -er '.hasPrometheus | if .|type=="array" then .[1] else .epHost // .  end' "${TRACER_CONFIG}" 2>/dev/null) || PROM_HOST=127.0.0.1; fi
+if [[ -z ${PROM_HOST} ]]; then PROM_HOST=$(jq -er '.hasPrometheus | if .|type=="array" then .[0] else .epHost // .  end' "${TRACER_CONFIG}" 2>/dev/null) || PROM_HOST=127.0.0.1; fi
 
 if [[ ${PROM_HOST} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
   IFS='.' read -ra PROM_OCTETS <<< ${PROM_HOST}
