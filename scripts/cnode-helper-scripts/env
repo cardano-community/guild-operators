@@ -1303,17 +1303,6 @@ fi
 
 [[ -z ${EKG_TIMEOUT} ]] && EKG_TIMEOUT=3
 
-#echo "PROM_HOST: $PROM_HOST"
-#echo "PROM_PORT: $PROM_PORT"
-#echo "USE_EKG: $USE_EKG"
-#echo "EKG_HOST: $EKG_HOST"
-#echo "EKG_PORT: $EKG_PORT"
-#echo "CONFIG $CONFIG"
-#echo "TRACER_CONFIG: $TRACER_CONFIG"
-# return 1
-
-
-
 [[ -z ${BLOCKLOG_DIR} ]] && BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"
 BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
 [[ -z ${BLOCKLOG_TZ} ]] && BLOCKLOG_TZ="UTC"
