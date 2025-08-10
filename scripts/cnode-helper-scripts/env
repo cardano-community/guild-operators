@@ -646,7 +646,7 @@ getNodeMetrics() {
     [[ ${node_metrics_arr[4]} != '-' ]] && density=$(bc <<< "scale=3;$(printf '%3.5f' "${node_metrics_arr[4]}")*100/1") || density=0.0
     tx_processed=${node_metrics_arr[5]}; mempool_tx=${node_metrics_arr[6]}; mempool_bytes=${node_metrics_arr[7]}
     kesperiod=${node_metrics_arr[8]}; remaining_kes_periods=${node_metrics_arr[9]}
-    isleader=${node_metrics_arr[10]}; adopted=${node_metrics_arr[11]}; didntadopt=$(( ${node_metrics_arr[12]} - $adopted)); about_to_lead=${node_metrics_arr[13]}
+    isleader=${node_metrics_arr[10]}; adopted=${node_metrics_arr[11]}; didntadopt=$(( node_metrics_arr[12] - adopted)); about_to_lead=${node_metrics_arr[13]}
     missed_slots=${node_metrics_arr[14]}
     mem_live=${node_metrics_arr[15]}; mem_heap=${node_metrics_arr[16]}
     gc_minor=${node_metrics_arr[17]}; gc_major=${node_metrics_arr[18]}
@@ -676,7 +676,7 @@ getNodeMetrics() {
     [[ ${node_metrics} =~ cardano_node_metrics_remainingKESPeriods_int[[:space:]]([^[:space:]]*) ]] && remaining_kes_periods=${BASH_REMATCH[1]} || remaining_kes_periods=0
     [[ ${node_metrics} =~ cardano_node_metrics_Forge_node_is_leader_(int|counter)[[:space:]]([^[:space:]]*) ]] && isleader=${BASH_REMATCH[2]} || isleader=0
     [[ ${node_metrics} =~ cardano_node_metrics_Forge_adopted_(int|counter)[[:space:]]([^[:space:]]*) ]] && adopted=${BASH_REMATCH[2]} || adopted=0
-    [[ ${node_metrics} =~ cardano_node_metrics_Forge_forged_(int|counter)[[:space:]]([^[:space:]]*) ]] && didntadopt=$(( ${BASH_REMATCH[2]} - $adopted ))  || dintadopt=0
+    [[ ${node_metrics} =~ cardano_node_metrics_Forge_forged_(int|counter)[[:space:]]([^[:space:]]*) ]] && didntadopt=$(( BASH_REMATCH[2] - adopted ))  || dintadopt=0
     [[ ${node_metrics} =~ cardano_node_metrics_Forge(_forge|)_about_to_lead_(int|counter)[[:space:]]([^[:space:]]*) ]] && about_to_lead=${BASH_REMATCH[3]} || about_to_lead=0
     [[ ${node_metrics} =~ cardano_node_metrics_slotsMissed(Num|)_int[[:space:]]([^[:space:]]*) ]] && missed_slots=${BASH_REMATCH[2]} || missed_slots=0
     [[ ${node_metrics} =~ cardano_node_metrics_RTS_gcLiveBytes_int[[:space:]]([^[:space:]]*) ]] && mem_live=${BASH_REMATCH[1]} || mem_live=0
@@ -941,7 +941,7 @@ check_valid_port() {
     local port="$1"
     local name="$2"
 
-    if [[ -z "port" ]] || ! [[ "$port" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
+    if [[ -z "$port" ]] || ! [[ "$port" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
         echo "Please set a valid ${name} port number! Current value is \"${port}\"!"
         return 1
     fi
