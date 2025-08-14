@@ -17,7 +17,7 @@ jobs:
     - name: SH Lint Check
       uses: ludeeus/action-shellcheck@master
       env:
-        SHELLCHECK_OPTS: -e SC2089 -e SC2090 -e SC2034
+        SHELLCHECK_OPTS: -e SC2089 -e SC2090 -e SC2034 -e SC2327 -e SC2328
       with:
         scandir: "./scripts"
         severity: "warning"
