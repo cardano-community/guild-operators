@@ -1,7 +1,7 @@
 # Contributing Guidelines
 
 Hi there! We're thrilled that you'd like to contribute to this project. Your help is essential for keeping it great. Contributions to this project covered by this contributing guideline are released to
-the public under open source license.
+the public under an open source license.
 
 Please note that projects on [cardano-community] are released with a [Contributor Code of Conduct.](coc)
 By participating in this project you agree to abide by its terms.
