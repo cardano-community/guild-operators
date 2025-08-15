@@ -28,6 +28,12 @@ The actual implementation is pretty straightforward, we will keep it brisk - as 
   cat mainnet_pool.sig
   # ed25519_sig1sn32v3z...d72rg7rc6gs
   ```
+- As an alternative, you can use [cardano-signer](https://github.com/gitmachtl/cardano-signer) to generate the signature:
+  ``` bash
+  cardano-signer sign --jcli --secret-key ~/jormu/account/priv/owner.sk --data-file $CNODE_HOME/priv/pool/TEST/pool.id
+  # ed25519_sig1... ed25519_pk1...
+  ```
+
 - Add this signature and owner _public_ key to the extended pool JSON , so that it looks like below:
   ``` json
   {

@@ -17,10 +17,12 @@ ENV \
     LANG=en_US.UTF-8 \
     LANGUAGE=en_US.UTF-8 \
     CNODE_HOME=/opt/cardano/cnode \
-    CARDANO_NODE_SOCKET_PATH=$CNODE_HOME/sockets/node.socket \
+    USER_HOME=/home/guild \
     PATH=/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.local/bin \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
-    UPDATE_CHECK=N
+    UPDATE_CHECK=N \
+    SUDO=N
+ENV CARDANO_NODE_SOCKET_PATH=${CNODE_HOME}/sockets/node.socket
 
 RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
     && apt install -y curl wget udev jq \
@@ -37,30 +39,28 @@ RUN apt-get update && apt-get install --no-install-recommends -y locales apt-uti
 
 RUN adduser --disabled-password --gecos '' guild \
     && adduser guild sudo \
-    && mkdir -pv /home/guild/.local/ /home/guild/.scripts/ 
+    && mkdir -pv ${USER_HOME}/.local/ ${USER_HOME}/.scripts/
 
 RUN set -x && apt update \
     && apt-get update \
     && mkdir -p /root/.local/bin \
     && wget https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh \
-    && export SUDO='N' \
     && export SKIP_DBSYNC_DOWNLOAD='Y' \
     && export G_ACCOUNT=${G_ACCOUNT} \
     && chmod +x ./guild-deploy.sh && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s p \
     && ls /opt/ \
-    && mkdir -p $CNODE_HOME/priv/files \
+    && mkdir -p ${CNODE_HOME}/priv/files \
     && apt-get -y purge \
     && apt-get -y clean \
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
 
-RUN set -x && export SUDO='N' \
-    && export SKIP_DBSYNC_DOWNLOAD='Y' \
+RUN set -x && export SKIP_DBSYNC_DOWNLOAD='Y' \
     && export G_ACCOUNT=${G_ACCOUNT} \
     && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s dcmowx \
-    && chown -R guild:guild $CNODE_HOME \
-    && mv /root/.local/bin /home/guild/.local/ \
-    && chown -R guild:guild /home/guild/.*
+    && chown -R guild:guild ${CNODE_HOME} \
+    && mv /root/.local/bin ${USER_HOME}/.local/ \
+    && chown -R guild:guild ${USER_HOME}/.*
 
 # Add final tools in a separate layer to shrink the largest layer
 RUN apt-get update \
@@ -75,37 +75,38 @@ RUN bash -c 'networks=(guild mainnet preprod preview sanchonet); files=({alonzo,
     for network in "${networks[@]}"; do \
         mkdir -pv /conf/${network} && \
         for file in "${files[@]}"; do \
-            curl -s -o /conf/${network}/$file https://raw.githubusercontent.com/'${G_ACCOUNT}'/guild-operators/'${GUILD_DEPLOY_BRANCH}'/files/configs/${network}/${file}; \
+            curl -s -o /conf/${network}/${file} https://raw.githubusercontent.com/'${G_ACCOUNT}'/guild-operators/'${GUILD_DEPLOY_BRANCH}'/files/configs/${network}/${file}; \
         done; \
     done'
 
 USER guild
-WORKDIR /home/guild
+WORKDIR ${USER_HOME}
 
 # Commit Version
 RUN  curl -sL -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/${G_ACCOUNT}/guild-operators/commits | grep -v md | grep -A 2 guild-deploy.sh | grep sha | head -n 1 | cut -d "\"" -f 4 > ~/guild-latest.txt \
-    && echo "head -n 8 /home/guild/.scripts/banner.txt" >> ~/.bashrc \
-    && echo "grep MENU -A 6 /home/guild/.scripts/banner.txt | grep -v MENU" >> ~/.bashrc \
+    && echo "head -n 8 ${USER_HOME}/.scripts/banner.txt" >> ~/.bashrc \
+    && echo "grep MENU -A 6 ${USER_HOME}/.scripts/banner.txt | grep -v MENU" >> ~/.bashrc \
     && echo "alias env=/usr/bin/env" >> ~/.bashrc \
-    && echo "alias cntools=$CNODE_HOME/scripts/cntools.sh" >> ~/.bashrc \
-    && echo "alias gLiveView=$CNODE_HOME/scripts/gLiveView.sh" >> ~/.bashrc \
-    && echo "export PATH=/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.local/bin"  >> ~/.bashrc 
+    && echo "alias cntools=${CNODE_HOME}/scripts/cntools.sh" >> ~/.bashrc \
+    && echo "alias gLiveView=${CNODE_HOME}/scripts/gLiveView.sh" >> ~/.bashrc \
+    && echo "export PATH=${CNODE_HOME}/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:${USER_HOME}/.local/bin"  >> ~/.bashrc \
+    && echo "alias ll='ls -alhF'" >> ~/.bashrc
 
 
 # ENTRY SCRIPT
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/banner.txt \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/block_watcher.sh /home/guild/.scripts/
+    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/block_watcher.sh ${USER_HOME}/.scripts/
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/healthcheck.sh \
     https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh \
     https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-client.sh \
     https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-signer.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-relay.sh /opt/cardano/cnode/scripts/
+    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-relay.sh ${CNODE_HOME}/scripts/
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/entrypoint.sh ./
 
-RUN sudo chmod -R a+rx /home/guild/.scripts/*.sh /opt/cardano/cnode/scripts/*.sh /home/guild/entrypoint.sh /conf \
-    && sudo chown -R guild:guild /home/guild/.* $CNODE_HOME /conf
+RUN sudo chmod -R a+rx ${USER_HOME}/.scripts/*.sh ${CNODE_HOME}/scripts/*.sh ${USER_HOME}/entrypoint.sh /conf \
+    && sudo chown -R guild:guild ${USER_HOME}/.* ${CNODE_HOME} /conf
 
-HEALTHCHECK --start-period=5m --interval=120s --timeout=120s CMD /opt/cardano/cnode/scripts/healthcheck.sh
+HEALTHCHECK --start-period=5m --interval=120s --timeout=120s CMD ${CNODE_HOME}/scripts/healthcheck.sh
 
 ENTRYPOINT ["./entrypoint.sh"]
 
