@@ -28,7 +28,7 @@ Here are a few things you can do that will increase the likelihood of your pull 
 
 ## Code Style Guidelines
 
-This project uses EditorConfig to maintain consistent coding styles across different editors and IDEs. This helps us to maintain consistent coding styles between different developers, editors and IDEs.
+This project uses EditorConfig to maintain consistent coding styles across different developers, editors, and IDEs.
 
 The `.editorconfig` file in this repository defines the style rules. To get the most out of EditorConfig, make sure your editor is configured to use it. This will automatically apply the project's style rules when you edit/save files.
 
