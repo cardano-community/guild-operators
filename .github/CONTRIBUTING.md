@@ -16,7 +16,7 @@ By participating in this project you agree to abide by its terms.
 - Make sure the prerequisites like tests pass on your machine
 - Make your change, add tests, and make sure the tests still pass
 - Push to your fork and submit a pull request *(Some repositories may require "sign-off" procedure)*
-- Pat your self on the back and wait for your pull request to be reviewed and merged.
+- Pat yourself on the back and wait for your pull request to be reviewed and merged.
 
 Here are a few things you can do that will increase the likelihood of your pull request being accepted:
 
