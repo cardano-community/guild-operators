@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=5
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=1
+CNTOOLS_PATCH_VERSION=2
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -85,9 +85,9 @@ logln() {
 #                             INFO   : normal output printed to tty and logged
 #                             ACTION : e.g cardano-cli executions etc, logged but not printed to tty
 #                             ERROR  : stderr output and error messages
-#             : newline    >  Add a newline at the end for tty output (default true) 
+#             : newline    >  Add a newline at the end for tty output (default true)
 #             : message    >  The message to print/log
-println() {  
+println() {
   local log_level=$1
   shift
   local newline="\n"
@@ -109,7 +109,7 @@ println() {
 }
 
 # Command     : getAnswerAnyCust [variable name] [log] [question]
-# Description : wrapper function for getAnswerAny() in env to read input from stdin 
+# Description : wrapper function for getAnswerAny() in env to read input from stdin
 #               and save response into provided variable name while also logging response
 # Parameters  : variable name  >  the name of the variable to save users response into
 #             : log            >  [true|false] log question (default: true)
@@ -415,7 +415,7 @@ selectOption() {
   cursor_blink_on
   cursor_to $startrow
   tput ed
-  
+
   return $selected
 }
 
@@ -1485,13 +1485,13 @@ getAllGovActions() {
       # get current DRep distribution
       println ACTION "${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
       all_drep_vote_power=$(${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
-      # sum of all drep stake distribution entries without the alwaysAbstain and alwaysNoConfidence
-      drep_power_total_no_abstain=$(jq -r '.["drep-alwaysAbstain"] //0' <<< "${all_drep_vote_power}" 2>/dev/null)
+      # sum of all drep stake distribution entries without the alwaysAbstain
+      drep_power_total=$(jq -r '[.[][1]] | add' <<< "${all_drep_vote_power}" 2>/dev/null)
+      drep_power_always_abstain=$(jq -r '.[] | select (.[0] == "drep-alwaysAbstain") | .[1] //0' <<< "${all_drep_vote_power}" 2>/dev/null)
       # get current Pool distribution
-      unset all_spo_vote_power spo_power_total
       println ACTION "${CCLI} latest query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER}"
       all_spo_vote_power=$(${CCLI} latest query spo-stake-distribution --all-spos ${NETWORK_IDENTIFIER})
-      spo_power_total_no_abstain=$(jq -r '[.[] | select(.[2] == "drep-alwaysAbstain" | not) | .[1]] | add //0' <<< "${all_spo_vote_power}" 2>/dev/null)
+      spo_power_total=$(jq -r '[.[][1]] | add' <<< "${all_spo_vote_power}" 2>/dev/null)
       # get committee vote power (sum of authorized committee members)
       cc_power_authorized=$(jq -r 'reduce(select(.committee[].hotCredsAuthStatus.tag|strings=="MemberAuthorized")) as $_ (0; .+1)' <<< "${committee_info}")
       println ACTION "${CCLI} latest query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
@@ -1510,26 +1510,26 @@ getAllGovActions() {
         getParameterChangeGroups
       fi
       getVoteThreshold "$(jq -r '.proposalProcedure.govAction.tag' <<< "$(base64 -d <<< "${vote_action}")")"
-      
+
       # get list of drep voters based on vote
       drep_yes_voters="$(jq '[.dRepVotes | to_entries[] | select(.value=="VoteYes") | ("drep-" + .key)]' <<< "$(base64 -d <<< "${vote_action}")")"
       drep_no_voters="$(jq '[.dRepVotes | to_entries[] | select(.value=="VoteNo") | ("drep-" + .key)]' <<< "$(base64 -d <<< "${vote_action}")")"
       drep_abstain_voters="$(jq '[.dRepVotes | to_entries[] | select(.value=="Abstain") | ("drep-" + .key)]' <<< "$(base64 -d <<< "${vote_action}")")"
       # get sum of vote power for each type
-      drep_yes_vote_power="$(jq -r --argjson v "${drep_yes_voters}" '[to_entries[] | select(.key | IN($v[]))] | [.[].value] | add //0' <<< "${all_drep_vote_power}")"
-      drep_no_vote_power="$(jq -r --argjson v "${drep_no_voters}" '[to_entries[] | select(.key | IN($v[]))] | [.[].value] | add //0' <<< "${all_drep_vote_power}")"
-      drep_abstain_vote_power="$(jq -r --argjson v "${drep_abstain_voters}" '[to_entries[] | select(.key | IN($v[]))] | [.[].value] | add //0' <<< "${all_drep_vote_power}")"
-      drep_power_total=$(( drep_power_total_no_abstain - drep_abstain_vote_power ))
-      drep_no_vote_power_total=$(( drep_power_total - drep_yes_vote_power )) # total drep power - always abstain - proposal abstain - proposal yes
+      drep_yes_vote_power="$(jq -r --argjson v "${drep_yes_voters}" '[to_entries[] | select(.value[0] | IN($v[])) | .value[1]] | add //0' <<< "${all_drep_vote_power}")"
+      drep_no_vote_power="$(jq -r --argjson v "${drep_no_voters}" '[to_entries[] | select(.value[0] | IN($v[])) | .value[1]] | add //0' <<< "${all_drep_vote_power}")"
+      drep_abstain_vote_power="$(jq -r --argjson v "${drep_abstain_voters}" '[to_entries[] | select(.value[0] | IN($v[])) | .value[1]] | add //0' <<< "${all_drep_vote_power}")"
+      drep_power_total_no_abstain=$(( drep_power_total - drep_power_always_abstain - drep_abstain_vote_power ))
+      drep_no_vote_power_total=$(( drep_power_total_no_abstain - drep_yes_vote_power )) # total drep power - always abstain - proposal abstain - proposal yes
       if [[ ${proposal_type} = "NoConfidence" ]]; then
         # add alwaysNoConfidence power to yes vote
-        drep_always_no_confidence="$(jq -r '.["drep-alwaysNoConfidence"] //0' <<< "${all_drep_vote_power}" 2>/dev/null)"
-        drep_yes_vote_power=$(( drep_yes_vote_power + drep_always_no_confidence ))
-        drep_no_vote_power_total=$(( drep_no_vote_power_total - (drep_always_no_confidence * 2) ))
+        drep_power_always_no_confidence="$(jq -r '.[] | select (.[0] == "drep-alwaysNoConfidence") | .[1] //0' <<< "${all_drep_vote_power}" 2>/dev/null)"
+        drep_yes_vote_power=$(( drep_yes_vote_power + drep_power_always_no_confidence ))
+        drep_no_vote_power_total=$(( drep_no_vote_power_total - (drep_power_always_no_confidence * 2) ))
       fi
       # calculate percentages
-      drep_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${drep_yes_vote_power}/${drep_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
-      drep_no_pct=$(printf '%.2f' "$(bc -l <<< "(${drep_no_vote_power_total}/${drep_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      drep_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${drep_yes_vote_power}/${drep_power_total_no_abstain})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      drep_no_pct=$(printf '%.2f' "$(bc -l <<< "(${drep_no_vote_power_total}/${drep_power_total_no_abstain})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       # find votes by own DReps
       while IFS= read -r -d '' wallet; do
         wallet_name=$(basename ${wallet})
@@ -1545,26 +1545,28 @@ getAllGovActions() {
           [[ ${drep} = *"${hash_type}-${drep_hash}"* ]] && own_drep_votes+=( "${proposal_id};${wallet_name};Abstain" ) && continue 2
         done
       done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-      
+
       # get list of spo voters based on vote
       spo_yes_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="VoteYes") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
       spo_no_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="VoteNo") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
       spo_abstain_voters="$(jq '[.stakePoolVotes | to_entries[] | select(.value=="Abstain") | .key]' <<< "$(base64 -d <<< "${vote_action}")")"
+      # always abstain for reward address that haven't voted
+      spo_power_always_abstain=$(jq -r --argjson v1 "${spo_yes_voters}" --argjson v2 "${spo_no_voters}" --argjson v3 "${spo_abstain_voters}" '[to_entries[] | select(.value[2] == "drep-alwaysAbstain") | select(.value[0] | IN($v1[]) | not) | select(.value[0] | IN($v2[]) | not) | select(.value[0] | IN($v3[]) | not) | .value[1]] | add //0' <<< "${all_spo_vote_power}" 2>/dev/null)
       # get sum of vote power for each type
-      spo_yes_vote_power="$(jq -r --argjson v "${spo_yes_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
-      spo_no_vote_power="$(jq -r --argjson v "${spo_no_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
-      spo_abstain_vote_power="$(jq -r --argjson v "${spo_abstain_voters}" '[.[] | select(.[0] | IN($v[])) | .[1]] | add //0' <<< "${all_spo_vote_power}")"
-      spo_power_total=$(( spo_power_total_no_abstain - spo_abstain_vote_power ))
+      spo_yes_vote_power="$(jq -r --argjson v "${spo_yes_voters}" '[to_entries[] | select(.value[0] | IN($v[])) | .value[1]] | add //0' <<< "${all_spo_vote_power}")"
+      spo_no_vote_power="$(jq -r --argjson v "${spo_no_voters}" '[to_entries[] | select(.value[0] | IN($v[])) | .value[1]] | add //0' <<< "${all_spo_vote_power}")"
+      spo_abstain_vote_power="$(jq -r --argjson v "${spo_abstain_voters}" '[to_entries[] | select(.value[0] | IN($v[])) | .value[1]] | add //0' <<< "${all_spo_vote_power}")"
+      spo_power_total_no_abstain=$(( spo_power_total - spo_power_always_abstain - spo_abstain_vote_power ))
       spo_no_vote_power_total=$(( spo_power_total - spo_yes_vote_power )) # total spo power - proposal abstain - proposal yes
       if [[ ${proposal_type} = "NoConfidence" ]]; then
         # add alwaysNoConfidence power to yes vote
-        spo_always_no_confidence="$(jq -r '[.[] | select(.[2] == "drep-alwaysNoConfidence") | .[1]] | add //0' <<< "${all_spo_vote_power}" 2>/dev/null)"
-        spo_yes_vote_power=$(( spo_yes_vote_power + spo_always_no_confidence ))
-        spo_no_vote_power_total=$(( spo_no_vote_power_total - (spo_always_no_confidence * 2) ))
+        spo_power_always_no_confidence=$(jq -r '[to_entries[] | select(.value[2] == "drep-alwaysNoConfidence") | select(.value[0] | IN($v1[]) | not) | select(.value[0] | IN($v2[]) | not) | select(.value[0] | IN($v3[]) | not) | .value[1]] | add //0' <<< "${spo_power_total}" 2>/dev/null)
+        spo_yes_vote_power=$(( spo_yes_vote_power + spo_power_always_no_confidence ))
+        spo_no_vote_power_total=$(( spo_no_vote_power_total - (spo_power_always_no_confidence * 2) ))
       fi
       # calculate percentages
-      spo_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_yes_vote_power}/${spo_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
-      spo_no_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_no_vote_power_total}/${spo_power_total})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      spo_yes_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_yes_vote_power}/${spo_power_total_no_abstain})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
+      spo_no_pct=$(printf '%.2f' "$(bc -l <<< "(${spo_no_vote_power_total}/${spo_power_total_no_abstain})*100")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
       # find votes by own pools
       while IFS= read -r -d '' pool; do
         pool_name=$(basename ${pool})
@@ -1579,7 +1581,7 @@ getAllGovActions() {
           [[ ${spo} = *"${pool_id}"* ]] && own_spo_votes+=( "${proposal_id};${pool_name};Abstain" ) && continue 2
         done
       done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-      
+
       # get list of cc voters based on vote
       cc_yes_voters="$(jq '[.committeeVotes | to_entries[] | select(.value=="VoteYes")] | length' <<< "$(base64 -d <<< "${vote_action}")")"
       cc_no_voters="$(jq '[.committeeVotes | to_entries[] | select(.value=="VoteNo")] | length' <<< "$(base64 -d <<< "${vote_action}")")"
@@ -1608,7 +1610,7 @@ getAllGovActions() {
           [[ ${cc_hot} = *"${cc_hot_hash}"* ]] && own_cc_votes+=( "${proposal_id};${wallet_name};Abstain" ) && continue 2
         done
       done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-      
+
       vote_action_list+=( "${proposal_id},${proposal_type},${proposed_epoch},${expiration:=0},${meta_url},${drep_yes_votes_cast},${drep_yes_vote_power},${drep_yes_pct},${drep_no_votes_cast},${drep_no_vote_power_total},${drep_no_pct},${spo_yes_votes_cast},${spo_yes_vote_power},${spo_yes_pct},${spo_no_votes_cast},${spo_no_vote_power_total},${spo_no_pct},${cc_yes_votes_cast},${cc_yes_pct},${cc_no_votes_cast},${cc_no_pct},${drep_vt},${spo_vt},${cc_vt},${isParameterSecurityGroup}" )
     done
   fi
@@ -2015,10 +2017,10 @@ getBalance() {
   assets["lovelace"]=0; utxo_cnt=0
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
-  
+
   if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo --address "${1}" ${NETWORK_IDENTIFIER} --output-text); then return 1; fi
   [[ -z ${utxo_raw} ]] && return
-  
+
   while IFS= read -r line; do
     IFS=' ' read -ra utxo_entry <<< "${line}"
     [[ ${#utxo_entry[@]} -lt 4 ]] && continue
@@ -2832,8 +2834,8 @@ registerStakeWallet() {
       --certificate-script-file "${stake_script_file}"
     )
   fi
- 
-  tmpNewBalance=$(( base_lovelace - KEY_DEPOSIT )) 
+
+  tmpNewBalance=$(( base_lovelace - KEY_DEPOSIT ))
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -2845,9 +2847,9 @@ registerStakeWallet() {
   )
 
   buildTx || return 1
-  
+
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
-  
+
   newBalance=$(( base_lovelace - min_fee - KEY_DEPOSIT ))
   println LOG "New balance after tx fee and key deposit is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${KEY_DEPOSIT}))"
 
@@ -2857,14 +2859,14 @@ registerStakeWallet() {
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + KEY_DEPOSIT )))${NC} ADA"
     return 1
   fi
-  
+
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
-  
+
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -2909,7 +2911,7 @@ registerStakeWallet() {
     fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
+
   if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
@@ -2959,7 +2961,7 @@ deregisterStakeWallet() {
   fi
 
   if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
-  
+
   println LOG "Key Deposit is ${KEY_DEPOSIT}"
 
   getAssetsTxOut
@@ -2989,21 +2991,21 @@ deregisterStakeWallet() {
 
   newBalance=$(( base_lovelace + KEY_DEPOSIT - min_fee ))
   println LOG "New balance after returned key deposit and subtracted tx fee is $(formatLovelace ${newBalance}) ADA ($(formatLovelace ${base_lovelace}) + $(formatLovelace ${KEY_DEPOSIT}) - $(formatLovelace ${min_fee}))"
-  
+
   if [[ $(( ${base_lovelace} + KEY_DEPOSIT )) -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee - KEY_DEPOSIT )))${NC} ADA"
     return 1
   fi
-  
+
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and returned key deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
-  
+
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -3020,7 +3022,7 @@ deregisterStakeWallet() {
   else
     buildTx || return 1
   fi
-  
+
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Wallet De-Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
@@ -3049,7 +3051,7 @@ deregisterStakeWallet() {
     fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
+
   if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
@@ -3089,7 +3091,7 @@ sendAssets() {
   fi
 
   [[ ${#assets_left[@]} -eq 0 ]] && outCount=1 || outCount=2
-  
+
   assets_tx_out_s=""
   assets_tx_out_d=""
   for idx in "${!assets_left[@]}"; do
@@ -3121,9 +3123,9 @@ sendAssets() {
   fi
 
   buildTx || return 1
-  
+
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} ${outCount} ${witness_cnt} || return 1
-  
+
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -3133,7 +3135,7 @@ sendAssets() {
     --out-canonical-cbor
     --out-file "${TMP_DIR}"/tx.raw
   )
-  
+
   if [[ ${outCount} -eq 1 ]]; then # all assets to destination, nothing to return
     newBalance=0
     tx_out="${d_addr}+$(( ${assets_to_send[lovelace]} - min_fee ))${assets_tx_out_d}"
@@ -3155,12 +3157,12 @@ sendAssets() {
     getMinUTxO "${tx_out_d}"
     min_utxo_out_d=${min_utxo_out}
     build_args+=( --tx-out "${tx_out_d}" )
-    
+
     tx_out_s="${s_addr}+${newBalance}${assets_tx_out_s}"
     getMinUTxO "${tx_out_s}"
     min_utxo_out_s=${min_utxo_out}
     build_args+=( --tx-out "${tx_out_s}" )
-    
+
     if [[ ${newBalance} -lt ${min_utxo_out_s} ]]; then
       println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA left in source address ( $(formatLovelace ${newBalance}) < $(formatLovelace ${min_utxo_out_s}) )"
       println ERROR "Send all ADA or top up wallet with enough ADA to cover minimum UTxO balance"
@@ -3170,13 +3172,13 @@ sendAssets() {
       return 1
     fi
   fi
-  
+
   if [[ ${wallet_type} -eq 0 ]]; then
     buildTx "${TMP_DIR}/tx.raw" || return 1
   else
     buildTx || return 1
   fi
-  
+
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Payment"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${s_wallet}\" }" <<< ${offlineJSON}); then return 1; fi
@@ -3210,7 +3212,7 @@ sendAssets() {
     fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
+
   if ! witnessTx "${TMP_DIR}/tx.raw" "${s_payment_sk_file}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
@@ -3251,9 +3253,9 @@ delegate() {
   fi
 
   if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
-  
+
   getAssetsTxOut
-  
+
   unset script_args
   if [[ ${wallet_type} -eq 5 ]]; then
     script_args=(
@@ -3279,21 +3281,21 @@ delegate() {
 
   newBalance=$(( base_lovelace - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) )"
-  
+
   if [[ ${base_lovelace} -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
-  
+
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
-  
+
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -3342,7 +3344,7 @@ delegate() {
     fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
+
   if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
@@ -3375,7 +3377,7 @@ withdrawRewards() {
   fi
 
   if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
-  
+
   getAssetsTxOut
 
   unset script_args
@@ -3385,8 +3387,8 @@ withdrawRewards() {
       --withdrawal-script-file "${stake_script_file}"
     )
   fi
- 
-  tmpNewBalance=$(( base_lovelace + reward_lovelace )) 
+
+  tmpNewBalance=$(( base_lovelace + reward_lovelace ))
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -3410,14 +3412,14 @@ withdrawRewards() {
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $((min_fee - reward_lovelace)))${NC} ADA"
     return 1
   fi
-  
+
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and withdrawal, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
-  
+
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -3463,7 +3465,7 @@ withdrawRewards() {
     fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
+
   if ! witnessTx "${TMP_DIR}/tx.raw" "${stake_sk_file}" "${payment_sk_file}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
@@ -3477,9 +3479,9 @@ registerPool() {
     utxo_cnt=${utxos_cnt[${base_addr}]}
     tx_in=${tx_in_arr[${base_addr}]}
   fi
-  
+
   println LOG "Pool Deposit is ${POOL_DEPOSIT}"
-  
+
   owner_delegation_cert=""
   [[ ${delegate_owner_wallet} = 'Y' ]] && owner_delegation_cert="--certificate-file ${owner_delegation_cert_file}"
 
@@ -3509,15 +3511,15 @@ registerPool() {
   witness_cnt=$(( witness_cnt + 1 )) # cold key witness
 
   if ! getTTL "$([[ ${hasScriptOwner} = true ]] && echo true)"; then return 1; fi
-  
+
   owner_delegation_cert=""
   if [[ ${delegate_owner_wallet} = 'Y' ]]; then
     owner_delegation_cert="${owner_delegation_cert_file}"
   fi
-  
+
   getAssetsTxOut
- 
-  tmpNewBalance=$(( base_lovelace - POOL_DEPOSIT )) 
+
+  tmpNewBalance=$(( base_lovelace - POOL_DEPOSIT ))
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -3532,24 +3534,24 @@ registerPool() {
   buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
-  
+
   newBalance=$(( base_lovelace - min_fee - POOL_DEPOSIT ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) - $(formatLovelace ${POOL_DEPOSIT}) )"
-  
+
   if [[ ${base_lovelace} -lt $(( min_fee + POOL_DEPOSIT )) ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in base address for tx fee and pool registration deposit!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${base_lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace $(( min_fee + POOL_DEPOSIT )))${NC} ADA"
     return 1
   fi
-  
+
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee and pool registration deposit, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
-  
+
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -3567,7 +3569,7 @@ registerPool() {
   else
     buildTx || return 1
   fi
-  
+
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Registration"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
@@ -3613,14 +3615,14 @@ registerPool() {
     fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
+
   multi_owner_keys=()
   for index in "${!owner_wallets[@]}"; do
     [[ ${index} -eq 0 ]] && continue # skip main owner
     getWalletType ${owner_wallets[${index}]}
     multi_owner_keys+=( "${stake_sk_file}" )
   done
-  
+
   if ! witnessTx "${TMP_DIR}/tx.raw" "${owner_payment_sk_file}" "${pool_coldkey_sk_file}" "${owner_stake_sk_file}" "${multi_owner_keys[@]}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
@@ -3662,9 +3664,9 @@ modifyPool() {
   witness_cnt=$(( witness_cnt + 1 )) # cold key witness
 
   if ! getTTL "$([[ ${hasScriptOwner} = true ]] && echo true)"; then return 1; fi
-  
+
   getAssetsTxOut
- 
+
   tmpNewBalance=${base_lovelace}
   build_args=(
     ${tx_in}
@@ -3679,7 +3681,7 @@ modifyPool() {
   buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
-  
+
   newBalance=$(( base_lovelace - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${base_lovelace}) - $(formatLovelace ${min_fee}) )"
 
@@ -3689,14 +3691,14 @@ modifyPool() {
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
-  
+
   tx_out="${base_addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
-  
+
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -3713,7 +3715,7 @@ modifyPool() {
   else
     buildTx || return 1
   fi
-  
+
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Pool Update"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"pool-name\": \"${pool_name}\" }" <<< ${offlineJSON}); then return 1; fi
@@ -4058,7 +4060,7 @@ sendMetadata() {
   buildTx || return 1
 
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
-  
+
   newBalance=$(( lovelace - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
 
@@ -4068,14 +4070,14 @@ sendMetadata() {
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
-  
+
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
-  
+
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -4092,7 +4094,7 @@ sendMetadata() {
   else
     buildTx || return 1
   fi
-  
+
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Metadata"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
@@ -4118,7 +4120,7 @@ sendMetadata() {
     fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
+
   if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
@@ -4155,17 +4157,17 @@ mintAsset() {
     witness_cnt=2
   fi
 
-  if [[ ${policy_ttl} -eq 0 ]]; then 
+  if [[ ${policy_ttl} -eq 0 ]]; then
     if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   else
     ttl=${policy_ttl}
     tip_ref=$(getSlotTipRef)
     println LOG "Current slot is ${tip_ref}, setting ttl to ${ttl} based on policy expiration"
   fi
-  
+
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".$(asciiToHex "${asset_name}")"
   getAssetsTxOut "${index_prefix}${policy_id}${asset_name_out}" "${assets_to_mint}"
-  
+
   unset script_args
   if [[ ${wallet_type} -eq 5 ]]; then
     script_args=( --tx-in-script-file "${payment_script_file}" )
@@ -4185,7 +4187,7 @@ mintAsset() {
   )
 
   buildTx || return 1
-  
+
   calcMinFee "${TMP_DIR}"/tx0.tmp ${utxo_cnt} 1 ${witness_cnt} || return 1
 
   newBalance=$(( lovelace - min_fee ))
@@ -4197,14 +4199,14 @@ mintAsset() {
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
-  
+
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}"
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
-  
+
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -4223,7 +4225,7 @@ mintAsset() {
   else
     buildTx || return 1
   fi
-  
+
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Asset Minting"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
@@ -4258,7 +4260,7 @@ mintAsset() {
     fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
+
   if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
@@ -4293,17 +4295,17 @@ burnAsset() {
     witness_cnt=2
   fi
 
-  if [[ ${policy_ttl} -eq 0 ]]; then 
+  if [[ ${policy_ttl} -eq 0 ]]; then
     if ! getTTL "$([[ ${wallet_type} -eq 5 ]] && echo true)"; then return 1; fi
   else
     ttl=${policy_ttl}
     tip_ref=$(getSlotTipRef)
     println LOG "Current slot is ${tip_ref}, setting ttl to ${ttl} based on policy expiration"
   fi
-  
+
   [[ -z ${asset_name} ]] && asset_name_out="" || asset_name_out=".${asset_name}"
   getAssetsTxOut "${index_prefix}${policy_id}${asset_name_out}" "-${assets_to_burn}"
-  
+
   unset script_args
   if [[ ${wallet_type} -eq 5 ]]; then
     script_args=( --tx-in-script-file "${payment_script_file}" )
@@ -4328,21 +4330,21 @@ burnAsset() {
 
   newBalance=$(( lovelace - min_fee ))
   println LOG "Balance left to be returned in used UTxO is $(formatLovelace ${newBalance}) ADA ( $(formatLovelace ${lovelace}) - $(formatLovelace ${min_fee}) )"
-  
+
   if [[ ${lovelace} -lt ${min_fee} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: Not enough ADA in ${wallet_source} address for tx fee!"\
 			"Funds in address: ${FG_LBLUE}$(formatLovelace ${lovelace})${NC} ADA"\
 			"Minimum required: ${FG_LBLUE}$(formatLovelace ${min_fee})${NC} ADA"
     return 1
   fi
-  
+
   tx_out="${addr}+${newBalance}${assets_tx_out}"
   getMinUTxO "${tx_out}" || return 1
   if [[ ${newBalance} -lt ${min_utxo_out} ]]; then
     println ERROR "\n${FG_RED}ERROR${NC}: minimum UTxO value not fulfilled, only ${FG_LBLUE}$(formatLovelace ${newBalance})${NC} ADA left in address after tx fee, at least ${FG_LBLUE}$(formatLovelace ${min_utxo_out})${NC} ADA required!"
     return 1
   fi
-  
+
   build_args=(
     ${tx_in}
     "${script_args[@]}"
@@ -4361,7 +4363,7 @@ burnAsset() {
   else
     buildTx || return 1
   fi
-  
+
   if [[ ${op_mode} = "hybrid" ]]; then
     if ! buildOfflineJSON "Asset Burning"; then return 1; fi
     if ! offlineJSON=$(jq ". += { \"wallet-name\": \"${wallet_name}\" }" <<< ${offlineJSON}); then return 1; fi
@@ -4396,7 +4398,7 @@ burnAsset() {
     fi
     return 2 # return as failed to stop main processing and return to home menu
   fi
-  
+
   if ! witnessTx "${TMP_DIR}/tx.raw" "${payment_sk_file}" "${policy_sk_file}"; then return 1; fi
   if ! assembleTx "${TMP_DIR}/tx.raw"; then return 1; fi
   if ! submitTx "${tx_signed}"; then return 1; fi
@@ -4938,7 +4940,7 @@ buildTx() {
   fi
 }
 
-# Command     : calcMinFee [rax tx file] 
+# Command     : calcMinFee [rax tx file]
 # Description : Helper function to calculate minimum fee from a build transaction
 # Parameters  : $1 = raw tx file > the transaction body file to use for calculating fee
 #               $2 = Count of transaction inputs (spent txo count)
@@ -5147,7 +5149,7 @@ submitTxKoiosOgmios() {
 }
 
 # Command     : transformRawTx [raw tx file]
-# Description : Transform raw tx to be in canonical order for HW wallets 
+# Description : Transform raw tx to be in canonical order for HW wallets
 # Parameters  : raw tx file  >  path to raw tx to correct
 transformRawTx() {
   tx_raw="$1"
@@ -5215,7 +5217,7 @@ selectOpMode() {
 
 # Command     : to_cbor
 # Description : converts different majortypes and there values into a cborHexString
-# Original src: SPO Scripts (https://github.com/gitmachtl/scripts/blob/master/cardano/testnet/00_common.sh#L979) 
+# Original src: SPO Scripts (https://github.com/gitmachtl/scripts/blob/master/cardano/testnet/00_common.sh#L979)
 to_cbor() {
 
   # ${1} type: unsigned, negative, bytes, string, array, map, tag
