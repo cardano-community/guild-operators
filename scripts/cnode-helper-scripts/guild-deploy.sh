@@ -61,7 +61,7 @@ versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=avail
 usage() {
   cat <<-EOF >&2
 
-		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview|sanchonet>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
+		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
 		Set up dependencies for building/using common tools across cardano ecosystem.
 		The script will always update dynamic content from existing scripts retaining existing user variables
 
@@ -109,8 +109,8 @@ set_defaults() {
   [[ -z "${BRANCH}" ]] && BRANCH="master"
   [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
-  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "10.4.1")"
-  [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "10.11.0.0")"
+  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "10.5.1")"
+  [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "10.11.1.0")"
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
   [[ -z ${MITHRIL_HOME} ]] && MITHRIL_HOME="${CNODE_HOME}/mithril"
@@ -606,7 +606,7 @@ populate_cnode() {
   # Download node config, genesis and topology from template
   #NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-playground/main/static/book.play.dev.cardano.org/environments"
   NWCONFURL="${URL_RAW}/files/configs/${NETWORK}/"
-  if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild|sanchonet)$ ]]; then
+  if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild)$ ]]; then
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/alonzo-genesis.json" || err_exit "${err_msg} alonzo-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp "${NWCONFURL}/conway-genesis.json" || err_exit "${err_msg} conway-genesis.json"
@@ -615,7 +615,7 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp "${NWCONFURL}/config.json" || err_exit "${err_msg} config.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o dbsync.json.tmp "${NWCONFURL}/db-sync-config.json" || err_exit "${err_msg} dbsync-sync-config.json"
   else
-    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, preview or sanchonet."
+    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, or preview."
   fi
   sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
   if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
@@ -645,7 +645,7 @@ populate_cnode() {
 
   [[ ${SCRIPTS_FORCE_OVERWRITE} = 'Y' ]] && echo -e "\nForced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh scripts/mithril-client.sh scripts/mithril-relay.sh scripts/mithril-signer.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required!"
 
-  updateWithCustomConfig "blockPerf.sh"
+  #updateWithCustomConfig "blockPerf.sh"
   updateWithCustomConfig "cabal-build-all.sh"
   updateWithCustomConfig "cncli.sh"
   updateWithCustomConfig "cnode.sh"
@@ -655,7 +655,7 @@ populate_cnode() {
   updateWithCustomConfig "deploy-as-systemd.sh"
   updateWithCustomConfig "env"
   updateWithCustomConfig "gLiveView.sh"
-  updateWithCustomConfig "logMonitor.sh"
+  #updateWithCustomConfig "logMonitor.sh"
   updateWithCustomConfig "ogmios.sh"
   updateWithCustomConfig "submitapi.sh"
   updateWithCustomConfig "setup_mon.sh"

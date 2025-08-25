@@ -294,12 +294,13 @@ else
   removeService ${vname}-logmonitor.service
 fi
 
-echo -e "\n${FG_GREEN}~~ BlockPerf / Propagation performance ~~${NC}"
-echo "A service parsing the node block propagation times from announced header to adopted block"
-echo "sends block propagation time data to TopologyUpdater for common network analysis and performance comparison"
-echo "${vname}-tu-blockperf          : Parses JSON log of cardano-node for block network propagation times"
-echo
-getAnswer "Deploy service?" && ./blockPerf.sh -d || removeService "${vname}-tu-blockperf.service"
+# Disabled until logging format is updated
+# echo -e "\n${FG_GREEN}~~ BlockPerf / Propagation performance ~~${NC}"
+# echo "A service parsing the node block propagation times from announced header to adopted block"
+# echo "sends block propagation time data to TopologyUpdater for common network analysis and performance comparison"
+# echo "${vname}-tu-blockperf          : Parses JSON log of cardano-node for block network propagation times"
+# echo
+# getAnswer "Deploy service?" && ./blockPerf.sh -d || removeService "${vname}-tu-blockperf.service"
 
 sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && sudo systemctl enable ${vname}-logmonitor.service

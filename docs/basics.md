@@ -38,7 +38,7 @@ The usage syntax can be checked using `./guild-deploy.sh -h` , sample output bel
 
 ``` bash
 
-Usage: guild-deploy.sh [-n <mainnet|guild|preprod|preview|sanchonet>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
+Usage: guild-deploy.sh [-n <mainnet|guild|preprod|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
 Set up dependencies for building/using common tools across cardano ecosystem.
 The script will always update dynamic content from existing scripts retaining existing user variables
 

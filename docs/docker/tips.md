@@ -83,8 +83,7 @@ and if the backup directory is larger than the db directory.
 
 ### Configuration Update Check Functionality
 
-The container now includes a static copy of each network's configuration files (Mainnet, Preprod, Preview, Sanchonet,
-and Guild networks). The `NETWORK` environment variable passed into the container determines which configuration files
+The container now includes a static copy of each network's configuration files (Mainnet, Preprod, Preview and Guild networks). The `NETWORK` environment variable passed into the container determines which configuration files
 are copied into `$CNODE_HOME/files`.
 
 The `UPDATE_CHECK` environment variable controls whether the container updates these configuration files from GitHub

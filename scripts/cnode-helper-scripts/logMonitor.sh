@@ -12,6 +12,10 @@
 # Do NOT modify code below           #
 ######################################
 
+# Temporary - until scripts are updated
+
+echo "ERROR: The logMonitor.sh script has not been updated to read new tracer logs yet, exiting!" && exit 1
+
 # If the log entry matches one of the monitored traces and is enabled, process it
 processLogInfo() {
   case "$1" in 
