@@ -10,8 +10,10 @@
 ######################################
 
 #SUBMITAPIBIN="${HOME}"/.local/bin/cardano-submit-api # Path for cardano-submit-api binary, if not in $PATH
-#HOSTADDR=127.0.0.1                                 # Default Listen IP/Hostname for Submit API
-#HOSTPORT=8090                                      # Default Listen port for Submit API
+#SUBMITAPI_CONFIG="$CNODE_HOME"/files/submitapi.json  # Default path to submitapi config
+#HOSTADDR=127.0.0.1                                   # Default Listen IP/Hostname for Submit API
+#HOSTPORT=8090                                        # Default Listen port for Submit API
+#METRICS_PORT=8091                                    # Default Listen port for Prometheus metrics
 
 ######################################
 # Do NOT modify code below           #
@@ -35,8 +37,10 @@ usage() {
 
 set_defaults() {
   [[ -z "${SUBMITAPIBIN}" ]] && SUBMITAPIBIN="${HOME}"/.local/bin/cardano-submit-api
+  [[ -z "${SUBMITAPI_CONFIG}" ]] && SUBMITAPI_CONFIG="$CNODE_HOME"/files/submitapi.json
   [[ -z "${HOSTADDR}" ]] && HOSTADDR=127.0.0.1
   [[ -z "${HOSTPORT}" ]] && HOSTPORT=8090
+  [[ -z "${METRICS_PORT}" ]] && METRICS_PORT=8091
 }
 
 pre_startup_sanity() {
@@ -104,4 +108,4 @@ fi
 pre_startup_sanity
 
 # Run Submit API
-"${SUBMITAPIBIN}" --config "${CONFIG}" --testnet-magic ${NWMAGIC} --socket-path "${CARDANO_NODE_SOCKET_PATH}" --listen-address ${HOSTADDR} --port ${HOSTPORT}
+"${SUBMITAPIBIN}" --config "${SUBMITAPI_CONFIG}" --testnet-magic ${NWMAGIC} --socket-path "${CARDANO_NODE_SOCKET_PATH}" --listen-address ${HOSTADDR} --port ${HOSTPORT} --metrics-port ${METRICS_PORT}

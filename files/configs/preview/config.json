@@ -44,7 +44,6 @@
     "": {
       "backends": [
         "Stdout HumanFormatColoured",
-        "Forwarder",
         "PrometheusSimple 12798"
       ],
       "severity": "Notice"

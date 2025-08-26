@@ -1,0 +1,26 @@
+{
+  "EnableLogMetrics": false,
+  "EnableLogging": true,
+  "defaultBackends": [
+    "KatipBK"
+  ],
+  "defaultScribes": [
+    [
+      "StdoutSK",
+      "stdout"
+    ]
+  ],
+  "setupBackends": [
+    "KatipBK"
+  ],
+  "minSeverity": "Trace",
+  "options": {},
+  "setupScribes": [
+    {
+      "scFormat": "ScText",
+      "scKind": "StdoutSK",
+      "scName": "stdout",
+      "scRotation": null
+    }
+  ]
+}
