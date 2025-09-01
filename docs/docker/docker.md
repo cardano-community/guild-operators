@@ -29,7 +29,7 @@ Running your own Cardano node has never been so fast and easy.
 - Ogmios
 - Cardano Hardware CLI
 - Cardano Signer
-- Monitoring ready (with EKG and Prometheus)
+- Monitoring ready (Prometheus)
 
 #### Docker Splash screen
 
@@ -78,4 +78,3 @@ If you prefer to build the images your own than you can check:
 | ------------:     | -------------:     |:-------------:|
 | Node  (6000)      | Wallet (8090)      | Debian        |
 | Prometheus (12798)| Prometheus (12798) |               |
-| EKG (12781)       |                    |               |
