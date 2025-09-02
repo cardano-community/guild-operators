@@ -17,7 +17,7 @@
         <link rel="next" href="../grest/">
       
       <link rel="icon" href="../../overrides/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.18">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.1.18">
     
     
       
@@ -531,8 +531,6 @@
         
           
         
-          
-        
       
       
         <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
@@ -566,27 +564,13 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../Scripts/blockperf/" class="md-nav__link">
-        BlockPerf
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
     
     <li class="md-nav__item md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
       
       
         
@@ -598,13 +582,13 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
           Koios SPO Tools
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_3">
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_2">
           <span class="md-nav__icon md-icon"></span>
           Koios SPO Tools
         </label>
@@ -621,7 +605,7 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3_1" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2_1" >
       
       
         
@@ -631,17 +615,15 @@
         
           
         
-          
-        
       
       
-        <label class="md-nav__link" for="__nav_4_3_1" id="__nav_4_3_1_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_2_1" id="__nav_4_2_1_label" tabindex="0">
           CNTools
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_3_1_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_3_1">
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_2_1_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_2_1">
           <span class="md-nav__icon md-icon"></span>
           CNTools
         </label>
@@ -683,20 +665,6 @@
     <li class="md-nav__item">
       <a href="../../Scripts/cntools-changelog/" class="md-nav__link">
         Changelog
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../Scripts/logmonitor/" class="md-nav__link">
-        Log Monitor
       </a>
     </li>
   
@@ -770,7 +738,7 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
       
       
         
@@ -784,13 +752,13 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_5" id="__nav_4_5_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
           Mithril
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_5">
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_4">
           <span class="md-nav__icon md-icon"></span>
           Mithril
         </label>
@@ -1230,7 +1198,7 @@ scripts/postgresql-setup.sh<span class="w"> </span>--restore-snapshot<span class
 <span class="nb">export</span><span class="w"> </span><span class="nv">PGPASSFILE</span><span class="o">=</span><span class="nv">$CNODE_HOME</span>/priv/.pgpass
 ./dbsync.sh
 </code></pre></div>
-<p>You can monitor logs if needed via parallel session using <code>tail -10f $CNODE_HOME/logs/dbsync.json</code>. If there are no error, you would want to press Ctrl-C to stop the dbsync.sh execution and deploy it as a systemd service. To do so, use the commands below (the creation of file is done using <code>sudo</code> permissions, but you can always deploy it manually):</p>
+<p>You can monitor logs if needed via parallel session using <code>sudo journalctl -xeu cnode-dbsync -f</code>. If there are no error, you would want to press Ctrl-C to stop the dbsync.sh execution and deploy it as a systemd service. To do so, use the commands below (the creation of file is done using <code>sudo</code> permissions, but you can always deploy it manually):</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="nv">$CNODE_HOME</span>/scripts
 ./dbsync.sh<span class="w"> </span>-d
 <span class="c1"># Deploying cnode-dbsync.service as systemd service..</span>
@@ -1343,7 +1311,7 @@ select * from meta;
       <div class="md-copyright">
   
     <div class="md-copyright__highlight">
-      Copyright &copy; 2019-2023 Guild-Operators
+      Copyright &copy; 2019-2024 Guild-Operators
     </div>
   
   

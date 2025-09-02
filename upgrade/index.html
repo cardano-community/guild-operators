@@ -13,7 +13,7 @@
       
       
       <link rel="icon" href="../overrides/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.18">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.1.18">
     
     
       
@@ -420,8 +420,6 @@
         
           
         
-          
-        
       
       
         <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
@@ -455,27 +453,13 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../Scripts/blockperf/" class="md-nav__link">
-        BlockPerf
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
     
     <li class="md-nav__item md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
       
       
         
@@ -487,13 +471,13 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
           Koios SPO Tools
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_3">
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_2">
           <span class="md-nav__icon md-icon"></span>
           Koios SPO Tools
         </label>
@@ -510,7 +494,7 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3_1" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2_1" >
       
       
         
@@ -520,17 +504,15 @@
         
           
         
-          
-        
       
       
-        <label class="md-nav__link" for="__nav_4_3_1" id="__nav_4_3_1_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_2_1" id="__nav_4_2_1_label" tabindex="0">
           CNTools
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_3_1_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_3_1">
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_2_1_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_2_1">
           <span class="md-nav__icon md-icon"></span>
           CNTools
         </label>
@@ -572,20 +554,6 @@
     <li class="md-nav__item">
       <a href="../Scripts/cntools-changelog/" class="md-nav__link">
         Changelog
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../Scripts/logmonitor/" class="md-nav__link">
-        Log Monitor
       </a>
     </li>
   
@@ -659,7 +627,7 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
       
       
         
@@ -673,13 +641,13 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_5" id="__nav_4_5_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
           Mithril
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_5">
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_4">
           <span class="md-nav__icon md-icon"></span>
           Mithril
         </label>
@@ -1012,33 +980,41 @@
   <h1>Upgrade</h1>
 
 <h3 id="steps-for-upgrading">Steps for Upgrading<a class="headerlink" href="#steps-for-upgrading" title="Permanent link">⚓︎</a></h3>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>Make sure you go through upgrade steps for your setup in a non-mainnet environment first!!</p>
-</div>
+<div class="admonition danger">
+<p class="admonition-title">Change in config &amp; logging starting node 10.5.1</p>
+<p>Starting node 10.4.x, new cardano-tracer infrastructure was introduced for node , the use of this was disabled by default and thus - not as visible to users who may have missed the announcement. However, the legacy config/logging format has been said to be deprecated and could be retired in 10.6.x. Thus - we have shifted to minimum viable equivalent for newer config format.
+We are excluding setting up of cardano-tracer, as we feel it's an overkill for an average SPO. Please consult <a href="https://github.com/intersectmbo/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md">official documentation</a> if you'd like to run cardano-tracer.</p>
+<p>What this means, as a SPO:</p>
 <ul>
-<li>Download the latest <code>guild-deploy.sh</code> (always double check syntax of the script with <code>guild-deploy.sh -h</code>). The scripts modified with user content (<code>env</code>, <code>gLiveView.sh</code>, <code>topologyUpdater.sh</code>, <code>cnode.sh</code>, etc) will be backed up before overwriting. The backed up files will be in the same folder as the original files, and will be named as <em><code>${filename}_bkp&lt;timestamp&gt;</code></em>. More static files (genesis files or some of the scripts themselves) will not be backed up, as they're not expected to be modified.</li>
+<li>You will no longer have EKG monitoring, there is equivalent SimplePrometheus backend available in node, which should suffice monitoring setup requirements.</li>
+<li>The logging will not be sent to JSON file formats, but instead be available to stdout - we have updated all our references to include monitoring logs via journald (which allows electing JSON formats should one want to).</li>
+<li>Since not only the log locations but also the formats of the logging have changed, we have to temporarily disable blockperf/logmonitor for now, as developers of corresponding tools will need to start from scratch reading newer log formats. This should not impact an average SPO not using those tools.</li>
+<li>A side-effect change that got introduced is also to update logging for submitapi and dbsync configs to use stdout (thus, journald) instead of log files.</li>
+</ul>
+<p>Lastly, given the changes above, we <strong>strongly</strong> recommend you to make sure you go through upgrade steps for your setup in a non-mainnet environment first!!</p>
+</div>
+<p>While this guide is last updated when adding support for node 10.5.1, it is meant to serve as a generic reference point for typical upgrades.</p>
+<ul>
+<li>Download the latest <code>guild-deploy.sh</code> (always double check syntax of the script with <code>guild-deploy.sh -h</code>). The scripts modified with user content (<code>env</code>, <code>gLiveView.sh</code>, <code>topologyUpdater.sh</code>, <code>cnode.sh</code>, etc) will be backed up before overwriting. More static files (genesis, submitapi, etc or some of the scripts themselves) will not be backed up, as they're not expected to be modified.</li>
 </ul>
 <div class="admonition warning">
 <p class="admonition-title">Remember</p>
-<p>You are expected to provide appropriate environment-specific parameters (eg: custom top level folder [-p], alternate name for top level folder [-t], network flag [-n], etc) to the examples that pertain to your use case</p>
+<p>You are expected to provide appropriate environment-specific parameters (eg: custom top level folder [-p], alternate name for top level folder [-t], network flag [-n], any additional components you use, etc) to the examples that pertain to your use case.</p>
 </div>
 <ul>
 <li>
 <p>Depending on node release, you may be able to simply perform an update-in-place of scripts and node, or for some cases, you may need to overwrite configs as well. Some Examples below:</p>
 <ul>
-<li>A typical run of the guild-deploy script that will perform update in place of current scripts on mainnet and update binaries (alongwith re-compiling libsodium dependencies). In this scenario no config files or user variables in scripts are overwritten. This is typically relevant on minor patch releases of node upgrade:</li>
+<li>Consider you're upgrading from 10.1.4 to 10.5.1, where config formats have changed. In this case, you'd want to overwrite your config files as well. You should follow changelog in node release notes to verify if you'd need to overwrite configs. Note that every time you do this, you may need to re-add your customisations - if any - to the relevant config files (typically - almost always, you'd have to update the topology.json when overwriting configs). There are backups created of original file in <code>"${CNODE_HOME}"/files</code> folder if you'd like to compare/reuse previous version.</li>
 </ul>
-<div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span><span class="p">;</span><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span>
+<p><div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span><span class="p">;</span><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span>
 curl<span class="w"> </span>-sfS<span class="w"> </span>-o<span class="w"> </span>guild-deploy.sh<span class="w"> </span>https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>chmod<span class="w"> </span><span class="m">700</span><span class="w"> </span>guild-deploy.sh
-./guild-deploy.sh<span class="w"> </span>-s<span class="w"> </span>dl<span class="w"> </span>-b<span class="w"> </span>master<span class="w"> </span>-n<span class="w"> </span>mainnet<span class="w"> </span>-t<span class="w"> </span>cnode<span class="w"> </span>-p<span class="w"> </span>/opt/cardano
+./guild-deploy.sh<span class="w"> </span>-s<span class="w"> </span>dlfm<span class="w"> </span>-b<span class="w"> </span>master<span class="w"> </span>-n<span class="w"> </span>mainnet<span class="w"> </span>-t<span class="w"> </span>cnode<span class="w"> </span>-p<span class="w"> </span>/opt/cardano
 </code></pre></div>
-<ul>
-<li>Another scenario would be when you're required to overwrite configs (eg: node-8.1.2 to node-9.1.0 introduced change in genesis/config/topology file formats). In this case, you'd want to overwrite your config files as well. You should follow changelog in node release notes to verify if you'd need to overwrite configs. Note that every time you do this, you may need to re-add your customisations - if any - to the relevant config files (typically - almost always, you'd have to update the topology.json when overwriting configs). There are backups created of original file in <code>"${CNODE_HOME}"/files</code> folder if you'd like to compare/reuse previous version.</li>
-</ul>
+- A hopefully more common scenario would be where you dont need config changes (eg: 10.1.3 to 10.1.4), typical run of the guild-deploy script in this case would be to perform update in place of current scripts on mainnet and update binaries. In this scenario, no config files or user variables in scripts are overwritten. This is typically relevant on minor patch releases of node upgrade:</p>
 <div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span><span class="p">;</span><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span>
 curl<span class="w"> </span>-sfS<span class="w"> </span>-o<span class="w"> </span>guild-deploy.sh<span class="w"> </span>https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>chmod<span class="w"> </span><span class="m">700</span><span class="w"> </span>guild-deploy.sh
-./guild-deploy.sh<span class="w"> </span>-s<span class="w"> </span>dlf<span class="w"> </span>-b<span class="w"> </span>master<span class="w"> </span>-n<span class="w"> </span>mainnet<span class="w"> </span>-t<span class="w"> </span>cnode<span class="w"> </span>-p<span class="w"> </span>/opt/cardano
+./guild-deploy.sh<span class="w"> </span>-s<span class="w"> </span>dlm<span class="w"> </span>-b<span class="w"> </span>master<span class="w"> </span>-n<span class="w"> </span>mainnet<span class="w"> </span>-t<span class="w"> </span>cnode<span class="w"> </span>-p<span class="w"> </span>/opt/cardano
 </code></pre></div>
 </li>
 </ul>
@@ -1047,7 +1023,7 @@ curl<span class="w"> </span>-sfS<span class="w"> </span>-o<span class="w"> </spa
 <p>When upgrading node, depending on node versions (especially for major release) - you'd likely have to wait for node to revalidate/replay ledger. This can take a few hours. Please always plan ahead, do it first on a relay to ensure you've got "${CNODE_HOME}/db" folder ready to copy over (while source and target node have been shutdown) - prior to starting on upgrade on new machine. If mithril for target node version is ready, you can also use <a href="../Scripts/mithril-client/">mithril-client</a> to download snapshot instead of replaying, which may save you some time</p>
 </div>
 <ul>
-<li>Once guild-deploy script has been run, source your bashrc file again (or restart session), and ensure <code>"${HOME}"/.local/bin</code> is part of your <span HOME="HOME" class="arithmatex">\(PATH environment variable. If your shell does not auto-run bashrc, you may want to set it a call to "\)</span>"/.bashrc in your <code>.profile</code></li>
+<li>Once guild-deploy script has been run, source your bashrc file again (or restart session), and ensure <code>"${HOME}"/.local/bin</code> is part of your <code>$PATH</code> environment variable. If your shell does not auto-run bashrc, you may want to set it a call to "${HOME}"/.bashrc in your <code>.profile</code></li>
 </ul>
 <div class="highlight"><pre><span></span><code><span class="nb">source</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">&quot;</span>/.bashrc
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PATH</span><span class="si">}</span><span class="s2">&quot;</span>
@@ -1055,7 +1031,7 @@ curl<span class="w"> </span>-sfS<span class="w"> </span>-o<span class="w"> </spa
 <h3 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">⚓︎</a></h3>
 <ul>
 <li>
-<p>We've found users often confuse between <span HOME="HOME" class="arithmatex">\(PATH variable resolution between multiple shell sessions, systemd, etc. While if you only used this guide, the binaries should be in "\)</span>/.local/bin", you may have manually downloaded to another location before. To avoid this, you can edit the following files and uncomment and set the following variables to the appropriate paths as per your deployment (eg: <code>CCLI="${HOME}"/.local/bin/cardano-cli</code> if following above):</p>
+<p>We've found users often confuse between <code>$PATH</code> variable resolution between multiple shell sessions, systemd, etc. While if you only used this guide, the binaries should be in <code>"${HOME}/.local/bin"</code>, you may have manually downloaded to another location before. To avoid this, you can edit the following files and uncomment and set the following variables to the appropriate paths as per your deployment (eg: <code>CCLI="${HOME}"/.local/bin/cardano-cli</code> if following above):</p>
 <ul>
 <li>env : CCLI, CNCLI, CNODEBIN</li>
 <li>[If applicable] dbsync.sh: DBSYNCBIN</li>
@@ -1064,17 +1040,17 @@ curl<span class="w"> </span>-sfS<span class="w"> </span>-o<span class="w"> </spa
 </ul>
 </li>
 <li>
-<p>The above should take care of tools and services. However, you might still have duplicate binaries in your $PATH (previous artifacts, re-build using old scripts, etc) - it is best that you remove any old binary files from alternate folders. You can do so by executing the below:</p>
+<p>The above should take care of tools and services. However, you might still have duplicate binaries in your <code>$PATH</code> (previous artifacts, re-build using old scripts, etc) - it is best that you remove any old binary files from alternate folders. You can do so by executing the below:</p>
 </li>
 </ul>
 <div class="highlight"><pre><span></span><code>whereis<span class="w"> </span>bech32<span class="w"> </span>cardano-address<span class="w"> </span>cardano-cli<span class="w"> </span>cardano-db-sync<span class="w"> </span>cardano-hw-cli<span class="w"> </span>cardano-node<span class="w"> </span>cardano-submit-api<span class="w"> </span>cncli<span class="w"> </span>ogmios
 </code></pre></div>
 <p>For some cases - you might have no values (eg: you may not use <code>cardano-db-sync</code>, <code>cncli</code>, <code>ogmios</code> and/or <code>cardano-hw-cli</code>. You need not take any actions for the binaries you do not use.</p>
 <ul>
-<li>If you are having trouble connecting to node post upgrade from gLiveView, typically the first issue you'd want to eliminate is  whether you missed that node might need ledger replay/revalidation (which could take hours as indicated earlier on the page). You can check the node status via <code>sudo systemctl status cnode</code>. If the node shows as up, you can monitor logs via <code>tail -100f "${CNODE_HOME}/logs/node.json</code>. If you're unable to start node using systemd itself, you can check the systemd output via <code>sudo journalctl -xeu cnode.service</code> and scroll back until you see a startup attempt with reason (typically this could be a couple of pages back). If nothing obvious (eg: showing files used as <code>/files/config.json</code> instead of <code>$CNODE_HOME/files/config.json</code> )comes up from there, you'd want to view node logs to see if there is something recorded in <code>node.json</code> instead.</li>
+<li>If you are having trouble connecting to node post upgrade from gLiveView, typically the first issue you'd want to eliminate is  whether you missed that node might need ledger replay/revalidation (which could take hours as indicated earlier on the page). You can check the node status via <code>sudo systemctl status cnode</code>. If the node shows as up, you can monitor logs via <code>sudo journalctl -xeu cnode.service -f</code>. If you're unable to start node using systemd itself, use the same command above and scroll back until you see a startup attempt with reason (typically this could be a couple of pages back).</li>
 </ul>
 <h3 id="unintended">Unintended update-in-place<a class="headerlink" href="#unintended" title="Permanent link">⚓︎</a></h3>
-<p>Let's say you accidentally did an update of the files that you didnt intend to and want to revert all your scripts to previous state. While you have the backups of the scripts created while doing in-place update, you can always make use of branch flag that most scripts that perform update-in-place provide (eg: for gLiveView.sh that you want to restore to 8.1.2 state), this would be <code>-b node-8.1.2</code>. The available tags that can be used can be visited <a href="https://github.com/cardano-community/guild-operators/tags">here</a></p>
+<p>Let's say you accidentally did an update of the files that you didnt intend to and want to revert all your scripts to previous state. While you have the backups of the scripts created while doing in-place update, you can always make use of branch flag that most scripts that perform update-in-place provide (eg: for gLiveView.sh that you want to restore to 10.1.4 state), this would be <code>-b node-10.1.4</code>. The available tags that can be used can be visited <a href="https://github.com/cardano-community/guild-operators/tags">here</a>.</p>
 <h3 id="support">Support/Improvements<a class="headerlink" href="#support" title="Permanent link">⚓︎</a></h3>
 <p>Hope the guide above helps you with the migration, but again - we could've missed some edge cases. If so, please report via chat in <a href="https://t.me/CardanoKoios">Koios Discussions channel</a> or open an issue on github. Please DO NOT make edits to the script content based on forum/alternate guide/channels, while done with best intentions - there have been solutions put online that modify files unnecessarily instead of correcting configs and disabling updates, such actions will only cause trouble for future updates.</p>
 
@@ -1100,7 +1076,7 @@ curl<span class="w"> </span>-sfS<span class="w"> </span>-o<span class="w"> </spa
       <div class="md-copyright">
   
     <div class="md-copyright__highlight">
-      Copyright &copy; 2019-2023 Guild-Operators
+      Copyright &copy; 2019-2024 Guild-Operators
     </div>
   
   

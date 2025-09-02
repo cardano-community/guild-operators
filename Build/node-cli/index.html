@@ -17,7 +17,7 @@
         <link rel="next" href="../dbsync/">
       
       <link rel="icon" href="../../overrides/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.18">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.1.18">
     
     
       
@@ -545,8 +545,6 @@
         
           
         
-          
-        
       
       
         <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
@@ -580,27 +578,13 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../Scripts/blockperf/" class="md-nav__link">
-        BlockPerf
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
     
     <li class="md-nav__item md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
       
       
         
@@ -612,13 +596,13 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
           Koios SPO Tools
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_3">
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_2">
           <span class="md-nav__icon md-icon"></span>
           Koios SPO Tools
         </label>
@@ -635,7 +619,7 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3_1" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2_1" >
       
       
         
@@ -645,17 +629,15 @@
         
           
         
-          
-        
       
       
-        <label class="md-nav__link" for="__nav_4_3_1" id="__nav_4_3_1_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_2_1" id="__nav_4_2_1_label" tabindex="0">
           CNTools
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_3_1_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_3_1">
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_2_1_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_2_1">
           <span class="md-nav__icon md-icon"></span>
           CNTools
         </label>
@@ -697,20 +679,6 @@
     <li class="md-nav__item">
       <a href="../../Scripts/cntools-changelog/" class="md-nav__link">
         Changelog
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../Scripts/logmonitor/" class="md-nav__link">
-        Log Monitor
       </a>
     </li>
   
@@ -784,7 +752,7 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
       
       
         
@@ -798,13 +766,13 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_5" id="__nav_4_5_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
           Mithril
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_5">
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_4">
           <span class="md-nav__icon md-icon"></span>
           Mithril
         </label>
@@ -1261,20 +1229,16 @@ cardano-node<span class="w"> </span>version
 <span class="c1">#CPU_CORES=4            # Number of CPU cores cardano-node process has access to (please don&#39;t set higher than physical core count, 4 recommended)</span>
 </code></pre></div>
 <p>Now let's test starting the node in interactive mode.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>At this stage, upon executing <code>cnode.sh</code>, you are expected to see the live config and a line ending with <code>Listening on http://127.0.0.1:12798</code> - this is expected, as your logs are being written to <code>$CNODE_HOME/logs/node.json</code> . If so, you should be alright to return to your console by pressing Ctrl-C. The node will be started later using instructions below using systemd (Linux's service management). In case you receive any errors, please troubleshoot and fix those before proceeding.</p>
-</div>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span><span class="s2">&quot;</span>/scripts
 ./cnode.sh
 </code></pre></div>
-<p>Press Ctrl-C to exit node and return to console.</p>
+<p>You should see logs flooding your screen (dont worry, that is expected) - and perhaps also include warn/errors to connect to some peers depending on your topology and remote peer status. If the node is running for few mins (i.e. you do not get returned to prompt), Press Ctrl-C to exit node and return to console.</p>
 <h4 id="modify-the-nodes-config-files">Modify the node's config files<a class="headerlink" href="#modify-the-nodes-config-files" title="Permanent link">⚓︎</a></h4>
 <p>Now that you've tested the basic node operation, you might want to customise your config files (assuming you are in top-level folder , i.e. <code>cd "${CNODE_HOME}"</code>) :</p>
 <ol>
 <li>
 <p>files/config.json :
-This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus/EKG monitoring will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use most of this file as-is. You might - however - want to double-check <code>PeerSharing</code> in this file, if using a relay node where you'd like connecting peers (marked as <code>"advertise": "true"</code> in topology.json) to be shared , you may turn this setting to <code>true</code>.</p>
+This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus backend will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use most of this file as-is. You might - however - want to double-check <code>PeerSharing</code> in this file, if using a relay node where you'd like connecting peers (marked as <code>"advertise": "true"</code> in topology.json) to be shared , you may turn this setting to <code>true</code>.</p>
 </li>
 <li>
 <p>files/topology.json :
@@ -1321,17 +1285,15 @@ This file tells your node how to connect to other nodes (especially initially to
 <span class="w">    </span><span class="p">},</span>
 <span class="w">    </span><span class="p">{</span>
 <span class="w">      </span><span class="nt">&quot;accessPoints&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;208.118.69.126&quot;</span><span class="p">,</span><span class="w">                   </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3003</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PSB&quot;</span><span class="p">,</span><span class="w">    </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NA/CA/Edmonton&quot;</span><span class="w"> </span><span class="p">},</span>
 <span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node-dus.poolunder.com&quot;</span><span class="p">,</span><span class="w">           </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6900</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;UNDR&quot;</span><span class="p">,</span><span class="w">   </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EU/DE/Dusseldorf&quot;</span><span class="w"> </span><span class="p">},</span>
 <span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node-syd.poolunder.com&quot;</span><span class="p">,</span><span class="w">           </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6900</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;UNDR&quot;</span><span class="p">,</span><span class="w">   </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OC/AU/Sydney&quot;</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;194.36.145.157&quot;</span><span class="p">,</span><span class="w">                   </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;RDLRT&quot;</span><span class="p">,</span><span class="w">  </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EU/DE/Baden&quot;</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;95.216.38.251&quot;</span><span class="p">,</span><span class="w">                    </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;RDLRT&quot;</span><span class="p">,</span><span class="w">  </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EU/FI/Helsinki&quot;</span><span class="w"> </span><span class="p">},</span>
 <span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;148.72.153.168&quot;</span><span class="p">,</span><span class="w">                   </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">16000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAA&quot;</span><span class="p">,</span><span class="w">   </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NA/US/StLouis&quot;</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;78.47.99.41&quot;</span><span class="p">,</span><span class="w">                      </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAA&quot;</span><span class="p">,</span><span class="w">    </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EU/DE/Nuremberg&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;154.26.154.254&quot;</span><span class="p">,</span><span class="w">                   </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">16000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAA&quot;</span><span class="p">,</span><span class="w">   </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OC/AU&quot;</span><span class="w"> </span><span class="p">},</span>
 <span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;relay1-pub.ahlnet.nu&quot;</span><span class="p">,</span><span class="w">             </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2111</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AHL&quot;</span><span class="p">,</span><span class="w">    </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EU/SE/Malmo&quot;</span><span class="w"> </span><span class="p">},</span>
 <span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;relay2-pub.ahlnet.nu&quot;</span><span class="p">,</span><span class="w">             </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2111</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AHL&quot;</span><span class="p">,</span><span class="w">    </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EU/SE/Malmo&quot;</span><span class="w"> </span><span class="p">},</span>
 <span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;relay1.clio.one&quot;</span><span class="p">,</span><span class="w">                  </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6010</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CLIO&quot;</span><span class="p">,</span><span class="w">   </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EU/IT/Milan&quot;</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;relay2.clio.one&quot;</span><span class="p">,</span><span class="w">                  </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6010</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CLIO&quot;</span><span class="p">,</span><span class="w">   </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EU/IT/Bozlano&quot;</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;relay3.clio.one&quot;</span><span class="p">,</span><span class="w">                  </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6010</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CLIO&quot;</span><span class="p">,</span><span class="w">   </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EU/IT/Bozlano&quot;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="p">{</span><span class="nt">&quot;address&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;relay2.clio.one&quot;</span><span class="p">,</span><span class="w">                  </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6010</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CLIO&quot;</span><span class="p">,</span><span class="w">   </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EU/IT/Bozlano&quot;</span><span class="w"> </span><span class="p">}</span>
 <span class="w">      </span><span class="p">],</span>
 <span class="w">      </span><span class="nt">&quot;advertise&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
 <span class="w">      </span><span class="nt">&quot;trustable&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
@@ -1375,7 +1337,7 @@ This file tells your node how to connect to other nodes (especially initially to
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">CNODE_HOME</span><span class="si">}</span><span class="s2">&quot;</span>/scripts
 ./cnode.sh
 </code></pre></div>
-<p>As before, ensure you do not have any errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.</p>
+<p>As before, ensure you do not have any critical errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.</p>
 <h4 id="start-the-submit-api">Start the submit-api<a class="headerlink" href="#start-the-submit-api" title="Permanent link">⚓︎</a></h4>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1411,7 +1373,7 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="
 </code></pre></div></p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p>In case you see the node exit unsuccessfully upon checking status, please verify you've followed the transition process correctly as documented below, and that you do not have another instance of node already running. It would help to check your system logs, you can also check <code>journalctl -f -u cnode</code> to examine startup attempt for services, and scroll up until you see output for node startup attempt) for any errors while starting node.</p>
+<p>In case you see the node exit unsuccessfully upon checking status, please verify you've followed the transition process correctly as documented below, and that you do not have another instance of node already running. It would help to check your system logs, you can also check <code>sudo journalctl -f -xeu cnode</code> to examine startup attempt for services, and scroll up until you see output for node startup attempt) for any errors while starting node.</p>
 </div>
 <p>You can use <a href="../../Scripts/gliveview/">gLiveView</a> to monitor your node that was started as a systemd service.</p>
 <div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span><span class="nv">$CNODE_HOME</span>/scripts
@@ -1440,7 +1402,7 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="
       <div class="md-copyright">
   
     <div class="md-copyright__highlight">
-      Copyright &copy; 2019-2023 Guild-Operators
+      Copyright &copy; 2019-2024 Guild-Operators
     </div>
   
   

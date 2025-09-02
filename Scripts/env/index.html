@@ -14,10 +14,10 @@
         <link rel="prev" href="../../Build/offchain-metadata-tools/">
       
       
-        <link rel="next" href="../blockperf/">
+        <link rel="next" href="../cntools/">
       
       <link rel="icon" href="../../overrides/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.18">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.1.18">
     
     
       
@@ -426,8 +426,6 @@
         
           
         
-          
-        
       
       
         <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
@@ -505,27 +503,13 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../blockperf/" class="md-nav__link">
-        BlockPerf
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
     
     <li class="md-nav__item md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
       
       
         
@@ -537,13 +521,13 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
           Koios SPO Tools
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_3">
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_2">
           <span class="md-nav__icon md-icon"></span>
           Koios SPO Tools
         </label>
@@ -560,7 +544,7 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3_1" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2_1" >
       
       
         
@@ -570,17 +554,15 @@
         
           
         
-          
-        
       
       
-        <label class="md-nav__link" for="__nav_4_3_1" id="__nav_4_3_1_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_2_1" id="__nav_4_2_1_label" tabindex="0">
           CNTools
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_3_1_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_3_1">
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_2_1_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_2_1">
           <span class="md-nav__icon md-icon"></span>
           CNTools
         </label>
@@ -622,20 +604,6 @@
     <li class="md-nav__item">
       <a href="../cntools-changelog/" class="md-nav__link">
         Changelog
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../logmonitor/" class="md-nav__link">
-        Log Monitor
       </a>
     </li>
   
@@ -709,7 +677,7 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
       
       
         
@@ -723,13 +691,13 @@
         
       
       
-        <label class="md-nav__link" for="__nav_4_5" id="__nav_4_5_label" tabindex="0">
+        <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
           Mithril
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
-        <label class="md-nav__title" for="__nav_4_5">
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_4_4">
           <span class="md-nav__icon md-icon"></span>
           Mithril
         </label>
@@ -1074,18 +1042,14 @@
 <span class="c1">#DB_DIR=&quot;${CNODE_HOME}/db&quot;                              # Folder to store the cardano-node blockchain db</span>
 <span class="c1">#UPDATE_CHECK=&quot;Y&quot;                                       # Check for updates to scripts, it will still be prompted before proceeding (Y|N).</span>
 <span class="c1">#TMP_DIR=&quot;/tmp/cnode&quot;                                   # Folder to hold temporary files in the various scripts, each script might create additional subfolders</span>
-<span class="c1">#EKG_HOST=127.0.0.1                                     # Set node EKG host IP</span>
-<span class="c1">#EKG_PORT=12788                                         # Override automatic detection of node EKG port</span>
 <span class="c1">#PROM_HOST=127.0.0.1                                    # Set node Prometheus host IP</span>
 <span class="c1">#PROM_PORT=12798                                        # Override automatic detection of node Prometheus port</span>
-<span class="c1">#EKG_TIMEOUT=3                                          # Maximum time in seconds that you allow EKG request to take before aborting (node metrics)</span>
 <span class="c1">#CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)</span>
 <span class="c1">#BLOCKLOG_DIR=&quot;${CNODE_HOME}/guild-db/blocklog&quot;         # Override default directory used to store block data for core node</span>
 <span class="c1">#BLOCKLOG_TZ=&quot;UTC&quot;                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones</span>
 <span class="c1">#SHELLEY_TRANS_EPOCH=208                                # Override automatic detection of shelley epoch start, e.g 208 for mainnet</span>
 <span class="c1">#TG_BOT_TOKEN=&quot;&quot;                                        # Uncomment and set to enable telegramSend function. To create your own BOT-token and Chat-Id follow guide at:</span>
 <span class="c1">#TG_CHAT_ID=&quot;&quot;                                          # https://cardano-community.github.io/guild-operators/Scripts/sendalerts</span>
-<span class="c1">#USE_EKG=&quot;N&quot;                                            # Use EKG metrics from the node instead of Promethus. Promethus metrics(default) should yield slightly better performance</span>
 <span class="c1">#TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state</span>
 <span class="c1">#IP_VERSION=4                                           # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)</span>
 
@@ -1150,7 +1114,7 @@
       <div class="md-copyright">
   
     <div class="md-copyright__highlight">
-      Copyright &copy; 2019-2023 Guild-Operators
+      Copyright &copy; 2019-2024 Guild-Operators
     </div>
   
   
