@@ -54,7 +54,7 @@
       "severity": "Silence"
     },
     "ChainSync.Client": {
-      "severity": "Warning"
+      "severity": "Info"
     },
     "Net.ConnectionManager.Remote": {
       "severity": "Info"
