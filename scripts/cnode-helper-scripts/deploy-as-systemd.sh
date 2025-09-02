@@ -6,7 +6,7 @@
 # Do NOT modify code below           #
 ######################################
 
-PARENT="$(dirname "$0")" 
+PARENT="$(dirname "$0")"
 
 . "${PARENT}"/env offline
 
@@ -262,44 +262,46 @@ EOF"
   fi
 fi
 
-echo -e "\n${FG_GREEN}~~ Log Monitor ~~${NC}"
-echo "Parses JSON log of cardano-node for traces of interest to give instant adopted status and invalid status"
-echo "Optional to use, often used as a complement to CNCLI services but functions on its own"
-echo
-if getAnswer "Deploy service?"; then
-  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-logmonitor.service
-[Unit]
-Description=Cardano Node - Log Monitor
-BindsTo=${vname}.service
-After=${vname}.service
+# Disabled until logging format is updated
+# echo -e "\n${FG_GREEN}~~ Log Monitor ~~${NC}"
+# echo "Parses JSON log of cardano-node for traces of interest to give instant adopted status and invalid status"
+# echo "Optional to use, often used as a complement to CNCLI services but functions on its own"
+# echo
+# if getAnswer "Deploy service?"; then
+#   sudo bash -c "cat << 'EOF' > /etc/systemd/system/${vname}-logmonitor.service
+# [Unit]
+# Description=Cardano Node - Log Monitor
+# BindsTo=${vname}.service
+# After=${vname}.service
+#
+# [Service]
+# Type=simple
+# Restart=on-failure
+# RestartSec=1
+# User=$USER
+# WorkingDirectory=${CNODE_HOME}/scripts
+# ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/logMonitor.sh\"
+# ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/logMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
+# KillSignal=SIGINT
+# SuccessExitStatus=143
+# SyslogIdentifier=${vname}-logmonitor
+# TimeoutStopSec=5
+# KillMode=mixed
+#
+# [Install]
+# WantedBy=${vname}.service
+# EOF"
+# else
+#   removeService ${vname}-logmonitor.service
+# fi
 
-[Service]
-Type=simple
-Restart=on-failure
-RestartSec=1
-User=$USER
-WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/logMonitor.sh\"
-ExecStop=/bin/bash -l -c \"exec kill -2 \$(ps -ef | grep -m1 ${CNODE_HOME}/scripts/logMonitor.sh | tr -s ' ' | cut -d ' ' -f2) &>/dev/null\"
-KillSignal=SIGINT
-SuccessExitStatus=143
-SyslogIdentifier=${vname}-logmonitor
-TimeoutStopSec=5
-KillMode=mixed
-
-[Install]
-WantedBy=${vname}.service
-EOF"
-else
-  removeService ${vname}-logmonitor.service
-fi
-
-echo -e "\n${FG_GREEN}~~ BlockPerf / Propagation performance ~~${NC}"
-echo "A service parsing the node block propagation times from announced header to adopted block"
-echo "sends block propagation time data to TopologyUpdater for common network analysis and performance comparison"
-echo "${vname}-tu-blockperf          : Parses JSON log of cardano-node for block network propagation times"
-echo
-getAnswer "Deploy service?" && ./blockPerf.sh -d || removeService "${vname}-tu-blockperf.service"
+# Disabled until logging format is updated
+# echo -e "\n${FG_GREEN}~~ BlockPerf / Propagation performance ~~${NC}"
+# echo "A service parsing the node block propagation times from announced header to adopted block"
+# echo "sends block propagation time data to TopologyUpdater for common network analysis and performance comparison"
+# echo "${vname}-tu-blockperf          : Parses JSON log of cardano-node for block network propagation times"
+# echo
+# getAnswer "Deploy service?" && ./blockPerf.sh -d || removeService "${vname}-tu-blockperf.service"
 
 sudo systemctl daemon-reload
 [[ -f /etc/systemd/system/${vname}-logmonitor.service ]] && sudo systemctl enable ${vname}-logmonitor.service

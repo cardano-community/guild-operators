@@ -87,7 +87,7 @@ export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 ./dbsync.sh
 ```
 
-You can monitor logs if needed via parallel session using `tail -10f $CNODE_HOME/logs/dbsync.json`. If there are no error, you would want to press Ctrl-C to stop the dbsync.sh execution and deploy it as a systemd service. To do so, use the commands below (the creation of file is done using `sudo` permissions, but you can always deploy it manually):
+You can monitor logs if needed via parallel session using `sudo journalctl -xeu cnode-dbsync -f`. If there are no error, you would want to press Ctrl-C to stop the dbsync.sh execution and deploy it as a systemd service. To do so, use the commands below (the creation of file is done using `sudo` permissions, but you can always deploy it manually):
 
 ``` bash
 cd $CNODE_HOME/scripts

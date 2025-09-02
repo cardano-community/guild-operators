@@ -37,7 +37,6 @@ set_defaults() {
   [[ -n ${CPU_CORES} ]] && CPU_RUNTIME=( "+RTS" "-N${CPU_CORES}" "-RTS" )
   [[ -z ${CNODE_LISTEN_IP4} ]] && CNODE_LISTEN_IP4=0.0.0.0
   [[ -z ${CNODE_LISTEN_IP6} ]] && CNODE_LISTEN_IP6=::
-  [[ ! -d "${LOG_DIR}/archive" ]] && mkdir -p "${LOG_DIR}/archive"
   host_addr=()
   [[ ${IP_VERSION} = "4" || ${IP_VERSION} = "mix" ]] && host_addr+=("--host-addr" "${CNODE_LISTEN_IP4}")
   [[ ${IP_VERSION} = "6" || ${IP_VERSION} = "mix" ]] && host_addr+=("--host-ipv6-addr" "${CNODE_LISTEN_IP6}")
@@ -71,8 +70,6 @@ pre_startup_sanity() {
       echo "INFO: Cleaned-up stale socket file"
     fi
   fi
-  # Move logs to archive
-  [[ $(find "${LOG_DIR}"/node*.json 2>/dev/null | wc -l) -gt 0 ]] && mv "${LOG_DIR}"/node*.json "${LOG_DIR}"/archive/
   check_config_sanity
 }
 

@@ -71,7 +71,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 
-RUN bash -c 'networks=(guild mainnet preprod preview sanchonet); files=({alonzo,byron,conway,shelley}-genesis.json config.json db-sync-config.json topology.json); \
+RUN bash -c 'networks=(guild mainnet preprod preview); files=({alonzo,byron,conway,shelley}-genesis.json config.json db-sync-config.json topology.json); \
     for network in "${networks[@]}"; do \
         mkdir -pv /conf/${network} && \
         for file in "${files[@]}"; do \

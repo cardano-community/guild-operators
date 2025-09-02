@@ -1,18 +1,18 @@
 {
+  "EnableFutureGenesis": true,
   "EnableLogMetrics": false,
   "EnableLogging": true,
   "NetworkName": "preprod",
   "NodeConfigFile": "/opt/cardano/cnode/files/config.json",
   "PrometheusPort": 8080,
   "RequiresNetworkMagic": "RequiresMagic",
-  "EnableFutureGenesis": true,
   "defaultBackends": [
     "KatipBK"
   ],
   "defaultScribes": [
     [
-      "FileSK",
-      "/opt/cardano/cnode/logs/dbsync.json"
+      "StdoutSK",
+      "stdout"
     ]
   ],
   "insert_options": {
@@ -119,20 +119,15 @@
       }
     }
   },
-  "rotation": {
-    "rpKeepFilesNum": 10,
-    "rpLogLimitBytes": 5000000,
-    "rpMaxAgeHours": 24
-  },
   "setupBackends": [
     "AggregationBK",
     "KatipBK"
   ],
   "setupScribes": [
     {
-      "scKind": "FileSK",
-      "scName": "/opt/cardano/cnode/logs/dbsync.json",
-      "scFormat": "ScJson",
+      "scFormat": "ScText",
+      "scKind": "StdoutSK",
+      "scName": "stdout",
       "scRotation": null
     }
   ]

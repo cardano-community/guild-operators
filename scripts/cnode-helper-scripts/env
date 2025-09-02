@@ -1142,8 +1142,8 @@ fi
 node_version="$(${CNODEBIN} version | head -1 | cut -d' ' -f2)"
 cli_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
 
-if ! versionCheckNode "10.4.1" "${node_version}" || ! versionCheckNode "10.11.0.0" "${cli_version}"; then
-  echo -e "\nKoios scripts have now been upgraded to support cardano-node 10.4.1 ('${node_version}' found) / cardano-cli 10.11.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-10.1.4 to switch scripts to an older branch).\n\n"
+if ! versionCheckNode "10.5.1" "${node_version}" || ! versionCheckNode "10.11.0.0" "${cli_version}"; then
+  echo -e "\nKoios scripts have now been upgraded to support cardano-node 10.5.x ('${node_version}' found) / cardano-cli 10.11.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-10.1.4 to switch scripts to an older branch).\n\n"
   return 1
 fi
 
@@ -1347,10 +1347,6 @@ case ${NWMAGIC} in
     [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Preview"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v1";;
-  4)
-    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Sanchonet"
-    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
-    [[ -z ${KOIOS_API} ]] && KOIOS_API="https://sancho.koios.rest/api/v1";;
   *)
     [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0

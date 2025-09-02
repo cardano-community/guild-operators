@@ -24,6 +24,9 @@ AddrBlacklist="" # comma spearated list of IP-Adresses you don't want to expose.
 
 BP_VERSION=v1.3.10
 
+# Temporary - until scripts are updated
+echo "ERROR: The logMonitor.sh script has not been updated to read new tracer logs yet, exiting!" && exit 1
+
 SKIP_UPDATE=N
 [[ $1 = "-u" ]] && SKIP_UPDATE=Y && shift
 

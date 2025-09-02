@@ -89,22 +89,19 @@ To test starting the node in interactive mode, we will make use of pre-built scr
 
 Now let's test starting the node in interactive mode.
 
-!!! note
-    At this stage, upon executing `cnode.sh`, you are expected to see the live config and a line ending with `Listening on http://127.0.0.1:12798` - this is expected, as your logs are being written to `$CNODE_HOME/logs/node.json` . If so, you should be alright to return to your console by pressing Ctrl-C. The node will be started later using instructions below using systemd (Linux's service management). In case you receive any errors, please troubleshoot and fix those before proceeding.
-
 ```bash
 cd "${CNODE_HOME}"/scripts
 ./cnode.sh
 ```
 
-Press Ctrl-C to exit node and return to console.
+You should see logs flooding your screen (dont worry, that is expected) - and perhaps also include warn/errors to connect to some peers depending on your topology and remote peer status. If the node is running for few mins (i.e. you do not get returned to prompt), Press Ctrl-C to exit node and return to console.
 
 #### Modify the node's config files
 
 Now that you've tested the basic node operation, you might want to customise your config files (assuming you are in top-level folder , i.e. `cd "${CNODE_HOME}"`) :
 
 1. files/config.json :
-This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus/EKG monitoring will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use most of this file as-is. You might - however - want to double-check `PeerSharing` in this file, if using a relay node where you'd like connecting peers (marked as `"advertise": "true"` in topology.json) to be shared , you may turn this setting to `true`.
+This file contains the logging configurations (tracers of to tune logging, paths for other genesis config files, address/ports on which the prometheus backend will listen, etc). Unless running more than one node on same machine (not recommended), you should be alright to use most of this file as-is. You might - however - want to double-check `PeerSharing` in this file, if using a relay node where you'd like connecting peers (marked as `"advertise": "true"` in topology.json) to be shared , you may turn this setting to `true`.
 
 2. files/topology.json :
 This file tells your node how to connect to other nodes (especially initially to start synching). You would want to update this file as below:
@@ -149,17 +146,15 @@ The resultant topology file on a relay could look something like below:
     },
     {
       "accessPoints": [
+        {"address": "208.118.69.126",                   "port": 3003, "pool": "PSB",    "location": "NA/CA/Edmonton" },
         {"address": "node-dus.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "EU/DE/Dusseldorf" },
         {"address": "node-syd.poolunder.com",           "port": 6900, "pool": "UNDR",   "location": "OC/AU/Sydney" },
-        {"address": "194.36.145.157",                   "port": 6000, "pool": "RDLRT",  "location": "EU/DE/Baden" },
-        {"address": "95.216.38.251",                    "port": 6000, "pool": "RDLRT",  "location": "EU/FI/Helsinki" },
         {"address": "148.72.153.168",                   "port": 16000, "pool": "AAA",   "location": "NA/US/StLouis" },
-        {"address": "78.47.99.41",                      "port": 6000, "pool": "AAA",    "location": "EU/DE/Nuremberg" },
+        {"address": "154.26.154.254",                   "port": 16000, "pool": "AAA",   "location": "OC/AU" },
         {"address": "relay1-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
         {"address": "relay2-pub.ahlnet.nu",             "port": 2111, "pool": "AHL",    "location": "EU/SE/Malmo" },
         {"address": "relay1.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Milan" },
-        {"address": "relay2.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" },
-        {"address": "relay3.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" }
+        {"address": "relay2.clio.one",                  "port": 6010, "pool": "CLIO",   "location": "EU/IT/Bozlano" }
       ],
       "advertise": false,
       "trustable": false,
@@ -210,7 +205,7 @@ cd "${CNODE_HOME}"/scripts
 ./cnode.sh
 ```
 
-As before, ensure you do not have any errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.
+As before, ensure you do not have any critical errors in the console. To stop the node, hit Ctrl-C - we will start the node as systemd later in the document.
 
 #### Start the submit-api
 
@@ -259,7 +254,7 @@ sudo systemctl status cnode-submit-api.service
 ```
 
 !!! important
-    In case you see the node exit unsuccessfully upon checking status, please verify you've followed the transition process correctly as documented below, and that you do not have another instance of node already running. It would help to check your system logs, you can also check `journalctl -f -u cnode` to examine startup attempt for services, and scroll up until you see output for node startup attempt) for any errors while starting node.
+    In case you see the node exit unsuccessfully upon checking status, please verify you've followed the transition process correctly as documented below, and that you do not have another instance of node already running. It would help to check your system logs, you can also check `sudo journalctl -f -xeu cnode` to examine startup attempt for services, and scroll up until you see output for node startup attempt) for any errors while starting node.
 
 You can use [gLiveView](../Scripts/gliveview.md) to monitor your node that was started as a systemd service.
 
