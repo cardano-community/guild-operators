@@ -563,10 +563,10 @@ checkPeers() {
 
   if [[ ${use_lsof} = 'Y' ]]; then
     peers_in=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":${CNODE_PORT}->" '$2 == pid && $9 ~ port {print $9}' | awk -F "->" '{print $2}')
-    peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}')
+    peers_out=$(lsof -Pnl +M | grep ESTABLISHED | awk -v pid="${CNODE_PID}" -v port=":(${CNODE_PORT}|${PROM_PORT})->" '$2 == pid && $9 !~ port {print $9}' | awk -F "->" '{print $2}')
   else
     peers_in=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":${CNODE_PORT}" '$3 ~ port {print $4}')
-    peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${EKG_PORT}|${PROM_PORT})" '$3 !~ port {print $4}')
+    peers_out=$(ss -tnp state established 2>/dev/null | grep "${CNODE_PID}," | awk -v port=":(${CNODE_PORT}|${PROM_PORT})" '$3 !~ port {print $4}')
   fi
 
   [[ -z ${peers_in} && -z ${peers_out} ]] && return
@@ -1035,7 +1035,7 @@ while true; do
       mvPos ${line} 1
     fi
   elif [[ ${show_home_info} = "true" ]]; then
-    printf "${VL}${STANDOUT} INFO ${NC} Displays live metrics gathered from node EKG endpoint" && closeRow
+    printf "${VL}${STANDOUT} INFO ${NC} Displays live metrics gathered from node Prometheus endpoint" && closeRow
     printf "${blank_line}\n" && ((line++))
     printf "${VL} ${style_values_2}Upper Main Section${NC}" && closeRow
     printf "${VL} Epoch number & progress is live from node while calculation of date" && closeRow
@@ -1061,7 +1061,7 @@ while true; do
     printf "${VL} bar counting down until next slot leader. The progress bar color" && closeRow
     printf "${VL} indicates the time range. Green is 1 epoch, Tan is 1 day, red is 1" && closeRow
     printf "${VL} hour, Magenta is 5 minutes. If CNCLI is not activated blocks created" && closeRow
-    printf "${VL} is taken from EKG metrics." && closeRow
+    printf "${VL} is taken from Prometheus metrics." && closeRow
     printf "${blank_line}\n" && ((line++))
     printf "${VL} - Leader    : scheduled to make block at this slot" && closeRow
     printf "${VL} - Ideal     : Expected/Ideal number of blocks assigned" && closeRow

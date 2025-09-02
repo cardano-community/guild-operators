@@ -6,7 +6,7 @@
 
     What this means, as a SPO:
 
-      - You will no longer have EKG monitoring, there is equivalent SimplePrometheus backend available in node, which should suffice monitoring setup requirements. If you're used to changing listen address of EKG/Prometheus, the node only provides simplebackend of prometheus to use 127.0.0.1 as listen address, you can still proxy that and make it available externally.
+      - You will no longer have EKG monitoring, there is equivalent SimplePrometheus backend available in node, which should suffice monitoring setup requirements.
       - The logging will not be sent to JSON file formats, but instead be available to stdout - we have updated all our references to include monitoring logs via journald (which allows electing JSON formats should one want to).
       - Since not only the log locations but also the formats of the logging have changed, we have to temporarily disable blockperf/logmonitor for now, as developers of corresponding tools will need to start from scratch reading newer log formats. This should not impact an average SPO not using those tools.
       - A side-effect change that got introduced is also to update logging for submitapi and dbsync configs to use stdout (thus, journald) instead of log files.

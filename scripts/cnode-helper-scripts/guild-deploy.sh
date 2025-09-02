@@ -213,7 +213,7 @@ os_dependencies() {
     fi
     if [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
       libncurses_pkg="libncursesw5"
-      [[ -f /etc/debian_version ]] && grep -q trixie /etc/debian_version && libncurses_pkg="libncursesw6"
+      [[ -f /etc/debian_version ]] && grep -qE '(trixie|13)' /etc/debian_version && libncurses_pkg="libncursesw6"
       pkg_list="${pkg_list} ${libncurses_pkg} libtinfo-dev libnuma-dev libpq-dev liblmdb-dev libffi-dev libgmp-dev libssl-dev libsystemd-dev zlib1g-dev llvm clang"
     fi
     if [[ "${INSTALL_CWHCLI}" == "Y" ]]; then

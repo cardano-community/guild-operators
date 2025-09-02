@@ -28,7 +28,7 @@ A sample output from both core and relay together with peer analysis:
 
 ###### Upper main section
 
-Displays live metrics from cardano-node gathered through the nodes EKG/Prometheus(env setting) endpoint.
+Displays live metrics from cardano-node gathered through the nodes Prometheus endpoint.
 
 - **Epoch Progress** - Epoch number and progress is live from the node while date calculation until epoch boundary is based on offline genesis parameters.  
 - **Block** - The nodes current block height since genesis start.  
