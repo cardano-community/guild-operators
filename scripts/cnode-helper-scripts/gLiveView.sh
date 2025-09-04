@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015,SC2154
 #shellcheck source=/dev/null
@@ -20,6 +21,7 @@
 #CNCLI_CONNECT_ONLY=false                 # By default cncli measure full connect handshake duration. If set to false, only connect is measured similar to other tools
 #HIDE_DUPLICATE_IPS=N                     # If set to 'Y', duplicate and local IP's will be filtered out in peer analysis, else all connected peers are shown (default: N)
 #VERBOSE=N                                # Start in verbose mode showing additional metrics (default: N)
+#USE_UPTIME=N                             # Use uptime instead of about_to_lead Prometheus metric in the calculation of missed slots
 #GLV_LOG="${LOG_DIR}/gLiveView.log"       # Log gLiveView errors, set empty to disable. LOG_DIR set in env file.
 
 #####################################
@@ -1311,7 +1313,11 @@ while true; do
       if [[ ${VERBOSE} = "Y" ]]; then
         printf "${VL} Missed slot leader checks"
         mvTwoSecond
-        LC_NUMERIC=C printf -v missed_slots_pct "%.4f" "$(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")"
+	if [[ ${USE_UPTIME} = "Y" ]]; then
+	    LC_NUMERIC=C printf -v missed_slots_pct "%.4f" "$(bc -l <<<"(${missed_slots}/${uptimes})*100")"
+	else
+	    LC_NUMERIC=C printf -v missed_slots_pct "%.4f" "$(bc -l <<<"(${missed_slots}/(${about_to_lead}+${missed_slots}))*100")"
+	fi
         printf ": ${style_values_1}%s${NC} (${style_values_1}%s${NC} %%)" "${missed_slots}" "${missed_slots_pct}"
         closeRow
       fi
