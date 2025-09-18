@@ -60,7 +60,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.31.0
+GLV_VERSION=v1.32.0
 
 PARENT="$(dirname $0)"
 
@@ -541,7 +541,7 @@ getOpCert () {
     fi
   fi
   if [[ -f ${opcert_file} ]]; then
-    op_cert="$(${CCLI} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}")"
+    op_cert="$(${CCLI} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}" 2>/dev/null)"
     [[ ${op_cert} =~ qKesNodeStateOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] && op_cert_chain="${BASH_REMATCH[1]}"
     [[ ${op_cert} =~ qKesOnDiskOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] && op_cert_disk="${BASH_REMATCH[1]}"
   fi
@@ -729,6 +729,14 @@ checkNodeVersion() {
     printf "\n\n Deployed version : ${node_version} (${node_rev}) => ${CNODEBIN}"
     printf "\n Running version  : ${running_node_version} (${running_node_rev})\n"
     waitToProceed && clrScreen
+  fi
+}
+
+getBlockReplayStatus() {
+  unset replay_log_line block_replay_pct
+  if command -v journalctl >/dev/null && command -v systemctl >/dev/null && systemctl is-active --quiet ${CNODE_VNAME}.service 2>/dev/null; then
+    replay_log_line=$(journalctl -n 1 -u ${CNODE_VNAME}.service 2>/dev/null | grep LedgerReplay)
+    [[ ${replay_log_line} =~ ([0-9.]+)% ]] && block_replay_pct=${BASH_REMATCH[1]}
   fi
 }
 
@@ -1100,6 +1108,8 @@ while true; do
 
     printf "${blank_line}\n" && ((line++))
 
+    [[ ${slotnum} -eq 0 ]] && getBlockReplayStatus
+
     tip_ref=$(getSlotTipRef)
     tip_diff=$(( tip_ref - slotnum ))
 
@@ -1115,7 +1125,11 @@ while true; do
     printf "${VL} Slot       : ${style_values_1}%-${three_col_value_width}s${NC}" "${slotnum}"
     mvThreeSecond
     if [[ ${slotnum} -eq 0 ]]; then
-      printf "Status     : ${style_info}%-${three_col_value_width}s${NC}" "starting"
+      if [[ -n ${block_replay_pct} ]]; then
+        printf "DB Replay  : ${style_info}%-${three_col_value_width}s${NC}" "${block_replay_pct}%"
+      else
+        printf "Status     : ${style_info}%-${three_col_value_width}s${NC}" "starting"
+      fi
     elif [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
       printf "Status     : ${style_info}%-${three_col_value_width}s${NC}" "syncing"
     elif [[ ${tip_diff} -le $(slotInterval) ]]; then
