@@ -37,8 +37,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y locales apt-uti
     && echo "export LANGUAGE=en_US.UTF-8" >> ~/.bashrc \
     && echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-RUN adduser --disabled-password --gecos '' guild \
-    && adduser guild sudo \
+RUN useradd -m -U -s /bin/bash -c '' guild \
+    && passwd -l guild \
+    && usermod -aG sudo guild \
     && mkdir -pv ${USER_HOME}/.local/ ${USER_HOME}/.scripts/
 
 RUN set -x && apt update \
