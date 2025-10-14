@@ -206,6 +206,9 @@ declare -gA geoIP=()
 #######################################################
 width=71
 
+# first column
+left_most_column=$(( width + 1 ))
+
 # two column view
 two_col_width=$(( (width-3)/2 ))
 two_col_second=$(( two_col_width + 2 ))
@@ -376,27 +379,27 @@ mvPos () {
 # Command    : mvTwoSecond
 # Description: move curser to two column view, second column start
 mvTwoSecond () {
-  printf "\033[72D\033[${two_col_second}C"
+  printf "\033[${left_most_column}D\033[${two_col_second}C"
 }
 # Command    : mvThreeSecond
 # Description: move curser to three column view, second column start
 mvThreeSecond () {
-  printf "\033[72D\033[${three_col_2_start}C"
+  printf "\033[${left_most_column}D\033[${three_col_2_start}C"
 }
 # Command    : mvThreeThird
 # Description: move curser to three column view, third column start
 mvThreeThird () {
-  printf "\033[72D\033[${three_col_3_start}C"
+  printf "\033[${left_most_column}D\033[${three_col_3_start}C"
 }
 # Command    : mvEnd
 # Description: move curser to last column
 mvEnd () {
-  printf "\033[72D\033[${width}C"
+  printf "\033[${left_most_column}D\033[${width}C"
 }
 # Command    : closeRow
 # Description: move curser to last column, print border and newline and finally increment line number
 closeRow () {
-  printf "${NC}\033[72D\033[${width}C${VL}\n" && ((line++))
+  printf "${NC}\033[${left_most_column}D\033[${width}C${VL}\n" && ((line++))
 }
 # Command    : clrLine
 # Description: clear to end of line
