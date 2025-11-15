@@ -24,7 +24,7 @@ ENV \
     SUDO=N
 ENV CARDANO_NODE_SOCKET_PATH=${CNODE_HOME}/sockets/node.socket
 
-RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils sudo \
+RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils \
     && apt install -y curl wget udev jq \
     && apt-get -y purge \
     && apt-get -y clean \
@@ -34,11 +34,10 @@ RUN apt-get update && apt-get install --no-install-recommends -y locales apt-uti
     && locale-gen \
     && echo "export LC_ALL=en_US.UTF-8" >> ~/.bashrc \
     && echo "export LANG=en_US.UTF-8" >> ~/.bashrc \
-    && echo "export LANGUAGE=en_US.UTF-8" >> ~/.bashrc \
-    && echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+    && echo "export LANGUAGE=en_US.UTF-8" >> ~/.bashrc
 
-RUN adduser --disabled-password --gecos '' guild \
-    && adduser guild sudo \
+RUN useradd -m -U -s /bin/bash -c '' guild \
+    && passwd -l guild \
     && mkdir -pv ${USER_HOME}/.local/ ${USER_HOME}/.scripts/
 
 RUN set -x && apt update \
@@ -103,8 +102,11 @@ ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLO
     https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-relay.sh ${CNODE_HOME}/scripts/
 ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/entrypoint.sh ./
 
-RUN sudo chmod -R a+rx ${USER_HOME}/.scripts/*.sh ${CNODE_HOME}/scripts/*.sh ${USER_HOME}/entrypoint.sh /conf \
-    && sudo chown -R guild:guild ${USER_HOME}/.* ${CNODE_HOME} /conf
+USER root
+RUN chmod -R a+rx ${USER_HOME}/.scripts/*.sh ${CNODE_HOME}/scripts/*.sh ${USER_HOME}/entrypoint.sh /conf \
+    && chown -R guild:guild ${USER_HOME}/.* ${CNODE_HOME} /conf
+
+USER guild
 
 HEALTHCHECK --start-period=5m --interval=120s --timeout=120s CMD ${CNODE_HOME}/scripts/healthcheck.sh
 
