@@ -137,7 +137,7 @@ After=${vname}.service
 [Service]
 Type=simple
 Restart=on-failure
-RestartSec=20
+RestartSec=120
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh sync\"
@@ -159,7 +159,7 @@ After=${vname}-cncli-sync.service
 [Service]
 Type=simple
 Restart=on-failure
-RestartSec=20
+RestartSec=120
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh leaderlog\"
@@ -180,7 +180,7 @@ After=${vname}-cncli-sync.service
 [Service]
 Type=simple
 Restart=on-failure
-RestartSec=20
+RestartSec=120
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStartPre=/bin/sleep 5
@@ -206,7 +206,7 @@ After=${vname}-cncli-sync.service
 [Service]
 Type=simple
 Restart=on-failure
-RestartSec=20
+RestartSec=120
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh ptsendslots\"
@@ -243,7 +243,7 @@ After=${vname}.service
 [Service]
 Type=simple
 Restart=on-failure
-RestartSec=20
+RestartSec=120
 User=$USER
 WorkingDirectory=${CNODE_HOME}/scripts
 ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cncli.sh ptsendtip\"
