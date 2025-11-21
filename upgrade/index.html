@@ -993,7 +993,7 @@ We are excluding setting up of cardano-tracer, as we feel it's an overkill for a
 </ul>
 <p>Lastly, given the changes above, we <strong>strongly</strong> recommend you to make sure you go through upgrade steps for your setup in a non-mainnet environment first!!</p>
 </div>
-<p>While this guide is last updated when adding support for node 10.5.2, it is meant to serve as a generic reference point for typical upgrades.</p>
+<p>While this guide is last updated when adding support for node 10.5.3, it is meant to serve as a generic reference point for typical upgrades.</p>
 <ul>
 <li>Download the latest <code>guild-deploy.sh</code> (always double check syntax of the script with <code>guild-deploy.sh -h</code>). The scripts modified with user content (<code>env</code>, <code>gLiveView.sh</code>, <code>topologyUpdater.sh</code>, <code>cnode.sh</code>, etc) will be backed up before overwriting. More static files (genesis, submitapi, etc or some of the scripts themselves) will not be backed up, as they're not expected to be modified.</li>
 </ul>
@@ -1005,7 +1005,7 @@ We are excluding setting up of cardano-tracer, as we feel it's an overkill for a
 <li>
 <p>Depending on node release, you may be able to simply perform an update-in-place of scripts and node, or for some cases, you may need to overwrite configs as well. Some Examples below:</p>
 <ul>
-<li>Consider you're upgrading from 10.1.4 to 10.5.2, where config formats have changed. In this case, you'd want to overwrite your config files as well. You should follow changelog in node release notes to verify if you'd need to overwrite configs. Note that every time you do this, you may need to re-add your customisations - if any - to the relevant config files (typically - almost always, you'd have to update the topology.json when overwriting configs). There are backups created of original file in <code>"${CNODE_HOME}"/files</code> folder if you'd like to compare/reuse previous version.</li>
+<li>Consider you're upgrading from 10.1.4 to 10.5.3, where config formats have changed. In this case, you'd want to overwrite your config files as well. You should follow changelog in node release notes to verify if you'd need to overwrite configs. Note that every time you do this, you may need to re-add your customisations - if any - to the relevant config files (typically - almost always, you'd have to update the topology.json when overwriting configs). There are backups created of original file in <code>"${CNODE_HOME}"/files</code> folder if you'd like to compare/reuse previous version.</li>
 </ul>
 <p><div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span><span class="p">;</span><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/tmp&quot;</span>
 curl<span class="w"> </span>-sfS<span class="w"> </span>-o<span class="w"> </span>guild-deploy.sh<span class="w"> </span>https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>chmod<span class="w"> </span><span class="m">700</span><span class="w"> </span>guild-deploy.sh
