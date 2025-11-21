@@ -15,7 +15,7 @@
   },
   "MempoolCapacityBytesOverride": 8388608,
   "MinBigLedgerPeersForTrustedState": 5,
-  "MinNodeVersion": "10.5.1",
+  "MinNodeVersion": "10.5.2",
   "PeerSharing": true,
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",

@@ -1,6 +1,6 @@
 ### Steps for Upgrading
 
-!!! danger "Change in config & logging starting node 10.5.1"
+!!! danger "Change in config & logging starting node 10.5.x"
     Starting node 10.4.x, new cardano-tracer infrastructure was introduced for node , the use of this was disabled by default and thus - not as visible to users who may have missed the announcement. However, the legacy config/logging format has been said to be deprecated and could be retired in 10.6.x. Thus - we have shifted to minimum viable equivalent for newer config format.
     We are excluding setting up of cardano-tracer, as we feel it's an overkill for an average SPO. Please consult [official documentation](https://github.com/intersectmbo/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md) if you'd like to run cardano-tracer.
 
@@ -13,7 +13,7 @@
 
     Lastly, given the changes above, we **strongly** recommend you to make sure you go through upgrade steps for your setup in a non-mainnet environment first!!
 
-While this guide is last updated when adding support for node 10.5.1, it is meant to serve as a generic reference point for typical upgrades.
+While this guide is last updated when adding support for node 10.5.2, it is meant to serve as a generic reference point for typical upgrades.
 
 - Download the latest `guild-deploy.sh` (always double check syntax of the script with `guild-deploy.sh -h`). The scripts modified with user content (`env`, `gLiveView.sh`, `topologyUpdater.sh`, `cnode.sh`, etc) will be backed up before overwriting. More static files (genesis, submitapi, etc or some of the scripts themselves) will not be backed up, as they're not expected to be modified.
 
@@ -22,7 +22,7 @@ While this guide is last updated when adding support for node 10.5.1, it is mean
 
 - Depending on node release, you may be able to simply perform an update-in-place of scripts and node, or for some cases, you may need to overwrite configs as well. Some Examples below:
 
-    - Consider you're upgrading from 10.1.4 to 10.5.1, where config formats have changed. In this case, you'd want to overwrite your config files as well. You should follow changelog in node release notes to verify if you'd need to overwrite configs. Note that every time you do this, you may need to re-add your customisations - if any - to the relevant config files (typically - almost always, you'd have to update the topology.json when overwriting configs). There are backups created of original file in `"${CNODE_HOME}"/files` folder if you'd like to compare/reuse previous version.
+    - Consider you're upgrading from 10.1.4 to 10.5.2, where config formats have changed. In this case, you'd want to overwrite your config files as well. You should follow changelog in node release notes to verify if you'd need to overwrite configs. Note that every time you do this, you may need to re-add your customisations - if any - to the relevant config files (typically - almost always, you'd have to update the topology.json when overwriting configs). There are backups created of original file in `"${CNODE_HOME}"/files` folder if you'd like to compare/reuse previous version.
 
       ``` bash
       mkdir "$HOME/tmp";cd "$HOME/tmp"

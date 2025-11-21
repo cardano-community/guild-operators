@@ -16,7 +16,7 @@
   "MaxKnownMajorProtocolVersion": 2,
   "MempoolCapacityBytesOverride": 67108864,
   "MinBigLedgerPeersForTrustedState": 5,
-  "MinNodeVersion": "10.5.1",
+  "MinNodeVersion": "10.5.2",
   "PeerSharing": false,
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresNoMagic",
