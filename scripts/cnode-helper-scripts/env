@@ -148,8 +148,8 @@ versionCheck() {
 #             : $2=current_version
 versionCheckNode() {
   [[ ${STRICT_VERSION_CHECK} = N ]] && return 0
-  w_ver=${1//v/}; w_ver_dots=${w_ver//[^.]}; [[ ${#w_ver_dots} -gt 1 && ${w_ver} =~ ^([0-9]+.[0-9]) ]] && w_ver=${BASH_REMATCH[1]}
-  c_ver=${2//v/}; c_ver_dots=${c_ver//[^.]}; [[ ${#c_ver_dots} -gt 1 && ${c_ver} =~ ^([0-9]+.[0-9]) ]] && c_ver=${BASH_REMATCH[1]}
+  w_ver=${1//v/}; w_ver_dots=${w_ver//[^.]}; [[ ${#w_ver_dots} -gt 1 && ${w_ver} =~ ^([0-9]+.[0-9]+.[0-9]+) ]] && w_ver=${BASH_REMATCH[1]}
+  c_ver=${2//v/}; c_ver_dots=${c_ver//[^.]}; [[ ${#c_ver_dots} -gt 1 && ${c_ver} =~ ^([0-9]+.[0-9]+.[0-9]+) ]] && c_ver=${BASH_REMATCH[1]}
   printf '%s\n%s' "${w_ver}" "${c_ver}" | sort -C -V
 }
 
