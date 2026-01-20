@@ -16,7 +16,7 @@
 # Do NOT modify code below           #
 ######################################
 
-SGVERSION=v1.3.2
+SGVERSION=v1.4.0alpha
 
 ######## Functions ########
   usage() {
@@ -296,7 +296,7 @@ SGVERSION=v1.3.2
       pgrest_binary=linux-static-x86-64.tar.xz
     fi
     #pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep ${pgrest_binary})"
-    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v12.2.8/postgrest-v12.2.8-${pgrest_binary}"
+    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v14.3/postgrest-v14.3-${pgrest_binary}"
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
@@ -324,8 +324,8 @@ SGVERSION=v1.3.2
   deploy_haproxy() {
     printf "[Re]Installing HAProxy..\n"
     pushd ~/tmp >/dev/null || err_exit
-    major_v="3.1"
-    minor_v="5"
+    major_v="3.2"
+    minor_v="10"
     haproxy_url="http://www.haproxy.org/download/${major_v}/src/haproxy-${major_v}.${minor_v}.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
