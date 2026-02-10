@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=5
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=4
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -1557,10 +1557,10 @@ getAllGovActions() {
       spo_no_vote_power="$(jq -r --argjson v "${spo_no_voters}" '[to_entries[] | select(.value[0] | IN($v[])) | .value[1]] | add //0' <<< "${all_spo_vote_power}")"
       spo_abstain_vote_power="$(jq -r --argjson v "${spo_abstain_voters}" '[to_entries[] | select(.value[0] | IN($v[])) | .value[1]] | add //0' <<< "${all_spo_vote_power}")"
       spo_power_total_no_abstain=$(( spo_power_total - spo_power_always_abstain - spo_abstain_vote_power ))
-      spo_no_vote_power_total=$(( spo_power_total - spo_yes_vote_power )) # total spo power - proposal abstain - proposal yes
+      spo_no_vote_power_total=$(( spo_power_total_no_abstain - spo_yes_vote_power )) # total spo power - proposal abstain - proposal yes
       if [[ ${proposal_type} = "NoConfidence" ]]; then
         # add alwaysNoConfidence power to yes vote
-        spo_power_always_no_confidence=$(jq -r '[to_entries[] | select(.value[2] == "drep-alwaysNoConfidence") | select(.value[0] | IN($v1[]) | not) | select(.value[0] | IN($v2[]) | not) | select(.value[0] | IN($v3[]) | not) | .value[1]] | add //0' <<< "${spo_power_total}" 2>/dev/null)
+        spo_power_always_no_confidence=$(jq -r --argjson v1 "${spo_yes_voters}" --argjson v2 "${spo_no_voters}" --argjson v3 "${spo_abstain_voters}" '[to_entries[] | select(.value[2] == "drep-alwaysNoConfidence") | select(.value[0] | IN($v1[]) | not) | select(.value[0] | IN($v2[]) | not) | select(.value[0] | IN($v3[]) | not) | .value[1]] | add //0' <<< "${all_spo_vote_power}" 2>/dev/null)
         spo_yes_vote_power=$(( spo_yes_vote_power + spo_power_always_no_confidence ))
         spo_no_vote_power_total=$(( spo_no_vote_power_total - (spo_power_always_no_confidence * 2) ))
       fi
@@ -2018,6 +2018,7 @@ getBalance() {
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
 
+  println ACTION "${CCLI} query utxo --address ${1} ${NETWORK_IDENTIFIER} --output-text"
   if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo --address "${1}" ${NETWORK_IDENTIFIER} --output-text); then return 1; fi
   [[ -z ${utxo_raw} ]] && return
 

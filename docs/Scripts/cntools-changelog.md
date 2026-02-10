@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.5.4] - 2026-02-10
+#### Fixed
+- Governance fix when in local mode for SPO vote power.
+
 ## [13.5.3] - 2025-12-15
 #### Fixed
 - More governance vote calculation fixes when in local mode.
