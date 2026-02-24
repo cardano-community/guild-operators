@@ -39,6 +39,9 @@
     "pool_stat": "enable",
     "tx_cbor": "enable"
   },
+  "snapshot_interval": {
+    "near_tip_epoch": 270
+  },
   "minSeverity": "Info",
   "options": {
     "cfokey": {
