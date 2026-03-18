@@ -12,6 +12,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - node = 10.6.2
   - cli  = 10.15.0.1
 - Pool metadata URL now support length of 128 instead of 64.
+- Exclude inactive DReps from vote tally
 
 ## [13.5.4] - 2026-02-10 (unreleased)
 #### Fixed

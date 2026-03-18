@@ -1340,6 +1340,22 @@ getDRepVotePower() {
   return 0
 }
 
+# Command     : getLocalActiveDRepStakeDistribution
+# Description : populate all_drep_vote_power with active local DRep stake distribution
+getLocalActiveDRepStakeDistribution() {
+  local all_drep_vote_power_raw drep_state_all active_drep_ids current_epoch
+
+  current_epoch=$(getEpoch)
+  println ACTION "${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
+  all_drep_vote_power_raw=$(${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}) || return 1
+  println ACTION "${CCLI} latest query drep-state --all-dreps ${NETWORK_IDENTIFIER}"
+  drep_state_all=$(${CCLI} latest query drep-state --all-dreps ${NETWORK_IDENTIFIER}) || return 1
+
+  # DReps only stop counting after the current epoch passes their expiry.
+  active_drep_ids=$(jq -cr --argjson current_epoch "${current_epoch}" '[.[] | select((.[1].expiry // -1) >= $current_epoch) | if .[0].keyHash then "drep-keyHash-\(.[0].keyHash)" else "drep-scriptHash-\(.[0].scriptHash)" end]' <<< "${drep_state_all}") || return 1
+  all_drep_vote_power=$(jq -cr --argjson active_drep_ids "${active_drep_ids}" 'with_entries(.key as $key | select($key == "drep-alwaysAbstain" or $key == "drep-alwaysNoConfidence" or ($active_drep_ids | index($key))))' <<< "${all_drep_vote_power_raw}") || return 1
+}
+
 # Command     : getWalletVoteDelegation [wallet name] [force]
 # Description : check vote delegation status
 # Parameters  : wallet name  >  the name of the wallet
@@ -1482,9 +1498,8 @@ getAllGovActions() {
       unset vote_action_list_all _vote_action_list
       vote_action_list_all=()
       getCurrentCommittee; getParameterThresholds # to fetch thresholds
-      # get current DRep distribution
-      println ACTION "${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
-      all_drep_vote_power=$(${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
+      # get current DRep distribution excluding DReps whose expiry is behind the current epoch
+      getLocalActiveDRepStakeDistribution || return 1
       # sum of all drep stake distribution entries without the alwaysAbstain
       drep_power_total=$(jq -r '[.[]] | add' <<< "${all_drep_vote_power}" 2>/dev/null)
       drep_power_always_abstain=$(jq -r '."drep-alwaysAbstain" //0' <<< "${all_drep_vote_power}" 2>/dev/null)
