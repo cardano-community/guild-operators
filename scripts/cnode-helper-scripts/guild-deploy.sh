@@ -390,18 +390,14 @@ build_libblst() {
 # Download cardano-node, cardano-cli, cardano-db-sync, bech32 and cardano-submit-api
 # TODO: Replace these with self-hosted ones (potentially consider snapshots.koios.rest as upload destination for CI)
 download_cnodebins() {
-  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The build archives are not available for ARM, you might need to build them!"
   echo -e "\nDownloading binaries.."
   pushd "${HOME}"/tmp >/dev/null || err_exit
   echo -e "\n  Downloading Cardano Node ${CARDANO_NODE_VERSION} archive from GitHub.."
   rm -f cardano-node cardano-address
-  curl -m 200 -sfL https://github.com/intersectmbo/cardano-node/releases/download/${CARDANO_NODE_VERSION}/cardano-node-${CARDANO_NODE_VERSION}-linux.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node release ${CARDANO_NODE_VERSION} from GitHub!"
-  tar zxf cnode.tar.gz --strip-components 2 ./bin/cardano-node ./bin/cardano-submit-api ./bin/bech32 ./bin/snapshot-converter &>/dev/null
+  [[ -z ${ARCH##*aarch64*} ]] && node_arch="arm64" || node_arch="amd64"
+  curl -m 200 -sfL https://github.com/intersectmbo/cardano-node/releases/download/${CARDANO_NODE_VERSION}/cardano-node-${CARDANO_NODE_VERSION}-linux-${node_arch}.tar.gz -o cnode.tar.gz || err_exit " Could not download cardano-node release ${CARDANO_NODE_VERSION} from GitHub!"
+  tar zxf cnode.tar.gz --strip-components 2 ./bin/cardano-node ./bin/cardano-cli ./bin/cardano-submit-api ./bin/bech32 ./bin/snapshot-converter &>/dev/null
   rm -f cnode.tar.gz
-  echo -e "\n  Downloading Cardano CLI ${CARDANO_CLI_VERSION} archive from GitHub.."
-  curl -m 200 -sfL https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-${CARDANO_CLI_VERSION}/cardano-cli-${CARDANO_CLI_VERSION}-x86_64-linux.tar.gz -o ccli.tar.gz || err_exit " Could not download cardano-cli release ${CARDANO_CLI_VERSION} from GitHub!"
-  tar zxf ccli.tar.gz --strip-components 0 cardano-cli-x86_64-linux &>/dev/null && mv cardano-cli-x86_64-linux cardano-cli
-  rm -f ccli.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
   echo -e "\n  Downloading Cardano Addresses 3.12.0 archive from GitHub.."
   curl -m 200 -sfL https://github.com/intersectmbo/cardano-addresses/releases/download/3.12.0/cardano-addresses-3.12.0-linux64.tar.gz -o caddress.tar.gz || err_exit " Could not download cardano-addresses latest release archive from GitHub!"
