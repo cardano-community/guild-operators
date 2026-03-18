@@ -15,7 +15,7 @@
   },
   "MempoolCapacityBytesOverride": 8388608,
   "MinBigLedgerPeersForTrustedState": 5,
-  "MinNodeVersion": "10.5.2",
+  "MinNodeVersion": "10.6.2",
   "PeerSharing": false,
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",
@@ -34,11 +34,11 @@
   "TestShelleyHardForkAtEpoch": 0,
   "TraceOptionMetricsPrefix": "cardano.node.metrics.",
   "TraceOptionNodeName": "cnode",
-  "TraceOptionPeerFrequency": 2000,
   "TraceOptionResourceFrequency": 1000,
   "TraceOptionForwarder": {
     "connQueueSize": 64,
-    "disconnQueueSize": 128
+    "disconnQueueSize": 128,
+    "maxReconnectDelay": 30
   },
   "TraceOptions": {
     "": {
