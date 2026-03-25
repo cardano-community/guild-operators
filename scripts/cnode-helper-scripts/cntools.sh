@@ -3527,7 +3527,6 @@ function main {
               fi
               metafile="${calidus_reg_file}"
               if ! sendMetadata; then
-                safeDel "${calidus_sk_file}"; safeDel "${calidus_vk_file}"
                 waitToProceed && continue
               fi
               rm -f "${calidus_reg_file}"

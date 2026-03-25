@@ -2312,16 +2312,17 @@ getRewardInfoKoios() {
       [[ -n ${delegated_pool} ]] && pool_delegations["${stake_address}"]="${delegated_pool}"
       if [[ -n ${delegated_drep} ]]; then
         if [[ ${delegated_drep} = drep_always_abstain ]]; then
-          vote_delegations["${stake_address}"]="alwaysAbstain"; return
+          vote_delegations["${stake_address}"]="alwaysAbstain"
         elif [[ ${delegated_drep} = drep_always_no_confidence ]]; then
-          vote_delegations["${stake_address}"]="alwaysNoConfidence"; return
-        fi
-        # convert to cli format <type>-<hash>
-        vote_delegation_raw=$(bech32 <<< "${delegated_drep}")
-        if [[ ${vote_delegation_raw:0:2} = '22' ]]; then
-          vote_delegations["${stake_address}"]="keyHash-${vote_delegation_raw:2}"
+          vote_delegations["${stake_address}"]="alwaysNoConfidence"
         else
-          vote_delegations["${stake_address}"]="scriptHash-${vote_delegation_raw:2}"
+          # convert to cli format <type>-<hash>
+          vote_delegation_raw=$(bech32 <<< "${delegated_drep}")
+          if [[ ${vote_delegation_raw:0:2} = '22' ]]; then
+            vote_delegations["${stake_address}"]="keyHash-${vote_delegation_raw:2}"
+          else
+            vote_delegations["${stake_address}"]="scriptHash-${vote_delegation_raw:2}"
+          fi
         fi
       fi
       stake_deposits["${stake_address}"]="${deposit}"
