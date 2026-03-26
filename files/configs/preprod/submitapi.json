@@ -1,6 +1,16 @@
 {
   "EnableLogMetrics": false,
   "EnableLogging": true,
+  "TraceOptions": {
+    "": {
+      "backends": [
+        "EKGBackend",
+        "Stdout HumanFormatColoured"
+      ],
+      "detail": "DNormal",
+      "severity": "Info"
+    }
+  },
   "defaultBackends": [
     "KatipBK"
   ],
