@@ -3414,43 +3414,49 @@ function main {
                 fi
               fi
               if [[ ! -f ${calidus_reg_file} ]]; then
+                generate_calidus_keys=true
                 if [[ -f ${calidus_vk_file} ]]; then
                   println DEBUG "\nCalidus keys already exist, how do you want to proceed?"
                   select_opt "[k] Keep existing keys" "[o] Overwrite to rotate keys" "[Esc] Return"
                   case $? in
-                    0) : ;;
-                    1) safeDel "${calidus_sk_file}"; safeDel "${calidus_vk_file}" ;;
+                    0) generate_calidus_keys=false ;;
+                    1) safeDel "${calidus_sk_file}"; safeDel "${calidus_vk_file}"; safeDel "${calidus_id_file}" ;;
                     2) continue ;;
                   esac
                 fi
-                CS_CALIDUS_KEYS=(
-                  cardano-signer keygen
-                  --path calidus
-                  --out-skey "${calidus_sk_file}"
-                  --out-vkey "${calidus_vk_file}"
-                  --out-id "${calidus_id_file}"
-                  --out-mnemonics "${TMP_DIR}/calidus.mnemonics"
-                )
-                println ACTION "${CS_CALIDUS_KEYS[*]}"
-                if ! stdout=$("${CS_CALIDUS_KEYS[@]}" 2>&1); then
-                  println ERROR "\n${FG_RED}ERROR${NC}: failure during calidus key creation!\n${stdout}"
+                if [[ ${generate_calidus_keys} = true ]]; then
+                  CS_CALIDUS_KEYS=(
+                    cardano-signer keygen
+                    --path calidus
+                    --out-skey "${calidus_sk_file}"
+                    --out-vkey "${calidus_vk_file}"
+                    --out-id "${calidus_id_file}"
+                    --out-mnemonics "${TMP_DIR}/calidus.mnemonics"
+                  )
+                  println ACTION "${CS_CALIDUS_KEYS[*]}"
+                  if ! stdout=$("${CS_CALIDUS_KEYS[@]}" 2>&1); then
+                    println ERROR "\n${FG_RED}ERROR${NC}: failure during calidus key creation!\n${stdout}"
+                    waitToProceed && continue
+                  fi
+                  echo
+                  word_len=0
+                  IFS=' ' read -r -a words < "${TMP_DIR}/calidus.mnemonics"
+                  rm -f "${TMP_DIR}/calidus.mnemonics"
+                  for word in "${words[@]}"; do
+                    [[ ${#word} -gt ${word_len} ]] && word_len=${#word}
+                  done
+                  println DEBUG "${FG_YELLOW}OPTIONAL!${NC} Write down and store below words in a secure place to be able to restore the generated pool calidus key in for example a light wallet."
+                  for i in "${!words[@]}"; do
+                    idx=$(( i + 1 ))
+                    printf "%2s: ${FG_GREEN}%-${word_len}s${NC}  " "$idx" "${words[$i]}"
+                    [[ $(( idx % 4 )) -eq 0 ]] && echo
+                  done
+                  unset words
+                  waitToProceed
+                elif [[ ! -f ${calidus_vk_file} ]]; then
+                  println ERROR "\n${FG_RED}ERROR${NC}: missing existing calidus public key, cannot continue!"
                   waitToProceed && continue
                 fi
-                echo
-                word_len=0
-                IFS=' ' read -r -a words < "${TMP_DIR}/calidus.mnemonics"
-                rm -f "${TMP_DIR}/calidus.mnemonics"
-                for word in "${words[@]}"; do
-                  [[ ${#word} -gt ${word_len} ]] && word_len=${#word}
-                done
-                println DEBUG "${FG_YELLOW}OPTIONAL!${NC} Write down and store below words in a secure place to be able to restore the generated pool calidus key in for example a light wallet."
-                for i in "${!words[@]}"; do
-                  idx=$(( i + 1 ))
-                  printf "%2s: ${FG_GREEN}%-${word_len}s${NC}  " "$idx" "${words[$i]}"
-                  [[ $(( idx % 4 )) -eq 0 ]] && echo
-                done
-                unset words
-                waitToProceed
                 current_slot=$(getSlotTipRef)
                 CS_CIP88_META_FILE=(
                   cardano-signer sign

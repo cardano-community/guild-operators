@@ -15,7 +15,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Exclude inactive DReps from vote tally
 #### Fixed
 - Light mode wallet delegation lookup when querying Koios for multiple wallets.
-- Keep Calidus keys when metadata submission is not completed.
+- Keep Calidus keys when metadata submission is not completed and honor choice to keep existing keys in registration flow.
 
 ## [13.5.4] - 2026-02-10 (unreleased)
 #### Fixed
