@@ -39,85 +39,87 @@
   "TraceOptions": {
     "": {
       "backends": [
-        "Stdout HumanFormatColoured",
+        "Stdout MachineFormat",
         "PrometheusSimple 127.0.0.1 12798"
       ],
       "severity": "Notice"
     },
-    "BlockFetch.Decision": {
-      "severity": "Silence"
-    },
-    "ChainDB": {
+    "Startup": {
       "severity": "Info"
     },
-    "ChainDB.AddBlockEvent.AddBlockValidation": {
-      "severity": "Silence"
+    "Resources": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
     },
-    "ChainSync.Client": {
+    "ChainDB.LedgerEvent.Replay": {
+      "severity": "Info",
+      "maxFrequency": 0.0668
+    },
+    "ChainDB.ImmDbEvent": {
+      "severity": "Warning"
+    },
+    "ChainDB.ImmDbEvent.ChunkValidation.ValidatedChunk": {
       "severity": "Info"
     },
     "Net.ConnectionManager.Remote": {
       "severity": "Info"
     },
-    "Net.Subscription.DNS": {
+    "Net.PeerSelection": {
       "severity": "Info"
     },
-    "Startup.DiffusionInit": {
-      "severity": "Info"
-    },
-    "Net.ErrorPolicy": {
-      "severity": "Info"
-    },
-    "Forge.Loop": {
-      "severity": "Info"
-    },
-    "Forge.StateInfo": {
-      "severity": "Info"
+    " Net.PeerSelection.Actions.ConnectionError": {
+      "severity": "Silence"
     },
     "Net.InboundGovernor.Remote": {
       "severity": "Info"
     },
-    "Net.Subscription.IP": {
+    "Net.InboundGovernor.Remote.InboundGovernorCounters": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
+    },
+    "Net.ErrorPolicy": {
       "severity": "Info"
     },
-    "Net.ErrorPolicy.Local": {
-      "severity": "Info"
+    "Net.AcceptPolicy.ConnectionRateLimiting": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
     },
-    "Mempool": {
-      "severity": "Info"
+    "Net.AcceptPolicy.ConnectionLimitResume": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
     },
-    "Net.Mux.Remote": {
-      "severity": "Info"
-    },
-    "Net.InboundGovernor": {
+    "ChainSync.Client": {
       "severity": "Warning"
     },
-    "Net.PeerSelection": {
+    "Forge.Loop": {
+      "severity": "Info"
+    },
+    "Forge.Loop.NodeNotLeader": {
       "severity": "Silence"
     },
-    "Net.ConnectionManager.Remote.ConnectionManagerCounters": {
+    "Forge.Loop.StartLeadershipCheck": {
       "severity": "Silence"
     },
-    "LedgerMetrics": {
-      "severity": "Silence"
+    "Forge.StateInfo": {
+      "severity": "Info",
+      "maxFrequency": 0.0002783
     },
-    "Resources": {
-      "severity": "Silence"
+    "ChainDB.AddBlockEvent.SwitchedToAFork": {
+      "severity": "Info"
     },
-    "ChainDB.AddBlockEvent.AddedBlockToQueue": {
+    "ChainDB.AddBlockEvent.AddedToCurrentChain": {
       "maxFrequency": 2.0
     },
-    "ChainDB.AddBlockEvent.AddedBlockToVolatileDB": {
-      "maxFrequency": 2.0
+    "ChainSync.Client.DownloadedHeader": {
+      "severity": "Info",
+      "maxFrequency": 14.0
     },
-    "ChainDB.AddBlockEvent.AddBlockValidation.ValidCandidate": {
-      "maxFrequency": 2.0
-    },
-    "ChainDB.CopyToImmutableDBEvent.CopiedBlockToImmutableDB": {
-      "maxFrequency": 2.0
+    "BlockFetch.Client.SendFetchRequest": {
+      "severity": "Info"
     },
     "BlockFetch.Client.CompletedBlockFetch": {
-      "maxFrequency": 2.0
+      "severity": "Info",
+      "maxFrequency": 4.0
     }
   },
   "TurnOnLogMetrics": true,
