@@ -16,6 +16,7 @@
 #INSTALL_CWHCLI='N'             # Install/Upgrade Vacuumlabs cardano-hw-cli for hardware wallet support
 #INSTALL_OGMIOS='N'             # Install Ogmios Server
 #INSTALL_CSIGNER='N'            # Install/Upgrade Cardano Signer
+#INSTALL_BLOCKPERF='N'          # Install openBlockPerf (enhanced global network monitoring)
 #CNODE_NAME='cnode'             # Alternate name for top level folder, non alpha-numeric chars will be replaced with underscore (Default: cnode)
 #CURL_TIMEOUT=60                # Maximum time in seconds that you allow the file download operation to take before aborting (Default: 60s)
 #UPDATE_CHECK='Y'               # Check if there is an updated version of guild-deploy.sh script to download
@@ -80,6 +81,7 @@ usage() {
 		  o   Download latest (released) binaries for Ogmios (Default: skip)
 		  w   Download latest (released) binaries for Cardano Hardware CLI (Default: skip)
 		  x   Download latest (released) binaries for Cardano Signer binary (Default: skip)
+		  r   Download and install latest (released) openBlockPerf Network Monitoring (Default: skip)
 		  f   Force overwrite config files (backups of existing ones will be created) (Default: skip)
 		  s   Force overwrite entire content [including user variables] of scripts (Default: skip)
 
@@ -100,6 +102,7 @@ set_defaults() {
   [[ -z ${INSTALL_CWHCLI} ]] && INSTALL_CWHCLI='N'
   [[ -z ${INSTALL_OGMIOS} ]] && INSTALL_OGMIOS='N'
   [[ -z ${INSTALL_CSIGNER} ]] && INSTALL_CSIGNER='N'
+  [[ -z ${INSTALL_BLOCKPERF} ]] && INSTALL_BLOCKPERF='N'
   [[ -z ${CNODE_PATH} ]] && CNODE_PATH="/opt/cardano"
   [[ -z ${CNODE_NAME} ]] && CNODE_NAME='cnode'
   [[ -z ${CURL_TIMEOUT} ]] && CURL_TIMEOUT=60
@@ -564,6 +567,70 @@ download_cardanosigner() {
   fi
 }
 
+# Download and execute openBlockPerf installer
+download_blockperf() {
+  local installer_dir blockperf_installer blockperf_installer_url branch_installer_url
+  local before_hash after_hash blockperf_mode="install" rc attempt=1 max_attempts=3
+
+  echo -e "\nInstalling openBlockPerf"
+
+  # Use cntools scripts path when available; fallback to ~/tmp for non-cntools environments.
+  if [[ -n "${CNODE_HOME}" && -d "${CNODE_HOME}/scripts" ]]; then
+    installer_dir="${CNODE_HOME}/scripts"
+  else
+    installer_dir="${HOME}/tmp"
+    mkdir -p "${installer_dir}" || err_exit "Failed to create installer directory: ${installer_dir}"
+  fi
+  blockperf_installer="${installer_dir}/blockperf-install.sh"
+  blockperf_installer_url="https://raw.githubusercontent.com/cardano-foundation/openblockperf/main/blockperf-install.sh"
+
+  # If guild-deploy branch exists in openblockperf repo, use installer from that branch.
+  if [[ -n "${BRANCH}" ]]; then
+    branch_installer_url="https://raw.githubusercontent.com/cardano-foundation/openblockperf/${BRANCH}/blockperf-install.sh"
+    if curl -s -f -m ${CURL_TIMEOUT} -I "${branch_installer_url}" >/dev/null 2>&1; then
+      blockperf_installer_url="${branch_installer_url}"
+    fi
+  fi
+
+  pushd "${installer_dir}" >/dev/null || err_exit
+
+  if [[ ! -f "${blockperf_installer}" ]]; then
+    echo -e "\n  Downloading openBlockPerf installer from: ${blockperf_installer_url}"
+    curl -fsSL -m ${CURL_TIMEOUT} "${blockperf_installer_url}" -o "${blockperf_installer}" || err_exit "Download of openBlockPerf installer failed! Please retry or install it manually."
+  else
+    blockperf_mode="update"
+  fi
+
+  chmod +x "${blockperf_installer}" || err_exit "Failed setting executable bit on openBlockPerf installer."
+
+  while (( attempt <= max_attempts )); do
+    before_hash="$(sha256sum "${blockperf_installer}" 2>/dev/null | awk '{print $1}')"
+    if [[ "${blockperf_mode}" == "update" ]]; then
+      $sudo "${blockperf_installer}" --update
+    else
+      $sudo "${blockperf_installer}"
+    fi
+    rc=$?
+    after_hash="$(sha256sum "${blockperf_installer}" 2>/dev/null | awk '{print $1}')"
+
+    if [[ ${rc} -eq 0 ]]; then
+      return 0
+    fi
+
+    # If the installer self-updated, run it again with --update.
+    if [[ -n "${before_hash}" && -n "${after_hash}" && "${before_hash}" != "${after_hash}" ]]; then
+      echo -e "\n  openBlockPerf installer self-updated, re-running for openblockperf update..."
+      blockperf_mode="update"
+      ((attempt++))
+      continue
+    fi
+
+    err_exit "openBlockPerf installer failed with exit code ${rc}."
+  done
+
+  err_exit "openBlockPerf installer kept updating itself but did not complete after ${max_attempts} attempts."
+}
+
 # Download pre-built mithril-signer binary
 download_mithril() {
     echo -e "\nDownloading Mithril..."
@@ -688,6 +755,7 @@ parse_args() {
     [[ "${S_ARGS}" =~ "o" ]] && INSTALL_OGMIOS="Y"
     [[ "${S_ARGS}" =~ "w" ]] && INSTALL_OS_DEPS="Y" && INSTALL_CWHCLI="Y"
     [[ "${S_ARGS}" =~ "x" ]] && INSTALL_CARDANO_SIGNER="Y"
+    [[ "${S_ARGS}" =~ "r" ]] && INSTALL_BLOCKPERF="Y"
   else
     echo -e "\nNothing to do.."
   fi
@@ -711,6 +779,7 @@ main_flow() {
   [[ "${INSTALL_OGMIOS}" == "Y" ]] && download_ogmios
   [[ "${INSTALL_CWHCLI}" == "Y" ]] && download_cardanohwcli
   [[ "${INSTALL_CARDANO_SIGNER}" == "Y" ]] && download_cardanosigner
+  [[ "${INSTALL_BLOCKPERF}" == "Y" ]] && download_blockperf
 }
 
 while getopts :n:p:t:s:b:u opt; do
