@@ -570,6 +570,7 @@ download_cardanosigner() {
 # Download and execute openBlockPerf installer
 download_blockperf() {
   local installer_dir blockperf_installer blockperf_installer_url branch_installer_url
+  local blockperf_common_args="--yes --api-key-mode relay"
   local before_hash after_hash blockperf_mode="install" rc attempt=1 max_attempts=3
 
   echo -e "\nInstalling openBlockPerf"
@@ -606,9 +607,9 @@ download_blockperf() {
   while (( attempt <= max_attempts )); do
     before_hash="$(sha256sum "${blockperf_installer}" 2>/dev/null | awk '{print $1}')"
     if [[ "${blockperf_mode}" == "update" ]]; then
-      $sudo "${blockperf_installer}" --update
+      $sudo "${blockperf_installer}" --update ${blockperf_common_args}
     else
-      $sudo "${blockperf_installer}"
+      $sudo "${blockperf_installer}" ${blockperf_common_args}
     fi
     rc=$?
     after_hash="$(sha256sum "${blockperf_installer}" 2>/dev/null | awk '{print $1}')"
