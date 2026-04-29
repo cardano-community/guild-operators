@@ -296,7 +296,7 @@ SGVERSION=v1.4.0
       pgrest_binary=linux-static-x86-64.tar.xz
     fi
     #pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep ${pgrest_binary})"
-    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v14.3/postgrest-v14.3-${pgrest_binary}"
+    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v14.10/postgrest-v14.10-${pgrest_binary}"
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"
@@ -311,7 +311,7 @@ SGVERSION=v1.4.0
     printf "[Re]Installing pg_cardano extension..\n"
     pushd ~/tmp >/dev/null || err_exit
     ARCH=$(uname -m)
-    pgcardano_asset_url="https://share.koios.rest/api/public/dl/xFdZDfM4/bin/pg_cardano_linux_${ARCH}_v1.0.5-p2.tar.gz"
+    pgcardano_asset_url="https://share.koios.rest/api/public/dl/xFdZDfM4/bin/pg_cardano_linux_${ARCH}_v1.2.0.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o pg_cardano.tar.gz "${pgcardano_asset_url}"; then
       tar xf pg_cardano.tar.gz &>/dev/null && rm -f pg_cardano.tar.gz
       pushd pg_cardano >/dev/null || err_exit

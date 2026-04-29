@@ -217,7 +217,7 @@ os_dependencies() {
     if [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
       libncurses_pkg="libncursesw5"
       [[ -f /etc/debian_version ]] && grep -qE '(trixie|13)' /etc/debian_version && libncurses_pkg="libncursesw6"
-      pkg_list="${pkg_list} ${libncurses_pkg} libtinfo-dev libnuma-dev libpq-dev liblmdb-dev libffi-dev libgmp-dev libssl-dev libsystemd-dev zlib1g-dev llvm clang"
+      pkg_list="${pkg_list} ${libncurses_pkg} libtinfo-dev libnuma-dev libpq-dev liblmdb-dev libsnappy-dev protobuf-compiler liburing-dev libffi-dev libgmp-dev libssl-dev libsystemd-dev zlib1g-dev llvm clang"
     fi
     if [[ "${INSTALL_CWHCLI}" == "Y" ]]; then
       pkg_list="${pkg_list} libusb-1.0-0-dev libudev-dev"
@@ -226,10 +226,7 @@ os_dependencies() {
     #CentOS/RHEL/Fedora/RockyLinux
     pkgmgrcmd="dnf"
     pkg_list="python3 coreutils systemd tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz unzip procps-ng udev vim-common"
-    if [[ "${VERSION_ID}" == "2" ]] ; then
-      #AmazonLinux2
-      pkg_list="${pkg_list} libusb ncurses-compat-libs pkgconfig"
-    elif [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
+    if [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
       #RHEL/CentOS/RockyLinux 8/9
       if ${pkgmgrcmd} install -h  | grep -q "\ --allowerasing"; then pkg_opts="${pkg_opts} --allowerasing"; fi
       if [[ "${DISTRO}" =~ Rocky ]]; then
@@ -247,7 +244,7 @@ os_dependencies() {
       pkg_list="${pkg_list} make gcc-c++ autoconf automake"
     fi
     if [[ "${WANT_BUILD_DEPS}" == "Y" ]]; then
-      pkg_list="${pkg_list} ncurses-libs ncurses-devel openssl-devel systemd-devel llvm clang numactl-devel libffi-devel gmp-devel zlib-devel lmdb-devel lmdb"
+      pkg_list="${pkg_list} ncurses-libs ncurses-devel openssl-devel systemd-devel llvm clang numactl-devel libffi-devel gmp-devel zlib-devel lmdb-devel lmdb liburing-devel snappy-devel protobuf-compiler"
     fi
     add_epel_repository "${DISTRO}" "${VERSION_ID}" "${pkg_opts}"
   else
@@ -413,9 +410,9 @@ download_cnodebins() {
   rm -f caddress.tar.gz
   [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (cardano-address) not found after extracting package!"
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
-    echo -e "\n  Downloading Cardano DB Sync 13.7.0.1 archive from share.koios.rest.."
-    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.7.0.1-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync from release artefacts on GitHub!"
-    tar zxf cnodedbsync.tar.gz --strip-components 2 ./bin/cardano-db-sync &>/dev/null
+    echo -e "\n  Downloading Cardano DB Sync 13.7.0.4 archive from share.koios.rest.."
+    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.7.0.4-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync from release artefacts on GitHub!"
+    tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync ./cardano-db-tool &>/dev/null
     [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
     rm -f cnodedbsync.tar.gz
     mv -f -t "${HOME}"/.local/bin cardano-db-sync
@@ -675,6 +672,7 @@ populate_cnode() {
   # Download node config, genesis and topology from template
   #NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-playground/main/static/book.play.dev.cardano.org/environments"
   NWCONFURL="${URL_RAW}/files/configs/${NETWORK}/"
+  #CHKPTURL="https://book.play.dev.cardano.org/environments/${NETWORK}/checkpoints.json"
   if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild)$ ]]; then
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/alonzo-genesis.json" || err_exit "${err_msg} alonzo-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
@@ -684,6 +682,7 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp "${NWCONFURL}/config.json" || err_exit "${err_msg} config.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o dbsync.json.tmp "${NWCONFURL}/db-sync-config.json" || err_exit "${err_msg} dbsync-sync-config.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o submitapi.json "${NWCONFURL}/submitapi.json" || err_exit "${err_msg} submitapi.json"
+    #curl -sL -m ${CURL_TIMEOUT} -o checkpoints.json "${CHKPTURL}" || err_exit "${err_msg} checkpoints.json"
   else
     err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, or preview."
   fi
@@ -714,7 +713,7 @@ populate_cnode() {
 
   pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
 
-  [[ ${SCRIPTS_FORCE_OVERWRITE} = 'Y' ]] && echo -e "\nForced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh and scripts/topologyUpdater.sh scripts/mithril-client.sh scripts/mithril-relay.sh scripts/mithril-signer.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required!"
+  [[ ${SCRIPTS_FORCE_OVERWRITE} = 'Y' ]] && echo -e "\nForced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh, scripts/mithril-client.sh scripts/mithril-relay.sh and scripts/mithril-signer.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required!"
 
   #updateWithCustomConfig "blockPerf.sh"
   updateWithCustomConfig "cabal-build-all.sh"
@@ -731,7 +730,6 @@ populate_cnode() {
   updateWithCustomConfig "submitapi.sh"
   updateWithCustomConfig "setup_mon.sh"
   updateWithCustomConfig "setup-grest.sh" "grest-helper-scripts"
-  updateWithCustomConfig "topologyUpdater.sh"
   updateWithCustomConfig "mithril-client.sh"
   updateWithCustomConfig "mithril-relay.sh"
   updateWithCustomConfig "mithril-signer.sh"

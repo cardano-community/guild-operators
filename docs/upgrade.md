@@ -1,7 +1,7 @@
 ### Steps for Upgrading
 
 !!! danger "Change in config & logging starting node 10.5.x"
-    Starting node 10.4.x, new cardano-tracer infrastructure was introduced for node , the use of this was disabled by default and thus - not as visible to users who may have missed the announcement. However, the legacy config/logging format has been said to be deprecated and could be retired in 10.6.x. Thus - we have shifted to minimum viable equivalent for newer config format.
+    Starting node 10.4.x, new cardano-tracer infrastructure was introduced for node , the use of this was disabled by default and thus - not as visible to users who may have missed the announcement. However, the legacy config/logging format has been said to be deprecated and could be retired in 10.7.x. Thus - we have shifted to minimum viable equivalent for newer config format.
     We are excluding setting up of cardano-tracer, as we feel it's an overkill for an average SPO. Please consult [official documentation](https://github.com/intersectmbo/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md) if you'd like to run cardano-tracer.
 
     What this means, as a SPO:
