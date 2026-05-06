@@ -40,7 +40,7 @@
     "pool_stat": "enable",
     "tx_cbor": "enable"
   },
-  "ledger_backend": "lsm",
+  "ledger_backend": "inmemory",
   "snapshot_interval": {
     "near_tip_epoch": 1216
   },

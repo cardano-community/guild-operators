@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086,SC1090,SC2059,SC2016
+# shellcheck disable=SC2086,SC1090,SC2059,SC2016,SC2035
 # shellcheck source=/dev/null
 
 ##########################################
@@ -404,14 +404,14 @@ download_cnodebins() {
   tar zxf ccli.tar.gz --strip-components 0 cardano-cli-${cli_arch}-linux &>/dev/null && mv cardano-cli-${cli_arch}-linux cardano-cli
   rm -f ccli.tar.gz
   [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
-  echo -e "\n  Downloading Cardano Addresses 3.12.0 archive from GitHub.."
-  curl -m 200 -sfL https://github.com/intersectmbo/cardano-addresses/releases/download/3.12.0/cardano-addresses-3.12.0-linux64.tar.gz -o caddress.tar.gz || err_exit " Could not download cardano-addresses latest release archive from GitHub!"
-  tar zxf caddress.tar.gz --strip-components 1 bin/cardano-address &>/dev/null
+  echo -e "\n  Downloading Cardano Addresses 4.0.2 archive from GitHub.."
+  [[ -n ${ARCH##*arch64*} ]] && curl -m 200 -sfL https://github.com/intersectmbo/cardano-addresses/releases/download/4.0.2/cardano-address-4.0.2-linux.tar.gz -o caddress.tar.gz || err_exit " Could not download cardano-addresses latest release archive from GitHub!"
+  tar zxf caddress.tar.gz --transform='s#.*\/##g' --wildcards */cardano-address &>/dev/null
   rm -f caddress.tar.gz
   [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (cardano-address) not found after extracting package!"
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
-    echo -e "\n  Downloading Cardano DB Sync 13.7.0.4 archive from share.koios.rest.."
-    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.7.0.4-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync from release artefacts on GitHub!"
+    echo -e "\n  Downloading Cardano DB Sync 13.7.0.5 archive from share.koios.rest.."
+    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.7.0.5-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync from release artefacts on GitHub!"
     tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync ./cardano-db-tool &>/dev/null
     [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
     rm -f cnodedbsync.tar.gz

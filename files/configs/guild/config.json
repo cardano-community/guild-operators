@@ -12,7 +12,7 @@
     "QueryBatchSize": 10000,
     "SnapshotInterval": 432
   },
-  "MinNodeVersion": "10.7.1",
+  "MinNodeVersion": "11.0.1",
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",
   "PBftSignatureThreshold": 1,
@@ -102,12 +102,6 @@
       "maxFrequency": 0.0002783
     },
     "Mempool": {
-      "severity": "Silence"
-    },
-    "Mempool.AttemptAdd": {
-      "severity": "Silence"
-    },
-    "Mempool.SyncNotNeeded": {
       "severity": "Silence"
     },
     "Net.AcceptPolicy.ConnectionRateLimiting": {

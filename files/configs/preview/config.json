@@ -12,7 +12,7 @@
     "QueryBatchSize": 100000,
     "SnapshotInterval": 864
   },
-  "MinNodeVersion": "10.7.1",
+  "MinNodeVersion": "11.0.1",
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
@@ -105,12 +105,6 @@
       "maxFrequency": 0.0002783
     },
     "Mempool": {
-      "severity": "Silence"
-    },
-    "Mempool.AttemptAdd": {
-      "severity": "Silence"
-    },
-    "Mempool.SyncNotNeeded": {
       "severity": "Silence"
     },
     "Net.AcceptPolicy.ConnectionRateLimiting": {
