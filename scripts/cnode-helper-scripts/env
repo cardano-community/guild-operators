@@ -1075,8 +1075,8 @@ fi
 node_version="$(${CNODEBIN} version | head -1 | cut -d' ' -f2)"
 cli_version="$(${CCLI} version | head -1 | cut -d' ' -f2)"
 
-if ! versionCheckNode "10.5.2" "${node_version}" || ! versionCheckNode "10.11.0.0" "${cli_version}"; then
-  echo -e "\nKoios scripts have now been upgraded to support cardano-node 10.5.x ('${node_version}' found) / cardano-cli 10.11.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-10.1.4 to switch scripts to an older branch).\n"
+if ! versionCheckNode "11.0.1" "${node_version}" || ! versionCheckNode "11.0.0.0" "${cli_version}"; then
+  echo -e "\nKoios scripts have now been upgraded to support cardano-node 11.0.x ('${node_version}' found) / cardano-cli 11.0.x.x ('${cli_version}' found).\nPlease update cardano-node binaries (ensure to read release notes and update various configs using guild-deploy (use appropriate options to download/install/overwrite parts you need) or use tagged branches for older node version (eg: ./<script>.sh -b node-10.1.4 to switch scripts to an older branch).\n"
   echo -e "  Refer to https://cardano-community.github.io/guild-operators/upgrade/ for upgrade assistance!\n\n"
   return 1
 fi
@@ -1121,10 +1121,9 @@ if ! command -v "jq" &>/dev/null; then
 fi
 
 read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile //"null", .ByronGenesisFile //"null", .ShelleyGenesisFile //"null", .Protocol //"Cardano",
-.EnableP2P //"false",
 .ConwayGenesisFile //"null"]| @tsv' "${CONFIG}" 2>/dev/null)"
 
-CONWAY_GENESIS_JSON="${CONFIG_CONTENTS[5]}"
+CONWAY_GENESIS_JSON="${CONFIG_CONTENTS[4]}"
 ALONZO_GENESIS_JSON="${CONFIG_CONTENTS[0]}"
 BYRON_GENESIS_JSON="${CONFIG_CONTENTS[1]}"
 GENESIS_JSON="${CONFIG_CONTENTS[2]}"
@@ -1140,7 +1139,6 @@ GENESIS_JSON="${CONFIG_CONTENTS[2]}"
 [[ ! -f "${GENESIS_JSON}" ]] && echo "Shelley genesis file not found: ${GENESIS_JSON}" && return 1
 GENESIS_HASH="$(${CCLI} hash genesis-file --genesis "${GENESIS_JSON}")"
 PROTOCOL="${CONFIG_CONTENTS[3]}"
-P2P_ENABLED="${CONFIG_CONTENTS[4]}"
 
 if [[ -z "$PROM_HOST" || -z "$PROM_PORT" ]]; then
   PROM_PORT=$(jq -er '

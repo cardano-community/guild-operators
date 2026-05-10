@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=5
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=3
+CNTOOLS_PATCH_VERSION=5
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -571,7 +571,7 @@ selectWallet() {
           getBalance ${base_addr}
           balances["${base_addr}"]=${assets[lovelace]}
           if [[ -n ${reward_addr} ]]; then
-            delegation_pool_id=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].stakeDelegation // empty')
+            delegation_pool_id=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address "${reward_addr}" | jq -r '.[0].stakeDelegation.stakePoolBech32 // empty')
             [[ -n ${delegation_pool_id} ]] && pool_delegations[${reward_addr}]=${delegation_pool_id}
           fi
         else
@@ -1256,11 +1256,11 @@ getDRepStatus() {
       [[ ${hash_type} = keyHash ]] && _param=$(bech32 drep <<< "22${2}") || _param=$(bech32 drep <<< "23${2}")
     fi
     HEADERS=("${KOIOS_API_HEADERS[@]}" -H "Content-Type: application/json" -H "accept: text/csv")
-    println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '{\"_drep_ids\":[\"${_param}\"]}' ${KOIOS_API}/drep_info?select=registered,deposit,active,expires_epoch_no,amount,meta_url,meta_hash"
-    ! drep_info_list=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_drep_ids":["'${_param}'"]}' "${KOIOS_API}/drep_info?select=registered,deposit,active,expires_epoch_no,amount,meta_url,meta_hash" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${drep_info_list}\n" && return 1 # print error and return
+    println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '{\"_drep_ids\":[\"${_param}\"]}' ${KOIOS_API}/drep_info?select=drep_status,deposit,active,expires_epoch_no,amount,meta_url,meta_hash"
+    ! drep_info_list=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_drep_ids":["'${_param}'"]}' "${KOIOS_API}/drep_info?select=drep_status,deposit,active,expires_epoch_no,amount,meta_url,meta_hash" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${drep_info_list}\n" && return 1 # print error and return
     [[ -z ${drep_info_list} ]] && return 1
-    while IFS=',' read -r _registered _deposit _active _expires_epoch_no _amount _url _hash; do
-      [[ ${_registered} != t ]] && return 1
+    while IFS=',' read -r _drep_status _deposit _active _expires_epoch_no _amount _url _hash; do
+      [[ ${_drep_status} != 'registered' ]] && return 1
       drep_anchor_url="${_url}"
       drep_anchor_hash="${_hash}"
       drep_deposit_amt="${_deposit}"
@@ -1338,6 +1338,22 @@ getDRepVotePower() {
     vote_power_pct=$(printf "%.${pct_precision}f" ${vote_power_pct})
   fi
   return 0
+}
+
+# Command     : getLocalActiveDRepStakeDistribution
+# Description : populate all_drep_vote_power with active local DRep stake distribution
+getLocalActiveDRepStakeDistribution() {
+  local all_drep_vote_power_raw drep_state_all active_drep_ids current_epoch
+
+  current_epoch=$(getEpoch)
+  println ACTION "${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
+  all_drep_vote_power_raw=$(${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}) || return 1
+  println ACTION "${CCLI} latest query drep-state --all-dreps ${NETWORK_IDENTIFIER}"
+  drep_state_all=$(${CCLI} latest query drep-state --all-dreps ${NETWORK_IDENTIFIER}) || return 1
+
+  # DReps only stop counting after the current epoch passes their expiry.
+  active_drep_ids=$(jq -cr --argjson current_epoch "${current_epoch}" '[.[] | select((.[1].expiry // -1) >= $current_epoch) | if .[0].keyHash then "drep-keyHash-\(.[0].keyHash)" else "drep-scriptHash-\(.[0].scriptHash)" end]' <<< "${drep_state_all}") || return 1
+  all_drep_vote_power=$(jq -cr --argjson active_drep_ids "${active_drep_ids}" 'with_entries(.key as $key | select($key == "drep-alwaysAbstain" or $key == "drep-alwaysNoConfidence" or ($active_drep_ids | index($key))))' <<< "${all_drep_vote_power_raw}") || return 1
 }
 
 # Command     : getWalletVoteDelegation [wallet name] [force]
@@ -1482,9 +1498,8 @@ getAllGovActions() {
       unset vote_action_list_all _vote_action_list
       vote_action_list_all=()
       getCurrentCommittee; getParameterThresholds # to fetch thresholds
-      # get current DRep distribution
-      println ACTION "${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER}"
-      all_drep_vote_power=$(${CCLI} latest query drep-stake-distribution --all-dreps ${NETWORK_IDENTIFIER})
+      # get current DRep distribution excluding DReps whose expiry is behind the current epoch
+      getLocalActiveDRepStakeDistribution || return 1
       # sum of all drep stake distribution entries without the alwaysAbstain
       drep_power_total=$(jq -r '[.[]] | add' <<< "${all_drep_vote_power}" 2>/dev/null)
       drep_power_always_abstain=$(jq -r '."drep-alwaysAbstain" //0' <<< "${all_drep_vote_power}" 2>/dev/null)
@@ -1557,10 +1572,10 @@ getAllGovActions() {
       spo_no_vote_power="$(jq -r --argjson v "${spo_no_voters}" '[to_entries[] | select(.value[0] | IN($v[])) | .value[1]] | add //0' <<< "${all_spo_vote_power}")"
       spo_abstain_vote_power="$(jq -r --argjson v "${spo_abstain_voters}" '[to_entries[] | select(.value[0] | IN($v[])) | .value[1]] | add //0' <<< "${all_spo_vote_power}")"
       spo_power_total_no_abstain=$(( spo_power_total - spo_power_always_abstain - spo_abstain_vote_power ))
-      spo_no_vote_power_total=$(( spo_power_total - spo_yes_vote_power )) # total spo power - proposal abstain - proposal yes
+      spo_no_vote_power_total=$(( spo_power_total_no_abstain - spo_yes_vote_power )) # total spo power - proposal abstain - proposal yes
       if [[ ${proposal_type} = "NoConfidence" ]]; then
         # add alwaysNoConfidence power to yes vote
-        spo_power_always_no_confidence=$(jq -r '[to_entries[] | select(.value[2] == "drep-alwaysNoConfidence") | select(.value[0] | IN($v1[]) | not) | select(.value[0] | IN($v2[]) | not) | select(.value[0] | IN($v3[]) | not) | .value[1]] | add //0' <<< "${spo_power_total}" 2>/dev/null)
+        spo_power_always_no_confidence=$(jq -r --argjson v1 "${spo_yes_voters}" --argjson v2 "${spo_no_voters}" --argjson v3 "${spo_abstain_voters}" '[to_entries[] | select(.value[2] == "drep-alwaysNoConfidence") | select(.value[0] | IN($v1[]) | not) | select(.value[0] | IN($v2[]) | not) | select(.value[0] | IN($v3[]) | not) | .value[1]] | add //0' <<< "${all_spo_vote_power}" 2>/dev/null)
         spo_yes_vote_power=$(( spo_yes_vote_power + spo_power_always_no_confidence ))
         spo_no_vote_power_total=$(( spo_no_vote_power_total - (spo_power_always_no_confidence * 2) ))
       fi
@@ -2018,6 +2033,7 @@ getBalance() {
   asset_name_maxlen=5; asset_amount_maxlen=12
   tx_in=""
 
+  println ACTION "${CCLI} query utxo --address ${1} ${NETWORK_IDENTIFIER} --output-text"
   if [[ -z ${1} ]] || ! utxo_raw=$(${CCLI} query utxo --address "${1}" ${NETWORK_IDENTIFIER} --output-text); then return 1; fi
   [[ -z ${utxo_raw} ]] && return
 
@@ -2058,6 +2074,47 @@ getBalance() {
   [[ ${#lovelace_fmt} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#lovelace_fmt}
 }
 
+# Command     : queryAddressUtxosKoiosBatch extended [addresses...]
+# Description : query and parse a single Koios address_utxos batch
+# Parameters  : extended  >  [true|false] should additional assets on utxo be parsed or not
+#             : addresses >  bech32 addresses to include in the batch request
+queryAddressUtxosKoiosBatch() {
+  local extended=$1
+  shift
+  local -a addr_batch=( "$@" )
+  local addr_list_joined payload address_utxo_list index_prefix asset_list_unescaped tname asset_amount_fmt
+  local _address _tx_hash _tx_index _value _asset_list _policy_id _asset_name _quantity
+
+  [[ ${#addr_batch[@]} -eq 0 ]] && return 0
+
+  printf -v addr_list_joined '\"%s\",' "${addr_batch[@]}"
+  payload='{"_addresses":['${addr_list_joined%,}'],"_extended":'${extended}'}'
+  println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '${payload}' ${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
+  ! address_utxo_list=$(curl -sSL -f -X POST "${HEADERS[@]}" -d "${payload}" "${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_utxo_list}\n" && return 1 # print error and return
+  [[ -z ${address_utxo_list} ]] && return 0
+
+  while IFS=',' read -r _address _tx_hash _tx_index _value _asset_list; do
+    index_prefix="${_address},"
+    assets["${index_prefix}lovelace"]=$(( ${assets["${index_prefix}lovelace"]:-0} + _value ))
+    utxos["${index_prefix}${_tx_hash}#${_tx_index}. ADA"]=${_value}
+    utxos_cnt["${_address}"]=$(( ${utxos_cnt["${_address}"]:-0} + 1 ))
+    tx_in_arr["${_address}"]="${tx_in_arr["${_address}"]} --tx-in ${_tx_hash}#${_tx_index}"
+    if [[ ${extended} = true ]]; then
+      asset_list_unescaped=${_asset_list:1: -1} # remove first and last char (quotation)
+      asset_list_unescaped=$(sed 's/""/"/g' <<< "${asset_list_unescaped}") # remove all double quotes, sed seems to perform better than bash string manipulation
+      while IFS=',' read -r _policy_id _asset_name _quantity; do
+        tname="$(hexToAscii ${_asset_name})"
+        tname="${tname//[![:print:]]/}"
+        [[ ${#tname} -gt ${asset_name_maxlen_arr["${_address}"]:-5} ]] && asset_name_maxlen_arr["${_address}"]=${#tname}
+        asset_amount_fmt="$(formatAsset ${_quantity})"
+        [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen_arr["${_address}"]:-12} ]] && asset_amount_maxlen_arr["${_address}"]=${#asset_amount_fmt}
+        assets["${index_prefix}${_policy_id}.${_asset_name}"]=$(( ${assets["${index_prefix}${_policy_id}.${_asset_name}"]:-0} + _quantity ))
+        utxos["${index_prefix}${_tx_hash}#${_tx_index}.${_policy_id}.${_asset_name}"]=${_quantity}
+      done < <( jq -cr '.[] | "\(.policy_id),\(.asset_name),\(.quantity)"' <<< "${asset_list_unescaped}" )
+    fi
+  done < <(tail -n +2 <<< "${address_utxo_list}")
+}
+
 # Command     : getBalanceKoios parse_assets
 # Description : check balance for provided addresses using Koios API
 # Parameters  : parse_assets  >  [true|false] should additional assets on utxo be parsed or not (default=true)
@@ -2066,35 +2123,27 @@ getBalanceKoios() {
   # Ex: ( [addr123,lovelace]=1000 [addr456,policy.name]=500 )
   # Its assumed that an array called addr_list has been populated with all addresses to fetch balance for
 
+  local -a addr_batch=() candidate_batch=()
+  local addr_list_joined payload extended _address
+  local koios_payload_max_bytes=1024 # keep each request within the Koios public-tier body limit
+
   declare -gA utxos=(); declare -gA utxos_cnt=(); declare -gA assets=(); declare -gA tx_in_arr=(); declare -gA asset_name_maxlen_arr=(); declare -gA asset_amount_maxlen_arr=()
 
   if [[ -n ${KOIOS_API} && -n ${addr_list+x} ]]; then
-    printf -v addr_list_joined '\"%s\",' "${addr_list[@]}"
     [[ $1 != false ]] && extended=true || extended=false
     HEADERS=("${KOIOS_API_HEADERS[@]}" -H "Content-Type: application/json" -H "accept: text/csv")
-    println ACTION "curl -sSL -f -X POST ${HEADERS[*]} -d '{\"_addresses\":[${addr_list_joined%,}],\"_extended\":${extended}}' ${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
-    ! address_utxo_list=$(curl -sSL -f -X POST "${HEADERS[@]}" -d '{"_addresses":['${addr_list_joined%,}'],"_extended":'${extended}'}' "${KOIOS_API}/address_utxos?select=address,tx_hash,tx_index,value,asset_list" 2>&1) && println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${address_utxo_list}\n" && return 1 # print error and return
-    [[ -z ${address_utxo_list} ]] && return
-    while IFS=',' read -r _address _tx_hash _tx_index _value _asset_list; do
-      index_prefix="${_address},"
-      assets["${index_prefix}lovelace"]=$(( ${assets["${index_prefix}lovelace"]:-0} + _value ))
-      utxos["${index_prefix}${_tx_hash}#${_tx_index}. ADA"]=${_value}
-      utxos_cnt["${_address}"]=$(( ${utxos_cnt["${_address}"]:-0} + 1 ))
-      tx_in_arr["${_address}"]="${tx_in_arr["${_address}"]} --tx-in ${_tx_hash}#${_tx_index}"
-      if [[ $1 != false ]]; then
-        asset_list_unescaped=${_asset_list:1: -1} # remove first and last char (quotation)
-        asset_list_unescaped=$(sed 's/""/"/g' <<< "${asset_list_unescaped}") # remove all double quotes, sed seems to perform better than bash string manipulation
-        while IFS=',' read -r _policy_id _asset_name _quantity; do
-          tname="$(hexToAscii ${_asset_name})"
-          tname="${tname//[![:print:]]/}"
-          [[ ${#tname} -gt ${asset_name_maxlen_arr["${_address}"]:-5} ]] && asset_name_maxlen_arr["${_address}"]=${#tname}
-          asset_amount_fmt="$(formatAsset ${_quantity})"
-          [[ ${#asset_amount_fmt} -gt ${asset_amount_maxlen_arr["${_address}"]:-12} ]] && asset_amount_maxlen_arr["${_address}"]=${#asset_amount_fmt}
-          assets["${index_prefix}${_policy_id}.${_asset_name}"]=$(( ${assets["${index_prefix}${_policy_id}.${_asset_name}"]:-0} + _quantity ))
-          utxos["${index_prefix}${_tx_hash}#${_tx_index}.${_policy_id}.${_asset_name}"]=${_quantity}
-        done < <( jq -cr '.[] | "\(.policy_id),\(.asset_name),\(.quantity)"' <<< "${asset_list_unescaped}" )
+    for _address in "${addr_list[@]}"; do
+      candidate_batch=( "${addr_batch[@]}" "${_address}" )
+      printf -v addr_list_joined '\"%s\",' "${candidate_batch[@]}"
+      payload='{"_addresses":['${addr_list_joined%,}'],"_extended":'${extended}'}'
+      if [[ ${#payload} -gt ${koios_payload_max_bytes} && ${#addr_batch[@]} -gt 0 ]]; then
+        queryAddressUtxosKoiosBatch "${extended}" "${addr_batch[@]}" || return 1
+        addr_batch=( "${_address}" )
+      else
+        addr_batch=( "${candidate_batch[@]}" )
       fi
-    done <<< "$(tail -n +2 <<< ${address_utxo_list})"
+    done
+    queryAddressUtxosKoiosBatch "${extended}" "${addr_batch[@]}" || return 1
   fi
 }
 
@@ -2263,16 +2312,17 @@ getRewardInfoKoios() {
       [[ -n ${delegated_pool} ]] && pool_delegations["${stake_address}"]="${delegated_pool}"
       if [[ -n ${delegated_drep} ]]; then
         if [[ ${delegated_drep} = drep_always_abstain ]]; then
-          vote_delegations["${stake_address}"]="alwaysAbstain"; return
+          vote_delegations["${stake_address}"]="alwaysAbstain"
         elif [[ ${delegated_drep} = drep_always_no_confidence ]]; then
-          vote_delegations["${stake_address}"]="alwaysNoConfidence"; return
-        fi
-        # convert to cli format <type>-<hash>
-        vote_delegation_raw=$(bech32 <<< "${delegated_drep}")
-        if [[ ${vote_delegation_raw:0:2} = '22' ]]; then
-          vote_delegations["${stake_address}"]="keyHash-${vote_delegation_raw:2}"
+          vote_delegations["${stake_address}"]="alwaysNoConfidence"
         else
-          vote_delegations["${stake_address}"]="scriptHash-${vote_delegation_raw:2}"
+          # convert to cli format <type>-<hash>
+          vote_delegation_raw=$(bech32 <<< "${delegated_drep}")
+          if [[ ${vote_delegation_raw:0:2} = '22' ]]; then
+            vote_delegations["${stake_address}"]="keyHash-${vote_delegation_raw:2}"
+          else
+            vote_delegations["${stake_address}"]="scriptHash-${vote_delegation_raw:2}"
+          fi
         fi
       fi
       stake_deposits["${stake_address}"]="${deposit}"
@@ -2289,7 +2339,13 @@ getRewardsFromAddr() {
   reward_lovelace=0; stake_deposit=0
   println ACTION "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
   ! stake_address_info=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}) && println "ERROR" "\n${FG_RED}NODE CLI ERROR${NC}: ${stake_address_info}\n" && return 1 # print error and return
-  IFS=',' read -r stake_address reward_lovelace stake_deposit gov_action_deposits pool_delegation vote_delegation < <( jq -cr '"\(.[0].address//""),\(.[0].rewardAccountBalance//0),\(.[0].stakeRegistrationDeposit//0),\(.[0].govActionDeposits//{}),\(.[0].stakeDelegation//""),\(.[0].voteDelegation//"")"' <<< "${stake_address_info}" )
+  IFS=',' read -r stake_address reward_lovelace stake_deposit gov_action_deposits pool_delegation vote_delegation < <( jq -cr '"\(.[0].address//""),\(.[0].rewardAccountBalance//0),\(.[0].stakeRegistrationDeposit//0),\(.[0].govActionDeposits//{}),\(.[0].stakeDelegation.stakePoolBech32//""),\(.[0].voteDelegation.keyHashLedger//"")"' <<< "${stake_address_info}" )
+  if [[ -z ${vote_delegation} ]]; then
+    vote_delegation=$(jq -r '.[0].voteDelegation.scriptHashLedger //""' <<< "${stake_address_info}")
+    [[ -n ${vote_delegation} ]] && vote_delegation="scriptHash-${vote_delegation}"
+  else
+    vote_delegation="keyHash-${vote_delegation}"
+  fi
 }
 
 # Command     : isWalletRegistered [wallet name]

@@ -296,7 +296,7 @@ SGVERSION=v1.4.0
       pgrest_binary=linux-static-x86-64.tar.xz
     fi
     #pgrest_asset_url="$(curl -s https://api.github.com/repos/PostgREST/postgrest/releases/latest | jq -r '.assets[].browser_download_url' | grep ${pgrest_binary})"
-    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v14.3/postgrest-v14.3-${pgrest_binary}"
+    pgrest_asset_url="https://github.com/PostgREST/postgrest/releases/download/v14.10/postgrest-v14.10-${pgrest_binary}"
     if curl -sL -f -m ${CURL_TIMEOUT} -o postgrest.tar.xz "${pgrest_asset_url}"; then
       tar xf postgrest.tar.xz &>/dev/null && rm -f postgrest.tar.xz
       [[ -f postgrest ]] || err_exit "PostgREST archive downloaded but binary not found after attempting to extract package!"

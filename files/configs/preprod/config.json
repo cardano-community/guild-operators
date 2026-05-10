@@ -3,7 +3,6 @@
   "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
   "ConsensusMode": "PraosMode",
   "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
-  "EnableP2P": true,
   "LastKnownBlockVersion-Alt": 0,
   "LastKnownBlockVersion-Major": 2,
   "LastKnownBlockVersion-Minor": 0,
@@ -13,96 +12,48 @@
     "QueryBatchSize": 100000,
     "SnapshotInterval": 43200
   },
-  "MempoolCapacityBytesOverride": 8388608,
-  "MinBigLedgerPeersForTrustedState": 5,
-  "MinNodeVersion": "10.5.2",
-  "PeerSharing": false,
+  "MinNodeVersion": "11.0.1",
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
-  "SyncTargetNumberOfActiveBigLedgerPeers": 30,
-  "SyncTargetNumberOfActivePeers": 0,
-  "SyncTargetNumberOfEstablishedBigLedgerPeers": 50,
-  "SyncTargetNumberOfKnownBigLedgerPeers": 100,
-  "TargetNumberOfActivePeers": 20,
-  "TargetNumberOfEstablishedPeers": 40,
-  "TargetNumberOfKnownPeers": 100,
-  "TargetNumberOfRootPeers": 60,
-  "TraceOptionMetricsPrefix": "cardano.node.metrics.",
-  "TraceOptionNodeName": "cnode",
-  "TraceOptionPeerFrequency": 2000,
-  "TraceOptionResourceFrequency": 1000,
   "TraceOptionForwarder": {
     "connQueueSize": 64,
-    "disconnQueueSize": 128
+    "disconnQueueSize": 128,
+    "maxReconnectDelay": 30
   },
+  "TraceOptionMetricsPrefix": "cardano.node.metrics.",
+  "TraceOptionNodeName": "cnode",
+  "TraceOptionResourceFrequency": 1000,
   "TraceOptions": {
     "": {
       "backends": [
-        "Stdout HumanFormatColoured",
-        "PrometheusSimple 127.0.0.1 12798"
+        "PrometheusSimple suffix 127.0.0.1 12798",
+        "Stdout MachineFormat"
       ],
+      "detail": "DNormal",
       "severity": "Notice"
     },
+    "BlockFetch.Client.CompletedBlockFetch": {
+      "severity": "Info",
+      "maxFrequency": 4.0
+    },
     "BlockFetch.Decision": {
-      "severity": "Silence"
+      "severity": "Info"
+    },
+    "BlockFetch.Client.SendFetchRequest": {
+      "severity": "Info"
     },
     "ChainDB": {
       "severity": "Info"
     },
+    "ChainDB.ImmDbEvent": {
+      "severity": "Warning"
+    },
     "ChainDB.AddBlockEvent.AddBlockValidation": {
       "severity": "Silence"
     },
-    "ChainSync.Client": {
-      "severity": "Info"
-    },
-    "Net.ConnectionManager.Remote": {
-      "severity": "Info"
-    },
-    "Net.Subscription.DNS": {
-      "severity": "Info"
-    },
-    "Startup.DiffusionInit": {
-      "severity": "Info"
-    },
-    "Net.ErrorPolicy": {
-      "severity": "Info"
-    },
-    "Forge.Loop": {
-      "severity": "Info"
-    },
-    "Forge.StateInfo": {
-      "severity": "Info"
-    },
-    "Net.InboundGovernor.Remote": {
-      "severity": "Info"
-    },
-    "Net.Subscription.IP": {
-      "severity": "Info"
-    },
-    "Net.ErrorPolicy.Local": {
-      "severity": "Info"
-    },
-    "Mempool": {
-      "severity": "Info"
-    },
-    "Net.Mux.Remote": {
-      "severity": "Info"
-    },
-    "Net.InboundGovernor": {
-      "severity": "Warning"
-    },
-    "Net.PeerSelection": {
-      "severity": "Silence"
-    },
-    "Net.ConnectionManager.Remote.ConnectionManagerCounters": {
-      "severity": "Silence"
-    },
-    "LedgerMetrics": {
-      "severity": "Silence"
-    },
-    "Resources": {
-      "severity": "Silence"
+    "ChainDB.AddBlockEvent.AddBlockValidation.ValidCandidate": {
+      "maxFrequency": 2.0
     },
     "ChainDB.AddBlockEvent.AddedBlockToQueue": {
       "maxFrequency": 2.0
@@ -110,14 +61,87 @@
     "ChainDB.AddBlockEvent.AddedBlockToVolatileDB": {
       "maxFrequency": 2.0
     },
-    "ChainDB.AddBlockEvent.AddBlockValidation.ValidCandidate": {
+    "ChainDB.AddBlockEvent.AddedToCurrentChain": {
       "maxFrequency": 2.0
+    },
+    "ChainDB.AddBlockEvent.SwitchedToAFork": {
+      "severity": "Info"
+    },
+    "ChainDB.ImmDbEvent.ChunkValidation.ValidatedChunk": {
+      "severity": "Info"
     },
     "ChainDB.CopyToImmutableDBEvent.CopiedBlockToImmutableDB": {
       "maxFrequency": 2.0
     },
-    "BlockFetch.Client.CompletedBlockFetch": {
-      "maxFrequency": 2.0
+    "ChainDB.LedgerEvent.Replay": {
+      "severity": "Info",
+      "maxFrequency": 0.0668
+    },
+    "ChainDB.LedgerEvent.Forker": {
+      "severity": "Silence"
+    },
+    "ChainSync.Client": {
+      "severity": "Warning"
+    },
+    "ChainSync.Client.DownloadedHeader": {
+      "severity": "Info",
+      "maxFrequency": 14.0
+    },
+    "Forge.Loop": {
+      "severity": "Info"
+    },
+    "Forge.Loop.NodeNotLeader": {
+      "severity": "Silence"
+    },
+    "Forge.Loop.StartLeadershipCheck": {
+      "severity": "Silence"
+    },
+    "Forge.StateInfo": {
+      "severity": "Info",
+      "maxFrequency": 0.0002783
+    },
+    "Mempool": {
+      "severity": "Silence"
+    },
+    "Net.AcceptPolicy.ConnectionRateLimiting": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
+    },
+    "Net.AcceptPolicy.ConnectionLimitResume": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
+    },
+    "Net.ConnectionManager.Remote": {
+      "severity": "Info"
+    },
+    "Net.ErrorPolicy": {
+      "severity": "Info"
+    },
+    "Net.InboundGovernor": {
+      "severity": "Warning"
+    },
+    "Net.InboundGovernor.Remote.InboundGovernorCounters": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
+    },
+    "Net.InboundGovernor.Remote": {
+      "severity": "Info"
+    },
+    "Net.Mux.Remote": {
+      "severity": "Info"
+    },
+    "Net.PeerSelection": {
+      "severity": "Info"
+    },
+    "Net.PeerSelection.Actions.ConnectionError": {
+      "severity": "Silence"
+    },
+    "Resources": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
+    },
+    "Startup": {
+      "severity": "Info"
     }
   },
   "TurnOnLogMetrics": true,

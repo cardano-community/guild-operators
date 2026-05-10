@@ -60,7 +60,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.32.0
+GLV_VERSION=v1.32.1
 
 PARENT="$(dirname $0)"
 
@@ -1156,49 +1156,35 @@ while true; do
     printf "Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((three_col_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
     closeRow
 
-    if [[ ${P2P_ENABLED} = true ]]; then
+    # divider line
+    printf "${VL}- ${style_info}CONNECTIONS${NC} "
+    printf "%0.s-" $(seq $((three_col_width-13)))
+    printf " ${style_values_4}Incoming ${arrow_left}${NC} "
+    printf "%0.s-" $(seq $((three_col_width-11)))
+    printf " ${style_values_4}Outgoing ${arrow_right}${NC} "
+    printf "%0.s-" $(seq $((three_col_width-10)))
+    closeRow
 
-      # divider line
-      printf "${VL}- ${style_info}CONNECTIONS${NC} "
-      printf "%0.s-" $(seq $((three_col_width-13)))
-      printf " ${style_values_4}Incoming ${arrow_left}${NC} "
-      printf "%0.s-" $(seq $((three_col_width-11)))
-      printf " ${style_values_4}Outgoing ${arrow_right}${NC} "
-      printf "%0.s-" $(seq $((three_col_width-10)))
-      closeRow
-
-      if [[ ${VERBOSE} = "Y" ]]; then
-
-        printf "${VL} Uni-Dir    : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_uni_dir}"
-        mvThreeThird
-        printf "Cold       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_cold}"
-        closeRow
-
-      fi
-
-      printf "${VL} Bi-Dir     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_bi_dir}"
-      mvThreeSecond
-      printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_warm}"
+    if [[ ${VERBOSE} = "Y" ]]; then
+      printf "${VL} Uni-Dir    : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_uni_dir}"
       mvThreeThird
-      printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_warm}"
+      printf "Cold       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_cold}"
       closeRow
-
-      printf "${VL} Duplex     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_duplex}"
-      mvThreeSecond
-      printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
-      mvThreeThird
-      printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_hot}"
-      closeRow
-
-    else
-
-      echo "${conndivider}" && ((line++))
-
-      # row 1
-      printf "${VL} P2P        : ${style_status_2}%-${three_col_value_width}s${NC}" "disabled (no peer stats)"
-      closeRow
-
     fi
+
+    printf "${VL} Bi-Dir     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_bi_dir}"
+    mvThreeSecond
+    printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_warm}"
+    mvThreeThird
+    printf "Warm       : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_warm}"
+    closeRow
+
+    printf "${VL} Duplex     : ${style_values_1}%-${three_col_value_width}s${NC}" "${conn_duplex}"
+    mvThreeSecond
+    printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${inbound_governor_hot}"
+    mvThreeThird
+    printf "Hot        : ${style_values_1}%-${three_col_value_width}s${NC}" "${peer_selection_hot}"
+    closeRow
 
     echo "${propdivider}" && ((line++))
 

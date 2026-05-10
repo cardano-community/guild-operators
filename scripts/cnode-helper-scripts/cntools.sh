@@ -80,7 +80,7 @@ usage() {
   cat <<-EOF
 		Usage: $(basename "$0") [-o] [-a] [-b <branch name>] [-v]
 		Koios CNTools - The Cardano SPOs best friend
-		
+
 		-n    Local mode   - run CNTools in local node mode (default)
 		-l    Light mode   - run CNTools using Koios query layer for full functionallity without a local node
 		-o    Offline mode - run CNTools with a limited set of functionallity without external communication useful for air-gapped mode
@@ -88,7 +88,7 @@ usage() {
 		-u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Run CNTools and look for updates on alternate branch instead of master (only for testing/development purposes)
 		-v    Print CNTools version
-		
+
 		EOF
 }
 
@@ -150,7 +150,7 @@ fi
 if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
   # check to see if there are any updates available
   clear
-  if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then 
+  if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
 
     echo "Checking for script updates..."
 
@@ -177,7 +177,7 @@ if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
       esac
       [[ ${CNTOOLS_MODE} != "LIGHT" ]] && unset KOIOS_API
     fi
-    
+
     # check for cntools update
     checkUpdate "${PARENT}"/cntools.library "${ENV_UPDATED}" Y N
     case $? in
@@ -242,8 +242,8 @@ if [[ ${CHECK_KES} = true ]]; then
     fi
 
     unset remaining_kes_periods
-    pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"  
-  
+    pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
+
     if ! kesExpiration ${pool_kes_start}; then println ERROR "${FG_RED}ERROR${NC}: failure during KES calculation for ${FG_GREEN}$(basename ${pool})${NC}" && waitToProceed && continue; fi
 
     if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
@@ -263,7 +263,7 @@ if [[ ${CHECK_KES} = true ]]; then
     fi
   done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
   [[ ${kes_rotation_needed} = "yes" ]] && waitToProceed
-  
+
 fi
 
 # Verify that shelley transition epoch was properly identified by env
@@ -1012,7 +1012,7 @@ function main {
                     done
                   fi
                 done
-                
+
                 println DEBUG "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 if isWalletRegistered ${wallet_name}; then
                   println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_GREEN}%s${NC}" "Registered" "Yes")"
@@ -1179,7 +1179,7 @@ function main {
                   getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
                   println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA (${FG_LBLUE}%s${NC} %%)" "Active Vote power" "$(formatLovelace ${vote_power:=0})" "${vote_power_pct:=0}")"
                 else
-                  if versionCheck "10.0" "${PROT_VERSION}"; then 
+                  if versionCheck "10.0" "${PROT_VERSION}"; then
                     println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC} - %s" "Delegation" "undelegated" "please note that reward withdrawals will not work until wallet is vote delegated")"
                   else
                     println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Delegation" "undelegated")"
@@ -1402,7 +1402,7 @@ function main {
                 if ! selectOpMode; then continue; fi
               fi
               echo
-              
+
               # source wallet
               println DEBUG "Select ${FG_YELLOW}source${NC} wallet"
               if [[ ${op_mode} = "online" ]]; then
@@ -2085,10 +2085,10 @@ function main {
               println DEBUG "\nPool Metadata\n"
               pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
               if [[ ! -f "${pool_config}" ]] || ! meta_json_url=$(jq -er .json_url "${pool_config}"); then meta_json_url="https://foo.bat/poolmeta.json"; fi
-              getAnswerAnyCust json_url_enter "Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: ${meta_json_url})"
+              getAnswerAnyCust json_url_enter "Enter Pool's JSON URL to host metadata file - URL length should be less than 128 chars (default: ${meta_json_url})"
               [[ -n "${json_url_enter}" ]] && meta_json_url="${json_url_enter}"
-              if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 64 ]]; then
-                println ERROR "${FG_RED}ERROR${NC}: invalid URL format or more than 64 chars in length"
+              if [[ ! "${meta_json_url}" =~ https?://.* || ${#meta_json_url} -gt 128 ]]; then
+                println ERROR "${FG_RED}ERROR${NC}: invalid URL format or more than 128 chars in length"
                 waitToProceed && continue
               fi
               metadata_done=false
@@ -2184,7 +2184,7 @@ function main {
                       elif [[ ${type} = "IPv4" ]]; then
                         relay_output+="--pool-relay-port ${port} --pool-relay-ipv4 ${address} "
                       elif [[ ${type} = "IPv6" ]]; then
-                        relay_output+="--pool-relay-port ${port} --pool-relay-ipv6 ${address} "                      
+                        relay_output+="--pool-relay-port ${port} --pool-relay-ipv6 ${address} "
 		      elif [[ ${type} = "DNS_SRV" ]]; then
                         relay_output+="--multi-host-pool-relay ${address} "
                       fi
@@ -2246,7 +2246,7 @@ function main {
                         relay_array+=( "type" "DNS_SRV" "address" "${relay_dns_srv_enter}" "port" "" )
                         relay_output+="--multi-host-pool-relay ${relay_dns_srv_enter} "
                       fi
-                      ;;		    
+                      ;;
                     3) continue 2 ;;
                   esac
                   println DEBUG "Add more relay entries?"
@@ -2812,7 +2812,7 @@ function main {
                   unset remaining_kes_periods
                   [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
 
-                  if ! kesExpiration ${pool_kes_start}; then 
+                  if ! kesExpiration ${pool_kes_start}; then
                     println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC}%s${FG_GREEN}%s${NC}" "KES expiration date" "ERROR" ": failure during KES calculation for " "$(basename ${pool})")"
                   else
                     if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
@@ -3001,7 +3001,7 @@ function main {
                   println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} ADA${price_str}" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )"
                 fi
                 [[ -n ${KOIOS_API} ]] && getPriceString ${p_live_pledge} && println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Live Pledge" "$(formatLovelace "${p_live_pledge}")")"
-                
+
                 # get margin
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_pParams}")")
@@ -3015,7 +3015,7 @@ function main {
                 else
                   println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} %%" "Margin" "new" "$(fractionToPCT "${fPParams_margin}")" )"
                 fi
-                
+
                 # get fixed cost
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   pParams_cost=$(jq -r '.cost //0' <<< "${ledger_pParams}")
@@ -3029,7 +3029,7 @@ function main {
                 else
                   println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} ADA" "Cost" "new" "$(formatLovelace "${fPParams_cost}")" )"
                 fi
-                
+
                 # get relays
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   relays=$(jq -c '.relays[] //empty' <<< "${ledger_fPParams}")
@@ -3042,7 +3042,7 @@ function main {
                 relay_title="Relay(s)"
                 if [[ -n "${relays}" ]]; then
                   while read -r relay; do
-                    relay_addr=""; relay_port=""                  
+                    relay_addr=""; relay_port=""
                     if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                       relay_addr="$(jq -r '."single host address".IPv4 //empty' <<< ${relay})"
                       if [[ -n ${relay_addr} ]]; then
@@ -3082,7 +3082,7 @@ function main {
                     relay_title=""
                   done <<< "${relays}"
                 fi
-                
+
                 # get owners
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   owners=$(jq -rc '.owners[] // empty' <<< "${ledger_fPParams}")
@@ -3103,7 +3103,7 @@ function main {
                   fi
                   owner_title=""
                 done <<< "${owners}"
-                
+
                 # get reward account
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   reward_account=$(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_fPParams}")
@@ -3122,7 +3122,7 @@ function main {
                     println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "Reward account" "${reward_account}")"
                   fi
                 fi
-                
+
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
                   # get stake distribution
                   println ACTION "${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | jq '.${pool_id_bech32}'"
@@ -3163,7 +3163,7 @@ function main {
                 [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
                 unset remaining_kes_periods
 
-                if ! kesExpiration ${pool_kes_start}; then 
+                if ! kesExpiration ${pool_kes_start}; then
                   println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC}%s${FG_GREEN}%s${NC}" "KES expiration date" "ERROR" ": failure during KES calculation for " "$(basename ${pool})")"
                 else
                   if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
@@ -3414,43 +3414,49 @@ function main {
                 fi
               fi
               if [[ ! -f ${calidus_reg_file} ]]; then
+                generate_calidus_keys=true
                 if [[ -f ${calidus_vk_file} ]]; then
                   println DEBUG "\nCalidus keys already exist, how do you want to proceed?"
                   select_opt "[k] Keep existing keys" "[o] Overwrite to rotate keys" "[Esc] Return"
                   case $? in
-                    0) : ;;
-                    1) safeDel "${calidus_sk_file}"; safeDel "${calidus_vk_file}" ;;
+                    0) generate_calidus_keys=false ;;
+                    1) safeDel "${calidus_sk_file}"; safeDel "${calidus_vk_file}"; safeDel "${calidus_id_file}" ;;
                     2) continue ;;
                   esac
                 fi
-                CS_CALIDUS_KEYS=(
-                  cardano-signer keygen
-                  --path calidus
-                  --out-skey "${calidus_sk_file}"
-                  --out-vkey "${calidus_vk_file}"
-                  --out-id "${calidus_id_file}"
-                  --out-mnemonics "${TMP_DIR}/calidus.mnemonics"
-                )
-                println ACTION "${CS_CALIDUS_KEYS[*]}"
-                if ! stdout=$("${CS_CALIDUS_KEYS[@]}" 2>&1); then
-                  println ERROR "\n${FG_RED}ERROR${NC}: failure during calidus key creation!\n${stdout}"
+                if [[ ${generate_calidus_keys} = true ]]; then
+                  CS_CALIDUS_KEYS=(
+                    cardano-signer keygen
+                    --path calidus
+                    --out-skey "${calidus_sk_file}"
+                    --out-vkey "${calidus_vk_file}"
+                    --out-id "${calidus_id_file}"
+                    --out-mnemonics "${TMP_DIR}/calidus.mnemonics"
+                  )
+                  println ACTION "${CS_CALIDUS_KEYS[*]}"
+                  if ! stdout=$("${CS_CALIDUS_KEYS[@]}" 2>&1); then
+                    println ERROR "\n${FG_RED}ERROR${NC}: failure during calidus key creation!\n${stdout}"
+                    waitToProceed && continue
+                  fi
+                  echo
+                  word_len=0
+                  IFS=' ' read -r -a words < "${TMP_DIR}/calidus.mnemonics"
+                  rm -f "${TMP_DIR}/calidus.mnemonics"
+                  for word in "${words[@]}"; do
+                    [[ ${#word} -gt ${word_len} ]] && word_len=${#word}
+                  done
+                  println DEBUG "${FG_YELLOW}OPTIONAL!${NC} Write down and store below words in a secure place to be able to restore the generated pool calidus key in for example a light wallet."
+                  for i in "${!words[@]}"; do
+                    idx=$(( i + 1 ))
+                    printf "%2s: ${FG_GREEN}%-${word_len}s${NC}  " "$idx" "${words[$i]}"
+                    [[ $(( idx % 4 )) -eq 0 ]] && echo
+                  done
+                  unset words
+                  waitToProceed
+                elif [[ ! -f ${calidus_vk_file} ]]; then
+                  println ERROR "\n${FG_RED}ERROR${NC}: missing existing calidus public key, cannot continue!"
                   waitToProceed && continue
                 fi
-                echo
-                word_len=0
-                IFS=' ' read -r -a words < "${TMP_DIR}/calidus.mnemonics"
-                rm -f "${TMP_DIR}/calidus.mnemonics"
-                for word in "${words[@]}"; do
-                  [[ ${#word} -gt ${word_len} ]] && word_len=${#word}
-                done
-                println DEBUG "${FG_YELLOW}OPTIONAL!${NC} Write down and store below words in a secure place to be able to restore the generated pool calidus key in for example a light wallet."
-                for i in "${!words[@]}"; do
-                  idx=$(( i + 1 ))
-                  printf "%2s: ${FG_GREEN}%-${word_len}s${NC}  " "$idx" "${words[$i]}"
-                  [[ $(( idx % 4 )) -eq 0 ]] && echo
-                done
-                unset words
-                waitToProceed
                 current_slot=$(getSlotTipRef)
                 CS_CIP88_META_FILE=(
                   cardano-signer sign
@@ -3527,7 +3533,6 @@ function main {
               fi
               metafile="${calidus_reg_file}"
               if ! sendMetadata; then
-                safeDel "${calidus_sk_file}"; safeDel "${calidus_vk_file}"
                 waitToProceed && continue
               fi
               rm -f "${calidus_reg_file}"
@@ -3581,7 +3586,7 @@ function main {
               if ! otx_txBody=$(jq -er '.txBody' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'txBody' not found in: ${offline_tx}" && waitToProceed && continue; fi
               echo -e "${otx_txBody}" > "${TMP_DIR}"/tx.raw
               println DEBUG "Transaction type : ${FG_GREEN}${otx_type}${NC}"
-              if wallet_name=$(jq -er '."wallet-name"' <<< ${offlineJSON}); then 
+              if wallet_name=$(jq -er '."wallet-name"' <<< ${offlineJSON}); then
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA, payed by ${FG_GREEN}${wallet_name}${NC}"
                 [[ $(cat "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_ADDR_FILENAME}" 2>/dev/null) = "${addr}" ]] && wallet_source="payment" || wallet_source="base"
               else
@@ -3961,7 +3966,7 @@ function main {
               if ! otx_signed_txBody=$(jq -er '."signed-txBody"' <<< ${offlineJSON}); then println ERROR "${FG_RED}ERROR${NC}: field 'signed-txBody' not found in: ${offline_tx}" && waitToProceed && continue; fi
               [[ $(jq 'length' <<< ${otx_signed_txBody}) -eq 0 ]] && println ERROR "${FG_RED}ERROR${NC}: transaction not signed, please sign transaction first!" && waitToProceed && continue
               println DEBUG "Transaction type : ${FG_YELLOW}${otx_type}${NC}"
-              if jq -er '."wallet-name"' &>/dev/null <<< ${offlineJSON}; then 
+              if jq -er '."wallet-name"' &>/dev/null <<< ${offlineJSON}; then
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA, payed by ${FG_GREEN}$(jq -r '."wallet-name"' <<< ${offlineJSON})${NC}"
               else
                 println DEBUG "Transaction fee  : ${FG_LBLUE}$(formatLovelace ${otx_txFee})${NC} ADA"
@@ -4174,7 +4179,7 @@ function main {
                         getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
                         println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA (${FG_LBLUE}%s${NC} %%)" "Active Vote power" "$(formatLovelace ${vote_power:=0})" "${vote_power_pct:=0}")"
                       else
-                        if versionCheck "10.0" "${PROT_VERSION}"; then 
+                        if versionCheck "10.0" "${PROT_VERSION}"; then
                           println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC} - %s" "Delegation" "undelegated" "please note that reward withdrawals will not work until wallet is vote delegated")"
                         else
                           println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Delegation" "undelegated")"
@@ -6068,7 +6073,7 @@ function main {
             3) SUBCOMMAND="del-keys" ;;
             4) break ;;
           esac
-          case $SUBCOMMAND in  
+          case $SUBCOMMAND in
             metadata)
               clear
               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -6709,7 +6714,7 @@ function main {
                     asset="${selection_arr[0]}"
                     IFS='.' read -ra asset_arr <<< "${selection_arr[0]}"
                     selection_arr_length=${#selection_arr[@]}
-                    if [[ ${selection_arr[*]:$((selection_arr_length-2))} = "[base addr]" ]]; then 
+                    if [[ ${selection_arr[*]:$((selection_arr_length-2))} = "[base addr]" ]]; then
                       addr=${base_addr}
                       wallet_source="base"
                       curr_asset_amount=${base_assets[${asset}]}
@@ -6721,16 +6726,16 @@ function main {
                       lovelace=${pay_assets[lovelace]}
                     fi
                     echo
-                    
+
                     # Search policies for a match
                     asset_file=""
                     while IFS= read -r -d '' file; do
                       [[ ${asset_arr[0]} = "$(jq -r .policyID ${file})" ]] && asset_file="${file}" && break
                     done < <(find "${ASSET_FOLDER}" -mindepth 2 -maxdepth 2 -type f -name '*.asset' -print0)
                     [[ -z "${asset_file}" ]] && println ERROR "${FG_RED}ERROR${NC}: Searched all available policies in '${ASSET_FOLDER}' for matching '.asset' file but non found!" && waitToProceed && continue
-                    
+
                     [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="" || asset_name="${asset_arr[1]}"
-                    
+
                     # Policy filenames
                     policy_folder="$(dirname "${asset_file}")"
                     policy_name="$(basename "${policy_folder}")"
@@ -6872,9 +6877,9 @@ function main {
                       [[ $(wc -c ${meta_logo} | cut -d' ' -f1) -gt 64000 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Logo more than 64kb in size!" && waitToProceed && continue
                       [[ $(file -b ${meta_logo}) != "PNG"* ]] && println ERROR "\n${FG_RED}ERROR${NC}: Logo not of PNG image type!" && waitToProceed && continue
                     fi
-                    
+
                     asset_subject="${policy_id}$(asciiToHex "${asset_name}")"
-                    
+
                     cmd_args=(
                       "entry"
                       "${asset_subject}"
@@ -6887,44 +6892,44 @@ function main {
                     [[ -n ${meta_url} ]] && cmd_args+=( "--url" "${meta_url}" )
                     [[ -n ${meta_decimals} && ${meta_decimals} -gt 0 ]] && cmd_args+=( "--decimals" "${meta_decimals}" )
                     [[ -n ${meta_logo} ]] && cmd_args+=( "--logo" "${meta_logo}" )
-                    
+
                     pushd ${policy_folder} &>/dev/null || { println ERROR "\n${FG_RED}ERROR${NC}: unable to change directory to: ${policy_folder}" && waitToProceed && continue; }
-                    
+
                     # Create JSON draft
                     println DEBUG false "\nCreating Cardano Metadata Registry JSON draft file ..."
                     ! meta_file=$(token-metadata-creator "${cmd_args[@]}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator draft:\n${meta_file}" && popd >/dev/null && waitToProceed && continue
                     println DEBUG " ${FG_GREEN}OK${NC}!"
-                    
+
                     # Update the sequence number if needed
                     if [[ ${sequence_number} -ne 0 ]]; then
                       println DEBUG false "Updating sequence number to ${FG_LBLUE}${sequence_number}${NC} ..."
                       ! sed -i "s/\"sequenceNumber\":\ .*,/\"sequenceNumber\":\ ${sequence_number},/g" ${meta_file} && popd >/dev/null && waitToProceed && continue
                       println DEBUG " ${FG_GREEN}OK${NC}!"
                     fi
-                    
+
                     # Signing draft file with policy signing key
                     println DEBUG false "Signing draft file with policy signing key ..."
                     ! meta_file=$(token-metadata-creator entry ${asset_subject} -a "${policy_sk_file}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator signing:\n${meta_file}" && popd >/dev/null && waitToProceed && continue
                     println DEBUG " ${FG_GREEN}OK${NC}!"
-                    
+
                     # Finalizing the draft file
                     println DEBUG false "Finalizing the draft file ..."
                     ! meta_file=$(token-metadata-creator entry ${asset_subject} --finalize 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator finalize:\n${meta_file}" && popd >/dev/null && waitToProceed && continue
                     println DEBUG " ${FG_GREEN}OK${NC}!"
-                    
+
                     # Validating the final metadata registry submission file
                     println DEBUG false "Validating the final metadata registry submission file ..."
                     ! output=$(token-metadata-creator validate ${meta_file} 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator validation:\n${output}" && popd >/dev/null && waitToProceed && continue
                     println DEBUG " ${FG_GREEN}OK${NC}!"
-                    
+
                     popd &>/dev/null || println ERROR "\n${FG_RED}ERROR${NC}: unable to return to previous directory!"
-                    
+
                     # Update .asset file with registered metadata
                     assetFileJSON=$(cat "${asset_file}")
                     assetFileJSON=$(jq ". += {metadata: {name: \"${meta_name}\", description: \"${meta_desc}\", ticker: \"${meta_ticker}\", url: \"${meta_url}\", logo: \"${meta_logo}\", sequenceNumber: \"${sequence_number}\"} } " <<< ${assetFileJSON})
                     assetFileJSON=$(jq ". += {lastUpdate: \"$(date -R)\", lastAction: \"created Cardano Token Registry submission file\"}" <<< ${assetFileJSON})
                     echo -e "${assetFileJSON}" > "${asset_file}"
-                    
+
                     echo
                     println "Cardano Metadata Registry submission file successfully created!"
                     println "Available at: ${policy_folder}/${meta_file}"
@@ -6938,9 +6943,9 @@ function main {
                         println "https://github.com/input-output-hk/metadata-registry-testnet"
                         ;;
                     esac
-                    
+
                     waitToProceed && continue
-                    
+
                     ;; ###################################################################
                 esac # advanced >> asset sub OPERATION
               done # Asset loop

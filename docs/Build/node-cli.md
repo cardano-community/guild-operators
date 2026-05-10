@@ -53,10 +53,10 @@ Execute `cardano-cli` and `cardano-node` to verify output as below (the exact ve
 
 ```bash
 cardano-cli version
-# cardano-cli 10.x.x - linux-x86_64 - ghc-9.6
+# cardano-cli 11.x.x - linux-x86_64 - ghc-9.6
 # git rev <...>
 cardano-node version
-# cardano-node 10.x.x - linux-x86_64 - ghc-9.6
+# cardano-node 11.x.x - linux-x86_64 - ghc-9.6
 # git rev <...>
 ```
 

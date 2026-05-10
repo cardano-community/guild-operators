@@ -36,9 +36,11 @@
     "governance": "enable",
     "json_type": "text",
     "offchain_pool_data": "enable",
+    "offchain_vote_data": "enable",
     "pool_stat": "enable",
     "tx_cbor": "enable"
   },
+  "ledger_backend": "inmemory",
   "snapshot_interval": {
     "near_tip_epoch": 613
   },
