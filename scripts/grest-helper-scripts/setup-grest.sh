@@ -311,7 +311,7 @@ SGVERSION=v1.4.0
     printf "[Re]Installing pg_cardano extension..\n"
     pushd ~/tmp >/dev/null || err_exit
     ARCH=$(uname -m)
-    pgcardano_asset_url="https://share.koios.rest/api/public/dl/xFdZDfM4/bin/pg_cardano_linux_${ARCH}_v1.0.5-p2.tar.gz"
+    pgcardano_asset_url="https://share.koios.rest/api/public/dl/xFdZDfM4/bin/pg_cardano_linux_${ARCH}_v1.2.0.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o pg_cardano.tar.gz "${pgcardano_asset_url}"; then
       tar xf pg_cardano.tar.gz &>/dev/null && rm -f pg_cardano.tar.gz
       pushd pg_cardano >/dev/null || err_exit
