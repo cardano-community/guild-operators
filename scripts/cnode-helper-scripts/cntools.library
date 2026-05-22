@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=5
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=5
+CNTOOLS_PATCH_VERSION=6
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -2339,13 +2339,44 @@ getRewardsFromAddr() {
   reward_lovelace=0; stake_deposit=0
   println ACTION "${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}"
   ! stake_address_info=$(${CCLI} query stake-address-info ${NETWORK_IDENTIFIER} --address ${1}) && println "ERROR" "\n${FG_RED}NODE CLI ERROR${NC}: ${stake_address_info}\n" && return 1 # print error and return
-  IFS=',' read -r stake_address reward_lovelace stake_deposit gov_action_deposits pool_delegation vote_delegation < <( jq -cr '"\(.[0].address//""),\(.[0].rewardAccountBalance//0),\(.[0].stakeRegistrationDeposit//0),\(.[0].govActionDeposits//{}),\(.[0].stakeDelegation.stakePoolBech32//""),\(.[0].voteDelegation.keyHashLedger//"")"' <<< "${stake_address_info}" )
-  if [[ -z ${vote_delegation} ]]; then
-    vote_delegation=$(jq -r '.[0].voteDelegation.scriptHashLedger //""' <<< "${stake_address_info}")
-    [[ -n ${vote_delegation} ]] && vote_delegation="scriptHash-${vote_delegation}"
-  else
-    vote_delegation="keyHash-${vote_delegation}"
-  fi
+  IFS=$'\037' read -r stake_address reward_lovelace stake_deposit gov_action_deposits pool_delegation vote_delegation < <( jq -cr '
+    def poolDelegation:
+      (.[0].stakeDelegation // null) as $delegation
+      | if ($delegation | type) == "object" then $delegation.stakePoolBech32 // "" else "" end;
+    def voteDelegation:
+      (.[0].voteDelegation // null) as $delegation
+      | if ($delegation | type) == "string" then
+          $delegation
+        elif ($delegation | type) == "object" then
+          if ($delegation.keyHashLedger // "") != "" then
+            "keyHash-\($delegation.keyHashLedger)"
+          elif ($delegation.scriptHashLedger // "") != "" then
+            "scriptHash-\($delegation.scriptHashLedger)"
+          elif ($delegation.keyHash // "") != "" then
+            "keyHash-\($delegation.keyHash)"
+          elif ($delegation.scriptHash // "") != "" then
+            "scriptHash-\($delegation.scriptHash)"
+          elif ($delegation.cip129Hex // "") != "" then
+            if ($delegation.cip129Hex | startswith("22")) then
+              "keyHash-\($delegation.cip129Hex[2:])"
+            else
+              "scriptHash-\($delegation.cip129Hex[2:])"
+            end
+          else
+            ""
+          end
+        else
+          ""
+        end;
+    [
+      .[0].address // "",
+      .[0].rewardAccountBalance // 0,
+      .[0].stakeRegistrationDeposit // 0,
+      (.[0].govActionDeposits // {} | tostring),
+      poolDelegation,
+      voteDelegation
+    ] | map(tostring) | join("\u001f")
+  ' <<< "${stake_address_info}" )
 }
 
 # Command     : isWalletRegistered [wallet name]

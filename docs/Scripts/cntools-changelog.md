@@ -6,6 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.5.6] - 2026-05-22
+#### Fixed
+- Local mode wallet listing failed to parse newer stake-address vote delegation output.
+
 ## [13.5.5] - 2026-03-18
 #### Changed
 - Minor changes due to node/cli version bump.
