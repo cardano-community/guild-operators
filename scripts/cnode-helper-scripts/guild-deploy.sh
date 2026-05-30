@@ -547,7 +547,6 @@ download_cncli() {
   log_progress "Resolving CNCLI release"
   cncli_git_version="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.tag_name' 2>/dev/null)"
   [[ -n "${cncli_git_version}" && "${cncli_git_version}" != "null" ]] || err_exit "Could not resolve CNCLI release from GitHub."
-  log_ok "Resolved CNCLI release" "${cncli_git_version}"
   log_progress "Downloading CNCLI" "${cncli_git_version}"
   rm -rf /tmp/cncli-bin && mkdir /tmp/cncli-bin
   pushd /tmp/cncli-bin >/dev/null || err_exit "Could not enter temporary CNCLI directory."
@@ -560,7 +559,7 @@ download_cncli() {
     chmod +x /tmp/cncli-bin/cncli
     mv -f /tmp/cncli-bin/cncli "${HOME}"/.local/bin/
     rm -f "${HOME}"/.cargo/bin/cncli # Remove duplicate file in $PATH (old convention)
-    log_ok "CNCLI installed" "${cncli_git_version}"
+    log_ok "Deployed CNCLI" "${cncli_git_version}"
   else
     err_exit "Download of latest release of CNCLI from GitHub failed! Please retry or install it manually."
   fi
@@ -579,7 +578,6 @@ download_cardanohwcli() {
   #vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
   vchc_asset_url="$(jq -r '.[0].assets[].browser_download_url' <<< "${vchc_release_json}" 2>/dev/null | grep '_linux-x64.tar.gz')"
   [[ -n "${vchc_asset_url}" ]] || err_exit "No cardano-hw-cli Linux x64 release asset was found."
-  log_ok "Resolved cardano-hw-cli release" "${vchc_git_version}"
   log_progress "Downloading cardano-hw-cli" "${vchc_git_version}"
   if curl -sL -f -m ${CURL_TIMEOUT} -o cardano-hw-cli_linux-x64.tar.gz ${vchc_asset_url}; then
     tar zxf cardano-hw-cli_linux-x64.tar.gz &>/dev/null
@@ -607,7 +605,7 @@ download_cardanohwcli() {
     # Trigger rules update
     $sudo udevadm control --reload-rules >/dev/null 2>&1
     $sudo udevadm trigger >/dev/null 2>&1
-    log_ok "cardano-hw-cli installed" "${vchc_git_version}"
+    log_ok "Deployed cardano-hw-cli" "${vchc_git_version}"
   else
     err_exit "Download of latest release of cardano-hw-cli from GitHub failed! Please retry or manually install it."
   fi
@@ -625,7 +623,6 @@ download_ogmios() {
   [[ -n "${ogmios_git_version}" && "${ogmios_git_version}" != "null" ]] || err_exit "Could not resolve Ogmios release from GitHub."
   ogmios_asset_url="$(jq -r '.[].assets[].browser_download_url' <<< "${ogmios_release_json}" 2>/dev/null | grep x86_64-linux.tar.gz | head -1)"
   [[ -n "${ogmios_asset_url}" ]] || err_exit "No Ogmios Linux x86_64 release asset was found."
-  log_ok "Resolved Ogmios release" "${ogmios_git_version}"
   log_progress "Downloading Ogmios" "${ogmios_git_version}"
   if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.tar.gz ${ogmios_asset_url}; then
     tar -xf ogmios.tar.gz &>/dev/null
@@ -636,7 +633,7 @@ download_ogmios() {
     chmod +x /tmp/ogmios/${OGMIOSPATH}
     mv -f /tmp/ogmios/${OGMIOSPATH} "${HOME}"/.local/bin/
     rm -f "${HOME}"/.cabal/bin/ogmios # Remove duplicate from $PATH
-    log_ok "Ogmios installed" "${ogmios_git_version}"
+    log_ok "Deployed Ogmios" "${ogmios_git_version}"
   else
     err_exit "Download of latest release of ogmios archive from GitHub failed! Please retry or manually install it."
   fi
@@ -648,7 +645,6 @@ download_cardanosigner() {
   log_progress "Resolving Cardano Signer release"
   csigner_git_version="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.tag_name' 2>/dev/null)"
   [[ -n "${csigner_git_version}" && "${csigner_git_version}" != "null" ]] || err_exit "Could not resolve Cardano Signer release from GitHub."
-  log_ok "Resolved Cardano Signer release" "${csigner_git_version}"
   rm -rf /tmp/csigner && mkdir /tmp/csigner
   pushd /tmp/csigner >/dev/null || err_exit "Could not enter temporary Cardano Signer directory."
   csigner_asset_url="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.assets[].browser_download_url' 2>/dev/null)"
@@ -668,7 +664,7 @@ download_cardanosigner() {
       chmod +x /tmp/csigner/cardano-signer
       mv -f /tmp/csigner/cardano-signer "${HOME}"/.local/bin/
       rm -f "${HOME}"/.cabal/bin/cardano-signer # Remove duplicate from $PATH
-      log_ok "Cardano Signer installed" "${csigner_git_version}"
+      log_ok "Deployed Cardano Signer" "${csigner_git_version}"
     else
       err_exit "Download of latest release of Cardano Signer archive from GitHub failed! Please retry or install it manually."
     fi
@@ -708,7 +704,6 @@ download_blockperf() {
   if [[ ! -f "${blockperf_installer}" ]]; then
     log_progress "Downloading openBlockPerf installer" "${blockperf_installer_url}"
     curl -fsSL -m ${CURL_TIMEOUT} "${blockperf_installer_url}" -o "${blockperf_installer}" || err_exit "Download of openBlockPerf installer failed! Please retry or install it manually."
-    log_ok "openBlockPerf installer downloaded"
   else
     blockperf_mode="update"
     log_info "Using existing openBlockPerf installer at ${blockperf_installer}."
@@ -729,7 +724,7 @@ download_blockperf() {
     after_hash="$(sha256sum "${blockperf_installer}" 2>/dev/null | awk '{print $1}')"
 
     if [[ ${rc} -eq 0 ]]; then
-      log_ok "openBlockPerf installer completed" "${blockperf_mode}"
+      log_ok "Deployed openBlockPerf" "${blockperf_mode}"
       return 0
     fi
 
@@ -753,7 +748,6 @@ download_mithril() {
     log_progress "Resolving Mithril release"
     mithril_release="$(curl -s https://api.github.com/repos/input-output-hk/mithril/releases/latest | jq -r '.tag_name' 2>/dev/null)"
     [[ -n "${mithril_release}" && "${mithril_release}" != "null" ]] || err_exit "Could not resolve Mithril release from GitHub."
-    log_ok "Resolved Mithril release" "${mithril_release}"
     log_progress "Downloading Mithril signer/client" "${mithril_release}"
     rm -f mithril-signer mithril-client
     curl -m 200 -sfL https://github.com/input-output-hk/mithril/releases/download/${mithril_release}/mithril-${mithril_release}-linux-x64.tar.gz -o mithril.tar.gz || err_exit "Could not download Mithril release ${mithril_release} from GitHub."
@@ -763,7 +757,8 @@ download_mithril() {
     [[ -f mithril-client ]] || err_exit "Mithril archive downloaded, but binary 'mithril-client' was not found after extraction."
     mv -t "${HOME}"/.local/bin mithril-signer mithril-client
     chmod +x "${HOME}"/.local/bin/*
-    log_ok "Mithril signer/client installed" "${mithril_release}"
+    log_ok "Deployed mithril-signer" "${mithril_release}"
+    log_ok "Deployed mithril-client" "${mithril_release}"
 }
 
 # Create folder structure and set up permissions/ownerships
