@@ -30,6 +30,9 @@ unset CNODE_HOME
 
 PARENT="$(dirname $0)"
 
+export LANG="C.UTF-8"
+export LC_ALL=${LANG}
+
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1; then
   STYLE_RESET="$(tput sgr0 2>/dev/null || true)"
   STYLE_BOLD="$(tput bold 2>/dev/null || true)"
@@ -382,13 +385,14 @@ build_dependencies() {
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
   export BOOTSTRAP_HASKELL_GHC_VERSION=9.6.7
   export BOOTSTRAP_HASKELL_CABAL_VERSION=3.12.1.0
+  export GHCUP_SKIP_UPDATE_CHECK=1
   if ! command -v ghcup &>/dev/null; then
     log_progress "Installing ghcup"
     BOOTSTRAP_HASKELL_NONINTERACTIVE=1
-    BOOTSTRAP_HASKELL_INSTALL_STACK=1
+    BOOTSTRAP_HASKELL_MINIMAL=1
     BOOTSTRAP_HASKELL_ADJUST_BASHRC=1
     unset BOOTSTRAP_HASKELL_INSTALL_HLS
-    export BOOTSTRAP_HASKELL_NONINTERACTIVE BOOTSTRAP_HASKELL_INSTALL_STACK BOOTSTRAP_HASKELL_ADJUST_BASHRC
+    export BOOTSTRAP_HASKELL_NONINTERACTIVE BOOTSTRAP_HASKELL_MINIMAL BOOTSTRAP_HASKELL_ADJUST_BASHRC
     curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash >/dev/null 2>&1
     log_ok "ghcup installed"
   fi
@@ -398,7 +402,7 @@ build_dependencies() {
     ghcup upgrade >/dev/null 2>&1
     log_ok "ghcup metadata updated"
     log_progress "Installing GHC" "v${BOOTSTRAP_HASKELL_GHC_VERSION}"
-    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1 || err_exit "Command failed: ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}"
+    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} #>/dev/null 2>&1 || err_exit "Command failed: ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}"
     ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1
     log_ok "GHC ready" "v${BOOTSTRAP_HASKELL_GHC_VERSION}"
   fi
