@@ -508,16 +508,16 @@ download_ogmios() {
     [[ -f ogmios ]] && OGMIOSPATH=ogmios
     [[ -n ${OGMIOSPATH} ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
     ogmios_git_version="$(curl -s https://api.github.com/repos/IntersectMBO/ogmios/releases | jq -r '.[0].tag_name')"
-    if ! versionCheck "${ogmios_git_version}" "${ogmios_version}"; then
+    #if ! versionCheck "${ogmios_git_version}" "${ogmios_version}"; then
       [[ "${ogmios_version}" = "0.0.0" ]] && echo -e "\n  latest version: ${ogmios_git_version}" || echo -e "\n  installed version: ${ogmios_version} | latest version: ${ogmios_git_version}"
       chmod +x /tmp/ogmios/${OGMIOSPATH}
       mv -f /tmp/ogmios/${OGMIOSPATH} "${HOME}"/.local/bin/
       rm -f "${HOME}"/.cabal/bin/ogmios # Remove duplicate from $PATH
       echo -e "\n  ogmios ${ogmios_git_version} installed!"
-    else
-      rm -rf /tmp/ogmios #cleanup in /tmp
-      echo -e "\n  ogmios already latest version [${ogmios_version}], skipping!"
-    fi
+    #else
+    #  rm -rf /tmp/ogmios #cleanup in /tmp
+    #  echo -e "\n  ogmios already latest version [${ogmios_version}], skipping!"
+    #fi
   else
     err_exit "Download of latest release of ogmios archive from GitHub failed! Please retry or manually install it."
   fi
