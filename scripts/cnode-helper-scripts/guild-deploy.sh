@@ -30,10 +30,102 @@ unset CNODE_HOME
 
 PARENT="$(dirname $0)"
 
-#get_input() {
-#  printf "%s (default: %s): " "$1" "$2" >&2; read -r answer
-#  if [ -z "$answer" ]; then echo "$2"; else echo "$answer"; fi
-#}
+if [[ -t 1 ]] && command -v tput >/dev/null 2>&1; then
+  STYLE_RESET="$(tput sgr0 2>/dev/null || true)"
+  STYLE_BOLD="$(tput bold 2>/dev/null || true)"
+  STYLE_RED="$(tput setaf 1 2>/dev/null || true)"
+  STYLE_GREEN="$(tput setaf 2 2>/dev/null || true)"
+  STYLE_YELLOW="$(tput setaf 3 2>/dev/null || true)"
+  STYLE_CYAN="$(tput setaf 6 2>/dev/null || true)"
+else
+  STYLE_RESET=""
+  STYLE_BOLD=""
+  STYLE_RED=""
+  STYLE_GREEN=""
+  STYLE_YELLOW=""
+  STYLE_CYAN=""
+fi
+
+if [[ "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" =~ (UTF-8|utf-8|utf8) ]]; then
+  SYMBOL_RUN="…"
+  SYMBOL_OK="✓"
+  SYMBOL_INFO="i"
+  SYMBOL_WARN="!"
+  SYMBOL_ERROR="✗"
+else
+  SYMBOL_RUN=".."
+  SYMBOL_OK="OK"
+  SYMBOL_INFO="i"
+  SYMBOL_WARN="!"
+  SYMBOL_ERROR="X"
+fi
+
+ACTIVE_STEP="Initialize deployment"
+ACTIVE_FLAG=""
+NO_SELECTIVE_FLAGS="N"
+ADDED_LOCAL_BIN_PATH="N"
+FRESH_TARGET="N"
+
+log_header() {
+  printf "\n%sGuild Operators deployment%s\n" "${STYLE_BOLD}" "${STYLE_RESET}"
+  printf "  Target  : %s\n" "${CNODE_HOME}"
+  printf "  Network : %s\n" "${NETWORK}"
+  printf "  Branch  : %s\n" "${BRANCH}"
+  if [[ -n "${S_ARGS}" ]]; then
+    printf "  Flags   : -s %s\n" "${S_ARGS}"
+  else
+    printf "  Flags   : script/config refresh\n"
+  fi
+}
+
+log_section() {
+  printf "\n%s%s%s\n" "${STYLE_CYAN}${STYLE_BOLD}" "${1}" "${STYLE_RESET}"
+}
+
+log_progress() {
+  ACTIVE_STEP="${1}"
+  local detail="${2:-}"
+  local line="  ${SYMBOL_RUN} ${1}"
+  [[ -n "${detail}" ]] && line="${line} (${detail})"
+  if [[ -t 1 ]]; then
+    printf "\r\033[K%s" "${line}"
+  else
+    printf "%s\n" "${line}"
+  fi
+}
+
+log_ok() {
+  local step="${1:-${ACTIVE_STEP}}"
+  local detail="${2:-}"
+  local line="  ${SYMBOL_OK} ${step}"
+  [[ -n "${detail}" ]] && line="${line} (${detail})"
+  if [[ -t 1 ]]; then
+    printf "\r\033[K%s%s%s\n" "${STYLE_GREEN}" "${line}" "${STYLE_RESET}"
+  else
+    printf "%s\n" "${line}"
+  fi
+  ACTIVE_STEP="${step}"
+}
+
+log_info() {
+  [[ -t 1 ]] && printf "\r\033[K"
+  printf "%s  ${SYMBOL_INFO} %s%s\n" "${STYLE_CYAN}" "${1}" "${STYLE_RESET}"
+}
+
+log_warn() {
+  [[ -t 1 ]] && printf "\r\033[K"
+  printf "%s  ${SYMBOL_WARN} %s%s\n" "${STYLE_YELLOW}" "${1}" "${STYLE_RESET}"
+}
+
+run_step() {
+  local label="${1}"
+  local flag="${2}"
+  shift 2
+  ACTIVE_STEP="${label}"
+  ACTIVE_FLAG="${flag}"
+  log_section "${label}"
+  "$@"
+}
 
 get_answer() {
   printf "%s (yes/no): " "$*" >&2; read -r answer
@@ -50,14 +142,16 @@ get_answer() {
 }
 
 # Description : Exit with error message
-#             : $1 = Error message we'd like to display before exiting (function will pre-fix 'ERROR: ' to the argument)
+#             : $1 = Error message we'd like to display before exiting.
 err_exit() {
-  printf "\e[31mERROR\e[0m: ${1}\n" >&2
+  [[ -t 2 ]] && printf "\r\033[K" >&2
+  printf "\n%s${SYMBOL_ERROR} Deployment failed%s\n" "${STYLE_RED}" "${STYLE_RESET}" >&2
+  [[ -n "${ACTIVE_STEP}" ]] && printf "  Step : %s\n" "${ACTIVE_STEP}" >&2
+  [[ -n "${ACTIVE_FLAG}" ]] && printf "  Flag : %s\n" "${ACTIVE_FLAG}" >&2
+  printf "  Cause: %s\n" "${1:-Unknown error}" >&2
   pushd -0 >/dev/null && dirs -c
   exit 1
 }
-
-versionCheck() { printf '%s\n%s' "${1//v/}" "${2//v/}" | sort -C -V; } #$1=available_version, $2=installed_version
 
 usage() {
   cat <<-EOF >&2
@@ -117,7 +211,6 @@ set_defaults() {
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
   [[ -z ${MITHRIL_HOME} ]] && MITHRIL_HOME="${CNODE_HOME}/mithril"
-  REPO="https://github.com/${G_ACCOUNT}/guild-operators"
   REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
   URL_RAW="${REPO_RAW}/${BRANCH}"
   U_ID=$(id -u)
@@ -129,7 +222,7 @@ set_defaults() {
   VERSION_ID=$(grep -i ^version_id= /etc/os-release | cut -d= -f 2 | tr -d '"' | cut -d. -f 1)
   ARCH=$(uname -a)
   if ! curl -s -f -m ${CURL_TIMEOUT} "${REPO_RAW}/${BRANCH}/LICENSE" -o /dev/null ; then
-    echo -e "\nWARN!! ${BRANCH} branch does not exist, falling back to master branch\n"
+    log_warn "Branch '${BRANCH}' was not found, falling back to master."
     BRANCH=master
     URL_RAW="${REPO_RAW}/${BRANCH}"
   fi
@@ -137,25 +230,30 @@ set_defaults() {
 
 # Check and prompt/apply update for guild-deploy.sh itself
 update_check() {
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/guild-deploy.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/guild-deploy.sh 2>/dev/null; then
-    TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/guild-deploy.sh)
-    TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/guild-deploy.sh.tmp)
-    if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
-      cp "${PARENT}"/guild-deploy.sh "${PARENT}/guild-deploy.sh_bkp$(date +%s)"
-      STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/guild-deploy.sh)
-      printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/guild-deploy.sh.tmp
-      {
-        mv -f "${PARENT}"/guild-deploy.sh.tmp "${PARENT}"/guild-deploy.sh && \
-        chmod 755 "${PARENT}"/guild-deploy.sh && \
-        echo -e "\nUpdate applied successfully, please run the script again!\n" && \
-        exit 0;
-      } || {
-        echo -e "Update failed!\n\nPlease manually download latest version of guild-deploy.sh script from GitHub" && \
-        exit 1;
-      }
-    fi
+  log_progress "Checking guild-deploy.sh update" "${BRANCH}"
+  if ! curl -s -f -m ${CURL_TIMEOUT} -o "${PARENT}"/guild-deploy.sh.tmp ${URL_RAW}/scripts/cnode-helper-scripts/guild-deploy.sh 2>/dev/null; then
+    rm -f "${PARENT}"/guild-deploy.sh.tmp
+    log_warn "Could not check guild-deploy.sh update; continuing with the local copy."
+    return 0
+  fi
+
+  TEMPL_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/guild-deploy.sh)
+  TEMPL2_CMD=$(awk '/^# Do NOT modify/,0' "${PARENT}"/guild-deploy.sh.tmp)
+  if [[ "$(echo ${TEMPL_CMD} | sha256sum)" != "$(echo ${TEMPL2_CMD} | sha256sum)" ]]; then
+    cp "${PARENT}"/guild-deploy.sh "${PARENT}/guild-deploy.sh_bkp$(date +%s)"
+    STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${PARENT}"/guild-deploy.sh)
+    printf '%s\n%s\n' "$STATIC_CMD" "$TEMPL2_CMD" > "${PARENT}"/guild-deploy.sh.tmp
+    {
+      mv -f "${PARENT}"/guild-deploy.sh.tmp "${PARENT}"/guild-deploy.sh && \
+      chmod 755 "${PARENT}"/guild-deploy.sh && \
+      log_ok "Updated guild-deploy.sh" "run the script again" && \
+      exit 0;
+    } || {
+      err_exit "Update failed. Please manually download guild-deploy.sh from GitHub."
+    }
   fi
   rm -f "${PARENT}"/guild-deploy.sh.tmp
+  log_ok "guild-deploy.sh is current"
 }
 
 # Initialise all variables
@@ -165,7 +263,8 @@ common_init() {
   mkdir -p "${HOME}"/tmp "${HOME}"/git > /dev/null 2>&1
   [[ ! -d "${HOME}"/.local/bin ]] && mkdir -p "${HOME}"/.local/bin
   if ! grep -q '/.local/bin' "${HOME}"/.bashrc; then
-    echo -e '\nexport PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}"/.bashrc
+    printf '\nexport PATH="${HOME}/.local/bin:${PATH}"\n' >> "${HOME}"/.bashrc
+    ADDED_LOCAL_BIN_PATH="Y"
   fi
   NODE_DEPS="$(curl -sfL "${URL_RAW}"/files/node-deps.json)"
 }
@@ -174,6 +273,7 @@ common_init() {
 updateWithCustomConfig() {
   file=$1
   [[ $# -ne 2 ]] && subdir="cnode-helper-scripts" || subdir=$2
+  ACTIVE_STEP="Refreshing ${file}"
   curl -s -f -m ${CURL_TIMEOUT} -o ${file}.tmp "${URL_RAW}/scripts/${subdir}/${file}"
   [[ ! -f ${file}.tmp ]] && err_exit "Failed to download '${file}' from GitHub"
   if [[ -f ${file} && ${SCRIPTS_FORCE_OVERWRITE} != 'Y' ]]; then
@@ -198,15 +298,15 @@ updateWithCustomConfig() {
 #             : $3 = pkg_opts for repo install
 add_epel_repository() {
   if [[ "${1}" =~ Fedora ]]; then return; fi
-  echo -e "\n  Enabling epel repository..."
+  log_progress "Enabling EPEL repository"
   ! grep -q ^epel <<< "$(dnf repolist)" && $sudo dnf install ${3} https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
+  log_ok "EPEL repository ready"
 }
 
 # OS Dependencies
 os_dependencies() {
   pkg_opts="-y"
-  echo -e "\nPreparing OS dependency packages for ${DISTRO} system"
-  echo -e "\n  Updating system packages..."
+  log_info "Preparing OS packages for ${DISTRO}."
   if [[ "${OS_ID}" =~ ebian ]] || [[ "${OS_ID}" =~ buntu ]] || [[ "${DISTRO}" =~ ebian ]] || [[ "${DISTRO}" =~ buntu ]]; then
     #Debian/Ubuntu
     pkgmgrcmd="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
@@ -248,121 +348,130 @@ os_dependencies() {
     fi
     add_epel_repository "${DISTRO}" "${VERSION_ID}" "${pkg_opts}"
   else
-    echo -e "\nWe have no automated procedures for this ${DISTRO} system"
-    err_exit
+    err_exit "No automated OS dependency procedure is available for ${DISTRO}."
   fi
+  log_progress "Updating package metadata"
   $sudo ${pkgmgrcmd} update ${pkg_opts} > /dev/null;rc=$?
   if [[ $rc != 0 ]]; then
-    echo -e "\nAn error occured while executing \"${pkgmgrcmd} ${pkg_opts} update\" which indicates an existing issue with your base OS, please investigate manually prior to running the script again"
-    err_exit
+    err_exit "Package metadata update failed: ${pkgmgrcmd} ${pkg_opts} update"
   fi
-  echo -e "\n  Installing missing prerequisite packages, if any.."
+  log_ok "Package metadata updated"
+  log_progress "Installing prerequisite packages"
   $sudo ${pkgmgrcmd} install ${pkg_opts} ${pkg_list} > /dev/null;rc=$?
   if [[ $rc != 0 ]]; then
-    echo -e "\nAn error occurred while installing the prerequisite packages, please investigate by using the command below:"
-    echo -e "\n  $sudo ${pkgmgrcmd} install ${pkg_opts} ${pkg_list}"
-    echo -e "\nIt would be best if you could submit an issue at ${REPO} with the details to tackle in future, as some errors may be due to external/already present dependencies"
-    err_exit
+    err_exit "Prerequisite package installation failed. Re-run manually to inspect: $sudo ${pkgmgrcmd} install ${pkg_opts} ${pkg_list}"
   fi
+  log_ok "Prerequisite packages ready"
   if [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     if [ -e /usr/lib64/libtinfo.so ] && [ -e /usr/lib64/libtinfo.so.5 ]; then
-      echo -e "\n  Symlink updates not required for ncurse libs, skipping.."
+      log_info "ncurses compatibility symlinks already present."
     else
-      echo -e "\n  Updating symlinks for ncurse libs.."
+      log_progress "Updating ncurses compatibility symlinks"
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so
       $sudo ln -s "$(find /usr/lib64/libtinfo.so* | tail -1)" /usr/lib64/libtinfo.so.5
+      log_ok "ncurses compatibility symlinks updated"
     fi
   fi
+  log_ok "OS dependencies checked" "${DISTRO}"
 }
 
 # Build Dependencies for cabal builds
 build_dependencies() {
-  echo -e "\nInstalling Haskell build/compiler dependencies (if missing)..."
+  log_info "Preparing Haskell toolchain dependencies."
   export BOOTSTRAP_HASKELL_NO_UPGRADE=1
   export BOOTSTRAP_HASKELL_GHC_VERSION=9.6.7
   export BOOTSTRAP_HASKELL_CABAL_VERSION=3.12.1.0
   if ! command -v ghcup &>/dev/null; then
-    echo -e "\nInstalling ghcup (The Haskell Toolchain installer) .."
+    log_progress "Installing ghcup"
     BOOTSTRAP_HASKELL_NONINTERACTIVE=1
     BOOTSTRAP_HASKELL_INSTALL_STACK=1
     BOOTSTRAP_HASKELL_ADJUST_BASHRC=1
     unset BOOTSTRAP_HASKELL_INSTALL_HLS
     export BOOTSTRAP_HASKELL_NONINTERACTIVE BOOTSTRAP_HASKELL_INSTALL_STACK BOOTSTRAP_HASKELL_ADJUST_BASHRC
     curl -s -m ${CURL_TIMEOUT} --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | bash >/dev/null 2>&1
+    log_ok "ghcup installed"
   fi
   [[ -f "${HOME}/.ghcup/env" ]] && source "${HOME}/.ghcup/env"
   if ! ghc --version 2>/dev/null | grep -q ${BOOTSTRAP_HASKELL_GHC_VERSION}; then
-    echo -e "\nUpgrading ghcup .."
+    log_progress "Updating ghcup metadata"
     ghcup upgrade 2>/dev/null
-    echo -e "\n Installing GHC v${BOOTSTRAP_HASKELL_GHC_VERSION} .."
-    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1 || err_exit " Executing \"ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
+    log_ok "ghcup metadata updated"
+    log_progress "Installing GHC" "v${BOOTSTRAP_HASKELL_GHC_VERSION}"
+    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1 || err_exit "Command failed: ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}"
     ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null
+    log_ok "GHC ready" "v${BOOTSTRAP_HASKELL_GHC_VERSION}"
   fi
   cabal_version=$(cabal --version 2>/dev/null | head -n 1 | cut -d' ' -f3)
   if [[ -z ${cabal_version} || ! ${cabal_version} = "${BOOTSTRAP_HASKELL_CABAL_VERSION}" ]]; then
     if [[ -n ${cabal_version} ]]; then
-      echo -e "\n Uninstalling Cabal v${cabal_version} .."
+      log_progress "Removing previous Cabal release"
       ghcup rm cabal ${cabal_version} 2>/dev/null
+      log_ok "Previous Cabal release removed"
     fi
-    echo -e "\n Installing Cabal v${BOOTSTRAP_HASKELL_CABAL_VERSION}.."
-    ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION} >/dev/null 2>&1 || err_exit " Executing \"ghcup install cabal ${BOOTSTRAP_HASKELL_GHC_VERSION}\" failed, please try to diagnose/execute it manually to diagnose!"
+    log_progress "Installing Cabal" "v${BOOTSTRAP_HASKELL_CABAL_VERSION}"
+    ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION} >/dev/null 2>&1 || err_exit "Command failed: ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION}"
+    log_ok "Cabal ready" "v${BOOTSTRAP_HASKELL_CABAL_VERSION}"
   fi
   build_libsecp
   build_libblst
+  log_info "Toolchain ready: GHC v${BOOTSTRAP_HASKELL_GHC_VERSION}, Cabal v${BOOTSTRAP_HASKELL_CABAL_VERSION}."
 }
 
 # Build fork of libsodium
 build_libsodium() {
-  echo -e "\nBuilding libsodium ..."
-  SODIUM_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".sodium' <<< ${NODE_DEPS})"
+  SODIUM_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".sodium' <<< ${NODE_DEPS} 2>/dev/null)"
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
-    echo -e "\nexport LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
+    printf '\nexport LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH\n' >> "${HOME}"/.bashrc
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+    log_info "Added /usr/local/lib to LD_LIBRARY_PATH in ${HOME}/.bashrc."
   fi
-  pushd "${HOME}"/git >/dev/null || err_exit
+  log_progress "Building libsodium"
+  pushd "${HOME}"/git >/dev/null || err_exit "Could not enter build directory: ${HOME}/git"
   [[ ! -d "./libsodium" ]] && git clone https://github.com/intersectmbo/libsodium >/dev/null
-  pushd libsodium >/dev/null || err_exit
+  pushd libsodium >/dev/null || err_exit "Could not enter libsodium source directory."
   git fetch >/dev/null 2>&1
   [[ -z "${SODIUM_REF}" ]] && SODIUM_REF="dbb48cc"
   git checkout "${SODIUM_REF}" &>/dev/null
   ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1 || cat /tmp/libsodium.log
   ./configure > configure.log >> /tmp/libsodium.log 2>&1 || cat /tmp/libsodium.log
-  make > make.log 2>&1 || ( cat make.log && err_exit  " Could not complete \"make\" for libsodium package, please try to run it manually to diagnose!" )
+  make > make.log 2>&1 || ( cat make.log && err_exit "Could not complete make for libsodium. See make.log for details." )
   $sudo make install > install.log 2>&1
-  echo -e "\nIOG fork of libsodium installed to /usr/local/lib/"
+  log_ok "libsodium installed" "${SODIUM_REF}"
 }
 
 build_libsecp() {
-  echo -e "\n[Re]-Install libsecp256k1 ..."
-  SECP256K1_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".secp256k1' <<< ${NODE_DEPS})"
-  pushd "${HOME}"/git >/dev/null || err_exit
+  SECP256K1_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".secp256k1' <<< ${NODE_DEPS} 2>/dev/null)"
+  log_progress "Building libsecp256k1"
+  pushd "${HOME}"/git >/dev/null || err_exit "Could not enter build directory: ${HOME}/git"
   [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
-  pushd secp256k1 >/dev/null || err_exit
+  pushd secp256k1 >/dev/null || err_exit "Could not enter libsecp256k1 source directory."
   git fetch >/dev/null 2>&1
   [[ -z "${SECP256K1_REF}" ]] && SECP256K1_REF="ac83be33"
   git checkout ${SECP256K1_REF} &>/dev/null
   ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
   ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
-  make > make.log 2>&1 || err_exit " Could not complete \"make\" for libsecp256k1 package, please try to run it manually to diagnose!"
+  make > make.log 2>&1 || err_exit "Could not complete make for libsecp256k1. See make.log for details."
   make check >>make.log 2>&1
   $sudo make install > install.log 2>&1
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
-    echo -e "\nexport LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
+    printf '\nexport LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH\n' >> "${HOME}"/.bashrc
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+    log_info "Added /usr/local/lib to LD_LIBRARY_PATH in ${HOME}/.bashrc."
   fi
-  echo -e "\nlibsecp256k1 installed to /usr/local/lib/"
+  log_ok "libsecp256k1 installed" "${SECP256K1_REF}"
 }
 
 build_libblst() {
-  echo -e "\nBuilding BLST..."
-  BLST_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".blst' <<< ${NODE_DEPS})"
+  BLST_REF="$(jq -r '."'${CARDANO_NODE_VERSION}'".blst' <<< ${NODE_DEPS} 2>/dev/null)"
   if ! grep -q "/usr/local/lib:\$LD_LIBRARY_PATH" "${HOME}"/.bashrc; then
-    echo -e "\nexport LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> "${HOME}"/.bashrc
+    printf '\nexport LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH\n' >> "${HOME}"/.bashrc
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+    log_info "Added /usr/local/lib to LD_LIBRARY_PATH in ${HOME}/.bashrc."
   fi
-  pushd "${HOME}"/git >/dev/null || err_exit
+  log_progress "Building BLST"
+  pushd "${HOME}"/git >/dev/null || err_exit "Could not enter build directory: ${HOME}/git"
   [[ ! -d "./blst" ]] && git clone https://github.com/supranational/blst &>/dev/null
-  pushd blst >/dev/null || err_exit
+  pushd blst >/dev/null || err_exit "Could not enter BLST source directory."
   git fetch >/dev/null 2>&1
   [[ -z "${BLST_REF}" ]] && BLST_REF="v0.3.14"
   git checkout ${BLST_REF} &>/dev/null
@@ -385,61 +494,73 @@ build_libblst() {
   $sudo cp bindings/blst_aux.h bindings/blst.h bindings/blst.hpp  /usr/local/include/
   $sudo cp libblst.a /usr/local/lib
   $sudo chmod u=rw,go=r /usr/local/{lib/{libblst.a,pkgconfig/libblst.pc},include/{blst.{h,hpp},blst_aux.h}}
+  log_ok "BLST installed" "${BLST_REF}"
 }
 
 # Download cardano-node, cardano-cli, cardano-db-sync, bech32 and cardano-submit-api
 # TODO: Replace these with self-hosted ones (potentially consider snapshots.koios.rest as upload destination for CI)
 download_cnodebins() {
-  echo -e "\nDownloading binaries.."
-  pushd "${HOME}"/tmp >/dev/null || err_exit
-  echo -e "\n  Downloading Cardano Node ${CARDANO_NODE_VERSION} archive from GitHub.."
+  pushd "${HOME}"/tmp >/dev/null || err_exit "Could not enter temporary directory: ${HOME}/tmp"
+  log_progress "Downloading cardano-node" "${CARDANO_NODE_VERSION}"
   rm -f cardano-node cardano-address
   [[ -z ${ARCH##*aarch64*} ]] && node_arch="arm64" || node_arch="amd64"
-  curl -m 200 -sfL "https://github.com/intersectmbo/cardano-node/releases/download/${CARDANO_NODE_VERSION}/cardano-node-${CARDANO_NODE_VERSION}-linux-${node_arch}.tar.gz" -o cnode.tar.gz || err_exit " Could not download cardano-node release ${CARDANO_NODE_VERSION} from GitHub!"
+  curl -m 200 -sfL "https://github.com/intersectmbo/cardano-node/releases/download/${CARDANO_NODE_VERSION}/cardano-node-${CARDANO_NODE_VERSION}-linux-${node_arch}.tar.gz" -o cnode.tar.gz || err_exit "Could not download cardano-node release ${CARDANO_NODE_VERSION} from GitHub."
   tar zxf cnode.tar.gz --strip-components 2 ./bin/cardano-node ./bin/cardano-submit-api ./bin/bech32 ./bin/snapshot-converter &>/dev/null
   rm -f cnode.tar.gz
-  echo -e "\n  Downloading Cardano CLI ${CARDANO_CLI_VERSION} archive from GitHub.."
+  [[ -f cardano-node ]] || err_exit "cardano-node archive downloaded, but binary 'cardano-node' was not found after extraction."
+  [[ -f cardano-submit-api ]] || err_exit "cardano-node archive downloaded, but binary 'cardano-submit-api' was not found after extraction."
+  [[ -f bech32 ]] || err_exit "cardano-node archive downloaded, but binary 'bech32' was not found after extraction."
+  log_progress "Downloading cardano-cli" "${CARDANO_CLI_VERSION}"
   [[ -z ${ARCH##*aarch64*} ]] && cli_arch="aarch64" || cli_arch="x86_64"
-  curl -m 200 -sfL "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-${CARDANO_CLI_VERSION}/cardano-cli-${CARDANO_CLI_VERSION}-${cli_arch}-linux.tar.gz" -o ccli.tar.gz || err_exit " Could not download cardano-cli release ${CARDANO_CLI_VERSION} from GitHub!"
+  curl -m 200 -sfL "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-${CARDANO_CLI_VERSION}/cardano-cli-${CARDANO_CLI_VERSION}-${cli_arch}-linux.tar.gz" -o ccli.tar.gz || err_exit "Could not download cardano-cli release ${CARDANO_CLI_VERSION} from GitHub."
   tar zxf ccli.tar.gz --strip-components 0 cardano-cli-${cli_arch}-linux &>/dev/null && mv cardano-cli-${cli_arch}-linux cardano-cli
   rm -f ccli.tar.gz
-  [[ -f cardano-node ]] || err_exit " cardano-node archive downloaded but binary (cardano-node) not found after extracting package!"
-  echo -e "\n  Downloading Cardano Addresses 4.0.2 archive from GitHub.."
-  [[ -n ${ARCH##*arch64*} ]] && curl -m 200 -sfL https://github.com/intersectmbo/cardano-addresses/releases/download/4.0.2/cardano-address-4.0.2-linux.tar.gz -o caddress.tar.gz || err_exit " Could not download cardano-addresses latest release archive from GitHub!"
+  [[ -f cardano-cli ]] || err_exit "cardano-cli archive downloaded, but binary 'cardano-cli' was not found after extraction."
+  log_progress "Downloading cardano-address" "4.0.2"
+  [[ -n ${ARCH##*arch64*} ]] && curl -m 200 -sfL https://github.com/intersectmbo/cardano-addresses/releases/download/4.0.2/cardano-address-4.0.2-linux.tar.gz -o caddress.tar.gz || err_exit "Could not download cardano-address release 4.0.2 from GitHub."
   tar zxf caddress.tar.gz --transform='s#.*\/##g' --wildcards */cardano-address &>/dev/null
   rm -f caddress.tar.gz
-  [[ -f cardano-address ]] || err_exit " cardano-address archive downloaded but binary (cardano-address) not found after extracting package!"
+  [[ -f cardano-address ]] || err_exit "cardano-address archive downloaded, but binary 'cardano-address' was not found after extraction."
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
-    echo -e "\n  Downloading Cardano DB Sync 13.7.0.5 archive from share.koios.rest.."
-    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.7.0.5-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "  Could not download cardano-db-sync from release artefacts on GitHub!"
+    log_progress "Downloading cardano-db-sync" "13.7.0.5"
+    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.7.0.5-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "Could not download cardano-db-sync release 13.7.0.5."
     tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync ./cardano-db-tool &>/dev/null
-    [[ -f cardano-db-sync ]] || err_exit " cardano-db-sync archive downloaded but binary (cardano-db-sync) not found after extracting package!"
+    [[ -f cardano-db-sync ]] || err_exit "cardano-db-sync archive downloaded, but binary 'cardano-db-sync' was not found after extraction."
     rm -f cnodedbsync.tar.gz
     mv -f -t "${HOME}"/.local/bin cardano-db-sync
+    log_ok "Deployed cardano-db-sync" "13.7.0.5"
+  else
+    log_info "Skipped cardano-db-sync binary download."
   fi
   mv -f -t "${HOME}"/.local/bin cardano-node cardano-cli cardano-submit-api bech32 cardano-address
   chmod +x "${HOME}"/.local/bin/*
+  log_ok "Deployed cardano-node" "${CARDANO_NODE_VERSION}"
+  log_ok "Deployed cardano-cli" "${CARDANO_CLI_VERSION}"
+  log_ok "Deployed cardano-submit-api" "${CARDANO_NODE_VERSION}"
+  log_ok "Deployed bech32" "${CARDANO_NODE_VERSION}"
+  log_ok "Deployed cardano-address" "4.0.2"
 }
 
 # Download CNCLI
 download_cncli() {
-  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The cncli pre-compiled binary is not available for ARM, you might need to build them!"
-  echo -e "\nInstalling CNCLI.."
-  if command -v cncli >/dev/null; then cncli_version="$(cncli -V 2>/dev/null | cut -d' ' -f2)"; else cncli_version="v0.0.0"; fi
-  cncli_git_version="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.tag_name')"
-  echo -e "\n  Downloading CNCLI..."
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "The CNCLI pre-compiled binary is not available for ARM; build it manually instead."
+  log_progress "Resolving CNCLI release"
+  cncli_git_version="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.tag_name' 2>/dev/null)"
+  [[ -n "${cncli_git_version}" && "${cncli_git_version}" != "null" ]] || err_exit "Could not resolve CNCLI release from GitHub."
+  log_ok "Resolved CNCLI release" "${cncli_git_version}"
+  log_progress "Downloading CNCLI" "${cncli_git_version}"
   rm -rf /tmp/cncli-bin && mkdir /tmp/cncli-bin
-  pushd /tmp/cncli-bin >/dev/null || err_exit
-  cncli_asset_url="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.assets[].browser_download_url' | grep 'ubuntu22.*.linux-musl.tar.gz')"
+  pushd /tmp/cncli-bin >/dev/null || err_exit "Could not enter temporary CNCLI directory."
+  cncli_asset_url="$(curl -s https://api.github.com/repos/cardano-community/cncli/releases/latest | jq -r '.assets[].browser_download_url' 2>/dev/null | grep 'ubuntu22.*.linux-musl.tar.gz')"
+  [[ -n "${cncli_asset_url}" ]] || err_exit "No CNCLI Linux release asset was found for this installer."
   if curl -sL -f -m ${CURL_TIMEOUT} -o cncli.tar.gz ${cncli_asset_url}; then
     tar zxf cncli.tar.gz &>/dev/null
     rm -f cncli.tar.gz
     [[ -f cncli ]] || err_exit "CNCLI downloaded but binary (cncli) not found after extracting package!"
-    [[ "${cncli_version}" = "v0.0.0" ]] && echo -e "\n latest_version: ${cncli_git_version}" || echo -e "\n installed version: ${cncli_version} | latest version: ${cncli_git_version}"
     chmod +x /tmp/cncli-bin/cncli
     mv -f /tmp/cncli-bin/cncli "${HOME}"/.local/bin/
     rm -f "${HOME}"/.cargo/bin/cncli # Remove duplicate file in $PATH (old convention)
-    echo -e "\n cncli ${cncli_git_version} installed!"
+    log_ok "CNCLI installed" "${cncli_git_version}"
   else
     err_exit "Download of latest release of CNCLI from GitHub failed! Please retry or install it manually."
   fi
@@ -447,47 +568,46 @@ download_cncli() {
 
 # Download pre-build cardano-hw-cli binary and it's dependencies
 download_cardanohwcli() {
-  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The cardano-hw-cli pre-compiled binary is not available for ARM, you might need to build them!"
-  echo -e "\nInstalling Vacuumlabs cardano-hw-cli"
-  if command -v cardano-hw-cli >/dev/null; then vchc_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"; else vchc_version="0.0.0"; fi
-  echo -e "\n  Downloading Vacuumlabs cardano-hw-cli..."
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "The cardano-hw-cli pre-compiled binary is not available for ARM; build it manually instead."
+  log_progress "Resolving cardano-hw-cli release"
   rm -rf /tmp/chwcli-bin && mkdir -p /tmp/chwcli-bin
-  pushd /tmp/chwcli-bin >/dev/null || err_exit
+  pushd /tmp/chwcli-bin >/dev/null || err_exit "Could not enter temporary cardano-hw-cli directory."
   rm -rf cardano-hw-cli*
+  vchc_release_json="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases)"
+  vchc_git_version="$(jq -r '.[0].tag_name' <<< "${vchc_release_json}" 2>/dev/null)"
+  [[ -n "${vchc_git_version}" && "${vchc_git_version}" != "null" ]] || err_exit "Could not resolve cardano-hw-cli release from GitHub."
   #vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases/latest | jq -r '.assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
-  vchc_asset_url="$(curl -s https://api.github.com/repos/vacuumlabs/cardano-hw-cli/releases | jq -r '.[0].assets[].browser_download_url' | grep '_linux-x64.tar.gz')"
+  vchc_asset_url="$(jq -r '.[0].assets[].browser_download_url' <<< "${vchc_release_json}" 2>/dev/null | grep '_linux-x64.tar.gz')"
+  [[ -n "${vchc_asset_url}" ]] || err_exit "No cardano-hw-cli Linux x64 release asset was found."
+  log_ok "Resolved cardano-hw-cli release" "${vchc_git_version}"
+  log_progress "Downloading cardano-hw-cli" "${vchc_git_version}"
   if curl -sL -f -m ${CURL_TIMEOUT} -o cardano-hw-cli_linux-x64.tar.gz ${vchc_asset_url}; then
     tar zxf cardano-hw-cli_linux-x64.tar.gz &>/dev/null
     rm -f cardano-hw-cli_linux-x64.tar.gz
     [[ -f cardano-hw-cli/cardano-hw-cli ]] || err_exit "cardano-hw-cli downloaded but binary not found after extracting package!"
-    vchc_git_version="$(cardano-hw-cli/cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
-    if ! versionCheck "${vchc_git_version}" "${vchc_version}"; then
-      [[ ${vchc_version} = "0.0.0" ]] && echo -e "\n  latest version: ${vchc_git_version}" || echo -e "\n  installed version: ${vchc_version}  |  latest version: ${vchc_git_version}"
-      mkdir -p "${HOME}"/.local/bin
-      rm -rf "${HOME}"/bin/cardano-hw-cli # Remove duplicate file in $PATH (old convention)
-      if [ -f "${HOME}"/.local/bin/cardano-hw-cli ]; then
-        rm -rf "${HOME}"/.local/bin/cardano-hw-cli
-      fi
-      pushd "${HOME}"/.local/bin >/dev/null || err_exit
-      mv -f /tmp/chwcli-bin/cardano-hw-cli/* ./
-      if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
-        # Ledger udev rules
-        curl -s -f -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash >/dev/null 2>&1
-        $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/20-hw1.rules
-      fi
-      if [[ ! -f "/etc/udev/rules.d/51-trezor.rules" ]]; then
-        # Trezor udev rules
-        $sudo curl -s -f -m ${CURL_TIMEOUT} https://data.trezor.io/udev/51-trezor.rules -o /etc/udev/rules.d/51-trezor.rules
-        $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/51-trezor.rules
-      fi
-      # Trigger rules update
-      $sudo udevadm control --reload-rules >/dev/null 2>&1
-      $sudo udevadm trigger >/dev/null 2>&1
-      echo -e "\n  cardano-hw-cli v${vchc_git_version} installed!"
-    else
-      rm -rf cardano-hw-cli #cleanup in /tmp
-      echo -e "\n  cardano-hw-cli already latest version [${vchc_version}], skipping!"
+    mkdir -p "${HOME}"/.local/bin
+    rm -rf "${HOME}"/bin/cardano-hw-cli # Remove duplicate file in $PATH (old convention)
+    if [ -f "${HOME}"/.local/bin/cardano-hw-cli ]; then
+      rm -rf "${HOME}"/.local/bin/cardano-hw-cli
     fi
+    pushd "${HOME}"/.local/bin >/dev/null || err_exit "Could not enter binary directory: ${HOME}/.local/bin"
+    mv -f /tmp/chwcli-bin/cardano-hw-cli/* ./
+    if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
+      # Ledger udev rules
+      curl -s -f -m ${CURL_TIMEOUT} https://raw.githubusercontent.com/LedgerHQ/udev-rules/master/add_udev_rules.sh | $sudo bash >/dev/null 2>&1
+      $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/20-hw1.rules
+      log_info "Installed Ledger udev rules."
+    fi
+    if [[ ! -f "/etc/udev/rules.d/51-trezor.rules" ]]; then
+      # Trezor udev rules
+      $sudo curl -s -f -m ${CURL_TIMEOUT} https://data.trezor.io/udev/51-trezor.rules -o /etc/udev/rules.d/51-trezor.rules
+      $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" -i /etc/udev/rules.d/51-trezor.rules
+      log_info "Installed Trezor udev rules."
+    fi
+    # Trigger rules update
+    $sudo udevadm control --reload-rules >/dev/null 2>&1
+    $sudo udevadm trigger >/dev/null 2>&1
+    log_ok "cardano-hw-cli installed" "${vchc_git_version}"
   else
     err_exit "Download of latest release of cardano-hw-cli from GitHub failed! Please retry or manually install it."
   fi
@@ -495,29 +615,28 @@ download_cardanohwcli() {
 
 # Download pre-built ogmios binary
 download_ogmios() {
-  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The ogmios pre-compiled binary is not available for ARM, you might need to build them!"
-  echo -e "\nInstalling Ogmios"
-  if command -v ogmios >/dev/null; then ogmios_version="$(ogmios --version)" 2>/dev/null || ogmios_version="v0.0.0"; else ogmios_version="v0.0.0"; fi
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "The Ogmios pre-compiled binary is not available for ARM; build it manually instead."
+  local OGMIOSPATH=""
+  log_progress "Resolving Ogmios release"
   rm -rf /tmp/ogmios && mkdir /tmp/ogmios
-  pushd /tmp/ogmios >/dev/null || err_exit
-  ogmios_asset_url="$(curl -s https://api.github.com/repos/IntersectMBO/ogmios/releases | jq -r '.[].assets[].browser_download_url' | grep x86_64-linux.tar.gz | head -1)"
+  pushd /tmp/ogmios >/dev/null || err_exit "Could not enter temporary Ogmios directory."
+  ogmios_release_json="$(curl -s https://api.github.com/repos/IntersectMBO/ogmios/releases)"
+  ogmios_git_version="$(jq -r '.[0].tag_name' <<< "${ogmios_release_json}" 2>/dev/null)"
+  [[ -n "${ogmios_git_version}" && "${ogmios_git_version}" != "null" ]] || err_exit "Could not resolve Ogmios release from GitHub."
+  ogmios_asset_url="$(jq -r '.[].assets[].browser_download_url' <<< "${ogmios_release_json}" 2>/dev/null | grep x86_64-linux.tar.gz | head -1)"
+  [[ -n "${ogmios_asset_url}" ]] || err_exit "No Ogmios Linux x86_64 release asset was found."
+  log_ok "Resolved Ogmios release" "${ogmios_git_version}"
+  log_progress "Downloading Ogmios" "${ogmios_git_version}"
   if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.tar.gz ${ogmios_asset_url}; then
     tar -xf ogmios.tar.gz &>/dev/null
     rm -f ogmios.tar.gz
     [[ -f bin/ogmios ]] && OGMIOSPATH=bin/ogmios
     [[ -f ogmios ]] && OGMIOSPATH=ogmios
     [[ -n ${OGMIOSPATH} ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
-    ogmios_git_version="$(curl -s https://api.github.com/repos/IntersectMBO/ogmios/releases | jq -r '.[0].tag_name')"
-    #if ! versionCheck "${ogmios_git_version}" "${ogmios_version}"; then
-      [[ "${ogmios_version}" = "0.0.0" ]] && echo -e "\n  latest version: ${ogmios_git_version}" || echo -e "\n  installed version: ${ogmios_version} | latest version: ${ogmios_git_version}"
-      chmod +x /tmp/ogmios/${OGMIOSPATH}
-      mv -f /tmp/ogmios/${OGMIOSPATH} "${HOME}"/.local/bin/
-      rm -f "${HOME}"/.cabal/bin/ogmios # Remove duplicate from $PATH
-      echo -e "\n  ogmios ${ogmios_git_version} installed!"
-    #else
-    #  rm -rf /tmp/ogmios #cleanup in /tmp
-    #  echo -e "\n  ogmios already latest version [${ogmios_version}], skipping!"
-    #fi
+    chmod +x /tmp/ogmios/${OGMIOSPATH}
+    mv -f /tmp/ogmios/${OGMIOSPATH} "${HOME}"/.local/bin/
+    rm -f "${HOME}"/.cabal/bin/ogmios # Remove duplicate from $PATH
+    log_ok "Ogmios installed" "${ogmios_git_version}"
   else
     err_exit "Download of latest release of ogmios archive from GitHub failed! Please retry or manually install it."
   fi
@@ -525,42 +644,36 @@ download_ogmios() {
 
 # Download pre-built cardano-signer binary
 download_cardanosigner() {
-  [[ -z ${ARCH##*aarch64*} ]] && err_exit "  The cardano-signer pre-compiled binary is not available for ARM, you might need to build them!"
-  echo -e "\nInstalling Cardano Signer"
-  if command -v cardano-signer >/dev/null && [[ $(cardano-signer version) =~ ([0-9.]+) ]]; then
-    csigner_version="v${BASH_REMATCH[1]}"
-  else
-    csigner_version="v0.0.0"
-  fi
-  csigner_git_version="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.tag_name')"
-  if ! versionCheck "${csigner_git_version}" "${csigner_version}"; then
-    rm -rf /tmp/csigner && mkdir /tmp/csigner
-    pushd /tmp/csigner >/dev/null || err_exit
-    csigner_asset_url="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.assets[].browser_download_url')"
-    csigner_release_url=""
-    while IFS= read -r release; do
-      if [[ -z ${ARCH##*x86_64*} && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
-        csigner_release_url=${release}; break
-      fi
-    done <<< "${csigner_asset_url}"
-    if [[ -n ${csigner_release_url} ]]; then
-      if curl -sL -f -m ${CURL_TIMEOUT} -o csigner.tar.gz ${csigner_release_url}; then
-        tar zxf csigner.tar.gz &>/dev/null
-        rm -f csigner.tar.gz
-        [[ -f cardano-signer ]] || err_exit "Cardano Signer downloaded but binary(cardano-signer) not found after extracting package!"
-        [[ "${csigner_version}" = "v0.0.0" ]] && echo -e "\n  latest version: ${csigner_git_version}" || echo -e "\n  installed version: ${csigner_version} | latest version: ${csigner_git_version}"
-        chmod +x /tmp/csigner/cardano-signer
-        mv -f /tmp/csigner/cardano-signer "${HOME}"/.local/bin/
-	rm -f "${HOME}"/.cabal/bin/cardano-signer # Remove duplicate from $PATH
-        echo -e "\n  cardano-signer ${csigner_git_version} installed!"
-      else
-        err_exit "Download of latest release of Cardano Signer archive from GitHub failed! Please retry or install it manually."
-      fi
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "The cardano-signer pre-compiled binary is not available for ARM; build it manually instead."
+  log_progress "Resolving Cardano Signer release"
+  csigner_git_version="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.tag_name' 2>/dev/null)"
+  [[ -n "${csigner_git_version}" && "${csigner_git_version}" != "null" ]] || err_exit "Could not resolve Cardano Signer release from GitHub."
+  log_ok "Resolved Cardano Signer release" "${csigner_git_version}"
+  rm -rf /tmp/csigner && mkdir /tmp/csigner
+  pushd /tmp/csigner >/dev/null || err_exit "Could not enter temporary Cardano Signer directory."
+  csigner_asset_url="$(curl -s https://api.github.com/repos/gitmachtl/cardano-signer/releases/latest | jq -r '.assets[].browser_download_url' 2>/dev/null)"
+  [[ -n "${csigner_asset_url}" ]] || err_exit "No Cardano Signer release assets were found."
+  csigner_release_url=""
+  while IFS= read -r release; do
+    if [[ -z ${ARCH##*x86_64*} && ${release} = *linux-x64.tar.gz ]]; then # Linux x64
+      csigner_release_url=${release}; break
+    fi
+  done <<< "${csigner_asset_url}"
+  if [[ -n ${csigner_release_url} ]]; then
+    log_progress "Downloading Cardano Signer" "${csigner_git_version}"
+    if curl -sL -f -m ${CURL_TIMEOUT} -o csigner.tar.gz ${csigner_release_url}; then
+      tar zxf csigner.tar.gz &>/dev/null
+      rm -f csigner.tar.gz
+      [[ -f cardano-signer ]] || err_exit "Cardano Signer downloaded but binary(cardano-signer) not found after extracting package!"
+      chmod +x /tmp/csigner/cardano-signer
+      mv -f /tmp/csigner/cardano-signer "${HOME}"/.local/bin/
+      rm -f "${HOME}"/.cabal/bin/cardano-signer # Remove duplicate from $PATH
+      log_ok "Cardano Signer installed" "${csigner_git_version}"
     else
-      err_exit "Unsupported system, no cardano-signer release found matching system architecture."
+      err_exit "Download of latest release of Cardano Signer archive from GitHub failed! Please retry or install it manually."
     fi
   else
-    echo -e "\n  Cardano Signer already latest version [${csigner_version}], skipping!"
+    err_exit "Unsupported system, no cardano-signer release found matching system architecture."
   fi
 }
 
@@ -570,7 +683,7 @@ download_blockperf() {
   local -a blockperf_common_args=(--yes --api-key-mode relay --node-unit-name "${CNODE_NAME}" --network "${NETWORK}")
   local before_hash after_hash blockperf_mode="install" rc attempt=1 max_attempts=3
 
-  echo -e "\nInstalling openBlockPerf"
+  log_info "Preparing openBlockPerf installer."
 
   # Use cntools scripts path when available; fallback to ~/tmp for non-cntools environments.
   if [[ -n "${CNODE_HOME}" && -d "${CNODE_HOME}/scripts" ]]; then
@@ -590,19 +703,23 @@ download_blockperf() {
     fi
   fi
 
-  pushd "${installer_dir}" >/dev/null || err_exit
+  pushd "${installer_dir}" >/dev/null || err_exit "Could not enter openBlockPerf installer directory: ${installer_dir}"
 
   if [[ ! -f "${blockperf_installer}" ]]; then
-    echo -e "\n  Downloading openBlockPerf installer from: ${blockperf_installer_url}"
+    log_progress "Downloading openBlockPerf installer" "${blockperf_installer_url}"
     curl -fsSL -m ${CURL_TIMEOUT} "${blockperf_installer_url}" -o "${blockperf_installer}" || err_exit "Download of openBlockPerf installer failed! Please retry or install it manually."
+    log_ok "openBlockPerf installer downloaded"
   else
     blockperf_mode="update"
+    log_info "Using existing openBlockPerf installer at ${blockperf_installer}."
   fi
 
   chmod +x "${blockperf_installer}" || err_exit "Failed setting executable bit on openBlockPerf installer."
 
   while (( attempt <= max_attempts )); do
     before_hash="$(sha256sum "${blockperf_installer}" 2>/dev/null | awk '{print $1}')"
+    log_progress "Running openBlockPerf installer" "${blockperf_mode}"
+    [[ -t 1 ]] && printf "\n"
     if [[ "${blockperf_mode}" == "update" ]]; then
       $sudo "${blockperf_installer}" --update "${blockperf_common_args[@]}"
     else
@@ -612,12 +729,13 @@ download_blockperf() {
     after_hash="$(sha256sum "${blockperf_installer}" 2>/dev/null | awk '{print $1}')"
 
     if [[ ${rc} -eq 0 ]]; then
+      log_ok "openBlockPerf installer completed" "${blockperf_mode}"
       return 0
     fi
 
     # If the installer self-updated, run it again with --update.
     if [[ -n "${before_hash}" && -n "${after_hash}" && "${before_hash}" != "${after_hash}" ]]; then
-      echo -e "\n  openBlockPerf installer self-updated, re-running for openblockperf update..."
+      log_info "openBlockPerf installer self-updated; running the updated installer."
       blockperf_mode="update"
       ((attempt++))
       continue
@@ -631,44 +749,48 @@ download_blockperf() {
 
 # Download pre-built mithril-signer binary
 download_mithril() {
-    echo -e "\nDownloading Mithril..."
-    pushd "${HOME}"/tmp >/dev/null || err_exit
-    mithril_release="$(curl -s https://api.github.com/repos/input-output-hk/mithril/releases/latest | jq -r '.tag_name')"
-    echo -e "\n  Downloading Mithril Signer/Client ${mithril_release}..."
+    pushd "${HOME}"/tmp >/dev/null || err_exit "Could not enter temporary directory: ${HOME}/tmp"
+    log_progress "Resolving Mithril release"
+    mithril_release="$(curl -s https://api.github.com/repos/input-output-hk/mithril/releases/latest | jq -r '.tag_name' 2>/dev/null)"
+    [[ -n "${mithril_release}" && "${mithril_release}" != "null" ]] || err_exit "Could not resolve Mithril release from GitHub."
+    log_ok "Resolved Mithril release" "${mithril_release}"
+    log_progress "Downloading Mithril signer/client" "${mithril_release}"
     rm -f mithril-signer mithril-client
-    curl -m 200 -sfL https://github.com/input-output-hk/mithril/releases/download/${mithril_release}/mithril-${mithril_release}-linux-x64.tar.gz -o mithril.tar.gz || err_exit " Could not download mithril's latest release archive from IO github!"
+    curl -m 200 -sfL https://github.com/input-output-hk/mithril/releases/download/${mithril_release}/mithril-${mithril_release}-linux-x64.tar.gz -o mithril.tar.gz || err_exit "Could not download Mithril release ${mithril_release} from GitHub."
     tar zxf mithril.tar.gz mithril-signer mithril-client &>/dev/null
     rm -f mithril.tar.gz
-    [[ -f mithril-signer ]] || err_exit " mithril archive downloaded but binary (mithril-signer) not found after extracting package!"
-    [[ -f mithril-client ]] || err_exit " mithril archive downloaded but binary (mithril-client) not found after extracting package!"
+    [[ -f mithril-signer ]] || err_exit "Mithril archive downloaded, but binary 'mithril-signer' was not found after extraction."
+    [[ -f mithril-client ]] || err_exit "Mithril archive downloaded, but binary 'mithril-client' was not found after extraction."
     mv -t "${HOME}"/.local/bin mithril-signer mithril-client
     chmod +x "${HOME}"/.local/bin/*
+    log_ok "Mithril signer/client installed" "${mithril_release}"
 }
 
 # Create folder structure and set up permissions/ownerships
 setup_folder() {
-  echo -e "\nCreating Folder Structure .."
+  log_progress "Creating folder structure" "${CNODE_HOME}"
 
   if grep -q "export ${CNODE_VNAME}_HOME=" "${HOME}"/.bashrc; then
-    echo -e "\nEnvironment Variable already set up!"
+    log_info "${CNODE_VNAME}_HOME already present in ${HOME}/.bashrc."
   else
-    echo -e "\nSetting up Environment Variable"
-    echo -e "\nexport ${CNODE_VNAME}_HOME=${CNODE_HOME}" >> "${HOME}"/.bashrc
+    printf '\nexport %s_HOME=%s\n' "${CNODE_VNAME}" "${CNODE_HOME}" >> "${HOME}"/.bashrc
+    log_info "Added ${CNODE_VNAME}_HOME=${CNODE_HOME} to ${HOME}/.bashrc."
   fi
 
   $sudo mkdir -p "${CNODE_HOME}"/files "${CNODE_HOME}"/db "${CNODE_HOME}"/guild-db "${CNODE_HOME}"/logs "${CNODE_HOME}"/scripts "${CNODE_HOME}"/scripts/archive "${CNODE_HOME}"/sockets "${CNODE_HOME}"/priv "${MITHRIL_HOME}"/data-stores
   $sudo chown -R "$U_ID":"$G_ID" "${CNODE_HOME}" 2>/dev/null
+  log_ok "Folder structure ready" "${CNODE_HOME}"
 
 }
 
 # Download and update scripts for cnode
 populate_cnode() {
   [[ ! -d "${CNODE_HOME}"/files ]] && setup_folder
-  echo -e "\nDownloading files..."
-  pushd "${CNODE_HOME}"/files >/dev/null || err_exit
+  log_progress "Downloading network configuration" "${NETWORK}"
+  pushd "${CNODE_HOME}"/files >/dev/null || err_exit "Could not enter files directory: ${CNODE_HOME}/files"
   echo "${BRANCH}" > "${CNODE_HOME}"/scripts/.env_branch
 
-  local err_msg=" Had Trouble downloading the file:"
+  local err_msg="Could not download network configuration file:"
   # Download node config, genesis and topology from template
   #NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-playground/main/static/book.play.dev.cardano.org/environments"
   NWCONFURL="${URL_RAW}/files/configs/${NETWORK}/"
@@ -686,13 +808,16 @@ populate_cnode() {
   else
     err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, or preview."
   fi
+  log_ok "Network configuration downloaded" "${NETWORK}"
   sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
   sed -e "s@\"TraceOptionNodeName\": \"cnode\"@\"TraceOptionNodeName\": \"${CNODE_NAME}\"@" -i ./config.json.tmp
   if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
     [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
     [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
     [[ -f dbsync.json ]] && cp -f dbsync.json "dbsync.json_bkp$(date +%s)"
+    log_info "Backed up existing topology/config/dbsync files before overwrite."
   fi
+  log_progress "Applying network configuration" "${NETWORK}"
   if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]]; then
     mv -f byron-genesis.json.tmp byron-genesis.json
     mv -f shelley-genesis.json.tmp shelley-genesis.json
@@ -710,11 +835,13 @@ populate_cnode() {
     rm -f config.json.tmp
     rm -f dbsync.json.tmp
   fi
+  log_ok "Network configuration ready" "${NETWORK}"
 
-  pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit
+  pushd "${CNODE_HOME}"/scripts >/dev/null || err_exit "Could not enter scripts directory: ${CNODE_HOME}/scripts"
 
-  [[ ${SCRIPTS_FORCE_OVERWRITE} = 'Y' ]] && echo -e "\nForced full upgrade! Please edit scripts/env, scripts/cnode.sh, scripts/dbsync.sh, scripts/submitapi.sh, scripts/ogmios.sh, scripts/gLiveView.sh, scripts/mithril-client.sh scripts/mithril-relay.sh and scripts/mithril-signer.sh (alongwith files/topology.json, files/config.json, files/dbsync.json) as required!"
+  [[ ${SCRIPTS_FORCE_OVERWRITE} = 'Y' ]] && log_warn "Script force overwrite enabled; review user variables in refreshed scripts and configs."
 
+  log_progress "Refreshing helper scripts" "${BRANCH}"
   #updateWithCustomConfig "blockPerf.sh"
   updateWithCustomConfig "cabal-build-all.sh"
   updateWithCustomConfig "cncli.sh"
@@ -737,6 +864,7 @@ populate_cnode() {
 
   find "${CNODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
   chmod 750 "${CNODE_HOME}"/priv 2>/dev/null
+  log_ok "Helper scripts refreshed" "${BRANCH}"
 }
 
 # Parse arguments supplied to script
@@ -756,29 +884,33 @@ parse_args() {
     [[ "${S_ARGS}" =~ "x" ]] && INSTALL_CARDANO_SIGNER="Y"
     [[ "${S_ARGS}" =~ "r" ]] && INSTALL_BLOCKPERF="Y"
   else
-    echo -e "\nNothing to do.."
+    NO_SELECTIVE_FLAGS="Y"
   fi
   common_init
   if [[ ! -d "${CNODE_HOME}"/files ]]; then
     # Guess this is a fresh machine and set minimal params
     INSTALL_OS_DEPS="Y"
+    FRESH_TARGET="Y"
   fi
 }
 
 # Main Flow for calling different functions
 main_flow() {
-  [[ "${UPDATE_CHECK}" == "Y" ]] && update_check
-  [[ "${INSTALL_OS_DEPS}" == "Y" ]] && os_dependencies
-  [[ "${WANT_BUILD_DEPS}" == "Y" ]] && build_dependencies
-  [[ "${LIBSODIUM_FORK}" == "Y" ]] && build_libsodium
-  [[ "${INSTALL_MITHRIL}" == "Y" ]] && download_mithril
-  [[ "${POPULATE_CNODE}" == "Y" ]] && populate_cnode
-  [[ "${INSTALL_CNODEBINS}" == "Y" ]] && download_cnodebins
-  [[ "${INSTALL_CNCLI}" == "Y" ]] && download_cncli
-  [[ "${INSTALL_OGMIOS}" == "Y" ]] && download_ogmios
-  [[ "${INSTALL_CWHCLI}" == "Y" ]] && download_cardanohwcli
-  [[ "${INSTALL_CARDANO_SIGNER}" == "Y" ]] && download_cardanosigner
-  [[ "${INSTALL_BLOCKPERF}" == "Y" ]] && download_blockperf
+  [[ "${NO_SELECTIVE_FLAGS}" == "Y" ]] && log_info "No selective install flags supplied; refreshing scripts and configuration only."
+  [[ "${ADDED_LOCAL_BIN_PATH}" == "Y" ]] && log_info "Added ${HOME}/.local/bin to PATH in ${HOME}/.bashrc."
+  [[ "${FRESH_TARGET}" == "Y" ]] && log_info "Fresh target detected; OS dependency check enabled."
+  [[ "${UPDATE_CHECK}" == "Y" ]] && run_step "Deployment script update check" "default" update_check
+  [[ "${INSTALL_OS_DEPS}" == "Y" ]] && run_step "OS dependencies" "auto/-s p/b/l/w" os_dependencies
+  [[ "${WANT_BUILD_DEPS}" == "Y" ]] && run_step "Haskell build toolchain" "-s b" build_dependencies
+  [[ "${LIBSODIUM_FORK}" == "Y" ]] && run_step "libsodium" "-s l" build_libsodium
+  [[ "${INSTALL_MITHRIL}" == "Y" ]] && run_step "Mithril binaries" "-s m" download_mithril
+  [[ "${POPULATE_CNODE}" == "Y" ]] && run_step "Scripts and configuration" "default/-s f/s" populate_cnode
+  [[ "${INSTALL_CNODEBINS}" == "Y" ]] && run_step "Cardano node binaries" "-s d" download_cnodebins
+  [[ "${INSTALL_CNCLI}" == "Y" ]] && run_step "CNCLI" "-s c" download_cncli
+  [[ "${INSTALL_OGMIOS}" == "Y" ]] && run_step "Ogmios" "-s o" download_ogmios
+  [[ "${INSTALL_CWHCLI}" == "Y" ]] && run_step "Cardano hardware CLI" "-s w" download_cardanohwcli
+  [[ "${INSTALL_CARDANO_SIGNER}" == "Y" ]] && run_step "Cardano Signer" "-s x" download_cardanosigner
+  [[ "${INSTALL_BLOCKPERF}" == "Y" ]] && run_step "openBlockPerf" "-s r" download_blockperf
 }
 
 while getopts :n:p:t:s:b:u opt; do
@@ -794,7 +926,11 @@ while getopts :n:p:t:s:b:u opt; do
 done
 shift $((OPTIND -1))
 
+ACTIVE_STEP="Initialize deployment"
 parse_args
+log_header
 main_flow
 
-pushd -0 >/dev/null || err_exit; dirs -c
+pushd -0 >/dev/null || err_exit "Could not restore original working directory."; dirs -c
+log_section "Deployment finished"
+log_ok "All requested steps completed"
