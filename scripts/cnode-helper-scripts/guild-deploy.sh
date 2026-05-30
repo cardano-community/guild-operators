@@ -394,18 +394,18 @@ build_dependencies() {
   [[ -f "${HOME}/.ghcup/env" ]] && source "${HOME}/.ghcup/env"
   if ! ghc --version 2>/dev/null | grep -q ${BOOTSTRAP_HASKELL_GHC_VERSION}; then
     log_progress "Updating ghcup metadata"
-    ghcup upgrade 2>/dev/null
+    ghcup upgrade >/dev/null 2>&1
     log_ok "ghcup metadata updated"
     log_progress "Installing GHC" "v${BOOTSTRAP_HASKELL_GHC_VERSION}"
     ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1 || err_exit "Command failed: ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}"
-    ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null
+    ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1
     log_ok "GHC ready" "v${BOOTSTRAP_HASKELL_GHC_VERSION}"
   fi
   cabal_version=$(cabal --version 2>/dev/null | head -n 1 | cut -d' ' -f3)
   if [[ -z ${cabal_version} || ! ${cabal_version} = "${BOOTSTRAP_HASKELL_CABAL_VERSION}" ]]; then
     if [[ -n ${cabal_version} ]]; then
       log_progress "Removing previous Cabal release"
-      ghcup rm cabal ${cabal_version} 2>/dev/null
+      ghcup rm cabal ${cabal_version} >/dev/null 2>&1
       log_ok "Previous Cabal release removed"
     fi
     log_progress "Installing Cabal" "v${BOOTSTRAP_HASKELL_CABAL_VERSION}"
@@ -430,7 +430,7 @@ build_libsodium() {
   [[ ! -d "./libsodium" ]] && git clone https://github.com/intersectmbo/libsodium >/dev/null
   pushd libsodium >/dev/null || err_exit "Could not enter libsodium source directory."
   git fetch >/dev/null 2>&1
-  [[ -z "${SODIUM_REF}" ]] && SODIUM_REF="dbb48cc"
+  [[ -z "${SODIUM_REF}" || "${SODIUM_REF}" == "null" ]] && SODIUM_REF="dbb48cc"
   git checkout "${SODIUM_REF}" &>/dev/null
   ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1 || cat /tmp/libsodium.log
   ./configure > configure.log >> /tmp/libsodium.log 2>&1 || cat /tmp/libsodium.log
@@ -446,7 +446,7 @@ build_libsecp() {
   [[ ! -d "./secp256k1" ]] && git clone https://github.com/bitcoin-core/secp256k1 &>/dev/null
   pushd secp256k1 >/dev/null || err_exit "Could not enter libsecp256k1 source directory."
   git fetch >/dev/null 2>&1
-  [[ -z "${SECP256K1_REF}" ]] && SECP256K1_REF="ac83be33"
+  [[ -z "${SECP256K1_REF}" || "${SECP256K1_REF}" == "null" ]] && SECP256K1_REF="ac83be33"
   git checkout ${SECP256K1_REF} &>/dev/null
   ./autogen.sh > autogen.log > /tmp/secp256k1.log 2>&1
   ./configure --enable-module-schnorrsig --enable-experimental > configure.log >> /tmp/secp256k1.log 2>&1
@@ -473,7 +473,7 @@ build_libblst() {
   [[ ! -d "./blst" ]] && git clone https://github.com/supranational/blst &>/dev/null
   pushd blst >/dev/null || err_exit "Could not enter BLST source directory."
   git fetch >/dev/null 2>&1
-  [[ -z "${BLST_REF}" ]] && BLST_REF="v0.3.14"
+  [[ -z "${BLST_REF}" || "${BLST_REF}" == "null" ]] && BLST_REF="v0.3.14"
   git checkout ${BLST_REF} &>/dev/null
   ./build.sh >/dev/null 2>&1
   cat <<-EOF >libblst.pc
@@ -929,3 +929,4 @@ main_flow
 pushd -0 >/dev/null || err_exit "Could not restore original working directory."; dirs -c
 log_section "Deployment finished"
 log_ok "All requested steps completed"
+printf "\n"
