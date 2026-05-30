@@ -500,14 +500,14 @@ download_ogmios() {
   if command -v ogmios >/dev/null; then ogmios_version="$(ogmios --version)" 2>/dev/null || ogmios_version="v0.0.0"; else ogmios_version="v0.0.0"; fi
   rm -rf /tmp/ogmios && mkdir /tmp/ogmios
   pushd /tmp/ogmios >/dev/null || err_exit
-  ogmios_asset_url="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases | jq -r '.[].assets[].browser_download_url' | grep x86_64-linux.zip | head -1)"
-  if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.zip ${ogmios_asset_url}; then
-    unzip ogmios.zip &>/dev/null
-    rm -f ogmios.zip
+  ogmios_asset_url="$(curl -s https://api.github.com/repos/IntersectMBO/ogmios/releases | jq -r '.[].assets[].browser_download_url' | grep x86_64-linux.tar.gz | head -1)"
+  if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.tar.gz ${ogmios_asset_url}; then
+    tar -xf ogmios.tar.gz &>/dev/null
+    rm -f ogmios.tar.gz
     [[ -f bin/ogmios ]] && OGMIOSPATH=bin/ogmios
     [[ -f ogmios ]] && OGMIOSPATH=ogmios
     [[ -n ${OGMIOSPATH} ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
-    ogmios_git_version="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases | jq -r '.[0].tag_name')"
+    ogmios_git_version="$(curl -s https://api.github.com/repos/IntersectMBO/ogmios/releases | jq -r '.[0].tag_name')"
     if ! versionCheck "${ogmios_git_version}" "${ogmios_version}"; then
       [[ "${ogmios_version}" = "0.0.0" ]] && echo -e "\n  latest version: ${ogmios_git_version}" || echo -e "\n  installed version: ${ogmios_version} | latest version: ${ogmios_git_version}"
       chmod +x /tmp/ogmios/${OGMIOSPATH}
