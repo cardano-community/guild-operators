@@ -466,11 +466,20 @@ build_libsodium() {
   git fetch >/dev/null 2>&1
   [[ -z "${SODIUM_REF}" || "${SODIUM_REF}" == "null" ]] && SODIUM_REF="dbb48cc"
   git checkout "${SODIUM_REF}" &>/dev/null
-  ./autogen.sh > autogen.log > /tmp/libsodium.log 2>&1 || cat /tmp/libsodium.log
-  ./configure > configure.log >> /tmp/libsodium.log 2>&1 || cat /tmp/libsodium.log
-  make > make.log 2>&1 || ( cat make.log && err_exit "Could not complete make for libsodium. See make.log for details." )
-  $sudo make install > install.log 2>&1
-  log_ok "libsodium installed" "${SODIUM_REF}"
+  local sodium_log="/tmp/libsodium.log"
+  : > "${sodium_log}"
+  ./autogen.sh >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not prepare libsodium build files. See ${sodium_log} for details."; }
+  ./configure >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not configure libsodium. See ${sodium_log} for details."; }
+  make >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not complete make for libsodium. See ${sodium_log} for details."; }
+  $sudo make install >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not install libsodium. See ${sodium_log} for details."; }
+  command -v pkg-config >/dev/null 2>&1 || err_exit "libsodium installed, but pkg-config is not available to verify it."
+  export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+  pkg-config --exists libsodium || { pkg-config --list-all | grep -i sodium || true; err_exit "libsodium installed, but pkg-config metadata was not found."; }
+  local sodium_version sodium_detail
+  sodium_version="$(pkg-config --modversion libsodium 2>/dev/null || true)"
+  sodium_detail="${SODIUM_REF}"
+  [[ -n "${sodium_version}" ]] && sodium_detail="${sodium_detail}, ${sodium_version}"
+  log_ok "libsodium installed" "${sodium_detail}"
 }
 
 build_libsecp() {
