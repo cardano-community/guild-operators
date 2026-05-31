@@ -423,7 +423,11 @@ build_dependencies() {
         log_info "Still installing GHC v${BOOTSTRAP_HASKELL_GHC_VERSION} ($((SECONDS-ghcup_start))s elapsed)."
         df -h / /root /tmp "${HOME}/.ghcup" 2>/dev/null || df -h || true
         du -sh "${HOME}/.ghcup" "${HOME}/.ghcup/tmp" /tmp 2>/dev/null || true
-        (ps -ef --forest 2>/dev/null || ps -ef 2>/dev/null) | grep -E 'ghcup|ghc|make|configure|install' | grep -v grep || true
+        if ps -ef --forest >/dev/null 2>&1; then
+          ps -ef --forest
+        else
+          ps -ef 2>/dev/null
+        fi | grep -E 'ghcup|ghc|make|configure|install' | grep -v grep || true
         tail -n 30 "${ghcup_log}" || true
       fi
     done
@@ -468,7 +472,7 @@ build_libsodium() {
   git checkout "${SODIUM_REF}" &>/dev/null
   local sodium_log="/tmp/libsodium.log"
   : > "${sodium_log}"
-  ./autogen.sh >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not prepare libsodium build files. See ${sodium_log} for details."; }
+  DO_NOT_UPDATE_CONFIG_SCRIPTS=1 ./autogen.sh >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not prepare libsodium build files. See ${sodium_log} for details."; }
   ./configure >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not configure libsodium. See ${sodium_log} for details."; }
   make >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not complete make for libsodium. See ${sodium_log} for details."; }
   $sudo make install >> "${sodium_log}" 2>&1 || { cat "${sodium_log}"; err_exit "Could not install libsodium. See ${sodium_log} for details."; }
