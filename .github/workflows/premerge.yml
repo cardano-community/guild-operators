@@ -16,6 +16,7 @@ jobs:
   guild-deploy-and-build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         platform: [linux/amd64] # [linux/amd64,linux/arm64]
         distro: [ubuntu, rockylinux]
@@ -24,15 +25,12 @@ jobs:
       BRANCH: ${{ github.event.inputs.branch || github.head_ref }}
     if: github.event.pull_request.draft == false
     steps:
-    - name: Maximize build space
-      uses: easimon/maximize-build-space@master
+    - name: Free Disk Space with Analysis
+      uses: LizardByte/actions/actions/more_space@master
       with:
-        root-reserve-mb: 30720
-        swap-size-mb: 1024
-        remove-dotnet: 'true'
-        remove-android: 'true'
-        remove-haskell: ' true'
-        remove-codeql: 'true'
+        analyze-space-savings: true
+        clean-all: true
+        safe-packages: "jq,git"
     - name: Provide additional free space
       run: |
         # Workaround to provide additional free space for builds

@@ -408,20 +408,23 @@ build_dependencies() {
     # ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1 || err_exit "Command failed: ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}"
     log_info "ghcup version: $(ghcup --version 2>&1 | head -n 1)"
     ghcup tool-requirements || true
+    printf "\n"
     df -h || true
     free -h || true
     env | sort | grep -E '^(BOOTSTRAP_HASKELL|GHCUP|PATH|HOME|LANG|LC_|TERM|SHELL)=' || true
 
     ghcup_log="${HOME}/ghcup-install-ghc-${BOOTSTRAP_HASKELL_GHC_VERSION}.log"
-    ghcup --verbose install ghc "${BOOTSTRAP_HASKELL_GHC_VERSION}" > "${ghcup_log}" 2>&1 &
+    ghcup --verbose install ghc "${BOOTSTRAP_HASKELL_GHC_VERSION}" > >(tee "${ghcup_log}") 2>&1 &
     ghcup_pid=$!
     ghcup_start=${SECONDS}
     while kill -0 "${ghcup_pid}" 2>/dev/null; do
-      sleep 60
+      sleep 15
       if kill -0 "${ghcup_pid}" 2>/dev/null; then
         log_info "Still installing GHC v${BOOTSTRAP_HASKELL_GHC_VERSION} ($((SECONDS-ghcup_start))s elapsed)."
+        df -h / /root /tmp "${HOME}/.ghcup" 2>/dev/null || df -h || true
+        du -sh "${HOME}/.ghcup" "${HOME}/.ghcup/tmp" /tmp 2>/dev/null || true
         (ps -ef --forest 2>/dev/null || ps -ef 2>/dev/null) | grep -E 'ghcup|ghc|make|configure|install' | grep -v grep || true
-        tail -n 40 "${ghcup_log}" || true
+        tail -n 30 "${ghcup_log}" || true
       fi
     done
     wait "${ghcup_pid}"
