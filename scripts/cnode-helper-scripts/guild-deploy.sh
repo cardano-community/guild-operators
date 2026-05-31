@@ -402,7 +402,33 @@ build_dependencies() {
     ghcup upgrade >/dev/null 2>&1
     log_ok "ghcup metadata updated"
     log_progress "Installing GHC" "v${BOOTSTRAP_HASKELL_GHC_VERSION}"
-    ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} #>/dev/null 2>&1 || err_exit "Command failed: ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}"
+    # BEGIN TEMPORARY GHCUP DEBUG BLOCK
+    # Keep this block noisy while investigating RockyLinux CI stalls during GHC installation.
+    # Restore the production command below when replacing this diagnostics block.
+    # ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1 || err_exit "Command failed: ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}"
+    log_info "ghcup version: $(ghcup --version 2>&1 | head -n 1)"
+    ghcup tool-requirements || true
+    df -h || true
+    free -h || true
+    env | sort | grep -E '^(BOOTSTRAP_HASKELL|GHCUP|PATH|HOME|LANG|LC_|TERM|SHELL)=' || true
+
+    ghcup_log="${HOME}/ghcup-install-ghc-${BOOTSTRAP_HASKELL_GHC_VERSION}.log"
+    ghcup --verbose install ghc "${BOOTSTRAP_HASKELL_GHC_VERSION}" > "${ghcup_log}" 2>&1 &
+    ghcup_pid=$!
+    ghcup_start=${SECONDS}
+    while kill -0 "${ghcup_pid}" 2>/dev/null; do
+      sleep 60
+      if kill -0 "${ghcup_pid}" 2>/dev/null; then
+        log_info "Still installing GHC v${BOOTSTRAP_HASKELL_GHC_VERSION} ($((SECONDS-ghcup_start))s elapsed)."
+        (ps -ef --forest 2>/dev/null || ps -ef 2>/dev/null) | grep -E 'ghcup|ghc|make|configure|install' | grep -v grep || true
+        tail -n 40 "${ghcup_log}" || true
+      fi
+    done
+    wait "${ghcup_pid}"
+    ghcup_rc=$?
+    tail -n 200 "${ghcup_log}" || true
+    [[ ${ghcup_rc} -eq 0 ]] || err_exit "Command failed: ghcup install ghc ${BOOTSTRAP_HASKELL_GHC_VERSION}"
+    # END TEMPORARY GHCUP DEBUG BLOCK
     ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1
     log_ok "GHC ready" "v${BOOTSTRAP_HASKELL_GHC_VERSION}"
   fi

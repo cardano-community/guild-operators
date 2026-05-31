@@ -65,6 +65,7 @@ jobs:
     - name: Testing guild-deploy.sh (with libsodium)
       run: |
         docker build . \
+          --progress=plain \
           --file files/tests/pre-merge/${{ matrix.distro }}-guild-deploy.sh.containerfile \
           --compress \
           --build-arg BRANCH=$BRANCH \
@@ -82,12 +83,13 @@ jobs:
       run: |
         echo "Working from PR Branch ${{ env.G_ACCOUNT }}/guild-operators/${{ env.BRANCH }} on COMMIT_SHA ${{ env.COMMIT_SHA }}"
         docker build . \
-        --file files/tests/pre-merge/${{ matrix.distro }}-cabal.containerfile \
-        --compress \
-        --build-arg BRANCH=${{ env.BRANCH }} \
-        --build-arg COMMIT=${{ env.COMMIT_SHA }} \
-        --build-arg G_ACCOUNT=${{ env.BUILD_G_ACCOUNT }} \
-        --tag ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal_${{ env.COMMIT_SHA }}
+          --progress=plain \
+          --file files/tests/pre-merge/${{ matrix.distro }}-cabal.containerfile \
+          --compress \
+          --build-arg BRANCH=${{ env.BRANCH }} \
+          --build-arg COMMIT=${{ env.COMMIT_SHA }} \
+          --build-arg G_ACCOUNT=${{ env.BUILD_G_ACCOUNT }} \
+          --tag ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal_${{ env.COMMIT_SHA }}
     - name: Get Versions and Image ID
       run: |
         VERSION_DETAILS=($(docker run --rm ${{ env.REGISTRY }}/${{ env.G_ACCOUNT }}/pre-merge-${{ matrix.distro }}:cabal_${{ env.COMMIT_SHA }} cardano-node --version | awk '/^cardano-node/'))
