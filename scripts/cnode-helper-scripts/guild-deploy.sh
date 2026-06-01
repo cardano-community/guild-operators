@@ -569,13 +569,13 @@ download_cnodebins() {
   rm -f caddress.tar.gz
   [[ -f cardano-address ]] || err_exit "cardano-address archive downloaded, but binary 'cardano-address' was not found after extraction."
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
-    log_progress "Downloading cardano-db-sync" "13.7.0.5"
-    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.7.0.5-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "Could not download cardano-db-sync release 13.7.0.5."
+    log_progress "Downloading cardano-db-sync" "13.7.1.0"
+    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.7.1.0-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "Could not download cardano-db-sync release 13.7.1.0."
     tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync ./cardano-db-tool &>/dev/null
     [[ -f cardano-db-sync ]] || err_exit "cardano-db-sync archive downloaded, but binary 'cardano-db-sync' was not found after extraction."
     rm -f cnodedbsync.tar.gz
     mv -f -t "${HOME}"/.local/bin cardano-db-sync
-    log_ok "Deployed cardano-db-sync" "13.7.0.5"
+    log_ok "Deployed cardano-db-sync" "13.7.1.0"
   else
     log_info "Skipped cardano-db-sync binary download."
   fi

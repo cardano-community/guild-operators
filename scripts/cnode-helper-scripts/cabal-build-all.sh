@@ -44,17 +44,6 @@ fi
 cat <<-EOF > .tmp.cabal.project.local
 	${USE_SYSTEM_LIBSODIUM}
 	
-	source-repository-package
-	  type: git
-	  location: https://github.com/intersectmbo/bech32
-	  tag: v1.1.7
-	  subdir: bech32
-	
-	source-repository-package
-	  type: git
-	  location: https://github.com/intersectmbo/cardano-addresses
-	  tag: 4.0.0
-	
 	allow-newer:
 	  *:aeson
 	
@@ -69,12 +58,11 @@ echo "Building.."
 
 if [[ -z "${USE_SYSTEM_LIBSODIUM}" ]] ; then # Build using default cabal.project first and then add cabal.project.local for additional packages
   if [[ "${PWD##*/}" == "cardano-node" ]] || [[ "${PWD##*/}" == "cardano-db-sync" ]]; then
-    run_logged /tmp/build.log cabal install cardano-crypto-class --disable-tests --disable-profiling
     [[ "${PWD##*/}" == "cardano-node" ]] && run_logged /tmp/build.log cabal build cardano-node cardano-cli cardano-submit-api --disable-tests --disable-profiling
     [[ "${PWD##*/}" == "cardano-db-sync" ]] && run_logged /tmp/build.log cabal build cardano-db-sync --disable-tests --disable-profiling
     if [[ "${CUSTOM_CABAL}" == "Y" ]]; then
       mv .tmp.cabal.project.local cabal.project.local
-      run_logged /tmp/build-b32-caddr.log cabal install bech32 cardano-cli cardano-addresses --overwrite-policy=always
+      run_logged /tmp/build-b32-caddr.log cabal install cardano-cli --overwrite-policy=always
     else
       [[ -f "cabal.project.local" ]] && mv cabal.project.local cabal.project.local_disabled
     fi
@@ -93,7 +81,7 @@ else # Add cabal.project.local customisations first before building
   else
     run_logged /tmp/build.log cabal build all --disable-tests --disable-profiling
   fi
-  [[ -f cabal.project.local ]] && run_logged /tmp/build-b32-caddr.log cabal install bech32 cardano-cli cardano-addresses --overwrite-policy=always
+  [[ -f cabal.project.local ]] && run_logged /tmp/build-b32-caddr.log cabal install cardano-cli --overwrite-policy=always
 fi
 
 grep "Linking /" /tmp/build.log | grep -Ev 'test|golden|demo|chairman|locli|ledger|topology' | sed -e 's#^.*.Linking#Linking#g' | while read -r line ; do
