@@ -2169,26 +2169,38 @@ function main {
                 waitToProceed "Press any key to proceed with registration after metadata file is uploaded"
               fi
               relay_output=""
-              relay_array=()
+              relay_json_entries=()
               println DEBUG "\nPool Relay Registration"
               if [[ -f "${pool_config}" && $(jq '.relays | length' "${pool_config}") -gt 0 ]]; then
                 println DEBUG "\nPrevious relay configuration:\n"
-                jq -r '["TYPE","ADDRESS","PORT"], (.relays[] | [.type //"-",.address //"-",.port //"-"]) | @tsv' "${pool_config}" | column -t
+                jq -r '["TYPE","MODE","ADDRESS","PORT"], (.relays[] | [.type //"-", .srv_mode //"-", .address //"-", .port //"-"]) | @tsv' "${pool_config}" | column -t
                 println DEBUG "\nReuse previous relay configuration?"
                 select_opt "[y] Yes" "[n] No" "[Esc] Cancel"
                 case $? in
-                  0) while read -r type address port; do
-                      relay_array+=( "type" "${type}" "address" "${address}" "port" "${port}" )
+                  0) while read -r relay; do
+                      type=$(jq -r '.type //empty' <<< "${relay}")
+                      address=$(jq -r '.address //empty' <<< "${relay}")
+                      port=$(jq -r '.port //empty' <<< "${relay}")
+                      srv_mode=$(jq -r '.srv_mode //empty' <<< "${relay}")
+                      srv_prefix=$(jq -r '.srv_prefix //empty' <<< "${relay}")
+                      if [[ ${type} = "DNS_SRV" ]]; then
+                        warnPoolRelaySRVConfig "${address}" "${srv_mode}" "${srv_prefix}"
+                      fi
+                      relay_json_entries+=( "${relay}" )
                       if [[ ${type} = "DNS_A" ]]; then
                         relay_output+="--single-host-pool-relay ${address} --pool-relay-port ${port} "
                       elif [[ ${type} = "IPv4" ]]; then
                         relay_output+="--pool-relay-port ${port} --pool-relay-ipv4 ${address} "
                       elif [[ ${type} = "IPv6" ]]; then
                         relay_output+="--pool-relay-port ${port} --pool-relay-ipv6 ${address} "
+<<<<<<< HEAD
 		      elif [[ ${type} = "DNS_SRV" ]]; then
+=======
+                      elif [[ ${type} = "DNS_SRV" ]]; then
+>>>>>>> 97d73bd (Add CIP-0155 SRV relay support to CNTools pool wizard)
                         relay_output+="--multi-host-pool-relay ${address} "
                       fi
-                    done< <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
+                    done< <(jq -c '.relays[]' "${pool_config}")
                     ;;
                   1) : ;; # Do nothing
                   2) continue ;;
@@ -2207,7 +2219,7 @@ function main {
                           if ! isNumber ${relay_port_enter} || [[ ${relay_port_enter} -lt 1 || ${relay_port_enter} -gt 65535 ]]; then
                             println ERROR "${FG_RED}ERROR${NC}: invalid port number!"
                           else
-                            relay_array+=( "type" "DNS_A" "address" "${relay_dns_a_enter}" "port" "${relay_port_enter}" )
+                            addRelayJsonEntry "DNS_A" "${relay_dns_a_enter}" "${relay_port_enter}"
                             relay_output+="--single-host-pool-relay ${relay_dns_a_enter} --pool-relay-port ${relay_port_enter} "
                           fi
                         else
@@ -2225,10 +2237,10 @@ function main {
                             if ! isNumber ${relay_port_enter} || [[ ${relay_port_enter} -lt 1 || ${relay_port_enter} -gt 65535 ]]; then
                               println ERROR "${FG_RED}ERROR${NC}: invalid port number!"
                             elif isValidIPv4 "${relay_ip_enter}" || isValidHostnameOrDomain "${relay_ip_enter}"; then
-                              relay_array+=( "type" "IPv4" "address" "${relay_ip_enter}" "port" "${relay_port_enter}" )
+                              addRelayJsonEntry "IPv4" "${relay_ip_enter}" "${relay_port_enter}"
                               relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv4 ${relay_ip_enter} "
                             else
-                              relay_array+=( "type" "IPv6" "address" "${relay_ip_enter}" "port" "${relay_port_enter}" )
+                              addRelayJsonEntry "IPv6" "${relay_ip_enter}" "${relay_port_enter}"
                               relay_output+="--pool-relay-port ${relay_port_enter} --pool-relay-ipv6 ${relay_ip_enter} "
                             fi
                           else
@@ -2239,6 +2251,7 @@ function main {
                         println ERROR "${FG_RED}ERROR${NC}: IPv4/v6 address empty!"
                       fi
                       ;;
+<<<<<<< HEAD
                     2) getAnswerAnyCust relay_dns_srv_enter "Enter relays's DNS record, only SRV records"
                       if [[ -z "${relay_dns_srv_enter}" ]]; then
                         println ERROR "${FG_RED}ERROR${NC}: DNS record can not be empty!"
@@ -2246,6 +2259,13 @@ function main {
                         relay_array+=( "type" "DNS_SRV" "address" "${relay_dns_srv_enter}" "port" "" )
                         relay_output+="--multi-host-pool-relay ${relay_dns_srv_enter} "
                       fi
+=======
+                    2) promptPoolRelaySRVEntry
+                      case $? in
+                        1) : ;;
+                        2) continue 2 ;;
+                      esac
+>>>>>>> 97d73bd (Add CIP-0155 SRV relay support to CNTools pool wizard)
                       ;;
                     3) continue 2 ;;
                   esac
@@ -2564,12 +2584,7 @@ function main {
               fi
 
               # Save pool config
-              # Construct relay json array
-              relay_json=$({
-                printf '['
-                printf '{"%s":"%s","%s":"%s","%s":"%s"},\n' "${relay_array[@]}" | sed '$s/,$//'
-                printf ']'
-              } | jq -c .)
+              relay_json=$(buildRelayJsonArray)
               # Construct owner json array
               owner_array=()
               for index in "${!owner_wallets[@]}"; do
@@ -2976,14 +2991,22 @@ function main {
                 println "$(printf "%-21s : ${FG_GREEN}%s${NC} (%s)" "Owner Wallet" "${conf_owner}" "primary only, use online mode for multi-owner")"
                 println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward Wallet" "${conf_reward}")"
                 relay_title="Relay(s)"
-                while read -r type address port; do
-                  if [[ ${type} != "DNS_A" && ${type} != "IPv4" && ${type} != "IPv6" ]]; then
-                    println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/v6/DNS supported in CNTools)")"
-                  else
+                while read -r relay; do
+                  type=$(jq -r '.type //empty' <<< "${relay}")
+                  address=$(jq -r '.address //empty' <<< "${relay}")
+                  port=$(jq -r '.port //empty' <<< "${relay}")
+                  srv_mode=$(jq -r '.srv_mode //empty' <<< "${relay}")
+                  srv_prefix=$(jq -r '.srv_prefix //empty' <<< "${relay}")
+                  if [[ ${type} = "DNS_SRV" ]]; then
+                    relay_display=$(formatPoolRelaySRVDisplay "${address}" "${srv_mode}" "${srv_prefix}")
+                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${relay_title}" "${relay_display}")"
+                  elif [[ ${type} = "DNS_A" || ${type} = "IPv4" || ${type} = "IPv6" ]]; then
                     println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${address}" "${port}")"
+                  else
+                    println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/v6/DNS/SRV supported in CNTools)")"
                   fi
                   relay_title=""
-                done < <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
+                done < <(jq -c '.relays[]' "${pool_config}")
               elif [[ ${pool_registered} = *Yes* ]]; then
                 # get pledge
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
@@ -3056,8 +3079,15 @@ function main {
                           if [[ -n ${relay_addr} ]]; then
                             relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
                           else
-                            relay_addr="unknown type"
-                            relay_port=" only IPv4/v6/DNS supported in CNTools"
+                            relay_addr="$(jq -r '."multi host name".dnsName //empty' <<< ${relay})"
+                            if [[ -n ${relay_addr} ]]; then
+                              relay_display=$(formatPoolRelaySRVDisplay "${relay_addr}")
+                              relay_addr="${relay_display}"
+                              relay_port=""
+                            else
+                              relay_addr="unknown type"
+                              relay_port=" only IPv4/v6/DNS/SRV supported in CNTools"
+                            fi
                           fi
                         fi
                       fi
@@ -3073,12 +3103,20 @@ function main {
                             if [[ -z ${relay_addr} ]]; then
                               relay_addr="unknown type"
                               relay_port=" only IPv4/v6/DNS/SRV supported in CNTools"
+                            else
+                              relay_display=$(formatPoolRelaySRVDisplay "${relay_addr}")
+                              relay_addr="${relay_display}"
+                              relay_port=""
                             fi
                           fi
                         fi
                       fi
                     fi
-                    println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_addr}" "${relay_port}")"
+                    if [[ -n ${relay_port} ]]; then
+                      println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_addr}" "${relay_port}")"
+                    else
+                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${relay_title}" "${relay_addr}")"
+                    fi
                     relay_title=""
                   done <<< "${relays}"
                 fi

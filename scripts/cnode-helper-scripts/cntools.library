@@ -15,7 +15,7 @@ CNTOOLS_MAJOR_VERSION=13
 # Minor: Changes and features of minor character that can be applied without breaking existing functionality or workflow
 CNTOOLS_MINOR_VERSION=5
 # Patch: Backwards compatible bug fixes. No additional functionality or major changes
-CNTOOLS_PATCH_VERSION=6
+CNTOOLS_PATCH_VERSION=7
 
 CNTOOLS_VERSION="${CNTOOLS_MAJOR_VERSION}.${CNTOOLS_MINOR_VERSION}.${CNTOOLS_PATCH_VERSION}"
 DUMMYFEE=20000
@@ -5428,4 +5428,148 @@ getPriceString() {
     decimals=$?
     price_str=$(LC_NUMERIC=C printf " (${FG_LBLUE}%s${NC} ${CURRENCY^^})" "$(formatAsset "$(LC_NUMERIC=C printf "%.${decimals}f" "${ada_value}")")")
   fi
+}
+
+# Command     : addRelayJsonEntry
+# Description : append a relay object to relay_json_entries global array
+addRelayJsonEntry() {
+  local relay_type=$1 address=$2 port=$3 srv_mode=${4:-} srv_prefix=${5:-}
+  relay_json_entries+=( "$(jq -nc \
+    --arg type "${relay_type}" \
+    --arg address "${address}" \
+    --arg port "${port}" \
+    --arg srv_mode "${srv_mode}" \
+    --arg srv_prefix "${srv_prefix}" \
+    '{
+      type: $type,
+      address: $address,
+      port: $port
+    }
+    + (if $srv_mode != "" then {srv_mode: $srv_mode} else {} end)
+    + (if $srv_prefix != "" then {srv_prefix: $srv_prefix} else {} end)')" )
+}
+
+# Command     : buildRelayJsonArray
+# Description : build relay JSON array from relay_json_entries
+buildRelayJsonArray() {
+  if [[ ${#relay_json_entries[@]} -eq 0 ]]; then
+    echo '[]'
+    return 0
+  fi
+  printf '%s\n' "${relay_json_entries[@]}" | jq -sc '.'
+}
+
+# Command     : formatPoolRelaySRVDisplay
+# Description : human-readable SRV relay string for pool info display
+formatPoolRelaySRVDisplay() {
+  local address=$1 srv_mode=${2:-} srv_prefix=${3:-}
+  local inferred_mode query_name
+  inferred_mode=$(inferPoolRelaySRVMode "${address}" "${srv_mode}")
+  srv_prefix=${srv_prefix:-${CIP155_CARDANO_SRV_PREFIX}}
+  query_name=$(getPoolRelaySRVQueryName "${address}" "${inferred_mode}" "${srv_prefix}")
+  if [[ ${inferred_mode} = "cip155" ]]; then
+    echo "${address} (CIP-0155 SRV: ${query_name})"
+  elif [[ ${inferred_mode} = "legacy_wrong" ]]; then
+    echo "${address} (legacy/wrong CIP-0155 format)"
+  else
+    echo "${query_name}"
+  fi
+}
+
+# Command     : warnPoolRelaySRVConfig
+# Description : warn about invalid or legacy SRV relay entries in pool_config
+warnPoolRelaySRVConfig() {
+  local address=$1 stored_mode=${2:-} stored_prefix=${3:-}
+  local inferred_mode query_name dns_rc
+  inferred_mode=$(inferPoolRelaySRVMode "${address}" "${stored_mode}")
+  stored_prefix=${stored_prefix:-${CIP155_CARDANO_SRV_PREFIX}}
+  query_name=$(getPoolRelaySRVQueryName "${address}" "${inferred_mode}" "${stored_prefix}")
+
+  case ${inferred_mode} in
+    unknown)
+      println DEBUG "${FG_YELLOW}WARN${NC}: relay SRV address '${FG_LGRAY}${address}${NC}' has invalid format"
+      println DEBUG "Use CIP-0155 domain (example.com) or standard full SRV (_service._tcp.example.com)"
+      return 1
+      ;;
+    legacy_wrong)
+      println DEBUG "${FG_YELLOW}WARN${NC}: relay SRV '${FG_LGRAY}${address}${NC}' looks like a full CIP-0155 DNS name stored on-chain"
+      println DEBUG "Per CIP-0155, register domain only on-chain; nodes prepend ${FG_LGRAY}${CIP155_CARDANO_SRV_PREFIX}${NC}"
+      local suggested_domain=${address#_cardano._tcp.}
+      [[ ${suggested_domain} = "${address}" ]] && suggested_domain=${address#_cardano._udp.}
+      println DEBUG "Suggested on-chain value : ${FG_LGRAY}${suggested_domain}${NC}"
+      println DEBUG "Expected DNS SRV record  : ${FG_LGRAY}${address}${NC}"
+      ;;
+    cip155)
+      if [[ -n ${stored_mode} && ${stored_mode} = "standard" ]]; then
+        println DEBUG "${FG_YELLOW}WARN${NC}: pool_config marks SRV as standard but address looks like a CIP-0155 domain"
+      fi
+      ;;
+    standard)
+      if [[ -n ${stored_mode} && ${stored_mode} = "cip155" ]]; then
+        println DEBUG "${FG_YELLOW}WARN${NC}: pool_config marks SRV as CIP-0155 but address looks like a full SRV record"
+      elif ! isValidSRVRecordFormat "${address}"; then
+        println DEBUG "${FG_YELLOW}WARN${NC}: standard SRV relay '${FG_LGRAY}${address}${NC}' is missing ._tcp. or ._udp."
+        return 1
+      fi
+      ;;
+  esac
+
+  dns_rc=0
+  checkSRVDNSRecordExists "${query_name}" || dns_rc=$?
+  if [[ ${dns_rc} -eq 1 ]]; then
+    println DEBUG "${FG_YELLOW}WARN${NC}: DNS SRV record not found for ${FG_LGRAY}${query_name}${NC}"
+    if [[ ${inferred_mode} = "cip155" ]]; then
+      println DEBUG "On-chain (ledger) value : ${FG_LGRAY}${address}${NC}"
+    fi
+    println DEBUG "Expected DNS SRV record : ${FG_LGRAY}${query_name}${NC}"
+  elif [[ ${dns_rc} -eq 2 ]]; then
+    println DEBUG "${FG_BLUE}INFO${NC}: DNS lookup unavailable (install dig or host)"
+    println DEBUG "Expected DNS SRV record : ${FG_LGRAY}${query_name}${NC}"
+  fi
+  return 0
+}
+
+# Command     : promptPoolRelaySRVEntry
+# Description : interactive wizard for standard or CIP-0155 SRV pool relay
+#             : appends to relay_output and relay_json_entries on success
+promptPoolRelaySRVEntry() {
+  local relay_address relay_mode relay_prefix="${CIP155_CARDANO_SRV_PREFIX}"
+  println DEBUG "\nSRV relay modes:"
+  println DEBUG " CIP-0155 (recommended): ledger stores domain only; cardano-node resolves ${FG_LGRAY}${relay_prefix}.<domain>${NC}"
+  println DEBUG " Standard             : ledger stores full SRV owner name (_service._tcp.domain)"
+  select_opt "[c] CIP-0155 (recommended)" "[s] Standard full SRV record" "[Esc] Cancel"
+  case $? in
+    0) relay_mode="cip155"
+      getAnswerAnyCust relay_srv_domain "Enter relay domain for CIP-0155 (e.g. relay.example.com)"
+      if [[ -z "${relay_srv_domain}" ]]; then
+        println ERROR "${FG_RED}ERROR${NC}: domain can not be empty!"
+        return 1
+      fi
+      if ! isValidCIP155SRVDomain "${relay_srv_domain}" "${relay_prefix}"; then
+        return 1
+      fi
+      relay_address="${relay_srv_domain}"
+      println DEBUG "\nCIP-0155 DNS guidance:"
+      println DEBUG " On-chain (ledger) value : ${FG_LGRAY}${relay_address}${NC}"
+      println DEBUG " Configure DNS SRV at    : ${FG_LGRAY}${relay_prefix}.${relay_address}${NC}"
+      println DEBUG " DNS record type         : SRV (target hostname + port at your DNS provider)"
+      ;;
+    1) relay_mode="standard"
+      getAnswerAnyCust relay_dns_srv_enter "Enter full SRV record name (must include ._tcp. or ._udp.)"
+      if [[ -z "${relay_dns_srv_enter}" ]]; then
+        println ERROR "${FG_RED}ERROR${NC}: SRV record can not be empty!"
+        return 1
+      fi
+      if ! isValidSRVRecord "${relay_dns_srv_enter}"; then
+        return 1
+      fi
+      relay_address="${relay_dns_srv_enter}"
+      relay_prefix=""
+      ;;
+    2) return 2
+      ;;
+  esac
+  relay_output+="--multi-host-pool-relay ${relay_address} "
+  addRelayJsonEntry "DNS_SRV" "${relay_address}" "" "${relay_mode}" "${relay_prefix}"
+  return 0
 }

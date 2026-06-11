@@ -512,6 +512,147 @@ isValidHostnameOrDomain() {
   return 1
 }
 
+# Description : CIP-0155 default SRV prefix for cardano-node pool relays
+CIP155_CARDANO_SRV_PREFIX="_cardano._tcp"
+
+# Description : Print validation message when cntools println is available
+_cntoolsPrintMsg() {
+  if declare -F println >/dev/null 2>&1; then
+    println "$@"
+  else
+    echo -e "$*" >&2
+  fi
+}
+
+# Description : Validate full SRV owner name format (_service._proto.domain)
+#             : $1 = SRV record name
+isValidSRVRecordFormat() {
+  local srv=$1
+  [[ -z ${srv} ]] && return 1
+  [[ ${srv} == _* ]] || return 1
+  [[ ${srv} == *._tcp.* || ${srv} == *._udp.* ]] || return 1
+  local srv_regex='^.+\._(tcp|udp)\.[^[:space:]]+$'
+  [[ ${srv} =~ ${srv_regex} ]]
+}
+
+# Description : Validate CIP-0155 on-chain domain (no SRV prefix in ledger value)
+#             : $1 = domain name
+isValidCIP155SRVDomainFormat() {
+  local domain=$1
+  isValidHostnameOrDomain "${domain}" || return 1
+  [[ ${domain} == *._tcp.* || ${domain} == *._udp.* ]] && return 1
+  [[ ${domain} == _* ]] && return 1
+  return 0
+}
+
+# Description : Detect legacy/wrong on-chain SRV values (full _cardano._tcp.* name)
+#             : $1 = relay address from pool config or ledger
+isLikelyWrongCIP155SRVRelay() {
+  local address=$1
+  [[ ${address} == _cardano._tcp.* || ${address} == _cardano._udp.* ]]
+}
+
+# Description : Infer SRV relay mode from stored config or address shape
+#             : $1 = address, $2 = optional stored srv_mode
+inferPoolRelaySRVMode() {
+  local address=$1 stored_mode=${2:-}
+  if [[ -n ${stored_mode} && ${stored_mode} != null && ${stored_mode} != "-" ]]; then
+    echo "${stored_mode}"
+    return 0
+  fi
+  if isLikelyWrongCIP155SRVRelay "${address}"; then
+    echo "legacy_wrong"
+  elif isValidSRVRecordFormat "${address}"; then
+    echo "standard"
+  elif isValidCIP155SRVDomainFormat "${address}"; then
+    echo "cip155"
+  else
+    echo "unknown"
+  fi
+}
+
+# Description : Full DNS SRV query name for a pool relay entry
+#             : $1 = on-chain address, $2 = srv_mode, $3 = optional srv_prefix
+getPoolRelaySRVQueryName() {
+  local address=$1 srv_mode=$2 srv_prefix=${3:-${CIP155_CARDANO_SRV_PREFIX}}
+  if [[ ${srv_mode} = "cip155" || ${srv_mode} = "legacy_wrong" ]]; then
+    if isLikelyWrongCIP155SRVRelay "${address}"; then
+      echo "${address}"
+    else
+      echo "${srv_prefix}.${address}"
+    fi
+  else
+    echo "${address}"
+  fi
+}
+
+# Description : Check if an SRV DNS record exists
+#             : $1 = full SRV query name
+#             : returns 0 when found, 1 when not found, 2 when lookup unavailable
+checkSRVDNSRecordExists() {
+  local query_name=$1 result=""
+  [[ -z ${query_name} ]] && return 1
+  if command -v dig >/dev/null 2>&1; then
+    result=$(dig +short SRV "${query_name}" 2>/dev/null | head -n1)
+    [[ -n ${result} ]] && return 0
+    return 1
+  fi
+  if command -v host >/dev/null 2>&1; then
+    host -t SRV "${query_name}" 2>/dev/null | grep -qi 'has SRV record' && return 0
+    return 1
+  fi
+  return 2
+}
+
+# Description : Validate standard full SRV relay; warn when DNS record is missing
+#             : $1 = full SRV record name
+isValidSRVRecord() {
+  local srv=$1 dns_rc query_name
+  if ! isValidSRVRecordFormat "${srv}"; then
+    _cntoolsPrintMsg ERROR "${FG_RED}ERROR${NC}: invalid SRV record format. Expected _service._tcp.domain or _service._udp.domain"
+    return 1
+  fi
+  query_name="${srv}"
+  dns_rc=0
+  checkSRVDNSRecordExists "${query_name}" || dns_rc=$?
+  if [[ ${dns_rc} -eq 1 ]]; then
+    _cntoolsPrintMsg DEBUG "${FG_YELLOW}WARN${NC}: DNS SRV record not found for ${FG_LGRAY}${query_name}${NC}"
+    _cntoolsPrintMsg DEBUG "Create SRV record at: ${FG_LGRAY}${query_name}${NC}"
+  elif [[ ${dns_rc} -eq 2 ]]; then
+    _cntoolsPrintMsg DEBUG "${FG_BLUE}INFO${NC}: DNS lookup unavailable (install dig or host). Expected SRV at: ${FG_LGRAY}${query_name}${NC}"
+  fi
+  return 0
+}
+
+# Description : Validate CIP-0155 domain relay; warn when DNS record is missing
+#             : $1 = on-chain domain, $2 = optional srv_prefix
+isValidCIP155SRVDomain() {
+  local domain=$1 srv_prefix=${2:-${CIP155_CARDANO_SRV_PREFIX}} dns_rc query_name
+  if isLikelyWrongCIP155SRVRelay "${domain}"; then
+    _cntoolsPrintMsg DEBUG "${FG_YELLOW}WARN${NC}: address looks like a full SRV name (${FG_LGRAY}${domain}${NC})"
+    _cntoolsPrintMsg DEBUG "Per CIP-0155, on-chain value should be the domain only (e.g. example.com)"
+    _cntoolsPrintMsg DEBUG "Configure DNS SRV at: ${FG_LGRAY}${domain}${NC} (nodes prepend ${srv_prefix})"
+    query_name="${domain}"
+  elif ! isValidCIP155SRVDomainFormat "${domain}"; then
+    _cntoolsPrintMsg ERROR "${FG_RED}ERROR${NC}: invalid CIP-0155 domain format. Use hostname/domain only (no ._tcp./._udp. prefix)"
+    return 1
+  else
+    query_name="${srv_prefix}.${domain}"
+  fi
+  dns_rc=0
+  checkSRVDNSRecordExists "${query_name}" || dns_rc=$?
+  if [[ ${dns_rc} -eq 1 ]]; then
+    _cntoolsPrintMsg DEBUG "${FG_YELLOW}WARN${NC}: DNS SRV record not found for ${FG_LGRAY}${query_name}${NC}"
+    _cntoolsPrintMsg DEBUG "On-chain (ledger) value : ${FG_LGRAY}${domain}${NC}"
+    _cntoolsPrintMsg DEBUG "Configure DNS SRV at    : ${FG_LGRAY}${query_name}${NC}"
+  elif [[ ${dns_rc} -eq 2 ]]; then
+    _cntoolsPrintMsg DEBUG "${FG_BLUE}INFO${NC}: DNS lookup unavailable (install dig or host)"
+    _cntoolsPrintMsg DEBUG "On-chain (ledger) value : ${FG_LGRAY}${domain}${NC}"
+    _cntoolsPrintMsg DEBUG "Configure DNS SRV at    : ${FG_LGRAY}${query_name}${NC}"
+  fi
+  return 0
+}
+
 # Description : Get password from user on STDIN
 #             : populates ${password} variable, make sure to unset variable when done
 #             : $1 = Minimum password length
