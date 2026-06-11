@@ -2193,11 +2193,7 @@ function main {
                         relay_output+="--pool-relay-port ${port} --pool-relay-ipv4 ${address} "
                       elif [[ ${type} = "IPv6" ]]; then
                         relay_output+="--pool-relay-port ${port} --pool-relay-ipv6 ${address} "
-<<<<<<< HEAD
-		      elif [[ ${type} = "DNS_SRV" ]]; then
-=======
                       elif [[ ${type} = "DNS_SRV" ]]; then
->>>>>>> 97d73bd (Add CIP-0155 SRV relay support to CNTools pool wizard)
                         relay_output+="--multi-host-pool-relay ${address} "
                       fi
                     done< <(jq -c '.relays[]' "${pool_config}")
@@ -2251,21 +2247,11 @@ function main {
                         println ERROR "${FG_RED}ERROR${NC}: IPv4/v6 address empty!"
                       fi
                       ;;
-<<<<<<< HEAD
-                    2) getAnswerAnyCust relay_dns_srv_enter "Enter relays's DNS record, only SRV records"
-                      if [[ -z "${relay_dns_srv_enter}" ]]; then
-                        println ERROR "${FG_RED}ERROR${NC}: DNS record can not be empty!"
-                      else
-                        relay_array+=( "type" "DNS_SRV" "address" "${relay_dns_srv_enter}" "port" "" )
-                        relay_output+="--multi-host-pool-relay ${relay_dns_srv_enter} "
-                      fi
-=======
                     2) promptPoolRelaySRVEntry
                       case $? in
                         1) : ;;
                         2) continue 2 ;;
                       esac
->>>>>>> 97d73bd (Add CIP-0155 SRV relay support to CNTools pool wizard)
                       ;;
                     3) continue 2 ;;
                   esac

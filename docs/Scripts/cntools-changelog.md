@@ -6,7 +6,10 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<<<<<<< HEAD
+## [13.5.7] - 2026-06-11
+#### Added
+- Pool registration and update wizard support for SRV relays per [CIP-0155](https://cips.cardano.org/cip/CIP-0155)
+
 ## [13.5.6] - 2026-05-22
 #### Fixed
 - Local mode wallet listing failed to parse newer stake-address vote delegation output.
@@ -25,11 +28,6 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [13.5.4] - 2026-02-10 (unreleased)
 #### Fixed
 - Governance fix when in local mode for SPO vote power.
-=======
-## [13.5.7] - 2026-06-11
-#### Added
-- Pool registration and update wizard support for SRV relays per [CIP-0155](https://cips.cardano.org/cip/CIP-0155): choose CIP-0155 (domain on-chain, `_cardano._tcp` DNS SRV) or standard full SRV record names, with format validation, DNS lookup checks, and warnings for legacy or misconfigured `pool_config` entries.
->>>>>>> 97d73bd (Add CIP-0155 SRV relay support to CNTools pool wizard)
 
 ## [13.5.3] - 2025-12-15
 #### Fixed
