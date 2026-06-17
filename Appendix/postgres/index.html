@@ -1062,14 +1062,14 @@ It is recommended to customise these as per your needs for Production builds.</p
 <span class="w">  </span>sudo<span class="w"> </span>curl<span class="w"> </span>-s<span class="w"> </span>-o<span class="w"> </span>/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc<span class="w"> </span>--fail<span class="w"> </span>https://www.postgresql.org/media/keys/ACCC4CF8.asc
 <span class="w">  </span>sudo<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;echo &quot;deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main&quot; &gt; /etc/apt/sources.list.d/pgdg.list&#39;</span>
 <span class="w">  </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
-<span class="w">  </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>-y<span class="w"> </span>install<span class="w"> </span>postgresql-17<span class="w"> </span>postgresql-server-dev-17<span class="w"> </span>postgresql-contrib<span class="w"> </span>libghc-hdbc-postgresql-dev
+<span class="w">  </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>-y<span class="w"> </span>install<span class="w"> </span>postgresql-18<span class="w"> </span>postgresql-server-dev-18<span class="w"> </span>postgresql-contrib<span class="w"> </span>libghc-hdbc-postgresql-dev
 <span class="w">  </span>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>postgresql
 <span class="k">else</span>
 <span class="w">  </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;We have no automated procedures for this </span><span class="si">${</span><span class="nv">DISTRO</span><span class="si">}</span><span class="s2"> system&quot;</span>
 <span class="k">fi</span>
 </code></pre></div>
 <h4 id="tuning-your-instance">Tuning your instance<a class="headerlink" href="#tuning-your-instance" title="Permanent link">⚓︎</a></h4>
-<p>Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing <code>/etc/postgresql/17/main/postgresql.conf</code>.
+<p>Before you start populating your DB instance using dbsync data, now might be a good time to put some thought on to baseline configuration of your postgres instance by editing <code>/etc/postgresql/18/main/postgresql.conf</code>.
 Typically, you might find a lot of common standard practices parameters available in tuning guides. For our consideration, it would be nice to start with some baselines - for which we will use inputs from example <a href="https://pgtune.leopard.in.ua/#/">here</a>, which would need to be customised further to your environment and resources.</p>
 <p>In a typical Koios [gRest] setup, we use below for <em>minimum</em> viable specs (i.e. 64GB RAM, &gt; 8 CPUs, &gt;16K IOPs for <code>ioping -q -S512M -L -c 10 -s8k .</code> output when postgres data directory is on ZFS configured with max arc of 4GB), we find the below configuration to be the best common setup:</p>
 <table>
@@ -1083,7 +1083,7 @@ Typically, you might find a lot of common standard practices parameters availabl
 <tbody>
 <tr>
 <td>data_directory</td>
-<td>'/opt/cardano/cnode/guild-db/pgdb/17'</td>
+<td>'/opt/cardano/cnode/guild-db/pgdb/18'</td>
 <td>Move postgres data directory to ZFS mount at /opt/cardano/cnode, ensure it's writable by postgres user</td>
 </tr>
 <tr>
@@ -1173,7 +1173,7 @@ Typically, you might find a lot of common standard practices parameters availabl
 </tr>
 </tbody>
 </table>
-<p>In addition to above, due to the nature of usage by dbsync (synching from node and restart traversing back to last saved ledger-state snapshot), we leverage data retention on blockchain - as we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your <code>/etc/postgresql/17/main/postgresql.conf</code>:</p>
+<p>In addition to above, due to the nature of usage by dbsync (synching from node and restart traversing back to last saved ledger-state snapshot), we leverage data retention on blockchain - as we're not affected by loss of volatile information upon a restart of instance. Thus, we can relax some of the data retention and protection against corruption related settings, as those are IOPs/CPU Load Average impacts that the instance does not need to spend. We'd recommend setting 3 of those below in your <code>/etc/postgresql/18/main/postgresql.conf</code>:</p>
 <table>
 <thead>
 <tr>
@@ -1215,7 +1215,7 @@ Type <code>exit</code> at shell to return to your user from postgres</p>
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;/var/run/postgresql:5432:cexplorer:*:*&quot;</span><span class="w"> </span>&gt;<span class="w"> </span><span class="nv">$PGPASSFILE</span>
 chmod<span class="w"> </span><span class="m">0600</span><span class="w"> </span><span class="nv">$PGPASSFILE</span>
 psql<span class="w"> </span>postgres
-<span class="c1"># psql (17.0)</span>
+<span class="c1"># psql (18.3)</span>
 <span class="c1"># Type &quot;help&quot; for help.</span>
 <span class="c1"># </span>
 <span class="c1"># postgres=#</span>
