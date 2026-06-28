@@ -22,6 +22,7 @@
 #UPDATE_CHECK='Y'               # Check if there is an updated version of guild-deploy.sh script to download
 #SUDO='Y'                       # Used by docker builds to disable sudo, leave unchanged if unsure.
 #SKIP_DBSYNC_DOWNLOAD='N'       # When using -i d switch, used by docker builds or users who might not want to download dbsync binary
+#LEIOS_NODE_VERSION='latest'    # Leios prototype release tag used for NETWORK=leios with -s d. Set to 'latest' to resolve newest release.
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -159,7 +160,7 @@ err_exit() {
 usage() {
   cat <<-EOF >&2
 
-		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
+		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview|leios>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
 		Set up dependencies for building/using common tools across cardano ecosystem.
 		The script will always update dynamic content from existing scripts retaining existing user variables
 
@@ -173,7 +174,7 @@ usage() {
 		  b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
 		  l   Build and Install libsodium fork from IO repositories (Default: skip)
 		  m   Download latest (released) binaries for mithril-signer, mithril-client (Default: skip)
-		  d   Download latest (released) binaries for bech32, cardano-address, cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api (Default: skip)
+		  d   Download latest (released) binaries for bech32, cardano-address, cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api; for leios, download Leios cardano-node/cardano-cli only (Default: skip)
 		  c   Download latest (released) binaries for CNCLI (Default: skip)
 		  o   Download latest (released) binaries for Ogmios (Default: skip)
 		  w   Download latest (released) binaries for Cardano Hardware CLI (Default: skip)
@@ -207,6 +208,7 @@ set_defaults() {
   [[ -z ${SKIP_DBSYNC_DOWNLOAD} ]] && SKIP_DBSYNC_DOWNLOAD='N'
   [[ -z ${SUDO} ]] && SUDO='Y'
   [[ -z "${BRANCH}" ]] && BRANCH="master"
+  [[ "${NETWORK}" == "leios" && -z "${LEIOS_NODE_VERSION}" ]] && LEIOS_NODE_VERSION="latest"
   [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
   [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "10.6.2")"
@@ -588,6 +590,43 @@ download_cnodebins() {
   log_ok "Deployed cardano-address" "4.0.2"
 }
 
+resolve_leios_node_version() {
+  [[ "${LEIOS_NODE_VERSION}" != "latest" ]] && return 0
+  log_progress "Resolving latest Leios node release"
+  LEIOS_NODE_VERSION="$(curl -s -f -m ${CURL_TIMEOUT} https://api.github.com/repos/input-output-hk/ouroboros-leios/releases | jq -r '
+    [.[] |
+      select(.draft == false) |
+      select(.tag_name | test("^prototype-[0-9]{4}w[0-9]+$")) |
+      select(any(.assets[]?; .name == "cardano-node-leios-x86_64-linux.tar.gz"))
+    ][0].tag_name // empty
+  ' 2>/dev/null)"
+  [[ -n "${LEIOS_NODE_VERSION}" ]] || err_exit "Could not resolve latest Leios release with a Linux x86_64 node archive from GitHub."
+  log_ok "Resolved Leios node release" "${LEIOS_NODE_VERSION}"
+}
+
+download_leios_cnodebins() {
+  [[ -z ${ARCH##*aarch64*} ]] && err_exit "The Leios pre-built Linux binary is only available for x86_64; use the Leios Nix flow or build it manually on ARM."
+  local leios_archive="cardano-node-leios-x86_64-linux.tar.gz"
+  resolve_leios_node_version
+  local leios_release_url="https://github.com/input-output-hk/ouroboros-leios/releases/download/${LEIOS_NODE_VERSION}/${leios_archive}"
+  pushd "${HOME}"/tmp >/dev/null || err_exit "Could not enter temporary directory: ${HOME}/tmp"
+  rm -rf leios-node-bin && mkdir leios-node-bin
+  pushd leios-node-bin >/dev/null || err_exit "Could not enter temporary Leios binary directory."
+  log_progress "Downloading Leios cardano-node/cardano-cli" "${LEIOS_NODE_VERSION}"
+  curl -m 200 -sfL "${leios_release_url}" -o "${leios_archive}" || err_exit "Could not download Leios node release ${LEIOS_NODE_VERSION} from GitHub."
+  tar zxf "${leios_archive}" &>/dev/null || err_exit "Could not extract Leios node release ${LEIOS_NODE_VERSION}."
+  leios_node_path="$(find . -type f -name cardano-node | head -n 1)"
+  leios_cli_path="$(find . -type f -name cardano-cli | head -n 1)"
+  [[ -n "${leios_node_path}" ]] || err_exit "Leios archive downloaded, but binary 'cardano-node' was not found after extraction."
+  [[ -n "${leios_cli_path}" ]] || err_exit "Leios archive downloaded, but binary 'cardano-cli' was not found after extraction."
+  mv -f "${leios_node_path}" "${HOME}"/.local/bin/cardano-node
+  mv -f "${leios_cli_path}" "${HOME}"/.local/bin/cardano-cli
+  chmod +x "${HOME}"/.local/bin/cardano-node "${HOME}"/.local/bin/cardano-cli
+  log_ok "Deployed Leios cardano-node" "${LEIOS_NODE_VERSION}"
+  log_ok "Deployed Leios cardano-cli" "${LEIOS_NODE_VERSION}"
+  log_info "Leios does not currently provide supported cardano-submit-api or cardano-db-sync binaries; config files are deployed for future use."
+}
+
 # Download CNCLI
 download_cncli() {
   [[ -z ${ARCH##*aarch64*} ]] && err_exit "The CNCLI pre-compiled binary is not available for ARM; build it manually instead."
@@ -837,34 +876,45 @@ populate_cnode() {
   #NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-playground/main/static/book.play.dev.cardano.org/environments"
   NWCONFURL="${URL_RAW}/files/configs/${NETWORK}/"
   #CHKPTURL="https://book.play.dev.cardano.org/environments/${NETWORK}/checkpoints.json"
-  if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild)$ ]]; then
+  if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild|leios)$ ]]; then
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/alonzo-genesis.json" || err_exit "${err_msg} alonzo-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp "${NWCONFURL}/conway-genesis.json" || err_exit "${err_msg} conway-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/shelley-genesis.json" || err_exit "${err_msg} shelley-genesis.json"
+    if [[ ${NETWORK} == "leios" ]]; then
+      curl -sL -f -m ${CURL_TIMEOUT} -o dijkstra-genesis.json.tmp "${NWCONFURL}/dijkstra-genesis.json" || err_exit "${err_msg} dijkstra-genesis.json"
+      curl -sL -f -m ${CURL_TIMEOUT} -o peer-snapshot.json.tmp "${NWCONFURL}/peer-snapshot.json" || err_exit "${err_msg} peer-snapshot.json"
+    fi
     curl -sL -f -m ${CURL_TIMEOUT} -o topology.json.tmp "${NWCONFURL}/topology.json" || err_exit "${err_msg} topology.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o config.json.tmp "${NWCONFURL}/config.json" || err_exit "${err_msg} config.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o dbsync.json.tmp "${NWCONFURL}/db-sync-config.json" || err_exit "${err_msg} dbsync-sync-config.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o submitapi.json "${NWCONFURL}/submitapi.json" || err_exit "${err_msg} submitapi.json"
     #curl -sL -m ${CURL_TIMEOUT} -o checkpoints.json "${CHKPTURL}" || err_exit "${err_msg} checkpoints.json"
   else
-    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, or preview."
+    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, preview, or leios."
   fi
   log_ok "Network configuration downloaded" "${NETWORK}"
   sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
   sed -e "s@\"TraceOptionNodeName\": \"cnode\"@\"TraceOptionNodeName\": \"${CNODE_NAME}\"@" -i ./config.json.tmp
+  local missing_config="N"
+  [[ ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]] && missing_config="Y"
+  [[ ${NETWORK} == "leios" && ( ! -f dijkstra-genesis.json || ! -f peer-snapshot.json ) ]] && missing_config="Y"
   if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
     [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
     [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
     [[ -f dbsync.json ]] && cp -f dbsync.json "dbsync.json_bkp$(date +%s)"
+    [[ -f dijkstra-genesis.json ]] && cp -f dijkstra-genesis.json "dijkstra-genesis.json_bkp$(date +%s)"
+    [[ -f peer-snapshot.json ]] && cp -f peer-snapshot.json "peer-snapshot.json_bkp$(date +%s)"
     log_info "Backed up existing topology/config/dbsync files before overwrite."
   fi
   log_progress "Applying network configuration" "${NETWORK}"
-  if [[ ${FORCE_OVERWRITE} = 'Y' || ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]]; then
+  if [[ ${FORCE_OVERWRITE} = 'Y' || ${missing_config} = 'Y' ]]; then
     mv -f byron-genesis.json.tmp byron-genesis.json
     mv -f shelley-genesis.json.tmp shelley-genesis.json
     mv -f alonzo-genesis.json.tmp alonzo-genesis.json
     mv -f conway-genesis.json.tmp conway-genesis.json
+    [[ ${NETWORK} == "leios" ]] && mv -f dijkstra-genesis.json.tmp dijkstra-genesis.json
+    [[ ${NETWORK} == "leios" ]] && mv -f peer-snapshot.json.tmp peer-snapshot.json
     mv -f topology.json.tmp topology.json
     mv -f config.json.tmp config.json
     mv -f dbsync.json.tmp dbsync.json
@@ -873,6 +923,8 @@ populate_cnode() {
     rm -f shelley-genesis.json.tmp
     rm -f alonzo-genesis.json.tmp
     rm -f conway-genesis.json.tmp
+    rm -f dijkstra-genesis.json.tmp
+    rm -f peer-snapshot.json.tmp
     rm -f topology.json.tmp
     rm -f config.json.tmp
     rm -f dbsync.json.tmp
@@ -947,7 +999,13 @@ main_flow() {
   [[ "${LIBSODIUM_FORK}" == "Y" ]] && run_step "libsodium" "-s l" build_libsodium
   [[ "${INSTALL_MITHRIL}" == "Y" ]] && run_step "Mithril binaries" "-s m" download_mithril
   [[ "${POPULATE_CNODE}" == "Y" ]] && run_step "Scripts and configuration" "default/-s f/s" populate_cnode
-  [[ "${INSTALL_CNODEBINS}" == "Y" ]] && run_step "Cardano node binaries" "-s d" download_cnodebins
+  if [[ "${INSTALL_CNODEBINS}" == "Y" ]]; then
+    if [[ "${NETWORK}" == "leios" ]]; then
+      run_step "Cardano Leios node binaries" "-s d" download_leios_cnodebins
+    else
+      run_step "Cardano node binaries" "-s d" download_cnodebins
+    fi
+  fi
   [[ "${INSTALL_CNCLI}" == "Y" ]] && run_step "CNCLI" "-s c" download_cncli
   [[ "${INSTALL_OGMIOS}" == "Y" ]] && run_step "Ogmios" "-s o" download_ogmios
   [[ "${INSTALL_CWHCLI}" == "Y" ]] && run_step "Cardano hardware CLI" "-s w" download_cardanohwcli

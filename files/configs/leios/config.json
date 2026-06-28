@@ -1,0 +1,194 @@
+{
+  "AlonzoGenesisFile": "/opt/cardano/cnode/files/alonzo-genesis.json",
+  "AlonzoGenesisHash": "387a7c4880477ce7b128566fa7f9f9ed99ee04476084e9f6332b6d42d907faab",
+  "ByronGenesisFile": "/opt/cardano/cnode/files/byron-genesis.json",
+  "ByronGenesisHash": "73522baa9b5c2afecb8794a17a5fc0650ba6621c0d96d0a18d514d94d3755efe",
+  "ConsensusMode": "PraosMode",
+  "ConwayGenesisFile": "/opt/cardano/cnode/files/conway-genesis.json",
+  "ConwayGenesisHash": "7b465adc9d084af42e3f7685e561e974e0804b7efeaed12cf2f1ee409e91cc99",
+  "DijkstraGenesisFile": "/opt/cardano/cnode/files/dijkstra-genesis.json",
+  "DijkstraGenesisHash": "c6afe2641a407ee17f3625ed304571c3762e3123d38f4d8ae663f765f6c2bcb6",
+  "ExperimentalHardForksEnabled": true,
+  "ExperimentalProtocolsEnabled": true,
+  "LastKnownBlockVersion-Alt": 0,
+  "LastKnownBlockVersion-Major": 3,
+  "LastKnownBlockVersion-Minor": 1,
+  "LedgerDB": {
+    "Backend": "V2InMemory",
+    "NumOfDiskSnapshots": 2,
+    "QueryBatchSize": 100000,
+    "SnapshotInterval": 864
+  },
+  "LeiosDbConfig": {
+    "Backend": "SQLite",
+    "Filepath": "/opt/cardano/cnode/guild-db/leios.db"
+  },
+  "MempoolCapacityBytesOverride": 67108864,
+  "MinNodeVersion": "11.0.1-leios-prototype",
+  "Protocol": "Cardano",
+  "RequiresNetworkMagic": "RequiresMagic",
+  "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",
+  "ShelleyGenesisHash": "35381da1578c03d357599dce448cc6f3dddd5ae1020145b7c1cbd607607500e0",
+  "TestAllegraHardForkAtEpoch": 0,
+  "TestAlonzoHardForkAtEpoch": 0,
+  "TestBabbageHardForkAtEpoch": 0,
+  "TestConwayHardForkAtEpoch": 0,
+  "TestMaryHardForkAtEpoch": 0,
+  "TestShelleyHardForkAtEpoch": 0,
+  "TraceOptionForwarder": {
+    "connQueueSize": 64,
+    "disconnQueueSize": 128,
+    "maxReconnectDelay": 30
+  },
+  "TraceOptionMetricsPrefix": "cardano.node.metrics.",
+  "TraceOptionResourceFrequency": 1000,
+  "TraceOptions": {
+    "": {
+      "backends": [
+        "PrometheusSimple suffix 127.0.0.1 12798",
+        "Stdout MachineFormat"
+      ],
+      "detail": "DNormal",
+      "severity": "Notice"
+    },
+    "BlockFetch.Client.CompletedBlockFetch": {
+      "severity": "Info",
+      "maxFrequency": 4
+    },
+    "BlockFetch.Decision": {
+      "severity": "Info"
+    },
+    "BlockFetch.Client.SendFetchRequest": {
+      "severity": "Info"
+    },
+    "ChainDB": {
+      "severity": "Info"
+    },
+    "ChainDB.ImmDbEvent": {
+      "severity": "Warning"
+    },
+    "ChainDB.AddBlockEvent.AddBlockValidation": {
+      "severity": "Silence"
+    },
+    "ChainDB.AddBlockEvent.AddBlockValidation.ValidCandidate": {
+      "maxFrequency": 2
+    },
+    "ChainDB.AddBlockEvent.AddedBlockToQueue": {
+      "maxFrequency": 2
+    },
+    "ChainDB.AddBlockEvent.AddedBlockToVolatileDB": {
+      "maxFrequency": 2
+    },
+    "ChainDB.AddBlockEvent.AddedToCurrentChain": {
+      "maxFrequency": 2
+    },
+    "ChainDB.AddBlockEvent.SwitchedToAFork": {
+      "severity": "Info"
+    },
+    "ChainDB.ImmDbEvent.ChunkValidation.ValidatedChunk": {
+      "severity": "Info"
+    },
+    "ChainDB.CopyToImmutableDBEvent.CopiedBlockToImmutableDB": {
+      "maxFrequency": 2
+    },
+    "ChainDB.LedgerEvent.Replay": {
+      "severity": "Info",
+      "maxFrequency": 0.0668
+    },
+    "ChainDB.LedgerEvent.Forker": {
+      "severity": "Silence"
+    },
+    "ChainSync.Client": {
+      "severity": "Warning"
+    },
+    "ChainSync.Client.DownloadedHeader": {
+      "severity": "Info",
+      "maxFrequency": 14
+    },
+    "Forge.Loop": {
+      "severity": "Info"
+    },
+    "Forge.Loop.NodeNotLeader": {
+      "severity": "Silence"
+    },
+    "Forge.Loop.StartLeadershipCheck": {
+      "severity": "Silence"
+    },
+    "Forge.StateInfo": {
+      "severity": "Info",
+      "maxFrequency": 0.0002783
+    },
+    "Mempool": {
+      "severity": "Silence"
+    },
+    "Net.AcceptPolicy.ConnectionRateLimiting": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
+    },
+    "Net.AcceptPolicy.ConnectionLimitResume": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
+    },
+    "Net.ConnectionManager.Remote": {
+      "severity": "Info"
+    },
+    "Net.ErrorPolicy": {
+      "severity": "Info"
+    },
+    "Net.InboundGovernor": {
+      "severity": "Warning"
+    },
+    "Net.InboundGovernor.Remote.InboundGovernorCounters": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
+    },
+    "Net.InboundGovernor.Remote": {
+      "severity": "Info"
+    },
+    "Net.Mux.Remote": {
+      "severity": "Info"
+    },
+    "Net.PeerSelection": {
+      "severity": "Info"
+    },
+    "Net.PeerSelection.Actions.ConnectionError": {
+      "severity": "Silence"
+    },
+    "Resources": {
+      "severity": "Info",
+      "maxFrequency": 0.0167
+    },
+    "Startup": {
+      "severity": "Info"
+    },
+    "Consensus.LeiosKernel": {
+      "maxFrequency": 0,
+      "severity": "Debug"
+    },
+    "Consensus.LeiosPeer": {
+      "maxFrequency": 0,
+      "severity": "Debug"
+    },
+    "LeiosFetch.Remote": {
+      "maxFrequency": 0,
+      "severity": "Debug"
+    },
+    "LeiosNotify.Remote": {
+      "maxFrequency": 0,
+      "severity": "Debug"
+    },
+    "Mempool.AttemptAdd": {
+      "severity": "Silence"
+    },
+    "Mempool.SyncNotNeeded": {
+      "severity": "Silence"
+    },
+    "Startup.DiffusionInit": {
+      "severity": "Info"
+    }
+  },
+  "TurnOnLogMetrics": true,
+  "TurnOnLogging": true,
+  "UseTraceDispatcher": true,
+  "TraceOptionNodeName": "cnode"
+}

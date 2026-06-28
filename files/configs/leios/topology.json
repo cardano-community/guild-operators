@@ -1,0 +1,41 @@
+{
+  "bootstrapPeers": [
+    {
+      "address": "leios-node.play.dev.cardano.org",
+      "port": 3001
+    }
+  ],
+  "localRoots": [
+    {
+      "accessPoints": [
+        {
+          "address": "127.0.0.1",
+          "port": 6000,
+          "description": "replace-this-with-BP"
+        },
+        {
+          "address": "127.0.0.1",
+          "port": 6001,
+          "description": "replace-this-with-relay"
+        }
+      ],
+      "advertise": false,
+      "trustable": true,
+      "hotValency": 2
+    },
+    {
+      "accessPoints": [],
+      "advertise": false,
+      "trustable": false,
+      "valency": 1
+    }
+  ],
+  "peerSnapshotFile": "peer-snapshot.json",
+  "publicRoots": [
+    {
+      "accessPoints": [],
+      "advertise": false
+    }
+  ],
+  "useLedgerAfterSlot": 1000
+}
