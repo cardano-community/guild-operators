@@ -2094,7 +2094,9 @@ function main {
               metadata_done=false
               meta_tmp="${TMP_DIR}/url_poolmeta.json"
               if curl -sL -f -m ${CURL_TIMEOUT} -o "${meta_tmp}" ${meta_json_url} && jq -er . "${meta_tmp}" &>/dev/null; then
-                [[ $(wc -c <"${meta_tmp}") -gt 512 ]] && println ERROR "${FG_RED}ERROR${NC}: file at specified URL contain more than allowed 512b of data!" && waitToProceed && continue
+                meta_max_size=512
+                jq -er '.extended // .extDataUrl // .extSigUrl // .extVkey' "${meta_tmp}" &>/dev/null && meta_max_size=1024
+                [[ $(wc -c <"${meta_tmp}") -gt ${meta_max_size} ]] && println ERROR "${FG_RED}ERROR${NC}: file at specified URL contains $(wc -c <"${meta_tmp}") bytes, exceeding the ${meta_max_size}-byte limit!" && waitToProceed && continue
                 echo && jq -r . "${meta_tmp}" && echo
                 if ! jq -er .name "${meta_tmp}" &>/dev/null; then println ERROR "${FG_RED}ERROR${NC}: unable to get 'name' field from downloaded metadata file!" && waitToProceed && continue; fi
                 if ! jq -er .ticker "${meta_tmp}" &>/dev/null; then println ERROR "${FG_RED}ERROR${NC}: unable to get 'ticker' field from downloaded metadata file!" && waitToProceed && continue; fi
@@ -2148,7 +2150,7 @@ function main {
                     ;;
                   1) getAnswerAnyCust extended_enter "Enter URL to extended metadata (default: ${meta_extended})"
                     [[ -n "${extended_enter}" ]] && meta_extended="${extended_enter}"
-                    if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 64 ]]; then
+                    if [[ ! "${meta_extended}" =~ https?://.* || ${#meta_extended} -gt 128 ]]; then
                       println ERROR "${FG_RED}ERROR${NC}: invalid extended URL format or more than 64 chars in length"
                       waitToProceed && continue
                     else
@@ -2159,8 +2161,9 @@ function main {
                 echo -e "{\"name\":\"${meta_name}\",\"ticker\":\"${meta_ticker}\",\"description\":\"${meta_description}\",\"homepage\":\"${meta_homepage}\",\"nonce\":\"$(date +%s)\"${meta_extended_option}}" > "${new_pool_meta_file}"
                 jq . "${new_pool_meta_file}"
                 metadata_size=$(stat -c%s "${new_pool_meta_file}")
-                if [[ ${metadata_size} -gt 512 ]]; then
-                  println ERROR "\n${FG_RED}ERROR${NC}: Total metadata size cannot exceed 512 chars in length, current length: ${metadata_size}"
+                [[ -n "${meta_extended_option}" ]] && meta_max_size=1024 || meta_max_size=512
+                if [[ ${metadata_size} -gt ${meta_max_size} ]]; then
+                println ERROR "\n${FG_RED}ERROR${NC}: Total metadata size cannot exceed ${meta_max_size} bytes, current length: ${metadata_size}"
                   waitToProceed && continue
                 else
                   cp -f "${new_pool_meta_file}" "${pool_meta_file}"
