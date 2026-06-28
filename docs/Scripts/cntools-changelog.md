@@ -9,6 +9,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [13.5.7] - 2026-06-28
 #### Fixed
 - Local mode pool info display was failing to parse output of cardano-cli query pool-state command.
+- Raise main metadata file cap to 1024 bytes when extended field present (CIP-6)
   
 ## [13.5.6] - 2026-05-22
 #### Fixed
