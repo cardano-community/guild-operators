@@ -2934,7 +2934,7 @@ function main {
                 if [[ -n ${KOIOS_API} ]]; then
                   meta_json_url=${p_meta_url}
                 elif [[ -n ${ledger_fPParams} ]]; then
-                  meta_json_url=$(jq -r '.metadata.url //empty' <<< "${ledger_fPParams}")
+                  meta_json_url=$(jq -r '.spsMetadata.url //empty' <<< "${ledger_fPParams}")
                 elif [[ -f "${pool_config}" ]]; then
                   meta_json_url=$(jq -r .json_url "${pool_config}")
                 fi
@@ -2951,8 +2951,8 @@ function main {
                   fi
                   println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash URL" "${meta_hash_url}")"
                   if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                    meta_hash_pParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_pParams}")
-                    meta_hash_fPParams=$(jq -r '.metadata.hash //empty' <<< "${ledger_fPParams}")
+                    meta_hash_pParams=$(jq -r '.spsMetadata.hash //empty' <<< "${ledger_pParams}")
+                    meta_hash_fPParams=$(jq -r '.spsMetadata.hash //empty' <<< "${ledger_fPParams}")
                   else
                     meta_hash_fPParams=${p_meta_hash}
                     meta_hash_pParams=${meta_hash_fPParams}
@@ -2990,8 +2990,8 @@ function main {
               elif [[ ${pool_registered} = *Yes* ]]; then
                 # get pledge
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  pParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_pParams}")
-                  fPParams_pledge=$(jq -r '.pledge //0' <<< "${ledger_fPParams}")
+                  pParams_pledge=$(jq -r '.spsPledge //0' <<< "${ledger_pParams}")
+                  fPParams_pledge=$(jq -r '.spsPledge //0' <<< "${ledger_fPParams}")
                 else
                   fPParams_pledge=${p_pledge}
                   pParams_pledge=${fPParams_pledge}
@@ -3007,8 +3007,8 @@ function main {
 
                 # get margin
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_pParams}")")
-                  fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.margin //0' <<< "${ledger_fPParams}")")
+                  pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.spsMargin //0' <<< "${ledger_pParams}")")
+                  fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.spsMargin //0' <<< "${ledger_fPParams}")")
                 else
                   fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "${p_margin}")
                   pParams_margin=${fPParams_margin}
@@ -3021,8 +3021,8 @@ function main {
 
                 # get fixed cost
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  pParams_cost=$(jq -r '.cost //0' <<< "${ledger_pParams}")
-                  fPParams_cost=$(jq -r '.cost //0' <<< "${ledger_fPParams}")
+                  pParams_cost=$(jq -r '.spsCost //0' <<< "${ledger_pParams}")
+                  fPParams_cost=$(jq -r '.spsCost //0' <<< "${ledger_fPParams}")
                 else
                   fPParams_cost=${p_fixed_cost}
                   pParams_cost=${fPParams_cost}
@@ -3035,8 +3035,8 @@ function main {
 
                 # get relays
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  relays=$(jq -c '.relays[] //empty' <<< "${ledger_fPParams}")
-                  if [[ ${relays} != $(jq -c '.relays[] //empty' <<< "${ledger_pParams}") ]]; then
+                  relays=$(jq -c '.spsRelays[] //empty' <<< "${ledger_fPParams}")
+                  if [[ ${relays} != $(jq -c '.spsRelays[] //empty' <<< "${ledger_pParams}") ]]; then
                     println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")"
                   fi
                 else
@@ -3088,8 +3088,8 @@ function main {
 
                 # get owners
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  owners=$(jq -rc '.owners[] // empty' <<< "${ledger_fPParams}")
-                  if [[ ${owners} != $(jq -rc '.owners[] // empty' <<< "${ledger_pParams}") ]]; then
+                  owners=$(jq -rc '.spsOwners[] // empty' <<< "${ledger_fPParams}")
+                  if [[ ${owners} != $(jq -rc '.spsOwners[] // empty' <<< "${ledger_pParams}") ]]; then
                     println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Owner(s) updated, showing latest registered")"
                   fi
                 else
@@ -3109,8 +3109,8 @@ function main {
 
                 # get reward account
                 if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  reward_account=$(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_fPParams}")
-                  if [[ ${reward_account} != $(jq -r '.rewardAccount.credential."key hash" // empty' <<< "${ledger_pParams}") ]]; then
+                  reward_account=$(jq -r '.spsAccountId.keyHash // empty' <<< "${ledger_fPParams}")
+                  if [[ ${reward_account} != $(jq -r '.spsAccountId.keyHash // empty' <<< "${ledger_pParams}") ]]; then
                     println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Reward account updated, showing latest registered")"
                   fi
                 else
