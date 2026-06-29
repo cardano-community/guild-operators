@@ -22,7 +22,7 @@
 #UPDATE_CHECK='Y'               # Check if there is an updated version of guild-deploy.sh script to download
 #SUDO='Y'                       # Used by docker builds to disable sudo, leave unchanged if unsure.
 #SKIP_DBSYNC_DOWNLOAD='N'       # When using -i d switch, used by docker builds or users who might not want to download dbsync binary
-#LEIOS_NODE_VERSION='latest'    # Leios prototype release tag used for NETWORK=leios with -s d. Set to 'latest' to resolve newest release.
+#LEIOS_NODE_VERSION='latest'    # Leios prototype release tag used for NETWORK=leiosnet with -s d. Set to 'latest' to resolve newest release.
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -160,7 +160,7 @@ err_exit() {
 usage() {
   cat <<-EOF >&2
 
-		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview|leios>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
+		Usage: $(basename "$0") [-n <mainnet|guild|preprod|preview|leiosnet>] [-p path] [-t <name>] [-b <branch>] [-u] [-s [p][b][l][m][d][c][o][w][x][f][s]]
 		Set up dependencies for building/using common tools across cardano ecosystem.
 		The script will always update dynamic content from existing scripts retaining existing user variables
 
@@ -174,7 +174,7 @@ usage() {
 		  b   Install OS level dependencies for tools required while building cardano-node/cardano-db-sync components (Default: skip)
 		  l   Build and Install libsodium fork from IO repositories (Default: skip)
 		  m   Download latest (released) binaries for mithril-signer, mithril-client (Default: skip)
-		  d   Download latest (released) binaries for bech32, cardano-address, cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api; for leios, download Leios cardano-node/cardano-cli only (Default: skip)
+		  d   Download latest (released) binaries for bech32, cardano-address, cardano-node, cardano-cli, cardano-db-sync and cardano-submit-api; for leiosnet, download Leios cardano-node/cardano-cli only (Default: skip)
 		  c   Download latest (released) binaries for CNCLI (Default: skip)
 		  o   Download latest (released) binaries for Ogmios (Default: skip)
 		  w   Download latest (released) binaries for Cardano Hardware CLI (Default: skip)
@@ -208,7 +208,7 @@ set_defaults() {
   [[ -z ${SKIP_DBSYNC_DOWNLOAD} ]] && SKIP_DBSYNC_DOWNLOAD='N'
   [[ -z ${SUDO} ]] && SUDO='Y'
   [[ -z "${BRANCH}" ]] && BRANCH="master"
-  [[ "${NETWORK}" == "leios" && -z "${LEIOS_NODE_VERSION}" ]] && LEIOS_NODE_VERSION="latest"
+  [[ "${NETWORK}" == "leiosnet" && -z "${LEIOS_NODE_VERSION}" ]] && LEIOS_NODE_VERSION="latest"
   [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
   [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "10.6.2")"
@@ -876,12 +876,12 @@ populate_cnode() {
   #NWCONFURL="https://raw.githubusercontent.com/input-output-hk/cardano-playground/main/static/book.play.dev.cardano.org/environments"
   NWCONFURL="${URL_RAW}/files/configs/${NETWORK}/"
   #CHKPTURL="https://book.play.dev.cardano.org/environments/${NETWORK}/checkpoints.json"
-  if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild|leios)$ ]]; then
+  if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild|leiosnet)$ ]]; then
     curl -sL -f -m ${CURL_TIMEOUT} -o alonzo-genesis.json.tmp "${NWCONFURL}/alonzo-genesis.json" || err_exit "${err_msg} alonzo-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o byron-genesis.json.tmp "${NWCONFURL}/byron-genesis.json" || err_exit "${err_msg} byron-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o conway-genesis.json.tmp "${NWCONFURL}/conway-genesis.json" || err_exit "${err_msg} conway-genesis.json"
     curl -sL -f -m ${CURL_TIMEOUT} -o shelley-genesis.json.tmp "${NWCONFURL}/shelley-genesis.json" || err_exit "${err_msg} shelley-genesis.json"
-    if [[ ${NETWORK} == "leios" ]]; then
+    if [[ ${NETWORK} == "leiosnet" ]]; then
       curl -sL -f -m ${CURL_TIMEOUT} -o dijkstra-genesis.json.tmp "${NWCONFURL}/dijkstra-genesis.json" || err_exit "${err_msg} dijkstra-genesis.json"
       curl -sL -f -m ${CURL_TIMEOUT} -o peer-snapshot.json.tmp "${NWCONFURL}/peer-snapshot.json" || err_exit "${err_msg} peer-snapshot.json"
     fi
@@ -891,14 +891,14 @@ populate_cnode() {
     curl -sL -f -m ${CURL_TIMEOUT} -o submitapi.json "${NWCONFURL}/submitapi.json" || err_exit "${err_msg} submitapi.json"
     #curl -sL -m ${CURL_TIMEOUT} -o checkpoints.json "${CHKPTURL}" || err_exit "${err_msg} checkpoints.json"
   else
-    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, preview, or leios."
+    err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, preview, or leiosnet."
   fi
   log_ok "Network configuration downloaded" "${NETWORK}"
   sed -e "s@/opt/cardano/cnode@${CNODE_HOME}@g" -i ./*.json.tmp
   sed -e "s@\"TraceOptionNodeName\": \"cnode\"@\"TraceOptionNodeName\": \"${CNODE_NAME}\"@" -i ./config.json.tmp
   local missing_config="N"
   [[ ! -f byron-genesis.json || ! -f shelley-genesis.json || ! -f alonzo-genesis.json || ! -f topology.json || ! -f config.json || ! -f dbsync.json ]] && missing_config="Y"
-  [[ ${NETWORK} == "leios" && ( ! -f dijkstra-genesis.json || ! -f peer-snapshot.json ) ]] && missing_config="Y"
+  [[ ${NETWORK} == "leiosnet" && ( ! -f dijkstra-genesis.json || ! -f peer-snapshot.json ) ]] && missing_config="Y"
   if [[ ${FORCE_OVERWRITE} = 'Y' ]]; then
     [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
     [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
@@ -913,8 +913,8 @@ populate_cnode() {
     mv -f shelley-genesis.json.tmp shelley-genesis.json
     mv -f alonzo-genesis.json.tmp alonzo-genesis.json
     mv -f conway-genesis.json.tmp conway-genesis.json
-    [[ ${NETWORK} == "leios" ]] && mv -f dijkstra-genesis.json.tmp dijkstra-genesis.json
-    [[ ${NETWORK} == "leios" ]] && mv -f peer-snapshot.json.tmp peer-snapshot.json
+    [[ ${NETWORK} == "leiosnet" ]] && mv -f dijkstra-genesis.json.tmp dijkstra-genesis.json
+    [[ ${NETWORK} == "leiosnet" ]] && mv -f peer-snapshot.json.tmp peer-snapshot.json
     mv -f topology.json.tmp topology.json
     mv -f config.json.tmp config.json
     mv -f dbsync.json.tmp dbsync.json
@@ -1000,7 +1000,7 @@ main_flow() {
   [[ "${INSTALL_MITHRIL}" == "Y" ]] && run_step "Mithril binaries" "-s m" download_mithril
   [[ "${POPULATE_CNODE}" == "Y" ]] && run_step "Scripts and configuration" "default/-s f/s" populate_cnode
   if [[ "${INSTALL_CNODEBINS}" == "Y" ]]; then
-    if [[ "${NETWORK}" == "leios" ]]; then
+    if [[ "${NETWORK}" == "leiosnet" ]]; then
       run_step "Cardano Leios node binaries" "-s d" download_leios_cnodebins
     else
       run_step "Cardano node binaries" "-s d" download_cnodebins
