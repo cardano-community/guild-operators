@@ -113,7 +113,7 @@ Updating dbsync can have different tasks depending on the versions involved. We 
     ``` bash
     cd ~/git/cardano-db-sync
     git pull
-    git checkout 13.7.1.0
+    git checkout 13.x.x.x
     ```
 
 - If going through major version update (eg: 13.x.x.x to 14.x.x.x), you might need to [rebuild and resync db from scratch](#prepare-db-for-sync), you may still follow the section to restore using snapshot to save some time (as long as you use a compatible snapshot).
