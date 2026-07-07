@@ -661,20 +661,21 @@ download_cardanohwcli() {
 
 # Download pre-built ogmios binary
 download_ogmios() {
-  [[ -z ${ARCH##*aarch64*} ]] && err_exit "The Ogmios pre-compiled binary is not available for ARM; build it manually instead."
   local OGMIOSPATH=""
   log_progress "Resolving Ogmios release"
   rm -rf /tmp/ogmios && mkdir /tmp/ogmios
   pushd /tmp/ogmios >/dev/null || err_exit "Could not enter temporary Ogmios directory."
-  ogmios_release_json="$(curl -s https://api.github.com/repos/IntersectMBO/ogmios/releases)"
+  ogmios_release_json="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases)"
   ogmios_git_version="$(jq -r '.[0].tag_name' <<< "${ogmios_release_json}" 2>/dev/null)"
   [[ -n "${ogmios_git_version}" && "${ogmios_git_version}" != "null" ]] || err_exit "Could not resolve Ogmios release from GitHub."
-  ogmios_asset_url="$(jq -r '.[].assets[].browser_download_url' <<< "${ogmios_release_json}" 2>/dev/null | grep x86_64-linux.tar.gz | head -1)"
-  [[ -n "${ogmios_asset_url}" ]] || err_exit "No Ogmios Linux x86_64 release asset was found."
+  ogmios_release_file="x86_64-linux.zip"
+  [[ ${ARCH} == *aarch64* ]] && ogmios_release_file="aarch64-linux.zip"
+  ogmios_asset_url="$(jq -r '.[].assets[].browser_download_url' <<< "${ogmios_release_json}" 2>/dev/null | grep ${ogmios_release_file} | head -1)"
+  [[ -n "${ogmios_asset_url}" ]] || err_exit "No Ogmios Linux release asset was found."
   log_progress "Downloading Ogmios" "${ogmios_git_version}"
-  if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.tar.gz ${ogmios_asset_url}; then
-    tar -xf ogmios.tar.gz &>/dev/null
-    rm -f ogmios.tar.gz
+  if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.zip ${ogmios_asset_url}; then
+    unzip ogmios.zip &>/dev/null
+    rm -f ogmios.zip
     [[ -f bin/ogmios ]] && OGMIOSPATH=bin/ogmios
     [[ -f ogmios ]] && OGMIOSPATH=ogmios
     [[ -n ${OGMIOSPATH} ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
