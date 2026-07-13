@@ -325,7 +325,7 @@ SGVERSION=v1.4.2
     printf "[Re]Installing HAProxy..\n"
     pushd ~/tmp >/dev/null || err_exit
     major_v="3.2"
-    minor_v="10"
+    minor_v="21"
     haproxy_url="http://www.haproxy.org/download/${major_v}/src/haproxy-${major_v}.${minor_v}.tar.gz"
     if curl -sL -f -m ${CURL_TIMEOUT} -o haproxy.tar.gz "${haproxy_url}"; then
       tar xf haproxy.tar.gz &>/dev/null && rm -f haproxy.tar.gz
