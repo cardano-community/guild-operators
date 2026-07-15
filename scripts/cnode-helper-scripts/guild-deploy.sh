@@ -213,6 +213,7 @@ set_defaults() {
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
   [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "10.6.2")"
   [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "10.15.0.1")"
+  [[ -z "${DBSYNC_VERSION}" ]] && DBSYNC_VERSION="13.7.2.1"
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
   [[ -z ${MITHRIL_HOME} ]] && MITHRIL_HOME="${CNODE_HOME}/mithril"
@@ -571,13 +572,13 @@ download_cnodebins() {
   rm -f caddress.tar.gz
   [[ -f cardano-address ]] || err_exit "cardano-address archive downloaded, but binary 'cardano-address' was not found after extraction."
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
-    log_progress "Downloading cardano-db-sync" "13.7.1.0"
-    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.7.1.0-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "Could not download cardano-db-sync release 13.7.1.0."
+    log_progress "Downloading cardano-db-sync" "${DBSYNC_VERSION}"
+    curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-${DBSYNC_VERSION}-$(uname -m).tar.gz" -o cnodedbsync.tar.gz || err_exit "Could not download cardano-db-sync release ${DBSYNC_VERSION}."
     tar zxf cnodedbsync.tar.gz --strip-components 1 ./cardano-db-sync ./cardano-db-tool &>/dev/null
     [[ -f cardano-db-sync ]] || err_exit "cardano-db-sync archive downloaded, but binary 'cardano-db-sync' was not found after extraction."
     rm -f cnodedbsync.tar.gz
     mv -f -t "${HOME}"/.local/bin cardano-db-sync
-    log_ok "Deployed cardano-db-sync" "13.7.1.0"
+    log_ok "Deployed cardano-db-sync" "${DBSYNC_VERSION}"
   else
     log_info "Skipped cardano-db-sync binary download."
   fi
@@ -699,20 +700,21 @@ download_cardanohwcli() {
 
 # Download pre-built ogmios binary
 download_ogmios() {
-  [[ -z ${ARCH##*aarch64*} ]] && err_exit "The Ogmios pre-compiled binary is not available for ARM; build it manually instead."
   local OGMIOSPATH=""
   log_progress "Resolving Ogmios release"
   rm -rf /tmp/ogmios && mkdir /tmp/ogmios
   pushd /tmp/ogmios >/dev/null || err_exit "Could not enter temporary Ogmios directory."
-  ogmios_release_json="$(curl -s https://api.github.com/repos/IntersectMBO/ogmios/releases)"
+  ogmios_release_json="$(curl -s https://api.github.com/repos/CardanoSolutions/ogmios/releases)"
   ogmios_git_version="$(jq -r '.[0].tag_name' <<< "${ogmios_release_json}" 2>/dev/null)"
   [[ -n "${ogmios_git_version}" && "${ogmios_git_version}" != "null" ]] || err_exit "Could not resolve Ogmios release from GitHub."
-  ogmios_asset_url="$(jq -r '.[].assets[].browser_download_url' <<< "${ogmios_release_json}" 2>/dev/null | grep x86_64-linux.tar.gz | head -1)"
-  [[ -n "${ogmios_asset_url}" ]] || err_exit "No Ogmios Linux x86_64 release asset was found."
+  ogmios_release_file="x86_64-linux.zip"
+  [[ ${ARCH} == *aarch64* ]] && ogmios_release_file="aarch64-linux.zip"
+  ogmios_asset_url="$(jq -r '.[].assets[].browser_download_url' <<< "${ogmios_release_json}" 2>/dev/null | grep ${ogmios_release_file} | head -1)"
+  [[ -n "${ogmios_asset_url}" ]] || err_exit "No Ogmios Linux release asset was found."
   log_progress "Downloading Ogmios" "${ogmios_git_version}"
-  if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.tar.gz ${ogmios_asset_url}; then
-    tar -xf ogmios.tar.gz &>/dev/null
-    rm -f ogmios.tar.gz
+  if curl -sL -f -m ${CURL_TIMEOUT} -o ogmios.zip ${ogmios_asset_url}; then
+    unzip ogmios.zip &>/dev/null
+    rm -f ogmios.zip
     [[ -f bin/ogmios ]] && OGMIOSPATH=bin/ogmios
     [[ -f ogmios ]] && OGMIOSPATH=ogmios
     [[ -n ${OGMIOSPATH} ]] || err_exit "ogmios downloaded but binary not found after extracting package!"
