@@ -219,7 +219,7 @@ check_mithril_upgrade_safe() {
 
 set_node_minimum_version() {
   response_file=$(mktemp)
-  status_code=$(curl -s -o "$response_file" -w "%{http_code}" https://raw.githubusercontent.com/input-output-hk/mithril/${MITHRIL_LATEST_VERSION}/networks.json)
+  status_code=$(curl -sL -o "$response_file" -w "%{http_code}" https://raw.githubusercontent.com/input-output-hk/mithril/${MITHRIL_LATEST_VERSION}/networks.json)
 
   if [[ "${status_code}" -gt 200 ]]; then
     echo "ERROR: Failed to download the networks.json file from the mithril repository! curl status code: ${status_code}."
