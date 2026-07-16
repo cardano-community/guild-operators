@@ -212,6 +212,7 @@ set_defaults() {
   [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "10.6.2")"
   [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "10.15.0.1")"
   [[ -z "${DBSYNC_VERSION}" ]] && DBSYNC_VERSION="13.7.2.1"
+  [[ -z "${CADDR_VERSION}" ]] && CADDR_VERSION="4.0.7"
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
   CNODE_VNAME=$(echo "$CNODE_NAME" | awk '{print toupper($0)}')
   [[ -z ${MITHRIL_HOME} ]] && MITHRIL_HOME="${CNODE_HOME}/mithril"
@@ -564,9 +565,9 @@ download_cnodebins() {
   tar zxf ccli.tar.gz --strip-components 0 cardano-cli-${cli_arch}-linux &>/dev/null && mv cardano-cli-${cli_arch}-linux cardano-cli
   rm -f ccli.tar.gz
   [[ -f cardano-cli ]] || err_exit "cardano-cli archive downloaded, but binary 'cardano-cli' was not found after extraction."
-  log_progress "Downloading cardano-address" "4.0.2"
-  [[ -n ${ARCH##*arch64*} ]] && curl -m 200 -sfL https://github.com/intersectmbo/cardano-addresses/releases/download/4.0.2/cardano-address-4.0.2-linux.tar.gz -o caddress.tar.gz || err_exit "Could not download cardano-address release 4.0.2 from GitHub."
-  tar zxf caddress.tar.gz --transform='s#.*\/##g' --wildcards */cardano-address &>/dev/null
+  log_progress "Downloading cardano-address" "${CADDR_VERSION}"
+  curl -m 200 -sfL "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-address-${CADDR_VERSION}-$(uname -m).tar.gz" -o caddress.tar.gz || err_exit "Could not download cardano-address from GitHub."
+  tar zxf caddress.tar.gz --transform='s#.*\/##g' --wildcards cardano-address &>/dev/null
   rm -f caddress.tar.gz
   [[ -f cardano-address ]] || err_exit "cardano-address archive downloaded, but binary 'cardano-address' was not found after extraction."
   if [[ "${SKIP_DBSYNC_DOWNLOAD}" == "N" ]]; then
@@ -586,7 +587,7 @@ download_cnodebins() {
   log_ok "Deployed cardano-cli" "${CARDANO_CLI_VERSION}"
   log_ok "Deployed cardano-submit-api" "${CARDANO_NODE_VERSION}"
   log_ok "Deployed bech32" "${CARDANO_NODE_VERSION}"
-  log_ok "Deployed cardano-address" "4.0.2"
+  log_ok "Deployed cardano-address" "${CADDR_VERSION}"
 }
 
 # Download CNCLI
@@ -793,13 +794,14 @@ download_blockperf() {
 
 # Download pre-built mithril-signer binary
 download_mithril() {
+    [[ -z ${ARCH##*aarch64*} ]] && mthrl_arch="arm64" || mthrl_arch="x64"
     pushd "${HOME}"/tmp >/dev/null || err_exit "Could not enter temporary directory: ${HOME}/tmp"
     log_progress "Resolving Mithril release"
     mithril_release="$(curl -s https://api.github.com/repos/input-output-hk/mithril/releases/latest | jq -r '.tag_name' 2>/dev/null)"
     [[ -n "${mithril_release}" && "${mithril_release}" != "null" ]] || err_exit "Could not resolve Mithril release from GitHub."
     log_progress "Downloading Mithril signer/client" "${mithril_release}"
     rm -f mithril-signer mithril-client
-    curl -m 200 -sfL https://github.com/input-output-hk/mithril/releases/download/${mithril_release}/mithril-${mithril_release}-linux-x64.tar.gz -o mithril.tar.gz || err_exit "Could not download Mithril release ${mithril_release} from GitHub."
+    curl -m 200 -sfL https://github.com/input-output-hk/mithril/releases/download/${mithril_release}/mithril-${mithril_release}-linux-${mthrl_arch}.tar.gz -o mithril.tar.gz || err_exit "Could not download Mithril release ${mithril_release} from GitHub."
     tar zxf mithril.tar.gz mithril-signer mithril-client &>/dev/null
     rm -f mithril.tar.gz
     [[ -f mithril-signer ]] || err_exit "Mithril archive downloaded, but binary 'mithril-signer' was not found after extraction."
