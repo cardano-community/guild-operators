@@ -797,7 +797,7 @@ download_mithril() {
     [[ -z ${ARCH##*aarch64*} ]] && mthrl_arch="arm64" || mthrl_arch="x64"
     pushd "${HOME}"/tmp >/dev/null || err_exit "Could not enter temporary directory: ${HOME}/tmp"
     log_progress "Resolving Mithril release"
-    mithril_release="$(curl -s https://api.github.com/repos/input-output-hk/mithril/releases/latest | jq -r '.tag_name' 2>/dev/null)"
+    mithril_release="$(curl -sL https://api.github.com/repos/input-output-hk/mithril/releases/latest | jq -r '.tag_name' 2>/dev/null)"
     [[ -n "${mithril_release}" && "${mithril_release}" != "null" ]] || err_exit "Could not resolve Mithril release from GitHub."
     log_progress "Downloading Mithril signer/client" "${mithril_release}"
     rm -f mithril-signer mithril-client
