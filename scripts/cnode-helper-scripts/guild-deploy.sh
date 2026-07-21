@@ -797,11 +797,11 @@ download_mithril() {
     [[ -z ${ARCH##*aarch64*} ]] && mthrl_arch="arm64" || mthrl_arch="x64"
     pushd "${HOME}"/tmp >/dev/null || err_exit "Could not enter temporary directory: ${HOME}/tmp"
     log_progress "Resolving Mithril release"
-    mithril_release="$(curl -sL https://api.github.com/repos/input-output-hk/mithril/releases/latest | jq -r '.tag_name' 2>/dev/null)"
+    mithril_release="$(curl -sL https://api.github.com/repos/IntersectMBO/mithril/releases/latest | jq -r '.tag_name' 2>/dev/null)"
     [[ -n "${mithril_release}" && "${mithril_release}" != "null" ]] || err_exit "Could not resolve Mithril release from GitHub."
     log_progress "Downloading Mithril signer/client" "${mithril_release}"
     rm -f mithril-signer mithril-client
-    curl -m 200 -sfL https://github.com/input-output-hk/mithril/releases/download/${mithril_release}/mithril-${mithril_release}-linux-${mthrl_arch}.tar.gz -o mithril.tar.gz || err_exit "Could not download Mithril release ${mithril_release} from GitHub."
+    curl -m 200 -sfL https://github.com/IntersectMBO/mithril/releases/download/${mithril_release}/mithril-${mithril_release}-linux-${mthrl_arch}.tar.gz -o mithril.tar.gz || err_exit "Could not download Mithril release ${mithril_release} from GitHub."
     tar zxf mithril.tar.gz mithril-signer mithril-client &>/dev/null
     rm -f mithril.tar.gz
     [[ -f mithril-signer ]] || err_exit "Mithril archive downloaded, but binary 'mithril-signer' was not found after extraction."

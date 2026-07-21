@@ -174,7 +174,7 @@ set_defaults() {
     esac
   fi
   AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK_NAME,,}.api.mithril.network/aggregator
-  GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
+  GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
 }
 
 set_env_file_ownership() {
@@ -219,7 +219,7 @@ check_mithril_upgrade_safe() {
 
 set_node_minimum_version() {
   response_file=$(mktemp)
-  status_code=$(curl -sL -o "$response_file" -w "%{http_code}" https://raw.githubusercontent.com/input-output-hk/mithril/${MITHRIL_LATEST_VERSION}/networks.json)
+  status_code=$(curl -sL -o "$response_file" -w "%{http_code}" https://raw.githubusercontent.com/IntersectMBO/mithril/${MITHRIL_LATEST_VERSION}/networks.json)
 
   if [[ "${status_code}" -gt 200 ]]; then
     echo "ERROR: Failed to download the networks.json file from the mithril repository! curl status code: ${status_code}."
@@ -275,8 +275,8 @@ update_mithril_environment_for_client() {
 		RELEASE=${RELEASE}
 		AGGREGATOR_ENDPOINT=https://aggregator.${RELEASE}-${NETWORK_NAME,,}.api.mithril.network/aggregator
 		DB_DIRECTORY=${DB_DIR}
-		ANCILLARY_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/ancillary.vkey)
-		GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
+		ANCILLARY_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/ancillary.vkey)
+		GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
 		SNAPSHOT_DIGEST=latest
 		EOF"
 }
@@ -714,8 +714,8 @@ update_mithril_environment_for_signer() {
 
 
   # Generate the full set of environment variables required by Mithril signer use case
-  export ERA_READER_ADDRESS=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.addr
-  export ERA_READER_VKEY=https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.vkey
+  export ERA_READER_ADDRESS=https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.addr
+  export ERA_READER_VKEY=https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/era.vkey
   ${sudo} bash -c "cat <<-'EOF' > ${MITHRIL_HOME}/mithril.env
 		KES_SECRET_KEY_PATH=${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}
 		OPERATIONAL_CERTIFICATE_PATH=${POOL_DIR}/${POOL_OPCERT_FILENAME}
@@ -730,8 +730,8 @@ update_mithril_environment_for_signer() {
 		STORE_RETENTION_LIMITS=5
 		ERA_READER_ADAPTER_TYPE=cardano-chain
 		ERA_READER_ADAPTER_PARAMS=$(jq -nc --arg address "$(wget -q -O - "${ERA_READER_ADDRESS}")" --arg verification_key "$(wget -q -O - "${ERA_READER_VKEY}")" '{"address": $address, "verification_key": $verification_key}')
-		ANCILLARY_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/ancillary.vkey)
-		GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
+		ANCILLARY_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/ancillary.vkey)
+		GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/${RELEASE}-${NETWORK_NAME,,}/genesis.vkey)
 		PARTY_ID=$(cat ${POOL_DIR}/${POOL_ID_FILENAME}-bech32)
 		SNAPSHOT_DIGEST=latest
 		EOF"
