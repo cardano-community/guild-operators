@@ -725,9 +725,17 @@ run_alternate_profile_test() (
   if [[ "${implementation}" == "amaru" ]]; then
     local state_root="${test_root}/container-state"
     local state_capture="${test_root}/amaru-state.log"
+    local telemetry_capture="${test_root}/amaru-telemetry.log"
     printf '%s\n' \
       '#!/usr/bin/env bash' \
-      'printf "%s\n%s\n" "${AMARU_CHAIN_DIR}" "${AMARU_LEDGER_DIR}" > "${AMARU_STATE_CAPTURE}"' \
+      'case "${2:-}" in' \
+      '  bootstrap)' \
+      '    printf "%s\n%s\n%s\n" "${AMARU_CHAIN_DIR}" "${AMARU_LEDGER_DIR}" "${AMARU_WITH_OPEN_TELEMETRY:-unset}" > "${AMARU_STATE_CAPTURE}"' \
+      '    ;;' \
+      '  run)' \
+      '    printf "%s\n" "${AMARU_WITH_OPEN_TELEMETRY:-unset}" > "${AMARU_TELEMETRY_CAPTURE}"' \
+      '    ;;' \
+      'esac' \
       > "${HOME}/.local/bin/amaru"
     chmod 0755 "${HOME}/.local/bin/amaru"
     AMARU_STATE_ROOT="${state_root}" \
@@ -743,6 +751,14 @@ run_alternate_profile_test() (
     captured_state_path="$(sed -n '2p' "${state_capture}")"
     [[ "${captured_state_path}" == "${state_root}/ledger" ]] ||
       fail "Amaru ledger state override was not passed to the binary"
+    [[ "$(sed -n '3p' "${state_capture}")" == "false" ]] ||
+      fail "Amaru bootstrap did not suppress OpenTelemetry export"
+    mkdir -p "${state_root}/chain" "${state_root}/ledger"
+    AMARU_STATE_ROOT="${state_root}" \
+      AMARU_TELEMETRY_CAPTURE="${telemetry_capture}" \
+      "${launcher}" run
+    [[ "$(sed -n '1p' "${telemetry_capture}")" == "true" ]] ||
+      fail "Amaru run did not restore configured OpenTelemetry export"
     if AMARU_STATE_ROOT="/" "${launcher}" bootstrap >/dev/null 2>&1; then
       fail "Amaru launcher accepted / as its state root"
     fi
@@ -898,9 +914,9 @@ run_alternate_profile_test() (
   assert_file "${unit_file}"
   grep -F "WorkingDirectory=${resolved_node_home}" "${unit_file}" >/dev/null
   grep -E "ExecStart=.*/scripts/${implementation}\\.sh run$" "${unit_file}" >/dev/null
-  grep -F 'Restart=on-failure' "${unit_file}" >/dev/null
   grep -F "ReadWritePaths=${resolved_node_home}" "${unit_file}" >/dev/null
   if [[ "${implementation}" == "amaru" ]]; then
+    grep -F 'Restart=always' "${unit_file}" >/dev/null
     assert_file "${metrics_unit_file}"
     grep -F "Wants=network-online.target time-sync.target ${NODE_SERVICE}-metrics.service" \
       "${unit_file}" >/dev/null
@@ -914,6 +930,7 @@ run_alternate_profile_test() (
     grep -Fx "enable ${NODE_SERVICE}-metrics.service ${service_name}" \
       "${systemctl_log}" >/dev/null
   else
+    grep -F 'Restart=on-failure' "${unit_file}" >/dev/null
     assert_not_exists "${metrics_unit_file}"
     grep -Fx "enable ${service_name}" "${systemctl_log}" >/dev/null
   fi

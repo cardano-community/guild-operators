@@ -39,6 +39,15 @@ for profile in \
     fail "$(basename "${profile}") contains dispatcher-owned user variables"
   fi
 done
+
+for profile in \
+  "${ROOT_DIR}/scripts/cnode-helper-scripts/deploy-cnode.sh" \
+  "${ROOT_DIR}/scripts/dingo-helper-scripts/deploy-dingo.sh" \
+  "${ROOT_DIR}/scripts/amaru-helper-scripts/deploy-amaru.sh"; do
+  grep -q 'dispatcher_run_package_command' "${profile}" ||
+    fail "$(basename "${profile}") bypasses compact package-manager output"
+done
+
 grep -q '^# User Variables' \
   "${ROOT_DIR}/scripts/cnode-helper-scripts/guild-deploy.sh" ||
   fail "guild-deploy.sh does not own the common user-variable block"

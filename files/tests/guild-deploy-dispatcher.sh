@@ -17,6 +17,7 @@ assert_eq() {
 run_defaults_case() (
   unset CNODE_NAME CNODE_PATH NODE_NAME NODE_PARENT NODE_PORT
   unset NETWORK BRANCH DOWNLOAD_TIMEOUT
+  unset PACKAGE_MANAGER_OUTPUT
   unset CNODE_SKIP_DBSYNC_DOWNLOAD SKIP_DBSYNC_DOWNLOAD
   NODE_IMPLEMENTATION="$1"
   NODE_PARENT="/tmp/guild-dispatcher-test"
@@ -30,6 +31,7 @@ run_defaults_case() (
   assert_eq "${NODE_NAME}" "$1"
   assert_eq "${NODE_HOME}" "/tmp/guild-dispatcher-test/$1"
   assert_eq "${DOWNLOAD_TIMEOUT}" "600"
+  assert_eq "${PACKAGE_MANAGER_OUTPUT}" "compact"
   case "${NODE_IMPLEMENTATION}" in
     cnode)
       assert_eq "${NODE_PORT}" "6000"
@@ -65,10 +67,11 @@ run_defaults_case amaru
     fail "legacy db-sync skip input leaked into the cnode profile"
 )
 
-for invalid_input in port timeout dbsync; do
+for invalid_input in port timeout dbsync package_output; do
   if (
     unset CNODE_NAME CNODE_PATH NODE_NAME NETWORK BRANCH
     unset NODE_PORT DOWNLOAD_TIMEOUT
+    unset PACKAGE_MANAGER_OUTPUT
     unset CNODE_SKIP_DBSYNC_DOWNLOAD SKIP_DBSYNC_DOWNLOAD
     NODE_IMPLEMENTATION="cnode"
     NODE_PARENT="/tmp/guild-dispatcher-test"
@@ -76,6 +79,7 @@ for invalid_input in port timeout dbsync; do
       port) NODE_PORT=70000 ;;
       timeout) DOWNLOAD_TIMEOUT=0 ;;
       dbsync) CNODE_SKIP_DBSYNC_DOWNLOAD="yes" ;;
+      package_output) PACKAGE_MANAGER_OUTPUT="quiet-ish" ;;
     esac
     NETWORK_EXPLICIT="N"
     BRANCH_EXPLICIT="N"
@@ -167,6 +171,195 @@ rm -rf -- "${inherited_tmp}"
 
 TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/guild-dispatcher-test.XXXXXX")"
 trap 'rm -rf "${TEST_DIR}"' EXIT
+
+package_apt_success_fixture() {
+  printf '%s\n' \
+    'Get:1 https://example.invalid stable InRelease [123 kB]' \
+    'N: Repository metadata changed its Suite value' \
+    'W: Fixture warning remains visible' \
+    '2 upgraded, 1 newly installed, 0 to remove and 4 not upgraded.' \
+    'Setting up alpha (1.0-1) ...' \
+    'Setting up beta:amd64 (2.0-1) ...' \
+    'Reading package lists... Done'
+}
+
+package_dnf_success_fixture() {
+  printf '%s\n' \
+    'Downloading Packages:' \
+    'Transaction Summary' \
+    'Install  2 Packages' \
+    'Installed:' \
+    '  gamma.x86_64 1.0-1 repo' \
+    '  delta.noarch 2.0-1 repo' \
+    'Complete!'
+}
+
+package_dnf5_success_fixture() {
+  printf '%s\n' \
+    'Updating and loading repositories:' \
+    'Repositories loaded.' \
+    'Package Arch Version Repository Size' \
+    'Installing:' \
+    ' gamma x86_64 1.0-1 repo 1 MiB' \
+    'Installing dependencies:' \
+    ' delta noarch 2.0-1 repo 2 MiB' \
+    'Upgrading:' \
+    ' epsilon x86_64 3.0-1 repo 3 MiB' \
+    'Transaction Summary:' \
+    ' Installing: 2 packages' \
+    ' Upgrading: 1 package' \
+    'After this operation 6 MiB will be used.'
+}
+
+package_notice_overflow_fixture() {
+  local notice_number
+  for notice_number in {1..14}; do
+    printf 'W: Fixture notice %d\n' "${notice_number}"
+  done
+}
+
+package_failure_fixture() {
+  local diagnostic_number
+  printf '%s\n' \
+    'Get:1 https://example.invalid stable InRelease' \
+    'E: Unable to fetch fixture package metadata' >&2
+  for diagnostic_number in {1..13}; do
+    printf 'Error: Additional fixture failure %d\n' \
+      "${diagnostic_number}" >&2
+  done
+  return 42
+}
+
+package_argv_fixture() {
+  [[ "$1" == "argument with spaces" && "$2" == "--literal" ]]
+}
+
+compact_package_output="$(
+  PACKAGE_MANAGER_OUTPUT="compact"
+  TMPDIR="${TEST_DIR}"
+  dispatcher_run_package_command \
+    "fixture apt installation" package_apt_success_fixture 2>&1
+)"
+grep -F "Package transaction: 2 upgraded, 1 newly installed" \
+  <<< "${compact_package_output}" >/dev/null ||
+  fail "compact package output omitted the apt transaction summary"
+grep -F "Changed packages: alpha, beta:amd64" \
+  <<< "${compact_package_output}" >/dev/null ||
+  fail "compact package output omitted changed apt packages"
+grep -F "N: Repository metadata changed" \
+  <<< "${compact_package_output}" >/dev/null ||
+  fail "compact package output omitted an apt notice"
+grep -F "W: Fixture warning remains visible" \
+  <<< "${compact_package_output}" >/dev/null ||
+  fail "compact package output omitted an apt warning"
+if grep -F "Get:1" <<< "${compact_package_output}" >/dev/null; then
+  fail "compact package output leaked apt download progress"
+fi
+
+compact_dnf_output="$(
+  PACKAGE_MANAGER_OUTPUT="compact"
+  TMPDIR="${TEST_DIR}"
+  dispatcher_run_package_command \
+    "fixture dnf installation" package_dnf_success_fixture 2>&1
+)"
+grep -F "Package transaction: Install  2 Packages" \
+  <<< "${compact_dnf_output}" >/dev/null ||
+  fail "compact package output omitted the dnf transaction summary"
+grep -F "Changed packages: gamma.x86_64, delta.noarch" \
+  <<< "${compact_dnf_output}" >/dev/null ||
+  fail "compact package output omitted changed dnf packages"
+if grep -F "Downloading Packages" <<< "${compact_dnf_output}" >/dev/null; then
+  fail "compact package output leaked dnf download progress"
+fi
+
+compact_dnf5_output="$(
+  PACKAGE_MANAGER_OUTPUT="compact"
+  TMPDIR="${TEST_DIR}"
+  dispatcher_run_package_command \
+    "fixture dnf5 installation" package_dnf5_success_fixture 2>&1
+)"
+grep -F "Package transaction: Installing: 2 packages" \
+  <<< "${compact_dnf5_output}" >/dev/null ||
+  fail "compact package output omitted the dnf5 install summary"
+grep -F "Package transaction: Upgrading: 1 package" \
+  <<< "${compact_dnf5_output}" >/dev/null ||
+  fail "compact package output omitted the dnf5 upgrade summary"
+grep -F "Changed packages: gamma, delta, epsilon" \
+  <<< "${compact_dnf5_output}" >/dev/null ||
+  fail "compact package output omitted changed dnf5 packages"
+if grep -F "Updating and loading repositories" \
+  <<< "${compact_dnf5_output}" >/dev/null; then
+  fail "compact package output leaked dnf5 repository progress"
+fi
+
+notice_overflow_output="$(
+  PACKAGE_MANAGER_OUTPUT="compact"
+  TMPDIR="${TEST_DIR}"
+  dispatcher_run_package_command \
+    "fixture notice overflow" package_notice_overflow_fixture 2>&1
+)"
+grep -F "2 additional package-manager notices omitted" \
+  <<< "${notice_overflow_output}" >/dev/null ||
+  fail "compact package output omitted its bounded-notice summary"
+if grep -F '\n' <<< "${notice_overflow_output}" >/dev/null; then
+  fail "compact package output rendered a literal newline escape"
+fi
+
+verbose_package_output="$(
+  PACKAGE_MANAGER_OUTPUT="verbose"
+  dispatcher_run_package_command \
+    "fixture verbose installation" package_apt_success_fixture 2>&1
+)"
+grep -F "Get:1 https://example.invalid" \
+  <<< "${verbose_package_output}" >/dev/null ||
+  fail "verbose package output did not stream raw command output"
+if grep -F "Package transaction:" <<< "${verbose_package_output}" >/dev/null; then
+  fail "verbose package output duplicated the compact summary"
+fi
+
+set +e
+failed_package_output="$(
+  PACKAGE_MANAGER_OUTPUT="compact"
+  TMPDIR="${TEST_DIR}"
+  dispatcher_run_package_command \
+    "fixture failed installation" package_failure_fixture 2>&1
+)"
+failed_package_status=$?
+set -e
+assert_eq "${failed_package_status}" "42"
+grep -F "fixture failed installation failed (exit 42)" \
+  <<< "${failed_package_output}" >/dev/null ||
+  fail "compact package failure omitted its label and exit status"
+grep -F "E: Unable to fetch fixture package metadata" \
+  <<< "${failed_package_output}" >/dev/null ||
+  fail "compact package failure hid package-manager diagnostics"
+grep -F "2 additional diagnostic lines omitted" \
+  <<< "${failed_package_output}" >/dev/null ||
+  fail "compact package failure omitted its bounded-diagnostic summary"
+if grep -F '\n' <<< "${failed_package_output}" >/dev/null; then
+  fail "compact package failure rendered a literal newline escape"
+fi
+failed_package_log="$(
+  sed -n 's/^  Full output: //p' <<< "${failed_package_output}"
+)"
+[[ -f "${failed_package_log}" ]] ||
+  fail "compact package failure did not retain its full output"
+if find "${failed_package_log}" ! -perm 0600 -print -quit | grep -q .; then
+  fail "retained package failure output is not private"
+fi
+rm -f -- "${failed_package_log}"
+
+PACKAGE_MANAGER_OUTPUT="compact" \
+  dispatcher_run_package_command \
+    "fixture argv preservation" package_argv_fixture \
+    "argument with spaces" "--literal" ||
+  fail "package runner did not preserve command arguments"
+
+if find "${TEST_DIR}" -name 'guild-package-output.*' -print -quit |
+  grep -q .; then
+  fail "package runner left a temporary output file"
+fi
+
 mkdir -p "${TEST_DIR}/existing"
 printf '%s\n' \
   '{' \

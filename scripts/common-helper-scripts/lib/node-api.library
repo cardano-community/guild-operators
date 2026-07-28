@@ -555,6 +555,27 @@ node_replay_progress() {
   node_adapter_replay_progress
 }
 
+# Calculate local-ledger progress through an epoch. Alternate nodes expose the
+# latest validated block's epoch slot, so this is deliberately not presented
+# as network sync progress while the node is catching up.
+node_epoch_progress_percent() {
+  local epoch_slot="${1:-}"
+  local epoch_size="${2:-}"
+
+  [[ "${epoch_slot}" =~ ^[0-9]+([.][0-9]+)?$ &&
+     "${epoch_size}" =~ ^[1-9][0-9]*$ ]] || return 1
+  LC_NUMERIC=C awk \
+    -v current_slot="${epoch_slot}" \
+    -v epoch_size="${epoch_size}" '
+      BEGIN {
+        progress = (current_slot / epoch_size) * 100
+        if (progress < 0) progress = 0
+        if (progress > 100) progress = 100
+        printf "%.1f", progress
+      }
+    '
+}
+
 common_resolve_cardano_cli() {
   [[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
   if [[ -z "${CCLI}" && -x "${HOME}/.local/bin/cardano-cli" ]]; then

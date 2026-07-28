@@ -99,16 +99,22 @@ amaru_deploy_parse_flags() {
 amaru_deploy_install_dependencies() {
   amaru_deploy_progress "Installing Amaru runtime prerequisites"
   if command -v apt-get >/dev/null 2>&1; then
-    amaru_deploy_privileged apt-get update || return 1
-    amaru_deploy_privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    dispatcher_run_package_command "Amaru package metadata update" \
+      amaru_deploy_privileged apt-get \
+      -o Dpkg::Use-Pty=0 -o APT::Color=0 update || return 1
+    dispatcher_run_package_command "Amaru prerequisite package installation" \
+      amaru_deploy_privileged env DEBIAN_FRONTEND=noninteractive apt-get \
+      -o Dpkg::Use-Pty=0 -o APT::Color=0 install -y \
       bc ca-certificates coreutils curl diffutils findutils gawk grep gzip iproute2 jq \
       ncurses-bin procps sed tar || return 1
   elif command -v dnf >/dev/null 2>&1; then
-    amaru_deploy_privileged dnf install -y \
+    dispatcher_run_package_command "Amaru prerequisite package installation" \
+      amaru_deploy_privileged dnf install -y \
       bc ca-certificates coreutils curl diffutils findutils gawk grep gzip iproute jq \
       ncurses procps-ng sed tar || return 1
   elif command -v yum >/dev/null 2>&1; then
-    amaru_deploy_privileged yum install -y \
+    dispatcher_run_package_command "Amaru prerequisite package installation" \
+      amaru_deploy_privileged yum install -y \
       bc ca-certificates coreutils curl diffutils findutils gawk grep gzip iproute jq \
       ncurses procps-ng sed tar || return 1
   else

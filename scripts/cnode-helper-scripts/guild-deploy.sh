@@ -17,6 +17,7 @@
 #DOWNLOAD_TIMEOUT=600                # Large binary download timeout in seconds
 #UPDATE_CHECK="Y"                    # Check this dispatcher for updates
 #SUDO="Y"                            # Set to N in containers already running as root
+#PACKAGE_MANAGER_OUTPUT="compact"    # compact | verbose
 #
 # cnode-specific variables
 #CNODE_SKIP_DBSYNC_DOWNLOAD="N"      # Skip cardano-db-sync when using cnode -s d
@@ -70,6 +71,209 @@ err_exit() {
   exit 1
 }
 
+dispatcher_package_output_summary() {
+  local output_file="$1"
+  local line=""
+  local packages=""
+
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] &&
+      log_info "Package transaction: ${line}"
+  done < <(
+    awk '
+      function emit(value) {
+        if (!seen[value]++) {
+          print value
+        }
+      }
+      {
+        sub(/\r$/, "")
+        sub(/^[[:space:]]+/, "")
+      }
+      /^[0-9]+ upgraded, [0-9]+ newly installed, [0-9]+ to remove/ {
+        emit($0)
+      }
+      /^(Install|Upgrade|Remove|Downgrade|Reinstall)[[:space:]]+[0-9]+ Package(s)?([[:space:](]|$)/ {
+        emit($0)
+      }
+      /^(Installing|Upgrading|Reinstalling|Replacing|Removing|Downgrading|Skipping):[[:space:]]+[0-9]+ package(s)?([[:space:](]|$)/ {
+        emit($0)
+      }
+      /^(Nothing to do|All packages are up to date)[.!]?$/ {
+        emit($0)
+      }
+    ' "${output_file}"
+  )
+
+  packages="$(
+    awk '
+      function remember(value) {
+        sub(/^[[:space:]]+/, "", value)
+        sub(/[,:][[:space:]]*$/, "", value)
+        if (value != "" && !seen[value]++) {
+          names[++count] = value
+        }
+      }
+      {
+        sub(/\r$/, "")
+      }
+      $1 == "Setting" && $2 == "up" {
+        remember($3)
+        next
+      }
+      $1 == "Removing" {
+        remember($2)
+        next
+      }
+      /^(Dependency )?(Installed|Updated|Upgraded|Removed|Downgraded|Reinstalled):[[:space:]]*$/ {
+        result_section = 1
+        next
+      }
+      /^(Installing|Upgrading|Reinstalling|Replacing|Removing|Downgrading)( dependencies| weak dependencies)?:[[:space:]]*$/ {
+        result_section = 1
+        next
+      }
+      result_section && /^[[:space:]]+/ {
+        remember($1)
+        next
+      }
+      result_section {
+        result_section = 0
+      }
+      /^(Dependency )?(Installed|Updated|Upgraded|Removed|Downgraded|Reinstalled):[[:space:]]+[^[:space:]]/ {
+        value = $0
+        sub(/^[^:]+:[[:space:]]*/, "", value)
+        split(value, fields, /[[:space:]]+/)
+        remember(fields[1])
+      }
+      END {
+        limit = count < 12 ? count : 12
+        for (i = 1; i <= limit; i++) {
+          printf "%s%s", (i > 1 ? ", " : ""), names[i]
+        }
+        if (count > limit) {
+          printf " (+%d more)", count - limit
+        }
+      }
+    ' "${output_file}"
+  )"
+  [[ -z "${packages}" ]] ||
+    log_info "Changed packages: ${packages}"
+
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    case "${line}" in
+      N:*) log_info "${line}" ;;
+      *) log_warn "${line}" ;;
+    esac
+  done < <(
+    awk '
+      {
+        sub(/\r$/, "")
+        sub(/^[[:space:]]+/, "")
+        normalized = tolower($0)
+        if ($0 ~ /^[NWE]:/ || normalized ~ /^(warning:|error:|dpkg: warning:|debconf:|failed to )/) {
+          if (!seen[$0]++) {
+            if (++count <= 12) {
+              print
+            } else {
+              omitted++
+            }
+          }
+        }
+      }
+      END {
+        if (omitted > 0) {
+          printf "W: %d additional package-manager notices omitted; use verbose output to inspect them.\n", omitted
+        }
+      }
+    ' "${output_file}"
+  )
+}
+
+dispatcher_package_failure_summary() {
+  local label="$1"
+  local status="$2"
+  local output_file="$3"
+  local line=""
+  local diagnostics=""
+
+  log_warn "${label} failed (exit ${status})."
+  diagnostics="$(
+    awk '
+      {
+        sub(/\r$/, "")
+        normalized = tolower($0)
+        if ($0 ~ /^(E:|Err:)/ || normalized ~ /(^|[^[:alpha:]])(error|failed|failure|unable|cannot|could not|no match for argument|conflict|gpg error)([^[:alpha:]]|$)/) {
+          if (!seen[$0]++) {
+            if (++count <= 12) {
+              print
+            } else {
+              omitted++
+            }
+          }
+        }
+      }
+      END {
+        if (omitted > 0) {
+          printf "[%d additional diagnostic lines omitted]\n", omitted
+        }
+      }
+    ' "${output_file}"
+  )"
+
+  if [[ -n "${diagnostics}" ]]; then
+    printf "  Package-manager diagnostics:\n" >&2
+    while IFS= read -r line; do
+      printf "    %s\n" "${line}" >&2
+    done <<< "${diagnostics}"
+  fi
+
+  printf "  Last 20 output lines:\n" >&2
+  tail -n 20 "${output_file}" |
+    while IFS= read -r line; do
+      printf "    %s\n" "${line%$'\r'}" >&2
+    done
+  printf "  Full output: %s\n" "${output_file}" >&2
+}
+
+dispatcher_run_package_command() {
+  local label="$1"
+  local output_file=""
+  local status=0
+  shift
+
+  [[ $# -gt 0 ]] || {
+    log_warn "No command was provided for ${label}."
+    return 2
+  }
+
+  if [[ "${PACKAGE_MANAGER_OUTPUT:-compact}" == "verbose" ]]; then
+    "$@"
+    return
+  fi
+
+  if ! output_file="$(
+    umask 077
+    mktemp "${TMPDIR:-/tmp}/guild-package-output.XXXXXX"
+  )"; then
+    log_warn "Could not create a compact output buffer; showing ${label} output."
+    "$@"
+    return
+  fi
+
+  if "$@" > "${output_file}" 2>&1; then
+    dispatcher_package_output_summary "${output_file}"
+    rm -f -- "${output_file}"
+    return 0
+  else
+    status=$?
+  fi
+
+  dispatcher_package_failure_summary "${label}" "${status}" "${output_file}"
+  return "${status}"
+}
+
 dispatcher_usage() {
   cat <<-EOF
 
@@ -91,6 +295,9 @@ dispatcher_usage() {
 	      cnode also supports b,l,m,c,o,w,x,r; alternate profiles reject them.
 	      Unsupported flags fail explicitly.
 	-h    Show this help
+
+	Package-manager output is compact by default. Set
+	PACKAGE_MANAGER_OUTPUT=verbose to stream it without filtering.
 
 	Examples:
 	  ./guild-deploy.sh -n mainnet -s pd
@@ -610,6 +817,11 @@ dispatcher_set_defaults() {
   [[ -z "${DOWNLOAD_TIMEOUT:-}" ]] && DOWNLOAD_TIMEOUT=600
   [[ -z "${UPDATE_CHECK:-}" ]] && UPDATE_CHECK="Y"
   [[ -z "${SUDO:-}" ]] && SUDO="Y"
+  [[ -z "${PACKAGE_MANAGER_OUTPUT:-}" ]] && PACKAGE_MANAGER_OUTPUT="compact"
+  case "${PACKAGE_MANAGER_OUTPUT}" in
+    compact|verbose) ;;
+    *) err_exit "PACKAGE_MANAGER_OUTPUT must be compact or verbose." ;;
+  esac
 
   [[ -z "${NODE_IMPLEMENTATION:-}" ]] && NODE_IMPLEMENTATION="${CNODE_IMPLEMENTATION:-cnode}"
   validate_implementation "${NODE_IMPLEMENTATION}" || err_exit "Unknown node implementation '${NODE_IMPLEMENTATION}'. Expected cnode, dingo, or amaru."
@@ -823,6 +1035,7 @@ dispatcher_set_defaults() {
   URL_RAW="${REPO_RAW}/${BRANCH}"
 
   export G_ACCOUNT CURL_TIMEOUT DOWNLOAD_TIMEOUT UPDATE_CHECK SUDO sudo
+  export PACKAGE_MANAGER_OUTPUT
   export NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NODE_HOME NODE_SERVICE
   export NODE_PORT NETWORK BRANCH REPO_RAW URL_RAW S_ARGS
   if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then

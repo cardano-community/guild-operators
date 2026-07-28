@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1091,SC2012,SC2016,SC2030,SC2031,SC2034,SC2329
+# shellcheck disable=SC1091,SC2012,SC2016,SC2030,SC2031,SC2034,SC2154,SC2329
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
@@ -394,6 +394,16 @@ run_exponent_tests() (
     "leading-decimal exponent normalization"
   assert_eq "$(prometheus_normalize_number 'NaN')" "NaN" \
     "non-finite value preservation"
+  assert_eq "$(node_epoch_progress_percent 159521 432000)" "36.9" \
+    "epoch progress calculation"
+  assert_eq "$(node_epoch_progress_percent 500000 432000)" "100.0" \
+    "epoch progress upper bound"
+  if node_epoch_progress_percent 1 0 >/dev/null 2>&1; then
+    fail "epoch progress accepted a zero epoch length"
+  fi
+  if node_epoch_progress_percent invalid 432000 >/dev/null 2>&1; then
+    fail "epoch progress accepted a non-numeric epoch slot"
+  fi
 
   normalized="$(prometheus_normalize_number '7.6137225e+07')"
   (( normalized + 1 == 76137226 )) ||

@@ -61,7 +61,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.33.0
+GLV_VERSION=v1.33.1
 
 PARENT="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 
@@ -587,17 +587,9 @@ glvRenderAlternateDashboard() {
 
   if node_metric_has epochnum &&
      node_metric_has slot_in_epoch &&
-     [[ "${epoch_length}" =~ ^[1-9][0-9]*$ ]]; then
-    epoch_progress="$(
-      awk -v slot="${slot_in_epoch}" -v length="${epoch_length}" '
-        BEGIN {
-          progress = (slot / length) * 100
-          if (progress < 0) progress = 0
-          if (progress > 100) progress = 100
-          printf "%.1f", progress
-        }
-      '
-    )"
+     epoch_progress="$(
+       node_epoch_progress_percent "${slot_in_epoch}" "${epoch_length}"
+     )"; then
     printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%s%%${NC}]" \
       "${epochnum}" "${epoch_progress}"
     closeRow

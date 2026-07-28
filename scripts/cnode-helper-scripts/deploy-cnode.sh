@@ -410,7 +410,12 @@ updateCommonRuntimeBundle() (
 add_epel_repository() {
   if [[ "${1}" =~ Fedora ]]; then return; fi
   log_progress "Enabling EPEL repository"
-  ! grep -q ^epel <<< "$(dnf repolist)" && $sudo dnf install ${3} https://dl.fedoraproject.org/pub/epel/epel-release-latest-"${2}".noarch.rpm > /dev/null
+  if ! grep -q ^epel <<< "$(dnf repolist)"; then
+    dispatcher_run_package_command "EPEL repository installation" \
+      $sudo dnf install ${3} \
+      "https://dl.fedoraproject.org/pub/epel/epel-release-latest-${2}.noarch.rpm" ||
+      err_exit "EPEL repository installation failed."
+  fi
   log_ok "EPEL repository ready"
 }
 
@@ -421,6 +426,7 @@ os_dependencies() {
   if [[ "${OS_ID}" =~ ebian ]] || [[ "${OS_ID}" =~ buntu ]] || [[ "${DISTRO}" =~ ebian ]] || [[ "${DISTRO}" =~ buntu ]]; then
     #Debian/Ubuntu
     pkgmgrcmd="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
+    pkg_opts="${pkg_opts} -o Dpkg::Use-Pty=0 -o APT::Color=0"
     pkg_list="python3 pkg-config systemd tmux git jq libtool bc gnupg libtool iproute2 tcptraceroute sqlite3 bsdmainutils unzip procps xxd"
     if [[ "${CNODE_DEPLOY_INSTALL_LIBSODIUM}" == "Y" ]] ||
        [[ "${CNODE_DEPLOY_BUILD_DEPS}" == "Y" ]]; then
@@ -465,16 +471,14 @@ os_dependencies() {
     err_exit "No automated OS dependency procedure is available for ${DISTRO}."
   fi
   log_progress "Updating package metadata"
-  $sudo ${pkgmgrcmd} update ${pkg_opts} > /dev/null;rc=$?
-  if [[ $rc != 0 ]]; then
-    err_exit "Package metadata update failed: ${pkgmgrcmd} ${pkg_opts} update"
-  fi
+  dispatcher_run_package_command "Package metadata update" \
+    $sudo ${pkgmgrcmd} ${pkg_opts} update ||
+    err_exit "Package metadata update failed."
   log_ok "Package metadata updated"
   log_progress "Installing prerequisite packages"
-  $sudo ${pkgmgrcmd} install ${pkg_opts} ${pkg_list} > /dev/null;rc=$?
-  if [[ $rc != 0 ]]; then
-    err_exit "Prerequisite package installation failed. Re-run manually to inspect: $sudo ${pkgmgrcmd} install ${pkg_opts} ${pkg_list}"
-  fi
+  dispatcher_run_package_command "Prerequisite package installation" \
+    $sudo ${pkgmgrcmd} ${pkg_opts} install ${pkg_list} ||
+    err_exit "Prerequisite package installation failed."
   log_ok "Prerequisite packages ready"
   if [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     if [ -e /usr/lib64/libtinfo.so ] && [ -e /usr/lib64/libtinfo.so.5 ]; then

@@ -102,11 +102,11 @@ cardano_node_metrics_connectionManager_outboundConns_int 5
 cardano_node_metrics_connectionManager_unidirectionalConns_int 6
 cardano_node_metrics_served_block_count_int 12
 cardano_node_metrics_cardano_build_info{arch="x86_64",dirty="false",os="linux",revision="8be10a21",version="10.11.20260723"} 1
-process_runtime 61
+process_runtime 4123168576
 process_cpu_live 12.5
 process_memory_live_resident 536870912
 process_memory_available_virtual 1073741824
-process_open_files 42
+process_open_files 42 1785232800000
 amaru_metrics_mempoolTxInsertionsNum_int{origin="local",result="accepted"} 3
 amaru_metrics_mempoolTxInsertionsNum_int{origin="remote",result="accepted"} 7
 amaru_metrics_mempoolTxInsertionsNum_int{origin="local",result="rejected_invalid"} 2
@@ -115,6 +115,14 @@ amaru_metrics_mempoolTxInsertionsNum_int{origin="remote",result="rejected_duplic
 
 curl() {
   printf '%s\n' "${metrics_fixture}"
+}
+
+node_adapter_process_pid() {
+  printf '4242\n'
+}
+
+ps() {
+  printf '  61\n'
 }
 
 getNodeMetrics
@@ -128,7 +136,7 @@ assert_eq "${conn_uni_dir}" "6" "unidirectional connections"
 assert_eq "${blocks_served}" "12" "served blocks"
 assert_eq "${running_node_version}" "10.11.20260723" "running version"
 assert_eq "${running_node_rev}" "8be10a21" "running revision"
-assert_eq "${uptimes}" "61" "OTLP process uptime"
+assert_eq "${uptimes}" "61" "service PID uptime"
 assert_eq "${amaru_cpu_percent}" "12.5" "Amaru process CPU"
 assert_eq "${amaru_memory_resident_mib}" "512.0" "Amaru resident memory"
 assert_eq "${amaru_memory_virtual_mib}" "1024.0" "Amaru virtual memory"

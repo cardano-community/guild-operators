@@ -99,7 +99,9 @@ cells are omitted rather than printed empty or as zero.
 
 - **Epoch Progress** - Epoch number and progress are live from the node. The
   progress bar is displayed only when epoch, epoch-slot, and epoch-length data
-  are available.
+  are available. For Dingo and Amaru this describes the latest locally
+  processed ledger position. It is not a network synchronization percentage;
+  Amaru does not currently export a network-tip or sync-progress measurement.
 - **Block** - The node's current block height since genesis.
 - **Slot** - The node's current absolute slot.
 - **Density** - With the current chain parameters(MainNet), a block is created roughly every 20 seconds(`activeSlotsCoeff`). A slot on MainNet happens every 1 second(`slotLength`), thus the max chain density can be calculated as `slotLength/activeSlotsCoeff = 5%`. Normally, the value should fluctuate around this value.  
@@ -122,6 +124,9 @@ cells are omitted rather than printed empty or as zero.
 - **Mem (RSS)** - RSS is the Resident Set Size for the selected node process.
   It is collected locally and does not include memory that has been swapped
   out.
+- **Uptime** - For Amaru, uptime is taken from the active service process PID
+  rather than the OpenTelemetry process gauge. This prevents stale collector
+  series from being displayed as an impossible process age.
 - **Mem (Live) / (Heap)** - Runtime memory values are displayed only when the
   implementation exports compatible samples.
 - **GC Minor / Major** - Collecting garbage from "Young space" is called a Minor GC. Major (Full) GC is done more rarily and is a more expensive operation. Explaining garbage collection is a topic outside the scope of this documentation and google is your friend for this.  

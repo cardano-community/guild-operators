@@ -310,7 +310,7 @@ User=${service_user}
 Group=${service_group}
 WorkingDirectory=${GUILD_NODE_HOME}
 ExecStart=${AMARU_SCRIPT_DIR}/amaru.sh run
-Restart=on-failure
+Restart=always
 RestartSec=5
 TimeoutStopSec=45
 LimitNOFILE=65536
@@ -369,6 +369,10 @@ case "${command_name}" in
   bootstrap)
     amaru_require_supported_profile
     cd -- "${GUILD_NODE_HOME}"
+    # Bootstrap telemetry is not consumed by gLiveView and the managed
+    # collector is intentionally not running yet. Keep console logging, but do
+    # not make Amaru repeatedly export to an absent OTLP endpoint.
+    export AMARU_WITH_OPEN_TELEMETRY=false
     exec "${AMARU_BIN}" node bootstrap "$@"
     ;;
   -d|install)

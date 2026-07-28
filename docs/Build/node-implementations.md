@@ -68,6 +68,15 @@ implementation-specific deployment logic. cnode's optional db-sync omission
 for controlled container builds is exposed as a clearly cnode-specific
 dispatcher setting rather than a hidden profile variable.
 
+The dispatcher also gives every implementation the same package-manager
+experience. `PACKAGE_MANAGER_OUTPUT=compact` is the default: successful
+`apt-get`, `dnf`, and `yum` calls report transaction totals, changed packages,
+and notices or warnings without streaming download and unpacking progress.
+Failures show bounded diagnostics and a short output tail, retain the full
+private log at a reported path, and preserve the package manager's exit status.
+Set `PACKAGE_MANAGER_OUTPUT=verbose` to stream the raw output when
+troubleshooting.
+
 When binary installation is selected with `-s d`, all implementations use
 `$HOME/.local/bin`. Binary names are distinct (`cardano-node`, `dingo`, and
 `amaru`), so they can coexist. Amaru additionally installs the pinned

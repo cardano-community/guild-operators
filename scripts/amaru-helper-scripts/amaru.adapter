@@ -119,7 +119,9 @@ amaru_adapter_metric_value() {
       name = series
       sub(/\{.*/, "", name)
       if (name == requested || name == requested "_total") {
-        print $NF
+        # The sample value immediately follows the series. Prometheus may add
+        # an optional timestamp after it, which must not become the value.
+        print $2
         exit
       }
     }
@@ -148,7 +150,7 @@ amaru_adapter_metric_sum_by_result() {
           series !~ /result="rejected_[^"]+"/) {
         next
       }
-      total += $NF
+      total += $2
       found = 1
     }
     END {
@@ -228,11 +230,11 @@ node_adapter_collect_metrics() {
   normalized_metrics="$(printf '%s\n' "${node_metrics}" | prometheus_normalize_metrics)"
   common_parse_cardano_metrics "${normalized_metrics}"
 
-  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_runtime")"
-  if [[ ! "${value}" =~ ^[0-9]+$ ]]; then
-    pid="$(node_adapter_process_pid 2>/dev/null || true)"
-    value="$(amaru_adapter_process_uptime "${pid}" 2>/dev/null || true)"
-  fi
+  # The Prometheus bridge can retain an earlier Amaru process_runtime series
+  # after bootstrap. The service PID is authoritative and cannot collide with
+  # stale OpenTelemetry resource series.
+  pid="$(node_adapter_process_pid 2>/dev/null || true)"
+  value="$(amaru_adapter_process_uptime "${pid}" 2>/dev/null || true)"
   amaru_adapter_set_optional_metric uptimes "${value}"
 
   value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_cpu_live")"

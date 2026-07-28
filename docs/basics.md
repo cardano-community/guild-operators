@@ -162,6 +162,19 @@ and the implementation-specific
 [cnode](Build/cnode.md), [Dingo](Build/dingo.md), and
 [Amaru](Build/amaru.md) guides.
 
+Package-manager output is compact by default. The deployment shows transaction
+totals, packages that were installed or updated, and any notices or warnings,
+while hiding repository-download and unpacking progress. If a package command
+fails, compact diagnostics and the last output lines are printed with the
+original exit status; the full private log is retained at the reported path.
+To see the package manager's unfiltered output during troubleshooting, set
+`PACKAGE_MANAGER_OUTPUT=verbose` in the `guild-deploy.sh` user-variable block
+or for one invocation:
+
+```bash
+PACKAGE_MANAGER_OUTPUT=verbose ./guild-deploy.sh -i amaru -n preprod -s p
+```
+
 !!! warning "Alternate implementations are experimental"
     The Dingo and Amaru profiles are relay-only and limited to `preprod` and
     `preview`. They are not supported for mainnet, block production, or pool
