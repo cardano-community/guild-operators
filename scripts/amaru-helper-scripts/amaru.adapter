@@ -168,31 +168,70 @@ amaru_adapter_bytes_to_mib() {
     'BEGIN { printf "%.1f\n", value / 1048576 }'
 }
 
+amaru_adapter_host_uptime() {
+  local proc_root="${1:-${AMARU_PROCFS_ROOT:-/proc}}"
+  local uptime_record="" uptime_seconds=""
+
+  [[ -r "${proc_root}/uptime" ]] || return 1
+  IFS=' ' read -r uptime_record _ < "${proc_root}/uptime" || return 1
+  uptime_seconds="${uptime_record%%.*}"
+  [[ "${uptime_seconds}" =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "${uptime_seconds}"
+}
+
+amaru_adapter_proc_uptime() {
+  local pid="${1:-}"
+  local proc_root="${AMARU_PROCFS_ROOT:-/proc}"
+  local stat_record="" stat_tail="" start_ticks=""
+  local host_uptime="" clock_ticks="" elapsed=""
+  local -a stat_fields=()
+
+  [[ "${pid}" =~ ^[1-9][0-9]*$ ]] || return 1
+  [[ -r "${proc_root}/${pid}/stat" ]] || return 1
+  IFS= read -r stat_record < "${proc_root}/${pid}/stat" || return 1
+
+  # Strip pid and the parenthesized process name. Using the last ") " keeps
+  # this correct even when the process name itself contains spaces or ")".
+  stat_tail="${stat_record##*) }"
+  [[ "${stat_tail}" != "${stat_record}" ]] || return 1
+  read -r -a stat_fields <<< "${stat_tail}"
+  start_ticks="${stat_fields[19]:-}"
+  host_uptime="$(amaru_adapter_host_uptime "${proc_root}" 2>/dev/null || true)"
+  clock_ticks="$(getconf CLK_TCK 2>/dev/null || true)"
+
+  [[ "${start_ticks}" =~ ^[0-9]+$ &&
+     "${host_uptime}" =~ ^[0-9]+$ &&
+     "${clock_ticks}" =~ ^[1-9][0-9]*$ ]] || return 1
+  elapsed=$(( host_uptime - (start_ticks / clock_ticks) ))
+  (( elapsed >= 0 && elapsed <= host_uptime )) || return 1
+  printf '%s\n' "${elapsed}"
+}
+
 amaru_adapter_process_uptime() {
   local pid="${1:-}"
-  local elapsed="" host_uptime="" start_ticks="" clock_ticks=""
+  local elapsed="" host_uptime=""
   [[ "${pid}" =~ ^[1-9][0-9]*$ ]] || return 1
 
-  elapsed="$(ps -p "${pid}" -o etimes= 2>/dev/null | tr -d '[:space:]' || true)"
+  # Linux /proc uses the kernel's monotonic boot clock and is unaffected by
+  # NTP or wall-clock corrections during startup.
+  elapsed="$(amaru_adapter_proc_uptime "${pid}" 2>/dev/null || true)"
   if [[ "${elapsed}" =~ ^[0-9]+$ ]]; then
     printf '%s\n' "${elapsed}"
     return 0
   fi
 
-  if [[ -r "/proc/${pid}/stat" && -r /proc/uptime ]]; then
-    start_ticks="$(awk '{ print $22 }' "/proc/${pid}/stat" 2>/dev/null || true)"
-    host_uptime="$(awk '{ print int($1) }' /proc/uptime 2>/dev/null || true)"
-    clock_ticks="$(getconf CLK_TCK 2>/dev/null || true)"
-    if [[ "${start_ticks}" =~ ^[0-9]+$ &&
-          "${host_uptime}" =~ ^[0-9]+$ &&
-          "${clock_ticks}" =~ ^[1-9][0-9]*$ ]]; then
-      elapsed=$(( host_uptime - (start_ticks / clock_ticks) ))
-      (( elapsed < 0 )) && elapsed=0
-      printf '%s\n' "${elapsed}"
-      return 0
-    fi
+  # Retain ps for non-Linux hosts and unusual procfs failures, but reject its
+  # known unsigned-wrap result when it exceeds the host's entire uptime.
+  elapsed="$(ps -p "${pid}" -o etimes= 2>/dev/null | tr -d '[:space:]' || true)"
+  [[ "${elapsed}" =~ ^[0-9]+$ ]] || return 1
+  host_uptime="$(
+    amaru_adapter_host_uptime "${AMARU_PROCFS_ROOT:-/proc}" 2>/dev/null || true
+  )"
+  if [[ "${host_uptime}" =~ ^[0-9]+$ ]] &&
+     (( elapsed > host_uptime )); then
+    return 1
   fi
-  return 1
+  printf '%s\n' "${elapsed}"
 }
 
 amaru_adapter_set_optional_metric() {

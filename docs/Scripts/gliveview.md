@@ -124,9 +124,9 @@ cells are omitted rather than printed empty or as zero.
 - **Mem (RSS)** - RSS is the Resident Set Size for the selected node process.
   It is collected locally and does not include memory that has been swapped
   out.
-- **Uptime** - For Amaru, uptime is taken from the active service process PID
-  rather than the OpenTelemetry process gauge. This prevents stale collector
-  series from being displayed as an impossible process age.
+- **Uptime** - The elapsed runtime of the selected node process. Depending on
+  the implementation, its adapter uses either a native node measurement or
+  local operating-system process timing.
 - **Mem (Live) / (Heap)** - Runtime memory values are displayed only when the
   implementation exports compatible samples.
 - **GC Minor / Major** - Collecting garbage from "Young space" is called a Minor GC. Major (Full) GC is done more rarily and is a more expensive operation. Explaining garbage collection is a topic outside the scope of this documentation and google is your friend for this.  

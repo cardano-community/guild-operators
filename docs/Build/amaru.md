@@ -99,10 +99,8 @@ Amaru needs three trusted consecutive epoch snapshots before it can run:
 ```
 
 The bootstrap command disables OpenTelemetry export only for that invocation.
-The managed collector is not running at this point and bootstrap telemetry is
-not used by gLiveView, so this avoids repeated connection-refused messages
-without changing console logs. Normal `run` and systemd operation continue to
-use the telemetry settings from `amaru.env`.
+Bootstrap telemetry is not used by gLiveView. Normal `run` and systemd
+operation continue to use the telemetry settings from `amaru.env`.
 
 If bootstrap fails after creating `chain/` or `ledger/`, inspect and move or
 remove the partial state yourself before retrying; the Guild launcher will
@@ -117,11 +115,9 @@ either child. Host deployments leave it unset and retain the paths in
 them: `<service-name>.service` for Amaru and
 `<service-name>-metrics.service` for the local OpenTelemetry Collector. The
 collector restarts on failure. The experimental Amaru node unit uses
-`Restart=always`: the pinned prerelease can report an internal consensus-stage
-termination and then exit with status zero, which systemd would otherwise
-treat as a successful stop. An explicit `systemctl stop` is still honored.
-The underlying consensus failure remains an upstream Amaru issue and should be
-reported with its preceding node logs.
+`Restart=always` so unexpected node exits are restarted. An explicit
+`systemctl stop` is still honored.
+
 The other lifecycle commands are `start`, `status`, `stop`, `restart`, `logs`,
 and `remove`; they manage both units. `remove` deletes only those units and
 preserves node state and monitoring configuration. The launcher can recover
@@ -163,12 +159,14 @@ Run the dashboard after both services are active:
 
 The shared adapter normalizes Amaru's common chain, epoch, density, mempool,
 connection, served-block, version, uptime, and process measurements. Uptime is
-derived from the active systemd service PID rather than an OTLP process gauge,
-so an old or colliding collector series cannot produce an impossible process
-age. Epoch progress is calculated from Amaru's latest locally validated epoch
-and epoch slot. While the node is catching up this is local-ledger epoch
-progress, not a network synchronization percentage; the current Amaru release
-does not expose a network-tip or sync-progress metric.
+derived from the active systemd service PID rather than an OTLP process gauge.
+On Linux it uses the monotonic boot clock from `/proc`; a `ps` fallback is
+accepted only when it is no greater than the host's own uptime.
+
+Epoch progress is calculated from Amaru's latest locally validated epoch and
+epoch slot. While the node is catching up this is local-ledger epoch progress,
+not a network synchronization percentage; the current Amaru release does not
+expose a network-tip or sync-progress metric.
 
 The adapter also handles scientific-notation values emitted through
 OpenTelemetry. The header explicitly identifies `[Amaru]`.

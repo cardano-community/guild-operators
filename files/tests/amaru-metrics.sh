@@ -186,12 +186,39 @@ assert_metric_unavailable blocknum
 assert_eq "${#NODE_CUSTOM_METRICS[@]}" "0" \
   "failed scrape retained custom Amaru metrics"
 
+proc_root="${TEMP_ROOT}/proc"
+mkdir -p "${proc_root}/4242"
+stat_tail="S"
+for (( field=0; field<18; field++ )); do
+  stat_tail+=" 0"
+done
+printf '4242 (amaru worker) %s 123400\n' "${stat_tail}" \
+  > "${proc_root}/4242/stat"
+printf '1300.25 0.00\n' > "${proc_root}/uptime"
+getconf() {
+  [[ "${1:-}" == "CLK_TCK" ]] && printf '100\n'
+}
+ps() {
+  printf '  4123168448\n'
+}
+assert_eq "$(
+  AMARU_PROCFS_ROOT="${proc_root}" amaru_adapter_process_uptime 4242
+)" "66" "monotonic procfs process uptime"
+
+rm -f -- "${proc_root}/4242/stat"
+if AMARU_PROCFS_ROOT="${proc_root}" \
+  amaru_adapter_process_uptime 4242 >/dev/null 2>&1; then
+  fail "process uptime accepted a ps wraparound larger than host uptime"
+fi
+
 ps() {
   printf '  77\n'
 }
-assert_eq "$(amaru_adapter_process_uptime 4242)" "77" \
-  "process uptime fallback"
+assert_eq "$(
+  AMARU_PROCFS_ROOT="${proc_root}" amaru_adapter_process_uptime 4242
+)" "77" "bounded ps process uptime fallback"
 unset -f ps
+unset -f getconf
 
 fake_binary="${TEMP_ROOT}/fake-amaru"
 printf '%s\n' '#!/usr/bin/env bash' \
