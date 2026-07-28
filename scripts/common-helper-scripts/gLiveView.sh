@@ -326,9 +326,14 @@ three_col_value_width=$(( three_col_width - 12 ))
 
 # block section use same width as main section
 
-NC=$(tput sgr0 && printf "${style_base}") # override default NC in env
-
 setTheme # call function to set theme colors
+glv_resolve_theme_escapes \
+  style_title style_base \
+  style_values_1 style_values_2 style_values_3 style_values_4 \
+  style_info \
+  style_status_1 style_status_2 style_status_3 style_status_4 ||
+  myExit 1 "ERROR: unable to initialize gLiveView terminal theme"
+NC="$(tput sgr0 2>/dev/null || true)${style_base}" # override default NC in env
 
 # Progressbar
 if [[ ${LEGACY_MODE} = "true" ]]; then

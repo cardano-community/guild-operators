@@ -194,6 +194,20 @@ glv_ratio_percent() {
   '
 }
 
+# Resolve the trusted theme constants used by gLiveView to actual terminal
+# control bytes before rows are buffered. The common env deliberately stores
+# colors as portable \e[...] strings; interpreting only these named variables
+# avoids treating node-supplied metric text as printf escape sequences.
+glv_resolve_theme_escapes() {
+  local name value
+
+  for name in "$@"; do
+    [[ "${name}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
+    value="${!name-}"
+    printf -v "${name}" '%b' "${value}"
+  done
+}
+
 glv_frame_reset() {
   unset GLV_FRAME_NEXT
   declare -ga GLV_FRAME_NEXT=()

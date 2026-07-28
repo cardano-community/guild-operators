@@ -517,6 +517,29 @@ run_glive_helper_tests() (
     fail "propagation ratio formatter accepted a non-numeric value"
   fi
 
+  local theme_green='\e[32m'
+  local theme_title='\e[35m\e[1m'
+  glv_resolve_theme_escapes theme_green theme_title
+  assert_eq "${theme_green}" $'\033[32m' \
+    "single terminal theme escape resolution"
+  assert_eq "${theme_title}" $'\033[35m\033[1m' \
+    "combined terminal theme escape resolution"
+  [[ "${theme_green}${theme_title}" != *'\e['* ]] ||
+    fail "terminal theme resolver left visible escape text"
+  if glv_resolve_theme_escapes 'invalid-name' >/dev/null 2>&1; then
+    fail "terminal theme resolver accepted an invalid variable name"
+  fi
+
+  unset GLV_FRAME_NEXT GLV_FRAME_PREV GLV_FRAME_PATCH
+  unset GLV_FRAME_LAST_FULL_REPAINT
+  glv_frame_reset
+  glv_frame_add "${theme_green}colored"
+  glv_frame_build_patch N 99 10
+  [[ "${GLV_FRAME_PATCH}" == *$'\033[32mcolored'* ]] ||
+    fail "buffered frame omitted the resolved terminal theme escape"
+  [[ "${GLV_FRAME_PATCH}" != *'\e['* ]] ||
+    fail "buffered frame emitted visible terminal escape text"
+
   unset GLV_FRAME_NEXT GLV_FRAME_PREV GLV_FRAME_PATCH
   unset GLV_FRAME_LAST_FULL_REPAINT
   glv_frame_reset
@@ -880,7 +903,7 @@ run_bundle_transaction_tests() (
   local fake_mv_bin="${transaction_root}/mv-bin"
   local fake_lock_bin="${transaction_root}/lock-bin"
   local real_mv
-  local status before after prompt_count target
+  local status before after prompt_count prompt_message target
   local bundle_root remote_root curl_counter prompt_counter mv_counter
   mkdir -p "${fake_bin}" "${fake_mv_bin}" "${fake_lock_bin}"
 
@@ -1079,13 +1102,16 @@ EOF
   before="$(bundle_snapshot)"
   printf '0\n' > "${curl_counter}"
   : > "${prompt_counter}"
+  prompt_message="${transaction_root}/declined/prompt.message"
   PROMPT_COUNTER="${prompt_counter}"
-  export PROMPT_COUNTER
+  PROMPT_MESSAGE="${prompt_message}"
+  export PROMPT_COUNTER PROMPT_MESSAGE
   commonRuntimeIsInteractive() {
     return 0
   }
   getAnswer() {
     printf 'prompt\n' >> "${PROMPT_COUNTER}"
+    printf '%s' "$*" > "${PROMPT_MESSAGE}"
     return 1
   }
   if checkCommonRuntimeUpdates N; then
@@ -1096,6 +1122,12 @@ EOF
   assert_eq "${status}" "0" "declined bundle update status"
   prompt_count="$(wc -l < "${prompt_counter}" | tr -d '[:space:]')"
   assert_eq "${prompt_count}" "1" "bundle update prompt count"
+  grep -Fq \
+    "Prepared and syntax-checked: 4 shared libraries, the cnode adapter, and env (6 files)." \
+    "${prompt_message}" ||
+    fail "bundle update prompt did not explain the six coordinated files"
+  grep -Fq "Apply all files together?" "${prompt_message}" ||
+    fail "bundle update prompt did not explain the atomic apply decision"
   assert_eq "$(cat "${curl_counter}")" "6" \
     "declined bundle did not stage all six members before prompting"
   after="$(bundle_snapshot)"
