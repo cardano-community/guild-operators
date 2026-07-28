@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Canonical implementation-neutral CNTools entrypoint.
 # shellcheck disable=SC1090,SC2086,SC2154,SC2034,SC2012,SC2140,SC2028,SC1091,SC2206
 
 ######################################
@@ -86,7 +87,7 @@ usage() {
 		-o    Offline mode - run CNTools with a limited set of functionallity without external communication useful for air-gapped mode
 		-a    Enable advanced/developer features like metadata transactions, asset management etc (not needed for SPO usage)
 		-u    Skip script update check overriding UPDATE_CHECK value in env
-		-b    Run CNTools and look for updates on alternate branch instead of master (only for testing/development purposes)
+		-b    Persist an alternate Guild Operators branch for this deployment
 		-v    Print CNTools version
 
 		EOF
@@ -95,8 +96,9 @@ usage() {
 ADVANCED_MODE="false"
 SKIP_UPDATE=N
 PRINT_VERSION="false"
-PARENT="$(dirname $0)"
-[[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat "${PARENT}"/.env_branch)" || BRANCH="master"
+BRANCH_EXPLICIT=N
+REQUESTED_BRANCH=""
+PARENT="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 
 # save launch params
 arg_copy=("$@")
@@ -108,12 +110,13 @@ while getopts :nolaub:v opt; do
     l ) CNTOOLS_MODE="LIGHT" ;;
     a ) ADVANCED_MODE="true" ;;
     u ) SKIP_UPDATE=Y ;;
-    b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
+    b ) REQUESTED_BRANCH="${OPTARG}"; GUILD_BRANCH_OVERRIDE="${OPTARG}"; BRANCH_EXPLICIT=Y ;;
     v ) PRINT_VERSION="true" ;;
     \? ) myExit 1 "$(usage)" ;;
     esac
 done
 shift $((OPTIND -1))
+[[ -z ${CNTOOLS_MODE} ]] && CNTOOLS_MODE="LOCAL"
 
 #######################################################
 # Version Check                                       #
@@ -126,71 +129,78 @@ if [[ ! -f "${PARENT}"/env ]]; then
   myExit 1
 fi
 
-# Source env file in normal mode with node connection, else offline mode
-if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-  . "${PARENT}"/env || myExit 1
-else
-  . "${PARENT}"/env offline || myExit 1
+. "${PARENT}"/env definitions || myExit 1 "ERROR: CNTools failed to load common env definitions"
+
+if [[ "${BRANCH_EXPLICIT}" == "Y" ]]; then
+  deployment_set_branch "${REQUESTED_BRANCH}" ||
+    myExit 1 "ERROR: Invalid branch '${REQUESTED_BRANCH}' or unable to update ${NODE_HOME}/.deployment.json"
+  unset GUILD_BRANCH_OVERRIDE
 fi
 
-# Source cntools.library to populate defaults for CNTools
+# Update code before loading cntools.library. This avoids retaining derived
+# library state from a previous env after a partial in-process update.
+if [[ ${CNTOOLS_MODE} != "OFFLINE" && ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
+  clear
+  echo "Checking for script updates..."
+  if ! declare -F checkCommonRuntimeUpdates >/dev/null; then
+    myExit 1 "Common runtime bundle updater is unavailable; re-run guild-deploy.sh"
+  fi
+
+  BUNDLE_UPDATED=N
+  if checkCommonRuntimeUpdates N; then
+    common_update_status=0
+  else
+    common_update_status=$?
+  fi
+  case "${common_update_status}" in
+    0) ;;
+    1) BUNDLE_UPDATED=Y ;;
+    2) myExit 1 "Failed to update the common runtime bundle" ;;
+  esac
+
+  checkUpdate "${PARENT}/cntools.library" "${BUNDLE_UPDATED}" N N "common-helper-scripts" exact
+  case $? in
+    1) BUNDLE_UPDATED=Y ;;
+    2) myExit 1 "Failed to update cntools.library" ;;
+  esac
+  checkUpdate "${PARENT}/cntools.sh" "${BUNDLE_UPDATED}" N N "common-helper-scripts" N
+  case $? in
+    1) BUNDLE_UPDATED=Y ;;
+    2) myExit 1 "Failed to update cntools.sh" ;;
+  esac
+
+  if [[ "${BUNDLE_UPDATED}" == "Y" ]]; then
+    exec "$0" -u "${arg_copy[@]}"
+  fi
+fi
+
+case "${CNTOOLS_MODE}" in
+  LOCAL) ENV_PROFILE="local" ;;
+  LIGHT) ENV_PROFILE="light" ;;
+  OFFLINE) ENV_PROFILE="offline" ;;
+  *) myExit 1 "Unsupported CNTools mode: ${CNTOOLS_MODE}" ;;
+esac
+
+. "${PARENT}"/env "${ENV_PROFILE}"
+case $? in
+  1) myExit 1 "ERROR: CNTools failed to initialize the selected node adapter\nPlease verify .deployment.json and values in env" ;;
+  2) myExit 1 "ERROR: The selected node is not ready for CNTools ${CNTOOLS_MODE} mode" ;;
+  3) myExit 1 "ERROR: ${NODE_IMPLEMENTATION} does not provide the capabilities required by CNTools ${CNTOOLS_MODE} mode" ;;
+esac
+
+# Source cntools.library only after the final env profile is initialized.
 . "${PARENT}"/cntools.library || myExit 1
 
-# If light mode, test if koios is reachable, otherwise - unset KOIOS_API
 if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
   test_koios
   [[ -z ${KOIOS_API} ]] && myExit 1 "ERROR: Koios query test failed, unable to launch CNTools in light mode utilizing Koios query layer\n\n${launch_modes_info}"
 fi
 
 [[ ${CNTOOLS_MODE} != "LIGHT" ]] && unset KOIOS_API
-
-[[ ${PRINT_VERSION} = "true" ]] && myExit 0 "CNTools v${CNTOOLS_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))"
+[[ ${PRINT_VERSION} = "true" ]] && myExit 0 "CNTools v${CNTOOLS_VERSION} (branch: ${BRANCH})"
 
 # Do some checks when run in connected(local|light) mode
 if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
-  # check to see if there are any updates available
-  clear
-  if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
-
-    echo "Checking for script updates..."
-
-    # Check availability of checkUpdate function
-    if [[ ! $(command -v checkUpdate) ]]; then
-      myExit 1 "\nCould not find checkUpdate function in env, make sure you're using official docos for installation!"
-    fi
-
-    # check for env update
-    OFFLINE_MODE=N
-    ENV_UPDATED=N
-    checkUpdate env N N N
-    case $? in
-      1) ENV_UPDATED=Y ;;
-      2) myExit 1 "ERROR: Was unable to check for updates on previous run querying from github, please retry!";;
-    esac
-
-    # source common env variables in case it was updated
-    if [[ ${ENV_UPDATED} = Y ]]; then
-      [[ ${CNTOOLS_MODE} = "LOCAL" ]] && . "${PARENT}"/env || . "${PARENT}"/env offline
-      case $? in
-        1) myExit 1 "ERROR: CNTools failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
-        2) clear ;;
-      esac
-      [[ ${CNTOOLS_MODE} != "LIGHT" ]] && unset KOIOS_API
-    fi
-
-    # check for cntools update
-    checkUpdate "${PARENT}"/cntools.library "${ENV_UPDATED}" Y N
-    case $? in
-      1) checkUpdate "${PARENT}"/cntools.sh Y
-         if [[ $? = 2 ]]; then
-           echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.sh against GitHub failed!"
-           waitToProceed
-         fi
-         $0 "${arg_copy[@]}" "-u"; myExit 1 ;; # re-launch script with same args skipping update check
-      2) echo -e "\n${FG_RED}ERROR${NC}: Update check of cntools.library against GitHub failed!"
-         waitToProceed ;;
-    esac
-  fi
 
   # check if CNTools was recently updated, if so show whats new
   if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
@@ -3356,9 +3366,13 @@ function main {
                 println ERROR "\n${FG_RED}ERROR${NC}: prerequisite tool cardano-signer missing or not executable, please install using ${FG_LGRAY}guild-deploy.sh${NC}"
                 waitToProceed && continue
               fi
+              if ! cardano_signer_minimum_version="$(cnodeManifestToolMinimumVersion "cardano-signer")"; then
+                println ERROR "\n${FG_RED}ERROR${NC}: invalid cardano-signer compatibility metadata in the installed cnode release manifest."
+                waitToProceed && continue
+              fi
               cardano_signer_version=$(cardano-signer -version)
-              if ! versionCheck "1.24.0" "${cardano_signer_version##* }"; then
-                println INFO "${FG_YELLOW}Please upgrade cardano-signer, this feature require at least version 1.23.0, found ${cardano_signer_version##* }!${NC}"; waitToProceed && continue
+              if ! versionCheck "${cardano_signer_minimum_version}" "${cardano_signer_version##* }"; then
+                println INFO "${FG_YELLOW}Please upgrade cardano-signer, this feature requires at least version ${cardano_signer_minimum_version}, found ${cardano_signer_version##* }!${NC}"; waitToProceed && continue
               fi
               if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
                 println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"

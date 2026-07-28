@@ -3,33 +3,44 @@
 - **environment** - Creates a new `mithril.env` file with all the necessary environment variables for the Mithril client.
 - **cardano-db** - Download, list all or show a specific available Mithril snapshot.
 - **stake-distribution** - Download or list available Mithril stake distributions.
-- **-u** - Skip script update check.
+
+!!! warning "cnode-only deployment"
+    The standalone Mithril helpers are currently installed only by the cnode
+    profile. Dingo and Amaru profiles do not install or support them.
+
+Install or refresh the Mithril signer and client binaries with
+`guild-deploy.sh -s m`. The release selector comes from
+`${NODE_HOME}/files/cnode-release.json` and can be changed from `latest` to a
+pinned artifact without changing this deployment command. The executables are
+installed in `$HOME/.local/bin`; the generated environment defaults to
+`${NODE_HOME}/mithril/mithril.env`.
 
 ## Usage
 
 ```bash
-Usage: mithril-client.sh [-u] <command> <subcommand> [<sub arg>]
+Usage: mithril-client.sh [-h] [-u] <command> <subcommand> [<sub arg>]
 A script to run Cardano Mithril Client
 
--u          Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
+-h, --help          Print this help
+-u, --skip-update   Skip the script update check (must be the first argument)
     
 Commands:
 environment           Manage mithril environment file
   setup               Setup mithril environment file
-  override            Override default variable in the mithril environment file
+  override NAME VALUE Override a variable in the mithril environment file
   update              Update mithril environment file
 cardano-db            Interact with Cardano DB
   download            Download Cardano DB from Mithril snapshot (Full)
     skip-ancillary    Download Cardano DB from Mithril snapshot (Immutable DB only)
   snapshot            Interact with Mithril snapshots
     list              List available Mithril snapshots
-      json            List availble Mithril snapshots in JSON format
-    show              Show details of a Mithril snapshot
-      json            Show details of a Mithril snapshot in JSON format
+      json            List available Mithril snapshots in JSON format
+    show DIGEST       Show details of a Mithril snapshot
+      json            Show those details in JSON format
 stake-distribution    Interact with Mithril stake distributions
   download            Download latest stake distribution
   list                List available stake distributions
-    json              Output latest Mithril snapshot in JSON format
+    json              List available stake distributions in JSON format
 
 ```
 
@@ -43,7 +54,7 @@ To prepare a relay or block producer node, you should follow these steps:
    ./mithril-client.sh environment setup
    ```
 
-2. **Download the latest Mithril snapshot:** Once the environment file is set up, you can download the latest Mithril snapshot by running the script with the `snapshot download` command. This snapshot contains the latest state of the Cardano blockchain db from a Mithril Aggregator.
+2. **Download the latest Mithril snapshot:** Once the environment file is set up, you can download the latest Mithril snapshot by running the script with the `cardano-db download` command. This snapshot contains the latest state of the Cardano blockchain db from a Mithril Aggregator.
 
    ```bash
    ./mithril-client.sh cardano-db download
@@ -53,6 +64,7 @@ To prepare a relay or block producer node, you should follow these steps:
 
    ```bash
    ./mithril-client.sh cardano-db download skip-ancillary
+   ```
 
 ## Investigating Available Snapshots
 

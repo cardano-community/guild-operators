@@ -1,0 +1,304 @@
+# Node implementation deployment architecture
+
+Guild Operators can deploy one of three Cardano node implementations through
+the same `guild-deploy.sh` entrypoint:
+
+| Implementation | Selector | Default folder | Networks | Deployment status |
+| --- | --- | --- | --- | --- |
+| cardano-node | `cnode` | `/opt/cardano/cnode` | mainnet, preprod, preview, guild | Default, supported deployment |
+| Dingo | `dingo` | `/opt/cardano/dingo` | preprod, preview | Experimental relay-only deployment |
+| Amaru | `amaru` | `/opt/cardano/amaru` | preprod, preview | Experimental prerelease, relay-only deployment |
+
+Omitting `-i` selects `cnode`, preserving the existing install path and
+behavior:
+
+```bash
+./guild-deploy.sh -n mainnet -s pd
+./guild-deploy.sh -i dingo -n preview -s pd
+./guild-deploy.sh -i amaru -n preprod -s pd
+```
+
+Alternate implementations require an explicit network on their initial
+deployment. A later run against an existing, valid `.deployment.json` may omit
+`-n`; the dispatcher restores and validates the recorded network. Alternate
+profiles are deliberately restricted to testnets, do not install
+block-production tooling, and reject cnode-only selective-install flags.
+
+## Dispatcher and implementation profiles
+
+The downloaded `guild-deploy.sh` is the common dispatcher. It:
+
+1. parses and validates common arguments;
+2. chooses the implementation-specific default for `-t`;
+3. protects an existing target from implementation or network collisions;
+4. restores the stored repository, branch, network, and service identity from
+   `.deployment.json` (an explicitly configured network must match);
+5. downloads the selected implementation profile from that exact repository
+   branch;
+6. marks the manifest as `deploying`, runs the profile, and finalizes the
+   manifest as `deployed` only after success.
+
+The dispatcher never substitutes profile or payload files from the local Git
+checkout. This keeps `repository` and `branch` truthful when the entrypoint is
+run by a contributor from a different checkout. Deployment, branch changes,
+and common-runtime refreshes also take the same target-wide lock; concurrent
+writers fail without partially interleaving files or metadata.
+
+Implementation-specific work remains separate:
+
+- `scripts/cnode-helper-scripts/deploy-cnode.sh` retains the established
+  cardano-node deployment behavior and selective flags;
+- `scripts/dingo-helper-scripts/deploy-dingo.sh` installs Dingo's relay
+  layout, pinned release, configuration, launcher, adapter, and common
+  gLiveView dashboard;
+- `scripts/amaru-helper-scripts/deploy-amaru.sh` installs Amaru's relay
+  layout, pinned prerelease, environment, launcher, adapter, managed
+  OpenTelemetry bridge, and common gLiveView dashboard.
+
+This split keeps each node's bootstrap, configuration, and command-line
+semantics in its own profile. It intentionally does not introduce a generic
+`node.sh`.
+
+The dispatcher is also the only deployment script with an editable
+user-variable section. It owns common inputs such as implementation, network,
+repository, branch, target, port, and download timeouts. Implementation
+profiles are internal, source-only modules: they validate the dispatcher
+contract, derive their action state from `-s`, and contain only
+implementation-specific deployment logic. cnode's optional db-sync omission
+for controlled container builds is exposed as a clearly cnode-specific
+dispatcher setting rather than a hidden profile variable.
+
+When binary installation is selected with `-s d`, all implementations use
+`$HOME/.local/bin`. Binary names are distinct (`cardano-node`, `dingo`, and
+`amaru`), so they can coexist. Amaru additionally installs the pinned
+`otelcol-contrib` executable used by its local metrics bridge. Every
+implementation has reviewed release metadata under
+`files/node-implementations/<implementation>/release.json`. The profiles
+select Linux architecture artifacts from that metadata and verify pinned
+SHA-256 digests before extraction. cardano-cli is represented as a companion
+entry in the cnode manifest because it is released independently.
+
+Network templates follow the same implementation namespace:
+
+```text
+files/configs/<implementation>/<network>/
+```
+
+The current cnode profile uses only `files/configs/cnode/<network>`. Historical
+release tags retain the former `files/configs/<network>` layout for operators
+who intentionally deploy an older tagged version.
+
+## Deployment manifest
+
+Every successful deployment owns one manifest at
+`${NODE_HOME}/.deployment.json`. It is deployment metadata, not node
+configuration:
+
+```json
+{
+  "schemaVersion": 1,
+  "deploymentStatus": "deployed",
+  "implementation": "dingo",
+  "network": "preview",
+  "branch": "master",
+  "repository": "cardano-community/guild-operators",
+  "serviceName": "dingo",
+  "nodeVersion": "dingo v0.67.1",
+  "targetNodeVersion": "0.67.1",
+  "metricsProvider": "prometheus",
+  "capabilities": {
+    "n2c": true,
+    "localCli": false,
+    "metrics": true,
+    "forging": false
+  }
+}
+```
+
+`nodeVersion` is the first version line reported by the executable actually
+installed in `$HOME/.local/bin` (or, if absent there, the selected executable
+on `PATH`). It is empty if no executable is installed. `targetNodeVersion` is
+the release selected by the deployment profile, even when `-s d` was not
+requested. This distinction prevents a pinned release file from being
+mistaken for the binary currently on the host.
+
+The dispatcher validates the complete version-1 manifest and refuses to reuse
+a manifest-owned folder with malformed or incomplete metadata, a different
+implementation or network, or a service name that does not match the target
+folder. Common helpers and alternate launchers apply the same fail-closed
+rule. Configuration and chain data are never automatically converted between
+implementations.
+
+On both first installs and updates, the dispatcher records
+`deploymentStatus: "deploying"` after ensuring the target layout exists and
+before the profile changes scripts or configuration. This makes an
+interrupted operation visible and safely resumable. Helpers refuse to consume
+an unfinished manifest; the status changes to `"deployed"` only after the
+profile completes.
+
+The manifest replaces `scripts/.env_branch`. On the first successful update of
+a legacy cnode deployment, the old branch value is imported and the sidecar is
+moved into `scripts/archive`. Supplying `-b` to the dispatcher or a compatible
+updating helper writes the new branch to `.deployment.json` atomically while
+preserving the other fields.
+
+That recorded branch remains the source of truth for helper self-updates. If
+it disappears upstream or cannot be verified, those updates stop without
+replacing files; they do not silently fetch `master`. The dispatcher is the
+explicit recovery path: `guild-deploy.sh -b <branch>` selects a replacement
+branch, while a dispatcher invocation whose selected or stored branch is
+unavailable warns, falls back to `master`, and records `master` if deployment
+continues successfully.
+
+## Shared helpers and node adapters
+
+There is one canonical copy of implementation-neutral tools under
+`scripts/common-helper-scripts`:
+
+```text
+common-helper-scripts/
+├── env
+├── gLiveView.sh
+├── cntools.sh
+├── cntools.library
+└── lib/
+    ├── deployment.library
+    ├── env.library
+    ├── node-api.library
+    └── systemd.library
+```
+
+The common `env` reads `.deployment.json`, loads shared functions, and then
+loads the selected adapter from `scripts/adapters/<implementation>.adapter`.
+Adapters declare capabilities and translate implementation-specific paths,
+process discovery, metrics, and local interfaces into the shared API.
+The common `env`, four common libraries, and selected adapter are staged and
+shell-validated as one bundle. Replacement is atomic as a bundle: a failed
+download, validation, move, or catchable termination restores the complete
+preceding runtime rather than leaving mixed generations.
+
+The former cnode-specific source URLs for `env`, gLiveView, and CNTools are
+retired rather than publishing duplicate copies or forwarders that cannot run
+inside an older flat deployment. An old helper checking one of those URLs gets
+an update failure and keeps its existing local file. Running the current
+`guild-deploy.sh` installs the complete canonical runtime before any helper is
+replaced.
+
+Deploying a common runtime does not imply that every common tool is supported.
+Capability checks must fail closed when an adapter cannot provide the required
+node interface.
+
+### Common monitoring contract
+
+All three profiles install the same canonical `gLiveView.sh`. The selected
+adapter translates its native metric names into a normalized availability
+registry. gLiveView then renders only the metrics observed in the latest
+successful scrape; it does not turn an unsupported or missing sample into a
+zero. Implementation-specific samples are registered separately and appear in
+a Dingo- or Amaru-labelled section.
+
+The dashboard header always identifies the connected implementation:
+`cardano-node`, `Dingo`, or `Amaru`. cnode and Dingo expose native Prometheus
+endpoints. Amaru emits OTLP, so its deployment also installs a local
+OpenTelemetry Collector. The collector receives OTLP/gRPC on
+`127.0.0.1:4317`, OTLP/HTTP on `127.0.0.1:4318`, and exposes
+Prometheus-formatted metrics on `127.0.0.1:8889`. All Amaru monitoring
+endpoints are loopback-only.
+
+This shared monitoring interface does not make cnode-only operational
+features portable. The alternate profiles are relay-only; cnode forging, KES,
+operational-certificate, CNCLI blocklog, Koios pool, Mithril signer, and
+interactive peer-analysis sections remain hidden. See the
+[gLiveView guide](../Scripts/gliveview.md) for the displayed metric groups.
+
+## Current helper compatibility
+
+| Tool or interface | cnode | Dingo | Amaru |
+| --- | --- | --- | --- |
+| Node launcher and systemd unit | Yes | Yes | Yes |
+| Shared environment and adapter | Yes | Yes | Yes |
+| gLiveView | Yes, native Prometheus | Yes, native Prometheus | Yes, managed OTLP-to-Prometheus bridge |
+| CNTools | Yes | Not deployed | Not deployed |
+| cardano-cli local queries | Yes | Not exposed through the profile | No compatible node-to-client socket |
+| db-sync, Ogmios, standalone Mithril helpers | Existing support | Not deployed | Not deployed |
+| Block production | Yes | Not supported by this profile | Not supported by this profile |
+
+Dingo samples carry an upstream `network` label; the shared parser accepts
+labelled and unlabelled Prometheus samples. Amaru samples pass through
+OpenTelemetry and may use scientific notation. The normalization requested in
+[issue #1912](https://github.com/cardano-community/guild-operators/issues/1912)
+is part of the common parser. In both cases, metric availability—not the node
+selector—drives whether a dashboard cell is shown.
+
+See the implementation guides for exact bootstrap, firewall, and storage
+details:
+
+- [cnode deployment profile](cnode.md)
+- [Dingo deployment profile](dingo.md)
+- [Amaru deployment profile](amaru.md)
+- [Building cardano-node and cardano-cli](node-cli.md)
+
+## Component-owned systemd units
+
+The legacy `deploy-as-systemd.sh` orchestrator has been removed. Each script
+now installs and manages the units it owns, using the common
+`systemd.library`. Existing `-d` install aliases remain where they already
+existed.
+
+New units contain both a Guild Operators marker and the exact owning launcher
+path. Install and remove operations refuse to touch an unrelated same-name
+unit, including a unit owned by another Guild deployment on the same host. If
+the expected unit file is absent, removal is a no-op rather than disabling an
+unverified same-name transient or vendor unit. Recognized units from the old
+orchestrator are migrated through a component-specific legacy signature, so
+existing operators can still replace or remove them safely.
+
+| Component | Command |
+| --- | --- |
+| cnode, db-sync, submit-api, Ogmios, Mithril signer | `<script> systemd install\|remove\|status` |
+| Dingo | `dingo.sh -d` or `dingo.sh install`; also `remove` and `status` |
+| Amaru node and metrics bridge | `amaru.sh -d` or `amaru.sh install`; lifecycle commands manage both units |
+| CNCLI operational units | `cncli.sh -d [scope]` or `cncli.sh systemd install\|remove\|status [scope]` |
+| Topology Updater units | `topologyUpdater.sh -d` or `topologyUpdater.sh systemd install [restart-seconds]`; lifecycle via `topologyUpdater.sh systemd remove\|status` |
+
+Installation enables units but does not start the node. Bootstrap and inspect
+an alternate implementation before starting it explicitly.
+
+Topology Updater predates Cardano P2P and is deprecated. Its service ownership
+was moved for consistency and cleanup only; new P2P deployments should not
+install it. Disabled BlockPerf and Log Monitor scripts can remove or inspect
+stale units, but refuse to install a service that cannot run with current
+tracing.
+
+## Updating release manifests
+
+The primary cnode, Dingo, and Amaru versions remain pinned. Updating a
+supported node version requires a reviewed change to:
+
+1. its release metadata in `files/node-implementations`;
+2. every artifact URL and SHA-256 digest;
+3. any affected implementation configuration templates;
+4. launcher commands and environment bindings;
+5. dry deployment, systemd lifecycle, and shell/JSON validation tests;
+6. the implementation guide and compatibility table.
+
+The cnode manifest additionally centralizes binaries installed by its selective
+deployment flags, its pinned GHCup bootstrap, immutable source dependency
+commits, the on-demand Catalyst Toolbox dependency, and the verified
+openBlockPerf installer and hardware-wallet rules in
+`files/node-implementations/cnode/release.json`. The root node entry,
+companions, and pinned tools use a concrete `version` and checksummed
+`artifacts`. Direct-binary tools with `version: "latest"` resolve their
+declared `github`, `channel`, and architecture `assets` only when requested.
+The channel defaults to `stable`, and resolution requires the selected GitHub
+asset's SHA-256 digest.
+
+To freeze a rolling tool, replace `version: "latest"`, `github`, `assets`, and
+any `channel` with a concrete `version` and architecture-keyed `artifacts`.
+OpenBlockPerf is installer-managed: replace its package version with a
+concrete value while retaining the pinned installer. Latest resolutions are
+ephemeral and are not written back to the installed
+`${NODE_HOME}/files/cnode-release.json` manifest.
+
+This distinction keeps node upgrades reproducible while preserving selected
+latest-tool behavior as an explicit, reviewable manifest choice.

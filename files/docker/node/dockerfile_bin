@@ -1,12 +1,17 @@
-FROM --platform=$BUILDPLATFORM debian:stable-slim
+FROM debian:stable-slim
+
+# The deployment manifest makes implementation and network authoritative for
+# the lifetime of a target. Select both when the image is built.
+ARG DEBIAN_FRONTEND=noninteractive
+ARG G_ACCOUNT=cardano-community
+ARG GUILD_DEPLOY_BRANCH=master
+ARG NODE_IMPLEMENTATION=cnode
+ARG NODE_NETWORK=mainnet
 
 # DEFINE THE PREFERRED STOP SIGNAL
 STOPSIGNAL SIGINT
 
-LABEL desc="Cardano Node by Guild's Operators"
-ARG DEBIAN_FRONTEND=noninteractive
-ARG G_ACCOUNT=cardano-community
-ARG GUILD_DEPLOY_BRANCH=master
+LABEL desc="Cardano node deployed with Guild Operators"
 
 USER root
 WORKDIR /
@@ -16,100 +21,137 @@ ENV \
     LC_ALL=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
     LANGUAGE=en_US.UTF-8 \
-    CNODE_HOME=/opt/cardano/cnode \
     USER_HOME=/home/guild \
-    PATH=/opt/cardano/cnode/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/home/guild/.local/bin \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
     UPDATE_CHECK=N \
     SUDO=N
-ENV CARDANO_NODE_SOCKET_PATH=${CNODE_HOME}/sockets/node.socket
 
-RUN apt-get update && apt-get install --no-install-recommends -y locales apt-utils \
-    && apt install -y curl wget udev jq \
-    && apt-get -y purge \
+# Keep immutable image identity separate from the compatibility variables that
+# operators may already pass to containers.
+ENV \
+    IMAGE_NODE_IMPLEMENTATION=${NODE_IMPLEMENTATION} \
+    IMAGE_NODE_NETWORK=${NODE_NETWORK} \
+    IMAGE_NODE_HOME=/opt/cardano/${NODE_IMPLEMENTATION}
+ENV \
+    NODE_IMPLEMENTATION=${IMAGE_NODE_IMPLEMENTATION} \
+    NODE_NETWORK=${IMAGE_NODE_NETWORK} \
+    NETWORK=${IMAGE_NODE_NETWORK} \
+    NODE_HOME=${IMAGE_NODE_HOME} \
+    CNODE_HOME=${IMAGE_NODE_HOME} \
+    AMARU_STATE_ROOT=/var/lib/amaru \
+    HOME=${USER_HOME} \
+    PATH=${IMAGE_NODE_HOME}/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:${USER_HOME}/.local/bin
+ENV CARDANO_NODE_SOCKET_PATH=${IMAGE_NODE_HOME}/sockets/node.socket
+
+RUN case "${IMAGE_NODE_IMPLEMENTATION}:${IMAGE_NODE_NETWORK}" in \
+      cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|dingo:preprod|dingo:preview|amaru:preprod|amaru:preview) ;; \
+      *) echo "Unsupported Docker deployment: ${IMAGE_NODE_IMPLEMENTATION}:${IMAGE_NODE_NETWORK}" >&2; exit 1 ;; \
+    esac
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y locales apt-utils curl wget udev jq ca-certificates \
     && apt-get -y clean \
-    && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/* \
     && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \
     && locale-gen \
-    && echo "export LC_ALL=en_US.UTF-8" >> ~/.bashrc \
-    && echo "export LANG=en_US.UTF-8" >> ~/.bashrc \
-    && echo "export LANGUAGE=en_US.UTF-8" >> ~/.bashrc
-
-RUN useradd -m -U -s /bin/bash -c '' guild \
+    && useradd -m -U -s /bin/bash -c '' guild \
     && passwd -l guild \
-    && mkdir -pv ${USER_HOME}/.local/ ${USER_HOME}/.scripts/
+    && mkdir -p "${USER_HOME}/.local/bin" "${USER_HOME}/.scripts" /conf /var/lib/amaru \
+    && chown guild:guild /var/lib/amaru
 
-RUN set -x && apt update \
-    && apt-get update \
-    && mkdir -p /root/.local/bin \
-    && wget https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh \
-    && export SKIP_DBSYNC_DOWNLOAD='Y' \
-    && export G_ACCOUNT=${G_ACCOUNT} \
-    && chmod +x ./guild-deploy.sh && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s p \
-    && ls /opt/ \
-    && mkdir -p ${CNODE_HOME}/priv/files \
-    && apt-get -y purge \
+# Install prerequisites first, then the selected node and its supported helper
+# set. cnode retains the historical full Docker payload; Dingo and Amaru use
+# only the experimental relay payload accepted by their deployment profiles.
+RUN set -x \
+    && wget -O /guild-deploy.sh \
+      "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh" \
+    && chmod 0755 /guild-deploy.sh \
+    && export CNODE_SKIP_DBSYNC_DOWNLOAD=Y G_ACCOUNT="${G_ACCOUNT}" \
+    && /guild-deploy.sh \
+      -i "${IMAGE_NODE_IMPLEMENTATION}" \
+      -n "${IMAGE_NODE_NETWORK}" \
+      -b "${GUILD_DEPLOY_BRANCH}" \
+      -s p \
+    && case "${IMAGE_NODE_IMPLEMENTATION}" in \
+      cnode) install_flags=dcmowx ;; \
+      dingo|amaru) install_flags=dfs ;; \
+    esac \
+    && /guild-deploy.sh \
+      -i "${IMAGE_NODE_IMPLEMENTATION}" \
+      -n "${IMAGE_NODE_NETWORK}" \
+      -b "${GUILD_DEPLOY_BRANCH}" \
+      -s "${install_flags}" \
+    && mkdir -p "${IMAGE_NODE_HOME}/priv/files" \
+    && chown -R guild:guild "${IMAGE_NODE_HOME}" "${USER_HOME}" \
     && apt-get -y clean \
-    && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
 
-RUN set -x && export SKIP_DBSYNC_DOWNLOAD='Y' \
-    && export G_ACCOUNT=${G_ACCOUNT} \
-    && ./guild-deploy.sh -b ${GUILD_DEPLOY_BRANCH} -s dcmowx \
-    && chown -R guild:guild ${CNODE_HOME} \
-    && mv /root/.local/bin ${USER_HOME}/.local/ \
-    && chown -R guild:guild ${USER_HOME}/.*
-
-# Add final tools in a separate layer to shrink the largest layer
+# Runtime tools used by the launchers and the implementation-aware healthcheck.
 RUN apt-get update \
-    && apt-get install -y procps libcap2 libselinux1 libc6 libsodium-dev ncurses-bin iproute2 xz-utils netbase coreutils dnsutils net-tools procps tcptraceroute bc usbip sqlite3 python3 tmux ncurses-base libtool autoconf tcptraceroute util-linux less openssl bsdmainutils dialog vim socat \
-    && apt-get -y purge \
+    && apt-get install --no-install-recommends -y \
+      procps libcap2 libselinux1 libc6 ncurses-bin iproute2 xz-utils netbase \
+      coreutils dnsutils net-tools tcptraceroute bc usbip sqlite3 python3 tmux \
+      ncurses-base libtool autoconf util-linux less openssl bsdmainutils dialog \
+      vim socat \
+    && if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ]; then \
+      apt-get install --no-install-recommends -y libsodium-dev; \
+    fi \
     && apt-get -y clean \
-    && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
 
-
-RUN bash -c 'networks=(guild mainnet preprod preview); files=({alonzo,byron,conway,shelley}-genesis.json config.json db-sync-config.json topology.json); \
-    for network in "${networks[@]}"; do \
-        mkdir -pv /conf/${network} && \
-        for file in "${files[@]}"; do \
-            curl -s -o /conf/${network}/${file} https://raw.githubusercontent.com/'${G_ACCOUNT}'/guild-operators/'${GUILD_DEPLOY_BRANCH}'/files/configs/${network}/${file}; \
+# Retain the cnode configuration cache used by the container entrypoint. The
+# alternate profiles install their implementation-native files directly.
+RUN if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ]; then \
+      for network in guild mainnet preprod preview; do \
+        mkdir -p "/conf/${network}"; \
+        for file in alonzo-genesis.json byron-genesis.json conway-genesis.json shelley-genesis.json config.json db-sync-config.json topology.json; do \
+          curl --fail --silent --show-error --location \
+            --output "/conf/${network}/${file}" \
+            "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/configs/cnode/${network}/${file}"; \
         done; \
-    done'
+      done; \
+    fi
+
+# Common container assets.
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/banner.txt ${USER_HOME}/.scripts/banner.txt
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/healthcheck.sh \
+    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh ${IMAGE_NODE_HOME}/scripts/
+ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/entrypoint.sh ${USER_HOME}/entrypoint.sh
+
+# These helpers are still cnode-only. Downloading them conditionally avoids
+# making an alternate-node image appear to support unverified tooling.
+RUN if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ]; then \
+      for helper in mithril-client.sh mithril-signer.sh mithril-relay.sh; do \
+        curl --fail --silent --show-error --location \
+          --output "${IMAGE_NODE_HOME}/scripts/${helper}" \
+          "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/${helper}"; \
+      done; \
+      curl --fail --silent --show-error --location \
+        --output "${USER_HOME}/.scripts/block_watcher.sh" \
+        "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/block_watcher.sh"; \
+    fi \
+    && chmod 0755 "${USER_HOME}/entrypoint.sh" \
+    && find "${USER_HOME}/.scripts" "${IMAGE_NODE_HOME}/scripts" -type f -name '*.sh' -exec chmod 0755 {} + \
+    && chmod -R a+rX /conf \
+    && chown -R guild:guild "${USER_HOME}" "${IMAGE_NODE_HOME}" /conf
 
 USER guild
 WORKDIR ${USER_HOME}
 
-# Commit Version
-RUN  curl -sL -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/${G_ACCOUNT}/guild-operators/commits | grep -v md | grep -A 2 guild-deploy.sh | grep sha | head -n 1 | cut -d "\"" -f 4 > ~/guild-latest.txt \
-    && echo "head -n 8 ${USER_HOME}/.scripts/banner.txt" >> ~/.bashrc \
-    && echo "grep MENU -A 6 ${USER_HOME}/.scripts/banner.txt | grep -v MENU" >> ~/.bashrc \
-    && echo "alias env=/usr/bin/env" >> ~/.bashrc \
-    && echo "alias cntools=${CNODE_HOME}/scripts/cntools.sh" >> ~/.bashrc \
-    && echo "alias gLiveView=${CNODE_HOME}/scripts/gLiveView.sh" >> ~/.bashrc \
-    && echo "export PATH=${CNODE_HOME}/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:${USER_HOME}/.local/bin"  >> ~/.bashrc \
-    && echo "alias ll='ls -alhF'" >> ~/.bashrc
+RUN curl --fail --silent --show-error --location \
+      "https://api.github.com/repos/${G_ACCOUNT}/guild-operators/commits?sha=${GUILD_DEPLOY_BRANCH}&per_page=1" \
+      | jq -r '.[0].sha // "unknown"' > "${USER_HOME}/guild-latest.txt" \
+    && echo "head -n 8 ${USER_HOME}/.scripts/banner.txt" >> "${USER_HOME}/.bashrc" \
+    && echo "grep MENU -A 6 ${USER_HOME}/.scripts/banner.txt | grep -v MENU" >> "${USER_HOME}/.bashrc" \
+    && echo "alias env=/usr/bin/env" >> "${USER_HOME}/.bashrc" \
+    && echo "alias node=${IMAGE_NODE_HOME}/scripts/${IMAGE_NODE_IMPLEMENTATION}.sh" >> "${USER_HOME}/.bashrc" \
+    && echo "alias gLiveView=${IMAGE_NODE_HOME}/scripts/gLiveView.sh" >> "${USER_HOME}/.bashrc" \
+    && if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ]; then \
+      echo "alias cntools=${IMAGE_NODE_HOME}/scripts/cntools.sh" >> "${USER_HOME}/.bashrc"; \
+    fi \
+    && echo "export PATH=${IMAGE_NODE_HOME}/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:${USER_HOME}/.local/bin" >> "${USER_HOME}/.bashrc" \
+    && echo "alias ll='ls -alhF'" >> "${USER_HOME}/.bashrc"
 
-
-# ENTRY SCRIPT
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/banner.txt \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/block_watcher.sh ${USER_HOME}/.scripts/
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/healthcheck.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-client.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-signer.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/mithril-relay.sh ${CNODE_HOME}/scripts/
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/entrypoint.sh ./
-
-USER root
-RUN chmod -R a+rx ${USER_HOME}/.scripts/*.sh ${CNODE_HOME}/scripts/*.sh ${USER_HOME}/entrypoint.sh /conf \
-    && chown -R guild:guild ${USER_HOME}/.* ${CNODE_HOME} /conf
-
-USER guild
-
-HEALTHCHECK --start-period=5m --interval=120s --timeout=120s CMD ${CNODE_HOME}/scripts/healthcheck.sh
+HEALTHCHECK --start-period=5m --interval=120s --timeout=120s CMD ${IMAGE_NODE_HOME}/scripts/healthcheck.sh
 
 ENTRYPOINT ["./entrypoint.sh"]
-
-

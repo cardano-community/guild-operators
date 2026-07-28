@@ -2,8 +2,7 @@
 # shellcheck disable=SC2086,SC2034
 # shellcheck source=/dev/null
 
-PARENT="$(dirname $0)"
-[[ -f "${PARENT}"/env ]] && . "${PARENT}"/env offline
+PARENT="$(dirname "$0")"
 
 ######################################
 # User Variables - Change as desired #
@@ -20,44 +19,223 @@ MAX_PEERS=15                # Maximum number of peers to return on successful fe
 # Do NOT modify code below           #
 ######################################
 
-PARENT="$(dirname $0)"
-[[ -f "${PARENT}"/.env_branch ]] && BRANCH="$(cat ${PARENT}/.env_branch)" || BRANCH="master"
-
 usage() {
   cat <<-EOF
 		Usage: $(basename "$0") [-b <branch name>] [-f] [-p]
+		       $(basename "$0") -d
+		       $(basename "$0") systemd install [restart-seconds]
+		       $(basename "$0") systemd <remove|status>
 		Topology Updater - Build topology with community pools
+		LEGACY: topologyUpdater is retained for non-P2P cnode deployments only.
 
 		-f    Disable fetch of a fresh topology file
 		-p    Disable node alive push to Topology Updater API
 		-u    Skip script update check overriding UPDATE_CHECK value in env
 		-b    Use alternate branch to check for updates - only for testing/development (Default: master)
+		-d    Install all five topologyUpdater systemd units using the default interval
+		systemd
+		      Install, remove, or show the status of all five topologyUpdater units.
+		      The optional restart interval defaults to 86400 seconds.
 		
 		EOF
   exit 1
 }
 
+load_systemd_library() {
+  local systemd_library="${PARENT}/lib/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/../common-helper-scripts/lib/systemd.library"
+  if [[ ! -f "${systemd_library}" ]]; then
+    echo "ERROR: systemd.library is missing. Re-run the deployment script to install shared helpers."
+    return 1
+  fi
+  # shellcheck disable=SC1091
+  . "${systemd_library}"
+}
+
+topology_systemd_units() {
+  printf '%s\n' \
+    "${CNODE_VNAME}-tu-push.service" \
+    "${CNODE_VNAME}-tu-push.timer" \
+    "${CNODE_VNAME}-tu-fetch.service" \
+    "${CNODE_VNAME}-tu-restart.service" \
+    "${CNODE_VNAME}-tu-restart.timer"
+}
+
+deploy_systemd() {
+  local interval="${1:-86400}"
+  local push_service push_timer fetch_service restart_service restart_timer
+  local unit_content
+
+  if [[ ! ${interval} =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: restart-seconds must be a positive integer."
+    return 1
+  fi
+  if [[ ${NODE_IMPLEMENTATION:-cnode} != "cnode" ]]; then
+    echo "ERROR: topologyUpdater systemd units are supported only for legacy cnode deployments."
+    return 1
+  fi
+  load_systemd_library || return 1
+  echo "WARNING: topologyUpdater is a legacy service for non-P2P cnode deployments."
+
+  push_service="${CNODE_VNAME}-tu-push.service"
+  push_timer="${CNODE_VNAME}-tu-push.timer"
+  fetch_service="${CNODE_VNAME}-tu-fetch.service"
+  restart_service="${CNODE_VNAME}-tu-restart.service"
+  restart_timer="${CNODE_VNAME}-tu-restart.timer"
+
+  read -r -d '' unit_content <<-EOF || true
+		[Unit]
+		Description=Cardano Node - Topology Updater - node alive push
+
+		[Service]
+		Type=oneshot
+		User=${USER}
+		WorkingDirectory=${CNODE_HOME}/scripts
+		ExecStart=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/topologyUpdater.sh -f"
+		SyslogIdentifier=${CNODE_VNAME}-tu-push
+	EOF
+  systemd_install_unit \
+    "${push_service}" "${unit_content}" \
+    "${CNODE_HOME}/scripts/topologyUpdater.sh" "Topology Updater" || return 1
+
+  read -r -d '' unit_content <<-EOF || true
+		[Unit]
+		Description=Cardano Node - Wake Topology Updater node alive push service once an hour
+		BindsTo=${CNODE_VNAME}.service
+
+		[Timer]
+		OnActiveSec=1h
+		OnUnitInactiveSec=1h
+		AccuracySec=1s
+
+		[Install]
+		WantedBy=timers.target ${CNODE_VNAME}.service
+	EOF
+  systemd_install_unit \
+    "${push_timer}" "${unit_content}" \
+    "${CNODE_HOME}/scripts/topologyUpdater.sh" "Topology Updater" || return 1
+
+  read -r -d '' unit_content <<-EOF || true
+		[Unit]
+		Description=Cardano Node - Topology Updater - fetches a fresh topology before ${CNODE_VNAME}.service start
+		BindsTo=${CNODE_VNAME}.service
+		Before=${CNODE_VNAME}.service
+
+		[Service]
+		Type=oneshot
+		User=${USER}
+		WorkingDirectory=${CNODE_HOME}/scripts
+		ExecStart=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/topologyUpdater.sh -p"
+		ExecStartPost=/bin/sleep 5
+		SyslogIdentifier=${CNODE_VNAME}-tu-fetch
+
+		[Install]
+		WantedBy=${CNODE_VNAME}.service
+	EOF
+  systemd_install_unit \
+    "${fetch_service}" "${unit_content}" \
+    "${CNODE_HOME}/scripts/topologyUpdater.sh" "Topology Updater" || return 1
+
+  read -r -d '' unit_content <<-EOF || true
+		[Unit]
+		Description=Cardano Node - Topology Updater - restart ${CNODE_VNAME}.service for topology update
+
+		[Service]
+		Type=oneshot
+		WorkingDirectory=${CNODE_HOME}/scripts
+		ExecStart=/bin/bash -c "/bin/systemctl try-restart ${CNODE_VNAME}.service 2>/dev/null || /usr/bin/systemctl try-restart ${CNODE_VNAME}.service 2>/dev/null"
+		SyslogIdentifier=${CNODE_VNAME}-tu-restart
+	EOF
+  systemd_install_unit \
+    "${restart_service}" "${unit_content}" \
+    "${CNODE_HOME}/scripts/topologyUpdater.sh" "Topology Updater" || return 1
+
+  read -r -d '' unit_content <<-EOF || true
+		[Unit]
+		Description=Cardano Node - Wake Topology Updater restart service at set interval
+		BindsTo=${CNODE_VNAME}.service
+
+		[Timer]
+		OnActiveSec=${interval}
+		OnUnitInactiveSec=${interval}
+		AccuracySec=1s
+
+		[Install]
+		WantedBy=timers.target ${CNODE_VNAME}.service
+	EOF
+  systemd_install_unit \
+    "${restart_timer}" "${unit_content}" \
+    "${CNODE_HOME}/scripts/topologyUpdater.sh" "Topology Updater" || return 1
+
+  systemd_daemon_reload &&
+    systemd_enable_units "${fetch_service}" "${push_timer}" "${restart_timer}" &&
+    echo "Topology Updater systemd units deployed successfully."
+}
+
+manage_systemd() {
+  local action="${1:-}"
+  local interval="${2:-86400}"
+  local -a units
+
+  mapfile -t units < <(topology_systemd_units)
+  case "${action}" in
+    install) deploy_systemd "${interval}" ;;
+    remove)
+      load_systemd_library &&
+        systemd_remove_units \
+          --owner-token "${CNODE_HOME}/scripts/topologyUpdater.sh" \
+          --legacy-token "Topology Updater" \
+          "${units[@]}" &&
+        echo "Topology Updater systemd units removed successfully."
+      ;;
+    status)
+      load_systemd_library && systemd_status_units "${units[@]}"
+      ;;
+    *) usage ;;
+  esac
+}
+
 TU_FETCH=Y
 TU_PUSH=Y
 SKIP_UPDATE=N
+BRANCH_OVERRIDE=""
+SYSTEMD_ACTION=""
+SYSTEMD_INTERVAL=""
 
-while getopts :fpub: opt; do
-  case ${opt} in
-    f ) TU_FETCH=N ;;
-    p ) TU_PUSH=N ;;
-    u ) SKIP_UPDATE=Y ;;
-    b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
-    \? ) usage ;;
+if [[ ${1:-} == "systemd" ]]; then
+  SYSTEMD_ACTION="${2}"
+  case "${SYSTEMD_ACTION}" in
+    install)
+      [[ $# -ge 2 && $# -le 3 ]] || usage
+      SYSTEMD_INTERVAL="${3:-86400}"
+      ;;
+    remove|status)
+      [[ $# -eq 2 ]] || usage
+      SYSTEMD_INTERVAL="86400"
+      ;;
+    *) usage ;;
   esac
-done
-shift $((OPTIND -1))
+  shift $#
+else
+  while getopts :dfpub: opt; do
+    case ${opt} in
+      d ) SYSTEMD_ACTION="install"; SYSTEMD_INTERVAL="86400" ;;
+      f ) TU_FETCH=N ;;
+      p ) TU_PUSH=N ;;
+      u ) SKIP_UPDATE=Y ;;
+      b ) BRANCH_OVERRIDE="${OPTARG}" ;;
+      \? ) usage ;;
+    esac
+  done
+  shift $((OPTIND -1))
+fi
 
 [[ -z "${BATCH_AUTO_UPDATE}" ]] && BATCH_AUTO_UPDATE=N
 
 #######################################################
 # Version Check                                       #
 #######################################################
-clear
 
 if [[ ! -f "${PARENT}"/env ]]; then
   echo -e "\nCommon env file missing: ${PARENT}/env"
@@ -65,35 +243,69 @@ if [[ ! -f "${PARENT}"/env ]]; then
   exit 1
 fi
 
-. "${PARENT}"/env offline &>/dev/null # ignore any errors, re-sourced later
+[[ -n "${BRANCH_OVERRIDE}" ]] && export GUILD_BRANCH_OVERRIDE="${BRANCH_OVERRIDE}"
+if [[ -n "${SYSTEMD_ACTION}" ]]; then
+  . "${PARENT}"/env definitions
+else
+  . "${PARENT}"/env offline
+fi
+case $? in
+  0) : ;;
+  2) clear ;;
+  *) echo "ERROR: Failed to load common env file." && exit 1 ;;
+esac
+
+if [[ -n "${BRANCH_OVERRIDE}" ]]; then
+  BRANCH="${BRANCH_OVERRIDE}"
+  if declare -F deployment_set_branch >/dev/null 2>&1; then
+    deployment_set_branch "${BRANCH_OVERRIDE}" || {
+      echo "ERROR: Failed to save the branch in ${NODE_HOME:-${CNODE_HOME}}/.deployment.json"
+      exit 1
+    }
+  else
+    echo "WARNING: deployment_set_branch is unavailable; using '${BRANCH_OVERRIDE}' for this run only."
+  fi
+fi
+
+if [[ -n "${SYSTEMD_ACTION}" ]]; then
+  manage_systemd "${SYSTEMD_ACTION}" "${SYSTEMD_INTERVAL}"
+  exit $?
+fi
+
+clear
 
 if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
   echo "Checking for script updates..."
 
-  # Check availability of checkUpdate function
-  if [[ ! $(command -v checkUpdate) ]]; then
-    echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
-    exit 1
+  if ! declare -F checkCommonRuntimeUpdates >/dev/null 2>&1; then
+    echo -e "\nWARNING: Common runtime bundle updater is unavailable; skipping updates."
+    echo "Re-run guild-deploy.sh before updating topologyUpdater.sh."
+  else
+    ENV_UPDATED=${BATCH_AUTO_UPDATE}
+    if checkCommonRuntimeUpdates N; then
+      common_update_status=0
+    else
+      common_update_status=$?
+    fi
+    case "${common_update_status}" in
+      0) ;;
+      1) ENV_UPDATED=Y ;;
+      2) exit 1 ;;
+    esac
+
+    # check for topologyUpdater update
+    checkUpdate "${PARENT}"/topologyUpdater.sh "${ENV_UPDATED}"
+    case $? in
+      1) $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
+      2) exit 1 ;;
+    esac
   fi
-
-  # check for env update
-  ENV_UPDATED=${BATCH_AUTO_UPDATE}
-  checkUpdate "${PARENT}"/env N N N
-  case $? in
-    1) ENV_UPDATED=Y ;;
-    2) exit 1 ;;
-  esac
-
-  # check for topologyUpdater update
-  checkUpdate "${PARENT}"/topologyUpdater.sh ${ENV_UPDATED}
-  case $? in
-    1) $0 "$@" "-u"; exit 0 ;; # re-launch script with same args skipping update check
-    2) exit 1 ;;
-  esac
 
   # source common env variables in case it was updated
   . "${PARENT}"/env offline &>/dev/null
-  case $? in
+  env_status=$?
+  [[ -n "${BRANCH_OVERRIDE}" ]] && BRANCH="${BRANCH_OVERRIDE}"
+  case ${env_status} in
     0) : ;; # ok
     2) echo "continuing with topology update..." ;;
     *) exit 1 ;;

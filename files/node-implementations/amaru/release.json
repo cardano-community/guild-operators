@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "implementation": "amaru",
+  "version": "10.11.20260723",
+  "artifacts": {
+    "linux-x86_64": {
+      "url": "https://github.com/pragma-org/amaru/releases/download/v10.11.20260723/amaru-10.11.20260723-linux-x86_64.tar.gz",
+      "sha256": "f4a5fed3e0db62e7bed9697a5e980c65f66ccf8c9b59d2e0196dc630f8110e3d"
+    },
+    "linux-aarch64": {
+      "url": "https://github.com/pragma-org/amaru/releases/download/v10.11.20260723/amaru-10.11.20260723-linux-aarch64.tar.gz",
+      "sha256": "751b443047f26ceaaaf5821c9d6c68efecb15fd518aecfc4c23da31033726b09"
+    }
+  },
+  "otelcol": {
+    "version": "0.157.0",
+    "artifacts": {
+      "linux-x86_64": {
+        "url": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.157.0/otelcol-contrib_0.157.0_linux_amd64.tar.gz",
+        "sha256": "d33177515a244a2393f03ffd66ab3e68a8fc11a56bc145ec4d0ca2644ee95504"
+      },
+      "linux-aarch64": {
+        "url": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.157.0/otelcol-contrib_0.157.0_linux_arm64.tar.gz",
+        "sha256": "34eb82390c462c877dd60ec5ec84de899088916facd07306ec988e4c34bd05b3"
+      }
+    }
+  }
+}

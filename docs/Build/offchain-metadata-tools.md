@@ -1,40 +1,45 @@
 !!! important
 
-    - An average pool operator may not require offline-metadata-tools at all. Please verify if it is required for your use as mentioned [here](../build.md#components)
+    - An average pool operator may not require off-chain metadata tools. Verify
+      whether they are required for your use
+      [here](../build.md#components).
     - Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
 
-In the Cardano multi-asset era, this project helps you create and submit metadata describing your assets, storing them off-chain.
+This upstream project provides tools for creating and submitting off-chain
+asset metadata. Guild Operators does not deploy it or pin its version in a
+node release manifest; select and review an upstream release independently.
 
 ### Download pre-built binaries
 
-Go to [input-output-hk/offchain-metadata-tools](https://github.com/input-output-hk/offchain-metadata-tools#pre-built-binaries) to download the binaries and place in a directory specified by `PATH`, e.g. `$HOME/.local/bin/`. 
+Use the
+[official releases](https://github.com/input-output-hk/offchain-metadata-tools/releases)
+for stable binaries and place the reviewed executable in a directory on
+`PATH`, such as `$HOME/.local/bin`.
 
 ### Build Instructions
 
-An alternative to pre-built binaries - instructions describe how to build the `token-metadata-creator` tool but the offchain-metadata-tools repository contains other tools as well. Build the ones needed for your installation.
+The upstream project uses Nix for reproducible builds. The Guild
+`cabal-build-all.sh` helper is not its supported build path.
 
-#### Clone the repository
-
-Execute the below to clone the offchain-metadata-tools repository to $HOME/git folder on your system:
+Clone the repository, select a reviewed tag or immutable commit, and build
+`token-metadata-creator` from the repository root:
 
 ``` bash
-cd ~/git
+cd "$HOME/git"
 git clone https://github.com/input-output-hk/offchain-metadata-tools.git
-cd offchain-metadata-tools/token-metadata-creator
+cd offchain-metadata-tools
+git fetch --tags --force --prune origin
+METADATA_TOOLS_REF='<reviewed tag or commit>'
+git checkout --detach "$METADATA_TOOLS_REF"
+nix-build -A token-metadata-creator
+mkdir -p "$HOME/.local/bin"
+install -m 0755 result/bin/token-metadata-creator \
+  "$HOME/.local/bin/token-metadata-creator"
 ```
 
-#### Build token-metadata-creator
-
-You can use the instructions below to build `token-metadata-creator`, same steps can be executed in future to update the binaries (replacing appropriate tag) as well.
-
-``` bash
-git fetch --tags --all
-git pull
-# Replace master with appropriate tag if you'd like to avoid compiling against master
-git checkout master
-$CNODE_HOME/scripts/cabal-build-all.sh
-```
-The above would copy the binaries into `~/.local/bin` folder.
+See the
+[upstream manual](https://input-output-hk.github.io/offchain-metadata-tools/)
+for Nix cache setup and other project components.
 
 ### Verify
 

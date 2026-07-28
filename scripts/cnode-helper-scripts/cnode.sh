@@ -21,12 +21,15 @@
 
 usage() {
   cat <<-EOF
-		
-		Usage: $(basename "$0") [-d]
-		
+
+		Usage: $(basename "$0") [-d|-s]
+		       $(basename "$0") systemd <install|remove|status>
+
 		Cardano Node wrapper script !!
 		-d    Deploy cnode as a systemd service
 		-s    Stop cnode using SIGINT
+		systemd
+		      Install, remove, or show the status of the cnode service
 		
 		EOF
   exit 1
@@ -91,33 +94,71 @@ stop_node() {
   exit 0
 }
 
+load_systemd_library() {
+  local systemd_library="${PARENT}/lib/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/../common-helper-scripts/lib/systemd.library"
+  if [[ ! -f "${systemd_library}" ]]; then
+    echo "ERROR: systemd.library is missing. Re-run the deployment script to install shared helpers."
+    return 1
+  fi
+  # shellcheck disable=SC1091
+  . "${systemd_library}"
+}
+
 deploy_systemd() {
+  local unit_name="${CNODE_VNAME}.service"
+  local unit_content
+
+  load_systemd_library || return 1
   echo "Deploying ${CNODE_VNAME} as systemd service.."
-  sudo bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}.service
-	[Unit]
-	Description=Cardano Node
-	Wants=network-online.target
-	After=network-online.target
-	StartLimitIntervalSec=600
-	StartLimitBurst=5
-	
-	[Service]
-	Type=simple
-	Restart=on-failure
-	RestartSec=60
-	User=${USER}
-	LimitNOFILE=1048576
-	WorkingDirectory=${CNODE_HOME}/scripts
-	ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh\"
-	ExecStop=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/cnode.sh -s\"
-	KillSignal=SIGINT
-	SuccessExitStatus=143
-	SyslogIdentifier=${CNODE_VNAME}
-	TimeoutStopSec=60
-	
-	[Install]
-	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_VNAME}.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}.service
+  read -r -d '' unit_content <<-EOF || true
+		[Unit]
+		Description=Cardano Node
+		Wants=network-online.target
+		After=network-online.target
+		StartLimitIntervalSec=600
+		StartLimitBurst=5
+
+		[Service]
+		Type=simple
+		Restart=on-failure
+		RestartSec=60
+		User=${USER}
+		LimitNOFILE=1048576
+		WorkingDirectory=${CNODE_HOME}/scripts
+		ExecStart=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/cnode.sh"
+		ExecStop=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/cnode.sh -s"
+		KillSignal=SIGINT
+		SuccessExitStatus=143
+		SyslogIdentifier=${CNODE_VNAME}
+		TimeoutStopSec=60
+
+		[Install]
+		WantedBy=multi-user.target
+	EOF
+  systemd_install_unit "${unit_name}" "${unit_content}" "${CNODE_HOME}/scripts/cnode.sh" &&
+    systemd_daemon_reload &&
+    systemd_enable_units "${unit_name}" &&
+    echo "${unit_name} deployed successfully!!"
+}
+
+manage_systemd() {
+  local action="${1:-}"
+  local unit_name="${CNODE_VNAME}.service"
+
+  case "${action}" in
+    install) deploy_systemd ;;
+    remove)
+      load_systemd_library &&
+        systemd_remove_units --owner-token "${CNODE_HOME}/scripts/cnode.sh" "${unit_name}" &&
+        echo "${unit_name} removed successfully."
+      ;;
+    status)
+      load_systemd_library && systemd_status_units "${unit_name}"
+      ;;
+    *) usage ;;
+  esac
 }
 
 ###################
@@ -125,6 +166,12 @@ deploy_systemd() {
 ###################
 
 # Parse command line options
+SYSTEMD_ACTION=""
+if [[ ${1:-} == "systemd" ]]; then
+  [[ $# -eq 2 ]] || usage
+  SYSTEMD_ACTION="${2}"
+  shift 2
+fi
 while getopts :ds opt; do
   case ${opt} in
     d ) DEPLOY_SYSTEMD="Y" ;;
@@ -136,7 +183,11 @@ done
 [[ ${0} != '-bash' ]] && PARENT="$(dirname $0)" || PARENT="$(pwd)"
 # Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
 [[ ! -f "${PARENT}"/env ]] && echo -e "\nCommon env file missing in \"${PARENT}\", please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
-. "${PARENT}"/env offline
+if [[ "${SYSTEMD_ACTION}" == "remove" || "${SYSTEMD_ACTION}" == "status" ]]; then
+  . "${PARENT}"/env definitions
+else
+  . "${PARENT}"/env offline
+fi
 case $? in
   1) echo -e "ERROR: Failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" && exit 1;;
   2) clear ;;
@@ -146,6 +197,10 @@ esac
 
 # Set defaults and do basic sanity checks
 set_defaults
+if [[ -n "${SYSTEMD_ACTION}" ]]; then
+  manage_systemd "${SYSTEMD_ACTION}"
+  exit $?
+fi
 #Deploy systemd if -d argument was specified
 if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
   deploy_systemd && exit 0

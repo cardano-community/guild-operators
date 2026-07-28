@@ -7,22 +7,44 @@
 
 Koios CNTools is like a swiss army knife for pool operators to simplify typical operations regarding their wallet keys and pool management. Please note that this tool only aims to simplify usual tasks for its users, but it should **NOT** act as an excuse to skip understanding how to manually work through things or basics of Linux operations. The skills highlighted on the [home page](../index.md) are paramount for a stake pool operator, and so is the understanding of configuration files and network. Please ensure you've read and understood the disclaimers **before** proceeding.
 
-Visit the [Changelog](../Scripts/cntools-changelog.md) section to see progress and current release.
+!!! warning "Node implementation support"
+    CNTools is currently supported only with cnode/cardano-node deployments.
+    Its canonical source lives in `common-helper-scripts` to avoid future
+    duplication, but Dingo and Amaru profiles do not install it. Wallet, pool,
+    local-query, transaction-submission, forging, and block-log operations
+    require more than a common process adapter and have not been verified on
+    either alternate node.
+
+Visit the [Changelog](cntools-changelog.md) section to see progress and current release.
 
 #### Overview
-The tool consist of three files.  
+The tool consists of two CNTools-specific files:
 
 - `cntools.sh` - the main script to launch cntools.
 - `cntools.library` - internal script with helper functions.
 
-In addition to the above files, there is also a dependency on the common [`env`](../Scripts/env.md) file. CNTools connects to your node through the configuration in the `env` file located in the same directory as the script. Customize `env` and `cntools.sh` files to your needs.
+In addition to those files, CNTools depends on the common [`env`](env.md)
+entrypoint and its runtime libraries. CNTools connects to the node through the
+`env` file in the same directory. Customize `env` and `cntools.sh` only where
+their User Variables sections require it.
+
+Supplying `-b <branch>` persists the selected Guild branch in
+`${NODE_HOME}/.deployment.json`; CNTools no longer creates or reads
+`scripts/.env_branch`.
 
 Additionally, CNTools can integrate and enable optional functionalities based on external components:
 
 - `cncli.sh` is a companion script with optional functionalities to run on the core node (block producer) such as monitoring created blocks, calculating leader schedules and block validation.
-- `logMonitor.sh` is another companion script meant to be run together with the `cncli.sh` script to give a more complete picture.
+- `logMonitor.sh` historically complemented `cncli.sh`, but it is currently
+  disabled because it does not parse the current cnode tracing format.
+- Catalyst operations install the pinned, checksum-verified
+  `catalyst-toolbox` selected by
+  `${NODE_HOME}/files/cnode-release.json`; CNTools no longer downloads an
+  unversioned executable directly into `$HOME/.local/bin`. An existing binary
+  is retained only when both its reported version and checksum match that
+  policy; otherwise CNTools replaces it with the reviewed artifact.
 
-See [CNCLI](../Scripts/cncli.md) and [Log Monitor](../Scripts/logmonitor.md) sections for more details.
+See [CNCLI](cncli.md) and [Log Monitor](logmonitor.md) for details.
 
 Koios CNTools can operate in following modes:
 
@@ -34,6 +56,18 @@ Koios CNTools can operate in following modes:
 - Advanced `-a` - Exposes a new `Advanced` menu, which allows users to manage (create/mint/burn) new assets.
 
 In addition to above mentioned runtime arguments to launch CNTools in different modes, it can also be persisted by editing User Variables section within `cntools.sh` script.
+
+```text
+Usage: cntools.sh [-n|-l|-o] [-a] [-u] [-b <branch name>] [-v]
+
+-n    Local mode (default)
+-l    Light mode using Koios without a local node
+-o    Offline/air-gapped mode with limited functionality
+-a    Enable advanced/developer features
+-u    Skip the script update check
+-b    Persist an alternate Guild Operators branch in .deployment.json
+-v    Print the CNTools version
+```
 
 #### Download and Update
 The update functionality is provided from within CNTools. In case of breaking changes, please follow the prompts post-upgrade. If stuck, it's always best to re-run the latest `guild-deploy.sh` before proceeding.
@@ -47,7 +81,12 @@ The scripts menu supports both arrow key navigation and shortcut key selection. 
 #### Hardware Wallet
 CNTools includes hardware wallet support since version `7.0.0` through Vacuumlabs `cardano-hw-cli` application. Initialize and update firmware/app on the device to the latest version before usage following the manufacturer instructions.
 
-To enable hardware support run `guild-deploy.sh -s w`. This downloads and installs Vacuumlabs `cardano-hw-cli` including `udev` configuration. When a new version of Vacuumlabs `cardano-hw-cli` is released, run `guild-deploy.sh -s w` again to update. For additional runtime options, run `guild-deploy.sh -h`.
+To enable hardware support run `guild-deploy.sh -s w`. This downloads and
+installs Vacuumlabs `cardano-hw-cli`, including `udev` configuration. The
+release selector is controlled by `${NODE_HOME}/files/cnode-release.json` and
+may be `latest` or a pinned version. Run the same command again to resolve and
+install the configured policy. For additional deployment options, run
+`guild-deploy.sh -h`.
 
 === "Ledger"
 
@@ -57,7 +96,12 @@ To enable hardware support run `guild-deploy.sh -s w`. This downloads and instal
 === "Trezor"
 
     - Supported devices: Model T  
-    - Make sure the latest firmware is installed on the device. In addition to this, install `Trezor Bridge` for your system before trying to use your Trezor device in CNTools. You can find the latest version of the bridge at https://wallet.trezor.io/#/bridge
+    - Install current firmware and follow Trezor Suite's device-connectivity
+      guidance. Trezor has
+      [deprecated the standalone Trezor Bridge](https://trezor.io/guides/trezor-suite/deprecation-and-removal-of-standalone-trezor-bridge)
+      and recommends removing a separate Bridge installation because it can
+      interfere with newer releases. CNTools may still display an older Bridge
+      reminder; do not use its retired download URL.
 
 #### Offline Workflow
 
@@ -69,7 +113,16 @@ Keys excluded from backup when created without private keys:
 **Wallet** - `payment.skey`, `stake.skey`
 **Pool**   - `cold.skey`
 
-Note that setting up an offline server requires good SysOps background (you need to be aware of how to set up your server with offline mirror repository, how to transfer files across and be fairly familiar with the disk layout presented in the documentation). The `guild-deploy.sh` in its current state is not expected to run on an offline machine. Essentially, you simply need the `cardano-cli`, `bech32`, `cardano-address` binaries in your `$PATH`, OS level dependency packages [`jq`, `coreutils`, `pkgconfig`, `gcc-c++` and `bc` ], and perhaps a copy from your online `cnode` directory (to ensure you have the right `genesis`/`config` files on your offline server). We strongly recommend you to familiarise yourself with the workflow on the preview / preprod / guild networks first, before attempting on mainnet.
+Setting up an offline server requires solid system-administration experience:
+you must provide offline package mirrors, transfer files safely, and understand
+the deployment layout. `guild-deploy.sh` is not expected to run without
+network access. The safest preparation is to transfer a current cnode
+deployment skeleton without private online keys, including the common runtime,
+adapter, network configuration, and `files/cnode-release.json`. Offline CNTools
+also needs compatible `cardano-node`, `cardano-cli`, `bech32`, and
+`cardano-address` executables in `$PATH`, plus its runtime OS commands such as
+`jq`, `bc`, and GNU core utilities. Practice the complete workflow on preview,
+preprod, or Guild before mainnet.
 
 Example workflow for creating a wallet and pool:
 

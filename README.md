@@ -1,21 +1,41 @@
 ## Guild Operators' Repository
-A place for SPOs to contribute together to the Cardano Ecosystem.
 
-## Documentation / Guides
-* [Stake Pool Operator](https://cardano-community.github.io/guild-operators) site contains instructions for using various guild tools which simplify various stake-ops (setting up, managing and monitoring pools) for pool operators. Note that the guides are present to help you simplify your tasks - but as an entity responsible for creating blocks on a financial platform, we expect the pre-requisite skillsets before entering the portal:
-  - Learn about working with architecture, setup and essentials (sysops);
-  - Understand how to secure your server (secops);
-  - Be comfortable with working with cardano-cli , and have worked on preview/preprod/guild networks for pool operations without use of wrapper scripts - as an education exercise;
-  - Read the documentation and disclaimers. The guide and tools only aim to simplify your tasks, it will not try to do everything for you - neither scope best practices.
-  - We recommend anyone using these instructions to use offline workflow, and *NEVER* have their wallet keys and pool keys to be made available to online servers, as supported by the tools.
+A place for node operators to contribute deployment, management, and monitoring
+tools to the Cardano ecosystem.
 
-* [Community Support FAQ](https://cardano-community.github.io/support-faq) & how-to guides for use within Cardano ecosystem. This documentation/FAQ contains topics such as Cardano wallets, blockchain explorers, and selecting a pool for delegation to name a few. 
+## Documentation and guides
 
-* [Concepts](https://cardano-community.github.io/concepts) is place holder where we can accumulate educative articles explaining basic essentials of blockchain.
+The [Guild Operators documentation](https://cardano-community.github.io/guild-operators)
+covers the default `cardano-node` (`cnode`) deployment and the compatible
+operator tools. Experimental, relay-only Dingo and Amaru deployments are also
+documented for supported test networks. The common gLiveView dashboard
+supports all three implementations through normalized, availability-driven
+metrics.
+
+These scripts simplify recurring work; they do not replace the skills needed
+to operate infrastructure on a financial network:
+
+- Understand Linux systems administration and architecture.
+- Secure and maintain every public server.
+- For cnode pool operation, be comfortable with `cardano-cli` and practise on
+  a test network without wrapper scripts.
+- Read the documentation, release notes, and security warnings before
+  deploying or upgrading.
+- Keep payment, stake, and pool cold keys offline. Place only the minimum
+  operational hot-key material required by a block producer on an online host.
+
+The [Community Support FAQ](https://cardano-community.github.io/support-faq)
+contains broader Cardano how-to guides, including wallet, explorer, and
+delegation topics.
+
+The [Cardano Community concepts site](https://cardano-community.github.io/concepts)
+collects educational articles about blockchain fundamentals.
 
 ## Support
-The Telegram announcement & support channel is used to announce new releases and changes to the code base. This is also the place to ask general questions regarding the Guild Operators documentation and scripts.  
-[Telegram Announcement & Support channel](https://t.me/CardanoKoios/9759)
 
-To report **bugs** and **issues** with scripts and documentation please open a [GitHub Issue](https://github.com/cardano-community/guild-operators/issues/new/choose).  
-**Feature requests** are best opened as a [discussion thread](https://github.com/cardano-community/guild-operators/discussions/new).
+The [Telegram announcement and support channel](https://t.me/CardanoKoios/9759)
+announces releases and accepts general questions about the documentation and
+scripts.
+
+Report script or documentation problems and feature proposals through the
+[GitHub issue chooser](https://github.com/cardano-community/guild-operators/issues/new/choose).

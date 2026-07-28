@@ -1,8 +1,14 @@
-Everyone is welcome to contribute to the guide, as well as the repository. Below is just a thank you to people who have been contributing consistently:
+# Contributors
+
+Everyone is welcome to contribute to the guide and repository. The names below
+are long-standing acknowledgements, not an exhaustive or current contributor
+roster. See the repository's
+[contributors page](https://github.com/cardano-community/guild-operators/graphs/contributors)
+for commit history.
 
 [Adam](https://github.com/Crypto2099)  
 [Chris](https://github.com/Straightpool)  
-[Damjan](https://github.com/DamjanOstrelic)  
+Damjan<br>
 [Homer](https://github.com/bergr01)  
 [Markus](https://github.com/gufmar)  
 [OCG](https://github.com/oldcryptogeek)  

@@ -1,0 +1,662 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2016,SC2034
+#
+# Stable interface between common Guild helper scripts and node
+# implementation adapters.
+
+COMMON_ENV_API_VERSION=1
+NODE_ADAPTER_API_REQUIRED=1
+NODE_ADAPTER_UNSUPPORTED=3
+
+node_has() {
+  local requested="${1:-}"
+  local capability
+  [[ -n "${requested}" ]] || return 1
+  for capability in ${NODE_CAPABILITIES:-}; do
+    [[ "${capability}" == "${requested}" ]] && return 0
+  done
+  return 1
+}
+
+node_require() {
+  local capability="${1:-}"
+  local message="${2:-The selected node implementation does not support ${capability} in this script.}"
+  node_has "${capability}" && return 0
+  printf '%s\n' "${message}" >&2
+  return "${NODE_ADAPTER_UNSUPPORTED}"
+}
+
+node_adapter_contract_valid() {
+  if [[ "${NODE_ADAPTER_API_VERSION:-}" != "${NODE_ADAPTER_API_REQUIRED}" ]]; then
+    printf "Node adapter API mismatch for '%s': expected %s, found %s\n" \
+      "${NODE_IMPLEMENTATION:-unknown}" \
+      "${NODE_ADAPTER_API_REQUIRED}" \
+      "${NODE_ADAPTER_API_VERSION:-unset}" >&2
+    return 1
+  fi
+
+  if [[ "${NODE_ADAPTER_IMPLEMENTATION:-}" != "${NODE_IMPLEMENTATION:-}" ]]; then
+    printf "Node adapter implementation mismatch: selected '%s', adapter declares '%s'\n" \
+      "${NODE_IMPLEMENTATION:-unknown}" \
+      "${NODE_ADAPTER_IMPLEMENTATION:-unset}" >&2
+    return 1
+  fi
+
+  local required_function
+  for required_function in node_adapter_defaults node_adapter_init; do
+    if ! declare -F "${required_function}" >/dev/null; then
+      printf "Node adapter '%s' is missing required function '%s'\n" \
+        "${NODE_IMPLEMENTATION:-unknown}" "${required_function}" >&2
+      return 1
+    fi
+  done
+}
+
+node_metric_reset_availability() {
+  unset NODE_METRIC_AVAILABLE NODE_METRIC_LABEL NODE_METRIC_UNIT
+  unset NODE_CUSTOM_METRICS
+  declare -gA NODE_METRIC_AVAILABLE=()
+  declare -gA NODE_METRIC_LABEL=()
+  declare -gA NODE_METRIC_UNIT=()
+  declare -ga NODE_CUSTOM_METRICS=()
+}
+
+node_metric_set() {
+  local name="${1:?metric name required}"
+  local value="${2-}"
+  printf -v "${name}" '%s' "${value}"
+  NODE_METRIC_AVAILABLE["${name}"]=1
+}
+
+node_metric_unset() {
+  local name="${1:?metric name required}"
+  unset "${name}"
+  NODE_METRIC_AVAILABLE["${name}"]=0
+}
+
+node_metric_has() {
+  [[ "${NODE_METRIC_AVAILABLE[${1:-}]:-0}" == 1 ]]
+}
+
+node_metric_value_is_numeric() {
+  [[ "${1:-}" =~ ^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$ ]]
+}
+
+# Register an implementation-specific metric for the optional gLiveView
+# implementation section. The normalized variable name is deliberately kept
+# separate from the human-readable label so adapters never have to emit UI.
+node_metric_set_custom() {
+  local name="${1:?metric name required}"
+  local value="${2-}"
+  local label="${3:?metric label required}"
+  local unit="${4-}"
+  local existing
+
+  [[ "${name}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
+  [[ "${label}" != *$'\n'* && "${label}" != *$'\r'* ]] || return 1
+  [[ "${unit}" != *$'\n'* && "${unit}" != *$'\r'* ]] || return 1
+
+  node_metric_set "${name}" "${value}"
+  NODE_METRIC_LABEL["${name}"]="${label}"
+  NODE_METRIC_UNIT["${name}"]="${unit}"
+  for existing in "${NODE_CUSTOM_METRICS[@]}"; do
+    [[ "${existing}" == "${name}" ]] && return 0
+  done
+  NODE_CUSTOM_METRICS+=("${name}")
+}
+
+node_metric_unset_custom() {
+  local name="${1:?metric name required}"
+  local existing
+  local -a remaining=()
+
+  node_metric_unset "${name}"
+  unset "NODE_METRIC_LABEL[${name}]" "NODE_METRIC_UNIT[${name}]"
+  for existing in "${NODE_CUSTOM_METRICS[@]}"; do
+    [[ "${existing}" == "${name}" ]] || remaining+=("${existing}")
+  done
+  NODE_CUSTOM_METRICS=("${remaining[@]}")
+}
+
+# Convert a Prometheus/OpenMetrics sample value from scientific notation to a
+# plain decimal string without passing the mantissa through awk's floating
+# point representation. This avoids both precision loss for large counters and
+# Bash treating the "e" in values such as 7.6137225e+07 as an arithmetic token.
+prometheus_normalize_number() {
+  local value="${1:-}"
+  awk -v value="${value}" '
+    function zeros(count, result) {
+      result = ""
+      while (count-- > 0) {
+        result = result "0"
+      }
+      return result
+    }
+
+    function trim_integer_zeros(value) {
+      sub(/^0+/, "", value)
+      return value == "" ? "0" : value
+    }
+
+    function normalize(value, exponent_at, mantissa, exponent, sign,
+                       decimal_at, digits, decimal_position, result,
+                       integer_part, fractional_part) {
+      if (value !~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)[eE][+-]?[0-9]+$/) {
+        return value
+      }
+
+      exponent_at = index(tolower(value), "e")
+      mantissa = substr(value, 1, exponent_at - 1)
+      exponent = substr(value, exponent_at + 1) + 0
+      if (exponent > 4096 || exponent < -4096) {
+        return value
+      }
+      sign = ""
+      if (substr(mantissa, 1, 1) ~ /[+-]/) {
+        sign = substr(mantissa, 1, 1)
+        mantissa = substr(mantissa, 2)
+      }
+
+      decimal_at = index(mantissa, ".")
+      if (decimal_at > 0) {
+        digits = substr(mantissa, 1, decimal_at - 1) substr(mantissa, decimal_at + 1)
+      } else {
+        decimal_at = length(mantissa) + 1
+        digits = mantissa
+      }
+      if (substr(mantissa, 1, 1) == ".") {
+        decimal_at = 1
+      }
+      decimal_position = decimal_at - 1 + exponent
+
+      if (decimal_position <= 0) {
+        result = "0." zeros(-decimal_position) digits
+      } else if (decimal_position >= length(digits)) {
+        result = digits zeros(decimal_position - length(digits))
+      } else {
+        result = substr(digits, 1, decimal_position) "." substr(digits, decimal_position + 1)
+      }
+
+      if (index(result, ".") > 0) {
+        integer_part = substr(result, 1, index(result, ".") - 1)
+        fractional_part = substr(result, index(result, ".") + 1)
+        integer_part = trim_integer_zeros(integer_part)
+        sub(/0+$/, "", fractional_part)
+        result = fractional_part == "" ? integer_part : integer_part "." fractional_part
+      } else {
+        result = trim_integer_zeros(result)
+      }
+      if (result == "0") {
+        sign = ""
+      }
+      return sign result
+    }
+
+    BEGIN {
+      print normalize(value)
+    }
+  '
+}
+
+# Normalize the value field of a Prometheus text stream. If a sample carries
+# an optional millisecond timestamp, normalize the penultimate field instead.
+# Comments and non-sample lines are preserved.
+prometheus_normalize_metrics() {
+  awk '
+    function zeros(count, result) {
+      result = ""
+      while (count-- > 0) {
+        result = result "0"
+      }
+      return result
+    }
+
+    function trim_integer_zeros(value) {
+      sub(/^0+/, "", value)
+      return value == "" ? "0" : value
+    }
+
+    function normalize(value, exponent_at, mantissa, exponent, sign,
+                       decimal_at, digits, decimal_position, result,
+                       integer_part, fractional_part) {
+      if (value !~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)[eE][+-]?[0-9]+$/) {
+        return value
+      }
+
+      exponent_at = index(tolower(value), "e")
+      mantissa = substr(value, 1, exponent_at - 1)
+      exponent = substr(value, exponent_at + 1) + 0
+      if (exponent > 4096 || exponent < -4096) {
+        return value
+      }
+      sign = ""
+      if (substr(mantissa, 1, 1) ~ /[+-]/) {
+        sign = substr(mantissa, 1, 1)
+        mantissa = substr(mantissa, 2)
+      }
+
+      decimal_at = index(mantissa, ".")
+      if (decimal_at > 0) {
+        digits = substr(mantissa, 1, decimal_at - 1) substr(mantissa, decimal_at + 1)
+      } else {
+        decimal_at = length(mantissa) + 1
+        digits = mantissa
+      }
+      if (substr(mantissa, 1, 1) == ".") {
+        decimal_at = 1
+      }
+      decimal_position = decimal_at - 1 + exponent
+
+      if (decimal_position <= 0) {
+        result = "0." zeros(-decimal_position) digits
+      } else if (decimal_position >= length(digits)) {
+        result = digits zeros(decimal_position - length(digits))
+      } else {
+        result = substr(digits, 1, decimal_position) "." substr(digits, decimal_position + 1)
+      }
+
+      if (index(result, ".") > 0) {
+        integer_part = substr(result, 1, index(result, ".") - 1)
+        fractional_part = substr(result, index(result, ".") + 1)
+        integer_part = trim_integer_zeros(integer_part)
+        sub(/0+$/, "", fractional_part)
+        result = fractional_part == "" ? integer_part : integer_part "." fractional_part
+      } else {
+        result = trim_integer_zeros(result)
+      }
+      if (result == "0") {
+        sign = ""
+      }
+      return sign result
+    }
+
+    /^[[:space:]]*#/ || NF < 2 {
+      print
+      next
+    }
+
+    {
+      value_field = NF
+      if (NF >= 3 &&
+          $NF ~ /^-?[0-9]+$/ &&
+          $(NF - 1) ~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$/) {
+        value_field = NF - 1
+      }
+      $value_field = normalize($value_field)
+      print
+    }
+  '
+}
+
+# Backward-compatible spelling used by the Amaru gLiveView integration
+# prototype linked from guild-operators issue #1912.
+normalizePrometheusMetrics() {
+  prometheus_normalize_metrics
+}
+
+# Build a first-sample index for a Prometheus/OpenMetrics text response. The
+# optional label set is accepted, which is required for Dingo's
+# network="<name>" compatibility metrics and for standard build-info samples.
+prometheus_index_metrics() {
+  local metrics="${1-}"
+  local line name labels value
+
+  unset PROMETHEUS_SAMPLE_VALUE PROMETHEUS_SAMPLE_LABELS
+  declare -gA PROMETHEUS_SAMPLE_VALUE=()
+  declare -gA PROMETHEUS_SAMPLE_LABELS=()
+
+  while IFS= read -r line; do
+    [[ "${line}" =~ ^[[:space:]]*# ]] && continue
+    if [[ "${line}" =~ ^[[:space:]]*([a-zA-Z_:][a-zA-Z0-9_:]*)(\{([^}]*)\})?[[:space:]]+([^[:space:]]+) ]]; then
+      name="${BASH_REMATCH[1]}"
+      labels="${BASH_REMATCH[3]}"
+      value="${BASH_REMATCH[4]}"
+      if [[ -z "${PROMETHEUS_SAMPLE_VALUE[${name}]+present}" ]]; then
+        PROMETHEUS_SAMPLE_VALUE["${name}"]="${value}"
+        PROMETHEUS_SAMPLE_LABELS["${name}"]="${labels}"
+      fi
+    fi
+  done <<< "${metrics}"
+}
+
+prometheus_first_metric_value() {
+  local destination="${1:?destination variable required}"
+  shift
+  local metric_name
+
+  for metric_name in "$@"; do
+    if [[ -n "${PROMETHEUS_SAMPLE_VALUE[${metric_name}]+present}" ]]; then
+      printf -v "${destination}" '%s' "${PROMETHEUS_SAMPLE_VALUE[${metric_name}]}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+prometheus_metric_label() {
+  local metric_name="${1:?metric name required}"
+  local label_name="${2:?label name required}"
+  local labels="${PROMETHEUS_SAMPLE_LABELS[${metric_name}]:-}"
+
+  # Prometheus label names cannot contain punctuation. Keeping this strict also
+  # prevents a caller-provided expression from changing the regular expression.
+  [[ "${label_name}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
+  if [[ ",${labels}," =~ ,${label_name}=\"([^\"]*)\", ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
+common_metric_set_first() {
+  local normalized_name="${1:?normalized metric required}"
+  shift
+  local value
+  if prometheus_first_metric_value value "$@"; then
+    node_metric_value_is_numeric "${value}" || return 0
+    node_metric_set "${normalized_name}" "${value}"
+  fi
+  return 0
+}
+
+# Parse the cardano_node_metrics_* family used by gLiveView. Adapters that
+# expose the same compatibility metrics can call this with the raw scrape body
+# instead of carrying an implementation-local copy of the parser.
+common_parse_cardano_metrics() {
+  local node_metrics metric_name forged_count adopted_value value build_metric
+  local -a normalized_metrics=(
+    blocknum epochnum slot_in_epoch slotnum density tx_processed mempool_tx
+    mempool_bytes kesperiod remaining_kes_periods isleader adopted didntadopt
+    about_to_lead missed_slots mem_live mem_heap gc_minor gc_major forks
+    block_delay blocks_served blocks_late blocks_w1s blocks_w3s blocks_w5s
+    peer_selection_cold peer_selection_warm peer_selection_hot conn_incoming
+    conn_outgoing conn_uni_dir conn_bi_dir conn_duplex forging_enabled
+    running_node_version running_node_rev inbound_governor_warm
+    inbound_governor_hot
+  )
+  if [[ $# -gt 0 ]]; then
+    node_metrics="${1}"
+  else
+    node_metrics="$(cat)"
+  fi
+  node_metrics="$(printf '%s\n' "${node_metrics}" | prometheus_normalize_metrics)"
+  declare -p NODE_METRIC_AVAILABLE >/dev/null 2>&1 || node_metric_reset_availability
+
+  # Safe defaults keep legacy arithmetic callers working. Availability remains
+  # false until a sample is actually observed.
+  for metric_name in "${normalized_metrics[@]}"; do
+    case "${metric_name}" in
+      density) printf -v "${metric_name}" '%s' "0.0" ;;
+      running_node_version|running_node_rev) printf -v "${metric_name}" '%s' "?" ;;
+      *) printf -v "${metric_name}" '%s' "0" ;;
+    esac
+    NODE_METRIC_AVAILABLE["${metric_name}"]=0
+  done
+
+  prometheus_index_metrics "${node_metrics}"
+
+  common_metric_set_first blocknum cardano_node_metrics_blockNum_int
+  common_metric_set_first epochnum cardano_node_metrics_epoch_int
+  common_metric_set_first slot_in_epoch cardano_node_metrics_slotInEpoch_int
+  common_metric_set_first slotnum cardano_node_metrics_slotNum_int
+  if prometheus_first_metric_value value cardano_node_metrics_density_real &&
+     node_metric_value_is_numeric "${value}"; then
+    LC_NUMERIC=C printf -v value '%.3f' "$(awk -v value="${value}" 'BEGIN { print value * 100 }')"
+    node_metric_set density "${value}"
+  fi
+  common_metric_set_first tx_processed \
+    cardano_node_metrics_txsProcessedNum_int \
+    cardano_node_metrics_txsProcessedNum_counter
+  common_metric_set_first mempool_tx cardano_node_metrics_txsInMempool_int
+  common_metric_set_first mempool_bytes cardano_node_metrics_mempoolBytes_int
+  common_metric_set_first kesperiod cardano_node_metrics_currentKESPeriod_int
+  common_metric_set_first remaining_kes_periods \
+    cardano_node_metrics_remainingKESPeriods_int
+  common_metric_set_first isleader \
+    cardano_node_metrics_Forge_node_is_leader_int \
+    cardano_node_metrics_Forge_node_is_leader_counter
+  common_metric_set_first adopted \
+    cardano_node_metrics_Forge_adopted_int \
+    cardano_node_metrics_Forge_adopted_counter
+  if prometheus_first_metric_value forged_count \
+    cardano_node_metrics_Forge_forged_int \
+    cardano_node_metrics_Forge_forged_counter; then
+    adopted_value="${adopted:-}"
+    if node_metric_has adopted &&
+       [[ "${forged_count}" =~ ^[+-]?[0-9]+$ &&
+          "${adopted_value}" =~ ^[+-]?[0-9]+$ ]]; then
+      node_metric_set didntadopt "$(( forged_count - adopted_value ))"
+    fi
+  fi
+  common_metric_set_first about_to_lead \
+    cardano_node_metrics_Forge_forge_about_to_lead_int \
+    cardano_node_metrics_Forge_forge_about_to_lead_counter \
+    cardano_node_metrics_Forge_about_to_lead_int \
+    cardano_node_metrics_Forge_about_to_lead_counter
+  common_metric_set_first missed_slots \
+    cardano_node_metrics_slotsMissedNum_int \
+    cardano_node_metrics_slotsMissed_int
+  common_metric_set_first mem_live cardano_node_metrics_RTS_gcLiveBytes_int
+  common_metric_set_first mem_heap cardano_node_metrics_RTS_gcHeapBytes_int
+  common_metric_set_first gc_minor cardano_node_metrics_RTS_gcMinorNum_int
+  common_metric_set_first gc_major cardano_node_metrics_RTS_gcMajorNum_int
+  common_metric_set_first forks \
+    cardano_node_metrics_forks_int cardano_node_metrics_forks_counter
+  common_metric_set_first block_delay \
+    cardano_node_metrics_blockfetchclient_blockdelay_s \
+    cardano_node_metrics_blockfetchclient_blockdelay_real
+  common_metric_set_first blocks_served \
+    cardano_node_metrics_served_block_counter \
+    cardano_node_metrics_served_block_count_int
+  common_metric_set_first blocks_late \
+    cardano_node_metrics_blockfetchclient_lateblocks_counter \
+    cardano_node_metrics_blockfetchclient_lateblocks
+  common_metric_set_first blocks_w1s \
+    cardano_node_metrics_blockfetchclient_blockdelay_cdfOne_real \
+    cardano_node_metrics_blockfetchclient_blockdelay_cdfOne
+  common_metric_set_first blocks_w3s \
+    cardano_node_metrics_blockfetchclient_blockdelay_cdfThree_real \
+    cardano_node_metrics_blockfetchclient_blockdelay_cdfThree
+  common_metric_set_first blocks_w5s \
+    cardano_node_metrics_blockfetchclient_blockdelay_cdfFive_real \
+    cardano_node_metrics_blockfetchclient_blockdelay_cdfFive
+  common_metric_set_first peer_selection_cold \
+    cardano_node_metrics_peerSelection_cold_int \
+    cardano_node_metrics_peerSelection_Cold_int \
+    cardano_node_metrics_peerSelection_cold \
+    cardano_node_metrics_peerSelection_Cold
+  common_metric_set_first peer_selection_warm \
+    cardano_node_metrics_peerSelection_warm_int \
+    cardano_node_metrics_peerSelection_Warm_int \
+    cardano_node_metrics_peerSelection_warm \
+    cardano_node_metrics_peerSelection_Warm
+  common_metric_set_first peer_selection_hot \
+    cardano_node_metrics_peerSelection_hot_int \
+    cardano_node_metrics_peerSelection_Hot_int \
+    cardano_node_metrics_peerSelection_hot \
+    cardano_node_metrics_peerSelection_Hot
+  common_metric_set_first conn_incoming \
+    cardano_node_metrics_connectionManager_incomingConns_int \
+    cardano_node_metrics_connectionManager_inboundConns_int \
+    cardano_node_metrics_connectionManager_incomingConns \
+    cardano_node_metrics_connectionManager_inboundConns
+  common_metric_set_first conn_outgoing \
+    cardano_node_metrics_connectionManager_outgoingConns_int \
+    cardano_node_metrics_connectionManager_outboundConns_int \
+    cardano_node_metrics_connectionManager_outgoingConns \
+    cardano_node_metrics_connectionManager_outboundConns
+  common_metric_set_first conn_uni_dir \
+    cardano_node_metrics_connectionManager_unidirectionalConns_int \
+    cardano_node_metrics_connectionManager_unidirectionalConns
+  common_metric_set_first conn_bi_dir \
+    cardano_node_metrics_connectionManager_duplexConns_int \
+    cardano_node_metrics_connectionManager_duplexConns
+  common_metric_set_first conn_duplex \
+    cardano_node_metrics_connectionManager_fullDuplexConns_int \
+    cardano_node_metrics_connectionManager_fullDuplexConns
+  common_metric_set_first forging_enabled \
+    cardano_node_metrics_forging_enabled_int \
+    cardano_node_metrics_forging_enabled
+  common_metric_set_first inbound_governor_warm \
+    cardano_node_metrics_inboundGovernor_warm_int \
+    cardano_node_metrics_inboundGovernor_warm
+  common_metric_set_first inbound_governor_hot \
+    cardano_node_metrics_inboundGovernor_hot_int \
+    cardano_node_metrics_inboundGovernor_hot
+
+  for build_metric in \
+    cardano_node_metrics_cardano_build_info \
+    cardano_node_metrics_build_info; do
+    [[ -n "${PROMETHEUS_SAMPLE_VALUE[${build_metric}]+present}" ]] || continue
+    if value="$(prometheus_metric_label "${build_metric}" version)"; then
+      node_metric_set running_node_version "${value}"
+    fi
+    if value="$(prometheus_metric_label "${build_metric}" revision)"; then
+      node_metric_set running_node_rev "${value:0:8}"
+    fi
+    break
+  done
+}
+
+getNodeMetrics() {
+  node_metric_reset_availability
+  if ! declare -F node_adapter_collect_metrics >/dev/null; then
+    return "${NODE_ADAPTER_UNSUPPORTED}"
+  fi
+  node_adapter_collect_metrics
+}
+
+node_refresh_process() {
+  if ! declare -F node_adapter_refresh_process >/dev/null; then
+    return "${NODE_ADAPTER_UNSUPPORTED}"
+  fi
+  node_adapter_refresh_process
+}
+
+node_installed_version() {
+  if ! declare -F node_adapter_installed_version >/dev/null; then
+    return "${NODE_ADAPTER_UNSUPPORTED}"
+  fi
+  node_adapter_installed_version
+}
+
+node_operational_certificate() {
+  if ! declare -F node_adapter_operational_certificate >/dev/null; then
+    return "${NODE_ADAPTER_UNSUPPORTED}"
+  fi
+  node_adapter_operational_certificate
+}
+
+node_replay_progress() {
+  if ! declare -F node_adapter_replay_progress >/dev/null; then
+    return "${NODE_ADAPTER_UNSUPPORTED}"
+  fi
+  node_adapter_replay_progress
+}
+
+common_resolve_cardano_cli() {
+  [[ -z "${CCLI}" ]] && CCLI=$(command -v cardano-cli)
+  if [[ -z "${CCLI}" && -x "${HOME}/.local/bin/cardano-cli" ]]; then
+    export PATH="${HOME}/.local/bin:${PATH}"
+    CCLI=$(command -v cardano-cli)
+  fi
+  if [[ -z "${CCLI}" ]]; then
+    printf 'You do not have a cardano-cli binary available in %s.\n' '$PATH' >&2
+    return 1
+  fi
+  NODE_TX_TOOL="${CCLI}"
+}
+
+# Alternate implementations do not consume cardano-node genesis JSON, but
+# gLiveView still needs the immutable timing constants for the supported public
+# networks. Keep these values in the common adapter boundary so each
+# implementation presents the same monitoring contract.
+common_configure_known_network() {
+  local network="${1:-${NODE_NETWORK:-${NETWORK:-}}}"
+
+  case "${network,,}" in
+    preprod)
+      NWMAGIC=1
+      NETWORK_NAME="PreProd"
+      SHELLEY_TRANS_EPOCH=4
+      SHELLEY_GENESIS_START_SEC=1654041600
+      EPOCH_LENGTH=432000
+      SLOT_LENGTH=1
+      ACTIVE_SLOTS_COEFF=0.05
+      SLOTS_PER_KES_PERIOD=129600
+      MAX_KES_EVOLUTIONS=62
+      BYRON_GENESIS_START_SEC=1654041600
+      BYRON_K=2160
+      BYRON_SLOT_LENGTH=20000
+      BYRON_EPOCH_LENGTH=21600
+      KOIOS_API="https://preprod.koios.rest/api/v1"
+      ;;
+    preview)
+      NWMAGIC=2
+      NETWORK_NAME="Preview"
+      SHELLEY_TRANS_EPOCH=0
+      SHELLEY_GENESIS_START_SEC=1666656000
+      EPOCH_LENGTH=86400
+      SLOT_LENGTH=1
+      ACTIVE_SLOTS_COEFF=0.05
+      SLOTS_PER_KES_PERIOD=129600
+      MAX_KES_EVOLUTIONS=62
+      BYRON_GENESIS_START_SEC=1666656000
+      BYRON_K=432
+      BYRON_SLOT_LENGTH=20000
+      BYRON_EPOCH_LENGTH=4320
+      KOIOS_API="https://preview.koios.rest/api/v1"
+      ;;
+    *)
+      printf "Network '%s' has no built-in monitoring constants.\n" \
+        "${network:-unset}" >&2
+      return 1
+      ;;
+  esac
+
+  NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+  NODE_NETWORK="${network,,}"
+  NODE_NETWORK_MAGIC="${NWMAGIC}"
+  NODE_NETWORK_NAME="${NETWORK_NAME}"
+}
+
+common_select_network() {
+  read_genesis || return 1
+
+  if [[ "${NWMAGIC}" == "764824073" ]]; then
+    NETWORK_IDENTIFIER="--mainnet"
+  else
+    NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
+  fi
+
+  case ${NWMAGIC} in
+    764824073)
+      [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Mainnet"
+      [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=208
+      [[ -z ${KOIOS_API} ]] && KOIOS_API="https://api.koios.rest/api/v1"
+      ;;
+    141)
+      [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Guild"
+      [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=2
+      [[ -z ${KOIOS_API} ]] && KOIOS_API="https://guild.koios.rest/api/v1"
+      ;;
+    1)
+      [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="PreProd"
+      [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=4
+      [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preprod.koios.rest/api/v1"
+      ;;
+    2)
+      [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Preview"
+      [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
+      [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v1"
+      ;;
+    *)
+      [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Custom"
+      [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
+      ;;
+  esac
+
+  NODE_NETWORK_MAGIC="${NWMAGIC}"
+  NODE_NETWORK_NAME="${NETWORK_NAME}"
+}

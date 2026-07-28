@@ -26,7 +26,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Light mode wallet delegation lookup when querying Koios for multiple wallets.
 - Keep Calidus keys when metadata submission is not completed and honor choice to keep existing keys in registration flow.
 
-## [13.5.4] - 2026-02-10 (unreleased)
+## [13.5.4] - 2026-02-10
 #### Fixed
 - Governance fix when in local mode for SPO vote power.
 

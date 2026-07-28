@@ -1,0 +1,364 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Read and update the deployment metadata shared by Guild helper scripts.
+
+deployment_file() {
+  printf '%s/.deployment.json\n' "${NODE_HOME:?NODE_HOME is not set}"
+}
+
+deployment_get() {
+  local key="${1:-}"
+  local manifest
+  [[ -n "${key}" ]] || return 2
+  manifest="$(deployment_file)" || return 2
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 2
+
+  jq -er --arg key "${key}" '
+    getpath($key | split(".")) as $value
+    | select($value != null)
+    | if ($value | type) == "string" then $value else ($value | tojson) end
+  ' "${manifest}" 2>/dev/null
+}
+
+deployment_branch_valid() {
+  local branch="${1:-}"
+  local component
+  local -a components
+
+  [[ "${branch}" =~ ^[A-Za-z0-9_][A-Za-z0-9._/-]*$ &&
+     "${branch}" != */ &&
+     "${branch}" != *..* &&
+     "${branch}" != *//* &&
+     "${branch}" != *@\{* &&
+     "${branch}" != "@" &&
+     "${branch}" != *. ]] || return 1
+  IFS='/' read -r -a components <<< "${branch}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" &&
+       "${component}" != .* &&
+       "${component}" != *.lock ]] || return 1
+  done
+}
+
+deployment_canonical_target_path() {
+  local target="${1:-}"
+  local canonical="/"
+  local candidate
+  local component
+  local -a components
+
+  [[ "${target}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]] || return 2
+  IFS='/' read -r -a components <<< "${target}"
+  for component in "${components[@]}"; do
+    case "${component}" in
+      ""|.)
+        continue
+        ;;
+      ..)
+        if [[ "${canonical}" != "/" ]]; then
+          canonical="${canonical%/*}"
+          [[ -n "${canonical}" ]] || canonical="/"
+        fi
+        ;;
+      *)
+        candidate="${canonical%/}/${component}"
+        if [[ -L "${candidate}" && ! -e "${candidate}" ]]; then
+          return 2
+        elif [[ -d "${candidate}" ]]; then
+          canonical="$(cd -P -- "${candidate}" 2>/dev/null && pwd -P)" ||
+            return 2
+        elif [[ -e "${candidate}" ]]; then
+          return 2
+        else
+          canonical="${candidate}"
+        fi
+        ;;
+    esac
+  done
+  printf '%s' "${canonical}"
+}
+
+deployment_branch_exists() {
+  local branch="${1:-}"
+  local account="${2:-${G_ACCOUNT:-cardano-community}}"
+  local timeout="${CURL_TIMEOUT:-10}"
+  command -v curl >/dev/null 2>&1 || return 1
+  curl -s -f -m "${timeout}" \
+    "https://raw.githubusercontent.com/${account}/guild-operators/${branch}/LICENSE" \
+    -o /dev/null
+}
+
+deployment_target_lock_key() {
+  local target_home="${1:-${NODE_HOME:-}}"
+  local canonical_target
+  canonical_target="$(deployment_canonical_target_path "${target_home}")" ||
+    return 2
+  printf '%s' "${canonical_target}" | cksum | awk '{printf "%s-%s", $1, $2}'
+}
+
+deployment_dispatcher_lock_is_owned() {
+  local target_home="${1:-${NODE_HOME:-}}"
+  local canonical_target
+  canonical_target="$(deployment_canonical_target_path "${target_home}")" ||
+    return 1
+  [[ "${DISPATCHER_LOCK_CANONICAL_TARGET:-}" = "${canonical_target}" &&
+     "${DISPATCHER_LOCK_OWNER_PID:-}" = "$$" ]] || return 1
+
+  case "${DISPATCHER_LOCK_KIND:-}" in
+    flock)
+      [[ -n "${DISPATCHER_LOCK_PATH:-}" &&
+         ! -L "${DISPATCHER_LOCK_PATH}" &&
+         -f "${DISPATCHER_LOCK_PATH}" &&
+         -O "${DISPATCHER_LOCK_PATH}" ]] || return 1
+      : 2>/dev/null >&9 || return 1
+      flock -n 9 >/dev/null 2>&1 || return 1
+      ;;
+    directory)
+      [[ -n "${DISPATCHER_LOCK_PATH:-}" &&
+         -d "${DISPATCHER_LOCK_PATH}" &&
+         ! -L "${DISPATCHER_LOCK_PATH}" &&
+         -O "${DISPATCHER_LOCK_PATH}" ]] || return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+deployment_local_lock_is_owned() {
+  local canonical_target="${1:-}"
+  [[ -n "${canonical_target}" &&
+     "${DEPLOYMENT_TARGET_LOCK_CANONICAL_TARGET:-}" = "${canonical_target}" &&
+     "${DEPLOYMENT_TARGET_LOCK_OWNER_PID:-}" = "$$" ]] || return 1
+
+  case "${DEPLOYMENT_TARGET_LOCK_METHOD:-}" in
+    flock)
+      [[ -n "${DEPLOYMENT_TARGET_LOCK_PATH:-}" &&
+         ! -L "${DEPLOYMENT_TARGET_LOCK_PATH}" &&
+         -f "${DEPLOYMENT_TARGET_LOCK_PATH}" &&
+         -O "${DEPLOYMENT_TARGET_LOCK_PATH}" ]] || return 1
+      : 2>/dev/null >&8 || return 1
+      flock -n 8 >/dev/null 2>&1 || return 1
+      ;;
+    directory)
+      [[ -n "${DEPLOYMENT_TARGET_LOCK_PATH:-}" &&
+         -d "${DEPLOYMENT_TARGET_LOCK_PATH}" &&
+         ! -L "${DEPLOYMENT_TARGET_LOCK_PATH}" &&
+         -O "${DEPLOYMENT_TARGET_LOCK_PATH}" ]] || return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+deployment_target_lock_acquire() {
+  local target_home="${1:-${NODE_HOME:-}}"
+  local lock_base
+  local lock_key
+  local canonical_target
+
+  canonical_target="$(deployment_canonical_target_path "${target_home}")" || {
+    printf "Cannot lock unsafe deployment path: '%s'\n" "${target_home}" >&2
+    return 2
+  }
+  if [[ "${GUILD_DEPLOY_LOCK_HELD_FOR:-}" = "${canonical_target}" ]] &&
+     deployment_dispatcher_lock_is_owned "${target_home}"; then
+    DEPLOYMENT_TARGET_LOCK_OWNED="N"
+    DEPLOYMENT_TARGET_LOCK_REENTRANT="Y"
+    return 0
+  fi
+  if deployment_local_lock_is_owned "${canonical_target}"; then
+    DEPLOYMENT_TARGET_LOCK_DEPTH=$(( ${DEPLOYMENT_TARGET_LOCK_DEPTH:-1} + 1 ))
+    DEPLOYMENT_TARGET_LOCK_OWNED="Y"
+    DEPLOYMENT_TARGET_LOCK_REENTRANT="N"
+    return 0
+  fi
+
+  lock_base="/tmp/guild-operators-deployment-locks-$(id -u)"
+  if [[ -L "${lock_base}" ]] ||
+     { [[ -e "${lock_base}" ]] && [[ ! -d "${lock_base}" || ! -O "${lock_base}" ]]; }; then
+    printf "Unsafe deployment lock directory: %s\n" "${lock_base}" >&2
+    return 2
+  fi
+  (umask 077 && mkdir -p "${lock_base}") || return 2
+  chmod 0700 "${lock_base}" || return 2
+  lock_key="$(deployment_target_lock_key "${canonical_target}")" || return 2
+
+  if command -v flock >/dev/null 2>&1; then
+    DEPLOYMENT_TARGET_LOCK_PATH="${lock_base}/${lock_key}.lock"
+    if [[ -L "${DEPLOYMENT_TARGET_LOCK_PATH}" ]] ||
+       { [[ -e "${DEPLOYMENT_TARGET_LOCK_PATH}" ]] && [[ ! -O "${DEPLOYMENT_TARGET_LOCK_PATH}" ]]; }; then
+      printf "Unsafe deployment lock file: %s\n" "${DEPLOYMENT_TARGET_LOCK_PATH}" >&2
+      return 2
+    fi
+    if ! exec 8>"${DEPLOYMENT_TARGET_LOCK_PATH}"; then
+      return 2
+    fi
+    if ! flock -n 8; then
+      exec 8>&-
+      printf "Another deployment or branch/runtime update is active for %s\n" "${target_home}" >&2
+      return 1
+    fi
+    DEPLOYMENT_TARGET_LOCK_METHOD="flock"
+  else
+    DEPLOYMENT_TARGET_LOCK_PATH="${lock_base}/${lock_key}.lock.d"
+    if ! mkdir "${DEPLOYMENT_TARGET_LOCK_PATH}" 2>/dev/null; then
+      printf "Another deployment or branch/runtime update is active for %s, or a stale lock remains at %s\n" \
+        "${target_home}" "${DEPLOYMENT_TARGET_LOCK_PATH}" >&2
+      return 1
+    fi
+    DEPLOYMENT_TARGET_LOCK_METHOD="directory"
+  fi
+
+  DEPLOYMENT_TARGET_LOCK_OWNED="Y"
+  DEPLOYMENT_TARGET_LOCK_REENTRANT="N"
+  DEPLOYMENT_TARGET_LOCK_DEPTH=1
+  DEPLOYMENT_TARGET_LOCK_CANONICAL_TARGET="${canonical_target}"
+  DEPLOYMENT_TARGET_LOCK_OWNER_PID="$$"
+  GUILD_DEPLOY_LOCK_HELD_FOR="${canonical_target}"
+  export GUILD_DEPLOY_LOCK_HELD_FOR
+}
+
+deployment_target_lock_release() {
+  if [[ "${DEPLOYMENT_TARGET_LOCK_REENTRANT:-N}" = "Y" ]]; then
+    DEPLOYMENT_TARGET_LOCK_REENTRANT="N"
+    return 0
+  fi
+  [[ "${DEPLOYMENT_TARGET_LOCK_OWNED:-N}" = "Y" ]] || return 0
+  if (( ${DEPLOYMENT_TARGET_LOCK_DEPTH:-1} > 1 )); then
+    DEPLOYMENT_TARGET_LOCK_DEPTH=$((DEPLOYMENT_TARGET_LOCK_DEPTH - 1))
+    return 0
+  fi
+  case "${DEPLOYMENT_TARGET_LOCK_METHOD:-}" in
+    flock)
+      flock -u 8 2>/dev/null || true
+      exec 8>&-
+      ;;
+    directory)
+      rmdir "${DEPLOYMENT_TARGET_LOCK_PATH}" 2>/dev/null || true
+      ;;
+  esac
+  DEPLOYMENT_TARGET_LOCK_OWNED="N"
+  DEPLOYMENT_TARGET_LOCK_REENTRANT="N"
+  DEPLOYMENT_TARGET_LOCK_DEPTH=0
+  DEPLOYMENT_TARGET_LOCK_METHOD=""
+  DEPLOYMENT_TARGET_LOCK_PATH=""
+  DEPLOYMENT_TARGET_LOCK_CANONICAL_TARGET=""
+  DEPLOYMENT_TARGET_LOCK_OWNER_PID=""
+  unset GUILD_DEPLOY_LOCK_HELD_FOR
+}
+
+deployment_set_branch() (
+  local branch="${1:-}"
+  local manifest manifest_dir staged stored_branch stored_repository stored_account
+  local stored_service expected_service
+
+  if ! deployment_branch_valid "${branch}"; then
+    printf "Invalid deployment branch: '%s'\n" "${branch}" >&2
+    return 2
+  fi
+  command -v jq >/dev/null 2>&1 || {
+    printf "Cannot update deployment metadata: jq is not available\n" >&2
+    return 2
+  }
+
+  manifest="$(deployment_file)" || return 2
+  manifest_dir="$(dirname "${manifest}")"
+  if [[ ! -d "${manifest_dir}" ||
+        ! -f "${manifest}" ||
+        -L "${manifest}" ||
+        ! -s "${manifest}" ]]; then
+    printf "Cannot update deployment branch: a valid manifest is required at %s. Re-run guild-deploy.sh first.\n" \
+      "${manifest}" >&2
+    return 1
+  fi
+  deployment_target_lock_acquire "${NODE_HOME}" || return 1
+  trap 'deployment_target_lock_release' EXIT
+  trap 'deployment_target_lock_release; exit 130' HUP INT TERM
+
+  if ! jq -e '
+    type == "object" and
+    .schemaVersion == 1 and
+    .deploymentStatus == "deployed" and
+    (.implementation == "cnode" or .implementation == "dingo" or .implementation == "amaru") and
+    (
+      (.implementation == "cnode" and
+        (.network == "mainnet" or .network == "guild" or .network == "preprod" or .network == "preview")) or
+      ((.implementation == "dingo" or .implementation == "amaru") and
+        (.network == "preprod" or .network == "preview"))
+    ) and
+    (.branch | type == "string" and length > 0) and
+    (.repository | type == "string" and test("^[A-Za-z0-9_.-]+/guild-operators$")) and
+    (.serviceName | type == "string" and test("^[A-Za-z0-9_.@-]+$")) and
+    (.nodeVersion | type == "string") and
+    (.targetNodeVersion | type == "string") and
+    (.metricsProvider | type == "string" and length > 0) and
+    (.capabilities | type == "object") and
+    (.capabilities | keys == ["forging", "localCli", "metrics", "n2c"]) and
+    (.capabilities.n2c | type == "boolean") and
+    (.capabilities.localCli | type == "boolean") and
+    (.capabilities.metrics | type == "boolean") and
+    (.capabilities.forging | type == "boolean") and
+    (
+      (.implementation == "cnode" and
+        .metricsProvider == "prometheus" and
+        .capabilities.n2c == true and
+        .capabilities.localCli == true and
+        .capabilities.metrics == true and
+        .capabilities.forging == true) or
+      (.implementation == "dingo" and
+        .metricsProvider == "prometheus" and
+        .capabilities.n2c == true and
+        .capabilities.localCli == false and
+        .capabilities.metrics == true and
+        .capabilities.forging == false) or
+      (.implementation == "amaru" and
+        .metricsProvider == "otel" and
+        .capabilities.n2c == false and
+        .capabilities.localCli == false and
+        .capabilities.metrics == true and
+        .capabilities.forging == false)
+    )
+  ' "${manifest}" >/dev/null 2>&1; then
+    printf "Cannot update deployment branch: %s is malformed or incomplete. Re-run guild-deploy.sh first.\n" \
+      "${manifest}" >&2
+    return 1
+  fi
+  stored_branch="$(jq -r '.branch' "${manifest}")"
+  stored_repository="$(jq -r '.repository' "${manifest}")"
+  stored_service="$(jq -r '.serviceName' "${manifest}")"
+  stored_account="${stored_repository%/guild-operators}"
+  if ! deployment_branch_valid "${stored_branch}"; then
+    printf "Cannot update deployment branch: %s contains an invalid branch. Re-run guild-deploy.sh first.\n" \
+      "${manifest}" >&2
+    return 1
+  fi
+  expected_service="$(basename "${NODE_HOME}" | tr '[:upper:]' '[:lower:]')"
+  if [[ "${stored_service}" != "${expected_service}" ]]; then
+    printf "Cannot update deployment branch: serviceName '%s' does not match target folder '%s'. Re-run guild-deploy.sh first.\n" \
+      "${stored_service}" "${expected_service}" >&2
+    return 1
+  fi
+  if ! deployment_branch_exists "${branch}" "${stored_account}"; then
+    printf "Cannot update deployment branch: '%s' was not found in %s/guild-operators. The manifest was not changed.\n" \
+      "${branch}" "${stored_account}" >&2
+    return 1
+  fi
+
+  staged="$(mktemp "${manifest_dir}/.deployment.json.tmp.XXXXXX")" || return 1
+  if ! jq --arg branch "${branch}" '.branch = $branch' "${manifest}" > "${staged}"; then
+    rm -f "${staged}"
+    return 1
+  fi
+
+  if ! chmod 644 "${staged}"; then
+    rm -f "${staged}"
+    return 1
+  fi
+  if ! mv -f "${staged}" "${manifest}"; then
+    rm -f "${staged}"
+    return 1
+  fi
+)

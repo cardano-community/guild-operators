@@ -17,8 +17,8 @@ RUN git clone https://github.com/intersectmbo/cardano-node
 
 WORKDIR /cardano-node
 
-RUN curl -s -f -k -o cardano-node-latest.txt "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" &&\
-    CNODE_VERSION=$(cat cardano-node-latest.txt) &&\
+RUN curl -s -f -k -o cnode-release.json "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/node-implementations/cnode/release.json" &&\
+    CNODE_VERSION=$(jq -er '.version' cnode-release.json) &&\
     echo "Checking out Cardano node: ${CNODE_VERSION}" &&\
     git fetch --tags --all &&\
     git checkout tags/"${CNODE_VERSION}" &&\

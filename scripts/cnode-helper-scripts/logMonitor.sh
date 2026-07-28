@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#shellcheck disable=SC2086,SC2001,SC2154
+#shellcheck disable=SC1091,SC2086,SC2001,SC2154,SC2317,SC2329
 #shellcheck source=/dev/null
 
 ######################################
@@ -12,9 +12,87 @@
 # Do NOT modify code below           #
 ######################################
 
-# Temporary - until scripts are updated
+PARENT="$(dirname "$0")"
 
-echo "ERROR: The logMonitor.sh script has not been updated to read new tracer logs yet, exiting!" && exit 1
+usage() {
+  cat <<-EOF
+
+		Usage: $(basename "$0") systemd <install|remove|status>
+
+		Cardano log monitor (currently disabled)
+		systemd
+		      Install, remove, or show the status of the logMonitor service.
+		      Installation is refused while the tracing parser is disabled.
+
+		EOF
+  exit 1
+}
+
+load_systemd_library() {
+  local systemd_library="${PARENT}/lib/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/../common-helper-scripts/lib/systemd.library"
+  if [[ ! -f "${systemd_library}" ]]; then
+    echo "ERROR: systemd.library is missing. Re-run the deployment script to install shared helpers."
+    return 1
+  fi
+  # shellcheck disable=SC1091
+  . "${systemd_library}"
+}
+
+deploy_systemd() {
+  echo "ERROR: logMonitor is disabled because it does not support the current node tracing format; refusing to install a service that cannot run."
+  return 1
+}
+
+manage_systemd() {
+  local action="${1:-}"
+  local unit_name="${CNODE_VNAME}-logmonitor.service"
+
+  case "${action}" in
+    install) deploy_systemd ;;
+    remove)
+      load_systemd_library &&
+        systemd_remove_units --owner-token "${CNODE_HOME}/scripts/logMonitor.sh" "${unit_name}" &&
+        echo "${unit_name} removed successfully."
+      ;;
+    status)
+      load_systemd_library && systemd_status_units "${unit_name}"
+      ;;
+    *) usage ;;
+  esac
+}
+
+SYSTEMD_ACTION=""
+if [[ ${1:-} == "systemd" ]]; then
+  [[ $# -eq 2 ]] || usage
+  SYSTEMD_ACTION="${2}"
+elif [[ $# -gt 0 ]]; then
+  usage
+fi
+
+if [[ ! -f "${PARENT}"/env ]]; then
+  echo "ERROR: could not find common env file, please run the deployment script or manually install it"
+  exit 1
+fi
+if [[ -n "${SYSTEMD_ACTION}" ]]; then
+  . "${PARENT}"/env definitions
+else
+  . "${PARENT}"/env offline
+fi
+case $? in
+  0|2) : ;;
+  *) echo "ERROR: Failed to load common env file." && exit 1 ;;
+esac
+
+if [[ -n "${SYSTEMD_ACTION}" ]]; then
+  manage_systemd "${SYSTEMD_ACTION}"
+  exit $?
+fi
+
+# Temporary - until the parser supports current node tracing output.
+echo "ERROR: logMonitor.sh has not been updated to read the current tracer logs yet, exiting!"
+exit 1
 
 # If the log entry matches one of the monitored traces and is enabled, process it
 processLogInfo() {

@@ -1,0 +1,37 @@
+# Local metrics bridge for Guild Operators gLiveView.
+# Amaru emits OTLP; this collector exposes a loopback-only Prometheus endpoint.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+      http:
+        endpoint: 127.0.0.1:4318
+
+processors:
+  resource/drop_prometheus_labels:
+    attributes:
+      - key: service.name
+        action: delete
+      - key: service.instance.id
+        action: delete
+
+exporters:
+  nop:
+  prometheus:
+    endpoint: 127.0.0.1:8889
+    add_metric_suffixes: false
+    without_scope_info: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [nop]
+    logs:
+      receivers: [otlp]
+      exporters: [nop]
+    metrics:
+      receivers: [otlp]
+      processors: [resource/drop_prometheus_labels]
+      exporters: [prometheus]

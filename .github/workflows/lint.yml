@@ -21,7 +21,27 @@ jobs:
       with:
         scandir: "./scripts"
         severity: "warning"
-        additional_files: "./scripts/cnode-helper-scripts/env, ./scripts/cnode-helper-scripts/cntools.library, ./scripts/cnode-helper-scripts/mithril.library"
+        additional_files: "./scripts/common-helper-scripts/env, ./scripts/common-helper-scripts/cntools.library, ./scripts/cnode-helper-scripts/mithril.library"
+    - name: Deployment dispatcher tests
+      run: bash files/tests/guild-deploy-dispatcher.sh
+    - name: Alternate deployment tests
+      run: bash files/tests/alternate-deployments.sh
+    - name: Deployment layout tests
+      run: bash files/tests/deployment-layout.sh
+    - name: Docker deployment tests
+      run: bash files/tests/docker-deployment.sh
+    - name: Common runtime tests
+      run: bash files/tests/common-runtime.sh
+    - name: Cnode runtime transaction tests
+      run: bash files/tests/cnode-runtime-transaction.sh
+    - name: Systemd helper tests
+      run: bash files/tests/systemd-library.sh
+    - name: Component systemd recovery tests
+      run: bash files/tests/component-systemd.sh
+    - name: Dingo metrics adapter tests
+      run: bash files/tests/dingo-metrics.sh
+    - name: Amaru metrics adapter tests
+      run: bash files/tests/amaru-metrics.sh
   jsonlint:
     name: JSON and YAML Check
     runs-on: ubuntu-latest

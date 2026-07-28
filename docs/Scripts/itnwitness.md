@@ -1,5 +1,13 @@
+!!! warning "Historical documentation"
+    This is an archived Incentivized Testnet pool-witness proposal, not a
+    script installed by current cnode, Dingo, or Amaru deployments. Verify
+    current pool-metadata requirements independently before using any part of
+    this old workflow.
+
 !!! info "Disclaimer"
-    Currently this is to protect the existing pools from the ITN who already have a delegator base against spoofing - to avoid scammers building on results of ITN from known pools. There would be a solution in the future for Mainnet nodes too - but it doesn't apply to those in its current form.
+    This proposal attempted to protect well-known ITN pools from ticker
+    spoofing. It does not describe a current Guild Operators deployment
+    feature.
 
 
 #### Concept

@@ -1,104 +1,69 @@
-!> - An average pool operator may not require `cardano-wallet` at all. Please verify if it is required for your use as mentioned [here](../build.md#components).
+!!! warning "Optional external component"
+    An average pool operator does not need `cardano-wallet`; check the
+    [component overview](../build.md#components). Guild Operators does not
+    select or verify a wallet release in the cnode release manifest and does
+    not deploy it for Dingo or Amaru. Review compatibility with the installed
+    cardano-node release yourself.
 
-> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+cardano-wallet is maintained by the Cardano Foundation and is currently in
+maintenance-only mode. Prefer a binary from the
+[upstream releases](https://github.com/cardano-foundation/cardano-wallet/releases)
+when one matches your node. The instructions below follow the project's
+current Nix build workflow; the Guild `cabal-build-all.sh` helper is not a
+supported wallet build path.
 
-#### Build Instructions {docsify-ignore}
+## Build
 
-Follow instructions below for building the cardano-wallet binary:
+Install and configure the version of
+[Nix required upstream](https://cardano-foundation.github.io/cardano-wallet/contributor/what/building.html),
+then clone the repository and select a reviewed tag or immutable commit:
 
-##### Clone the repository
-
-Execute the below to clone the `cardano-wallet` repository to `$HOME/git` folder on your system:
-
-``` bash
-cd ~/git
+```bash
+cd "$HOME/git"
 git clone https://github.com/cardano-foundation/cardano-wallet
 cd cardano-wallet
+git fetch --tags --force --prune origin
+WALLET_REF='<reviewed tag or commit>'
+git checkout --detach "$WALLET_REF"
+nix build
+mkdir -p "$HOME/.local/bin"
+install -m 0755 result/bin/cardano-wallet \
+  "$HOME/.local/bin/cardano-wallet"
 ```
 
-##### Build Cardano Wallet
+Do not substitute an unreviewed moving branch for `WALLET_REF` on an
+operational host.
 
-You can use the instructions below to build the latest release of [cardano-wallet](https://github.com/cardano-foundation/cardano-wallet).
+## Start against a cnode deployment
 
-!> - Note that the latest release of `cardano-wallet` may not work with the latest release of `cardano-node`. Please check the compatibility of each `cardano-wallet` release yourself in the official docs, e.g. https://github.com/cardano-foundation/cardano-wallet/releases/latest.
-
-``` bash
-git fetch --tags --all
-git pull
-# Replace tag against checkout if you do not want to build the latest released version
-git checkout $(curl -s https://api.github.com/repos/cardano-foundation/cardano-wallet/releases/latest | jq -r .tag_name)
-$CNODE_HOME/scripts/cabal-build-all.sh
-```
-
-The above would copy the binaries into `~/.local/bin` folder.
-
-##### Start the wallet
-
-You can run the below to connect to a `cardano-node` instance that is expected to be already running and the wallet will start syncing.
-```bash
-cardano-wallet serve /
-    --node-socket $CNODE_HOME/sockets/node.socket /
-    --mainnet / # if using the testnet flag you also need to specify the testnet shelley-genesis.json file
-    --database $CNODE_HOME/priv/wallet
-```
-
-##### Verify the wallet is handling requests
-```bash
-cardano-wallet network information
-```
-Expected output should be similar to the following
-```json
-Ok.
-{
-    "network_tip": {
-        "time": "2021-06-01T17:31:05Z",
-        "epoch_number": 269,
-        "absolute_slot_number": 31002374,
-        "slot_number": 157574
-    },
-    "node_era": "mary",
-    "node_tip": {
-        "height": {
-            "quantity": 5795127,
-            "unit": "block"
-        },
-        "time": "2021-06-01T17:31:00Z",
-        "epoch_number": 269,
-        "absolute_slot_number": 31002369,
-        "slot_number": 157569
-    },
-    "sync_progress": {
-        "status": "ready"
-    },
-    "next_epoch": {
-        "epoch_start_time": "2021-06-04T21:44:51Z",
-        "epoch_number": 270
-    }
-}
-
-```
-##### Creating/Restoring Wallet
-
-If you're creating a new wallet, you'd first want to generate a mnemonic for use (see below):
+The wallet requires a running, fully synchronized cardano-node and its
+node-to-client socket. For mainnet:
 
 ```bash
-cardano-wallet recovery-phrase generate
-# false brother typical saddle settle phrase foster sauce ask sunset firm gate service render burger
+mkdir -p "$CNODE_HOME/priv/wallet"
+cardano-wallet serve --port 8090 \
+  --node-socket "$CNODE_HOME/sockets/node.socket" \
+  --mainnet \
+  --database "$CNODE_HOME/priv/wallet" \
+  --token-metadata-server https://tokens.cardano.org
 ```
-You can use the above mnemonic to then restore a wallet as per below:
-```bash
-cardano-wallet wallet create from-recovery-phrase MyWalletName
 
+For preview or preprod, replace `--mainnet` with
+`--testnet "$CNODE_HOME/files/byron-genesis.json"` and use the testnet token
+metadata service documented for the selected wallet release.
+
+## Verify
+
+Query the local HTTP API and wait for `sync_progress.status` to become
+`ready`:
+
+```bash
+curl -fsS http://127.0.0.1:8090/v2/network/information |
+  jq '.sync_progress'
 ```
-##### Expected output:
-```text
-Please enter a 15–24 word recovery phrase: false brother typical saddle settle phrase foster sauce ask sunset firm gate service render burger
-(Enter a blank line if you do not wish to use a second factor.)
-Please enter a 9–12 word second factor:
-Please enter a passphrase: **********
-Enter the passphrase a second time: **********
-Ok.
-{
-    ...
-}
-```
+
+Wallet creation and recovery handle spendable funds and secret recovery
+phrases. Follow the
+[official cardano-wallet documentation](https://cardano-foundation.github.io/cardano-wallet/)
+for the selected release, never paste a real recovery phrase into shell
+history, and never fund a published example phrase.

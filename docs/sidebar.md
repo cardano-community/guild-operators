@@ -1,11 +1,18 @@
 # Tree
   - Home: index.md
   - Basics: basics.md
+  - Upgrade and migration: upgrade.md
   - Build and Run:
     - Overview: build.md
-    - Node & CLI: Build/node-cli.md
+    - Node implementations:
+      - Deployment architecture: Build/node-implementations.md
+      - cnode deployment: Build/cnode.md
+      - Build cardano-node & CLI: Build/node-cli.md
+      - Dingo: Build/dingo.md
+      - Amaru: Build/amaru.md
     - DBSync: Build/dbsync.md
     - Koios gRest: Build/grest.md
+    - Cardano Wallet (external): Build/wallet.md
     - Offchain Metadata Tools: Build/offchain-metadata-tools.md
   - Scripts:
     - Common env: Scripts/env.md
@@ -14,6 +21,7 @@
       - CNTools:
         - Overview: Scripts/cntools.md
         - Common Tasks: Scripts/cntools-common.md
+        - Telegram alerts: Scripts/sendalerts.md
         - Changelog: Scripts/cntools-changelog.md
         - Log Monitor: Scripts/logmonitor.md
       - gLiveView: Scripts/gliveview.md
@@ -29,7 +37,15 @@
     - Build: docker/build.md
     - Run: docker/run.md
     - Tips: docker/tips.md
+    - Security: docker/security.md
   - Appendix:
     - Sample Postgres Setup: Appendix/postgres.md
-    - GRest meet summaries: grest-meets.md
+    - Legacy cnode monitoring bootstrap: Appendix/monitoring.md
+    - Historical archives:
+      - ITN Byron wallet recovery: Appendix/RecoverByronWallet.md
+      - ITN reward conversion: Scripts/itnrewards.md
+      - ITN pool witness proposal: Scripts/itnwitness.md
+      - Koios gRest changelog through 1.3.2: Build/grest-changelog.md
+      - GRest meet summaries (2021): grest-meets.md
+      - Catalyst Fund 11 references (2023): catalystf11.md
   - Contributors: contributors.md

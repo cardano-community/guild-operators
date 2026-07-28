@@ -1,5 +1,10 @@
+!!! warning "cnode-only workflows"
+    These CNTools wallet, pool, and local-node workflows are currently
+    supported only with cnode/cardano-node deployments. Dingo and Amaru
+    profiles do not install CNTools.
+
 !!! important
-     Familiarize yourself with the Online workflow of creating wallets and pools on the Preview/Preprod/Guild network first. You can then move on to test the [Offline Workflow](../Scripts/cntools.md#offline-workflow). The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.
+    Familiarize yourself with the Online workflow of creating wallets and pools on the Preview/Preprod/Guild network first. You can then move on to test the [Offline Workflow](../Scripts/cntools.md#offline-workflow). The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.
 
 This chapter describes some common use-cases for wallet and pool creation when running CNTools in Online mode. CNTools contains much more functionality not described here.
 
@@ -15,7 +20,7 @@ This chapter describes some common use-cases for wallet and pool creation when r
        Wallet Management
       
        ) New         - create a new wallet
-       ) Import      - import a Daedalus/Yoroi 24/25 mnemonic or Ledger/Trezor HW wallet
+       ) Import      - import a 24/15-word mnemonic or Ledger/Trezor HW wallet
        ) Register    - register a wallet on chain
        ) De-Register - De-Register (retire) a registered wallet
        ) List        - list all available wallets in a compact view
@@ -66,16 +71,21 @@ This chapter describes some common use-cases for wallet and pool creation when r
 
     The `Import` feature of CNTools is originally based on [this guide](https://gist.github.com/ilap/3fd57e39520c90f084d25b0ef2b96894) from [Ilap](https://github.com/ilap).
     
-    If you would like to use `Import` function to import a Daedalus/Yoroi based 15 or 24 word wallet seed, please ensure that `cardano-address` and `bech32` bineries are available in your `$PATH` environment variable:
+    If you would like to use `Import` to import a 15- or 24-word wallet seed,
+    ensure that `cardano-address` and `bech32` binaries are available in
+    `$PATH`:
       ```
       bech32 --version
-      1.1.0
-      
+      <installed version>
+
       cardano-address --version
-      3.5.0
+      <installed version>
       ```
     !!! info ""
-        If the version is not as per above, please run the latest `guild-deploy.sh` from [here](../basics.md) and rebuild `cardano-node` as instructed [here](../Build/node-cli.md).
+        Both executables must be present, but the example does not require a
+        particular old version. Run the current `guild-deploy.sh -s d` to
+        install the checksum-verified cnode binary and companion set selected
+        by `cnode-release.json`.
 
     To import a Daedalus/Yoroi wallet to CNTools, open CNTools and select the `[w] Wallet` option, and then select the `[i] Import`, the following menu will appear:
       ```
@@ -106,7 +116,8 @@ This chapter describes some common use-cases for wallet and pool creation when r
       
       24 or 15 word mnemonic(space separated):
       ```
-    Give your wallet a name (in this case 'TEST'), and enter your mnemonic phrase. Please ensure that you **READ* through the complete notes presented by CNTools before proceeding.
+    Give your wallet a name (in this case `TEST`) and enter your mnemonic
+    phrase. **Read** all notes presented by CNTools before proceeding.
 
 === "Create Pool"
     Create the necessary pool keys.
@@ -196,7 +207,7 @@ This chapter describes some common use-cases for wallet and pool creation when r
       
       # Pool Metadata
       
-      Enter Pool's JSON URL to host metadata file - URL length should be less than 64 chars (default: https://foo.bat/poolmeta.json):
+      Enter Pool's JSON URL to host metadata file - URL length should be less than 128 chars (default: https://foo.bat/poolmeta.json):
       
       Enter Pool's Name (default: TEST):
       Enter Pool's Ticker , should be between 3-5 characters (default: TEST):
@@ -213,7 +224,7 @@ This chapter describes some common use-cases for wallet and pool creation when r
         "nonce": "1613146429"
       }
       
-      Please host file /opt/cardano/guild/priv/pool/TEST/poolmeta.json as-is at https://foo.bat/poolmeta.json
+      Please host file /opt/cardano/cnode/priv/pool/TEST/poolmeta.json as-is at https://foo.bat/poolmeta.json
       
       # Pool Relay Registration
       Selected value: [d] A or AAAA DNS record (single)
@@ -231,7 +242,7 @@ This chapter describes some common use-cases for wallet and pool creation when r
       
       Owner #1 : Test added!
       
-      Register a multi-owner pool (you need to have stake.vkey of any additional owner in a seperate wallet folder under $CNODE_HOME/priv/wallet)?
+      Register a multi-owner pool (you need to have stake.vkey of any additional owner in a separate wallet folder under $CNODE_HOME/priv/wallet)?
       Selected value: [n] No
       
       Use a separate rewards wallet from main owner?
@@ -255,7 +266,13 @@ This chapter describes some common use-cases for wallet and pool creation when r
     6. As mentioned in the above output: *Uncomment and set value for `POOL_NAME` in `./env` with 'TEST'* (in our case, the `POOL_NAME` is `TEST`). The `cnode.sh` script will automatically detect whether the files required to run as a block producing node are present in the `$CNODE_HOME/priv/pool/<POOL_NAME>` directory.
     
 === "Rotate KES Keys"
-    The node runs with an operational certificate, generated using the KES hot key. For security reasons, the protocol asks to re-generate (or rotate) your KES key once reaching expiry. On mainnet, this expiry is in 62 cycles of 18 hours (thus, to ask for rotation quarterly), after which your node will not be able to forge valid blocks unless rotated. To be able to rotate KES keys, your cold keys files (`cold.skey`, `cold.vkey` and `cold.counter`) need to be present on the machine where you run CNTools to rotate your KES key.
+    The node runs with an operational certificate generated using the KES hot
+    key. Rotate the KES key before that certificate expires or the node cannot
+    forge valid blocks. Expiry is derived from `slotsPerKESPeriod` and
+    `maxKESEvolutions` in the network's Shelley genesis; current mainnet
+    parameters are 62 periods of 36 hours, or roughly 93 days. The cold-key
+    files (`cold.skey`, `cold.vkey`, and `cold.counter`) must be present on the
+    machine where CNTools performs the rotation.
 
     1. To Rotate KES keys and generate the operational certificate - `op.cert`.
     
@@ -282,9 +299,27 @@ This chapter describes some common use-cases for wallet and pool creation when r
       press any key to return to home menu
       ```
     
-    2. Start or restart your `cardano-node`. If deployed as a `systemd` service as shown [here](Build/node-cli?id=run-as-systemd-service), you can run `sudo systemctl restart cnode`.
+    2. Start or restart your `cardano-node`. For a
+       [systemd deployment](../Build/node-cli.md#systemd), derive the unit name
+       from the deployment manifest:
+
+       ```bash
+       CNODE_SERVICE="$(jq -er '.serviceName' \
+         "$CNODE_HOME/.deployment.json")"
+       sudo systemctl restart "${CNODE_SERVICE}.service"
+       ```
+
     3. Ensure the node is running as a block producing (core) node.
     
-    You can use [gLiveView](Scripts/gliveview) - the output at the top should say `> Cardano Node - (Core - Guild)`.
+    You can use [gLiveView](gliveview.md). Its header should identify
+    `[cardano-node]`, the `Core` role, and the expected network.
     
-    Alternatively, you can check the node logs in `$CNODE_HOME/logs/` to see whether the node is performing leadership checks (`TraceStartLeadershipCheck`, `TraceNodeIsNotLeader`, etc.) 
+    Alternatively, follow the systemd journal and look for current forge
+    traces such as `Forge.Loop.StartLeadershipCheck` and
+    `Forge.Loop.NodeNotLeader`:
+
+    ```bash
+    CNODE_SERVICE="$(jq -er '.serviceName' \
+      "$CNODE_HOME/.deployment.json")"
+    sudo journalctl -fu "${CNODE_SERVICE}.service"
+    ```

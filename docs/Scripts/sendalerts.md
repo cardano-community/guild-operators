@@ -1,6 +1,10 @@
-!> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+!!! info "Reminder"
+    Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place
+    before you proceed.
 
-This section describes the ways in which CNTools can send important messages to the operator.
+This page configures the shared `telegramSend` function used by CNTools; there
+is no separate `sendAlerts.sh` executable. CNTools is currently installed and
+supported only by the cnode profile.
 
 #### Telegram alerts
 
@@ -24,12 +28,15 @@ To do this, you first have to activate your own bot and link it to your own Tele
    https://api.telegram.org/bot<your-access-token>/getUpdates
    ```
 
-7. the result is a JSON. Look for the value of `result.message.chat.id`. 
+7. The result is JSON. Look for the value of `result[].message.chat.id`.
    This **chat id** should be a large integer number.
 
-This is all you need to enable your Telegram alerts in the `scripts/env` file - uncomment and add the chat ID to the `TG_CHAT_ID` user variable in the `env` file:
-```
-...
+Enable alerts by setting both values in `${NODE_HOME}/scripts/env`:
+
+```bash
+TG_BOT_TOKEN="<YOUR_BOT_TOKEN>"
 TG_CHAT_ID="<YOUR_TG_CHAT_ID>"
-...  
 ```
+
+Keep the bot token secret. If either value is empty, `telegramSend` warns and
+does not send a message.

@@ -1,10 +1,18 @@
 !!! danger "Important"
-    An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned [here](../build.md#components).  
+    An average pool operator may not require cardano-db-sync at all. Please verify if it is required for your use as mentioned [here](../build.md#components).
 
     - Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
     - The [Cardano DB Sync](https://github.com/intersectmbo/cardano-db-sync) relies on an existing PostgreSQL server. To keep the focus on building dbsync tool, and not how to setup postgres itself, you can refer to [Sample Local PostgreSQL Server Deployment instructions](../Appendix/postgres.md) for setting up a Postgres instance. Specifically, we expect the `PGPASSFILE` environment variable is set as per the instructions in the sample guide, for `db-sync` to be able to connect.
-    - One of the biggest obstacles for user experience when running dbsync is ensuring you satisfy EACH of the points mentioned in System Requirements [here](https://github.com/intersectmbo/cardano-db-sync#system-requirements).
-    - Also, note that we do not advise running dbsync on mainnet if your RAM is below 64GB or if effective IOPs on your system is below 15K, unless you're tuning your `$CNODE_HOME/files/db-sync-config.json` to toggle `ledger` to `disable` (read [dbsync documentation](https://github.com/IntersectMBO/cardano-db-sync/blob/master/doc/configuration.md) for it's effects).
+    - Before provisioning a host, satisfy the
+      [system requirements](https://github.com/intersectmbo/cardano-db-sync#system-requirements)
+      for the manifest-pinned release. Database size, memory, and I/O
+      requirements grow over time.
+    - Guild installs the selected network configuration as
+      `$CNODE_HOME/files/dbsync.json`. Its `insert_options.ledger` and
+      `ledger_backend` settings materially affect resource use and available
+      data; review the
+      [db-sync configuration documentation](https://github.com/IntersectMBO/cardano-db-sync/blob/master/doc/configuration.md)
+      before changing them.
 
 
 ### Build Instructions
@@ -21,19 +29,25 @@ cd cardano-db-sync
 
 #### Build Cardano DB Sync
 
-You can use the instructions below to build the latest release of `cardano-db-sync`.
+You can use the instructions below to build the cnode-supported
+`cardano-db-sync` release. Its version is managed alongside the other cnode
+deployment artifacts in
+`files/node-implementations/cnode/release.json` and installed at
+`$CNODE_HOME/files/cnode-release.json`.
 
 ``` bash
-git fetch --tags --all
-git pull
-# Include the cardano-crypto-praos and libsodium components for db-sync
-# On CentOS 7 (GCC 4.8.5) we should also do
-# echo -e "package cryptonite\n  flags: -use_target_attributes" >> cabal.project.local
-# Replace tag against checkout if you do not want to build the latest released version
-git checkout $(curl -sLf https://api.github.com/repos/intersectmbo/cardano-db-sync/releases/latest | jq -r .tag_name)
-# Use `-l` argument if you'd like to use system libsodium instead of IOG fork of libsodium while compiling
-$CNODE_HOME/scripts/cabal-build-all.sh
+git fetch --tags --force --prune origin
+# Use the exact version selected by the cnode deployment manifest
+DBSYNC_VERSION="$(
+  jq -er '.companions["cardano-db-sync"].version' \
+    "$CNODE_HOME/files/cnode-release.json"
+)"
+git checkout --detach "$DBSYNC_VERSION"
+"$CNODE_HOME/scripts/cabal-build-all.sh"
 ```
+
+Pass `-l` to the helper only when the build is intentionally configured to use
+the system libsodium instead of the Guild-installed Intersect fork.
 The above would copy the `cardano-db-sync` binary into `~/.local/bin` folder.
 
 #### Prepare DB for sync
@@ -44,8 +58,6 @@ Now that binaries are available, let's create our database (when going through b
 cd ~/git/cardano-db-sync
 # scripts/postgresql-setup.sh --dropdb #if exists already, will fail if it doesnt - thats OK
 scripts/postgresql-setup.sh --createdb
-# Password:
-# Password:
 # All good!
 ```
 
@@ -56,26 +68,53 @@ Verify you can see "All good!" as above!
 DBSync instance requires the schema files from the git repository to be present and available to the dbsync instance. You can either clone the `~/git/cardano-db-sync/schema` folder OR create a symlink to the folder and make it available to the startup command we will be using. We will use the latter in sample below:
 
 ``` bash
-ln -s ~/git/cardano-db-sync/schema $CNODE_HOME/guild-db/schema
+ln -s "$HOME/git/cardano-db-sync/schema" "$CNODE_HOME/guild-db/schema"
 ```
+
+If the destination already exists, inspect it before replacing it; do not
+silently point a running deployment at schema files from a different release.
 
 #### Restore using Snapshot
 
-If you're running a mainnet/preview/preprod instance of dbsync, you might want to consider use of dbsync snapshots as documented [here](https://github.com/intersectmbo/cardano-db-sync/blob/master/doc/state-snapshot.md). The snapshot files from IO for their default configs as of recent epoch are available via links in [release notes](https://github.com/intersectmbo/cardano-db-sync/releases). Note that the snapshots should only be used pertaining to their specific configs, if using configs from Koios - you'd want to look at snapshots [here](https://share.koios.rest/share/xFdZDfM4/dbsync/) instead.
+If you're running a mainnet, preview, or preprod instance, consider using a
+db-sync snapshot as described in the
+[state-snapshot guide](https://github.com/intersectmbo/cardano-db-sync/blob/master/doc/state-snapshot.md).
+Intersect publishes compatible snapshots in the
+[cardano-db-sync release notes](https://github.com/intersectmbo/cardano-db-sync/releases).
+Only restore a snapshot documented for the selected network, db-sync release,
+and configuration.
 
-At high-level, this would involve steps as below (read and update paths as per your environment):
+At a high level, the restore involves the steps below. Choose a snapshot from
+the selected db-sync release notes that matches the network and configuration;
+do not treat a moving example URL as a compatibility guarantee.
+
+!!! danger "Restore replaces the database"
+    With its default `RESTORE_RECREATE_DB=Y`, the pinned
+    `postgresql-setup.sh --restore-snapshot` command drops and recreates the
+    database named by `PGPASSFILE`. Stop db-sync, verify those credentials and
+    the snapshot, and take any required PostgreSQL backup before running it.
 
 ``` bash
+DBSYNC_SNAPSHOT_URL='<compatible snapshot URL from the release notes>'
+curl -fL "$DBSYNC_SNAPSHOT_URL" -o /tmp/dbsyncsnap.tgz
 
-# Replace the actual link below with the latest one from release notes
-curl -fL 'https://share.koios.rest/api/public/dl/xFdZDfM4/dbsync/mainnet-latest.tgz' -o /tmp/dbsyncsnap.tgz
-rm -rf ${CNODE_HOME}/guild-db/ledger-state ; mkdir -p ${CNODE_HOME}/guild-db/ledger-state
-cd -; cd ~/git/cardano-db-sync
-scripts/postgresql-setup.sh --restore-snapshot /tmp/dbsyncsnap.tgz ${CNODE_HOME}/guild-db/ledger-state
-# The restore may take a while, please be patient and do not interrupt the restore process. Once restore is successful, you may delete the downloaded snapshot as below:
-#   rm -f /tmp/dbsyncsnap.tgz
+# Stop db-sync first. Preserve any old ledger state until the restore succeeds.
+sudo systemctl stop cnode-dbsync
+if [[ -d "$CNODE_HOME/guild-db/ledger-state" ]]; then
+  mv "$CNODE_HOME/guild-db/ledger-state" \
+    "$CNODE_HOME/guild-db/ledger-state.backup.$(date +%Y%m%d%H%M%S)"
+fi
+mkdir -p "$CNODE_HOME/guild-db/ledger-state"
 
+cd "$HOME/git/cardano-db-sync"
+export PGPASSFILE="$CNODE_HOME/priv/.pgpass"
+scripts/postgresql-setup.sh --restore-snapshot \
+  /tmp/dbsyncsnap.tgz "$CNODE_HOME/guild-db/ledger-state"
 ```
+
+The restore can take a long time; do not interrupt it. After validating the
+restored service, remove the downloaded archive and any no-longer-needed
+ledger-state backup deliberately.
 
 #### Test running dbsync manually at terminal
 
@@ -87,12 +126,12 @@ export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 ./dbsync.sh
 ```
 
-You can monitor logs if needed via parallel session using `sudo journalctl -xeu cnode-dbsync -f`. If there are no error, you would want to press Ctrl-C to stop the dbsync.sh execution and deploy it as a systemd service. To do so, use the commands below (the creation of file is done using `sudo` permissions, but you can always deploy it manually):
+You can monitor logs if needed via parallel session using `sudo journalctl -xeu cnode-dbsync -f`. If there are no errors, press Ctrl-C to stop the dbsync.sh execution and deploy it as a systemd service. To do so, use the commands below (the unit file is created using `sudo` permissions, but you can always deploy it manually):
 
 ``` bash
 cd $CNODE_HOME/scripts
 ./dbsync.sh -d
-# Deploying cnode-dbsync.service as systemd service..
+# Deploying cnode-dbsync as systemd service..
 # cnode-dbsync.service deployed successfully!!
 ```
 
@@ -107,17 +146,26 @@ Now to start dbsync instance, you can run `sudo systemctl start cnode-dbsync`
 Updating dbsync can have different tasks depending on the versions involved. We attempt to briefly explain the tasks involved:
 
 - Shutdown dbsync (eg: `sudo systemctl stop cnode-dbsync`)
-- Update binaries (either download pre-compiled binaries via [guild-deploy.sh](../basics.md#pre-requisites) or using build instructions above)
-- Go to your git folder, pull and checkout to latest version as in example below (if you were to switch to `13.7.1.0`):
+- Update binaries (either download the manifest-selected pre-compiled binary
+  via [guild-deploy.sh](../basics.md#pre-requisites) or use the build
+  instructions above).
+- Fetch the repository and check out the version selected in the
+  installed cnode release manifest:
 
     ``` bash
     cd ~/git/cardano-db-sync
-    git pull
-    git checkout 13.x.x.x
+    git fetch --tags --force --prune origin
+    git checkout --detach "$(
+      jq -er '.companions["cardano-db-sync"].version' \
+        "$CNODE_HOME/files/cnode-release.json"
+    )"
     ```
 
 - If going through major version update (eg: 13.x.x.x to 14.x.x.x), you might need to [rebuild and resync db from scratch](#prepare-db-for-sync), you may still follow the section to restore using snapshot to save some time (as long as you use a compatible snapshot).
-- If the underlying `cardano-node` version has changed (specifically if it's `ledger-state` schema is different), you'd also need to clear the ledger-state directory (eg: `rm -rf $CNODE_HOME/guild-db/ledger-state`)
+- If the underlying `cardano-node` version changes the ledger-state schema,
+  stop db-sync and move the existing ledger-state directory to a timestamped
+  backup before starting the new version. Remove that backup only after the
+  migration or resync is validated.
 - Test that `dbsync.sh` starts up fine manually as described above. If it does, stop it and go ahead with startup of systemd service (i.e. `sudo systemctl start cnode-dbsync`)
 
 ### Validation
@@ -129,64 +177,12 @@ export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 psql cexplorer
 ```
 
-You should be at the `psql` prompt, you can check the tables and verify they're populated:
+At the `psql` prompt, check that tables exist and the recorded network matches
+the deployment:
 
 ``` sql
 \dt
-select * from meta;
+select network_name from meta;
 ```
 
-A sample output of the above two commands may look like below (the number of tables and names may vary between versions):
-
-```
-cexplorer=# \dt
-List of relations
- Schema |           Name            | Type  | Owner
---------+---------------------------+-------+-------
- public | ada_pots                  | table | centos
- public | admin_user                | table | centos
- public | block                     | table | centos
- public | delegation                | table | centos
- public | delisted_pool             | table | centos
- public | epoch                     | table | centos
- public | epoch_param               | table | centos
- public | epoch_stake               | table | centos
- public | ma_tx_mint                | table | centos
- public | ma_tx_out                 | table | centos
- public | meta                      | table | centos
- public | orphaned_reward           | table | centos
- public | param_proposal            | table | centos
- public | pool_hash                 | table | centos
- public | pool_meta_data            | table | centos
- public | pool_metadata             | table | centos
- public | pool_metadata_fetch_error | table | centos
- public | pool_metadata_ref         | table | centos
- public | pool_owner                | table | centos
- public | pool_relay                | table | centos
- public | pool_retire               | table | centos
- public | pool_update               | table | centos
- public | pot_transfer              | table | centos
- public | reserve                   | table | centos
- public | reserved_ticker           | table | centos
- public | reward                    | table | centos
- public | schema_version            | table | centos
- public | slot_leader               | table | centos
- public | stake_address             | table | centos
- public | stake_deregistration      | table | centos
- public | stake_registration        | table | centos
- public | treasury                  | table | centos
- public | tx                        | table | centos
- public | tx_in                     | table | centos
- public | tx_metadata               | table | centos
- public | tx_out                    | table | centos
- public | withdrawal                | table | centos
-(37 rows)
-
-
-
-select * from meta;
- id |     start_time      | network_name
-----+---------------------+--------------
-  1 | 2017-09-23 21:44:51 | mainnet
-(1 row)
-```
+The exact table list varies by db-sync release and configuration.

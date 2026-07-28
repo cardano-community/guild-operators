@@ -8,11 +8,50 @@ on:
         required: true
   pull_request:
     paths:
-      - scripts/cnode-helper-scripts/guild-deploy.sh
-      - scripts/cnode-helper-scripts/cabal-build-all.sh
-      - files/tests/pre-merge/ubuntu-guild-deploy.sh.containerfile
+      - scripts/common-helper-scripts/**
+      - scripts/cnode-helper-scripts/**
+      - scripts/dingo-helper-scripts/**
+      - scripts/amaru-helper-scripts/**
+      - files/configs/**
+      - files/docker/**
+      - files/node-implementations/**
+      - files/tests/**
 
 jobs:
+  deployment-contract:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Test deployment dispatcher
+      run: bash files/tests/guild-deploy-dispatcher.sh
+    - name: Test alternate deployments
+      run: bash files/tests/alternate-deployments.sh
+    - name: Test deployment layout
+      run: bash files/tests/deployment-layout.sh
+    - name: Test Docker deployment dispatch
+      run: bash files/tests/docker-deployment.sh
+    - name: Test common runtime
+      run: bash files/tests/common-runtime.sh
+    - name: Test cnode runtime transaction
+      run: bash files/tests/cnode-runtime-transaction.sh
+    - name: Test systemd helpers
+      run: bash files/tests/systemd-library.sh
+    - name: Test component systemd recovery
+      run: bash files/tests/component-systemd.sh
+    - name: Test Dingo metrics adapter
+      run: bash files/tests/dingo-metrics.sh
+    - name: Test Amaru metrics adapter
+      run: bash files/tests/amaru-metrics.sh
+    - name: Validate deployment shell entrypoints
+      run: |
+        find scripts/common-helper-scripts scripts/cnode-helper-scripts scripts/dingo-helper-scripts scripts/amaru-helper-scripts \
+          -type f \( -name '*.sh' -o -name '*.library' -o -name '*.adapter' -o -name 'env' \) \
+          -print0 | xargs -0 -n1 bash -n
+    - name: Validate deployment metadata
+      run: |
+        find files/node-implementations files/configs/cnode files/configs/dingo files/configs/amaru \
+          -type f -name '*.json' -print0 | xargs -0 -r -n1 jq -e .
+
   guild-deploy-and-build:
     runs-on: ubuntu-latest
     strategy:

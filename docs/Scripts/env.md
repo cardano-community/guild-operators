@@ -1,80 +1,128 @@
-A common environment file called `env` is sourced by most scripts in the Guild Operators repository. This file holds common variables and functions needed by other scripts. There are several benefits to this, not having to specify duplicate settings and being able to reuse functions decreasing the risk of misconfiguration and inconsistency.
+A common environment file called `env` is sourced by most scripts in the
+Guild Operators repository. There is one canonical implementation under
+`scripts/common-helper-scripts`; it is shared by cnode, Dingo, and Amaru
+deployments rather than copied and maintained separately for every node.
+
+The small `env` entrypoint combines three layers:
+
+1. `.deployment.json` identifies the deployment implementation, network, Guild
+   repository and branch, service name, and declared capabilities;
+2. common libraries provide implementation-neutral validation, update,
+   metadata, metrics, and systemd helpers;
+3. `scripts/adapters/<implementation>.adapter` supplies node-specific paths,
+   process discovery, interfaces, and metric collection.
+
+This allows a shared script to request a capability and fail cleanly when the
+selected node cannot provide it. Loading the shared environment does not mean
+that every helper supports every implementation; see the
+[compatibility table](../Build/node-implementations.md#current-helper-compatibility).
 
 #### Installation
-`env` file is downloaded together with the rest of the scripts when [Pre-Requisites](../basics.md#pre-requisites) if followed and located in the `$CNODE_HOME/scripts/` directory. The file is also automatically downloaded/updated by some of the individual scripts if missing, like `cntools.sh`, `gLiveView.sh` and `topologyUpdater.sh`. All custom changes in User Variables section are untouched on updates unless a forced overwrite is selected when running `guild-deploy.sh`.
+
+The common `env`, its `scripts/lib` runtime, and the selected adapter are
+downloaded together with the rest of the deployment when
+[Pre-Requisites](../basics.md#pre-requisites) are followed. The deployed
+entrypoint remains `${NODE_HOME}/scripts/env`; `${CNODE_HOME}` is retained as a
+compatibility alias for cnode-era scripts. Custom values in the User Variables
+section are preserved unless a forced script overwrite is selected.
+
+The former cnode-specific source URLs are retired. Deployments receive the
+canonical common file, and helper self-updates use the
+`common-helper-scripts` source folder. Existing flat cnode installations
+should be migrated with the current `guild-deploy.sh` before accepting
+individual helper updates.
+
+The old `${CNODE_HOME}/scripts/.env_branch` file is no longer used. Branch
+selection is stored in `${NODE_HOME}/.deployment.json`. Passing `-b` to
+gLiveView, CNTools, Topology Updater, setup-grest, or the deployment dispatcher
+updates that manifest while preserving its other fields.
+
+An existing manifest is authoritative and must be valid schema version 1 with
+`deploymentStatus: "deployed"` and complete implementation, network,
+repository, branch, service, node-version, metrics, and capability data. The
+common environment stops on malformed, incomplete, future-schema, or
+interrupted metadata instead of silently loading the cnode adapter. A missing
+manifest is accepted for the legacy/source-tree fallback.
+
+The six runtime members (`env`, four common libraries, and the selected
+adapter) update as one locked transaction. They are all downloaded and
+shell-validated before the first replacement; a failed commit restores every
+previous member.
+
+The manifest branch is also the authoritative update source. If that branch
+is missing or cannot be reached, a manifest-backed helper or common-runtime
+update fails without replacing files instead of silently downloading
+`master`. Change to a reachable branch with the dispatcher or a compatible
+helper's `-b` option. The historical fallback to `master` remains only for
+legacy installations that have no `.deployment.json`.
 
 #### Configuration
-Most variables can be left commented to use the automatically detected or default value. But there are some that need to be set as explained below.
 
-* `CNODE_PORT` - This is the most important variable and **needs** to be set. Used when launching the node through `cnode.sh` and to identify the correct process of the node.
-* `CNODE_HOME` - The root directory of the Cardano node holding all the files needed. Can be left commented if `guild-deploy.sh` has been run as this variable is then exported and added as a system environment variable.
-* `POOL_NAME` - If the node is to be started as a block producer by `cnode.sh` this variable needs to be uncommented and set. This is the name given to the pool in CNTools (not ticker), i.e. the pool directory name under `$CNODE_HOME/priv/pool/<POOL_NAME>`
+Leave a value commented to use deployment metadata, the selected adapter, or
+the runtime default. In particular, `.deployment.json` supplies the
+implementation, network, repository, branch, and service identity, while the
+entrypoint derives `NODE_HOME` from its installed location. Do not duplicate
+those values in `env`.
 
-**Take your time and look through the different variables** and their explanations and decide if you need/want to change the default setting. For a default deployment using `guild-deploy.sh`, the `CNODE_PORT` (all installs) and `POOL_NAME` (only block producer) should be the only variables needed to be set.
+For cnode, `CNODE_PORT` defaults to `6000`; override it only if the node uses a
+different port. Set `POOL_NAME` to the CNTools pool directory name, not the
+ticker, when `cnode.sh` should launch a block producer. A `NODE_HOME` or
+`CNODE_HOME` override is honored only when `USESYSVARS=Y`.
 
-``` bash
+Dingo and Amaru keep launcher-specific values in `dingo.env` and `amaru.env`.
+The common cnode-era aliases remain available for compatibility, but setting
+one does not add a capability that an alternate adapter has not declared.
+
+The current common User Variables section is:
+
+```bash
 ######################################
 # User Variables - Change as desired #
 # Leave as is if unsure              #
 ######################################
 
-#CCLI="${HOME}/.local/bin/cardano-cli"                  # Override automatic detection of path to cardano-cli executable
-#CNCLI="${HOME}/.local/bin/cncli"                       # Override automatic detection of path to cncli executable (https://github.com/AndrewWestberg/cncli)
-#CNODE_HOME="/opt/cardano/cnode"                        # Override default CNODE_HOME path (defaults to /opt/cardano/cnode)
-CNODE_PORT=6000                                         # Set node port
-#CONFIG="${CNODE_HOME}/files/config.json"               # Override automatic detection of node config path
-#SOCKET="${CNODE_HOME}/sockets/node.socket"             # Override automatic detection of path to socket
-#TOPOLOGY="${CNODE_HOME}/files/topology.json"           # Override default topology.json path
-#LOG_DIR="${CNODE_HOME}/logs"                           # Folder where your logs will be sent to (must pre-exist)
-#DB_DIR="${CNODE_HOME}/db"                              # Folder to store the cardano-node blockchain db
-#UPDATE_CHECK="Y"                                       # Check for updates to scripts, it will still be prompted before proceeding (Y|N).
-#TMP_DIR="/tmp/cnode"                                   # Folder to hold temporary files in the various scripts, each script might create additional subfolders
-#PROM_HOST=127.0.0.1                                    # Set node Prometheus host IP
-#PROM_PORT=12798                                        # Override automatic detection of node Prometheus port
-#CURL_TIMEOUT=10                                        # Maximum time in seconds that you allow curl file download to take before aborting (GitHub update process)
-#BLOCKLOG_DIR="${CNODE_HOME}/guild-db/blocklog"         # Override default directory used to store block data for core node
-#BLOCKLOG_TZ="UTC"                                      # TimeZone to use when displaying blocklog - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-#SHELLEY_TRANS_EPOCH=208                                # Override automatic detection of shelley epoch start, e.g 208 for mainnet
-#TG_BOT_TOKEN=""                                        # Uncomment and set to enable telegramSend function. To create your own BOT-token and Chat-Id follow guide at:
-#TG_CHAT_ID=""                                          # https://cardano-community.github.io/guild-operators/Scripts/sendalerts
-#TIMEOUT_LEDGER_STATE=300                               # Timeout in seconds for querying and dumping ledger-state
-#IP_VERSION=4                                           # The IP version to use for push and fetch, valid options: 4 | 6 | mix (Default: 4)
-
-#WALLET_FOLDER="${CNODE_HOME}/priv/wallet"              # Root folder for Wallets
-#POOL_FOLDER="${CNODE_HOME}/priv/pool"                  # Root folder for Pools
-                                                        # Each wallet and pool has a friendly name and subfolder containing all related keys, certificates, ...
-#POOL_NAME=""                                           # Set the pool's name to run node as a core node (the name, NOT the ticker, ie folder name)
-
-#WALLET_PAY_VK_FILENAME="payment.vkey"                  # Standardized names for all wallet related files
-#WALLET_PAY_SK_FILENAME="payment.skey"
-#WALLET_HW_PAY_SK_FILENAME="payment.hwsfile"
-#WALLET_PAY_ADDR_FILENAME="payment.addr"
-#WALLET_BASE_ADDR_FILENAME="base.addr"
-#WALLET_STAKE_VK_FILENAME="stake.vkey"
-#WALLET_STAKE_SK_FILENAME="stake.skey"
-#WALLET_HW_STAKE_SK_FILENAME="stake.hwsfile"
-#WALLET_STAKE_ADDR_FILENAME="reward.addr"
-#WALLET_STAKE_CERT_FILENAME="stake.cert"
-#WALLET_STAKE_DEREG_FILENAME="stake.dereg"
-#WALLET_DELEGCERT_FILENAME="delegation.cert"
-
-#POOL_ID_FILENAME="pool.id"                             # Standardized names for all pool related files
-#POOL_HOTKEY_VK_FILENAME="hot.vkey"
-#POOL_HOTKEY_SK_FILENAME="hot.skey"
-#POOL_COLDKEY_VK_FILENAME="cold.vkey"
-#POOL_COLDKEY_SK_FILENAME="cold.skey"
-#POOL_OPCERT_COUNTER_FILENAME="cold.counter"
-#POOL_OPCERT_FILENAME="op.cert"
-#POOL_VRF_VK_FILENAME="vrf.vkey"
-#POOL_VRF_SK_FILENAME="vrf.skey"
-#POOL_CONFIG_FILENAME="pool.config"
-#POOL_REGCERT_FILENAME="pool.cert"
-#POOL_CURRENT_KES_START="kes.start"
-#POOL_DEREGCERT_FILENAME="pool.dereg"
-
-#ASSET_FOLDER="${CNODE_HOME}/priv/asset"                # Root folder for Multi-Assets containing minted assets and subfolders for Policy IDs
-#ASSET_POLICY_VK_FILENAME="policy.vkey"                 # Standardized names for all multi-asset related files
-#ASSET_POLICY_SK_FILENAME="policy.skey"
-#ASSET_POLICY_SCRIPT_FILENAME="policy.script"           # File extension '.script' mandatory
-#ASSET_POLICY_ID_FILENAME="policy.id"
+#NODE_IMPLEMENTATION="cnode"                            # Normally read from .deployment.json
+#USESYSVARS="N"                                         # Set Y to honor root overrides
+#NODE_HOME="/opt/cardano/cnode"                         # Effective only when USESYSVARS=Y
+#CNODE_HOME="${NODE_HOME}"                              # Legacy alias; effective only when USESYSVARS=Y
+#CNODEBIN="${HOME}/.local/bin/cardano-node"             # Legacy cnode binary override
+#CCLI="${HOME}/.local/bin/cardano-cli"                  # cardano-cli executable
+#CNCLI="${HOME}/.local/bin/cncli"                       # Optional CNCLI executable
+#CNODE_PORT=6000                                        # Legacy node-to-node port alias
+#CONFIG="${NODE_HOME}/files/config.json"                # Implementation configuration override
+#SOCKET="${NODE_HOME}/sockets/node.socket"              # Node-to-client socket override
+#TOPOLOGY="${NODE_HOME}/files/topology.json"            # Topology override
+#LOG_DIR="${NODE_HOME}/logs"
+#DB_DIR="${NODE_HOME}/db"
+#UPDATE_CHECK="Y"
+#TMP_DIR="/tmp/cnode"
+#PROM_HOST=127.0.0.1
+#PROM_PORT=12798
+#PROM_TIMEOUT=3
+#CURL_TIMEOUT=10
+#BLOCKLOG_DIR="${NODE_HOME}/guild-db/blocklog"
+#BLOCKLOG_TZ="UTC"
+#SHELLEY_TRANS_EPOCH=208
+#NETWORK_NAME=
+#TG_BOT_TOKEN=""
+#TG_CHAT_ID=""
+#TIMEOUT_LEDGER_STATE=300
+#IP_VERSION=4
+#ENABLE_KOIOS=Y
+#KOIOS_API="https://api.koios.rest/api/v1"
+#KOIOS_API_TOKEN=""
+#DBSYNC_QUERY_FOLDER="${NODE_HOME}/files/dbsync/queries"
+#G_ACCOUNT="cardano-community"
+#WALLET_FOLDER="${NODE_HOME}/priv/wallet"
+#POOL_FOLDER="${NODE_HOME}/priv/pool"
+#POOL_NAME=""
+#ASSET_FOLDER="${NODE_HOME}/priv/asset"
+#MITHRIL_DOWNLOAD="N"
+#MITHRIL_HOME="${NODE_HOME}/mithril"
+#MITHRIL_SIGNER_ENABLED="N"
+#STRICT_VERSION_CHECK="Y"
 ```
+
+The longer wallet, pool, and asset filename-convention list formerly shown on
+this page is still initialized by the cnode-compatible runtime, but is no
+longer part of the editable common `env` header.

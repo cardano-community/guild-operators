@@ -5,6 +5,10 @@ hide:
 
 # GRest Meeting summaries
 
+!!! note "Historical archive"
+    These notes preserve GRest community meetings held in 2021. They are not
+    current deployment or support instructions.
+
 Thank you all for joining and contributing to the project :smile:
 
 Below you can find a short summary of every GRest meeting held, both for logging purposes and for those who were not able to attend.
@@ -183,13 +187,13 @@ Below you can find a short summary of every GRest meeting held, both for logging
     2. Individual
 
         - sync db-sync instances to commit `84226d33eed66be8e61d50b7e1dacebdc095cee9` on `release/10.1.x`
-        - update setups to reflect recent directory restructuring and [updated instructions](https://rdlrt.ga/guild2/Build/grest/)
+        - update setups to reflect the then-current directory restructuring and deployment instructions
 
 === "15Jul2021"
 
     ### Introduction for new joiner - Paddy
 
-    - from Shamrock stake pool / [poolpeek](https://poolpeek.com/)
+    - from Shamrock stake pool / PoolPeek (historical reference; link no longer available)
     - gRest project could be helpful for pool peek
     - Paddy will probably run an individual instance
 
@@ -219,7 +223,7 @@ Below you can find a short summary of every GRest meeting held, both for logging
 
     ### db-sync versioning
 
-    We agreed to use the `release/10.1.x` branch which is not yet released but built to include Alonzo migrations to avoid rework later. This version does require Alonzo config and hash to be in the node's `config.json`. This has to be done manually and the files are available [here](https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/index.html). Once fully released, all members should rebuild the released version to ensure each instance is running the same code.
+    We agreed to use the `release/10.1.x` branch which is not yet released but built to include Alonzo migrations to avoid rework later. This version does require Alonzo config and hash to be in the node's `config.json`. This had to be done manually using files from the former IOHK Hydra build service (historical link no longer available). Once fully released, all members should rebuild the released version to ensure each instance is running the same code.
 
     ### DNS naming
 

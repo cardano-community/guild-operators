@@ -1,0 +1,18 @@
+# Guild Operators Dingo relay profile: preview
+# Dingo support is experimental. Block production and optional APIs are off.
+network: "preview"
+databasePath: "@NODE_HOME@/db"
+socketPath: "@NODE_HOME@/sockets/dingo.socket"
+bindAddr: "0.0.0.0"
+relayPort: "@NODE_PORT@"
+privateBindAddr: "127.0.0.1"
+privatePort: 3002
+metricsPort: 12798
+debugPort: 0
+storageMode: "core"
+runMode: "serve"
+blockProducer: false
+shutdownTimeout: "30s"
+logging:
+  format: "text"
+  level: "info"

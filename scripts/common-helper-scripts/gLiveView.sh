@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Canonical implementation-neutral gLiveView entrypoint.
 #shellcheck disable=SC2009,SC2034,SC2059,SC2206,SC2086,SC2015,SC2154
 #shellcheck source=/dev/null
 
@@ -60,31 +61,35 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.32.1
+GLV_VERSION=v1.33.0
 
-PARENT="$(dirname $0)"
+PARENT="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 
 usage() {
   cat <<-EOF
-		Usage: $(basename "$0") [-l] [-p] [-b <branch name>] [-v]
+		Usage: $(basename "$0") [-l] [-u] [-b <branch name>] [-v]
 		Koios gLiveView - A local Cardano node monitoring tool
 
 		-l    Activate legacy mode - standard ASCII characters instead of box-drawing characters
 		-u    Skip script update check overriding UPDATE_CHECK value in env
-		-b    Use alternate branch to check for updates - only for testing/development (Default: Master)
+		-b    Persist an alternate Guild Operators branch for this deployment
 		-v    Print Koios gLiveView version
 		EOF
   exit 1
 }
 
 SKIP_UPDATE=N
+BRANCH_EXPLICIT=N
+PRINT_VERSION=N
+REQUESTED_BRANCH=""
+GLIVE_ARG_COPY=("$@")
 
 while getopts :lub:v opt; do
   case ${opt} in
     l ) LEGACY_MODE="true" ;;
     u ) SKIP_UPDATE=Y ;;
-    b ) echo "${OPTARG}" > "${PARENT}"/.env_branch ;;
-    v ) echo -e "\nKoios gLiveView ${GLV_VERSION} (branch: $([[ -f "${PARENT}"/.env_branch ]] && cat "${PARENT}"/.env_branch || echo "master"))\n"; exit 0 ;;
+    b ) REQUESTED_BRANCH="${OPTARG}"; GUILD_BRANCH_OVERRIDE="${OPTARG}"; BRANCH_EXPLICIT=Y ;;
+    v ) PRINT_VERSION=Y ;;
     \? ) usage ;;
   esac
 done
@@ -109,6 +114,80 @@ myExit() {
   cleanup "$1"
 }
 
+cnodeToolTargetVersion() {
+  local tool_key="$1"
+  local manifest="${NODE_HOME:-${CNODE_HOME:-}}/files/cnode-release.json"
+  local mode channel repository resolver_data api_url release_json version
+
+  command -v jq >/dev/null 2>&1 || {
+    printf 'jq is required to validate cnode tool release metadata.\n' >&2
+    return 1
+  }
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] || {
+    printf 'Cnode release metadata is missing or unsafe: %s\n' "${manifest}" >&2
+    return 1
+  }
+  version="$(
+    jq -er --arg tool "${tool_key}" '
+      select(
+        .schemaVersion == 1 and
+        .implementation == "cnode" and
+        (.tools[$tool] | type == "object") and
+        (.tools[$tool].version | type == "string" and length > 0)
+      ) |
+      .tools[$tool].version
+    ' "${manifest}"
+  )" || return 1
+  [[ "${version}" == "latest" ]] && mode="latest" || mode="pinned"
+
+  if [[ "${mode}" == "pinned" ]]; then
+    printf '%s\t%s\n' "${mode}" "${version}"
+    return 0
+  fi
+
+  resolver_data="$(
+    jq -er --arg tool "${tool_key}" '
+      select(
+        ((.tools[$tool].channel // "stable") == "stable" or
+          (.tools[$tool].channel // "stable") == "any") and
+        (.tools[$tool].github |
+          type == "string" and
+          test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))
+      ) |
+      [
+        (.tools[$tool].channel // "stable"),
+        .tools[$tool].github
+      ] | @tsv
+    ' "${manifest}"
+  )" || return 1
+  IFS=$'\t' read -r channel repository <<< "${resolver_data}"
+
+  if [[ "${channel}" == "stable" ]]; then
+    api_url="https://api.github.com/repos/${repository}/releases/latest"
+    release_json="$(curl -sSfL -m "${CURL_TIMEOUT:-10}" "${api_url}")" ||
+      return 1
+    version="$(
+      jq -er '
+        select(.draft == false and .prerelease == false) |
+        .tag_name |
+        select(type == "string" and length > 0)
+      ' <<< "${release_json}"
+    )" || return 1
+  else
+    api_url="https://api.github.com/repos/${repository}/releases?per_page=20"
+    release_json="$(curl -sSfL -m "${CURL_TIMEOUT:-10}" "${api_url}")" ||
+      return 1
+    version="$(
+      jq -er '
+        [.[] | select(.draft == false)][0].tag_name |
+        select(type == "string" and length > 0)
+      ' <<< "${release_json}"
+    )" || return 1
+  fi
+
+  printf '%s\t%s\n' "${mode}" "${version#v}"
+}
+
 #######################################################
 # Version Check                                       #
 #######################################################
@@ -120,52 +199,76 @@ if [[ ! -f "${PARENT}"/env ]]; then
   myExit 1
 fi
 
-. "${PARENT}"/env &>/dev/null # ignore any errors, re-sourced later
+. "${PARENT}"/env definitions || myExit 1 "ERROR: gLiveView failed to load common env definitions"
+
+if [[ "${BRANCH_EXPLICIT}" == "Y" ]]; then
+  deployment_set_branch "${REQUESTED_BRANCH}" ||
+    myExit 1 "ERROR: Invalid branch '${REQUESTED_BRANCH}' or unable to update ${NODE_HOME}/.deployment.json"
+  unset GUILD_BRANCH_OVERRIDE
+fi
+
+if [[ "${PRINT_VERSION}" == "Y" ]]; then
+  printf '\nKoios gLiveView %s (branch: %s)\n\n' "${GLV_VERSION}" "${BRANCH}"
+  exit 0
+fi
 
 if [[ ${UPDATE_CHECK} = Y && ${SKIP_UPDATE} != Y ]]; then
-
-  if command -v cncli >/dev/null && command -v systemctl >/dev/null && systemctl is-active --quiet ${CNODE_VNAME}-cncli-sync.service 2>/dev/null; then
+  if [[ "${NODE_IMPLEMENTATION}" == "cnode" ]] &&
+     command -v cncli >/dev/null &&
+     command -v systemctl >/dev/null &&
+     systemctl is-active --quiet "${CNODE_VNAME}-cncli-sync.service" 2>/dev/null; then
+    if ! cncli_release_policy="$(cnodeToolTargetVersion "cncli")"; then
+      myExit 1 "ERROR: unable to resolve CNCLI release policy from ${NODE_HOME}/files/cnode-release.json"
+    fi
+    IFS=$'\t' read -r cncli_release_mode vrem <<< "${cncli_release_policy}"
     vcur=$(cncli -V | awk '{print $2}')
-    vrem=$(curl -s https://api.github.com/repos/${G_ACCOUNT}/cncli/releases/latest | jq -r .tag_name)
-    [[ "${vcur}" != "${vrem}" ]] && printf "${FG_MAGENTA}CNCLI current version (${vcur}) different from repo (${vrem}), consider upgrading!.${NC}" && waitToProceed
+    [[ "${vcur#v}" != "${vrem#v}" ]] &&
+      printf "${FG_MAGENTA}CNCLI current version (${vcur}) differs from the configured ${cncli_release_mode} release (${vrem}); consider upgrading.${NC}" &&
+      waitToProceed
   fi
 
   echo "Checking for script updates..."
-  # Check availability of checkUpdate function
-  if [[ ! $(command -v checkUpdate) ]]; then
-    echo -e "\nCould not find checkUpdate function in env, make sure you're using official docos for installation!"
-    myExit 1
+  if ! declare -F checkCommonRuntimeUpdates >/dev/null; then
+    myExit 1 "Common runtime bundle updater is unavailable; re-run guild-deploy.sh"
   fi
 
-  # check for env update
-  ENV_UPDATED=N
-  checkUpdate "${PARENT}"/env N N N
-  case $? in
-    1) ENV_UPDATED=Y ;;
-    2) myExit 1 ;;
+  BUNDLE_UPDATED=N
+  if checkCommonRuntimeUpdates N; then
+    common_update_status=0
+  else
+    common_update_status=$?
+  fi
+  case "${common_update_status}" in
+    0) ;;
+    1) BUNDLE_UPDATED=Y ;;
+    2) myExit 1 "Failed to update the common runtime bundle" ;;
   esac
 
-  # source common env variables in case it was updated
-  . "${PARENT}"/env
+  checkUpdate "${PARENT}/gLiveView.sh" "${BUNDLE_UPDATED}" N N "common-helper-scripts" N
   case $? in
-    1) myExit 1 "ERROR: gLiveView failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
-    2) clear ;;
+    1) BUNDLE_UPDATED=Y ;;
+    2) myExit 1 "Failed to update gLiveView.sh" ;;
   esac
 
-  # check for gLV update
-  checkUpdate "${PARENT}"/gLiveView.sh "${ENV_UPDATED}"
-  case $? in
-    1) $0 "$@" "-u"; myExit 0 ;; # re-launch script with same args skipping update check
-    2) exit 1 ;;
-  esac
-else
-  # source common env variables in offline mode
-  . "${PARENT}"/env offline
-  case $? in
-    1) myExit 1 "ERROR: gLiveView failed to load common env file\nPlease verify set values in 'User Variables' section in env file or log an issue on GitHub" ;;
-    2) clear ;;
-  esac
+  if [[ "${BUNDLE_UPDATED}" == "Y" ]]; then
+    exec "$0" -u "${GLIVE_ARG_COPY[@]}"
+  fi
 fi
+
+. "${PARENT}"/env monitor
+case $? in
+  1) myExit 1 "ERROR: gLiveView failed to initialize the selected node adapter\nPlease verify .deployment.json and values in env" ;;
+  2) clear ;;
+  3) myExit 1 "ERROR: ${NODE_IMPLEMENTATION} does not provide the metrics capability required by gLiveView" ;;
+esac
+
+node_require metrics \
+  "${NODE_IMPLEMENTATION} does not expose a metrics interface supported by gLiveView." ||
+  myExit "${NODE_ADAPTER_UNSUPPORTED}" \
+    "ERROR: ${NODE_IMPLEMENTATION} does not expose a supported metrics interface"
+
+NODE_IMPLEMENTATION_NAME="${NODE_IMPLEMENTATION_DISPLAY_NAME:-${NODE_IMPLEMENTATION}}"
+nodemode="Relay"
 
 #######################################################
 # Validate config variables                           #
@@ -308,7 +411,11 @@ waitForInput() {
   [[ ${key1} = "q" ]] && myExit 0 "Koios gLiveView stopped!"
   [[ ${key1} = "${ESC}" && ${key2} = "" ]] && myExit 0 "Koios gLiveView stopped!"
   if [[ $# -eq 0 ]]; then
-    [[ ${key1} = "p" ]] && check_peers="true" && clrScreen && return
+    if [[ ${key1} = "p" ]] && node_has peer_inspection; then
+      check_peers="true"
+      clrScreen
+      return
+    fi
     [[ ${key1} = "i" ]] && show_home_info="true" && clrScreen && return
     if [[ ${key1} = "v" ]]; then [[ ${VERBOSE} = "N" ]] && VERBOSE="Y" || VERBOSE="N"; fi; clrScreen && return
   elif [[ $1 = "homeInfo" ]]; then
@@ -401,6 +508,165 @@ mvEnd () {
 closeRow () {
   printf "${NC}\033[${left_most_column}D\033[${width}C${VL}\n" && ((line++))
 }
+
+glvSectionDivider() {
+  local label="$1"
+  local fill_count=$(( width - ${#label} - 5 ))
+  (( fill_count < 1 )) && fill_count=1
+  printf "${VL}- ${style_info}%s${NC} " "${label}"
+  printf "%0.s-" $(seq "${fill_count}")
+  closeRow
+}
+
+glvMetricCell() {
+  local name="$1"
+  local label="$2"
+  local unit="$3"
+  local value="${!name:-?}"
+  printf "%-10s : ${style_values_1}%s${NC}%s" \
+    "${label}" "${value}" "${unit:+ ${unit}}"
+}
+
+# Render only samples advertised by the adapter in the normalized metrics
+# registry. Parameters after the section label are repeating
+# <variable> <display-label> <unit> triples.
+glvMetricGrid() {
+  local section="$1"
+  shift
+  local name label unit index
+  local -a available=()
+
+  while (( $# >= 3 )); do
+    name="$1"
+    label="$2"
+    unit="$3"
+    shift 3
+    node_metric_has "${name}" && available+=("${name}" "${label}" "${unit}")
+  done
+  (( ${#available[@]} > 0 )) || return 1
+
+  glvSectionDivider "${section}"
+  for (( index=0; index<${#available[@]}; index+=9 )); do
+    printf "${VL} "
+    glvMetricCell \
+      "${available[index]}" "${available[index+1]}" "${available[index+2]}"
+    if (( index + 3 < ${#available[@]} )); then
+      mvThreeSecond
+      glvMetricCell \
+        "${available[index+3]}" "${available[index+4]}" "${available[index+5]}"
+    fi
+    if (( index + 6 < ${#available[@]} )); then
+      mvThreeThird
+      glvMetricCell \
+        "${available[index+6]}" "${available[index+7]}" "${available[index+8]}"
+    fi
+    closeRow
+  done
+}
+
+glvRenderCustomMetrics() {
+  local name label unit value
+  (( ${#NODE_CUSTOM_METRICS[@]} > 0 )) || return 0
+
+  glvSectionDivider "${NODE_IMPLEMENTATION_NAME^^} METRICS"
+  for name in "${NODE_CUSTOM_METRICS[@]}"; do
+    node_metric_has "${name}" || continue
+    label="${NODE_METRIC_LABEL[${name}]:-${name}}"
+    unit="${NODE_METRIC_UNIT[${name}]:-}"
+    value="${!name:-?}"
+    printf "${VL} %-24s" "${label}"
+    mvTwoSecond
+    printf ": ${style_values_1}%s${NC}%s" "${value}" "${unit:+ ${unit}}"
+    closeRow
+  done
+}
+
+glvRenderAlternateDashboard() {
+  local epoch_length="${EPOCH_LENGTH:-0}"
+  local epoch_progress epoch_items_local i
+
+  if node_metric_has epochnum &&
+     node_metric_has slot_in_epoch &&
+     [[ "${epoch_length}" =~ ^[1-9][0-9]*$ ]]; then
+    epoch_progress="$(
+      awk -v slot="${slot_in_epoch}" -v length="${epoch_length}" '
+        BEGIN {
+          progress = (slot / length) * 100
+          if (progress < 0) progress = 0
+          if (progress > 100) progress = 100
+          printf "%.1f", progress
+        }
+      '
+    )"
+    printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%s%%${NC}]" \
+      "${epochnum}" "${epoch_progress}"
+    closeRow
+    epoch_items_local=$(( $(printf '%.0f' "${epoch_progress}") * granularity / 100 ))
+    printf "${VL} "
+    for i in $(seq 0 $((granularity-1))); do
+      if (( i < epoch_items_local )); then
+        printf "${style_values_1}${char_marked}"
+      else
+        printf "${NC}${char_unmarked}"
+      fi
+    done
+    printf "${NC} ${VL}\n"
+    ((line++))
+  fi
+
+  glvMetricGrid "CHAIN" \
+    blocknum "Block" "" \
+    slotnum "Slot" "" \
+    slot_in_epoch "Epoch slot" "" \
+    density "Density" "%" \
+    tx_processed "Total tx" "" \
+    mempool_tx "Pending tx" "" \
+    mempool_bytes "Mempool" "B" \
+    forks "Forks" "" || true
+
+  glvMetricGrid "CONNECTIONS" \
+    conn_incoming "Incoming" "" \
+    conn_outgoing "Outgoing" "" \
+    conn_uni_dir "Uni-dir" "" \
+    conn_bi_dir "Bi-dir" "" \
+    conn_duplex "Duplex" "" \
+    inbound_governor_warm "In warm" "" \
+    inbound_governor_hot "In hot" "" \
+    peer_selection_cold "Cold" "" \
+    peer_selection_warm "Warm" "" \
+    peer_selection_hot "Hot" "" || true
+
+  glvMetricGrid "BLOCK PROPAGATION" \
+    block_delay "Last block" "s" \
+    blocks_served "Served" "" \
+    blocks_late "Late (>5s)" "" \
+    blocks_w1s "Within 1s" "ratio" \
+    blocks_w3s "Within 3s" "ratio" \
+    blocks_w5s "Within 5s" "ratio" || true
+
+  glvSectionDivider "NODE RESOURCE USAGE"
+  LC_NUMERIC=C printf -v mem_rss_gb "%.1f" \
+    "$(awk -v rss="${mem_rss:-0}" 'BEGIN { print rss / 1048576 }')"
+  [[ $(df -h "${NODE_HOME}") =~ ([0-9.]+)% ]] &&
+    disk_usage=${BASH_REMATCH[1]} || disk_usage="?"
+  printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%%" "${cpu_util:-0}"
+  mvThreeSecond
+  printf "Mem (RSS)  : ${style_values_1}%s${NC} G" "${mem_rss_gb}"
+  mvThreeThird
+  printf "Disk util  : ${style_values_1}%s${NC}%%" "${disk_usage}"
+  closeRow
+
+  if [[ "${VERBOSE}" == "Y" ]]; then
+    glvMetricGrid "RUNTIME" \
+      mem_live "Live memory" "B" \
+      mem_heap "Heap" "B" \
+      gc_minor "GC minor" "" \
+      gc_major "GC major" "" || true
+  fi
+
+  glvRenderCustomMetrics
+}
+
 # Command    : clrLine
 # Description: clear to end of line
 clrLine () {
@@ -538,12 +804,11 @@ getOpCert () {
   op_cert_disk="?"
   op_cert_chain="?"
   opcert_file="${POOL_DIR}/${POOL_OPCERT_FILENAME}"
-  if [[ ! -f ${opcert_file} && -n ${CNODE_PID} ]]; then
-    if [[ $(ps -p ${CNODE_PID} -o cmd=) =~ --shelley-operational-certificate[[:space:]]([^[:space:]]+) ]]; then
-      opcert_file="${BASH_REMATCH[1]}"
-    fi
+  if [[ ! -f ${opcert_file} ]] && node_has opcert; then
+    adapter_opcert="$(node_operational_certificate 2>/dev/null || true)"
+    [[ -n "${adapter_opcert}" ]] && opcert_file="${adapter_opcert}"
   fi
-  if [[ -f ${opcert_file} ]]; then
+  if [[ -f ${opcert_file} && -n ${CCLI:-} && -n ${CARDANO_NODE_SOCKET_PATH:-} ]]; then
     op_cert="$(${CCLI} query kes-period-info ${NETWORK_IDENTIFIER} --op-cert-file "${opcert_file}" 2>/dev/null)"
     [[ ${op_cert} =~ qKesNodeStateOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] && op_cert_chain="${BASH_REMATCH[1]}"
     [[ ${op_cert} =~ qKesOnDiskOperationalCertificateNumber.:[[:space:]]([0-9]+) ]] && op_cert_disk="${BASH_REMATCH[1]}"
@@ -646,7 +911,8 @@ checkPeers() {
     peerDIR=${peer_arr[2]}
 
     if [[ ${ENABLE_IP_GEOLOCATION} = "Y" && "${peerIP}" != "${lastpeerIP}" ]] && ! isPrivateIP "${peerIP}"; then
-      if [[ ! -v "geoIP[${peerIP}]" && $((++geoIPqueryCNT)) -le 100 ]]; then # not previously checked and less than 100 queries
+      if [[ -z "${geoIP[${peerIP}]+present}" &&
+            $((++geoIPqueryCNT)) -le 100 ]]; then # not previously checked and less than 100 queries
         geoIPquery=$(jq --arg addr "${peerIP}" '. += [{"query": $addr, "fields": "city,countryCode,query"}]' <<< ${geoIPquery})
       fi
     fi
@@ -719,28 +985,40 @@ checkPeers() {
 }
 
 checkNodeVersion() {
+  node_metric_has running_node_version || return
   [[ ${running_node_version} = '?' ]] && return # ignore check if unable to fetch version from running node
 
-  version=$("${CNODEBIN}" version)
-  node_version=$(grep "cardano-node" <<< "${version}" | cut -d ' ' -f2)
-  node_rev=$(grep "git rev" <<< "${version}" | cut -d ' ' -f3 | cut -c1-8)
+  IFS=$'\t' read -r node_version node_rev <<< "$(node_installed_version 2>/dev/null || printf '?\t?')"
+  unset IFS
 
-  if [[ ${node_version} != "${running_node_version}" || ${node_rev} != "${running_node_rev}" ]]; then
+  if [[ ${node_version} != "${running_node_version}" ]] ||
+     { node_metric_has running_node_rev &&
+       [[ "${running_node_rev}" != "?" &&
+          ${node_rev} != "${running_node_rev}" ]]; }; then
     clrScreen
     printf "\n ${style_status_3}Node version mismatch${NC} - running version doesn't match found binary!"
     printf "\n\n Forgot to restart node after upgrade?"
-    printf "\n\n Deployed version : ${node_version} (${node_rev}) => ${CNODEBIN}"
+    printf "\n\n Deployed version : ${node_version} (${node_rev}) => ${NODE_BINARY:-${CNODEBIN:-unknown}}"
     printf "\n Running version  : ${running_node_version} (${running_node_rev})\n"
     waitToProceed && clrScreen
   fi
 }
 
+glvCollectMetrics() {
+  if getNodeMetrics; then
+    return 0
+  fi
+
+  # The failed collector has already reset availability. Populate arithmetic
+  # defaults without claiming that any sample exists.
+  common_parse_cardano_metrics ""
+  return 1
+}
+
 getBlockReplayStatus() {
   unset replay_log_line block_replay_pct
-  if command -v journalctl >/dev/null && command -v systemctl >/dev/null && systemctl is-active --quiet ${CNODE_VNAME}.service 2>/dev/null; then
-    replay_log_line=$(journalctl -n 1 -u ${CNODE_VNAME}.service 2>/dev/null | grep LedgerReplay)
-    [[ ${replay_log_line} =~ ([0-9.]+)% ]] && block_replay_pct=${BASH_REMATCH[1]}
-  fi
+  node_has block_replay_log || return
+  block_replay_pct="$(node_replay_progress 2>/dev/null || true)"
 }
 
 #####################################
@@ -748,10 +1026,12 @@ getBlockReplayStatus() {
 #####################################
 check_peers="false"
 show_peers="false"
-getNodeMetrics
-curr_epoch=${epochnum}
-getShelleyTransitionEpoch
-if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
+glvCollectMetrics || true
+curr_epoch=${epochnum:-0}
+if [[ "${NODE_IMPLEMENTATION}" == "cnode" ]]; then
+  getShelleyTransitionEpoch
+fi
+if [[ ${SHELLEY_TRANS_EPOCH:-0} -eq -1 ]]; then
   clrScreen
   printf "\n ${style_status_3}Failed${NC} to get shelley transition epoch, calculations will not work correctly!"
   printf "\n\n Possible causes:"
@@ -766,11 +1046,15 @@ fail_count=0
 epoch_items_last=0
 screen_upd_cnt=0
 
-test_koios # KOIOS_API variable unset if check fails. Only tested once on startup.
+if [[ "${NODE_IMPLEMENTATION}" == "cnode" ]]; then
+  test_koios # KOIOS_API variable unset if check fails. Only tested once on startup.
+else
+  KOIOS_API=""
+fi
 pool_info_file=/dev/shm/pool_info
-[[ -n ${KOIOS_API} ]] && getPoolID
+[[ -n ${KOIOS_API} ]] && node_has forge && getPoolID
 
-getOpCert
+node_has opcert && getOpCert
 
 tput civis # Disable cursor
 stty -echo # Disable user input
@@ -838,20 +1122,32 @@ while true; do
   line=1; mvPos 1 1 # reset position
 
   # Gather some data
-  getNodeMetrics
-  [[ ${RETRIES} -gt 0 && ${fail_count} -eq ${RETRIES} ]] && printf -v error_msg "${style_status_3}COULD NOT CONNECT TO A RUNNING INSTANCE, ${RETRIES} FAILED ATTEMPTS IN A ROW!${NC}" && logln "ERROR" "${error_msg}" && myExit 1 "${error_msg}"
-  CNODE_PID=$(pgrep -fn "$(basename ${CNODEBIN}).*.port ${CNODE_PORT}")
-  if [[ -z ${CNODE_PID} ]]; then
+  glvCollectMetrics && metrics_available=Y || metrics_available=N
+  node_refresh_process >/dev/null 2>&1 || true
+  CNODE_PID="${NODE_PID:-}"
+  if [[ -z ${CNODE_PID} || "${metrics_available}" != "Y" ]]; then
     ((fail_count++))
+    if [[ ${RETRIES} -gt 0 && ${fail_count} -ge ${RETRIES} ]]; then
+      printf -v error_msg \
+        "${style_status_3}COULD NOT READ ${NODE_IMPLEMENTATION_NAME} METRICS AFTER ${RETRIES} ATTEMPTS!${NC}"
+      logln "ERROR" "${error_msg}"
+      myExit 1 "${error_msg}"
+    fi
     clrScreen && mvPos 2 2
-    printf -v error_msg "${style_status_3}Connection to node lost, retrying (${fail_count}$([[ ${RETRIES} -gt 0 ]] && echo "/${RETRIES}"))!${NC}"
-    printf ${error_msg}
+    if [[ -z ${CNODE_PID} ]]; then
+      printf -v error_msg \
+        "${style_status_3}${NODE_IMPLEMENTATION_NAME} process unavailable, retrying (${fail_count}$([[ ${RETRIES} -gt 0 ]] && echo "/${RETRIES}"))!${NC}"
+    else
+      printf -v error_msg \
+        "${style_status_3}${NODE_IMPLEMENTATION_NAME} metrics endpoint unavailable, retrying (${fail_count}$([[ ${RETRIES} -gt 0 ]] && echo "/${RETRIES}"))!${NC}"
+    fi
+    printf "%s" "${error_msg}"
     logln "ERROR" "${error_msg}"
     waitForInput && continue
   elif [[ ${fail_count} -ne 0 ]]; then # was failed but now ok, re-check
     checkNodeVersion
     fail_count=0
-    getOpCert
+    node_has opcert && getOpCert
   fi
 
   if [[ ${show_peers} = "false" ]]; then
@@ -859,7 +1155,8 @@ while true; do
     mem_rss="$(ps -q ${CNODE_PID} -o rss=)"
     read -ra cpu_now <<< "$(LC_NUMERIC=C awk '/cpu /{printf "%.f %.f", $2+$4,$2+$4+$5}' /proc/stat)"
     if [[ ${#cpu_now[@]} -eq 2 ]]; then
-      if [[ ${#cpu_last[@]} -eq 2 ]]; then
+      cpu_delta_total=$(( cpu_now[1] - cpu_last[1] ))
+      if [[ ${#cpu_last[@]} -eq 2 && ${cpu_delta_total} -gt 0 ]]; then
         cpu_util=$(bc -l <<< "100*((${cpu_now[0]}-${cpu_last[0]})/(${cpu_now[1]}-${cpu_last[1]}))")
         if [[ ${cpu_util%.*} -gt 99 ]]; then
           cpu_util=$(LC_NUMERIC=C printf "%.0f" "${cpu_util}")
@@ -875,18 +1172,28 @@ while true; do
     else
       cpu_util="0.0"
     fi
-    if [[ ${forging_enabled} -eq 1 ]]; then
-      [[ ${nodemode} != "Core" ]] && nodemode="Core" && getOpCert && clrScreen
+    if node_has forge &&
+       node_metric_has forging_enabled &&
+       [[ ${forging_enabled} -eq 1 ]]; then
+      [[ ${nodemode} != "Core" ]] &&
+        nodemode="Core" &&
+        node_has opcert &&
+        getOpCert &&
+        clrScreen
     else
       [[ ${nodemode} != "Relay" ]] && clrScreen && nodemode="Relay"
     fi
-    if [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
+    if [[ "${NODE_IMPLEMENTATION}" == "cnode" &&
+          ${SHELLEY_TRANS_EPOCH:-0} -eq -1 ]]; then # if Shelley transition epoch calc failed during start, try until successful
       getShelleyTransitionEpoch
       kes_expiration="---"
-    else
+    elif [[ ${nodemode} = "Core" ]] &&
+         node_metric_has kesperiod &&
+         node_metric_has remaining_kes_periods; then
       kesExpiration
     fi
-    if [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
+    if node_metric_has epochnum &&
+       [[ ${curr_epoch} -ne ${epochnum} ]]; then # only update on new epoch to save on processing
       curr_epoch=${epochnum}
       unset pool_info_last_upd
     fi
@@ -905,13 +1212,20 @@ while true; do
     fi
   fi
 
-  header_length=$(( ${#NODE_NAME} + ${#nodemode} + ${#running_node_version} + ${#running_node_rev} + ${#NETWORK_NAME} + 19 ))
+  header_length=$(( ${#NODE_NAME} + ${#NODE_IMPLEMENTATION_NAME} + ${#nodemode} + ${#running_node_version} + ${#NETWORK_NAME} + 18 ))
   [[ ${header_length} -gt ${width} ]] && header_padding=0 || header_padding=$(( (width - header_length) / 2 ))
-  printf "%${header_padding}s > ${style_values_2}%s${NC} - ${style_info}(%s - %s)${NC} : ${style_values_1}%s${NC} [${style_values_1}%s${NC}] < \n" "" "${NODE_NAME}" "${nodemode}" "${NETWORK_NAME}" "${running_node_version}" "${running_node_rev}" && ((line++))
+  printf "%${header_padding}s > ${style_values_2}%s${NC} [${style_info}%s${NC}] - ${style_info}%s - %s${NC} : ${style_values_1}%s${NC} < \n" \
+    "" "${NODE_NAME}" "${NODE_IMPLEMENTATION_NAME}" "${nodemode}" \
+    "${NETWORK_NAME}" "${running_node_version}" &&
+    ((line++))
 
   ## main section ##
   printf "${tdivider}\n" && ((line++))
-  printf "${VL} Uptime: ${style_values_1}%s${NC}" "$(timeLeft ${uptimes})"
+  if node_metric_has uptimes; then
+    printf "${VL} Uptime: ${style_values_1}%s${NC}" "$(timeLeft "${uptimes}")"
+  else
+    printf "${VL} Uptime: ${style_values_4}unavailable${NC}"
+  fi
   mvPos ${line} $(( width - ${#title} - 2 - ${#CNODE_PORT} - 9 ))
   printf "${VL} Port: ${style_values_2}${CNODE_PORT} "
   mvPos ${line} $(( width - ${#title} - 2 ))
@@ -1046,7 +1360,24 @@ while true; do
       mvPos ${line} 1
     fi
   elif [[ ${show_home_info} = "true" ]]; then
-    printf "${VL}${STANDOUT} INFO ${NC} Displays live metrics gathered from node Prometheus endpoint" && closeRow
+    printf "${VL}${STANDOUT} INFO ${NC} Monitoring ${style_values_2}%s${NC} through the Guild metrics adapter" \
+      "${NODE_IMPLEMENTATION_NAME}" &&
+      closeRow
+    if [[ "${NODE_IMPLEMENTATION}" != "cnode" ]]; then
+      printf "${blank_line}\n" && ((line++))
+      printf "${VL} Only metrics currently exported by this node are displayed." && closeRow
+      printf "${VL} Missing connection, propagation, runtime, or implementation" && closeRow
+      printf "${VL} sections are hidden instead of being shown as zero values." && closeRow
+      printf "${blank_line}\n" && ((line++))
+      if [[ "${NODE_IMPLEMENTATION}" == "amaru" ]]; then
+        printf "${VL} Amaru sends OTLP telemetry to a local OpenTelemetry Collector." && closeRow
+        printf "${VL} The collector exposes loopback Prometheus metrics for gLiveView." && closeRow
+      else
+        printf "${VL} Dingo exposes its native Prometheus endpoint directly." && closeRow
+      fi
+      printf "${VL} Node-specific samples appear in the implementation metrics section." && closeRow
+    else
+    printf "${VL} Displays live metrics gathered from the node Prometheus endpoint." && closeRow
     printf "${blank_line}\n" && ((line++))
     printf "${VL} ${style_values_2}Upper Main Section${NC}" && closeRow
     printf "${VL} Epoch number & progress is live from node while calculation of date" && closeRow
@@ -1089,7 +1420,11 @@ while true; do
     printf "${VL}               slot, height battle or block propagation issue" && closeRow
     printf "${VL} - Stolen    : another pool has a valid block registered" && closeRow
     printf "${VL}               on-chain for the same slot" && closeRow
+    fi
   else
+    if [[ "${NODE_IMPLEMENTATION}" != "cnode" ]]; then
+      glvRenderAlternateDashboard
+    else
     if [[ ${epochnum} -ge ${SHELLEY_TRANS_EPOCH} ]]; then
       epoch_progress=$(echo "(${slot_in_epoch}/${EPOCH_LENGTH})*100" | bc -l)        # in Shelley era or Shelley only TestNet
     else
@@ -1265,9 +1600,10 @@ while true; do
       closeRow
 
     fi
+    fi
 
     ## Core section ##
-    if [[ ${nodemode} = "Core" ]]; then
+    if node_has forge && [[ ${nodemode} = "Core" ]]; then
       echo "${coredivider}" && ((line++))
 
       printf "${VL} KES current|remaining|exp"
@@ -1448,7 +1784,8 @@ while true; do
         closeRow
       fi
     fi
-    if [[ "${MITHRIL_SIGNER_ENABLED}" == "Y" ]]; then
+    if [[ "${NODE_IMPLEMENTATION}" == "cnode" &&
+          "${MITHRIL_SIGNER_ENABLED}" == "Y" ]]; then
       # Mithril Signer Section
       mithrilSignerVars
       printf "${mithrildivider}\n" && ((line++))
@@ -1529,7 +1866,11 @@ while true; do
     waitForInput "homeInfo"
   else
     [[ ${VERBOSE} = "Y" ]] && verbose_label="Compact" || verbose_label="Verbose"
-    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[i] Info${NC} | ${style_info}[p] Peer Analysis${NC} | ${style_info}[v] ${verbose_label}${NC}"
+    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[i] Info${NC}"
+    if node_has peer_inspection; then
+      printf " | ${style_info}[p] Peer Analysis${NC}"
+    fi
+    printf " | ${style_info}[v] ${verbose_label}${NC}"
     clrLine
     waitForInput
   fi

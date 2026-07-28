@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086
+# shellcheck disable=SC2086,SC2034
 #shellcheck source=/dev/null
 
 ######################################
@@ -22,6 +22,7 @@ usage() {
   cat <<-EOF
 		
 		Usage: $(basename "$0") [-d] [-D] [-e] [-k] [-r] [-s] [-u] [-h]
+		       $(basename "$0") systemd <install|remove|status>
 		A script to setup, run and verify Cardano Mithril Signer
 		
 		-d    Deploy mithril-signer as a systemd service
@@ -32,6 +33,8 @@ usage() {
 		-s    Verify signer signature
 		-u    Skip update check
 		-h    Show this help text
+		systemd
+		      Install, remove, or show the status of the mithril-signer service
 		
 		EOF
 }
@@ -42,6 +45,24 @@ usage() {
 #####################
 
 function main() {
+  SYSTEMD_ACTION=""
+  if [[ ${1:-} == "systemd" ]]; then
+    [[ $# -eq 2 ]] || {
+      usage
+      exit 1
+    }
+    SYSTEMD_ACTION="${2}"
+    case "${SYSTEMD_ACTION}" in
+      install) DEPLOY_SYSTEMD="Y" ;;
+      remove|status) : ;;
+      *)
+        usage
+        exit 1
+        ;;
+    esac
+    shift 2
+  fi
+
   # Parse command line options
   while getopts :dDekrsuh opt; do
     case ${opt} in
@@ -82,7 +103,15 @@ function main() {
     esac
   done
 
+  if [[ "${SYSTEMD_ACTION}" == "remove" || "${SYSTEMD_ACTION}" == "status" ]]; then
+    MITHRIL_ENV_PROFILE="definitions"
+  fi
   . "$(dirname $0)"/mithril.library
+
+  if [[ "${SYSTEMD_ACTION}" == "remove" || "${SYSTEMD_ACTION}" == "status" ]]; then
+    manage_mithril_systemd "${SYSTEMD_ACTION}"
+    exit $?
+  fi
 
   [[ "${STOP_SIGNER}" == "Y" ]] && stop_signer
 

@@ -1,5 +1,12 @@
 # Koios gRest Changelog
 
+!!! note "Historical archive"
+    This page preserves Guild Operators' embedded Koios release history
+    through `1.3.2`. It is not the current deployment selector. The current
+    `setup-grest.sh` pins Koios artifacts `v1.4.2`; inspect that script and the
+    [upstream Koios artifacts releases](https://github.com/cardano-community/koios-artifacts/releases)
+    for the active release.
+
 ## [1.3.2] - For all networks.
 
 New release with a few new endpoints, based on requests/feedback from community. While there are no breaking changes introduced, as part of flattening account endpoints (as horizontal filtering on JSON does not really work well) - we have also deprecated a few endpoints, these (alongwith `block_tx_info` deprecated in 1.3.1 will be removed at next major release in coming months.
@@ -358,7 +365,7 @@ Also, dbsync 13.1.x.x has been released and is recommended to be used for this r
 - Bump to Koios 1.0.10rc [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - Fix typo in specs for `/pool_delegators` output column `latest_delegation_tx_hash` [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
 - Add indexes for ones missing after configuring cardano-db-sync 13.1.0.0 [#149](https://github.com/cardano-community/koios-artifacts/pull/149)
-- Update PostgREST to be run as `authenticator` user, whose default `statement_timeout` is set to 65s and update configs accordingly [#1606](https://github.com/cardano-community/cardano-community/guild-operators/pull/1606)
+- Update PostgREST to be run as `authenticator` user, whose default `statement_timeout` is set to 65s and update configs accordingly [#1606](https://github.com/cardano-community/guild-operators/pull/1606)
 
 ## [1.0.9] - For all networks
 
@@ -411,7 +418,7 @@ No major changes to output for this one.
 This release continues updates from koios-1.0.6 to further utilise stake-snapshot cache tables which would be useful for SPOs as well as reduce downtime post epoch transition. One largely requested feature to accept bulk inputs for many block/address/account endpoints is now complete.
 Additionally, koios instance providers are now recommended to use cardano-node 1.35.3 with dbsync 13.0.5.
 
-### Changes for API 
+### Changes for API
 
 ### New endpoints added
 - `pool_delegators_history` - Provides historical record for pool's delegators [#1486](https://github.com/cardano-community/guild-operators/pull/1486)
@@ -475,7 +482,7 @@ The mainnet nodes are still not qualified to be Vasil-ready (in our opinion) for
 
 - `get-metrics.sh` - Add active/idle connections to database [#1459](https://github.com/cardano-community/guild-operators/pull/1459)
 - `grest-poll.sh`: Bump haproxy to 2.6.1 and set default value of API_STRUCT_DEFINITION to be dependent on network used. [#1450](https://github.com/cardano-community/guild-operators/pull/1450)
-- Lighten `grest.account_active_stake_cache` - optimise code and delete historical view (beyond 4 epochs). [#1451(https://github.com/cardano-community/guild-operators/pull/1451)
+- Lighten `grest.account_active_stake_cache` - optimise code and delete historical view (beyond 4 epochs). [#1451](https://github.com/cardano-community/guild-operators/pull/1451)
 - `tx_metalabels` - Move metalabels from view to RPC using lose indexscan (much better performance) [#1474](https://github.com/cardano-community/guild-operators/pull/1474)
 - Major re-work to artificially add last epoch's active stake cache data (brings in latest snapshot information without depending on node), not used in endpoints for this release [#1452](https://github.com/cardano-community/guild-operators/pull/1452)
 - `grest.stake_snapshot_cache` - Fix rewards for new accounts [#1476](https://github.com/cardano-community/guild-operators/pull/1476)
@@ -531,7 +538,7 @@ Since there have been a few deviations wrt Vasil for testnet and mainnet, this v
 
 #### Fixed
 - Delete token token-registry folder when running `setup-grest.sh` with `-r` (reset flag), as the delta registry records to insert depends on file (POSIX) timestamps. [#1410](https://github.com/cardano-community/guild-operators/pull/1410)
-- Remove duplicate tip check in `grest-poll.sh`. 
+- Remove duplicate tip check in `grest-poll.sh`.
 
 ## [1.0.0-rc0] - 2022-04-29
 

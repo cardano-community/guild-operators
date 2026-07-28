@@ -1,7 +1,12 @@
 !!! important
 
-    - An average pool operator may not require this component at all. Please verify if it is required for your use as mentioned [here](../build.md#components)
-    - Ensure that you have setup [DBSync](../Build/dbsync.md) and that it is in sync atleast to Mary fork before you proceed. *IF* you're participating in Koios services, ensure that you're using [latest dbsync release](https://github.com/intersectmbo/cardano-db-sync/releases/latest)
+    - An average pool operator may not require this component. Verify whether
+      it is required for your use [here](../build.md#components).
+    - The Guild gRest deployment is currently supported only by the `cnode`
+      profile.
+    - Set up [db-sync](dbsync.md), let it reach the chain tip, and use the
+      version selected by the installed cnode release manifest before
+      proceeding.
 
 ### What is gRest
 
@@ -12,10 +17,10 @@ gRest is an open source implementation of a `query layer built over dbsync using
 
 ### Components
 
-1. [PostgREST](https://postgrest.org/en/latest):  
+1. [PostgREST](https://postgrest.org/en/latest):
     An RPC JSON interface for any PostgreSQL database (in our case, database served via `cardano-db-sync`) to provide a RESTful Web Service. The endpoints of PostgREST in itself are essentially the table/functions defined in elected schema via grest config file. You can read more about advanced query syntax using PostgREST API [here](https://postgrest.org/en/latest/api.html), but we will provide a simpler view using examples towards the end of the page. It is an easy alternative - with almost no overhead as it directly serves the underlying database as an API, as compared to `Cardano GraphQL` component (which may often have lags). Some of the other advantages of PostgREST over graphql based projects are also performance, being stateless, 0 overhead, support for JWT / native Postgres DB authentication against the Rest Interface as well.
 
-2. [HAProxy](http://cbonte.github.io/haproxy-dconv/2.4/configuration.html):  
+2. [HAProxy](https://docs.haproxy.org/3.2/configuration.html):
     An easy gateway proxy that automatically provides failover/basic DDoS protection, specify rules management for load balancing, setup multiple frontend/backends, provide easy means to have TLS enabled for public facing instances, etc. You may alter the settings for proxy layer as per your SecOps preferences. This component is optional (eg: if you prefer to expose your PostgREST server itself, you can do so using similar steps below).
 
 ### Setup gRest services {: id="setup"}
@@ -24,60 +29,78 @@ To start with you'd want to ensure your current shell session has access to Post
 
 ``` bash
 cd $CNODE_HOME/priv
-PGPASSFILE=$CNODE_HOME/priv/.pgpass
+export PGPASSFILE=$CNODE_HOME/priv/.pgpass
 psql cexplorer
 ```
 
-Ensure that you can connect to your Postgres DB fine using above (quit from psql once validated using `\q`). As part of `guild-deploy.sh` execution, you'd find setup-grest.sh file made available in `${CNODE_HOME}/scripts` folder, which will help you automate installation of PostgREST, HAProxy as well as brings in latest queries/functions provided via Koios to your instances.
+Ensure that you can connect to PostgreSQL using the command above (quit with
+`\q`). `guild-deploy.sh` installs `setup-grest.sh` in
+`${CNODE_HOME}/scripts`. The setup script installs PostgREST and HAProxy and
+deploys the Koios query bundle pinned in that script.
 
-!!! warning "Warning"
-    As of now, gRest services are in alpha stage - while can be utilised, please remember there may be breaking changes and every collaborator is expected to work with the team to keep their instances up-to-date using alpha branch.
+!!! note "Release selection"
+    The current setup script pins Koios artifacts `v1.4.2`. Its `-b` option
+    selects and persists a Guild Operators source branch in
+    `${CNODE_HOME}/.deployment.json`; it does not select a Koios artifact
+    release. PostgREST `v14.10`, HAProxy `3.2.21`, and `pg_cardano` `1.2.0`
+    are also constants owned by `setup-grest.sh`; they are not entries in the
+    cnode release manifest.
 
-Familiarise with the usage options for the setup script , the syntax can be viewed as below:
+The implemented command syntax is:
 
-``` bash
-cd "${CNODE_HOME}"/scripts
-./setup-grest.sh -h
-#
-# Usage: setup-grest.sh [-i [p][r][m][c][d]] [-u] [-b <branch>]
-# 
-# Install and setup haproxy, PostgREST, polling services and create systemd services for haproxy, postgREST and monitoring
-# 
-# -i    Set-up Components individually. If this option is not specified, components will only be installed if found missing (eg: -i prcd)
-#     p    Install/Update PostgREST binaries by downloading latest release from github.
-#     r    (Re-)Install Reverse Proxy Monitoring Layer (haproxy) binaries and config
-#     m    Install/Update Monitoring agent scripts
-#     c    Overwrite haproxy, postgREST configs
-#     d    Overwrite systemd definitions
-# -u    Skip update check for setup script itself
-# -r    Reset grest schema - drop all cron jobs and triggers, and remove all deployed RPC functions and cached tables
-# -q    Run all DB Queries to update on postgres (includes creating grest schema, and re-creating views/genesis table/functions/triggers and setting up cron jobs)
-# -b    Use alternate branch of scripts to download - only recommended for testing/development (Default: master)
-# 
+```bash
+cd "${CNODE_HOME}/scripts"
+./setup-grest.sh [-i <component-letters>] [-u] [-r] [-q] [-b <branch>]
 ```
 
-To run the setup overwriting all standard deployment tasks from a branch (eg: `koios-1.3.2` branch), you may want to use:
+The `-i` component letters are:
+
+| Letter | Action |
+| --- | --- |
+| `p` | Install or update PostgREST |
+| `r` | Reinstall HAProxy and its monitoring layer |
+| `m` | Install or update monitoring scripts |
+| `g` | Install or update the `pg_cardano` extension |
+| `c` | Overwrite HAProxy and PostgREST configuration |
+| `d` | Overwrite systemd definitions |
+
+Without `-i`, the current script repairs a missing HAProxy binary, monitoring
+scripts, or managed configuration detected by its default checks. `-u` skips
+the setup-script update check, `-r` resets the gRest schema, and `-q`
+redeploys database queries, views, functions, triggers, and cron jobs.
+
+To refresh all managed components and reset/redeploy the gRest schema:
+
 ``` bash
-./setup-grest.sh -i prmcd -r -b koios-1.3.2
+./setup-grest.sh -i prmgcd -r
 ```
 
-Similarly - if you'd like to re-install all components and force overwrite all configs but not reset cache tables, you may run:
+To reinstall all components and overwrite managed config and systemd units
+without resetting cache tables:
+
 ``` bash
-./setup-grest.sh -i prmcd -q
+./setup-grest.sh -i prmgcd -q
 ```
 
-Another example could be to preserve your config, but only update queries using an alternate branch (eg: let's say you want to try the branch `alpha` prior to a tagged release). To do so, you may run:
+To preserve configuration and update only database queries:
+
 ``` bash
 ./setup-grest.sh -q
 ```
 
-Please ensure to follow the on-screen instructions, if any (for example restarting deployed services, or updating configs to specify correct target postgres URLs/enable TLS/add peers etc in `${CNODE_HOME}/priv/grest.conf` and `${CNODE_HOME}/files/haproxy.cfg`).
+Use `-b <branch>` only for an existing Guild Operators development or release
+branch. Because the choice becomes the deployment-wide helper source, change
+it deliberately rather than using it as a gRest version selector.
+
+Follow the on-screen instructions, including any required service restart or
+configuration updates in `${CNODE_HOME}/priv/grest.conf` and
+`${CNODE_HOME}/files/haproxy.cfg`.
 
 The default ports used will make haproxy instance available at port 8053 or 8453 if TLS is enabled (you might want to enable firewall rule to open this port to services you would like to access). If you want to prevent unauthenticated access to grest schema, uncomment the jwt-secret and specify a custom `secret-token`.
 
 !!! info "Reminder"
 
-    Once you've successfully deployed the grest instance, it will deploy certain cron jobs that will ensure the relevant cache tables are updated periodically. Until these have finished (especially on first run, it could take an hour or so on mainnet, your instance will likely not pass any tests from `grest-poll.sh` but that's expected.
+    Once you've successfully deployed the grest instance, it will deploy certain cron jobs that will ensure the relevant cache tables are updated periodically. Until these have finished (especially on first run, when it could take an hour or so on mainnet), your instance will likely not pass any tests from `grest-poll.sh`, but that's expected.
 
 ### Enable TLS on HAProxy {: id="tls"}
 
@@ -104,26 +127,24 @@ Restart haproxy service for changes to take effect.
 
 ### Validation
 
-With the setup, you also have a `checkstatus.sh` script, which will query the Postgres DB instance via haproxy (coming through postgREST), and only show an instance up if the latest block in your DB instance is within 180 seconds.
+The installed `checkstatus.sh` opens a live terminal view of HAProxy backend
+statistics from `${CNODE_HOME}/sockets/haproxy.socket`. It displays the gRest,
+Ogmios, and submit-api backend states reported by HAProxy; it does not perform
+a chain-tip freshness query.
 
 !!! warning "Important"
     If you'd like to participate in joining to the elastic cluster via Koios, please raise a PR request by editing topology files in [this folder](https://github.com/cardano-community/koios-artifacts/tree/main/topology) to do so!!
 
-If you were using `guild` network, you could do a couple of very basic sanity checks as per below:
+After the query deployment completes, perform a network-independent sanity
+check through HAProxy:
 
-1. To query active stake for pool `pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr` in epoch `122`, we can execute the below:
-``` bash
-curl -d _pool_bech32=pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -d _epoch_no=122 -s http://localhost:8053/rpc/pool_active_stake
-## {"active_stake_sum" : 19409732875}
+```bash
+curl -fsS http://127.0.0.1:8053/rpc/tip | jq
 ```
 
-2. To check latest owner key(s) for a given pool `pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr`, you can execute the below:
-``` bash
-curl -d _pool_bech32=pool1z2ry6kxywgvdxv26g06mdywynvs7jj3uemnxv273mr5esukljsr -s http://localhost:8050/rpc/pool_owners
-## [{"owner" : "stake_test1upx5p04dn3t6dvhfh27744su35vvasgaaq565jdxwlxfq5sdjwksw"}, {"owner" : "stake_test1uqak99cgtrtpean8wqwp7d9taaqkt9gkkxga05m5azcg27chnzfry"}]
-```
-
-You may want to explore what all endpoints come out of the box, and test them out, to do so - refer to [API documentation](https://api.koios.rest) for OpenAPI3 documentation. Each endpoint has a pre-filled example for mainnet and connects by default to primary Koios endpoint, allowing you to test endpoints and if needed - grab the `curl` commands to start testing yourself against your local or remote instances.
+Refer to the [Koios API documentation](https://api.koios.rest) for the
+release's endpoint inputs and output schema before constructing further
+queries.
 
 ### Participating in Koios Cluster as instance Provider
 

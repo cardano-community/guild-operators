@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+# Adapter metadata for common Guild Operators helpers.
+# shellcheck disable=SC2034
+
+NODE_ADAPTER_API_VERSION=1
+NODE_ADAPTER_IMPLEMENTATION="dingo"
+NODE_IMPLEMENTATION_DISPLAY_NAME="Dingo"
+# Dingo exposes an N2C socket, but this profile has not yet verified the
+# cardano-cli query/submission surface used by Guild helpers. Keep those
+# higher-level capabilities disabled until their compatibility tests exist.
+NODE_CAPABILITIES="process process_pid metrics native_prometheus n2c"
+
+node_adapter_defaults() {
+  : "${NODE_IMPLEMENTATION:=dingo}"
+  : "${NODE_HOME:=${GUILD_NODE_HOME:-/opt/cardano/dingo}}"
+  : "${CNODE_HOME:=${NODE_HOME}}"
+  : "${NODE_SERVICE:=${GUILD_NODE_SERVICE:-dingo}}"
+  : "${NODE_BINARY:=${DINGO_BIN:-${HOME}/.local/bin/dingo}}"
+  : "${NODE_NETWORK:=${CARDANO_NETWORK:-${NETWORK:-preview}}}"
+  : "${NODE_PORT:=3001}"
+  : "${CNODE_PORT:=${NODE_PORT}}"
+  : "${NODE_CONFIG:=${DINGO_CONFIG:-${NODE_HOME}/files/dingo.yaml}}"
+  : "${CONFIG:=${NODE_CONFIG}}"
+  : "${NODE_SOCKET:=${CARDANO_SOCKET_PATH:-${NODE_HOME}/sockets/dingo.socket}}"
+  : "${SOCKET:=${NODE_SOCKET}}"
+  : "${CARDANO_NODE_SOCKET_PATH:=${NODE_SOCKET}}"
+  : "${NODE_METRICS_HOST:=${PROM_HOST:-127.0.0.1}}"
+  : "${NODE_METRICS_PORT:=${CARDANO_METRICS_PORT:-${PROM_PORT:-12798}}}"
+  : "${NODE_METRICS_PATH:=/metrics}"
+  : "${PROM_HOST:=${NODE_METRICS_HOST}}"
+  : "${PROM_PORT:=${NODE_METRICS_PORT}}"
+  NODE_CAN_FORGE="N"
+  NODE_HAS_N2C="Y"
+  NODE_HAS_LOCAL_QUERY="N"
+  NODE_HAS_LOCAL_SUBMIT="N"
+  NODE_HAS_HTTP_SUBMIT="N"
+  NODE_METRICS_URL="${DINGO_PROMETHEUS_URL:-http://${NODE_METRICS_HOST}:${NODE_METRICS_PORT}${NODE_METRICS_PATH}}"
+}
+
+node_adapter_init() {
+  node_adapter_defaults
+  case "${1:-full}" in
+    definitions|basic) return 0 ;;
+    monitor)
+      command -v curl >/dev/null 2>&1 || {
+        printf 'curl is required to collect Dingo metrics.\n' >&2
+        return 1
+      }
+      if declare -F common_configure_known_network >/dev/null 2>&1; then
+        common_configure_known_network "${NODE_NETWORK}" || return 1
+      fi
+      return 0
+      ;;
+    *) return "${NODE_ADAPTER_UNSUPPORTED:-3}" ;;
+  esac
+}
+
+node_adapter_validate() {
+  node_adapter_defaults
+  [[ "${NODE_IMPLEMENTATION}" == "dingo" ]] || return 1
+  [[ "${NODE_NETWORK}" == "preprod" || "${NODE_NETWORK}" == "preview" ]] || return 1
+  [[ -x "${NODE_BINARY}" ]]
+}
+
+node_adapter_installed_version() {
+  local version_output version revision
+  node_adapter_defaults
+  [[ -x "${NODE_BINARY}" ]] || return 1
+  version_output="$("${NODE_BINARY}" version)" || return 1
+  version="${version_output%%[[:space:]]*}"
+  revision="?"
+  if [[ "${version_output}" =~ commit[[:space:]]+([0-9a-fA-F]+) ]]; then
+    revision="${BASH_REMATCH[1]:0:8}"
+  fi
+  printf '%s\t%s\n' "${version:-?}" "${revision}"
+}
+
+node_adapter_version() {
+  node_adapter_installed_version
+}
+
+node_adapter_is_live() {
+  node_adapter_defaults
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl is-active --quiet "${NODE_SERVICE}.service" && return 0
+  fi
+  pgrep -x dingo >/dev/null 2>&1
+}
+
+node_adapter_process_pid() {
+  node_adapter_defaults
+  local pid=""
+  if command -v systemctl >/dev/null 2>&1; then
+    pid="$(systemctl show --property MainPID --value "${NODE_SERVICE}.service" 2>/dev/null || true)"
+  fi
+  if [[ "${pid}" =~ ^[1-9][0-9]*$ ]]; then
+    printf '%s\n' "${pid}"
+    return 0
+  fi
+  pgrep -xo dingo
+}
+
+node_adapter_refresh_process() {
+  NODE_PID="$(node_adapter_process_pid 2>/dev/null || true)"
+  CNODE_PID="${NODE_PID}"
+  [[ "${NODE_PID}" =~ ^[1-9][0-9]*$ ]]
+}
+
+node_adapter_metrics_url() {
+  node_adapter_defaults
+  printf '%s\n' "${NODE_METRICS_URL}"
+}
+
+dingo_collect_optional_custom_metric() {
+  local source_name="${1:?source metric required}"
+  local normalized_name="${2:?normalized metric required}"
+  local metric_label="${3:?metric label required}"
+  local metric_unit="${4-}"
+  local value
+  if prometheus_first_metric_value value "${source_name}" &&
+     node_metric_value_is_numeric "${value}"; then
+    node_metric_set_custom \
+      "${normalized_name}" "${value}" "${metric_label}" "${metric_unit}"
+  else
+    node_metric_unset_custom "${normalized_name}"
+  fi
+}
+
+node_adapter_collect_metrics() {
+  local node_metrics metrics_url
+  local build_version build_revision build_go_version
+  local start_time now uptime_value process_elapsed value
+
+  node_adapter_defaults
+  metrics_url="$(node_adapter_metrics_url)" || return 1
+  node_metrics="$(
+    curl --fail --silent --show-error \
+      --max-time "${PROM_TIMEOUT:-3}" \
+      "${metrics_url}" 2>/dev/null
+  )" || return 1
+  [[ -n "${node_metrics}" ]] || return 1
+
+  # Dingo v0.67.1 deliberately exports the cardano_node_metrics_* family.
+  # The common parser is label-aware because Dingo adds network="<name>" to
+  # node/component samples.
+  common_parse_cardano_metrics "${node_metrics}" || return 1
+
+  # Dingo names its inbound peer-temperature gauges in its native namespace,
+  # but their semantics match the normalized inbound-governor fields.
+  if prometheus_first_metric_value value \
+    dingo_metrics_peerSelection_InboundWarmHeld; then
+    node_metric_set inbound_governor_warm "${value}"
+  fi
+  if prometheus_first_metric_value value \
+    dingo_metrics_peerSelection_InboundHotHeld; then
+    node_metric_set inbound_governor_hot "${value}"
+  fi
+
+  if [[ -n "${PROMETHEUS_SAMPLE_VALUE[dingo_build_info]+present}" ]]; then
+    if build_version="$(prometheus_metric_label dingo_build_info version)"; then
+      # The upstream label is "<version> (commit <hash>)"; gLiveView keeps
+      # version and revision in separate normalized fields.
+      node_metric_set running_node_version "${build_version%%[[:space:]]*}"
+    else
+      node_metric_unset running_node_version
+    fi
+    if build_revision="$(prometheus_metric_label dingo_build_info commit)"; then
+      node_metric_set running_node_rev "${build_revision:0:8}"
+    else
+      node_metric_unset running_node_rev
+    fi
+    if build_go_version="$(prometheus_metric_label dingo_build_info goversion)"; then
+      node_metric_set_custom \
+        dingo_go_version "${build_go_version}" "Go runtime"
+    else
+      node_metric_unset_custom dingo_go_version
+    fi
+  else
+    node_metric_unset running_node_version
+    node_metric_unset running_node_rev
+    node_metric_unset_custom dingo_go_version
+  fi
+
+  dingo_collect_optional_custom_metric \
+    "dingo_tip_gap_slots" "dingo_tip_gap_slots" \
+    "Tip gap" "slots"
+  dingo_collect_optional_custom_metric \
+    "dingo_epoch_length_slots" "dingo_epoch_length_slots" \
+    "Epoch length" "slots"
+  dingo_collect_optional_custom_metric \
+    "dingo_shelley_start_time" "dingo_shelley_start_time" \
+    "Shelley start" "unix s"
+
+  now="$(date -u +%s)"
+  start_time=""
+  prometheus_first_metric_value start_time \
+    cardano_node_metrics_nodeStartTime_int \
+    process_start_time_seconds || true
+  start_time="${start_time%%.*}"
+  if [[ "${start_time}" =~ ^[0-9]+$ && "${start_time}" -le "${now}" ]]; then
+    node_metric_set uptimes "$(( now - start_time ))"
+  else
+    node_adapter_refresh_process >/dev/null 2>&1 || true
+    process_elapsed=""
+    if [[ "${NODE_PID:-}" =~ ^[1-9][0-9]*$ ]]; then
+      process_elapsed="$(
+        ps -p "${NODE_PID}" -o etimes= 2>/dev/null |
+          awk 'NF { print $1; exit }'
+      )"
+    fi
+    if [[ "${process_elapsed}" =~ ^[0-9]+$ ]]; then
+      uptime_value="${process_elapsed}"
+      node_metric_set uptimes "${uptime_value}"
+    else
+      node_metric_unset uptimes
+    fi
+  fi
+}

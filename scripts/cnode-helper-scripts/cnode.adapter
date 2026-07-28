@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2009,SC2016,SC2034,SC2059,SC2086,SC2153,SC2154,SC2206
+
+NODE_ADAPTER_API_VERSION=1
+NODE_ADAPTER_IMPLEMENTATION="cnode"
+NODE_IMPLEMENTATION_DISPLAY_NAME="cardano-node"
+NODE_CAPABILITIES="process process_pid metrics native_prometheus n2c local_query local_submit forge opcert kes haskell_rts peer_inspection topology_file block_replay_log"
+
+node_adapter_defaults() {
+  CNODE_HOME="${CNODE_HOME:-${NODE_HOME}}"
+  NODE_HOME="${NODE_HOME:-${CNODE_HOME}}"
+  CNODE_PORT="${CNODE_PORT:-6000}"
+  NODE_PORT="${NODE_PORT:-${CNODE_PORT}}"
+  NODE_SERVICE="${NODE_SERVICE:-${CNODE_VNAME:-$(basename "${NODE_HOME}")}.service}"
+  NODE_METRICS_HOST="${NODE_METRICS_HOST:-${PROM_HOST:-}}"
+  NODE_METRICS_PORT="${NODE_METRICS_PORT:-${PROM_PORT:-}}"
+  NODE_METRICS_PATH="${NODE_METRICS_PATH:-/metrics}"
+}
+
+node_adapter_refresh_process() {
+  CNODE_PID=$(pgrep -fn "$(basename "${CNODEBIN}").*.--port ${CNODE_PORT}")
+  NODE_PID="${CNODE_PID}"
+  [[ -n "${CNODE_PID}" ]]
+}
+
+node_adapter_installed_version() {
+  local version_output version revision
+  [[ -x "${CNODEBIN:-}" ]] || return 1
+  version_output="$("${CNODEBIN}" version)"
+  version=$(grep "cardano-node" <<< "${version_output}" | cut -d ' ' -f2)
+  revision=$(grep "git rev" <<< "${version_output}" | cut -d ' ' -f3 | cut -c1-8)
+  printf '%s\t%s\n' "${version:-?}" "${revision:-?}"
+}
+
+node_adapter_operational_certificate() {
+  local process_command
+  [[ -n "${CNODE_PID:-}" ]] || node_adapter_refresh_process >/dev/null 2>&1 || true
+  [[ -n "${CNODE_PID:-}" ]] || return 1
+  process_command="$(ps -p "${CNODE_PID}" -o cmd=)"
+  if [[ "${process_command}" =~ --shelley-operational-certificate[[:space:]]([^[:space:]]+) ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
+node_adapter_replay_progress() {
+  local replay_log_line
+  if command -v journalctl >/dev/null &&
+     command -v systemctl >/dev/null &&
+     systemctl is-active --quiet "${CNODE_VNAME}.service" 2>/dev/null; then
+    replay_log_line=$(journalctl -n 1 -u "${CNODE_VNAME}.service" 2>/dev/null | grep LedgerReplay)
+    [[ ${replay_log_line} =~ ([0-9.]+)% ]] || return 1
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
+node_adapter_collect_metrics() {
+  local node_metrics process_elapsed
+  node_adapter_refresh_process >/dev/null 2>&1 || true
+  node_metrics="$(
+    curl --fail --silent --show-error \
+      --max-time "${PROM_TIMEOUT:-3}" \
+      "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null
+  )" || return 1
+  [[ -n "${node_metrics}" ]] || return 1
+  common_parse_cardano_metrics "${node_metrics}" || return 1
+
+  process_elapsed=""
+  if [[ "${CNODE_PID:-}" =~ ^[1-9][0-9]*$ ]]; then
+    process_elapsed="$(
+      ps -p "${CNODE_PID}" -o etimes= 2>/dev/null |
+        awk 'NF { print $1; exit }'
+    )"
+  fi
+  if [[ "${process_elapsed}" =~ ^[0-9]+$ ]]; then
+    node_metric_set uptimes "${process_elapsed}"
+  else
+    node_metric_unset uptimes
+  fi
+}
+
+cnode_adapter_minimum_versions() {
+  local manifest="${NODE_HOME:-${CNODE_HOME:-}}/files/cnode-release.json"
+
+  command -v jq >/dev/null 2>&1 || {
+    printf 'jq is required to validate cnode release compatibility metadata.\n' >&2
+    return 1
+  }
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] || {
+    printf 'Cnode release compatibility metadata is missing or unsafe: %s\n' \
+      "${manifest}" >&2
+    return 1
+  }
+  jq -er '
+    select(
+      .schemaVersion == 1 and
+      .implementation == "cnode" and
+      (.version |
+        type == "string" and length > 0) and
+      (.companions["cardano-cli"].version |
+        type == "string" and length > 0)
+    ) |
+    [
+      .version,
+      .companions["cardano-cli"].version
+    ] | @tsv
+  ' "${manifest}"
+}
+
+node_adapter_init() {
+  local profile="${1:-full}"
+  local node_version cli_version minimum_versions
+  local minimum_node_version minimum_cli_version
+
+  [[ "${profile}" == "offline" || "${profile}" == "light" ]] && OFFLINE_MODE="Y" || OFFLINE_MODE="N"
+  common_resolve_cardano_cli || return 1
+
+  [[ -z "${CNODEBIN}" ]] && CNODEBIN=$(command -v cardano-node)
+  if [[ -z "${CNODEBIN}" ]]; then
+    if [[ -x "$(dirname "${CCLI}")/cardano-node" ]]; then
+      CCLIPARENT="$(dirname "${CCLI}")"
+      export PATH="${CCLIPARENT}:${PATH}"
+      CNODEBIN="${CCLIPARENT}/cardano-node"
+    elif [[ -x "${HOME}/.local/bin/cardano-node" ]]; then
+      export PATH="${HOME}/.local/bin:${PATH}"
+      CNODEBIN=$(command -v cardano-node)
+    else
+      printf 'You do not have a cardano-node binary available in %s.\n' '$PATH' >&2
+      return 1
+    fi
+  fi
+
+  [[ -z "${CNCLI}" ]] && CNCLI=$(command -v cncli) || true
+  [[ -z "${CNCLI}" ]] && CNCLI="${HOME}/.local/bin/cncli"
+  if [[ -f /usr/local/lib/libsodium.so ]]; then
+    export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH:-}"
+    export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+  fi
+
+  node_version="$("${CNODEBIN}" version | head -1 | cut -d' ' -f2)"
+  cli_version="$("${CCLI}" version | head -1 | cut -d' ' -f2)"
+  minimum_versions="$(cnode_adapter_minimum_versions)" || return 1
+  IFS=$'\t' read -r minimum_node_version minimum_cli_version <<< "${minimum_versions}"
+  if ! versionCheckNode "${minimum_node_version}" "${node_version}" ||
+     ! versionCheckNode "${minimum_cli_version}" "${cli_version}"; then
+    printf "\nKoios scripts require at least cardano-node %s ('%s' found) and cardano-cli %s ('%s' found).\n" \
+      "${minimum_node_version}" "${node_version}" \
+      "${minimum_cli_version}" "${cli_version}" >&2
+    printf "Refer to https://cardano-community.github.io/guild-operators/upgrade/ for upgrade assistance.\n\n" >&2
+    return 1
+  fi
+
+  if [[ -z "${SOCKET}" ]]; then
+    if [[ "$(ps -ef | grep "$(basename "${CNODEBIN}").*.port ${CNODE_PORT}" | grep -v grep)" =~ --socket-path[[:space:]]([^[:space:]]+) ]]; then
+      CARDANO_NODE_SOCKET_PATH="${BASH_REMATCH[1]}"
+    elif [[ "${OFFLINE_MODE}" == "Y" ]]; then
+      CARDANO_NODE_SOCKET_PATH="${CNODE_HOME}/sockets/node.socket"
+    else
+      printf "Node socket is not set and automatic detection failed.\n" >&2
+      return 1
+    fi
+  else
+    CARDANO_NODE_SOCKET_PATH="${SOCKET}"
+  fi
+  export CARDANO_NODE_SOCKET_PATH
+  SOCKET="${CARDANO_NODE_SOCKET_PATH}"
+
+  if [[ -z "${CONFIG}" ]]; then
+    if [[ "$(ps -ef | grep "$(basename "${CNODEBIN}").*.port ${CNODE_PORT}" | grep -v grep)" =~ --config[[:space:]]([^[:space:]]+) ]]; then
+      CONFIG=${BASH_REMATCH[1]}
+    elif [[ -f "${CNODE_HOME}/files/config.json" ]]; then
+      CONFIG="${CNODE_HOME}/files/config.json"
+    else
+      printf "Node config is not set and automatic detection failed.\n" >&2
+      return 1
+    fi
+  fi
+
+  if command -v ss >/dev/null 2>&1; then
+    use_lsof="N"
+  elif command -v lsof >/dev/null 2>&1; then
+    use_lsof="Y"
+  else
+    printf "'ss' and fallback 'lsof' commands are missing.\n" >&2
+    return 1
+  fi
+  command -v jq >/dev/null 2>&1 || {
+    printf "'jq' command is missing.\n" >&2
+    return 1
+  }
+
+  read -ra CONFIG_CONTENTS <<<"$(jq -r '[
+    .AlonzoGenesisFile // "null",
+    .ByronGenesisFile // "null",
+    .ShelleyGenesisFile // "null",
+    .Protocol // "Cardano",
+    .ConwayGenesisFile // "null"
+  ] | @tsv' "${CONFIG}" 2>/dev/null)"
+
+  CONWAY_GENESIS_JSON="${CONFIG_CONTENTS[4]}"
+  ALONZO_GENESIS_JSON="${CONFIG_CONTENTS[0]}"
+  BYRON_GENESIS_JSON="${CONFIG_CONTENTS[1]}"
+  GENESIS_JSON="${CONFIG_CONTENTS[2]}"
+  [[ ! ${CONWAY_GENESIS_JSON} =~ ^/ ]] && CONWAY_GENESIS_JSON="$(dirname "${CONFIG}")/${CONWAY_GENESIS_JSON}"
+  [[ ! ${ALONZO_GENESIS_JSON} =~ ^/ ]] && ALONZO_GENESIS_JSON="$(dirname "${CONFIG}")/${ALONZO_GENESIS_JSON}"
+  [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
+  [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
+
+  [[ -f "${CONWAY_GENESIS_JSON}" ]] || { printf "Conway genesis file not found: %s\n" "${CONWAY_GENESIS_JSON}" >&2; return 1; }
+  [[ -f "${ALONZO_GENESIS_JSON}" ]] || { printf "Alonzo genesis file not found: %s\n" "${ALONZO_GENESIS_JSON}" >&2; return 1; }
+  [[ -f "${BYRON_GENESIS_JSON}" ]] || { printf "Byron genesis file not found: %s\n" "${BYRON_GENESIS_JSON}" >&2; return 1; }
+  [[ -f "${GENESIS_JSON}" ]] || { printf "Shelley genesis file not found: %s\n" "${GENESIS_JSON}" >&2; return 1; }
+
+  GENESIS_HASH="$("${CCLI}" hash genesis-file --genesis "${GENESIS_JSON}")"
+  PROTOCOL="${CONFIG_CONTENTS[3]}"
+
+  if [[ -z "${PROM_HOST}" || -z "${PROM_PORT}" ]]; then
+    PROM_PORT=$(jq -er '
+      (.TraceOptions."".backends // [])
+      | .[]
+      | select(test("(?i)PrometheusSimple"))
+      | split(" ")
+      | (last // "")
+    ' "${CONFIG}")
+    PROM_HOST=$(jq -er '
+      (.TraceOptions."".backends // [])
+      | .[]
+      | select(test("(?i)PrometheusSimple"))
+      | split(" ")
+      | (.[-2] // "")
+      | if test("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$") then . else "127.0.0.1" end
+    ' "${CONFIG}")
+  fi
+  if [[ -n "${PROM_HOST}" && -n "${PROM_PORT}" ]]; then
+    check_valid_host "${PROM_HOST}" "PROM" || return 1
+    check_valid_port "${PROM_PORT}" "PROM" || return 1
+  else
+    printf "Could not determine the Prometheus host and port from the cnode config.\n" >&2
+    return 1
+  fi
+
+  BLOCKLOG_DIR="${BLOCKLOG_DIR:-${CNODE_HOME}/guild-db/blocklog}"
+  BLOCKLOG_DB="${BLOCKLOG_DIR}/blocklog.db"
+  BLOCKLOG_TZ="${BLOCKLOG_TZ:-UTC}"
+  IP_VERSION="${IP_VERSION:-4}"
+  IP_VERSION="$(printf '%s' "${IP_VERSION}" | tr '[:upper:]' '[:lower:]')"
+
+  NODE_BINARY="${CNODEBIN}"
+  NODE_PORT="${CNODE_PORT}"
+  NODE_CONFIG="${CONFIG}"
+  NODE_SOCKET="${SOCKET}"
+  NODE_METRICS_HOST="${PROM_HOST}"
+  NODE_METRICS_PORT="${PROM_PORT}"
+  NODE_METRICS_PATH="/metrics"
+  NODE_SERVICE="${CNODE_VNAME}.service"
+  node_adapter_refresh_process >/dev/null 2>&1 || true
+
+  common_select_network || return 1
+  if [[ "${OFFLINE_MODE}" == "N" && "${SHELLEY_TRANS_EPOCH}" -eq -1 ]]; then
+    getNodeMetrics
+    getShelleyTransitionEpoch
+  fi
+
+  if [[ "${OFFLINE_MODE}" == "N" && ! -S "${CARDANO_NODE_SOCKET_PATH}" ]]; then
+    printf "%bLooks like cardano-node expects socket %s, but it does not exist.%b\n" \
+      "${FG_RED}" "${CARDANO_NODE_SOCKET_PATH}" "${NC}" >&2
+    return 2
+  fi
+  if [[ "${OFFLINE_MODE}" == "N" && -z "${KOIOS_API}" ]] && ! getProtocolParams; then
+    printf "%bFailed to query protocol parameters from the node.%b\n" "${FG_RED}" "${NC}" >&2
+    return 2
+  fi
+}

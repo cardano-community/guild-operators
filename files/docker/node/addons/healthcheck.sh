@@ -6,7 +6,9 @@
 # Common variables set in env file   #
 ######################################
 
-ENTRYPOINT_PROCESS="${ENTRYPOINT_PROCESS:-cnode.sh}"            # Get the script from ENTRYPOINT_PROCESS or default to "cnode.sh" if not set
+NODE_IMPLEMENTATION="${IMAGE_NODE_IMPLEMENTATION:-${NODE_IMPLEMENTATION:-cnode}}"
+NODE_HOME="${IMAGE_NODE_HOME:-${NODE_HOME:-/opt/cardano/${NODE_IMPLEMENTATION}}}"
+ENTRYPOINT_PROCESS="${ENTRYPOINT_PROCESS:-${NODE_IMPLEMENTATION}.sh}" # Process selected by the container entrypoint
 HEALTHCHECK_CPU_THRESHOLD="${HEALTHCHECK_CPU_THRESHOLD:-80}"    # The CPU threshold to warn about if the sidecar process exceeds this for more than 60 seconds, defaults to 80%
 HEALTHCHECK_RETRIES="${HEALTHCHECK_RETRIES:-20}"                # The number of retries if tip is not incrementing, or cpu usage is over the threshold
 HEALTHCHECK_RETRY_WAIT="${HEALTHCHECK_RETRY_WAIT:-3}"           # The time (in seconds) to wait between retries
@@ -19,6 +21,57 @@ CNCLI_SENDTIP_ALLOWED_DRIFT="${CNCLI_SENDTIP_ALLOWED_DRIFT:-3}" # The allowable 
 ######################################
 # Do NOT modify code below           #
 ######################################
+
+case "${NODE_IMPLEMENTATION}" in
+    dingo|amaru)
+        deployment_file="${NODE_HOME}/.deployment.json"
+        [[ -f "${deployment_file}" && ! -L "${deployment_file}" ]] || {
+            echo "Deployment manifest is missing or unsafe: ${deployment_file}"
+            exit 1
+        }
+        jq -e \
+            --arg implementation "${NODE_IMPLEMENTATION}" \
+            --arg network "${IMAGE_NODE_NETWORK:-}" \
+            '.deploymentStatus == "deployed"
+             and .implementation == $implementation
+             and ($network == "" or .network == $network)' \
+            "${deployment_file}" >/dev/null || {
+            echo "Deployment manifest does not match this image"
+            exit 1
+        }
+        process_id="$(pgrep -xo "${NODE_IMPLEMENTATION}" || true)"
+        [[ -n "${process_id}" ]] || {
+            echo "${NODE_IMPLEMENTATION} process is not running"
+            exit 1
+        }
+        kill -0 "${process_id}" || {
+            echo "${NODE_IMPLEMENTATION} process is not healthy"
+            exit 1
+        }
+        case "${NODE_IMPLEMENTATION}" in
+            dingo) metrics_url="http://127.0.0.1:12798/metrics" ;;
+            amaru)
+                metrics_url="http://127.0.0.1:8889/metrics"
+                pgrep -xo otelcol-contrib >/dev/null || {
+                    echo "Amaru OpenTelemetry Collector is not running"
+                    exit 1
+                }
+                ;;
+        esac
+        curl --fail --silent --show-error --max-time 5 \
+            "${metrics_url}" >/dev/null || {
+            echo "${NODE_IMPLEMENTATION} metrics endpoint is not healthy"
+            exit 1
+        }
+        echo "${NODE_IMPLEMENTATION} process ${process_id} and metrics endpoint are healthy"
+        exit 0
+        ;;
+    cnode) ;;
+    *)
+        echo "Unsupported node implementation: ${NODE_IMPLEMENTATION}"
+        exit 1
+        ;;
+esac
 
 [[ ${0} != '-bash' ]] && PARENT="$(dirname $0)" || PARENT="$(pwd)"
 # Check if env file is missing in current folder (no update checks as will mostly run as daemon), source env if present
@@ -95,16 +148,12 @@ check_cncli_sendtip() {
         fi
     fi
 
-    # Define the json success message to check for
-    json_success_status='.*"success":true.*'
-    json_failure_status='.*"success":false.*'
-
     # Check if the json success message exists in the captured log
-    if echo "$pt_log_entry" | grep -q $json_success_status; then
+    if grep -q '"success":true' <<< "$pt_log_entry"; then
         echo "Healthy: Tip sent to Pooltool. (Current tip = $second_tip)."
         return 0  # Return 0 if the success message is found
     # Check if the json failure message exists in the captured log
-    elif echo "$pt_log_entry" | grep -q $json_failure_status; then
+    elif grep -q '"success":false' <<< "$pt_log_entry"; then
         failure_message=$(echo "$pt_log_entry" | grep -oP '"message":"\K[^"]+')
         echo "Failed to send tip. (Current tip = $second_tip). $failure_message"
         return 1  # Return 1 if the failure message is found

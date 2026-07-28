@@ -1,37 +1,51 @@
-> Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+# cnode monitoring bootstrap
 
-This is an easy-to-use script to automate setting up of monitoring tools. Tasks automates the following tasks:
-- Installs Prometheus, Node Exporter and Grafana Servers for your respective Linux architecture.
-- Configure Prometheus to connect to cardano node and node exporter jobs.
-- Provisions the installed prometheus server to be automatically available as data source in Grafana.
-- Provisions two of the common grafana dashboards used to monitor `cardano-node` by [SkyLight](https://oqulent.com/skylight-pool/) and IOHK to be readily consumed from Grafana.
-- Deploy `prometheus`,`node_exporter` and `grafana-server` as systemd service on Linux.
-- Start and enable those services.
+> Ensure the [prerequisites](../basics.md#pre-requisites) are in place before
+> proceeding.
 
-Note that securing prometheus/grafana servers via TLS encryption and other security best practices are out of scope for this document, and its mainly aimed to help you get started with monitoring without much fuss.
+`setup_mon.sh` is a cnode-only convenience script that installs and configures:
 
-!> Ensure that you've opened the firewall port for grafana server (default used in this script is 5000)
+- Prometheus
+- Node Exporter
+- Grafana
+- the bundled SKYLight and IOHK/Cardano dashboards
+- systemd units for all three services
 
-#### Download setup_mon.sh {docsify-ignore}
+!!! warning "Legacy bootstrap helper"
+    This helper currently pins Prometheus `2.35.0`, Grafana `8.5.1`, and Node
+    Exporter `1.3.1`. It does not configure TLS, authentication hardening, or
+    lifecycle management. Review the pinned versions and secure the services
+    before exposing them outside a trusted network. It is not part of the
+    Dingo or Amaru deployment profiles.
 
-If you have run `guild-deploy.sh`, you can skip this step. To download monitoring script, you can execute the commands below:
-``` bash
-cd $CNODE_HOME/scripts
+The default endpoints are:
+
+| Service | Address |
+| --- | --- |
+| Prometheus | `http://127.0.0.1:9090` |
+| Cardano node metrics | `http://127.0.0.1:12798` |
+| Node Exporter | `http://127.0.0.1:9091` |
+| Grafana | `http://0.0.0.0:5000` |
+
+Open only the ports that are required for your deployment. In particular,
+Grafana listens on all interfaces by default.
+
+## Download
+
+The cnode deployment profile installs `setup_mon.sh` in the selected node's
+`scripts` directory. If you need to download it manually:
+
+```bash
+cd "${CNODE_HOME}/scripts"
 wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh
 chmod 750 setup_mon.sh
 ```
 
-#### Customise any Environment Variables
+## Configuration
 
-The default selection may not always be usable for everyone. You can customise further environment variable settings by opening in editor (eg: `vi setup_mon.sh` ), and updating variables below to your liking:
+The editable defaults are at the top of `setup_mon.sh`:
 
-``` bash
-#!/usr/bin/env bash
-# shellcheck disable=SC2209,SC2164
-
-######################################################################
-#### Environment Variables
-######################################################################
+```bash
 CNODE_IP=127.0.0.1
 CNODE_PORT=12798
 GRAFANA_HOST=0.0.0.0
@@ -39,66 +53,51 @@ GRAFANA_PORT=5000
 PROJ_PATH=/opt/cardano/monitoring
 PROM_HOST=127.0.0.1
 PROM_PORT=9090
-NEXP_PORT=$(( PROM_PORT + 1 ))
-````
-
-#### Set up Monitoring
-
-Execute setup_mon.sh with full path to destination folder you want to setup monitoring in. If you're following guild folder structure, you do not need to specify `-d`. Read the usage comments below before you run the actual script.
-
-Note that to deploy services as systemd, the script expect sudo access is available to the user running the script.
-
-``` bash
-cd $CNODE_HOME/scripts
-# To check Usage parameters:
-# ./setup_mon.sh -h
-#Usage: setup_mon.sh [-d directory] [-h hostname] [-p port]
-#Setup monitoring using Prometheus and Grafana for Cardano Node
-#-d directory      Directory where you'd like to deploy the packages for prometheus , node exporter and grafana
-#-i IP/hostname    IPv4 address or a FQDN/DNS name where your cardano-node (relay) is running (check for hasPrometheus in config.json; eg: 127.0.0.1 if same machine as cardano-node)
-#-p port           Port at which your cardano-node is exporting stats (check for hasPrometheus in config.json; eg: 12798)
-./setup_mon.sh
-# 
-# Downloading prometheus v2.18.1...
-# Downloading grafana v7.0.0...
-# Downloading exporter v0.18.1...
-# Downloading grafana dashboard(s)...
-#   - SKYLight Monitoring Dashboard
-#   - IOHK Monitoring Dashboard
-# 
-# NOTE: Could not create directory as rdlrt, attempting sudo ..
-# NOTE: No worries, sudo worked !! Moving on ..
-# Configuring components
-# Registering Prometheus as datasource in Grafana..
-# Creating service files as root..
-# 
-# =====================================================
-# Installation is completed
-# =====================================================
-# 
-# - Prometheus (default): http://127.0.0.1:9090/metrics
-#     Node metrics:       http://127.0.0.1:12798
-#     Node exp metrics:   http://127.0.0.1:9091
-# - Grafana (default):    http://0.0.0.0:5000
-# 
-# 
-# You need to do the following to configure grafana:
-# 0. The services should already be started, verify if you can login to grafana, and prometheus. If using 127.0.0.1 as IP, you can check via curl
-# 1. Login to grafana as admin/admin (http://0.0.0.0:5000)
-# 2. Add "prometheus" (all lowercase) datasource (http://127.0.0.1:9090)
-# 3. Create a new dashboard by importing dashboards (left plus sign).
-#   - Sometimes, the individual panel's "prometheus" datasource needs to be refreshed.
-# 
-# Enjoy...
-# 
-# Cleaning up...
-
+NEXP_PORT=$((PROM_PORT + 1))
 ```
 
-#### View Dashboards
+The command-line interface can override the deployment directory and Cardano
+node metrics endpoint:
 
-You should now be able to Login to grafana dashboard, using the public IP of your server, at port 5000.
-The initial credentials to login would be *admin/admin*, and you will be asked to update your password upon first login.
-Once logged on, you should be able to go to `Manage > Dashboards` and select the dashboard you'd like to view. Note that if you've just started the server, you might see graphs as empty, as initial interval for dashboards is 12 hours. You can change it to 5 minutes by looking at top right section of the page.
+```text
+Usage: setup_mon.sh [-d directory] [-i IP/hostname] [-p port]
 
-Thanks to [Pal Dorogi](https://github.com/ilap) for the original setup instructions used for modifying.
+-d directory      Monitoring installation directory
+-i IP/hostname    Address exporting cardano-node Prometheus metrics
+-p port           Port exporting cardano-node Prometheus metrics
+```
+
+Confirm the node metrics address and port in the cnode `config.json`. Current
+Guild configs declare it in the root `TraceOptions` backend, for example
+`PrometheusSimple suffix 127.0.0.1 12798`. The user running the script needs
+`sudo` access because the script installs units in `/etc/systemd/system`.
+
+Run it from the deployed scripts directory:
+
+```bash
+cd "${CNODE_HOME}/scripts"
+./setup_mon.sh
+```
+
+For a custom location or metrics endpoint:
+
+```bash
+./setup_mon.sh \
+  -d /opt/cardano/monitoring \
+  -i 127.0.0.1 \
+  -p 12798
+```
+
+The destination directory must not already exist. On success, the script
+installs, starts, and enables `prometheus.service`, `node_exporter.service`, and
+`grafana-server.service`.
+
+## View dashboards
+
+Open Grafana using the server address and configured port, which is `5000` by
+default. The initial Grafana credentials are `admin` / `admin`; Grafana prompts
+you to change the password at first login. The script provisions Prometheus as
+a data source and installs the bundled dashboards.
+
+Thanks to [Pal Dorogi](https://github.com/ilap) for the original setup
+instructions.

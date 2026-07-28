@@ -1,5 +1,11 @@
-# Unofficial Instructions for recovering your Byron Era funds on the new Incentivized Shelley Testnet
+# Archived: Byron wallet recovery on the Incentivized Testnet
 
+!!! danger "Historical instructions only"
+    This page documents the discontinued Jormungandr-based Incentivized Testnet
+    and an obsolete `cardano-wallet-jormungandr` interface. It is retained as a
+    historical record and must not be used for current Cardano wallet recovery.
+    Use the support and recovery instructions supplied by your current wallet
+    provider instead.
 
 ## 1.  Grab and install Haskell
 ```
@@ -112,5 +118,4 @@ If you want to send to another address use the command below, but replace the ad
 ```
 curl -X POST -H "Content-Type: application/json" -d '{"payments": [ { "address": "<address to send to>"", "amount": { "quantity": 83333330000000, "unit": "lovelace" } } ], "passphrase": "areallylongpasswordagain"}' http://localhost:3002/v2/wallets/<new wallet id>/transactions
 ```
-
 

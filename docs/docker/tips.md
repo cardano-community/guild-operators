@@ -1,124 +1,150 @@
-### How to run a **Cardano Node** with Docker
+# Docker operational tips
 
-With this quick guide you will be able to run a cardano node in seconds and also have the powerfull Koios SPO scripts *built-in*.
+The cnode image includes the established Guild helper set. Dingo and Amaru
+images contain their node-specific launcher, configuration, common runtime,
+gLiveView, and healthcheck, so cnode-only commands such as CNTools do not apply
+to them. Amaru also contains the managed OpenTelemetry Collector required by
+its dashboard adapter.
 
-### How to operate interactively within the container
+## Open a shell in a running container
 
-Once executed the container as a deamon with attached tty you are then able to enter the container by using the flag `-dit` .
-
-While if you have a hook within the container console, use the following command (change `CN` with your container name):
-
-```bash
-docker exec -it CN bash 
-```
-
-This command will bring you within the container bash env ready to use the Koios tools.
-
-### Docker flags explained
+Start the container with a name, then open a shell when needed:
 
 ```bash
-"docker build" options explained:
- -t : option is to "tag" the image you can name the image as you prefer as long as you maintain the references between dockerfiles.
-
-"docker run" options explained:
- -d : for detach the container
- -i : interactive enabled 
- -t : terminal session enabled
- -e : set an Env Variable
- -p : set exposed ports (by default if not specified the ports will be reachable only internally)
- --hostname : Container's hostname
- --name : Container's name
+docker exec -it <container-name> bash
 ```
 
-### Custom container with your own cfg
+The image also supports a one-off shell that bypasses the Guild entrypoint:
 
 ```bash
-docker run --init -itd  
--name Relay                                   # Optional (recommended for quick access): set a name for your newly created container.
--p 9000:6000                                  # Optional: to expose the internal container's port (6000) to the host <IP> port 9000
--e NETWORK=mainnet                            # Mandatory: mainnet / preprod / guild-mainnet / guild
---security-opt=no-new-privileges              # Option to prevent privilege escalations
--v <YourNetPath>:/opt/cardano/cnode/sockets   # Optional: useful to share the node socket with other containers
--v <YourCfgPath>:/opt/cardano/cnode/priv      # Optional: if used has to contain all the sensitive keys needed to run a node as core
--v <YourDBbk>:/opt/cardano/cnode/db           # Optional: if not set a fresh DB will be downloaded from scratch
-cardanocommunity/cardano-node:latest          # Mandatory: image to run
+docker run --rm -it --entrypoint=bash <image>
 ```
 
-!!! info "Note"
-    To be able to use the CNTools encryption key feature you need to manually change in "cntools.config" ENABLE_CHATTR to "true" and not use the `--security-opt=no-new-privileges` docker run option.
+Every image defines a `gLiveView` alias in its interactive shell. From the
+host, the explicit script path is also convenient:
 
-### Docker CLI managment
+```bash
+implementation=dingo
+docker exec -it <container-name> \
+  "/opt/cardano/${implementation}/scripts/gLiveView.sh"
+```
 
-#### Official
-- docker inspect
-- docker ps
-- docker ls
-- docker stop
+For Amaru, use this against the normal running container. A one-off shell that
+bypasses the entrypoint does not start either the node or its collector.
 
-#### Un-Official Docker managment cli tool
-- [Lazydocker](https://github.com/jesseduffield/lazydocker)
+## Common Docker flags
 
-### Docker backups and restores
+- `--detach` (`-d`): run in the background.
+- `--interactive` (`-i`): keep standard input open.
+- `--tty` (`-t`): allocate a terminal.
+- `--env` (`-e`): set a runtime environment variable.
+- `--publish` (`-p`): publish a container port on the host.
+- `--volume` (`-v`): mount persistent host or named-volume storage.
+- `--name`: assign a stable container name.
+- `--hostname`: set the hostname visible inside the container.
 
-The docker container has an optional backup and restore functionality that can be used to backup the `/opt/cardano/cnode/db` directory. To have the 
-backup persist longer than the countainer, the backup directory should be mounted as a volume.
+For example, run the default cnode/mainnet image as a relay while persisting
+its database and private directory:
 
-[!NOTE]
-The backup and restore functionality is disabled by default.
+```bash
+docker run --init --detach --interactive --tty \
+  --name relay \
+  --security-opt=no-new-privileges \
+  --publish 9000:6000 \
+  --env NETWORK=mainnet \
+  --volume cnode-db:/opt/cardano/cnode/db \
+  --volume /secure/host/path:/opt/cardano/cnode/priv \
+  --volume /host/socket-share:/opt/cardano/cnode/sockets \
+  cardanocommunity/cardano-node:latest
+```
 
-[!WARNING]
-Make sure adequate space exists on the host as the backup will double the space consumed by the database. 
+`NETWORK` is optional and must match the network selected when the image was
+built. It cannot convert an image to another network. Mounting a private
+directory does not by itself configure a block producer; the cnode pool name
+and required operational keys must also be configured correctly.
 
-#### Creating a Backup
+The container entrypoint deliberately disables CNTools `chattr` and dialog
+integration. Do not weaken `no-new-privileges` merely to re-enable those
+features; use a reviewed custom image and threat model if they are required.
 
-When the container is started with the **ENABLE_BACKUP** environment variable set to **Y** the container will automatically create a
-backup in the `/opt/cardano/cnode/backup/$NETWORK-db` directory. The backup will be created when the container is started and if the
-backup directory is smaller than the db directory.
+Useful management commands include:
 
-#### Restoring from a Backup
+```bash
+docker ps
+docker logs --follow <container-name>
+docker inspect <container-name>
+docker stop <container-name>
+docker image ls
+docker volume ls
+```
 
-When the container is started with the **ENABLE_RESTORE** environment variable set to **Y** the container will automatically restore
-the latest backup from the `/opt/cardano/cnode/backup/$NETWORK-db` directory. The database will be restored when the container is started
-and if the backup directory is larger than the db directory.
+## cnode backup and restore
 
-### Configuration Update Check Functionality
+The entrypoint supports a simple cnode database copy before the node starts.
+It is disabled by default and does not apply to Dingo or Amaru.
 
-The container now includes a static copy of each network's configuration files (Mainnet, Preprod, Preview and Guild networks). The `NETWORK` environment variable passed into the container determines which configuration files
-are copied into `$CNODE_HOME/files`.
+Persist both the live database and backup directory:
 
-The `UPDATE_CHECK` environment variable controls whether the container updates these configuration files from GitHub
-before starting. By default, the container has the environment variable set to `UPDATE_CHECK=N`, meaning the container
-uses the configuration files it was built with. This can be overriden either persistently or dynamically.
+```text
+--volume cnode-db:/opt/cardano/cnode/db
+--volume cnode-backup:/opt/cardano/cnode/backup
+```
 
-#### Persistently updating configuration files
+- `ENABLE_BACKUP=Y` copies the live database to
+  `/opt/cardano/cnode/backup/<network>-db` when the live database is larger
+  than the existing backup.
+- `ENABLE_RESTORE=Y` restores that directory when the backup is larger than the
+  live database.
 
-To always update the configuration files from GitHub, set the `UPDATE_CHECK` environment variable when creating the
-container by using the `--env` option, for example `--env UPDATE_CHECK=Y`.
+!!! warning
+    A backup can require approximately the same space as the database. Stop the
+    node and verify the resulting data before treating this simple directory
+    copy as a recovery plan. Test restoration before relying on it.
 
-To always update the configuration files from a specific GitHub account, set the `G_ACCOUNT` environment variable when
-creating the container by using the `--env` option, for example `--env G_ACCOUNT=gh-fork-user`.
+## Runtime update checks
 
-[!NOTE]
-There is no way to change the environment variable of an already running container. To rollback the configuration files and scripts stop and remove the container and start it without setting the environment variable.
+Implementation, network, and deployment root are immutable image properties
+recorded in `.deployment.json`. Runtime `NETWORK`, `NODE_IMPLEMENTATION`, and
+`NODE_HOME` values must agree with that manifest.
 
-#### Dynamically updating configuration files
+`UPDATE_CHECK=N` is the default:
 
-Set an environment file during create/run using `--env-file=file`, for example `--env-file=/opt/cardano/cnode/.env`.
+- cnode restores its selected network configuration from the image's `/conf`
+  cache before starting;
+- Dingo and Amaru use the native configuration installed when the image was
+  built;
+- no helper or binary download occurs.
 
-* When `UPDATE_CHECK` is not defined in the environment file, the container will use the built-in configs.
-* When `UPDATE_CHECK=Y` is defined in the environment file the container will update configs and scripts from the
-  `cardano-community` GitHub repository.
-  * When `G_ACCOUNT` is defined in the environment file, the container will update configs and scripts from the GitHub
-  repository of the specified account.
+With `UPDATE_CHECK=Y`, the entrypoint runs the installed `guild-deploy.sh`
+against the repository and branch recorded in `.deployment.json`. It refreshes
+compatible scripts and configuration but does not select a different
+implementation, change network, or install a new node binary.
 
-To rollback the configuration files to the built-in versions, remove the `UPDATE_CHECK=Y` or set it to `UPDATE_CHECK=N` in the environment file. The static configuration files in the container will be used, however the scripts will remain updated. If you want both the configuration files and scripts to be rolled back, you will need to stop and remove the container and create a new one.
+To opt in:
 
-### Building Images from Forked Repositories
+```text
+--env UPDATE_CHECK=Y
+```
 
-Run the **Docker Image** GitHub Action to build and push images to the `ghcr.io` registry.
+Advanced fork testing may also set `G_ACCOUNT` and `BRANCH`, but the selected
+source must contain a complete compatible deployment layout. The refresh
+updates the recorded source after it succeeds.
 
-* The `G_ACCOUNT` will be inherited from the `GITHUB_REPOSITORY_OWNER`.
-  * It will be all lowercase so it matches container image name requirements.
-* All images not from **master** branch or when **Testing workflow** is checked will be pushed to `ghcr.io`.
-* Images from the master branch will also be pushed to the `ghcr.io` registry as long as the **Testing workflow**
-remains checked.
+To roll back scripts as well as configuration, recreate the container from a
+known image. Switching `UPDATE_CHECK` back to `N` restores cnode's cached
+configuration, but it does not undo scripts already changed in that
+container's writable layer.
+
+## Workflow builds from forks
+
+The **Docker Image** workflow accepts the Guild branch, implementation,
+network, and a testing toggle:
+
+- only cnode/mainnet on `master` with testing disabled is published as the
+  production Docker Hub image;
+- testing, non-master, alternate-network, Dingo, and Amaru builds are
+  published to GitHub Container Registry;
+- Dingo and Amaru support only `preprod` and `preview`.
+
+See [Build](build.md) for build arguments, image names, and tag behavior, and
+[Security](security.md) before exposing ports or mounting sensitive data.

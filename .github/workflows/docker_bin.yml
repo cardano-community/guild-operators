@@ -12,10 +12,34 @@ on:
         required: false
         type: boolean
         default: true
+      node_implementation:
+        description: Node implementation
+        required: false
+        type: choice
+        default: cnode
+        options:
+          - cnode
+          - dingo
+          - amaru
+      node_network:
+        description: Deployment network
+        required: false
+        type: choice
+        default: mainnet
+        options:
+          - mainnet
+          - preprod
+          - preview
+          - guild
   push:
     paths:
-      - 'files/docker/node/release-versions/cardano-node-latest.txt'
-      - 'files/docker/node/release-versions/mithril-latest.txt'
+      - 'scripts/common-helper-scripts/**'
+      - 'scripts/cnode-helper-scripts/**'
+      - 'scripts/dingo-helper-scripts/**'
+      - 'scripts/amaru-helper-scripts/**'
+      - 'files/node-implementations/**'
+      - 'files/configs/**'
+      - 'files/docker/node/**'
 
 jobs:
   set_environment_vars:
@@ -25,7 +49,9 @@ jobs:
       g_account: ${{ steps.set_g_account.outputs.g_account }}
       testing: ${{ steps.set_testing.outputs.testing }}
       short_sha: ${{ steps.set_short_sha.outputs.short_sha }}
-      cnversion: ${{ steps.set_cnversion.outputs.cnversion }}
+      node_implementation: ${{ steps.set_node_identity.outputs.node_implementation }}
+      node_network: ${{ steps.set_node_identity.outputs.node_network }}
+      node_version: ${{ steps.set_node_version.outputs.node_version }}
     steps:
     - name: Set branch name
       id: vars
@@ -41,7 +67,30 @@ jobs:
     - name: Set TESTING
       id: set_testing
       run: |
-        echo "testing=${{ github.event_name == 'push' && (steps.vars.outputs.branch != 'master') || github.event.inputs.testing }}" >> $GITHUB_OUTPUT
+        if [[ "${{ github.event_name }}" == "push" ]]; then
+          if [[ "${{ steps.vars.outputs.branch }}" == "master" ]]; then
+            testing=false
+          else
+            testing=true
+          fi
+        else
+          testing="${{ github.event.inputs.testing }}"
+        fi
+        echo "testing=${testing}" >> "$GITHUB_OUTPUT"
+    - name: Set node identity
+      id: set_node_identity
+      run: |
+        node_implementation="${{ (github.event_name == 'push' && 'cnode') || github.event.inputs.node_implementation }}"
+        node_network="${{ (github.event_name == 'push' && 'mainnet') || github.event.inputs.node_network }}"
+        case "${node_implementation}:${node_network}" in
+          cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|dingo:preprod|dingo:preview|amaru:preprod|amaru:preview) ;;
+          *)
+            echo "Unsupported Docker deployment: ${node_implementation}:${node_network}" >&2
+            exit 1
+            ;;
+        esac
+        echo "node_implementation=${node_implementation}" >> "$GITHUB_OUTPUT"
+        echo "node_network=${node_network}" >> "$GITHUB_OUTPUT"
     - uses: actions/checkout@v3
       with:
         ref: ${{ steps.set_guild_deploy_branch.outputs.guild_deploy_branch }}
@@ -49,13 +98,19 @@ jobs:
       id: set_short_sha
       run: |
         echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-    - name: Get CNVERSION
-      id: set_cnversion
+    - name: Get node version
+      id: set_node_version
       run: |
-        echo "cnversion=$(cat files/docker/node/release-versions/cardano-node-latest.txt)" >> $GITHUB_OUTPUT
+        implementation="${{ steps.set_node_identity.outputs.node_implementation }}"
+        version="$(jq -er '.version' "files/node-implementations/${implementation}/release.json")"
+        echo "node_version=${version}" >> "$GITHUB_OUTPUT"
   build_production:
     needs: set_environment_vars
-    if: needs.set_environment_vars.outputs.testing == 'false' && (needs.set_environment_vars.outputs.guild_deploy_branch == 'master')
+    if: >-
+      needs.set_environment_vars.outputs.testing == 'false' &&
+      needs.set_environment_vars.outputs.guild_deploy_branch == 'master' &&
+      needs.set_environment_vars.outputs.node_implementation == 'cnode' &&
+      needs.set_environment_vars.outputs.node_network == 'mainnet'
     env:
       REGISTRY: docker.io
     runs-on: ubuntu-latest
@@ -67,8 +122,8 @@ jobs:
         REPO=${{ secrets.DOCKER_USER }}
         REPO=${REPO,,}
         IMAGE_NAME="$REGISTRY/$REPO/cardano-node"
-        CNVERSION=${{ needs.set_environment_vars.outputs.cnversion }}
-        IMAGE_TAGS="$IMAGE_NAME:latest,$IMAGE_NAME:$CNVERSION"
+        NODE_VERSION=${{ needs.set_environment_vars.outputs.node_version }}
+        IMAGE_TAGS="$IMAGE_NAME:latest,$IMAGE_NAME:$NODE_VERSION"
         echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
         echo "IMAGE_TAGS=$IMAGE_TAGS" >> $GITHUB_ENV
     - uses: actions/checkout@v3
@@ -90,6 +145,8 @@ jobs:
         build-args: |
           G_ACCOUNT=${{ needs.set_environment_vars.outputs.g_account }}
           GUILD_DEPLOY_BRANCH=${{ needs.set_environment_vars.outputs.guild_deploy_branch }}
+          NODE_IMPLEMENTATION=${{ needs.set_environment_vars.outputs.node_implementation }}
+          NODE_NETWORK=${{ needs.set_environment_vars.outputs.node_network }}
     - name: Add summary details
       if: always()
       run: |
@@ -98,11 +155,17 @@ jobs:
         echo "* Image Tags: ${{ env.IMAGE_TAGS }}" >> $GITHUB_STEP_SUMMARY
         echo "* G_ACCOUNT: ${{ needs.set_environment_vars.outputs.g_account }}" >> $GITHUB_STEP_SUMMARY
         echo "* GUILD_DEPLOY_BRANCH: ${{ needs.set_environment_vars.outputs.guild_deploy_branch }}" >> $GITHUB_STEP_SUMMARY
+        echo "* NODE_IMPLEMENTATION: ${{ needs.set_environment_vars.outputs.node_implementation }}" >> $GITHUB_STEP_SUMMARY
+        echo "* NODE_NETWORK: ${{ needs.set_environment_vars.outputs.node_network }}" >> $GITHUB_STEP_SUMMARY
         echo "* REGISTRY: ${{ env.REGISTRY }}" >> $GITHUB_STEP_SUMMARY
         echo "* REGISTRY_USER: ${{ secrets.DOCKER_USER }}" >> $GITHUB_STEP_SUMMARY
   build_testing:
     needs: set_environment_vars
-    if: needs.set_environment_vars.outputs.testing == 'true' || needs.set_environment_vars.outputs.guild_deploy_branch != 'master'
+    if: >-
+      needs.set_environment_vars.outputs.testing == 'true' ||
+      needs.set_environment_vars.outputs.guild_deploy_branch != 'master' ||
+      needs.set_environment_vars.outputs.node_implementation != 'cnode' ||
+      needs.set_environment_vars.outputs.node_network != 'mainnet'
     env:
       REGISTRY: ghcr.io
     runs-on: ubuntu-latest
@@ -112,10 +175,21 @@ jobs:
         GUILD_DEPLOY_BRANCH=$(echo "${{ needs.set_environment_vars.outputs.guild_deploy_branch }}" | sed 's/\//_/g')
         REGISTRY=${{ env.REGISTRY }}
         REPO=${{ needs.set_environment_vars.outputs.g_account }}
-        IMAGE_NAME="$REGISTRY/$REPO/cardano-node"
-        CNVERSION=${{ needs.set_environment_vars.outputs.cnversion }}
+        NODE_IMPLEMENTATION=${{ needs.set_environment_vars.outputs.node_implementation }}
+        NODE_NETWORK=${{ needs.set_environment_vars.outputs.node_network }}
+        if [[ "$NODE_IMPLEMENTATION" == "cnode" ]]; then
+          IMAGE_COMPONENT="cardano-node"
+        else
+          IMAGE_COMPONENT="${NODE_IMPLEMENTATION}-node"
+        fi
+        IMAGE_NAME="$REGISTRY/$REPO/$IMAGE_COMPONENT"
+        NODE_VERSION=${{ needs.set_environment_vars.outputs.node_version }}
         SHA=${{ needs.set_environment_vars.outputs.short_sha }}
-        IMAGE_TAGS="$IMAGE_NAME:test,$IMAGE_NAME:$CNVERSION,$IMAGE_NAME:$GUILD_DEPLOY_BRANCH-$SHA"
+        IDENTITY_SUFFIX=""
+        if [[ "$NODE_IMPLEMENTATION:$NODE_NETWORK" != "cnode:mainnet" ]]; then
+          IDENTITY_SUFFIX="-$NODE_NETWORK"
+        fi
+        IMAGE_TAGS="$IMAGE_NAME:test$IDENTITY_SUFFIX,$IMAGE_NAME:$NODE_VERSION$IDENTITY_SUFFIX,$IMAGE_NAME:$GUILD_DEPLOY_BRANCH-$SHA$IDENTITY_SUFFIX"
         echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
         echo "IMAGE_TAGS=$IMAGE_TAGS" >> $GITHUB_ENV
     - uses: actions/checkout@v3
@@ -137,6 +211,8 @@ jobs:
         build-args: |
           G_ACCOUNT=${{ needs.set_environment_vars.outputs.g_account }}
           GUILD_DEPLOY_BRANCH=${{ needs.set_environment_vars.outputs.guild_deploy_branch }}
+          NODE_IMPLEMENTATION=${{ needs.set_environment_vars.outputs.node_implementation }}
+          NODE_NETWORK=${{ needs.set_environment_vars.outputs.node_network }}
     - name: Add summary details
       if: always()
       run: |
@@ -145,5 +221,7 @@ jobs:
         echo "* Image Tags: ${{ env.IMAGE_TAGS }}" >> $GITHUB_STEP_SUMMARY
         echo "* G_ACCOUNT: ${{ needs.set_environment_vars.outputs.g_account }}" >> $GITHUB_STEP_SUMMARY
         echo "* GUILD_DEPLOY_BRANCH: ${{ needs.set_environment_vars.outputs.guild_deploy_branch }}" >> $GITHUB_STEP_SUMMARY
+        echo "* NODE_IMPLEMENTATION: ${{ needs.set_environment_vars.outputs.node_implementation }}" >> $GITHUB_STEP_SUMMARY
+        echo "* NODE_NETWORK: ${{ needs.set_environment_vars.outputs.node_network }}" >> $GITHUB_STEP_SUMMARY
         echo "* REGISTRY: ${{ env.REGISTRY }}" >> $GITHUB_STEP_SUMMARY
         echo "* REGISTRY_USER: ${{ github.repository_owner }}" >> $GITHUB_STEP_SUMMARY

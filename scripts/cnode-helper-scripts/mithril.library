@@ -1,21 +1,12 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2034,SC2086,SC2230,SC2206,SC2140,SC2059,SC2154
+# shellcheck disable=SC2013,SC2034,SC2086,SC2153,SC2230,SC2206,SC2140,SC2059,SC2154
 #shellcheck source=/dev/null
 
 ######################################
 # Do NOT modify code below           #
 ######################################
 
-CI_MODE='N'
-[[ $1 = "workflow" ]] && CI_MODE='Y'
-
-# Sourcing mithril.library in CI mode is for GitHub Actions workflow to safely
-# update the files/docker/node/release-versions/mithril-latest.txt file without
-# setting it to an incompatible version with the currently suported cardano-node
-# version. There is no need to source the environment file in CI mode.
-if [[ ${CI_MODE} == 'N' ]] ; then
-    . "$(dirname $0)"/env offline
-fi
+. "$(dirname $0)"/env "${MITHRIL_ENV_PROFILE:-offline}"
 
 #############################
 # Mithril General functions #
@@ -155,6 +146,119 @@ semantic_version_compare () {
     return
 }
 
+mithril_release_manifest_path() {
+  local node_root="${NODE_HOME:-${CNODE_HOME:-}}"
+
+  [[ -n "${node_root}" ]] || return 1
+  printf '%s/files/cnode-release.json\n' "${node_root}"
+}
+
+mithril_resolve_release_policy() {
+  local manifest mode channel repository configured_version resolver_data
+  local api_url artifact_url release_json selected_release
+
+  command -v jq >/dev/null 2>&1 || {
+    echo "ERROR: jq is required to validate Mithril release metadata." >&2
+    return 1
+  }
+  manifest="$(mithril_release_manifest_path)" || {
+    echo "ERROR: NODE_HOME is not available for Mithril release metadata." >&2
+    return 1
+  }
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] || {
+    echo "ERROR: cnode release metadata is missing or unsafe: ${manifest}" >&2
+    return 1
+  }
+  configured_version="$(
+    jq -er '
+      select(
+        .schemaVersion == 1 and
+        .implementation == "cnode" and
+        (.tools.mithril | type == "object") and
+        (.tools.mithril.version | type == "string" and length > 0)
+      ) |
+      .tools.mithril.version
+    ' "${manifest}"
+  )" || {
+    echo "ERROR: invalid Mithril release policy in ${manifest}" >&2
+    return 1
+  }
+  [[ "${configured_version}" == "latest" ]] &&
+    mode="latest" || mode="pinned"
+
+  if [[ "${mode}" == "pinned" ]]; then
+    artifact_url="$(
+      jq -er '.tools.mithril.artifacts | to_entries[0].value.url' \
+        "${manifest}"
+    )" || return 1
+    if [[ "${artifact_url}" =~ ^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/releases/download/ ]]; then
+      repository="${BASH_REMATCH[1]}"
+    else
+      echo "ERROR: pinned Mithril artifact does not identify its GitHub repository." >&2
+      return 1
+    fi
+    selected_release="${configured_version}"
+  else
+    resolver_data="$(
+      jq -er '
+        select(
+          ((.tools.mithril.channel // "stable") == "stable" or
+            (.tools.mithril.channel // "stable") == "any") and
+          (.tools.mithril.github |
+            type == "string" and
+            test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))
+        ) |
+        [
+          (.tools.mithril.channel // "stable"),
+          .tools.mithril.github
+        ] | @tsv
+      ' "${manifest}"
+    )" || {
+      echo "ERROR: invalid Mithril latest-release resolver in ${manifest}" >&2
+      return 1
+    }
+    IFS=$'\t' read -r channel repository <<< "${resolver_data}"
+
+    if [[ "${channel}" == "stable" ]]; then
+      api_url="https://api.github.com/repos/${repository}/releases/latest"
+      release_json="$(curl -sSfL -m "${CURL_TIMEOUT:-10}" "${api_url}")" || {
+        echo "ERROR: failed to resolve the configured latest Mithril release." >&2
+        return 1
+      }
+      selected_release="$(
+        jq -er '
+          select(.draft == false and .prerelease == false) |
+          .tag_name |
+          select(type == "string" and length > 0)
+        ' <<< "${release_json}"
+      )" || return 1
+    else
+      api_url="https://api.github.com/repos/${repository}/releases?per_page=20"
+      release_json="$(curl -sSfL -m "${CURL_TIMEOUT:-10}" "${api_url}")" || {
+        echo "ERROR: failed to resolve the configured latest Mithril release." >&2
+        return 1
+      }
+      selected_release="$(
+        jq -er '
+          [.[] | select(.draft == false)][0].tag_name |
+          select(type == "string" and length > 0)
+        ' <<< "${release_json}"
+      )" || return 1
+    fi
+  fi
+
+  [[ "${selected_release}" =~ ^[A-Za-z0-9._/+:-]+$ &&
+     "${selected_release}" != *..* ]] || {
+    echo "ERROR: unsafe Mithril release tag resolved from policy." >&2
+    return 1
+  }
+  MITHRIL_RELEASE_POLICY_MODE="${mode}"
+  MITHRIL_GITHUB_REPOSITORY="${repository}"
+  MITHRIL_SELECTED_RELEASE="${selected_release}"
+  # Retain the historical variable for callers outside this repository.
+  MITHRIL_LATEST_VERSION="${selected_release}"
+}
+
 set_defaults() {
   [[ -z "${MITHRILBIN}" ]] && MITHRILBIN="${HOME}"/.local/bin/"$(basename "${0::-3}")"
   if [[ $(basename "${0::-3}") == "mithril-signer" ]] && { [[ -z "${POOL_NAME}" ]] || [[ "${POOL_NAME}" == "CHANGE_ME" ]]; }; then
@@ -182,53 +286,70 @@ set_env_file_ownership() {
 }
 
 check_mithril_upgrade_safe() {
-  MITHRIL_LATEST_VERSION=$(curl -s https://raw.githubusercontent.com/cardano-community/guild-operators/alpha/files/docker/node/release-versions/mithril-latest.txt)
-  if [[ "${CI_MODE}" == "Y" ]]; then
-    # When run in CI mode, the node version is obtained from the repository
-    NODE_CURRENT_VERSION=$(cat files/docker/node/release-versions/cardano-node-latest.txt)
-  else
-    # When run in non workflow mode, the node version is obtained from the cardano-node binary
-    NODE_CURRENT_VERSION=$(cardano-node --version | awk 'NR==1{print $2}')
+  MITHRIL_UPGRADE_SAFE="N"
+  if ! mithril_resolve_release_policy; then
+    echo "ERROR: Failed to resolve the Mithril release policy. Setting MITHRIL_UPGRADE_SAFE to N."
+    return 1
   fi
-  set_node_minimum_version
-  if [[ -n "${MITHRIL_MINIMUM_NODE_VERSION}" ]]; then
+  if ! command -v cardano-node >/dev/null 2>&1; then
+    echo "ERROR: cardano-node is unavailable for the Mithril compatibility check."
+    return 1
+  fi
+  NODE_CURRENT_VERSION=$(cardano-node --version | awk 'NR==1{print $2}')
+  [[ -n "${NODE_CURRENT_VERSION}" ]] || {
+    echo "ERROR: Could not determine the installed cardano-node version."
+    return 1
+  }
+  if ! set_node_minimum_version; then
+    echo "ERROR: Failed to determine the minimum node version for Mithril ${MITHRIL_SELECTED_RELEASE}."
+    return 1
+  fi
 
-    RC=$(semantic_version_compare "${NODE_CURRENT_VERSION}" "${MITHRIL_MINIMUM_NODE_VERSION}")
-    if [[ ${RC} -lt 2 ]]; then
-      # Node version is greater than or equal to the minimum required version for latest mithril release
-      # Set MITHRIL_UPGRADE_SAFE to Y to allow mithril upgrade by scripts
-      MITHRIL_UPGRADE_SAFE="Y"
-      echo "INFO: A mithril upgrade is safe."
-      echo "INFO: The latest mithril release version: ${MITHRIL_LATEST_VERSION}."
-      echo "INFO: The current Node version: ${NODE_CURRENT_VERSION}."
-      echo "INFO: The Mithril minimum required node version: ${MITHRIL_MINIMUM_NODE_VERSION}."
-    else
-      # Node version is less than the minimum required version for latest mithril release
-      echo "WARNING: A mithril upgrade is not safe."
-      echo "WARNING: The latest mithril release version: ${MITHRIL_LATEST_VERSION}."
-      echo "WARNING: The current Node version: ${NODE_CURRENT_VERSION}."
-      echo "WARNING: The Mithril minimum required node version: ${MITHRIL_MINIMUM_NODE_VERSION}."
-      echo "WARNING: The latest mithril release does not support the installed node version. Please upgrade the node version first."
-      MITHRIL_UPGRADE_SAFE="N"
-    fi
+  RC=$(semantic_version_compare "${NODE_CURRENT_VERSION}" "${MITHRIL_MINIMUM_NODE_VERSION}")
+  if [[ ${RC} -lt 2 ]]; then
+    MITHRIL_UPGRADE_SAFE="Y"
+    echo "INFO: A Mithril upgrade is safe."
+    echo "INFO: The selected Mithril release version: ${MITHRIL_SELECTED_RELEASE} (${MITHRIL_RELEASE_POLICY_MODE})."
+    echo "INFO: The current Node version: ${NODE_CURRENT_VERSION}."
+    echo "INFO: The Mithril minimum required node version: ${MITHRIL_MINIMUM_NODE_VERSION}."
   else
-    echo "ERROR: Failed to set the minimum required node version for the latest mithril release. Setting MITHRIL_UPGRADE_SAFE to N."
+    echo "WARNING: A Mithril upgrade is not safe."
+    echo "WARNING: The selected Mithril release version: ${MITHRIL_SELECTED_RELEASE} (${MITHRIL_RELEASE_POLICY_MODE})."
+    echo "WARNING: The current Node version: ${NODE_CURRENT_VERSION}."
+    echo "WARNING: The Mithril minimum required node version: ${MITHRIL_MINIMUM_NODE_VERSION}."
+    echo "WARNING: The selected Mithril release does not support the installed node version. Please upgrade the node version first."
     MITHRIL_UPGRADE_SAFE="N"
+    return 1
   fi
 }
 
 set_node_minimum_version() {
-  response_file=$(mktemp)
-  status_code=$(curl -sL -o "$response_file" -w "%{http_code}" https://raw.githubusercontent.com/IntersectMBO/mithril/${MITHRIL_LATEST_VERSION}/networks.json)
+  local response_file network
 
-  if [[ "${status_code}" -gt 200 ]]; then
-    echo "ERROR: Failed to download the networks.json file from the mithril repository! curl status code: ${status_code}."
-  elif [[ "${status_code}" -eq 200 ]]; then
-    NETWORK=${NETWORK_NAME,,}
-    NETWORK=${NETWORK:-mainnet}
-    MITHRIL_MINIMUM_NODE_VERSION=$(jq -r ".${NETWORK}.\"cardano-minimum-version\".\"mithril-signer\"" "$response_file")
+  [[ -n "${MITHRIL_SELECTED_RELEASE:-}" &&
+     -n "${MITHRIL_GITHUB_REPOSITORY:-}" ]] ||
+    mithril_resolve_release_policy || return 1
+  response_file=$(mktemp) || return 1
+  network="${NETWORK_NAME:-${NETWORK:-mainnet}}"
+  network="${network,,}"
+  if ! curl -sSfL -m "${CURL_TIMEOUT:-10}" \
+    -o "${response_file}" \
+    "https://raw.githubusercontent.com/${MITHRIL_GITHUB_REPOSITORY}/${MITHRIL_SELECTED_RELEASE}/networks.json"; then
+    echo "ERROR: Failed to download networks.json for Mithril ${MITHRIL_SELECTED_RELEASE}." >&2
+    rm -f "${response_file}"
+    return 1
   fi
-  rm -f "$response_file"
+  MITHRIL_MINIMUM_NODE_VERSION="$(
+    jq -er --arg network "${network}" '
+      .[$network]["cardano-minimum-version"]["mithril-signer"] |
+      select(type == "string" and length > 0)
+    ' "${response_file}"
+  )" || {
+    echo "ERROR: Mithril ${MITHRIL_SELECTED_RELEASE} has no signer compatibility metadata for ${network}." >&2
+    rm -f "${response_file}"
+    return 1
+  }
+  rm -f "${response_file}"
 }
 
 update_check() {
@@ -237,33 +358,36 @@ update_check() {
 
     echo "Checking for script updates..."
 
-    # Check availability of checkUpdate function
-    if [[ ! $(command -v checkUpdate) ]]; then
-      echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
-      exit 1
+    if ! declare -F checkCommonRuntimeUpdates >/dev/null 2>&1; then
+      echo -e "\nWARNING: Common runtime bundle updater is unavailable; skipping updates."
+      echo "Re-run guild-deploy.sh before updating Mithril scripts."
+    else
+      ENV_UPDATED=${BATCH_AUTO_UPDATE}
+      if checkCommonRuntimeUpdates N; then
+        common_update_status=0
+      else
+        common_update_status=$?
+      fi
+      case "${common_update_status}" in
+        0) ;;
+        1) ENV_UPDATED=Y ;;
+        2) exit 1 ;;
+      esac
+
+      # check for mithril.library update
+      checkUpdate "${PARENT}"/mithril.library N N N
+      case $? in
+        1) ENV_UPDATED=Y ;;
+        2) exit 1 ;;
+      esac
+
+      # check the script update
+      checkUpdate "${PARENT}"/"$(basename "$0")" "${ENV_UPDATED}"
+      case $? in
+        1) echo ""; $0 "-u" "$@"; exit 0 ;; # re-launch script with same args skipping update check
+        2) exit 1 ;;
+      esac
     fi
-
-    # check for env update
-    ENV_UPDATED=${BATCH_AUTO_UPDATE}
-    checkUpdate "${PARENT}"/env N N N
-    case $? in
-      1) ENV_UPDATED=Y ;;
-      2) exit 1 ;;
-    esac
-
-    # check for mithril.library update
-    checkUpdate "${PARENT}"/mithril.library N N N
-    case $? in
-      1) ENV_UPDATED=Y ;;
-      2) exit 1 ;;
-    esac
-
-    # check the script update
-    checkUpdate "${PARENT}"/"$(basename "$0")" ${ENV_UPDATED}
-    case $? in
-      1) echo ""; $0 "-u" "$@"; exit 0 ;; # re-launch script with same args skipping update check
-      2) exit 1 ;;
-    esac
   fi
 }
 
@@ -625,37 +749,85 @@ stop_relays() {
 # Mithril Signer functions #
 ############################
 
+load_systemd_library() {
+  local scripts_dir systemd_library
+
+  scripts_dir="$(dirname "$0")"
+  systemd_library="${scripts_dir}/lib/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${scripts_dir}/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${scripts_dir}/../common-helper-scripts/lib/systemd.library"
+  if [[ ! -f "${systemd_library}" ]]; then
+    echo "ERROR: systemd.library is missing. Re-run the deployment script to install shared helpers."
+    return 1
+  fi
+  # shellcheck disable=SC1091
+  . "${systemd_library}"
+}
+
 deploy_systemd() {
-  echo "Creating ${CNODE_VNAME}-$(basename "${0::-3}") systemd service environment file.."
+  local component_name unit_name unit_content
 
-  echo "Deploying ${CNODE_VNAME}-$(basename "${0::-3}") as systemd service.."
-  ${sudo} bash -c "cat <<-'EOF' > /etc/systemd/system/${CNODE_VNAME}-$(basename "${0::-3}").service
-	[Unit]
-	Description=Cardano Mithril signer service
-	StartLimitIntervalSec=0
-	Wants=network-online.target
-	After=network-online.target
-	BindsTo=${CNODE_VNAME}.service
-	After=${CNODE_VNAME}.service
+  component_name="$(basename "${0::-3}")"
+  unit_name="${CNODE_VNAME}-${component_name}.service"
+  load_systemd_library || return 1
+  echo "Deploying ${CNODE_VNAME}-${component_name} as systemd service.."
+  read -r -d '' unit_content <<-EOF || true
+		[Unit]
+		Description=Cardano Mithril signer service
+		StartLimitIntervalSec=0
+		Wants=network-online.target
+		After=network-online.target
+		BindsTo=${CNODE_VNAME}.service
+		After=${CNODE_VNAME}.service
 
-	[Service]
-	Type=simple
-	Restart=always
-	RestartSec=60
-	User=${USER}
-	EnvironmentFile=${MITHRIL_HOME}/mithril.env
-	ExecStart=/bin/bash -l -c \"exec ${HOME}/.local/bin/$(basename "${0::-3}") -vv\"
-	KillSignal=SIGINT
-	SuccessExitStatus=143
-	StandardOutput=syslog
-	StandardError=syslog
-	SyslogIdentifier=${CNODE_VNAME}-$(basename "${0::-3}")
-	TimeoutStopSec=5
-	KillMode=mixed
+		[Service]
+		Type=simple
+		Restart=always
+		RestartSec=60
+		User=${USER}
+		EnvironmentFile=${MITHRIL_HOME}/mithril.env
+		ExecStart=/bin/bash -l -c "exec ${HOME}/.local/bin/${component_name} -vv"
+		KillSignal=SIGINT
+		SuccessExitStatus=143
+		StandardOutput=syslog
+		StandardError=syslog
+		SyslogIdentifier=${CNODE_VNAME}-${component_name}
+		TimeoutStopSec=5
+		KillMode=mixed
 
-	[Install]
-	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_VNAME}-$(basename "${0::-3}").service deployed successfully!!" && ${sudo} systemctl daemon-reload && ${sudo} systemctl enable ${CNODE_VNAME}-"$(basename "${0::-3}")".service
+		[Install]
+		WantedBy=multi-user.target
+	EOF
+  systemd_install_unit \
+    "${unit_name}" "${unit_content}" \
+    "${CNODE_HOME}/scripts/mithril-signer.sh" \
+    "Description=Cardano Mithril signer service" &&
+    systemd_daemon_reload &&
+    systemd_enable_units "${unit_name}" &&
+    echo "${unit_name} deployed successfully!!"
+}
+
+manage_mithril_systemd() {
+  local action="${1:-}"
+  local unit_name
+
+  unit_name="${CNODE_VNAME}-$(basename "${0::-3}").service"
+
+  case "${action}" in
+    install) deploy_systemd ;;
+    remove)
+      load_systemd_library &&
+        systemd_remove_units \
+          --owner-token "${CNODE_HOME}/scripts/mithril-signer.sh" \
+          --legacy-token "Description=Cardano Mithril signer service" \
+          "${unit_name}" &&
+        echo "${unit_name} removed successfully."
+      ;;
+    status)
+      load_systemd_library && systemd_status_units "${unit_name}"
+      ;;
+    *) return 1 ;;
+  esac
 }
 
 get_metrics_endpoint() {

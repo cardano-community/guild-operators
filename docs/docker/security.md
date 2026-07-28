@@ -1,70 +1,91 @@
+# Docker security
 
-### Docker Security best practices
+Containers share the host kernel and are not a substitute for host hardening.
+Treat a node container, its image inputs, mounted keys, and the Docker daemon as
+one security boundary.
 
-#### Intro
+## Guild image defaults
 
-On the security front, Docker developers are faced with different types of security attacks such as:
+The Guild node image builds as root but runs the node as the unprivileged
+`guild` user. The examples in this guide use
+`--security-opt=no-new-privileges`. The image also records implementation,
+network, and deployment root in `.deployment.json`; the entrypoint rejects
+runtime identity overrides that conflict with it.
 
-- Kernel exploits: Since the host’s kernel is shared in the container, a compromised container can attack the entire host.
-- Container breakouts: Caused when the user is able to escape the container namespace and interact with other processes on the host.
-- Denial-of-service attacks: Occur when some containers take up enough resources to hamper the functioning of other applications.
-- Poisoned images: Caused when an untrusted image is being run and a hacker is able to access application data and, potentially, the host itself.
+Those controls prevent common configuration mistakes, but they do not make an
+untrusted image, script branch, or host safe.
 
-> Docker containers are now being exploited to covertly mine for cryptocurrency, marking a shift from ransomware to cryptocurrency malware. 
-As with all things in security, also Docker security is a moving target — so it’s helpful to have access to up-to-date information, including experience-based best practices, for securing your containerized environments.
+## Protect the Docker daemon
 
-#### Here below some key concepts:
+- Never expose an unauthenticated Docker API or mount the Docker socket inside
+  the node container. Control of the daemon or socket is effectively
+  root-equivalent access to the host.
+- Limit membership of the host's `docker` group and audit it regularly.
+- Consider Docker's
+  [rootless mode](https://docs.docker.com/engine/security/rootless/) where it
+  fits the deployment.
+- Keep the host kernel, Docker Engine, and runtime packages supported and
+  patched.
 
-1. Use a Third-Party Security Tool
-Docker allows you to use containers from untrusted public repositories, which increases the need to scrutinize whether the container was created securely and whether it is free of any corrupt or malicious files. For this, use a multi-purpose security tool that gives extensive dev-to-production security controls.(keep reading below)
+## Use least privilege
 
-2. Manage Vulnerability
-It is best to have a sound vulnerability management program that has multiple checks throughout the container lifecycle. Vulnerability management should incorporate quality gates to detect access issues and weaknesses for a potential exploit from dev-to-production environments.
+- Do not use `--privileged`.
+- Retain `--security-opt=no-new-privileges`.
+- Publish only the relay or monitoring ports that are intentionally reachable,
+  and enforce host and network firewalls.
+- Amaru's OTLP receivers and Prometheus bridge are loopback-only inside the
+  container and do not need publishing for gLiveView. Dingo's native metrics
+  listener shares its public bind address; leave TCP 12798 unpublished unless
+  remote monitoring is deliberate and separately protected.
+- Mount only required paths. Use read-only mounts for inputs that never need to
+  change, and separate node state from operational keys.
+- Additional capability drops, a read-only root filesystem, seccomp, or
+  AppArmor/SELinux policies can reduce exposure, but test them against the
+  launcher's required writable paths before production use.
+- Apply CPU, memory, process, and storage limits appropriate for the node. See
+  Docker's [resource constraints](https://docs.docker.com/engine/containers/resource_constraints/).
 
-3. Monitor and Audit Container Activity
-It is vital to monitor the container ecosystem and detect suspicious activity. Container monitoring activities provide real-time reports that can help you react promptly to a security breach.
+## Protect keys and secrets
 
-4. Enable Docker Content Trust
-[Docker Content Trust](<https://docs.docker.com/engine/security/trust/> )is a new feature incorporated into Docker 1.8. It is disabled by default, but once enabled, allows you to verify the integrity, authenticity, and publication date of all Docker images from the Docker Hub Registry.
+- Never bake pool keys, wallet keys, API credentials, or database passwords
+  into an image.
+- Keep cold keys offline. Mount only the operational files required by that
+  specific online node.
+- Restrict ownership and permissions on host bind mounts.
+- Prefer a managed secret mechanism over plain environment variables for
+  sensitive values. See
+  [Docker secrets](https://docs.docker.com/engine/swarm/secrets/) when using a
+  compatible deployment mode.
+- Back up state and configuration separately from secrets, encrypt sensitive
+  backups, and test restoration.
 
-5. Use Docker Bench for Security
-You should consider [Docker Bench for Security](https://github.com/docker/docker-bench-security) as your must-use script. Once the script is run, you will notice a lot of information regarding configuration best practices for deploying Docker containers that can be used to further secure your Docker server and containers.
+## Verify image and build inputs
 
-6. Resource Utilization
-To reduce performance impacts and denial-of-service attacks, it is a good practice to implement limits on the system resources that the containers can consume. If, for example, a web server is compromised, it helps to limit the impact to the other processes that are running on a host.
+- Prefer immutable image digests for production deployments rather than a
+  moving `latest` tag.
+- Review the selected `G_ACCOUNT` and `GUILD_DEPLOY_BRANCH`; the Dockerfile
+  downloads deployment scripts, manifests, configuration, and container assets
+  from that source.
+- Guild release manifests checksum node and tool artifacts, but this does not
+  replace review of the Dockerfile, source branch, base image, or workflow.
+- Scan images and their dependencies before deployment and after material
+  updates.
+- Docker Content Trust/Notary v1 is being retired. For environments requiring
+  supply-chain enforcement, use current digest, signature, and provenance
+  controls such as
+  [Build attestations](https://docs.docker.com/build/metadata/attestations/)
+  and an organizational signature policy rather than starting a new DCT
+  deployment.
 
-7. RBAC
-RBAC is role-based access control. If you have multiple users accessing you enviroment, this is a must-have. It can be quite expensive to implement but [portainer](https://www.funkypenguin.co.nz/blog/docker-rbac-with-portainer/) makes it super easy.
+## Operate and monitor
 
-### Security Docker best practices: 
+- Send container and daemon logs to monitored storage with retention limits.
+- Alert on repeated restarts, unexpected image changes, resource exhaustion,
+  and published-port changes.
+- Recreate containers from reviewed images instead of making undocumented
+  changes inside a running container.
+- Test cnode upgrades on a relay or test network first. Dingo and Amaru images
+  are experimental, relay-only, and restricted to `preprod` and `preview`.
 
-#### The Guild Docker images are not using all the following tips due to functional purpose
-
-Guild tips:
-
-- **`NEVER NEVER NEVER expose Docker API publicly!!!`** (disabled by default)
-
-- Keep Docker Host Up-to-date
-- Reverse uptime: containers that are frequently shut down and replaced by new container are more difficult for hackers to attack.
-- Use a Firewall or Expose only the ports you need to be public.
-- Use a *`Reverse Proxy`
-- Do not Change **`Docker Socket Ownership`
-- Do not `Run Docker Containers as Root`
-- `Use Trusted Docker Images`
-- `Use Privileged Mode Carefully` (This is usually done by adding --privileged you can use `--security-opt=no-new-privileges` instead)
-
-Some more general tips:
-
-- Restrict container capabilities: `"--cap-drop ALL"`
-- [Use Docker Secrets](https://www.docker.com/blog/docker-secrets-management/)
-- Change DOCKER_OPTS to ***Respect IP Table Firewall 
-- [Control Docker Resource Usage](https://docs.docker.com/config/containers/resource_constraints/)
-- [Rate Limit](https://docs.docker.com/docker-hub/download-rate-limit/): is quite common to mitigate brute force or denial of service attacks.
-- [Fail2ban](https://www.fail2ban.org/wiki/index.php/Main_Page): Fail2ban scans your log files and bans IP address that shows malicious intent
-- [Container Vulnerability Scanner](https://github.com/quay/clair)
-
-#### Notes:
-
-- *Nginx is a very good choice as load balancer and/or reverse proxy.
-- **By default the socket is owned by root user and docker group.
-- *** On Ubuntu/Debian based systems, edit /etc/default/docker and add the following line: ```DOCKER_OPTS= "--iptables=false"```
+See [Run](run.md) for implementation-specific volumes and ports and
+[Docker operational tips](tips.md) for update, backup, and restore behavior.

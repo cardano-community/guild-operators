@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Canonical CNTools library shared by all node implementations.
 # shellcheck disable=SC2034,SC2086,SC2230,SC2206,SC2140,SC2059,SC2154
 
 ######################################
@@ -162,23 +163,106 @@ protectionPreRequisites() {
 # Command     : download_catalyst_toolbox
 # Description : Downloads Catalyst Toolbox
 download_catalyst_toolbox() {
-  cmdAvailable "catalyst-toolbox" &>/dev/null && return 0
-  println DEBUG "Downloading prerequisite tool: catalyst-toolbox"
   local ARCH; ARCH=$(uname -a)
+  local manifest="${NODE_HOME:-${CNODE_HOME:-}}/files/cnode-release.json"
+  local release_data version filename url expected_sha actual_sha
+  local temporary_dir staged_binary catalyst_toolbox_version installed_binary
   if [[ ${ARCH,,} != *x86_64*linux* ]]; then
-    println ERROR "\n${FG_RED}ERROR${NC}: Only x86_64 architecture on Linux supported, please manually build for your system from:\nhttps://github.com/input-output-hk/catalyst-core"
-    waitToProceed && return 1
+    println ERROR "\n${FG_RED}ERROR${NC}: Only x86_64 architecture on Linux supported, please manually build for your system from:\nhttps://github.com/cardano-foundation/catalyst-core"
+    waitToProceed
+    return 1
   fi
-  rm -rf /tmp/catalyst-toolbox-bin && mkdir /tmp/catalyst-toolbox-bin
-  pushd /tmp/catalyst-toolbox-bin >/dev/null || return 1
-  if curl -sL -f -m ${CURL_TIMEOUT} -o "${HOME}"/.local/bin/catalyst-toolbox "https://share.koios.rest/api/public/dl/xFdZDfM4%2Fbin%2Fcatalyst-toolbox"; then
-    chmod +x "${HOME}"/.local/bin/catalyst-toolbox
-    local catalyst_toolbox_version; catalyst_toolbox_version=$(catalyst-toolbox --full-version)
-    println DEBUG "  ${catalyst_toolbox_version%% - *} ${FG_GREEN}installed!${NC}"
-  else
-    println ERROR "\n${FG_RED}ERROR${NC}: Download of Catalyst Toolbox from Koios share failed! Please retry or build it manually from:\nhttps://github.com/input-output-hk/catalyst-core"
-    waitToProceed && return 1
+  if ! command -v jq >/dev/null 2>&1 ||
+     ! command -v sha256sum >/dev/null 2>&1 ||
+     [[ ! -f "${manifest}" || -L "${manifest}" || ! -s "${manifest}" ]]; then
+    println ERROR "\n${FG_RED}ERROR${NC}: Valid cnode release metadata and checksum tools are required to install Catalyst Toolbox."
+    waitToProceed
+    return 1
   fi
+  release_data="$(
+    jq -er '
+      select(
+        .schemaVersion == 1 and
+        .implementation == "cnode" and
+        (.tools["catalyst-toolbox"].version |
+          type == "string" and length > 0) and
+        (.tools["catalyst-toolbox"].artifacts["linux-x86_64"].url |
+          type == "string" and startswith("https://")) and
+        (.tools["catalyst-toolbox"].artifacts["linux-x86_64"].sha256 |
+          type == "string" and test("^[0-9a-f]{64}$"))
+      ) |
+      [
+        .tools["catalyst-toolbox"].version,
+        .tools["catalyst-toolbox"].artifacts["linux-x86_64"].url,
+        .tools["catalyst-toolbox"].artifacts["linux-x86_64"].sha256
+      ] | @tsv
+    ' "${manifest}"
+  )" || {
+    println ERROR "\n${FG_RED}ERROR${NC}: Invalid Catalyst Toolbox release metadata in ${manifest}."
+    waitToProceed
+    return 1
+  }
+  IFS=$'\t' read -r version url expected_sha <<< "${release_data}"
+  filename="catalyst-toolbox"
+  installed_binary="$(command -v catalyst-toolbox 2>/dev/null || true)"
+  if [[ -n "${installed_binary}" &&
+     -f "${installed_binary}" &&
+     ! -L "${installed_binary}" ]]; then
+    actual_sha="$(sha256sum "${installed_binary}" 2>/dev/null | awk '{print $1}')"
+    catalyst_toolbox_version="$(
+      "${installed_binary}" --full-version 2>/dev/null || true
+    )"
+    if [[ "${actual_sha,,}" == "${expected_sha}" &&
+       "${catalyst_toolbox_version}" == "catalyst-toolbox ${version} "* ]]; then
+      return 0
+    fi
+    println DEBUG "Replacing Catalyst Toolbox that does not match the pinned cnode release policy."
+  fi
+  println DEBUG "Downloading prerequisite tool: catalyst-toolbox"
+  temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/catalyst-toolbox.XXXXXX")" || return 1
+  staged_binary="${temporary_dir}/${filename}"
+  if ! curl -sSfL -m "${CURL_TIMEOUT}" -o "${staged_binary}" "${url}"; then
+    rm -rf -- "${temporary_dir}"
+    println ERROR "\n${FG_RED}ERROR${NC}: Download of Catalyst Toolbox ${version} failed! Please retry or build it manually from:\nhttps://github.com/cardano-foundation/catalyst-core"
+    waitToProceed
+    return 1
+  fi
+  actual_sha="$(sha256sum "${staged_binary}" | awk '{print $1}')" || {
+    rm -rf -- "${temporary_dir}"
+    return 1
+  }
+  if [[ "${actual_sha,,}" != "${expected_sha}" ]]; then
+    rm -rf -- "${temporary_dir}"
+    println ERROR "\n${FG_RED}ERROR${NC}: Catalyst Toolbox ${version} failed SHA-256 verification."
+    waitToProceed
+    return 1
+  fi
+  chmod 0755 "${staged_binary}" || {
+    rm -rf -- "${temporary_dir}"
+    return 1
+  }
+  catalyst_toolbox_version="$("${staged_binary}" --full-version 2>/dev/null)" || {
+    rm -rf -- "${temporary_dir}"
+    println ERROR "\n${FG_RED}ERROR${NC}: Verified Catalyst Toolbox could not report its version."
+    waitToProceed
+    return 1
+  }
+  if [[ "${catalyst_toolbox_version}" != "catalyst-toolbox ${version} "* ]]; then
+    rm -rf -- "${temporary_dir}"
+    println ERROR "\n${FG_RED}ERROR${NC}: Catalyst Toolbox binary version does not match pinned release ${version}."
+    waitToProceed
+    return 1
+  fi
+  mkdir -p "${HOME}/.local/bin" || {
+    rm -rf -- "${temporary_dir}"
+    return 1
+  }
+  if ! install -m 0755 "${staged_binary}" "${HOME}/.local/bin/catalyst-toolbox"; then
+    rm -rf -- "${temporary_dir}"
+    return 1
+  fi
+  rm -rf -- "${temporary_dir}"
+  println DEBUG "  ${catalyst_toolbox_version%% - *} ${FG_GREEN}installed!${NC}"
   return 0
 }
 
@@ -1510,7 +1594,10 @@ getAllGovActions() {
       # get committee vote power (sum of authorized committee members)
       cc_power_authorized=$(jq -r 'reduce(select(.committee[].hotCredsAuthStatus.tag|strings=="MemberAuthorized")) as $_ (0; .+1)' <<< "${committee_info}")
       println ACTION "${CCLI} latest query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64'"
-      _vote_action_list=( $(${CCLI} latest query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null) )
+      _vote_action_list=()
+      while IFS= read -r _vote_action; do
+        _vote_action_list+=( "${_vote_action}" )
+      done < <(${CCLI} latest query gov-state ${NETWORK_IDENTIFIER} | jq -er '.proposals[] | @base64' 2>/dev/null)
       # reverse order
       for ((i=${#_vote_action_list[@]}-1; i>=0; i--)); do
         vote_action_list_all+=( "${_vote_action_list[$i]}" )
@@ -5253,6 +5340,28 @@ transformRawTx() {
 
 # Command     : unlockHWDevice [action]
 # Description : Directions to unlock and open HW device
+cnodeManifestToolMinimumVersion() {
+  local tool_key="$1"
+  local manifest="${NODE_HOME:-${CNODE_HOME:-}}/files/cnode-release.json"
+
+  command -v jq >/dev/null 2>&1 || {
+    printf 'jq is required to validate cnode tool compatibility metadata.\n' >&2
+    return 1
+  }
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] || {
+    printf 'Cnode release metadata is missing or unsafe: %s\n' "${manifest}" >&2
+    return 1
+  }
+  jq -er --arg tool "${tool_key}" '
+    select(
+      .schemaVersion == 1 and
+      .implementation == "cnode" and
+      (.tools[$tool].minimumVersion | type == "string" and length > 0)
+    ) |
+    .tools[$tool].minimumVersion
+  ' "${manifest}"
+}
+
 # Parameters  : action  >  message for action to be taken
 unlockHWDevice() {
   if ! HWCLIversionCheck; then waitToProceed && return 1; fi
@@ -5273,13 +5382,19 @@ unlockHWDevice() {
 }
 
 HWCLIversionCheck() {
+  local minimum_version
+
   ! command -v "cardano-hw-cli" &>/dev/null && echo "cardano-hw-cli not found, please install using guild-deploy.sh with '-s w' option" && return 1
+  if ! minimum_version="$(cnodeManifestToolMinimumVersion "cardano-hw-cli")"; then
+    println ERROR "${FG_RED}ERROR${NC}: invalid cardano-hw-cli compatibility metadata in the installed cnode release manifest."
+    return 1
+  fi
   println ACTION "cardano-hw-cli version"
   HWCLI_version="$(cardano-hw-cli version 2>/dev/null | head -n 1 | cut -d' ' -f6)"
   println LOG "cardano-hw-cli version: ${HWCLI_version}"
-  if ! versionCheck "1.17.0" "${HWCLI_version}"; then
-    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v1.17.0${NC} !!"
-    println ERROR "Please run ${FG_LGRAY}guild-deploy.sh -s w${NC} to upgrade to the latest version."
+  if ! versionCheck "${minimum_version}" "${HWCLI_version}"; then
+    println ERROR "${FG_RED}ERROR${NC}: Vacuumlabs cardano-hw-cli ${FG_LGRAY}v${HWCLI_version}${NC} installed on system, minimum required version is ${FG_GREEN}v${minimum_version}${NC} !!"
+    println ERROR "Please run ${FG_LGRAY}guild-deploy.sh -s w${NC} to upgrade."
     return 1
   fi
   return 0

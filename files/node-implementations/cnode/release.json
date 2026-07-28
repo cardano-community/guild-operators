@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "implementation": "cnode",
+  "version": "11.0.1",
+  "artifacts": {
+    "linux-x86_64": {
+      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.0.1/cardano-node-11.0.1-linux-amd64.tar.gz",
+      "sha256": "40e88a543564251338c4888ef79fde51d2306c18b48ac308c9eab3220e3a13f0"
+    },
+    "linux-aarch64": {
+      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.0.1/cardano-node-11.0.1-linux-arm64.tar.gz",
+      "sha256": "c66ca441048630051de1d1c0c2f3b988c5fc97eab80052202f052517c4c6e428"
+    }
+  },
+  "companions": {
+    "cardano-cli": {
+      "version": "11.0.0.0",
+      "artifacts": {
+        "linux-x86_64": {
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.0.0.0/cardano-cli-11.0.0.0-x86_64-linux.tar.gz",
+          "sha256": "c37b26be04106ecd2ba88841e64d3b7ecdc80d838055102323691b087f7255b1"
+        },
+        "linux-aarch64": {
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.0.0.0/cardano-cli-11.0.0.0-aarch64-linux.tar.gz",
+          "sha256": "5e1db5459ee6b58433e2ce2db2ba53dd9fd4dd43bae0c14aefc25677bba88ae7"
+        }
+      }
+    },
+    "cardano-address": {
+      "version": "4.0.7",
+      "artifacts": {
+        "linux-x86_64": {
+          "url": "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-address-4.0.7-x86_64.tar.gz",
+          "sha256": "dcdb408fd0654e51b1d26c4f037be0055217803d7fbf5bbe9daa5e4d4d945ebc"
+        },
+        "linux-aarch64": {
+          "url": "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-address-4.0.7-aarch64.tar.gz",
+          "sha256": "e5a19e57f510dbfcba970a400a32ffcd3f8ce9af6938a7e97913154ef846fcad"
+        }
+      }
+    },
+    "cardano-db-sync": {
+      "version": "13.7.2.1",
+      "artifacts": {
+        "linux-x86_64": {
+          "url": "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.7.2.1-x86_64.tar.gz",
+          "sha256": "b53b96f9c8a773cd8d0a1d9b30f44b330d9dba3c64f0f14fa0a84301ef843da0"
+        },
+        "linux-aarch64": {
+          "url": "https://share.koios.rest/api/public/dl/xFdZDfM4/bin/cardano-db-sync-13.7.2.1-aarch64.tar.gz",
+          "sha256": "c3cbad802f85b7f3bbcdc070f8569759689af0cf2182f55790a14a2745486a8b"
+        }
+      }
+    }
+  },
+  "tools": {
+    "catalyst-toolbox": {
+      "version": "0.3.0",
+      "artifacts": {
+        "linux-x86_64": {
+          "url": "https://share.koios.rest/api/public/dl/xFdZDfM4%2Fbin%2Fcatalyst-toolbox",
+          "sha256": "221b73b9b46b8fbd1782c0b76d11543bc80873c6bcda82502470c7f3c7bdc391"
+        }
+      }
+    },
+    "ghcup": {
+      "version": "0.2.6.2",
+      "artifacts": {
+        "linux-x86_64": {
+          "url": "https://github.com/haskell/ghcup-hs/releases/download/v0.2.6.2/x86_64-linux-ghcup-0.2.6.2",
+          "sha256": "9ed5da5449b48043a0d17e767c05d2ef585e25a639bb934329496c6d2fad9cf8"
+        },
+        "linux-aarch64": {
+          "url": "https://github.com/haskell/ghcup-hs/releases/download/v0.2.6.2/aarch64-linux-ghcup-0.2.6.2",
+          "sha256": "65a5f05120288ee4f1a81d28825374b6af317456a351a586adfce90c6dc29e3b"
+        }
+      }
+    },
+    "cncli": {
+      "version": "latest",
+      "github": "cardano-community/cncli",
+      "minimumVersion": "6.5.1",
+      "assets": {
+        "linux-x86_64": "^cncli-[^/]+-ubuntu22-x86_64-unknown-linux-musl\\.tar\\.gz$"
+      }
+    },
+    "cardano-hw-cli": {
+      "version": "latest",
+      "github": "vacuumlabs/cardano-hw-cli",
+      "channel": "any",
+      "minimumVersion": "1.17.0",
+      "assets": {
+        "linux-x86_64": "^cardano-hw-cli-[^/]+_linux-x64\\.tar\\.gz$",
+        "linux-aarch64": "^cardano-hw-cli-[^/]+_linux-arm64\\.tar\\.gz$"
+      }
+    },
+    "ogmios": {
+      "version": "latest",
+      "github": "CardanoSolutions/ogmios",
+      "channel": "any",
+      "assets": {
+        "linux-x86_64": "^ogmios-[^/]+-x86_64-linux\\.zip$",
+        "linux-aarch64": "^ogmios-[^/]+-aarch64-linux\\.zip$"
+      }
+    },
+    "cardano-signer": {
+      "version": "latest",
+      "github": "gitmachtl/cardano-signer",
+      "minimumVersion": "1.24.0",
+      "assets": {
+        "linux-x86_64": "^cardano-signer-[^/]+_linux-x64\\.tar\\.gz$",
+        "linux-aarch64": "^cardano-signer-[^/]+_linux-arm64\\.tar\\.gz$"
+      }
+    },
+    "mithril": {
+      "version": "latest",
+      "github": "IntersectMBO/mithril",
+      "assets": {
+        "linux-x86_64": "^mithril-[^/]+-linux-x64\\.tar\\.gz$",
+        "linux-aarch64": "^mithril-[^/]+-linux-arm64\\.tar\\.gz$"
+      }
+    }
+  },
+  "managedInstallers": {
+    "openblockperf": {
+      "version": "latest",
+      "installer": {
+        "url": "https://raw.githubusercontent.com/cardano-foundation/openblockperf/a12820f5dbf591939b6e36eb2e1aca5383522189/blockperf-install.sh",
+        "sha256": "28c649fee50483f10e3c6dd56861560d0f4e0a352434ade3ccab6a9e629603d9"
+      }
+    }
+  },
+  "supportArtifacts": {
+    "hardwareWalletRules": {
+      "ledger": {
+        "url": "https://raw.githubusercontent.com/LedgerHQ/udev-rules/6d9b02572ce3ba3cddcbabdb6f625a8cf333e592/add_udev_rules.sh",
+        "sha256": "d8c241028d4078ce21ed0734d3ae692e79036317effd876c26fdee74f1e5a97e"
+      },
+      "trezor": {
+        "url": "https://data.trezor.io/udev/51-trezor.rules",
+        "sha256": "f3b39b4537da6260a7b63af07710aedfab1fe87d8eeff0975d176b9b908b9d6e"
+      }
+    }
+  },
+  "build": {
+    "toolchain": {
+      "ghc": "9.6.7",
+      "cabal": "3.12.1.0"
+    },
+    "sourceDependencies": {
+      "libsodium": {
+        "repository": "https://github.com/IntersectMBO/libsodium",
+        "version": "1.0.18",
+        "ref": "dbb48cce5429cb6585c9034f002568964f1ce567"
+      },
+      "secp256k1": {
+        "repository": "https://github.com/bitcoin-core/secp256k1",
+        "version": "0.3.2",
+        "ref": "acf5c55ae6a94e5ca847e07def40427547876101"
+      },
+      "blst": {
+        "repository": "https://github.com/supranational/blst",
+        "version": "0.3.14",
+        "ref": "8c7db7fe8d2ce6e76dc398ebd4d475c0ec564355"
+      }
+    }
+  }
+}

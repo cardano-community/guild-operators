@@ -1,66 +1,60 @@
-# Mithril Overview
+# Mithril overview
 
-[Mithril Networks](https://mithril.network/docs) provide the ability to download and bootstrap cardano nodes via snapshots of the the Cardano blockchain. This is a great way to speed up the process of syncing a new node, especially for stake pool operators. The tools provided by Guild Operators are designed to facilitate the ease of use
-in setting up and managing the:
+[Mithril](https://mithril.network/doc/) provides certified Cardano database snapshots
+that can substantially reduce the time needed to bootstrap a new node. The Guild
+Operators wrappers help install and manage:
 
-- [Mithril Client](https://mithril.network/doc/mithril/mithril-network/client) to
-download a snapshot for the given network the node is attached to via the
+- [Mithril Client](https://mithril.network/doc/manual/develop/nodes/mithril-client/) to
+download a snapshot for the network the node is attached to via the
 [mithril-client.sh](../Scripts/mithril-client.md) script.
-- [Mithril Signer](https://mithril.network/doc/mithril/mithril-network/signer) to
-participate in the creation of stake based singatures of snapshots via the
+- [Mithril Signer](https://mithril.network/doc/manual/operate/run-signer-node/) to
+participate in the creation of stake-based signatures via the
 [mithril-signer.sh](../Scripts/mithril-signer.md) script.
-- Squid Mithril Relay to provide a relay for submitting the snapshots signatures to a
-Mithril Aggregator, as described in [Run a Mithril signer as an
-SPO](https://mithril.network/doc/manual/getting-started/run-signer-node) documentation
+- Squid-based Mithril relay to forward signer traffic to a Mithril aggregator, as
+described in the upstream [signer deployment
+guide](https://mithril.network/doc/manual/operate/run-signer-node/),
 via the [mithril-relay.sh](../Scripts/mithril-relay.md) script.
 
+!!! note "Node implementation support"
+    The Guild Mithril integration currently supports `cnode` only. The alternative-node
+    deployment profiles reject the cnode-specific `-s m` component flag.
 
-The `env` file contains a new environment variable `MITHRIL_DOWNLOAD` that when enabled
-allows the `cnode.sh` script to automatically download the latest Mithril snapshot if
-the local `db` directory is empty. This is useful for new nodes that need to be 
-bootstrapped with the latest snapshot to avoid synchronizing the entire blockchain
-from scratch. While also providing a high level of trust that the snapshot is valid
-since it is signed by multiple pool operators.
+When `MITHRIL_DOWNLOAD="Y"` is set in the deployed `scripts/env` file, `cnode.sh`
+automatically invokes `mithril-client.sh` if the local database directory is empty.
+The downloaded snapshot is certified by the Mithril network.
 
 ## Architecture
 
-The architecture for Mithril Networks is described in detail at [Mithril network
-architecture](https://mithril.network/doc/mithril/mithril-network/architecture) by
-CF/IOHK. However the architecture suggested and supported by the Guild Operators tools
-is not identical to the upstream documentation in that we provide a more simplified
-approach to the setup and management of the Mithril Network components and tools that
-allow setting up a Squid Mithril relays and an Nginx loadbalancer (aka sidecar) local to
-the Mithril signer. The Nginx sidecar provides the ability to loadbalance requests to
-multiple Squid based Mithril Relays running on each of the SPO's Cardano Relay nodes.
+The upstream [Mithril network
+architecture](https://mithril.network/doc/mithril/mithril-network/architecture)
+describes the protocol components. The Guild tooling additionally supports Squid-based
+relays and an optional Nginx load balancer local to the signer. The Nginx sidecar can
+distribute requests over multiple Squid relays running on the SPO's Cardano relay nodes.
 
 ### Single Relay Architecture
 
-For SPO's who only have a single Cardano relay node, an Squid based Mithril relay can be
-run on the same node as the Cardano relay. This can be used by the Mithril signer to
-submit the snapshot signatures to the Mithril Aggregator.
+For SPOs with a single Cardano relay node, a Squid-based Mithril relay can run on that
+node. The signer uses it to submit signatures to the Mithril aggregator.
 
 ![Single Cardano Relay](https://raw.githubusercontent.com/cardano-community/guild-operators/images/mithril_single_relay.png)
 
 ### Multi Relay Architecture
 
-For SPO's who have multiple Cardano relay nodes, a Nginx relay sidecar can be run on the
-Block Producer and load balance requests over mutliple Cardano relay nodes, each running
-its own Nginx Mithril relay to pass the signature along to the Mithril aggregator. This
-can be used to avoid a single point of failure in case a Relay server is offline for any
-reason. This provides high availability for the Mithril signer through multiple relays
-as long as the local Nginx Mithril relay is running on the same server as the Cardano
-Block Producer node.
+For SPOs with multiple Cardano relay nodes, an Nginx sidecar can run on the block
+producer and load balance requests over those nodes, each of which runs a Squid Mithril
+relay. This removes an individual Cardano relay as a single point of failure.
 
 ![Multi Cardano Relay](https://raw.githubusercontent.com/cardano-community/guild-operators/images/mithril_multi_relay.png)
 
 ## Installation
 
-The installation of the Mithril tools is automated via `guild-deploy.sh`. To participate
-in a Mithril network include the `-s m` flag which will install the Mithril Client and
-Mithril Signer release binaries to `"${HOME}"/.local/bin`.
+The installation of the Mithril tools is automated by `guild-deploy.sh`. For a cnode
+deployment, include the `-s m` component flag. It installs the Mithril Client and Signer
+binaries in `"${HOME}"/.local/bin` and installs the Guild wrapper scripts in the
+selected node's `scripts` directory.
 
 ```bash
-guild-deploy.sh -s m
+./guild-deploy.sh -i cnode -n mainnet -s m
 ```
 
 
@@ -73,9 +67,9 @@ snapshots, or show details of a specific snapshot.
 
 To bootstrap a Cardano node using the Mithril client, follow these steps:
 
-1. **Setup the Cardano Node:** Use the guild tools to setup the Cardano node, either by
+1. **Set up the Cardano node:** Use the Guild tools to set up the Cardano node, either by
 building the binaries or using pre-compiled binaries. Follow the instructions in the
-[guild-operators documentation](https://cardano-community.github.io/guild-operators/Build/node-cli/).
+[cnode build documentation](../Build/cnode.md).
 
 2. **Create the Mithril environment file:** Run the script with the `environment setup`
 command. This will create a new `mithril.env` file with all the necessary environment
@@ -85,15 +79,15 @@ variables for the Mithril client.
    ./mithril-client.sh environment setup
    ```
 
-   * Override a default variable in the Mithril environment file: Run the script with the environment override <VARIABLE> <VALUE> command to override a default variable in the mithril.env file.
+   To override a value later, use:
 
-     ```bash
-     ./mithril-client.sh environment override <VARIABLE> <VALUE>
-     ```
+   ```bash
+   ./mithril-client.sh environment override <VARIABLE> <VALUE>
+   ```
 
 3. **Download the latest Mithril snapshot:** Once the environment file is set up, you
-can download the latest Mithril snapshot by running the script with the `snapshot
-download` command. This snapshot contains the latest state of the Cardano blockchain db
+can download the latest Mithril snapshot by running the `cardano-db download` command.
+This snapshot contains the latest certified state of the Cardano blockchain database
 from a Mithril Aggregator.
 
    ```bash
@@ -104,139 +98,77 @@ from a Mithril Aggregator.
 
    ```bash
    ./mithril-client.sh cardano-db download skip-ancillary
-
-### Participating in Mithril Network
-
-The Mithril signer is used to participate in the creation of stake based signatures of
-snapshots. The Mithril signer can be used to sign a snapshots. The signed snapshot is
-then submitted to a Mithril Aggregator, via a Squid based Mithril Relay.
-
-The first step to participate in the Mithril network is to deploy your Squid based
-Mithril Relays. The Mithril relay is used to provide a private and highly available
-network for submitting the snapshots to a Mithril Aggregator.
-
-#### Deploying the Squid Mithril Relay
-
-To deploy your Squid based Mithril Relays with your Cardano relay node, follow these
-steps:
-
-1. **Deploy the Squid Mithril Relay:** Run the `mithril-relay.sh` script:
-
-   1. Use the `-d` flag to deploy the Squid Mithril Relay.
-   2. Provide the IP address of your Block Producer when prompted to secure
-      the Mithril Relay to only accept traffic from your Block Producer.
-   3. Optionally provide the relays listening port when prompted to use a port
-      other than the default 3132, or just press enter to use the default.
-   4. Create the appropriate firewall rule to allow traffic from your Block
-      Producer to the Mithril Relay.
-
-   ```bash
-   ./mithril-relay.sh -d
-
-   Installing squid proxy
-   Enter the IP address of your Block Producer: 1.2.3.4
-   Enter the relays listening port (press Enter to use default 3132):
-   Using port 3132 for relays listening port.
-   Create the appropriate firewall rule: sudo ufw allow from 1.2.3.4 to any port 3132 proto tcp
    ```
 
-   5. Enable the Systemd Squid Mithril Relay service to start on boot.
+### Participating in the Mithril network
 
-   ```bash
-      sudo systemctl enable --now squid
-   ```
+In the upstream production deployment model, the signer runs on the block
+producer and sends traffic through a relay on a Cardano relay host. Consult the
+upstream [signer deployment
+guide](https://mithril.network/doc/manual/operate/run-signer-node/) before
+deploying keys or services.
 
-2. **Repeat the process for each of your Cardano relay nodes.**
+#### Deploy Squid Mithril relays
 
-#### Deploying the Mithril Signer
+Run the relay installer on each Cardano relay host:
 
-##### Mithril Signer with Single Relay
+```bash
+./mithril-relay.sh -d
+```
 
-1. **Deploy the Mithril Signer:** Run the `mithril-signer.sh` script:
+The installer prompts for one or more permitted block-producer addresses,
+optional additional permitted addresses, and a listening port (default
+`3132`). It installs and restarts Squid. Restrict that port to the expected
+block-producer address at the host or network firewall, then enable Squid at
+boot:
 
-   1. Use the `-e` flag to update the `mithril.env` file with the Mithril
-      Signer environment variables.
-   2. Provide the IP address of your Mithril Relay when prompted.
-   3. Optionally provide the relays listening port when prompted to use a port.
+```bash
+sudo systemctl enable --now squid
+```
 
-      ```bash
-        ./mithril-signer.sh -e
-        Enter the IP address of the relay endpoint: 4.5.6.7
-        Enter the port of the relay endpoint (press Enter to use default 3132):
-        Using RELAY_ENDPOINT=4.5.6.7:3132 for the Mithril signer relay endpoint.
-      ```
+#### Optional multi-relay load balancer
 
-   4. Use the `-d` flag to deploy the Mithril Signer.
+For multiple Squid relays, run the Nginx sidecar installer on the block
+producer:
 
-      ```bash
-        ./mithril-signer.sh -d
-        Creating cnode-mithril-signer systemd service environment file..
-        Mithril signer service successfully deployed
-      ```
+```bash
+./mithril-relay.sh -l
+```
 
-   5. Enable the Systemd service to start the Mithril Signer on boot.
+Enter each relay address, the sidecar listen address (default `127.0.0.1`), and
+the common relay port (default `3132`). The installer restarts Nginx; enable it
+at boot:
 
-      ```bash
-        sudo systemctl enable cnode-mithril-signer
-      ```
+```bash
+sudo systemctl enable --now nginx
+```
 
-##### Mithril Signer with Multi Relay
+#### Configure and deploy the signer
 
-1. **Deploy the Nginx sidecar loadbalancer:** Run the `mithril-relay.sh` script:
+On the block producer, generate or update `mithril.env`:
 
-   1. Use the `-l` flag to deploy the Nginx Mithril Relay.
-   2. Provide the IP address of your Mithril Relay(s) when prompted.
-   3. Provide an IP address for your nginx loadbalancer (default 127.0.0.1)
-   4. Optionally provide the relays listening port when prompted to use a port
-      other than the default 3132, or just press enter to use the default.
-   5. Create the appropriate firewall rule to allow traffic from your Block
-      Producer to the Mithril Relay(s).
+```bash
+./mithril-signer.sh -e
+```
 
-      ```bash
-      ./mithril-relay.sh -l
+For a single relay, provide that relay's address. For a multi-relay deployment,
+provide the Nginx sidecar address, normally `127.0.0.1`. The command also asks
+whether to expose signer metrics. On an upstream-supported testnet naive
+deployment, answer `n` when asked whether a relay endpoint is used.
 
-      Installing nginx load balancer
-      Enter the IP address of a relay: 4.5.6.7
-      Are there more relays? (y/n) y
-      Enter the IP address of a relay: 8.9.10.11
-      Are there more relays? (y/n) n
-      Enter the IP address of the load balancer (press Enter to use default 127.0.0.1):
-      Using IP address 127.0.0.1 for the load balancer configuration.
-      Enter the relays listening port (press Enter to use default 3132):
-      Using port 3132 for relays listening port.
-      Starting Mithril relay sidecar (nginx load balancer)
-      ```
+Install the component-owned systemd unit, then start it:
 
-   5. Enable the Systemd Nginx Mithril Relay service to start on boot.
+```bash
+./mithril-signer.sh systemd install
+sudo systemctl start cnode-mithril-signer
+```
 
-      ```bash
-      sudo systemctl enable --now nginx
-      ```
+The installer enables the unit for boot but does not start it. The legacy
+`./mithril-signer.sh -d` form remains an alias for `systemd install`.
 
-2. **Deploy the Mithril Signer:** Run the `mithril-signer.sh` script:
+Inspect or remove the Guild-owned unit with:
 
-   1. Use the `-e` flag to update the `mithril.env` file with the Mithril
-      Signer environment variables.
-   2. Provide the IP address of your nginx loadbalancer when prompted.
-   3. Optionally provide the loadbalancer listening port when prompted to use a port.
-
-      ```bash
-          ./mithril-signer.sh -e
-          Enter the IP address of the relay endpoint: 127.0.0.1
-          Enter the port of the relay endpoint (press Enter to use default 3132):
-          Using RELAY_ENDPOINT=127.0.0.1:3132 for the Mithril signer relay endpoint.
-      ```
-
-   4. Use the `-d` flag to deploy the Mithril Signer.
-
-      ```bash
-          ./mithril-signer.sh -d
-          Creating cnode-mithril-signer systemd service environment file..
-          Mithril signer service successfully deployed
-      ```
-
-   5. Enable the Systemd service to start the Mithril Signer on boot.
-
-      ```bash
-          sudo systemctl enable cnode-mithril-signer
-      ```
+```bash
+./mithril-signer.sh systemd status
+./mithril-signer.sh systemd remove
+```

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086,SC2046,SC1078,SC2059,SC2143
+# shellcheck disable=SC2086,SC2046,SC1078,SC2034,SC2059,SC2143
 # shellcheck source=/dev/null
 
 ##########################################
@@ -46,26 +46,43 @@ SGVERSION=v1.4.2
     # Check if env file is missing in current folder, note that some env functions may not be present until env is sourced successfully
     [[ ! -f ./env ]] && printf "Common env file missing, please ensure latest guild-deploy.sh was run and this script is being run from ${CNODE_HOME}/scripts folder! \n" && exit 1
     . ./env offline # Just to source checkUpdate, will be re-sourced later
+    if [[ -n "${GUILD_BRANCH_OVERRIDE:-}" ]]; then
+      if ! declare -F deployment_set_branch >/dev/null 2>&1 ||
+         ! deployment_set_branch "${GUILD_BRANCH_OVERRIDE}"; then
+        printf "ERROR: Failed to persist branch '%s' in .deployment.json\n" "${GUILD_BRANCH_OVERRIDE}" >&2
+        exit 1
+      fi
+      BRANCH="${GUILD_BRANCH_OVERRIDE}"
+      URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
+    fi
     
     # Update check
     if [[ ${SKIP_UPDATE} != Y ]]; then
 
       printf "Checking for script updates...\n"
 
-      # Check availability of checkUpdate function
-      if [[ ! $(command -v checkUpdate) ]]; then
-        printf "Could not find checkUpdate function in env, make sure you're using official guild docos for installation!\n"
-        exit 1
+      if ! declare -F checkCommonRuntimeUpdates >/dev/null 2>&1; then
+        printf "WARNING: Common runtime bundle updater is unavailable; skipping updates.\n"
+        printf "Re-run guild-deploy.sh before updating setup-grest.sh.\n"
+      else
+        BUNDLE_UPDATED=N
+        if checkCommonRuntimeUpdates N; then
+          common_update_status=0
+        else
+          common_update_status=$?
+        fi
+        case "${common_update_status}" in
+          0) ;;
+          1) BUNDLE_UPDATED=Y ;;
+          2) printf "ERROR: Failed to update the common runtime bundle\n"; exit 1 ;;
+        esac
+
+        checkUpdate setup-grest.sh "${BUNDLE_UPDATED}" N N grest-helper-scripts
+        case $? in
+          1) echo; $0 "$@"; exit 0 ;; # re-launch script with same args
+          2) exit 1 ;;
+        esac
       fi
-
-      checkUpdate env N N N
-      [[ $? -eq 2 ]] && printf "ERROR: Failed to check updates from github against specified branch\n" && exit 1
-
-      checkUpdate setup-grest.sh Y N N grest-helper-scripts
-      case $? in
-        1) echo; $0 "$@"; exit 0 ;; # re-launch script with same args
-        2) exit 1 ;;
-      esac
     fi
 
     . "${PARENT}"/env offline &>/dev/null
@@ -666,7 +683,7 @@ SGVERSION=v1.4.2
     u) SKIP_UPDATE='Y' ;;
     r) RESET_GREST='Y' && DB_QRY_UPDATES='Y' ;;
     q) DB_QRY_UPDATES='Y' ;;
-    b) echo "${OPTARG}" > ./.env_branch ;;
+    b) GUILD_BRANCH_OVERRIDE="${OPTARG}" ;;
     \?) usage ;;
     esac
   done

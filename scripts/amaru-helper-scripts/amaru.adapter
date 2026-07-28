@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+# Adapter metadata for common Guild Operators helpers.
+# shellcheck disable=SC2034
+
+NODE_ADAPTER_API_VERSION=1
+NODE_ADAPTER_IMPLEMENTATION="amaru"
+NODE_IMPLEMENTATION_DISPLAY_NAME="Amaru"
+NODE_CAPABILITIES="process process_pid metrics prometheus_bridge"
+
+node_adapter_defaults() {
+  : "${NODE_IMPLEMENTATION:=amaru}"
+  : "${NODE_HOME:=${GUILD_NODE_HOME:-/opt/cardano/amaru}}"
+  : "${CNODE_HOME:=${NODE_HOME}}"
+  : "${NODE_SERVICE:=${GUILD_NODE_SERVICE:-amaru}}"
+  : "${NODE_BINARY:=${AMARU_BIN:-${HOME}/.local/bin/amaru}}"
+  : "${NODE_NETWORK:=${AMARU_NETWORK:-${NETWORK:-preview}}}"
+  : "${AMARU_LISTEN_ADDRESS:=0.0.0.0:3000}"
+  : "${NODE_PORT:=${AMARU_LISTEN_ADDRESS##*:}}"
+  : "${CNODE_PORT:=${NODE_PORT}}"
+  : "${NODE_CONFIG:=}"
+  NODE_SOCKET=""
+  CONFIG=""
+  SOCKET=""
+  NODE_CAN_FORGE="N"
+  NODE_HAS_N2C="N"
+  NODE_HAS_LOCAL_QUERY="N"
+  NODE_HAS_LOCAL_SUBMIT="N"
+  NODE_HAS_HTTP_SUBMIT="$([[ -n "${AMARU_SUBMIT_API_ADDRESS:-}" ]] && printf Y || printf N)"
+  : "${NODE_METRICS_HOST:=${PROM_HOST:-127.0.0.1}}"
+  : "${NODE_METRICS_PORT:=${PROM_PORT:-8889}}"
+  : "${NODE_METRICS_PATH:=/metrics}"
+  : "${PROM_HOST:=${NODE_METRICS_HOST}}"
+  : "${PROM_PORT:=${NODE_METRICS_PORT}}"
+  NODE_METRICS_URL="${AMARU_PROMETHEUS_URL:-http://${NODE_METRICS_HOST}:${NODE_METRICS_PORT}${NODE_METRICS_PATH}}"
+}
+
+node_adapter_init() {
+  node_adapter_defaults
+  case "${1:-full}" in
+    definitions|basic) return 0 ;;
+    monitor)
+      command -v curl >/dev/null 2>&1 || {
+        printf 'curl is required to collect Amaru metrics.\n' >&2
+        return 1
+      }
+      if declare -F common_configure_known_network >/dev/null 2>&1; then
+        common_configure_known_network "${NODE_NETWORK}" || return 1
+      fi
+      return 0
+      ;;
+    *) return "${NODE_ADAPTER_UNSUPPORTED:-3}" ;;
+  esac
+}
+
+node_adapter_validate() {
+  node_adapter_defaults
+  [[ "${NODE_IMPLEMENTATION}" == "amaru" ]] || return 1
+  [[ "${NODE_NETWORK}" == "preprod" || "${NODE_NETWORK}" == "preview" ]] || return 1
+  [[ -x "${NODE_BINARY}" ]]
+}
+
+node_adapter_installed_version() {
+  node_adapter_defaults
+  local output version="?" revision="?"
+  output="$("${NODE_BINARY}" --version)" || return 1
+  if [[ "${output}" =~ ([0-9]+\.[0-9]+\.[0-9]+[^[:space:]\(]*) ]]; then
+    version="${BASH_REMATCH[1]}"
+  fi
+  if [[ "${output}" =~ \(([0-9a-fA-F]{7,40})(\+dirty)?\) ]]; then
+    revision="${BASH_REMATCH[1]:0:8}"
+  fi
+  printf '%s\t%s\n' "${version}" "${revision}"
+}
+
+node_adapter_version() {
+  node_adapter_installed_version
+}
+
+node_adapter_is_live() {
+  node_adapter_defaults
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl is-active --quiet "${NODE_SERVICE}.service" && return 0
+  fi
+  pgrep -x amaru >/dev/null 2>&1
+}
+
+node_adapter_process_pid() {
+  node_adapter_defaults
+  local pid=""
+  if command -v systemctl >/dev/null 2>&1; then
+    pid="$(systemctl show --property MainPID --value "${NODE_SERVICE}.service" 2>/dev/null || true)"
+  fi
+  if [[ "${pid}" =~ ^[1-9][0-9]*$ ]]; then
+    printf '%s\n' "${pid}"
+    return 0
+  fi
+  pgrep -xo amaru
+}
+
+node_adapter_refresh_process() {
+  NODE_PID="$(node_adapter_process_pid 2>/dev/null || true)"
+  CNODE_PID="${NODE_PID}"
+  [[ "${NODE_PID}" =~ ^[1-9][0-9]*$ ]]
+}
+
+node_adapter_metrics_url() {
+  node_adapter_defaults
+  printf '%s\n' "${NODE_METRICS_URL}"
+}
+
+amaru_adapter_metric_value() {
+  local metrics="${1:-}"
+  local requested="${2:-}"
+  [[ -n "${requested}" ]] || return 1
+  awk -v requested="${requested}" '
+    /^[[:space:]]*#/ || NF < 2 { next }
+    {
+      series = $1
+      name = series
+      sub(/\{.*/, "", name)
+      if (name == requested || name == requested "_total") {
+        print $NF
+        exit
+      }
+    }
+  ' <<< "${metrics}"
+}
+
+amaru_adapter_metric_sum_by_result() {
+  local metrics="${1:-}"
+  local result_class="${2:-}"
+  [[ "${result_class}" == "accepted" || "${result_class}" == "rejected" ]] || return 1
+  awk -v result_class="${result_class}" '
+    /^[[:space:]]*#/ || NF < 2 { next }
+    {
+      series = $1
+      name = series
+      sub(/\{.*/, "", name)
+      if (name != "amaru_metrics_mempoolTxInsertionsNum_int" &&
+          name != "amaru_metrics_mempoolTxInsertionsNum_int_total") {
+        next
+      }
+      if (result_class == "accepted" &&
+          series !~ /result="accepted"/) {
+        next
+      }
+      if (result_class == "rejected" &&
+          series !~ /result="rejected_[^"]+"/) {
+        next
+      }
+      total += $NF
+      found = 1
+    }
+    END {
+      if (found) {
+        printf "%.0f\n", total
+      }
+    }
+  ' <<< "${metrics}"
+}
+
+amaru_adapter_bytes_to_mib() {
+  local value="${1:-}"
+  [[ "${value}" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+  LC_NUMERIC=C awk -v value="${value}" \
+    'BEGIN { printf "%.1f\n", value / 1048576 }'
+}
+
+amaru_adapter_process_uptime() {
+  local pid="${1:-}"
+  local elapsed="" host_uptime="" start_ticks="" clock_ticks=""
+  [[ "${pid}" =~ ^[1-9][0-9]*$ ]] || return 1
+
+  elapsed="$(ps -p "${pid}" -o etimes= 2>/dev/null | tr -d '[:space:]' || true)"
+  if [[ "${elapsed}" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "${elapsed}"
+    return 0
+  fi
+
+  if [[ -r "/proc/${pid}/stat" && -r /proc/uptime ]]; then
+    start_ticks="$(awk '{ print $22 }' "/proc/${pid}/stat" 2>/dev/null || true)"
+    host_uptime="$(awk '{ print int($1) }' /proc/uptime 2>/dev/null || true)"
+    clock_ticks="$(getconf CLK_TCK 2>/dev/null || true)"
+    if [[ "${start_ticks}" =~ ^[0-9]+$ &&
+          "${host_uptime}" =~ ^[0-9]+$ &&
+          "${clock_ticks}" =~ ^[1-9][0-9]*$ ]]; then
+      elapsed=$(( host_uptime - (start_ticks / clock_ticks) ))
+      (( elapsed < 0 )) && elapsed=0
+      printf '%s\n' "${elapsed}"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+amaru_adapter_set_optional_metric() {
+  local variable="${1:?variable name required}"
+  local value="${2:-}"
+  if [[ -n "${value}" ]]; then
+    node_metric_set "${variable}" "${value}"
+  else
+    node_metric_unset "${variable}"
+  fi
+}
+
+amaru_adapter_set_optional_custom_metric() {
+  local variable="${1:?variable name required}"
+  local value="${2:-}"
+  local label="${3:?metric label required}"
+  local unit="${4:-}"
+  if node_metric_value_is_numeric "${value}"; then
+    node_metric_set_custom "${variable}" "${value}" "${label}" "${unit}"
+  else
+    node_metric_unset_custom "${variable}"
+  fi
+}
+
+node_adapter_collect_metrics() {
+  local node_metrics normalized_metrics value pid
+  node_adapter_defaults
+  node_metrics="$(
+    curl --fail --silent --show-error \
+      --max-time "${PROM_TIMEOUT:-3}" \
+      "${NODE_METRICS_URL}" 2>/dev/null
+  )" || return 1
+  [[ -n "${node_metrics}" ]] || return 1
+
+  normalized_metrics="$(printf '%s\n' "${node_metrics}" | prometheus_normalize_metrics)"
+  common_parse_cardano_metrics "${normalized_metrics}"
+
+  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_runtime")"
+  if [[ ! "${value}" =~ ^[0-9]+$ ]]; then
+    pid="$(node_adapter_process_pid 2>/dev/null || true)"
+    value="$(amaru_adapter_process_uptime "${pid}" 2>/dev/null || true)"
+  fi
+  amaru_adapter_set_optional_metric uptimes "${value}"
+
+  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_cpu_live")"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_cpu_percent "${value}" "Process CPU" "%"
+  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_memory_live_resident")"
+  value="$(amaru_adapter_bytes_to_mib "${value}" 2>/dev/null || true)"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_memory_resident_mib "${value}" "Resident memory" "MiB"
+  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_memory_available_virtual")"
+  value="$(amaru_adapter_bytes_to_mib "${value}" 2>/dev/null || true)"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_memory_virtual_mib "${value}" "Virtual memory" "MiB"
+  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_open_files")"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_open_files "${value}" "Open files"
+  value="$(amaru_adapter_metric_sum_by_result "${normalized_metrics}" accepted)"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_mempool_insertions_accepted "${value}" "Mempool accepted"
+  value="$(amaru_adapter_metric_sum_by_result "${normalized_metrics}" rejected)"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_mempool_insertions_rejected "${value}" "Mempool rejected"
+}

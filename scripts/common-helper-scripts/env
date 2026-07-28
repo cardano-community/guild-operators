@@ -1,0 +1,307 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC1090,SC1091,SC2034
+# shellcheck source=/dev/null
+
+######################################
+# User Variables - Change as desired #
+# Leave as is if unsure              #
+######################################
+
+#NODE_IMPLEMENTATION="cnode"                            # cnode | dingo | amaru; deployment metadata normally sets this
+#USESYSVARS="N"                                         # Set Y to honor NODE_HOME/CNODE_HOME supplied above or by the calling shell
+#NODE_HOME="/opt/cardano/cnode"                         # Deployment root override; effective only when USESYSVARS=Y
+#CNODE_HOME="${NODE_HOME}"                              # Legacy deployment root alias; effective only when USESYSVARS=Y
+#CNODEBIN="${HOME}/.local/bin/cardano-node"             # Legacy node binary override
+#CCLI="${HOME}/.local/bin/cardano-cli"                  # Companion cardano-cli executable
+#CNCLI="${HOME}/.local/bin/cncli"                       # Optional CNCLI executable
+#CNODE_PORT=6000                                        # Legacy node-to-node port alias
+#CONFIG="${NODE_HOME}/files/config.json"                # Implementation configuration override
+#SOCKET="${NODE_HOME}/sockets/node.socket"              # Node-to-client socket override
+#TOPOLOGY="${NODE_HOME}/files/topology.json"            # Topology override
+#LOG_DIR="${NODE_HOME}/logs"
+#DB_DIR="${NODE_HOME}/db"
+#UPDATE_CHECK="Y"
+#TMP_DIR="/tmp/cnode"
+#PROM_HOST=127.0.0.1
+#PROM_PORT=12798
+#PROM_TIMEOUT=3
+#CURL_TIMEOUT=10
+#BLOCKLOG_DIR="${NODE_HOME}/guild-db/blocklog"
+#BLOCKLOG_TZ="UTC"
+#SHELLEY_TRANS_EPOCH=208
+#NETWORK_NAME=
+#TG_BOT_TOKEN=""
+#TG_CHAT_ID=""
+#TIMEOUT_LEDGER_STATE=300
+#IP_VERSION=4
+#ENABLE_KOIOS=Y
+#KOIOS_API="https://api.koios.rest/api/v1"
+#KOIOS_API_TOKEN=""
+#DBSYNC_QUERY_FOLDER="${NODE_HOME}/files/dbsync/queries"
+#G_ACCOUNT="cardano-community"
+#WALLET_FOLDER="${NODE_HOME}/priv/wallet"
+#POOL_FOLDER="${NODE_HOME}/priv/pool"
+#POOL_NAME=""
+#ASSET_FOLDER="${NODE_HOME}/priv/asset"
+#MITHRIL_DOWNLOAD="N"
+#MITHRIL_HOME="${NODE_HOME}/mithril"
+#MITHRIL_SIGNER_ENABLED="N"
+#STRICT_VERSION_CHECK="Y"
+
+######################################
+# Do NOT modify code below           #
+######################################
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  printf "This env file must be sourced, not executed.\n" >&2
+  exit 1
+fi
+
+GUILD_COMMON_ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
+PARENT="${GUILD_ENV_ENTRY_DIR:-${GUILD_COMMON_ENV_DIR}}"
+
+if [[ "${USESYSVARS:-N}" == "Y" ]]; then
+  NODE_HOME="${NODE_HOME:-${CNODE_HOME:-$(cd "${PARENT}/.." >/dev/null 2>&1 && pwd -P)}}"
+  CNODE_HOME="${CNODE_HOME:-${NODE_HOME}}"
+else
+  NODE_HOME="$(cd "${PARENT}/.." >/dev/null 2>&1 && pwd -P)"
+  CNODE_HOME="${NODE_HOME}"
+fi
+
+GUILD_COMMON_LIB_DIR="${GUILD_COMMON_ENV_DIR}/lib"
+if [[ ! -f "${GUILD_COMMON_LIB_DIR}/deployment.library" && -f "${PARENT}/lib/deployment.library" ]]; then
+  GUILD_COMMON_LIB_DIR="${PARENT}/lib"
+fi
+
+if [[ ! -f "${GUILD_COMMON_LIB_DIR}/deployment.library" ]]; then
+  printf "Common deployment library missing: %s/deployment.library\n" "${GUILD_COMMON_LIB_DIR}" >&2
+  return 1
+fi
+. "${GUILD_COMMON_LIB_DIR}/deployment.library" || return 1
+
+_deployment_manifest="$(deployment_file)" || return 1
+_deployment_branch=""
+_deployment_implementation=""
+DEPLOYMENT_SCHEMA_VERSION=""
+_deployment_network=""
+_deployment_service=""
+_deployment_metrics_provider=""
+_deployment_capabilities=""
+_deployment_repository=""
+_deployment_repository_account=""
+
+if [[ -e "${_deployment_manifest}" || -L "${_deployment_manifest}" ]]; then
+  if [[ -L "${_deployment_manifest}" ||
+        ! -f "${_deployment_manifest}" ||
+        ! -s "${_deployment_manifest}" ]]; then
+    printf "Deployment metadata must be a non-empty regular file and must not be a symlink: %s\n" \
+      "${_deployment_manifest}" >&2
+    return 1
+  fi
+  command -v jq >/dev/null 2>&1 || {
+    printf "jq is required to validate deployment metadata: %s\n" "${_deployment_manifest}" >&2
+    return 1
+  }
+  if ! jq -e '
+    type == "object" and
+    .schemaVersion == 1 and
+    .deploymentStatus == "deployed" and
+    (.implementation == "cnode" or .implementation == "dingo" or .implementation == "amaru") and
+    (.network | type == "string" and length > 0) and
+    (.branch | type == "string" and length > 0) and
+    (.serviceName | type == "string" and length > 0) and
+    (.repository | type == "string" and test("^[A-Za-z0-9_.-]+/guild-operators$")) and
+    (.nodeVersion | type == "string") and
+    (.targetNodeVersion | type == "string") and
+    (.metricsProvider | type == "string" and length > 0) and
+    (.capabilities | type == "object") and
+    (.capabilities | keys == ["forging", "localCli", "metrics", "n2c"]) and
+    (.capabilities.n2c | type == "boolean") and
+    (.capabilities.localCli | type == "boolean") and
+    (.capabilities.metrics | type == "boolean") and
+    (.capabilities.forging | type == "boolean") and
+    (
+      (
+        .implementation == "cnode" and
+        .metricsProvider == "prometheus" and
+        .capabilities.n2c == true and
+        .capabilities.localCli == true and
+        .capabilities.metrics == true and
+        .capabilities.forging == true
+      ) or
+      (
+        .implementation == "dingo" and
+        .metricsProvider == "prometheus" and
+        .capabilities.n2c == true and
+        .capabilities.localCli == false and
+        .capabilities.metrics == true and
+        .capabilities.forging == false
+      ) or
+      (
+        .implementation == "amaru" and
+        .metricsProvider == "otel" and
+        .capabilities.n2c == false and
+        .capabilities.localCli == false and
+        .capabilities.metrics == true and
+        .capabilities.forging == false
+      )
+    )
+  ' "${_deployment_manifest}" >/dev/null 2>&1; then
+    printf "Deployment metadata is malformed, incomplete, unsupported, or not finalized: %s\n" \
+      "${_deployment_manifest}" >&2
+    return 1
+  fi
+
+  _deployment_branch="$(deployment_get branch)" || return 1
+  _deployment_implementation="$(deployment_get implementation)" || return 1
+  DEPLOYMENT_SCHEMA_VERSION="$(deployment_get schemaVersion)" || return 1
+  _deployment_network="$(deployment_get network)" || return 1
+  _deployment_service="$(deployment_get serviceName)" || return 1
+  _deployment_metrics_provider="$(deployment_get metricsProvider)" || return 1
+  _deployment_capabilities="$(deployment_get capabilities)" || return 1
+  _deployment_repository="$(deployment_get repository)" || return 1
+  _deployment_repository_account="${_deployment_repository%/guild-operators}"
+
+  deployment_branch_valid "${_deployment_branch}" || {
+    printf "Invalid branch in deployment metadata: '%s'\n" "${_deployment_branch}" >&2
+    return 1
+  }
+  [[ "${_deployment_service}" =~ ^[A-Za-z0-9_.@-]+$ ]] || {
+    printf "Invalid serviceName in deployment metadata: '%s'\n" "${_deployment_service}" >&2
+    return 1
+  }
+  _deployment_expected_service="$(basename "${NODE_HOME}" | tr '[:upper:]' '[:lower:]')"
+  [[ "${_deployment_service}" == "${_deployment_expected_service}" ]] || {
+    printf "Deployment serviceName '%s' does not match target folder '%s'\n" \
+      "${_deployment_service}" "${_deployment_expected_service}" >&2
+    return 1
+  }
+  case "${_deployment_implementation}:${_deployment_network}" in
+    cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|dingo:preprod|dingo:preview|amaru:preprod|amaru:preview) ;;
+    *)
+      printf "Unsupported network '%s' for deployment implementation '%s'\n" \
+        "${_deployment_network}" "${_deployment_implementation}" >&2
+      return 1
+      ;;
+  esac
+
+  if [[ -n "${GUILD_NODE_IMPLEMENTATION_OVERRIDE:-}" ]]; then
+    _deployment_override_implementation="$(
+      printf '%s' "${GUILD_NODE_IMPLEMENTATION_OVERRIDE}" |
+        tr '[:upper:]' '[:lower:]'
+    )"
+    if [[ "${_deployment_override_implementation}" != "${_deployment_implementation}" ]]; then
+      printf "Node implementation override '%s' conflicts with deployment metadata '%s'\n" \
+        "${GUILD_NODE_IMPLEMENTATION_OVERRIDE}" "${_deployment_implementation}" >&2
+      return 1
+    fi
+  fi
+  if [[ -n "${GUILD_NODE_NETWORK_OVERRIDE:-}" &&
+        "${GUILD_NODE_NETWORK_OVERRIDE}" != "${_deployment_network}" ]]; then
+    printf "Node network override '%s' conflicts with deployment metadata '%s'\n" \
+      "${GUILD_NODE_NETWORK_OVERRIDE}" "${_deployment_network}" >&2
+    return 1
+  fi
+  if [[ -n "${GUILD_NODE_SERVICE_OVERRIDE:-}" &&
+        "${GUILD_NODE_SERVICE_OVERRIDE}" != "${_deployment_service}" ]]; then
+    printf "Node service override '%s' conflicts with deployment metadata '%s'\n" \
+      "${GUILD_NODE_SERVICE_OVERRIDE}" "${_deployment_service}" >&2
+    return 1
+  fi
+  if [[ -n "${GUILD_REPOSITORY_ACCOUNT_OVERRIDE:-}" &&
+        "${GUILD_REPOSITORY_ACCOUNT_OVERRIDE}" != "${_deployment_repository_account}" ]]; then
+    printf "Repository account override '%s' conflicts with deployment metadata '%s'\n" \
+      "${GUILD_REPOSITORY_ACCOUNT_OVERRIDE}" "${_deployment_repository_account}" >&2
+    return 1
+  fi
+fi
+
+NODE_NETWORK="${_deployment_network:-${GUILD_NODE_NETWORK_OVERRIDE:-${NODE_NETWORK:-}}}"
+NODE_SERVICE="${_deployment_service:-${GUILD_NODE_SERVICE_OVERRIDE:-${NODE_SERVICE:-}}}"
+NODE_METRICS_PROVIDER="${_deployment_metrics_provider:-${NODE_METRICS_PROVIDER:-}}"
+NODE_DEPLOYMENT_CAPABILITIES="${_deployment_capabilities:-${NODE_DEPLOYMENT_CAPABILITIES:-}}"
+if [[ -n "${_deployment_repository_account}" ]]; then
+  G_ACCOUNT="${_deployment_repository_account}"
+elif [[ -n "${GUILD_REPOSITORY_ACCOUNT_OVERRIDE:-}" ]]; then
+  if [[ ! "${GUILD_REPOSITORY_ACCOUNT_OVERRIDE}" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    printf "Invalid repository account override: '%s'\n" \
+      "${GUILD_REPOSITORY_ACCOUNT_OVERRIDE}" >&2
+    return 1
+  fi
+  G_ACCOUNT="${GUILD_REPOSITORY_ACCOUNT_OVERRIDE}"
+fi
+
+BRANCH="${GUILD_BRANCH_OVERRIDE:-${_deployment_branch:-${BRANCH:-master}}}"
+NODE_IMPLEMENTATION="${_deployment_implementation:-${GUILD_NODE_IMPLEMENTATION_OVERRIDE:-${NODE_IMPLEMENTATION:-${NODE_IMPL:-cnode}}}}"
+NODE_IMPLEMENTATION="$(printf '%s' "${NODE_IMPLEMENTATION}" | tr '[:upper:]' '[:lower:]')"
+
+case "${NODE_IMPLEMENTATION}" in
+  cnode|dingo|amaru) ;;
+  *)
+    printf "Unsupported node implementation in deployment metadata: '%s'\n" "${NODE_IMPLEMENTATION}" >&2
+    return 1
+    ;;
+esac
+NODE_IMPL="${NODE_IMPLEMENTATION}"
+
+if [[ ! -f "${GUILD_COMMON_LIB_DIR}/env.library" || ! -f "${GUILD_COMMON_LIB_DIR}/node-api.library" ]]; then
+  printf "Common env libraries are incomplete in %s\n" "${GUILD_COMMON_LIB_DIR}" >&2
+  return 1
+fi
+. "${GUILD_COMMON_LIB_DIR}/env.library" || return 1
+. "${GUILD_COMMON_LIB_DIR}/node-api.library" || return 1
+
+NODE_ADAPTER_FILE="${NODE_ADAPTER_PATH:-}"
+if [[ -z "${NODE_ADAPTER_FILE}" ]]; then
+  for _adapter_candidate in \
+    "${PARENT}/adapters/${NODE_IMPLEMENTATION}.adapter" \
+    "${GUILD_COMMON_ENV_DIR}/adapters/${NODE_IMPLEMENTATION}.adapter" \
+    "${GUILD_COMMON_ENV_DIR}/../${NODE_IMPLEMENTATION}-helper-scripts/${NODE_IMPLEMENTATION}.adapter" \
+    "${PARENT}/${NODE_IMPLEMENTATION}.adapter"; do
+    if [[ -f "${_adapter_candidate}" ]]; then
+      NODE_ADAPTER_FILE="${_adapter_candidate}"
+      break
+    fi
+  done
+fi
+
+if [[ -z "${NODE_ADAPTER_FILE}" || ! -f "${NODE_ADAPTER_FILE}" ]]; then
+  printf "Node adapter not found for implementation '%s'\n" "${NODE_IMPLEMENTATION}" >&2
+  return 1
+fi
+. "${NODE_ADAPTER_FILE}" || return 1
+node_adapter_contract_valid || return 1
+
+case "${1:-full}" in
+  definitions|basic|offline|light|local|monitor|full)
+    ENV_PROFILE="${1:-full}"
+    ;;
+  *)
+    # Sourced files inherit caller positional parameters. Preserve the legacy
+    # behavior by treating unrelated arguments as a normal/full load.
+    ENV_PROFILE="full"
+    ;;
+esac
+
+case "${ENV_PROFILE}" in
+  definitions|basic|offline|light) OFFLINE_MODE="Y" ;;
+  *) OFFLINE_MODE="N" ;;
+esac
+
+node_adapter_defaults || return 1
+set_default_vars || return 1
+
+# set_default_vars creates the legacy aliases and update URLs. Reassert the
+# deployment metadata values, which are authoritative for common updates.
+NODE_HOME="${NODE_HOME:-${CNODE_HOME}}"
+CNODE_HOME="${CNODE_HOME:-${NODE_HOME}}"
+BRANCH="${GUILD_BRANCH_OVERRIDE:-${_deployment_branch:-${BRANCH:-master}}}"
+URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
+URL_DOCS="${URL_RAW}/docs/Scripts"
+
+if [[ "${ENV_PROFILE}" == "definitions" || "${ENV_PROFILE}" == "basic" ]]; then
+  return 0
+fi
+
+node_adapter_init "${ENV_PROFILE}"
+return $?

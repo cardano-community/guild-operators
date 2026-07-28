@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-#shellcheck disable=SC2086,SC2154
+#shellcheck disable=SC2086,SC2153,SC2154
 #shellcheck source=/dev/null
 
-. "$(dirname $0)"/env offline # source env in offline mode to get basic variables, sourced in online mode later in cncliInit()
+PARENT="$(dirname "$0")"
 
 ######################################
 # User Variables - Change as desired #
@@ -35,9 +35,14 @@ usage() {
   cat <<-EOF >&2
 		
 		Usage: $(basename "$0") [operation <sub arg>]
-		Script to run CNCLI, best launched through systemd deployed by 'deploy-as-systemd.sh'
+		       $(basename "$0") -d [core|all|ptsendtip|ptsendslots]
+		       $(basename "$0") systemd <install|remove|status> [all|core|ptsendtip|ptsendslots]
+		Script to run CNCLI. Operational systemd units are owned by this script.
 		
 		-u          Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
+		-d          Install CNCLI systemd units (scope defaults to core).
+		systemd     Install, remove, or show operational CNCLI unit status (scope defaults to core).
+		            The separately managed cncli-exporter unit remains under 'metrics deploy'.
 
 		sync        Start CNCLI chainsync process that connects to cardano-node to sync blocks stored in SQLite DB (deployed as service)
 		leaderlog   One-time leader schedule calculation for current epoch, then continously monitors and calculates schedule for coming epochs, 1.5 days before epoch boundary on MainNet (deployed as service)
@@ -62,13 +67,230 @@ usage() {
 SKIP_UPDATE=N
 [[ $1 = "-u" ]] && SKIP_UPDATE=Y && shift
 
-if [[ $# -eq 1 ]]; then
+if [[ ${1:-} == "-d" ]]; then
+  [[ $# -le 2 ]] || usage
+  subcommand="systemd"
+  SYSTEMD_ACTION="install"
+  SYSTEMD_SCOPE="${2:-core}"
+elif [[ ${1:-} == "systemd" ]]; then
+  [[ $# -ge 2 && $# -le 3 ]] || usage
+  subcommand="systemd"
+  SYSTEMD_ACTION="${2}"
+  SYSTEMD_SCOPE="${3:-core}"
+elif [[ $# -eq 1 ]]; then
   subcommand=$1
   subarg=""
 elif [[ $# -eq 2 ]]; then
   subcommand=$1
   subarg=$2
 else usage; fi
+
+######################################
+
+if [[ ! -f "${PARENT}/env" ]]; then
+  echo "ERROR: Common env file is missing: ${PARENT}/env" >&2
+  exit 1
+fi
+if [[ "${subcommand}" == "systemd" ]]; then
+  . "${PARENT}/env" definitions || exit 1
+else
+  . "${PARENT}/env" offline || exit 1
+fi
+
+load_systemd_library() {
+  local systemd_library="${PARENT}/lib/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/../common-helper-scripts/lib/systemd.library"
+  if [[ ! -f "${systemd_library}" ]]; then
+    echo "ERROR: systemd.library is missing. Re-run the deployment script to install shared helpers."
+    return 1
+  fi
+  # shellcheck disable=SC1091
+  . "${systemd_library}"
+}
+
+cncli_systemd_components() {
+  case "${1:-core}" in
+    all) printf '%s\n' sync leaderlog validate ptsendslots ptsendtip ;;
+    core) printf '%s\n' sync leaderlog validate ;;
+    ptsendtip) printf '%s\n' ptsendtip ;;
+    ptsendslots) printf '%s\n' ptsendslots ;;
+    *)
+      echo "ERROR: Invalid CNCLI systemd scope '${1:-}'." >&2
+      return 1
+      ;;
+  esac
+}
+
+cncli_systemd_unit_name() {
+  printf '%s-cncli-%s.service\n' "${CNODE_VNAME}" "$1"
+}
+
+cncli_install_systemd_unit() {
+  local component="$1"
+  local unit_name unit_content
+
+  unit_name="$(cncli_systemd_unit_name "${component}")"
+  case "${component}" in
+    sync)
+      read -r -d '' unit_content <<-EOF || true
+			[Unit]
+			Description=Cardano Node - CNCLI Sync
+			BindsTo=${CNODE_VNAME}.service
+			After=${CNODE_VNAME}.service
+
+			[Service]
+			Type=simple
+			Restart=on-failure
+			RestartSec=120
+			User=${USER}
+			WorkingDirectory=${CNODE_HOME}/scripts
+			ExecStart=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/cncli.sh sync"
+			KillSignal=SIGINT
+			SuccessExitStatus=143
+			SyslogIdentifier=${CNODE_VNAME}-cncli-sync
+			TimeoutStopSec=30
+			KillMode=control-group
+
+			[Install]
+			WantedBy=${CNODE_VNAME}.service
+		EOF
+      ;;
+    leaderlog)
+      read -r -d '' unit_content <<-EOF || true
+			[Unit]
+			Description=Cardano Node - CNCLI Leaderlog
+			BindsTo=${CNODE_VNAME}-cncli-sync.service
+			After=${CNODE_VNAME}-cncli-sync.service
+
+			[Service]
+			Type=simple
+			Restart=on-failure
+			RestartSec=120
+			User=${USER}
+			WorkingDirectory=${CNODE_HOME}/scripts
+			ExecStart=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/cncli.sh leaderlog"
+			KillSignal=SIGINT
+			SuccessExitStatus=143
+			SyslogIdentifier=${CNODE_VNAME}-cncli-leaderlog
+			TimeoutStopSec=30
+			KillMode=control-group
+
+			[Install]
+			WantedBy=${CNODE_VNAME}-cncli-sync.service
+		EOF
+      ;;
+    validate)
+      read -r -d '' unit_content <<-EOF || true
+			[Unit]
+			Description=Cardano Node - CNCLI Validate
+			BindsTo=${CNODE_VNAME}-cncli-sync.service
+			After=${CNODE_VNAME}-cncli-sync.service
+
+			[Service]
+			Type=simple
+			Restart=on-failure
+			RestartSec=120
+			User=${USER}
+			WorkingDirectory=${CNODE_HOME}/scripts
+			ExecStartPre=/bin/sleep 5
+			ExecStart=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/cncli.sh validate"
+			KillSignal=SIGINT
+			SuccessExitStatus=143
+			SyslogIdentifier=${CNODE_VNAME}-cncli-validate
+			TimeoutStopSec=30
+			KillMode=control-group
+
+			[Install]
+			WantedBy=${CNODE_VNAME}-cncli-sync.service
+		EOF
+      ;;
+    ptsendslots)
+      read -r -d '' unit_content <<-EOF || true
+			[Unit]
+			Description=Cardano Node - CNCLI PoolTool SendSlots
+			BindsTo=${CNODE_VNAME}-cncli-sync.service
+			After=${CNODE_VNAME}-cncli-sync.service
+
+			[Service]
+			Type=simple
+			Restart=on-failure
+			RestartSec=120
+			User=${USER}
+			WorkingDirectory=${CNODE_HOME}/scripts
+			ExecStart=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/cncli.sh ptsendslots"
+			KillSignal=SIGINT
+			SuccessExitStatus=143
+			SyslogIdentifier=${CNODE_VNAME}-cncli-ptsendslots
+			TimeoutStopSec=30
+			KillMode=control-group
+
+			[Install]
+			WantedBy=${CNODE_VNAME}-cncli-sync.service
+		EOF
+      ;;
+    ptsendtip)
+      read -r -d '' unit_content <<-EOF || true
+			[Unit]
+			Description=Cardano Node - CNCLI PoolTool SendTip
+			BindsTo=${CNODE_VNAME}.service
+			After=${CNODE_VNAME}.service
+
+			[Service]
+			Type=simple
+			Restart=on-failure
+			RestartSec=120
+			User=${USER}
+			WorkingDirectory=${CNODE_HOME}/scripts
+			ExecStart=/bin/bash -l -c "exec ${CNODE_HOME}/scripts/cncli.sh ptsendtip"
+			KillSignal=SIGINT
+			SuccessExitStatus=143
+			SyslogIdentifier=${CNODE_VNAME}-cncli-ptsendtip
+			TimeoutStopSec=30
+			KillMode=control-group
+
+			[Install]
+			WantedBy=${CNODE_VNAME}.service
+		EOF
+      ;;
+    *) return 1 ;;
+  esac
+
+  systemd_install_unit "${unit_name}" "${unit_content}" "${CNODE_HOME}/scripts/cncli.sh"
+}
+
+cncli_manage_systemd() {
+  local action="${1:-}"
+  local scope="${2:-core}"
+  local component
+  local -a components units
+
+  mapfile -t components < <(cncli_systemd_components "${scope}") || return 1
+  [[ ${#components[@]} -gt 0 ]] || return 1
+  for component in "${components[@]}"; do
+    units+=("$(cncli_systemd_unit_name "${component}")")
+  done
+
+  load_systemd_library || return 1
+  case "${action}" in
+    install)
+      for component in "${components[@]}"; do
+        cncli_install_systemd_unit "${component}" || return 1
+      done
+      systemd_daemon_reload &&
+        systemd_enable_units "${units[@]}" &&
+        echo "CNCLI ${scope} systemd units deployed successfully."
+      ;;
+    remove)
+      systemd_remove_units --owner-token "${CNODE_HOME}/scripts/cncli.sh" "${units[@]}" &&
+        echo "CNCLI ${scope} systemd units removed successfully."
+      ;;
+    status)
+      systemd_status_units "${units[@]}"
+      ;;
+    *) usage ;;
+  esac
+}
 
 ######################################
 
@@ -188,26 +410,29 @@ cncliInit() {
 
     echo "Checking for script updates..."
 
-    # Check availability of checkUpdate function
-    if [[ ! $(command -v checkUpdate) ]]; then
-      echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
-      exit 1
+    if ! declare -F checkCommonRuntimeUpdates >/dev/null 2>&1; then
+      echo -e "\nWARNING: Common runtime bundle updater is unavailable; skipping updates."
+      echo "Re-run guild-deploy.sh before updating cncli.sh."
+    else
+      ENV_UPDATED=${BATCH_AUTO_UPDATE}
+      if checkCommonRuntimeUpdates N; then
+        common_update_status=0
+      else
+        common_update_status=$?
+      fi
+      case "${common_update_status}" in
+        0) ;;
+        1) ENV_UPDATED=Y ;;
+        2) exit 1 ;;
+      esac
+
+      # check for cncli.sh update
+      checkUpdate "${PARENT}"/cncli.sh "${ENV_UPDATED}"
+      case $? in
+        1) $0 "-u" "$@"; exit 0 ;; # re-launch script with same args skipping update check
+        2) exit 1 ;;
+      esac
     fi
-
-    # check for env update
-    ENV_UPDATED=${BATCH_AUTO_UPDATE}
-    checkUpdate "${PARENT}"/env N N N
-    case $? in
-      1) ENV_UPDATED=Y ;;
-      2) exit 1 ;;
-    esac
-
-    # check for cncli.sh update
-    checkUpdate "${PARENT}"/cncli.sh ${ENV_UPDATED}
-    case $? in
-      1) $0 "-u" "$@"; exit 0 ;; # re-launch script with same args skipping update check
-      2) exit 1 ;;
-    esac
   fi
 
   # source common env variables in case it was updated
@@ -223,7 +448,30 @@ cncliInit() {
   
   [[ ! -f "${CNCLI}" ]] && echo -e "\nERROR: failed to locate cncli executable, please install with 'guild-deploy.sh'\n" && exit 1
   CNCLI_VERSION="$(${CNCLI} -V | cut -d' ' -f2)"
-  if ! versionCheck "6.5.1" "${CNCLI_VERSION}"; then echo "ERROR: cncli ${CNCLI_VERSION} installed, minimum required version is 6.5.1, please upgrade to latest version!"; exit 1; fi
+  CNODE_RELEASE_MANIFEST="${NODE_HOME:-${CNODE_HOME}}/files/cnode-release.json"
+  if [[ ! -f "${CNODE_RELEASE_MANIFEST}" ||
+        -L "${CNODE_RELEASE_MANIFEST}" ||
+        ! -s "${CNODE_RELEASE_MANIFEST}" ]]; then
+    echo "ERROR: cnode release metadata is missing or unsafe: ${CNODE_RELEASE_MANIFEST}"
+    exit 1
+  fi
+  CNCLI_MINIMUM_VERSION="$(
+    jq -er '
+      select(
+        .schemaVersion == 1 and
+        .implementation == "cnode" and
+        (.tools.cncli.minimumVersion | type == "string" and length > 0)
+      ) |
+      .tools.cncli.minimumVersion
+    ' "${CNODE_RELEASE_MANIFEST}"
+  )" || {
+    echo "ERROR: invalid CNCLI compatibility metadata in ${CNODE_RELEASE_MANIFEST}"
+    exit 1
+  }
+  if ! versionCheck "${CNCLI_MINIMUM_VERSION}" "${CNCLI_VERSION}"; then
+    echo "ERROR: cncli ${CNCLI_VERSION} installed, minimum required version is ${CNCLI_MINIMUM_VERSION}, please upgrade!"
+    exit 1
+  fi
   
   [[ -z "${CNCLI_DIR}" ]] && CNCLI_DIR="${CNODE_HOME}/guild-db/cncli"
   if ! mkdir -p "${CNCLI_DIR}" 2>/dev/null; then echo "ERROR: Failed to create CNCLI DB directory: ${CNCLI_DIR}"; exit 1; fi
@@ -978,6 +1226,8 @@ cncliEpochData() {
 #################################
 
 case ${subcommand} in
+  systemd )
+    cncli_manage_systemd "${SYSTEMD_ACTION}" "${SYSTEMD_SCOPE}" ;;
   sync )
     cncliInit && cncliSync ;;
   leaderlog )

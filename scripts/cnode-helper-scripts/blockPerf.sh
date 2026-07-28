@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC2086,SC2281
+# shellcheck disable=SC1090,SC1091,SC2004,SC2005,SC2086,SC2281,SC2317,SC2329
 
 # Script to collect block information across nodes to provide comprehensive analytics data from participants
 # For now, the script is intended for mainnet network only.
@@ -23,49 +23,60 @@ AddrBlacklist="" # comma spearated list of IP-Adresses you don't want to expose.
 ######################################
 
 BP_VERSION=v1.3.10
-
-# Temporary - until scripts are updated
-echo "ERROR: The logMonitor.sh script has not been updated to read new tracer logs yet, exiting!" && exit 1
+PARENT="$(dirname "$0")"
 
 SKIP_UPDATE=N
 [[ $1 = "-u" ]] && SKIP_UPDATE=Y && shift
 
 deploy_systemd() {
-  echo "Deploying ${CNODE_VNAME} blockPerf as systemd service.."
-  sudo bash -c "cat << 'EOF' > /etc/systemd/system/${CNODE_VNAME}-tu-blockperf.service
-[Unit]
-Description=Cardano Node - Block Performance
-BindsTo=${CNODE_VNAME}.service
-After=${CNODE_VNAME}.service
+  echo "ERROR: blockPerf is disabled because it does not support the current node tracing format; refusing to install a service that cannot run."
+  return 1
+}
 
-[Service]
-Type=simple
-Restart=on-failure
-RestartSec=20
-User=$USER
-WorkingDirectory=${CNODE_HOME}/scripts
-ExecStart=/bin/bash -l -c \"exec ${CNODE_HOME}/scripts/blockPerf.sh -s\"
-KillSignal=SIGINT
-SyslogIdentifier=${CNODE_VNAME}-tu-blockperf
-TimeoutStopSec=5
-KillMode=mixed
-ExecStop=rm -f -- '${CNODE_HOME}/blockPerf-running.pid'
+load_systemd_library() {
+  local systemd_library="${PARENT}/lib/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/systemd.library"
+  [[ -f "${systemd_library}" ]] || systemd_library="${PARENT}/../common-helper-scripts/lib/systemd.library"
+  if [[ ! -f "${systemd_library}" ]]; then
+    echo "ERROR: systemd.library is missing. Re-run the deployment script to install shared helpers."
+    return 1
+  fi
+  # shellcheck disable=SC1091
+  . "${systemd_library}"
+}
 
-[Install]
-WantedBy=${CNODE_VNAME}.service
-EOF" && echo "${CNODE_VNAME}-tu-blockperf.service deployed successfully!!" && sudo systemctl daemon-reload && sudo systemctl enable ${CNODE_VNAME}-tu-blockperf.service
+manage_systemd() {
+  local action="${1:-}"
+  local unit_name="${CNODE_VNAME}-tu-blockperf.service"
+
+  case "${action}" in
+    install) deploy_systemd ;;
+    remove)
+      load_systemd_library &&
+        systemd_remove_units --owner-token "${CNODE_HOME}/scripts/blockPerf.sh" "${unit_name}" &&
+        echo "${unit_name} removed successfully."
+      ;;
+    status)
+      load_systemd_library && systemd_status_units "${unit_name}"
+      ;;
+    *) usage ;;
+  esac
 }
 
 usage() {
   cat <<-EOF
 		
 		Usage: $(basename "$0") [-d] [-s]
+		       $(basename "$0") systemd <install|remove|status>
 		
-		Cardano Node wrapper script !!
+		Cardano block performance script (currently disabled)
 		-u    Skip script update check overriding UPDATE_CHECK value in env (must be first argument to script)
-		-d    Deploy cnode-tu-blockperf as a systemd service
+		-d    Legacy alias for systemd install (currently refused while disabled)
 		-s    Run cnode-tu-blockperf without INFO message output to console/syslog 
 		-m    Run in manual mode, by specifying a blockNum and logfile (no online reporting, just console output)
+		systemd
+		      Install, remove, or show the status of the blockPerf service.
+		      Installation is refused while the tracing parser is disabled.
 		
 		EOF
   exit 1
@@ -75,6 +86,12 @@ usage() {
 ###################
 
 # Parse command line options
+SYSTEMD_ACTION=""
+if [[ ${1:-} == "systemd" ]]; then
+  [[ $# -eq 2 ]] || usage
+  SYSTEMD_ACTION="${2}"
+  shift 2
+fi
 while getopts :dsm opt; do
   case ${opt} in
     d ) DEPLOY_SYSTEMD="Y" ;;
@@ -84,6 +101,33 @@ while getopts :dsm opt; do
   esac
 done
 
+if [[ ! -f "${PARENT}"/env ]]; then
+  echo "ERROR: could not find common env file, please run the deployment script or manually install it"
+  exit 1
+fi
+if [[ -n "${SYSTEMD_ACTION}" ]]; then
+  . "${PARENT}"/env definitions
+else
+  . "${PARENT}"/env offline
+fi
+case $? in
+  0|2) : ;;
+  *) echo "ERROR: Failed to load common env file." && exit 1 ;;
+esac
+
+if [[ -n "${SYSTEMD_ACTION}" ]]; then
+  manage_systemd "${SYSTEMD_ACTION}"
+  exit $?
+fi
+if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
+  deploy_systemd
+  exit $?
+fi
+
+# Temporary - until the parser supports current node tracing output.
+echo "ERROR: blockPerf.sh has not been updated to read the current tracer logs yet, exiting!"
+exit 1
+
 if [ -z "$CONFIG" ]; then
   # in CNTools environments just let the script determine config, logfile, parameters
   [[ -f "$(dirname $0)"/env ]] &&  . "$(dirname $0)"/env offline
@@ -92,26 +136,29 @@ if [ -z "$CONFIG" ]; then
 
     echo "Checking for script updates..."
 
-    # Check availability of checkUpdate function
-    if [[ ! $(command -v checkUpdate) ]]; then
-      echo -e "\nCould not find checkUpdate function in env, make sure you're using official guild docos for installation!"
-      exit 1
+    if ! declare -F checkCommonRuntimeUpdates >/dev/null 2>&1; then
+      echo -e "\nWARNING: Common runtime bundle updater is unavailable; skipping updates."
+      echo "Re-run guild-deploy.sh before updating blockPerf.sh."
+    else
+      ENV_UPDATED=${BATCH_AUTO_UPDATE}
+      if checkCommonRuntimeUpdates N; then
+        common_update_status=0
+      else
+        common_update_status=$?
+      fi
+      case "${common_update_status}" in
+        0) ;;
+        1) ENV_UPDATED=Y ;;
+        2) exit 1 ;;
+      esac
+
+      # check for blockPerf.sh update
+      checkUpdate "${PARENT}"/blockPerf.sh "${ENV_UPDATED}"
+      case $? in
+        1) $0 "-u" "$@"; exit 0 ;; # re-launch script with same args skipping update check
+        2) exit 1 ;;
+      esac
     fi
-
-    # check for env update
-    ENV_UPDATED=${BATCH_AUTO_UPDATE}
-    checkUpdate "${PARENT}"/env N N N
-    case $? in
-      1) ENV_UPDATED=Y ;;
-      2) exit 1 ;;
-    esac
-
-    # check for blockPerf.sh update
-    checkUpdate "${PARENT}"/blockPerf.sh ${ENV_UPDATED}
-    case $? in
-      1) $0 "-u" "$@"; exit 0 ;; # re-launch script with same args skipping update check
-      2) exit 1 ;;
-    esac
   fi
 
   # source common env variables in case it was updated
@@ -141,17 +188,6 @@ checkFixConfig() {
     [[ "$(jq -r ".${checkKey}" "${CONFIG}")" != "${checkVal}" ]] && echo "INFO: for blockPerf parsing please set ${checkKey[0]}:\"${checkVal}\" in ${CONFIG}" && config_change=1
   fi
 }
-
-#Deploy systemd if -d argument was specified
-if [[ "${DEPLOY_SYSTEMD}" == "Y" ]]; then
-  # if not already enabled activate the required Tracers in the config file
-  checkFixConfig '["TraceChainSyncClient"]' true "fix";
-  checkFixConfig '["TraceBlockFetchClient"]' true "fix";
-  checkFixConfig '["TracingVerbosity"]' "NormalVerbosity" "fix";
-  [[ $config_change -eq 1 ]] && echo "Please restart the node with new Tracers before using blockPerf."
-  deploy_systemd && exit 0
-  exit 2
-fi
 
 unset logfile
 if [[ "${CONFIG##*.}" = "json" ]] && [[ -f ${CONFIG} ]]; then

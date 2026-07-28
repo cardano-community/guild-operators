@@ -1,8 +1,60 @@
 ### Steps for Upgrading
 
-!!! danger "Change in config & logging starting node 10.5.x"
-    Starting node 10.4.x, new cardano-tracer infrastructure was introduced for node , the use of this was disabled by default and thus - not as visible to users who may have missed the announcement. However, the legacy config/logging format has been said to be deprecated and could be retired in 10.7.x. Thus - we have shifted to minimum viable equivalent for newer config format.
-    We are excluding setting up of cardano-tracer, as we feel it's an overkill for an average SPO. Please consult [official documentation](https://github.com/intersectmbo/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md) if you'd like to run cardano-tracer.
+!!! important "Deployment metadata and service migration"
+    Run the current `guild-deploy.sh` before accepting individual helper-script
+    updates on an older flat cnode installation. The former cnode-specific
+    helper URLs are retired, so an old updater will fail safely without
+    replacing its local file. The deployment entrypoint installs the complete
+    shared runtime and manifest in one operation.
+
+    The common deployment entrypoint now accepts
+    `-i cnode|dingo|amaru`; omitting it still selects `cnode`. Existing cnode
+    operators should keep their current `-p`, `-t`, and `-n` values on the
+    first run. A successful run creates `.deployment.json` at the deployment
+    root (normally `${CNODE_HOME}` for cnode),
+    imports the branch from the former `scripts/.env_branch`, and archives
+    that sidecar. Subsequent `-b` updates are stored in the manifest.
+    Manifest-backed helper updates never silently fall back to `master` when
+    that recorded branch disappears or cannot be verified; select a reachable
+    branch explicitly before updating. For a new Dingo or Amaru deployment,
+    `-n preprod` or `-n preview` is required. Later dispatcher runs may omit
+    `-n` because the valid manifest restores the network.
+
+    cnode now uses the same repository structure as the alternate profiles:
+    release metadata is installed from
+    `files/node-implementations/cnode/release.json`, and network templates are
+    read from `files/configs/cnode/<network>`. Older Guild Operators tags retain
+    the previous paths for deliberately tagged deployments. The current
+    profile verifies the pinned cardano-node and cardano-cli checksums before
+    extracting `-s d` downloads.
+
+    When selecting a tag from before this restructuring, download
+    `guild-deploy.sh` from that same tag and also pass it with `-b`. For example,
+    the existing `node-10.1.4` tag contains the historical flat configuration
+    layout, so use its dispatcher together with `-b node-10.1.4`. The tag
+    contains the whole historical layout; the current branch intentionally
+    carries no compatibility copies or fallback paths.
+
+    `deploy-as-systemd.sh` has been removed. Node and component launchers now
+    own `systemd install`, `remove`, and `status` operations; existing `-d`
+    install aliases are retained. A cnode refresh moves any previously
+    installed copy into `scripts/archive` after the replacement launchers have
+    been installed. Review the
+    [component-owned unit table](Build/node-implementations.md#component-owned-systemd-units)
+    before deleting any locally customized legacy unit. New unit files carry
+    a deployment-specific Guild ownership marker, and component removal
+    refuses an unrelated same-name unit, including one owned by another Guild
+    target. Missing expected unit files are left as no-ops. Units produced by
+    the old orchestrator are recognized by their component-specific command or
+    description during migration.
+
+!!! danger "Current cnode logging configuration"
+    The current Guild cnode configurations use the tracing infrastructure
+    introduced in cardano-node 10.4.x rather than the former legacy logging
+    layout. Guild Operators does not configure the separate cardano-tracer
+    service. Consult the
+    [official cardano-tracer documentation](https://github.com/intersectmbo/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md)
+    if you need it.
 
     What this means, as a SPO:
 
@@ -13,34 +65,56 @@
 
     Lastly, given the changes above, we **strongly** recommend you to make sure you go through upgrade steps for your setup in a non-mainnet environment first!!
 
-While this guide is last updated when adding support for node 10.5.3, it is meant to serve as a generic reference point for typical upgrades.
+This is a generic upgrade reference rather than a guide for one node release.
+The supported cnode and companion versions are defined in
+`files/node-implementations/cnode/release.json`; always review the corresponding
+upstream release notes before upgrading.
 
-- Download the latest `guild-deploy.sh` (always double check syntax of the script with `guild-deploy.sh -h`). The scripts modified with user content (`env`, `gLiveView.sh`, `topologyUpdater.sh`, `cnode.sh`, etc) will be backed up before overwriting. More static files (genesis, submitapi, etc or some of the scripts themselves) will not be backed up, as they're not expected to be modified.
+- Download the current `guild-deploy.sh` and review its options with
+  `guild-deploy.sh -h`. When helper scripts are refreshed, their user-variable
+  sections are retained unless `-s s` is selected, and previous copies are
+  placed in `scripts/archive`. Static files such as genesis and submit-api
+  configuration are not treated as user-maintained backups.
 
 !!! warning "Remember"
     You are expected to provide appropriate environment-specific parameters (eg: custom top level folder [-p], alternate name for top level folder [-t], network flag [-n], any additional components you use, etc) to the examples that pertain to your use case.
 
 - Depending on node release, you may be able to simply perform an update-in-place of scripts and node, or for some cases, you may need to overwrite configs as well. Some Examples below:
 
-    - Consider you're upgrading from 10.1.4 to 10.5.3, where config formats have changed. In this case, you'd want to overwrite your config files as well. You should follow changelog in node release notes to verify if you'd need to overwrite configs. Note that every time you do this, you may need to re-add your customisations - if any - to the relevant config files (typically - almost always, you'd have to update the topology.json when overwriting configs). There are backups created of original file in `"${CNODE_HOME}"/files` folder if you'd like to compare/reuse previous version.
+    - For an upgrade that changes configuration formats, overwrite the cnode
+      configuration with `f`. Check the upstream release notes first. Reapply
+      any local configuration changes afterwards; topology, config, and db-sync
+      files are backed up in `"${CNODE_HOME}"/files` for comparison.
 
       ``` bash
-      mkdir "$HOME/tmp";cd "$HOME/tmp"
-      curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh && chmod 700 guild-deploy.sh
+      mkdir -p "$HOME/tmp"
+      cd "$HOME/tmp"
+      curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+      chmod 700 guild-deploy.sh
       ./guild-deploy.sh -s dlfm -b master -n mainnet -t cnode -p /opt/cardano
       ```
-    - A hopefully more common scenario would be where you dont need config changes (eg: 10.1.3 to 10.1.4), typical run of the guild-deploy script in this case would be to perform update in place of current scripts on mainnet and update binaries. In this scenario, no config files or user variables in scripts are overwritten. This is typically relevant on minor patch releases of node upgrade:
+    - When an upgrade does not require configuration changes, refresh the
+      scripts and selected binaries without `f`. Existing configuration and
+      script user variables are preserved:
 
       ``` bash
-      mkdir "$HOME/tmp";cd "$HOME/tmp"
-      curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh && chmod 700 guild-deploy.sh
+      mkdir -p "$HOME/tmp"
+      cd "$HOME/tmp"
+      curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
+      chmod 700 guild-deploy.sh
       ./guild-deploy.sh -s dlm -b master -n mainnet -t cnode -p /opt/cardano
       ```
 
 !!! warning "Beware"
-    When upgrading node, depending on node versions (especially for major release) - you'd likely have to wait for node to revalidate/replay ledger. This can take a few hours. Please always plan ahead, do it first on a relay to ensure you've got "${CNODE_HOME}/db" folder ready to copy over (while source and target node have been shutdown) - prior to starting on upgrade on new machine. If mithril for target node version is ready, you can also use [mithril-client](Scripts/mithril-client.md) to download snapshot instead of replaying, which may save you some time
+    A cnode upgrade, especially across a major version, may revalidate or
+    replay the ledger and take several hours. Test on a relay first and plan
+    any database transfer while both source and target nodes are stopped. When
+    a compatible snapshot is available, the
+    [Mithril client](Scripts/mithril-client.md) can reduce replay time.
 
-- Once guild-deploy script has been run, source your bashrc file again (or restart session), and ensure `"${HOME}"/.local/bin` is part of your `$PATH` environment variable. If your shell does not auto-run bashrc, you may want to set it a call to "${HOME}"/.bashrc in your `.profile`
+- After running the deployment script, start a new shell or source
+  `"${HOME}/.bashrc"`, then confirm that `"${HOME}/.local/bin"` is in `$PATH`.
+  If the login shell does not read `.bashrc`, source it from `.profile`.
 
 ``` bash
 source "${HOME}"/.bashrc
@@ -64,11 +138,48 @@ whereis bech32 cardano-address cardano-cli cardano-db-sync cardano-hw-cli cardan
 
 For some cases - you might have no values (eg: you may not use `cardano-db-sync`, `cncli`, `ogmios` and/or `cardano-hw-cli`. You need not take any actions for the binaries you do not use.
 
-- If you are having trouble connecting to node post upgrade from gLiveView, typically the first issue you'd want to eliminate is  whether you missed that node might need ledger replay/revalidation (which could take hours as indicated earlier on the page). You can check the node status via `sudo systemctl status cnode`. If the node shows as up, you can monitor logs via `sudo journalctl -xeu cnode.service -f`. If you're unable to start node using systemd itself, use the same command above and scroll back until you see a startup attempt with reason (typically this could be a couple of pages back).
+- If gLiveView cannot connect after an upgrade, first distinguish a missing
+  node process from an unavailable metrics endpoint. Set `DEPLOYMENT_HOME` to
+  the affected cnode, Dingo, or Amaru root and inspect the implementation and
+  service recorded in its manifest:
+
+  ```bash
+  DEPLOYMENT_HOME="${NODE_HOME:-${CNODE_HOME:?set NODE_HOME to the deployment root}}"
+  NODE_IMPLEMENTATION="$(jq -er '.implementation' \
+    "${DEPLOYMENT_HOME}/.deployment.json")"
+  NODE_SERVICE="$(jq -er '.serviceName' \
+    "${DEPLOYMENT_HOME}/.deployment.json")"
+
+  case "${NODE_IMPLEMENTATION}" in
+    cnode) "${DEPLOYMENT_HOME}/scripts/cnode.sh" systemd status ;;
+    dingo|amaru) "${DEPLOYMENT_HOME}/scripts/${NODE_IMPLEMENTATION}.sh" status ;;
+  esac
+  sudo journalctl -fu "${NODE_SERVICE}.service"
+  ```
+
+  Dingo's default metrics endpoint is
+  `http://127.0.0.1:12798/metrics`. Amaru's managed collector exposes
+  `http://127.0.0.1:8889/metrics`; its launcher status includes the companion
+  `${NODE_SERVICE}-metrics.service`, whose journal can be followed with:
+
+  ```bash
+  sudo journalctl -fu "${NODE_SERVICE}-metrics.service"
+  ```
+
+  cnode obtains its Prometheus address from its node configuration. A node
+  that is replaying or revalidating the ledger may take time before all normal
+  metrics are available. gLiveView hides individual unsupported metrics, but
+  it requires a live process and a successful metrics scrape.
 
 ### Unintended update-in-place {: #unintended}
 
-Let's say you accidentally did an update of the files that you didnt intend to and want to revert all your scripts to previous state. While you have the backups of the scripts created while doing in-place update, you can always make use of branch flag that most scripts that perform update-in-place provide (eg: for gLiveView.sh that you want to restore to 10.1.4 state), this would be `-b node-10.1.4`. The available tags that can be used can be visited [here](https://github.com/cardano-community/guild-operators/tags).
+If an update replaced files unintentionally, use the copies in
+`"${CNODE_HOME}/scripts/archive"` for a targeted comparison or restoration.
+For a deliberate downgrade across a repository restructuring boundary, use
+the `guild-deploy.sh` from the chosen existing tag and pass that same tag with
+`-b`, as described above. Do not mix one historical helper with the current
+runtime and manifest. Available tags are listed
+[on GitHub](https://github.com/cardano-community/guild-operators/tags).
 
 ### Support/Improvements {: #support}
 
