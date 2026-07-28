@@ -111,7 +111,7 @@ node_adapter_metrics_url() {
   printf '%s\n' "${NODE_METRICS_URL}"
 }
 
-dingo_collect_optional_custom_metric() {
+dingo_collect_optional_info_metric() {
   local source_name="${1:?source metric required}"
   local normalized_name="${2:?normalized metric required}"
   local metric_label="${3:?metric label required}"
@@ -119,11 +119,28 @@ dingo_collect_optional_custom_metric() {
   local value
   if prometheus_first_metric_value value "${source_name}" &&
      node_metric_value_is_numeric "${value}"; then
-    node_metric_set_custom \
+    node_metric_set_info \
       "${normalized_name}" "${value}" "${metric_label}" "${metric_unit}"
   else
-    node_metric_unset_custom "${normalized_name}"
+    node_metric_unset_info "${normalized_name}"
   fi
+}
+
+dingo_normalize_propagation_ratios() {
+  local metric value
+  for metric in blocks_w1s blocks_w3s blocks_w5s; do
+    node_metric_has "${metric}" || continue
+    value="${!metric}"
+    if node_metric_value_is_numeric "${value}"; then
+      value="$(
+        LC_NUMERIC=C awk -v percent="${value}" \
+          'BEGIN { printf "%.8f", percent / 100 }'
+      )"
+      node_metric_set "${metric}" "${value}"
+    else
+      node_metric_unset "${metric}"
+    fi
+  done
 }
 
 node_adapter_collect_metrics() {
@@ -144,6 +161,9 @@ node_adapter_collect_metrics() {
   # The common parser is label-aware because Dingo adds network="<name>" to
   # node/component samples.
   common_parse_cardano_metrics "${node_metrics}" || return 1
+  # Dingo exports these CDF gauges as 0-100 percentages. The normalized
+  # contract used by cnode and gLiveView is a 0-1 ratio.
+  dingo_normalize_propagation_ratios
 
   # Dingo names its inbound peer-temperature gauges in its native namespace,
   # but their semantics match the normalized inbound-governor fields.
@@ -170,24 +190,27 @@ node_adapter_collect_metrics() {
       node_metric_unset running_node_rev
     fi
     if build_go_version="$(prometheus_metric_label dingo_build_info goversion)"; then
-      node_metric_set_custom \
+      node_metric_set_info \
         dingo_go_version "${build_go_version}" "Go runtime"
     else
-      node_metric_unset_custom dingo_go_version
+      node_metric_unset_info dingo_go_version
     fi
   else
     node_metric_unset running_node_version
     node_metric_unset running_node_rev
-    node_metric_unset_custom dingo_go_version
+    node_metric_unset_info dingo_go_version
   fi
 
-  dingo_collect_optional_custom_metric \
-    "dingo_tip_gap_slots" "dingo_tip_gap_slots" \
-    "Tip gap" "slots"
-  dingo_collect_optional_custom_metric \
+  if prometheus_first_metric_value value dingo_tip_gap_slots &&
+     node_metric_value_is_numeric "${value}"; then
+    node_metric_set tip_gap "${value}"
+  else
+    node_metric_unset tip_gap
+  fi
+  dingo_collect_optional_info_metric \
     "dingo_epoch_length_slots" "dingo_epoch_length_slots" \
     "Epoch length" "slots"
-  dingo_collect_optional_custom_metric \
+  dingo_collect_optional_info_metric \
     "dingo_shelley_start_time" "dingo_shelley_start_time" \
     "Shelley start" "unix s"
 

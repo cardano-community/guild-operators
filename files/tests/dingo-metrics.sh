@@ -94,6 +94,9 @@ cardano_node_metrics_connectionManager_duplexConns{network="preview"} 6
 cardano_node_metrics_connectionManager_fullDuplexConns{network="preview"} 2
 cardano_node_metrics_forging_enabled{network="preview"} 0
 cardano_node_metrics_nodeStartTime_int{network="preview"} 1700000001
+cardano_node_metrics_blockfetchclient_blockdelay_cdfOne_real{network="preview"} 95.582861
+cardano_node_metrics_blockfetchclient_blockdelay_cdfThree_real{network="preview"} 98.234567
+cardano_node_metrics_blockfetchclient_blockdelay_cdfFive_real{network="preview"} 100
 dingo_metrics_peerSelection_InboundWarmHeld{network="preview"} 6
 dingo_metrics_peerSelection_InboundHotHeld{network="preview"} 2
 dingo_build_info{commit="c29a0099d22f8d8814557bd94de59d969d55cba9",goversion="go1.26.1",network="preview",version="v0.67.1 (commit c29a0099d22f8d8814557bd94de59d969d55cba9)"} 1
@@ -120,26 +123,30 @@ assert_eq "${inbound_governor_hot}" "2" \
   "Dingo inbound hot-peer normalization"
 assert_eq "${mem_live}" "268435456" "Dingo live-memory normalization"
 assert_eq "${forging_enabled}" "0" "Dingo relay forging state normalization"
+assert_eq "${blocks_w1s}" "0.95582861" \
+  "Dingo one-second propagation ratio normalization"
+assert_eq "${blocks_w3s}" "0.98234567" \
+  "Dingo three-second propagation ratio normalization"
+assert_eq "${blocks_w5s}" "1.00000000" \
+  "Dingo five-second propagation ratio normalization"
 assert_eq "${running_node_version}" "v0.67.1" \
   "Dingo build version normalization"
 assert_eq "${running_node_rev}" "c29a0099" \
   "Dingo build revision normalization"
 assert_eq "${dingo_go_version}" "go1.26.1" "Dingo Go version collection"
-assert_eq "${dingo_tip_gap_slots}" "2" "Dingo native tip-gap collection"
+assert_eq "${tip_gap}" "2" "Dingo normalized tip-gap collection"
 assert_eq "${dingo_epoch_length_slots}" "86400" \
   "Dingo native epoch-length collection"
 assert_eq "${dingo_shelley_start_time}" "1666656000" \
   "Dingo native Shelley-start collection"
 assert_eq "${uptimes}" "100" "Dingo node-start uptime calculation"
-assert_eq "${NODE_CUSTOM_METRICS[*]}" \
-  "dingo_go_version dingo_tip_gap_slots dingo_epoch_length_slots dingo_shelley_start_time" \
-  "Dingo custom metric registration order"
+assert_eq "${#NODE_CUSTOM_METRICS[@]}" "0" \
+  "Dingo static metadata leaked into the live custom-metric registry"
+assert_eq "${NODE_INFO_METRICS[*]}" \
+  "dingo_go_version dingo_epoch_length_slots dingo_shelley_start_time" \
+  "Dingo Network-page metric registration order"
 assert_eq "${NODE_METRIC_LABEL[dingo_go_version]}" "Go runtime" \
   "Dingo Go version display label"
-assert_eq "${NODE_METRIC_LABEL[dingo_tip_gap_slots]}" "Tip gap" \
-  "Dingo tip-gap display label"
-assert_eq "${NODE_METRIC_UNIT[dingo_tip_gap_slots]}" "slots" \
-  "Dingo tip-gap display unit"
 assert_eq "${NODE_METRIC_LABEL[dingo_epoch_length_slots]}" "Epoch length" \
   "Dingo epoch-length display label"
 assert_eq "${NODE_METRIC_UNIT[dingo_epoch_length_slots]}" "slots" \
@@ -154,7 +161,8 @@ for available_metric in \
   peer_selection_hot conn_incoming inbound_governor_warm \
   inbound_governor_hot mem_live forging_enabled \
   running_node_version running_node_rev dingo_go_version \
-  dingo_tip_gap_slots dingo_epoch_length_slots dingo_shelley_start_time \
+  tip_gap dingo_epoch_length_slots \
+  dingo_shelley_start_time blocks_w1s blocks_w3s blocks_w5s \
   uptimes; do
   node_metric_has "${available_metric}" ||
     fail "Dingo metric '${available_metric}' was parsed but marked unavailable"
@@ -172,8 +180,8 @@ node_adapter_collect_metrics ||
 assert_eq "${uptimes}" "100" "Dingo process-start uptime fallback"
 node_metric_has uptimes ||
   fail "Dingo process-start uptime fallback was marked unavailable"
-node_metric_has dingo_tip_gap_slots &&
-  fail "missing Dingo tip-gap metric was marked available"
+node_metric_has tip_gap &&
+  fail "missing normalized Dingo tip-gap metric was marked available"
 node_metric_has dingo_epoch_length_slots &&
   fail "missing Dingo epoch-length metric was marked available"
 node_metric_has dingo_shelley_start_time &&
@@ -182,5 +190,7 @@ node_metric_has running_node_version &&
   fail "missing Dingo build information was marked available"
 [[ ${#NODE_CUSTOM_METRICS[@]} -eq 0 ]] ||
   fail "missing Dingo custom samples remained registered"
+[[ ${#NODE_INFO_METRICS[@]} -eq 0 ]] ||
+  fail "missing Dingo metadata samples remained registered"
 
 printf 'dingo-metrics passed\n'

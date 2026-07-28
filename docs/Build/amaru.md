@@ -159,24 +159,32 @@ Run the dashboard after both services are active:
 
 The shared adapter normalizes Amaru's common chain, epoch, density, mempool,
 connection, served-block, version, uptime, and process measurements. Uptime is
-derived from the active systemd service PID rather than an OTLP process gauge.
-On Linux it uses the monotonic boot clock from `/proc`; a `ps` fallback is
-accepted only when it is no greater than the host's own uptime.
+derived from local timing for the active node process.
 
 Epoch progress is calculated from Amaru's latest locally validated epoch and
 epoch slot. While the node is catching up this is local-ledger epoch progress,
-not a network synchronization percentage; the current Amaru release does not
-expose a network-tip or sync-progress metric.
+not a network synchronization percentage. The common CHAIN section displays
+the local block and slot together with a timing-derived Tip gap; it does not
+display a separate reference tip.
 
 The adapter also handles scientific-notation values emitted through
 OpenTelemetry. The header explicitly identifies `[Amaru]`.
 
-Amaru-specific samples are displayed in a separate section when present:
+Amaru uses the same availability-driven relay dashboard as the other
+implementations. Compact mode presents the primary operational metrics.
+Verbose mode adds any available connection, propagation, runtime, and
+Amaru-specific samples, including:
 
 - process CPU usage;
 - resident and virtual memory;
 - open file descriptors;
 - accepted and rejected mempool insertions.
+
+Press `n` to open the common Network page for static node, network, service,
+deployment-path, and metrics-endpoint metadata. Dashboard and metadata values
+are bounded to preserve alignment. Normal refreshes update changed rows, with
+a periodic whole-frame row reconciliation that does not clear the terminal
+first. See the [gLiveView guide](../Scripts/gliveview.md) for display controls.
 
 Metrics absent from the current scrape are omitted rather than displayed as
 zero. This relay profile does not expose cnode block-production, KES,

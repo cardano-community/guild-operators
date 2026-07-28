@@ -18,6 +18,16 @@ node_adapter_defaults() {
   NODE_METRICS_PATH="${NODE_METRICS_PATH:-/metrics}"
 }
 
+node_adapter_metrics_url() {
+  local metrics_host metrics_port metrics_path
+  node_adapter_defaults
+  metrics_host="${NODE_METRICS_HOST:-${PROM_HOST:-}}"
+  metrics_port="${NODE_METRICS_PORT:-${PROM_PORT:-}}"
+  metrics_path="${NODE_METRICS_PATH:-/metrics}"
+  [[ -n "${metrics_host}" && -n "${metrics_port}" ]] || return 1
+  printf 'http://%s:%s%s\n' "${metrics_host}" "${metrics_port}" "${metrics_path}"
+}
+
 node_adapter_refresh_process() {
   CNODE_PID=$(pgrep -fn "$(basename "${CNODEBIN}").*.--port ${CNODE_PORT}")
   NODE_PID="${CNODE_PID}"
@@ -59,12 +69,13 @@ node_adapter_replay_progress() {
 }
 
 node_adapter_collect_metrics() {
-  local node_metrics process_elapsed
+  local node_metrics process_elapsed metrics_url
   node_adapter_refresh_process >/dev/null 2>&1 || true
+  metrics_url="$(node_adapter_metrics_url)" || return 1
   node_metrics="$(
     curl --fail --silent --show-error \
       --max-time "${PROM_TIMEOUT:-3}" \
-      "http://${PROM_HOST}:${PROM_PORT}/metrics" 2>/dev/null
+      "${metrics_url}" 2>/dev/null
   )" || return 1
   [[ -n "${node_metrics}" ]] || return 1
   common_parse_cardano_metrics "${node_metrics}" || return 1

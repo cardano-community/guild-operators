@@ -453,6 +453,188 @@ cardano_node_metrics_cardano_build_info{revision="abcdef012345",version="9.9.9"}
   fi
 )
 
+run_glive_helper_tests() (
+  local expected_patch
+
+  # The normalized metric registries require associative arrays.
+  (( BASH_VERSINFO[0] >= 4 )) || return 0
+  # shellcheck source=/dev/null
+  . "${REPO_ROOT}/scripts/common-helper-scripts/lib/node-api.library"
+
+  node_metric_reset_availability
+  node_metric_set_info runtime_version "go1.26.5" "Go runtime"
+  node_metric_set_info epoch_size "432000" "Epoch length" "slots"
+  node_metric_set_info runtime_version "go1.26.6" "Go runtime"
+  assert_eq "${NODE_INFO_METRICS[*]}" "runtime_version epoch_size" \
+    "Network-page metric registration and de-duplication"
+  assert_eq "${runtime_version}" "go1.26.6" \
+    "Network-page metric replacement"
+  assert_eq "${NODE_METRIC_LABEL[epoch_size]}" "Epoch length" \
+    "Network-page metric label"
+  assert_eq "${NODE_METRIC_UNIT[epoch_size]}" "slots" \
+    "Network-page metric unit"
+  node_metric_unset_info runtime_version
+  assert_eq "${NODE_INFO_METRICS[*]}" "epoch_size" \
+    "Network-page metric removal"
+  node_metric_has runtime_version &&
+    fail "removed Network-page metric remained available"
+  [[ -z "${NODE_METRIC_LABEL[runtime_version]+present}" ]] ||
+    fail "removed Network-page metric retained its label"
+  node_metric_reset_availability
+  assert_eq "${#NODE_INFO_METRICS[@]}" "0" \
+    "Network-page metrics were not reset between scrapes"
+
+  assert_eq "$(glv_text_clip 5 abc)" "abc" \
+    "short display text clipping"
+  assert_eq "$(glv_text_clip 5 abcde)" "abcde" \
+    "exact-width display text clipping"
+  assert_eq "$(glv_text_clip 5 abcdef)" "abcd~" \
+    "over-width display text clipping"
+  assert_eq "$(glv_text_clip 1 abcdef)" "~" \
+    "single-column display text clipping"
+  assert_eq "$(glv_text_pad 5 abc)" "abc  " \
+    "short display text padding"
+  assert_eq "$(glv_text_pad 5 abcdef)" "abcd~" \
+    "over-width display text padding"
+  if glv_text_clip 0 abc >/dev/null 2>&1; then
+    fail "display text clipping accepted a zero width"
+  fi
+  if glv_text_pad -1 abc >/dev/null 2>&1; then
+    fail "display text padding accepted a negative width"
+  fi
+
+  assert_eq "$(glv_ratio_percent 0)" "0.00" \
+    "zero propagation ratio formatting"
+  assert_eq "$(glv_ratio_percent 0.95582861)" "95.58" \
+    "propagation ratio formatting"
+  assert_eq "$(glv_ratio_percent 1)" "100.00" \
+    "complete propagation ratio formatting"
+  assert_eq "$(glv_ratio_percent -0.5)" "0.00" \
+    "negative propagation ratio lower bound"
+  assert_eq "$(glv_ratio_percent 1.5)" "100.00" \
+    "propagation ratio upper bound"
+  if glv_ratio_percent invalid >/dev/null 2>&1; then
+    fail "propagation ratio formatter accepted a non-numeric value"
+  fi
+
+  unset GLV_FRAME_NEXT GLV_FRAME_PREV GLV_FRAME_PATCH
+  unset GLV_FRAME_LAST_FULL_REPAINT
+  glv_frame_reset
+  glv_frame_add "header"
+  glv_frame_add "value 123456"
+  glv_frame_build_patch N 100 10
+  expected_patch=$'\033[1;1H\033[2Kheader\033[2;1H\033[2Kvalue 123456'
+  assert_eq "${GLV_FRAME_PATCH}" "${expected_patch}" \
+    "initial frame repaint"
+  assert_eq "${GLV_FRAME_LAST_FULL_REPAINT}" "100" \
+    "initial full-repaint timestamp"
+  [[ "${GLV_FRAME_PATCH}" != *$'\033[2J'* ]] ||
+    fail "initial frame patch cleared the whole screen"
+
+  glv_frame_reset
+  glv_frame_add "header"
+  glv_frame_add "value 123456"
+  glv_frame_build_patch N 105 10
+  assert_eq "${GLV_FRAME_PATCH}" "" \
+    "unchanged frame emitted terminal output"
+
+  glv_frame_reset
+  glv_frame_add "header"
+  glv_frame_add "value 9"
+  glv_frame_build_patch N 106 10
+  expected_patch=$'\033[2;1H\033[2Kvalue 9'
+  assert_eq "${GLV_FRAME_PATCH}" "${expected_patch}" \
+    "changed-row-only frame patch"
+  [[ "${GLV_FRAME_PATCH}" == *$'\033[2Kvalue 9' ]] ||
+    fail "shorter replacement row was not erased before repaint"
+  [[ "${GLV_FRAME_PATCH}" != *$'\033[1;1H'* ]] ||
+    fail "changed-row patch repainted an unchanged row"
+
+  glv_frame_reset
+  glv_frame_add "header"
+  glv_frame_build_patch N 107 10
+  expected_patch=$'\033[2;1H\033[2K'
+  assert_eq "${GLV_FRAME_PATCH}" "${expected_patch}" \
+    "removed-row clearing patch"
+
+  glv_frame_reset
+  glv_frame_add "header"
+  glv_frame_build_patch N 109 10
+  assert_eq "${GLV_FRAME_PATCH}" "" \
+    "unchanged frame before reconciliation emitted output"
+
+  glv_frame_reset
+  glv_frame_add "header"
+  glv_frame_build_patch N 110 10
+  expected_patch=$'\033[1;1H\033[2Kheader'
+  assert_eq "${GLV_FRAME_PATCH}" "${expected_patch}" \
+    "periodic full frame reconciliation"
+  assert_eq "${GLV_FRAME_LAST_FULL_REPAINT}" "110" \
+    "periodic full-repaint timestamp"
+
+  glv_frame_reset
+  glv_frame_add "header"
+  glv_frame_add "detail"
+  glv_frame_build_patch N 111 10
+  expected_patch=$'\033[2;1H\033[2Kdetail'
+  assert_eq "${GLV_FRAME_PATCH}" "${expected_patch}" \
+    "new-row-only frame patch"
+
+  glv_frame_reset
+  glv_frame_add "header"
+  glv_frame_add "detail"
+  glv_frame_build_patch N 119 10
+  assert_eq "${GLV_FRAME_PATCH}" "" \
+    "unchanged multi-row frame emitted terminal output"
+
+  glv_frame_reset
+  glv_frame_add "header"
+  glv_frame_add "detail"
+  glv_frame_build_patch N 120 10
+  expected_patch=$'\033[1;1H\033[2Kheader\033[2;1H\033[2Kdetail'
+  assert_eq "${GLV_FRAME_PATCH}" "${expected_patch}" \
+    "elapsed multi-row frame reconciliation"
+  [[ "${GLV_FRAME_PATCH}" != *$'\033[2J'* ]] ||
+    fail "periodic reconciliation cleared the whole screen"
+
+  glv_frame_reset
+  glv_frame_add "header"
+  glv_frame_add "detail"
+  glv_frame_build_patch Y 121 10
+  assert_eq "${GLV_FRAME_PATCH}" "${expected_patch}" \
+    "explicit forced frame reconciliation"
+  assert_eq "${GLV_FRAME_LAST_FULL_REPAINT}" "121" \
+    "forced full-repaint timestamp"
+)
+
+run_cnode_metrics_url_tests() (
+  NODE_HOME="${TEST_ROOT}/cnode-metrics-url"
+  CNODE_HOME="${NODE_HOME}"
+  mkdir -p "${NODE_HOME}"
+  # shellcheck source=/dev/null
+  . "${REPO_ROOT}/scripts/cnode-helper-scripts/cnode.adapter"
+
+  PROM_HOST="192.0.2.20"
+  PROM_PORT="18080"
+  unset NODE_METRICS_HOST NODE_METRICS_PORT NODE_METRICS_PATH
+  assert_eq "$(node_adapter_metrics_url)" \
+    "http://192.0.2.20:18080/metrics" \
+    "cnode legacy Prometheus endpoint compatibility"
+
+  NODE_METRICS_HOST="127.0.0.2"
+  NODE_METRICS_PORT="19090"
+  NODE_METRICS_PATH="/custom-metrics"
+  assert_eq "$(node_adapter_metrics_url)" \
+    "http://127.0.0.2:19090/custom-metrics" \
+    "cnode normalized metrics endpoint"
+
+  unset NODE_METRICS_HOST NODE_METRICS_PORT
+  unset PROM_HOST PROM_PORT
+  if node_adapter_metrics_url >/dev/null 2>&1; then
+    fail "cnode metrics URL accepted a missing host and port"
+  fi
+)
+
 run_exact_update_tests() (
   local update_root="${TEST_ROOT}/exact-update"
   local fake_bin="${update_root}/bin"
@@ -1081,6 +1263,8 @@ run_adapter_case amaru preview otel process
 run_env_manifest_fail_closed_tests
 
 run_exponent_tests
+run_glive_helper_tests
+run_cnode_metrics_url_tests
 run_exact_update_tests
 run_bundle_transaction_tests
 

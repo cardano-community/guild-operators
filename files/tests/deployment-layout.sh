@@ -184,4 +184,15 @@ done
     fail "cnode configuration request used the wrong repository, branch, or path"
 )
 
+GLIVEVIEW="${ROOT_DIR}/scripts/common-helper-scripts/gLiveView.sh"
+grep -Fq 'tip_gap "Tip gap" "slots"' "${GLIVEVIEW}" ||
+  fail "gLiveView does not render the normalized Tip gap in the chain grid"
+if grep -Eq 'Tip [(](ref|diff)[)]' "${GLIVEVIEW}"; then
+  fail "gLiveView still renders the retired Tip ref/diff fields"
+fi
+grep -Fq 'glvRenderNetworkPage' "${GLIVEVIEW}" ||
+  fail "gLiveView does not provide the Network details page"
+grep -Fq '[n] Network' "${GLIVEVIEW}" ||
+  fail "gLiveView does not advertise the Network page shortcut"
+
 printf 'deployment layout tests passed\n'

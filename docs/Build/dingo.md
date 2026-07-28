@@ -142,17 +142,28 @@ chain, epoch, density, mempool, connection, propagation, process, and runtime
 measurements are mapped into the shared gLiveView interface. The header
 explicitly identifies `[Dingo]`.
 
-Dingo-specific samples are displayed in a separate section when present:
+Dingo uses the same availability-driven relay dashboard as the other
+implementations. Its native tip-gap measurement is normalized into the common
+CHAIN section alongside the local block and slot; a separate reference-tip
+field is not shown. Compact mode presents the primary operational metrics,
+while verbose mode adds available connection, propagation, and runtime detail.
+Metrics absent from the current scrape are omitted instead of displayed as
+zero.
 
-- Go runtime version;
-- native tip gap in slots;
-- epoch length in slots;
-- Shelley start time.
+Press `n` to open the Network page. Dingo's Go runtime version, epoch length,
+and Shelley start time appear there with the common node, network, service,
+deployment-path, and metrics-endpoint metadata rather than in the live
+dashboard.
 
-The dashboard is availability-driven. Metrics absent from the current scrape
-are omitted instead of displayed as zero. This relay profile does not expose
-the cnode block-producer, KES, operational-certificate, CNCLI blocklog, Koios,
-Mithril signer, or interactive peer-analysis sections.
+The common renderer bounds and formats values to preserve column alignment.
+Normal refreshes update only changed rows, with a periodic whole-frame row
+reconciliation that does not clear the terminal first. See the
+[gLiveView guide](../Scripts/gliveview.md) for compact and verbose contents
+and display controls.
+
+This relay profile does not expose the cnode block-producer, KES,
+operational-certificate, CNCLI blocklog, Koios, Mithril signer, or interactive
+peer-analysis sections.
 
 CNTools, Ogmios, db-sync, and standalone Mithril helper scripts remain outside
 this experimental profile. Dingo contains its own Mithril bootstrap client,

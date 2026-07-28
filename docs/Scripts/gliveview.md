@@ -13,12 +13,12 @@ prints the implementation name in the header. A typical heading therefore
 contains `[cardano-node]`, `[Dingo]`, or `[Amaru]` as well as the node name,
 relay/core role, network, and version.
 
-Each implementation exposes a different set of measurements. gLiveView
-discovers availability on every scrape and displays only fields and sections
-that the selected node actually supplied. An unavailable metric is not treated
-as zero. This is particularly important for alternate relays, which do not
-expose cnode block-production, KES, or peer-inspection interfaces and may
-publish a different runtime metric set.
+All relay deployments use the same availability-driven dashboard. Each
+implementation exposes a different set of measurements, so gLiveView discovers
+availability on every scrape and displays only fields and sections that the
+selected node actually supplied. An unavailable metric is not treated as zero.
+This keeps the relay view consistent without implying that every implementation
+provides cnode block-production, KES, peer-inspection, or runtime interfaces.
 
 ##### Metrics interface
 
@@ -70,47 +70,38 @@ the script's User Variables section.
 
 !!! info "Note !!"
     gLiveView is a compact local dashboard, not a full monitoring platform.
-    Press `v` to show or hide additional available fields. The key is not a
-    request to synthesize measurements the node does not export.
+    Press `v` to switch between compact and verbose metrics, or `n` to open
+    the static Network page. Neither view synthesizes measurements that the
+    selected node does not provide.
 
-The screenshots below show the established cnode core, relay, and peer-analysis
-views. Dingo and Amaru use the same outer dashboard but contain a compact,
-availability-driven metric grid.
+The cnode producer view retains its additional producer sections; cnode,
+Dingo, and Amaru relays share the same common metric grid. Interactive peer
+analysis remains a cnode-only view:
 
-=== "Core"
-
-    ![Core](https://raw.githubusercontent.com/cardano-community/guild-operators/images/glv-core.png ':size=35%')
-
-=== "Relay"
-
-    ![Relay](https://raw.githubusercontent.com/cardano-community/guild-operators/images/glv-relay.png ':size=35%')
-
-=== "Peer Analysis"
-
-    ![Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/glv-peers.png ':size=35%')
+![Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/glv-peers.png ':size=35%')
 
 ###### Upper main section
 
-The dashboard can display epoch progress, chain, mempool, connection, block
-propagation, and local process-resource measurements. cnode retains its
-established full view. In the availability-driven Dingo and Amaru view, a
-whole section is hidden when none of its metrics are available and unavailable
+The common relay dashboard can display epoch progress, chain, mempool,
+connection, block-propagation, and local process-resource measurements. A
+whole section is hidden when none of its metrics are available, and unavailable
 cells are omitted rather than printed empty or as zero.
 
 - **Epoch Progress** - Epoch number and progress are live from the node. The
   progress bar is displayed only when epoch, epoch-slot, and epoch-length data
-  are available. For Dingo and Amaru this describes the latest locally
-  processed ledger position. It is not a network synchronization percentage;
-  Amaru does not currently export a network-tip or sync-progress measurement.
+  are available. For relay implementations this describes the latest locally
+  processed ledger position; it is not a network synchronization percentage.
 - **Block** - The node's current block height since genesis.
 - **Slot** - The node's current absolute slot.
+- **Tip gap** - The number of slots by which the local node tip trails the
+  expected current slot. An adapter-provided value is used when available;
+  otherwise gLiveView derives it from the selected network's timing
+  parameters. It is a useful local freshness indicator, not a peer-observed
+  network tip or synchronization percentage. The calculated reference slot is
+  intentionally not displayed as a separate field.
 - **Density** - With the current chain parameters(MainNet), a block is created roughly every 20 seconds(`activeSlotsCoeff`). A slot on MainNet happens every 1 second(`slotLength`), thus the max chain density can be calculated as `slotLength/activeSlotsCoeff = 5%`. Normally, the value should fluctuate around this value.  
 - **Total Tx** - The total number of transactions processed since node start.  
 - **Pending Tx** - The number of transactions and the bytes(total, in kb) currently in mempool to be included in upcoming blocks.  
-- **Tip (ref)** - In the full cnode view, reference tip is an offline
-  calculation based on genesis values. Dingo instead exports its native tip
-  gap as an implementation metric.
-- **Tip (diff) / Status** - Will either show node status as `starting|sync xx.x%` or if close to reference tip, the tip difference `Tip (ref) - Tip (node)` to see how far of the tip (diff value) the node is. With current parameters a slot diff up to 40 from reference tip is considered good but it should usually stay below 30. It's perfectly normal to see big differences in slots between blocks. It's the built in randomness at play. To see if a node is really healthy and staying on tip you would need to compare the tip between multiple nodes.  
 - **Forks** - The number of forks since node start. Each fork means the blockchain evolved in a different direction, thereby discarding blocks. A high number of forks means there is a higher chance of orphaned blocks.  
 - **Peers In / Out** - Shows the connection counters exported by the selected
   implementation. This does not imply that interactive peer inspection is
@@ -130,18 +121,61 @@ cells are omitted rather than printed empty or as zero.
 - **Mem (Live) / (Heap)** - Runtime memory values are displayed only when the
   implementation exports compatible samples.
 - **GC Minor / Major** - Collecting garbage from "Young space" is called a Minor GC. Major (Full) GC is done more rarily and is a more expensive operation. Explaining garbage collection is a topic outside the scope of this documentation and google is your friend for this.  
-- **Block propagation** - Last Block measures the duration between when the last block was scheduled to be produced and when the node learned about it. Late blocks are blocks whose delay is larger than 5s. If the node is not synching, the number of late blocks needs to stay low. Within 1/3/5s estimates the chance of observing a delay of 1/3/5s (based on the delays observed for previous blocks). A healthy node needs to stay above 95% of blocks within 3s. Finally, served blocks counts how many blocks were fetched by "in" peers. If this does not increase for a long time, it means the "in" peers are learning about new blocks from somewhere else (and therefore this node is not contributing towards accelerating the propagation). Overall, these metrics are helpful in tweaking the topology and/or performance of the network links.  
+- **Block propagation** - Last Block measures the duration between when the
+  last block was scheduled to be produced and when the node learned about it.
+  Verbose mode can additionally show late and served blocks and the percentage
+  observed within 1, 3, and 5 seconds when those measurements are available.
+  These metrics are helpful when assessing topology and network-link
+  performance.
+
+###### Compact and verbose views
+
+Compact mode keeps the relay dashboard focused on the common operational
+signals: chain position and tip gap, primary incoming/outgoing and hot-peer
+counters, latest block delay, and CPU, resident memory, and disk use.
+
+Press `v` to enter verbose mode. It adds any available connection direction
+and peer-temperature details, the full block-propagation breakdown, runtime
+memory and garbage-collection measurements, and live implementation-specific
+metrics. Press `v` again to return to the compact view. A metric or section is
+still omitted when the selected implementation does not export it.
 
 ###### Implementation metrics
 
-Adapters may register useful measurements that have no common equivalent.
-They are placed in a section named after the implementation and disappear
-individually when not present in the latest scrape.
+Adapters may register useful live measurements that have no common equivalent.
+They are displayed in a section named after the implementation in verbose
+mode and disappear individually when not present in the latest scrape.
 
-- Dingo currently reports its Go runtime version, native tip gap, epoch
-  length, and Shelley start time.
 - Amaru currently reports process CPU, resident and virtual memory, open file
   descriptors, and accepted/rejected mempool insertions.
+
+Static node, network, deployment, and runtime metadata is kept out of the live
+dashboard and appears on the Network page instead.
+
+###### Network page
+
+Press `n` from the dashboard to open the Network page. It groups static
+information separately from live metrics, including:
+
+- implementation, version, role, and service;
+- network, network magic, node port, epoch and slot parameters, and Shelley
+  start time;
+- implementation runtime metadata when available;
+- deployment paths, metrics provider, and metrics endpoint.
+
+Press `h` to return home. Long metadata and metric values are compacted or
+clipped to their fixed display cells; a trailing `~` marks clipped text. This
+keeps borders and columns aligned even when a version, path, counter, or
+floating-point value is unusually long.
+
+###### Display refresh
+
+The common relay renderer builds a complete logical frame on every metrics
+refresh but writes only rows whose content changed. Every `REPAINT_RATE`
+seconds it reconciles all rows using the same row updates, without clearing
+the terminal first. This limits visible redraw while also removing stale
+content when values shrink or sections appear or disappear. A view change or
+terminal resize can still require a complete layout redraw.
 
 ###### Core section
 
@@ -221,7 +255,7 @@ tracker](https://github.com/cardano-community/guild-operators/issues).
 
 #NODE_NAME="Cardano Node"                 # Prefix, at most 19 characters
 #REFRESH_RATE=2                           # Seconds between data refreshes
-#REPAINT_RATE=10                          # Full repaint after this many refreshes
+#REPAINT_RATE=10                          # Seconds between full row reconciliations
 #LEGACY_MODE=false                        # true uses ASCII instead of box drawing
 #RETRIES=3                                # Connection attempts; 0 retries continuously
 #PEER_LIST_CNT=10                         # Peers shown per in/out analysis page

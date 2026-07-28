@@ -10,7 +10,7 @@
 
 #NODE_NAME="Cardano Node"                 # Change your node's name prefix here, keep at or below 19 characters!
 #REFRESH_RATE=2                           # How often (in seconds) to refresh the view (additional time for processing and output may slow it down)
-#REPAINT_RATE=10                          # Re-paint entire screen every nth REFRESH_RATE. Complete re-paint can make screen flicker, hence not done for every update
+#REPAINT_RATE=10                          # Seconds between full row reconciliation (changed rows still refresh every REFRESH_RATE)
 #LEGACY_MODE=false                        # (true|false) If enabled unicode box-drawing characters will be replaced by standard ASCII characters
 #RETRIES=3                                # How many attempts to connect to running Cardano node before erroring out and quitting (0 for continuous retries)
 #PEER_LIST_CNT=10                         # Number of peers to show on each in/out page in peer analysis view
@@ -61,7 +61,7 @@ setTheme() {
 # Do NOT modify code below           #
 ######################################
 
-GLV_VERSION=v1.33.2
+GLV_VERSION=v1.34.0
 
 PARENT="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 
@@ -282,7 +282,8 @@ nodemode="Relay"
 [[ ! ${REFRESH_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid refresh rate number!"
 
 [[ -z ${REPAINT_RATE} ]] && REPAINT_RATE=10
-[[ ! ${REPAINT_RATE} =~ ^[0-9]+$ ]] && myExit 1 "Please set a valid repaint rate number!"
+[[ ! ${REPAINT_RATE} =~ ^[1-9][0-9]*$ ]] &&
+  myExit 1 "Please set a positive repaint interval in seconds!"
 
 [[ -z ${LEGACY_MODE} ]] && LEGACY_MODE=false
 
@@ -405,7 +406,7 @@ fi
 # Description : wait for user keypress to quit, else do nothing if timeout expire
 waitForInput() {
   ESC=$(printf "\033")
-  if [[ $1 = "homeInfo" || $1 = "peersInfo" ]]; then read -rsn1 key1
+  if [[ $1 = "homeInfo" || $1 = "networkInfo" || $1 = "peersInfo" ]]; then read -rsn1 key1
   elif ! read -rsn1 -t ${REFRESH_RATE} key1; then return; fi
   [[ ${key1} = "${ESC}" ]] && read -rsn2 -t 0.3 key2 # read 2 more chars
   [[ ${key1} = "q" ]] && myExit 0 "Koios gLiveView stopped!"
@@ -417,9 +418,18 @@ waitForInput() {
       return
     fi
     [[ ${key1} = "i" ]] && show_home_info="true" && clrScreen && return
-    if [[ ${key1} = "v" ]]; then [[ ${VERBOSE} = "N" ]] && VERBOSE="Y" || VERBOSE="N"; fi; clrScreen && return
+    [[ ${key1} = "n" ]] && show_network_info="true" && clrScreen && return
+    if [[ ${key1} = "v" ]]; then
+      [[ ${VERBOSE} = "N" ]] && VERBOSE="Y" || VERBOSE="N"
+      if [[ ${NODE_IMPLEMENTATION} = "cnode" && ${nodemode} = "Core" ]]; then
+        clrScreen
+      fi
+      return
+    fi
   elif [[ $1 = "homeInfo" ]]; then
     [[ ${key1} = "h" ]] && show_home_info="false" && line=0 && clrScreen && return
+  elif [[ $1 = "networkInfo" ]]; then
+    [[ ${key1} = "h" ]] && show_network_info="false" && line=0 && clrScreen && return
   elif [[ $1 = "peersInfo" ]]; then
     [[ ${key1} = "b" ]] && show_peers_info="false" && line=0 && clrScreen && return
   elif [[ $1 = "peers" ]]; then
@@ -522,9 +532,81 @@ glvMetricCell() {
   local name="$1"
   local label="$2"
   local unit="$3"
+  local cell_width="${4:-23}"
+  local label_width=10
+  local value_width=$((cell_width - label_width - 3))
   local value="${!name:-?}"
-  printf "%-10s : ${style_values_1}%s${NC}%s" \
-    "${label}" "${value}" "${unit:+ ${unit}}"
+  local display healthy_tip_gap=60 style="${style_values_1}"
+
+  case "${name}" in
+    block_delay)
+      if node_metric_value_is_numeric "${value}"; then
+        LC_NUMERIC=C printf -v value '%.2f' "${value}"
+      fi
+      unit="s"
+      ;;
+    blocks_w1s|blocks_w3s|blocks_w5s)
+      value="$(glv_ratio_percent "${value}" 2>/dev/null || printf '?')"
+      unit="%"
+      ;;
+    density)
+      if node_metric_value_is_numeric "${value}"; then
+        LC_NUMERIC=C printf -v value '%.3f' "${value}"
+      fi
+      unit="%"
+      ;;
+    mempool_bytes|mem_live|mem_heap)
+      if node_metric_value_is_numeric "${value}"; then
+        if awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1073741824) }'; then
+          LC_NUMERIC=C printf -v value '%.1f' \
+            "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1073741824 }')"
+          unit="GiB"
+        elif awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1048576) }'; then
+          LC_NUMERIC=C printf -v value '%.1f' \
+            "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1048576 }')"
+          unit="MiB"
+        elif awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1024) }'; then
+          LC_NUMERIC=C printf -v value '%.1f' \
+            "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1024 }')"
+          unit="KiB"
+        else
+          unit="B"
+        fi
+      fi
+      ;;
+    tip_gap)
+      if [[ "${value}" =~ ^[0-9]+$ ]]; then
+        if declare -F slotInterval >/dev/null 2>&1; then
+          healthy_tip_gap="$(slotInterval 2>/dev/null || printf '60')"
+          [[ "${healthy_tip_gap}" =~ ^[1-9][0-9]*$ ]] ||
+            healthy_tip_gap=60
+        fi
+        if (( value <= healthy_tip_gap )); then
+          style="${style_status_1}"
+        elif (( value <= 600 )); then
+          style="${style_status_2}"
+        else
+          style="${style_info}"
+        fi
+      fi
+      unit="slots"
+      ;;
+  esac
+
+  if [[ "${value}" =~ ^[0-9]+$ &&
+        $(( ${#value} + ${#unit} + 1 )) -gt ${value_width} ]]; then
+    unset cn_value cn_suffix
+    compactNumber "${value}" >/dev/null 2>&1 || true
+    [[ -n "${cn_value:-}" ]] && value="${cn_value}${cn_suffix:-}"
+  elif [[ "${value}" =~ ^[0-9]+[.][0-9]+$ &&
+          ${#value} -gt ${value_width} ]]; then
+    LC_NUMERIC=C printf -v value '%.2f' "${value}"
+  fi
+
+  display="${value}${unit:+ ${unit}}"
+  label="$(glv_text_pad "${label_width}" "${label}")"
+  display="$(glv_text_pad "${value_width}" "${display}")"
+  printf "%s : ${style}%s${NC}" "${label}" "${display}"
 }
 
 # Render only samples advertised by the adapter in the normalized metrics
@@ -533,7 +615,7 @@ glvMetricCell() {
 glvMetricGrid() {
   local section="$1"
   shift
-  local name label unit index
+  local name label unit index cell_one cell_two cell_three
   local -a available=()
 
   while (( $# >= 3 )); do
@@ -547,116 +629,391 @@ glvMetricGrid() {
 
   glvSectionDivider "${section}"
   for (( index=0; index<${#available[@]}; index+=9 )); do
-    printf "${VL} "
-    glvMetricCell \
-      "${available[index]}" "${available[index+1]}" "${available[index+2]}"
-    if (( index + 3 < ${#available[@]} )); then
-      mvThreeSecond
+    cell_one="$(
       glvMetricCell \
-        "${available[index+3]}" "${available[index+4]}" "${available[index+5]}"
+        "${available[index]}" "${available[index+1]}" "${available[index+2]}" 23
+    )"
+    cell_two="$(printf '%23s' '')"
+    cell_three="$(printf '%24s' '')"
+    if (( index + 3 < ${#available[@]} )); then
+      cell_two="$(
+        glvMetricCell \
+          "${available[index+3]}" "${available[index+4]}" "${available[index+5]}" 23
+      )"
     fi
     if (( index + 6 < ${#available[@]} )); then
-      mvThreeThird
-      glvMetricCell \
-        "${available[index+6]}" "${available[index+7]}" "${available[index+8]}"
+      cell_three="$(
+        glvMetricCell \
+          "${available[index+6]}" "${available[index+7]}" "${available[index+8]}" 24
+      )"
     fi
-    closeRow
+    glv_frame_add "${VL}${cell_one}${cell_two}${cell_three}${VL}"
   done
+}
+
+glvMetricRow() {
+  local index name label unit cell available_count=0
+  local -a cells widths=(23 23 24)
+
+  for (( index=0; index<3; index++ )); do
+    name="${1-}"
+    label="${2-}"
+    unit="${3-}"
+    (( $# >= 3 )) && shift 3 || true
+    if [[ -n "${name}" ]] && node_metric_has "${name}"; then
+      cell="$(glvMetricCell "${name}" "${label}" "${unit}" "${widths[index]}")"
+      available_count=$((available_count + 1))
+    else
+      printf -v cell '%*s' "${widths[index]}" ''
+    fi
+    cells[index]="${cell}"
+  done
+  (( available_count > 0 )) || return 1
+  glv_frame_add "${VL}${cells[0]}${cells[1]}${cells[2]}${VL}"
+}
+
+glvRenderConnections() {
+  local metric any_available=N
+  local -a all_metrics=(
+    conn_incoming conn_outgoing conn_duplex
+    inbound_governor_hot peer_selection_hot
+  )
+  if [[ "${VERBOSE}" == "Y" ]]; then
+    all_metrics+=(
+      conn_uni_dir conn_bi_dir inbound_governor_warm
+      peer_selection_cold peer_selection_warm
+    )
+  fi
+
+  for metric in "${all_metrics[@]}"; do
+    if node_metric_has "${metric}"; then
+      any_available=Y
+      break
+    fi
+  done
+  [[ "${any_available}" == "Y" ]] || return 0
+
+  glvSectionDivider "CONNECTIONS"
+  glvMetricRow \
+    conn_incoming "Incoming" "" \
+    conn_outgoing "Outgoing" "" \
+    conn_duplex "Duplex" "" || true
+  if [[ "${VERBOSE}" == "Y" ]]; then
+    glvMetricRow \
+      conn_uni_dir "Uni-dir" "" \
+      conn_bi_dir "Bi-dir" "" \
+      "" "" "" || true
+    glvMetricRow \
+      inbound_governor_warm "In warm" "" \
+      inbound_governor_hot "In hot" "" \
+      "" "" "" || true
+    glvMetricRow \
+      peer_selection_cold "Out cold" "" \
+      peer_selection_warm "Out warm" "" \
+      peer_selection_hot "Out hot" "" || true
+  else
+    glvMetricRow \
+      inbound_governor_hot "In hot" "" \
+      peer_selection_hot "Out hot" "" \
+      "" "" "" || true
+  fi
 }
 
 glvRenderCustomMetrics() {
-  local name label unit value
+  local name
+  local -a custom_grid=()
   (( ${#NODE_CUSTOM_METRICS[@]} > 0 )) || return 0
 
-  glvSectionDivider "${NODE_IMPLEMENTATION_NAME^^} METRICS"
   for name in "${NODE_CUSTOM_METRICS[@]}"; do
     node_metric_has "${name}" || continue
-    label="${NODE_METRIC_LABEL[${name}]:-${name}}"
-    unit="${NODE_METRIC_UNIT[${name}]:-}"
-    value="${!name:-?}"
-    printf "${VL} %-24s" "${label}"
-    mvTwoSecond
-    printf ": ${style_values_1}%s${NC}%s" "${value}" "${unit:+ ${unit}}"
-    closeRow
+    custom_grid+=(
+      "${name}"
+      "${NODE_METRIC_LABEL[${name}]:-${name}}"
+      "${NODE_METRIC_UNIT[${name}]:-}"
+    )
   done
+  (( ${#custom_grid[@]} > 0 )) ||
+    return 0
+  glvMetricGrid "${NODE_IMPLEMENTATION_NAME^^} METRICS" \
+    "${custom_grid[@]}"
 }
 
-glvRenderAlternateDashboard() {
+glvFrameSectionDivider() {
+  local label="$1"
+  local fill_count=$(( width - ${#label} - 4 ))
+  local fill=""
+  (( fill_count < 1 )) && fill_count=1
+  printf -v fill '%*s' "${fill_count}" ''
+  fill="${fill// /-}"
+  glv_frame_add "${VL}- ${style_info}${label}${NC} ${fill}${VL}"
+}
+
+glvSectionDivider() {
+  glvFrameSectionDivider "$1"
+}
+
+glvFrameInfoRow() {
+  local label value label_fmt value_fmt
+  label="$(glv_text_clip 18 "$1")"
+  value="$(glv_text_clip 49 "${2-}")"
+  label_fmt="$(glv_text_pad 18 "${label}")"
+  value_fmt="$(glv_text_pad 49 "${value}")"
+  glv_frame_add \
+    "${VL}${label_fmt} : ${style_values_1}${value_fmt}${NC}${VL}"
+}
+
+glvFrameHeaderDivider() {
+  local position="${1:-top}"
+  local left junction right fill segment_one segment_two segment_three
+
+  printf -v segment_one '%30s' ''
+  printf -v segment_two '%13s' ''
+  printf -v segment_three '%25s' ''
+  if [[ "${LEGACY_MODE}" == "true" ]]; then
+    left="+"
+    junction="+"
+    right="+"
+    [[ "${position}" == "top" ]] && fill="=" || fill="-"
+  elif [[ "${position}" == "top" ]]; then
+    left=$'\u250c'
+    junction=$'\u252c'
+    right=$'\u2510'
+    fill=$'\u2500'
+  else
+    left=$'\u251c'
+    junction=$'\u2534'
+    right=$'\u2524'
+    fill=$'\u2500'
+  fi
+  segment_one="${segment_one// /${fill}}"
+  segment_two="${segment_two// /${fill}}"
+  segment_three="${segment_three// /${fill}}"
+  printf '%s%s%s%s%s%s%s%s' \
+    "${NC}" "${left}" "${segment_one}" "${junction}" \
+    "${segment_two}" "${junction}" "${segment_three}" "${right}"
+}
+
+glvFrameHeader() {
+  local node_label implementation_label role_label network_label version_label
+  local plain_header header_padding uptime_value uptime_segment port_segment title_segment
+
+  node_label="$(glv_text_clip 16 "${NODE_NAME}")"
+  implementation_label="$(glv_text_clip 12 "${NODE_IMPLEMENTATION_NAME}")"
+  role_label="$(glv_text_clip 6 "${nodemode}")"
+  network_label="$(glv_text_clip 8 "${NETWORK_NAME}")"
+  version_label="$(glv_text_clip 12 "${running_node_version}")"
+  plain_header="> ${node_label} [${implementation_label}] - ${role_label} - ${network_label} : ${version_label} <"
+  (( ${#plain_header} < width )) &&
+    header_padding=$(( (width - ${#plain_header}) / 2 )) ||
+    header_padding=0
+  glv_frame_add \
+    "$(printf '%*s' "${header_padding}" '')> ${style_values_2}${node_label}${NC} [${style_info}${implementation_label}${NC}] - ${style_info}${role_label}${NC} - ${network_label} : ${style_values_1}${version_label}${NC} <"
+
+  glv_frame_add "$(glvFrameHeaderDivider top)"
+  if node_metric_has uptimes; then
+    uptime_value="$(timeLeft "${uptimes}")"
+  else
+    uptime_value="unavailable"
+  fi
+  uptime_segment="$(glv_text_pad 30 " Uptime: ${uptime_value}")"
+  port_segment="$(glv_text_pad 13 " Port: ${CNODE_PORT}")"
+  title_segment="$(glv_text_pad 25 " ${title}")"
+  glv_frame_add \
+    "${VL}${style_values_1}${uptime_segment}${NC}${VL}${style_values_2}${port_segment}${NC}${VL}${style_title}${title_segment}${NC}${VL}"
+  glv_frame_add "$(glvFrameHeaderDivider bottom)"
+}
+
+glvFrameEpoch() {
   local epoch_length="${EPOCH_LENGTH:-0}"
-  local epoch_progress epoch_items_local i
+  local epoch_progress epoch_items_local i epoch_text epoch_row="" progress_row=""
 
   if node_metric_has epochnum &&
      node_metric_has slot_in_epoch &&
      epoch_progress="$(
        node_epoch_progress_percent "${slot_in_epoch}" "${epoch_length}"
      )"; then
-    printf "${VL} Epoch ${style_values_1}%s${NC} [${style_values_1}%s%%${NC}]" \
-      "${epochnum}" "${epoch_progress}"
-    closeRow
+    epoch_text=" Epoch ${epochnum} [${epoch_progress}%]"
+    epoch_text="$(glv_text_pad $((width - 1)) "${epoch_text}")"
+    epoch_row="${VL}${style_values_1}${epoch_text}${NC}${VL}"
+    glv_frame_add "${epoch_row}"
     epoch_items_local=$(( $(printf '%.0f' "${epoch_progress}") * granularity / 100 ))
-    printf "${VL} "
+    progress_row="${VL} "
     for i in $(seq 0 $((granularity-1))); do
       if (( i < epoch_items_local )); then
-        printf "${style_values_1}${char_marked}"
+        progress_row+="${style_values_1}${char_marked}"
       else
-        printf "${NC}${char_unmarked}"
+        progress_row+="${NC}${char_unmarked}"
       fi
     done
-    printf "${NC} ${VL}\n"
-    ((line++))
+    progress_row+="${NC} ${VL}"
+    glv_frame_add "${progress_row}"
   fi
+}
+
+glvRenderCommonDashboard() {
+  local mem_rss_gb disk_usage
+  local -a propagation_metrics runtime_metrics
+
+  glv_frame_reset
+  glvFrameHeader
+  glvFrameEpoch
 
   glvMetricGrid "CHAIN" \
     blocknum "Block" "" \
     slotnum "Slot" "" \
+    tip_gap "Tip gap" "slots" \
     slot_in_epoch "Epoch slot" "" \
     density "Density" "%" \
+    forks "Forks" "" \
     tx_processed "Total tx" "" \
     mempool_tx "Pending tx" "" \
-    mempool_bytes "Mempool" "B" \
-    forks "Forks" "" || true
+    mempool_bytes "Mempool" "B" || true
 
-  glvMetricGrid "CONNECTIONS" \
-    conn_incoming "Incoming" "" \
-    conn_outgoing "Outgoing" "" \
-    conn_uni_dir "Uni-dir" "" \
-    conn_bi_dir "Bi-dir" "" \
-    conn_duplex "Duplex" "" \
-    inbound_governor_warm "In warm" "" \
-    inbound_governor_hot "In hot" "" \
-    peer_selection_cold "Cold" "" \
-    peer_selection_warm "Warm" "" \
-    peer_selection_hot "Hot" "" || true
+  glvRenderConnections
 
-  glvMetricGrid "BLOCK PROPAGATION" \
-    block_delay "Last block" "s" \
-    blocks_served "Served" "" \
-    blocks_late "Late (>5s)" "" \
-    blocks_w1s "Within 1s" "ratio" \
-    blocks_w3s "Within 3s" "ratio" \
-    blocks_w5s "Within 5s" "ratio" || true
+  propagation_metrics=(block_delay "Last block" "s")
+  if [[ "${VERBOSE}" == "Y" ]]; then
+    propagation_metrics+=(
+      blocks_served "Served" ""
+      blocks_late "Late (>5s)" ""
+      blocks_w1s "Within 1s" "%"
+      blocks_w3s "Within 3s" "%"
+      blocks_w5s "Within 5s" "%"
+    )
+  fi
+  glvMetricGrid "BLOCK PROPAGATION" "${propagation_metrics[@]}" || true
 
-  glvSectionDivider "NODE RESOURCE USAGE"
   LC_NUMERIC=C printf -v mem_rss_gb "%.1f" \
     "$(awk -v rss="${mem_rss:-0}" 'BEGIN { print rss / 1048576 }')"
   [[ $(df -h "${NODE_HOME}") =~ ([0-9.]+)% ]] &&
     disk_usage=${BASH_REMATCH[1]} || disk_usage="?"
-  printf "${VL} CPU (sys)  : ${style_values_1}%s${NC}%%" "${cpu_util:-0}"
-  mvThreeSecond
-  printf "Mem (RSS)  : ${style_values_1}%s${NC} G" "${mem_rss_gb}"
-  mvThreeThird
-  printf "Disk util  : ${style_values_1}%s${NC}%%" "${disk_usage}"
-  closeRow
+  node_metric_set glv_cpu_util "${cpu_util:-0}"
+  node_metric_set glv_mem_rss_gb "${mem_rss_gb}"
+  node_metric_set glv_disk_usage "${disk_usage}"
+  glvMetricGrid "NODE RESOURCE USAGE" \
+    glv_cpu_util "CPU (sys)" "%" \
+    glv_mem_rss_gb "Mem (RSS)" "GiB" \
+    glv_disk_usage "Disk util" "%" || true
 
   if [[ "${VERBOSE}" == "Y" ]]; then
-    glvMetricGrid "RUNTIME" \
+    runtime_metrics=(
       mem_live "Live memory" "B" \
       mem_heap "Heap" "B" \
       gc_minor "GC minor" "" \
-      gc_major "GC major" "" || true
+      gc_major "GC major" ""
+    )
+    glvMetricGrid "RUNTIME" "${runtime_metrics[@]}" || true
+    glvRenderCustomMetrics
   fi
 
-  glvRenderCustomMetrics
+  glv_frame_add "${bdivider}"
+  glv_frame_add \
+    " TG Announcement/Support channel: ${style_info}t.me/CardanoKoios/9759${NC}"
+  glv_frame_add ""
+  if node_has peer_inspection; then
+    glv_frame_add \
+      " ${style_info}[q] Quit${NC} | ${style_info}[i] Info${NC} | ${style_info}[n] Network${NC} | ${style_info}[p] Peers${NC} | ${style_info}[v] $([[ ${VERBOSE} == Y ]] && printf Compact || printf Verbose)${NC}"
+  else
+    glv_frame_add \
+      " ${style_info}[q] Quit${NC} | ${style_info}[i] Info${NC} | ${style_info}[n] Network${NC} | ${style_info}[v] $([[ ${VERBOSE} == Y ]] && printf Compact || printf Verbose)${NC}"
+  fi
+}
+
+glvRenderNetworkPage() {
+  local version_text epoch_length_text shelley_start_value
+  local shelley_start_text info_name info_value info_section_added=N
+
+  glv_frame_reset
+  glvFrameHeader
+  glvFrameSectionDivider "NODE"
+  version_text="${running_node_version:-?}"
+  if node_metric_has running_node_rev &&
+     [[ "${running_node_rev:-?}" != "?" ]]; then
+    version_text+=" (${running_node_rev})"
+  fi
+  glvFrameInfoRow "Implementation" "${NODE_IMPLEMENTATION_NAME}"
+  glvFrameInfoRow "Version" "${version_text}"
+  glvFrameInfoRow "Role" "${nodemode}"
+  glvFrameInfoRow "Service" "${NODE_SERVICE:-${CNODE_VNAME:-?}}"
+
+  glvFrameSectionDivider "NETWORK"
+  glvFrameInfoRow "Network" "${NETWORK_NAME:-${NODE_NETWORK:-?}}"
+  glvFrameInfoRow "Network magic" "${NWMAGIC:-?}"
+  glvFrameInfoRow "Node port" "${CNODE_PORT:-?}"
+  epoch_length_text="${EPOCH_LENGTH:-?}"
+  if node_metric_has dingo_epoch_length_slots; then
+    epoch_length_text="${dingo_epoch_length_slots}"
+  fi
+  glvFrameInfoRow "Epoch length" "${epoch_length_text} slots"
+  glvFrameInfoRow "Slot length" "${SLOT_LENGTH:-?} s"
+  glvFrameInfoRow "Active slots coeff" "${ACTIVE_SLOTS_COEFF:-?}"
+  shelley_start_value="${SHELLEY_GENESIS_START_SEC:-?}"
+  if node_metric_has dingo_shelley_start_time; then
+    shelley_start_value="${dingo_shelley_start_time}"
+  fi
+  shelley_start_text="${shelley_start_value}"
+  if [[ "${shelley_start_value}" =~ ^[0-9]+$ ]]; then
+    TZ=UTC printf -v shelley_start_text '%(%Y-%m-%d %H:%M:%S UTC)T' \
+      "${shelley_start_value}"
+  fi
+  glvFrameInfoRow "Shelley start" "${shelley_start_text}"
+
+  for info_name in "${NODE_INFO_METRICS[@]}"; do
+    node_metric_has "${info_name}" || continue
+    case "${info_name}" in
+      dingo_epoch_length_slots|dingo_shelley_start_time) continue ;;
+    esac
+    if [[ "${info_section_added}" == "N" ]]; then
+      glvFrameSectionDivider "NODE RUNTIME"
+      info_section_added=Y
+    fi
+    info_value="${!info_name:-?}"
+    info_value+="${NODE_METRIC_UNIT[${info_name}]:+ ${NODE_METRIC_UNIT[${info_name}]}}"
+    glvFrameInfoRow "${NODE_METRIC_LABEL[${info_name}]:-${info_name}}" \
+      "${info_value}"
+  done
+
+  glvFrameSectionDivider "DEPLOYMENT"
+  glvFrameInfoRow "Node home" "${NODE_HOME}"
+  [[ -n "${NODE_CONFIG:-}" ]] &&
+    glvFrameInfoRow "Configuration" "${NODE_CONFIG}"
+  [[ -n "${NODE_SOCKET:-}" ]] &&
+    glvFrameInfoRow "Node socket" "${NODE_SOCKET}"
+  glvFrameInfoRow "Metrics provider" "${_deployment_metrics_provider:-native}"
+  glvFrameInfoRow "Metrics endpoint" \
+    "$(node_adapter_metrics_url 2>/dev/null || printf '%s' "${NODE_METRICS_URL:-?}")"
+  glv_frame_add "${bdivider}"
+  glv_frame_add ""
+  glv_frame_add \
+    " ${style_info}[esc/q] Quit${NC} | ${style_info}[h] Home${NC}"
+}
+
+glvCommitFrame() {
+  local force="${1:-N}"
+  local frame_height=${#GLV_FRAME_NEXT[@]}
+  local cursor_row=$((frame_height + 1))
+
+  if [[ "${GLV_FRAME_LAST_LINES:-}" != "${tlines:-}" ||
+        "${GLV_FRAME_LAST_COLS:-}" != "${tcols:-}" ]]; then
+    force=Y
+  fi
+  glv_frame_build_patch "${force}" "${SECONDS}" "${REPAINT_RATE}"
+  printf '%s\033[%d;1H' "${GLV_FRAME_PATCH}" "${cursor_row}"
+  GLV_FRAME_LAST_LINES="${tlines:-}"
+  GLV_FRAME_LAST_COLS="${tcols:-}"
+  line="${frame_height}"
+  oldLine="${line}"
+}
+
+glvFrameFitsTerminal() {
+  local frame_height=${#GLV_FRAME_NEXT[@]}
+  if (( frame_height < ${tlines:-0} - 1 )); then
+    return 0
+  fi
+  line=$((frame_height + 2))
+  oldLine="${line}"
+  clrScreen
+  return 1
 }
 
 # Command    : clrLine
@@ -665,10 +1022,11 @@ clrLine () {
   printf "\033[K"
 }
 # Command    : clrScreen
-# Description: clear the screen, move to (0,0), and reset screen update counter
+# Description: clear the screen, move to (0,0), and invalidate frame state
 clrScreen () {
   clear
-  screen_upd_cnt=0
+  unset GLV_FRAME_PREV GLV_FRAME_LAST_FULL_REPAINT
+  unset GLV_FRAME_LAST_LINES GLV_FRAME_LAST_COLS
 }
 
 # Description: latency helper functions
@@ -1007,6 +1365,36 @@ glvCollectMetrics() {
   return 1
 }
 
+glvUpdateTipGap() {
+  local reference_slot calculated_gap native_gap
+
+  if node_metric_has tip_gap &&
+     node_metric_value_is_numeric "${tip_gap:-}"; then
+    native_gap="${tip_gap}"
+    LC_NUMERIC=C printf -v native_gap '%.0f' \
+      "$(awk -v gap="${native_gap}" 'BEGIN { print gap < 0 ? 0 : gap }')"
+    node_metric_set tip_gap "${native_gap}"
+    return 0
+  fi
+
+  if ! node_metric_has slotnum ||
+     [[ ! "${slotnum:-}" =~ ^[0-9]+$ ]] ||
+     [[ ! "${SHELLEY_TRANS_EPOCH:-}" =~ ^-?[0-9]+$ ]] ||
+     (( SHELLEY_TRANS_EPOCH < 0 )); then
+    node_metric_unset tip_gap
+    return 1
+  fi
+
+  reference_slot="$(getSlotTipRef 2>/dev/null || true)"
+  if [[ ! "${reference_slot}" =~ ^[0-9]+$ ]]; then
+    node_metric_unset tip_gap
+    return 1
+  fi
+  calculated_gap=$(( reference_slot - slotnum ))
+  (( calculated_gap < 0 )) && calculated_gap=0
+  node_metric_set tip_gap "${calculated_gap}"
+}
+
 getBlockReplayStatus() {
   unset replay_log_line block_replay_pct
   node_has block_replay_log || return
@@ -1018,6 +1406,9 @@ getBlockReplayStatus() {
 #####################################
 check_peers="false"
 show_peers="false"
+show_peers_info="false"
+show_home_info="false"
+show_network_info="false"
 glvCollectMetrics || true
 curr_epoch=${epochnum:-0}
 if [[ "${NODE_IMPLEMENTATION}" == "cnode" ]]; then
@@ -1036,7 +1427,7 @@ checkNodeVersion
 
 fail_count=0
 epoch_items_last=0
-screen_upd_cnt=0
+legacy_last_full_repaint=${SECONDS}
 
 if [[ "${NODE_IMPLEMENTATION}" == "cnode" ]]; then
   test_koios # KOIOS_API variable unset if check fails. Only tested once on startup.
@@ -1171,6 +1562,7 @@ while true; do
         nodemode="Core" &&
         node_has opcert &&
         getOpCert &&
+        legacy_last_full_repaint=${SECONDS} &&
         clrScreen
     else
       [[ ${nodemode} != "Relay" ]] && clrScreen && nodemode="Relay"
@@ -1202,6 +1594,32 @@ while true; do
         fi
       fi
     fi
+  fi
+
+  glvUpdateTipGap >/dev/null 2>&1 || true
+
+  if [[ ${show_peers} = "false" &&
+        ${show_network_info} = "true" ]]; then
+    glvRenderNetworkPage
+    glvFrameFitsTerminal || continue
+    glvCommitFrame
+    waitForInput "networkInfo"
+    continue
+  fi
+
+  # Relay dashboards share one availability-driven layout across all node
+  # implementations. The cnode producer-only section remains below in the
+  # established view because its forging controls and block-production rows
+  # have no equivalent on relay-only implementations.
+  if [[ ${show_peers} = "false" &&
+        ${show_home_info} = "false" &&
+        ${check_peers} = "false" &&
+        ( ${NODE_IMPLEMENTATION} != "cnode" || ${nodemode} = "Relay" ) ]]; then
+    glvRenderCommonDashboard
+    glvFrameFitsTerminal || continue
+    glvCommitFrame
+    waitForInput
+    continue
   fi
 
   header_length=$(( ${#NODE_NAME} + ${#NODE_IMPLEMENTATION_NAME} + ${#nodemode} + ${#running_node_version} + ${#NETWORK_NAME} + 18 ))
@@ -1367,14 +1785,14 @@ while true; do
       else
         printf "${VL} Dingo exposes its native Prometheus endpoint directly." && closeRow
       fi
-      printf "${VL} Node-specific samples appear in the implementation metrics section." && closeRow
+      printf "${VL} Static implementation and network details are on the Network page." && closeRow
     else
     printf "${VL} Displays live metrics gathered from the node Prometheus endpoint." && closeRow
     printf "${blank_line}\n" && ((line++))
     printf "${VL} ${style_values_2}Upper Main Section${NC}" && closeRow
     printf "${VL} Epoch number & progress is live from node while calculation of date" && closeRow
-    printf "${VL} until epoch boundary is based on genesis parameters. Reference tip" && closeRow
-    printf "${VL} and difference show how far behind the last block is from real time." && closeRow
+    printf "${VL} until epoch boundary is based on genesis parameters. Tip gap shows" && closeRow
+    printf "${VL} how many slots the local chain tip trails the real-time slot." && closeRow
     printf "${VL} Forks is how many times the blockchain branched off in a different" && closeRow
     printf "${VL} direction since node start (and discarded blocks by doing so)." && closeRow
     printf "${VL} P2P Connections shows how many peers the node pushes to/pulls from." && closeRow
@@ -1415,7 +1833,13 @@ while true; do
     fi
   else
     if [[ "${NODE_IMPLEMENTATION}" != "cnode" ]]; then
-      glvRenderAlternateDashboard
+      # Defensive fallback; alternate-node home views normally take the shared
+      # frame path before the legacy producer renderer is reached.
+      glvRenderCommonDashboard
+      glvFrameFitsTerminal || continue
+      glvCommitFrame Y
+      waitForInput
+      continue
     else
     if [[ ${epochnum} -ge ${SHELLEY_TRANS_EPOCH} ]]; then
       epoch_progress=$(echo "(${slot_in_epoch}/${EPOCH_LENGTH})*100" | bc -l)        # in Shelley era or Shelley only TestNet
@@ -1440,20 +1864,15 @@ while true; do
 
     [[ ${slotnum} -eq 0 ]] && getBlockReplayStatus
 
-    tip_ref=$(getSlotTipRef)
-    tip_diff=$(( tip_ref - slotnum ))
+    reference_slot=$(getSlotTipRef)
+    tip_gap=$(( reference_slot - slotnum ))
+    (( tip_gap < 0 )) && tip_gap=0
 
     # row 1 - three col view
     printf "${VL} Block      : ${style_values_1}%-${three_col_value_width}s${NC}" "${blocknum}"
     mvThreeSecond
-    printf "Tip (ref)  : ${style_values_1}%-${three_col_value_width}s${NC}" "${tip_ref}"
+    printf "Slot       : ${style_values_1}%-${three_col_value_width}s${NC}" "${slotnum}"
     mvThreeThird
-    printf "Forks      : ${style_values_1}%-${three_col_value_width}s${NC}" "${forks}"
-    closeRow
-
-    # row 2
-    printf "${VL} Slot       : ${style_values_1}%-${three_col_value_width}s${NC}" "${slotnum}"
-    mvThreeSecond
     if [[ ${slotnum} -eq 0 ]]; then
       if [[ -n ${block_replay_pct} ]]; then
         printf "DB Replay  : ${style_info}%-${three_col_value_width}s${NC}" "${block_replay_pct}%"
@@ -1462,25 +1881,31 @@ while true; do
       fi
     elif [[ ${SHELLEY_TRANS_EPOCH} -eq -1 ]]; then
       printf "Status     : ${style_info}%-${three_col_value_width}s${NC}" "syncing"
-    elif [[ ${tip_diff} -le $(slotInterval) ]]; then
-      printf "Tip (diff) : ${style_status_1}%-${three_col_value_width}s${NC}" "${tip_diff} :)"
-    elif [[ ${tip_diff} -le 600 ]]; then
-      printf "Tip (diff) : ${style_status_2}%-${three_col_value_width}s${NC}" "${tip_diff} :|"
+    elif [[ ${tip_gap} -le $(slotInterval) ]]; then
+      printf "Tip gap    : ${style_status_1}%-${three_col_value_width}s${NC}" "${tip_gap}"
+    elif [[ ${tip_gap} -le 600 ]]; then
+      printf "Tip gap    : ${style_status_2}%-${three_col_value_width}s${NC}" "${tip_gap}"
     else
-      sync_progress=$(echo "(${slotnum}/${tip_ref})*100" | bc -l)
-      printf "Syncing    : ${style_info}%-${three_col_value_width}s${NC}" "$(LC_NUMERIC=C printf "%2.1f" "${sync_progress}")%"
+      printf "Tip gap    : ${style_info}%-${three_col_value_width}s${NC}" "${tip_gap}"
     fi
-    mvThreeThird
-    printf "Total Tx   : ${style_values_1}%-${three_col_value_width}s${NC}" "${tx_processed}"
     closeRow
 
-    # row 3
+    # row 2
     printf "${VL} Slot epoch : ${style_values_1}%-${three_col_value_width}s${NC}" "${slot_in_epoch}"
     mvThreeSecond
     printf "Density    : ${style_values_1}%-${three_col_value_width}s${NC}" "${density}"
     mvThreeThird
+    printf "Forks      : ${style_values_1}%-${three_col_value_width}s${NC}" "${forks}"
+    closeRow
+
+    # row 3
+    printf "${VL} Total Tx   : ${style_values_1}%-${three_col_value_width}s${NC}" "${tx_processed}"
+    mvThreeSecond
+    printf "Pending Tx : ${style_values_1}%-${three_col_value_width}s${NC}" "${mempool_tx}"
+    mvThreeThird
     mempool_tx_bytes=$((mempool_bytes/1024))
-    printf "Pending Tx : ${style_values_1}%s${NC}/${style_values_1}%s${NC}%-$((three_col_value_width - ${#mempool_tx} - ${#mempool_tx_bytes} - 3))s" "${mempool_tx}" "${mempool_tx_bytes}" "K"
+    mempool_display="$(glv_text_pad "${three_col_value_width}" "${mempool_tx_bytes} KiB")"
+    printf "Mempool    : ${style_values_1}%s${NC}" "${mempool_display}"
     closeRow
 
     # divider line
@@ -1542,9 +1967,6 @@ while true; do
 
       # row 1
       printf "${VL} Last Block : ${style_values_1}%s${NC}%-$((three_col_value_width - ${#block_delay_rounded}))s" "${block_delay_rounded}" "s"
-      mvThreeSecond
-      blocks_w5s_value_width=$(( (three_col_width*2) - 23 - 6 - ${#blocks_w1s_pct} - ${#blocks_w3s_pct} ))
-      printf "Less than 1|3|5s [%%] : ${style_values_1}%s${NC} | ${style_values_1}%s${NC} | ${style_values_1}%-${blocks_w5s_value_width}s${NC}" "${blocks_w1s_pct}" "${blocks_w3s_pct}" "${blocks_w5s_pct}"
       closeRow
 
     fi
@@ -1858,7 +2280,7 @@ while true; do
     waitForInput "homeInfo"
   else
     [[ ${VERBOSE} = "Y" ]] && verbose_label="Compact" || verbose_label="Verbose"
-    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[i] Info${NC}"
+    printf " ${style_info}[esc/q] Quit${NC} | ${style_info}[i] Info${NC} | ${style_info}[n] Network${NC}"
     if node_has peer_inspection; then
       printf " | ${style_info}[p] Peer Analysis${NC}"
     fi
@@ -1867,5 +2289,8 @@ while true; do
     waitForInput
   fi
 
-  [[ $((++screen_upd_cnt)) -gt ${REPAINT_RATE} ]] && clrScreen
+  if (( SECONDS - legacy_last_full_repaint >= REPAINT_RATE )); then
+    legacy_last_full_repaint=${SECONDS}
+    clrScreen
+  fi
 done

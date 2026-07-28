@@ -55,11 +55,12 @@ node_adapter_contract_valid() {
 
 node_metric_reset_availability() {
   unset NODE_METRIC_AVAILABLE NODE_METRIC_LABEL NODE_METRIC_UNIT
-  unset NODE_CUSTOM_METRICS
+  unset NODE_CUSTOM_METRICS NODE_INFO_METRICS
   declare -gA NODE_METRIC_AVAILABLE=()
   declare -gA NODE_METRIC_LABEL=()
   declare -gA NODE_METRIC_UNIT=()
   declare -ga NODE_CUSTOM_METRICS=()
+  declare -ga NODE_INFO_METRICS=()
 }
 
 node_metric_set() {
@@ -117,6 +118,130 @@ node_metric_unset_custom() {
     [[ "${existing}" == "${name}" ]] || remaining+=("${existing}")
   done
   NODE_CUSTOM_METRICS=("${remaining[@]}")
+}
+
+# Register implementation-provided metadata for gLiveView's Network page.
+# Unlike NODE_CUSTOM_METRICS, these values describe the node/runtime/network
+# and are not part of the live dashboard.
+node_metric_set_info() {
+  local name="${1:?metric name required}"
+  local value="${2-}"
+  local label="${3:?metric label required}"
+  local unit="${4-}"
+  local existing
+
+  [[ "${name}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
+  [[ "${label}" != *$'\n'* && "${label}" != *$'\r'* ]] || return 1
+  [[ "${unit}" != *$'\n'* && "${unit}" != *$'\r'* ]] || return 1
+
+  node_metric_set "${name}" "${value}"
+  NODE_METRIC_LABEL["${name}"]="${label}"
+  NODE_METRIC_UNIT["${name}"]="${unit}"
+  for existing in "${NODE_INFO_METRICS[@]}"; do
+    [[ "${existing}" == "${name}" ]] && return 0
+  done
+  NODE_INFO_METRICS+=("${name}")
+}
+
+node_metric_unset_info() {
+  local name="${1:?metric name required}"
+  local existing
+  local -a remaining=()
+
+  node_metric_unset "${name}"
+  unset "NODE_METRIC_LABEL[${name}]" "NODE_METRIC_UNIT[${name}]"
+  for existing in "${NODE_INFO_METRICS[@]}"; do
+    [[ "${existing}" == "${name}" ]] || remaining+=("${existing}")
+  done
+  NODE_INFO_METRICS=("${remaining[@]}")
+}
+
+# Pure display helpers used by gLiveView. They live in the existing common
+# runtime bundle so older deployments can update transactionally without
+# needing to discover an additional runtime file first.
+glv_text_clip() {
+  local width="${1:-0}"
+  local value="${2-}"
+  (( width > 0 )) || return 1
+  if (( ${#value} <= width )); then
+    printf '%s' "${value}"
+  elif (( width == 1 )); then
+    printf '~'
+  else
+    printf '%s~' "${value:0:$((width - 1))}"
+  fi
+}
+
+glv_text_pad() {
+  local width="${1:-0}"
+  local value clipped
+  value="${2-}"
+  (( width > 0 )) || return 1
+  clipped="$(glv_text_clip "${width}" "${value}")" || return 1
+  printf '%-*s' "${width}" "${clipped}"
+}
+
+glv_ratio_percent() {
+  local value="${1:-}"
+  node_metric_value_is_numeric "${value}" || return 1
+  LC_NUMERIC=C awk -v ratio="${value}" '
+    BEGIN {
+      percent = ratio * 100
+      if (percent < 0) percent = 0
+      if (percent > 100) percent = 100
+      printf "%.2f", percent
+    }
+  '
+}
+
+glv_frame_reset() {
+  unset GLV_FRAME_NEXT
+  declare -ga GLV_FRAME_NEXT=()
+}
+
+glv_frame_add() {
+  declare -p GLV_FRAME_NEXT >/dev/null 2>&1 || glv_frame_reset
+  GLV_FRAME_NEXT+=("${1-}")
+}
+
+# Build one terminal patch containing only changed rows. A periodic forced
+# reconciliation redraws every logical row without clearing the screen first.
+# $1 = force [Y|N], $2 = monotonic seconds, $3 = reconciliation interval.
+glv_frame_build_patch() {
+  local force="${1:-N}"
+  local now="${2:-0}"
+  local interval="${3:-10}"
+  local full_repaint=N old_count next_count max_count index old_row new_row part
+
+  [[ "${force}" == "Y" || "${force}" == "N" ]] || return 1
+  [[ "${now}" =~ ^[0-9]+$ && "${interval}" =~ ^[1-9][0-9]*$ ]] || return 1
+  declare -p GLV_FRAME_NEXT >/dev/null 2>&1 || glv_frame_reset
+  if ! declare -p GLV_FRAME_PREV >/dev/null 2>&1; then
+    declare -ga GLV_FRAME_PREV=()
+    full_repaint=Y
+  fi
+  if [[ "${force}" == "Y" ||
+        -z "${GLV_FRAME_LAST_FULL_REPAINT+x}" ]] ||
+     (( now - ${GLV_FRAME_LAST_FULL_REPAINT:-0} >= interval )); then
+    full_repaint=Y
+  fi
+
+  old_count=${#GLV_FRAME_PREV[@]}
+  next_count=${#GLV_FRAME_NEXT[@]}
+  (( old_count > next_count )) && max_count=${old_count} || max_count=${next_count}
+  GLV_FRAME_PATCH=""
+  for (( index=0; index<max_count; index++ )); do
+    old_row="${GLV_FRAME_PREV[index]-}"
+    new_row="${GLV_FRAME_NEXT[index]-}"
+    if [[ "${full_repaint}" == "Y" || "${old_row}" != "${new_row}" ]]; then
+      printf -v part '\033[%d;1H\033[2K%s' "$((index + 1))" "${new_row}"
+      GLV_FRAME_PATCH+="${part}"
+    fi
+  done
+  GLV_FRAME_PREV=("${GLV_FRAME_NEXT[@]}")
+  if [[ "${full_repaint}" == "Y" ]]; then
+    GLV_FRAME_LAST_FULL_REPAINT="${now}"
+  fi
 }
 
 # Convert a Prometheus/OpenMetrics sample value from scientific notation to a
@@ -372,7 +497,7 @@ common_parse_cardano_metrics() {
     block_delay blocks_served blocks_late blocks_w1s blocks_w3s blocks_w5s
     peer_selection_cold peer_selection_warm peer_selection_hot conn_incoming
     conn_outgoing conn_uni_dir conn_bi_dir conn_duplex forging_enabled
-    running_node_version running_node_rev inbound_governor_warm
+    running_node_version running_node_rev tip_gap inbound_governor_warm
     inbound_governor_hot
   )
   if [[ $# -gt 0 ]]; then

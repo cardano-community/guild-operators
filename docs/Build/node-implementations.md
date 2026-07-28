@@ -203,8 +203,20 @@ All three profiles install the same canonical `gLiveView.sh`. The selected
 adapter translates its native metric names into a normalized availability
 registry. gLiveView then renders only the metrics observed in the latest
 successful scrape; it does not turn an unsupported or missing sample into a
-zero. Implementation-specific samples are registered separately and appear in
-a Dingo- or Amaru-labelled section.
+zero. All relay profiles use one common availability-driven layout. Its CHAIN
+section places local Block and Slot beside a normalized Tip gap and does not
+show the calculated reference slot as a separate value.
+
+Compact mode presents the primary common operational signals. Verbose mode
+adds available connection, propagation, runtime, and live
+implementation-specific measurements. Static node, network, deployment, and
+runtime metadata is available from the `[n] Network` page instead of occupying
+the live dashboard.
+
+Metric cells and metadata fields use bounded formatting to preserve the fixed
+terminal layout. Each refresh updates only rows whose content changed. A
+periodic whole-frame reconciliation redraws rows without clearing the terminal
+first, so stale content is corrected without an avoidable blank-screen repaint.
 
 The dashboard header always identifies the connected implementation:
 `cardano-node`, `Dingo`, or `Amaru`. cnode and Dingo expose native Prometheus
