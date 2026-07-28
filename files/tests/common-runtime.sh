@@ -1122,11 +1122,13 @@ EOF
   assert_eq "${status}" "0" "declined bundle update status"
   prompt_count="$(wc -l < "${prompt_counter}" | tr -d '[:space:]')"
   assert_eq "${prompt_count}" "1" "bundle update prompt count"
-  grep -Fq \
-    "Prepared and syntax-checked: 4 shared libraries, the cnode adapter, and env (6 files)." \
+  grep -Fq "Prepared 6 coordinated runtime files, including shared libraries," \
     "${prompt_message}" ||
-    fail "bundle update prompt did not explain the six coordinated files"
-  grep -Fq "Apply all files together?" "${prompt_message}" ||
+    fail "bundle update prompt did not describe the coordinated runtime files"
+  grep -Fq "the cnode adapter, and env. All passed shell syntax checks." \
+    "${prompt_message}" ||
+    fail "bundle update prompt did not describe its stable file categories"
+  grep -Fq "Apply the complete runtime update?" "${prompt_message}" ||
     fail "bundle update prompt did not explain the atomic apply decision"
   assert_eq "$(cat "${curl_counter}")" "6" \
     "declined bundle did not stage all six members before prompting"
