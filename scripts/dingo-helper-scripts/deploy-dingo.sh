@@ -476,6 +476,17 @@ dingo_deploy_install_binary() (
   dingo_deploy_ok "Installed verified Dingo" "${version}"
 )
 
+dingo_deploy_show_next_steps() {
+  if ! dispatcher_directory_has_entries "${NODE_HOME}/db"; then
+    dingo_deploy_info \
+      "Bootstrap node state: ${NODE_HOME}/scripts/dingo.sh bootstrap"
+  fi
+  if ! dispatcher_systemd_unit_installed "${NODE_SERVICE}.service"; then
+    dingo_deploy_info \
+      "Deploy the systemd service: ${NODE_HOME}/scripts/dingo.sh -d"
+  fi
+}
+
 deploy_dingo_profile() {
   dingo_deploy_validate_context || return 1
   dingo_deploy_parse_flags || return 1
@@ -497,9 +508,6 @@ deploy_dingo_profile() {
   if [[ ! -x "${HOME}/.local/bin/dingo" ]]; then
     dingo_deploy_warn "Dingo binary is not installed; re-run with -s d."
   fi
-  dingo_deploy_info "Recommended next step: ${NODE_HOME}/scripts/dingo.sh bootstrap"
-  dingo_deploy_info "Then install the service with ${NODE_HOME}/scripts/dingo.sh -d and start it explicitly."
-  dingo_deploy_info "Monitor the node with ${NODE_HOME}/scripts/gLiveView.sh."
-  dingo_deploy_info "CNTools, Mithril helpers, db-sync, and Ogmios are not deployed for Dingo."
+  dingo_deploy_show_next_steps
   dingo_deploy_warn "Dingo metrics share the public bind address; protect TCP 12798 with a firewall."
 }

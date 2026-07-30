@@ -593,6 +593,18 @@ amaru_deploy_install_binary() (
     "Installed verified OpenTelemetry Collector" "${collector_version}"
 )
 
+amaru_deploy_show_next_steps() {
+  if [[ ! -e "${NODE_HOME}/chain" && ! -e "${NODE_HOME}/ledger" ]]; then
+    amaru_deploy_info \
+      "Bootstrap node state: ${NODE_HOME}/scripts/amaru.sh bootstrap"
+  fi
+  if ! dispatcher_systemd_unit_installed "${NODE_SERVICE}.service" ||
+     ! dispatcher_systemd_unit_installed "${NODE_SERVICE}-metrics.service"; then
+    amaru_deploy_info \
+      "Deploy the systemd services: ${NODE_HOME}/scripts/amaru.sh -d"
+  fi
+}
+
 deploy_amaru_profile() {
   amaru_deploy_validate_context || return 1
   amaru_deploy_parse_flags || return 1
@@ -618,8 +630,5 @@ deploy_amaru_profile() {
     amaru_deploy_warn \
       "OpenTelemetry Collector is not installed; re-run with -s d before using gLiveView."
   fi
-  amaru_deploy_info "Next: ${NODE_HOME}/scripts/amaru.sh bootstrap"
-  amaru_deploy_info "Then install the service with ${NODE_HOME}/scripts/amaru.sh -d and start it explicitly."
-  amaru_deploy_info "Monitor the node with ${NODE_HOME}/scripts/gLiveView.sh after the service starts."
-  amaru_deploy_info "CNTools, Mithril, db-sync, Ogmios, and socket-based helpers are not deployed for Amaru."
+  amaru_deploy_show_next_steps
 }

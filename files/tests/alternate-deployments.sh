@@ -101,6 +101,7 @@ run_alternate_profile_test() (
   local runtime_fetch_function
   local release_validator
   local binary_resolver_function
+  local next_steps_function
   local validate_function
   local parse_function
   local launcher
@@ -170,6 +171,7 @@ run_alternate_profile_test() (
       runtime_fetch_function="dingo_deploy_fetch"
       release_validator="dingo_deploy_validate_release_metadata"
       binary_resolver_function="dingo_deploy_resolve_binary"
+      next_steps_function="dingo_deploy_show_next_steps"
       validate_function="dingo_deploy_validate_context"
       parse_function="dingo_deploy_parse_flags"
       ;;
@@ -180,6 +182,7 @@ run_alternate_profile_test() (
       runtime_fetch_function="amaru_deploy_fetch"
       release_validator="amaru_deploy_validate_release_metadata"
       binary_resolver_function="amaru_deploy_resolve_binary"
+      next_steps_function="amaru_deploy_show_next_steps"
       validate_function="amaru_deploy_validate_context"
       parse_function="amaru_deploy_parse_flags"
       ;;
@@ -815,6 +818,64 @@ run_alternate_profile_test() (
     assert_file "${NODE_HOME}/files/otelcol.yaml"
     assert_otelcol_yaml "${NODE_HOME}/files/otelcol.yaml"
   fi
+
+  # guild-deploy next-step guidance must reflect existing state. Refreshing an
+  # already bootstrapped deployment with installed units should print no
+  # bootstrap or systemd deployment suggestion.
+  local guidance_output
+  local guidance_unit_dir="${test_root}/guidance-systemd"
+  local guidance_node_unit="${guidance_unit_dir}/${NODE_SERVICE}.service"
+  local guidance_metrics_unit="${guidance_unit_dir}/${NODE_SERVICE}-metrics.service"
+  mkdir -p "${guidance_unit_dir}"
+
+  guidance_output="$(
+    SYSTEMD_UNIT_DIR="${guidance_unit_dir}" "${next_steps_function}"
+  )"
+  grep -F "Bootstrap node state:" <<< "${guidance_output}" >/dev/null ||
+    fail "${implementation} omitted bootstrap guidance for an empty state"
+  grep -F "Deploy the systemd service" <<< "${guidance_output}" >/dev/null ||
+    fail "${implementation} omitted service guidance when units were absent"
+  if grep -Eq 'Monitor the node|CNTools|Mithril|db-sync|Ogmios' \
+    <<< "${guidance_output}"; then
+    fail "${implementation} next-step guidance contains unrelated suggestions"
+  fi
+
+  : > "${guidance_node_unit}"
+  if [[ "${implementation}" == "amaru" ]]; then
+    : > "${guidance_metrics_unit}"
+  fi
+  guidance_output="$(
+    SYSTEMD_UNIT_DIR="${guidance_unit_dir}" "${next_steps_function}"
+  )"
+  grep -F "Bootstrap node state:" <<< "${guidance_output}" >/dev/null ||
+    fail "${implementation} lost bootstrap guidance after service deployment"
+  if grep -F "Deploy the systemd service" <<< "${guidance_output}" >/dev/null; then
+    fail "${implementation} suggested redeploying an installed service"
+  fi
+
+  case "${implementation}" in
+    dingo) : > "${NODE_HOME}/db/.guidance-state" ;;
+    amaru) mkdir "${NODE_HOME}/chain" "${NODE_HOME}/ledger" ;;
+  esac
+  guidance_output="$(
+    SYSTEMD_UNIT_DIR="${guidance_unit_dir}" "${next_steps_function}"
+  )"
+  [[ -z "${guidance_output}" ]] ||
+    fail "${implementation} printed next steps for a ready existing deployment"
+
+  command rm -f -- "${guidance_node_unit}" "${guidance_metrics_unit}"
+  guidance_output="$(
+    SYSTEMD_UNIT_DIR="${guidance_unit_dir}" "${next_steps_function}"
+  )"
+  grep -F "Deploy the systemd service" <<< "${guidance_output}" >/dev/null ||
+    fail "${implementation} omitted service guidance when units were removed"
+  if grep -F "Bootstrap node state:" <<< "${guidance_output}" >/dev/null; then
+    fail "${implementation} suggested bootstrapping existing node state"
+  fi
+  case "${implementation}" in
+    dingo) command rm -f -- "${NODE_HOME}/db/.guidance-state" ;;
+    amaru) rmdir "${NODE_HOME}/chain" "${NODE_HOME}/ledger" ;;
+  esac
 
   # Both alternate adapters expose the common monitoring contract used by
   # gLiveView and populate immutable timing constants for their public network.

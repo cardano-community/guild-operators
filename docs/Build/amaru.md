@@ -105,6 +105,11 @@ Amaru needs three trusted consecutive epoch snapshots before it can run:
 /opt/cardano/amaru/scripts/amaru.sh start
 ```
 
+After `guild-deploy.sh` completes, it suggests bootstrap only when neither
+state directory exists and suggests `-d` only when one or both managed
+systemd units are absent. Refreshing an existing deployment therefore does not
+repeat completed next steps.
+
 The bootstrap command disables OpenTelemetry export only for that invocation.
 Bootstrap telemetry is not used by gLiveView. Normal `run` and systemd
 operation continue to use the telemetry settings from `amaru.env`.

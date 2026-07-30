@@ -274,6 +274,24 @@ dispatcher_run_package_command() {
   return "${status}"
 }
 
+dispatcher_directory_has_entries() {
+  local directory="${1:-}"
+  local first_entry=""
+
+  [[ -d "${directory}" ]] || return 1
+  first_entry="$(find "${directory}" -mindepth 1 -print -quit 2>/dev/null)"
+  [[ -n "${first_entry}" ]]
+}
+
+dispatcher_systemd_unit_installed() {
+  local unit_name="${1:-}"
+  local unit_directory="${SYSTEMD_UNIT_DIR:-/etc/systemd/system}"
+
+  [[ "${unit_name}" =~ ^[A-Za-z0-9_.@:-]+[.]service$ ]] || return 1
+  [[ -f "${unit_directory}/${unit_name}" &&
+     ! -L "${unit_directory}/${unit_name}" ]]
+}
+
 dispatcher_resolve_github_release() {
   local component="$1"
   local repository="$2"

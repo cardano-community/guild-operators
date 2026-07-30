@@ -107,6 +107,11 @@ the service:
 /opt/cardano/dingo/scripts/dingo.sh start
 ```
 
+After `guild-deploy.sh` completes, it suggests bootstrap only while the Dingo
+database is empty and suggests `-d` only while the systemd unit is absent. A
+binary or script refresh of an existing deployment therefore prints neither
+next step.
+
 `-d` installs and enables the systemd unit but intentionally does not start it.
 The other lifecycle commands are `start`, `status`, `stop`, `restart`, `logs`,
 and `remove`. `remove` deletes only the unit; it leaves the database and config
