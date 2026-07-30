@@ -7,7 +7,7 @@ the same `guild-deploy.sh` entrypoint:
 | --- | --- | --- | --- | --- |
 | cardano-node | `cnode` | `/opt/cardano/cnode` | mainnet, preprod, preview, guild | Default, supported deployment |
 | Dingo | `dingo` | `/opt/cardano/dingo` | preprod, preview | Experimental relay-only deployment |
-| Amaru | `amaru` | `/opt/cardano/amaru` | preprod, preview | Experimental prerelease, relay-only deployment |
+| Amaru | `amaru` | `/opt/cardano/amaru` | preprod, preview | Experimental rolling-release, relay-only deployment |
 
 Omitting `-i` selects `cnode`, preserving the existing install path and
 behavior:
@@ -49,10 +49,10 @@ Implementation-specific work remains separate:
 - `scripts/cnode-helper-scripts/deploy-cnode.sh` retains the established
   cardano-node deployment behavior and selective flags;
 - `scripts/dingo-helper-scripts/deploy-dingo.sh` installs Dingo's relay
-  layout, pinned release, configuration, launcher, adapter, and common
+  layout, rolling release, configuration, launcher, adapter, and common
   gLiveView dashboard;
 - `scripts/amaru-helper-scripts/deploy-amaru.sh` installs Amaru's relay
-  layout, pinned prerelease, environment, launcher, adapter, managed
+  layout, rolling release, environment, launcher, adapter, managed
   OpenTelemetry bridge, and common gLiveView dashboard.
 
 This split keeps each node's bootstrap, configuration, and command-line
@@ -83,9 +83,13 @@ When binary installation is selected with `-s d`, all implementations use
 `otelcol-contrib` executable used by its local metrics bridge. Every
 implementation has reviewed release metadata under
 `files/node-implementations/<implementation>/release.json`. The profiles
-select Linux architecture artifacts from that metadata and verify pinned
-SHA-256 digests before extraction. cardano-cli is represented as a companion
-entry in the cnode manifest because it is released independently.
+select Linux architecture artifacts from that metadata and verify SHA-256
+digests before extraction. cnode uses reviewed, concrete node artifacts;
+Dingo and Amaru resolve their newest published non-draft GitHub release,
+including prereleases, and require the selected asset's GitHub-published
+digest. cardano-cli is represented as a companion entry in the cnode manifest
+because it is released independently. Amaru's OpenTelemetry Collector also
+remains independently pinned.
 
 Network templates follow the same implementation namespace:
 
@@ -112,8 +116,8 @@ configuration:
   "branch": "master",
   "repository": "cardano-community/guild-operators",
   "serviceName": "dingo",
-  "nodeVersion": "dingo v0.67.1",
-  "targetNodeVersion": "0.67.1",
+  "nodeVersion": "vX.Y.Z (commit REVISION)",
+  "targetNodeVersion": "latest",
   "metricsProvider": "prometheus",
   "capabilities": {
     "n2c": true,
@@ -127,9 +131,10 @@ configuration:
 `nodeVersion` is the first version line reported by the executable actually
 installed in `$HOME/.local/bin` (or, if absent there, the selected executable
 on `PATH`). It is empty if no executable is installed. `targetNodeVersion` is
-the release selected by the deployment profile, even when `-s d` was not
-requested. This distinction prevents a pinned release file from being
-mistaken for the binary currently on the host.
+the release policy selected by the deployment profile, even when `-s d` was
+not requested. It is a concrete cnode version and `latest` for Dingo or Amaru.
+This distinction prevents rolling release metadata from being mistaken for
+the binary currently on the host.
 
 The dispatcher validates the complete version-1 manifest and refuses to reuse
 a manifest-owned folder with malformed or incomplete metadata, a different
@@ -213,6 +218,12 @@ implementation-specific measurements. Static node, network, deployment, and
 runtime metadata is available from the `[n] Network` page instead of occupying
 the live dashboard.
 
+Compatible aggregate peer-set and process measurements use common fields.
+Dingo additionally contributes availability-gated Go runtime, database, cache,
+and nonzero diagnostic counters. Amaru contributes availability-gated process,
+mempool, and consensus measurements. Metrics from the OpenTelemetry
+Collector's own runtime are not presented as Amaru node metrics.
+
 Metric cells and metadata fields use bounded formatting to preserve the fixed
 terminal layout. Each refresh updates only rows whose content changed. A
 periodic whole-frame reconciliation redraws rows without clearing the terminal
@@ -291,17 +302,27 @@ install it. Disabled BlockPerf and Log Monitor scripts can remove or inspect
 stale units, but refuse to install a service that cannot run with current
 tracing.
 
-## Updating release manifests
+## Release policy maintenance
 
-The primary cnode, Dingo, and Amaru versions remain pinned. Updating a
-supported node version requires a reviewed change to:
+The primary cnode release remains pinned. Updating its supported node version
+requires a reviewed manifest change with concrete artifact URLs and SHA-256
+digests, plus validation of affected configuration, launcher behavior, dry
+deployment, systemd lifecycle, tests, and documentation.
 
-1. its release metadata in `files/node-implementations`;
-2. every artifact URL and SHA-256 digest;
-3. any affected implementation configuration templates;
-4. launcher commands and environment bindings;
-5. dry deployment, systemd lifecycle, and shell/JSON validation tests;
-6. the implementation guide and compatibility table.
+Dingo and Amaru instead use a compact rolling policy: `version: "latest"`,
+their official GitHub repository, and architecture-specific asset-name
+selectors. `-s d` queries up to 100 releases, excludes drafts, and selects the
+non-draft entry with the newest publication timestamp. Stable releases and
+prereleases have equal eligibility. The matching uploaded asset must be
+unique, non-empty, hosted under the selected repository and tag, and carry a
+valid GitHub SHA-256 digest. Any API, selection, URL, or digest problem stops
+deployment without falling back to an older release.
+
+The rolling policy removes routine manifest edits for each Dingo or Amaru
+tag, but upstream changes to asset naming, archive layout, commands, config,
+or compatibility still require review and corresponding selector, installer,
+test, or documentation updates. The Amaru OpenTelemetry Collector remains a
+concrete, checksummed artifact because it has an independent release cycle.
 
 The cnode manifest additionally centralizes binaries installed by its selective
 deployment flags, its pinned GHCup bootstrap, immutable source dependency
@@ -321,5 +342,6 @@ concrete value while retaining the pinned installer. Latest resolutions are
 ephemeral and are not written back to the installed
 `${NODE_HOME}/files/cnode-release.json` manifest.
 
-This distinction keeps node upgrades reproducible while preserving selected
-latest-tool behavior as an explicit, reviewable manifest choice.
+This distinction keeps cnode upgrades reproducible while making fast-moving
+alternate-node and selected cnode-tool update policies explicit and
+reviewable.

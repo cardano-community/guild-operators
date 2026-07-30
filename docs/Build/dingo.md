@@ -20,7 +20,7 @@ The supported selective-install flags are:
 | Flag | Dingo action |
 | --- | --- |
 | `p` | Install runtime packages needed by the deployment and verifier |
-| `d` | Download and checksum-verify the pinned Dingo binary |
+| `d` | Resolve, download, and checksum-verify the newest published Dingo binary |
 | `f` | Replace an existing Dingo configuration, retaining a backup |
 | `s` | Force helper-script replacement; this replaces common `env` user-variable settings |
 
@@ -29,7 +29,7 @@ rejected instead of silently installing incompatible components. With no
 `-s` value, the profile refreshes scripts, common libraries, the release
 manifest, and missing configuration while preserving existing Dingo config.
 
-The profile installs the selected, pinned binary in `~/.local/bin/dingo` and
+The profile installs the selected binary in `~/.local/bin/dingo` and
 keeps the preceding binary in `~/.local/bin/archive/` when one exists.
 Both `linux-x86_64` and `linux-aarch64` release artifacts are supported.
 
@@ -37,15 +37,23 @@ Both `linux-x86_64` and `linux-aarch64` release artifacts are supported.
 
 `files/node-implementations/dingo/release.json` is the single Dingo release
 contract. It intentionally contains only the schema and implementation
-identity, the pinned version, and an HTTPS URL plus SHA-256 digest for each
-supported architecture. The experimental Dingo profile does not resolve a
-moving `latest` release.
+identity, `version: "latest"`, the official GitHub repository, and one
+architecture-specific asset-name selector for each supported Linux platform.
+It contains no release tag, download URL, or checksum that needs updating for
+each upstream release.
 
-Deployment requires both architecture records and validates the compact
-manifest again before a binary download. The archive is written to a fixed
-private staging filename, so no path or filename from release metadata reaches
-the local filesystem. Its digest and the installed binary version are both
-verified before deployment succeeds.
+When `-s d` is selected, deployment queries the official GitHub releases API
+and chooses the most recently published non-draft release. Stable and
+prerelease entries are both eligible. The configured selector must match
+exactly one uploaded artifact for the current architecture, and that artifact
+must publish a valid GitHub SHA-256 digest. Its repository, tag, filename,
+download URL, size, and digest are validated together before download.
+
+Resolution fails instead of falling back to an older release if GitHub is
+unavailable or the newest release has missing, ambiguous, or malformed asset
+metadata. The archive is downloaded to a fixed private staging filename,
+verified against the resolved digest, and checked for the expected executable
+layout and version before installation succeeds.
 
 ## Layout and configuration
 
@@ -74,7 +82,7 @@ The default layout below assumes `/opt/cardano/dingo`:
 
 Dingo embeds the Cardano configuration, genesis files, and topology for known
 networks in its executable. Guild Operators therefore self-hosts only the
-Dingo runtime YAML/environment overlay and pinned release metadata; it does
+Dingo runtime YAML/environment overlay and rolling release policy; it does
 not duplicate the embedded Cardano JSON files.
 
 The supplied YAML deliberately enforces:
@@ -109,7 +117,7 @@ if `dingo.env` declares a conflicting implementation, network, service, or
 deployment root, run/bootstrap/install commands stop and require a corrected
 deployment instead of managing the wrong target.
 
-Upstream's figures at the pinned release estimate that bootstrap needs about
+Upstream's current guidance estimates that bootstrap needs about
 150 GB free for preprod or 50 GB for preview because the snapshot and database
 coexist during import. These figures grow over time, so check upstream before
 provisioning a host.
@@ -146,9 +154,11 @@ Dingo uses the same availability-driven relay dashboard as the other
 implementations. Its native tip-gap measurement is normalized into the common
 CHAIN section alongside the local block and slot; a separate reference-tip
 field is not shown. Compact mode presents the primary operational metrics,
-while verbose mode adds available connection, propagation, and runtime detail.
-Metrics absent from the current scrape are omitted instead of displayed as
-zero.
+including aggregate known, established, and active peer sets when exported.
+Verbose mode adds available connection, propagation, Go runtime, open-file,
+database-size, and cache-efficiency detail. Selected internal error counters
+are shown only when nonzero. Metrics absent from the current scrape are omitted
+instead of displayed as zero.
 
 Press `n` to open the Network page. Dingo's Go runtime version, epoch length,
 and Shelley start time appear there with the common node, network, service,
@@ -181,20 +191,16 @@ The endpoint is consumed through loopback by gLiveView, but Dingo binds the
 metrics listener with its shared public `bindAddr`; the firewall warning above
 still applies.
 
-## Research and pinned sources
+## Upstream release contract and sources
 
-The profile was implemented against Dingo `v0.67.1`:
+- [Release and binary assets](https://github.com/blinklabs-io/dingo/releases)
+- [Upstream README and testnet warning](https://github.com/blinklabs-io/dingo/blob/main/README.md)
+- [Complete upstream YAML example](https://github.com/blinklabs-io/dingo/blob/main/dingo.yaml.example)
+- [Embedded Cardano configuration](https://github.com/blinklabs-io/dingo/tree/main/config/cardano)
+- [Runtime configuration implementation](https://github.com/blinklabs-io/dingo/blob/main/config.go)
+- [Release packaging workflow](https://github.com/blinklabs-io/dingo/blob/main/.github/workflows/publish.yml)
 
-- [Release and binary assets](https://github.com/blinklabs-io/dingo/releases/tag/v0.67.1)
-- [Upstream README and testnet warning](https://github.com/blinklabs-io/dingo/blob/v0.67.1/README.md)
-- [Complete upstream YAML example](https://github.com/blinklabs-io/dingo/blob/v0.67.1/dingo.yaml.example)
-- [Embedded Cardano configuration](https://github.com/blinklabs-io/dingo/tree/v0.67.1/config/cardano)
-- [Runtime configuration implementation](https://github.com/blinklabs-io/dingo/blob/v0.67.1/config.go)
-- [Release packaging workflow](https://github.com/blinklabs-io/dingo/blob/v0.67.1/.github/workflows/publish.yml)
-
-The exact artifact URLs and SHA-256 digests are recorded in
-`files/node-implementations/dingo/release.json`. Dingo did not publish a
-separate checksum manifest for this release, so the pinned digests were taken
-from the GitHub release asset digests and are enforced before extraction. The
-release workflow packages one executable named `dingo` at the archive root;
-the installer rejects an archive with any other expected binary layout.
+The rolling manifest matches Dingo's Linux `amd64` or `arm64` tar archive.
+GitHub's digest for that exact release asset is enforced before extraction.
+The release workflow packages one executable named `dingo` at the archive
+root; the installer rejects an archive with a different layout.

@@ -1,9 +1,10 @@
 # Amaru deployment profile
 
-!!! danger "Experimental prerelease support"
-    The pinned Amaru build is a prerelease. The Guild Operators profile is
-    restricted to `preprod` and `preview`, runs as a relay, and does not support
-    block production. Do not use it as a mainnet or stake-pool deployment.
+!!! danger "Experimental rolling-release support"
+    Amaru is under rapid development and its newest published build may be a
+    prerelease. The Guild Operators profile is restricted to `preprod` and
+    `preview`, runs as a relay, and does not support block production. Do not
+    use it as a mainnet or stake-pool deployment.
 
 ## Supported deployment
 
@@ -19,7 +20,7 @@ The supported selective-install flags are:
 | Flag | Amaru action |
 | --- | --- |
 | `p` | Install runtime packages needed by the deployment and verifier |
-| `d` | Download and checksum-verify the pinned Amaru and OpenTelemetry Collector binaries |
+| `d` | Resolve and verify the newest Amaru binary, plus the pinned OpenTelemetry Collector |
 | `f` | Replace an existing Amaru environment config, retaining a backup |
 | `s` | Force helper-script replacement; this replaces common `env` user-variable settings |
 
@@ -32,7 +33,7 @@ environment with telemetry disabled or without the managed bridge contract is
 rejected with an instruction to re-run using `-s f`; the forced replacement
 archives the old file before installing the current template.
 
-The pinned executables are installed as `~/.local/bin/amaru` and
+The executables are installed as `~/.local/bin/amaru` and
 `~/.local/bin/otelcol-contrib`. Existing binaries are copied to
 `~/.local/bin/archive/` first. Both `linux-x86_64` and `linux-aarch64` release
 artifacts are supported.
@@ -41,16 +42,21 @@ artifacts are supported.
 
 `files/node-implementations/amaru/release.json` is the single Amaru release
 contract. It intentionally contains only the schema and implementation
-identity, the pinned Amaru version and artifacts, and the pinned collector
-version and artifacts. Each supported architecture has an HTTPS URL and
-SHA-256 digest. The experimental Amaru profile does not resolve moving
-`latest` releases.
+identity, the official Amaru GitHub repository and Linux asset selectors, and
+the independently pinned collector version and artifacts. Amaru uses
+`version: "latest"`; its entry contains no release tag, URL, or checksum that
+needs updating for every upstream build.
 
-Deployment requires both architecture records and validates the compact
-manifest again before a binary download. The archive is written to a fixed
-private staging filename, so no path or filename from release metadata reaches
-the local filesystem. Its digest and the installed binary version are both
-verified before deployment succeeds.
+When `-s d` is selected, deployment chooses the most recently published
+non-draft Amaru GitHub release, including prereleases. The architecture
+selector must match exactly one uploaded tar archive with a valid
+GitHub-published SHA-256 digest. Repository, tag, filename, URL, size, and
+digest must agree. Resolution fails rather than selecting an older release if
+the API or newest release metadata cannot satisfy that contract.
+
+The Amaru and collector archives use fixed private staging filenames. Both are
+checksum-verified before extraction, and their expected binary layouts and
+reported versions are checked before deployment succeeds.
 
 ## Layout and configuration
 
@@ -80,9 +86,10 @@ The default layout below assumes `/opt/cardano/amaru`:
 Amaru embeds the global parameters, bootstrap snapshot catalogue, and default
 peer information for well-known networks. No cardano-node-style config or
 genesis JSON bundle is needed for the supported networks. Guild Operators
-self-hosts a small environment template for each network and its pinned
-release metadata. Automatic chain-database migration is disabled so an upgrade
-cannot transform persistent state without an explicit operator decision.
+self-hosts a small environment template for each network, the rolling Amaru
+release policy, and pinned collector metadata. Automatic chain-database
+migration is disabled so an upgrade cannot transform persistent state without
+an explicit operator decision.
 
 The profile deliberately does not create `chain/` or `ledger/`. Upstream
 bootstrap refuses to proceed if either target already exists, which prevents a
@@ -176,9 +183,14 @@ Verbose mode adds any available connection, propagation, runtime, and
 Amaru-specific samples, including:
 
 - process CPU usage;
-- resident and virtual memory;
-- open file descriptors;
-- accepted and rejected mempool insertions.
+- open file descriptors and recent disk activity;
+- mempool synchronization time and accepted/rejected insertions;
+- consensus header outcomes and fork switches;
+- cumulative mean fetch-wait, block-fetch, and header-forwarding durations.
+
+Each item is shown only if the installed Amaru release exports the underlying
+sample. Amaru does not expose managed-runtime garbage-collection metrics; the
+collector's own runtime telemetry is not treated as node telemetry.
 
 Press `n` to open the common Network page for static node, network, service,
 deployment-path, and metrics-endpoint metadata. Dashboard and metadata values
@@ -200,23 +212,19 @@ check the bridge and its loopback output:
 curl --fail http://127.0.0.1:8889/metrics
 ```
 
-## Research and pinned sources
+## Upstream release contract and sources
 
-The profile was implemented against prerelease `v10.11.20260723`:
+- [Release and binary assets](https://github.com/pragma-org/amaru/releases)
+- [Upstream install and run instructions](https://github.com/pragma-org/amaru/blob/main/README.md)
+- [Bootstrap snapshot design](https://github.com/pragma-org/amaru/blob/main/docs/BOOTSTRAP.md)
+- [Bootstrap command safeguards](https://github.com/pragma-org/amaru/blob/main/crates/amaru/src/bin/amaru/cmd/node/bootstrap.rs)
+- [Node run options and environment bindings](https://github.com/pragma-org/amaru/blob/main/crates/amaru/src/bin/amaru/cmd/node/run.rs)
+- [OpenTelemetry monitoring model](https://github.com/pragma-org/amaru/blob/main/monitoring/README.md)
+- [Embedded defaults and network peers](https://github.com/pragma-org/amaru/blob/main/crates/amaru/src/lib.rs)
+- [Distribution archive layout](https://github.com/pragma-org/amaru/blob/main/Makefile)
 
-- [Release and binary assets](https://github.com/pragma-org/amaru/releases/tag/v10.11.20260723)
-- [Upstream install and run instructions](https://github.com/pragma-org/amaru/blob/v10.11.20260723/README.md)
-- [Bootstrap snapshot design](https://github.com/pragma-org/amaru/blob/v10.11.20260723/docs/BOOTSTRAP.md)
-- [Bootstrap command safeguards](https://github.com/pragma-org/amaru/blob/v10.11.20260723/crates/amaru/src/bin/amaru/cmd/node/bootstrap.rs)
-- [Node run options and environment bindings](https://github.com/pragma-org/amaru/blob/v10.11.20260723/crates/amaru/src/bin/amaru/cmd/node/run.rs)
-- [OpenTelemetry monitoring model](https://github.com/pragma-org/amaru/blob/v10.11.20260723/monitoring/README.md)
-- [Embedded defaults and network peers](https://github.com/pragma-org/amaru/blob/v10.11.20260723/crates/amaru/src/lib.rs)
-- [Distribution archive layout](https://github.com/pragma-org/amaru/blob/v10.11.20260723/Makefile)
-
-The exact Amaru and collector artifact URLs and SHA-256 digests are recorded
-in `files/node-implementations/amaru/release.json` and enforced before
-extraction. The Amaru digest matches the checksum manifest published with its
-release; the collector is independently pinned to its official release
-artifact. The versioned Amaru archive places the executable at `bin/amaru`;
-the installer searches only for that path shape and rejects a mismatched
-archive.
+The rolling resolver enforces the GitHub digest published for the selected
+Amaru tar archive. The collector remains independently pinned to its official
+release URL and SHA-256 digest in `release.json`. Amaru's versioned archive
+places the executable at `bin/amaru`; the installer accepts only that path
+shape.

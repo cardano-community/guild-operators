@@ -71,7 +71,7 @@ dingo_deploy_validate_context() {
   fi
   NODE_PORT="$((10#${configured_port}))"
   [[ "$(uname -s)" == "Linux" ]] || {
-    dingo_deploy_fail "The pinned Dingo deployment profile currently supports Linux only"
+    dingo_deploy_fail "The Dingo deployment profile currently supports Linux only"
     return 1
   }
 }
@@ -325,23 +325,22 @@ dingo_deploy_validate_release_metadata() {
     return 1
   jq -e \
     --arg implementation "dingo" '
-      def https_url:
-        type == "string" and test("\\Ahttps://[^[:space:]]+\\z");
-      def artifact:
-        type == "object" and
-        keys == ["sha256", "url"] and
-        (.url | https_url) and
-        (.sha256 | type == "string" and test("\\A[0-9a-f]{64}\\z"));
+      def repository:
+        type == "string" and
+        . == "blinklabs-io/dingo";
+      def selector:
+        type == "string" and
+        length > 0 and
+        test("[[:space:]]") == false;
       type == "object" and
-      keys == ["artifacts", "implementation", "schemaVersion", "version"] and
+      keys == ["assets", "github", "implementation", "schemaVersion", "version"] and
       .schemaVersion == 1 and
       .implementation == $implementation and
-      (.version |
-        type == "string" and
-        test("\\A[0-9][0-9A-Za-z.+-]*\\z")) and
-      (.artifacts | type == "object" and
+      .version == "latest" and
+      (.github | repository) and
+      (.assets | type == "object" and
         keys == ["linux-aarch64", "linux-x86_64"]) and
-      all(.artifacts[]; artifact)
+      all(.assets[]; selector)
     ' "${manifest}" >/dev/null
 }
 
@@ -399,6 +398,31 @@ dingo_deploy_architecture() {
   esac
 }
 
+dingo_deploy_resolve_binary() {
+  local manifest="$1"
+  local architecture="$2"
+  local repository selector
+
+  declare -F dispatcher_resolve_github_release >/dev/null 2>&1 || {
+    dingo_deploy_fail "The common GitHub release resolver is unavailable; refresh guild-deploy.sh"
+    return 1
+  }
+  repository="$(jq -er '.github' "${manifest}")" || return 1
+  selector="$(
+    jq -er --arg arch "${architecture}" '.assets[$arch]' "${manifest}"
+  )" || {
+    dingo_deploy_fail "No Dingo release-asset selector is defined for ${architecture}"
+    return 1
+  }
+  dingo_deploy_progress "Resolving newest published Dingo release" "${architecture}"
+  dispatcher_resolve_github_release "dingo" "${repository}" "${selector}" ||
+    return 1
+  DINGO_RESOLVED_VERSION="${DISPATCHER_RELEASE_VERSION}"
+  DINGO_RESOLVED_URL="${DISPATCHER_RELEASE_URL}"
+  DINGO_RESOLVED_SHA256="${DISPATCHER_RELEASE_SHA256}"
+  DINGO_RESOLVED_PRERELEASE="${DISPATCHER_RELEASE_PRERELEASE}"
+}
+
 dingo_deploy_install_binary() (
   set -e
   dingo_deploy_require_commands
@@ -413,21 +437,26 @@ dingo_deploy_install_binary() (
     dingo_deploy_fail "Unsupported Dingo architecture: $(uname -m)"
     exit 1
   }
-  version="$(jq -er '.version' "${manifest}")"
-  url="$(jq -er --arg arch "${architecture}" '.artifacts[$arch].url' "${manifest}")"
-  expected_sha="$(jq -er --arg arch "${architecture}" '.artifacts[$arch].sha256' "${manifest}")"
+  dingo_deploy_resolve_binary "${manifest}" "${architecture}" || exit 1
+  version="${DINGO_RESOLVED_VERSION}"
+  url="${DINGO_RESOLVED_URL}"
+  expected_sha="${DINGO_RESOLVED_SHA256}"
 
   local temporary_dir archive binary
   temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/dingo-install.XXXXXX")"
-  trap 'rm -rf -- "${temporary_dir}"' EXIT
+  trap '[[ -z "${temporary_dir:-}" ]] || rm -rf -- "${temporary_dir}"' EXIT
   archive="${temporary_dir}/release.tar.gz"
 
-  dingo_deploy_progress "Downloading pinned Dingo ${version}" "${architecture}"
+  dingo_deploy_progress "Downloading Dingo ${version}" "${architecture}"
   curl --fail --silent --show-error --location \
     --connect-timeout "${CURL_TIMEOUT:-20}" \
     --max-time "${DOWNLOAD_TIMEOUT:-600}" \
     "${url}" --output "${archive}"
-  printf '%s  %s\n' "${expected_sha}" "${archive}" | sha256sum --check --status
+  if ! printf '%s  %s\n' "${expected_sha}" "${archive}" |
+    sha256sum --check --status; then
+    dingo_deploy_fail "Dingo ${version} archive failed SHA-256 verification"
+    exit 1
+  fi
 
   mkdir "${temporary_dir}/extract"
   tar -xzf "${archive}" -C "${temporary_dir}/extract"

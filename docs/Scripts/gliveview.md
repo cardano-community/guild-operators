@@ -28,13 +28,14 @@ provides cnode block-production, KES, peer-inspection, or runtime interfaces.
 | Dingo | Native Prometheus endpoint; network-labelled samples are normalized by the Dingo adapter | `http://127.0.0.1:12798/metrics` |
 | Amaru | OTLP is received by the Guild-managed OpenTelemetry Collector and re-exported as Prometheus | OTLP `127.0.0.1:4317`/`4318`; Prometheus `http://127.0.0.1:8889/metrics` |
 
-The Amaru `-s d` deployment installs both the pinned Amaru executable and the
-pinned `otelcol-contrib` executable. `amaru.sh -d` installs the node unit and a
-companion `<service-name>-metrics.service`; starting or stopping the launcher
-controls both. OTLP traces and logs are accepted and discarded locally, while
-metrics are exposed only on the loopback Prometheus endpoint. The shared
-parser also normalizes Prometheus scientific notation, including the format
-reported in [issue #1912](https://github.com/cardano-community/guild-operators/issues/1912).
+The Amaru `-s d` deployment installs the newest published Amaru release,
+including prereleases, and the pinned `otelcol-contrib` executable.
+`amaru.sh -d` installs the node unit and a companion
+`<service-name>-metrics.service`; starting or stopping the launcher controls
+both. OTLP traces and logs are accepted and discarded locally, while metrics
+are exposed only on the loopback Prometheus endpoint. The shared parser also
+normalizes Prometheus scientific notation, including the format reported in
+[issue #1912](https://github.com/cardano-community/guild-operators/issues/1912).
 
 ##### Configuration & Startup
 
@@ -106,6 +107,9 @@ cells are omitted rather than printed empty or as zero.
 - **Peers In / Out** - Shows the connection counters exported by the selected
   implementation. This does not imply that interactive peer inspection is
   available.
+- **Known / Established / Active** - Shows the implementation's aggregate P2P
+  peer sets when those gauges are exported. These are distinct from connection
+  direction counters and are omitted as a group when unavailable.
 - **P2P Mode** 
   - `Cold` peers indicate the number of inactive but known peers to the node.
   - `Warm` peers tell how many established connections the node has.
@@ -120,7 +124,9 @@ cells are omitted rather than printed empty or as zero.
   local operating-system process timing.
 - **Mem (Live) / (Heap)** - Runtime memory values are displayed only when the
   implementation exports compatible samples.
-- **GC Minor / Major** - Collecting garbage from "Young space" is called a Minor GC. Major (Full) GC is done more rarily and is a more expensive operation. Explaining garbage collection is a topic outside the scope of this documentation and google is your friend for this.  
+- **GC Minor / Major** - Runtime garbage-collection counters are displayed
+  only for implementations that expose a compatible managed-runtime metric.
+  Their exact meaning follows that implementation's runtime.
 - **Block propagation** - Last Block measures the duration between when the
   last block was scheduled to be produced and when the node learned about it.
   Verbose mode can additionally show late and served blocks and the percentage
@@ -131,8 +137,8 @@ cells are omitted rather than printed empty or as zero.
 ###### Compact and verbose views
 
 Compact mode keeps the relay dashboard focused on the common operational
-signals: chain position and tip gap, primary incoming/outgoing and hot-peer
-counters, latest block delay, and CPU, resident memory, and disk use.
+signals: chain position and tip gap, primary incoming/outgoing and aggregate
+peer-set counters, latest block delay, and CPU, resident memory, and disk use.
 
 Press `v` to enter verbose mode. It adds any available connection direction
 and peer-temperature details, the full block-propagation breakdown, runtime
@@ -146,8 +152,17 @@ Adapters may register useful live measurements that have no common equivalent.
 They are displayed in a section named after the implementation in verbose
 mode and disappear individually when not present in the latest scrape.
 
-- Amaru currently reports process CPU, resident and virtual memory, open file
-  descriptors, and accepted/rejected mempool insertions.
+- Dingo can report Go runtime activity, open-file limits, aggregate database
+  size, cache hit ratios, and selected nonzero internal error counters.
+- Amaru can report process CPU and disk activity, open file descriptors,
+  mempool synchronization and insertion results, plus consensus header,
+  fork-switch, and timing measurements introduced by newer releases.
+
+Dingo and Amaru are rolling-release profiles, so these lists describe the
+adapter contract rather than promising that every upstream build exports every
+sample. gLiveView evaluates each metric independently on every scrape. The
+Amaru collector's own Go runtime or garbage-collection telemetry is not shown
+as node telemetry.
 
 Static node, network, deployment, and runtime metadata is kept out of the live
 dashboard and appears on the Network page instead.

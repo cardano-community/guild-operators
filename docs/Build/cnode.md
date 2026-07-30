@@ -60,9 +60,10 @@ files/node-implementations/cnode/release.json
 ```
 
 The manifest intentionally contains only fields consumed by deployment or
-source builds. The primary `cardano-node` entry uses the same
-`version`/`artifacts` structure as Dingo and Amaru. Independently released
-software is grouped by how the deployment consumes it:
+source builds. The primary `cardano-node` entry uses a concrete
+`version`/`artifacts` structure. Dingo and Amaru use separate rolling GitHub
+release contracts described in their own deployment guides. Independently
+released cnode software is grouped by how the deployment consumes it:
 
 | Section | Components | Manifest shape |
 | --- | --- | --- |

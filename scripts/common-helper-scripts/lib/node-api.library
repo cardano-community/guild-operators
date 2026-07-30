@@ -428,12 +428,6 @@ prometheus_normalize_metrics() {
   '
 }
 
-# Backward-compatible spelling used by the Amaru gLiveView integration
-# prototype linked from guild-operators issue #1912.
-normalizePrometheusMetrics() {
-  prometheus_normalize_metrics
-}
-
 # Build a first-sample index for a Prometheus/OpenMetrics text response. The
 # optional label set is accepted, which is required for Dingo's
 # network="<name>" compatibility metrics and for standard build-info samples.
@@ -512,7 +506,8 @@ common_parse_cardano_metrics() {
     peer_selection_cold peer_selection_warm peer_selection_hot conn_incoming
     conn_outgoing conn_uni_dir conn_bi_dir conn_duplex forging_enabled
     running_node_version running_node_rev tip_gap inbound_governor_warm
-    inbound_governor_hot
+    inbound_governor_hot peer_known peer_established peer_active open_files
+    max_files
   )
   if [[ $# -gt 0 ]]; then
     node_metrics="${1}"
@@ -615,6 +610,15 @@ common_parse_cardano_metrics() {
     cardano_node_metrics_peerSelection_Hot_int \
     cardano_node_metrics_peerSelection_hot \
     cardano_node_metrics_peerSelection_Hot
+  common_metric_set_first peer_known \
+    cardano_node_metrics_peerSelection_KnownPeers_int \
+    cardano_node_metrics_peerSelection_KnownPeers
+  common_metric_set_first peer_established \
+    cardano_node_metrics_peerSelection_EstablishedPeers_int \
+    cardano_node_metrics_peerSelection_EstablishedPeers
+  common_metric_set_first peer_active \
+    cardano_node_metrics_peerSelection_ActivePeers_int \
+    cardano_node_metrics_peerSelection_ActivePeers
   common_metric_set_first conn_incoming \
     cardano_node_metrics_connectionManager_incomingConns_int \
     cardano_node_metrics_connectionManager_inboundConns_int \

@@ -87,6 +87,9 @@ cardano_node_metrics_forks_int{network="preview"} 4
 cardano_node_metrics_peerSelection_cold{network="preview"} 12
 cardano_node_metrics_peerSelection_warm{network="preview"} 5
 cardano_node_metrics_peerSelection_hot{network="preview"} 3
+cardano_node_metrics_peerSelection_KnownPeers{network="preview"} 20
+cardano_node_metrics_peerSelection_EstablishedPeers{network="preview"} 7
+cardano_node_metrics_peerSelection_ActivePeers{network="preview"} 3
 cardano_node_metrics_connectionManager_incomingConns{network="preview"} 8
 cardano_node_metrics_connectionManager_outgoingConns{network="preview"} 11
 cardano_node_metrics_connectionManager_unidirectionalConns{network="preview"} 7
@@ -103,6 +106,18 @@ dingo_build_info{commit="c29a0099d22f8d8814557bd94de59d969d55cba9",goversion="go
 dingo_tip_gap_slots{network="preview"} 2
 dingo_epoch_length_slots{network="preview"} 86400
 dingo_shelley_start_time{network="preview"} 1666656000
+go_goroutines 41
+process_open_fds 128
+process_max_fds 1048576
+dingo_database_size_bytes{store="blob"} 1000
+dingo_database_size_bytes{store="metadata"} 500
+dingo_cbor_cache_utxo_hot_hits_total 80
+dingo_cbor_cache_utxo_hot_misses_total 20
+dingo_cbor_cache_block_lru_hits_total 0
+dingo_cbor_cache_block_lru_misses_total 0
+dingo_forge_slot_clock_errors_total 2
+dingo_governance_proposal_decode_failures_total 0
+dingo_chainsync_unrecoverable_rollback_total 1
 '
 
 node_metric_reset_availability
@@ -116,6 +131,9 @@ assert_eq "${slotnum}" "76543210" "Dingo absolute slot normalization"
 assert_eq "${mempool_tx}" "3" "Dingo mempool transaction normalization"
 assert_eq "${mempool_bytes}" "4096" "Dingo mempool byte normalization"
 assert_eq "${peer_selection_hot}" "3" "Dingo hot-peer normalization"
+assert_eq "${peer_known}" "20" "Dingo known-peer normalization"
+assert_eq "${peer_established}" "7" "Dingo established-peer normalization"
+assert_eq "${peer_active}" "3" "Dingo active-peer normalization"
 assert_eq "${conn_incoming}" "8" "Dingo inbound connection normalization"
 assert_eq "${inbound_governor_warm}" "6" \
   "Dingo inbound warm-peer normalization"
@@ -139,9 +157,22 @@ assert_eq "${dingo_epoch_length_slots}" "86400" \
   "Dingo native epoch-length collection"
 assert_eq "${dingo_shelley_start_time}" "1666656000" \
   "Dingo native Shelley-start collection"
+assert_eq "${open_files}" "128" "Dingo open-file collection"
+assert_eq "${max_files}" "1048576" "Dingo maximum-file collection"
+assert_eq "${dingo_goroutines}" "41" "Dingo goroutine collection"
+assert_eq "${dingo_database_bytes}" "1500" "Dingo database-size aggregation"
+assert_eq "${dingo_utxo_cache_hits}" "80.0" \
+  "Dingo UTxO-cache hit-ratio calculation"
+assert_eq "${dingo_block_cache_hits}" "n/a" \
+  "Dingo empty block-cache hit-ratio handling"
+assert_eq "${dingo_slot_clock_errors}" "2" \
+  "Dingo nonzero slot-clock error collection"
+assert_eq "${dingo_rollback_errors}" "1" \
+  "Dingo nonzero rollback error collection"
 assert_eq "${uptimes}" "100" "Dingo node-start uptime calculation"
-assert_eq "${#NODE_CUSTOM_METRICS[@]}" "0" \
-  "Dingo static metadata leaked into the live custom-metric registry"
+assert_eq "${NODE_CUSTOM_METRICS[*]}" \
+  "dingo_goroutines dingo_database_bytes dingo_utxo_cache_hits dingo_block_cache_hits dingo_slot_clock_errors dingo_rollback_errors" \
+  "Dingo live custom-metric registration order"
 assert_eq "${NODE_INFO_METRICS[*]}" \
   "dingo_go_version dingo_epoch_length_slots dingo_shelley_start_time" \
   "Dingo Network-page metric registration order"
@@ -155,6 +186,14 @@ assert_eq "${NODE_METRIC_LABEL[dingo_shelley_start_time]}" "Shelley start" \
   "Dingo Shelley-start display label"
 assert_eq "${NODE_METRIC_UNIT[dingo_shelley_start_time]}" "unix s" \
   "Dingo Shelley-start display unit"
+assert_eq "${NODE_METRIC_LABEL[dingo_database_bytes]}" "DB size" \
+  "Dingo database-size display label"
+assert_eq "${NODE_METRIC_UNIT[dingo_database_bytes]}" "B" \
+  "Dingo database-size display unit"
+assert_eq "${NODE_METRIC_UNIT[dingo_utxo_cache_hits]}" "%" \
+  "Dingo UTxO-cache display unit"
+assert_eq "${NODE_METRIC_UNIT[dingo_block_cache_hits]}" "" \
+  "Dingo undefined block-cache display unit"
 
 for available_metric in \
   blocknum epochnum slot_in_epoch slotnum mempool_tx mempool_bytes \
@@ -163,6 +202,9 @@ for available_metric in \
   running_node_version running_node_rev dingo_go_version \
   tip_gap dingo_epoch_length_slots \
   dingo_shelley_start_time blocks_w1s blocks_w3s blocks_w5s \
+  peer_known peer_established peer_active open_files max_files \
+  dingo_goroutines dingo_database_bytes dingo_utxo_cache_hits \
+  dingo_block_cache_hits dingo_slot_clock_errors dingo_rollback_errors \
   uptimes; do
   node_metric_has "${available_metric}" ||
     fail "Dingo metric '${available_metric}' was parsed but marked unavailable"
@@ -188,6 +230,10 @@ node_metric_has dingo_shelley_start_time &&
   fail "missing Dingo Shelley-start metric was marked available"
 node_metric_has running_node_version &&
   fail "missing Dingo build information was marked available"
+node_metric_has peer_known &&
+  fail "missing Dingo peer-set metrics were marked available"
+node_metric_has open_files &&
+  fail "missing Dingo process-file metrics were marked available"
 [[ ${#NODE_CUSTOM_METRICS[@]} -eq 0 ]] ||
   fail "missing Dingo custom samples remained registered"
 [[ ${#NODE_INFO_METRICS[@]} -eq 0 ]] ||

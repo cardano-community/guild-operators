@@ -126,6 +126,87 @@ dingo_collect_optional_info_metric() {
   fi
 }
 
+dingo_metric_sum() {
+  local metrics="${1:-}"
+  local requested="${2:-}"
+  [[ -n "${requested}" ]] || return 1
+  awk -v requested="${requested}" '
+    /^[[:space:]]*#/ || NF < 2 { next }
+    {
+      name = $1
+      sub(/\{.*/, "", name)
+      if (name == requested &&
+          $2 ~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/) {
+        total += $2
+        found = 1
+      }
+    }
+    END {
+      if (found) {
+        printf "%.0f\n", total
+      }
+    }
+  ' <<< "${metrics}"
+}
+
+dingo_set_optional_custom_metric() {
+  local variable="${1:?variable name required}"
+  local value="${2:-}"
+  local label="${3:?metric label required}"
+  local unit="${4:-}"
+  if node_metric_value_is_numeric "${value}"; then
+    node_metric_set_custom "${variable}" "${value}" "${label}" "${unit}"
+  else
+    node_metric_unset_custom "${variable}"
+  fi
+}
+
+dingo_set_cache_hit_ratio() {
+  local variable="${1:?variable name required}"
+  local hit_metric="${2:?hit metric required}"
+  local miss_metric="${3:?miss metric required}"
+  local label="${4:?metric label required}"
+  local hits misses ratio
+
+  if ! prometheus_first_metric_value hits "${hit_metric}" ||
+     ! prometheus_first_metric_value misses "${miss_metric}" ||
+     ! node_metric_value_is_numeric "${hits}" ||
+     ! node_metric_value_is_numeric "${misses}"; then
+    node_metric_unset_custom "${variable}"
+    return 0
+  fi
+  ratio="$(
+    LC_NUMERIC=C awk -v hits="${hits}" -v misses="${misses}" '
+      BEGIN {
+        total = hits + misses
+        if (total <= 0) {
+          print "n/a"
+        } else {
+          printf "%.1f", hits * 100 / total
+        }
+      }
+    '
+  )"
+  node_metric_set_custom \
+    "${variable}" "${ratio}" "${label}" \
+    "$([[ "${ratio}" == "n/a" ]] || printf '%%')"
+}
+
+dingo_set_nonzero_error_counter() {
+  local source_name="${1:?source metric required}"
+  local variable="${2:?variable name required}"
+  local label="${3:?metric label required}"
+  local value
+
+  if prometheus_first_metric_value value "${source_name}" &&
+     node_metric_value_is_numeric "${value}" &&
+     awk -v value="${value}" 'BEGIN { exit !(value > 0) }'; then
+    node_metric_set_custom "${variable}" "${value}" "${label}"
+  else
+    node_metric_unset_custom "${variable}"
+  fi
+}
+
 dingo_normalize_propagation_ratios() {
   local metric value
   for metric in blocks_w1s blocks_w3s blocks_w5s; do
@@ -144,7 +225,7 @@ dingo_normalize_propagation_ratios() {
 }
 
 node_adapter_collect_metrics() {
-  local node_metrics metrics_url
+  local node_metrics normalized_metrics metrics_url
   local build_version build_revision build_go_version
   local start_time now uptime_value process_elapsed value
 
@@ -156,11 +237,14 @@ node_adapter_collect_metrics() {
       "${metrics_url}" 2>/dev/null
   )" || return 1
   [[ -n "${node_metrics}" ]] || return 1
+  normalized_metrics="$(
+    printf '%s\n' "${node_metrics}" | prometheus_normalize_metrics
+  )"
 
-  # Dingo v0.67.1 deliberately exports the cardano_node_metrics_* family.
+  # Dingo deliberately exports the cardano_node_metrics_* family.
   # The common parser is label-aware because Dingo adds network="<name>" to
   # node/component samples.
-  common_parse_cardano_metrics "${node_metrics}" || return 1
+  common_parse_cardano_metrics "${normalized_metrics}" || return 1
   # Dingo exports these CDF gauges as 0-100 percentages. The normalized
   # contract used by cnode and gLiveView is a 0-1 ratio.
   dingo_normalize_propagation_ratios
@@ -213,6 +297,54 @@ node_adapter_collect_metrics() {
   dingo_collect_optional_info_metric \
     "dingo_shelley_start_time" "dingo_shelley_start_time" \
     "Shelley start" "unix s"
+
+  if prometheus_first_metric_value value process_open_fds &&
+     node_metric_value_is_numeric "${value}"; then
+    node_metric_set open_files "${value}"
+  else
+    node_metric_unset open_files
+  fi
+  if prometheus_first_metric_value value process_max_fds &&
+     node_metric_value_is_numeric "${value}"; then
+    node_metric_set max_files "${value}"
+  else
+    node_metric_unset max_files
+  fi
+  if prometheus_first_metric_value value go_goroutines; then
+    dingo_set_optional_custom_metric \
+      dingo_goroutines "${value}" "Goroutines"
+  else
+    node_metric_unset_custom dingo_goroutines
+  fi
+  value="$(dingo_metric_sum "${normalized_metrics}" dingo_database_size_bytes)"
+  dingo_set_optional_custom_metric \
+    dingo_database_bytes "${value}" "DB size" "B"
+  dingo_set_cache_hit_ratio \
+    dingo_utxo_cache_hits \
+    dingo_cbor_cache_utxo_hot_hits_total \
+    dingo_cbor_cache_utxo_hot_misses_total \
+    "UTxO hits"
+  dingo_set_cache_hit_ratio \
+    dingo_block_cache_hits \
+    dingo_cbor_cache_block_lru_hits_total \
+    dingo_cbor_cache_block_lru_misses_total \
+    "Block hits"
+
+  dingo_set_nonzero_error_counter \
+    dingo_forge_slot_clock_errors_total \
+    dingo_slot_clock_errors "Slot clock"
+  dingo_set_nonzero_error_counter \
+    dingo_governance_proposal_decode_failures_total \
+    dingo_governance_decode_errors "Gov decode"
+  dingo_set_nonzero_error_counter \
+    dingo_chainsync_unrecoverable_rollback_total \
+    dingo_rollback_errors "Rollback"
+  dingo_set_nonzero_error_counter \
+    dingo_ledger_attip_recovery_nonconverging_total \
+    dingo_attip_errors "At-tip err"
+  dingo_set_nonzero_error_counter \
+    dingo_ledger_replay_recovery_nonconverging_total \
+    dingo_replay_errors "Replay err"
 
   now="$(date -u +%s)"
   start_time=""

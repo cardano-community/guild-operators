@@ -1,16 +1,11 @@
 {
   "schemaVersion": 1,
   "implementation": "amaru",
-  "version": "10.11.20260723",
-  "artifacts": {
-    "linux-x86_64": {
-      "url": "https://github.com/pragma-org/amaru/releases/download/v10.11.20260723/amaru-10.11.20260723-linux-x86_64.tar.gz",
-      "sha256": "f4a5fed3e0db62e7bed9697a5e980c65f66ccf8c9b59d2e0196dc630f8110e3d"
-    },
-    "linux-aarch64": {
-      "url": "https://github.com/pragma-org/amaru/releases/download/v10.11.20260723/amaru-10.11.20260723-linux-aarch64.tar.gz",
-      "sha256": "751b443047f26ceaaaf5821c9d6c68efecb15fd518aecfc4c23da31033726b09"
-    }
+  "version": "latest",
+  "github": "pragma-org/amaru",
+  "assets": {
+    "linux-x86_64": "^amaru-[^/]+-linux-x86_64\\.tar\\.gz$",
+    "linux-aarch64": "^amaru-[^/]+-linux-aarch64\\.tar\\.gz$"
   },
   "otelcol": {
     "version": "0.157.0",

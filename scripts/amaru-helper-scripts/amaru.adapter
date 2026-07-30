@@ -113,15 +113,28 @@ amaru_adapter_metric_value() {
   local requested="${2:-}"
   [[ -n "${requested}" ]] || return 1
   awk -v requested="${requested}" '
+    function numeric(value) {
+      return value ~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/
+    }
+    function sample_value(value_field) {
+      value_field = NF
+      if (NF >= 3 && $NF ~ /^-?[0-9]+$/ && numeric($(NF - 1))) {
+        value_field = NF - 1
+      }
+      return $value_field
+    }
     /^[[:space:]]*#/ || NF < 2 { next }
     {
       series = $1
       name = series
       sub(/\{.*/, "", name)
-      if (name == requested || name == requested "_total") {
+      if (name == requested) {
         # The sample value immediately follows the series. Prometheus may add
-        # an optional timestamp after it, which must not become the value.
-        print $2
+        # an optional timestamp after it. Labels may themselves contain spaces.
+        value = sample_value()
+        if (numeric(value)) {
+          print value
+        }
         exit
       }
     }
@@ -133,24 +146,38 @@ amaru_adapter_metric_sum_by_result() {
   local result_class="${2:-}"
   [[ "${result_class}" == "accepted" || "${result_class}" == "rejected" ]] || return 1
   awk -v result_class="${result_class}" '
+    function numeric(value) {
+      return value ~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/
+    }
+    function sample_value(value_field) {
+      value_field = NF
+      if (NF >= 3 && $NF ~ /^-?[0-9]+$/ && numeric($(NF - 1))) {
+        value_field = NF - 1
+      }
+      return $value_field
+    }
     /^[[:space:]]*#/ || NF < 2 { next }
     {
+      record = $0
       series = $1
       name = series
       sub(/\{.*/, "", name)
-      if (name != "amaru_metrics_mempoolTxInsertionsNum_int" &&
-          name != "amaru_metrics_mempoolTxInsertionsNum_int_total") {
+      if (name != "amaru_metrics_mempoolTxInsertionsNum_int") {
         next
       }
       if (result_class == "accepted" &&
-          series !~ /result="accepted"/) {
+          record !~ /result="accepted"/) {
         next
       }
       if (result_class == "rejected" &&
-          series !~ /result="rejected_[^"]+"/) {
+          record !~ /result="rejected_[^"]+"/) {
         next
       }
-      total += $2
+      value = sample_value()
+      if (!numeric(value)) {
+        next
+      }
+      total += value
       found = 1
     }
     END {
@@ -161,11 +188,108 @@ amaru_adapter_metric_sum_by_result() {
   ' <<< "${metrics}"
 }
 
-amaru_adapter_bytes_to_mib() {
+amaru_adapter_bytes_to_kib() {
   local value="${1:-}"
   [[ "${value}" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
   LC_NUMERIC=C awk -v value="${value}" \
-    'BEGIN { printf "%.1f\n", value / 1048576 }'
+    'BEGIN { printf "%.1f\n", value / 1024 }'
+}
+
+amaru_adapter_metric_sum_by_outcome() {
+  local metrics="${1:-}"
+  local requested="${2:-}"
+  local outcome_class="${3:-all}"
+  [[ -n "${requested}" ]] || return 1
+  case "${outcome_class}" in
+    all|valid|header_rejected) ;;
+    *) return 1 ;;
+  esac
+  awk -v requested="${requested}" -v outcome_class="${outcome_class}" '
+    function numeric(value) {
+      return value ~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/
+    }
+    function sample_value(value_field) {
+      value_field = NF
+      if (NF >= 3 && $NF ~ /^-?[0-9]+$/ && numeric($(NF - 1))) {
+        value_field = NF - 1
+      }
+      return $value_field
+    }
+    /^[[:space:]]*#/ || NF < 2 { next }
+    {
+      record = $0
+      series = $1
+      name = series
+      sub(/\{.*/, "", name)
+      if (name != requested) {
+        next
+      }
+      if (outcome_class == "valid" &&
+          record !~ /outcome="valid"/) {
+        next
+      }
+      if (outcome_class == "header_rejected" &&
+          record !~ /outcome="(invalid|invalid header|undecodable header|store header error)"/) {
+        next
+      }
+      value = sample_value()
+      if (!numeric(value)) {
+        next
+      }
+      total += value
+      found = 1
+    }
+    END {
+      if (found) {
+        printf "%.0f\n", total
+      }
+    }
+  ' <<< "${metrics}"
+}
+
+amaru_adapter_histogram_mean_ms() {
+  local metrics="${1:-}"
+  local requested="${2:-}"
+  local outcome="${3:-valid}"
+  [[ -n "${requested}" && -n "${outcome}" ]] || return 1
+  awk -v requested="${requested}" -v outcome="${outcome}" '
+    function numeric(value) {
+      return value ~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/
+    }
+    function sample_value(value_field) {
+      value_field = NF
+      if (NF >= 3 && $NF ~ /^-?[0-9]+$/ && numeric($(NF - 1))) {
+        value_field = NF - 1
+      }
+      return $value_field
+    }
+    /^[[:space:]]*#/ || NF < 2 { next }
+    {
+      record = $0
+      series = $1
+      name = series
+      sub(/\{.*/, "", name)
+      if (index(record, "outcome=\"" outcome "\"") == 0) {
+        next
+      }
+      value = sample_value()
+      if (!numeric(value)) {
+        next
+      }
+      if (name == requested "_sum") {
+        total_sum += value
+        sum_found = 1
+      } else if (name == requested "_count") {
+        total_count += value
+        count_found = 1
+      }
+    }
+    END {
+      if (sum_found && count_found && total_count > 0) {
+        printf "%.2f\n", total_sum / total_count / 1000
+      }
+    }
+  ' <<< "${metrics}"
 }
 
 amaru_adapter_host_uptime() {
@@ -237,7 +361,7 @@ amaru_adapter_process_uptime() {
 amaru_adapter_set_optional_metric() {
   local variable="${1:?variable name required}"
   local value="${2:-}"
-  if [[ -n "${value}" ]]; then
+  if node_metric_value_is_numeric "${value}"; then
     node_metric_set "${variable}" "${value}"
   else
     node_metric_unset "${variable}"
@@ -279,21 +403,67 @@ node_adapter_collect_metrics() {
   value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_cpu_live")"
   amaru_adapter_set_optional_custom_metric \
     amaru_cpu_percent "${value}" "Process CPU" "%"
-  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_memory_live_resident")"
-  value="$(amaru_adapter_bytes_to_mib "${value}" 2>/dev/null || true)"
-  amaru_adapter_set_optional_custom_metric \
-    amaru_memory_resident_mib "${value}" "Resident memory" "MiB"
-  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_memory_available_virtual")"
-  value="$(amaru_adapter_bytes_to_mib "${value}" 2>/dev/null || true)"
-  amaru_adapter_set_optional_custom_metric \
-    amaru_memory_virtual_mib "${value}" "Virtual memory" "MiB"
   value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_open_files")"
+  amaru_adapter_set_optional_metric open_files "${value}"
+  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_disk_live_read")"
+  value="$(amaru_adapter_bytes_to_kib "${value}" 2>/dev/null || true)"
   amaru_adapter_set_optional_custom_metric \
-    amaru_open_files "${value}" "Open files"
+    amaru_disk_read_kib "${value}" "Disk read" "KiB/s"
+  value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_disk_live_write")"
+  value="$(amaru_adapter_bytes_to_kib "${value}" 2>/dev/null || true)"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_disk_write_kib "${value}" "Disk write" "KiB/s"
+  value="$(
+    amaru_adapter_metric_value \
+      "${normalized_metrics}" "cardano_node_metrics_txsSyncDuration_int"
+  )"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_mempool_sync_ms "${value}" "Pool sync" "ms"
   value="$(amaru_adapter_metric_sum_by_result "${normalized_metrics}" accepted)"
   amaru_adapter_set_optional_custom_metric \
     amaru_mempool_insertions_accepted "${value}" "Mempool accepted"
   value="$(amaru_adapter_metric_sum_by_result "${normalized_metrics}" rejected)"
   amaru_adapter_set_optional_custom_metric \
     amaru_mempool_insertions_rejected "${value}" "Mempool rejected"
+
+  value="$(
+    amaru_adapter_metric_sum_by_outcome \
+      "${normalized_metrics}" amaru_consensus_header_total valid
+  )"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_headers_valid "${value}" "Headers ok"
+  value="$(
+    amaru_adapter_metric_sum_by_outcome \
+      "${normalized_metrics}" amaru_consensus_header_total header_rejected
+  )"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_headers_rejected "${value}" "Rejected"
+  value="$(
+    amaru_adapter_metric_sum_by_outcome \
+      "${normalized_metrics}" amaru_consensus_fork_switch_total all
+  )"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_fork_switches "${value}" "Forks sw"
+
+  value="$(
+    amaru_adapter_histogram_mean_ms \
+      "${normalized_metrics}" \
+      amaru_consensus_block_fetch_wait_duration_microseconds valid
+  )"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_fetch_wait_ms "${value}" "Fetch wait" "ms"
+  value="$(
+    amaru_adapter_histogram_mean_ms \
+      "${normalized_metrics}" \
+      amaru_consensus_block_fetch_duration_microseconds valid
+  )"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_block_fetch_ms "${value}" "Fetch avg" "ms"
+  value="$(
+    amaru_adapter_histogram_mean_ms \
+      "${normalized_metrics}" \
+      amaru_consensus_header_forward_duration_microseconds valid
+  )"
+  amaru_adapter_set_optional_custom_metric \
+    amaru_header_forward_ms "${value}" "Forward" "ms"
 }

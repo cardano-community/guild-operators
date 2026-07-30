@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC2034,SC2154
+# shellcheck disable=SC1090,SC2034,SC2154,SC2317
 # shellcheck source=/dev/null
 
 ##########################################
@@ -272,6 +272,142 @@ dispatcher_run_package_command() {
 
   dispatcher_package_failure_summary "${label}" "${status}" "${output_file}"
   return "${status}"
+}
+
+dispatcher_resolve_github_release() {
+  local component="$1"
+  local repository="$2"
+  local selector="$3"
+  local api_url response_file resolved_line expected_url digest
+
+  DISPATCHER_RELEASE_TAG=""
+  DISPATCHER_RELEASE_VERSION=""
+  DISPATCHER_RELEASE_ASSET=""
+  DISPATCHER_RELEASE_URL=""
+  DISPATCHER_RELEASE_SHA256=""
+  DISPATCHER_RELEASE_PRERELEASE=""
+  DISPATCHER_RELEASE_PUBLISHED_AT=""
+
+  [[ "${component}" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || {
+    err_exit "Invalid component name supplied to the GitHub release resolver."
+    return 1
+  }
+  [[ "${repository}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || {
+    err_exit "Invalid GitHub repository configured for ${component}."
+    return 1
+  }
+  [[ -n "${selector}" && "${selector}" != *$'\n'* &&
+     "${selector}" != *$'\r'* && "${selector}" != *$'\t'* ]] || {
+    err_exit "Invalid release-asset selector configured for ${component}."
+    return 1
+  }
+
+  api_url="https://api.github.com/repos/${repository}/releases?per_page=100"
+  response_file="$(
+    umask 077
+    mktemp "${TMPDIR:-/tmp}/guild-${component}-release-api.XXXXXX"
+  )" || {
+    err_exit "Could not stage GitHub release metadata for ${component}."
+    return 1
+  }
+
+  if ! curl --fail --silent --show-error --location \
+    --connect-timeout "${CURL_TIMEOUT:-20}" \
+    --max-time "${CURL_TIMEOUT:-60}" \
+    --header "Accept: application/vnd.github+json" \
+    --header "X-GitHub-Api-Version: 2022-11-28" \
+    "${api_url}" --output "${response_file}"; then
+    rm -f -- "${response_file}"
+    err_exit "Could not resolve the newest published ${component} release from GitHub."
+    return 1
+  fi
+
+  if ! resolved_line="$(
+    jq -er --arg selector "${selector}" '
+      [
+        .[] |
+        select(
+          .draft == false and
+          (.prerelease | type) == "boolean" and
+          (.published_at | type) == "string" and
+          (.published_at | length) > 0
+        )
+      ] |
+      sort_by(.published_at) |
+      last as $release |
+      if ($release | type) != "object" or
+         ($release.tag_name | type) != "string" or
+         ($release.tag_name | length) == 0 or
+         ($release.assets | type) != "array"
+      then
+        error("no published release")
+      else
+        [
+          $release.assets[] |
+          select(
+            .state == "uploaded" and
+            (.name | type) == "string" and
+            (.name | test($selector))
+          )
+        ] as $matches |
+        if ($matches | length) != 1 then
+          error("asset selector did not match exactly one uploaded asset")
+        else
+          $matches[0] as $asset |
+          if ($asset.browser_download_url | type) != "string" or
+             ($asset.digest | type) != "string" or
+             ($asset.size | type) != "number" or
+             $asset.size <= 0
+          then
+            error("selected asset metadata is incomplete")
+          else
+            [
+              $release.tag_name,
+              $asset.name,
+              $asset.browser_download_url,
+              $asset.digest,
+              ($release.prerelease | tostring),
+              $release.published_at
+            ] | @tsv
+          end
+        end
+      end
+    ' "${response_file}" 2>/dev/null
+  )"; then
+    rm -f -- "${response_file}"
+    err_exit "Newest ${component} release metadata did not select exactly one valid asset."
+    return 1
+  fi
+  rm -f -- "${response_file}"
+
+  IFS=$'\t' read -r DISPATCHER_RELEASE_TAG DISPATCHER_RELEASE_ASSET \
+    DISPATCHER_RELEASE_URL digest DISPATCHER_RELEASE_PRERELEASE \
+    DISPATCHER_RELEASE_PUBLISHED_AT <<< "${resolved_line}"
+  [[ "${DISPATCHER_RELEASE_TAG}" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || {
+    err_exit "Newest ${component} release returned an unsafe tag."
+    return 1
+  }
+  [[ "${DISPATCHER_RELEASE_ASSET}" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ &&
+     "${DISPATCHER_RELEASE_ASSET}" != "." &&
+     "${DISPATCHER_RELEASE_ASSET}" != ".." ]] || {
+    err_exit "Newest ${component} release returned an unsafe asset filename."
+    return 1
+  }
+  expected_url="https://github.com/${repository}/releases/download/${DISPATCHER_RELEASE_TAG}/${DISPATCHER_RELEASE_ASSET}"
+  [[ "${DISPATCHER_RELEASE_URL}" == "${expected_url}" ]] || {
+    err_exit "Newest ${component} asset URL does not match its repository, tag, and filename."
+    return 1
+  }
+  [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+    err_exit "Newest ${component} asset does not publish a valid GitHub SHA-256 digest."
+    return 1
+  }
+  DISPATCHER_RELEASE_VERSION="${DISPATCHER_RELEASE_TAG#v}"
+  [[ "${DISPATCHER_RELEASE_VERSION}" =~ ^[0-9][A-Za-z0-9._+-]*$ ]] || {
+    err_exit "Newest ${component} release returned an unsupported version tag."
+    return 1
+  }
+  DISPATCHER_RELEASE_SHA256="${digest#sha256:}"
 }
 
 dispatcher_usage() {

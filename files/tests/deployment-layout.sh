@@ -13,9 +13,11 @@ for implementation in cnode dingo amaru; do
   release_file="${ROOT_DIR}/files/node-implementations/${implementation}/release.json"
   [[ -s "${release_file}" ]] ||
     fail "missing ${implementation} release metadata"
-  jq -e --arg implementation "${implementation}" '
+done
+
+jq -e '
     .schemaVersion == 1 and
-    .implementation == $implementation and
+    .implementation == "cnode" and
     (.version |
       type == "string" and
       test("^[0-9]+([.][0-9]+){1,3}([+-][A-Za-z0-9.-]+)?$")) and
@@ -25,8 +27,26 @@ for implementation in cnode dingo amaru; do
       (.url | type == "string" and startswith("https://")) and
       (.sha256 | type == "string" and test("^[0-9a-f]{64}$"))
     )
+  ' "${ROOT_DIR}/files/node-implementations/cnode/release.json" >/dev/null ||
+    fail "invalid cnode release metadata"
+
+for implementation in dingo amaru; do
+  release_file="${ROOT_DIR}/files/node-implementations/${implementation}/release.json"
+  jq -e --arg implementation "${implementation}" '
+    .schemaVersion == 1 and
+    .implementation == $implementation and
+    .version == "latest" and
+    (.github | type == "string" and
+      test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")) and
+    (.assets | keys == ["linux-aarch64", "linux-x86_64"]) and
+    all(.assets[];
+      type == "string" and
+      length > 0 and
+      (test("[[:space:]]") | not)
+    ) and
+    (has("artifacts") | not)
   ' "${release_file}" >/dev/null ||
-    fail "invalid ${implementation} release metadata"
+    fail "invalid rolling ${implementation} release metadata"
 done
 
 for profile in \
@@ -95,6 +115,20 @@ jq -e '
   . "${ROOT_DIR}/scripts/cnode-helper-scripts/deploy-cnode.sh"
   cnode_deploy_validate_release_metadata "${CNODE_RELEASE}"
 ) || fail "runtime validator rejected compact cnode release metadata"
+
+(
+  # shellcheck source=../../scripts/dingo-helper-scripts/deploy-dingo.sh
+  . "${ROOT_DIR}/scripts/dingo-helper-scripts/deploy-dingo.sh"
+  dingo_deploy_validate_release_metadata \
+    "${ROOT_DIR}/files/node-implementations/dingo/release.json"
+) || fail "runtime validator rejected compact Dingo release metadata"
+
+(
+  # shellcheck source=../../scripts/amaru-helper-scripts/deploy-amaru.sh
+  . "${ROOT_DIR}/scripts/amaru-helper-scripts/deploy-amaru.sh"
+  amaru_deploy_validate_release_metadata \
+    "${ROOT_DIR}/files/node-implementations/amaru/release.json"
+) || fail "runtime validator rejected compact Amaru release metadata"
 
 if grep -Eq 'get-ghcup[.]haskell[.]org|ghcup upgrade' \
   "${ROOT_DIR}/scripts/cnode-helper-scripts/deploy-cnode.sh"; then

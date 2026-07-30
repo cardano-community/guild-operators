@@ -71,7 +71,7 @@ amaru_deploy_validate_context() {
   fi
   NODE_PORT="$((10#${configured_port}))"
   [[ "$(uname -s)" == "Linux" ]] || {
-    amaru_deploy_fail "The pinned Amaru deployment profile currently supports Linux only"
+    amaru_deploy_fail "The Amaru deployment profile currently supports Linux only"
     return 1
   }
 }
@@ -384,6 +384,13 @@ amaru_deploy_validate_release_metadata() {
     return 1
   jq -e \
     --arg implementation "amaru" '
+      def repository:
+        type == "string" and
+        . == "pragma-org/amaru";
+      def selector:
+        type == "string" and
+        length > 0 and
+        test("[[:space:]]") == false;
       def https_url:
         type == "string" and test("\\Ahttps://[^[:space:]]+\\z");
       def artifact:
@@ -392,15 +399,9 @@ amaru_deploy_validate_release_metadata() {
         (.url | https_url) and
         (.sha256 | type == "string" and test("\\A[0-9a-f]{64}\\z"));
       type == "object" and
-      keys == ["artifacts", "implementation", "otelcol", "schemaVersion", "version"] and
+      keys == ["assets", "github", "implementation", "otelcol", "schemaVersion", "version"] and
       .schemaVersion == 1 and
       .implementation == $implementation and
-      (.version |
-        type == "string" and
-        test("\\A[0-9][0-9A-Za-z.+-]*\\z")) and
-      (.artifacts | type == "object" and
-        keys == ["linux-aarch64", "linux-x86_64"]) and
-      all(.artifacts[]; artifact) and
       (.otelcol | type == "object" and
         keys == ["artifacts", "version"] and
         (.version |
@@ -408,7 +409,12 @@ amaru_deploy_validate_release_metadata() {
           test("\\A[0-9][0-9A-Za-z.+-]*\\z")) and
         (.artifacts | type == "object" and
           keys == ["linux-aarch64", "linux-x86_64"]) and
-        all(.artifacts[]; artifact))
+        all(.artifacts[]; artifact)) and
+      .version == "latest" and
+      (.github | repository) and
+      (.assets | type == "object" and
+        keys == ["linux-aarch64", "linux-x86_64"]) and
+      all(.assets[]; selector)
     ' "${manifest}" >/dev/null
 }
 
@@ -468,6 +474,31 @@ amaru_deploy_architecture() {
   esac
 }
 
+amaru_deploy_resolve_binary() {
+  local manifest="$1"
+  local architecture="$2"
+  local repository selector
+
+  declare -F dispatcher_resolve_github_release >/dev/null 2>&1 || {
+    amaru_deploy_fail "The common GitHub release resolver is unavailable; refresh guild-deploy.sh"
+    return 1
+  }
+  repository="$(jq -er '.github' "${manifest}")" || return 1
+  selector="$(
+    jq -er --arg arch "${architecture}" '.assets[$arch]' "${manifest}"
+  )" || {
+    amaru_deploy_fail "No Amaru release-asset selector is defined for ${architecture}"
+    return 1
+  }
+  amaru_deploy_progress "Resolving newest published Amaru release" "${architecture}"
+  dispatcher_resolve_github_release "amaru" "${repository}" "${selector}" ||
+    return 1
+  AMARU_RESOLVED_VERSION="${DISPATCHER_RELEASE_VERSION}"
+  AMARU_RESOLVED_URL="${DISPATCHER_RELEASE_URL}"
+  AMARU_RESOLVED_SHA256="${DISPATCHER_RELEASE_SHA256}"
+  AMARU_RESOLVED_PRERELEASE="${DISPATCHER_RELEASE_PRERELEASE}"
+}
+
 amaru_deploy_install_binary() (
   set -e
   amaru_deploy_require_commands
@@ -483,30 +514,35 @@ amaru_deploy_install_binary() (
     amaru_deploy_fail "Unsupported Amaru architecture: $(uname -m)"
     exit 1
   }
-  version="$(jq -er '.version' "${manifest}")"
-  url="$(jq -er --arg arch "${architecture}" '.artifacts[$arch].url' "${manifest}")"
-  expected_sha="$(jq -er --arg arch "${architecture}" '.artifacts[$arch].sha256' "${manifest}")"
+  amaru_deploy_resolve_binary "${manifest}" "${architecture}" || exit 1
+  version="${AMARU_RESOLVED_VERSION}"
+  url="${AMARU_RESOLVED_URL}"
+  expected_sha="${AMARU_RESOLVED_SHA256}"
   collector_version="$(jq -er '.otelcol.version' "${manifest}")"
   collector_url="$(jq -er --arg arch "${architecture}" '.otelcol.artifacts[$arch].url' "${manifest}")"
   collector_sha="$(jq -er --arg arch "${architecture}" '.otelcol.artifacts[$arch].sha256' "${manifest}")"
 
   local temporary_dir archive binary collector_archive collector_binary
   temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/amaru-install.XXXXXX")"
-  trap 'rm -rf -- "${temporary_dir}"' EXIT
+  trap '[[ -z "${temporary_dir:-}" ]] || rm -rf -- "${temporary_dir}"' EXIT
   archive="${temporary_dir}/release.tar.gz"
 
-  amaru_deploy_progress "Downloading pinned Amaru ${version}" "${architecture}"
+  amaru_deploy_progress "Downloading Amaru ${version}" "${architecture}"
   curl --fail --silent --show-error --location \
     --connect-timeout "${CURL_TIMEOUT:-20}" \
     --max-time "${DOWNLOAD_TIMEOUT:-600}" \
     "${url}" --output "${archive}"
-  printf '%s  %s\n' "${expected_sha}" "${archive}" | sha256sum --check --status
+  if ! printf '%s  %s\n' "${expected_sha}" "${archive}" |
+    sha256sum --check --status; then
+    amaru_deploy_fail "Amaru ${version} archive failed SHA-256 verification"
+    exit 1
+  fi
 
   mkdir "${temporary_dir}/extract"
   tar -xzf "${archive}" -C "${temporary_dir}/extract"
   binary="$(find "${temporary_dir}/extract" -type f -path '*/bin/amaru' -print -quit)"
   # The official release archive stores bin/amaru with mode 0644. Validate the
-  # pinned layout here; install(1) applies the required executable mode below.
+  # resolved release layout here; install(1) applies the executable mode below.
   [[ -n "${binary}" && -f "${binary}" ]] || {
     amaru_deploy_fail "Verified Amaru archive does not contain bin/amaru"
     exit 1
@@ -529,8 +565,12 @@ amaru_deploy_install_binary() (
     --connect-timeout "${CURL_TIMEOUT:-20}" \
     --max-time "${DOWNLOAD_TIMEOUT:-600}" \
     "${collector_url}" --output "${collector_archive}"
-  printf '%s  %s\n' "${collector_sha}" "${collector_archive}" |
-    sha256sum --check --status
+  if ! printf '%s  %s\n' "${collector_sha}" "${collector_archive}" |
+    sha256sum --check --status; then
+    amaru_deploy_fail \
+      "OpenTelemetry Collector ${collector_version} archive failed SHA-256 verification"
+    exit 1
+  fi
 
   mkdir "${temporary_dir}/collector"
   tar -xzf "${collector_archive}" -C "${temporary_dir}/collector"
@@ -557,7 +597,7 @@ deploy_amaru_profile() {
   amaru_deploy_validate_context || return 1
   amaru_deploy_parse_flags || return 1
 
-  amaru_deploy_warn "Amaru deployment is experimental, prerelease, relay-only, and limited to ${NETWORK}."
+  amaru_deploy_warn "Amaru deployment is experimental, relay-only, and limited to ${NETWORK}."
   if [[ "${AMARU_DEPLOY_INSTALL_DEPS}" == "Y" ]]; then
     amaru_deploy_install_dependencies || return 1
   fi

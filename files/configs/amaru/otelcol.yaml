@@ -20,7 +20,8 @@ exporters:
   nop:
   prometheus:
     endpoint: 127.0.0.1:8889
-    add_metric_suffixes: false
+    translation_strategy: UnderscoreEscapingWithoutSuffixes
+    metric_expiration: 10s
     without_scope_info: true
 
 service:

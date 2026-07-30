@@ -67,7 +67,7 @@ assert_otelcol_yaml() {
     abort "Prometheus bridge must be loopback-only" unless
       prometheus.fetch("endpoint") == "127.0.0.1:8889"
     abort "metric suffixes must remain disabled" unless
-      prometheus.fetch("add_metric_suffixes") == false
+      prometheus.fetch("translation_strategy") == "UnderscoreEscapingWithoutSuffixes"
     abort "scope labels must remain disabled" unless
       prometheus.fetch("without_scope_info") == true
 
@@ -100,6 +100,7 @@ run_alternate_profile_test() (
   local runtime_bundle_function="dispatcher_install_common_runtime_bundle"
   local runtime_fetch_function
   local release_validator
+  local binary_resolver_function
   local validate_function
   local parse_function
   local launcher
@@ -168,6 +169,7 @@ run_alternate_profile_test() (
       install_payloads_function="dingo_deploy_install_payloads"
       runtime_fetch_function="dingo_deploy_fetch"
       release_validator="dingo_deploy_validate_release_metadata"
+      binary_resolver_function="dingo_deploy_resolve_binary"
       validate_function="dingo_deploy_validate_context"
       parse_function="dingo_deploy_parse_flags"
       ;;
@@ -177,6 +179,7 @@ run_alternate_profile_test() (
       install_payloads_function="amaru_deploy_install_payloads"
       runtime_fetch_function="amaru_deploy_fetch"
       release_validator="amaru_deploy_validate_release_metadata"
+      binary_resolver_function="amaru_deploy_resolve_binary"
       validate_function="amaru_deploy_validate_context"
       parse_function="amaru_deploy_parse_flags"
       ;;
@@ -228,22 +231,19 @@ run_alternate_profile_test() (
   assert_release_manifest_rejected \
     "a legacy policy field" '.releasePolicy = {"mode": "pinned"}'
   assert_release_manifest_rejected \
-    "one architecture missing" 'del(.artifacts["linux-aarch64"])'
+    "one rolling architecture missing" 'del(.assets["linux-aarch64"])'
   assert_release_manifest_rejected \
-    "unexpected artifact metadata" \
-    '.artifacts["linux-x86_64"].filename = "archive.tar.gz"'
+    "an unexpected rolling-release field" '.unexpected = true'
   assert_release_manifest_rejected \
-    "an insecure artifact URL" \
-    '.artifacts["linux-x86_64"].url = "http://example.invalid/archive.tar.gz"'
+    "an unapproved GitHub repository" '.github = "example/wrong-node"'
   assert_release_manifest_rejected \
-    "whitespace in an artifact URL" \
-    '.artifacts["linux-x86_64"].url += "\n"'
+    "an empty rolling asset selector" '.assets["linux-x86_64"] = ""'
   assert_release_manifest_rejected \
-    "a non-lowercase SHA-256 digest" \
-    '.artifacts["linux-x86_64"].sha256 |= ascii_upcase'
+    "whitespace in a rolling asset selector" \
+    '.assets["linux-x86_64"] += "\n"'
   assert_release_manifest_rejected \
-    "whitespace in a SHA-256 digest" \
-    '.artifacts["linux-x86_64"].sha256 += "\n"'
+    "a non-string rolling asset selector" \
+    '.assets["linux-x86_64"] = {"pattern": "archive"}'
   if [[ "${implementation}" == "amaru" ]]; then
     assert_release_manifest_rejected \
       "a missing OpenTelemetry Collector companion" 'del(.otelcol)'
@@ -495,9 +495,11 @@ run_alternate_profile_test() (
       --arg version "${expected_version}" \
       '.implementation == $implementation and
        .version == $version and
+       .github == "pragma-org/amaru" and
+       (.assets | keys == ["linux-aarch64", "linux-x86_64"]) and
        (.otelcol.version | type == "string" and length > 0) and
        (.otelcol.artifacts | keys == ["linux-aarch64", "linux-x86_64"]) and
-       (keys == ["artifacts", "implementation", "otelcol", "schemaVersion", "version"])' \
+       (keys == ["assets", "github", "implementation", "otelcol", "schemaVersion", "version"])' \
       "${NODE_HOME}/files/${implementation}-release.json" >/dev/null
   else
     jq -e \
@@ -505,13 +507,130 @@ run_alternate_profile_test() (
       --arg version "${expected_version}" \
       '.implementation == $implementation and
        .version == $version and
-       (keys == ["artifacts", "implementation", "schemaVersion", "version"])' \
+       .github == "blinklabs-io/dingo" and
+       (.assets | keys == ["linux-aarch64", "linux-x86_64"]) and
+       (keys == ["assets", "github", "implementation", "schemaVersion", "version"])' \
       "${NODE_HOME}/files/${implementation}-release.json" >/dev/null
   fi
   "${release_validator}" "${NODE_HOME}/files/${implementation}-release.json" ||
     fail "${implementation} installed invalid release metadata"
 
   release_path="${NODE_HOME}/files/${implementation}-release.json"
+
+  # Rolling node releases select the most recently published non-draft entry,
+  # including prereleases, and require one exact asset with a GitHub digest.
+  local resolver_fixture="${test_root}/${implementation}-release-api.json"
+  local resolver_valid="${resolver_fixture}.valid"
+  local resolver_capture="${test_root}/${implementation}-release-api-url"
+  local resolver_repository
+  local resolver_asset
+  local resolver_version="99.1-test"
+  local resolver_tag="v${resolver_version}"
+  local resolver_url
+  local resolver_digest="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  local resolved_variable
+
+  resolver_repository="$(jq -er '.github' "${release_path}")"
+  case "${implementation}" in
+    dingo) resolver_asset="dingo-${resolver_tag}-linux-amd64.tar.gz" ;;
+    amaru) resolver_asset="amaru-${resolver_version}-linux-x86_64.tar.gz" ;;
+  esac
+  resolver_url="https://github.com/${resolver_repository}/releases/download/${resolver_tag}/${resolver_asset}"
+  jq -n \
+    --arg tag "${resolver_tag}" \
+    --arg asset "${resolver_asset}" \
+    --arg url "${resolver_url}" \
+    --arg digest "sha256:${resolver_digest}" '
+    [
+      {
+        tag_name: "v100.0-draft",
+        draft: true,
+        prerelease: false,
+        published_at: "2030-01-01T00:00:00Z",
+        assets: []
+      },
+      {
+        tag_name: "v1.0-old",
+        draft: false,
+        prerelease: false,
+        published_at: "2025-01-01T00:00:00Z",
+        assets: []
+      },
+      {
+        tag_name: $tag,
+        draft: false,
+        prerelease: true,
+        published_at: "2029-01-01T00:00:00Z",
+        assets: [{
+          name: $asset,
+          state: "uploaded",
+          size: 123,
+          browser_download_url: $url,
+          digest: $digest
+        }]
+      }
+    ]
+  ' > "${resolver_fixture}"
+  cp -- "${resolver_fixture}" "${resolver_valid}"
+
+  curl() {
+    local output=""
+    local argument=""
+    local -a arguments=("$@")
+    local index
+    for ((index = 0; index < ${#arguments[@]}; index++)); do
+      if [[ "${arguments[index]}" == "--output" ]]; then
+        output="${arguments[index + 1]}"
+      fi
+      [[ "${arguments[index]}" == https://api.github.com/* ]] &&
+        argument="${arguments[index]}"
+    done
+    [[ -n "${output}" && -n "${argument}" ]] || return 1
+    printf '%s\n' "${argument}" > "${resolver_capture}"
+    cp -- "${resolver_fixture}" "${output}"
+  }
+  "${binary_resolver_function}" "${release_path}" "linux-x86_64"
+  resolved_variable="${implementation^^}_RESOLVED_VERSION"
+  [[ "${!resolved_variable}" == "${resolver_version}" ]] ||
+    fail "${implementation} rolling resolver selected the wrong published release"
+  resolved_variable="${implementation^^}_RESOLVED_PRERELEASE"
+  [[ "${!resolved_variable}" == "true" ]] ||
+    fail "${implementation} rolling resolver excluded the newest prerelease"
+  grep -Fx \
+    "https://api.github.com/repos/${resolver_repository}/releases?per_page=100" \
+    "${resolver_capture}" >/dev/null ||
+    fail "${implementation} rolling resolver used the wrong GitHub endpoint"
+
+  assert_release_resolution_rejected() {
+    local context="$1"
+    local filter="$2"
+    jq "${filter}" "${resolver_valid}" > "${resolver_fixture}"
+    if "${binary_resolver_function}" \
+      "${release_path}" "linux-x86_64" >/dev/null 2>&1; then
+      fail "${implementation} rolling resolver accepted ${context}"
+    fi
+  }
+  assert_release_resolution_rejected \
+    "an asset without a digest" '.[2].assets[0].digest = null'
+  assert_release_resolution_rejected \
+    "two matching assets" '.[2].assets += [.[2].assets[0]]'
+  assert_release_resolution_rejected \
+    "a cross-repository asset URL" \
+    '.[2].assets[0].browser_download_url = "https://github.com/example/wrong/releases/download/v99.1-test/\(.[2].assets[0].name)"'
+  assert_release_resolution_rejected \
+    "an asset with zero bytes" '.[2].assets[0].size = 0'
+  assert_release_resolution_rejected \
+    "an older compatible release after the newest lacked its asset" \
+    '.[1].assets = (
+       .[2].assets |
+       map(.browser_download_url |=
+         gsub("/v99[.]1-test/"; "/v1.0-old/"))
+     ) |
+     .[2].assets = []'
+  curl() {
+    fail "profile attempted network access: $*"
+  }
+
   if [[ "${implementation}" == "amaru" ]]; then
     local archive_root="${test_root}/amaru-archive"
     local archive_file="${test_root}/amaru-test.tar.gz"
@@ -520,6 +639,7 @@ run_alternate_profile_test() (
     local collector_file="${test_root}/otelcol-test.tar.gz"
     local collector_sha
     local collector_version
+    local collector_test_url="https://not-used.invalid/collector-upstream-name.tar.gz"
     local release_backup="${test_root}/amaru-release.json"
     local release_tmp="${test_root}/amaru-release.tmp.json"
     local binary_status
@@ -527,7 +647,7 @@ run_alternate_profile_test() (
     mkdir -p "${archive_root}/amaru-test/bin"
     printf '%s\n' \
       '#!/usr/bin/env bash' \
-      "printf 'amaru %s\\n' '${expected_version}'" \
+      "printf 'amaru %s\\n' '${resolver_version}'" \
       > "${archive_root}/amaru-test/bin/amaru"
     chmod 0644 "${archive_root}/amaru-test/bin/amaru"
     tar -czf "${archive_file}" -C "${archive_root}" amaru-test
@@ -547,43 +667,65 @@ run_alternate_profile_test() (
     cp -- "${release_path}" "${release_backup}"
 
     jq \
-      --arg url "https://not-used.invalid/upstream-name-is-not-local.tar.gz" \
-      --arg sha "${archive_sha}" \
-      --arg collector_url "https://not-used.invalid/collector-upstream-name.tar.gz" \
+      --arg collector_url "${collector_test_url}" \
       --arg collector_sha "${collector_sha}" \
-      '.artifacts["linux-x86_64"] = {
-        url: $url,
-        sha256: $sha
-      } |
-      .otelcol.artifacts["linux-x86_64"] = {
+      '.otelcol.artifacts["linux-x86_64"] = {
         url: $collector_url,
         sha256: $collector_sha
       }' \
       "${release_path}" > "${release_tmp}"
     command mv -f -- "${release_tmp}" "${release_path}"
+
+    jq -n \
+      --arg tag "${resolver_tag}" \
+      --arg asset "${resolver_asset}" \
+      --arg url "${resolver_url}" \
+      --arg digest "sha256:${archive_sha}" '
+      [{
+        tag_name: $tag,
+        draft: false,
+        prerelease: true,
+        published_at: "2029-01-01T00:00:00Z",
+        assets: [{
+          name: $asset,
+          state: "uploaded",
+          size: 123,
+          browser_download_url: $url,
+          digest: $digest
+        }]
+      }]
+    ' > "${resolver_fixture}"
     AMARU_TEST_ARCHIVE="${archive_file}"
     AMARU_TEST_COLLECTOR_ARCHIVE="${collector_file}"
     curl() {
       local output=""
+      local request_url=""
       while [[ $# -gt 0 ]]; do
         case "$1" in
           --output)
             output="$2"
             shift 2
             ;;
+          https://*)
+            request_url="$1"
+            shift
+            ;;
           *) shift ;;
         esac
       done
-      [[ -n "${output}" ]] || return 1
-      case "$(basename "${output}")" in
-        release.tar.gz)
+      [[ -n "${output}" && -n "${request_url}" ]] || return 1
+      case "${request_url}" in
+        https://api.github.com/*)
+          cp -- "${resolver_fixture}" "${output}"
+          ;;
+        "${resolver_url}")
           cp -- "${AMARU_TEST_ARCHIVE}" "${output}"
           ;;
-        otelcol-contrib.tar.gz)
+        "${collector_test_url}")
           cp -- "${AMARU_TEST_COLLECTOR_ARCHIVE}" "${output}"
           ;;
         *)
-          fail "Amaru installer used an unexpected staging filename"
+          fail "Amaru installer requested an unexpected URL: ${request_url}"
           ;;
       esac
     }
@@ -600,9 +742,9 @@ run_alternate_profile_test() (
       fi
     }
 
-    jq '.artifacts["linux-x86_64"].sha256 = ("0" * 64)' \
-      "${release_path}" > "${release_tmp}"
-    command mv -f -- "${release_tmp}" "${release_path}"
+    jq '.[0].assets[0].digest = ("sha256:" + ("0" * 64))' \
+      "${resolver_fixture}" > "${resolver_fixture}.invalid"
+    command mv -f -- "${resolver_fixture}.invalid" "${resolver_fixture}"
     set +e
     amaru_deploy_install_binary >/dev/null 2>&1
     binary_status=$?
@@ -612,16 +754,16 @@ run_alternate_profile_test() (
     assert_not_exists "${HOME}/.local/bin/amaru"
     assert_not_exists "${HOME}/.local/bin/otelcol-contrib"
 
-    jq --arg sha "${archive_sha}" \
-      '.artifacts["linux-x86_64"].sha256 = $sha' \
-      "${release_path}" > "${release_tmp}"
-    command mv -f -- "${release_tmp}" "${release_path}"
+    jq --arg digest "sha256:${archive_sha}" \
+      '.[0].assets[0].digest = $digest' \
+      "${resolver_fixture}" > "${resolver_fixture}.valid"
+    command mv -f -- "${resolver_fixture}.valid" "${resolver_fixture}"
     amaru_deploy_install_binary >/dev/null
     [[ -x "${HOME}/.local/bin/amaru" ]] ||
       fail "Amaru installer did not make the mode-0644 archive member executable"
     [[ -x "${HOME}/.local/bin/otelcol-contrib" ]] ||
       fail "Amaru installer did not install its OpenTelemetry Collector companion"
-    "${HOME}/.local/bin/amaru" --version | grep -F "${expected_version}" >/dev/null
+    "${HOME}/.local/bin/amaru" --version | grep -F "${resolver_version}" >/dev/null
     "${HOME}/.local/bin/otelcol-contrib" --version |
       grep -F "${collector_version}" >/dev/null
     command mv -f -- "${release_backup}" "${release_path}"

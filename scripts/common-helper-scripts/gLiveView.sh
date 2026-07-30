@@ -560,25 +560,6 @@ glvMetricCell() {
       fi
       unit="%"
       ;;
-    mempool_bytes|mem_live|mem_heap)
-      if node_metric_value_is_numeric "${value}"; then
-        if awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1073741824) }'; then
-          LC_NUMERIC=C printf -v value '%.1f' \
-            "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1073741824 }')"
-          unit="GiB"
-        elif awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1048576) }'; then
-          LC_NUMERIC=C printf -v value '%.1f' \
-            "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1048576 }')"
-          unit="MiB"
-        elif awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1024) }'; then
-          LC_NUMERIC=C printf -v value '%.1f' \
-            "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1024 }')"
-          unit="KiB"
-        else
-          unit="B"
-        fi
-      fi
-      ;;
     tip_gap)
       if [[ "${value}" =~ ^[0-9]+$ ]]; then
         if declare -F slotInterval >/dev/null 2>&1; then
@@ -597,6 +578,25 @@ glvMetricCell() {
       unit="slots"
       ;;
   esac
+
+  # Implementation-specific byte gauges use the same bounded binary-unit
+  # formatting as common memory and mempool fields.
+  if [[ "${unit}" == "B" ]] &&
+     node_metric_value_is_numeric "${value}"; then
+    if awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1073741824) }'; then
+      LC_NUMERIC=C printf -v value '%.1f' \
+        "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1073741824 }')"
+      unit="GiB"
+    elif awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1048576) }'; then
+      LC_NUMERIC=C printf -v value '%.1f' \
+        "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1048576 }')"
+      unit="MiB"
+    elif awk -v bytes="${value}" 'BEGIN { exit !(bytes >= 1024) }'; then
+      LC_NUMERIC=C printf -v value '%.1f' \
+        "$(awk -v bytes="${value}" 'BEGIN { print bytes / 1024 }')"
+      unit="KiB"
+    fi
+  fi
 
   if [[ "${value}" =~ ^[0-9]+$ &&
         $(( ${#value} + ${#unit} + 1 )) -gt ${value_width} ]]; then
@@ -682,6 +682,7 @@ glvRenderConnections() {
   local -a all_metrics=(
     conn_incoming conn_outgoing conn_duplex
     inbound_governor_hot peer_selection_hot
+    peer_known peer_established peer_active
   )
   if [[ "${VERBOSE}" == "Y" ]]; then
     all_metrics+=(
@@ -703,6 +704,10 @@ glvRenderConnections() {
     conn_incoming "Incoming" "" \
     conn_outgoing "Outgoing" "" \
     conn_duplex "Duplex" "" || true
+  glvMetricRow \
+    peer_known "Known" "" \
+    peer_established "Established" "" \
+    peer_active "Active" "" || true
   if [[ "${VERBOSE}" == "Y" ]]; then
     glvMetricRow \
       conn_uni_dir "Uni-dir" "" \
@@ -905,7 +910,9 @@ glvRenderCommonDashboard() {
       mem_live "Live memory" "B" \
       mem_heap "Heap" "B" \
       gc_minor "GC minor" "" \
-      gc_major "GC major" ""
+      gc_major "GC major" "" \
+      open_files "Open files" "" \
+      max_files "Max files" ""
     )
     glvMetricGrid "RUNTIME" "${runtime_metrics[@]}" || true
     glvRenderCustomMetrics
