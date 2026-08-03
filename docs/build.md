@@ -83,8 +83,9 @@ A local terminal dashboard, primarily built by
 such as Prometheus/Grafana or Zabbix. It is deployed with cnode, Dingo, and
 Amaru. A normalized adapter interface identifies the implementation in the
 header and hides fields that its node does not export. Dingo is read through
-native Prometheus; Amaru uses a managed local OpenTelemetry-to-Prometheus
-bridge. See the [gLiveView guide](Scripts/gliveview.md).
+native Prometheus; Amaru uses a managed, host-safe form of its upstream
+OpenTelemetry-to-Prometheus bridge. See the
+[gLiveView guide](Scripts/gliveview.md).
 
 ##### Topology Updater
 

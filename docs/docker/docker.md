@@ -53,9 +53,9 @@ common deployment runtime, launcher, gLiveView, and container healthcheck.
 Their image builds resolve the newest published non-draft node release,
 including prereleases, and enforce the selected GitHub asset digest. Dingo
 uses its native Prometheus endpoint. Amaru also includes the pinned
-OpenTelemetry Collector used to provide gLiveView metrics. Compatibility with
-the remaining cnode-oriented tools above has not been verified, so those
-tools are intentionally not included.
+OpenTelemetry Collector and Amaru-derived bridge profile used to provide
+gLiveView metrics. Compatibility with the remaining cnode-oriented tools above
+has not been verified, so those tools are intentionally not included.
 
 #### Docker Splash screen
 

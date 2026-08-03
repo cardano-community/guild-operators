@@ -1,5 +1,9 @@
-# Local metrics bridge for Guild Operators gLiveView.
-# Amaru emits OTLP; this collector exposes a loopback-only Prometheus endpoint.
+# Minimal host profile derived from Amaru's canonical Prometheus bridge:
+# https://github.com/pragma-org/amaru/blob/main/monitoring/otlp-collector.yml
+#
+# Amaru emits OTLP. Keep the upstream metric-name contract and batching, but
+# bind locally and discard logs/traces because Guild does not deploy the full
+# upstream Loki/Tempo/Grafana stack.
 receivers:
   otlp:
     protocols:
@@ -9,6 +13,7 @@ receivers:
         endpoint: 127.0.0.1:4318
 
 processors:
+  batch:
   resource/drop_prometheus_labels:
     attributes:
       - key: service.name
@@ -20,19 +25,23 @@ exporters:
   nop:
   prometheus:
     endpoint: 127.0.0.1:8889
+    # Modern equivalent of upstream's deprecated add_metric_suffixes: false.
     translation_strategy: UnderscoreEscapingWithoutSuffixes
-    metric_expiration: 10s
+    metric_expiration: 5s
+    # Modern equivalent of upstream's transform/drop_scope processor.
     without_scope_info: true
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
+      processors: [batch]
       exporters: [nop]
     logs:
       receivers: [otlp]
+      processors: [batch]
       exporters: [nop]
     metrics:
       receivers: [otlp]
-      processors: [resource/drop_prometheus_labels]
+      processors: [resource/drop_prometheus_labels, batch]
       exporters: [prometheus]

@@ -157,10 +157,18 @@ enables OpenTelemetry and sends:
 | OTLP metrics | `127.0.0.1:4318/v1/metrics` using HTTP |
 | Prometheus output for gLiveView | `127.0.0.1:8889/metrics` |
 
-All three endpoints bind only to loopback. The Guild-managed collector accepts
-traces and logs into a no-op sink and converts metrics to Prometheus without
-renaming Amaru's metric family. The node service wants and starts after the
-companion metrics service.
+Amaru does not embed a Prometheus server. The `:8889` endpoint in Amaru's
+documentation is produced by the OpenTelemetry Collector configuration in the
+upstream monitoring stack. Guild deploys that same bridge contract as a
+minimal host profile: it preserves Amaru's cardano-node-compatible metric
+names, resource-label filtering, batching, and stale-series expiry. The local
+profile uses the equivalent current collector options for suffix and scope
+handling.
+
+All three endpoints bind only to loopback. Unlike Amaru's complete Docker
+monitoring stack, the Guild profile does not require Loki or Tempo; traces and
+logs are accepted into a no-op sink while metrics are converted to Prometheus.
+The node service wants and starts after the companion metrics service.
 
 Run the dashboard after both services are active:
 
@@ -225,6 +233,8 @@ curl --fail http://127.0.0.1:8889/metrics
 - [Bootstrap command safeguards](https://github.com/pragma-org/amaru/blob/main/crates/amaru/src/bin/amaru/cmd/node/bootstrap.rs)
 - [Node run options and environment bindings](https://github.com/pragma-org/amaru/blob/main/crates/amaru/src/bin/amaru/cmd/node/run.rs)
 - [OpenTelemetry monitoring model](https://github.com/pragma-org/amaru/blob/main/monitoring/README.md)
+- [Canonical OTLP-to-Prometheus collector configuration](https://github.com/pragma-org/amaru/blob/main/monitoring/otlp-collector.yml)
+- [Upstream cardano-node metric compatibility contract](https://github.com/pragma-org/amaru/blob/main/scripts/compare-metrics.json)
 - [Embedded defaults and network peers](https://github.com/pragma-org/amaru/blob/main/crates/amaru/src/lib.rs)
 - [Distribution archive layout](https://github.com/pragma-org/amaru/blob/main/Makefile)
 

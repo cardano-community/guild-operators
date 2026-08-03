@@ -70,6 +70,13 @@ assert_otelcol_yaml() {
       prometheus.fetch("translation_strategy") == "UnderscoreEscapingWithoutSuffixes"
     abort "scope labels must remain disabled" unless
       prometheus.fetch("without_scope_info") == true
+    abort "stale metric expiry must match Amaru upstream" unless
+      prometheus.fetch("metric_expiration") == "5s"
+
+    processors = document.fetch("processors")
+    abort "upstream batch processor is missing" unless processors.key?("batch")
+    abort "resource-label processor is missing" unless
+      processors.key?("resource/drop_prometheus_labels")
 
     pipelines = document.fetch("service").fetch("pipelines")
     abort "unexpected telemetry pipelines" unless
@@ -77,12 +84,13 @@ assert_otelcol_yaml() {
     %w[logs traces].each do |name|
       pipeline = pipelines.fetch(name)
       abort "#{name} pipeline must receive OTLP" unless pipeline.fetch("receivers") == ["otlp"]
+      abort "#{name} pipeline must batch telemetry" unless pipeline.fetch("processors") == ["batch"]
       abort "#{name} pipeline must discard with nop" unless pipeline.fetch("exporters") == ["nop"]
     end
     metrics = pipelines.fetch("metrics")
     abort "metrics pipeline must receive OTLP" unless metrics.fetch("receivers") == ["otlp"]
     abort "metrics pipeline must drop unstable resource labels" unless
-      metrics.fetch("processors") == ["resource/drop_prometheus_labels"]
+      metrics.fetch("processors") == ["resource/drop_prometheus_labels", "batch"]
     abort "metrics pipeline must export Prometheus" unless
       metrics.fetch("exporters") == ["prometheus"]
   ' "${config_file}"

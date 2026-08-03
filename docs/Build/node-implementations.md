@@ -231,8 +231,10 @@ first, so stale content is corrected without an avoidable blank-screen repaint.
 
 The dashboard header always identifies the connected implementation:
 `cardano-node`, `Dingo`, or `Amaru`. cnode and Dingo expose native Prometheus
-endpoints. Amaru emits OTLP, so its deployment also installs a local
-OpenTelemetry Collector. The collector receives OTLP/gRPC on
+endpoints. Amaru emits OTLP; its documented `:8889` endpoint is supplied by
+Amaru's reference OpenTelemetry Collector configuration rather than the node
+binary. The Guild deployment installs a minimal, host-safe form of that
+upstream bridge. It receives OTLP/gRPC on
 `127.0.0.1:4317`, OTLP/HTTP on `127.0.0.1:4318`, and exposes
 Prometheus-formatted metrics on `127.0.0.1:8889`. All Amaru monitoring
 endpoints are loopback-only.

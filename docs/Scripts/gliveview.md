@@ -26,16 +26,18 @@ provides cnode block-production, KES, peer-inspection, or runtime interfaces.
 | --- | --- | --- |
 | `cnode` / cardano-node | Native Prometheus endpoint configured in `config.json` | Usually `127.0.0.1:12798` |
 | Dingo | Native Prometheus endpoint; network-labelled samples are normalized by the Dingo adapter | `http://127.0.0.1:12798/metrics` |
-| Amaru | OTLP is received by the Guild-managed OpenTelemetry Collector and re-exported as Prometheus | OTLP `127.0.0.1:4317`/`4318`; Prometheus `http://127.0.0.1:8889/metrics` |
+| Amaru | OTLP is received by a Guild-managed, host-safe form of Amaru's reference Prometheus bridge | OTLP `127.0.0.1:4317`/`4318`; Prometheus `http://127.0.0.1:8889/metrics` |
 
 The Amaru `-s d` deployment installs the newest published Amaru release,
 including prereleases, and the pinned `otelcol-contrib` executable.
 `amaru.sh -d` installs the node unit and a companion
 `<service-name>-metrics.service`; starting or stopping the launcher controls
-both. OTLP traces and logs are accepted and discarded locally, while metrics
-are exposed only on the loopback Prometheus endpoint. The shared parser also
-normalizes Prometheus scientific notation, including the format reported in
-[issue #1912](https://github.com/cardano-community/guild-operators/issues/1912).
+both. Amaru itself has no native Prometheus listener; the reference bridge is
+an OpenTelemetry Collector configuration. Guild preserves its metric-name
+contract while accepting and discarding OTLP traces and logs locally and
+exposing metrics only on the loopback Prometheus endpoint. The shared parser
+also normalizes Prometheus scientific notation, including the format reported
+in [issue #1912](https://github.com/cardano-community/guild-operators/issues/1912).
 
 ##### Configuration & Startup
 

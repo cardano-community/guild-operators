@@ -4,7 +4,8 @@ The cnode image includes the established Guild helper set. Dingo and Amaru
 images contain their node-specific launcher, configuration, common runtime,
 gLiveView, and healthcheck, so cnode-only commands such as CNTools do not apply
 to them. Amaru also contains the managed OpenTelemetry Collector required by
-its dashboard adapter.
+its dashboard adapter and a minimal profile derived from Amaru's reference
+Prometheus bridge.
 
 ## Open a shell in a running container
 

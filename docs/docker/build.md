@@ -61,8 +61,9 @@ All supported images install the common gLiveView dashboard and an
 implementation-aware healthcheck. The Dingo image reads its native Prometheus
 listener. The Amaru image additionally installs the checksummed
 `otelcol-contrib` artifact from the Amaru release manifest; its entrypoint
-supervises the node and collector as two processes. The alternate images do
-not install CNTools or the other cnode-only helper suite.
+supervises the node and collector as two processes, using the minimal
+host-safe form of Amaru's reference bridge. The alternate images do not
+install CNTools or the other cnode-only helper suite.
 
 To build from a fork or non-default Guild Operators branch, add:
 

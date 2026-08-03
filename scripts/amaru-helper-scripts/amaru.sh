@@ -165,7 +165,7 @@ Usage: $(basename "$0") [command]
 
 Commands:
   run                 Run the relay in the foreground (default)
-  metrics             Run the local OTLP-to-Prometheus bridge in the foreground
+  metrics             Run the Amaru OTLP-to-Prometheus bridge in the foreground
   bootstrap           Download and import the three trusted bootstrap snapshots
   -d, install         Install and enable (but do not start) the systemd service
   remove              Stop, disable, and remove the systemd service
@@ -265,8 +265,8 @@ amaru_install_service() {
   metrics_unit_name="${GUILD_NODE_SERVICE}-metrics.service"
   metrics_unit_content="$(cat <<EOF
 [Unit]
-Description=Guild Operators Amaru local metrics bridge
-Documentation=https://opentelemetry.io/docs/collector/
+Description=Amaru reference Prometheus bridge (Guild host profile)
+Documentation=https://github.com/pragma-org/amaru/tree/main/monitoring https://opentelemetry.io/docs/collector/
 Wants=network-online.target
 After=network-online.target
 Before=${unit_name}

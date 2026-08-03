@@ -117,10 +117,11 @@ directly would pre-create them and trigger Amaru's bootstrap overwrite guard.
 
 For the default `amaru.sh run` entrypoint, the container starts and supervises
 two processes: Amaru and `amaru.sh metrics` running the local OpenTelemetry
-Collector. Signals are forwarded to both, and the remaining process is stopped
-if either exits. The healthcheck verifies the deployment identity, both
-processes, and the loopback Prometheus endpoint on port 8889; it does not
-determine whether chain sync is current.
+Collector with the minimal Amaru reference-bridge profile. Signals are
+forwarded to both, and the remaining process is stopped if either exits. The
+healthcheck verifies the deployment identity, both processes, and the loopback
+Prometheus endpoint on port 8889; it does not determine whether chain sync is
+current.
 
 The Amaru image installs gLiveView but does not install CNTools, Mithril helper
 scripts, db-sync, or Ogmios. Open the dashboard with:

@@ -31,7 +31,7 @@ at another node's existing data directory.
 | --- | --- | --- | --- |
 | `cnode` | [cardano-node](https://github.com/IntersectMBO/cardano-node), written in Haskell | The established Cardano node originated under Input Output Global (IOG). Stewardship of the core repositories has moved to the member-based [Intersect MBO](https://www.intersectmbo.org/news/open-horizons-cardano-migrates-to-intersect). | Default and production option. Relays and block producers on mainnet and testnets, with the established Guild helper suite. |
 | `dingo` | [Dingo](https://github.com/blinklabs-io/dingo), written in Go | Developed by [Blink Labs](https://blinklabs.io/about), a Cardano-focused open-source software team. Upstream describes Dingo as under heavy active development and not ready for production use. | Experimental relay only on `preprod` and `preview`, with gLiveView over native Prometheus. No mainnet, pool keys, or unverified cnode helper suite. |
-| `amaru` | [Amaru](https://github.com/pragma-org/amaru), written in Rust | Hosted by the not-for-profit [PRAGMA](https://pragma.io/) open-source association and developed by [contributors from across the Cardano ecosystem](https://amaru.global/about/). Upstream describes Amaru as exploratory, with features still limited or incomplete. | Experimental rolling-release relay only on `preprod` and `preview`, with gLiveView through a managed local OpenTelemetry bridge. No mainnet, block production, or socket-dependent cnode helpers. |
+| `amaru` | [Amaru](https://github.com/pragma-org/amaru), written in Rust | Hosted by the not-for-profit [PRAGMA](https://pragma.io/) open-source association and developed by [contributors from across the Cardano ecosystem](https://amaru.global/about/). Upstream describes Amaru as exploratory, with features still limited or incomplete. | Experimental rolling-release relay only on `preprod` and `preview`, with gLiveView through a managed, host-safe form of Amaru's reference OpenTelemetry-to-Prometheus bridge. No mainnet, block production, or socket-dependent cnode helpers. |
 
 ##### cnode / cardano-node
 
@@ -61,9 +61,9 @@ include client diversity, a modular architecture, and exploring different
 resource-usage trade-offs from the established Haskell node. The current Guild
 profile bootstraps from Amaru snapshots, runs as a relay, and does not provide
 a cardano-node-compatible local socket. The profile enables Amaru's
-OpenTelemetry integration and deploys a loopback-only collector that converts
-its metrics for gLiveView. Choose Amaru when you specifically want to evaluate
-the Rust implementation on a supported testnet.
+OpenTelemetry integration and deploys a loopback-only, minimal form of Amaru's
+reference Prometheus bridge for gLiveView. Choose Amaru when you specifically
+want to evaluate the Rust implementation on a supported testnet.
 
 !!! tip "Which implementation should I choose?"
     - Choose **cnode** for mainnet, block production, an existing stake pool,

@@ -88,9 +88,12 @@ grep -Fq \
   'translation_strategy: UnderscoreEscapingWithoutSuffixes' \
   "${REPO_ROOT}/files/configs/amaru/otelcol.yaml" ||
   fail "Amaru collector does not preserve source metric names"
-grep -Fq 'metric_expiration: 10s' \
+grep -Fq 'metric_expiration: 5s' \
   "${REPO_ROOT}/files/configs/amaru/otelcol.yaml" ||
-  fail "Amaru collector does not expire stale process series promptly"
+  fail "Amaru collector does not use the upstream stale-series expiry"
+grep -Fq 'processors: [resource/drop_prometheus_labels, batch]' \
+  "${REPO_ROOT}/files/configs/amaru/otelcol.yaml" ||
+  fail "Amaru collector does not retain the upstream metrics processors"
 if grep -Fq 'add_metric_suffixes:' \
   "${REPO_ROOT}/files/configs/amaru/otelcol.yaml"; then
   fail "Amaru collector retains the deprecated metric-suffix setting"
