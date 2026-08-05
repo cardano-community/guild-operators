@@ -2,10 +2,11 @@
 
 The cnode image includes the established Guild helper set. Dingo and Amaru
 images contain their node-specific launcher, configuration, common runtime,
-gLiveView, and healthcheck, so cnode-only commands such as CNTools do not apply
-to them. Amaru also contains the managed OpenTelemetry Collector required by
-its dashboard adapter and a minimal profile derived from Amaru's reference
-Prometheus bridge.
+gLiveView, and healthcheck. Dingo additionally contains CNTools and its
+isolated `cardano-cli-dingo` companion; the remaining cnode-only helpers do not
+apply. Amaru contains the managed OpenTelemetry Collector required by its
+dashboard adapter and a minimal profile derived from Amaru's reference
+Prometheus bridge, but not CNTools.
 
 ## Open a shell in a running container
 
@@ -21,8 +22,9 @@ The image also supports a one-off shell that bypasses the Guild entrypoint:
 docker run --rm -it --entrypoint=bash <image>
 ```
 
-Every image defines a `gLiveView` alias in its interactive shell. From the
-host, the explicit script path is also convenient:
+Every image defines a `gLiveView` alias in its interactive shell. cnode and
+Dingo images also define `cntools`. From the host, the explicit script path is
+also convenient:
 
 ```bash
 implementation=dingo

@@ -139,6 +139,9 @@ cnode_load_configs() {
 cnode_customise() {
   find "${CNODE_HOME}/files" -name '*config*.json' -print0 |
     xargs -0 -r sed -i 's/127.0.0.1/0.0.0.0/g'
+}
+
+customise_cntools() {
   if [[ -f "${CNODE_HOME}/scripts/cntools.sh" ]]; then
     sed -E -i 's/^#?ENABLE_CHATTR=(true|false)?/ENABLE_CHATTR=false/g' \
       "${CNODE_HOME}/scripts/cntools.sh"
@@ -170,6 +173,7 @@ if [[ "${NODE_IMPLEMENTATION}" == "cnode" ]]; then
 else
   refresh_deployment
 fi
+customise_cntools
 
 if [[ "${NODE_IMPLEMENTATION}" == "amaru" &&
       "$(basename -- "${entrypoint_path}")" == "amaru.sh" &&

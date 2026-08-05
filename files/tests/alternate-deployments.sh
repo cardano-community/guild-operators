@@ -47,7 +47,7 @@ assert_rendered_yaml() {
     document = YAML.safe_load(File.read(ARGV.fetch(0)), permitted_classes: [], aliases: false)
     expected_port = Integer(ARGV.fetch(1), 10)
     abort "relayPort is not a rendered integer" unless document.fetch("relayPort") == expected_port
-    abort "block production must remain disabled" unless document.fetch("blockProducer") == false
+    abort "base config must leave runtime role selection to dingo.sh" unless document.fetch("blockProducer") == false
   ' "${config_file}" "${expected_port}"
 }
 
@@ -173,6 +173,11 @@ run_alternate_profile_test() (
 
   case "${implementation}" in
     dingo)
+      if (( BASH_VERSINFO[0] < 4 )); then
+        # macOS ships Bash 3, which cannot parse CNTools' Bash 4 associative
+        # array syntax. Linux CI and production still use the real validator.
+        DINGO_DEPLOY_BASH_BIN="true"
+      fi
       profile="${REPO_ROOT}/scripts/dingo-helper-scripts/deploy-dingo.sh"
       deploy_function="deploy_dingo_profile"
       install_payloads_function="dingo_deploy_install_payloads"
@@ -273,6 +278,24 @@ run_alternate_profile_test() (
     assert_release_manifest_rejected \
       "an invalid OpenTelemetry Collector checksum" \
       '.otelcol.artifacts["linux-x86_64"].sha256 = "not-a-sha256"'
+  else
+    assert_release_manifest_rejected \
+      "a missing cardano-cli companion" 'del(.companions)'
+    assert_release_manifest_rejected \
+      "an unsafe cardano-cli version" \
+      '.companions["cardano-cli"].version = "../wrong-version"'
+    assert_release_manifest_rejected \
+      "one cardano-cli architecture missing" \
+      'del(.companions["cardano-cli"].artifacts["linux-aarch64"])'
+    assert_release_manifest_rejected \
+      "unexpected cardano-cli metadata" \
+      '.companions["cardano-cli"].artifacts["linux-x86_64"].filename = "cardano-cli"'
+    assert_release_manifest_rejected \
+      "an insecure cardano-cli URL" \
+      '.companions["cardano-cli"].artifacts["linux-x86_64"].url = "http://example.invalid/cardano-cli.tar.gz"'
+    assert_release_manifest_rejected \
+      "an invalid cardano-cli checksum" \
+      '.companions["cardano-cli"].artifacts["linux-x86_64"].sha256 = "not-a-sha256"'
   fi
 
   NETWORK="mainnet"
@@ -307,8 +330,14 @@ run_alternate_profile_test() (
   assert_file "${NODE_HOME}/scripts/lib/systemd.library"
   [[ -x "${NODE_HOME}/scripts/gLiveView.sh" ]] ||
     fail "gLiveView is not executable: ${NODE_HOME}/scripts/gLiveView.sh"
-  assert_not_exists "${NODE_HOME}/scripts/cntools.sh"
-  assert_not_exists "${NODE_HOME}/scripts/cntools.library"
+  if [[ "${implementation}" == "dingo" ]]; then
+    [[ -x "${NODE_HOME}/scripts/cntools.sh" ]] ||
+      fail "CNTools is not executable for Dingo"
+    assert_file "${NODE_HOME}/scripts/cntools.library"
+  else
+    assert_not_exists "${NODE_HOME}/scripts/cntools.sh"
+    assert_not_exists "${NODE_HOME}/scripts/cntools.library"
+  fi
   assert_not_exists "${NODE_HOME}/scripts/.env_branch"
   assert_not_exists "${NODE_HOME}/scripts/.node_implementation"
 
@@ -520,7 +549,11 @@ run_alternate_profile_test() (
        .version == $version and
        .github == "blinklabs-io/dingo" and
        (.assets | keys == ["linux-aarch64", "linux-x86_64"]) and
-       (keys == ["assets", "github", "implementation", "schemaVersion", "version"])' \
+       (.companions | keys == ["cardano-cli"]) and
+       (.companions["cardano-cli"].version | type == "string" and length > 0) and
+       (.companions["cardano-cli"].artifacts |
+         keys == ["linux-aarch64", "linux-x86_64"]) and
+       (keys == ["assets", "companions", "github", "implementation", "schemaVersion", "version"])' \
       "${NODE_HOME}/files/${implementation}-release.json" >/dev/null
   fi
   "${release_validator}" "${NODE_HOME}/files/${implementation}-release.json" ||
@@ -601,10 +634,10 @@ run_alternate_profile_test() (
     cp -- "${resolver_fixture}" "${output}"
   }
   "${binary_resolver_function}" "${release_path}" "linux-x86_64"
-  resolved_variable="${implementation^^}_RESOLVED_VERSION"
+  resolved_variable="$(printf '%s' "${implementation}" | tr '[:lower:]' '[:upper:]')_RESOLVED_VERSION"
   [[ "${!resolved_variable}" == "${resolver_version}" ]] ||
     fail "${implementation} rolling resolver selected the wrong published release"
-  resolved_variable="${implementation^^}_RESOLVED_PRERELEASE"
+  resolved_variable="$(printf '%s' "${implementation}" | tr '[:lower:]' '[:upper:]')_RESOLVED_PRERELEASE"
   [[ "${!resolved_variable}" == "true" ]] ||
     fail "${implementation} rolling resolver excluded the newest prerelease"
   grep -Fx \
@@ -642,7 +675,147 @@ run_alternate_profile_test() (
     fail "profile attempted network access: $*"
   }
 
-  if [[ "${implementation}" == "amaru" ]]; then
+  if [[ "${implementation}" == "dingo" ]]; then
+    local archive_root="${test_root}/dingo-archive"
+    local archive_file="${test_root}/dingo-test.tar.gz"
+    local archive_sha
+    local cli_root="${test_root}/cardano-cli-archive"
+    local cli_file="${test_root}/cardano-cli-test.tar.gz"
+    local cli_sha
+    local cli_version
+    local cli_test_url="https://not-used.invalid/cardano-cli-dingo.tar.gz"
+    local release_backup="${test_root}/dingo-release.json"
+    local release_tmp="${test_root}/dingo-release.tmp.json"
+    local binary_status
+
+    mkdir -p "${archive_root}" "${cli_root}"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'case "${1:-}" in' \
+      "  version) printf 'dingo %s\\n' '${resolver_version}' ;;" \
+      'esac' \
+      > "${archive_root}/dingo"
+    chmod 0644 "${archive_root}/dingo"
+    tar -czf "${archive_file}" -C "${archive_root}" dingo
+    archive_sha="$(sha256sum "${archive_file}" | awk '{print $1}')"
+    cli_version="$(jq -er '.companions["cardano-cli"].version' "${release_path}")"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'case "${1:-}" in' \
+      "  version) printf 'cardano-cli %s - linux-x86_64\\n' '${cli_version}' ;;" \
+      'esac' \
+      > "${cli_root}/cardano-cli-x86_64-linux"
+    chmod 0644 "${cli_root}/cardano-cli-x86_64-linux"
+    tar -czf "${cli_file}" -C "${cli_root}" cardano-cli-x86_64-linux
+    cli_sha="$(sha256sum "${cli_file}" | awk '{print $1}')"
+    cp -- "${release_path}" "${release_backup}"
+
+    jq \
+      --arg cli_url "${cli_test_url}" \
+      --arg cli_sha "${cli_sha}" \
+      '.companions["cardano-cli"].artifacts["linux-x86_64"] = {
+        url: $cli_url,
+        sha256: $cli_sha
+      }' \
+      "${release_path}" > "${release_tmp}"
+    command mv -f -- "${release_tmp}" "${release_path}"
+
+    jq -n \
+      --arg tag "${resolver_tag}" \
+      --arg asset "${resolver_asset}" \
+      --arg url "${resolver_url}" \
+      --arg digest "sha256:${archive_sha}" '
+      [{
+        tag_name: $tag,
+        draft: false,
+        prerelease: true,
+        published_at: "2029-01-01T00:00:00Z",
+        assets: [{
+          name: $asset,
+          state: "uploaded",
+          size: 123,
+          browser_download_url: $url,
+          digest: $digest
+        }]
+      }]
+    ' > "${resolver_fixture}"
+    DINGO_TEST_ARCHIVE="${archive_file}"
+    DINGO_TEST_CLI_ARCHIVE="${cli_file}"
+    curl() {
+      local output=""
+      local request_url=""
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --output)
+            output="$2"
+            shift 2
+            ;;
+          https://*)
+            request_url="$1"
+            shift
+            ;;
+          *) shift ;;
+        esac
+      done
+      [[ -n "${output}" && -n "${request_url}" ]] || return 1
+      case "${request_url}" in
+        https://api.github.com/*)
+          cp -- "${resolver_fixture}" "${output}"
+          ;;
+        "${resolver_url}")
+          cp -- "${DINGO_TEST_ARCHIVE}" "${output}"
+          ;;
+        "${cli_test_url}")
+          cp -- "${DINGO_TEST_CLI_ARCHIVE}" "${output}"
+          ;;
+        *)
+          fail "Dingo installer requested an unexpected URL: ${request_url}"
+          ;;
+      esac
+    }
+    sha256sum() {
+      local expected_checksum
+      local checksum_file
+      local actual_checksum
+      if [[ "${1:-}" == "--check" && "${2:-}" == "--status" ]]; then
+        read -r expected_checksum checksum_file
+        actual_checksum="$(command sha256sum "${checksum_file}" | awk '{print $1}')"
+        [[ "${actual_checksum}" == "${expected_checksum}" ]]
+      else
+        command sha256sum "$@"
+      fi
+    }
+
+    jq '.[0].assets[0].digest = ("sha256:" + ("0" * 64))' \
+      "${resolver_fixture}" > "${resolver_fixture}.invalid"
+    command mv -f -- "${resolver_fixture}.invalid" "${resolver_fixture}"
+    set +e
+    dingo_deploy_install_binary >/dev/null 2>&1
+    binary_status=$?
+    set -e
+    [[ "${binary_status}" -ne 0 ]] ||
+      fail "Dingo binary install ignored a checksum mismatch"
+    assert_not_exists "${HOME}/.local/bin/dingo"
+    assert_not_exists "${HOME}/.local/bin/cardano-cli-dingo"
+
+    jq --arg digest "sha256:${archive_sha}" \
+      '.[0].assets[0].digest = $digest' \
+      "${resolver_fixture}" > "${resolver_fixture}.valid"
+    command mv -f -- "${resolver_fixture}.valid" "${resolver_fixture}"
+    dingo_deploy_install_binary >/dev/null
+    [[ -x "${HOME}/.local/bin/dingo" ]] ||
+      fail "Dingo installer did not make its archive member executable"
+    [[ -x "${HOME}/.local/bin/cardano-cli-dingo" ]] ||
+      fail "Dingo installer did not install its isolated cardano-cli companion"
+    "${HOME}/.local/bin/dingo" version | grep -F "${resolver_version}" >/dev/null
+    "${HOME}/.local/bin/cardano-cli-dingo" version |
+      grep -F "${cli_version}" >/dev/null
+    command mv -f -- "${release_backup}" "${release_path}"
+    unset -f sha256sum
+    curl() {
+      fail "profile attempted network access: $*"
+    }
+  elif [[ "${implementation}" == "amaru" ]]; then
     local archive_root="${test_root}/amaru-archive"
     local archive_file="${test_root}/amaru-test.tar.gz"
     local archive_sha
@@ -809,6 +982,17 @@ run_alternate_profile_test() (
     grep -F "relayPort: ${default_port}" "${NODE_HOME}/files/dingo.yaml" >/dev/null
     grep -F 'blockProducer: false' "${NODE_HOME}/files/dingo.yaml" >/dev/null
     grep -F 'DINGO_STORAGE_MODE="core"' "${config_env}" >/dev/null
+    grep -F 'POOL_FOLDER=' "${config_env}" >/dev/null
+    grep -F 'POOL_NAME="${POOL_NAME:-CHANGE_ME}"' "${config_env}" >/dev/null
+    grep -F 'POOL_DIR="${POOL_DIR:-${POOL_FOLDER}/${POOL_NAME}}"' "${config_env}" >/dev/null
+    [[ -d "${NODE_HOME}/priv/pool" ]] ||
+      fail "Dingo deployment did not create its pool root"
+    dingo_pool_mode="$(
+      stat -c '%a' "${NODE_HOME}/priv/pool" 2>/dev/null ||
+        stat -f '%Lp' "${NODE_HOME}/priv/pool"
+    )"
+    [[ "${dingo_pool_mode}" == "700" ]] ||
+      fail "Dingo pool root is not mode 0700"
     assert_rendered_yaml "${NODE_HOME}/files/dingo.yaml" "${default_port}"
   else
     assert_not_exists "${NODE_HOME}/chain"
@@ -920,12 +1104,40 @@ run_alternate_profile_test() (
       metricsProvider: (if $implementation == "dingo" then "prometheus" else "otel" end),
       capabilities: {
         n2c: ($implementation == "dingo"),
-        localCli: false,
+        localCli: ($implementation == "dingo"),
         metrics: true,
-        forging: false
+        forging: ($implementation == "dingo")
       }
     }' > "${NODE_HOME}/.deployment.json"
   valid_deployment_manifest="$(cat "${NODE_HOME}/.deployment.json")"
+
+  if [[ "${implementation}" == "dingo" ]]; then
+    (
+      unset CCLI CNODE_HOME GUILD_ENV_ENTRY_DIR
+      USESYSVARS="N"
+      set +u
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" offline
+      [[ "${CCLI}" == "${HOME}/.local/bin/cardano-cli-dingo" ]] ||
+        fail "Dingo env did not select its isolated cardano-cli by default"
+      if ! node_has local_query || ! node_has local_submit; then
+        fail "Dingo env did not expose local cardano-cli capabilities"
+      fi
+    )
+
+    local custom_cli="${test_root}/bin/custom-cardano-cli"
+    write_fake_executable "${custom_cli}" "cardano-cli 11.0.0.0"
+    (
+      unset CNODE_HOME GUILD_ENV_ENTRY_DIR
+      CCLI="${custom_cli}"
+      USESYSVARS="N"
+      set +u
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" offline
+      [[ "${CCLI}" == "${custom_cli}" ]] ||
+        fail "Dingo env replaced an explicit CCLI override"
+    )
+  fi
 
   write_fake_executable \
     "${HOME}/.local/bin/${implementation}" \
@@ -933,7 +1145,64 @@ run_alternate_profile_test() (
   "${launcher}" --help >/dev/null
   "${launcher}" version | grep -F "${expected_version}" >/dev/null
 
-  if [[ "${implementation}" == "amaru" ]]; then
+  if [[ "${implementation}" == "dingo" ]]; then
+    local dingo_capture="${test_root}/dingo-role.log"
+    local dingo_pool_dir="${NODE_HOME}/priv/pool/test-pool"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'if [[ "${1:-}" == "version" ]]; then' \
+      "  printf '%s\\n' 'dingo ${expected_version}'" \
+      '  exit 0' \
+      'fi' \
+      'printf "%s\n%s\n%s\n%s\n%s\n" \
+        "${CARDANO_BLOCK_PRODUCER:-unset}" \
+        "${CARDANO_SHELLEY_KES_KEY:-unset}" \
+        "${CARDANO_SHELLEY_VRF_KEY:-unset}" \
+        "${CARDANO_SHELLEY_OPERATIONAL_CERTIFICATE:-unset}" \
+        "$*" > "${DINGO_ROLE_CAPTURE:?}"' \
+      > "${HOME}/.local/bin/dingo"
+    chmod 0755 "${HOME}/.local/bin/dingo"
+
+    DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+    [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
+      fail "Dingo without pool credentials did not run as a relay"
+    [[ "$(sed -n '2p' "${dingo_capture}")" == "unset" ]] ||
+      fail "Dingo relay inherited a KES credential path"
+
+    mkdir -p "${dingo_pool_dir}"
+    printf '%s\n' \
+      "POOL_NAME=\"test-pool\"" \
+      "POOL_DIR=\"${dingo_pool_dir}\"" \
+      >> "${config_env}"
+    printf '{}\n' > "${dingo_pool_dir}/hot.skey"
+    printf '{}\n' > "${dingo_pool_dir}/vrf.skey"
+    printf '{}\n' > "${dingo_pool_dir}/op.cert"
+    chmod 0600 "${dingo_pool_dir}/hot.skey" "${dingo_pool_dir}/vrf.skey"
+    chmod 0644 "${dingo_pool_dir}/op.cert"
+
+    DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" run
+    [[ "$(sed -n '1p' "${dingo_capture}")" == "true" ]] ||
+      fail "Dingo with complete pool credentials did not enable production"
+    [[ "$(sed -n '2p' "${dingo_capture}")" == "${dingo_pool_dir}/hot.skey" ]] ||
+      fail "Dingo producer did not receive its KES key path"
+    [[ "$(sed -n '3p' "${dingo_capture}")" == "${dingo_pool_dir}/vrf.skey" ]] ||
+      fail "Dingo producer did not receive its VRF key path"
+    [[ "$(sed -n '4p' "${dingo_capture}")" == "${dingo_pool_dir}/op.cert" ]] ||
+      fail "Dingo producer did not receive its operational certificate path"
+
+    rm -f -- "${dingo_pool_dir}/op.cert"
+    if DINGO_ROLE_CAPTURE="${dingo_capture}" \
+      "${launcher}" run >/dev/null 2>&1; then
+      fail "Dingo accepted a partial block-producer credential set"
+    fi
+    DINGO_ROLE_CAPTURE="${dingo_capture}" "${launcher}" bootstrap
+    [[ "$(sed -n '1p' "${dingo_capture}")" == "false" ]] ||
+      fail "Dingo bootstrap did not suppress block production"
+    [[ "$(sed -n '5p' "${dingo_capture}")" == *"sync --mithril" ]] ||
+      fail "Dingo bootstrap did not invoke Mithril sync"
+    printf '{}\n' > "${dingo_pool_dir}/op.cert"
+    chmod 0644 "${dingo_pool_dir}/op.cert"
+  elif [[ "${implementation}" == "amaru" ]]; then
     local state_root="${test_root}/container-state"
     local state_capture="${test_root}/amaru-state.log"
     local telemetry_capture="${test_root}/amaru-telemetry.log"
@@ -1012,8 +1281,13 @@ run_alternate_profile_test() (
           <<< "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
         ;;
       capability-value)
-        jq '.capabilities.localCli = true' \
-          <<< "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
+        if [[ "${implementation}" == "dingo" ]]; then
+          jq '.capabilities.localCli = false' \
+            <<< "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
+        else
+          jq '.capabilities.localCli = true' \
+            <<< "${valid_deployment_manifest}" > "${NODE_HOME}/.deployment.json"
+        fi
         ;;
       extra-capability)
         jq '.capabilities.unverified = true' \
@@ -1142,6 +1416,9 @@ run_alternate_profile_test() (
       "${systemctl_log}" >/dev/null
   else
     grep -F 'Restart=on-failure' "${unit_file}" >/dev/null
+    grep -F "Description=Guild Operators Dingo experimental node (${network})" \
+      "${unit_file}" >/dev/null
+    grep -F 'UMask=0027' "${unit_file}" >/dev/null
     assert_not_exists "${metrics_unit_file}"
     grep -Fx "enable ${service_name}" "${systemctl_log}" >/dev/null
   fi

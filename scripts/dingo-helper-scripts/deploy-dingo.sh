@@ -105,20 +105,23 @@ dingo_deploy_install_dependencies() {
     dispatcher_run_package_command "Dingo prerequisite package installation" \
       dingo_deploy_privileged env DEBIAN_FRONTEND=noninteractive apt-get \
       -o Dpkg::Use-Pty=0 -o APT::Color=0 install -y \
-      bc ca-certificates coreutils curl diffutils findutils gawk grep gzip iproute2 jq \
-      ncurses-bin procps sed tar || return 1
+      bc bsdmainutils ca-certificates coreutils curl diffutils e2fsprogs findutils \
+      gawk gnupg grep gzip iproute2 jq less ncurses-bin procps sed sqlite3 tar \
+      unzip xxd || return 1
   elif command -v dnf >/dev/null 2>&1; then
     dispatcher_run_package_command "Dingo prerequisite package installation" \
       dingo_deploy_privileged dnf install -y \
-      bc ca-certificates coreutils curl diffutils findutils gawk grep gzip iproute jq \
-      ncurses procps-ng sed tar || return 1
+      bc ca-certificates coreutils curl diffutils e2fsprogs findutils gawk gnupg2 \
+      grep gzip iproute jq less ncurses procps-ng sed sqlite tar unzip util-linux \
+      vim-common || return 1
   elif command -v yum >/dev/null 2>&1; then
     dispatcher_run_package_command "Dingo prerequisite package installation" \
       dingo_deploy_privileged yum install -y \
-      bc ca-certificates coreutils curl diffutils findutils gawk grep gzip iproute jq \
-      ncurses procps-ng sed tar || return 1
+      bc ca-certificates coreutils curl diffutils e2fsprogs findutils gawk gnupg2 \
+      grep gzip iproute jq less ncurses procps-ng sed sqlite tar unzip util-linux \
+      vim-common || return 1
   else
-    dingo_deploy_fail "Unsupported package manager; install bc, coreutils, curl, findutils, grep, gzip, iproute, jq, ncurses, procps, sed, and tar"
+    dingo_deploy_fail "Unsupported package manager; install bc, chattr, column, coreutils, curl, findutils, gawk, gpg, grep, gzip, iproute, jq, less, ncurses, procps, sed, sqlite3, tar, unzip, and xxd"
     return 1
   fi
   dingo_deploy_ok "Dingo runtime prerequisites"
@@ -163,12 +166,13 @@ dingo_deploy_fetch() {
 }
 
 dingo_deploy_prepare_layout() {
-  dingo_deploy_progress "Creating Dingo relay layout" "${NODE_HOME}"
+  dingo_deploy_progress "Creating Dingo node layout" "${NODE_HOME}"
   dingo_deploy_privileged mkdir -p \
     "${NODE_HOME}" \
     "${NODE_HOME}/db" \
     "${NODE_HOME}/files" \
     "${NODE_HOME}/logs" \
+    "${NODE_HOME}/priv/pool" \
     "${NODE_HOME}/snapshots" \
     "${NODE_HOME}/sockets" \
     "${NODE_HOME}/scripts" \
@@ -183,13 +187,17 @@ dingo_deploy_prepare_layout() {
     "${NODE_HOME}/db" \
     "${NODE_HOME}/files" \
     "${NODE_HOME}/logs" \
+    "${NODE_HOME}/priv" \
+    "${NODE_HOME}/priv/pool" \
     "${NODE_HOME}/snapshots" \
     "${NODE_HOME}/sockets" \
     "${NODE_HOME}/scripts" \
     "${NODE_HOME}/scripts/adapters" \
     "${NODE_HOME}/scripts/archive" \
     "${NODE_HOME}/scripts/lib" || return 1
-  dingo_deploy_ok "Dingo relay layout" "${NODE_HOME}"
+  dingo_deploy_privileged chmod 0700 \
+    "${NODE_HOME}/priv" "${NODE_HOME}/priv/pool" || return 1
+  dingo_deploy_ok "Dingo node layout" "${NODE_HOME}"
 }
 
 dingo_deploy_install_code_payload() {
@@ -203,7 +211,7 @@ dingo_deploy_install_code_payload() {
     rm -f -- "${temporary}"
     return 1
   fi
-  bash -n "${temporary}" || {
+  "${DINGO_DEPLOY_BASH_BIN:-bash}" -n "${temporary}" || {
     rm -f -- "${temporary}"
     dingo_deploy_fail "Shell validation failed for ${relative_path}"
     return 1
@@ -219,7 +227,7 @@ dingo_deploy_install_code_payload() {
       }
       awk '/^# Do NOT modify code below/{exit} {print}' "${destination}" > "${merged}"
       awk 'copy || /^# Do NOT modify code below/{copy=1; print}' "${temporary}" >> "${merged}"
-      if ! bash -n "${merged}"; then
+      if ! "${DINGO_DEPLOY_BASH_BIN:-bash}" -n "${merged}"; then
         rm -f -- "${temporary}" "${merged}"
         dingo_deploy_fail "Preserved user-variable block makes ${relative_path} invalid"
         return 1
@@ -332,15 +340,27 @@ dingo_deploy_validate_release_metadata() {
         type == "string" and
         length > 0 and
         test("[[:space:]]") == false;
+      def artifact:
+        type == "object" and
+        keys == ["sha256", "url"] and
+        (.url | type == "string" and startswith("https://")) and
+        (.sha256 | type == "string" and test("^[0-9a-f]{64}$"));
       type == "object" and
-      keys == ["assets", "github", "implementation", "schemaVersion", "version"] and
+      keys == ["assets", "companions", "github", "implementation", "schemaVersion", "version"] and
       .schemaVersion == 1 and
       .implementation == $implementation and
       .version == "latest" and
       (.github | repository) and
       (.assets | type == "object" and
         keys == ["linux-aarch64", "linux-x86_64"]) and
-      all(.assets[]; selector)
+      all(.assets[]; selector) and
+      (.companions | type == "object" and keys == ["cardano-cli"]) and
+      (.companions["cardano-cli"] | type == "object" and
+        keys == ["artifacts", "version"] and
+        (.version | type == "string" and test("^[0-9]+([.][0-9]+){2,3}$")) and
+        (.artifacts | type == "object" and
+          keys == ["linux-aarch64", "linux-x86_64"]) and
+        all(.artifacts[]; artifact))
     ' "${manifest}" >/dev/null
 }
 
@@ -358,6 +378,12 @@ dingo_deploy_install_payloads() {
   dingo_deploy_install_code_payload \
     "scripts/common-helper-scripts/gLiveView.sh" \
     "${NODE_HOME}/scripts/gLiveView.sh" 0755 Y || return 1
+  dingo_deploy_install_code_payload \
+    "scripts/common-helper-scripts/cntools.library" \
+    "${NODE_HOME}/scripts/cntools.library" 0644 || return 1
+  dingo_deploy_install_code_payload \
+    "scripts/common-helper-scripts/cntools.sh" \
+    "${NODE_HOME}/scripts/cntools.sh" 0755 Y || return 1
   dingo_deploy_check_network_change || return 1
   dingo_deploy_install_config_file "dingo.yaml" "${NODE_HOME}/files/dingo.yaml" 0640 || return 1
   dingo_deploy_install_config_file "dingo.env" "${NODE_HOME}/scripts/dingo.env" 0640 || return 1
@@ -384,9 +410,9 @@ dingo_deploy_install_payloads() {
   PROFILE_TARGET_NODE_VERSION="$(jq -er '.version' "${NODE_HOME}/files/dingo-release.json")" || return 1
   PROFILE_METRICS_PROVIDER="prometheus"
   PROFILE_CAP_N2C="true"
-  PROFILE_CAP_LOCAL_CLI="false"
+  PROFILE_CAP_LOCAL_CLI="true"
   PROFILE_CAP_METRICS="true"
-  PROFILE_CAP_FORGING="false"
+  PROFILE_CAP_FORGING="true"
   dingo_deploy_ok "Dingo scripts and configuration"
 }
 
@@ -423,12 +449,36 @@ dingo_deploy_resolve_binary() {
   DINGO_RESOLVED_PRERELEASE="${DISPATCHER_RELEASE_PRERELEASE}"
 }
 
+dingo_deploy_resolve_cardano_cli() {
+  local manifest="$1"
+  local architecture="$2"
+
+  jq -er --arg arch "${architecture}" '
+    .companions["cardano-cli"] as $cli |
+    [
+      $cli.version,
+      $cli.artifacts[$arch].url,
+      $cli.artifacts[$arch].sha256
+    ] | @tsv
+  ' "${manifest}"
+}
+
+dingo_deploy_verify_binary_version() {
+  local binary="$1"
+  local expected_version="$2"
+  local version_output
+
+  version_output="$("${binary}" version 2>/dev/null)" || return 1
+  grep -F "${expected_version}" <<< "${version_output}" >/dev/null
+}
+
 dingo_deploy_install_binary() (
   set -e
   dingo_deploy_require_commands
 
   local manifest="${NODE_HOME}/files/dingo-release.json"
   local architecture version url expected_sha
+  local cli_version cli_url cli_expected_sha
   if ! dingo_deploy_validate_release_metadata "${manifest}"; then
     dingo_deploy_fail "Invalid installed Dingo release manifest"
     exit 1
@@ -441,11 +491,15 @@ dingo_deploy_install_binary() (
   version="${DINGO_RESOLVED_VERSION}"
   url="${DINGO_RESOLVED_URL}"
   expected_sha="${DINGO_RESOLVED_SHA256}"
+  IFS=$'\t' read -r cli_version cli_url cli_expected_sha <<< "$(
+    dingo_deploy_resolve_cardano_cli "${manifest}" "${architecture}"
+  )"
 
-  local temporary_dir archive binary
+  local temporary_dir archive binary cli_archive cli_binary cli_member archive_stamp
   temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/dingo-install.XXXXXX")"
   trap '[[ -z "${temporary_dir:-}" ]] || rm -rf -- "${temporary_dir}"' EXIT
   archive="${temporary_dir}/release.tar.gz"
+  cli_archive="${temporary_dir}/cardano-cli.tar.gz"
 
   dingo_deploy_progress "Downloading Dingo ${version}" "${architecture}"
   curl --fail --silent --show-error --location \
@@ -458,22 +512,55 @@ dingo_deploy_install_binary() (
     exit 1
   fi
 
+  dingo_deploy_progress "Downloading cardano-cli for Dingo" "${cli_version}"
+  curl --fail --silent --show-error --location \
+    --connect-timeout "${CURL_TIMEOUT:-20}" \
+    --max-time "${DOWNLOAD_TIMEOUT:-600}" \
+    "${cli_url}" --output "${cli_archive}"
+  if ! printf '%s  %s\n' "${cli_expected_sha}" "${cli_archive}" |
+    sha256sum --check --status; then
+    dingo_deploy_fail "cardano-cli ${cli_version} archive failed SHA-256 verification"
+    exit 1
+  fi
+
   mkdir "${temporary_dir}/extract"
   tar -xzf "${archive}" -C "${temporary_dir}/extract"
   binary="${temporary_dir}/extract/dingo"
-  [[ -x "${binary}" ]] || {
+  [[ -f "${binary}" && ! -L "${binary}" ]] || {
     dingo_deploy_fail "Verified Dingo archive does not contain the dingo executable"
+    exit 1
+  }
+  cli_member="cardano-cli-${architecture#linux-}-linux"
+  tar -xzf "${cli_archive}" -C "${temporary_dir}/extract" "${cli_member}"
+  cli_binary="${temporary_dir}/extract/${cli_member}"
+  [[ -f "${cli_binary}" && ! -L "${cli_binary}" ]] || {
+    dingo_deploy_fail "Verified cardano-cli archive does not contain ${cli_member}"
+    exit 1
+  }
+  chmod 0755 "${binary}" "${cli_binary}"
+  dingo_deploy_verify_binary_version "${binary}" "${version}" || {
+    dingo_deploy_fail "Staged Dingo binary does not report resolved version ${version}"
+    exit 1
+  }
+  dingo_deploy_verify_binary_version "${cli_binary}" "${cli_version}" || {
+    dingo_deploy_fail "Staged cardano-cli does not report manifest version ${cli_version}"
     exit 1
   }
 
   mkdir -p "${HOME}/.local/bin" "${HOME}/.local/bin/archive"
+  archive_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
   if [[ -f "${HOME}/.local/bin/dingo" ]]; then
     cp -p -- "${HOME}/.local/bin/dingo" \
-      "${HOME}/.local/bin/archive/dingo.$(date -u +%Y%m%dT%H%M%SZ)"
+      "${HOME}/.local/bin/archive/dingo.${archive_stamp}"
+  fi
+  if [[ -f "${HOME}/.local/bin/cardano-cli-dingo" ]]; then
+    cp -p -- "${HOME}/.local/bin/cardano-cli-dingo" \
+      "${HOME}/.local/bin/archive/cardano-cli-dingo.${archive_stamp}"
   fi
   install -m 0755 "${binary}" "${HOME}/.local/bin/dingo"
-  "${HOME}/.local/bin/dingo" version | grep -F "${version}" >/dev/null
+  install -m 0755 "${cli_binary}" "${HOME}/.local/bin/cardano-cli-dingo"
   dingo_deploy_ok "Installed verified Dingo" "${version}"
+  dingo_deploy_ok "Installed Dingo cardano-cli companion" "${cli_version} as cardano-cli-dingo"
 )
 
 dingo_deploy_show_next_steps() {
@@ -491,7 +578,7 @@ deploy_dingo_profile() {
   dingo_deploy_validate_context || return 1
   dingo_deploy_parse_flags || return 1
 
-  dingo_deploy_warn "Dingo deployment is experimental, relay-only, and limited to ${NETWORK}."
+  dingo_deploy_warn "Dingo deployment and block production are experimental and limited to ${NETWORK}."
   if [[ "${DINGO_DEPLOY_INSTALL_DEPS}" == "Y" ]]; then
     dingo_deploy_install_dependencies || return 1
   fi
@@ -507,6 +594,9 @@ deploy_dingo_profile() {
 
   if [[ ! -x "${HOME}/.local/bin/dingo" ]]; then
     dingo_deploy_warn "Dingo binary is not installed; re-run with -s d."
+  fi
+  if [[ ! -x "${HOME}/.local/bin/cardano-cli-dingo" ]]; then
+    dingo_deploy_warn "Dingo cardano-cli companion is not installed; re-run with -s d."
   fi
   dingo_deploy_show_next_steps
   dingo_deploy_warn "Dingo metrics share the public bind address; protect TCP 12798 with a firewall."

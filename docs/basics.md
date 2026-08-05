@@ -12,12 +12,13 @@ and the hand-off to an implementation-specific deployment profile. Each node
 keeps its own launcher, configuration, bootstrap process, data layout, and
 systemd service.
 
-Node-agnostic architecture does not mean that every Guild helper already works
-with every node. Compatibility is enabled only after a tool's commands,
-interfaces, and metrics have been verified for that implementation. Today,
-the complete Guild operator toolset remains available only with `cnode`.
-Dingo and Amaru are deliberately small, experimental relay deployments, but
-all three now include the common gLiveView dashboard through a normalized,
+Node-agnostic architecture does not mean that every Guild helper works with
+every node. Compatibility is enabled only after a tool's commands, interfaces,
+and metrics have been verified for that implementation. The complete Guild
+operator toolset remains available only with `cnode`; Dingo additionally
+includes experimental CNTools wallet and pool workflows over its compatible
+node-to-client socket. Amaru remains a small relay-only deployment. All three
+include the common gLiveView dashboard through a normalized,
 availability-driven metrics interface.
 
 Multiple independent node implementations can improve client diversity and
@@ -30,7 +31,7 @@ at another node's existing data directory.
 | Guild selector | Node implementation | Project and team | Current Guild support |
 | --- | --- | --- | --- |
 | `cnode` | [cardano-node](https://github.com/IntersectMBO/cardano-node), written in Haskell | The established Cardano node originated under Input Output Global (IOG). Stewardship of the core repositories has moved to the member-based [Intersect MBO](https://www.intersectmbo.org/news/open-horizons-cardano-migrates-to-intersect). | Default and production option. Relays and block producers on mainnet and testnets, with the established Guild helper suite. |
-| `dingo` | [Dingo](https://github.com/blinklabs-io/dingo), written in Go | Developed by [Blink Labs](https://blinklabs.io/about), a Cardano-focused open-source software team. Upstream describes Dingo as under heavy active development and not ready for production use. | Experimental relay only on `preprod` and `preview`, with gLiveView over native Prometheus. No mainnet, pool keys, or unverified cnode helper suite. |
+| `dingo` | [Dingo](https://github.com/blinklabs-io/dingo), written in Go | Developed by [Blink Labs](https://blinklabs.io/about), a Cardano-focused open-source software team. Upstream describes Dingo as under heavy active development and not ready for production use. | Experimental relays and block producers on `preprod` and `preview`, with runtime hot-key detection, gLiveView over native Prometheus, and CNTools through a separately pinned `cardano-cli-dingo`. No mainnet or remaining unverified cnode helpers. |
 | `amaru` | [Amaru](https://github.com/pragma-org/amaru), written in Rust | Hosted by the not-for-profit [PRAGMA](https://pragma.io/) open-source association and developed by [contributors from across the Cardano ecosystem](https://amaru.global/about/). Upstream describes Amaru as exploratory, with features still limited or incomplete. | Experimental rolling-release relay only on `preprod` and `preview`, with gLiveView through a managed, host-safe form of Amaru's reference OpenTelemetry-to-Prometheus bridge. No mainnet, block production, or socket-dependent cnode helpers. |
 
 ##### cnode / cardano-node
@@ -46,13 +47,16 @@ CNCLI, Mithril helpers, db-sync, and Ogmios. It supports
 
 Dingo is an independent Go implementation from Blink Labs. Its upstream
 project includes node-to-client connectivity, Prometheus metrics, several
-storage and API options, and a built-in Mithril bootstrap client. The current
-Guild profile intentionally exposes only a conservative relay configuration;
-upstream block-production and application-interface capabilities are not an
-indication that Guild has verified them. Choose Dingo when you specifically
-want to test the Go implementation and its interoperability on a supported
-testnet. The profile includes gLiveView, which identifies Dingo in its header
-and displays only the native metrics available in each scrape.
+storage and API options, and a built-in Mithril bootstrap client. The Guild
+profile exposes conservative core storage for relays and testnet block
+producers. As with cnode, a complete configured pool hot-key set selects
+producer mode at runtime; without it Dingo runs as a relay. Choose Dingo when
+you specifically want to test the Go implementation, its interoperability, or
+block production on a supported testnet. The profile includes gLiveView and
+CNTools. Dingo deliberately uses the standard `cardano-cli` interface rather
+than a Dingo-specific CLI; Guild pins that companion independently and
+installs it as `cardano-cli-dingo` so a cnode CLI can coexist. CNTools selects
+it automatically unless `CCLI` is set explicitly in the common `env`.
 
 ##### Amaru
 
@@ -69,7 +73,7 @@ want to evaluate the Rust implementation on a supported testnet.
     - Choose **cnode** for mainnet, block production, an existing stake pool,
       or the full Guild Operators experience.
     - Choose **Dingo** to evaluate the Go node as an experimental testnet
-      relay.
+      relay or block producer.
     - Choose **Amaru** to evaluate the Rust node as an experimental testnet
       relay.
     - If you are unsure, omit `-i`; the safe default is **cnode**.
@@ -176,9 +180,10 @@ PACKAGE_MANAGER_OUTPUT=verbose ./guild-deploy.sh -i amaru -n preprod -s p
 ```
 
 !!! warning "Alternate implementations are experimental"
-    The Dingo and Amaru profiles are relay-only and limited to `preprod` and
-    `preview`. They are not supported for mainnet, block production, or pool
-    keys.
+    Dingo and Amaru are limited to `preprod` and `preview` and are not
+    supported for mainnet. Dingo block production is available only for
+    experimental testnet evaluation; Amaru remains relay-only. Never place
+    mainnet or real-funds pool keys in either deployment.
 
 - For cnode, a `glibc` error while installing CNCLI usually means that the
   precompiled binary is incompatible with the host OS. Compile CNCLI using its
@@ -216,9 +221,12 @@ Experimental relay examples are:
 ```
 
 All three profiles reuse `$HOME/.local/bin`; their binary names do not
-conflict. cnode keeps its reviewed static node release, while `-s d` resolves
-the newest published non-draft Dingo or Amaru release, including
-prereleases, and verifies its GitHub-published asset digest. Every successful
+conflict. Dingo's companion CLI is named `cardano-cli-dingo`, while cnode
+retains `cardano-cli`. cnode keeps its reviewed static node release, while
+`-s d` resolves the newest published non-draft Dingo or Amaru release,
+including prereleases, and verifies its GitHub-published asset digest. For
+Dingo the same selection installs its separately pinned and
+checksum-verified CLI companion. Every successful
 target also contains `.deployment.json`, which records the implementation,
 network, Guild repository and branch, service name, installed and targeted
 versions, and declared capabilities. Re-running the dispatcher restores those

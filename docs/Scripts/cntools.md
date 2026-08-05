@@ -8,12 +8,12 @@
 Koios CNTools is like a swiss army knife for pool operators to simplify typical operations regarding their wallet keys and pool management. Please note that this tool only aims to simplify usual tasks for its users, but it should **NOT** act as an excuse to skip understanding how to manually work through things or basics of Linux operations. The skills highlighted on the [home page](../index.md) are paramount for a stake pool operator, and so is the understanding of configuration files and network. Please ensure you've read and understood the disclaimers **before** proceeding.
 
 !!! warning "Node implementation support"
-    CNTools is currently supported only with cnode/cardano-node deployments.
-    Its canonical source lives in `common-helper-scripts` to avoid future
-    duplication, but Dingo and Amaru profiles do not install it. Wallet, pool,
-    local-query, transaction-submission, forging, and block-log operations
-    require more than a common process adapter and have not been verified on
-    either alternate node.
+    CNTools is supported with cnode and deployed for experimental Dingo
+    evaluation on `preprod` and `preview`. Dingo exposes a standard
+    cardano-cli-compatible node-to-client socket, but it is not a production
+    or mainnet target. CNCLI block logs and other cnode-only integrations do
+    not become available merely because CNTools is installed. Amaru does not
+    install CNTools because it lacks the required compatible local interface.
 
 Visit the [Changelog](cntools-changelog.md) section to see progress and current release.
 
@@ -28,6 +28,11 @@ entrypoint and its runtime libraries. CNTools connects to the node through the
 `env` file in the same directory. Customize `env` and `cntools.sh` only where
 their User Variables sections require it.
 
+On Dingo, `env` selects `$HOME/.local/bin/cardano-cli-dingo` and
+`$NODE_HOME/sockets/dingo.socket` automatically. The CLI is pinned in Dingo's
+own release manifest and does not replace cnode's `cardano-cli`. Set `CCLI`
+explicitly in `env` only when intentionally using another reviewed CLI build.
+
 Supplying `-b <branch>` persists the selected Guild branch in
 `${NODE_HOME}/.deployment.json`; CNTools no longer creates or reads
 `scripts/.env_branch`.
@@ -37,12 +42,13 @@ Additionally, CNTools can integrate and enable optional functionalities based on
 - `cncli.sh` is a companion script with optional functionalities to run on the core node (block producer) such as monitoring created blocks, calculating leader schedules and block validation.
 - `logMonitor.sh` historically complemented `cncli.sh`, but it is currently
   disabled because it does not parse the current cnode tracing format.
-- Catalyst operations install the pinned, checksum-verified
+- On cnode, Catalyst operations install the pinned, checksum-verified
   `catalyst-toolbox` selected by
   `${NODE_HOME}/files/cnode-release.json`; CNTools no longer downloads an
   unversioned executable directly into `$HOME/.local/bin`. An existing binary
   is retained only when both its reported version and checksum match that
-  policy; otherwise CNTools replaces it with the reviewed artifact.
+  policy; otherwise CNTools replaces it with the reviewed artifact. This
+  cnode-specific companion policy is not available in the Dingo profile.
 
 See [CNCLI](cncli.md) and [Log Monitor](logmonitor.md) for details.
 
@@ -116,13 +122,15 @@ Keys excluded from backup when created without private keys:
 Setting up an offline server requires solid system-administration experience:
 you must provide offline package mirrors, transfer files safely, and understand
 the deployment layout. `guild-deploy.sh` is not expected to run without
-network access. The safest preparation is to transfer a current cnode
-deployment skeleton without private online keys, including the common runtime,
-adapter, network configuration, and `files/cnode-release.json`. Offline CNTools
-also needs compatible `cardano-node`, `cardano-cli`, `bech32`, and
-`cardano-address` executables in `$PATH`, plus its runtime OS commands such as
-`jq`, `bc`, and GNU core utilities. Practice the complete workflow on preview,
-preprod, or Guild before mainnet.
+network access. The safest preparation is to transfer a current deployment
+skeleton without private online keys, including the common runtime, selected
+adapter, release metadata, and companion tools required by the workflow. A
+cnode offline host needs compatible `cardano-node`, `cardano-cli`, `bech32`,
+and `cardano-address` executables. A Dingo-derived skeleton selects
+`cardano-cli-dingo`; optional wallet-import or hardware features still require
+their external companion tools. Both need runtime commands such as `jq`, `bc`,
+and GNU core utilities. Practice the complete workflow on preview, preprod, or
+Guild before mainnet; Dingo itself remains testnet-only.
 
 Example workflow for creating a wallet and pool:
 

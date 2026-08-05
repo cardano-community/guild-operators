@@ -6,5 +6,20 @@
   "assets": {
     "linux-x86_64": "^dingo-v[^/]+-linux-amd64\\.tar\\.gz$",
     "linux-aarch64": "^dingo-v[^/]+-linux-arm64\\.tar\\.gz$"
+  },
+  "companions": {
+    "cardano-cli": {
+      "version": "11.0.0.0",
+      "artifacts": {
+        "linux-x86_64": {
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.0.0.0/cardano-cli-11.0.0.0-x86_64-linux.tar.gz",
+          "sha256": "c37b26be04106ecd2ba88841e64d3b7ecdc80d838055102323691b087f7255b1"
+        },
+        "linux-aarch64": {
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.0.0.0/cardano-cli-11.0.0.0-aarch64-linux.tar.gz",
+          "sha256": "5e1db5459ee6b58433e2ce2db2ba53dd9fd4dd43bae0c14aefc25677bba88ae7"
+        }
+      }
+    }
   }
 }

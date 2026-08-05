@@ -625,7 +625,7 @@ for semantic_case in cnode-metrics dingo-capability amaru-capability extra-capab
         .implementation = "dingo" |
         .network = "preprod" |
         .capabilities.localCli = false |
-        .capabilities.forging = true
+        .capabilities.forging = false
       ' "${TEST_DIR}/existing/.deployment.json" \
         > "${TEST_DIR}/${semantic_dir}/.deployment.json"
       semantic_implementation="dingo"

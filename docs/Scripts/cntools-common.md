@@ -1,7 +1,8 @@
-!!! warning "cnode-only workflows"
-    These CNTools wallet, pool, and local-node workflows are currently
-    supported only with cnode/cardano-node deployments. Dingo and Amaru
-    profiles do not install CNTools.
+!!! warning "Node support"
+    These workflows are supported by cnode and available for experimental
+    testing with Dingo on `preprod` and `preview`. Dingo is not a production or
+    mainnet target. Amaru does not install CNTools because it does not provide
+    the required compatible local-node interface.
 
 !!! important
     Familiarize yourself with the Online workflow of creating wallets and pools on the Preview/Preprod/Guild network first. You can then move on to test the [Offline Workflow](../Scripts/cntools.md#offline-workflow). The Offline workflow means that the private keys never touch the Online node. When comfortable with both the online and offline CNTools workflow, it's time to deploy what you learnt on the mainnet.

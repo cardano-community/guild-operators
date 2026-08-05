@@ -12,7 +12,7 @@
 #NODE_HOME="/opt/cardano/cnode"                         # Deployment root override; effective only when USESYSVARS=Y
 #CNODE_HOME="${NODE_HOME}"                              # Legacy deployment root alias; effective only when USESYSVARS=Y
 #CNODEBIN="${HOME}/.local/bin/cardano-node"             # Legacy node binary override
-#CCLI="${HOME}/.local/bin/cardano-cli"                  # Companion cardano-cli executable
+#CCLI="${HOME}/.local/bin/cardano-cli"                  # Override adapter-selected cardano-cli executable
 #CNCLI="${HOME}/.local/bin/cncli"                       # Optional CNCLI executable
 #CNODE_PORT=6000                                        # Legacy node-to-node port alias
 #CONFIG="${NODE_HOME}/files/config.json"                # Implementation configuration override
@@ -133,9 +133,9 @@ if [[ -e "${_deployment_manifest}" || -L "${_deployment_manifest}" ]]; then
         .implementation == "dingo" and
         .metricsProvider == "prometheus" and
         .capabilities.n2c == true and
-        .capabilities.localCli == false and
+        .capabilities.localCli == true and
         .capabilities.metrics == true and
-        .capabilities.forging == false
+        .capabilities.forging == true
       ) or
       (
         .implementation == "amaru" and

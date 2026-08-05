@@ -14,8 +14,8 @@ Running your own Cardano node has never been so fast and easy.
 The Dockerfile uses the node-agnostic Guild Operators dispatcher and accepts
 `NODE_IMPLEMENTATION=cnode|dingo|amaru` as a build argument. cnode remains the
 default and carries the broader cnode helper payload described below. Dingo
-and Amaru images are experimental, relay-only, and limited to preprod and
-preview.
+and Amaru images are experimental and limited to preprod and preview. Dingo
+can run as a relay or testnet block producer; Amaru is relay-only.
 
 Implementation and network are fixed at build time and recorded in
 `.deployment.json`. A runtime override that contradicts the manifest is
@@ -52,10 +52,11 @@ Dingo and Amaru images install their node binary, native configuration,
 common deployment runtime, launcher, gLiveView, and container healthcheck.
 Their image builds resolve the newest published non-draft node release,
 including prereleases, and enforce the selected GitHub asset digest. Dingo
-uses its native Prometheus endpoint. Amaru also includes the pinned
+also installs CNTools and an independently pinned `cardano-cli-dingo`, and
+uses its native Prometheus endpoint. Amaru includes the pinned
 OpenTelemetry Collector and Amaru-derived bridge profile used to provide
-gLiveView metrics. Compatibility with the remaining cnode-oriented tools above
-has not been verified, so those tools are intentionally not included.
+gLiveView metrics. Compatibility with the remaining cnode-oriented tools has
+not been verified, so those tools are intentionally not included.
 
 #### Docker Splash screen
 

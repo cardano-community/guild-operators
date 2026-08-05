@@ -7,10 +7,11 @@ tools to the Cardano ecosystem.
 
 The [Guild Operators documentation](https://cardano-community.github.io/guild-operators)
 covers the default `cardano-node` (`cnode`) deployment and the compatible
-operator tools. Experimental, relay-only Dingo and Amaru deployments are also
-documented for supported test networks. The common gLiveView dashboard
-supports all three implementations through normalized, availability-driven
-metrics.
+operator tools. Experimental Dingo relays and block producers, plus Amaru
+relays, are also documented for supported test networks. The common gLiveView
+dashboard supports all three implementations through normalized,
+availability-driven metrics, and Dingo includes experimental CNTools support
+through its cardano-cli-compatible local socket.
 
 These scripts simplify recurring work; they do not replace the skills needed
 to operate infrastructure on a financial network:

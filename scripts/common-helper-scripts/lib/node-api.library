@@ -500,8 +500,9 @@ common_parse_cardano_metrics() {
   local node_metrics metric_name forged_count adopted_value value build_metric
   local -a normalized_metrics=(
     blocknum epochnum slot_in_epoch slotnum density tx_processed mempool_tx
-    mempool_bytes kesperiod remaining_kes_periods isleader adopted didntadopt
-    about_to_lead missed_slots mem_live mem_heap gc_minor gc_major forks
+    mempool_bytes kesperiod remaining_kes_periods opcert_start_kes
+    opcert_expiry_kes isleader not_leader adopted didntadopt about_to_lead
+    could_not_forge missed_slots mem_live mem_heap gc_minor gc_major forks
     block_delay blocks_served blocks_late blocks_w1s blocks_w3s blocks_w5s
     peer_selection_cold peer_selection_warm peer_selection_hot conn_incoming
     conn_outgoing conn_uni_dir conn_bi_dir conn_duplex forging_enabled
@@ -547,9 +548,16 @@ common_parse_cardano_metrics() {
   common_metric_set_first kesperiod cardano_node_metrics_currentKESPeriod_int
   common_metric_set_first remaining_kes_periods \
     cardano_node_metrics_remainingKESPeriods_int
+  common_metric_set_first opcert_start_kes \
+    cardano_node_metrics_operationalCertificateStartKESPeriod_int
+  common_metric_set_first opcert_expiry_kes \
+    cardano_node_metrics_operationalCertificateExpiryKESPeriod_int
   common_metric_set_first isleader \
     cardano_node_metrics_Forge_node_is_leader_int \
     cardano_node_metrics_Forge_node_is_leader_counter
+  common_metric_set_first not_leader \
+    cardano_node_metrics_Forge_node_not_leader_int \
+    cardano_node_metrics_Forge_node_not_leader_counter
   common_metric_set_first adopted \
     cardano_node_metrics_Forge_adopted_int \
     cardano_node_metrics_Forge_adopted_counter
@@ -568,6 +576,9 @@ common_parse_cardano_metrics() {
     cardano_node_metrics_Forge_forge_about_to_lead_counter \
     cardano_node_metrics_Forge_about_to_lead_int \
     cardano_node_metrics_Forge_about_to_lead_counter
+  common_metric_set_first could_not_forge \
+    cardano_node_metrics_Forge_could_not_forge_int \
+    cardano_node_metrics_Forge_could_not_forge_counter
   common_metric_set_first missed_slots \
     cardano_node_metrics_slotsMissedNum_int \
     cardano_node_metrics_slotsMissed_int
@@ -738,8 +749,11 @@ common_resolve_cardano_cli() {
 # implementation presents the same monitoring contract.
 common_configure_known_network() {
   local network="${1:-${NODE_NETWORK:-${NETWORK:-}}}"
+  local normalized_network
 
-  case "${network,,}" in
+  normalized_network="$(printf '%s' "${network}" | tr '[:upper:]' '[:lower:]')"
+
+  case "${normalized_network}" in
     preprod)
       NWMAGIC=1
       NETWORK_NAME="PreProd"
@@ -780,7 +794,7 @@ common_configure_known_network() {
   esac
 
   NETWORK_IDENTIFIER="--testnet-magic ${NWMAGIC}"
-  NODE_NETWORK="${network,,}"
+  NODE_NETWORK="${normalized_network}"
   NODE_NETWORK_MAGIC="${NWMAGIC}"
   NODE_NETWORK_NAME="${NETWORK_NAME}"
 }

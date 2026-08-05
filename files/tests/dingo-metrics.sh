@@ -32,6 +32,8 @@ assert_eq() {
 node_has metrics || fail "Dingo adapter does not advertise normalized metrics"
 node_has native_prometheus ||
   fail "Dingo adapter does not advertise its native Prometheus endpoint"
+node_has forge || fail "Dingo adapter does not advertise block production"
+node_has kes || fail "Dingo adapter does not advertise KES metrics"
 
 (
   unset NODE_METRICS_HOST NODE_METRICS_PORT NODE_METRICS_PATH
@@ -211,6 +213,51 @@ for available_metric in \
 done
 node_metric_has kesperiod &&
   fail "relay scrape without KES data marked KES period available"
+
+DINGO_METRICS_FIXTURE='
+cardano_node_metrics_blockNum_int{network="preview"} 12346
+cardano_node_metrics_forging_enabled{network="preview"} 1
+cardano_node_metrics_currentKESPeriod_int{network="preview"} 500
+cardano_node_metrics_remainingKESPeriods_int{network="preview"} 12
+cardano_node_metrics_operationalCertificateStartKESPeriod_int{network="preview"} 480
+cardano_node_metrics_operationalCertificateExpiryKESPeriod_int{network="preview"} 512
+cardano_node_metrics_Forge_about_to_lead_int{network="preview"} 1003
+cardano_node_metrics_Forge_node_is_leader_int{network="preview"} 3
+cardano_node_metrics_Forge_node_not_leader_int{network="preview"} 1000
+cardano_node_metrics_Forge_forged_int{network="preview"} 3
+cardano_node_metrics_Forge_adopted_int{network="preview"} 2
+cardano_node_metrics_Forge_could_not_forge_int{network="preview"} 1
+cardano_node_metrics_nodeStartTime_int{network="preview"} 1700000001
+dingo_metrics_slotBattlesTotal_int{network="preview"} 2
+dingo_forge_sync_skip_total{network="preview"} 4
+dingo_forge_validation_failed_total{network="preview"} 0
+'
+node_metric_reset_availability
+node_adapter_collect_metrics ||
+  fail "Dingo metrics collection rejected a producer scrape"
+assert_eq "${forging_enabled}" "1" "Dingo producer forging state"
+assert_eq "${kesperiod}" "500" "Dingo current KES period"
+assert_eq "${remaining_kes_periods}" "12" "Dingo remaining KES periods"
+assert_eq "${opcert_start_kes}" "480" "Dingo OpCert start KES period"
+assert_eq "${opcert_expiry_kes}" "512" "Dingo OpCert expiry KES period"
+assert_eq "${about_to_lead}" "1003" "Dingo leadership checks"
+assert_eq "${isleader}" "3" "Dingo leader slots"
+assert_eq "${not_leader}" "1000" "Dingo non-leader slots"
+assert_eq "${adopted}" "2" "Dingo adopted blocks"
+assert_eq "${didntadopt}" "1" "Dingo non-adopted forged blocks"
+assert_eq "${could_not_forge}" "1" "Dingo failed forge attempts"
+assert_eq "${dingo_slot_battles}" "2" "Dingo slot battles"
+assert_eq "${dingo_forge_sync_skips}" "4" "Dingo forge sync skips"
+assert_eq "${dingo_forge_validation_failures}" "0" \
+  "Dingo forged-block validation failures"
+for producer_metric in \
+  forging_enabled kesperiod remaining_kes_periods opcert_start_kes \
+  opcert_expiry_kes about_to_lead isleader not_leader adopted didntadopt \
+  could_not_forge dingo_slot_battles dingo_forge_sync_skips \
+  dingo_forge_validation_failures; do
+  node_metric_has "${producer_metric}" ||
+    fail "Dingo producer metric '${producer_metric}' was marked unavailable"
+done
 
 DINGO_METRICS_FIXTURE='
 cardano_node_metrics_blockNum_int{network="preview"} 12346

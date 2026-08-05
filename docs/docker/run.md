@@ -51,8 +51,8 @@ Passing a different value fails before the node starts.
 
 ### Dingo
 
-Dingo images are experimental relays. Persist the database and expose the
-configured relay port:
+Dingo images are experimental testnet nodes. With no operational key set they
+run as relays. Persist the database and expose the configured relay port:
 
 ```bash
 docker run --init --detach --interactive --tty \
@@ -72,16 +72,44 @@ docker run --rm --init \
   guild-operators/dingo:preprod bootstrap
 ```
 
-The Dingo image installs gLiveView but does not install CNTools, Mithril helper
-scripts, db-sync, or Ogmios. Its healthcheck verifies deployment identity,
-Dingo process liveness, and the native Prometheus endpoint on loopback port
-12798; it does not determine whether chain sync is current.
+To test block production, mount only an existing testnet pool's operational
+hot-key directory and select the matching folder name:
+
+```bash
+docker run --init --detach --interactive --tty \
+  --name dingo-preprod-producer \
+  --security-opt=no-new-privileges \
+  --env POOL_NAME=my-pool \
+  --publish 3001:3001 \
+  --volume dingo-preprod-db:/opt/cardano/dingo/db \
+  --volume <online-pool-path>:/opt/cardano/dingo/priv/pool/my-pool:ro \
+  guild-operators/dingo:preprod
+```
+
+The mounted directory must contain `hot.skey`, `vrf.skey`, and `op.cert`.
+The two signing keys must be owned by the container's `guild` user and have no
+group or other permissions. Keep all cold keys and the operational-certificate
+counter offline. A partial set fails startup; the bootstrap command always
+suppresses block production.
+
+The Dingo image installs gLiveView, CNTools, and the isolated
+`cardano-cli-dingo` companion. It does not install Mithril helper scripts,
+db-sync, Ogmios, or the remaining cnode-only suite. Its healthcheck verifies
+deployment identity, Dingo process liveness, and the native Prometheus endpoint
+on loopback port 12798; it does not determine whether chain sync is current.
 
 Open the dashboard in the running container with:
 
 ```bash
 docker exec -it dingo-preprod \
   /opt/cardano/dingo/scripts/gLiveView.sh
+```
+
+Run CNTools against the Dingo socket with:
+
+```bash
+docker exec -it dingo-preprod \
+  /opt/cardano/dingo/scripts/cntools.sh
 ```
 
 TCP 12798 is not published by the command above. Dingo binds metrics using its

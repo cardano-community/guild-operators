@@ -1,10 +1,13 @@
 
 Guild Operators provides community-maintained deployment, management, and
 monitoring tools for Cardano node operators. `cardano-node` (`cnode`) remains
-the default implementation. Experimental Dingo and Amaru relay deployments are
-also available for the networks documented in their implementation guides.
+the default implementation. Experimental Dingo relays and block producers,
+plus Amaru relays, are also available for the networks documented in their
+implementation guides.
 All three profiles include gLiveView; its adapter identifies the selected node
 implementation and hides measurements that implementation does not export.
+Dingo also includes experimental CNTools wallet and pool workflows through an
+independently pinned `cardano-cli-dingo` companion.
 These tools simplify recurring tasks, but operating infrastructure on a
 financial network still requires professional system administration and
 security skills:

@@ -5,10 +5,7 @@
 NODE_ADAPTER_API_VERSION=1
 NODE_ADAPTER_IMPLEMENTATION="dingo"
 NODE_IMPLEMENTATION_DISPLAY_NAME="Dingo"
-# Dingo exposes an N2C socket, but this profile has not yet verified the
-# cardano-cli query/submission surface used by Guild helpers. Keep those
-# higher-level capabilities disabled until their compatibility tests exist.
-NODE_CAPABILITIES="process process_pid metrics native_prometheus n2c"
+NODE_CAPABILITIES="process process_pid metrics native_prometheus n2c local_query local_submit forge kes"
 
 node_adapter_defaults() {
   : "${NODE_IMPLEMENTATION:=dingo}"
@@ -16,6 +13,7 @@ node_adapter_defaults() {
   : "${CNODE_HOME:=${NODE_HOME}}"
   : "${NODE_SERVICE:=${GUILD_NODE_SERVICE:-dingo}}"
   : "${NODE_BINARY:=${DINGO_BIN:-${HOME}/.local/bin/dingo}}"
+  : "${CCLI:=${HOME}/.local/bin/cardano-cli-dingo}"
   : "${NODE_NETWORK:=${CARDANO_NETWORK:-${NETWORK:-preview}}}"
   : "${NODE_PORT:=3001}"
   : "${CNODE_PORT:=${NODE_PORT}}"
@@ -23,23 +21,73 @@ node_adapter_defaults() {
   : "${CONFIG:=${NODE_CONFIG}}"
   : "${NODE_SOCKET:=${CARDANO_SOCKET_PATH:-${NODE_HOME}/sockets/dingo.socket}}"
   : "${SOCKET:=${NODE_SOCKET}}"
-  : "${CARDANO_NODE_SOCKET_PATH:=${NODE_SOCKET}}"
+  CARDANO_NODE_SOCKET_PATH="${NODE_SOCKET}"
   : "${NODE_METRICS_HOST:=${PROM_HOST:-127.0.0.1}}"
   : "${NODE_METRICS_PORT:=${CARDANO_METRICS_PORT:-${PROM_PORT:-12798}}}"
   : "${NODE_METRICS_PATH:=/metrics}"
   : "${PROM_HOST:=${NODE_METRICS_HOST}}"
   : "${PROM_PORT:=${NODE_METRICS_PORT}}"
-  NODE_CAN_FORGE="N"
+  NODE_CAN_FORGE="Y"
   NODE_HAS_N2C="Y"
-  NODE_HAS_LOCAL_QUERY="N"
-  NODE_HAS_LOCAL_SUBMIT="N"
+  NODE_HAS_LOCAL_QUERY="Y"
+  NODE_HAS_LOCAL_SUBMIT="Y"
   NODE_HAS_HTTP_SUBMIT="N"
   NODE_METRICS_URL="${DINGO_PROMETHEUS_URL:-http://${NODE_METRICS_HOST}:${NODE_METRICS_PORT}${NODE_METRICS_PATH}}"
 }
 
-node_adapter_init() {
+dingo_adapter_minimum_cli_version() {
+  local manifest="${NODE_HOME}/files/dingo-release.json"
+
+  command -v jq >/dev/null 2>&1 || {
+    printf 'jq is required to validate Dingo cardano-cli release metadata.\n' >&2
+    return 1
+  }
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] || {
+    printf 'Dingo release metadata is missing or unsafe: %s\n' "${manifest}" >&2
+    return 1
+  }
+  jq -er '
+    select(
+      .schemaVersion == 1 and
+      .implementation == "dingo" and
+      (.companions["cardano-cli"].version |
+        type == "string" and length > 0)
+    ) |
+    .companions["cardano-cli"].version
+  ' "${manifest}"
+}
+
+dingo_adapter_resolve_cardano_cli() {
+  local minimum_version cli_version
+
   node_adapter_defaults
-  case "${1:-full}" in
+  if [[ "${CCLI}" != */* ]]; then
+    CCLI="$(command -v "${CCLI}" 2>/dev/null || true)"
+  fi
+  [[ -n "${CCLI}" && -x "${CCLI}" && ! -d "${CCLI}" ]] || {
+    printf 'Dingo cardano-cli is not executable: %s\n' \
+      "${CCLI:-unset}; install it with guild-deploy.sh -i dingo -s d or set CCLI in env" >&2
+    return 1
+  }
+  minimum_version="$(dingo_adapter_minimum_cli_version)" || return 1
+  cli_version="$("${CCLI}" version 2>/dev/null | head -n 1 | awk '{print $2}')"
+  [[ -n "${cli_version}" ]] || {
+    printf 'Could not determine Dingo cardano-cli version from %s.\n' "${CCLI}" >&2
+    return 1
+  }
+  if ! versionCheckNode "${minimum_version}" "${cli_version}"; then
+    printf 'Dingo helpers require cardano-cli %s or newer (%s found at %s).\n' \
+      "${minimum_version}" "${cli_version}" "${CCLI}" >&2
+    return 1
+  fi
+  NODE_TX_TOOL="${CCLI}"
+}
+
+node_adapter_init() {
+  local profile="${1:-full}"
+
+  node_adapter_defaults
+  case "${profile}" in
     definitions|basic) return 0 ;;
     monitor)
       command -v curl >/dev/null 2>&1 || {
@@ -48,6 +96,24 @@ node_adapter_init() {
       }
       if declare -F common_configure_known_network >/dev/null 2>&1; then
         common_configure_known_network "${NODE_NETWORK}" || return 1
+      fi
+      return 0
+      ;;
+    offline|light|local|full)
+      if declare -F common_configure_known_network >/dev/null 2>&1; then
+        common_configure_known_network "${NODE_NETWORK}" || return 1
+      fi
+      dingo_adapter_resolve_cardano_cli || return 1
+      export CARDANO_NODE_SOCKET_PATH
+      SOCKET="${CARDANO_NODE_SOCKET_PATH}"
+      if [[ "${profile}" == "local" || "${profile}" == "full" ]]; then
+        node_require local_query || return $?
+        node_require local_submit || return $?
+        if [[ ! -S "${CARDANO_NODE_SOCKET_PATH}" ]]; then
+          printf 'Dingo expects node-to-client socket %s, but it does not exist.\n' \
+            "${CARDANO_NODE_SOCKET_PATH}" >&2
+          return 2
+        fi
       fi
       return 0
       ;;
@@ -333,6 +399,26 @@ node_adapter_collect_metrics() {
   dingo_set_nonzero_error_counter \
     dingo_forge_slot_clock_errors_total \
     dingo_slot_clock_errors "Slot clock"
+  if prometheus_first_metric_value value \
+    dingo_metrics_slotBattlesTotal_int; then
+    dingo_set_optional_custom_metric \
+      dingo_slot_battles "${value}" "Slot battles"
+  else
+    node_metric_unset_custom dingo_slot_battles
+  fi
+  if prometheus_first_metric_value value dingo_forge_sync_skip_total; then
+    dingo_set_optional_custom_metric \
+      dingo_forge_sync_skips "${value}" "Forge sync skips"
+  else
+    node_metric_unset_custom dingo_forge_sync_skips
+  fi
+  if prometheus_first_metric_value value \
+    dingo_forge_validation_failed_total; then
+    dingo_set_optional_custom_metric \
+      dingo_forge_validation_failures "${value}" "Forge validation"
+  else
+    node_metric_unset_custom dingo_forge_validation_failures
+  fi
   dingo_set_nonzero_error_counter \
     dingo_governance_proposal_decode_failures_total \
     dingo_governance_decode_errors "Gov decode"

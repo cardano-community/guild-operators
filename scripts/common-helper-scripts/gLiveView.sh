@@ -748,6 +748,45 @@ glvRenderCustomMetrics() {
     "${custom_grid[@]}"
 }
 
+glvRenderProducerMetrics() {
+  local -a producer_metrics=()
+  node_has forge || return 0
+  [[ "${nodemode}" == "Core" ]] || return 0
+
+  if node_metric_has kesperiod; then
+    producer_metrics+=(kesperiod "KES current" "")
+  fi
+  if node_metric_has remaining_kes_periods; then
+    producer_metrics+=(remaining_kes_periods "KES remaining" "")
+    node_metric_set glv_kes_expiration "${kes_expiration:-?}"
+    producer_metrics+=(glv_kes_expiration "KES expires" "")
+  fi
+  node_metric_has isleader &&
+    producer_metrics+=(isleader "Leader slots" "")
+  node_metric_has adopted &&
+    producer_metrics+=(adopted "Adopted" "")
+  node_metric_has didntadopt &&
+    producer_metrics+=(didntadopt "Not adopted" "")
+
+  if [[ "${VERBOSE}" == "Y" ]]; then
+    node_metric_has about_to_lead &&
+      producer_metrics+=(about_to_lead "Leader checks" "")
+    node_metric_has not_leader &&
+      producer_metrics+=(not_leader "Not leader" "")
+    node_metric_has could_not_forge &&
+      producer_metrics+=(could_not_forge "Forge failed" "")
+    node_metric_has missed_slots &&
+      producer_metrics+=(missed_slots "Missed checks" "")
+    node_metric_has opcert_start_kes &&
+      producer_metrics+=(opcert_start_kes "OpCert starts" "KES")
+    node_metric_has opcert_expiry_kes &&
+      producer_metrics+=(opcert_expiry_kes "OpCert expires" "KES")
+  fi
+
+  (( ${#producer_metrics[@]} > 0 )) || return 0
+  glvMetricGrid "BLOCK PRODUCTION" "${producer_metrics[@]}"
+}
+
 glvFrameSectionDivider() {
   local label="$1"
   local fill_count=$(( width - ${#label} - 4 ))
@@ -892,6 +931,8 @@ glvRenderCommonDashboard() {
     )
   fi
   glvMetricGrid "BLOCK PROPAGATION" "${propagation_metrics[@]}" || true
+
+  glvRenderProducerMetrics
 
   LC_NUMERIC=C printf -v mem_rss_gb "%.1f" \
     "$(awk -v rss="${mem_rss:-0}" 'BEGIN { print rss / 1048576 }')"
@@ -1619,10 +1660,9 @@ while true; do
     continue
   fi
 
-  # Relay dashboards share one availability-driven layout across all node
-  # implementations. The cnode producer-only section remains below in the
-  # established view because its forging controls and block-production rows
-  # have no equivalent on relay-only implementations.
+  # The availability-driven layout covers relays and alternate block
+  # producers. cnode producers retain their established extended renderer
+  # below because it also integrates cnode-only Koios and CNCLI state.
   if [[ ${show_peers} = "false" &&
         ${show_home_info} = "false" &&
         ${check_peers} = "false" &&

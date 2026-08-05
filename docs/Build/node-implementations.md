@@ -6,7 +6,7 @@ the same `guild-deploy.sh` entrypoint:
 | Implementation | Selector | Default folder | Networks | Deployment status |
 | --- | --- | --- | --- | --- |
 | cardano-node | `cnode` | `/opt/cardano/cnode` | mainnet, preprod, preview, guild | Default, supported deployment |
-| Dingo | `dingo` | `/opt/cardano/dingo` | preprod, preview | Experimental relay-only deployment |
+| Dingo | `dingo` | `/opt/cardano/dingo` | preprod, preview | Experimental relay and block-producer deployment |
 | Amaru | `amaru` | `/opt/cardano/amaru` | preprod, preview | Experimental rolling-release, relay-only deployment |
 
 Omitting `-i` selects `cnode`, preserving the existing install path and
@@ -21,8 +21,9 @@ behavior:
 Alternate implementations require an explicit network on their initial
 deployment. A later run against an existing, valid `.deployment.json` may omit
 `-n`; the dispatcher restores and validates the recorded network. Alternate
-profiles are deliberately restricted to testnets, do not install
-block-production tooling, and reject cnode-only selective-install flags.
+profiles are deliberately restricted to testnets and reject cnode-only
+selective-install flags. Dingo can select relay or block-producer mode and
+installs the shared CNTools wallet/pool interface; Amaru remains relay-only.
 
 ## Dispatcher and implementation profiles
 
@@ -48,9 +49,9 @@ Implementation-specific work remains separate:
 
 - `scripts/cnode-helper-scripts/deploy-cnode.sh` retains the established
   cardano-node deployment behavior and selective flags;
-- `scripts/dingo-helper-scripts/deploy-dingo.sh` installs Dingo's relay
-  layout, rolling release, configuration, launcher, adapter, and common
-  gLiveView dashboard;
+- `scripts/dingo-helper-scripts/deploy-dingo.sh` installs Dingo's node
+  layout, rolling release, independently pinned CLI companion, configuration,
+  launcher, adapter, common gLiveView dashboard, and CNTools;
 - `scripts/amaru-helper-scripts/deploy-amaru.sh` installs Amaru's relay
   layout, rolling release, environment, launcher, adapter, managed
   OpenTelemetry bridge, and common gLiveView dashboard.
@@ -78,18 +79,21 @@ Set `PACKAGE_MANAGER_OUTPUT=verbose` to stream the raw output when
 troubleshooting.
 
 When binary installation is selected with `-s d`, all implementations use
-`$HOME/.local/bin`. Binary names are distinct (`cardano-node`, `dingo`, and
-`amaru`), so they can coexist. Amaru additionally installs the pinned
-`otelcol-contrib` executable used by its local metrics bridge. Every
+`$HOME/.local/bin`. Node binary names are distinct (`cardano-node`, `dingo`,
+and `amaru`), so they can coexist. Dingo installs its standard Cardano CLI as
+`cardano-cli-dingo`, independently of cnode's `cardano-cli`. Amaru additionally
+installs the pinned `otelcol-contrib` executable used by its local metrics
+bridge. Every
 implementation has reviewed release metadata under
 `files/node-implementations/<implementation>/release.json`. The profiles
 select Linux architecture artifacts from that metadata and verify SHA-256
 digests before extraction. cnode uses reviewed, concrete node artifacts;
 Dingo and Amaru resolve their newest published non-draft GitHub release,
 including prereleases, and require the selected asset's GitHub-published
-digest. cardano-cli is represented as a companion entry in the cnode manifest
-because it is released independently. Amaru's OpenTelemetry Collector also
-remains independently pinned.
+digest. cardano-cli is represented as a separately owned companion entry in
+both the cnode and Dingo manifests because it is released independently. The
+two explicit versions may diverge without overwriting each other's binaries.
+Amaru's OpenTelemetry Collector also remains independently pinned.
 
 Network templates follow the same implementation namespace:
 
@@ -121,9 +125,9 @@ configuration:
   "metricsProvider": "prometheus",
   "capabilities": {
     "n2c": true,
-    "localCli": false,
+    "localCli": true,
     "metrics": true,
-    "forging": false
+    "forging": true
   }
 }
 ```
@@ -199,8 +203,10 @@ an update failure and keeps its existing local file. Running the current
 replaced.
 
 Deploying a common runtime does not imply that every common tool is supported.
-Capability checks must fail closed when an adapter cannot provide the required
-node interface.
+Capability checks fail closed when an adapter cannot provide the required node
+interface. cnode and Dingo install the same canonical CNTools files; the Dingo
+adapter supplies `cardano-cli-dingo` and its node-to-client socket. Amaru does
+not install CNTools.
 
 ### Common monitoring contract
 
@@ -239,10 +245,12 @@ upstream bridge. It receives OTLP/gRPC on
 Prometheus-formatted metrics on `127.0.0.1:8889`. All Amaru monitoring
 endpoints are loopback-only.
 
-This shared monitoring interface does not make cnode-only operational
-features portable. The alternate profiles are relay-only; cnode forging, KES,
-operational-certificate, CNCLI blocklog, Koios pool, Mithril signer, and
-interactive peer-analysis sections remain hidden. See the
+For Dingo, `capabilities.forging: true` records that the implementation profile
+can forge; it does not claim that every deployed process is a producer. The
+launcher selects the live role from the complete operational hot-key set and
+gLiveView confirms it from Dingo's `forging_enabled` metric. A Dingo producer
+uses the common KES and block-production display. CNCLI blocklog, Koios pool,
+Mithril signer, and interactive peer-analysis sections remain cnode-only. See the
 [gLiveView guide](../Scripts/gliveview.md) for the displayed metric groups.
 
 ## Current helper compatibility
@@ -255,7 +263,7 @@ interactive peer-analysis sections remain hidden. See the
 | CNTools | Yes | Not deployed | Not deployed |
 | cardano-cli local queries | Yes | Not exposed through the profile | No compatible node-to-client socket |
 | db-sync, Ogmios, standalone Mithril helpers | Existing support | Not deployed | Not deployed |
-| Block production | Yes | Not supported by this profile | Not supported by this profile |
+| Block production | Yes | Experimental on preprod/preview | Not supported by this profile |
 
 Dingo samples carry an upstream `network` label; the shared parser accepts
 labelled and unlabelled Prometheus samples. Amaru samples pass through

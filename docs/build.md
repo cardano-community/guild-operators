@@ -15,8 +15,9 @@ whether you need other components:
 Dingo and Amaru use their own experimental, testnet-only deployment profiles;
 see the [node implementation guide](Build/node-implementations.md). Unless a
 component description explicitly says otherwise, the surrounding tools on
-this page are currently deployed only with `cnode`. gLiveView is the first
-common operational dashboard supported across all three profiles.
+this page are currently deployed only with `cnode`. gLiveView is supported
+across all three profiles, and Dingo additionally deploys CNTools for
+experimental wallet and pool workflows.
 
 ``` mermaid
 graph TB
@@ -74,7 +75,7 @@ against the selected upstream wallet release.
 
 ##### CNTools
 
-A swiss army knife for pool operators, primarily built by [Ola](https://github.com/scitz0), to simplify typical operations regarding their wallet keys and pool management. It is currently deployed only with `cnode`. You can read more about it [here](Scripts/cntools.md)
+A swiss army knife for pool operators, primarily built by [Ola](https://github.com/scitz0), to simplify typical operations regarding wallet keys and pool management. It is deployed with `cnode` and, for testnet evaluation, Dingo. Dingo uses an independently pinned `cardano-cli-dingo` against its compatible node-to-client socket. You can read more about it [here](Scripts/cntools.md).
 
 ##### gLiveView
 

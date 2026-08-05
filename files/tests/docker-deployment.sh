@@ -33,6 +33,10 @@ grep -q '/files/configs/cnode/${network}/${file}' "${DOCKERFILE}" ||
   fail "Dockerfile does not use the implementation-scoped cnode config path"
 grep -Fq 'alias gLiveView=${IMAGE_NODE_HOME}/scripts/gLiveView.sh' "${DOCKERFILE}" ||
   fail "Dockerfile does not expose gLiveView for every implementation"
+grep -Fq '"${IMAGE_NODE_IMPLEMENTATION}" = "dingo"' "${DOCKERFILE}" ||
+  fail "Dockerfile does not expose CNTools for Dingo"
+grep -Fq 'customise_cntools' "${ENTRYPOINT}" ||
+  fail "container entrypoint does not apply CNTools-safe container defaults"
 grep -Fq '"${NODE_HOME}/scripts/amaru.sh" metrics &' "${ENTRYPOINT}" ||
   fail "container entrypoint does not start the Amaru metrics bridge"
 grep -Fq 'wait -n -p completed_pid "${metrics_pid}" "${node_pid}"' "${ENTRYPOINT}" ||
@@ -77,9 +81,9 @@ cat > "${node_home}/.deployment.json" <<'EOF'
   "metricsProvider": "prometheus",
   "capabilities": {
     "n2c": true,
-    "localCli": false,
+    "localCli": true,
     "metrics": true,
-    "forging": false
+    "forging": true
   }
 }
 EOF

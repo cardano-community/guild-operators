@@ -23,8 +23,9 @@ docker build \
   .
 ```
 
-Dingo and Amaru images are experimental, relay-only, and currently support
-only `preprod` and `preview`:
+Dingo and Amaru images are experimental and currently support only `preprod`
+and `preview`. Dingo can run as a relay or testnet block producer; Amaru is
+relay-only:
 
 ```bash
 docker build \
@@ -63,7 +64,8 @@ listener. The Amaru image additionally installs the checksummed
 `otelcol-contrib` artifact from the Amaru release manifest; its entrypoint
 supervises the node and collector as two processes, using the minimal
 host-safe form of Amaru's reference bridge. The alternate images do not
-install CNTools or the other cnode-only helper suite.
+install the other cnode-only helper suite. Dingo does install CNTools and its
+independently pinned `cardano-cli-dingo`; Amaru does not.
 
 To build from a fork or non-default Guild Operators branch, add:
 

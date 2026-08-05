@@ -3,8 +3,9 @@
     before you proceed.
 
 This page configures the shared `telegramSend` function used by CNTools; there
-is no separate `sendAlerts.sh` executable. CNTools is currently installed and
-supported only by the cnode profile.
+is no separate `sendAlerts.sh` executable. CNTools is installed by cnode and
+by the experimental Dingo testnet profile. Alert delivery is a shared CNTools
+feature; it does not add support for Dingo features that remain cnode-only.
 
 #### Telegram alerts
 

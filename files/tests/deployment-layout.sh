@@ -226,6 +226,10 @@ if grep -Eq 'Tip [(](ref|diff)[)]' "${GLIVEVIEW}"; then
 fi
 grep -Fq 'glvRenderNetworkPage' "${GLIVEVIEW}" ||
   fail "gLiveView does not provide the Network details page"
+grep -Fq 'glvRenderProducerMetrics' "${GLIVEVIEW}" ||
+  fail "gLiveView does not provide the shared producer metrics section"
+grep -Fq 'glvMetricGrid "BLOCK PRODUCTION"' "${GLIVEVIEW}" ||
+  fail "gLiveView does not render normalized block-production metrics"
 grep -Fq '[n] Network' "${GLIVEVIEW}" ||
   fail "gLiveView does not advertise the Network page shortcut"
 

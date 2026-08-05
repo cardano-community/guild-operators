@@ -26,7 +26,10 @@
     read from `files/configs/cnode/<network>`. Older Guild Operators tags retain
     the previous paths for deliberately tagged deployments. The current
     profile verifies the pinned cardano-node and cardano-cli checksums before
-    extracting `-s d` downloads.
+    extracting `-s d` downloads. Dingo owns a separate cardano-cli pin and
+    installs it as `cardano-cli-dingo`; re-run the Dingo deployment with
+    `-s d` when either its rolling node or pinned CLI companion should be
+    refreshed.
 
     When selecting a tag from before this restructuring, download
     `guild-deploy.sh` from that same tag and also pass it with `-b`. For example,
@@ -133,7 +136,7 @@ echo "${PATH}"
 - The above should take care of tools and services. However, you might still have duplicate binaries in your `$PATH` (previous artifacts, re-build using old scripts, etc) - it is best that you remove any old binary files from alternate folders. You can do so by executing the below:
 
 ``` bash
-whereis bech32 cardano-address cardano-cli cardano-db-sync cardano-hw-cli cardano-node cardano-submit-api cncli ogmios
+whereis bech32 cardano-address cardano-cli cardano-cli-dingo cardano-db-sync cardano-hw-cli cardano-node cardano-submit-api cncli ogmios
 ```
 
 For some cases - you might have no values (eg: you may not use `cardano-db-sync`, `cncli`, `ogmios` and/or `cardano-hw-cli`. You need not take any actions for the binaries you do not use.

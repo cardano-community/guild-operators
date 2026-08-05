@@ -1083,9 +1083,9 @@ dispatcher_set_defaults() {
         (.implementation == "dingo" and
           .metricsProvider == "prometheus" and
           .capabilities.n2c == true and
-          .capabilities.localCli == false and
+          .capabilities.localCli == true and
           .capabilities.metrics == true and
-          .capabilities.forging == false) or
+          .capabilities.forging == true) or
         (.implementation == "amaru" and
           .metricsProvider == "otel" and
           .capabilities.n2c == false and
@@ -1333,7 +1333,7 @@ dispatcher_capability_default() {
   local capability="$1"
   case "${NODE_IMPLEMENTATION}:${capability}" in
     cnode:n2c|cnode:local_cli|cnode:metrics|cnode:forging) printf 'true' ;;
-    dingo:n2c|dingo:metrics) printf 'true' ;;
+    dingo:n2c|dingo:local_cli|dingo:metrics|dingo:forging) printf 'true' ;;
     amaru:metrics) printf 'true' ;;
     *) printf 'false' ;;
   esac

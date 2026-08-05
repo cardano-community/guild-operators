@@ -51,8 +51,8 @@ cd "${NODE_HOME}/scripts"
 ./gLiveView.sh
 ```
 
-For cnode, the script detects whether the node is a block producer or relay.
-The current Guild Dingo and Amaru profiles are relay-only.
+For cnode and Dingo, the script detects whether the running node is a block
+producer or relay from its metrics. Amaru is currently relay-only.
 
 The `-b <branch>` option updates `${NODE_HOME}/.deployment.json`. The removed
 `scripts/.env_branch` sidecar is no longer read or written.
@@ -138,7 +138,7 @@ cells are omitted rather than printed empty or as zero.
 
 ###### Compact and verbose views
 
-Compact mode keeps the relay dashboard focused on the common operational
+Compact mode keeps the common dashboard focused on the primary operational
 signals: chain position and tip gap, primary incoming/outgoing and aggregate
 peer-set counters, latest block delay, and CPU, resident memory, and disk use.
 
@@ -155,7 +155,8 @@ They are displayed in a section named after the implementation in verbose
 mode and disappear individually when not present in the latest scrape.
 
 - Dingo can report Go runtime activity, open-file limits, aggregate database
-  size, cache hit ratios, and selected nonzero internal error counters.
+  size, cache hit ratios, selected nonzero internal error counters, and
+  producer-specific slot-battle, sync-skip, and validation counters.
 - Amaru can report process CPU and disk activity, open file descriptors,
   mempool synchronization and insertion results, plus consensus header,
   fork-switch, and timing measurements introduced by newer releases.
@@ -187,18 +188,22 @@ floating-point value is unusually long.
 
 ###### Display refresh
 
-The common relay renderer builds a complete logical frame on every metrics
+The common renderer builds a complete logical frame on every metrics
 refresh but writes only rows whose content changed. Every `REPAINT_RATE`
 seconds it reconciles all rows using the same row updates, without clearing
 the terminal first. This limits visible redraw while also removing stale
 content when values shrink or sections appear or disappear. A view change or
 terminal resize can still require a complete layout redraw.
 
-###### Core section
+###### Block-production section
 
-The core section is cnode-only in the current deployment set. It is displayed
-when the cnode adapter reports that forging is enabled. Dingo and Amaru are
-deployed as relays and never receive this section.
+The block-production section is displayed when the cnode or Dingo adapter
+reports that forging is enabled. Dingo uses the common availability-driven
+section. Its compact view shows available KES lifecycle, leader-slot, and
+forged/adopted results. Verbose mode adds leadership checks, failed attempts,
+operational-certificate KES bounds, and Dingo-native forge diagnostics. cnode
+retains its extended view because it also integrates Koios and CNCLI data.
+Amaru does not currently receive this section.
 
 - **KES period / expiration** - This section contain the current and remaining KES periods as well as a calculated date for the expiration. When getting close to expire date the values will change color.  
 - **Missed slot checks** - A value that show if the node have missed slots for attempting leadership checks (as absolute value and percentage since node startup).  

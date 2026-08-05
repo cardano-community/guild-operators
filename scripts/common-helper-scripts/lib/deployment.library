@@ -311,9 +311,9 @@ deployment_set_branch() (
       (.implementation == "dingo" and
         .metricsProvider == "prometheus" and
         .capabilities.n2c == true and
-        .capabilities.localCli == false and
+        .capabilities.localCli == true and
         .capabilities.metrics == true and
-        .capabilities.forging == false) or
+        .capabilities.forging == true) or
       (.implementation == "amaru" and
         .metricsProvider == "otel" and
         .capabilities.n2c == false and

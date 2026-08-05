@@ -85,7 +85,8 @@ untrusted image, script branch, or host safe.
 - Recreate containers from reviewed images instead of making undocumented
   changes inside a running container.
 - Test cnode upgrades on a relay or test network first. Dingo and Amaru images
-  are experimental, relay-only, and restricted to `preprod` and `preview`.
+  are experimental and restricted to `preprod` and `preview`; Dingo producer
+  mode is for testnet evaluation only and Amaru remains relay-only.
 
 See [Run](run.md) for implementation-specific volumes and ports and
 [Docker operational tips](tips.md) for update, backup, and restore behavior.

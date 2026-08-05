@@ -86,7 +86,7 @@ The current common User Variables section is:
 #NODE_HOME="/opt/cardano/cnode"                         # Effective only when USESYSVARS=Y
 #CNODE_HOME="${NODE_HOME}"                              # Legacy alias; effective only when USESYSVARS=Y
 #CNODEBIN="${HOME}/.local/bin/cardano-node"             # Legacy cnode binary override
-#CCLI="${HOME}/.local/bin/cardano-cli"                  # cardano-cli executable
+#CCLI="${HOME}/.local/bin/cardano-cli"                  # Override adapter-selected cardano-cli executable
 #CNCLI="${HOME}/.local/bin/cncli"                       # Optional CNCLI executable
 #CNODE_PORT=6000                                        # Legacy node-to-node port alias
 #CONFIG="${NODE_HOME}/files/config.json"                # Implementation configuration override
@@ -122,6 +122,11 @@ The current common User Variables section is:
 #MITHRIL_SIGNER_ENABLED="N"
 #STRICT_VERSION_CHECK="Y"
 ```
+
+Leave `CCLI` commented to use the selected adapter's default. cnode resolves
+`cardano-cli`; Dingo selects the independently installed
+`$HOME/.local/bin/cardano-cli-dingo`. Uncommenting `CCLI` is an explicit
+operator override and is preserved by both adapters.
 
 The longer wallet, pool, and asset filename-convention list formerly shown on
 this page is still initialized by the cnode-compatible runtime, but is no

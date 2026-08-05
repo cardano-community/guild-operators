@@ -61,7 +61,7 @@ RUN apt-get update \
 
 # Install prerequisites first, then the selected node and its supported helper
 # set. cnode retains the historical full Docker payload; Dingo and Amaru use
-# only the experimental relay payload accepted by their deployment profiles.
+# their smaller experimental payloads accepted by their deployment profiles.
 RUN set -x \
     && wget -O /guild-deploy.sh \
       "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh" \
@@ -146,7 +146,7 @@ RUN curl --fail --silent --show-error --location \
     && echo "alias env=/usr/bin/env" >> "${USER_HOME}/.bashrc" \
     && echo "alias node=${IMAGE_NODE_HOME}/scripts/${IMAGE_NODE_IMPLEMENTATION}.sh" >> "${USER_HOME}/.bashrc" \
     && echo "alias gLiveView=${IMAGE_NODE_HOME}/scripts/gLiveView.sh" >> "${USER_HOME}/.bashrc" \
-    && if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ]; then \
+    && if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ] || [ "${IMAGE_NODE_IMPLEMENTATION}" = "dingo" ]; then \
       echo "alias cntools=${IMAGE_NODE_HOME}/scripts/cntools.sh" >> "${USER_HOME}/.bashrc"; \
     fi \
     && echo "export PATH=${IMAGE_NODE_HOME}/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:${USER_HOME}/.local/bin" >> "${USER_HOME}/.bashrc" \

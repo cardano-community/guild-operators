@@ -56,9 +56,9 @@ write_deployment_manifest() {
       metricsProvider: (if $implementation == "amaru" then "otel" else "prometheus" end),
       capabilities: {
         n2c: ($implementation != "amaru"),
-        localCli: ($implementation == "cnode"),
+        localCli: ($implementation != "amaru"),
         metrics: true,
-        forging: ($implementation == "cnode")
+        forging: ($implementation == "cnode" or $implementation == "dingo")
       }
     }' > "${node_root}/.deployment.json"
 }
@@ -87,9 +87,9 @@ run_manifest_tests() (
     metricsProvider: "prometheus",
     capabilities: {
       n2c: true,
-      localCli: false,
+      localCli: true,
       metrics: true,
-      forging: false
+      forging: true
     },
     preserved: {
       string: "keep-me",
@@ -108,7 +108,7 @@ run_manifest_tests() (
   assert_eq "$(deployment_get network)" "preprod" "network read"
   assert_eq "$(deployment_get branch)" "alpha" "branch read"
   assert_eq "$(deployment_get capabilities.n2c)" "true" "nested boolean read"
-  jq -e '.n2c == true and .forging == false' \
+  jq -e '.n2c == true and .forging == true' \
     <<< "$(deployment_get capabilities)" >/dev/null ||
     fail "object-valued deployment_get result was invalid"
   if deployment_get missing.key >/dev/null 2>&1; then
@@ -130,7 +130,7 @@ run_manifest_tests() (
     .serviceName == "runtime-test" and
     .metricsProvider == "prometheus" and
     .capabilities.n2c == true and
-    .capabilities.forging == false and
+    .capabilities.forging == true and
     .preserved.string == "keep-me" and
     .preserved.list == [1, 2, 3]
   ' "${manifest}" >/dev/null || fail "branch update did not preserve manifest fields"
@@ -212,9 +212,9 @@ run_missing_and_malformed_manifest_tests() (
         metricsProvider: "prometheus",
         capabilities: {
           n2c: true,
-          localCli: false,
+          localCli: true,
           metrics: true,
-          forging: false
+          forging: true
         }
       } + $identity
     ' > "${manifest}"
@@ -266,9 +266,9 @@ install_runtime_fixture() {
       metricsProvider: $metrics_provider,
       capabilities: {
         n2c: ($implementation != "amaru"),
-        localCli: ($implementation == "cnode"),
+        localCli: ($implementation != "amaru"),
         metrics: true,
-        forging: ($implementation == "cnode")
+        forging: ($implementation == "cnode" or $implementation == "dingo")
       }
     }' > "${node_root}/.deployment.json"
 }
@@ -323,8 +323,8 @@ run_adapter_case() (
   node_has "${expected_capability}" ||
     fail "${implementation} adapter lacks expected capability ${expected_capability}"
   if [[ "${implementation}" == "dingo" ]] &&
-     { node_has local_query || node_has local_submit; }; then
-    fail "dingo adapter exposed unverified cardano-cli capabilities"
+     { ! node_has local_query || ! node_has local_submit; }; then
+    fail "dingo adapter lacks cardano-cli query/submission capabilities"
   fi
   jq -e 'type == "object" and has("n2c") and has("metrics")' \
     <<< "${NODE_DEPLOYMENT_CAPABILITIES}" >/dev/null ||

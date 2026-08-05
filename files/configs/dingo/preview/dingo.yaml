@@ -1,5 +1,5 @@
-# Guild Operators Dingo relay profile: preview
-# Dingo support is experimental. Block production and optional APIs are off.
+# Guild Operators Dingo profile: preview
+# The launcher overrides blockProducer when a complete POOL_DIR is available.
 network: "preview"
 databasePath: "@NODE_HOME@/db"
 socketPath: "@NODE_HOME@/sockets/dingo.socket"

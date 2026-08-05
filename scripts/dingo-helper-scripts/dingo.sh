@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Guild Operators launcher for an experimental Dingo relay.
+# Guild Operators launcher for an experimental Dingo node.
 set -euo pipefail
 
 DINGO_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -53,9 +53,9 @@ if [[ "${_manifest_required}" == "Y" ]]; then
     (.capabilities | type == "object") and
     (.capabilities | keys == ["forging", "localCli", "metrics", "n2c"]) and
     (.capabilities.n2c == true) and
-    (.capabilities.localCli == false) and
+    (.capabilities.localCli == true) and
     (.capabilities.metrics == true) and
-    (.capabilities.forging == false)
+    (.capabilities.forging == true)
   ' "${_manifest_file}" >/dev/null 2>&1; then
     printf 'ERROR: deployment manifest is malformed, incomplete, unsupported, or not finalized: %s\n' \
       "${_manifest_file}" >&2
@@ -135,19 +135,23 @@ fi
 
 : "${DINGO_BIN:=${HOME}/.local/bin/dingo}"
 : "${DINGO_CONFIG:=${GUILD_NODE_HOME}/files/dingo.yaml}"
+: "${POOL_FOLDER:=${GUILD_NODE_HOME}/priv/pool}"
+: "${POOL_NAME:=CHANGE_ME}"
+: "${POOL_DIR:=${POOL_FOLDER}/${POOL_NAME}}"
+: "${POOL_HOTKEY_SK_FILENAME:=hot.skey}"
+: "${POOL_VRF_SK_FILENAME:=vrf.skey}"
+: "${POOL_OPCERT_FILENAME:=op.cert}"
 
-# The guild profile is intentionally relay-only even if an operator supplies a
-# conflicting parent environment value.
-export CARDANO_BLOCK_PRODUCER=false
 export DINGO_STORAGE_MODE=core
 export DINGO_RUN_MODE=serve
+DINGO_RUNTIME_ROLE="relay"
 
 dingo_usage() {
   cat <<EOF
 Usage: $(basename "$0") [command]
 
 Commands:
-  run                 Run the relay in the foreground (default)
+  run                 Run in the foreground (default)
   bootstrap           Import a certified Mithril snapshot
   -d, install         Install and enable (but do not start) the systemd service
   remove              Stop, disable, and remove the systemd service
@@ -157,8 +161,9 @@ Commands:
   version             Print the installed Dingo version
   -h, --help          Show this help
 
-Dingo support is experimental and relay-only. Only preprod and preview are
-accepted by this launcher.
+Dingo support, including block production, is experimental. Only preprod and
+preview are accepted by this launcher. A complete operational hot-key set in
+POOL_DIR enables block production; otherwise Dingo runs as a relay.
 EOF
 }
 
@@ -203,10 +208,81 @@ dingo_require_supported_profile() {
     printf 'ERROR: Dingo config is missing: %s\n' "${DINGO_CONFIG}" >&2
     return 1
   fi
-  if grep -Eq '^[[:space:]]*blockProducer:[[:space:]]*true([[:space:]]|$)' "${DINGO_CONFIG}"; then
-    printf 'ERROR: block production is not supported by this experimental profile\n' >&2
+  if ! grep -Eq '^[[:space:]]*blockProducer:[[:space:]]*false([[:space:]]|$)' "${DINGO_CONFIG}"; then
+    printf 'ERROR: the Guild Dingo base config must keep blockProducer false; dingo.sh enables it from POOL_DIR\n' >&2
     return 1
   fi
+}
+
+dingo_secret_file_is_private() {
+  local file="$1"
+  local permissions owner
+  permissions="$(
+    stat -Lc '%a' "${file}" 2>/dev/null ||
+      stat -f '%Lp' "${file}" 2>/dev/null
+  )" || return 1
+  owner="$(
+    stat -Lc '%u' "${file}" 2>/dev/null ||
+      stat -f '%u' "${file}" 2>/dev/null
+  )" || return 1
+  [[ "${permissions}" =~ ^[0-7]{3,4}$ ]] || return 1
+  [[ "${owner}" == "$(id -u)" ]] || return 1
+  (( (8#${permissions} & 077) == 0 ))
+}
+
+dingo_configure_runtime_role() {
+  local mode="${1:-run}"
+  local kes_file="${POOL_DIR}/${POOL_HOTKEY_SK_FILENAME}"
+  local vrf_file="${POOL_DIR}/${POOL_VRF_SK_FILENAME}"
+  local opcert_file="${POOL_DIR}/${POOL_OPCERT_FILENAME}"
+  local present=0
+  local file
+  local -a missing=()
+
+  export CARDANO_BLOCK_PRODUCER=false
+  unset CARDANO_SHELLEY_KES_KEY CARDANO_SHELLEY_VRF_KEY
+  unset CARDANO_SHELLEY_OPERATIONAL_CERTIFICATE
+  DINGO_RUNTIME_ROLE="relay"
+
+  # Snapshot import never forges and should not require online hot keys.
+  [[ "${mode}" == "bootstrap" ]] && return 0
+
+  if [[ ! "${POOL_DIR}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]]; then
+    printf 'ERROR: POOL_DIR must be an absolute deployment-safe path: %s\n' \
+      "${POOL_DIR}" >&2
+    return 1
+  fi
+
+  for file in "${kes_file}" "${vrf_file}" "${opcert_file}"; do
+    [[ -e "${file}" ]] && ((present += 1))
+  done
+  (( present == 0 )) && return 0
+
+  for file in "${kes_file}" "${vrf_file}" "${opcert_file}"; do
+    [[ -f "${file}" && -r "${file}" ]] || missing+=("${file}")
+  done
+  if (( ${#missing[@]} > 0 )); then
+    printf 'ERROR: POOL_DIR contains an incomplete Dingo block-producer credential set. Missing or unreadable:\n' >&2
+    printf '  %s\n' "${missing[@]}" >&2
+    return 1
+  fi
+
+  if ! dingo_secret_file_is_private "${kes_file}"; then
+    printf 'ERROR: KES signing key must be owned by uid %s with no group/other permissions: %s\n' \
+      "$(id -u)" "${kes_file}" >&2
+    return 1
+  fi
+  if ! dingo_secret_file_is_private "${vrf_file}"; then
+    printf 'ERROR: VRF signing key must be owned by uid %s with no group/other permissions: %s\n' \
+      "$(id -u)" "${vrf_file}" >&2
+    return 1
+  fi
+
+  export CARDANO_BLOCK_PRODUCER=true
+  export CARDANO_SHELLEY_KES_KEY="${kes_file}"
+  export CARDANO_SHELLEY_VRF_KEY="${vrf_file}"
+  export CARDANO_SHELLEY_OPERATIONAL_CERTIFICATE="${opcert_file}"
+  DINGO_RUNTIME_ROLE="producer"
 }
 
 dingo_install_service() {
@@ -221,7 +297,7 @@ dingo_install_service() {
   unit_name="${GUILD_NODE_SERVICE}.service"
   unit_content="$(cat <<EOF
 [Unit]
-Description=Guild Operators Dingo experimental relay (${CARDANO_NETWORK})
+Description=Guild Operators Dingo experimental node (${CARDANO_NETWORK})
 Documentation=https://github.com/blinklabs-io/dingo
 Wants=network-online.target time-sync.target
 After=network-online.target time-sync.target
@@ -254,7 +330,7 @@ EOF
   systemd_install_unit "${unit_name}" "${unit_content}" "${DINGO_SCRIPT_DIR}/dingo.sh" || return 1
   systemd_daemon_reload || return 1
   systemd_enable_units "${unit_name}" || return 1
-  printf 'Installed %s. Bootstrap is recommended before starting it.\n' "${unit_name}"
+  printf 'Installed %s for Dingo %s mode.\n' "${unit_name}" "${DINGO_RUNTIME_ROLE}"
 }
 
 dingo_remove_service() {
@@ -270,16 +346,19 @@ dingo_remove_service() {
 case "${command_name}" in
   run)
     dingo_require_supported_profile
+    dingo_configure_runtime_role run
     cd -- "${GUILD_NODE_HOME}"
     exec "${DINGO_BIN}" --config "${DINGO_CONFIG}" serve "$@"
     ;;
   bootstrap)
     dingo_require_supported_profile
+    dingo_configure_runtime_role bootstrap
     cd -- "${GUILD_NODE_HOME}"
     exec "${DINGO_BIN}" --config "${DINGO_CONFIG}" sync --mithril "$@"
     ;;
   -d|install)
     dingo_require_supported_profile
+    dingo_configure_runtime_role run
     dingo_install_service
     ;;
   remove)
