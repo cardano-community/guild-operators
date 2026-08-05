@@ -187,7 +187,7 @@ assert_eq "${NODE_METRIC_LABEL[amaru_cpu_percent]}" "Process CPU" \
   "Amaru CPU display label"
 assert_eq "${NODE_METRIC_UNIT[amaru_cpu_percent]}" "%" \
   "Amaru CPU display unit"
-assert_eq "${NODE_METRIC_UNIT[amaru_disk_read_kib]}" "KiB/s" \
+assert_eq "${NODE_METRIC_UNIT[amaru_disk_read_kib]}" "KiB" \
   "Amaru disk-read display unit"
 assert_eq "${NODE_METRIC_UNIT[amaru_fetch_wait_ms]}" "ms" \
   "Amaru consensus-duration display unit"

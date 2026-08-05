@@ -1,291 +1,448 @@
-!!! info "Reminder !!"
-    Ensure the [Pre-Requisites](../basics.md#pre-requisites) are in place before you proceed.
+!!! info "Prerequisites"
+    Complete the [Guild Operators prerequisites](../basics.md#pre-requisites)
+    before using gLiveView.
 
-**Koios gLiveView** is a local terminal dashboard that complements remote
-monitoring systems such as Prometheus/Grafana or Zabbix. It provides an
-interactive view of a node that is especially useful when the node itself runs
-as a background systemd service.
+**Koios gLiveView** is a local terminal dashboard for `cardano-node`, Dingo,
+and Amaru. It complements durable remote monitoring such as
+Prometheus/Grafana or Zabbix; it is not a replacement for alerting or
+historical dashboards.
 
-gLiveView is installed by the `cnode`, Dingo, and Amaru deployment profiles.
-The common dashboard loads the adapter selected by
-`${NODE_HOME}/.deployment.json`, normalizes that implementation's metrics, and
-prints the implementation name in the header. A typical heading therefore
-contains `[cardano-node]`, `[Dingo]`, or `[Amaru]` as well as the node name,
-relay/core role, network, and version.
+The same `gLiveView.sh` is installed for every node implementation. It reads
+`${NODE_HOME}/.deployment.json`, loads the selected adapter, and displays the
+implementation explicitly in the header as `[cardano-node]`, `[Dingo]`, or
+`[Amaru]`. The adapter translates native telemetry into a common metric
+contract and may add implementation-specific fields.
 
-All relay deployments use the same availability-driven dashboard. Each
-implementation exposes a different set of measurements, so gLiveView discovers
-availability on every scrape and displays only fields and sections that the
-selected node actually supplied. An unavailable metric is not treated as zero.
-This keeps the relay view consistent without implying that every implementation
-provides cnode block-production, KES, peer-inspection, or runtime interfaces.
+This guide deliberately uses field-reference tables instead of dashboard
+screenshots. A screenshot becomes inaccurate whenever a field, upstream
+metric, terminal width, or compact/verbose rule changes; the tables below
+describe the current interface directly.
 
-##### Metrics interface
+## Metric sources
 
-| Implementation | Source used by gLiveView | Default local endpoint |
+| Implementation | Source read by gLiveView | Default endpoint |
 | --- | --- | --- |
-| `cnode` / cardano-node | Native Prometheus endpoint configured in `config.json` | Usually `127.0.0.1:12798` |
-| Dingo | Native Prometheus endpoint; network-labelled samples are normalized by the Dingo adapter | `http://127.0.0.1:12798/metrics` |
-| Amaru | OTLP is received by a Guild-managed, host-safe form of Amaru's reference Prometheus bridge | OTLP `127.0.0.1:4317`/`4318`; Prometheus `http://127.0.0.1:8889/metrics` |
+| `cnode` / cardano-node | Native Prometheus endpoint configured by cardano-node | Usually `http://127.0.0.1:12798/metrics` |
+| Dingo | Native Prometheus endpoint, including Dingo's cardano-node-compatible metric names | `http://127.0.0.1:12798/metrics` |
+| Amaru | Amaru OTLP telemetry exported through the locally managed OpenTelemetry Collector Prometheus bridge | OTLP `127.0.0.1:4317` and `4318`; Prometheus `http://127.0.0.1:8889/metrics` |
 
-The Amaru `-s d` deployment installs the newest published Amaru release,
-including prereleases, and the pinned `otelcol-contrib` executable.
-`amaru.sh -d` installs the node unit and a companion
-`<service-name>-metrics.service`; starting or stopping the launcher controls
-both. Amaru itself has no native Prometheus listener; the reference bridge is
-an OpenTelemetry Collector configuration. Guild preserves its metric-name
-contract while accepting and discarding OTLP traces and logs locally and
-exposing metrics only on the loopback Prometheus endpoint. The shared parser
-also normalizes Prometheus scientific notation, including the format reported
-in [issue #1912](https://github.com/cardano-community/guild-operators/issues/1912).
+Amaru itself does not expose the Prometheus listener used by gLiveView.
+`amaru.sh -d` installs both the node unit and the companion
+`<service-name>-metrics.service`. The Guild collector configuration follows
+Amaru's reference bridge metric-name contract, expires stale series, and
+keeps its OTLP receivers and Prometheus exporter on loopback.
 
-##### Configuration & Startup
+## Start gLiveView
 
-The adapter detects the selected implementation, process, endpoint, and
-network settings. For cnode, set `CNODE_PORT` in `env` only when the node does
-not use its configured default. Run the dashboard from
-`${NODE_HOME}/scripts` after the node and its metrics endpoint are running:
+Run gLiveView after the node process and its metrics endpoint are available:
 
 ```bash
 cd "${NODE_HOME}/scripts"
 ./gLiveView.sh
 ```
 
-For cnode and Dingo, the script detects whether the running node is a block
-producer or relay from its metrics. Amaru is currently relay-only.
+The adapter normally discovers the implementation, process, network, socket,
+and metrics endpoint. For a customized cnode deployment, set `CNODE_PORT` or
+the relevant endpoint override in `env`. Dingo and Amaru use their
+implementation-specific deployment settings by default.
 
-The `-b <branch>` option updates `${NODE_HOME}/.deployment.json`. The removed
-`scripts/.env_branch` sidecar is no longer read or written.
-
-The accepted startup options are:
+The startup options are:
 
 ```text
 Usage: gLiveView.sh [-l] [-u] [-b <branch name>] [-v]
 
 -l    Use standard ASCII instead of box-drawing characters
 -u    Skip the script update check
--b    Persist an alternate Guild Operators branch in .deployment.json
+-b    Persist a Guild Operators branch in .deployment.json
 -v    Print the gLiveView version
 ```
 
-Legacy display mode can also be made persistent with `LEGACY_MODE=true` in
-the script's User Variables section.
+## Dashboard controls
 
-!!! info "Note !!"
-    gLiveView is a compact local dashboard, not a full monitoring platform.
-    Press `v` to switch between compact and verbose metrics, or `n` to open
-    the static Network page. Neither view synthesizes measurements that the
-    selected node does not provide.
+| Key | Action | Availability |
+| --- | --- | --- |
+| `v` | Toggle compact and verbose metrics | All implementations |
+| `n` | Open static node, network, and deployment information | All implementations |
+| `i` | Open the concise built-in field guide | All implementations |
+| `p` | Run one-shot peer analysis | cnode only |
+| `h` | Return to the main dashboard | Information, Network, and peer views |
+| `q` or `Esc` | Exit | All views |
 
-The cnode producer view retains its additional producer sections; cnode,
-Dingo, and Amaru relays share the same common metric grid. Interactive peer
-analysis remains a cnode-only view:
+Compact mode contains the main operational signals. Verbose mode adds detailed
+connection states, propagation history, runtime metrics, implementation-native
+measurements, and additional producer counters. A field is shown only when its
+adapter marks the current sample as available. An absent field therefore means
+"not exported or not available in this scrape," not zero.
 
-![Peer-Analysis](https://raw.githubusercontent.com/cardano-community/guild-operators/images/glv-peers.png ':size=35%')
+## Header and epoch
 
-###### Upper main section
+| Field | Meaning |
+| --- | --- |
+| Implementation | The active adapter and node implementation. This should agree with `.deployment.json`. |
+| Role | `Relay` or `Core`. cnode and Dingo derive producer mode from the live forging metric; Amaru is currently relay-only. |
+| Network | The configured Cardano network. |
+| Version | Version reported by the running process or its build metric. The Network page can also show the source revision. |
+| Uptime | Elapsed time for the current node process, not host uptime. The adapters use a trustworthy native start value or local process timing. |
+| Port | The node-to-node listening port, not the metrics port. |
+| Epoch and progress | Epoch number and the latest locally processed slot's position within that epoch. The bar is local ledger progress through the epoch, not network synchronization progress. |
 
-The common relay dashboard can display epoch progress, chain, mempool,
-connection, block-propagation, and local process-resource measurements. A
-whole section is hidden when none of its metrics are available, and unavailable
-cells are omitted rather than printed empty or as zero.
+## Common live sections
 
-- **Epoch Progress** - Epoch number and progress are live from the node. The
-  progress bar is displayed only when epoch, epoch-slot, and epoch-length data
-  are available. For relay implementations this describes the latest locally
-  processed ledger position; it is not a network synchronization percentage.
-- **Block** - The node's current block height since genesis.
-- **Slot** - The node's current absolute slot.
-- **Tip gap** - The number of slots by which the local node tip trails the
-  expected current slot. An adapter-provided value is used when available;
-  otherwise gLiveView derives it from the selected network's timing
-  parameters. It is a useful local freshness indicator, not a peer-observed
-  network tip or synchronization percentage. The calculated reference slot is
-  intentionally not displayed as a separate field.
-- **Density** - With the current chain parameters(MainNet), a block is created roughly every 20 seconds(`activeSlotsCoeff`). A slot on MainNet happens every 1 second(`slotLength`), thus the max chain density can be calculated as `slotLength/activeSlotsCoeff = 5%`. Normally, the value should fluctuate around this value.  
-- **Total Tx** - The total number of transactions processed since node start.  
-- **Pending Tx** - The number of transactions and the bytes(total, in kb) currently in mempool to be included in upcoming blocks.  
-- **Forks** - The number of forks since node start. Each fork means the blockchain evolved in a different direction, thereby discarding blocks. A high number of forks means there is a higher chance of orphaned blocks.  
-- **Peers In / Out** - Shows the connection counters exported by the selected
-  implementation. This does not imply that interactive peer inspection is
-  available.
-- **Known / Established / Active** - Shows the implementation's aggregate P2P
-  peer sets when those gauges are exported. These are distinct from connection
-  direction counters and are omitted as a group when unavailable.
-- **P2P Mode** 
-  - `Cold` peers indicate the number of inactive but known peers to the node.
-  - `Warm` peers tell how many established connections the node has.
-  - `Hot` peers how many established connections are actually active.
-  - `Bi-Dir`(bidirectional) and `Uni-Dir`(unidirectional) indicate how the handshake protocol negotiated the connection. The connection between p2p nodes will always be bidirectional, but it will be unidirectional between p2p nodes and non-p2p nodes. 
-  - `Duplex` shows the connections that are actually used in both directions, only bidirectional connections have this potential.
-- **Mem (RSS)** - RSS is the Resident Set Size for the selected node process.
-  It is collected locally and does not include memory that has been swapped
-  out.
-- **Uptime** - The elapsed runtime of the selected node process. Depending on
-  the implementation, its adapter uses either a native node measurement or
-  local operating-system process timing.
-- **Mem (Live) / (Heap)** - Runtime memory values are displayed only when the
-  implementation exports compatible samples.
-- **GC Minor / Major** - Runtime garbage-collection counters are displayed
-  only for implementations that expose a compatible managed-runtime metric.
-  Their exact meaning follows that implementation's runtime.
-- **Block propagation** - Last Block measures the duration between when the
-  last block was scheduled to be produced and when the node learned about it.
-  Verbose mode can additionally show late and served blocks and the percentage
-  observed within 1, 3, and 5 seconds when those measurements are available.
-  These metrics are helpful when assessing topology and network-link
-  performance.
+The following labels form the shared dashboard vocabulary. Each
+implementation can expose a different subset.
 
-###### Compact and verbose views
+### Chain
 
-Compact mode keeps the common dashboard focused on the primary operational
-signals: chain position and tip gap, primary incoming/outgoing and aggregate
-peer-set counters, latest block delay, and CPU, resident memory, and disk use.
+| Label | Meaning | How to read it |
+| --- | --- | --- |
+| Block | Block height of the node's currently selected local chain. | It should increase while the node is following the chain. |
+| Slot | Absolute Cardano slot at the local tip. | This is not the slot within the current epoch. |
+| Tip gap | Slots between the expected wall-clock slot and the local tip. Dingo's native value is preferred; otherwise gLiveView derives it from network timing. | Lower is better. It naturally rises between blocks and is not a peer-observed reference tip or a complete sync percentage. |
+| Epoch slot | Slot position within the current epoch. | Used with epoch length to draw the epoch progress bar. |
+| Density | Recent chain density reported by the node, displayed as a percentage. | On networks with `activeSlotsCoeff=0.05`, a value around 5% is expected over a representative window; short windows fluctuate. |
+| Forks | Fork events reported by the node. | A rising counter means the node has observed competing chain selections. The exact counter lifetime follows the node process. |
+| Total tx | Transactions processed or moved out of the mempool, as defined by the implementation's compatibility metric. | Normally cumulative for the current process. It is not the transaction count of the whole blockchain. |
+| Pending tx | Transactions currently held in the mempool. | A point-in-time count. |
+| Mempool | Current serialized mempool size. | Displayed with a bounded binary byte unit such as KiB or MiB. |
 
-Press `v` to enter verbose mode. It adds any available connection direction
-and peer-temperature details, the full block-propagation breakdown, runtime
-memory and garbage-collection measurements, and live implementation-specific
-metrics. Press `v` again to return to the compact view. A metric or section is
-still omitted when the selected implementation does not export it.
+When a node is still bootstrapping or replaying its database, chain fields can
+lag far behind wall-clock time. cnode can additionally display `DB Replay` or
+`Status` before it has a usable local tip.
 
-###### Implementation metrics
+### Connections
 
-Adapters may register useful live measurements that have no common equivalent.
-They are displayed in a section named after the implementation in verbose
-mode and disappear individually when not present in the latest scrape.
+| Label | Mode | Meaning |
+| --- | --- | --- |
+| Incoming | Compact | Current inbound connections reported by the connection manager. |
+| Outgoing | Compact | Current outbound connections reported by the connection manager. |
+| Duplex | Compact | Connections actively used in both directions. |
+| Known | Compact | Peers known to the peer-selection subsystem. |
+| Established | Compact | Known peers with an established bearer. |
+| Active | Compact | Established peers currently selected for active protocol use. |
+| In hot | Compact and verbose | Inbound peers in the hot/active governor state. |
+| Out hot | Compact and verbose | Outbound peers in the hot/active selection state. |
+| Uni-dir | Verbose | Connections negotiated as unidirectional. |
+| Bi-dir | Verbose | Connections negotiated as bidirectional and therefore capable of duplex use. |
+| In warm | Verbose | Established inbound peers not currently hot. |
+| Out cold | Verbose | Known outbound peers without an established connection. |
+| Out warm | Verbose | Established outbound peers not currently hot. |
 
-- Dingo can report Go runtime activity, open-file limits, aggregate database
-  size, cache hit ratios, selected nonzero internal error counters, and
-  producer-specific slot-battle, sync-skip, and validation counters.
-- Amaru can report process CPU and disk activity, open file descriptors,
-  mempool synchronization and insertion results, plus consensus header,
-  fork-switch, and timing measurements introduced by newer releases.
+Connection counts and peer-set counts are related but not interchangeable. A
+peer can own more than one protocol connection, and direction counters do not
+grant gLiveView permission to inspect peer addresses. Detailed peer analysis
+is a separate cnode-only capability.
 
-Dingo and Amaru are rolling-release profiles, so these lists describe the
-adapter contract rather than promising that every upstream build exports every
-sample. gLiveView evaluates each metric independently on every scrape. The
-Amaru collector's own Go runtime or garbage-collection telemetry is not shown
-as node telemetry.
+### Block propagation
 
-Static node, network, deployment, and runtime metadata is kept out of the live
-dashboard and appears on the Network page instead.
+| Label | Mode | Meaning |
+| --- | --- | --- |
+| Last block | Compact | Latest block-fetch delay reported by the node, in seconds. |
+| Served | Verbose | Blocks served to peers by the node during the metric's lifetime. |
+| Late (>5s) | Verbose | Observed blocks whose reported fetch delay exceeded five seconds. |
+| Within 1s | Verbose | Share of observed block delays at or below one second. |
+| Within 3s | Verbose | Share of observed block delays at or below three seconds. |
+| Within 5s | Verbose | Share of observed block delays at or below five seconds. |
 
-###### Network page
+The `Within` values are cumulative-distribution estimates, not three separate
+block counts. A topology with consistently low delay and a high share within
+three seconds is generally preferable, but block production randomness,
+temporary network congestion, and a node that is still syncing can distort
+short observations. Not every implementation currently exports every
+propagation field.
 
-Press `n` from the dashboard to open the Network page. It groups static
-information separately from live metrics, including:
+### Node resource usage
 
-- implementation, version, role, and service;
-- network, network magic, node port, epoch and slot parameters, and Shelley
-  start time;
-- implementation runtime metadata when available;
-- deployment paths, metrics provider, and metrics endpoint.
+| Label | Meaning |
+| --- | --- |
+| CPU (sys) | CPU utilization calculated from the local node process. It is intended as a host-level operational signal and can differ from a node's own runtime CPU gauge. |
+| Mem (RSS) | Resident Set Size of the node process: memory currently mapped into physical RAM. It excludes swapped-out pages. |
+| Disk util | Percentage of capacity used on the filesystem containing `NODE_HOME`. It is not disk I/O busy time. |
 
-Press `h` to return home. Long metadata and metric values are compacted or
-clipped to their fixed display cells; a trailing `~` marks clipped text. This
-keeps borders and columns aligned even when a version, path, counter, or
-floating-point value is unusually long.
+These three measurements are collected locally, so they remain useful when an
+implementation does not publish equivalent runtime telemetry.
 
-###### Display refresh
+### Runtime
 
-The common renderer builds a complete logical frame on every metrics
-refresh but writes only rows whose content changed. Every `REPAINT_RATE`
-seconds it reconciles all rows using the same row updates, without clearing
-the terminal first. This limits visible redraw while also removing stale
-content when values shrink or sections appear or disappear. A view change or
-terminal resize can still require a complete layout redraw.
+The Runtime section appears in verbose mode and only includes exported
+fields.
 
-###### Block-production section
+| Label | Meaning |
+| --- | --- |
+| Live memory | Bytes classified by the implementation's compatibility metric as live runtime data. |
+| Heap | Bytes allocated to the managed runtime heap. |
+| GC minor | Minor or young-generation garbage collections since the runtime metric was initialized. |
+| GC major | Major or full garbage collections since the runtime metric was initialized. |
+| Open files | File descriptors currently open by the node process. |
+| Max files | Process file-descriptor limit reported by the runtime. |
 
-The block-production section is displayed when the cnode or Dingo adapter
-reports that forging is enabled. Dingo uses the common availability-driven
-section. Its compact view shows available KES lifecycle, leader-slot, and
-forged/adopted results. Verbose mode adds leadership checks, failed attempts,
-operational-certificate KES bounds, and Dingo-native forge diagnostics. cnode
-retains its extended view because it also integrates Koios and CNCLI data.
-Amaru does not currently receive this section.
+Live/heap and minor/major GC terminology originates with cardano-node's
+Haskell RTS metrics. Dingo exports compatible fields but their implementation
+still follows Dingo's Go runtime. Compare trends within one implementation;
+do not assume the raw values have identical runtime semantics across languages.
 
-- **KES period / expiration** - This section contain the current and remaining KES periods as well as a calculated date for the expiration. When getting close to expire date the values will change color.  
-- **Missed slot checks** - A value that show if the node have missed slots for attempting leadership checks (as absolute value and percentage since node startup).  
-  !!! info "Missed Slot Leadership Check"  
-      
-      Note that while this counter should ideally be close to zero, you would often see a higher value if the node is busy (e.g. paused for garbage collection or busy with reward calculations). A consistently high percentage of missed slots would need further investigation (assistance for troubleshooting can be seeked [here](https://t.me/CardanoStakePoolWorkgroup) ), as in extremely remote cases - it can overlap with a slot that your node could be a leader for.
+## Node-specific metrics
 
-- **Blocks** - If [CNCLI](cncli.md) is activated to store blocks created in a blocklog DB, data from this blocklog is displayed. See linked CNCLI documentation for details regarding the different block metrics. If CNCLI is not deployed, block metrics displayed are taken from node metrics and show blocks created by the node since node start.
+### cardano-node / cnode
 
-###### Peer analysis
+cnode supplies the original cardano-node compatibility metrics used by the
+common sections. A cnode relay uses the availability-driven common layout. A
+cnode producer retains an extended layout because it can combine live node
+metrics with its operational certificate, Koios pool data, CNCLI blocklog,
+and optional Mithril signer.
 
-A manual peer analysis can be triggered with `p` only when the adapter exposes
-the `peer_inspection` capability. That capability is currently cnode-only, so
-the key and footer entry are hidden for Dingo and Amaru. Prometheus connection
-counters may still be visible for those implementations.
+For cnode, `Live memory`, `Heap`, `GC minor`, and `GC major` come directly from
+the Haskell RTS compatibility gauges. A widening live-versus-heap gap is not
+automatically a fault, but sustained heap growth, frequent major collections,
+or swapping should be investigated together with CPU and missed leadership
+checks.
 
-!!! warning "Note"
-    Note that with P2P enabled, an incoming/outgoing connection can be reused for bi-directional traffic. There isnt a way to distinctly identify the P2P peer's direction yet for a given IP.
+#### cnode producer: core information
 
-For each peer, the configured latency methods are attempted in
-`LATENCY_TOOLS` order:
+| Label | Meaning |
+| --- | --- |
+| KES current / remaining / exp | Current KES period, remaining periods accepted by the operational certificate, and the calculated expiry time. Warning colors become stronger near expiry. |
+| OP Cert disk / chain | Operational-certificate issue counter from the file on disk and the latest counter observed on chain. The disk counter is normally equal to the chain counter or one greater before the next block is adopted. |
+| Missed slot leader checks | Leadership checks the node could not perform, plus their percentage of total scheduled checks. Shown in verbose mode. Sustained growth can indicate CPU, I/O, GC, or timekeeping pressure. |
 
-1. `cncli` measures the Cardano handshake, or only its TCP connect phase when
+When a pool ID and Koios are configured, the Core section can also show:
+
+| Label | Meaning |
+| --- | --- |
+| Blocks | Pool blocks reported by Koios. |
+| Act Stake | Stake active for the current epoch. |
+| Pledge | Declared pool pledge. |
+| Fixed Fee | Pool fixed cost. |
+| Live Stake | Current live delegated stake. |
+| Live Pledge | Current live stake supplied by the owners; highlighted when below declared pledge. |
+| Margin Fee | Pool margin percentage. |
+| Delegators | Current live delegator count. |
+| Saturation | Current live saturation percentage. |
+
+Koios pool values are cached and refreshed separately from the two-second node
+scrape, so they should not be interpreted as instantaneous Prometheus gauges.
+
+#### cnode producer: block production
+
+Without a CNCLI blocklog, gLiveView shows the node's process-lifetime `Leader`,
+`Adopted`, and non-adopted/`Invalid` counters.
+
+With a CNCLI blocklog, the current epoch can show:
+
+| Label | Mode | Meaning |
+| --- | --- | --- |
+| Leader | Compact | Total scheduled leader slots known to CNCLI for the epoch. |
+| Ideal | Compact | Statistically expected leader slots from active stake. |
+| Luck | Compact | Assigned leader slots relative to the ideal value. |
+| Adopted | Compact | Blocks created by the node and retained by CNCLI's blocklog status calculation. |
+| Confirmed | Compact | Created blocks confirmed on the canonical chain. |
+| Lost | Compact | Combined invalid, missed, ghosted, and stolen outcomes. |
+| Invalid | Verbose | The node attempted but failed to create a valid block. |
+| Missed | Verbose | A scheduled slot has no local block record and no competing canonical block. |
+| Ghosted | Verbose | A local block became orphaned without another pool owning the canonical block at that slot, often indicating a height battle or propagation issue. |
+| Stolen | Verbose | Another pool has the canonical block for the same slot. |
+| Next block | When available | Countdown to the next CNCLI leader slot. This is sensitive operational information; control who can view the terminal. |
+
+See [CNCLI](cncli.md) for blocklog collection and validation details.
+
+#### cnode optional Mithril signer
+
+When `MITHRIL_SIGNER_ENABLED=Y` and the signer endpoint is available, gLiveView
+can display:
+
+| Label | Meaning |
+| --- | --- |
+| Status | systemd state of the signer service. |
+| Registered Epoch | Successful signer registration in the latest epoch metric. |
+| Cycles | Signer runtime cycles since startup. |
+| Signing in Epoch | Successful signature registrations in the latest epoch. |
+| Signatures / Total Signatures | Successful and total signature registration attempts since startup. |
+| Registered / Registered Total | Successful and total signer registration attempts since startup; the additional row is shown in verbose mode. |
+
+### Dingo
+
+Dingo exposes the cardano-node-compatible family used by the common Chain,
+Connections, Block Propagation, Runtime, and Block Production sections. It
+also contributes native fields to the verbose `DINGO METRICS` section.
+
+Dingo's Haskell-compatible Runtime labels are approximate Go mappings:
+`Live memory` is `runtime.MemStats.HeapAlloc`, `Heap` is `HeapSys`, `GC minor`
+counts automatic collections (`NumGC - NumForcedGC`), and `GC major` counts
+forced collections (`NumForcedGC`). They make the common layout useful, but
+should not be compared numerically with cnode's Haskell RTS values as if the
+runtimes were identical.
+
+| Label | Meaning |
+| --- | --- |
+| Goroutines | Current Go goroutine count. |
+| DB size | Sum of Dingo's exported database-store size gauges, displayed with a binary byte unit. |
+| UTxO hits | Cumulative hot UTxO CBOR-cache hits divided by hits plus misses. `n/a` means no cache observations exist yet. |
+| Block hits | Cumulative block-LRU cache hits divided by hits plus misses. `n/a` means no cache observations exist yet. |
+| Slot clock | Nonzero count of errors while reading the slot clock for forging. Hidden while zero. |
+| Slot battles | Competing blocks detected at the same slot. |
+| Forge sync skips | Forging attempts skipped because an upstream tip was ahead of the local tip. |
+| Forge validation | Forged blocks dropped because optional self-validation failed. A displayed zero is an exported zero, unlike an absent metric. |
+| Gov decode | Nonzero count of stored governance proposals whose CBOR could not be decoded during ratifiability checks. Hidden while zero. |
+| Rollback | Nonzero unrecoverable rollback counter. This can indicate local-chain divergence that requires operator investigation or re-bootstrap. Hidden while zero. |
+| At-tip err | Nonzero at-tip recovery attempts that did not converge. Hidden while zero. |
+| Replay err | Nonzero replay recovery attempts that made no forward progress. Hidden while zero. |
+
+Dingo producer mode also uses the shared Block Production section:
+
+| Label | Mode | Meaning |
+| --- | --- | --- |
+| KES current | Compact | Current network KES period. |
+| KES remaining | Compact | Remaining usable KES periods for the loaded operational certificate. |
+| KES expires | Compact | Expiry time calculated from KES and network timing. |
+| Leader slots | Compact | Slots in which Dingo was elected leader. |
+| Adopted | Compact | Forged blocks adopted onto the chain. |
+| Not adopted | Compact | Forged blocks minus adopted blocks. |
+| Leader checks | Verbose | Slots that reached the "about to lead" forging check. |
+| Not leader | Verbose | Checked slots where the pool was not elected. |
+| Forge failed | Verbose | Slots where forging failed because of sync state, block construction, or another reported error. |
+| Missed checks | Verbose | Missed slot checks when Dingo exports the compatible counter. |
+| OpCert starts / expires | Verbose | Operational certificate's starting and ending KES-period bounds. |
+
+Static Dingo values are intentionally kept off the live dashboard. Its Go
+runtime version, native epoch length, and Shelley start time appear on the
+Network page. Dingo is a rolling-release profile, so a newly published build
+can temporarily omit an optional field; the adapter evaluates each field on
+every scrape.
+
+### Amaru
+
+Amaru's reference bridge supplies a cardano-node-compatible subset for common
+chain, mempool, connection, propagation, and build fields. Amaru is currently
+relay-only in Guild Operators, so it has no Block Production section.
+
+The verbose `AMARU METRICS` section contains:
+
+| Label | Meaning |
+| --- | --- |
+| Process CPU | Amaru's own current process CPU gauge. It can differ slightly from gLiveView's locally sampled `CPU (sys)`. |
+| Disk read | Data read by Amaru since its preceding system-metrics refresh, converted to KiB. It is a per-refresh amount, not filesystem capacity use. |
+| Disk write | Data written by Amaru since its preceding system-metrics refresh, converted to KiB. |
+| Pool sync | Latest time in milliseconds to synchronize/revalidate the mempool after block adoption. |
+| Mempool accepted | Cumulative transaction insertion attempts whose result is `accepted`, summed across local and remote origins. |
+| Mempool rejected | Cumulative insertion attempts with a `rejected_*` result, summed across origins and rejection reasons. |
+| Headers ok | Consensus headers that reached the terminal `valid` outcome. |
+| Rejected | Sum of invalid, invalid-header, undecodable-header, and header-store-error terminal outcomes. Duplicate or superseded outcomes are not included. |
+| Forks sw | All completed fork-switch outcomes reported by Amaru, including applied and abandoned outcomes. |
+| Fetch wait | Mean time from receiving a valid header until its block was requested or the wait was abandoned. Derived from cumulative histogram sum/count and shown in milliseconds. |
+| Fetch avg | Mean time from requesting a valid header's block until receiving it, in milliseconds. |
+| Forward | Mean time from receiving a valid header until its block was adopted, invalidated, or abandoned, in milliseconds. |
+
+`Open files` appears in the shared Runtime section rather than `AMARU
+METRICS`. Uptime is calculated from the active Amaru service PID using Linux's
+monotonic process start time, with a bounded `ps` fallback; collector runtime
+and garbage-collection telemetry is not presented as Amaru node telemetry.
+
+Amaru releases evolve quickly. The table documents the current adapter
+contract, but gLiveView displays a native metric only when the running release
+actually exports the required series.
+
+## Network page
+
+Press `n` to separate relatively static information from live operational
+measurements.
+
+| Section | Fields |
+| --- | --- |
+| Node | Implementation, version and revision, role, service name |
+| Network | Network name, network magic, node port, epoch length, slot length, active-slots coefficient, Shelley start time |
+| Node Runtime | Adapter-supplied static runtime metadata, currently including Dingo's Go version when available |
+| Deployment | Node home, implementation configuration, node socket when applicable, metrics provider, metrics endpoint |
+
+Long values are clipped to the fixed terminal cell and end in `~`. Large
+integer values are compacted where appropriate. These display limits do not
+alter the underlying metric.
+
+## Peer analysis: cnode only
+
+Press `p` when using cnode to run a one-shot latency analysis. This view is not
+live and is not available to Dingo or Amaru, even when their dashboards show
+aggregate connection metrics.
+
+Latency methods are attempted in `LATENCY_TOOLS` order:
+
+1. `cncli` performs a Cardano handshake, or only its TCP connection phase when
    `CNCLI_CONNECT_ONLY=true`.
-2. `ss` reads the RTT reported for an already-established socket.
-3. `tcptraceroute` probes the peer's TCP port.
+2. `ss` reads RTT from an established TCP socket.
+3. `tcptraceroute` probes the peer's Cardano TCP port.
 4. `ping` falls back to ICMP.
 
-Methods that need the remote node's listening port may not work for an
-incoming connection whose observed remote port is ephemeral. ICMP may also be
-blocked by the peer's firewall, so an undetermined latency does not by itself
-mean the connection is unhealthy.
+Incoming connections often use an ephemeral remote port, so TCP methods that
+need the peer's listening port may not apply. ICMP may also be blocked. An
+undetermined peer therefore does not by itself mean the connection is broken.
 
-Once the analysis is finished, it will display the RTTs (return-trip times) for the peers and group them in ranges 0-50, 50-100, 100-200, 200<. The analysis is **NOT** live. Press `[h] Home` to go back to default view or `[i] Info` to show in-script help text. `Up` and `Down` arrow keys is used to select incoming or outgoing detailed list of IPs and their RTT value. `Left (<)` and `Right (>)` arrow keys can be used to navigate the pages in the selected list.
+The result groups round-trip times into 0-50, 50-100, 100-200, and over 200 ms.
+Use Up/Down to select the incoming or outgoing list and Left/Right to change
+pages.
 
-##### Troubleshooting/Customisations
+## Refresh behavior
+
+At each `REFRESH_RATE`, gLiveView builds a complete logical frame but writes
+only terminal rows whose content changed. Every `REPAINT_RATE`, it reconciles
+all rows through the same row-update mechanism without clearing the terminal.
+This reduces blinking while removing stale text when values shrink or sections
+appear or disappear. Changing views or resizing the terminal can require a
+complete layout redraw.
+
+## Troubleshooting
 
 gLiveView treats node-process discovery and metric collection separately. If
-either fails, it reports which one is unavailable and retries according to
-`RETRIES`; it does not continue rendering stale samples.
+either fails, it reports which dependency is unavailable and retries according
+to `RETRIES`; it does not intentionally continue rendering a stale scrape.
 
-Check the selected implementation's local endpoint:
+Check the implementation's endpoint directly:
 
 ```bash
-# Dingo
+# cnode or Dingo, with the default port
 curl --fail http://127.0.0.1:12798/metrics
 
-# Amaru's managed Prometheus bridge
+# Amaru's local bridge
 curl --fail http://127.0.0.1:8889/metrics
 
-# Amaru host deployment: inspect both units
+# Amaru: inspect both node and collector units
 "${NODE_HOME}/scripts/amaru.sh" status
 ```
 
-For Amaru, a healthy node without port 8889 normally means the companion
-metrics unit or collector configuration needs attention. The OTLP receiver and
-Prometheus bridge bind only to loopback. For Dingo, the upstream metrics
-listener shares Dingo's public bind address; protect TCP 12798 with the host or
-network firewall even though gLiveView connects through loopback.
+For Amaru, a healthy node without port 8889 normally means the collector unit
+or configuration needs attention. For Dingo, the upstream metrics listener
+shares Dingo's public bind address; protect TCP 12798 with the host or network
+firewall even though gLiveView connects over loopback.
 
-If automatic detection is incorrect, review `env` and the User Variables
-section of `gLiveView.sh`. Please also report reproducible adapter or display
-problems through the [Guild Operators issue
+If automatic discovery is wrong, review `env`, the implementation environment,
+and the User Variables section of `gLiveView.sh`. Report reproducible adapter
+or rendering problems through the [Guild Operators issue
 tracker](https://github.com/cardano-community/guild-operators/issues).
 
-**gLiveView.sh**
+## User variables
+
 ```bash
 ######################################
 # User Variables - Change as desired #
 ######################################
 
 #NODE_NAME="Cardano Node"                 # Prefix, at most 19 characters
-#REFRESH_RATE=2                           # Seconds between data refreshes
-#REPAINT_RATE=10                          # Seconds between full row reconciliations
-#LEGACY_MODE=false                        # true uses ASCII instead of box drawing
-#RETRIES=3                                # Connection attempts; 0 retries continuously
-#PEER_LIST_CNT=10                         # Peers shown per in/out analysis page
+#REFRESH_RATE=2                           # Seconds between metric refreshes
+#REPAINT_RATE=10                          # Seconds between row reconciliations
+#LEGACY_MODE=false                        # true uses ASCII borders
+#RETRIES=3                                # Attempts; 0 retries continuously
+#PEER_LIST_CNT=10                         # Peers per cnode analysis page
 #THEME="dark"                             # dark | light
-#ENABLE_IP_GEOLOCATION=Y                  # Query geolocation for peer IPs
+#ENABLE_IP_GEOLOCATION=Y                  # Geolocate peer addresses
 #LATENCY_TOOLS="cncli|ss|tcptraceroute|ping"
-#CNCLI_CONNECT_ONLY=false                 # true measures connect only; false measures the full handshake
-#HIDE_DUPLICATE_IPS=N                     # Y filters duplicate and local IPs
-#VERBOSE=N                                # Y starts with additional metrics visible
+#CNCLI_CONNECT_ONLY=false                 # false performs full handshake
+#HIDE_DUPLICATE_IPS=N                     # Filter duplicate/local peer IPs
+#VERBOSE=N                                # Y starts in verbose mode
 #GLV_LOG="${LOG_DIR}/gLiveView.log"       # Empty disables the error log
 ```
+
+## Upstream metric references
+
+- [cardano-node monitoring and metrics](https://developers.cardano.org/docs/operate-a-stake-pool/node-monitoring/)
+- [Dingo forging metric definitions](https://github.com/blinklabs-io/dingo/blob/main/ledger/forging/metrics.go)
+- [Dingo ledger metric definitions](https://github.com/blinklabs-io/dingo/blob/main/ledger/metrics.go)
+- [Amaru consensus metric definitions](https://github.com/pragma-org/amaru/blob/main/crates/amaru-metrics/src/consensus.rs)
+- [Amaru system metric definitions](https://github.com/pragma-org/amaru/blob/main/crates/amaru-metrics/src/system.rs)
+- [Amaru mempool metric definitions](https://github.com/pragma-org/amaru/blob/main/crates/amaru-metrics/src/mempool.rs)

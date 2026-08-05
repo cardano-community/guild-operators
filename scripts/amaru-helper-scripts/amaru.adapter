@@ -408,11 +408,11 @@ node_adapter_collect_metrics() {
   value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_disk_live_read")"
   value="$(amaru_adapter_bytes_to_kib "${value}" 2>/dev/null || true)"
   amaru_adapter_set_optional_custom_metric \
-    amaru_disk_read_kib "${value}" "Disk read" "KiB/s"
+    amaru_disk_read_kib "${value}" "Disk read" "KiB"
   value="$(amaru_adapter_metric_value "${normalized_metrics}" "process_disk_live_write")"
   value="$(amaru_adapter_bytes_to_kib "${value}" 2>/dev/null || true)"
   amaru_adapter_set_optional_custom_metric \
-    amaru_disk_write_kib "${value}" "Disk write" "KiB/s"
+    amaru_disk_write_kib "${value}" "Disk write" "KiB"
   value="$(
     amaru_adapter_metric_value \
       "${normalized_metrics}" "cardano_node_metrics_txsSyncDuration_int"

@@ -232,5 +232,29 @@ grep -Fq 'glvMetricGrid "BLOCK PRODUCTION"' "${GLIVEVIEW}" ||
   fail "gLiveView does not render normalized block-production metrics"
 grep -Fq '[n] Network' "${GLIVEVIEW}" ||
   fail "gLiveView does not advertise the Network page shortcut"
+grep -Fq \
+  'https://cardano-community.github.io/guild-operators/Scripts/gliveview' \
+  "${GLIVEVIEW}" ||
+  fail "gLiveView built-in information does not link to the detailed guide"
+
+GLIVEVIEW_DOCS="${ROOT_DIR}/docs/Scripts/gliveview.md"
+for documentation_heading in \
+  '## Common live sections' \
+  '### cardano-node / cnode' \
+  '### Dingo' \
+  '### Amaru'; do
+  grep -Fq "${documentation_heading}" "${GLIVEVIEW_DOCS}" ||
+    fail "gLiveView documentation is missing ${documentation_heading}"
+done
+for documented_metric in \
+  'Tip gap' 'Disk util' 'OpCert starts / expires' \
+  'Goroutines' 'Forge validation' 'Replay err' \
+  'Process CPU' 'Mempool rejected' 'Fetch wait'; do
+  grep -Fq "| ${documented_metric} |" "${GLIVEVIEW_DOCS}" ||
+    fail "gLiveView documentation is missing metric: ${documented_metric}"
+done
+if grep -Eq '^!\[' "${GLIVEVIEW_DOCS}"; then
+  fail "gLiveView documentation contains a dashboard image that can drift"
+fi
 
 printf 'deployment layout tests passed\n'

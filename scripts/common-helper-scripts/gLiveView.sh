@@ -1825,64 +1825,27 @@ while true; do
     printf "${VL}${STANDOUT} INFO ${NC} Monitoring ${style_values_2}%s${NC} through the Guild metrics adapter" \
       "${NODE_IMPLEMENTATION_NAME}" &&
       closeRow
-    if [[ "${NODE_IMPLEMENTATION}" != "cnode" ]]; then
-      printf "${blank_line}\n" && ((line++))
-      printf "${VL} Only metrics currently exported by this node are displayed." && closeRow
-      printf "${VL} Missing connection, propagation, runtime, or implementation" && closeRow
-      printf "${VL} sections are hidden instead of being shown as zero values." && closeRow
-      printf "${blank_line}\n" && ((line++))
-      if [[ "${NODE_IMPLEMENTATION}" == "amaru" ]]; then
-        printf "${VL} Amaru sends OTLP telemetry to a local OpenTelemetry Collector." && closeRow
-        printf "${VL} The collector exposes loopback Prometheus metrics for gLiveView." && closeRow
-      else
-        printf "${VL} Dingo exposes its native Prometheus endpoint directly." && closeRow
-      fi
-      printf "${VL} Static implementation and network details are on the Network page." && closeRow
+    if [[ "${NODE_IMPLEMENTATION}" == "amaru" ]]; then
+      printf "${VL} Source: Amaru OTLP metrics through the local Prometheus bridge." && closeRow
     else
-    printf "${VL} Displays live metrics gathered from the node Prometheus endpoint." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} ${style_values_2}Upper Main Section${NC}" && closeRow
-    printf "${VL} Epoch number & progress is live from node while calculation of date" && closeRow
-    printf "${VL} until epoch boundary is based on genesis parameters. Tip gap shows" && closeRow
-    printf "${VL} how many slots the local chain tip trails the real-time slot." && closeRow
-    printf "${VL} Forks is how many times the blockchain branched off in a different" && closeRow
-    printf "${VL} direction since node start (and discarded blocks by doing so)." && closeRow
-    printf "${VL} P2P Connections shows how many peers the node pushes to/pulls from." && closeRow
-    printf "${VL} Block propagation metrics are discussed in the documentation." && closeRow
-    printf "${VL} RSS/Live/Heap shows the memory utilization of RSS/live/heap data." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} ${style_values_2}Core section${NC}" && closeRow
-    printf "${VL} If the node is run as a block producer, a second section is" && closeRow
-    printf "${VL} displayed that contain KES key and slot/block stats. When close to" && closeRow
-    printf "${VL} the expire date the values will change color." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} A leadership check is performed for each slot. Slots can be missed" && closeRow
-    printf "${VL} if the node is busy and can't keep up (e.g., due to GC pauses)." && closeRow
-    printf "${VL} A large number of missed slots needs further study." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} If CNCLI is activated to calculate and store node blocks, data from" && closeRow
-    printf "${VL} this blocklog DB is displayed, which includes a timer and progress" && closeRow
-    printf "${VL} bar counting down until next slot leader. The progress bar color" && closeRow
-    printf "${VL} indicates the time range. Green is 1 epoch, Tan is 1 day, red is 1" && closeRow
-    printf "${VL} hour, Magenta is 5 minutes. If CNCLI is not activated blocks created" && closeRow
-    printf "${VL} is taken from Prometheus metrics." && closeRow
-    printf "${blank_line}\n" && ((line++))
-    printf "${VL} - Leader    : scheduled to make block at this slot" && closeRow
-    printf "${VL} - Ideal     : Expected/Ideal number of blocks assigned" && closeRow
-    printf "${VL}               based on active stake (sigma)" && closeRow
-    printf "${VL} - Luck      : Leader slots assigned vs Ideal slots" && closeRow
-    printf "${VL} - Adopted   : block created successfully" && closeRow
-    printf "${VL} - Confirmed : block created validated to be on-chain" && closeRow
-    printf "${VL} - Invalid   : node failed to create block" && closeRow
-    printf "${VL} - Missed    : scheduled at slot but no record of it in " && closeRow
-    printf "${VL}               cncli DB and no other pool has made a block" && closeRow
-    printf "${VL}               for this slot" && closeRow
-    printf "${VL} - Ghosted   : block created but marked as orphaned and no" && closeRow
-    printf "${VL}               other pool has made a valid block for this" && closeRow
-    printf "${VL}               slot, height battle or block propagation issue" && closeRow
-    printf "${VL} - Stolen    : another pool has a valid block registered" && closeRow
-    printf "${VL}               on-chain for the same slot" && closeRow
+      printf "${VL} Source: the node's native Prometheus endpoint." && closeRow
     fi
+    printf "${blank_line}\n" && ((line++))
+    printf "${VL} ${style_values_2}CHAIN${NC} ledger position, epoch progress, tip gap and mempool." && closeRow
+    printf "${VL} ${style_values_2}CONNECTIONS${NC} connection direction and available peer states." && closeRow
+    printf "${VL} ${style_values_2}BLOCK PROPAGATION${NC} latest and historical block arrival delay." && closeRow
+    printf "${VL} ${style_values_2}NODE RESOURCE USAGE${NC} local CPU, resident memory and disk use." && closeRow
+    printf "${VL} ${style_values_2}BLOCK PRODUCTION${NC} KES and forging results when applicable." && closeRow
+    printf "${blank_line}\n" && ((line++))
+    printf "${VL} [v] toggles runtime, detailed propagation and node-specific data." && closeRow
+    printf "${VL} [n] shows static network, implementation and deployment details." && closeRow
+    if node_has peer_inspection; then
+      printf "${VL} [p] runs the cnode-only one-shot peer analysis." && closeRow
+    fi
+    printf "${VL} Missing metrics and empty sections are hidden, not shown as zero." && closeRow
+    printf "${blank_line}\n" && ((line++))
+    printf "${VL} Detailed definitions and implementation-specific fields:" && closeRow
+    printf "${VL} https://cardano-community.github.io/guild-operators/Scripts/gliveview" && closeRow
   else
     if [[ "${NODE_IMPLEMENTATION}" != "cnode" ]]; then
       # Defensive fallback; alternate-node home views normally take the shared
