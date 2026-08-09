@@ -853,6 +853,37 @@ assert_eq \
   "$(jq -r '.deploymentStatus' "${TEST_DIR}/failed_profile/.deployment.json")" \
   "deploying"
 
+# Stage 0B exposes the source-provider API without activating it. A normal
+# dispatcher route with its existing collaborators stubbed must therefore
+# remain successful even when the provider's Git executable is unavailable.
+mkdir -p "${TEST_DIR}/provider-dormant-home"
+if ! (
+  HOME="${TEST_DIR}/provider-dormant-home"
+  XDG_CACHE_HOME="${HOME}/.cache"
+  GUILD_SOURCE_GIT_BIN="${TEST_DIR}/missing-git"
+  export HOME XDG_CACHE_HOME GUILD_SOURCE_GIT_BIN
+  dispatcher_validate_branch() { return 0; }
+  dispatcher_update_check() { return 0; }
+  dormant_profile() { return 0; }
+  dispatcher_load_profile() { PROFILE_ENTRYPOINT="dormant_profile"; }
+  dispatcher_write_manifest() { return 0; }
+  unset NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NETWORK BRANCH
+  SUDO="N"
+  guild_deploy_main \
+    -i dingo \
+    -n preprod \
+    -p "${TEST_DIR}" \
+    -t provider-dormant \
+    -u
+) > "${TEST_DIR}/provider-dormant.stdout" \
+  2> "${TEST_DIR}/provider-dormant.stderr"; then
+  fail "dormant provider introduced a Git prerequisite into deployment"
+fi
+[[ ! -e "${TEST_DIR}/provider-dormant-home/.cache/guild-operators" ]] ||
+  fail "dormant provider created a source cache during deployment"
+[[ ! -e "${TEST_DIR}/provider_dormant" ]] ||
+  fail "dormant-provider probe unexpectedly mutated a deployment target"
+
 update_driver="${TEST_DIR}/update-driver.sh"
 printf '%s\n' \
   '#!/usr/bin/env bash' \

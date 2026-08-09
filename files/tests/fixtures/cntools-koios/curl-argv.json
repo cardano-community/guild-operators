@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "description": "Exact fake-curl argv contracts for every CNTools Koios API characterization case.",
+  "requests": [
+    {
+      "id": "address-success",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "-H", "accept: text/csv",
+        "-d", "{\"_addresses\":[\"addr_test1\",\"addr_test2\"],\"_extended\":true}",
+        "https://koios.invalid/api/v1/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
+      ]
+    },
+    {
+      "id": "address-empty",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "-H", "accept: text/csv",
+        "-d", "{\"_addresses\":[\"addr_empty\"],\"_extended\":true}",
+        "https://koios.invalid/api/v1/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
+      ]
+    },
+    {
+      "id": "address-malformed",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "-H", "accept: text/csv",
+        "-d", "{\"_addresses\":[\"addr_malformed\"],\"_extended\":true}",
+        "https://koios.invalid/api/v1/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
+      ]
+    },
+    {
+      "id": "address-timeout",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "-H", "accept: text/csv",
+        "-d", "{\"_addresses\":[\"addr_transport_failure\"],\"_extended\":true}",
+        "https://koios.invalid/api/v1/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
+      ]
+    },
+    {
+      "id": "address-cancellation",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "-H", "accept: text/csv",
+        "-d", "{\"_addresses\":[\"addr_transport_failure\"],\"_extended\":true}",
+        "https://koios.invalid/api/v1/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
+      ]
+    },
+    {
+      "id": "rewards-success",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "-H", "accept: text/csv",
+        "-d", "{\"_stake_addresses\":[\"stake_test1\",\"stake_test2\",\"stake_missing\"]}",
+        "https://koios.invalid/api/v1/account_info?select=stake_address,status,delegated_pool,delegated_drep,rewards_available,deposit"
+      ]
+    },
+    {
+      "id": "rewards-empty",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "-H", "accept: text/csv",
+        "-d", "{\"_stake_addresses\":[\"stake_empty\"]}",
+        "https://koios.invalid/api/v1/account_info?select=stake_address,status,delegated_pool,delegated_drep,rewards_available,deposit"
+      ]
+    },
+    {
+      "id": "rewards-malformed",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "-H", "accept: text/csv",
+        "-d", "{\"_stake_addresses\":[\"stake_expected\"]}",
+        "https://koios.invalid/api/v1/account_info?select=stake_address,status,delegated_pool,delegated_drep,rewards_available,deposit"
+      ]
+    },
+    {
+      "id": "governance-success",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "GET",
+        "-H", "accept: text/csv",
+        "https://koios.invalid/api/v1/proposal_list?select=count()&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null"
+      ]
+    },
+    {
+      "id": "governance-empty",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "GET",
+        "-H", "accept: text/csv",
+        "https://koios.invalid/api/v1/proposal_list?select=count()&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null"
+      ]
+    },
+    {
+      "id": "governance-malformed",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "GET",
+        "-H", "accept: text/csv",
+        "https://koios.invalid/api/v1/proposal_list?select=count()&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null"
+      ]
+    },
+    {
+      "id": "governance-timeout",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "GET",
+        "-H", "accept: text/csv",
+        "https://koios.invalid/api/v1/proposal_list?select=count()&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null"
+      ]
+    },
+    {
+      "id": "governance-cancellation",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "GET",
+        "-H", "accept: text/csv",
+        "https://koios.invalid/api/v1/proposal_list?select=count()&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null"
+      ]
+    },
+    {
+      "id": "collision-balance",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "-H", "accept: text/csv",
+        "-d", "{\"_addresses\":[\"addr_test1\",\"addr_test2\"],\"_extended\":true}",
+        "https://koios.invalid/api/v1/address_utxos?select=address,tx_hash,tx_index,value,asset_list"
+      ]
+    },
+    {
+      "id": "collision-rewards",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "-H", "accept: text/csv",
+        "-d", "{\"_stake_addresses\":[\"stake_test1\",\"stake_test2\",\"stake_missing\"]}",
+        "https://koios.invalid/api/v1/account_info?select=stake_address,status,delegated_pool,delegated_drep,rewards_available,deposit"
+      ]
+    },
+    {
+      "id": "collision-governance",
+      "argv": [
+        "curl", "-sSL", "-f", "-X", "GET",
+        "-H", "accept: text/csv",
+        "https://koios.invalid/api/v1/proposal_list?select=count()&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null"
+      ]
+    }
+  ]
+}

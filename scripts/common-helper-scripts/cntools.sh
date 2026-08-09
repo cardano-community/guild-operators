@@ -66,9 +66,16 @@ cleanup() {
   pkill -TERM -P ${$} &>/dev/null # kill all child processes of CNTools script
   exit $err
 }
-trap cleanup HUP INT TERM
-STTY_SETTINGS="$(stty -g < /dev/tty)"
-trap 'stty "$STTY_SETTINGS" < /dev/tty' EXIT
+# Keep function definitions safe to source for characterization and unit tests.
+# Direct execution retains the existing terminal lifecycle.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  trap cleanup HUP INT TERM
+  if STTY_SETTINGS="$(stty -g 2>/dev/null < /dev/tty)"; then
+    trap 'stty "$STTY_SETTINGS" < /dev/tty' EXIT
+  else
+    STTY_SETTINGS=""
+  fi
+fi
 
 # Command     : myExit [exit code] [message]
 # Description : gracefully handle an exit and restore terminal to original state
@@ -93,6 +100,10 @@ usage() {
 		EOF
 }
 
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+
+# Existing startup remains at script scope so getopts, shift, and re-exec keep
+# their established semantics. This whole block is direct-execution only.
 ADVANCED_MODE="false"
 SKIP_UPDATE=N
 PRINT_VERSION="false"
@@ -281,6 +292,8 @@ if [[ ${SHELLEY_TRANS_EPOCH} -lt 0 ]]; then # unknown network
   clear
   myExit 1 "${FG_YELLOW}WARN${NC}: This is an unknown network, please manually set SHELLEY_TRANS_EPOCH variable in env file"
 fi
+
+fi # direct-execution startup
 
 ###################################################################
 
@@ -7302,4 +7315,6 @@ function main {
 
 ##############################################################
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

@@ -1,0 +1,3 @@
+address,tx_hash,tx_index,value,asset_list
+addr_test1,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,0,1500000,"[{""policy_id"":""11111111111111111111111111111111111111111111111111111111"",""asset_name"":""546f6b656e"",""quantity"":42}]"
+addr_test2,bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,1,2500000,"[]"

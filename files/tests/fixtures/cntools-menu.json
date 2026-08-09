@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "description": "Semantic parity inventory for the legacy CNTools menu before modularization",
+  "menus": [
+    {
+      "id": "root",
+      "parent": null,
+      "legacyAnchor": "select_opt \"[w] Wallet\" \"[f] Funds\"",
+      "options": [
+        { "id": "wallet", "kind": "menu", "shortcut": "w", "label": "Wallet" },
+        { "id": "funds", "kind": "menu", "shortcut": "f", "label": "Funds" },
+        { "id": "pool", "kind": "menu", "shortcut": "p", "label": "Pool" },
+        { "id": "transaction", "kind": "menu", "shortcut": "t", "label": "Transaction" },
+        { "id": "vote", "kind": "menu", "shortcut": "v", "label": "Vote" },
+        { "id": "blocks", "kind": "menu", "shortcut": "b", "label": "Blocks", "visibility": "blocklog" },
+        { "id": "backup", "kind": "menu", "shortcut": "z", "label": "Backup & Restore" },
+        { "id": "advanced", "kind": "menu", "shortcut": "a", "label": "Advanced", "visibility": "advanced" },
+        { "id": "root.refresh", "kind": "control", "shortcut": "r", "label": "Refresh", "navigation": "refresh-root" },
+        { "id": "root.quit", "kind": "control", "shortcut": "q", "label": "Quit", "navigation": "exit" }
+      ]
+    },
+    {
+      "id": "wallet",
+      "parent": "root",
+      "legacyAnchor": "Select Wallet Operation",
+      "options": [
+        { "id": "wallet.new", "kind": "menu", "shortcut": "n", "label": "New" },
+        { "id": "wallet.import", "kind": "menu", "shortcut": "i", "label": "Import" },
+        { "id": "wallet.register", "kind": "action", "shortcut": "r", "label": "Register" },
+        { "id": "wallet.deregister", "kind": "action", "shortcut": "z", "label": "De-Register" },
+        { "id": "wallet.list", "kind": "action", "shortcut": "l", "label": "List" },
+        { "id": "wallet.show", "kind": "action", "shortcut": "s", "label": "Show" },
+        { "id": "wallet.remove", "kind": "action", "shortcut": "x", "label": "Remove" },
+        { "id": "wallet.decrypt", "kind": "action", "shortcut": "d", "label": "Decrypt" },
+        { "id": "wallet.encrypt", "kind": "action", "shortcut": "e", "label": "Encrypt" },
+        { "id": "wallet.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "wallet.new",
+      "parent": "wallet",
+      "legacyAnchor": "Select Wallet Creation Type",
+      "options": [
+        { "id": "wallet.new.mnemonic", "kind": "action", "shortcut": "m", "label": "Mnemonic" },
+        { "id": "wallet.new.cli", "kind": "action", "shortcut": "c", "label": "CLI" },
+        { "id": "wallet.new.back", "kind": "control", "shortcut": "b", "label": "Back", "navigation": "wallet" },
+        { "id": "wallet.new.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "wallet.import",
+      "parent": "wallet",
+      "legacyAnchor": "Select Wallet Import Operation",
+      "options": [
+        { "id": "wallet.import.mnemonic", "kind": "action", "shortcut": "m", "label": "Mnemonic" },
+        { "id": "wallet.import.hardware", "kind": "action", "shortcut": "w", "label": "HW Wallet" },
+        { "id": "wallet.import.back", "kind": "control", "shortcut": "b", "label": "Back", "navigation": "wallet" },
+        { "id": "wallet.import.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "funds",
+      "parent": "root",
+      "legacyAnchor": "Select Funds Operation",
+      "options": [
+        { "id": "funds.send", "kind": "action", "shortcut": "s", "label": "Send" },
+        { "id": "funds.delegate", "kind": "action", "shortcut": "d", "label": "Delegate" },
+        { "id": "funds.withdraw", "kind": "action", "shortcut": "w", "label": "Withdraw Rewards" },
+        { "id": "funds.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "pool",
+      "parent": "root",
+      "legacyAnchor": "Select Pool Operation",
+      "options": [
+        { "id": "pool.new", "kind": "action", "shortcut": "n", "label": "New" },
+        { "id": "pool.import", "kind": "action", "shortcut": "i", "label": "Import" },
+        { "id": "pool.register", "kind": "action", "shortcut": "r", "label": "Register" },
+        { "id": "pool.modify", "kind": "action", "shortcut": "m", "label": "Modify" },
+        { "id": "pool.retire", "kind": "action", "shortcut": "x", "label": "Retire" },
+        { "id": "pool.list", "kind": "action", "shortcut": "l", "label": "List" },
+        { "id": "pool.show", "kind": "action", "shortcut": "s", "label": "Show" },
+        { "id": "pool.rotate", "kind": "action", "shortcut": "o", "label": "Rotate" },
+        { "id": "pool.decrypt", "kind": "action", "shortcut": "d", "label": "Decrypt" },
+        { "id": "pool.encrypt", "kind": "action", "shortcut": "e", "label": "Encrypt" },
+        { "id": "pool.calidus", "kind": "action", "shortcut": "c", "label": "Calidus" },
+        { "id": "pool.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "transaction",
+      "parent": "root",
+      "legacyAnchor": "Select Transaction Operation",
+      "options": [
+        { "id": "transaction.sign", "kind": "action", "shortcut": "s", "label": "Sign" },
+        { "id": "transaction.submit", "kind": "action", "shortcut": "t", "label": "Submit" },
+        { "id": "transaction.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "vote",
+      "parent": "root",
+      "legacyAnchor": "Select Vote Operation",
+      "options": [
+        { "id": "vote.governance", "kind": "menu", "shortcut": "g", "label": "Governance" },
+        { "id": "vote.catalyst", "kind": "menu", "shortcut": "c", "label": "Catalyst" },
+        { "id": "vote.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "vote.governance",
+      "parent": "vote",
+      "legacyAnchor": "Select Governance Operation",
+      "options": [
+        { "id": "vote.governance.info", "kind": "action", "shortcut": "i", "label": "Info & Status" },
+        { "id": "vote.governance.delegate", "kind": "action", "shortcut": "d", "label": "Delegate" },
+        { "id": "vote.governance.proposals", "kind": "action", "shortcut": "l", "label": "List Proposals" },
+        { "id": "vote.governance.cast", "kind": "action", "shortcut": "v", "label": "Cast vote" },
+        { "id": "vote.governance.drep-register", "kind": "action", "shortcut": "r", "label": "DRep Registration / Update" },
+        { "id": "vote.governance.drep-retire", "kind": "action", "shortcut": "x", "label": "DRep Retire" },
+        { "id": "vote.governance.multisig-drep", "kind": "action", "shortcut": "m", "label": "MultiSig DRep" },
+        { "id": "vote.governance.derive-keys", "kind": "action", "shortcut": "k", "label": "Derive Keys" },
+        { "id": "vote.governance.back", "kind": "control", "shortcut": "b", "label": "Back", "navigation": "vote" },
+        { "id": "vote.governance.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "vote.catalyst",
+      "parent": "vote",
+      "legacyAnchor": "Select Catalyst Operation",
+      "options": [
+        { "id": "vote.catalyst.register", "kind": "action", "shortcut": "r", "label": "Registration" },
+        { "id": "vote.catalyst.qr", "kind": "action", "shortcut": "q", "label": "Display QR" },
+        { "id": "vote.catalyst.verify", "kind": "action", "shortcut": "v", "label": "Verify" },
+        { "id": "vote.catalyst.back", "kind": "control", "shortcut": "b", "label": "Back", "navigation": "vote" },
+        { "id": "vote.catalyst.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "blocks",
+      "parent": "root",
+      "legacyAnchor": "select_opt \"[s] Summary\" \"[e] Epoch\" \"[Esc] Cancel\"",
+      "options": [
+        { "id": "blocks.summary", "kind": "action", "shortcut": "s", "label": "Summary" },
+        { "id": "blocks.epoch", "kind": "action", "shortcut": "e", "label": "Epoch" },
+        { "id": "blocks.escape", "kind": "control", "shortcut": "Esc", "label": "Cancel", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "backup",
+      "parent": "root",
+      "legacyAnchor": "Backup or Restore?",
+      "options": [
+        { "id": "backup.create", "kind": "action", "shortcut": "b", "label": "Backup" },
+        { "id": "backup.restore", "kind": "action", "shortcut": "r", "label": "Restore" },
+        { "id": "backup.escape", "kind": "control", "shortcut": "Esc", "label": "Cancel", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "advanced",
+      "parent": "root",
+      "legacyAnchor": "select_opt \"[m] Metadata\" \"[a] Asset\" \"[s] MultiSig\"",
+      "options": [
+        { "id": "advanced.metadata", "kind": "action", "shortcut": "m", "label": "Metadata" },
+        { "id": "advanced.asset", "kind": "menu", "shortcut": "a", "label": "Asset" },
+        { "id": "advanced.multisig", "kind": "menu", "shortcut": "s", "label": "MultiSig" },
+        { "id": "advanced.delete-private-keys", "kind": "action", "shortcut": "x", "label": "Delete Private Keys" },
+        { "id": "advanced.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "advanced.asset",
+      "parent": "advanced",
+      "legacyAnchor": "Select Asset Operation",
+      "options": [
+        { "id": "advanced.asset.create-policy", "kind": "action", "shortcut": "c", "label": "Create Policy" },
+        { "id": "advanced.asset.list", "kind": "action", "shortcut": "l", "label": "List Assets" },
+        { "id": "advanced.asset.show", "kind": "action", "shortcut": "s", "label": "Show Asset" },
+        { "id": "advanced.asset.decrypt-policy", "kind": "action", "shortcut": "d", "label": "Decrypt / Unlock Policy" },
+        { "id": "advanced.asset.encrypt-policy", "kind": "action", "shortcut": "e", "label": "Encrypt / Lock Policy" },
+        { "id": "advanced.asset.mint", "kind": "action", "shortcut": "m", "label": "Mint Asset" },
+        { "id": "advanced.asset.burn", "kind": "action", "shortcut": "x", "label": "Burn Asset" },
+        { "id": "advanced.asset.register", "kind": "action", "shortcut": "r", "label": "Register Asset" },
+        { "id": "advanced.asset.back", "kind": "control", "shortcut": "b", "label": "Back", "navigation": "advanced" },
+        { "id": "advanced.asset.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    },
+    {
+      "id": "advanced.multisig",
+      "parent": "advanced",
+      "legacyAnchor": "Select MultiSig Operation",
+      "options": [
+        { "id": "advanced.multisig.create", "kind": "action", "shortcut": "c", "label": "Create" },
+        { "id": "advanced.multisig.derive-keys", "kind": "action", "shortcut": "d", "label": "Derive Keys" },
+        { "id": "advanced.multisig.back", "kind": "control", "shortcut": "b", "label": "Back", "navigation": "advanced" },
+        { "id": "advanced.multisig.home", "kind": "control", "shortcut": "h", "label": "Home", "navigation": "root" }
+      ]
+    }
+  ]
+}

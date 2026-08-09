@@ -177,6 +177,11 @@ run_alternate_profile_test() (
         # macOS ships Bash 3, which cannot parse CNTools' Bash 4 associative
         # array syntax. Linux CI and production still use the real validator.
         DINGO_DEPLOY_BASH_BIN="true"
+      else
+        # Use the interpreter running this test. This also supports a modern
+        # Bash invoked by absolute path on hosts where `bash` still resolves to
+        # an older system binary.
+        DINGO_DEPLOY_BASH_BIN="${BASH}"
       fi
       profile="${REPO_ROOT}/scripts/dingo-helper-scripts/deploy-dingo.sh"
       deploy_function="deploy_dingo_profile"

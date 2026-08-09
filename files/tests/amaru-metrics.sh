@@ -94,7 +94,7 @@ grep -Fq 'metric_expiration: 5s' \
 grep -Fq 'processors: [resource/drop_prometheus_labels, batch]' \
   "${REPO_ROOT}/files/configs/amaru/otelcol.yaml" ||
   fail "Amaru collector does not retain the upstream metrics processors"
-if grep -Fq 'add_metric_suffixes:' \
+if grep -Eq '^[[:space:]]*add_metric_suffixes[[:space:]]*:' \
   "${REPO_ROOT}/files/configs/amaru/otelcol.yaml"; then
   fail "Amaru collector retains the deprecated metric-suffix setting"
 fi

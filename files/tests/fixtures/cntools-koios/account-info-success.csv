@@ -1,0 +1,3 @@
+stake_address,status,delegated_pool,delegated_drep,rewards_available,deposit
+stake_test1,registered,pool1,drep_always_abstain,1234567,2000000
+stake_test2,registered,,drep_always_no_confidence,0,2000000

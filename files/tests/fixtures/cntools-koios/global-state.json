@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "description": "Representative globals newly created by successful CNTools Koios helpers after legacy cntools.library source-time initialization. Inputs and test-harness locals exist before both snapshots and are excluded by construction.",
+  "calls": [
+    {
+      "id": "getActiveGovActionCount.success",
+      "helper": "getActiveGovActionCount",
+      "resultGlobals": [
+        "vote_action_count"
+      ],
+      "incidentalGlobals": [
+        "HEADERS",
+        "response"
+      ],
+      "expectedNewGlobals": [
+        "HEADERS",
+        "response",
+        "vote_action_count"
+      ]
+    },
+    {
+      "id": "getBalanceKoios.success",
+      "helper": "getBalanceKoios",
+      "resultGlobals": [
+        "asset_amount_maxlen_arr",
+        "asset_name_maxlen_arr",
+        "assets",
+        "tx_in_arr",
+        "utxos",
+        "utxos_cnt"
+      ],
+      "incidentalGlobals": [
+        "HEADERS"
+      ],
+      "expectedNewGlobals": [
+        "HEADERS",
+        "asset_amount_maxlen_arr",
+        "asset_name_maxlen_arr",
+        "assets",
+        "tx_in_arr",
+        "utxos",
+        "utxos_cnt"
+      ]
+    },
+    {
+      "id": "getRewardInfoKoios.success",
+      "helper": "getRewardInfoKoios",
+      "resultGlobals": [
+        "pool_delegations",
+        "reward_status",
+        "rewards_available",
+        "stake_deposits",
+        "vote_delegations"
+      ],
+      "incidentalGlobals": [
+        "HEADERS",
+        "_reward_addr",
+        "account_info_list",
+        "addr_list_joined",
+        "delegated_drep",
+        "delegated_pool",
+        "deposit",
+        "stake_address",
+        "status"
+      ],
+      "expectedNewGlobals": [
+        "HEADERS",
+        "_reward_addr",
+        "account_info_list",
+        "addr_list_joined",
+        "delegated_drep",
+        "delegated_pool",
+        "deposit",
+        "pool_delegations",
+        "reward_status",
+        "rewards_available",
+        "stake_address",
+        "stake_deposits",
+        "status",
+        "vote_delegations"
+      ]
+    }
+  ]
+}

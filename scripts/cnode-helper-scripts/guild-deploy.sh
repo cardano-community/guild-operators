@@ -510,6 +510,1032 @@ validate_deployment_path() {
   [[ "${1:-}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]]
 }
 
+# Dormant managed-source provider -------------------------------------------------
+#
+# Stage 0B freezes this interface without calling it from the deployment path.
+# The later transactional cutover can prepare one immutable source snapshot
+# before acquiring a deployment-target lock. Until that cutover, sourcing or
+# executing guild-deploy.sh has exactly the existing raw-download behavior.
+#
+# Public contract:
+#   guild_source_prepare <account/guild-operators> <channel> \
+#     [managed|cached|local] [checkout]
+#   guild_source_revision
+#   guild_source_ref
+#   guild_source_path <repository-relative-path>
+#   guild_source_report
+#   guild_source_release
+#
+# A managed preparation refreshes a private, account-scoped bare repository.
+# Cached mode must be selected explicitly and never performs a remote request.
+# Local mode reads an explicitly supplied checkout without fetching, switching,
+# resetting, cleaning, updating its index, or changing its configuration.
+# Every successful preparation eagerly copies the complete tracked scripts/ and
+# files/ payload into an owner-only, read-only snapshot. Callers receive paths
+# inside that snapshot; this API never accepts a deployment destination.
+
+# Private state is initialized here instead of trusting inherited variables.
+# In particular, guild_source_release never acts on caller-provided paths.
+_GUILD_SOURCE_PREPARED="N"
+_GUILD_SOURCE_REPOSITORY=""
+_GUILD_SOURCE_CHANNEL=""
+_GUILD_SOURCE_MODE=""
+_GUILD_SOURCE_REF=""
+_GUILD_SOURCE_REVISION=""
+_GUILD_SOURCE_DIRTY="false"
+_GUILD_SOURCE_TREE_DIGEST=""
+_GUILD_SOURCE_SNAPSHOT=""
+_GUILD_SOURCE_SNAPSHOT_CONTAINER=""
+_GUILD_SOURCE_SNAPSHOT_PARENT=""
+_GUILD_SOURCE_SNAPSHOT_TOKEN=""
+_GUILD_SOURCE_GIT_EXEC=""
+
+_guild_source_error() {
+  printf 'Guild source error: %s\n' "$1" >&2
+}
+
+_guild_source_repository_valid() {
+  local repository="${1:-}"
+  local account=""
+
+  [[ "${repository}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*/guild-operators$ ]] ||
+    return 1
+  account="${repository%/guild-operators}"
+  [[ "${account}" != "." &&
+     "${account}" != ".." &&
+     "${account}" != .* &&
+     "${account}" != *..* &&
+     "${account}" != *. ]] || return 1
+}
+
+_guild_source_channel_valid() {
+  local channel="${1:-}"
+
+  validate_branch_name "${channel}" || return 1
+  _guild_source_git check-ref-format "refs/heads/${channel}" >/dev/null 2>&1 &&
+    _guild_source_git check-ref-format "refs/tags/${channel}" >/dev/null 2>&1
+}
+
+_guild_source_relative_path_valid() {
+  local relative_path="${1:-}"
+  local component=""
+  local -a components
+
+  [[ -n "${relative_path}" &&
+     "${relative_path}" != /* &&
+     "${relative_path}" != */ &&
+     "${relative_path}" != *//* &&
+     ! "${relative_path}" =~ [[:cntrl:]] &&
+     "${relative_path}" =~ ^(scripts|files)/[A-Za-z0-9._/+@:-]+$ ]] ||
+    return 1
+  IFS='/' read -r -a components <<< "${relative_path}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" &&
+       "${component}" != "." &&
+       "${component}" != ".." ]] || return 1
+  done
+}
+
+# This resolver is intentionally replaceable by isolated tests. Direct
+# production execution uses only the canonical public HTTPS form below.
+guild_source_repository_url() {
+  local repository="${1:-}"
+  _guild_source_repository_valid "${repository}" || return 2
+  printf 'https://github.com/%s.git\n' "${repository}"
+}
+
+_guild_source_resolve_git() {
+  local candidate="${GUILD_SOURCE_GIT_BIN:-}"
+
+  if [[ -z "${candidate}" ]]; then
+    candidate="$(command -v git 2>/dev/null || true)"
+  fi
+  [[ -n "${candidate}" && "${candidate}" == /* && -x "${candidate}" ]] || {
+    _guild_source_error 'git is required to prepare a Guild source snapshot.'
+    return 1
+  }
+  _GUILD_SOURCE_GIT_EXEC="${candidate}"
+}
+
+# Run Git without inherited repository selection, alternates, replacement
+# objects, global/system configuration, credential helpers, or interactive
+# prompts. Managed-cache configuration is validated separately before use.
+_guild_source_git() (
+  unset GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_CONFIG
+  unset GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
+  unset GIT_DIR GIT_EXEC_PATH GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
+  unset GIT_PREFIX GIT_SSH GIT_SSH_COMMAND GIT_WORK_TREE
+  unset GIT_ASKPASS GIT_CEILING_DIRECTORIES GIT_DEFAULT_HASH
+  unset GIT_DISCOVERY_ACROSS_FILESYSTEM GIT_GRAFT_FILE GIT_NAMESPACE
+  unset GIT_PROXY_COMMAND GIT_REPLACE_REF_BASE GIT_SHALLOW_FILE
+  unset GIT_SSL_CAINFO GIT_SSL_CAPATH GIT_SSL_NO_VERIFY
+  unset GIT_SSH_VARIANT GIT_TEMPLATE_DIR SSH_ASKPASS
+  export GIT_CONFIG_NOSYSTEM=1
+  export GIT_CONFIG_GLOBAL=/dev/null
+  export GIT_CONFIG_SYSTEM=/dev/null
+  export GIT_TERMINAL_PROMPT=0
+  export GIT_OPTIONAL_LOCKS=0
+  export GIT_NO_REPLACE_OBJECTS=1
+  export LC_ALL=C
+  umask 077
+  "${_GUILD_SOURCE_GIT_EXEC}" \
+    -c credential.helper= \
+    -c core.hooksPath=/dev/null \
+    -c core.fsmonitor=false \
+    "$@"
+)
+
+_guild_source_mode_has_write_bits() {
+  local path="$1"
+  find "${path}" -prune \
+    \( -perm -0020 -o -perm -0002 \) -print -quit 2>/dev/null |
+    grep -q .
+}
+
+_guild_source_directory_secure() {
+  local path="$1"
+
+  [[ -d "${path}" && ! -L "${path}" && -O "${path}" ]] || return 1
+  ! _guild_source_mode_has_write_bits "${path}"
+}
+
+_guild_source_cache_parent_prepare() {
+  local path="$1"
+  local component=""
+  local current_path="/"
+  local root_owned="N"
+  local -a components
+
+  [[ "${path}" == /* && "${path}" != "/" ]] || return 1
+  IFS='/' read -r -a components <<< "${path#/}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" ]] || continue
+    current_path="${current_path%/}/${component}"
+    [[ ! -L "${current_path}" ]] || return 1
+    if [[ ! -e "${current_path}" ]]; then
+      (umask 077 && mkdir -- "${current_path}") || {
+        [[ -d "${current_path}" && ! -L "${current_path}" ]] || return 1
+      }
+    fi
+    [[ -d "${current_path}" && ! -L "${current_path}" ]] || return 1
+    root_owned="N"
+    if find "${current_path}" -prune -user root -print -quit 2>/dev/null |
+       grep -q .; then
+      root_owned="Y"
+    elif [[ ! -O "${current_path}" ]]; then
+      return 1
+    fi
+    if _guild_source_mode_has_write_bits "${current_path}"; then
+      [[ "${root_owned}" == "Y" && -k "${current_path}" ]] || return 1
+    fi
+  done
+}
+
+_guild_source_cache_root() {
+  local configured_root="${GUILD_SOURCE_CACHE_ROOT:-}"
+  local root_parent=""
+  local root_name=""
+  local physical_parent=""
+  local managed_root=""
+
+  if [[ -z "${configured_root}" ]]; then
+    [[ -n "${XDG_CACHE_HOME:-}" || -n "${HOME:-}" ]] || return 2
+    configured_root="${XDG_CACHE_HOME:-${HOME}/.cache}/guild-operators"
+  fi
+  [[ "${configured_root}" == /* &&
+     "${configured_root}" != "/" &&
+     "${configured_root}" != *//* &&
+     "${configured_root}" != */../* &&
+     "${configured_root}" != */.. &&
+     "${configured_root}" != */./* &&
+     "${configured_root}" != */. &&
+     ! "${configured_root}" =~ [[:cntrl:]] ]] || return 2
+
+  root_parent="$(dirname -- "${configured_root}")" || return 2
+  root_name="$(basename -- "${configured_root}")" || return 2
+  [[ "${root_parent}" != "/" &&
+     -n "${root_name}" &&
+     "${root_name}" != "." &&
+     "${root_name}" != ".." ]] ||
+    return 2
+  if [[ -L "${configured_root}" ]]; then
+    return 2
+  fi
+  _guild_source_cache_parent_prepare "${root_parent}" || return 2
+  physical_parent="$(cd -P -- "${root_parent}" 2>/dev/null && pwd -P)" ||
+    return 2
+  managed_root="${physical_parent%/}/${root_name}"
+  if [[ -e "${managed_root}" ]]; then
+    _guild_source_directory_secure "${managed_root}" || return 2
+  else
+    (umask 077 && mkdir -- "${managed_root}") || return 2
+    chmod 0700 "${managed_root}" || return 2
+  fi
+  printf '%s\n' "${managed_root}"
+}
+
+_guild_source_lock_release() {
+  case "${_GUILD_SOURCE_WORK_LOCK_BACKEND:-}" in
+    flock)
+      flock -u 7 >/dev/null 2>&1 || true
+      exec 7>&-
+      ;;
+    directory)
+      if [[ -n "${_GUILD_SOURCE_WORK_LOCK_PATH:-}" &&
+            -d "${_GUILD_SOURCE_WORK_LOCK_PATH}" &&
+            ! -L "${_GUILD_SOURCE_WORK_LOCK_PATH}" &&
+            -O "${_GUILD_SOURCE_WORK_LOCK_PATH}" ]]; then
+        rm -f -- "${_GUILD_SOURCE_WORK_LOCK_PATH}/owner" 2>/dev/null || true
+        rmdir -- "${_GUILD_SOURCE_WORK_LOCK_PATH}" 2>/dev/null || true
+      fi
+      ;;
+  esac
+  _GUILD_SOURCE_WORK_LOCK_BACKEND=""
+  _GUILD_SOURCE_WORK_LOCK_PATH=""
+}
+
+_guild_source_lock_acquire() {
+  local managed_root="$1"
+  local account_key="$2"
+  local backend="${GUILD_SOURCE_LOCK_BACKEND:-auto}"
+  local timeout="${GUILD_SOURCE_LOCK_TIMEOUT:-30}"
+  local lock_root="${managed_root}/locks"
+  local lock_path=""
+  local owner_pid=""
+  local started_at="${SECONDS}"
+  local stale_path=""
+
+  [[ "${timeout}" =~ ^[0-9]+$ ]] || return 2
+  (( 10#${timeout} > 0 )) || return 2
+  case "${backend}" in
+    auto)
+      if command -v flock >/dev/null 2>&1; then
+        backend="flock"
+      else
+        backend="directory"
+      fi
+      ;;
+    flock|directory) ;;
+    *) return 2 ;;
+  esac
+
+  if [[ -e "${lock_root}" ]]; then
+    _guild_source_directory_secure "${lock_root}" || return 2
+  else
+    (umask 077 && mkdir -- "${lock_root}") || return 2
+    chmod 0700 "${lock_root}" || return 2
+  fi
+
+  if [[ "${backend}" == "flock" ]]; then
+    command -v flock >/dev/null 2>&1 || return 2
+    lock_path="${lock_root}/${account_key}.lock"
+    if [[ -L "${lock_path}" ||
+          ( -e "${lock_path}" && ( ! -f "${lock_path}" || ! -O "${lock_path}" ) ) ]]; then
+      return 2
+    fi
+    (umask 077 && : >| "${lock_path}") || return 2
+    chmod 0600 "${lock_path}" || return 2
+    exec 7>>"${lock_path}" || return 2
+    if ! flock -w "$((10#${timeout}))" 7; then
+      exec 7>&-
+      return 1
+    fi
+    _GUILD_SOURCE_WORK_LOCK_BACKEND="flock"
+    _GUILD_SOURCE_WORK_LOCK_PATH="${lock_path}"
+    return 0
+  fi
+
+  lock_path="${lock_root}/${account_key}.lock.d"
+  while :; do
+    if (umask 077 && mkdir -- "${lock_path}") 2>/dev/null; then
+      _GUILD_SOURCE_WORK_LOCK_BACKEND="directory"
+      _GUILD_SOURCE_WORK_LOCK_PATH="${lock_path}"
+      printf '%s\n' "${BASHPID}" > "${lock_path}/owner" || return 2
+      chmod 0600 "${lock_path}/owner" || return 2
+      return 0
+    fi
+    [[ -d "${lock_path}" && ! -L "${lock_path}" && -O "${lock_path}" ]] ||
+      return 2
+    owner_pid="$(sed -n '1p' "${lock_path}/owner" 2>/dev/null || true)"
+    [[ "${owner_pid}" =~ ^[0-9]+$ ]] || return 2
+    if ! kill -0 "${owner_pid}" 2>/dev/null; then
+      stale_path="${lock_path}.stale.${BASHPID}"
+      if mv -- "${lock_path}" "${stale_path}" 2>/dev/null; then
+        rm -f -- "${stale_path}/owner" 2>/dev/null || true
+        rmdir -- "${stale_path}" 2>/dev/null || return 2
+        continue
+      fi
+    fi
+    (( SECONDS - started_at < 10#${timeout} )) || return 1
+    sleep 1
+  done
+}
+
+_guild_source_cache_marker_write() {
+  local git_dir="$1"
+  local repository="$2"
+  local remote_url="$3"
+  local marker="${git_dir}/guild-source-cache"
+
+  {
+    printf 'schemaVersion=1\n'
+    printf 'repository=%s\n' "${repository}"
+    printf 'remote=%s\n' "${remote_url}"
+  } > "${marker}" || return 1
+  chmod 0600 "${marker}" || return 1
+}
+
+_guild_source_cache_validate_config() {
+  local git_dir="$1"
+  local config_name=""
+  local config_names=""
+  local seen_names='|'
+
+  [[ -f "${git_dir}/config" && ! -L "${git_dir}/config" ]] || return 1
+  config_names="$(_guild_source_git config --file "${git_dir}/config" \
+    --name-only --get-regexp '.*' 2>/dev/null)" || return 1
+  while IFS= read -r config_name; do
+    case "${config_name}" in
+      core.repositoryformatversion|core.filemode|core.bare|core.logallrefupdates|core.ignorecase|core.precomposeunicode|remote.origin.url)
+        ;;
+      *) return 1 ;;
+    esac
+    [[ "${seen_names}" != *"|${config_name}|"* ]] || return 1
+    seen_names="${seen_names}${config_name}|"
+  done <<< "${config_names}"
+}
+
+_guild_source_cache_validate() {
+  local git_dir="$1"
+  local repository="$2"
+  local remote_url="$3"
+  local marker="${git_dir}/guild-source-cache"
+  local origin_urls=""
+  local owner_name=""
+
+  _guild_source_directory_secure "${git_dir}" || return 2
+  if find "${git_dir}" -type l -print -quit 2>/dev/null | grep -q .; then
+    return 2
+  fi
+  owner_name="$(id -un)" || return 2
+  if find "${git_dir}" ! -user "${owner_name}" -print -quit 2>/dev/null |
+     grep -q .; then
+    return 2
+  fi
+  if find "${git_dir}" \( -perm -0020 -o -perm -0002 \) -print -quit 2>/dev/null |
+     grep -q .; then
+    return 2
+  fi
+  [[ ! -e "${git_dir}/objects/info/alternates" &&
+     ! -e "${git_dir}/shallow" &&
+     -f "${marker}" && ! -L "${marker}" && -O "${marker}" ]] || return 2
+  grep -Fqx 'schemaVersion=1' "${marker}" || return 2
+  grep -Fqx "repository=${repository}" "${marker}" || return 2
+  grep -Fqx "remote=${remote_url}" "${marker}" || return 2
+  _guild_source_cache_validate_config "${git_dir}" || return 2
+  [[ "$(_guild_source_git --git-dir="${git_dir}" \
+    rev-parse --is-bare-repository 2>/dev/null)" == "true" ]] || return 2
+  origin_urls="$(_guild_source_git --git-dir="${git_dir}" \
+    config --get-all remote.origin.url 2>/dev/null)" || return 2
+  [[ -n "${origin_urls}" &&
+     "${origin_urls}" != *$'\n'* &&
+     ! "${origin_urls}" =~ [[:cntrl:]] &&
+     "${origin_urls}" == "${remote_url}" ]] || return 2
+}
+
+_guild_source_resolve_managed_ref() (
+  local git_dir="$1"
+  local channel="$2"
+  local remote_refs=""
+  local object_id=""
+  local remote_ref=""
+  local selected_ref=""
+  local selected_object_id=""
+  local destination_ref=""
+  local opposite_ref=""
+  local candidate_ref="refs/guild-source/candidates/${BASHPID}"
+  local fetched_object_id=""
+  local revision=""
+  local match_count=0
+
+  trap '_guild_source_git --git-dir="${git_dir}" update-ref -d \
+    "${candidate_ref}" >/dev/null 2>&1 || true' EXIT
+  trap 'exit 130' HUP INT TERM
+
+  remote_refs="$(_guild_source_git --git-dir="${git_dir}" ls-remote --refs origin \
+    "refs/heads/${channel}" "refs/tags/${channel}" 2>/dev/null)" || return 1
+  while IFS=$'\t' read -r object_id remote_ref; do
+    [[ -n "${object_id}" && -n "${remote_ref}" ]] || continue
+    case "${remote_ref}" in
+      "refs/heads/${channel}"|"refs/tags/${channel}")
+        selected_ref="${remote_ref}"
+        selected_object_id="${object_id}"
+        match_count=$((match_count + 1))
+        ;;
+    esac
+  done <<< "${remote_refs}"
+  (( match_count == 1 )) || {
+    (( match_count == 0 )) && return 1
+    return 2
+  }
+  [[ "${selected_object_id}" =~ ^[0-9a-f]{40,64}$ ]] || return 1
+
+  case "${selected_ref}" in
+    refs/heads/*)
+      destination_ref="refs/guild-source/heads/${channel}"
+      opposite_ref="refs/guild-source/tags/${channel}"
+      ;;
+    refs/tags/*)
+      destination_ref="refs/guild-source/tags/${channel}"
+      opposite_ref="refs/guild-source/heads/${channel}"
+      ;;
+  esac
+  _guild_source_git --git-dir="${git_dir}" update-ref -d \
+    "${candidate_ref}" >/dev/null 2>&1 || return 1
+  _guild_source_git --git-dir="${git_dir}" fetch --force --no-tags origin \
+    "+${selected_ref}:${candidate_ref}" >/dev/null 2>&1 || return 1
+  fetched_object_id="$(_guild_source_git --git-dir="${git_dir}" rev-parse \
+    --verify "${candidate_ref}" 2>/dev/null)" || return 1
+  [[ "${fetched_object_id}" == "${selected_object_id}" ]] || return 1
+  revision="$(_guild_source_git --git-dir="${git_dir}" rev-parse --verify \
+    "${candidate_ref}^{commit}" 2>/dev/null)" || return 1
+  [[ "${revision}" =~ ^[0-9a-f]{40,64}$ ]] || return 1
+  _guild_source_git --git-dir="${git_dir}" cat-file -e \
+    "${revision}^{commit}" 2>/dev/null || return 1
+  {
+    printf 'update %s %s\n' "${destination_ref}" "${fetched_object_id}"
+    printf 'delete %s\n' "${opposite_ref}"
+  } | _guild_source_git --git-dir="${git_dir}" update-ref --stdin || return 1
+  printf '%s\n%s\n' "${selected_ref}" "${revision}"
+)
+
+_guild_source_resolve_cached_ref() {
+  local git_dir="$1"
+  local channel="$2"
+  local head_ref="refs/guild-source/heads/${channel}"
+  local tag_ref="refs/guild-source/tags/${channel}"
+  local selected_ref=""
+  local selected_cache_ref=""
+  local revision=""
+  local match_count=0
+
+  if _guild_source_git --git-dir="${git_dir}" show-ref --verify --quiet \
+    "${head_ref}"; then
+    selected_ref="refs/heads/${channel}"
+    selected_cache_ref="${head_ref}"
+    match_count=$((match_count + 1))
+  fi
+  if _guild_source_git --git-dir="${git_dir}" show-ref --verify --quiet \
+    "${tag_ref}"; then
+    selected_ref="refs/tags/${channel}"
+    selected_cache_ref="${tag_ref}"
+    match_count=$((match_count + 1))
+  fi
+  (( match_count == 1 )) || {
+    (( match_count == 0 )) && return 1
+    return 2
+  }
+  revision="$(_guild_source_git --git-dir="${git_dir}" rev-parse --verify \
+    "${selected_cache_ref}^{commit}" 2>/dev/null)" || return 1
+  [[ "${revision}" =~ ^[0-9a-f]{40,64}$ ]] || return 1
+  _guild_source_git --git-dir="${git_dir}" cat-file -e \
+    "${revision}^{commit}" 2>/dev/null || return 1
+  printf '%s\n%s\n' "${selected_ref}" "${revision}"
+}
+
+_guild_source_snapshot_container_create() {
+  local tmp_root="${GUILD_SOURCE_TMP_ROOT:-${TMPDIR:-/tmp}}"
+  local physical_tmp=""
+  local container=""
+
+  [[ "${tmp_root}" == /* &&
+     "${tmp_root}" != "/" &&
+     "${tmp_root}" != *//* &&
+     "${tmp_root}" != */../* &&
+     "${tmp_root}" != */.. &&
+     ! "${tmp_root}" =~ [[:cntrl:]] ]] || return 2
+  (umask 077 && mkdir -p -- "${tmp_root}") || return 2
+  physical_tmp="$(cd -P -- "${tmp_root}" 2>/dev/null && pwd -P)" || return 2
+  container="$(mktemp -d "${physical_tmp}/guild-source-transaction.XXXXXX")" ||
+    return 1
+  chmod 0700 "${container}" || return 1
+  printf '%s\n' "${container}"
+}
+
+_guild_source_snapshot_publish() {
+  local container="$1"
+  local build_path="${container}/build"
+  local snapshot_path="${container}/snapshot"
+  local token="${container##*.}"
+
+  [[ -d "${build_path}" && ! -e "${snapshot_path}" ]] || return 1
+  printf '%s\n' "${token}" > "${build_path}/guild-source-snapshot" || return 1
+  chmod 0400 "${build_path}/guild-source-snapshot" || return 1
+  while IFS= read -r directory; do
+    chmod 0500 "${directory}" || return 1
+  done < <(find "${build_path}" -depth -type d -print)
+  mv -- "${build_path}" "${snapshot_path}" || return 1
+  chmod 0500 "${container}" || return 1
+  printf '%s\n%s\n' "${snapshot_path}" "${token}"
+}
+
+_guild_source_snapshot_from_git() {
+  local git_dir="$1"
+  local revision="$2"
+  local container="$3"
+  local build_path="${container}/build"
+  local records="${container}/tree.records"
+  local tree_entry=""
+  local metadata=""
+  local relative_path=""
+  local object_mode=""
+  local object_type=""
+  local object_id=""
+  local remainder=""
+  local destination=""
+  local destination_dir=""
+  local file_count=0
+
+  mkdir -- "${build_path}" || return 1
+  chmod 0700 "${build_path}" || return 1
+  _guild_source_git --git-dir="${git_dir}" ls-tree -r -z --full-tree \
+    "${revision}" -- scripts files > "${records}" || return 1
+  while IFS= read -r -d '' tree_entry; do
+    metadata="${tree_entry%%$'\t'*}"
+    relative_path="${tree_entry#*$'\t'}"
+    object_mode="${metadata%% *}"
+    remainder="${metadata#* }"
+    object_type="${remainder%% *}"
+    object_id="${remainder#* }"
+    _guild_source_relative_path_valid "${relative_path}" || return 2
+    [[ "${object_type}" == "blob" ]] || return 2
+    case "${object_mode}" in
+      100644|100755) ;;
+      *) return 2 ;;
+    esac
+    [[ "${object_id}" =~ ^[0-9a-f]{40,64}$ ]] || return 1
+    destination="${build_path}/${relative_path}"
+    destination_dir="$(dirname -- "${destination}")"
+    (umask 077 && mkdir -p -- "${destination_dir}") || return 1
+    _guild_source_git --git-dir="${git_dir}" cat-file blob \
+      "${object_id}" > "${destination}" || return 1
+    if [[ "${object_mode}" == "100755" ]]; then
+      chmod 0500 "${destination}" || return 1
+    else
+      chmod 0400 "${destination}" || return 1
+    fi
+    file_count=$((file_count + 1))
+  done < "${records}"
+  rm -f -- "${records}"
+  (( file_count > 0 )) || return 1
+}
+
+_guild_source_snapshot_from_checkout() {
+  local checkout="$1"
+  local revision="$2"
+  local container="$3"
+  local build_path="${container}/build"
+  local records="${container}/index.records"
+  local records_after="${container}/index-after.records"
+  local untracked_records="${container}/untracked.records"
+  local digest_records="${container}/digest.records"
+  local index_entry=""
+  local metadata=""
+  local relative_path=""
+  local object_mode=""
+  local object_id=""
+  local stage_number=""
+  local source_path=""
+  local destination=""
+  local destination_dir=""
+  local actual_mode=""
+  local file_digest=""
+  local file_count=0
+  local tree_digest=""
+
+  mkdir -- "${build_path}" || return 1
+  chmod 0700 "${build_path}" || return 1
+  _guild_source_git -C "${checkout}" ls-files --stage -z -- \
+    scripts files > "${records}" || return 1
+  _guild_source_git -C "${checkout}" ls-files --others --exclude-standard \
+    -z -- scripts files > "${untracked_records}" || return 1
+  [[ ! -s "${untracked_records}" ]] || return 2
+  : > "${digest_records}" || return 1
+  printf 'revision %s\n' "${revision}" >> "${digest_records}" || return 1
+  while IFS= read -r -d '' index_entry; do
+    metadata="${index_entry%%$'\t'*}"
+    relative_path="${index_entry#*$'\t'}"
+    object_mode="${metadata%% *}"
+    stage_number="${metadata##* }"
+    object_id="${metadata#* }"
+    object_id="${object_id%% *}"
+    _guild_source_relative_path_valid "${relative_path}" || return 2
+    [[ "${stage_number}" == "0" ]] || return 2
+    case "${object_mode}" in
+      100644|100755) ;;
+      *) return 2 ;;
+    esac
+    source_path="${checkout}/${relative_path}"
+    [[ -f "${source_path}" && ! -L "${source_path}" ]] || return 2
+    destination="${build_path}/${relative_path}"
+    destination_dir="$(dirname -- "${destination}")"
+    (umask 077 && mkdir -p -- "${destination_dir}") || return 1
+    cp -- "${source_path}" "${destination}" || return 1
+    if [[ -x "${source_path}" ]]; then
+      actual_mode="100755"
+      chmod 0500 "${destination}" || return 1
+    else
+      actual_mode="100644"
+      chmod 0400 "${destination}" || return 1
+    fi
+    cmp -s -- "${source_path}" "${destination}" || return 1
+    file_digest="$(sha256sum "${destination}" | awk '{print $1}')" || return 1
+    [[ "${file_digest}" =~ ^[0-9a-f]{64}$ ]] || return 1
+    printf '%s %s %s\n' "${actual_mode}" "${file_digest}" \
+      "${relative_path}" >> "${digest_records}" || return 1
+    file_count=$((file_count + 1))
+  done < "${records}"
+  (( file_count > 0 )) || return 1
+  _guild_source_git -C "${checkout}" ls-files --stage -z -- \
+    scripts files > "${records_after}" || return 1
+  cmp -s -- "${records}" "${records_after}" || return 1
+  while IFS= read -r -d '' index_entry; do
+    relative_path="${index_entry#*$'\t'}"
+    cmp -s -- "${checkout}/${relative_path}" \
+      "${build_path}/${relative_path}" || return 1
+  done < "${records}"
+  tree_digest="$(sha256sum "${digest_records}" | awk '{print $1}')" || return 1
+  [[ "${tree_digest}" =~ ^[0-9a-f]{64}$ ]] || return 1
+  rm -f -- "${records}" "${records_after}" "${untracked_records}" \
+    "${digest_records}"
+  printf '%s\n' "${tree_digest}"
+}
+
+_guild_source_normalize_github_url() {
+  local value="${1:-}"
+  local repository=""
+
+  case "${value}" in
+    https://github.com/*)
+      repository="${value#https://github.com/}"
+      ;;
+    git@github.com:*)
+      repository="${value#git@github.com:}"
+      ;;
+    ssh://git@github.com/*)
+      repository="${value#ssh://git@github.com/}"
+      ;;
+    *) return 1 ;;
+  esac
+  repository="${repository%/}"
+  repository="${repository%.git}"
+  _guild_source_repository_valid "${repository}" || return 1
+  printf '%s\n' "$(printf '%s' "${repository}" | tr '[:upper:]' '[:lower:]')"
+}
+
+_guild_source_local_origin_matches() {
+  local actual="$1"
+  local expected="$2"
+  local actual_normalized=""
+  local expected_normalized=""
+
+  actual_normalized="$(_guild_source_normalize_github_url "${actual}" 2>/dev/null || true)"
+  expected_normalized="$(_guild_source_normalize_github_url "${expected}" 2>/dev/null || true)"
+  if [[ -n "${actual_normalized}" && -n "${expected_normalized}" ]]; then
+    [[ "${actual_normalized}" == "${expected_normalized}" ]]
+  else
+    [[ "${actual}" == "${expected}" ]]
+  fi
+}
+
+_guild_source_worker_cleanup() {
+  _guild_source_lock_release
+  if [[ "${_GUILD_SOURCE_WORK_SUCCESS:-N}" != "Y" ]]; then
+    if [[ -n "${_GUILD_SOURCE_WORK_CACHE_STAGE:-}" &&
+          "${_GUILD_SOURCE_WORK_CACHE_STAGE}" == */.repository.git.init.* &&
+          -d "${_GUILD_SOURCE_WORK_CACHE_STAGE}" &&
+          ! -L "${_GUILD_SOURCE_WORK_CACHE_STAGE}" ]]; then
+      chmod -R u+rwX "${_GUILD_SOURCE_WORK_CACHE_STAGE}" 2>/dev/null || true
+      rm -rf -- "${_GUILD_SOURCE_WORK_CACHE_STAGE}"
+    fi
+    if [[ -n "${_GUILD_SOURCE_WORK_CONTAINER:-}" &&
+          "${_GUILD_SOURCE_WORK_CONTAINER}" == */guild-source-transaction.* &&
+          -d "${_GUILD_SOURCE_WORK_CONTAINER}" &&
+          ! -L "${_GUILD_SOURCE_WORK_CONTAINER}" ]]; then
+      chmod -R u+rwX "${_GUILD_SOURCE_WORK_CONTAINER}" 2>/dev/null || true
+      rm -rf -- "${_GUILD_SOURCE_WORK_CONTAINER}"
+    fi
+  fi
+}
+
+_guild_source_prepare_worker() (
+  local repository="$1"
+  local channel="$2"
+  local mode="$3"
+  local checkout="${4:-}"
+  local normalized_repository=""
+  local account=""
+  local account_key=""
+  local remote_url=""
+  local managed_root=""
+  local account_path=""
+  local git_dir=""
+  local resolution=""
+  local resolved_ref=""
+  local revision=""
+  local container=""
+  local publication=""
+  local snapshot_path=""
+  local snapshot_token=""
+  local source_dirty="false"
+  local tree_digest=""
+  local checkout_root=""
+  local checkout_git_dir=""
+  local checkout_branch=""
+  local checkout_origin=""
+  local checkout_origins=""
+  local checkout_status_before=""
+  local checkout_status_after=""
+
+  _GUILD_SOURCE_WORK_SUCCESS="N"
+  _GUILD_SOURCE_WORK_CACHE_STAGE=""
+  _GUILD_SOURCE_WORK_CONTAINER=""
+  _GUILD_SOURCE_WORK_LOCK_BACKEND=""
+  _GUILD_SOURCE_WORK_LOCK_PATH=""
+  trap _guild_source_worker_cleanup EXIT
+  trap 'exit 130' HUP INT TERM
+
+  _guild_source_repository_valid "${repository}" || return 2
+  _guild_source_channel_valid "${channel}" || return 2
+  case "${mode}" in
+    managed|cached)
+      [[ -z "${checkout}" ]] || return 2
+      ;;
+    local)
+      [[ -n "${checkout}" ]] || return 2
+      ;;
+    *) return 2 ;;
+  esac
+  normalized_repository="$(printf '%s' "${repository}" | tr '[:upper:]' '[:lower:]')"
+  account="${repository%/guild-operators}"
+  account_key="$(printf '%s' "${account}" | tr '[:upper:]' '[:lower:]')"
+  remote_url="$(guild_source_repository_url "${repository}")" || return 2
+  [[ -n "${remote_url}" && ! "${remote_url}" =~ [[:cntrl:]] ]] || return 2
+
+  if [[ "${mode}" == "managed" || "${mode}" == "cached" ]]; then
+    managed_root="$(_guild_source_cache_root)" || return $?
+    _guild_source_lock_acquire "${managed_root}" "${account_key}" || return $?
+    account_path="${managed_root}/${account_key}"
+    git_dir="${account_path}/repository.git"
+    if [[ -e "${account_path}" ]]; then
+      _guild_source_directory_secure "${account_path}" || return 2
+    else
+      (umask 077 && mkdir -- "${account_path}") || return 2
+      chmod 0700 "${account_path}" || return 2
+    fi
+
+    if [[ "${mode}" == "managed" && ! -e "${git_dir}" ]]; then
+      _GUILD_SOURCE_WORK_CACHE_STAGE="$(mktemp -d \
+        "${account_path}/.repository.git.init.XXXXXX")" || return 1
+      chmod 0700 "${_GUILD_SOURCE_WORK_CACHE_STAGE}" || return 1
+      (umask 077 && _guild_source_git init --bare \
+        "${_GUILD_SOURCE_WORK_CACHE_STAGE}" >/dev/null 2>&1) || return 1
+      _guild_source_git --git-dir="${_GUILD_SOURCE_WORK_CACHE_STAGE}" \
+        config remote.origin.url "${remote_url}" || return 1
+      _guild_source_cache_marker_write "${_GUILD_SOURCE_WORK_CACHE_STAGE}" \
+        "${normalized_repository}" "${remote_url}" || return 1
+      resolution="$(_guild_source_resolve_managed_ref \
+        "${_GUILD_SOURCE_WORK_CACHE_STAGE}" "${channel}")" || return $?
+      _guild_source_cache_validate "${_GUILD_SOURCE_WORK_CACHE_STAGE}" \
+        "${normalized_repository}" "${remote_url}" || return $?
+      mv -- "${_GUILD_SOURCE_WORK_CACHE_STAGE}" "${git_dir}" || return 1
+      _GUILD_SOURCE_WORK_CACHE_STAGE=""
+    else
+      [[ -e "${git_dir}" ]] || return 1
+      _guild_source_cache_validate "${git_dir}" \
+        "${normalized_repository}" "${remote_url}" || return $?
+      if [[ "${mode}" == "managed" ]]; then
+        resolution="$(_guild_source_resolve_managed_ref \
+          "${git_dir}" "${channel}")" || return $?
+        _guild_source_cache_validate "${git_dir}" \
+          "${normalized_repository}" "${remote_url}" || return $?
+      else
+        resolution="$(_guild_source_resolve_cached_ref \
+          "${git_dir}" "${channel}")" || return $?
+      fi
+    fi
+    resolved_ref="${resolution%%$'\n'*}"
+    revision="${resolution#*$'\n'}"
+    container="$(_guild_source_snapshot_container_create)" || return $?
+    _GUILD_SOURCE_WORK_CONTAINER="${container}"
+    _guild_source_snapshot_from_git "${git_dir}" "${revision}" \
+      "${container}" || return $?
+  else
+    [[ "${checkout}" == /* && -d "${checkout}" && ! -L "${checkout}" ]] ||
+      return 2
+    checkout_root="$(cd -P -- "${checkout}" 2>/dev/null && pwd -P)" || return 2
+    [[ "$(_guild_source_git -C "${checkout_root}" rev-parse \
+      --is-inside-work-tree 2>/dev/null)" == "true" ]] || return 2
+    [[ "$(_guild_source_git -C "${checkout_root}" rev-parse \
+      --show-toplevel 2>/dev/null)" == "${checkout_root}" ]] || return 2
+    checkout_git_dir="$(_guild_source_git -C "${checkout_root}" rev-parse \
+      --absolute-git-dir 2>/dev/null)" || return 2
+    [[ "${checkout_git_dir}" == /* && -d "${checkout_git_dir}" ]] || return 2
+    checkout_branch="$(_guild_source_git -C "${checkout_root}" symbolic-ref \
+      --quiet --short HEAD 2>/dev/null)" || return 2
+    [[ "${checkout_branch}" == "${channel}" ]] || return 2
+    resolved_ref="refs/heads/${channel}"
+    revision="$(_guild_source_git -C "${checkout_root}" rev-parse --verify \
+      HEAD 2>/dev/null)" || return 1
+    [[ "${revision}" =~ ^[0-9a-f]{40,64}$ ]] || return 1
+    checkout_origins="$(_guild_source_git -C "${checkout_root}" config \
+      --get-all remote.origin.url 2>/dev/null)" || return 2
+    [[ -n "${checkout_origins}" && "${checkout_origins}" != *$'\n'* ]] || return 2
+    checkout_origin="${checkout_origins}"
+    _guild_source_local_origin_matches "${checkout_origin}" "${remote_url}" ||
+      return 2
+    checkout_status_before="$(_guild_source_git -C "${checkout_root}" status \
+      --porcelain=v1 --untracked-files=all -- scripts files 2>/dev/null)" ||
+      return 1
+    if [[ -n "${checkout_status_before}" ]]; then
+      [[ "${GUILD_SOURCE_ALLOW_DIRTY:-N}" == "Y" ]] || return 1
+      source_dirty="true"
+    fi
+    container="$(_guild_source_snapshot_container_create)" || return $?
+    _GUILD_SOURCE_WORK_CONTAINER="${container}"
+    if [[ "${source_dirty}" == "true" ]]; then
+      tree_digest="$(_guild_source_snapshot_from_checkout \
+        "${checkout_root}" "${revision}" "${container}")" || return $?
+    else
+      _guild_source_snapshot_from_git "${checkout_git_dir}" "${revision}" \
+        "${container}" || return $?
+    fi
+    checkout_status_after="$(_guild_source_git -C "${checkout_root}" status \
+      --porcelain=v1 --untracked-files=all -- scripts files 2>/dev/null)" ||
+      return 1
+    [[ "${checkout_status_after}" == "${checkout_status_before}" ]] || return 1
+  fi
+
+  publication="$(_guild_source_snapshot_publish "${container}")" || return $?
+  snapshot_path="${publication%%$'\n'*}"
+  snapshot_token="${publication#*$'\n'}"
+  _guild_source_lock_release
+  _GUILD_SOURCE_WORK_SUCCESS="Y"
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
+    "${repository}" "${channel}" "${mode}" "${resolved_ref}" \
+    "${revision}" "${source_dirty}" "${tree_digest}" \
+    "${snapshot_path}" "${container}" "${snapshot_token}"
+)
+
+guild_source_release() {
+  local snapshot="${_GUILD_SOURCE_SNAPSHOT:-}"
+  local container="${_GUILD_SOURCE_SNAPSHOT_CONTAINER:-}"
+  local parent="${_GUILD_SOURCE_SNAPSHOT_PARENT:-}"
+  local token="${_GUILD_SOURCE_SNAPSHOT_TOKEN:-}"
+  local marker=""
+  local safe_to_remove="N"
+
+  if [[ "${_GUILD_SOURCE_PREPARED:-N}" == "Y" &&
+        -n "${snapshot}" && -n "${container}" && -n "${parent}" &&
+        -n "${token}" &&
+        "$(dirname -- "${container}")" == "${parent}" &&
+        "${container}" == "${parent}"/guild-source-transaction.* &&
+        "${snapshot}" == "${container}/snapshot" &&
+        -d "${container}" && ! -L "${container}" && -O "${container}" &&
+        -d "${snapshot}" && ! -L "${snapshot}" && -O "${snapshot}" ]]; then
+    marker="${snapshot}/guild-source-snapshot"
+    if [[ -f "${marker}" && ! -L "${marker}" && -O "${marker}" &&
+          "$(sed -n '1p' "${marker}" 2>/dev/null)" == "${token}" ]]; then
+      safe_to_remove="Y"
+    fi
+  fi
+
+  _GUILD_SOURCE_PREPARED="N"
+  _GUILD_SOURCE_REPOSITORY=""
+  _GUILD_SOURCE_CHANNEL=""
+  _GUILD_SOURCE_MODE=""
+  _GUILD_SOURCE_REF=""
+  _GUILD_SOURCE_REVISION=""
+  _GUILD_SOURCE_DIRTY="false"
+  _GUILD_SOURCE_TREE_DIGEST=""
+  _GUILD_SOURCE_SNAPSHOT=""
+  _GUILD_SOURCE_SNAPSHOT_CONTAINER=""
+  _GUILD_SOURCE_SNAPSHOT_PARENT=""
+  _GUILD_SOURCE_SNAPSHOT_TOKEN=""
+
+  if [[ "${safe_to_remove}" == "Y" ]]; then
+    chmod -R u+rwX "${container}" 2>/dev/null || return 1
+    rm -rf -- "${container}" || return 1
+  fi
+}
+
+guild_source_prepare() {
+  local repository="${1:-}"
+  local channel="${2:-}"
+  local mode="${3:-managed}"
+  local checkout="${4:-}"
+  local result_file=""
+  local result_status=0
+  local result_repository=""
+  local result_channel=""
+  local result_mode=""
+  local result_ref=""
+  local result_revision=""
+  local result_dirty=""
+  local result_digest=""
+  local result_snapshot=""
+  local result_container=""
+  local result_token=""
+
+  guild_source_release || return 1
+  (( $# >= 2 && $# <= 4 )) || return 2
+  _guild_source_resolve_git || return $?
+  result_file="$(mktemp "${TMPDIR:-/tmp}/guild-source-result.XXXXXX")" || return 1
+  chmod 0600 "${result_file}" || {
+    rm -f -- "${result_file}"
+    return 1
+  }
+  if _guild_source_prepare_worker "${repository}" "${channel}" "${mode}" \
+    "${checkout}" >| "${result_file}"; then
+    :
+  else
+    result_status=$?
+    rm -f -- "${result_file}"
+    return "${result_status}"
+  fi
+  {
+    IFS= read -r result_repository
+    IFS= read -r result_channel
+    IFS= read -r result_mode
+    IFS= read -r result_ref
+    IFS= read -r result_revision
+    IFS= read -r result_dirty
+    IFS= read -r result_digest
+    IFS= read -r result_snapshot
+    IFS= read -r result_container
+    IFS= read -r result_token
+  } < "${result_file}" || {
+    rm -f -- "${result_file}"
+    return 1
+  }
+  rm -f -- "${result_file}"
+  [[ -d "${result_snapshot}" &&
+     "${result_snapshot}" == "${result_container}/snapshot" ]] || return 1
+
+  _GUILD_SOURCE_REPOSITORY="${result_repository}"
+  _GUILD_SOURCE_CHANNEL="${result_channel}"
+  _GUILD_SOURCE_MODE="${result_mode}"
+  _GUILD_SOURCE_REF="${result_ref}"
+  _GUILD_SOURCE_REVISION="${result_revision}"
+  _GUILD_SOURCE_DIRTY="${result_dirty}"
+  _GUILD_SOURCE_TREE_DIGEST="${result_digest}"
+  _GUILD_SOURCE_SNAPSHOT="${result_snapshot}"
+  _GUILD_SOURCE_SNAPSHOT_CONTAINER="${result_container}"
+  _GUILD_SOURCE_SNAPSHOT_PARENT="$(dirname -- "${result_container}")"
+  _GUILD_SOURCE_SNAPSHOT_TOKEN="${result_token}"
+  _GUILD_SOURCE_PREPARED="Y"
+}
+
+guild_source_revision() {
+  [[ "${_GUILD_SOURCE_PREPARED:-N}" == "Y" &&
+     -n "${_GUILD_SOURCE_REVISION:-}" ]] || return 1
+  printf '%s\n' "${_GUILD_SOURCE_REVISION}"
+}
+
+guild_source_ref() {
+  [[ "${_GUILD_SOURCE_PREPARED:-N}" == "Y" &&
+     -n "${_GUILD_SOURCE_REF:-}" ]] || return 1
+  printf '%s\n' "${_GUILD_SOURCE_REF}"
+}
+
+guild_source_path() {
+  local relative_path="${1:-}"
+  local source_path=""
+
+  [[ "${_GUILD_SOURCE_PREPARED:-N}" == "Y" ]] || return 1
+  _guild_source_relative_path_valid "${relative_path}" || return 2
+  source_path="${_GUILD_SOURCE_SNAPSHOT}/${relative_path}"
+  [[ -f "${source_path}" && ! -L "${source_path}" && -O "${source_path}" ]] ||
+    return 2
+  printf '%s\n' "${source_path}"
+}
+
+guild_source_report() {
+  local digest_json="null"
+
+  [[ "${_GUILD_SOURCE_PREPARED:-N}" == "Y" ]] || return 1
+  if [[ "${_GUILD_SOURCE_DIRTY}" == "true" ]]; then
+    [[ "${_GUILD_SOURCE_TREE_DIGEST}" =~ ^[0-9a-f]{64}$ ]] || return 1
+    digest_json="\"${_GUILD_SOURCE_TREE_DIGEST}\""
+  fi
+  printf '{"repository":"%s","channel":"%s","mode":"%s",' \
+    "${_GUILD_SOURCE_REPOSITORY}" "${_GUILD_SOURCE_CHANNEL}" \
+    "${_GUILD_SOURCE_MODE}"
+  printf '"ref":"%s","revision":"%s","dirty":%s,"treeDigest":%s}\n' \
+    "${_GUILD_SOURCE_REF}" "${_GUILD_SOURCE_REVISION}" \
+    "${_GUILD_SOURCE_DIRTY}" "${digest_json}"
+}
+
 dispatcher_canonical_target_path() {
   local target="${1:-}"
   local canonical="/"

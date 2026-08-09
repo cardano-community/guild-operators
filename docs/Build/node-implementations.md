@@ -260,8 +260,8 @@ Mithril signer, and interactive peer-analysis sections remain cnode-only. See th
 | Node launcher and systemd unit | Yes | Yes | Yes |
 | Shared environment and adapter | Yes | Yes | Yes |
 | gLiveView | Yes, native Prometheus | Yes, native Prometheus | Yes, managed OTLP-to-Prometheus bridge |
-| CNTools | Yes | Not deployed | Not deployed |
-| cardano-cli local queries | Yes | Not exposed through the profile | No compatible node-to-client socket |
+| CNTools | Yes | Yes, on preview and preprod | Not deployed |
+| cardano-cli local queries | Yes | Yes, through the pinned `cardano-cli-dingo` companion | No compatible node-to-client socket |
 | db-sync, Ogmios, standalone Mithril helpers | Existing support | Not deployed | Not deployed |
 | Block production | Yes | Experimental on preprod/preview | Not supported by this profile |
 

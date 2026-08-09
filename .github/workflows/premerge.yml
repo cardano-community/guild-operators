@@ -16,12 +16,16 @@ on:
       - files/docker/**
       - files/node-implementations/**
       - files/tests/**
+      - .github/workflows/premerge.yml
 
 jobs:
   deployment-contract:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.branch || github.ref }}
     - name: Test deployment dispatcher
       run: bash files/tests/guild-deploy-dispatcher.sh
     - name: Test alternate deployments
@@ -32,6 +36,34 @@ jobs:
       run: bash files/tests/docker-deployment.sh
     - name: Test common runtime
       run: bash files/tests/common-runtime.sh
+    - name: Characterize CNTools entrypoint
+      run: bash files/tests/cntools-entrypoint.sh
+    - name: Characterize CNTools menu
+      run: bash files/tests/cntools-menu.sh
+    - name: Characterize CNTools command vectors
+      run: bash files/tests/cntools-command-vectors.sh
+    - name: Characterize CNTools library APIs
+      run: bash files/tests/cntools-library-api.sh
+    - name: Characterize CNTools startup policy
+      run: bash files/tests/cntools-startup-policy.sh
+    - name: Characterize CNTools persistent artifacts
+      run: bash files/tests/cntools-persistent-artifacts.sh
+    - name: Test managed Git source provider
+      run: bash files/tests/guild-source-provider.sh
+    - name: Test managed Git source safety
+      run: bash files/tests/guild-source-safety.sh
+    - name: Test managed Git source locking and interruption cleanup
+      run: bash files/tests/guild-source-locking.sh
+    - name: Test managed Git source shadow parity
+      run: bash files/tests/guild-source-shadow.sh
+    - name: Lint managed Git source provider and tests
+      run: |
+        shellcheck -S warning \
+          scripts/cnode-helper-scripts/guild-deploy.sh \
+          files/tests/guild-source-provider.sh \
+          files/tests/guild-source-safety.sh \
+          files/tests/guild-source-locking.sh \
+          files/tests/guild-source-shadow.sh
     - name: Test cnode runtime transaction
       run: bash files/tests/cnode-runtime-transaction.sh
     - name: Test systemd helpers
@@ -51,6 +83,54 @@ jobs:
       run: |
         find files/node-implementations files/configs/cnode files/configs/dingo files/configs/amaru \
           -type f -name '*.json' -print0 | xargs -0 -r -n1 jq -e .
+
+  stage-zero-bash-compatibility:
+    name: Stage 0 / Bash ${{ matrix.bash_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - bash_version: '4.4'
+            image: bash:4.4.23-alpine3.22
+            patch_version: '4.4.23'
+          - bash_version: '5.1'
+            image: bash:5.1.16-alpine3.22
+            patch_version: '5.1.16'
+          - bash_version: '5.2'
+            image: bash:5.2.37-alpine3.22
+            patch_version: '5.2.37'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.branch || github.ref }}
+    - name: Run Stage 0 compatibility suites
+      run: |
+        docker run --rm \
+          --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
+          --workdir /workspace \
+          "${{ matrix.image }}" \
+          -c '
+            set -e
+            actual_bash_version="${BASH_VERSION%%(*}"
+            test "${actual_bash_version}" = "${{ matrix.patch_version }}"
+            apk add --no-cache coreutils diffutils findutils gawk git grep jq python3 sed sqlite tar util-linux-misc
+            for test_script in \
+              files/tests/cntools-entrypoint.sh \
+              files/tests/cntools-menu.sh \
+              files/tests/cntools-command-vectors.sh \
+              files/tests/cntools-library-api.sh \
+              files/tests/cntools-startup-policy.sh \
+              files/tests/cntools-persistent-artifacts.sh \
+              files/tests/guild-source-provider.sh \
+              files/tests/guild-source-safety.sh \
+              files/tests/guild-source-locking.sh \
+              files/tests/guild-source-shadow.sh
+            do
+              bash "${test_script}"
+            done
+          '
 
   guild-deploy-and-build:
     runs-on: ubuntu-latest
@@ -77,18 +157,20 @@ jobs:
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
         df -h
     - name: Login to GitHub Container Registry
-      uses: docker/login-action@v2
+      uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.branch || github.ref }}
     - name: Define BRANCH, COMMIT_SHA and G_ACCOUNT in environment
       run: |
         echo "IS_FORK=${{ github.event.pull_request.head.repo.fork }}" >> $GITHUB_ENV
         echo "FORK_OWNER=${{ github.event.pull_request.head.repo.owner.login }}" >> $GITHUB_ENV
         echo "G_ACCOUNT=${{ github.repository_owner }}" >> $GITHUB_ENV
-        echo "COMMIT_SHA=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV
+        echo "COMMIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
     - name: Setup G_ACCOUNT based on fork status
       run: |

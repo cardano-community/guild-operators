@@ -1,0 +1,2 @@
+address,tx_hash,tx_index,value,asset_list
+addr_malformed,cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc,2,700000,"not-json"

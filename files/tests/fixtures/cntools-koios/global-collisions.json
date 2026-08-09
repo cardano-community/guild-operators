@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "description": "Representative value and Bash-attribute behavior when selected CNTools Koios helper globals already exist before a successful call.",
+  "calls": [
+    {
+      "id": "getActiveGovActionCount.preexisting",
+      "helper": "getActiveGovActionCount",
+      "variables": [
+        {
+          "name": "HEADERS",
+          "seed": { "type": "indexed", "values": ["sentinel-header"] },
+          "expected": { "type": "indexed", "values": ["-H", "accept: text/csv"] },
+          "behavior": "indexed type retained; previous values replaced"
+        },
+        {
+          "name": "response",
+          "seed": { "type": "scalar", "value": "sentinel-response" },
+          "expected": { "type": "scalar", "value": "count\n7" },
+          "behavior": "scalar value replaced by raw CSV response"
+        },
+        {
+          "name": "vote_action_count",
+          "seed": { "type": "integer", "value": "99" },
+          "expected": { "type": "integer", "value": "7" },
+          "behavior": "integer attribute retained; value replaced"
+        }
+      ]
+    },
+    {
+      "id": "getBalanceKoios.preexisting",
+      "helper": "getBalanceKoios",
+      "variables": [
+        {
+          "name": "HEADERS",
+          "seed": { "type": "indexed", "values": ["sentinel-header"] },
+          "expected": {
+            "type": "indexed",
+            "values": ["-H", "Content-Type: application/json", "-H", "accept: text/csv"]
+          },
+          "behavior": "indexed type retained; previous values replaced"
+        },
+        {
+          "name": "assets",
+          "seed": { "type": "scalar", "value": "sentinel-assets" },
+          "expected": {
+            "type": "associative",
+            "entries": {
+              "addr_test1,lovelace": "1500000",
+              "addr_test1,11111111111111111111111111111111111111111111111111111111.546f6b656e": "42",
+              "addr_test2,lovelace": "2500000"
+            },
+            "absentKeys": ["sentinel"]
+          },
+          "behavior": "scalar converted to associative array; previous value discarded"
+        },
+        {
+          "name": "utxos_cnt",
+          "seed": { "type": "associative", "entries": { "sentinel": "9" } },
+          "expected": {
+            "type": "associative",
+            "entries": { "addr_test1": "1", "addr_test2": "1" },
+            "absentKeys": ["sentinel"]
+          },
+          "behavior": "associative type retained; previous entries cleared"
+        }
+      ]
+    },
+    {
+      "id": "getRewardInfoKoios.preexisting",
+      "helper": "getRewardInfoKoios",
+      "variables": [
+        {
+          "name": "HEADERS",
+          "seed": { "type": "indexed", "values": ["sentinel-header"] },
+          "expected": {
+            "type": "indexed",
+            "values": ["-H", "Content-Type: application/json", "-H", "accept: text/csv"]
+          },
+          "behavior": "indexed type retained; previous values replaced"
+        },
+        {
+          "name": "reward_status",
+          "seed": { "type": "scalar", "value": "sentinel-status" },
+          "expected": {
+            "type": "associative",
+            "entries": {
+              "stake_test1": "registered",
+              "stake_test2": "registered",
+              "stake_missing": "not registered"
+            },
+            "absentKeys": ["sentinel"]
+          },
+          "behavior": "scalar converted to associative array; previous value discarded"
+        },
+        {
+          "name": "rewards_available",
+          "seed": { "type": "associative", "entries": { "sentinel": "999" } },
+          "expected": {
+            "type": "associative",
+            "entries": {
+              "0": "",
+              "stake_test1": "1234567",
+              "stake_test2": "0",
+              "stake_missing": "0"
+            },
+            "absentKeys": ["sentinel"]
+          },
+          "behavior": "associative type retained; previous entries cleared, then CSV read also creates key 0 and its final EOF read leaves that value empty"
+        },
+        {
+          "name": "status",
+          "seed": { "type": "scalar", "value": "sentinel-row-status" },
+          "expected": { "type": "scalar", "value": "" },
+          "behavior": "scratch scalar overwritten by rows and then cleared by the final EOF read"
+        },
+        {
+          "name": "deposit",
+          "seed": { "type": "integer", "value": "9" },
+          "expected": { "type": "integer", "value": "0" },
+          "behavior": "integer attribute retained; the empty assignment from the final EOF read becomes zero"
+        }
+      ]
+    }
+  ]
+}
