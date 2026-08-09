@@ -393,9 +393,8 @@ node_adapter_collect_metrics() {
   normalized_metrics="$(printf '%s\n' "${node_metrics}" | prometheus_normalize_metrics)"
   common_parse_cardano_metrics "${normalized_metrics}"
 
-  # The Prometheus bridge can retain an earlier Amaru process_runtime series
-  # after bootstrap. The service PID is authoritative and cannot collide with
-  # stale OpenTelemetry resource series.
+  # The service PID is authoritative for node uptime and cannot collide with
+  # process-runtime series from another Amaru invocation.
   pid="$(node_adapter_process_pid 2>/dev/null || true)"
   value="$(amaru_adapter_process_uptime "${pid}" 2>/dev/null || true)"
   amaru_adapter_set_optional_metric uptimes "${value}"

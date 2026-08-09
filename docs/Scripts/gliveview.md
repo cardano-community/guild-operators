@@ -24,13 +24,13 @@ describe the current interface directly.
 | --- | --- | --- |
 | `cnode` / cardano-node | Native Prometheus endpoint configured by cardano-node | Usually `http://127.0.0.1:12798/metrics` |
 | Dingo | Native Prometheus endpoint, including Dingo's cardano-node-compatible metric names | `http://127.0.0.1:12798/metrics` |
-| Amaru | Amaru OTLP telemetry exported through the locally managed OpenTelemetry Collector Prometheus bridge | OTLP `127.0.0.1:4317` and `4318`; Prometheus `http://127.0.0.1:8889/metrics` |
+| Amaru | Amaru OTLP telemetry exported through the locally managed OpenTelemetry Collector Prometheus bridge | OTLP/gRPC `127.0.0.1:4317`; Prometheus `http://127.0.0.1:8889/metrics` |
 
 Amaru itself does not expose the Prometheus listener used by gLiveView.
 `amaru.sh -d` installs both the node unit and the companion
 `<service-name>-metrics.service`. The Guild collector configuration follows
 Amaru's reference bridge metric-name contract, expires stale series, and
-keeps its OTLP receivers and Prometheus exporter on loopback.
+keeps its OTLP/gRPC receiver and Prometheus exporter on loopback.
 
 ## Start gLiveView
 

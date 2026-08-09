@@ -240,10 +240,9 @@ The dashboard header always identifies the connected implementation:
 endpoints. Amaru emits OTLP; its documented `:8889` endpoint is supplied by
 Amaru's reference OpenTelemetry Collector configuration rather than the node
 binary. The Guild deployment installs a minimal, host-safe form of that
-upstream bridge. It receives OTLP/gRPC on
-`127.0.0.1:4317`, OTLP/HTTP on `127.0.0.1:4318`, and exposes
-Prometheus-formatted metrics on `127.0.0.1:8889`. All Amaru monitoring
-endpoints are loopback-only.
+upstream bridge. It receives metrics, traces, and logs over OTLP/gRPC on
+`127.0.0.1:4317` and exposes Prometheus-formatted metrics on
+`127.0.0.1:8889`. Both Amaru monitoring endpoints are loopback-only.
 
 For Dingo, `capabilities.forging: true` records that the implementation profile
 can forge; it does not claim that every deployed process is a producer. The

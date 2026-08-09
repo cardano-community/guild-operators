@@ -74,10 +74,10 @@ for network in preprod preview; do
     assert_eq "${AMARU_WITH_OPEN_TELEMETRY}" "true" \
       "${network} enables Amaru OpenTelemetry"
     assert_eq "${OTEL_EXPORTER_OTLP_ENDPOINT}" "http://127.0.0.1:4317" \
-      "${network} trace/log OTLP endpoint"
-    assert_eq "${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT}" \
-      "http://127.0.0.1:4318/v1/metrics" \
-      "${network} metrics OTLP endpoint"
+      "${network} metrics/logs/traces OTLP/gRPC endpoint"
+    if [[ -v OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ]]; then
+      fail "${network} config overrides the shared OTLP/gRPC metrics endpoint"
+    fi
     assert_eq "${OTEL_METRIC_EXPORT_INTERVAL}" "2000" \
       "${network} metrics export interval"
     assert_eq "${AMARU_PROMETHEUS_URL}" "http://127.0.0.1:8889/metrics" \
@@ -96,7 +96,7 @@ grep -Fq 'processors: [resource/drop_prometheus_labels, batch]' \
   fail "Amaru collector does not retain the upstream metrics processors"
 if grep -Fq 'add_metric_suffixes:' \
   "${REPO_ROOT}/files/configs/amaru/otelcol.yaml"; then
-  fail "Amaru collector retains the deprecated metric-suffix setting"
+  fail "Amaru collector contains an unsupported metric-suffix setting"
 fi
 
 metrics_fixture='

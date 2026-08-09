@@ -56,10 +56,10 @@ assert_otelcol_yaml() {
   ruby -ryaml -e '
     document = YAML.safe_load(File.read(ARGV.fetch(0)), permitted_classes: [], aliases: false)
     receiver = document.fetch("receivers").fetch("otlp").fetch("protocols")
+    abort "only the current OTLP/gRPC receiver may be configured" unless
+      receiver.keys == ["grpc"]
     abort "OTLP gRPC must be loopback-only" unless
       receiver.fetch("grpc").fetch("endpoint") == "127.0.0.1:4317"
-    abort "OTLP HTTP must be loopback-only" unless
-      receiver.fetch("http").fetch("endpoint") == "127.0.0.1:4318"
 
     exporters = document.fetch("exporters")
     abort "nop exporter is missing" unless exporters.key?("nop")
@@ -135,8 +135,6 @@ run_alternate_profile_test() (
   local runtime_mv_fail_sentinel
   local runtime_env_tmp
   local captured_state_path
-  local stale_environment
-  local stale_environment_error
   local -a runtime_targets
 
   test_root="$(mktemp -d "${TMPDIR:-/tmp}/guild-${implementation}-profile.XXXXXX")"
@@ -245,8 +243,6 @@ run_alternate_profile_test() (
   assert_release_manifest_rejected \
     "an unsafe version" '.version = "../wrong-version"'
   assert_release_manifest_rejected \
-    "a legacy policy field" '.releasePolicy = {"mode": "pinned"}'
-  assert_release_manifest_rejected \
     "one rolling architecture missing" 'del(.assets["linux-aarch64"])'
   assert_release_manifest_rejected \
     "an unexpected rolling-release field" '.unexpected = true'
@@ -340,44 +336,6 @@ run_alternate_profile_test() (
   fi
   assert_not_exists "${NODE_HOME}/scripts/.env_branch"
   assert_not_exists "${NODE_HOME}/scripts/.node_implementation"
-
-  if [[ "${implementation}" == "amaru" ]]; then
-    stale_environment="${test_root}/amaru.env.stale"
-    sed 's/^AMARU_WITH_OPEN_TELEMETRY="true"$/AMARU_WITH_OPEN_TELEMETRY="false"/' \
-      "${config_env}" > "${stale_environment}"
-    command mv -f -- "${stale_environment}" "${config_env}"
-    AMARU_DEPLOY_FORCE_CONFIG="N"
-    if stale_environment_error="$(
-      amaru_deploy_install_environment 2>&1
-    )"; then
-      fail "Amaru preserved a pre-metrics environment while advertising metrics support"
-    fi
-    grep -F -- '-s f' <<< "${stale_environment_error}" >/dev/null ||
-      fail "Amaru incompatible-environment error did not explain the -s f upgrade"
-    grep -F 'AMARU_WITH_OPEN_TELEMETRY="false"' "${config_env}" >/dev/null ||
-      fail "Amaru compatibility rejection unexpectedly replaced the existing environment"
-
-    AMARU_DEPLOY_FORCE_CONFIG="Y"
-    amaru_deploy_install_environment
-    grep -F 'AMARU_WITH_OPEN_TELEMETRY="true"' "${config_env}" >/dev/null ||
-      fail "Amaru -s f recovery did not install the managed telemetry settings"
-
-    grep -v '^OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=' \
-      "${config_env}" > "${stale_environment}"
-    command mv -f -- "${stale_environment}" "${config_env}"
-    AMARU_DEPLOY_FORCE_CONFIG="N"
-    if stale_environment_error="$(
-      amaru_deploy_install_environment 2>&1
-    )"; then
-      fail "Amaru preserved an environment without its managed OTLP metrics endpoint"
-    fi
-    grep -F -- '-s f' <<< "${stale_environment_error}" >/dev/null ||
-      fail "Amaru missing-endpoint error did not explain the -s f upgrade"
-
-    AMARU_DEPLOY_FORCE_CONFIG="Y"
-    amaru_deploy_install_environment
-    AMARU_DEPLOY_FORCE_CONFIG="N"
-  fi
 
   runtime_targets=(
     "${NODE_HOME}/scripts/lib/deployment.library"
@@ -594,7 +552,7 @@ run_alternate_profile_test() (
         assets: []
       },
       {
-        tag_name: "v1.0-old",
+        tag_name: "v1.0-noncurrent",
         draft: false,
         prerelease: false,
         published_at: "2025-01-01T00:00:00Z",
@@ -664,11 +622,11 @@ run_alternate_profile_test() (
   assert_release_resolution_rejected \
     "an asset with zero bytes" '.[2].assets[0].size = 0'
   assert_release_resolution_rejected \
-    "an older compatible release after the newest lacked its asset" \
+    "a matching asset only on a non-current release" \
     '.[1].assets = (
        .[2].assets |
        map(.browser_download_url |=
-         gsub("/v99[.]1-test/"; "/v1.0-old/"))
+         gsub("/v99[.]1-test/"; "/v1.0-noncurrent/"))
      ) |
      .[2].assets = []'
   curl() {
@@ -1002,8 +960,9 @@ run_alternate_profile_test() (
     grep -F 'AMARU_WITH_OPEN_TELEMETRY="true"' "${config_env}" >/dev/null
     grep -F 'OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:4317"' \
       "${config_env}" >/dev/null
-    grep -F 'OTEL_EXPORTER_OTLP_METRICS_ENDPOINT="http://127.0.0.1:4318/v1/metrics"' \
-      "${config_env}" >/dev/null
+    if grep -q '^OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=' "${config_env}"; then
+      fail "Amaru config retained a signal-specific OTLP metrics endpoint"
+    fi
     grep -F 'OTEL_METRIC_EXPORT_INTERVAL="2000"' "${config_env}" >/dev/null
     grep -F 'AMARU_PROMETHEUS_URL="http://127.0.0.1:8889/metrics"' \
       "${config_env}" >/dev/null
@@ -1339,23 +1298,19 @@ run_alternate_profile_test() (
     "${launcher}" remove >/dev/null 2>&1; then
     fail "${implementation} launcher allowed removal without a deployment manifest"
   fi
-  if ! (
+  if (
     unset GUILD_NODE_IMPLEMENTATION_OVERRIDE GUILD_NODE_NETWORK_OVERRIDE
     unset GUILD_NODE_SERVICE_OVERRIDE GUILD_REPOSITORY_ACCOUNT_OVERRIDE
     export GUILD_NODE_IMPLEMENTATION_OVERRIDE="${implementation}"
     export GUILD_NODE_NETWORK_OVERRIDE="${network}"
     export GUILD_NODE_SERVICE_OVERRIDE="${NODE_SERVICE}"
-    export GUILD_REPOSITORY_ACCOUNT_OVERRIDE="legacy-account"
+    export GUILD_REPOSITORY_ACCOUNT_OVERRIDE="test-account"
     USESYSVARS="N"
     set +u
     # shellcheck source=/dev/null
     . "${NODE_HOME}/scripts/env" definitions
-    [[ "${NODE_IMPLEMENTATION}" == "${implementation}" ]]
-    [[ "${NODE_NETWORK}" == "${network}" ]]
-    [[ "${NODE_SERVICE}" == "${implementation}-test" ]]
-    [[ "${G_ACCOUNT}" == "legacy-account" ]]
   ) >/dev/null 2>&1; then
-    fail "common env rejected no-manifest legacy overrides for ${implementation}"
+    fail "common env accepted ${implementation} without a deployment manifest"
   fi
 
   ln -s "${NODE_HOME}/missing-deployment-target.json" \
@@ -1368,7 +1323,7 @@ run_alternate_profile_test() (
     # shellcheck source=/dev/null
     . "${NODE_HOME}/scripts/env" definitions
   ) >/dev/null 2>&1; then
-    fail "common env treated a dangling deployment manifest symlink as legacy fallback"
+    fail "common env accepted a dangling deployment manifest symlink"
   fi
   rm -f -- "${NODE_HOME}/.deployment.json"
 

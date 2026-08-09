@@ -33,7 +33,7 @@ untrusted image, script branch, or host safe.
 - Retain `--security-opt=no-new-privileges`.
 - Publish only the relay or monitoring ports that are intentionally reachable,
   and enforce host and network firewalls.
-- Amaru's OTLP receivers and Prometheus bridge are loopback-only inside the
+- Amaru's OTLP/gRPC receiver and Prometheus bridge are loopback-only inside the
   container and do not need publishing for gLiveView. Dingo's native metrics
   listener shares its public bind address; leave TCP 12798 unpublished unless
   remote monitoring is deliberate and separately protected.

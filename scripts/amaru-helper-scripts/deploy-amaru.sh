@@ -261,66 +261,6 @@ amaru_deploy_render_environment() {
     "${template_file}" > "${rendered_file}"
 }
 
-amaru_deploy_environment_value() {
-  local environment_file="$1"
-  local variable_name="$2"
-
-  awk -v wanted="${variable_name}" '
-    function trim(value) {
-      sub(/^[[:space:]]+/, "", value)
-      sub(/[[:space:]]+$/, "", value)
-      return value
-    }
-    {
-      line = $0
-      sub(/^[[:space:]]+/, "", line)
-      sub(/^export[[:space:]]+/, "", line)
-      separator = index(line, "=")
-      if (separator == 0 ||
-          trim(substr(line, 1, separator - 1)) != wanted) {
-        next
-      }
-      value = trim(substr(line, separator + 1))
-      if (length(value) >= 2 &&
-          ((substr(value, 1, 1) == "\"" &&
-            substr(value, length(value), 1) == "\"") ||
-           (substr(value, 1, 1) == "\047" &&
-            substr(value, length(value), 1) == "\047"))) {
-        value = substr(value, 2, length(value) - 2)
-      }
-      selected = value
-      found = 1
-    }
-    END {
-      if (!found) {
-        exit 1
-      }
-      print selected
-    }
-  ' "${environment_file}"
-}
-
-amaru_deploy_metrics_environment_compatible() {
-  local existing_environment="$1"
-  local managed_environment="$2"
-  local variable_name existing_value managed_value
-
-  for variable_name in \
-    AMARU_WITH_OPEN_TELEMETRY \
-    OTEL_EXPORTER_OTLP_METRICS_ENDPOINT \
-    AMARU_PROMETHEUS_URL; do
-    existing_value="$(
-      amaru_deploy_environment_value \
-        "${existing_environment}" "${variable_name}"
-    )" || return 1
-    managed_value="$(
-      amaru_deploy_environment_value \
-        "${managed_environment}" "${variable_name}"
-    )" || return 1
-    [[ "${existing_value}" == "${managed_value}" ]] || return 1
-  done
-}
-
 amaru_deploy_install_environment() {
   local destination="${NODE_HOME}/scripts/amaru.env"
   local template rendered current_network=""
@@ -354,13 +294,6 @@ amaru_deploy_install_environment() {
       fi
     fi
     if [[ "${AMARU_DEPLOY_FORCE_CONFIG}" != "Y" ]]; then
-      if ! amaru_deploy_metrics_environment_compatible \
-        "${destination}" "${rendered}"; then
-        rm -f -- "${rendered}"
-        amaru_deploy_fail \
-          "Existing Amaru config is missing the managed gLiveView telemetry settings; re-run with -s f to replace it"
-        return 1
-      fi
       rm -f -- "${rendered}"
       amaru_deploy_info "Preserved existing ${destination}; use -s f to replace implementation config"
       return 0

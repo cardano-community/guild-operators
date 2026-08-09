@@ -9,8 +9,6 @@ receivers:
     protocols:
       grpc:
         endpoint: 127.0.0.1:4317
-      http:
-        endpoint: 127.0.0.1:4318
 
 processors:
   batch:
@@ -25,10 +23,10 @@ exporters:
   nop:
   prometheus:
     endpoint: 127.0.0.1:8889
-    # Modern equivalent of upstream's deprecated add_metric_suffixes: false.
+    # Preserve Amaru's cardano-node-compatible metric names.
     translation_strategy: UnderscoreEscapingWithoutSuffixes
     metric_expiration: 5s
-    # Modern equivalent of upstream's transform/drop_scope processor.
+    # Do not expose collector scope metadata as Prometheus series.
     without_scope_info: true
 
 service:

@@ -159,7 +159,7 @@ docker exec -it amaru-preprod \
   /opt/cardano/amaru/scripts/gLiveView.sh
 ```
 
-The OTLP receivers on 4317/4318 and Prometheus exporter on 8889 bind inside the
+The OTLP/gRPC receiver on 4317 and Prometheus exporter on 8889 bind inside the
 container to loopback and do not need host port publishing.
 
 ### Entrypoint options

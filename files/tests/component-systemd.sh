@@ -246,8 +246,6 @@ receivers:
     protocols:
       grpc:
         endpoint: 127.0.0.1:4317
-      http:
-        endpoint: 127.0.0.1:4318
 exporters:
   prometheus:
     endpoint: 127.0.0.1:8889
