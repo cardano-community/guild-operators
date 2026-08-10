@@ -14,7 +14,7 @@ jobs:
           ref: alpha
       - name: Fetch Mithril release version
         run: |
-          UPVERSION=$(curl -sL https://api.github.com/repos/input-output-hk/mithril/releases/latest | jq -r '.tag_name')
+          UPVERSION=$(curl -sL https://api.github.com/repos/IntersectMBO/mithril/releases/latest | jq -r '.tag_name')
           [[ "${UPVERSION}" != "null" ]] && echo ${UPVERSION} > files/docker/node/release-versions/mithril-latest.txt
       - name: Assigns release version
         run: |
