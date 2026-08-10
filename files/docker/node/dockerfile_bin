@@ -81,7 +81,8 @@ RUN set -eux \
       cnode) install_flags=dcmowx ;; \
       dingo|amaru) install_flags=dfs ;; \
     esac \
-    && export CNODE_SKIP_DBSYNC_DOWNLOAD=Y G_ACCOUNT="${G_ACCOUNT}" \
+    && export CNODE_SKIP_DBSYNC_DOWNLOAD=Y CNODE_SKIP_HW_UDEV_RULES=Y \
+      G_ACCOUNT="${G_ACCOUNT}" \
       GUILD_SOURCE_CACHE_ROOT=/var/cache/guild-operators \
       GUILD_SOURCE_EXPECT_REVISION="${GUILD_DEPLOY_REVISION}" \
     && /guild-deploy.sh \

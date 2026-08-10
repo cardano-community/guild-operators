@@ -151,6 +151,8 @@ cnode_deploy_init_context() {
     err_exit "cnode profile requires the dispatcher secure-layout contract."
   [[ "${CNODE_SKIP_DBSYNC_DOWNLOAD:-}" =~ ^[YN]$ ]] ||
     err_exit "CNODE_SKIP_DBSYNC_DOWNLOAD must be Y or N."
+  [[ "${CNODE_SKIP_HW_UDEV_RULES:-N}" =~ ^[YN]$ ]] ||
+    err_exit "CNODE_SKIP_HW_UDEV_RULES must be Y or N."
   sudo="${sudo:-}"
 
   dirs -c # clear dir stack
@@ -1420,6 +1422,18 @@ cnode_deploy_install_hardware_wallet_rules() {
     err_exit "Could not trigger updated udev rules."
 }
 
+# Hardware-device access is configured by the host, not inside a container
+# image. Docker builds therefore install cardano-hw-cli without attempting to
+# reload the unavailable host udev daemon; normal host deployments retain the
+# complete Ledger/Trezor rules flow.
+cnode_deploy_configure_hardware_wallet_rules() {
+  if [[ "${CNODE_SKIP_HW_UDEV_RULES:-N}" == "Y" ]]; then
+    log_info "Skipped hardware-wallet udev rules; configure device access on the container host."
+    return 0
+  fi
+  cnode_deploy_install_hardware_wallet_rules
+}
+
 # Download pre-build cardano-hw-cli binary and it's dependencies
 download_cardanohwcli() {
   local architecture hwcli_version staging_dir
@@ -1451,7 +1465,7 @@ download_cardanohwcli() {
   popd >/dev/null || true
   rm -rf -- "${staging_dir}"
 
-  cnode_deploy_install_hardware_wallet_rules
+  cnode_deploy_configure_hardware_wallet_rules
   log_ok "Deployed cardano-hw-cli" "${hwcli_version}"
 }
 

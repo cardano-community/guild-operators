@@ -94,6 +94,8 @@ grep -q 'ca-certificates git' "${DOCKERFILE}" ||
   fail "Dockerfile does not install Git before the bootstrap dispatcher"
 grep -Fq 'GUILD_SOURCE_CACHE_ROOT=/var/cache/guild-operators' "${DOCKERFILE}" ||
   fail "Dockerfile does not use a root-owned cache while deploying"
+grep -Fq 'CNODE_SKIP_HW_UDEV_RULES=Y' "${DOCKERFILE}" ||
+  fail "Dockerfile does not leave hardware-wallet udev setup to the host"
 grep -q '^ARG GUILD_DEPLOY_REVISION=$' "${DOCKERFILE}" ||
   fail "Dockerfile does not accept an exact workflow source revision"
 grep -Fq "grep -Eq '^([0-9a-f]{40}|[0-9a-f]{64})$'" "${DOCKERFILE}" ||

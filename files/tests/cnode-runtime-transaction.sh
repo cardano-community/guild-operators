@@ -635,6 +635,30 @@ run_binary_staging_test() (
   done
 )
 
+run_hardware_wallet_rule_policy_test() (
+  local install_calls=0
+  local info_message=""
+
+  cnode_deploy_install_hardware_wallet_rules() {
+    install_calls=$((install_calls + 1))
+  }
+  log_info() {
+    info_message="$1"
+  }
+
+  unset CNODE_SKIP_HW_UDEV_RULES
+  cnode_deploy_configure_hardware_wallet_rules
+  assert_eq "${install_calls}" "1" \
+    "default host hardware-wallet rule installation"
+
+  CNODE_SKIP_HW_UDEV_RULES="Y"
+  cnode_deploy_configure_hardware_wallet_rules
+  assert_eq "${install_calls}" "1" \
+    "container hardware-wallet rule installation skip"
+  [[ "${info_message}" == *"container host"* ]] ||
+    fail "container hardware-wallet rule skip omitted host guidance"
+)
+
 run_managed_installer_policy_test() (
   local node_root="${TEST_ROOT}/managed-installer"
   local manifest="${node_root}/files/cnode-release.json"
@@ -1051,6 +1075,7 @@ run_release_metadata_test
 run_release_manifest_validation_tests
 run_release_resolver_tests
 run_binary_staging_test
+run_hardware_wallet_rule_policy_test
 run_managed_installer_policy_test
 run_source_checkout_test
 run_transaction_tests
