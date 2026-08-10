@@ -42,6 +42,30 @@ extract_docker_receipt_files() {
   [[ -s "${output}" ]]
 }
 
+validate_docker_receipt_jq_continuations() {
+  local dockerfile="$1"
+
+  awk '
+    /^[[:space:]]*&& jq -er / {
+      found++
+      in_filter = 1
+    }
+    in_filter && $0 !~ /\\[[:space:]]*$/ {
+      invalid = 1
+      exit
+    }
+    in_filter && /docker-source-receipt[.]json > .*receipt_files/ {
+      in_filter = 0
+      complete = 1
+    }
+    END {
+      if (found != 1 || invalid || in_filter || !complete) {
+        exit 1
+      }
+    }
+  ' "${dockerfile}"
+}
+
 DOCKERFILE="${ROOT_DIR}/files/docker/node/dockerfile_bin"
 ENTRYPOINT="${ROOT_DIR}/files/docker/node/addons/entrypoint.sh"
 WORKFLOW="${ROOT_DIR}/.github/workflows/docker_bin.yml"
@@ -94,6 +118,25 @@ grep -Fq '.files[] | [.path, .mode, .exportedSha256] | @tsv' \
   fail "Dockerfile does not verify every final supplement file"
 grep -Fq 'invalid or empty Docker supplement file inventory' "${DOCKERFILE}" ||
   fail "Dockerfile does not reject invalid or empty receipt inventories"
+validate_docker_receipt_jq_continuations "${DOCKERFILE}" ||
+  fail "Dockerfile receipt jq filter escapes from its RUN instruction"
+broken_continuation_fixture="${TEST_DIR}/dockerfile-broken-jq-continuation"
+awk '
+  !changed && /def valid_file:/ {
+    sub(/[[:space:]]*\\[[:space:]]*$/, "")
+    changed = 1
+  }
+  { print }
+  END {
+    if (!changed) {
+      exit 1
+    }
+  }
+' "${DOCKERFILE}" > "${broken_continuation_fixture}" ||
+  fail "could not create the broken Dockerfile continuation fixture"
+if validate_docker_receipt_jq_continuations "${broken_continuation_fixture}"; then
+  fail "Dockerfile receipt jq continuation check accepts a split RUN instruction"
+fi
 grep -Fq 'done < "${receipt_files}"' "${DOCKERFILE}" ||
   fail "Dockerfile does not verify receipt files without a masking pipeline"
 if grep -Fq '| while' "${DOCKERFILE}"; then

@@ -106,26 +106,26 @@ RUN set -eux \
       /usr/share/guild-operators/docker-source-receipt.json >/dev/null \
     && (cd /usr/share/guild-operators && sha256sum -c docker-source-receipt.sha256) \
     && receipt_files=/var/tmp/guild-docker-receipt-files.tsv \
-    && jq -er '
-      def valid_file:
-        type == "object" and
-        keys == ["exportedSha256", "mode", "path", "source", "sourceSha256"] and
-        (.source | type == "string" and test("^(scripts|files)/")) and
-        (.path | type == "string" and
-          test("^/[A-Za-z0-9._/+@:-]+$") and
-          (contains("//") | not) and
-          ((contains("\t") or contains("\r") or contains("\n")) | not) and
-          (split("/") | all(. != "." and . != ".."))) and
-        (.mode == "0644" or .mode == "0755") and
-        (.sourceSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
-        (.exportedSha256 == .sourceSha256);
-      if ((.files | type == "array" and length > 0) and
-          all(.files[]; valid_file) and
-          ((.files | map(.path) | length) ==
-           (.files | map(.path) | unique | length)))
-      then .files[] | [.path, .mode, .exportedSha256] | @tsv
-      else error("invalid or empty Docker supplement file inventory")
-      end
+    && jq -er ' \
+      def valid_file: \
+        type == "object" and \
+        keys == ["exportedSha256", "mode", "path", "source", "sourceSha256"] and \
+        (.source | type == "string" and test("^(scripts|files)/")) and \
+        (.path | type == "string" and \
+          test("^/[A-Za-z0-9._/+@:-]+$") and \
+          (contains("//") | not) and \
+          ((contains("\t") or contains("\r") or contains("\n")) | not) and \
+          (split("/") | all(. != "." and . != ".."))) and \
+        (.mode == "0644" or .mode == "0755") and \
+        (.sourceSha256 | type == "string" and test("^[0-9a-f]{64}$")) and \
+        (.exportedSha256 == .sourceSha256); \
+      if ((.files | type == "array" and length > 0) and \
+          all(.files[]; valid_file) and \
+          ((.files | map(.path) | length) == \
+           (.files | map(.path) | unique | length))) \
+      then .files[] | [.path, .mode, .exportedSha256] | @tsv \
+      else error("invalid or empty Docker supplement file inventory") \
+      end \
     ' /usr/share/guild-operators/docker-source-receipt.json > "${receipt_files}" \
     && [ -s "${receipt_files}" ] \
     && while IFS="$(printf '\t')" read -r final_path final_mode final_hash; do \
