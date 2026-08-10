@@ -1,0 +1,40 @@
+# Guild Operators Docker supplement source manifest, schema 1.
+#
+# Columns are tab-separated:
+# implementation  source path  exported rootfs path  mode  validator
+#
+# `common` records apply to every image implementation. Export paths are
+# relative to the supplement directory and must remain below rootfs/. Docker
+# supplements are recorded separately and never enter the host payload receipt.
+common	files/docker/node/addons/banner.txt	rootfs/home/guild/.scripts/banner.txt	0644	text
+common	files/docker/node/addons/healthcheck.sh	rootfs/opt/cardano/{implementation}/scripts/healthcheck.sh	0755	shell
+common	files/docker/node/addons/entrypoint.sh	rootfs/home/guild/entrypoint.sh	0755	shell
+cnode	files/docker/node/addons/block_watcher.sh	rootfs/home/guild/.scripts/block_watcher.sh	0755	shell
+cnode	files/configs/cnode/guild/alonzo-genesis.json	rootfs/conf/guild/alonzo-genesis.json	0644	json
+cnode	files/configs/cnode/guild/byron-genesis.json	rootfs/conf/guild/byron-genesis.json	0644	json
+cnode	files/configs/cnode/guild/conway-genesis.json	rootfs/conf/guild/conway-genesis.json	0644	json
+cnode	files/configs/cnode/guild/shelley-genesis.json	rootfs/conf/guild/shelley-genesis.json	0644	json
+cnode	files/configs/cnode/guild/config.json	rootfs/conf/guild/config.json	0644	json
+cnode	files/configs/cnode/guild/db-sync-config.json	rootfs/conf/guild/db-sync-config.json	0644	json
+cnode	files/configs/cnode/guild/topology.json	rootfs/conf/guild/topology.json	0644	json
+cnode	files/configs/cnode/mainnet/alonzo-genesis.json	rootfs/conf/mainnet/alonzo-genesis.json	0644	json
+cnode	files/configs/cnode/mainnet/byron-genesis.json	rootfs/conf/mainnet/byron-genesis.json	0644	json
+cnode	files/configs/cnode/mainnet/conway-genesis.json	rootfs/conf/mainnet/conway-genesis.json	0644	json
+cnode	files/configs/cnode/mainnet/shelley-genesis.json	rootfs/conf/mainnet/shelley-genesis.json	0644	json
+cnode	files/configs/cnode/mainnet/config.json	rootfs/conf/mainnet/config.json	0644	json
+cnode	files/configs/cnode/mainnet/db-sync-config.json	rootfs/conf/mainnet/db-sync-config.json	0644	json
+cnode	files/configs/cnode/mainnet/topology.json	rootfs/conf/mainnet/topology.json	0644	json
+cnode	files/configs/cnode/preprod/alonzo-genesis.json	rootfs/conf/preprod/alonzo-genesis.json	0644	json
+cnode	files/configs/cnode/preprod/byron-genesis.json	rootfs/conf/preprod/byron-genesis.json	0644	json
+cnode	files/configs/cnode/preprod/conway-genesis.json	rootfs/conf/preprod/conway-genesis.json	0644	json
+cnode	files/configs/cnode/preprod/shelley-genesis.json	rootfs/conf/preprod/shelley-genesis.json	0644	json
+cnode	files/configs/cnode/preprod/config.json	rootfs/conf/preprod/config.json	0644	json
+cnode	files/configs/cnode/preprod/db-sync-config.json	rootfs/conf/preprod/db-sync-config.json	0644	json
+cnode	files/configs/cnode/preprod/topology.json	rootfs/conf/preprod/topology.json	0644	json
+cnode	files/configs/cnode/preview/alonzo-genesis.json	rootfs/conf/preview/alonzo-genesis.json	0644	json
+cnode	files/configs/cnode/preview/byron-genesis.json	rootfs/conf/preview/byron-genesis.json	0644	json
+cnode	files/configs/cnode/preview/conway-genesis.json	rootfs/conf/preview/conway-genesis.json	0644	json
+cnode	files/configs/cnode/preview/shelley-genesis.json	rootfs/conf/preview/shelley-genesis.json	0644	json
+cnode	files/configs/cnode/preview/config.json	rootfs/conf/preview/config.json	0644	json
+cnode	files/configs/cnode/preview/db-sync-config.json	rootfs/conf/preview/db-sync-config.json	0644	json
+cnode	files/configs/cnode/preview/topology.json	rootfs/conf/preview/topology.json	0644	json

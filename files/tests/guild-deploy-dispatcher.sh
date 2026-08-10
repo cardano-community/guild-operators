@@ -170,7 +170,23 @@ rm -rf -- "${inherited_tmp}"
 )
 
 TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/guild-dispatcher-test.XXXXXX")"
-trap 'rm -rf "${TEST_DIR}"' EXIT
+LOCK_TEST_HOLDER_PID=""
+LOCK_TEST_USER_PATH=""
+LOCK_TEST_TARGET_PATH=""
+cleanup_dispatcher_test() {
+  if [[ -n "${LOCK_TEST_HOLDER_PID}" ]]; then
+    kill -KILL "${LOCK_TEST_HOLDER_PID}" 2>/dev/null || true
+    wait "${LOCK_TEST_HOLDER_PID}" 2>/dev/null || true
+  fi
+  for lock_path in "${LOCK_TEST_TARGET_PATH}" "${LOCK_TEST_USER_PATH}"; do
+    [[ -n "${lock_path}" && -d "${lock_path}" && ! -L "${lock_path}" ]] ||
+      continue
+    rm -f -- "${lock_path}/owner" 2>/dev/null || true
+    rmdir -- "${lock_path}" 2>/dev/null || true
+  done
+  rm -rf "${TEST_DIR}"
+}
+trap cleanup_dispatcher_test EXIT
 
 package_apt_success_fixture() {
   printf '%s\n' \
@@ -476,6 +492,44 @@ assert_eq "${alias_lock_key}" "${physical_lock_key}"
     fail "dispatcher did not own the canonical target lock after ignoring forged reentrancy metadata"
   deployment_target_lock_release
 )
+
+# Directory locks must not prevent transaction-journal recovery after an
+# uncatchable process death. Kill a real lock holder, then prove the next
+# dispatcher safely quarantines both stale owner-marked locks and proceeds.
+if (( BASH_VERSINFO[0] > 4 ||
+      (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
+  NODE_HOME="${TEST_DIR}/physical-target/stale-node"
+  lock_base="/tmp/guild-operators-deployment-locks-$(id -u)"
+  lock_key="$(dispatcher_lock_key "${NODE_HOME}")"
+  LOCK_TEST_USER_PATH="${lock_base}/user.lock.d"
+  LOCK_TEST_TARGET_PATH="${lock_base}/${lock_key}.lock.d"
+  ready="${TEST_DIR}/directory-lock.ready"
+  export GUILD_DEPLOY_LOCK_BACKEND=directory
+
+  (
+    dispatcher_acquire_target_lock
+    printf 'ready\n' > "${ready}"
+    while :; do sleep 1; done
+  ) &
+  LOCK_TEST_HOLDER_PID=$!
+  for _ in {1..50}; do
+    [[ -s "${ready}" ]] && break
+    sleep 0.1
+  done
+  [[ -s "${ready}" ]] || fail "directory-lock holder did not become ready"
+  kill -KILL "${LOCK_TEST_HOLDER_PID}"
+  wait "${LOCK_TEST_HOLDER_PID}" 2>/dev/null || true
+  LOCK_TEST_HOLDER_PID=""
+  [[ -d "${LOCK_TEST_USER_PATH}" && -d "${LOCK_TEST_TARGET_PATH}" ]] ||
+    fail "killed directory-lock holder did not leave recoverable lock state"
+
+  dispatcher_acquire_target_lock
+  dispatcher_target_lock_is_owned "${NODE_HOME}" ||
+    fail "dispatcher did not recover and own stale directory locks"
+  dispatcher_release_target_lock
+  [[ ! -e "${LOCK_TEST_USER_PATH}" && ! -e "${LOCK_TEST_TARGET_PATH}" ]] ||
+    fail "recovered directory locks were not released"
+fi
 (
   NODE_HOME="${TEST_DIR}/target-alias/./node"
   canonical_target="$(dispatcher_canonical_target_path "${NODE_HOME}")"
@@ -491,6 +545,30 @@ assert_eq "${alias_lock_key}" "${physical_lock_key}"
     fail "runtime library did not take a real lock after ignoring forged reentrancy metadata"
   deployment_target_lock_release
 )
+
+runtime_stale_target="${TEST_DIR}/physical-target/runtime-stale-node"
+runtime_stale_key="$(dispatcher_lock_key "${runtime_stale_target}")"
+LOCK_TEST_TARGET_PATH="/tmp/guild-operators-deployment-locks-$(id -u)/${runtime_stale_key}.lock.d"
+dead_owner_pid=99999999
+while kill -0 "${dead_owner_pid}" 2>/dev/null; do
+  dead_owner_pid=$((dead_owner_pid + 1))
+done
+mkdir -- "${LOCK_TEST_TARGET_PATH}"
+printf '%s\tpid-only\n' "${dead_owner_pid}" > "${LOCK_TEST_TARGET_PATH}/owner"
+chmod 0600 "${LOCK_TEST_TARGET_PATH}/owner"
+(
+  # shellcheck source=/dev/null
+  . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
+  export GUILD_DEPLOY_LOCK_BACKEND=directory
+  NODE_HOME="${runtime_stale_target}"
+  deployment_target_lock_acquire "${NODE_HOME}"
+  deployment_local_lock_is_owned "$(deployment_canonical_target_path "${NODE_HOME}")" ||
+    fail "runtime library did not recover its stale directory lock"
+  deployment_target_lock_release
+)
+[[ ! -e "${LOCK_TEST_TARGET_PATH}" ]] ||
+  fail "runtime library stale directory lock was not released"
+LOCK_TEST_TARGET_PATH=""
 
 path_injection_marker="${TEST_DIR}/path-injection-ran"
 if (
@@ -580,33 +658,11 @@ for invalid_manifest_case in zero-byte dangling-symlink; do
     NODE_HOME="${TEST_DIR}/${invalid_manifest_dir}"
     # shellcheck source=/dev/null
     . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
-    deployment_branch_exists() { return 0; }
     deployment_set_branch "_alpha"
   ) >/dev/null 2>&1; then
     fail "runtime branch update accepted ${invalid_manifest_case} deployment metadata"
   fi
 done
-
-mkdir -p "${TEST_DIR}/resume_deploying"
-jq '.deploymentStatus = "deploying" | .serviceName = "resume_deploying"' \
-  "${TEST_DIR}/existing/.deployment.json" \
-  > "${TEST_DIR}/resume_deploying/.deployment.json"
-(
-  unset CNODE_NAME CNODE_PATH NETWORK BRANCH G_ACCOUNT
-  NODE_IMPLEMENTATION="cnode"
-  NODE_PARENT="${TEST_DIR}"
-  NODE_NAME="resume-deploying"
-  NETWORK_EXPLICIT="N"
-  NETWORK_PRESET="N"
-  BRANCH_EXPLICIT="N"
-  BRANCH_PRESET="N"
-  G_ACCOUNT_PRESET="N"
-  SUDO="N"
-  UPDATE_CHECK="N"
-  dispatcher_set_defaults
-  assert_eq "${NETWORK}" "preview"
-  assert_eq "${BRANCH}" "alpha"
-)
 
 for semantic_case in cnode-metrics dingo-capability amaru-capability extra-capability; do
   semantic_dir="${semantic_case//-/_}"
@@ -673,7 +729,6 @@ for semantic_case in cnode-metrics dingo-capability amaru-capability extra-capab
     NODE_HOME="${TEST_DIR}/${semantic_dir}"
     # shellcheck source=/dev/null
     . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
-    deployment_branch_exists() { return 0; }
     deployment_set_branch "_alpha"
   ) >/dev/null 2>&1; then
     fail "runtime branch update accepted inconsistent ${semantic_case} manifest semantics"
@@ -721,207 +776,337 @@ if (
   fail "legacy target accepted a preset network conflicting with genesis"
 fi
 
-mkdir -p "${TEST_DIR}/interrupted/scripts"
-printf 'legacy-branch\n' > "${TEST_DIR}/interrupted/scripts/.env_branch"
+transaction_target="${TEST_DIR}/transaction_progress"
+mkdir -p "${transaction_target}/scripts"
+jq '.serviceName = "transaction_progress"' \
+  "${TEST_DIR}/existing/.deployment.json" \
+  > "${transaction_target}/.deployment.json"
+printf 'legacy-branch\n' > "${transaction_target}/scripts/.env_branch"
+transaction_manifest_checksum="$(dispatcher_sha256 \
+  "${transaction_target}/.deployment.json")"
 (
-  unset PROFILE_METRICS_PROVIDER
-  PROFILE_TARGET_NODE_VERSION='v-target'
-  installed_version=$'version "quoted"\\path\nnext'
-  dispatcher_detect_node_version() {
-    printf '%s' "${installed_version}"
-  }
-  NODE_IMPLEMENTATION="amaru"
-  NODE_HOME="${TEST_DIR}/interrupted"
-  NODE_SERVICE="interrupted"
-  NETWORK="preview"
-  BRANCH="alpha"
-  G_ACCOUNT="cardano-community"
+  NODE_HOME="${transaction_target}"
   DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
+  DISPATCHER_TX_STAGE_ROOT="${TEST_DIR}/transaction-progress-stage"
+  DISPATCHER_TX_CANDIDATE_ROOT="${DISPATCHER_TX_STAGE_ROOT}/candidates"
+  DISPATCHER_TX_PLAN="${DISPATCHER_TX_STAGE_ROOT}/plan.tsv"
+  DISPATCHER_TX_PREPARED="Y"
+  DISPATCHER_TX_ACTIVE="N"
+  DISPATCHER_TX_ACTIVATED="N"
+  mkdir -p "${DISPATCHER_TX_CANDIDATE_ROOT}/scripts"
+  printf '#!/usr/bin/env bash\nprintf "transaction fixture\\n"\n' \
+    > "${DISPATCHER_TX_CANDIDATE_ROOT}/scripts/progress.sh"
+  chmod 0755 "${DISPATCHER_TX_CANDIDATE_ROOT}/scripts/progress.sh"
+  transaction_source_hash="$(dispatcher_sha256 \
+    "${DISPATCHER_TX_CANDIDATE_ROOT}/scripts/progress.sh")"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    'scripts/fixture/progress.sh' 'scripts/progress.sh' '0755' \
+    'exact' 'exact' 'shell' "${transaction_source_hash}" \
+    > "${DISPATCHER_TX_PLAN}"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    '-' 'scripts/.env_branch' '-' 'retire' 'retire' '-' '-' \
+    >> "${DISPATCHER_TX_PLAN}"
+  dispatcher_distribution_validate_candidates() { return 0; }
+
+  dispatcher_distribution_activate
+  assert_eq \
+    "$(jq -r '.deploymentStatus' "${DEPLOYMENT_FILE}")" \
+    "deployed"
+  assert_eq \
+    "$(dispatcher_sha256 "${DEPLOYMENT_FILE}")" \
+    "${transaction_manifest_checksum}"
+  assert_eq \
+    "$(sed -n '3p' "${NODE_HOME}/.guild-deploy-transaction/journal")" \
+    "state=activated"
+  find "${NODE_HOME}/.guild-deploy-transaction/journal" \
+    -prune -perm 0600 -print | grep -q . ||
+    fail "transaction progress journal is not private"
+  [[ ! -e "${NODE_HOME}/scripts/.env_branch" ]] ||
+    fail "retired sidecar remained active inside the payload transaction"
+
   dispatcher_mark_in_progress
-  assert_eq "$(jq -r '.deploymentStatus' "${DEPLOYMENT_FILE}")" "deploying"
-  assert_eq "$(jq -r '.implementation' "${DEPLOYMENT_FILE}")" "amaru"
-  assert_eq "$(jq -r '.nodeVersion' "${DEPLOYMENT_FILE}")" "${installed_version}"
-  assert_eq "$(jq -r '.targetNodeVersion' "${DEPLOYMENT_FILE}")" "${PROFILE_TARGET_NODE_VERSION}"
+  dispatcher_write_manifest deploying
+  assert_eq \
+    "$(dispatcher_sha256 "${DEPLOYMENT_FILE}")" \
+    "${transaction_manifest_checksum}"
+  assert_eq \
+    "$(sed -n '3p' "${NODE_HOME}/.guild-deploy-transaction/journal")" \
+    "state=activated"
+
+  dispatcher_distribution_rollback
+  assert_eq \
+    "$(dispatcher_sha256 "${DEPLOYMENT_FILE}")" \
+    "${transaction_manifest_checksum}"
+  [[ ! -e "${NODE_HOME}/.guild-deploy-transaction" ]] ||
+    fail "rolled-back transaction left its private journal"
+  [[ ! -e "${NODE_HOME}/scripts/progress.sh" ]] ||
+    fail "rolled-back transaction left an activated payload"
   [[ -f "${NODE_HOME}/scripts/.env_branch" ]] ||
-    fail "legacy branch sidecar was archived before deployment completed"
+    fail "rollback did not restore a retired legacy sidecar"
+)
+
+mkdir -p "${TEST_DIR}/manifest-outside-transaction"
+if (
+  NODE_HOME="${TEST_DIR}/manifest-outside-transaction"
+  DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
+  DISPATCHER_TX_ACTIVE="N"
+  DISPATCHER_TX_ACTIVATED="N"
   dispatcher_write_manifest deployed
-  assert_eq "$(jq -r '.deploymentStatus' "${DEPLOYMENT_FILE}")" "deployed"
-  [[ ! -f "${NODE_HOME}/scripts/.env_branch" ]] ||
-    fail "legacy branch sidecar was not archived after deployment"
-  find "${NODE_HOME}/scripts/archive" -name '.env_branch_migrated_*' -print -quit |
-    grep -q . || fail "archived legacy branch sidecar was not found"
-)
+) >/dev/null 2>&1; then
+  fail "dispatcher published canonical metadata outside a complete payload transaction"
+fi
+[[ ! -e "${TEST_DIR}/manifest-outside-transaction/.deployment.json" ]] ||
+  fail "rejected metadata publication created a canonical manifest"
 
-mkdir -p "${TEST_DIR}/archive-failure/scripts"
-printf 'legacy-branch\n' > "${TEST_DIR}/archive-failure/scripts/.env_branch"
-(
-  NODE_IMPLEMENTATION="cnode"
-  NODE_HOME="${TEST_DIR}/archive-failure"
-  NODE_SERVICE="archive_failure"
-  NETWORK="mainnet"
-  BRANCH="master"
-  G_ACCOUNT="cardano-community"
-  DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
-  dispatcher_mark_in_progress
-  if (
-    mv() {
-      if [[ "$*" == *"/scripts/.env_branch"* ]]; then
-        return 1
-      fi
-      command mv "$@"
-    }
-    dispatcher_write_manifest deployed
-  ) >/dev/null 2>&1; then
-    fail "final manifest commit succeeded after legacy branch archival failed"
-  fi
-  assert_eq "$(jq -r '.deploymentStatus' "${DEPLOYMENT_FILE}")" "deploying"
-  [[ -f "${NODE_HOME}/scripts/.env_branch" ]] ||
-    fail "failed legacy branch archival removed the source sidecar"
-  if find "${NODE_HOME}" -maxdepth 1 -name '.deployment.json.tmp.*' -print -quit |
-    grep -q .; then
-    fail "failed legacy branch archival left a staged manifest"
-  fi
-)
+failed_profile_target="${TEST_DIR}/failed_profile"
+mkdir -p "${failed_profile_target}"
+jq '.serviceName = "failed_profile" | .network = "mainnet"' \
+  "${TEST_DIR}/existing/.deployment.json" \
+  > "${failed_profile_target}/.deployment.json"
+failed_profile_checksum="$(dispatcher_sha256 \
+  "${failed_profile_target}/.deployment.json")"
+if (
+  GUILD_SOURCE_HANDOFF_ACTIVE="Y"
+  guild_source_adopt_handoff() {
+    _GUILD_SOURCE_PREPARED="Y"
+    return 0
+  }
+  dispatcher_set_defaults() {
+    NODE_IMPLEMENTATION="cnode"
+    NODE_PARENT="${TEST_DIR}"
+    NODE_NAME="failed_profile"
+    NODE_HOME="${failed_profile_target}"
+    NODE_SERVICE="failed_profile"
+    NETWORK="mainnet"
+    BRANCH="alpha"
+    G_ACCOUNT="cardano-community"
+    DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
+  }
+  dispatcher_verify_target_fingerprint() { return 0; }
+  dispatcher_update_check() { return 0; }
+  dispatcher_load_profile() { PROFILE_ENTRYPOINT="failing_profile"; }
+  dispatcher_distribution_prepare() {
+    DISPATCHER_TX_STAGE_ROOT="${TEST_DIR}/failed-profile-stage"
+    DISPATCHER_TX_CANDIDATE_ROOT="${DISPATCHER_TX_STAGE_ROOT}/candidates"
+    DISPATCHER_TX_PLAN="${DISPATCHER_TX_STAGE_ROOT}/plan.tsv"
+    mkdir -p "${DISPATCHER_TX_CANDIDATE_ROOT}/scripts"
+    printf '#!/usr/bin/env bash\nexit 0\n' \
+      > "${DISPATCHER_TX_CANDIDATE_ROOT}/scripts/failure.sh"
+    chmod 0755 "${DISPATCHER_TX_CANDIDATE_ROOT}/scripts/failure.sh"
+    failure_source_hash="$(dispatcher_sha256 \
+      "${DISPATCHER_TX_CANDIDATE_ROOT}/scripts/failure.sh")"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      'scripts/fixture/failure.sh' 'scripts/failure.sh' '0755' \
+      'exact' 'exact' 'shell' "${failure_source_hash}" \
+      > "${DISPATCHER_TX_PLAN}"
+    DISPATCHER_TX_PREPARED="Y"
+  }
+  dispatcher_distribution_validate_candidates() { return 0; }
+  failing_profile() {
+    dispatcher_distribution_activate
+    return 1
+  }
+  dispatcher_release_target_lock() { return 0; }
+  guild_source_release() { return 0; }
+  unset NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NETWORK BRANCH
+  SUDO="N"
+  guild_deploy_main \
+    -i cnode \
+    -n mainnet \
+    -p "${TEST_DIR}" \
+    -t failed-profile \
+    -u
+) >/dev/null 2>&1; then
+  fail "dispatcher reported success after an activated deployment profile failed"
+fi
+assert_eq \
+  "$(dispatcher_sha256 "${failed_profile_target}/.deployment.json")" \
+  "${failed_profile_checksum}"
+assert_eq \
+  "$(jq -r '.deploymentStatus' "${failed_profile_target}/.deployment.json")" \
+  "deployed"
+[[ ! -e "${failed_profile_target}/.guild-deploy-transaction" ]] ||
+  fail "failed profile left its private transaction journal"
+[[ ! -e "${failed_profile_target}/scripts/failure.sh" ]] ||
+  fail "failed profile left an activated payload file"
 
-mkdir -p "${TEST_DIR}/existing-update"
+# Source preparation and handoff integrity have dedicated suites. Keep this
+# dispatcher routing test narrow: the first pass must delegate the original
+# request to the source-preparation collaborator without touching the target.
+source_route_args="${TEST_DIR}/source-route.args"
+if ! (
+  unset GUILD_SOURCE_HANDOFF_ACTIVE
+  dispatcher_set_defaults() { return 0; }
+  dispatcher_prepare_source_and_handoff() {
+    printf '<%s>\n' "$@" > "${source_route_args}"
+  }
+  guild_source_release() { return 0; }
+  unset NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NETWORK BRANCH
+  SUDO="N"
+  guild_deploy_main \
+    -i dingo \
+    -n preprod \
+    -p "${TEST_DIR}" \
+    -t source-route \
+    -u
+) >/dev/null 2>&1; then
+  fail "dispatcher first pass did not delegate to source preparation"
+fi
+grep -Fx '<-i>' "${source_route_args}" >/dev/null ||
+  fail "source preparation did not receive the original implementation option"
+grep -Fx '<source-route>' "${source_route_args}" >/dev/null ||
+  fail "source preparation did not receive the original target option"
+[[ ! -e "${TEST_DIR}/source_route" ]] ||
+  fail "source-routing pass unexpectedly mutated a deployment target"
+
+branch_target="${TEST_DIR}/branch_delegation"
+branch_dispatcher="${branch_target}/scripts/guild-deploy.sh"
+branch_dispatch_log="${TEST_DIR}/branch-delegation.calls"
+mkdir -p "${branch_target}/scripts"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -euo pipefail' \
+  'dispatcher_prepare_source_and_handoff() { :; }' \
+  'dispatcher_distribution_prepare() { :; }' \
+  ': "${GUILD_SOURCE_CHECK_ONLY:=N}"' \
+  '{' \
+  '  printf "%s" "${GUILD_SOURCE_CHECK_ONLY}"' \
+  '  printf " <%s>" "$@"' \
+  '  printf "\\n"' \
+  '} >> "${BRANCH_DISPATCH_LOG:?}"' \
+  'available_revision=2222222222222222222222222222222222222222' \
+  'if [[ "${GUILD_SOURCE_CHECK_ONLY}" == "Y" ]]; then' \
+  '  printf "%s\\n" "${available_revision}"' \
+  '  exit 10' \
+  'fi' \
+  '[[ "${GUILD_SOURCE_EXPECT_REVISION:-}" == "${available_revision}" ]] || exit 66' \
+  'exit 0' \
+  > "${branch_dispatcher}"
+chmod 0755 "${branch_dispatcher}"
+branch_dispatcher_hash="$(dispatcher_sha256 "${branch_dispatcher}")"
+printf '%s\n' \
+  '{' \
+  '  "schemaVersion": 1,' \
+  '  "implementation": "cnode",' \
+  '  "network": "mainnet",' \
+  '  "source": {' \
+  '    "repository": "cardano-community/guild-operators",' \
+  '    "channel": "master",' \
+  '    "ref": "refs/heads/master",' \
+  '    "revision": "1111111111111111111111111111111111111111",' \
+  '    "mode": "managed",' \
+  '    "dirty": false' \
+  '  },' \
+  '  "files": [' \
+  "    {\"path\":\"scripts/guild-deploy.sh\",\"source\":\"scripts/cnode-helper-scripts/guild-deploy.sh\",\"mode\":\"0755\",\"policy\":\"merge-header\",\"sourceSha256\":\"${branch_dispatcher_hash}\",\"installedSha256\":\"${branch_dispatcher_hash}\",\"managed\":true}" \
+  '  ]' \
+  '}' > "${branch_target}/.guild-source-receipt.json"
+branch_receipt_hash="$(dispatcher_sha256 \
+  "${branch_target}/.guild-source-receipt.json")"
+branch_transaction_id="${branch_receipt_hash:0:24}"
 printf '%s\n' \
   '{' \
   '  "schemaVersion": 1,' \
   '  "deploymentStatus": "deployed",' \
   '  "implementation": "cnode",' \
   '  "network": "mainnet",' \
-  '  "branch": "master"' \
-  '}' > "${TEST_DIR}/existing-update/.deployment.json"
+  '  "branch": "master",' \
+  '  "repository": "cardano-community/guild-operators",' \
+  '  "sourceSchemaVersion": 1,' \
+  '  "sourceMode": "managed",' \
+  '  "sourceRef": "refs/heads/master",' \
+  '  "sourceRevision": "1111111111111111111111111111111111111111",' \
+  '  "sourceDirty": false,' \
+  '  "payloadReceipt": ".guild-source-receipt.json",' \
+  "  \"payloadReceiptSha256\": \"${branch_receipt_hash}\"," \
+  "  \"transactionId\": \"${branch_transaction_id}\"," \
+  '  "serviceName": "branch_delegation",' \
+  '  "nodeVersion": "",' \
+  '  "targetNodeVersion": "",' \
+  '  "metricsProvider": "prometheus",' \
+  '  "capabilities": {' \
+  '    "n2c": true,' \
+  '    "localCli": true,' \
+  '    "metrics": true,' \
+  '    "forging": true' \
+  '  }' \
+  '}' > "${branch_target}/.deployment.json"
+branch_metadata_checksum="$(dispatcher_sha256 \
+  "${branch_target}/.deployment.json")"
+: > "${branch_dispatch_log}"
 (
-  unset PROFILE_TARGET_NODE_VERSION PROFILE_METRICS_PROVIDER
-  NODE_IMPLEMENTATION="cnode"
-  NODE_HOME="${TEST_DIR}/existing-update"
-  NODE_SERVICE="existing-update"
-  NETWORK="mainnet"
-  BRANCH="alpha"
-  G_ACCOUNT="cardano-community"
-  DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
-  dispatcher_mark_in_progress
-  assert_eq "$(jq -r '.deploymentStatus' "${DEPLOYMENT_FILE}")" "deploying"
-  assert_eq "$(jq -r '.branch' "${DEPLOYMENT_FILE}")" "alpha"
+  NODE_HOME="${branch_target}"
+  GUILD_SOURCE_MODE="managed"
+  BRANCH_DISPATCH_LOG="${branch_dispatch_log}"
+  export GUILD_SOURCE_MODE BRANCH_DISPATCH_LOG
+  unset GUILD_PAYLOAD_REFRESH_STATE GUILD_PAYLOAD_REFRESH_SIGNATURE
+  unset GUILD_PAYLOAD_REFRESH_RESULT
+  # shellcheck source=/dev/null
+  . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
+  if ! deployment_set_branch "_alpha"; then
+    fail "branch change did not delegate through the installed dispatcher"
+  fi
 )
-
-mkdir -p "${TEST_DIR}/manifest-write-failure"
-if (
-  NODE_IMPLEMENTATION="cnode"
-  NODE_HOME="${TEST_DIR}/manifest-write-failure"
-  NODE_SERVICE="write-failure"
-  NETWORK="mainnet"
-  BRANCH="master"
-  G_ACCOUNT="cardano-community"
-  DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
-  mv() { return 1; }
-  dispatcher_write_manifest deployed
-) >/dev/null 2>&1; then
-  fail "manifest write reported success when atomic replacement failed"
+assert_eq "$(wc -l < "${branch_dispatch_log}" | tr -d ' ')" "2"
+assert_eq "$(sed -n '1s/ .*//p' "${branch_dispatch_log}")" "Y"
+assert_eq "$(sed -n '2s/ .*//p' "${branch_dispatch_log}")" "N"
+if [[ "$(sed -n '1p' "${branch_dispatch_log}")" != *' <-b> <_alpha>'* ||
+      "$(sed -n '2p' "${branch_dispatch_log}")" != *' <-b> <_alpha>'* ]]; then
+  fail "complete dispatcher did not receive the requested branch"
 fi
-[[ ! -e "${TEST_DIR}/manifest-write-failure/.deployment.json" ]] ||
-  fail "failed manifest replacement left a deployment manifest"
-if find "${TEST_DIR}/manifest-write-failure" -name '.deployment.json.tmp.*' -print -quit |
-  grep -q .; then
-  fail "failed manifest replacement left a temporary file"
-fi
-
-if (
-  dispatcher_validate_branch() { return 0; }
-  dispatcher_update_check() { return 0; }
-  failing_profile() {
-    mkdir -p "${NODE_HOME}"
-    dispatcher_mark_in_progress
-    return 1
-  }
-  dispatcher_load_profile() {
-    PROFILE_ENTRYPOINT="failing_profile"
-  }
-  unset NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NETWORK BRANCH
-  SUDO="N"
-  guild_deploy_main \
-    -i dingo \
-    -n preprod \
-    -p "${TEST_DIR}" \
-    -t failed-profile \
-    -u
-) >/dev/null 2>&1; then
-  fail "dispatcher reported success after a deployment profile failed"
+if [[ "$(sed -n '2p' "${branch_dispatch_log}")" != *' <-a> <cardano-community>'* ||
+      "$(sed -n '2p' "${branch_dispatch_log}")" != *' <-S> <managed>'* ]]; then
+  fail "complete dispatcher did not receive authoritative source identity"
 fi
 assert_eq \
-  "$(jq -r '.deploymentStatus' "${TEST_DIR}/failed_profile/.deployment.json")" \
-  "deploying"
+  "$(dispatcher_sha256 "${branch_target}/.deployment.json")" \
+  "${branch_metadata_checksum}"
+assert_eq "$(jq -r '.branch' "${branch_target}/.deployment.json")" "master"
 
-# Stage 0B exposes the source-provider API without activating it. A normal
-# dispatcher route with its existing collaborators stubbed must therefore
-# remain successful even when the provider's Git executable is unavailable.
-mkdir -p "${TEST_DIR}/provider-dormant-home"
-if ! (
-  HOME="${TEST_DIR}/provider-dormant-home"
-  XDG_CACHE_HOME="${HOME}/.cache"
-  GUILD_SOURCE_GIT_BIN="${TEST_DIR}/missing-git"
-  export HOME XDG_CACHE_HOME GUILD_SOURCE_GIT_BIN
-  dispatcher_validate_branch() { return 0; }
-  dispatcher_update_check() { return 0; }
-  dormant_profile() { return 0; }
-  dispatcher_load_profile() { PROFILE_ENTRYPOINT="dormant_profile"; }
-  dispatcher_write_manifest() { return 0; }
-  unset NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NETWORK BRANCH
-  SUDO="N"
-  guild_deploy_main \
-    -i dingo \
-    -n preprod \
-    -p "${TEST_DIR}" \
-    -t provider-dormant \
-    -u
-) > "${TEST_DIR}/provider-dormant.stdout" \
-  2> "${TEST_DIR}/provider-dormant.stderr"; then
-  fail "dormant provider introduced a Git prerequisite into deployment"
-fi
-[[ ! -e "${TEST_DIR}/provider-dormant-home/.cache/guild-operators" ]] ||
-  fail "dormant provider created a source cache during deployment"
-[[ ! -e "${TEST_DIR}/provider_dormant" ]] ||
-  fail "dormant-provider probe unexpectedly mutated a deployment target"
-
+atomic_bootstrap="${TEST_DIR}/atomic-bootstrap.sh"
+awk '
+  /^#CURL_TIMEOUT=60/ {
+    print "CURL_TIMEOUT=17                     # operator customization"
+    next
+  }
+  { print }
+  END { print "# stale runtime fixture" }
+' "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
+  > "${atomic_bootstrap}"
+chmod 0755 "${atomic_bootstrap}"
+atomic_bootstrap_checksum="$(dispatcher_sha256 "${atomic_bootstrap}")"
 update_driver="${TEST_DIR}/update-driver.sh"
 printf '%s\n' \
   '#!/usr/bin/env bash' \
-  '#TEST_SETTING="preserved"' \
-  '# Do NOT modify code below' \
   '. "${DISPATCHER_SOURCE:?}"' \
-  'DISPATCHER_LOCAL_REPO="N"' \
   'UPDATE_CHECK="Y"' \
-  'BRANCH="master"' \
-  'CURL_TIMEOUT=10' \
-  'URL_RAW="https://not-used.invalid/master"' \
-  'curl() {' \
-  '  local output=""' \
-  '  while [[ $# -gt 0 ]]; do' \
-  '    case "$1" in' \
-  '      -o) output="$2"; shift 2 ;;' \
-  '      *) shift ;;' \
-  '    esac' \
-  '  done' \
-  '  command cp -- "${REMOTE_DISPATCHER:?}" "${output:?}"' \
+  'GUILD_SOURCE_LAUNCHER_LOCAL_REPO="N"' \
+  'GUILD_SOURCE_LAUNCHER_MANAGED_TARGET="N"' \
+  'GUILD_SOURCE_LAUNCHER_PATH="${BOOTSTRAP_UNDER_TEST:?}"' \
+  'guild_source_path() {' \
+  '  [[ "$1" == "scripts/cnode-helper-scripts/guild-deploy.sh" ]] || return 2' \
+  '  printf "%s\\n" "${SNAPSHOT_DISPATCHER:?}"' \
+  '}' \
+  'guild_source_revision() {' \
+  '  printf "%s\\n" "2222222222222222222222222222222222222222"' \
   '}' \
   'mv() { return 1; }' \
   'dispatcher_update_check' \
   > "${update_driver}"
 chmod 0755 "${update_driver}"
-update_driver_checksum="$(sha256sum "${update_driver}" | awk '{print $1}')"
 if DISPATCHER_SOURCE="${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
-  REMOTE_DISPATCHER="${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
-  bash "${update_driver}" >/dev/null 2>&1; then
-  fail "dispatcher self-update ignored an atomic replacement failure"
+  SNAPSHOT_DISPATCHER="${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
+  BOOTSTRAP_UNDER_TEST="${atomic_bootstrap}" \
+  "${BASH}" "${update_driver}" >/dev/null 2>&1; then
+  fail "snapshot-based dispatcher update ignored an atomic replacement failure"
 fi
 assert_eq \
-  "$(sha256sum "${update_driver}" | awk '{print $1}')" \
-  "${update_driver_checksum}"
+  "$(dispatcher_sha256 "${atomic_bootstrap}")" \
+  "${atomic_bootstrap_checksum}"
 if find "${TEST_DIR}" \
-  \( -name '.update-driver.sh.download.*' -o -name '.update-driver.sh.merged.*' \) \
+  \( -name '.atomic-bootstrap.sh.source.*' -o -name '.atomic-bootstrap.sh.merged.*' \) \
   -print -quit | grep -q .; then
-  fail "failed dispatcher update left a staging file"
+  fail "failed snapshot-based dispatcher update left a staging file"
 fi
 
 custom_dispatcher="${TEST_DIR}/custom-dispatcher.sh"
@@ -933,62 +1118,47 @@ awk '
   { print }
 ' "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" > "${custom_dispatcher}"
 chmod 0755 "${custom_dispatcher}"
-custom_dispatcher_checksum="$(sha256sum "${custom_dispatcher}" | awk '{print $1}')"
+custom_dispatcher_checksum="$(dispatcher_sha256 "${custom_dispatcher}")"
 update_output="$(
   DISPATCHER_SOURCE="${custom_dispatcher}" \
-  REMOTE_DISPATCHER="${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
-  bash -c '
+  SNAPSHOT_DISPATCHER="${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
+  "${BASH}" -c '
     . "${DISPATCHER_SOURCE}"
-    DISPATCHER_LOCAL_REPO="N"
     UPDATE_CHECK="Y"
-    BRANCH="master"
-    CURL_TIMEOUT=10
-    URL_RAW="https://not-used.invalid/master"
-    curl() {
-      local output=""
-      while [[ $# -gt 0 ]]; do
-        case "$1" in
-          -o) output="$2"; shift 2 ;;
-          *) shift ;;
-        esac
-      done
-      command cp -- "${REMOTE_DISPATCHER}" "${output}"
+    GUILD_SOURCE_LAUNCHER_LOCAL_REPO="N"
+    GUILD_SOURCE_LAUNCHER_MANAGED_TARGET="N"
+    GUILD_SOURCE_LAUNCHER_PATH="${DISPATCHER_SOURCE}"
+    guild_source_path() {
+      [[ "$1" == "scripts/cnode-helper-scripts/guild-deploy.sh" ]] || return 2
+      printf "%s\n" "${SNAPSHOT_DISPATCHER}"
+    }
+    guild_source_revision() {
+      printf "%s\n" "2222222222222222222222222222222222222222"
     }
     dispatcher_update_check
-  ' "${TEST_DIR}//custom-dispatcher.sh"
+  '
 )"
 assert_eq \
-  "$(sha256sum "${custom_dispatcher}" | awk '{print $1}')" \
+  "$(dispatcher_sha256 "${custom_dispatcher}")" \
   "${custom_dispatcher_checksum}"
 grep -F "guild-deploy.sh is current" <<< "${update_output}" >/dev/null ||
-  fail "customized dispatcher did not recognize its merged remote code as current"
+  fail "customized dispatcher did not recognize merged snapshot code as current"
 if find "${TEST_DIR}" -name 'custom-dispatcher.sh_bkp*' -print -quit | grep -q .; then
   fail "current customized dispatcher created a needless backup/update loop"
 fi
 
-mkdir -p "${TEST_DIR}/invalid-profile-source"
+invalid_profile="${TEST_DIR}/invalid-profile.sh"
+printf 'if then\n' > "${invalid_profile}"
 if (
-  DISPATCHER_LOCAL_REPO="N"
-  DISPATCHER_DIR="${TEST_DIR}/invalid-profile-source"
   NODE_IMPLEMENTATION="dingo"
-  URL_RAW="https://not-used.invalid/master"
-  CURL_TIMEOUT=10
-  PROFILE_TMP_DIR=""
-  DISPATCHER_PROFILE_TMP_OWNED="N"
-  TMPDIR="${TEST_DIR}"
-  curl() {
-    local output=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        -o) output="$2"; shift 2 ;;
-        *) shift ;;
-      esac
-    done
-    printf 'if then\n' > "${output}"
+  _GUILD_SOURCE_REVISION="2222222222222222222222222222222222222222"
+  guild_source_path() {
+    [[ "$1" == "scripts/dingo-helper-scripts/deploy-dingo.sh" ]] || return 2
+    printf '%s\n' "${invalid_profile}"
   }
   dispatcher_load_profile
 ) >/dev/null 2>&1; then
-  fail "dispatcher sourced a deployment profile that failed shell validation"
+  fail "dispatcher sourced a snapshot profile that failed shell validation"
 fi
 
 printf 'guild-deploy dispatcher tests passed\n'

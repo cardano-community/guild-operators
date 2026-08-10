@@ -214,7 +214,7 @@ fi
 if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
 
   # check if CNTools was recently updated, if so show whats new
-  if curl -s -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}"/cntools-changelog.md "${URL_DOCS}/cntools-changelog.md"; then
+  if cp -f "${NODE_HOME}/files/cntools-changelog.md" "${TMP_DIR}/cntools-changelog.md" 2>/dev/null; then
     if ! cmp -s "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"; then
       # Latest changes not shown, show whats new and copy changelog
       clear
@@ -229,7 +229,7 @@ if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
       cp "${TMP_DIR}"/cntools-changelog.md "${PARENT}/cntools-changelog.md"
     fi
   else
-    echo -e "\n${FG_RED}ERROR${NC}: failed to download changelog from GitHub!"
+    echo -e "\n${FG_RED}ERROR${NC}: managed CNTools changelog is missing; re-run guild-deploy.sh to restore the complete payload."
     waitToProceed
   fi
 fi

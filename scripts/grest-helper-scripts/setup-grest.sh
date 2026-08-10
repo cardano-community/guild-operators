@@ -53,7 +53,6 @@ SGVERSION=v1.4.2
         exit 1
       fi
       BRANCH="${GUILD_BRANCH_OVERRIDE}"
-      URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
     fi
     
     # Update check

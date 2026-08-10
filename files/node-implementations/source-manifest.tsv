@@ -1,0 +1,64 @@
+# Guild Operators deployment source manifest, schema 1.
+#
+# Columns are tab-separated:
+# implementation  source path  installed path  mode  policy  validator
+#
+# `common` entries apply to every implementation. The only substitutions are
+# {implementation} and {network}. Paths are repository- or target-relative.
+# Policies are exact, merge-header, render-cnode, render-dingo,
+# render-amaru, preserve-render, or retire. A retire entry has `-` as its
+# source, mode, and validator. Unknown columns, policies, substitutions, paths,
+# modes, or duplicate installed paths are fatal before target mutation.
+common	scripts/cnode-helper-scripts/guild-deploy.sh	scripts/guild-deploy.sh	0755	merge-header	shell
+common	scripts/common-helper-scripts/lib/deployment.library	scripts/lib/deployment.library	0644	exact	shell
+common	scripts/common-helper-scripts/lib/env.library	scripts/lib/env.library	0644	exact	shell
+common	scripts/common-helper-scripts/lib/node-api.library	scripts/lib/node-api.library	0644	exact	shell
+common	scripts/common-helper-scripts/lib/systemd.library	scripts/lib/systemd.library	0644	exact	shell
+common	scripts/{implementation}-helper-scripts/{implementation}.adapter	scripts/adapters/{implementation}.adapter	0644	exact	shell
+common	scripts/common-helper-scripts/env	scripts/env	0644	merge-header	shell
+common	-	scripts/deploy-as-systemd.sh	-	retire	-
+common	-	scripts/.env_branch	-	retire	-
+cnode	scripts/cnode-helper-scripts/blockPerf.sh	scripts/blockPerf.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/cabal-build-all.sh	scripts/cabal-build-all.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/cncli.sh	scripts/cncli.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/cnode.sh	scripts/cnode.sh	0755	merge-header	shell
+cnode	scripts/common-helper-scripts/cntools.sh	scripts/cntools.sh	0755	merge-header	shell
+cnode	scripts/common-helper-scripts/cntools.library	scripts/cntools.library	0644	merge-header	shell
+cnode	scripts/cnode-helper-scripts/dbsync.sh	scripts/dbsync.sh	0755	merge-header	shell
+cnode	scripts/common-helper-scripts/gLiveView.sh	scripts/gLiveView.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/topologyUpdater.sh	scripts/topologyUpdater.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/logMonitor.sh	scripts/logMonitor.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/ogmios.sh	scripts/ogmios.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/submitapi.sh	scripts/submitapi.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/setup_mon.sh	scripts/setup_mon.sh	0755	merge-header	shell
+cnode	scripts/grest-helper-scripts/setup-grest.sh	scripts/setup-grest.sh	0755	merge-header	shell
+cnode	scripts/grest-helper-scripts/grest-poll.sh	scripts/grest-poll.sh	0755	merge-header	shell
+cnode	scripts/grest-helper-scripts/checkstatus.sh	scripts/checkstatus.sh	0755	merge-header	shell
+cnode	scripts/grest-helper-scripts/getmetrics.sh	scripts/getmetrics.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/mithril-client.sh	scripts/mithril-client.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/mithril-relay.sh	scripts/mithril-relay.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/mithril-signer.sh	scripts/mithril-signer.sh	0755	merge-header	shell
+cnode	scripts/cnode-helper-scripts/mithril.library	scripts/mithril.library	0644	merge-header	shell
+cnode	files/node-implementations/cnode/release.json	files/cnode-release.json	0644	exact	json
+cnode	files/node-implementations/cnode/cntools-changelog.md	files/cntools-changelog.md	0644	exact	text
+cnode	files/configs/cnode/{network}/alonzo-genesis.json	files/alonzo-genesis.json	0644	preserve-render	json
+cnode	files/configs/cnode/{network}/byron-genesis.json	files/byron-genesis.json	0644	preserve-render	json
+cnode	files/configs/cnode/{network}/conway-genesis.json	files/conway-genesis.json	0644	preserve-render	json
+cnode	files/configs/cnode/{network}/shelley-genesis.json	files/shelley-genesis.json	0644	preserve-render	json
+cnode	files/configs/cnode/{network}/topology.json	files/topology.json	0644	preserve-render	json
+cnode	files/configs/cnode/{network}/config.json	files/config.json	0644	preserve-render	json
+cnode	files/configs/cnode/{network}/db-sync-config.json	files/dbsync.json	0644	preserve-render	json
+cnode	files/configs/cnode/{network}/submitapi.json	files/submitapi.json	0644	exact	json
+dingo	scripts/dingo-helper-scripts/dingo.sh	scripts/dingo.sh	0755	exact	shell
+dingo	scripts/common-helper-scripts/gLiveView.sh	scripts/gLiveView.sh	0755	merge-header	shell
+dingo	scripts/common-helper-scripts/cntools.library	scripts/cntools.library	0644	merge-header	shell
+dingo	scripts/common-helper-scripts/cntools.sh	scripts/cntools.sh	0755	merge-header	shell
+dingo	files/configs/dingo/{network}/dingo.yaml	files/dingo.yaml	0640	preserve-render	text
+dingo	files/configs/dingo/{network}/dingo.env	scripts/dingo.env	0640	preserve-render	shell
+dingo	files/node-implementations/dingo/release.json	files/dingo-release.json	0644	exact	json
+dingo	files/node-implementations/cnode/cntools-changelog.md	files/cntools-changelog.md	0644	exact	text
+amaru	scripts/amaru-helper-scripts/amaru.sh	scripts/amaru.sh	0755	exact	shell
+amaru	scripts/common-helper-scripts/gLiveView.sh	scripts/gLiveView.sh	0755	merge-header	shell
+amaru	files/configs/amaru/{network}/amaru.env	scripts/amaru.env	0640	preserve-render	shell
+amaru	files/configs/amaru/otelcol.yaml	files/otelcol.yaml	0644	exact	text
+amaru	files/node-implementations/amaru/release.json	files/amaru-release.json	0644	exact	json

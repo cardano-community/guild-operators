@@ -141,9 +141,14 @@ cnode_deploy_init_context() {
   [[ -n "${NODE_HOME:-}" && -n "${NODE_NAME:-}" &&
      -n "${NODE_SERVICE:-}" && -n "${NETWORK:-}" &&
      -n "${BRANCH:-}" && -n "${G_ACCOUNT:-}" &&
-     -n "${URL_RAW:-}" && -n "${CURL_TIMEOUT:-}" &&
+     -n "${CURL_TIMEOUT:-}" &&
      -n "${DOWNLOAD_TIMEOUT:-}" ]] ||
     err_exit "cnode profile received incomplete dispatcher context."
+  declare -F dispatcher_source_copy >/dev/null 2>&1 ||
+    err_exit "cnode profile requires the dispatcher source-copy contract."
+  declare -F dispatcher_prepare_profile_layout >/dev/null 2>&1 &&
+    declare -F dispatcher_validate_profile_layout >/dev/null 2>&1 ||
+    err_exit "cnode profile requires the dispatcher secure-layout contract."
   [[ "${CNODE_SKIP_DBSYNC_DOWNLOAD:-}" =~ ^[YN]$ ]] ||
     err_exit "CNODE_SKIP_DBSYNC_DOWNLOAD must be Y or N."
   sudo="${sudo:-}"
@@ -169,12 +174,20 @@ cnode_deploy_init_context() {
   ARCH="$(uname -a)"
 }
 
+cnode_deploy_privileged() {
+  if [[ -n "${sudo:-}" ]]; then
+    ${sudo} "$@"
+  else
+    "$@"
+  fi
+}
+
 ### Update file retaining existing custom configs
 updateWithCustomConfig() {
   file=$1
   [[ $# -ne 2 ]] && subdir="cnode-helper-scripts" || subdir=$2
   ACTIVE_STEP="Refreshing ${file}"
-  curl -s -f -m ${CURL_TIMEOUT} -o ${file}.tmp "${URL_RAW}/scripts/${subdir}/${file}"
+  dispatcher_source_copy "scripts/${subdir}/${file}" "$(pwd -P)/${file}.tmp"
   [[ ! -f ${file}.tmp ]] && err_exit "Failed to download '${file}' from GitHub"
   if [[ -f ${file} && ${CNODE_DEPLOY_FORCE_SCRIPTS} != 'Y' ]]; then
     if grep '^# Do NOT modify' ${file}.tmp >/dev/null 2>&1; then
@@ -203,7 +216,7 @@ updateCommonRuntimeBundle() (
   local transaction_active="N"
   local committed_count=0
   local i rollback_index rollback_ok restore_tmp
-  local target_dir target_name remote_url
+  local target_dir target_name relative_path
   local static_cmd templ_cmd archive_name archive_stamp
   local -a targets sources downloads candidates changed
   local -a commit_tmps backups existed
@@ -298,9 +311,8 @@ updateCommonRuntimeBundle() (
     downloads[i]="${stage_root}/download.${i}"
     candidates[i]="${stage_root}/candidate.${i}"
     target_name="$(basename "${targets[i]}")"
-    remote_url="${URL_RAW}/scripts/${sources[i]}/${target_name}"
-    if ! curl -s -f -m "${CURL_TIMEOUT}" \
-      -o "${downloads[i]}" "${remote_url}" 2>/dev/null; then
+    relative_path="scripts/${sources[i]}/${target_name}"
+    if ! dispatcher_source_copy "${relative_path}" "${downloads[i]}"; then
       log_warn "Failed to stage common runtime member: ${target_name}"
       return 2
     fi
@@ -1176,9 +1188,8 @@ cnode_deploy_install_release_metadata() {
 
   temporary="$(mktemp "${NODE_HOME}/files/.cnode-release.json.tmp.XXXXXX")" ||
     err_exit "Could not create cnode release metadata staging file."
-  if ! curl -sSfL -m "${CURL_TIMEOUT}" \
-    "${URL_RAW}/files/node-implementations/cnode/release.json" \
-    -o "${temporary}"; then
+  if ! dispatcher_source_copy \
+    "files/node-implementations/cnode/release.json" "${temporary}"; then
     rm -f -- "${temporary}"
     err_exit "Could not download cnode release metadata."
   fi
@@ -1640,9 +1651,32 @@ download_mithril() {
     log_ok "Deployed mithril-client" "${mithril_version}"
 }
 
-# Create folder structure and set up permissions/ownerships
+# Create the dispatcher-owned directory contract and set ownership only after
+# every existing component has passed the non-symlink preflight. Keeping the
+# exact path inventory in guild-deploy.sh makes fresh setup and legacy migration
+# use the same security boundary.
+cnode_deploy_prepare_layout() {
+  local layout_output="" layout_path=""
+  local -a layout_paths=()
+
+  dispatcher_prepare_profile_layout cnode_deploy_privileged ||
+    err_exit "Refusing to create an unsafe cnode directory layout."
+  layout_output="$(dispatcher_profile_layout_paths)" ||
+    err_exit "Could not load the cnode directory contract."
+  while IFS= read -r layout_path; do
+    [[ -n "${layout_path}" ]] && layout_paths+=("${layout_path}")
+  done <<< "${layout_output}"
+  (( ${#layout_paths[@]} > 0 )) ||
+    err_exit "The cnode directory contract is empty."
+  dispatcher_validate_profile_layout ||
+    err_exit "The cnode directory layout changed before ownership setup."
+  cnode_deploy_privileged chown "$U_ID":"$G_ID" "${layout_paths[@]}" 2>/dev/null ||
+    err_exit "Could not update cnode directory ownership."
+}
+
 setup_folder() {
   log_progress "Creating folder structure" "${NODE_HOME}"
+  cnode_deploy_prepare_layout
 
   if grep -q "export ${CNODE_DEPLOY_ENV_PREFIX}_HOME=" "${HOME}"/.bashrc; then
     log_info "${CNODE_DEPLOY_ENV_PREFIX}_HOME already present in ${HOME}/.bashrc."
@@ -1651,10 +1685,18 @@ setup_folder() {
     log_info "Added ${CNODE_DEPLOY_ENV_PREFIX}_HOME=${NODE_HOME} to ${HOME}/.bashrc."
   fi
 
-  $sudo mkdir -p "${NODE_HOME}"/files "${NODE_HOME}"/db "${NODE_HOME}"/guild-db "${NODE_HOME}"/logs "${NODE_HOME}"/scripts "${NODE_HOME}"/scripts/adapters "${NODE_HOME}"/scripts/archive "${NODE_HOME}"/scripts/lib "${NODE_HOME}"/sockets "${NODE_HOME}"/priv "${MITHRIL_HOME}"/data-stores
-  $sudo chown -R "$U_ID":"$G_ID" "${NODE_HOME}" 2>/dev/null
   log_ok "Folder structure ready" "${NODE_HOME}"
+}
 
+secure_cnode_private_directory() {
+  dispatcher_validate_profile_layout ||
+    err_exit "The cnode directory layout changed before securing private keys."
+  cnode_deploy_privileged chown "$U_ID":"$G_ID" "${NODE_HOME}/priv" 2>/dev/null ||
+    err_exit "Could not set ownership on the private cnode key directory."
+  dispatcher_validate_profile_layout ||
+    err_exit "The cnode directory layout changed before setting private-key permissions."
+  cnode_deploy_privileged chmod 0750 "${NODE_HOME}/priv" ||
+    err_exit "Could not secure the private cnode key directory."
 }
 
 retire_legacy_systemd_orchestrator() {
@@ -1672,9 +1714,11 @@ retire_legacy_systemd_orchestrator() {
 cnode_deploy_fetch_network_config() {
   local remote_name="$1"
   local destination="$2"
-  local canonical_url="${URL_RAW}/files/configs/cnode/${NETWORK}/${remote_name}"
-
-  curl -sSfL -m "${CURL_TIMEOUT}" -o "${destination}" "${canonical_url}"
+  local absolute_destination="${destination}"
+  [[ "${absolute_destination}" == /* ]] ||
+    absolute_destination="$(pwd -P)/${absolute_destination}"
+  dispatcher_source_copy \
+    "files/configs/cnode/${NETWORK}/${remote_name}" "${absolute_destination}"
 }
 
 cnode_deploy_seed_initial_env_port() {
@@ -1724,17 +1768,21 @@ populate_cnode() {
   else
     # Older cnode deployments predate the shared runtime directories. Ensure
     # they can be migrated even when the network configuration already exists.
-    $sudo mkdir -p \
-      "${NODE_HOME}/scripts" \
-      "${NODE_HOME}/scripts/adapters" \
-      "${NODE_HOME}/scripts/archive" \
-      "${NODE_HOME}/scripts/lib" || err_exit "Could not create shared runtime directories."
-    $sudo chown "$U_ID":"$G_ID" \
-      "${NODE_HOME}/scripts" \
-      "${NODE_HOME}/scripts/adapters" \
-      "${NODE_HOME}/scripts/archive" \
-      "${NODE_HOME}/scripts/lib" 2>/dev/null ||
-      err_exit "Could not update shared runtime directory ownership."
+    # The full contract is checked so a symlink in any old layout component
+    # aborts before the first privileged mutation.
+    cnode_deploy_prepare_layout
+  fi
+  # The managed payload fast path returns below, before the legacy tail that
+  # historically tightened this directory. Secure it before any activation so
+  # a fresh or migrated target never leaves key material world-readable.
+  secure_cnode_private_directory
+  if [[ "${DISPATCHER_TX_PREPARED:-N}" == "Y" ]]; then
+    log_progress "Activating complete Guild payload" "${_GUILD_SOURCE_REVISION:-unknown}"
+    dispatcher_distribution_activate ||
+      err_exit "The complete cnode payload failed validation or activation."
+    cnode_deploy_load_release_metadata
+    log_ok "Guild payload activated" "${_GUILD_SOURCE_REVISION:-unknown}"
+    return 0
   fi
   if declare -F dispatcher_mark_in_progress >/dev/null 2>&1; then
     dispatcher_mark_in_progress
@@ -1819,8 +1867,10 @@ populate_cnode() {
   # commands. Retire an installed legacy copy only after those scripts refresh.
   retire_legacy_systemd_orchestrator
 
+  dispatcher_validate_profile_layout ||
+    err_exit "The cnode directory layout changed before helper permission refresh."
   find "${NODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
-  chmod 750 "${NODE_HOME}"/priv 2>/dev/null
+  secure_cnode_private_directory
   log_ok "Helper scripts refreshed" "${BRANCH}"
 }
 

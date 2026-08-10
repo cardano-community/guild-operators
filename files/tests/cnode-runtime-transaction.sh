@@ -90,31 +90,11 @@ run_release_metadata_test() (
   mkdir -p "${node_root}/files"
   jq '.implementation = "dingo"' "${valid_manifest}" > "${invalid_manifest}"
   NODE_HOME="${node_root}"
-  URL_RAW="https://raw.example/fork/guild-operators/test-branch"
-  CURL_TIMEOUT=30
 
-  curl() {
-    local destination=""
-    local url=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        -o)
-          destination="$2"
-          shift 2
-          ;;
-        -m)
-          shift 2
-          ;;
-        -*)
-          shift
-          ;;
-        *)
-          url="$1"
-          shift
-          ;;
-      esac
-    done
-    printf '%s\n' "${url}" >> "${request_log}"
+  dispatcher_source_copy() {
+    local relative_path="$1"
+    local destination="$2"
+    printf '%s\n' "${relative_path}" >> "${request_log}"
     cp -- "${release_fixture}" "${destination}"
   }
 
@@ -151,9 +131,9 @@ run_release_metadata_test() (
   assert_eq "${CNODE_BUILD_BLST_VERSION}" \
     "$(jq -er '.build.sourceDependencies.blst.version' "${valid_manifest}")" \
     "BLST manifest version"
-  grep -q '^https://raw.example/fork/guild-operators/test-branch/files/node-implementations/cnode/release.json$' \
+  grep -q '^files/node-implementations/cnode/release.json$' \
     "${request_log}" ||
-    fail "cnode release metadata used the wrong repository or branch"
+    fail "cnode release metadata used the wrong snapshot path"
 
   release_fixture="${invalid_manifest}"
   if (cnode_deploy_install_release_metadata >/dev/null 2>&1); then
@@ -915,6 +895,20 @@ EOF
     FAKE_CURL_COUNTER="${curl_counter}"
     export NODE_HOME URL_RAW CURL_TIMEOUT CNODE_DEPLOY_FORCE_SCRIPTS
     export FAKE_CURL_ROOT FAKE_CURL_COUNTER
+  }
+
+  dispatcher_source_copy() {
+    local relative_path="$1"
+    local destination="$2"
+    local count=0
+    [[ ! -f "${curl_counter}" ]] || read -r count < "${curl_counter}"
+    count=$((count + 1))
+    printf '%s\n' "${count}" > "${curl_counter}"
+    if [[ -n "${FAKE_CURL_FAIL_AT:-}" &&
+          "${count}" -eq "${FAKE_CURL_FAIL_AT}" ]]; then
+      return 22
+    fi
+    cp -- "${remote_root}/${relative_path#scripts/}" "${destination}"
   }
 
   PATH="${fake_bin}:${BASE_PATH}"

@@ -33,7 +33,8 @@ On Dingo, `env` selects `$HOME/.local/bin/cardano-cli-dingo` and
 own release manifest and does not replace cnode's `cardano-cli`. Set `CCLI`
 explicitly in `env` only when intentionally using another reviewed CLI build.
 
-Supplying `-b <branch>` persists the selected Guild branch in
+Supplying `-b <branch>` asks the installed dispatcher to apply a complete
+transaction from that branch and then records its exact source in
 `${NODE_HOME}/.deployment.json`; CNTools no longer creates or reads
 `scripts/.env_branch`.
 
@@ -71,12 +72,22 @@ Usage: cntools.sh [-n|-l|-o] [-a] [-u] [-b <branch name>] [-v]
 -o    Offline/air-gapped mode with limited functionality
 -a    Enable advanced/developer features
 -u    Skip the script update check
--b    Persist an alternate Guild Operators branch in .deployment.json
+-b    Request a complete payload update from an alternate Guild branch
 -v    Print the CNTools version
 ```
 
 #### Download and Update
-The update functionality is provided from within CNTools. In case of breaking changes, please follow the prompts post-upgrade. If stuck, it's always best to re-run the latest `guild-deploy.sh` before proceeding.
+CNTools can check for updates, but it no longer downloads only CNTools files.
+The check delegates to the installed `guild-deploy.sh`, which validates and
+updates the complete source-receipted Guild payload as one transaction. A
+selected branch or tag must resolve and never silently falls back to `master`.
+
+Automatic refresh cannot reproduce a deployment made from a local or dirty
+checkout. In that case, re-run the dispatcher explicitly with
+`-S local -L <checkout>` and add `-D` again only when the checkout is
+intentionally dirty.
+For breaking changes, follow the post-upgrade prompts; if stuck, re-run the
+current dispatcher before proceeding.
 
 !!! info ""
     If you have not updated in a while, it is possible that you might come from a release with breaking changes. If so, please be sure to check out the [upgrade](../upgrade.md) instructions.

@@ -104,18 +104,36 @@ While we do not intend to hand out step-by-step instructions, the tools are ofte
 
 ##### Set up OS packages, folder structure and fetch files from repo {: #os-prereqs}
 
-The pre-requisites for Linux systems are automated to be executed as a single script. This script uses opt-in election of what you'd like the script to do. The defaults without any arguments will only update static part of script contents for you.
-To download the pre-requisites scripts, execute the below:
+The deployment script can install node and tool prerequisites, but its own
+bootstrap prerequisites must already be present: `curl`, Git, `jq`, a SHA-256
+utility (`sha256sum` or `shasum`), and Bash 4.4 or newer. Install them with the
+host package manager and verify the Bash version before running the dispatcher.
+For example:
 
 ```bash
 mkdir -p "$HOME/tmp"
 cd "$HOME/tmp"
-# Install curl
-# CentOS / RedHat - sudo dnf -y install curl
-# Ubuntu / Debian - sudo apt -y install curl
+
+# Ubuntu / Debian
+sudo apt-get update
+sudo apt-get install -y bash curl git jq coreutils
+
+# Or, on CentOS / Red Hat
+# sudo dnf -y install bash curl git jq coreutils
+
+bash --version
 curl -sS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
 chmod 755 guild-deploy.sh
 ```
+
+The reported Bash version must be at least 4.4. `guild-deploy.sh` checks Git,
+`jq`, and SHA-256 support before it prepares a source snapshot, locks a target,
+or changes deployment files. The single raw download above
+is the bootstrap seed, not the deployment payload. It uses public HTTPS and
+does not require a GitHub API key or access token. The seed prepares one exact
+Git snapshot and re-executes the dispatcher from that snapshot; profiles,
+helpers, libraries, configuration templates, and release metadata are then
+read from the same revision.
 
 !!! info "Important !!"
     Please familiarise yourself with `guild-deploy.sh -h` before proceeding.
@@ -131,7 +149,9 @@ downloaded entrypoint dispatches to the selected node implementation:
 
 ``` bash
 Usage: guild-deploy.sh [-i <cnode|dingo|amaru>] [-n <network>] \
-                       [-p path] [-t name] [-b branch] [-u] [-s flags]
+                       [-p path] [-t name] [-b branch] [-a account] \
+                       [-S mode] [-L checkout] [-D] [-R] \
+                       [-E export-dir] [-u] [-s flags]
 
 -i    Node implementation (default: cnode)
 -n    Network. cnode defaults to mainnet; alternate profiles require an
@@ -139,7 +159,14 @@ Usage: guild-deploy.sh [-i <cnode|dingo|amaru>] [-n <network>] \
       restores it on later runs)
 -p    Parent folder (default: /opt/cardano)
 -t    Top-level folder and service name (default: selected implementation)
--b    Guild Operators branch (default: stored deployment branch, then master)
+-b    Guild Operators branch or tag (default: stored deployment branch, then
+      master for a new deployment)
+-a    GitHub account that owns the public guild-operators repository
+-S    Source mode: managed (default), cached (explicit offline), or local
+-L    Absolute Git checkout path; valid only with -S local
+-D    Permit a dirty local checkout and record its deterministic tree digest
+-R    Deliberately migrate an existing target to the repository selected by -a
+-E    Export the separately receipted Docker supplement to a new empty path
 -u    Skip the dispatcher update check
 -s    Selective install flags
         p  runtime prerequisites
@@ -147,6 +174,54 @@ Usage: guild-deploy.sh [-i <cnode|dingo|amaru>] [-n <network>] \
         f  force implementation configuration overwrite
         s  force helper-script user-variable overwrite
 ```
+
+### Guild source modes
+
+Normal deployments use `-S managed`, whether the option is written explicitly
+or omitted. The provider maintains a private bare Git cache below
+`${XDG_CACHE_HOME:-$HOME/.cache}/guild-operators`, fetches the selected branch
+or tag over public HTTPS, resolves it to a commit, creates an immutable
+temporary snapshot, and hands execution to that snapshot's dispatcher. The
+cache is internal deployment state, not an editable checkout; do not treat it
+as `$HOME/GIT/guild-operators` or modify files inside it.
+
+`-S cached` is an explicit offline mode. It performs no source fetch and fails
+unless the selected repository and branch or tag already exist in the managed
+cache:
+
+```bash
+./guild-deploy.sh -i cnode -n mainnet -b master -S cached
+```
+
+Contributors can deliberately deploy a checkout with `-S local -L`. The
+checkout must be the repository root, its `origin` and checked-out branch must
+match `-a` and `-b`, and it must be clean unless `-D` is also supplied. A dirty
+deployment records both the commit and a deterministic digest of the deployed
+`scripts` and `files` tree:
+
+```bash
+./guild-deploy.sh -i cnode -n preview -b my-feature \
+  -S local -L "$HOME/GIT/guild-operators"
+
+# Deliberate development-only deployment of uncommitted content
+./guild-deploy.sh -i cnode -n preview -b my-feature \
+  -S local -L "$HOME/GIT/guild-operators" -D
+```
+
+Use `-a` for a public fork whose repository is also named `guild-operators`.
+Moving an existing target to a different repository is protected separately
+and requires both the new account and `-R`:
+
+```bash
+./guild-deploy.sh -i cnode -n preview -b my-feature -a my-account
+./guild-deploy.sh -i cnode -n preview -b my-feature -a my-account -R
+```
+
+The first command is suitable for a new target; the second is the explicit
+repository-migration form for an existing target. A selected branch or tag
+must resolve in the chosen source mode. There is no silent fallback to
+`master`; `master` is only the initial default when neither an existing
+deployment nor an explicit `-b` supplies another channel.
 
 The cnode profile additionally supports:
 
@@ -226,14 +301,27 @@ retains `cardano-cli`. cnode keeps its reviewed static node release, while
 `-s d` resolves the newest published non-draft Dingo or Amaru release,
 including prereleases, and verifies its GitHub-published asset digest. For
 Dingo the same selection installs its separately pinned and
-checksum-verified CLI companion. Every successful
-target also contains `.deployment.json`, which records the implementation,
-network, Guild repository and branch, service name, installed and targeted
-versions, and declared capabilities. Re-running the dispatcher restores those
-values from the manifest. An explicit
-`G_ACCOUNT` user-variable/environment override or `-b` branch selects a new
-update source; an explicit network must match the existing deployment and
-cannot convert the target.
+checksum-verified CLI companion. Every successful target also contains
+`.deployment.json` and `.guild-source-receipt.json`. The manifest records the
+implementation and network identity, source repository, branch or tag,
+resolved Git ref and revision, source mode, dirty state, receipt digest, and
+transaction ID alongside installed and targeted versions and declared
+capabilities. The receipt lists the installed Guild payload, file modes,
+source and installed hashes, and whether each path is managed.
+
+The complete payload is staged and validated before a target-wide transaction
+replaces files. Operator-preserved configuration is recorded as unmanaged
+rather than being claimed as identical to repository content. An interrupted
+transaction is recovered or rolled back; the receipt and deployed manifest
+are committed last, so they never advertise a partially installed generation.
+Helper update checks invoke this same complete transaction instead of
+downloading one helper or library at a time.
+
+Re-running the dispatcher restores target identity from the manifest. An
+explicit `-b` selects another branch or tag; `-a` selects a public fork and
+requires `-R` when it would change an existing target's repository. An
+explicit network must match the existing deployment and cannot convert the
+target.
 For Dingo and Amaru, `-n` is therefore required only on the initial
 deployment; it may be omitted when updating a target with a valid manifest.
 
@@ -250,7 +338,8 @@ root. The entry in `~/.bashrc` is only a convenience.
 
 
     /opt/cardano/cnode            # Top-Level Folder
-    ├── .deployment.json          # Guild deployment identity and branch
+    ├── .deployment.json          # Target identity and exact source metadata
+    ├── .guild-source-receipt.json # Installed Guild payload hashes and policies
     ├── ...
     ├── files                     # Config, genesis and topology files
     │   ├── cnode-release.json    # cnode node, tool, and build manifest

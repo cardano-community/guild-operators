@@ -22,6 +22,7 @@ BASE_PATH="${PATH}"
 BASH_BIN="${BASH}"
 FAKE_BIN="${TEST_ROOT}/fake-bin"
 NETWORK_LOG="${TEST_ROOT}/network.log"
+DISPATCH_LOG="${TEST_ROOT}/dispatcher.log"
 SIDE_EFFECT_LOG="${TEST_ROOT}/side-effects.log"
 CLI_LOG="${TEST_ROOT}/cli.log"
 STATE_LOG="${TEST_ROOT}/state.log"
@@ -80,6 +81,7 @@ assert_no_network() {
 
 reset_logs() {
   : > "${NETWORK_LOG}"
+  : > "${DISPATCH_LOG}"
   : > "${SIDE_EFFECT_LOG}"
   : > "${CLI_LOG}"
   : > "${STATE_LOG}"
@@ -276,6 +278,56 @@ write_manifest() {
     }' > "${node_root}/.deployment.json"
 }
 
+write_fake_dispatcher() {
+  local destination="$1"
+
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'set -euo pipefail' \
+    'dispatcher_prepare_source_and_handoff() { :; }' \
+    'dispatcher_distribution_prepare() { :; }' \
+    '# GUILD_SOURCE_CHECK_ONLY is the source-comparison contract marker.' \
+    'phase=apply' \
+    '[[ "${GUILD_SOURCE_CHECK_ONLY:-N}" == "Y" ]] && phase=check' \
+    '{ printf "%s" "${phase}"; printf "\\t%s" "$@"; printf "\\n"; } >> "${CNTOOLS_DISPATCH_LOG:?}"' \
+    'implementation=""; network=""; node_parent=""; node_name=""; branch=""; account=""; source_mode=""' \
+    'while (( $# > 0 )); do' \
+    '  case "$1" in' \
+    '    -i) implementation="$2"; shift 2 ;;' \
+    '    -n) network="$2"; shift 2 ;;' \
+    '    -p) node_parent="$2"; shift 2 ;;' \
+    '    -t) node_name="$2"; shift 2 ;;' \
+    '    -b) branch="$2"; shift 2 ;;' \
+    '    -a) account="$2"; shift 2 ;;' \
+    '    -S) source_mode="$2"; shift 2 ;;' \
+    '    -s) shift 2 ;;' \
+    '    -u) shift ;;' \
+    '    *) exit 64 ;;' \
+    '  esac' \
+    'done' \
+    '[[ -n "${implementation}" && -n "${network}" && -n "${node_parent}" && -n "${node_name}" ]]' \
+    '[[ -n "${branch}" && -n "${account}" && "${source_mode}" == "managed" ]]' \
+    'revision="$(printf "%s" "${account}:${branch}" | sha256sum | awk '\''{print $1}'\'')"' \
+    'revision="${revision:0:40}"' \
+    'if [[ "${phase}" == "check" ]]; then printf "%s\n" "${revision}"; exit 10; fi' \
+    '[[ "${GUILD_SOURCE_EXPECT_REVISION:-${revision}}" == "${revision}" ]] || exit 66' \
+    'node_root="${node_parent}/${node_name}"' \
+    'manifest="${node_root}/.deployment.json"' \
+    'receipt="${node_root}/.guild-source-receipt.json"' \
+    'dispatcher="${node_root}/scripts/guild-deploy.sh"' \
+    'dispatcher_hash="$(sha256sum -- "${dispatcher}" | awk '\''{print $1}'\'')"' \
+    'receipt_tmp="$(mktemp "${node_root}/.guild-source-receipt.tmp.XXXXXX")"' \
+    'metadata_tmp="$(mktemp "${node_root}/.deployment.tmp.XXXXXX")"' \
+    'jq -n --arg implementation "${implementation}" --arg network "${network}" --arg repository "${account}/guild-operators" --arg branch "${branch}" --arg revision "${revision}" --arg mode "${source_mode}" --arg digest "${dispatcher_hash}" '\''{schemaVersion: 1, implementation: $implementation, network: $network, source: {repository: $repository, channel: $branch, ref: ("refs/heads/" + $branch), revision: $revision, mode: $mode, dirty: false}, files: [{path: "scripts/guild-deploy.sh", source: "scripts/cnode-helper-scripts/guild-deploy.sh", mode: "0755", policy: "exact", sourceSha256: $digest, installedSha256: $digest, managed: true}]}'\'' > "${receipt_tmp}"' \
+    'receipt_hash="$(sha256sum -- "${receipt_tmp}" | awk '\''{print $1}'\'')"' \
+    'jq --arg branch "${branch}" --arg repository "${account}/guild-operators" --arg mode "${source_mode}" --arg ref "refs/heads/${branch}" --arg revision "${revision}" --arg receipt_hash "${receipt_hash}" '\''.branch = $branch | .repository = $repository | .sourceSchemaVersion = 1 | .sourceMode = $mode | .sourceRef = $ref | .sourceRevision = $revision | .sourceDirty = false | del(.sourceTreeDigest) | .payloadReceipt = ".guild-source-receipt.json" | .payloadReceiptSha256 = $receipt_hash | .transactionId = $receipt_hash[0:16]'\'' "${manifest}" > "${metadata_tmp}"' \
+    'chmod 0644 "${receipt_tmp}" "${metadata_tmp}"' \
+    'mv -f -- "${receipt_tmp}" "${receipt}"' \
+    'mv -f -- "${metadata_tmp}" "${manifest}"' \
+    > "${destination}"
+  chmod 0755 "${destination}"
+}
+
 write_cnode_files() {
   local node_root="$1"
 
@@ -361,6 +413,7 @@ prepare_fixture() {
   cp "${CNTOOLS_SCRIPT}" "${node_root}/scripts/cntools.sh"
   cp "${CNTOOLS_LIBRARY}" "${node_root}/scripts/cntools.library"
   cp "${COMMON_ENV}" "${node_root}/scripts/env"
+  write_fake_dispatcher "${node_root}/scripts/guild-deploy.sh"
   cp \
     "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library" \
     "${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library" \
@@ -421,6 +474,7 @@ run_env_profile() {
     CHECK_KES=false \
     NODE_ADAPTER_PATH="${adapter_path}" \
     CNTOOLS_NETWORK_LOG="${NETWORK_LOG}" \
+    CNTOOLS_DISPATCH_LOG="${DISPATCH_LOG}" \
     CNTOOLS_SIDE_EFFECT_LOG="${SIDE_EFFECT_LOG}" \
     CNTOOLS_CLI_LOG="${CLI_LOG}" \
     http_proxy=http://127.0.0.1:9 \
@@ -474,6 +528,7 @@ run_cntools() {
     CHECK_KES=false \
     NODE_ADAPTER_PATH="${RUN_NODE_ADAPTER_PATH:-}" \
     CNTOOLS_NETWORK_LOG="${NETWORK_LOG}" \
+    CNTOOLS_DISPATCH_LOG="${DISPATCH_LOG}" \
     CNTOOLS_SIDE_EFFECT_LOG="${SIDE_EFFECT_LOG}" \
     CNTOOLS_CLI_LOG="${CLI_LOG}" \
     CNTOOLS_STATE_LOG="${STATE_LOG}" \
@@ -765,10 +820,21 @@ run_flag_contracts() {
   assert_startup_state OFFLINE false alpha Y alpha
   assert_eq "$(jq -r '.branch' "${dingo_root}/.deployment.json")" alpha \
     "persisted alternate branch"
-  network_count="$(wc -l < "${NETWORK_LOG}" | tr -d '[:space:]')"
-  assert_eq "${network_count}" 1 "branch probe intercepted request count"
-  assert_contains "$(< "${NETWORK_LOG}")" "/alpha/LICENSE" \
-    "alternate branch existence probe"
+  assert_eq "$(wc -l < "${DISPATCH_LOG}" | tr -d '[:space:]')" 2 \
+    "branch transaction dispatcher invocation count"
+  assert_contains "$(sed -n '1p' "${DISPATCH_LOG}")" $'check\t' \
+    "branch transaction source check"
+  assert_contains "$(sed -n '2p' "${DISPATCH_LOG}")" $'apply\t' \
+    "branch transaction apply"
+  assert_contains "$(< "${DISPATCH_LOG}")" $'-b\talpha' \
+    "branch transaction requested branch"
+  assert_contains "$(< "${DISPATCH_LOG}")" $'-S\tmanaged' \
+    "branch transaction managed source mode"
+  jq -e '.payloadReceipt == ".guild-source-receipt.json" and
+         (.payloadReceiptSha256 | test("^[0-9a-f]{64}$"))' \
+    "${dingo_root}/.deployment.json" >/dev/null ||
+    fail "branch transaction did not publish receipt-backed metadata"
+  assert_no_network "Dingo transactional branch change"
 
   reset_logs
   run_cntools "${amaru_root}" N N -n -u -v

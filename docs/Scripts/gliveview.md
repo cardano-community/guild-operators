@@ -53,7 +53,7 @@ Usage: gLiveView.sh [-l] [-u] [-b <branch name>] [-v]
 
 -l    Use standard ASCII instead of box-drawing characters
 -u    Skip the script update check
--b    Persist a Guild Operators branch in .deployment.json
+-b    Request a complete payload update from a Guild Operators branch
 -v    Print the gLiveView version
 ```
 

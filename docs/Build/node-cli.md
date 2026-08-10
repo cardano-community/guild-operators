@@ -45,8 +45,7 @@ as this is what the deployment scripts verify and test.
 ``` bash
 git fetch --tags --force --prune origin
 git checkout --detach "$(
-  curl -sLf https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/node-implementations/cnode/release.json |
-    jq -er '.version'
+  jq -er '.version' "${CNODE_HOME}/files/cnode-release.json"
 )"
 
 cabal update
@@ -73,8 +72,8 @@ git clone https://github.com/intersectmbo/cardano-cli
 cd cardano-cli
 git fetch --tags --force --prune origin
 git checkout --detach "$(
-  curl -sLf https://raw.githubusercontent.com/cardano-community/guild-operators/master/files/node-implementations/cnode/release.json |
-    jq -er '.companions["cardano-cli"].version | "cardano-cli-\(.)"'
+  jq -er '.companions["cardano-cli"].version | "cardano-cli-\(.)"' \
+    "${CNODE_HOME}/files/cnode-release.json"
 )"
 
 cabal update

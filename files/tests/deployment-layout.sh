@@ -179,44 +179,228 @@ done
   # shellcheck source=../../scripts/cnode-helper-scripts/deploy-cnode.sh
   . "${ROOT_DIR}/scripts/cnode-helper-scripts/deploy-cnode.sh"
 
-  URL_RAW="https://raw.example/fork/guild-operators/test-branch"
   NETWORK="preview"
-  CURL_TIMEOUT=10
   request_log="$(mktemp "${TMPDIR:-/tmp}/cnode-config-requests.XXXXXX")"
   output_file="$(mktemp "${TMPDIR:-/tmp}/cnode-config-output.XXXXXX")"
   trap 'rm -f -- "${request_log}" "${output_file}"' EXIT
 
-  curl() {
-    local destination=""
-    local url=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        -o)
-          destination="$2"
-          shift 2
-          ;;
-        -*)
-          shift
-          [[ "$1" =~ ^[0-9]+$ ]] && shift || true
-          ;;
-        *)
-          url="$1"
-          shift
-          ;;
-      esac
-    done
-    printf '%s\n' "${url}" >> "${request_log}"
-    printf '%s\n' "${url}" > "${destination}"
+  dispatcher_source_copy() {
+    local relative_path="$1"
+    local destination="$2"
+    printf '%s\n' "${relative_path}" >> "${request_log}"
+    cp -- "${ROOT_DIR}/${relative_path}" "${destination}"
   }
 
   cnode_deploy_fetch_network_config "config.json" "${output_file}" ||
     fail "canonical cnode configuration fetch failed"
   [[ "$(wc -l < "${request_log}" | tr -d '[:space:]')" == "1" ]] ||
     fail "cnode configuration fetch made more than one request"
-  grep -q '^https://raw.example/fork/guild-operators/test-branch/files/configs/cnode/preview/config.json$' \
+  grep -q '^files/configs/cnode/preview/config.json$' \
     "${request_log}" ||
-    fail "cnode configuration request used the wrong repository, branch, or path"
+    fail "cnode configuration request used the wrong snapshot path"
+  cmp -s "${ROOT_DIR}/files/configs/cnode/preview/config.json" \
+    "${output_file}" ||
+    fail "cnode configuration fetch did not copy the snapshot payload"
 )
+
+layout_expected_relative_paths() {
+  case "$1" in
+    cnode)
+      printf '%s\n' \
+        . files db guild-db logs scripts scripts/adapters scripts/archive \
+        scripts/lib sockets priv mithril mithril/data-stores
+      ;;
+    dingo)
+      printf '%s\n' \
+        . db files logs priv priv/pool snapshots sockets scripts \
+        scripts/adapters scripts/archive scripts/lib
+      ;;
+    amaru)
+      printf '%s\n' \
+        . files logs runtime snapshots scripts scripts/adapters \
+        scripts/archive scripts/lib
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+layout_profile_path() {
+  case "$1" in
+    cnode) printf '%s\n' "${ROOT_DIR}/scripts/cnode-helper-scripts/deploy-cnode.sh" ;;
+    dingo) printf '%s\n' "${ROOT_DIR}/scripts/dingo-helper-scripts/deploy-dingo.sh" ;;
+    amaru) printf '%s\n' "${ROOT_DIR}/scripts/amaru-helper-scripts/deploy-amaru.sh" ;;
+    *) return 1 ;;
+  esac
+}
+
+layout_owner_mode() {
+  stat -c '%u:%g:%a' "$1" 2>/dev/null || stat -f '%u:%g:%Lp' "$1"
+}
+
+layout_external_tree() {
+  find "$1" -mindepth 1 -print | LC_ALL=C sort
+}
+
+LAYOUT_TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-layout-contract.XXXXXX")"
+trap 'rm -rf -- "${LAYOUT_TEST_ROOT}"' EXIT
+
+# Every profile directory is security-sensitive at setup time: a symlink at a
+# parent (for example scripts) is just as dangerous as one at a private leaf.
+# Exercise the exact contract table for every implementation. The privilege
+# callback must remain untouched, proving preflight aborts before mkdir, chown,
+# or chmod, while the external referent's metadata and contents remain stable.
+for implementation in cnode dingo amaru; do
+  while IFS= read -r relative_path; do
+    [[ -n "${relative_path}" ]] || continue
+    case_name="${relative_path//\//_}"
+    [[ "${case_name}" != "." ]] || case_name="node-home"
+    case_root="${LAYOUT_TEST_ROOT}/${implementation}-${case_name}"
+    node_home="${case_root}/node"
+    external_dir="${case_root}/external"
+    runner_log="${case_root}/privileged.log"
+    profile_path="$(layout_profile_path "${implementation}")"
+    mkdir -p "${case_root}" "${external_dir}"
+    chmod 0777 "${external_dir}"
+    printf 'external-layout-marker\n' > "${external_dir}/marker"
+    : > "${runner_log}"
+
+    if [[ "${relative_path}" == "." ]]; then
+      ln -s "${external_dir}" "${node_home}"
+    else
+      mkdir -p "${node_home}"
+      relative_parent="${relative_path%/*}"
+      if [[ "${relative_parent}" != "${relative_path}" ]]; then
+        mkdir -p "${node_home}/${relative_parent}"
+      fi
+      ln -s "${external_dir}" "${node_home}/${relative_path}"
+    fi
+    external_owner_mode_before="$(layout_owner_mode "${external_dir}")"
+    external_tree_before="$(layout_external_tree "${external_dir}")"
+
+    if (
+      # shellcheck source=../../scripts/cnode-helper-scripts/guild-deploy.sh
+      . "${ROOT_DIR}/scripts/cnode-helper-scripts/guild-deploy.sh"
+      # shellcheck source=/dev/null
+      . "${profile_path}"
+      NODE_IMPLEMENTATION="${implementation}"
+      NODE_HOME="${node_home}"
+      SUDO="N"
+      sudo=""
+      U_ID="$(id -u)"
+      G_ID="$(id -g)"
+
+      layout_test_privileged() {
+        printf '%s\n' "$*" >> "${runner_log}"
+        case "$1" in
+          chown) return 0 ;;
+          *) command "$@" ;;
+        esac
+      }
+      case "${implementation}" in
+        cnode)
+          cnode_deploy_privileged() { layout_test_privileged "$@"; }
+          cnode_deploy_prepare_layout
+          ;;
+        dingo)
+          dingo_deploy_privileged() { layout_test_privileged "$@"; }
+          dingo_deploy_prepare_layout
+          ;;
+        amaru)
+          amaru_deploy_privileged() { layout_test_privileged "$@"; }
+          amaru_deploy_prepare_layout
+          ;;
+      esac
+    ) >/dev/null 2>&1; then
+      fail "${implementation} accepted symlinked layout path ${relative_path}"
+    fi
+
+    [[ ! -s "${runner_log}" ]] ||
+      fail "${implementation} performed privileged layout mutation after rejecting ${relative_path}"
+    [[ "$(layout_owner_mode "${external_dir}")" == "${external_owner_mode_before}" ]] ||
+      fail "${implementation} changed external owner/mode through ${relative_path}"
+    [[ "$(layout_external_tree "${external_dir}")" == "${external_tree_before}" ]] ||
+      fail "${implementation} changed external directory contents through ${relative_path}"
+    [[ "$(cat "${external_dir}/marker")" == "external-layout-marker" ]] ||
+      fail "${implementation} changed external marker through ${relative_path}"
+  done < <(layout_expected_relative_paths "${implementation}")
+done
+
+# Fresh creation and partial-layout migration use the same parent-first helper.
+# Recreate one removed leaf on the second pass while retaining an operator file
+# in an existing directory.
+for implementation in cnode dingo amaru; do
+  case_root="${LAYOUT_TEST_ROOT}/${implementation}-normal"
+  node_home="${case_root}/node"
+  runner_log="${case_root}/privileged.log"
+  profile_path="$(layout_profile_path "${implementation}")"
+  mkdir -p "${case_root}"
+  : > "${runner_log}"
+
+  for layout_pass in fresh migration; do
+    if [[ "${layout_pass}" == "migration" ]]; then
+      printf 'operator-data\n' > "${node_home}/files/operator-marker"
+      case "${implementation}" in
+        cnode) rmdir "${node_home}/mithril/data-stores" ;;
+        dingo) rmdir "${node_home}/priv/pool" ;;
+        amaru) rmdir "${node_home}/runtime" ;;
+      esac
+    fi
+
+    (
+      # shellcheck source=../../scripts/cnode-helper-scripts/guild-deploy.sh
+      . "${ROOT_DIR}/scripts/cnode-helper-scripts/guild-deploy.sh"
+      # shellcheck source=/dev/null
+      . "${profile_path}"
+      NODE_IMPLEMENTATION="${implementation}"
+      NODE_HOME="${node_home}"
+      SUDO="N"
+      sudo=""
+      U_ID="$(id -u)"
+      G_ID="$(id -g)"
+
+      layout_test_privileged() {
+        printf '%s\n' "$*" >> "${runner_log}"
+        case "$1" in
+          chown) return 0 ;;
+          *) command "$@" ;;
+        esac
+      }
+      case "${implementation}" in
+        cnode)
+          cnode_deploy_privileged() { layout_test_privileged "$@"; }
+          cnode_deploy_prepare_layout
+          ;;
+        dingo)
+          dingo_deploy_privileged() { layout_test_privileged "$@"; }
+          dingo_deploy_prepare_layout
+          ;;
+        amaru)
+          amaru_deploy_privileged() { layout_test_privileged "$@"; }
+          amaru_deploy_prepare_layout
+          ;;
+      esac
+      dispatcher_validate_profile_layout
+    ) >/dev/null || fail "${implementation} ${layout_pass} layout setup failed"
+
+    while IFS= read -r relative_path; do
+      [[ -n "${relative_path}" ]] || continue
+      if [[ "${relative_path}" == "." ]]; then
+        layout_path="${node_home}"
+      else
+        layout_path="${node_home}/${relative_path}"
+      fi
+      [[ -d "${layout_path}" && ! -L "${layout_path}" ]] ||
+        fail "${implementation} ${layout_pass} layout omitted ${relative_path}"
+    done < <(layout_expected_relative_paths "${implementation}")
+  done
+
+  [[ "$(cat "${node_home}/files/operator-marker")" == "operator-data" ]] ||
+    fail "${implementation} migration did not preserve existing operator data"
+  grep -q '^mkdir ' "${runner_log}" ||
+    fail "${implementation} layout helper did not create missing directories"
+  grep -q '^chown ' "${runner_log}" ||
+    fail "${implementation} layout helper did not reach validated ownership setup"
+done
 
 GLIVEVIEW="${ROOT_DIR}/scripts/common-helper-scripts/gLiveView.sh"
 grep -Fq 'tip_gap "Tip gap" "slots"' "${GLIVEVIEW}" ||

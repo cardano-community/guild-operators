@@ -27,23 +27,40 @@ installs the shared CNTools wallet/pool interface; Amaru remains relay-only.
 
 ## Dispatcher and implementation profiles
 
-The downloaded `guild-deploy.sh` is the common dispatcher. It:
+The one downloaded `guild-deploy.sh` is a bootstrap seed and common
+dispatcher. Git, `jq`, a SHA-256 utility, and Bash 4.4 or newer must already be
+installed. The seed validates these bootstrap tools before target mutation and:
 
 1. parses and validates common arguments;
 2. chooses the implementation-specific default for `-t`;
 3. protects an existing target from implementation or network collisions;
 4. restores the stored repository, branch, network, and service identity from
    `.deployment.json` (an explicitly configured network must match);
-5. downloads the selected implementation profile from that exact repository
-   branch;
-6. marks the manifest as `deploying`, runs the profile, and finalizes the
-   manifest as `deployed` only after success.
+5. resolves the selected branch or tag to one Git commit and creates an
+   immutable source snapshot;
+6. re-executes the dispatcher from that snapshot and loads every profile,
+   helper, library, template, and release manifest from the same revision;
+7. stages and validates the complete target payload, activates it as one
+   transaction, and commits its receipt and deployed metadata last.
 
-The dispatcher never substitutes profile or payload files from the local Git
-checkout. This keeps `repository` and `branch` truthful when the entrypoint is
-run by a contributor from a different checkout. Deployment, branch changes,
-and common-runtime refreshes also take the same target-wide lock; concurrent
-writers fail without partially interleaving files or metadata.
+Normal `managed` mode fetches public HTTPS Git refs into a private bare cache
+below `${XDG_CACHE_HOME:-$HOME/.cache}/guild-operators`. This is managed
+deployment state, not an editable `$HOME/GIT` checkout. `cached` is an
+explicit offline mode and resolves only refs already present in that cache.
+`local` requires `-L` with an absolute, matching Git checkout; it rejects
+uncommitted payload changes unless `-D` explicitly allows them and records a
+deterministic tree digest. Public forks are selected with `-a`; an existing
+target requires `-R` as well before its repository can change. Guild source
+retrieval requires neither a GitHub API key nor an access token for public
+repositories.
+
+The selected branch or tag must resolve; it never silently falls back to
+`master`. `master` is only the default channel for a new deployment when no
+other channel was supplied. Deployment, source changes, and helper refreshes
+take the same target-wide lock. A second per-user lock serializes shared
+changes such as `$HOME/.local/bin` and `.bashrc` across different node targets.
+The directory-lock fallback records process ownership and safely recovers a
+dead owner's stale lock, so a later run can reach transaction-journal recovery.
 
 Implementation-specific work remains separate:
 
@@ -62,7 +79,8 @@ semantics in its own profile. It intentionally does not introduce a generic
 
 The dispatcher is also the only deployment script with an editable
 user-variable section. It owns common inputs such as implementation, network,
-repository, branch, target, port, and download timeouts. Implementation
+repository account, branch or tag, source mode, local checkout, target, port,
+and download timeouts. Implementation
 profiles are internal, source-only modules: they validate the dispatcher
 contract, derive their action state from `-s`, and contain only
 implementation-specific deployment logic. cnode's optional db-sync omission
@@ -108,8 +126,9 @@ who intentionally deploy an older tagged version.
 ## Deployment manifest
 
 Every successful deployment owns one manifest at
-`${NODE_HOME}/.deployment.json`. It is deployment metadata, not node
-configuration:
+`${NODE_HOME}/.deployment.json` and one payload receipt at
+`${NODE_HOME}/.guild-source-receipt.json`. The manifest is deployment metadata,
+not node configuration:
 
 ```json
 {
@@ -119,7 +138,16 @@ configuration:
   "network": "preview",
   "branch": "master",
   "repository": "cardano-community/guild-operators",
+  "sourceSchemaVersion": 1,
+  "sourceMode": "managed",
+  "sourceRef": "refs/heads/master",
+  "sourceRevision": "0123456789abcdef0123456789abcdef01234567",
+  "sourceDirty": false,
+  "payloadReceipt": ".guild-source-receipt.json",
+  "payloadReceiptSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "transactionId": "0123456789abcdef01234567",
   "serviceName": "dingo",
+  "nodePort": 3001,
   "nodeVersion": "vX.Y.Z (commit REVISION)",
   "targetNodeVersion": "latest",
   "metricsProvider": "prometheus",
@@ -138,7 +166,17 @@ on `PATH`). It is empty if no executable is installed. `targetNodeVersion` is
 the release policy selected by the deployment profile, even when `-s d` was
 not requested. It is a concrete cnode version and `latest` for Dingo or Amaru.
 This distinction prevents rolling release metadata from being mistaken for
-the binary currently on the host.
+the binary currently on the host. A dirty local source also has a
+`sourceTreeDigest`; clean managed, cached, and local snapshots omit it.
+
+The payload receipt binds the manifest's source identity to each installed
+Guild file. It records the relative path, mode, source hash, installed hash,
+installation policy, and whether the file remains deployment-managed.
+Configuration governed by the `preserve-render` policy becomes operator-owned
+as soon as it is initially rendered and is recorded with `managed: false`.
+Existing configuration is never replaced or made more permissive without
+`-s f`; its bytes and mode remain unchanged. It is not misrepresented as
+repository-identical managed content.
 
 The dispatcher validates the complete version-1 manifest and refuses to reuse
 a manifest-owned folder with malformed or incomplete metadata, a different
@@ -147,26 +185,35 @@ folder. Common helpers and alternate launchers apply the same fail-closed
 rule. Configuration and chain data are never automatically converted between
 implementations.
 
-On both first installs and updates, the dispatcher records
-`deploymentStatus: "deploying"` after ensuring the target layout exists and
-before the profile changes scripts or configuration. This makes an
-interrupted operation visible and safely resumable. Helpers refuse to consume
-an unfinished manifest; the status changes to `"deployed"` only after the
-profile completes.
+On both first installs and updates, candidates are staged and validated before
+activation. A private transaction journal and baseline backups support
+recovery or rollback if activation is interrupted. The canonical manifest is
+not changed to advertise work in progress: the new receipt and
+`deploymentStatus: "deployed"` manifest are published only after the complete
+payload succeeds.
+
+When `-s s` or `-s f` actually replaces a script or configuration file, its
+preceding bytes and mode are retained under `scripts/archive` by the same
+transaction. A rollback removes an uncommitted archive, and an identical rerun
+does not create another one. If a later manifest retires a formerly managed
+path, the dispatcher removes it only while its live hash still matches the
+last receipt; a customized obsolete path is preserved and reported.
 
 The manifest replaces `scripts/.env_branch`. On the first successful update of
 a legacy cnode deployment, the old branch value is imported and the sidecar is
-moved into `scripts/archive`. Supplying `-b` to the dispatcher or a compatible
-updating helper writes the new branch to `.deployment.json` atomically while
-preserving the other fields.
+retired. Supplying `-b` to the dispatcher or a compatible updating helper runs
+a complete source and payload transaction; it does not edit only the branch
+field.
 
-That recorded branch remains the source of truth for helper self-updates. If
+That recorded branch remains the source of truth for helper self-updates. A
+helper check records the exact available revision and pins the confirmed apply
+to it, so a channel movement between the two operations fails rather than
+installing an unreviewed revision. If
 it disappears upstream or cannot be verified, those updates stop without
 replacing files; they do not silently fetch `master`. The dispatcher is the
 explicit recovery path: `guild-deploy.sh -b <branch>` selects a replacement
-branch, while a dispatcher invocation whose selected or stored branch is
-unavailable warns, falls back to `master`, and records `master` if deployment
-continues successfully.
+branch or tag. Moving to a different public fork additionally requires
+`-a <account> -R`.
 
 ## Shared helpers and node adapters
 
@@ -190,17 +237,24 @@ The common `env` reads `.deployment.json`, loads shared functions, and then
 loads the selected adapter from `scripts/adapters/<implementation>.adapter`.
 Adapters declare capabilities and translate implementation-specific paths,
 process discovery, metrics, and local interfaces into the shared API.
-The common `env`, four common libraries, and selected adapter are staged and
-shell-validated as one bundle. Replacement is atomic as a bundle: a failed
-download, validation, move, or catchable termination restores the complete
-preceding runtime rather than leaving mixed generations.
+The common runtime is part of the complete, source-receipted deployment
+payload. A helper update check asks the installed dispatcher to compare and,
+after confirmation where applicable, replace the full compatible payload in
+one target transaction. It does not update `env`, one library, or one helper
+independently. Failed validation or activation restores the preceding
+generation rather than leaving mixed files.
 
 The former cnode-specific source URLs for `env`, gLiveView, and CNTools are
 retired rather than publishing duplicate copies or forwarders that cannot run
-inside an older flat deployment. An old helper checking one of those URLs gets
-an update failure and keeps its existing local file. Running the current
-`guild-deploy.sh` installs the complete canonical runtime before any helper is
-replaced.
+inside an older flat deployment. Do not raw-download an individual replacement
+from those paths. Running the current `guild-deploy.sh` installs the complete
+canonical runtime before any helper is replaced.
+
+Automatic helper refresh supports managed mode and explicitly selected cached
+mode. A deployment installed from a local or dirty checkout cannot safely
+reconstruct that checkout later, so its helpers stop with an exact dispatcher
+command to run. Re-run the installed dispatcher with `-S local -L` and add
+`-D` again when the selected checkout is dirty.
 
 Deploying a common runtime does not imply that every common tool is supported.
 Capability checks fail closed when an adapter cannot provide the required node

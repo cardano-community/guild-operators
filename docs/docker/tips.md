@@ -104,39 +104,29 @@ Persist both the live database and backup directory:
     node and verify the resulting data before treating this simple directory
     copy as a recovery plan. Test restoration before relying on it.
 
-## Runtime update checks
+## Immutable runtime and updates
 
 Implementation, network, and deployment root are immutable image properties
 recorded in `.deployment.json`. Runtime `NETWORK`, `NODE_IMPLEMENTATION`, and
 `NODE_HOME` values must agree with that manifest.
 
-`UPDATE_CHECK=N` is the default:
+`UPDATE_CHECK=N` is the required runtime policy:
 
-- cnode restores its selected network configuration from the image's `/conf`
-  cache before starting;
+- cnode copies its selected network configuration from the image's `/conf`
+  cache into a disposable runtime overlay before starting; container-specific
+  bind changes and node genesis-hash normalization affect only that overlay;
 - Dingo and Amaru use the native configuration installed when the image was
   built;
 - no helper or binary download occurs.
 
-With `UPDATE_CHECK=Y`, the entrypoint runs the installed `guild-deploy.sh`
-against the repository and branch recorded in `.deployment.json`. It refreshes
-compatible scripts and configuration but does not select a different
-implementation, change network, or install a new node binary.
-
-To opt in:
-
-```text
---env UPDATE_CHECK=Y
-```
-
-Advanced fork testing may also set `G_ACCOUNT` and `BRANCH`, but the selected
-source must contain a complete compatible deployment layout. The refresh
-updates the recorded source after it succeeds.
-
-To roll back scripts as well as configuration, recreate the container from a
-known image. Switching `UPDATE_CHECK` back to `N` restores cnode's cached
-configuration, but it does not undo scripts already changed in that
-container's writable layer.
+`UPDATE_CHECK=Y` is rejected before the node starts. An in-container source
+refresh would change the host payload receipt without rebuilding the
+separately cross-linked Docker supplement, leaving image provenance internally
+inconsistent. To update scripts, configuration, helpers, or node binaries,
+build or pull an image for a reviewed exact revision and recreate the
+container. Roll back the same way with a previously known image digest. The
+database and explicitly mounted operational state remain separate from that
+image replacement.
 
 ## Workflow builds from forks
 

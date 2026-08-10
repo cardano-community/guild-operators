@@ -39,6 +39,7 @@
 #KOIOS_API_TOKEN=""
 #DBSYNC_QUERY_FOLDER="${NODE_HOME}/files/dbsync/queries"
 #G_ACCOUNT="cardano-community"
+#GUILD_SOURCE_MODE=""                                  # Empty defaults helper refresh to managed; set cached only for explicit offline use
 #WALLET_FOLDER="${NODE_HOME}/priv/wallet"
 #POOL_FOLDER="${NODE_HOME}/priv/pool"
 #POOL_NAME=""
@@ -120,6 +121,24 @@ if [[ -e "${_deployment_manifest}" || -L "${_deployment_manifest}" ]]; then
     (.capabilities.localCli | type == "boolean") and
     (.capabilities.metrics | type == "boolean") and
     (.capabilities.forging | type == "boolean") and
+    (
+      (has("sourceSchemaVersion") | not) or
+      (
+        .sourceSchemaVersion == 1 and
+        (.sourceMode == "managed" or .sourceMode == "cached" or .sourceMode == "local") and
+        (.sourceRef | type == "string" and test("^refs/(heads|tags)/")) and
+        (.sourceRevision | type == "string" and test("^[0-9a-f]{40,64}$")) and
+        (.sourceDirty | type == "boolean") and
+        (
+          (.sourceDirty == false and (has("sourceTreeDigest") | not)) or
+          (.sourceDirty == true and .sourceMode == "local" and
+            (.sourceTreeDigest | type == "string" and test("^[0-9a-f]{64}$")))
+        ) and
+        (.payloadReceipt == ".guild-source-receipt.json") and
+        (.payloadReceiptSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+        (.transactionId | type == "string" and test("^[0-9a-f]{16,64}$"))
+      )
+    ) and
     (
       (
         .implementation == "cnode" and
@@ -302,13 +321,11 @@ esac
 node_adapter_defaults || return 1
 set_default_vars || return 1
 
-# set_default_vars creates shared aliases and update URLs. Reassert deployment
-# metadata values, which are authoritative for common updates.
+# Reassert deployment metadata values, which are authoritative for common
+# updates.
 NODE_HOME="${NODE_HOME:-${CNODE_HOME}}"
 CNODE_HOME="${CNODE_HOME:-${NODE_HOME}}"
 BRANCH="${GUILD_BRANCH_OVERRIDE:-${_deployment_branch:-${BRANCH:-master}}}"
-URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
-URL_DOCS="${URL_RAW}/docs/Scripts"
 
 if [[ "${ENV_PROFILE}" == "definitions" || "${ENV_PROFILE}" == "basic" ]]; then
   return 0

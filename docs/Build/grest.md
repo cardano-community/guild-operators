@@ -40,8 +40,8 @@ deploys the Koios query bundle pinned in that script.
 
 !!! note "Release selection"
     The current setup script pins Koios artifacts `v1.4.2`. Its `-b` option
-    selects and persists a Guild Operators source branch in
-    `${CNODE_HOME}/.deployment.json`; it does not select a Koios artifact
+    asks the installed dispatcher to apply a complete Guild payload from that
+    source branch and publish its receipt; it does not select a Koios artifact
     release. PostgREST `v14.10`, HAProxy `3.2.21`, and `pg_cardano` `1.2.0`
     are also constants owned by `setup-grest.sh`; they are not entries in the
     cnode release manifest.

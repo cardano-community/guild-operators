@@ -148,14 +148,13 @@ run_alternate_profile_test() (
   NODE_SERVICE="${implementation}-test"
   NETWORK="${network}"
   BRANCH="master"
-  URL_RAW="https://not-used.invalid"
   S_ARGS=""
   UPDATE_CHECK="N"
   SUDO="N"
   sudo=""
   unset NODE_PORT
   export HOME NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NODE_HOME NODE_SERVICE
-  export NETWORK BRANCH URL_RAW S_ARGS UPDATE_CHECK SUDO sudo
+  export NETWORK BRANCH S_ARGS UPDATE_CHECK SUDO sudo
 
   uname() {
     case "${1:-}" in
@@ -211,6 +210,11 @@ run_alternate_profile_test() (
   # the minimal dispatcher that downloads and sources them in production.
   # shellcheck source=/dev/null
   . "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh"
+  dispatcher_source_copy() {
+    local relative_path="$1"
+    local destination="$2"
+    cp -- "${REPO_ROOT}/${relative_path}" "${destination}"
+  }
   # Profiles normally delegate fatal errors to the dispatcher's exiting
   # handler. Tests need a return value so expected validation failures can be
   # asserted without terminating this isolated profile case.

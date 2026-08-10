@@ -37,9 +37,11 @@ on:
       - 'scripts/cnode-helper-scripts/**'
       - 'scripts/dingo-helper-scripts/**'
       - 'scripts/amaru-helper-scripts/**'
+      - 'scripts/grest-helper-scripts/**'
       - 'files/node-implementations/**'
       - 'files/configs/**'
       - 'files/docker/node/**'
+      - '.github/workflows/docker_bin.yml'
 
 jobs:
   set_environment_vars:
@@ -49,6 +51,7 @@ jobs:
       g_account: ${{ steps.set_g_account.outputs.g_account }}
       testing: ${{ steps.set_testing.outputs.testing }}
       short_sha: ${{ steps.set_short_sha.outputs.short_sha }}
+      full_sha: ${{ steps.set_short_sha.outputs.full_sha }}
       node_implementation: ${{ steps.set_node_identity.outputs.node_implementation }}
       node_network: ${{ steps.set_node_identity.outputs.node_network }}
       node_version: ${{ steps.set_node_version.outputs.node_version }}
@@ -91,13 +94,14 @@ jobs:
         esac
         echo "node_implementation=${node_implementation}" >> "$GITHUB_OUTPUT"
         echo "node_network=${node_network}" >> "$GITHUB_OUTPUT"
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ steps.set_guild_deploy_branch.outputs.guild_deploy_branch }}
     - name: Get short SHA
       id: set_short_sha
       run: |
         echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        echo "full_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
     - name: Get node version
       id: set_node_version
       run: |
@@ -126,9 +130,9 @@ jobs:
         IMAGE_TAGS="$IMAGE_NAME:latest,$IMAGE_NAME:$NODE_VERSION"
         echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
         echo "IMAGE_TAGS=$IMAGE_TAGS" >> $GITHUB_ENV
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
-        ref: ${{ needs.set_environment_vars.outputs.guild_deploy_branch }}
+        ref: ${{ needs.set_environment_vars.outputs.full_sha }}
     - name: Login to Dockerhub
       uses: docker/login-action@v3
       with:
@@ -145,6 +149,7 @@ jobs:
         build-args: |
           G_ACCOUNT=${{ needs.set_environment_vars.outputs.g_account }}
           GUILD_DEPLOY_BRANCH=${{ needs.set_environment_vars.outputs.guild_deploy_branch }}
+          GUILD_DEPLOY_REVISION=${{ needs.set_environment_vars.outputs.full_sha }}
           NODE_IMPLEMENTATION=${{ needs.set_environment_vars.outputs.node_implementation }}
           NODE_NETWORK=${{ needs.set_environment_vars.outputs.node_network }}
     - name: Add summary details
@@ -192,9 +197,9 @@ jobs:
         IMAGE_TAGS="$IMAGE_NAME:test$IDENTITY_SUFFIX,$IMAGE_NAME:$NODE_VERSION$IDENTITY_SUFFIX,$IMAGE_NAME:$GUILD_DEPLOY_BRANCH-$SHA$IDENTITY_SUFFIX"
         echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
         echo "IMAGE_TAGS=$IMAGE_TAGS" >> $GITHUB_ENV
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
-        ref: ${{ needs.set_environment_vars.outputs.guild_deploy_branch }}
+        ref: ${{ needs.set_environment_vars.outputs.full_sha }}
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v3
       with:
@@ -211,6 +216,7 @@ jobs:
         build-args: |
           G_ACCOUNT=${{ needs.set_environment_vars.outputs.g_account }}
           GUILD_DEPLOY_BRANCH=${{ needs.set_environment_vars.outputs.guild_deploy_branch }}
+          GUILD_DEPLOY_REVISION=${{ needs.set_environment_vars.outputs.full_sha }}
           NODE_IMPLEMENTATION=${{ needs.set_environment_vars.outputs.node_implementation }}
           NODE_NETWORK=${{ needs.set_environment_vars.outputs.node_network }}
     - name: Add summary details

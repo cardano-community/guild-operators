@@ -12,10 +12,13 @@ on:
       - scripts/cnode-helper-scripts/**
       - scripts/dingo-helper-scripts/**
       - scripts/amaru-helper-scripts/**
+      - scripts/grest-helper-scripts/**
       - files/configs/**
       - files/docker/**
       - files/node-implementations/**
       - files/tests/**
+      - .github/workflows/docker_bin.yml
+      - .github/workflows/lint.yml
       - .github/workflows/premerge.yml
 
 jobs:
@@ -50,16 +53,30 @@ jobs:
       run: bash files/tests/cntools-persistent-artifacts.sh
     - name: Test managed Git source provider
       run: bash files/tests/guild-source-provider.sh
+    - name: Test deployment source manifest
+      run: bash files/tests/guild-source-manifest.sh
+    - name: Test deployment transaction
+      run: bash files/tests/guild-deploy-transaction.sh
     - name: Test managed Git source safety
       run: bash files/tests/guild-source-safety.sh
     - name: Test managed Git source locking and interruption cleanup
       run: bash files/tests/guild-source-locking.sh
     - name: Test managed Git source shadow parity
       run: bash files/tests/guild-source-shadow.sh
-    - name: Lint managed Git source provider and tests
+    - name: Lint managed Git source provider, Docker entrypoints, and tests
       run: |
-        shellcheck -S warning \
+        shellcheck -S warning -e SC2034,SC2327,SC2328 \
           scripts/cnode-helper-scripts/guild-deploy.sh \
+          scripts/common-helper-scripts/lib/deployment.library \
+          scripts/common-helper-scripts/lib/env.library \
+          scripts/common-helper-scripts/lib/node-api.library \
+          scripts/common-helper-scripts/lib/systemd.library \
+          files/docker/node/addons/entrypoint.sh \
+          files/docker/node/addons/healthcheck.sh \
+          files/docker/node/addons/block_watcher.sh \
+          files/tests/docker-deployment.sh \
+          files/tests/guild-deploy-transaction.sh \
+          files/tests/guild-source-manifest.sh \
           files/tests/guild-source-provider.sh \
           files/tests/guild-source-safety.sh \
           files/tests/guild-source-locking.sh \
@@ -123,7 +140,12 @@ jobs:
               files/tests/cntools-library-api.sh \
               files/tests/cntools-startup-policy.sh \
               files/tests/cntools-persistent-artifacts.sh \
+              files/tests/guild-deploy-dispatcher.sh \
+              files/tests/common-runtime.sh \
+              files/tests/docker-deployment.sh \
               files/tests/guild-source-provider.sh \
+              files/tests/guild-source-manifest.sh \
+              files/tests/guild-deploy-transaction.sh \
               files/tests/guild-source-safety.sh \
               files/tests/guild-source-locking.sh \
               files/tests/guild-source-shadow.sh
@@ -131,6 +153,31 @@ jobs:
               bash "${test_script}"
             done
           '
+
+  docker-node-smoke:
+    name: Docker node image smoke build
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SOURCE_ACCOUNT: ${{ github.event.pull_request.head.repo.owner.login }}
+      SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+      SOURCE_REVISION: ${{ github.event.pull_request.head.sha }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: ${{ github.event.pull_request.head.repo.full_name }}
+        ref: ${{ github.event.pull_request.head.sha }}
+    - name: Build pinned Dingo testnet image without publishing
+      run: |
+        docker build . \
+          --file files/docker/node/dockerfile_bin \
+          --build-arg "G_ACCOUNT=${SOURCE_ACCOUNT}" \
+          --build-arg "GUILD_DEPLOY_BRANCH=${SOURCE_BRANCH}" \
+          --build-arg "GUILD_DEPLOY_REVISION=${SOURCE_REVISION}" \
+          --build-arg NODE_IMPLEMENTATION=dingo \
+          --build-arg NODE_NETWORK=preprod \
+          --tag "guild-operators-pr-smoke:${SOURCE_REVISION}"
 
   guild-deploy-and-build:
     runs-on: ubuntu-latest

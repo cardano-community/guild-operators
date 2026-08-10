@@ -63,6 +63,11 @@ amaru_deploy_validate_context() {
     amaru_deploy_fail "HOME must be an absolute path containing only deployment-safe characters"
     return 1
   }
+  declare -F dispatcher_prepare_profile_layout >/dev/null 2>&1 &&
+    declare -F dispatcher_validate_profile_layout >/dev/null 2>&1 || {
+    amaru_deploy_fail "The dispatcher secure-layout contract is unavailable"
+    return 1
+  }
   local configured_port="${NODE_PORT:-3000}"
   if [[ ! "${configured_port}" =~ ^[0-9]+$ ]] ||
      (( 10#${configured_port} < 1 || 10#${configured_port} > 65535 )); then
@@ -145,38 +150,45 @@ amaru_deploy_local_payload() {
 amaru_deploy_fetch() {
   local relative_path="$1"
   local destination="$2"
-  local local_payload=""
-  local_payload="$(amaru_deploy_local_payload "${relative_path}" 2>/dev/null || true)"
-  if [[ -n "${local_payload}" ]]; then
-    cp -- "${local_payload}" "${destination}"
-  else
-    [[ -n "${URL_RAW:-}" ]] || {
-      amaru_deploy_fail "URL_RAW is required when profile payloads are not available locally"
-      return 1
-    }
-    curl --fail --silent --show-error --location \
-      --connect-timeout "${CURL_TIMEOUT:-20}" \
-      --max-time "${CURL_TIMEOUT:-60}" \
-      "${URL_RAW}/${relative_path}" \
-      --output "${destination}"
+  declare -F dispatcher_source_copy >/dev/null 2>&1 || {
+    amaru_deploy_fail "The dispatcher source-copy contract is unavailable"
+    return 1
+  }
+  dispatcher_source_copy "${relative_path}" "${destination}"
+}
+
+amaru_deploy_check_network_change() {
+  local destination="${NODE_HOME}/scripts/amaru.env"
+  local current_network=""
+
+  [[ -f "${destination}" ]] || return 0
+  current_network="$(sed -n 's/^AMARU_NETWORK="\([^"]*\)".*/\1/p' \
+    "${destination}" | head -n 1)"
+  [[ -z "${current_network}" || "${current_network}" == "${NETWORK}" ]] &&
+    return 0
+  if [[ -d "${NODE_HOME}/chain" || -d "${NODE_HOME}/ledger" ]]; then
+    amaru_deploy_fail "Refusing network change from ${current_network} to ${NETWORK} while Amaru state exists; use a new NODE_HOME"
+    return 1
+  fi
+  if [[ "${AMARU_DEPLOY_FORCE_CONFIG:-N}" != "Y" ]]; then
+    amaru_deploy_fail "Existing Amaru config targets ${current_network}; use -s f to replace it before bootstrap"
+    return 1
   fi
 }
 
 amaru_deploy_prepare_layout() {
   amaru_deploy_progress "Creating Amaru relay layout" "${NODE_HOME}"
-  amaru_deploy_privileged mkdir -p \
-    "${NODE_HOME}" \
-    "${NODE_HOME}/files" \
-    "${NODE_HOME}/logs" \
-    "${NODE_HOME}/runtime" \
-    "${NODE_HOME}/snapshots" \
-    "${NODE_HOME}/scripts" \
-    "${NODE_HOME}/scripts/adapters" \
-    "${NODE_HOME}/scripts/archive" \
-    "${NODE_HOME}/scripts/lib" || return 1
+  dispatcher_prepare_profile_layout amaru_deploy_privileged || {
+    amaru_deploy_fail "Refusing to create an unsafe Amaru directory layout"
+    return 1
+  }
 
   local owner
   owner="$(id -u):$(id -g)"
+  dispatcher_validate_profile_layout || {
+    amaru_deploy_fail "Amaru directory layout changed before ownership setup"
+    return 1
+  }
   amaru_deploy_privileged chown "${owner}" \
     "${NODE_HOME}" \
     "${NODE_HOME}/files" \
@@ -353,6 +365,23 @@ amaru_deploy_validate_release_metadata() {
 
 amaru_deploy_install_payloads() {
   amaru_deploy_progress "Refreshing Amaru scripts and configuration" "${BRANCH:-master}"
+  if [[ "${DISPATCHER_TX_PREPARED:-N}" == "Y" ]]; then
+    amaru_deploy_check_network_change || return 1
+    dispatcher_distribution_activate || {
+      amaru_deploy_fail "The complete Amaru payload failed validation or activation"
+      return 1
+    }
+    amaru_deploy_validate_release_metadata \
+      "${NODE_HOME}/files/amaru-release.json" || return 1
+    PROFILE_TARGET_NODE_VERSION="$(jq -er '.version' "${NODE_HOME}/files/amaru-release.json")" || return 1
+    PROFILE_METRICS_PROVIDER="otel"
+    PROFILE_CAP_N2C="false"
+    PROFILE_CAP_LOCAL_CLI="false"
+    PROFILE_CAP_METRICS="true"
+    PROFILE_CAP_FORGING="false"
+    amaru_deploy_ok "Amaru scripts and configuration"
+    return 0
+  fi
   amaru_deploy_install_code_payload \
     "scripts/amaru-helper-scripts/amaru.sh" \
     "${NODE_HOME}/scripts/amaru.sh" 0755 || return 1

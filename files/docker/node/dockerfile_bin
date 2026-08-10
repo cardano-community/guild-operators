@@ -5,6 +5,7 @@ FROM debian:stable-slim
 ARG DEBIAN_FRONTEND=noninteractive
 ARG G_ACCOUNT=cardano-community
 ARG GUILD_DEPLOY_BRANCH=master
+ARG GUILD_DEPLOY_REVISION=
 ARG NODE_IMPLEMENTATION=cnode
 ARG NODE_NETWORK=mainnet
 
@@ -24,6 +25,8 @@ ENV \
     USER_HOME=/home/guild \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
     UPDATE_CHECK=N \
+    ENABLE_CHATTR=false \
+    ENABLE_DIALOG=false \
     SUDO=N
 
 # Keep immutable image identity separate from the compatibility variables that
@@ -49,40 +52,93 @@ RUN case "${IMAGE_NODE_IMPLEMENTATION}:${IMAGE_NODE_NETWORK}" in \
     esac
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y locales apt-utils curl wget udev jq ca-certificates \
+    && apt-get install --no-install-recommends -y locales apt-utils curl wget udev jq ca-certificates git \
     && apt-get -y clean \
     && rm -rf /var/lib/apt/lists/* \
     && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \
     && locale-gen \
     && useradd -m -U -s /bin/bash -c '' guild \
     && passwd -l guild \
-    && mkdir -p "${USER_HOME}/.local/bin" "${USER_HOME}/.scripts" /conf /var/lib/amaru \
+    && mkdir -p "${USER_HOME}/.cache" "${USER_HOME}/.local/bin" "${USER_HOME}/.scripts" /conf /var/lib/amaru \
     && chown guild:guild /var/lib/amaru
 
-# Install prerequisites first, then the selected node and its supported helper
-# set. cnode retains the historical full Docker payload; Dingo and Amaru use
-# their smaller experimental payloads accepted by their deployment profiles.
-RUN set -x \
-    && wget -O /guild-deploy.sh \
-      "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh" \
+# The build-context dispatcher is only a bootstrap seed. It prepares one
+# managed Git snapshot, hands execution to that snapshot's dispatcher, and the
+# complete node plus separately receipted Docker supplement comes from that
+# single revision.
+COPY scripts/cnode-helper-scripts/guild-deploy.sh /guild-deploy.sh
+
+RUN set -eux \
     && chmod 0755 /guild-deploy.sh \
-    && export CNODE_SKIP_DBSYNC_DOWNLOAD=Y G_ACCOUNT="${G_ACCOUNT}" \
-    && /guild-deploy.sh \
-      -i "${IMAGE_NODE_IMPLEMENTATION}" \
-      -n "${IMAGE_NODE_NETWORK}" \
-      -b "${GUILD_DEPLOY_BRANCH}" \
-      -s p \
+    && if ! printf '%s\n' "${GUILD_DEPLOY_REVISION}" \
+      | grep -Eq '^([0-9a-f]{40}|[0-9a-f]{64})$'; then \
+        printf '%s\n' \
+          'GUILD_DEPLOY_REVISION must be a full lowercase SHA-1 or SHA-256 commit ID.' >&2; \
+        exit 1; \
+      fi \
+    && docker_export=/var/tmp/guild-docker-export \
     && case "${IMAGE_NODE_IMPLEMENTATION}" in \
       cnode) install_flags=dcmowx ;; \
       dingo|amaru) install_flags=dfs ;; \
     esac \
+    && export CNODE_SKIP_DBSYNC_DOWNLOAD=Y G_ACCOUNT="${G_ACCOUNT}" \
+      GUILD_SOURCE_CACHE_ROOT=/var/cache/guild-operators \
+      GUILD_SOURCE_EXPECT_REVISION="${GUILD_DEPLOY_REVISION}" \
     && /guild-deploy.sh \
       -i "${IMAGE_NODE_IMPLEMENTATION}" \
       -n "${IMAGE_NODE_NETWORK}" \
+      -a "${G_ACCOUNT}" \
       -b "${GUILD_DEPLOY_BRANCH}" \
-      -s "${install_flags}" \
+      -S managed \
+      -s "p${install_flags}" \
+      -E "${docker_export}" \
+    && source_revision="$(jq -er '.sourceRevision' "${IMAGE_NODE_HOME}/.deployment.json")" \
+    && [ "${source_revision}" = "${GUILD_DEPLOY_REVISION}" ] \
+    && cp -a "${docker_export}/rootfs/." / \
+    && mkdir -p /usr/share/guild-operators \
+    && install -m 0644 "${docker_export}/docker-source-receipt.json" \
+      /usr/share/guild-operators/docker-source-receipt.json \
+    && install -m 0644 "${docker_export}/docker-source-receipt.sha256" \
+      /usr/share/guild-operators/docker-source-receipt.sha256 \
+    && host_receipt_hash="$(sha256sum "${IMAGE_NODE_HOME}/.guild-source-receipt.json" | awk '{print $1}')" \
+    && jq -e --arg revision "${source_revision}" --arg host_hash "${host_receipt_hash}" \
+      '.source.revision == $revision and .hostPayloadReceiptSha256 == $host_hash' \
+      /usr/share/guild-operators/docker-source-receipt.json >/dev/null \
+    && (cd /usr/share/guild-operators && sha256sum -c docker-source-receipt.sha256) \
+    && receipt_files=/var/tmp/guild-docker-receipt-files.tsv \
+    && jq -er '
+      def valid_file:
+        type == "object" and
+        keys == ["exportedSha256", "mode", "path", "source", "sourceSha256"] and
+        (.source | type == "string" and test("^(scripts|files)/")) and
+        (.path | type == "string" and
+          test("^/[A-Za-z0-9._/+@:-]+$") and
+          (contains("//") | not) and
+          ((contains("\t") or contains("\r") or contains("\n")) | not) and
+          (split("/") | all(. != "." and . != ".."))) and
+        (.mode == "0644" or .mode == "0755") and
+        (.sourceSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+        (.exportedSha256 == .sourceSha256);
+      if ((.files | type == "array" and length > 0) and
+          all(.files[]; valid_file) and
+          ((.files | map(.path) | length) ==
+           (.files | map(.path) | unique | length)))
+      then .files[] | [.path, .mode, .exportedSha256] | @tsv
+      else error("invalid or empty Docker supplement file inventory")
+      end
+    ' /usr/share/guild-operators/docker-source-receipt.json > "${receipt_files}" \
+    && [ -s "${receipt_files}" ] \
+    && while IFS="$(printf '\t')" read -r final_path final_mode final_hash; do \
+          [ -f "${final_path}" ] && [ ! -L "${final_path}" ] || exit 1; \
+          [ "$(sha256sum "${final_path}" | awk '{print $1}')" = "${final_hash}" ] || exit 1; \
+          [ "$(stat -c '%a' "${final_path}")" = "${final_mode#0}" ] || exit 1; \
+        done < "${receipt_files}" \
+    && printf '%s\n' "${source_revision}" > "${USER_HOME}/guild-latest.txt" \
     && mkdir -p "${IMAGE_NODE_HOME}/priv/files" \
-    && chown -R guild:guild "${IMAGE_NODE_HOME}" "${USER_HOME}" \
+    && chmod -R a+rX /conf \
+    && chown -R guild:guild "${IMAGE_NODE_HOME}" "${USER_HOME}" /conf \
+    && rm -rf /var/cache/guild-operators "${docker_export}" "${receipt_files}" \
+    && rm -f /guild-deploy.sh \
     && apt-get -y clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -99,49 +155,10 @@ RUN apt-get update \
     && apt-get -y clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Retain the cnode configuration cache used by the container entrypoint. The
-# alternate profiles install their implementation-native files directly.
-RUN if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ]; then \
-      for network in guild mainnet preprod preview; do \
-        mkdir -p "/conf/${network}"; \
-        for file in alonzo-genesis.json byron-genesis.json conway-genesis.json shelley-genesis.json config.json db-sync-config.json topology.json; do \
-          curl --fail --silent --show-error --location \
-            --output "/conf/${network}/${file}" \
-            "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/configs/cnode/${network}/${file}"; \
-        done; \
-      done; \
-    fi
-
-# Common container assets.
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/banner.txt ${USER_HOME}/.scripts/banner.txt
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/healthcheck.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh ${IMAGE_NODE_HOME}/scripts/
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/entrypoint.sh ${USER_HOME}/entrypoint.sh
-
-# These helpers are still cnode-only. Downloading them conditionally avoids
-# making an alternate-node image appear to support unverified tooling.
-RUN if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ]; then \
-      for helper in mithril-client.sh mithril-signer.sh mithril-relay.sh; do \
-        curl --fail --silent --show-error --location \
-          --output "${IMAGE_NODE_HOME}/scripts/${helper}" \
-          "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/${helper}"; \
-      done; \
-      curl --fail --silent --show-error --location \
-        --output "${USER_HOME}/.scripts/block_watcher.sh" \
-        "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/block_watcher.sh"; \
-    fi \
-    && chmod 0755 "${USER_HOME}/entrypoint.sh" \
-    && find "${USER_HOME}/.scripts" "${IMAGE_NODE_HOME}/scripts" -type f -name '*.sh' -exec chmod 0755 {} + \
-    && chmod -R a+rX /conf \
-    && chown -R guild:guild "${USER_HOME}" "${IMAGE_NODE_HOME}" /conf
-
 USER guild
 WORKDIR ${USER_HOME}
 
-RUN curl --fail --silent --show-error --location \
-      "https://api.github.com/repos/${G_ACCOUNT}/guild-operators/commits?sha=${GUILD_DEPLOY_BRANCH}&per_page=1" \
-      | jq -r '.[0].sha // "unknown"' > "${USER_HOME}/guild-latest.txt" \
-    && echo "head -n 8 ${USER_HOME}/.scripts/banner.txt" >> "${USER_HOME}/.bashrc" \
+RUN echo "head -n 8 ${USER_HOME}/.scripts/banner.txt" >> "${USER_HOME}/.bashrc" \
     && echo "grep MENU -A 6 ${USER_HOME}/.scripts/banner.txt | grep -v MENU" >> "${USER_HOME}/.bashrc" \
     && echo "alias env=/usr/bin/env" >> "${USER_HOME}/.bashrc" \
     && echo "alias node=${IMAGE_NODE_HOME}/scripts/${IMAGE_NODE_IMPLEMENTATION}.sh" >> "${USER_HOME}/.bashrc" \

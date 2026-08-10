@@ -226,6 +226,7 @@ The default target remains `/opt/cardano/cnode`:
 ```text
 /opt/cardano/cnode/
 ├── .deployment.json
+├── .guild-source-receipt.json
 ├── db/
 ├── files/
 │   ├── cnode-release.json

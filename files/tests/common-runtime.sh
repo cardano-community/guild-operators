@@ -71,7 +71,7 @@ done
 run_manifest_tests() (
   local node_root="${TEST_ROOT}/runtime-test"
   local manifest="${node_root}/.deployment.json"
-  local inode_before inode_after valid_content invalid
+  local valid_content invalid
   mkdir -p "${node_root}"
 
   jq -n '{
@@ -100,10 +100,6 @@ run_manifest_tests() (
   NODE_HOME="${node_root}"
   # shellcheck source=/dev/null
   . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
-  deployment_branch_exists() {
-    [[ "${1:-}" == "feature/common-runtime" ]]
-  }
-
   assert_eq "$(deployment_get implementation)" "dingo" "implementation read"
   assert_eq "$(deployment_get network)" "preprod" "network read"
   assert_eq "$(deployment_get branch)" "alpha" "branch read"
@@ -115,36 +111,9 @@ run_manifest_tests() (
     fail "deployment_get unexpectedly found a missing key"
   fi
 
-  inode_before="$(ls -di "${manifest}" | awk '{print $1}')"
-  deployment_set_branch "feature/common-runtime"
-  inode_after="$(ls -di "${manifest}" | awk '{print $1}')"
-  [[ "${inode_before}" != "${inode_after}" ]] ||
-    fail "branch update did not atomically replace the manifest"
-
-  assert_eq "$(deployment_get branch)" "feature/common-runtime" "updated branch"
-  jq -e '
-    .schemaVersion == 1 and
-    .deploymentStatus == "deployed" and
-    .implementation == "dingo" and
-    .network == "preprod" and
-    .serviceName == "runtime-test" and
-    .metricsProvider == "prometheus" and
-    .capabilities.n2c == true and
-    .capabilities.forging == true and
-    .preserved.string == "keep-me" and
-    .preserved.list == [1, 2, 3]
-  ' "${manifest}" >/dev/null || fail "branch update did not preserve manifest fields"
-  if find "${node_root}" -maxdepth 1 -name '.deployment.json.tmp.*' -print -quit |
-     grep -q .; then
-    fail "branch update left a staged manifest behind"
-  fi
-
   valid_content="$(cat "${manifest}")"
-  if deployment_set_branch "feature/not-on-remote" >/dev/null 2>&1; then
-    fail "branch update accepted a branch rejected by the remote validator"
-  fi
-  assert_file_unchanged "${manifest}" "${valid_content}" \
-    "remote branch rejection changed the manifest"
+  deployment_branch_valid "feature/common-runtime" ||
+    fail "valid deployment branch was rejected"
 
   for invalid in \
     "" \
@@ -658,632 +627,612 @@ run_cnode_metrics_url_tests() (
   fi
 )
 
-run_exact_update_tests() (
-  local update_root="${TEST_ROOT}/exact-update"
-  local fake_bin="${update_root}/bin"
-  local node_root="${update_root}/node"
-  local target="${update_root}/immutable.library"
-  local installed="${update_root}/new.adapter"
-  local remote="${update_root}/remote"
-  local inode_before inode_after update_status
-  mkdir -p "${fake_bin}" "${node_root}"
+run_dispatcher_refresh_tests() (
+  local suite_root="${TEST_ROOT}/dispatcher-refresh"
+  local controller="${suite_root}/fake-dispatcher-controller.sh"
+  local fake_bin="${suite_root}/bin"
+  mkdir -p "${fake_bin}"
 
-  printf '%s\n' \
-    '#!/usr/bin/env bash' \
-    'set -euo pipefail' \
-    'output=""' \
-    'url=""' \
-    'while (( $# > 0 )); do' \
-    '  case "$1" in' \
-    '    -o) output="$2"; shift 2 ;;' \
-    '    -m) shift 2 ;;' \
-    '    -*) shift ;;' \
-    '    *) url="$1"; shift ;;' \
-    '  esac' \
-    'done' \
-    '[[ -n "${output}" ]]' \
-    'if [[ "${FAKE_CURL_FAIL_LICENSE:-N}" == "Y" && "${url}" == */LICENSE ]]; then' \
-    '  exit 22' \
-    'fi' \
-    'if [[ -n "${FAKE_CURL_EXPECT_FRAGMENT:-}" && "${url}" != *"${FAKE_CURL_EXPECT_FRAGMENT}"* ]]; then' \
-    '  exit 23' \
-    'fi' \
-    'if [[ -n "${FAKE_CURL_SOURCE:-}" ]]; then' \
-    '  cp -- "${FAKE_CURL_SOURCE}" "${output}"' \
-    'else' \
-    '  relative="${url#*/scripts/}"' \
-    '  cp -- "${FAKE_CURL_ROOT}/${relative}" "${output}"' \
-    'fi' \
-    > "${fake_bin}/curl"
+  cat > "${controller}" <<'CONTROLLER'
+#!/usr/bin/env bash
+set -euo pipefail
+
+phase=apply
+[[ "${GUILD_SOURCE_CHECK_ONLY:-N}" == "Y" ]] && phase=check
+{
+  printf '%s' "${phase}"
+  printf '\t%s' "$@"
+  printf '\n'
+} >> "${FAKE_DISPATCHER_LOG:?}"
+
+implementation=""
+network=""
+node_parent=""
+node_name=""
+branch=""
+account=""
+source_mode=""
+while (( $# > 0 )); do
+  case "$1" in
+    -i) implementation="$2"; shift 2 ;;
+    -n) network="$2"; shift 2 ;;
+    -p) node_parent="$2"; shift 2 ;;
+    -t) node_name="$2"; shift 2 ;;
+    -b) branch="$2"; shift 2 ;;
+    -a) account="$2"; shift 2 ;;
+    -S) source_mode="$2"; shift 2 ;;
+    -s) shift 2 ;;
+    -u) shift ;;
+    *) exit 64 ;;
+  esac
+done
+[[ "${implementation}" == "cnode" && "${network}" == "mainnet" ]]
+[[ -n "${node_parent}" && -n "${node_name}" && -n "${branch}" ]]
+[[ -n "${account}" && -n "${source_mode}" ]]
+node_root="${node_parent}/${node_name}"
+manifest="${node_root}/.deployment.json"
+receipt="${node_root}/.guild-source-receipt.json"
+candidate="${FAKE_DISPATCHER_CANDIDATE:?}"
+candidate_revision="$(jq -er '.sourceRevision' \
+  "${candidate}/.deployment.json")"
+
+receipt_matches_manifest() {
+  local expected actual
+  [[ -f "${manifest}" && ! -L "${manifest}" &&
+     -f "${receipt}" && ! -L "${receipt}" ]] || return 1
+  expected="$(jq -er '.payloadReceiptSha256' "${manifest}")" || return 1
+  actual="$(sha256sum -- "${receipt}" | awk '{print $1}')" || return 1
+  [[ "${actual}" == "${expected}" ]]
+}
+
+if [[ "${phase}" == "check" ]]; then
+  if [[ "${FAKE_REFUSE_RECEIPT_DRIFT:-N}" == "Y" ]] &&
+     ! receipt_matches_manifest; then
+    exit 65
+  fi
+  printf '%s\n' "${candidate_revision}"
+  exit "${FAKE_CHECK_STATUS:-0}"
+fi
+
+if [[ "${FAKE_REFUSE_RECEIPT_DRIFT:-N}" == "Y" ]] &&
+   ! receipt_matches_manifest; then
+  exit 65
+fi
+[[ "${GUILD_SOURCE_EXPECT_REVISION:-}" =~ ^[0-9a-f]{40,64}$ ]]
+[[ "${GUILD_SOURCE_EXPECT_REVISION}" == \
+   "${FAKE_APPLY_REVISION_OVERRIDE:-${candidate_revision}}" ]] || exit 66
+[[ "$(jq -r '.implementation' "${candidate}/.deployment.json")" == "${implementation}" ]]
+[[ "$(jq -r '.network' "${candidate}/.deployment.json")" == "${network}" ]]
+[[ "$(jq -r '.branch' "${candidate}/.deployment.json")" == "${branch}" ]]
+[[ "$(jq -r '.repository' "${candidate}/.deployment.json")" == "${account}/guild-operators" ]]
+[[ "$(jq -r '.sourceMode' "${candidate}/.deployment.json")" == "${source_mode}" ]]
+
+mkdir -p "${node_root}/payload" "${node_root}/scripts"
+cp -- "${candidate}/payload/alpha" "${node_root}/payload/alpha"
+printf 'payload-alpha\t%s\n' "$(jq -r '.branch' "${manifest}")" \
+  >> "${FAKE_DISPATCHER_EVENT_LOG:?}"
+cp -- "${candidate}/payload/beta" "${node_root}/payload/beta"
+printf 'payload-beta\t%s\n' "$(jq -r '.branch' "${manifest}")" \
+  >> "${FAKE_DISPATCHER_EVENT_LOG}"
+cp -- "${candidate}/scripts/guild-deploy.sh" \
+  "${node_root}/scripts/guild-deploy.sh"
+chmod 0755 "${node_root}/scripts/guild-deploy.sh"
+printf 'dispatcher\t%s\n' "$(jq -r '.branch' "${manifest}")" \
+  >> "${FAKE_DISPATCHER_EVENT_LOG}"
+cp -- "${candidate}/.guild-source-receipt.json" "${receipt}"
+printf 'receipt\t%s\n' "$(jq -r '.branch' "${manifest}")" \
+  >> "${FAKE_DISPATCHER_EVENT_LOG}"
+cp -- "${candidate}/.deployment.json" "${manifest}"
+printf 'metadata\t%s\n' "$(jq -r '.branch' "${manifest}")" \
+  >> "${FAKE_DISPATCHER_EVENT_LOG}"
+CONTROLLER
+  chmod 0755 "${controller}"
+
+  cat > "${fake_bin}/curl" <<'FAKE_CURL'
+#!/usr/bin/env bash
+printf 'called\n' >> "${FAKE_CURL_LOG:?}"
+exit 97
+FAKE_CURL
   chmod 0755 "${fake_bin}/curl"
-
-  printf '%s\n' '# immutable runtime' 'version=1' > "${remote}"
-  cp "${remote}" "${target}"
-  chmod 0644 "${target}"
-
   PATH="${fake_bin}:${PATH}"
   export PATH
-  FAKE_CURL_SOURCE="${remote}"
-  export FAKE_CURL_SOURCE
-  UPDATE_CHECK=Y
-  OFFLINE_MODE=N
-  NODE_HOME="${node_root}"
-  BRANCH=master
-  URL_RAW="https://invalid.example/common-runtime"
-  CURL_TIMEOUT=1
-  FG_YELLOW=""
-  NC=""
-  # shellcheck source=/dev/null
-  . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
-  # shellcheck source=/dev/null
-  . "${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library"
-  assert_eq "${COMMON_RUNTIME_UPDATE_API_VERSION}" "1" \
-    "common runtime updater API version"
-  declare -F checkCommonRuntimeUpdates >/dev/null ||
-    fail "central common runtime updater is unavailable"
 
-  inode_before="$(ls -di "${target}" | awk '{print $1}')"
-  if checkUpdate "${target}" N N N "common-helper-scripts/lib" exact; then
-    update_status=0
-  else
-    update_status=$?
-  fi
-  assert_eq "${update_status}" "0" "identical immutable update status"
-  inode_after="$(ls -di "${target}" | awk '{print $1}')"
-  assert_eq "${inode_after}" "${inode_before}" \
-    "identical immutable update rewrote the target"
-  [[ ! -e "${target}.tmp" ]] ||
-    fail "identical immutable update left a temporary file"
-  if find "${update_root}" -name '.immutable.library.update.*' -print -quit |
-     grep -q .; then
-    fail "identical immutable update left a unique staging file"
-  fi
-  [[ ! -d "${update_root}/archive" ]] ||
-    fail "identical immutable update created an archive"
-
-  BRANCH="retired-test-branch"
-  G_ACCOUNT="bundle-test-account"
-  URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
-  FAKE_CURL_FAIL_LICENSE=Y
-  FAKE_CURL_EXPECT_FRAGMENT="/${G_ACCOUNT}/guild-operators/master/"
-  export FAKE_CURL_FAIL_LICENSE FAKE_CURL_EXPECT_FRAGMENT G_ACCOUNT
-  if checkUpdate "${target}" N N N "common-helper-scripts/lib" exact; then
-    update_status=0
-  else
-    update_status=$?
-  fi
-  assert_eq "${update_status}" "0" "legacy dead-branch fallback update status"
-  assert_eq "${BRANCH}" "master" "legacy dead-branch fallback branch"
-  assert_eq "${URL_RAW}" \
-    "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/master" \
-    "legacy dead-branch fallback raw URL"
-  unset FAKE_CURL_FAIL_LICENSE FAKE_CURL_EXPECT_FRAGMENT
-
-  BRANCH="retired-test-branch"
-  URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
-  write_deployment_manifest "${NODE_HOME}" cnode mainnet "${BRANCH}"
-  FAKE_CURL_FAIL_LICENSE=Y
-  export FAKE_CURL_FAIL_LICENSE
-  if checkUpdate "${target}" N N N "common-helper-scripts/lib" exact \
-       >/dev/null 2>&1; then
-    update_status=0
-  else
-    update_status=$?
-  fi
-  assert_eq "${update_status}" "2" \
-    "manifest-backed dead-branch update status"
-  assert_eq "${BRANCH}" "retired-test-branch" \
-    "manifest-backed dead-branch source identity"
-  assert_eq "${URL_RAW}" \
-    "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/retired-test-branch" \
-    "manifest-backed dead-branch raw URL"
-  assert_eq "$(jq -r '.branch' "${NODE_HOME}/.deployment.json")" \
-    "retired-test-branch" "manifest-backed update changed deployment metadata"
-  assert_file_unchanged "${target}" "$(cat "${remote}")" \
-    "manifest-backed dead-branch update changed the target"
-  if find "${update_root}" -name '.immutable.library.update.*' -print -quit |
-     grep -q .; then
-    fail "manifest-backed dead-branch update left a unique staging file"
-  fi
-  rm -f -- "${NODE_HOME}/.deployment.json"
-  unset FAKE_CURL_FAIL_LICENSE
-
-  ln -s "missing-deployment-manifest" "${NODE_HOME}/.deployment.json"
-  FAKE_CURL_FAIL_LICENSE=Y
-  export FAKE_CURL_FAIL_LICENSE
-  if checkUpdate "${target}" N N N "common-helper-scripts/lib" exact \
-       >/dev/null 2>&1; then
-    update_status=0
-  else
-    update_status=$?
-  fi
-  assert_eq "${update_status}" "2" \
-    "dangling manifest symlink dead-branch update status"
-  assert_eq "${BRANCH}" "retired-test-branch" \
-    "dangling manifest symlink changed update source identity"
-  [[ -L "${NODE_HOME}/.deployment.json" ]] ||
-    fail "dangling manifest symlink was removed by the rejected update"
-  rm -f -- "${NODE_HOME}/.deployment.json"
-  unset FAKE_CURL_FAIL_LICENSE
-
-  G_ACCOUNT="cardano-community"
-  URL_RAW="https://invalid.example/common-runtime"
-  export G_ACCOUNT
-
-  FAKE_CURL_SOURCE="${update_root}/missing-download"
-  export FAKE_CURL_SOURCE
-  if checkUpdate "${target}" Y N N "common-helper-scripts/lib" exact; then
-    update_status=0
-  else
-    update_status=$?
-  fi
-  assert_eq "${update_status}" "2" "failed immutable download status"
-  if find "${update_root}" -name '.immutable.library.update.*' -print -quit |
-     grep -q .; then
-    fail "failed immutable download left a unique staging file"
-  fi
-  [[ ! -e "${target}.tmp" ]] ||
-    fail "failed immutable download left a fixed temporary file"
-
-  FAKE_CURL_SOURCE="${remote}"
-  export FAKE_CURL_SOURCE
-  printf '%s\n' '# immutable runtime' 'version=2' > "${remote}"
-  if checkUpdate "${target}" Y N N "common-helper-scripts/lib" exact; then
-    update_status=0
-  else
-    update_status=$?
-  fi
-  assert_eq "${update_status}" "1" "changed immutable update status"
-  cmp -s "${target}" "${remote}" ||
-    fail "changed immutable update was not copied exactly"
-  find "${target}" -prune -perm 0644 -print -quit | grep -q . ||
-    fail "changed immutable update did not retain mode 0644"
-  find "${update_root}/archive" -maxdepth 1 -type f \
-    -name 'immutable.library_bkp*' -print -quit | grep -q . ||
-    fail "changed immutable update was not archived"
-  if find "${update_root}" -name '.immutable.library.update.*' -print -quit |
-     grep -q .; then
-    fail "changed immutable update left a unique staging file"
-  fi
-
-  if checkUpdate "${installed}" Y N N "cnode-helper-scripts" exact; then
-    update_status=0
-  else
-    update_status=$?
-  fi
-  assert_eq "${update_status}" "1" "missing immutable install status"
-  cmp -s "${installed}" "${remote}" ||
-    fail "missing immutable target was not installed exactly"
-  find "${installed}" -prune -perm 0644 -print -quit | grep -q . ||
-    fail "missing immutable target was not installed with mode 0644"
-
-  local bundle_root="${update_root}/bundle"
-  mkdir -p "${bundle_root}/scripts/lib" "${bundle_root}/scripts/adapters"
-  cp "${REPO_ROOT}/scripts/common-helper-scripts/env" \
-    "${bundle_root}/scripts/env"
-  cp "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library" \
-    "${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library" \
-    "${REPO_ROOT}/scripts/common-helper-scripts/lib/node-api.library" \
-    "${REPO_ROOT}/scripts/common-helper-scripts/lib/systemd.library" \
-    "${bundle_root}/scripts/lib/"
-  cp "${REPO_ROOT}/scripts/cnode-helper-scripts/cnode.adapter" \
-    "${bundle_root}/scripts/adapters/cnode.adapter"
-  chmod 0644 \
-    "${bundle_root}/scripts/env" \
-    "${bundle_root}/scripts/lib/"*.library \
-    "${bundle_root}/scripts/adapters/cnode.adapter"
-
-  unset FAKE_CURL_SOURCE
-  FAKE_CURL_ROOT="${REPO_ROOT}/scripts"
-  export FAKE_CURL_ROOT
-  PARENT="${bundle_root}/scripts"
-  NODE_HOME="${bundle_root}"
-  NODE_IMPLEMENTATION="cnode"
-  NODE_ADAPTER_FILE="${bundle_root}/scripts/adapters/cnode.adapter"
-  inode_before="$(ls -di "${bundle_root}/scripts/lib/deployment.library" | awk '{print $1}')"
-  set +u
-  if checkCommonRuntimeUpdates Y; then
-    update_status=0
-  else
-    update_status=$?
-  fi
-  set -u
-  assert_eq "${update_status}" "0" "identical common runtime bundle status"
-  inode_after="$(ls -di "${bundle_root}/scripts/lib/deployment.library" | awk '{print $1}')"
-  assert_eq "${inode_after}" "${inode_before}" \
-    "identical common runtime bundle rewrote an immutable component"
-  if find "${bundle_root}/scripts" -type d -name archive -print -quit | grep -q .; then
-    fail "identical common runtime bundle created an archive"
-  fi
-)
-
-run_bundle_transaction_tests() (
-  local transaction_root="${TEST_ROOT}/bundle-transactions"
-  local fake_bin="${transaction_root}/bin"
-  local fake_mv_bin="${transaction_root}/mv-bin"
-  local fake_lock_bin="${transaction_root}/lock-bin"
-  local real_mv
-  local status before after prompt_count prompt_message target
-  local bundle_root remote_root curl_counter prompt_counter mv_counter
-  mkdir -p "${fake_bin}" "${fake_mv_bin}" "${fake_lock_bin}"
-
-  real_mv="$(command -v mv)"
-
-  printf '%s\n' \
-    '#!/usr/bin/env bash' \
-    'set -euo pipefail' \
-    'output=""' \
-    'url=""' \
-    'while (( $# > 0 )); do' \
-    '  case "$1" in' \
-    '    -o) output="$2"; shift 2 ;;' \
-    '    -m) shift 2 ;;' \
-    '    -*) shift ;;' \
-    '    *) url="$1"; shift ;;' \
-    '  esac' \
-    'done' \
-    '[[ -n "${output}" ]]' \
-    'if [[ "${FAKE_CURL_FAIL_LICENSE:-N}" == "Y" && "${url}" == */LICENSE ]]; then' \
-    '  exit 22' \
-    'fi' \
-    'if [[ -n "${FAKE_CURL_EXPECT_FRAGMENT:-}" && "${url}" != *"${FAKE_CURL_EXPECT_FRAGMENT}"* ]]; then' \
-    '  exit 23' \
-    'fi' \
-    'count=0' \
-    '[[ ! -f "${FAKE_CURL_COUNTER}" ]] || read -r count < "${FAKE_CURL_COUNTER}"' \
-    'count=$((count + 1))' \
-    'printf "%s\\n" "${count}" > "${FAKE_CURL_COUNTER}"' \
-    'if [[ -n "${FAKE_CURL_FAIL_AT:-}" && "${count}" -eq "${FAKE_CURL_FAIL_AT}" ]]; then' \
-    '  exit 22' \
-    'fi' \
-    'relative="${url#*/scripts/}"' \
-    'cp -- "${FAKE_CURL_ROOT}/${relative}" "${output}"' \
-    > "${fake_bin}/curl"
-  chmod 0755 "${fake_bin}/curl"
-
-  printf '%s\n' \
-    '#!/usr/bin/env bash' \
-    'set -euo pipefail' \
-    'count=0' \
-    '[[ ! -f "${FAKE_MV_COUNTER}" ]] || read -r count < "${FAKE_MV_COUNTER}"' \
-    'count=$((count + 1))' \
-    'printf "%s\\n" "${count}" > "${FAKE_MV_COUNTER}"' \
-    'if [[ "${count}" -eq "${FAKE_MV_FAIL_AT}" ]]; then' \
-    '  exit 73' \
-    'fi' \
-    'if [[ -n "${FAKE_MV_SIGNAL_AT:-}" && "${count}" -eq "${FAKE_MV_SIGNAL_AT}" ]]; then' \
-    '  "${FAKE_MV_REAL}" "$@"' \
-    '  kill -TERM "${PPID}"' \
-    '  sleep 0.1' \
-    '  exit 0' \
-    'fi' \
-    'exec "${FAKE_MV_REAL}" "$@"' \
-    > "${fake_mv_bin}/mv"
-  chmod 0755 "${fake_mv_bin}/mv"
-
-  printf '%s\n' \
-    '#!/usr/bin/env bash' \
-    'exit 1' \
-    > "${fake_lock_bin}/flock"
-  chmod 0755 "${fake_lock_bin}/flock"
-
-  bundle_paths() {
-    printf '%s\n' \
-      "${bundle_root}/scripts/lib/deployment.library" \
-      "${bundle_root}/scripts/lib/env.library" \
-      "${bundle_root}/scripts/lib/node-api.library" \
-      "${bundle_root}/scripts/lib/systemd.library" \
-      "${bundle_root}/scripts/adapters/cnode.adapter" \
-      "${bundle_root}/scripts/env"
+  write_fake_dispatcher() {
+    local target="$1"
+    cat > "${target}" <<'DISPATCHER'
+#!/usr/bin/env bash
+set -euo pipefail
+dispatcher_prepare_source_and_handoff() { :; }
+dispatcher_distribution_prepare() { :; }
+# GUILD_SOURCE_CHECK_ONLY is the source-comparison contract marker.
+exec "${BASH}" "${FAKE_DISPATCHER_CONTROLLER:?}" "$@"
+DISPATCHER
+    chmod 0755 "${target}"
   }
 
-  bundle_snapshot() {
-    while IFS= read -r target; do
-      printf '%s ' "$(basename "${target}")"
-      ls -ld "${target}" | awk '{printf "%s ", $1}'
-      sha256sum "${target}" | awk '{print $1}'
-    done < <(bundle_paths)
+  publish_source_fixture() {
+    local node_root="$1"
+    local branch="$2"
+    local source_mode="$3"
+    local source_dirty="$4"
+    local version="$5"
+    local service_name="${6:-$(basename "${node_root}" | tr '[:upper:]' '[:lower:]')}"
+    local receipt="${node_root}/.guild-source-receipt.json"
+    local manifest="${node_root}/.deployment.json"
+    local inventory="${node_root}/.receipt-files.ndjson"
+    local relative_path file mode digest revision ref tree_digest receipt_hash
+
+    mkdir -p "${node_root}/payload" "${node_root}/scripts"
+    printf 'payload-alpha=%s\n' "${version}" > "${node_root}/payload/alpha"
+    printf 'payload-beta=%s\n' "${version}" > "${node_root}/payload/beta"
+    chmod 0644 "${node_root}/payload/alpha" "${node_root}/payload/beta"
+    write_fake_dispatcher "${node_root}/scripts/guild-deploy.sh"
+
+    : > "${inventory}"
+    for relative_path in \
+      payload/alpha \
+      payload/beta \
+      scripts/guild-deploy.sh; do
+      file="${node_root}/${relative_path}"
+      case "${relative_path}" in
+        scripts/*) mode=0755 ;;
+        *) mode=0644 ;;
+      esac
+      digest="$(sha256sum -- "${file}" | awk '{print $1}')"
+      jq -cn \
+        --arg path "${relative_path}" \
+        --arg mode "${mode}" \
+        --arg digest "${digest}" \
+        '{
+          path: $path,
+          source: $path,
+          mode: $mode,
+          policy: "exact",
+          sourceSha256: $digest,
+          installedSha256: $digest,
+          managed: true
+        }' >> "${inventory}"
+    done
+
+    revision="$(printf '%s' "${branch}:${version}" | sha256sum | awk '{print $1}')"
+    revision="${revision:0:40}"
+    ref="refs/heads/${branch}"
+    tree_digest="$(printf '%s' "${branch}:${version}:dirty" | sha256sum | awk '{print $1}')"
+    jq -s \
+      --arg repository "cardano-community/guild-operators" \
+      --arg channel "${branch}" \
+      --arg ref "${ref}" \
+      --arg revision "${revision}" \
+      --arg mode "${source_mode}" \
+      --argjson dirty "${source_dirty}" \
+      --arg tree_digest "${tree_digest}" \
+      '{
+        schemaVersion: 1,
+        implementation: "cnode",
+        network: "mainnet",
+        source: ({
+          repository: $repository,
+          channel: $channel,
+          ref: $ref,
+          revision: $revision,
+          mode: $mode,
+          dirty: $dirty
+        } + if $dirty then {treeDigest: $tree_digest} else {} end),
+        files: .
+      }' "${inventory}" > "${receipt}"
+    rm -f -- "${inventory}"
+
+    receipt_hash="$(sha256sum -- "${receipt}" | awk '{print $1}')"
+    jq -n \
+      --arg branch "${branch}" \
+      --arg service "${service_name}" \
+      --arg source_mode "${source_mode}" \
+      --arg source_ref "${ref}" \
+      --arg source_revision "${revision}" \
+      --argjson source_dirty "${source_dirty}" \
+      --arg tree_digest "${tree_digest}" \
+      --arg receipt_hash "${receipt_hash}" \
+      --arg transaction_id "${receipt_hash:0:16}" \
+      '{
+        schemaVersion: 1,
+        deploymentStatus: "deployed",
+        implementation: "cnode",
+        network: "mainnet",
+        branch: $branch,
+        repository: "cardano-community/guild-operators",
+        serviceName: $service,
+        nodeVersion: "",
+        targetNodeVersion: "test-target",
+        metricsProvider: "prometheus",
+        capabilities: {
+          n2c: true,
+          localCli: true,
+          metrics: true,
+          forging: true
+        },
+        sourceSchemaVersion: 1,
+        sourceMode: $source_mode,
+        sourceRef: $source_ref,
+        sourceRevision: $source_revision,
+        sourceDirty: $source_dirty,
+        payloadReceipt: ".guild-source-receipt.json",
+        payloadReceiptSha256: $receipt_hash,
+        transactionId: $transaction_id
+      } + if $source_dirty then {sourceTreeDigest: $tree_digest} else {} end' \
+      > "${manifest}"
   }
 
-  assert_no_bundle_staging() {
-    if find "${bundle_root}/scripts" \
-      \( -name '.common-runtime-stage.*' -o \
-         -name '.*.commit.*' -o \
-         -name '.*.restore.*' -o \
-         -name '*.tmp' \) -print -quit | grep -q .; then
-      fail "$1 left common runtime staging files"
+  prepare_refresh_case() {
+    local name="$1"
+    local installed_branch="$2"
+    local installed_mode="$3"
+    local installed_dirty="$4"
+    local candidate_branch="$5"
+    local candidate_mode="$6"
+    local installed_version="${7:-1}"
+    local candidate_version="${8:-2}"
+    local service
+
+    CASE_ROOT="${suite_root}/${name}"
+    NODE_HOME="${CASE_ROOT}/node"
+    CANDIDATE_ROOT="${CASE_ROOT}/candidate"
+    DISPATCH_LOG="${CASE_ROOT}/dispatcher.log"
+    EVENT_LOG="${CASE_ROOT}/events.log"
+    CURL_LOG="${CASE_ROOT}/curl.log"
+    service="$(basename "${NODE_HOME}" | tr '[:upper:]' '[:lower:]')"
+    mkdir -p "${CASE_ROOT}"
+    : > "${DISPATCH_LOG}"
+    : > "${EVENT_LOG}"
+    : > "${CURL_LOG}"
+    publish_source_fixture "${NODE_HOME}" "${installed_branch}" \
+      "${installed_mode}" "${installed_dirty}" "${installed_version}" "${service}"
+    publish_source_fixture "${CANDIDATE_ROOT}" "${candidate_branch}" \
+      "${candidate_mode}" false "${candidate_version}" "${service}"
+
+    FAKE_DISPATCHER_CONTROLLER="${controller}"
+    FAKE_DISPATCHER_CANDIDATE="${CANDIDATE_ROOT}"
+    FAKE_DISPATCHER_LOG="${DISPATCH_LOG}"
+    FAKE_DISPATCHER_EVENT_LOG="${EVENT_LOG}"
+    FAKE_CURL_LOG="${CURL_LOG}"
+    export NODE_HOME FAKE_DISPATCHER_CONTROLLER FAKE_DISPATCHER_CANDIDATE
+    export FAKE_DISPATCHER_LOG FAKE_DISPATCHER_EVENT_LOG FAKE_CURL_LOG
+  }
+
+  load_refresh_libraries() {
+    unset GUILD_PAYLOAD_REFRESH_OWNER_PID GUILD_PAYLOAD_REFRESH_STATE
+    unset GUILD_PAYLOAD_REFRESH_SIGNATURE GUILD_PAYLOAD_REFRESH_RESULT
+    unset GUILD_SOURCE_MODE FAKE_REFUSE_RECEIPT_DRIFT
+    UPDATE_CHECK=Y
+    OFFLINE_MODE=N
+    FG_YELLOW=""
+    NC=""
+    # shellcheck source=/dev/null
+    . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
+    # shellcheck source=/dev/null
+    . "${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library"
+  }
+
+  assert_dispatch_call() {
+    local log_file="$1"
+    local line_number="$2"
+    local expected_phase="$3"
+    local expected_branch="$4"
+    local expected_mode="$5"
+    local expected_parent="$6"
+    local expected_target="$7"
+
+    awk -F '\t' \
+      -v line_number="${line_number}" \
+      -v phase="${expected_phase}" \
+      -v branch="${expected_branch}" \
+      -v mode="${expected_mode}" \
+      -v parent="${expected_parent}" \
+      -v target="${expected_target}" '
+        NR == line_number {
+          found = 1
+          if (NF != 18) found = 0
+          if ($1 != phase) found = 0
+          if ($2 != "-i" || $3 != "cnode") found = 0
+          if ($4 != "-n" || $5 != "mainnet") found = 0
+          if ($6 != "-p" || $7 != parent) found = 0
+          if ($8 != "-t" || $9 != target) found = 0
+          if ($10 != "-b" || $11 != branch) found = 0
+          if ($12 != "-a" || $13 != "cardano-community") found = 0
+          if ($14 != "-S" || $15 != mode) found = 0
+          if ($16 != "-s" || $17 != "" || $18 != "-u") found = 0
+        }
+        END { exit(found ? 0 : 1) }
+      ' "${log_file}" ||
+      fail "dispatcher call ${line_number} did not use the expected ${expected_phase}/${expected_mode} complete-refresh arguments"
+  }
+
+  assert_no_partial_downloads() {
+    local context="$1"
+    [[ ! -s "${CURL_LOG}" ]] ||
+      fail "${context} attempted a legacy per-file download"
+  }
+
+  run_default_delegation_case() (
+    local status=0 call_count
+    prepare_refresh_case default-delegation master managed false \
+      master managed 1 2
+    load_refresh_libraries
+    assert_eq "${COMMON_RUNTIME_UPDATE_API_VERSION}" "1" \
+      "common runtime updater API version"
+    declare -F deployment_refresh_payload >/dev/null ||
+      fail "complete deployment refresh entry point is unavailable"
+    declare -F checkUpdate >/dev/null ||
+      fail "historical checkUpdate compatibility entry point is unavailable"
+    declare -F checkCommonRuntimeUpdates >/dev/null ||
+      fail "common runtime refresh entry point is unavailable"
+    FAKE_CHECK_STATUS=10
+    export FAKE_CHECK_STATUS
+
+    if checkUpdate "${NODE_HOME}/payload/alpha" Y N N \
+         "common-helper-scripts/lib" exact; then
+      status=0
+    else
+      status=$?
     fi
-  }
+    assert_eq "${status}" "1" \
+      "checkUpdate complete dispatcher refresh status"
+    assert_file_unchanged "${NODE_HOME}/payload/alpha" "payload-alpha=2" \
+      "complete refresh omitted alpha payload"
+    assert_file_unchanged "${NODE_HOME}/payload/beta" "payload-beta=2" \
+      "complete refresh omitted beta payload"
+    call_count="$(wc -l < "${DISPATCH_LOG}" | tr -d '[:space:]')"
+    assert_eq "${call_count}" "2" "check/apply dispatcher call count"
+    assert_dispatch_call "${DISPATCH_LOG}" 1 check master managed \
+      "$(dirname "${NODE_HOME}")" "$(basename "${NODE_HOME}")"
+    assert_dispatch_call "${DISPATCH_LOG}" 2 apply master managed \
+      "$(dirname "${NODE_HOME}")" "$(basename "${NODE_HOME}")"
+    if grep -Fq "${NODE_HOME}/payload/alpha" "${DISPATCH_LOG}"; then
+      fail "legacy checkUpdate target leaked into dispatcher arguments"
+    fi
+    assert_no_partial_downloads "complete checkUpdate refresh"
 
-  prepare_bundle_fixture() {
-    local fixture_name="$1"
-    local remote_file env_tmp
+    if checkCommonRuntimeUpdates Y; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "1" \
+      "process-cached common runtime refresh result"
+    call_count="$(wc -l < "${DISPATCH_LOG}" | tr -d '[:space:]')"
+    assert_eq "${call_count}" "2" \
+      "process-level result cache repeated dispatcher calls"
+  )
 
-    bundle_root="${transaction_root}/${fixture_name}/node"
-    remote_root="${transaction_root}/${fixture_name}/remote/scripts"
-    curl_counter="${transaction_root}/${fixture_name}/curl.count"
-    prompt_counter="${transaction_root}/${fixture_name}/prompt.count"
-    mv_counter="${transaction_root}/${fixture_name}/mv.count"
+  run_up_to_date_case() (
+    local status=0
+    prepare_refresh_case up-to-date master managed false master managed 1 1
+    load_refresh_libraries
+    FAKE_CHECK_STATUS=0
+    export FAKE_CHECK_STATUS
 
-    mkdir -p \
-      "${bundle_root}/scripts/lib" \
-      "${bundle_root}/scripts/adapters" \
-      "${remote_root}/common-helper-scripts/lib" \
-      "${remote_root}/common-helper-scripts" \
-      "${remote_root}/cnode-helper-scripts"
+    if checkCommonRuntimeUpdates Y; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "0" "up-to-date complete refresh status"
+    assert_eq "$(wc -l < "${DISPATCH_LOG}" | tr -d '[:space:]')" "1" \
+      "up-to-date refresh invoked apply dispatcher"
+    assert_dispatch_call "${DISPATCH_LOG}" 1 check master managed \
+      "$(dirname "${NODE_HOME}")" "$(basename "${NODE_HOME}")"
+    [[ ! -s "${EVENT_LOG}" ]] ||
+      fail "up-to-date source check mutated the target"
+    assert_no_partial_downloads "up-to-date source check"
+  )
 
-    cp "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library" \
-      "${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library" \
-      "${REPO_ROOT}/scripts/common-helper-scripts/lib/node-api.library" \
-      "${REPO_ROOT}/scripts/common-helper-scripts/lib/systemd.library" \
-      "${bundle_root}/scripts/lib/"
-    cp "${REPO_ROOT}/scripts/common-helper-scripts/env" \
-      "${bundle_root}/scripts/env"
-    cp "${REPO_ROOT}/scripts/cnode-helper-scripts/cnode.adapter" \
-      "${bundle_root}/scripts/adapters/cnode.adapter"
+  run_cached_selection_case() (
+    local status=0
+    prepare_refresh_case cached-selection master managed false \
+      master cached 1 2
+    load_refresh_libraries
+    GUILD_SOURCE_MODE=cached
+    FAKE_CHECK_STATUS=10
+    export GUILD_SOURCE_MODE FAKE_CHECK_STATUS
 
-    cp "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library" \
-      "${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library" \
-      "${REPO_ROOT}/scripts/common-helper-scripts/lib/node-api.library" \
-      "${REPO_ROOT}/scripts/common-helper-scripts/lib/systemd.library" \
-      "${remote_root}/common-helper-scripts/lib/"
-    cp "${REPO_ROOT}/scripts/common-helper-scripts/env" \
-      "${remote_root}/common-helper-scripts/env"
-    cp "${REPO_ROOT}/scripts/cnode-helper-scripts/cnode.adapter" \
-      "${remote_root}/cnode-helper-scripts/cnode.adapter"
+    if checkCommonRuntimeUpdates Y; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "1" "explicit cached complete refresh status"
+    assert_dispatch_call "${DISPATCH_LOG}" 1 check master cached \
+      "$(dirname "${NODE_HOME}")" "$(basename "${NODE_HOME}")"
+    assert_dispatch_call "${DISPATCH_LOG}" 2 apply master cached \
+      "$(dirname "${NODE_HOME}")" "$(basename "${NODE_HOME}")"
+    assert_eq "$(jq -r '.sourceMode' "${NODE_HOME}/.deployment.json")" \
+      "cached" "cached source selection was not committed"
+    assert_no_partial_downloads "cached complete refresh"
+  )
 
-    env_tmp="${bundle_root}/scripts/.env-custom"
-    sed \
-      's/^#UPDATE_CHECK="Y".*/UPDATE_CHECK="N" # bundle-test-user-setting/' \
-      "${bundle_root}/scripts/env" > "${env_tmp}"
-    mv -f "${env_tmp}" "${bundle_root}/scripts/env"
+  run_branch_transaction_case() (
+    local status=0
+    prepare_refresh_case branch-transaction master managed false \
+      feature/stage0c managed 1 2
+    load_refresh_libraries
+    FAKE_CHECK_STATUS=10
+    export FAKE_CHECK_STATUS
 
-    while IFS= read -r remote_file; do
-      printf '\n# remote-bundle-version=2\n' >> "${remote_file}"
-    done <<EOF
-${remote_root}/common-helper-scripts/lib/deployment.library
-${remote_root}/common-helper-scripts/lib/env.library
-${remote_root}/common-helper-scripts/lib/node-api.library
-${remote_root}/common-helper-scripts/lib/systemd.library
-${remote_root}/cnode-helper-scripts/cnode.adapter
-${remote_root}/common-helper-scripts/env
-EOF
+    if deployment_set_branch feature/stage0c; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "0" "transactional branch update status"
+    assert_dispatch_call "${DISPATCH_LOG}" 1 check feature/stage0c managed \
+      "$(dirname "${NODE_HOME}")" "$(basename "${NODE_HOME}")"
+    assert_dispatch_call "${DISPATCH_LOG}" 2 apply feature/stage0c managed \
+      "$(dirname "${NODE_HOME}")" "$(basename "${NODE_HOME}")"
+    assert_eq "$(jq -r '.branch' "${NODE_HOME}/.deployment.json")" \
+      "feature/stage0c" "branch transaction metadata"
+    assert_file_unchanged "${NODE_HOME}/payload/alpha" "payload-alpha=2" \
+      "branch transaction omitted alpha payload"
+    assert_file_unchanged "${NODE_HOME}/payload/beta" "payload-beta=2" \
+      "branch transaction omitted beta payload"
+    assert_eq "$(awk -F '\t' 'NR < 5 {print $2}' "${EVENT_LOG}" | sort -u)" \
+      "master" "branch metadata changed before payload and receipt activation"
+    assert_eq "$(tail -n 1 "${EVENT_LOG}")" \
+      $'metadata\tfeature/stage0c' \
+      "deployment metadata was not the final branch transaction event"
+    assert_no_partial_downloads "branch transaction"
+  )
 
-    chmod 0644 \
-      "${bundle_root}/scripts/env" \
-      "${bundle_root}/scripts/lib/"*.library \
-      "${bundle_root}/scripts/adapters/cnode.adapter" \
-      "${remote_root}/common-helper-scripts/env" \
-      "${remote_root}/common-helper-scripts/lib/"*.library \
-      "${remote_root}/cnode-helper-scripts/cnode.adapter"
+  run_local_dirty_refusal_cases() (
+    local status=0
 
-    PARENT="${bundle_root}/scripts"
-    NODE_HOME="${bundle_root}"
-    NODE_IMPLEMENTATION="cnode"
-    NODE_ADAPTER_FILE="${bundle_root}/scripts/adapters/cnode.adapter"
-    FAKE_CURL_ROOT="${remote_root}"
-    FAKE_CURL_COUNTER="${curl_counter}"
-    export PARENT NODE_HOME NODE_IMPLEMENTATION NODE_ADAPTER_FILE
-    export FAKE_CURL_ROOT FAKE_CURL_COUNTER
-  }
+    prepare_refresh_case installed-local master local false master managed 1 2
+    load_refresh_libraries
+    if checkCommonRuntimeUpdates Y >/dev/null 2>&1; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "2" "installed local source refresh refusal"
+    [[ ! -s "${DISPATCH_LOG}" ]] ||
+      fail "installed local source refusal invoked dispatcher"
 
-  PATH="${fake_bin}:${PATH}"
-  export PATH
-  UPDATE_CHECK=Y
-  OFFLINE_MODE=N
-  BRANCH=master
-  URL_RAW="https://invalid.example/guild-operators/master"
-  CURL_TIMEOUT=1
-  FG_YELLOW=""
-  NC=""
-  # shellcheck source=/dev/null
-  . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
-  # shellcheck source=/dev/null
-  . "${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library"
+    prepare_refresh_case installed-dirty master managed true master managed 1 2
+    load_refresh_libraries
+    if checkCommonRuntimeUpdates Y >/dev/null 2>&1; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "2" "installed dirty source refresh refusal"
+    [[ ! -s "${DISPATCH_LOG}" ]] ||
+      fail "installed dirty source refusal invoked dispatcher"
 
-  prepare_bundle_fixture "download-failure"
-  before="$(bundle_snapshot)"
-  printf '0\n' > "${curl_counter}"
-  FAKE_CURL_FAIL_AT=3
-  export FAKE_CURL_FAIL_AT
-  if checkCommonRuntimeUpdates Y; then
-    status=0
-  else
-    status=$?
-  fi
-  unset FAKE_CURL_FAIL_AT
-  assert_eq "${status}" "2" "mid-download bundle failure status"
-  after="$(bundle_snapshot)"
-  assert_eq "${after}" "${before}" \
-    "mid-download bundle failure changed installed members"
-  assert_no_bundle_staging "mid-download failure"
+    prepare_refresh_case selected-local master managed false master managed 1 2
+    load_refresh_libraries
+    GUILD_SOURCE_MODE=local
+    if checkCommonRuntimeUpdates Y >/dev/null 2>&1; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "2" "automatic local source selection refusal"
+    [[ ! -s "${DISPATCH_LOG}" ]] ||
+      fail "automatic local source selection invoked dispatcher"
+    assert_no_partial_downloads "local and dirty refusals"
+  )
 
-  prepare_bundle_fixture "declined"
-  before="$(bundle_snapshot)"
-  printf '0\n' > "${curl_counter}"
-  : > "${prompt_counter}"
-  prompt_message="${transaction_root}/declined/prompt.message"
-  PROMPT_COUNTER="${prompt_counter}"
-  PROMPT_MESSAGE="${prompt_message}"
-  export PROMPT_COUNTER PROMPT_MESSAGE
-  commonRuntimeIsInteractive() {
-    return 0
-  }
-  getAnswer() {
-    printf 'prompt\n' >> "${PROMPT_COUNTER}"
-    printf '%s' "$*" > "${PROMPT_MESSAGE}"
-    return 1
-  }
-  if checkCommonRuntimeUpdates N; then
-    status=0
-  else
-    status=$?
-  fi
-  assert_eq "${status}" "0" "declined bundle update status"
-  prompt_count="$(wc -l < "${prompt_counter}" | tr -d '[:space:]')"
-  assert_eq "${prompt_count}" "1" "bundle update prompt count"
-  grep -Fq "Prepared 6 coordinated runtime files, including shared libraries," \
-    "${prompt_message}" ||
-    fail "bundle update prompt did not describe the coordinated runtime files"
-  grep -Fq "the cnode adapter, and env. All passed shell syntax checks." \
-    "${prompt_message}" ||
-    fail "bundle update prompt did not describe its stable file categories"
-  grep -Fq "Apply the complete runtime update?" "${prompt_message}" ||
-    fail "bundle update prompt did not explain the atomic apply decision"
-  assert_eq "$(cat "${curl_counter}")" "6" \
-    "declined bundle did not stage all six members before prompting"
-  after="$(bundle_snapshot)"
-  assert_eq "${after}" "${before}" \
-    "declined bundle update changed installed members"
-  assert_no_bundle_staging "declined bundle update"
+  run_receipt_drift_refusal_case() (
+    local status=0 before_manifest before_alpha
+    prepare_refresh_case receipt-drift master managed false master managed 1 2
+    load_refresh_libraries
+    before_manifest="$(cat "${NODE_HOME}/.deployment.json")"
+    before_alpha="$(cat "${NODE_HOME}/payload/alpha")"
+    printf '\n' >> "${NODE_HOME}/.guild-source-receipt.json"
+    FAKE_CHECK_STATUS=10
+    FAKE_REFUSE_RECEIPT_DRIFT=Y
+    export FAKE_CHECK_STATUS FAKE_REFUSE_RECEIPT_DRIFT
 
-  prepare_bundle_fixture "commit-failure"
-  before="$(bundle_snapshot)"
-  printf '0\n' > "${curl_counter}"
-  printf '0\n' > "${mv_counter}"
-  FAKE_MV_COUNTER="${mv_counter}"
-  FAKE_MV_FAIL_AT=2
-  FAKE_MV_REAL="${real_mv}"
-  export FAKE_MV_COUNTER FAKE_MV_FAIL_AT FAKE_MV_REAL
-  PATH="${fake_mv_bin}:${fake_bin}:${PATH#*:}"
-  export PATH
-  if checkCommonRuntimeUpdates Y; then
-    status=0
-  else
-    status=$?
-  fi
-  PATH="${fake_bin}:${PATH#*:}"
-  export PATH
-  assert_eq "${status}" "2" "mid-commit bundle failure status"
-  after="$(bundle_snapshot)"
-  assert_eq "${after}" "${before}" \
-    "mid-commit bundle failure was not rolled back"
-  assert_no_bundle_staging "mid-commit failure"
+    if checkCommonRuntimeUpdates Y >/dev/null 2>&1; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "2" "receipt drift refusal status"
+    assert_eq "$(wc -l < "${DISPATCH_LOG}" | tr -d '[:space:]')" "1" \
+      "receipt drift refusal reached dispatcher apply"
+    assert_dispatch_call "${DISPATCH_LOG}" 1 check master managed \
+      "$(dirname "${NODE_HOME}")" "$(basename "${NODE_HOME}")"
+    assert_file_unchanged "${NODE_HOME}/.deployment.json" \
+      "${before_manifest}" "receipt drift changed deployment metadata"
+    assert_file_unchanged "${NODE_HOME}/payload/alpha" \
+      "${before_alpha}" "receipt drift changed managed payload"
+    [[ ! -s "${EVENT_LOG}" ]] ||
+      fail "receipt drift refusal activated candidate files"
+    assert_no_partial_downloads "receipt drift refusal"
+  )
 
-  prepare_bundle_fixture "signal-rollback"
-  before="$(bundle_snapshot)"
-  printf '0\n' > "${curl_counter}"
-  printf '0\n' > "${mv_counter}"
-  FAKE_MV_COUNTER="${mv_counter}"
-  FAKE_MV_FAIL_AT=999
-  FAKE_MV_SIGNAL_AT=2
-  FAKE_MV_REAL="${real_mv}"
-  export FAKE_MV_COUNTER FAKE_MV_FAIL_AT FAKE_MV_SIGNAL_AT FAKE_MV_REAL
-  PATH="${fake_mv_bin}:${fake_bin}:${PATH#*:}"
-  export PATH
-  if checkCommonRuntimeUpdates Y; then
-    status=0
-  else
-    status=$?
-  fi
-  PATH="${fake_bin}:${PATH#*:}"
-  export PATH
-  unset FAKE_MV_SIGNAL_AT
-  assert_eq "${status}" "2" "signalled bundle commit status"
-  after="$(bundle_snapshot)"
-  assert_eq "${after}" "${before}" \
-    "signalled bundle commit was not rolled back"
-  assert_no_bundle_staging "signalled bundle commit"
+  run_moved_revision_refusal_case() (
+    local status=0 before_manifest before_alpha
+    prepare_refresh_case moved-revision master managed false master managed 1 2
+    load_refresh_libraries
+    before_manifest="$(cat "${NODE_HOME}/.deployment.json")"
+    before_alpha="$(cat "${NODE_HOME}/payload/alpha")"
+    FAKE_CHECK_STATUS=10
+    FAKE_APPLY_REVISION_OVERRIDE=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    export FAKE_CHECK_STATUS FAKE_APPLY_REVISION_OVERRIDE
 
-  prepare_bundle_fixture "lock-refusal"
-  before="$(bundle_snapshot)"
-  printf '0\n' > "${curl_counter}"
-  PATH="${fake_lock_bin}:${fake_bin}:${PATH#*:}"
-  export PATH
-  if checkCommonRuntimeUpdates Y; then
-    status=0
-  else
-    status=$?
-  fi
-  PATH="${fake_bin}:${PATH#*:}"
-  export PATH
-  assert_eq "${status}" "2" "bundle lock refusal status"
-  after="$(bundle_snapshot)"
-  assert_eq "${after}" "${before}" \
-    "bundle lock refusal changed installed members"
-  assert_no_bundle_staging "bundle lock refusal"
+    if checkCommonRuntimeUpdates Y >/dev/null 2>&1; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "2" "moved revision refusal status"
+    assert_eq "$(wc -l < "${DISPATCH_LOG}" | tr -d '[:space:]')" "2" \
+      "moved revision dispatcher call count"
+    [[ ! -s "${EVENT_LOG}" ]] ||
+      fail "moved revision refusal activated candidate files"
+    assert_file_unchanged "${NODE_HOME}/.deployment.json" \
+      "${before_manifest}" "moved revision changed deployment metadata"
+    assert_file_unchanged "${NODE_HOME}/payload/alpha" \
+      "${before_alpha}" "moved revision changed managed payload"
+    assert_no_partial_downloads "moved revision refusal"
+  )
 
-  prepare_bundle_fixture "manifest-branch-refusal"
-  before="$(bundle_snapshot)"
-  printf '0\n' > "${curl_counter}"
-  BRANCH="retired-test-branch"
-  G_ACCOUNT="bundle-test-account"
-  URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
-  write_deployment_manifest "${NODE_HOME}" cnode mainnet "${BRANCH}"
-  FAKE_CURL_FAIL_LICENSE=Y
-  export G_ACCOUNT FAKE_CURL_FAIL_LICENSE
-  if checkCommonRuntimeUpdates N >/dev/null 2>&1; then
-    status=0
-  else
-    status=$?
-  fi
-  assert_eq "${status}" "2" \
-    "manifest-backed bundle dead-branch status"
-  assert_eq "${BRANCH}" "retired-test-branch" \
-    "manifest-backed bundle source identity"
-  assert_eq "${URL_RAW}" \
-    "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/retired-test-branch" \
-    "manifest-backed bundle raw URL"
-  assert_eq "$(jq -r '.branch' "${NODE_HOME}/.deployment.json")" \
-    "retired-test-branch" "manifest-backed bundle changed deployment metadata"
-  assert_eq "$(cat "${curl_counter}")" "0" \
-    "manifest-backed bundle fetched master members"
-  after="$(bundle_snapshot)"
-  assert_eq "${after}" "${before}" \
-    "manifest-backed dead-branch bundle changed installed members"
-  assert_no_bundle_staging "manifest-backed bundle dead-branch refusal"
-  unset FAKE_CURL_FAIL_LICENSE
+  run_dispatcher_safety_cases() (
+    local status=0
 
-  prepare_bundle_fixture "legacy-branch-fallback"
-  before="$(bundle_snapshot)"
-  printf '0\n' > "${curl_counter}"
-  BRANCH="retired-test-branch"
-  G_ACCOUNT="bundle-test-account"
-  URL_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}"
-  FAKE_CURL_FAIL_LICENSE=Y
-  FAKE_CURL_EXPECT_FRAGMENT="/${G_ACCOUNT}/guild-operators/master/scripts/"
-  export G_ACCOUNT FAKE_CURL_FAIL_LICENSE FAKE_CURL_EXPECT_FRAGMENT
-  commonRuntimeIsInteractive() {
-    return 1
-  }
-  if checkCommonRuntimeUpdates N; then
-    status=0
-  else
-    status=$?
-  fi
-  assert_eq "${status}" "0" "legacy bundle dead-branch fallback status"
-  assert_eq "$(cat "${curl_counter}")" "6" \
-    "legacy bundle fallback did not fetch all members from the rebuilt master URL"
-  after="$(bundle_snapshot)"
-  assert_eq "${after}" "${before}" \
-    "declined legacy fallback bundle changed installed members"
-  assert_no_bundle_staging "legacy bundle dead-branch fallback"
-  unset FAKE_CURL_FAIL_LICENSE FAKE_CURL_EXPECT_FRAGMENT
-  BRANCH=master
-  G_ACCOUNT="cardano-community"
-  URL_RAW="https://invalid.example/guild-operators/master"
-  export G_ACCOUNT
+    prepare_refresh_case missing-dispatcher master managed false master managed 1 2
+    load_refresh_libraries
+    rm -f -- "${NODE_HOME}/scripts/guild-deploy.sh"
+    if checkCommonRuntimeUpdates Y >/dev/null 2>&1; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "2" "missing dispatcher refusal"
+    [[ ! -s "${DISPATCH_LOG}" ]] ||
+      fail "missing dispatcher refusal invoked a dispatcher"
 
-  prepare_bundle_fixture "success"
-  printf '0\n' > "${curl_counter}"
-  if checkCommonRuntimeUpdates Y; then
-    status=0
-  else
-    status=$?
-  fi
-  assert_eq "${status}" "1" "successful bundle update status"
-  while IFS= read -r target; do
-    grep -q '^# remote-bundle-version=2$' "${target}" ||
-      fail "successful bundle update omitted $(basename "${target}")"
-    find "${target}" -prune -perm 0644 -print -quit | grep -q . ||
-      fail "successful bundle update used the wrong mode for ${target}"
-  done < <(bundle_paths)
-  grep -q '^UPDATE_CHECK="N" # bundle-test-user-setting$' \
-    "${bundle_root}/scripts/env" ||
-    fail "bundle update did not preserve the env user header"
-  assert_no_bundle_staging "successful bundle update"
+    prepare_refresh_case unsafe-dispatcher master managed false master managed 1 2
+    load_refresh_libraries
+    rm -f -- "${NODE_HOME}/scripts/guild-deploy.sh"
+    ln -s "${controller}" "${NODE_HOME}/scripts/guild-deploy.sh"
+    if checkCommonRuntimeUpdates Y >/dev/null 2>&1; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "2" "unsafe dispatcher symlink refusal"
+    [[ ! -s "${DISPATCH_LOG}" ]] ||
+      fail "unsafe dispatcher refusal invoked a dispatcher"
+    assert_no_partial_downloads "missing and unsafe dispatcher refusals"
+  )
+
+  run_update_disabled_case() (
+    local status=0
+    prepare_refresh_case update-disabled master managed false master managed 1 2
+    load_refresh_libraries
+    UPDATE_CHECK=N
+    if checkUpdate "${NODE_HOME}/payload/alpha" Y N N ignored exact; then
+      status=0
+    else
+      status=$?
+    fi
+    assert_eq "${status}" "0" "disabled update check status"
+    [[ ! -s "${DISPATCH_LOG}" ]] ||
+      fail "disabled update check invoked dispatcher"
+    assert_no_partial_downloads "disabled update check"
+  )
+
+  run_default_delegation_case
+  run_up_to_date_case
+  run_cached_selection_case
+  run_branch_transaction_case
+  run_local_dirty_refusal_cases
+  run_receipt_drift_refusal_case
+  run_moved_revision_refusal_case
+  run_dispatcher_safety_cases
+  run_update_disabled_case
 )
-
 run_manifest_tests
 run_missing_and_malformed_manifest_tests
 
@@ -1299,7 +1248,6 @@ run_env_manifest_fail_closed_tests
 run_exponent_tests
 run_glive_helper_tests
 run_cnode_metrics_url_tests
-run_exact_update_tests
-run_bundle_transaction_tests
+run_dispatcher_refresh_tests
 
 printf 'common runtime tests passed\n'

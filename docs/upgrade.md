@@ -1,22 +1,29 @@
 ### Steps for Upgrading
 
 !!! important "Deployment metadata and service migration"
-    Run the current `guild-deploy.sh` before accepting individual helper-script
-    updates on an older flat cnode installation. The former cnode-specific
-    helper URLs are retired, so an old updater will fail safely without
-    replacing its local file. The deployment entrypoint installs the complete
-    shared runtime and manifest in one operation.
+    Run the current `guild-deploy.sh` before accepting helper updates on an
+    older flat cnode installation. The former cnode-specific helper URLs are
+    retired; do not raw-download individual replacements. The deployment
+    entrypoint installs the complete compatible payload, its source receipt,
+    and final manifest in one transaction.
 
     The common deployment entrypoint now accepts
     `-i cnode|dingo|amaru`; omitting it still selects `cnode`. Existing cnode
     operators should keep their current `-p`, `-t`, and `-n` values on the
     first run. A successful run creates `.deployment.json` at the deployment
-    root (normally `${CNODE_HOME}` for cnode),
-    imports the branch from the former `scripts/.env_branch`, and archives
-    that sidecar. Subsequent `-b` updates are stored in the manifest.
+    root (normally `${CNODE_HOME}` for cnode), plus
+    `.guild-source-receipt.json`,
+    imports the branch from the former `scripts/.env_branch`, and retires that
+    sidecar. Subsequent `-b` updates run a complete source and payload
+    transaction before the new channel and revision are stored in the
+    manifest.
     Manifest-backed helper updates never silently fall back to `master` when
-    that recorded branch disappears or cannot be verified; select a reachable
-    branch explicitly before updating. For a new Dingo or Amaru deployment,
+    that recorded branch or tag disappears or cannot be verified; select a
+    reachable channel explicitly before updating. Helper refreshes update the
+    complete receipted payload, not only the helper that initiated the check.
+    A local or dirty source requires an explicit dispatcher rerun with
+    `-S local -L <checkout>` and, when needed, `-D`; an automatic helper update
+    cannot reconstruct that checkout. For a new Dingo or Amaru deployment,
     `-n preprod` or `-n preview` is required. Later dispatcher runs may omit
     `-n` because the valid manifest restores the network.
 
@@ -73,11 +80,19 @@ The supported cnode and companion versions are defined in
 `files/node-implementations/cnode/release.json`; always review the corresponding
 upstream release notes before upgrading.
 
-- Download the current `guild-deploy.sh` and review its options with
-  `guild-deploy.sh -h`. When helper scripts are refreshed, their user-variable
-  sections are retained unless `-s s` is selected, and previous copies are
-  placed in `scripts/archive`. Static files such as genesis and submit-api
-  configuration are not treated as user-maintained backups.
+- Ensure Git, `jq`, a SHA-256 utility (`sha256sum` or `shasum`), and Bash 4.4
+  or newer are installed, download the current
+  `guild-deploy.sh` bootstrap seed, and review its options with
+  `guild-deploy.sh -h`. That seed is the only Guild file downloaded directly:
+  it prepares and re-executes one exact Git snapshot. Normal `managed` mode
+  uses the private bare cache below `~/.cache/guild-operators`; `cached` is an
+  explicit offline mode, and `local` requires an absolute checkout path.
+  Public Guild repositories need no GitHub API key or access token.
+
+  When helper scripts are refreshed, their user-variable sections are
+  retained unless `-s s` is selected. The payload receipt distinguishes
+  deployment-managed content from operator-preserved configuration; it is not
+  a backup of either category.
 
 !!! warning "Remember"
     You are expected to provide appropriate environment-specific parameters (eg: custom top level folder [-p], alternate name for top level folder [-t], network flag [-n], any additional components you use, etc) to the examples that pertain to your use case.
@@ -86,15 +101,17 @@ upstream release notes before upgrading.
 
     - For an upgrade that changes configuration formats, overwrite the cnode
       configuration with `f`. Check the upstream release notes first. Reapply
-      any local configuration changes afterwards; topology, config, and db-sync
-      files are backed up in `"${CNODE_HOME}"/files` for comparison.
+      any local configuration changes afterwards, and make your own backup
+      before running the command. The transaction retains the directly
+      replaced configuration under `scripts/archive`, but that scoped history
+      is not a substitute for a tested operator backup.
 
       ``` bash
       mkdir -p "$HOME/tmp"
       cd "$HOME/tmp"
       curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
       chmod 700 guild-deploy.sh
-      ./guild-deploy.sh -s dlfm -b master -n mainnet -t cnode -p /opt/cardano
+      ./guild-deploy.sh -s dlfm -b master -n mainnet -t cnode -p /opt/cardano -S managed
       ```
     - When an upgrade does not require configuration changes, refresh the
       scripts and selected binaries without `f`. Existing configuration and
@@ -103,9 +120,8 @@ upstream release notes before upgrading.
       ``` bash
       mkdir -p "$HOME/tmp"
       cd "$HOME/tmp"
-      curl -sfS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
-      chmod 700 guild-deploy.sh
-      ./guild-deploy.sh -s dlm -b master -n mainnet -t cnode -p /opt/cardano
+      # Reuse the seed downloaded in the preceding example.
+      ./guild-deploy.sh -s dlm -b master -n mainnet -t cnode -p /opt/cardano -S managed
       ```
 
 !!! warning "Beware"
@@ -176,12 +192,17 @@ For some cases - you might have no values (eg: you may not use `cardano-db-sync`
 
 ### Unintended update-in-place {: #unintended}
 
-If an update replaced files unintentionally, use the copies in
-`"${CNODE_HOME}/scripts/archive"` for a targeted comparison or restoration.
-For a deliberate downgrade across a repository restructuring boundary, use
-the `guild-deploy.sh` from the chosen existing tag and pass that same tag with
-`-b`, as described above. Do not mix one historical helper with the current
-runtime and manifest. Available tags are listed
+The transaction journal restores the preceding generation after a failed or
+interrupted activation. A successful changed `-s s` or `-s f` transaction
+retains the directly replaced scripts or configuration under
+`scripts/archive`; identical reruns create no new archive. This is scoped
+change history, not a complete operator backup. Use
+`.guild-source-receipt.json` to identify what the transaction installed, then
+restore other local state from your own backup or redeploy a reviewed source
+revision. For a deliberate downgrade across a repository restructuring
+boundary, use the `guild-deploy.sh` from the chosen existing tag and pass that
+same tag with `-b`, as described above. Do not mix one historical helper with
+the current runtime and manifest. Available tags are listed
 [on GitHub](https://github.com/cardano-community/guild-operators/tags).
 
 ### Support/Improvements {: #support}

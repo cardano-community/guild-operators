@@ -7,19 +7,19 @@
 
 The topologyUpdater shell script must be executed on the relay node as a cronjob **exactly every 60 minutes**. After **4 consecutive requests (3 hours)** the node is considered a new relay node in listed in the topology file. If the node is turned off, it's automatically delisted after 3 hours.
 
-#### Download and Configure {: id="download"}
+#### Install and Configure {: id="download"}
 
-If you have run [guild-deploy.sh](../basics.md#pre-requisites), this should already be available in your scripts folder and make this step unnecessary.
+If you have run [guild-deploy.sh](../basics.md#pre-requisites), this is already
+available in the cnode scripts folder. If it is missing or stale, re-run the
+dispatcher for that same deployment. The complete Guild payload is sourced,
+validated, and receipted as one transaction; individual helper files must not
+be downloaded separately.
 
 Before the updater can make a valid request to the central topology service, it must query the current tip/blockNo from the well-synced local node. It connects to your node through the configuration in the script as well as the common `env` configuration file. Customize these files for your needs.
 
-To download `topologyUpdater.sh` manually, you can execute the commands below after installing the common environment and shared libraries, then test Topology Updater once (it's OK if the first execution gives back an error):
-``` bash
-cd $CNODE_HOME/scripts
-curl -s -o topologyUpdater.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/topologyUpdater.sh
-chmod 750 topologyUpdater.sh
-./topologyUpdater.sh
-```
+After a successful deployment transaction, test Topology Updater once from
+`${CNODE_HOME}/scripts` (it is normal for the first execution to report that
+the relay has not yet completed its registration interval).
 
 #### Examine and modify the variables within topologyUpdater.sh script {: id="modify"}
 
@@ -42,7 +42,10 @@ MAX_PEERS=15                                              # Maximum number of pe
 
 Any customisations you add above will be saved across future deployment-script executions unless you request a complete overwrite.
 
-The `-b <branch>` option is a deployment-level override. It updates the shared `${NODE_HOME}/.deployment.json` manifest through the common environment helper; topologyUpdater no longer creates or reads a `.env_branch` sidecar file.
+The `-b <branch>` option is a deployment-level override. It asks the installed
+dispatcher to apply the complete payload from that branch and publish the
+corresponding source metadata and receipt. topologyUpdater no longer creates
+or reads a `.env_branch` sidecar file.
 
 #### Deploy the script {: id="deploy"}
 

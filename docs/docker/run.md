@@ -171,9 +171,10 @@ container to loopback and do not need host port publishing.
   helper entrypoints are cnode-only except for the common `gLiveView.sh`.
   Amaru node/collector supervision applies only to the default `amaru.sh run`
   path.
-- `UPDATE_CHECK=Y` refreshes compatible scripts and configuration from the
-  branch stored in `.deployment.json` without changing implementation or
-  network.
+- `UPDATE_CHECK` must remain `N`. `Y` is rejected because changing a receipted
+  payload inside a running container would break the image's cross-linked
+  provenance. Rebuild from a reviewed pinned revision and recreate the
+  container to update it.
 - cnode retains `ENABLE_BACKUP`, `ENABLE_RESTORE`, and its supported cnode
   helper entrypoints. The stock image contains Mithril wrapper scripts but not
   the Mithril binaries, so `MITHRIL_DOWNLOAD` requires a derived image that

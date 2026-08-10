@@ -6,7 +6,8 @@ deployments rather than copied and maintained separately for every node.
 The small `env` entrypoint combines three layers:
 
 1. `.deployment.json` identifies the deployment implementation, network, Guild
-   repository and branch, service name, and declared capabilities;
+   repository and branch or tag, exact source revision, source mode, payload
+   receipt, service name, and declared capabilities;
 2. common libraries provide implementation-neutral validation, update,
    metadata, metrics, and systemd helpers;
 3. `scripts/adapters/<implementation>.adapter` supplies node-specific paths,
@@ -20,7 +21,7 @@ that every helper supports every implementation; see the
 #### Installation
 
 The common `env`, its `scripts/lib` runtime, and the selected adapter are
-downloaded together with the rest of the deployment when
+installed together with the rest of the deployment when
 [Pre-Requisites](../basics.md#pre-requisites) are followed. The deployed
 entrypoint remains `${NODE_HOME}/scripts/env`; `${CNODE_HOME}` is retained as a
 compatibility alias for cnode-era scripts. Custom values in the User Variables
@@ -30,31 +31,53 @@ The former cnode-specific source URLs are retired. Deployments receive the
 canonical common file, and helper self-updates use the
 `common-helper-scripts` source folder. Existing flat cnode installations
 should be migrated with the current `guild-deploy.sh` before accepting
-individual helper updates.
+helper-initiated payload updates.
 
-The old `${CNODE_HOME}/scripts/.env_branch` file is no longer used. Branch
+The old `${CNODE_HOME}/scripts/.env_branch` file is no longer used. Source
 selection is stored in `${NODE_HOME}/.deployment.json`. Passing `-b` to
 gLiveView, CNTools, Topology Updater, setup-grest, or the deployment dispatcher
-updates that manifest while preserving its other fields.
+requests a complete deployment transaction from that branch or tag; no helper
+edits only the manifest field.
 
 An existing manifest is authoritative and must be valid schema version 1 with
 `deploymentStatus: "deployed"` and complete implementation, network,
-repository, branch, service, node-version, metrics, and capability data. The
-common environment stops on malformed, incomplete, future-schema, or
-interrupted metadata instead of silently loading the cnode adapter. A missing
-manifest is accepted for the legacy/source-tree fallback.
+repository, branch, service, source revision and mode, receipt digest,
+transaction ID, node-version, metrics, and capability data. Its
+`.guild-source-receipt.json` binds that source identity to the installed file
+hashes and modes. The common environment stops on malformed, incomplete,
+future-schema, mismatched, or interrupted metadata instead of silently loading
+the cnode adapter. A missing manifest is accepted only for the documented
+legacy/source-tree fallback.
 
-The six runtime members (`env`, four common libraries, and the selected
-adapter) update as one locked transaction. They are all downloaded and
-shell-validated before the first replacement; a failed commit restores every
-previous member.
+An update check from any helper compares and, after confirmation where
+applicable, refreshes the complete compatible Guild payload through the
+installed dispatcher. All candidates are staged and validated before the
+target-wide transaction starts. A failed activation restores the previous
+generation, and the receipt and deployed manifest are committed last.
 
-The manifest branch is also the authoritative update source. If that branch
-is missing or cannot be reached, a manifest-backed helper or common-runtime
-update fails without replacing files instead of silently downloading
-`master`. Change to a reachable branch with the dispatcher or a compatible
-helper's `-b` option. The historical fallback to `master` remains only for
-legacy installations that have no `.deployment.json`.
+The manifest branch or tag is also the authoritative update source. If it is
+missing or cannot be reached, a helper update fails without replacing files;
+there is no silent `master` fallback. Change to a reachable channel with the
+dispatcher or a compatible helper's `-b` option. A different public fork is a
+separate repository migration and requires the dispatcher options
+`-a <account> -R`.
+
+Automatic helper refresh uses managed mode by default; `GUILD_SOURCE_MODE` may
+be set to `cached` only for an intentional offline check against the existing
+bare cache. A deployment installed from a local or dirty checkout cannot be
+automatically refreshed because the checkout path is deliberately not stored
+as a reusable trust decision. Re-run the installed dispatcher explicitly:
+
+```bash
+"${NODE_HOME}/scripts/guild-deploy.sh" \
+  -i <cnode|dingo|amaru> -n <network> -b <branch> -a <account> \
+  -p "$(dirname "${NODE_HOME}")" -t "$(basename "${NODE_HOME}")" \
+  -S local -L /absolute/path/to/guild-operators
+```
+
+Add `-D` only when intentionally deploying uncommitted `scripts` or `files`
+content. Public managed source uses HTTPS Git and needs no GitHub token or API
+key.
 
 #### Configuration
 

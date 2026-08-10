@@ -63,6 +63,11 @@ dingo_deploy_validate_context() {
     dingo_deploy_fail "HOME must be an absolute path containing only deployment-safe characters"
     return 1
   }
+  declare -F dispatcher_prepare_profile_layout >/dev/null 2>&1 &&
+    declare -F dispatcher_validate_profile_layout >/dev/null 2>&1 || {
+    dingo_deploy_fail "The dispatcher secure-layout contract is unavailable"
+    return 1
+  }
   local configured_port="${NODE_PORT:-3001}"
   if [[ ! "${configured_port}" =~ ^[0-9]+$ ]] ||
      (( 10#${configured_port} < 1 || 10#${configured_port} > 65535 )); then
@@ -148,40 +153,26 @@ dingo_deploy_local_payload() {
 dingo_deploy_fetch() {
   local relative_path="$1"
   local destination="$2"
-  local local_payload=""
-  local_payload="$(dingo_deploy_local_payload "${relative_path}" 2>/dev/null || true)"
-  if [[ -n "${local_payload}" ]]; then
-    cp -- "${local_payload}" "${destination}"
-  else
-    [[ -n "${URL_RAW:-}" ]] || {
-      dingo_deploy_fail "URL_RAW is required when profile payloads are not available locally"
-      return 1
-    }
-    curl --fail --silent --show-error --location \
-      --connect-timeout "${CURL_TIMEOUT:-20}" \
-      --max-time "${CURL_TIMEOUT:-60}" \
-      "${URL_RAW}/${relative_path}" \
-      --output "${destination}"
-  fi
+  declare -F dispatcher_source_copy >/dev/null 2>&1 || {
+    dingo_deploy_fail "The dispatcher source-copy contract is unavailable"
+    return 1
+  }
+  dispatcher_source_copy "${relative_path}" "${destination}"
 }
 
 dingo_deploy_prepare_layout() {
   dingo_deploy_progress "Creating Dingo node layout" "${NODE_HOME}"
-  dingo_deploy_privileged mkdir -p \
-    "${NODE_HOME}" \
-    "${NODE_HOME}/db" \
-    "${NODE_HOME}/files" \
-    "${NODE_HOME}/logs" \
-    "${NODE_HOME}/priv/pool" \
-    "${NODE_HOME}/snapshots" \
-    "${NODE_HOME}/sockets" \
-    "${NODE_HOME}/scripts" \
-    "${NODE_HOME}/scripts/adapters" \
-    "${NODE_HOME}/scripts/archive" \
-    "${NODE_HOME}/scripts/lib" || return 1
+  dispatcher_prepare_profile_layout dingo_deploy_privileged || {
+    dingo_deploy_fail "Refusing to create an unsafe Dingo directory layout"
+    return 1
+  }
 
   local owner
   owner="$(id -u):$(id -g)"
+  dispatcher_validate_profile_layout || {
+    dingo_deploy_fail "Dingo directory layout changed before ownership setup"
+    return 1
+  }
   dingo_deploy_privileged chown "${owner}" \
     "${NODE_HOME}" \
     "${NODE_HOME}/db" \
@@ -195,6 +186,10 @@ dingo_deploy_prepare_layout() {
     "${NODE_HOME}/scripts/adapters" \
     "${NODE_HOME}/scripts/archive" \
     "${NODE_HOME}/scripts/lib" || return 1
+  dispatcher_validate_profile_layout || {
+    dingo_deploy_fail "Dingo directory layout changed before permission setup"
+    return 1
+  }
   dingo_deploy_privileged chmod 0700 \
     "${NODE_HOME}/priv" "${NODE_HOME}/priv/pool" || return 1
   dingo_deploy_ok "Dingo node layout" "${NODE_HOME}"
@@ -366,6 +361,23 @@ dingo_deploy_validate_release_metadata() {
 
 dingo_deploy_install_payloads() {
   dingo_deploy_progress "Refreshing Dingo scripts and configuration" "${BRANCH:-master}"
+  if [[ "${DISPATCHER_TX_PREPARED:-N}" == "Y" ]]; then
+    dingo_deploy_check_network_change || return 1
+    dispatcher_distribution_activate || {
+      dingo_deploy_fail "The complete Dingo payload failed validation or activation"
+      return 1
+    }
+    dingo_deploy_validate_release_metadata \
+      "${NODE_HOME}/files/dingo-release.json" || return 1
+    PROFILE_TARGET_NODE_VERSION="$(jq -er '.version' "${NODE_HOME}/files/dingo-release.json")" || return 1
+    PROFILE_METRICS_PROVIDER="prometheus"
+    PROFILE_CAP_N2C="true"
+    PROFILE_CAP_LOCAL_CLI="true"
+    PROFILE_CAP_METRICS="true"
+    PROFILE_CAP_FORGING="true"
+    dingo_deploy_ok "Dingo scripts and configuration"
+    return 0
+  fi
   dingo_deploy_install_code_payload \
     "scripts/dingo-helper-scripts/dingo.sh" \
     "${NODE_HOME}/scripts/dingo.sh" 0755 || return 1

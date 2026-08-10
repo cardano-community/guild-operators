@@ -2,6 +2,15 @@
 # shellcheck shell=bash
 # Read and update the deployment metadata shared by Guild helper scripts.
 
+# Keep refresh decisions across repeated env loads in one helper process, but
+# never trust state inherited from a parent process or exported environment.
+if [[ "${GUILD_PAYLOAD_REFRESH_OWNER_PID:-}" != "$$" ]]; then
+  GUILD_PAYLOAD_REFRESH_OWNER_PID="$$"
+  GUILD_PAYLOAD_REFRESH_STATE="idle"
+  GUILD_PAYLOAD_REFRESH_SIGNATURE=""
+  GUILD_PAYLOAD_REFRESH_RESULT=""
+fi
+
 deployment_file() {
   printf '%s/.deployment.json\n' "${NODE_HOME:?NODE_HOME is not set}"
 }
@@ -79,16 +88,6 @@ deployment_canonical_target_path() {
   printf '%s' "${canonical}"
 }
 
-deployment_branch_exists() {
-  local branch="${1:-}"
-  local account="${2:-${G_ACCOUNT:-cardano-community}}"
-  local timeout="${CURL_TIMEOUT:-10}"
-  command -v curl >/dev/null 2>&1 || return 1
-  curl -s -f -m "${timeout}" \
-    "https://raw.githubusercontent.com/${account}/guild-operators/${branch}/LICENSE" \
-    -o /dev/null
-}
-
 deployment_target_lock_key() {
   local target_home="${1:-${NODE_HOME:-}}"
   local canonical_target
@@ -97,13 +96,100 @@ deployment_target_lock_key() {
   printf '%s' "${canonical_target}" | cksum | awk '{printf "%s-%s", $1, $2}'
 }
 
+deployment_process_identity() {
+  local pid="${1:-}"
+  local started="" checksum=""
+  [[ "${pid}" =~ ^[0-9]+$ ]] || return 2
+  if [[ -r "/proc/${pid}/stat" ]]; then
+    started="$(sed 's/^.*) //' "/proc/${pid}/stat" 2>/dev/null |
+      awk '{print $20}')"
+    [[ "${started}" =~ ^[0-9]+$ ]] || return 1
+    printf 'proc-%s' "${started}"
+    return 0
+  fi
+  started="$(LC_ALL=C ps -o lstart= -p "${pid}" 2>/dev/null || true)"
+  if [[ -n "${started//[[:space:]]/}" ]]; then
+    checksum="$(printf '%s' "${started}" | cksum |
+      awk '{printf "%s-%s", $1, $2}')"
+    [[ "${checksum}" =~ ^[0-9]+-[0-9]+$ ]] || return 1
+    printf 'ps-%s' "${checksum}"
+    return 0
+  fi
+  printf 'pid-only'
+}
+
+deployment_directory_lock_is_owned() {
+  local lock_path="${1:-}"
+  local expected_pid="${2:-${BASHPID:-$$}}"
+  local owner_pid="" owner_identity="" current_identity=""
+  [[ -d "${lock_path}" && ! -L "${lock_path}" && -O "${lock_path}" &&
+     -f "${lock_path}/owner" && ! -L "${lock_path}/owner" &&
+     -O "${lock_path}/owner" ]] || return 1
+  IFS=$'\t' read -r owner_pid owner_identity < "${lock_path}/owner" || return 1
+  [[ "${owner_pid}" == "${expected_pid}" &&
+     "${owner_identity}" =~ ^(proc-[0-9]+|ps-[0-9]+-[0-9]+|pid-only)$ ]] ||
+    return 1
+  current_identity="$(deployment_process_identity "${owner_pid}")" || return 1
+  [[ "${current_identity}" == "${owner_identity}" ]]
+}
+
+deployment_directory_lock_acquire() {
+  local lock_path="${1:-}"
+  local owner_pid="" owner_identity="" current_identity="" stale_path=""
+  local current_pid="${BASHPID:-$$}"
+  [[ -n "${lock_path}" &&
+     "${lock_path}" == /tmp/guild-operators-deployment-locks-[0-9]*/*.lock.d ]] ||
+    return 2
+  while :; do
+    if (umask 077 && mkdir -- "${lock_path}") 2>/dev/null; then
+      owner_identity="$(deployment_process_identity "${current_pid}")" || {
+        rmdir -- "${lock_path}" 2>/dev/null || true
+        return 2
+      }
+      if ! printf '%s\t%s\n' "${current_pid}" "${owner_identity}" > "${lock_path}/owner" ||
+         ! chmod 0600 "${lock_path}/owner"; then
+        rm -f -- "${lock_path}/owner" 2>/dev/null || true
+        rmdir -- "${lock_path}" 2>/dev/null || true
+        return 2
+      fi
+      return 0
+    fi
+    [[ -d "${lock_path}" && ! -L "${lock_path}" && -O "${lock_path}" &&
+       -f "${lock_path}/owner" && ! -L "${lock_path}/owner" &&
+       -O "${lock_path}/owner" ]] || return 2
+    IFS=$'\t' read -r owner_pid owner_identity < "${lock_path}/owner" || return 2
+    [[ "${owner_pid}" =~ ^[0-9]+$ &&
+       "${owner_identity}" =~ ^(proc-[0-9]+|ps-[0-9]+-[0-9]+|pid-only)$ ]] ||
+      return 2
+    current_identity="$(deployment_process_identity "${owner_pid}" 2>/dev/null || true)"
+    if kill -0 "${owner_pid}" 2>/dev/null &&
+       [[ -n "${current_identity}" && "${current_identity}" == "${owner_identity}" ]]; then
+      return 1
+    fi
+    stale_path="${lock_path}.stale.${current_pid}.$RANDOM"
+    if mv -- "${lock_path}" "${stale_path}" 2>/dev/null; then
+      rm -f -- "${stale_path}/owner" || return 2
+      rmdir -- "${stale_path}" || return 2
+      continue
+    fi
+    return 1
+  done
+}
+
+deployment_directory_lock_release() {
+  local lock_path="${1:-}"
+  deployment_directory_lock_is_owned "${lock_path}" "${BASHPID:-$$}" || return 1
+  rm -f -- "${lock_path}/owner" 2>/dev/null || return 1
+  rmdir -- "${lock_path}" 2>/dev/null
+}
+
 deployment_dispatcher_lock_is_owned() {
   local target_home="${1:-${NODE_HOME:-}}"
   local canonical_target
   canonical_target="$(deployment_canonical_target_path "${target_home}")" ||
     return 1
   [[ "${DISPATCHER_LOCK_CANONICAL_TARGET:-}" = "${canonical_target}" &&
-     "${DISPATCHER_LOCK_OWNER_PID:-}" = "$$" ]] || return 1
+     "${DISPATCHER_LOCK_OWNER_PID:-}" = "${BASHPID:-$$}" ]] || return 1
 
   case "${DISPATCHER_LOCK_KIND:-}" in
     flock)
@@ -115,10 +201,8 @@ deployment_dispatcher_lock_is_owned() {
       flock -n 9 >/dev/null 2>&1 || return 1
       ;;
     directory)
-      [[ -n "${DISPATCHER_LOCK_PATH:-}" &&
-         -d "${DISPATCHER_LOCK_PATH}" &&
-         ! -L "${DISPATCHER_LOCK_PATH}" &&
-         -O "${DISPATCHER_LOCK_PATH}" ]] || return 1
+      deployment_directory_lock_is_owned "${DISPATCHER_LOCK_PATH:-}" "${BASHPID:-$$}" ||
+        return 1
       ;;
     *)
       return 1
@@ -130,7 +214,7 @@ deployment_local_lock_is_owned() {
   local canonical_target="${1:-}"
   [[ -n "${canonical_target}" &&
      "${DEPLOYMENT_TARGET_LOCK_CANONICAL_TARGET:-}" = "${canonical_target}" &&
-     "${DEPLOYMENT_TARGET_LOCK_OWNER_PID:-}" = "$$" ]] || return 1
+     "${DEPLOYMENT_TARGET_LOCK_OWNER_PID:-}" = "${BASHPID:-$$}" ]] || return 1
 
   case "${DEPLOYMENT_TARGET_LOCK_METHOD:-}" in
     flock)
@@ -142,10 +226,8 @@ deployment_local_lock_is_owned() {
       flock -n 8 >/dev/null 2>&1 || return 1
       ;;
     directory)
-      [[ -n "${DEPLOYMENT_TARGET_LOCK_PATH:-}" &&
-         -d "${DEPLOYMENT_TARGET_LOCK_PATH}" &&
-         ! -L "${DEPLOYMENT_TARGET_LOCK_PATH}" &&
-         -O "${DEPLOYMENT_TARGET_LOCK_PATH}" ]] || return 1
+      deployment_directory_lock_is_owned "${DEPLOYMENT_TARGET_LOCK_PATH:-}" "${BASHPID:-$$}" ||
+        return 1
       ;;
     *)
       return 1
@@ -158,6 +240,8 @@ deployment_target_lock_acquire() {
   local lock_base
   local lock_key
   local canonical_target
+  local lock_backend="${GUILD_DEPLOY_LOCK_BACKEND:-auto}"
+  local lock_status=0
 
   canonical_target="$(deployment_canonical_target_path "${target_home}")" || {
     printf "Cannot lock unsafe deployment path: '%s'\n" "${target_home}" >&2
@@ -186,14 +270,25 @@ deployment_target_lock_acquire() {
   chmod 0700 "${lock_base}" || return 2
   lock_key="$(deployment_target_lock_key "${canonical_target}")" || return 2
 
-  if command -v flock >/dev/null 2>&1; then
+  case "${lock_backend}" in
+    auto)
+      command -v flock >/dev/null 2>&1 && lock_backend="flock" ||
+        lock_backend="directory"
+      ;;
+    flock) command -v flock >/dev/null 2>&1 || return 2 ;;
+    directory) ;;
+    *) return 2 ;;
+  esac
+  if [[ "${lock_backend}" == "flock" ]]; then
     DEPLOYMENT_TARGET_LOCK_PATH="${lock_base}/${lock_key}.lock"
     if [[ -L "${DEPLOYMENT_TARGET_LOCK_PATH}" ]] ||
        { [[ -e "${DEPLOYMENT_TARGET_LOCK_PATH}" ]] && [[ ! -O "${DEPLOYMENT_TARGET_LOCK_PATH}" ]]; }; then
       printf "Unsafe deployment lock file: %s\n" "${DEPLOYMENT_TARGET_LOCK_PATH}" >&2
       return 2
     fi
-    if ! exec 8>"${DEPLOYMENT_TARGET_LOCK_PATH}"; then
+    (umask 077 && : >> "${DEPLOYMENT_TARGET_LOCK_PATH}") || return 2
+    chmod 0600 "${DEPLOYMENT_TARGET_LOCK_PATH}" || return 2
+    if ! exec 8>>"${DEPLOYMENT_TARGET_LOCK_PATH}"; then
       return 2
     fi
     if ! flock -n 8; then
@@ -204,11 +299,17 @@ deployment_target_lock_acquire() {
     DEPLOYMENT_TARGET_LOCK_METHOD="flock"
   else
     DEPLOYMENT_TARGET_LOCK_PATH="${lock_base}/${lock_key}.lock.d"
-    if ! mkdir "${DEPLOYMENT_TARGET_LOCK_PATH}" 2>/dev/null; then
-      printf "Another deployment or branch/runtime update is active for %s, or a stale lock remains at %s\n" \
-        "${target_home}" "${DEPLOYMENT_TARGET_LOCK_PATH}" >&2
-      return 1
-    fi
+    deployment_directory_lock_acquire "${DEPLOYMENT_TARGET_LOCK_PATH}" || {
+      lock_status=$?
+      if [[ "${lock_status}" -eq 1 ]]; then
+        printf "Another deployment or branch/runtime update is active for %s\n" \
+          "${target_home}" >&2
+      else
+        printf "Unsafe or unusable deployment lock: %s\n" \
+          "${DEPLOYMENT_TARGET_LOCK_PATH}" >&2
+      fi
+      return "${lock_status}"
+    }
     DEPLOYMENT_TARGET_LOCK_METHOD="directory"
   fi
 
@@ -216,7 +317,7 @@ deployment_target_lock_acquire() {
   DEPLOYMENT_TARGET_LOCK_REENTRANT="N"
   DEPLOYMENT_TARGET_LOCK_DEPTH=1
   DEPLOYMENT_TARGET_LOCK_CANONICAL_TARGET="${canonical_target}"
-  DEPLOYMENT_TARGET_LOCK_OWNER_PID="$$"
+  DEPLOYMENT_TARGET_LOCK_OWNER_PID="${BASHPID:-$$}"
   GUILD_DEPLOY_LOCK_HELD_FOR="${canonical_target}"
   export GUILD_DEPLOY_LOCK_HELD_FOR
 }
@@ -237,7 +338,7 @@ deployment_target_lock_release() {
       exec 8>&-
       ;;
     directory)
-      rmdir "${DEPLOYMENT_TARGET_LOCK_PATH}" 2>/dev/null || true
+      deployment_directory_lock_release "${DEPLOYMENT_TARGET_LOCK_PATH}" || true
       ;;
   esac
   DEPLOYMENT_TARGET_LOCK_OWNED="N"
@@ -250,115 +351,361 @@ deployment_target_lock_release() {
   unset GUILD_DEPLOY_LOCK_HELD_FOR
 }
 
-deployment_set_branch() (
+deployment_payload_relative_path_valid() {
+  local relative_path="${1:-}"
+  local component
+  local -a components
+
+  [[ -n "${relative_path}" && "${relative_path}" != /* &&
+     "${relative_path}" =~ ^[A-Za-z0-9._/+@:-]+$ ]] || return 1
+  IFS='/' read -r -a components <<< "${relative_path}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" && "${component}" != "." &&
+       "${component}" != ".." ]] || return 1
+  done
+}
+
+deployment_payload_sha256() {
+  local file="${1:-}"
+  [[ -f "${file}" && ! -L "${file}" ]] || return 1
+  command -v sha256sum >/dev/null 2>&1 || return 2
+  sha256sum -- "${file}" | awk '{print $1}'
+}
+
+# Verify the committed receipt and every dispatcher-managed installed file.
+# Operator-preserved configuration entries are deliberately excluded.
+deployment_payload_is_current() (
+  local manifest receipt expected_receipt_hash actual_receipt_hash transaction_id
+  local relative_path expected_mode expected_hash managed target actual_hash
+
+  manifest="$(deployment_file)" || return 1
+  receipt="${NODE_HOME}/.guild-source-receipt.json"
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" &&
+     -f "${receipt}" && ! -L "${receipt}" && -s "${receipt}" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  jq -e '
+    type == "object" and .schemaVersion == 1 and
+    .deploymentStatus == "deployed" and
+    .sourceSchemaVersion == 1 and
+    .payloadReceipt == ".guild-source-receipt.json" and
+    (.payloadReceiptSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+    (.transactionId | type == "string" and test("^[0-9a-f]{16,64}$"))
+  ' "${manifest}" >/dev/null 2>&1 || return 1
+  jq -e '
+    type == "object" and .schemaVersion == 1 and
+    (.files | type == "array" and length > 0) and
+    (all(.files[];
+      (.path | type == "string" and length > 0) and
+      (.mode | type == "string" and test("^0[0-7]{3}$")) and
+      (.installedSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      (.managed | type == "boolean")))
+  ' "${receipt}" >/dev/null 2>&1 || return 1
+
+  expected_receipt_hash="$(jq -er '.payloadReceiptSha256' "${manifest}")" || return 1
+  actual_receipt_hash="$(deployment_payload_sha256 "${receipt}")" || return 1
+  [[ "${actual_receipt_hash}" == "${expected_receipt_hash}" ]] || return 1
+  transaction_id="$(jq -er '.transactionId' "${manifest}")" || return 1
+  [[ "${transaction_id}" == "${expected_receipt_hash:0:${#transaction_id}}" ]] || return 1
+  jq -e -s '
+    .[0] as $metadata | .[1] as $receipt |
+    $receipt.implementation == $metadata.implementation and
+    $receipt.network == $metadata.network and
+    $receipt.source.repository == $metadata.repository and
+    $receipt.source.channel == $metadata.branch and
+    $receipt.source.ref == $metadata.sourceRef and
+    $receipt.source.revision == $metadata.sourceRevision and
+    $receipt.source.mode == $metadata.sourceMode and
+    $receipt.source.dirty == $metadata.sourceDirty and
+    (
+      ($metadata.sourceDirty == false and
+        ($receipt.source | has("treeDigest") | not)) or
+      ($metadata.sourceDirty == true and
+        $receipt.source.treeDigest == $metadata.sourceTreeDigest)
+    )
+  ' "${manifest}" "${receipt}" >/dev/null 2>&1 || return 1
+
+  while IFS=$'\t' read -r relative_path expected_mode expected_hash managed; do
+    [[ "${managed}" == "true" ]] || continue
+    deployment_payload_relative_path_valid "${relative_path}" || return 1
+    target="${NODE_HOME}/${relative_path}"
+    [[ -f "${target}" && ! -L "${target}" && -s "${target}" ]] || return 1
+    [[ -n "$(find "${target}" -prune -perm "${expected_mode}" -print 2>/dev/null)" ]] ||
+      return 1
+    actual_hash="$(deployment_payload_sha256 "${target}")" || return 1
+    [[ "${actual_hash}" == "${expected_hash}" ]] || return 1
+  done < <(jq -r '.files[] | [.path, .mode, .installedSha256, .managed] | @tsv' "${receipt}")
+)
+
+deployment_payload_metadata_fingerprint() {
+  local manifest
+  manifest="$(deployment_file)" || return 1
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  command -v sha256sum >/dev/null 2>&1 || return 1
+  jq -cS . "${manifest}" 2>/dev/null | sha256sum | awk '{print $1}'
+}
+
+deployment_payload_refresh_message() {
+  local message="${1:-}"
+  if [[ -t 1 && $(type -t getAnswer 2>/dev/null) == "function" ]]; then
+    getAnswer "${message}"
+    return $?
+  fi
+  return 1
+}
+
+# Refresh all Guild-owned deployment files through the installed dispatcher.
+# $1: Y applies without prompting; N retains the historical interactive choice.
+# $2: optional branch override. All other target identity comes from metadata.
+# Return: 0 no refresh, 1 complete transaction applied, 2 failure.
+deployment_refresh_payload() {
+  local auto_update="${1:-N}"
+  local requested_branch="${2:-}"
+  local manifest dispatcher metadata
+  local implementation network stored_branch repository account service
+  local source_mode source_dirty requested_mode node_parent node_name signature
+  local before_current=N before_fingerprint="" after_fingerprint=""
+  local check_status apply_status result=2
+  local check_output="" checked_revision=""
+  local -a dispatcher_args
+
+  [[ "${auto_update}" == "Y" || "${auto_update}" == "N" ]] || return 2
+  command -v jq >/dev/null 2>&1 || {
+    printf "Cannot refresh Guild payload: jq is not available.\n" >&2
+    return 2
+  }
+  manifest="$(deployment_file)" || return 2
+  if [[ ! -f "${manifest}" || -L "${manifest}" || ! -s "${manifest}" ]]; then
+    printf "Cannot refresh Guild payload: a finalized deployment manifest is required at %s. Re-run guild-deploy.sh.\n" \
+      "${manifest}" >&2
+    return 2
+  fi
+  metadata="$(jq -er '
+    select(
+      type == "object" and .schemaVersion == 1 and
+      .deploymentStatus == "deployed" and
+      (.implementation == "cnode" or .implementation == "dingo" or .implementation == "amaru") and
+      (.network | type == "string" and length > 0) and
+      (.branch | type == "string" and length > 0) and
+      (.repository | type == "string" and test("^[A-Za-z0-9_.-]+/guild-operators$")) and
+      (.serviceName | type == "string" and test("^[A-Za-z0-9_.@-]+$"))
+    ) |
+    [
+      .implementation,
+      .network,
+      .branch,
+      .repository,
+      .serviceName,
+      (.sourceMode // "managed"),
+      (.sourceDirty // false)
+    ] | @tsv
+  ' "${manifest}" 2>/dev/null)" || {
+    printf "Cannot refresh Guild payload: %s is malformed or incomplete. Re-run guild-deploy.sh.\n" \
+      "${manifest}" >&2
+    return 2
+  }
+  IFS=$'\t' read -r implementation network stored_branch repository service \
+    source_mode source_dirty <<< "${metadata}"
+  account="${repository%/guild-operators}"
+  requested_branch="${requested_branch:-${stored_branch}}"
+  deployment_branch_valid "${stored_branch}" &&
+    deployment_branch_valid "${requested_branch}" || {
+      printf "Cannot refresh Guild payload: deployment branch '%s' is invalid.\n" \
+        "${requested_branch}" >&2
+      return 2
+    }
+  case "${implementation}:${network}" in
+    cnode:mainnet|cnode:guild|cnode:preprod|cnode:preview|dingo:preprod|dingo:preview|amaru:preprod|amaru:preview) ;;
+    *)
+      printf "Cannot refresh Guild payload: unsupported target %s/%s in %s.\n" \
+        "${implementation}" "${network}" "${manifest}" >&2
+      return 2
+      ;;
+  esac
+  [[ "${service}" == "$(basename "${NODE_HOME}" | tr '[:upper:]' '[:lower:]')" ]] || {
+    printf "Cannot refresh Guild payload: serviceName '%s' does not match target folder '%s'.\n" \
+      "${service}" "$(basename "${NODE_HOME}")" >&2
+    return 2
+  }
+
+  # Source modes are per invocation, not sticky deployment preferences.
+  # Managed remains the default; cached must be an explicit offline choice.
+  requested_mode="${GUILD_SOURCE_MODE:-managed}"
+  if [[ "${source_mode}" == "local" || "${source_dirty}" == "true" ]]; then
+    dispatcher="${NODE_HOME}/scripts/guild-deploy.sh"
+    printf "Cannot automatically refresh a deployment installed from a local or dirty checkout. Re-run %s -i %s -n %s -p %s -t %s -b %s -a %s -S local -L /absolute/path/to/guild-operators%s\n" \
+      "${dispatcher}" "${implementation}" "${network}" "$(dirname "${NODE_HOME}")" \
+      "$(basename "${NODE_HOME}")" "${requested_branch}" "${account}" \
+      "$([[ "${source_dirty}" == "true" ]] && printf ' -D')" >&2
+    return 2
+  fi
+  case "${requested_mode}" in
+    managed|cached) ;;
+    local)
+      printf "Automatic helper refresh cannot select local mode because no checkout path is stored. Re-run %s/scripts/guild-deploy.sh with -S local -L /absolute/path/to/guild-operators and -D when needed.\n" \
+        "${NODE_HOME}" >&2
+      return 2
+      ;;
+    *)
+      printf "Cannot refresh Guild payload: GUILD_SOURCE_MODE must be managed or cached.\n" >&2
+      return 2
+      ;;
+  esac
+
+  node_parent="$(dirname "${NODE_HOME}")"
+  node_name="$(basename "${NODE_HOME}")"
+  signature="${repository}|${requested_branch}|${implementation}|${network}|${requested_mode}|${NODE_HOME}"
+  case "${GUILD_PAYLOAD_REFRESH_STATE:-idle}" in
+    complete)
+      if [[ "${GUILD_PAYLOAD_REFRESH_SIGNATURE:-}" != "${signature}" ]]; then
+        printf "Cannot evaluate two different Guild payload sources in one helper process; rerun the helper for '%s'.\n" \
+          "${requested_branch}" >&2
+        return 2
+      fi
+      return "${GUILD_PAYLOAD_REFRESH_RESULT:-2}"
+      ;;
+    running)
+      printf "Recursive Guild payload refresh request refused.\n" >&2
+      return 2
+      ;;
+    idle|"") ;;
+    *)
+      printf "Invalid Guild payload refresh state.\n" >&2
+      return 2
+      ;;
+  esac
+  GUILD_PAYLOAD_REFRESH_STATE="running"
+  GUILD_PAYLOAD_REFRESH_SIGNATURE="${signature}"
+
+  dispatcher="${NODE_HOME}/scripts/guild-deploy.sh"
+  if [[ ! -f "${dispatcher}" || -L "${dispatcher}" || ! -s "${dispatcher}" ]]; then
+    printf "Cannot refresh Guild payload: installed dispatcher is missing or unsafe at %s. Re-run guild-deploy.sh from a trusted checkout.\n" \
+      "${dispatcher}" >&2
+    GUILD_PAYLOAD_REFRESH_STATE="complete"
+    GUILD_PAYLOAD_REFRESH_RESULT=2
+    return 2
+  fi
+  if ! "${BASH}" -n "${dispatcher}" >/dev/null 2>&1 ||
+     ! grep -q '^dispatcher_prepare_source_and_handoff()' "${dispatcher}" ||
+     ! grep -q 'GUILD_SOURCE_CHECK_ONLY' "${dispatcher}" ||
+     ! grep -q '^dispatcher_distribution_prepare()' "${dispatcher}"; then
+    printf "Cannot refresh Guild payload: %s predates or fails the transactional source contract. Re-run a current guild-deploy.sh from a trusted checkout.\n" \
+      "${dispatcher}" >&2
+    GUILD_PAYLOAD_REFRESH_STATE="complete"
+    GUILD_PAYLOAD_REFRESH_RESULT=2
+    return 2
+  fi
+  dispatcher_args=(
+    -i "${implementation}"
+    -n "${network}"
+    -p "${node_parent}"
+    -t "${node_name}"
+    -b "${requested_branch}"
+    -a "${account}"
+    -S "${requested_mode}"
+    -s ""
+    -u
+  )
+  deployment_payload_is_current && before_current=Y
+  before_fingerprint="$(deployment_payload_metadata_fingerprint 2>/dev/null || true)"
+
+  check_status=0
+  check_output="$(
+    unset GUILD_SOURCE_CHECKOUT GUILD_SOURCE_ALLOW_DIRTY
+    unset GUILD_SOURCE_EXPECT_REVISION GUILD_DOCKER_EXPORT_ROOT
+    unset GUILD_SOURCE_ALLOW_REPOSITORY_CHANGE GUILD_DEPLOY_LOCK_HELD_FOR
+    unset GUILD_SOURCE_HANDOFF_ACTIVE GUILD_SOURCE_HANDOFF_SNAPSHOT
+    unset GUILD_SOURCE_HANDOFF_CONTAINER GUILD_SOURCE_HANDOFF_TOKEN
+    unset GUILD_SOURCE_HANDOFF_REPOSITORY GUILD_SOURCE_HANDOFF_CHANNEL
+    unset GUILD_SOURCE_HANDOFF_MODE GUILD_SOURCE_HANDOFF_REF
+    unset GUILD_SOURCE_HANDOFF_REVISION GUILD_SOURCE_HANDOFF_DIRTY
+    unset GUILD_SOURCE_HANDOFF_TREE_DIGEST
+    GUILD_SOURCE_CHECK_ONLY=Y "${BASH}" "${dispatcher}" "${dispatcher_args[@]}"
+  )" || check_status=$?
+  [[ -z "${check_output}" ]] || printf '%s\n' "${check_output}"
+  case "${check_status}" in
+    0|10)
+      checked_revision="${check_output##*$'\n'}"
+      if [[ ! "${checked_revision}" =~ ^[0-9a-f]{40,64}$ ]]; then
+        printf "Guild source check did not return an exact revision; the installed payload was not changed.\n" >&2
+        GUILD_PAYLOAD_REFRESH_STATE="complete"
+        GUILD_PAYLOAD_REFRESH_RESULT=2
+        return 2
+      fi
+      ;;
+  esac
+  case "${check_status}" in
+    0)
+      if [[ "${before_current}" == "Y" && "${requested_branch}" == "${stored_branch}" &&
+            "${requested_mode}" == "${source_mode}" ]]; then
+        result=0
+        GUILD_PAYLOAD_REFRESH_STATE="complete"
+        GUILD_PAYLOAD_REFRESH_RESULT="${result}"
+        return "${result}"
+      fi
+      ;;
+    10) ;;
+    *)
+      printf "Guild source check failed; the installed payload was not changed.\n" >&2
+      GUILD_PAYLOAD_REFRESH_STATE="complete"
+      GUILD_PAYLOAD_REFRESH_RESULT=2
+      return 2
+      ;;
+  esac
+
+  if [[ "${auto_update}" != "Y" ]] &&
+     ! deployment_payload_refresh_message \
+       "\nA complete Guild payload refresh is available for ${implementation}/${network} (${repository} ${requested_branch}, ${requested_mode}). Apply it now?"; then
+    GUILD_PAYLOAD_REFRESH_STATE="complete"
+    GUILD_PAYLOAD_REFRESH_RESULT=0
+    return 0
+  fi
+
+  apply_status=0
+  (
+    unset GUILD_SOURCE_CHECK_ONLY GUILD_SOURCE_CHECKOUT GUILD_SOURCE_ALLOW_DIRTY
+    unset GUILD_SOURCE_EXPECT_REVISION GUILD_DOCKER_EXPORT_ROOT
+    unset GUILD_SOURCE_ALLOW_REPOSITORY_CHANGE GUILD_DEPLOY_LOCK_HELD_FOR
+    unset GUILD_SOURCE_HANDOFF_ACTIVE GUILD_SOURCE_HANDOFF_SNAPSHOT
+    unset GUILD_SOURCE_HANDOFF_CONTAINER GUILD_SOURCE_HANDOFF_TOKEN
+    unset GUILD_SOURCE_HANDOFF_REPOSITORY GUILD_SOURCE_HANDOFF_CHANNEL
+    unset GUILD_SOURCE_HANDOFF_MODE GUILD_SOURCE_HANDOFF_REF
+    unset GUILD_SOURCE_HANDOFF_REVISION GUILD_SOURCE_HANDOFF_DIRTY
+    unset GUILD_SOURCE_HANDOFF_TREE_DIGEST
+    GUILD_SOURCE_EXPECT_REVISION="${checked_revision}" \
+      "${BASH}" "${dispatcher}" "${dispatcher_args[@]}"
+  ) || apply_status=$?
+  if [[ "${apply_status}" -ne 0 ]] || ! deployment_payload_is_current; then
+    printf "Complete Guild payload refresh failed; inspect the dispatcher output above.\n" >&2
+    result=2
+  else
+    after_fingerprint="$(deployment_payload_metadata_fingerprint 2>/dev/null || true)"
+    if [[ "${before_current}" != "Y" || -z "${before_fingerprint}" ||
+          "${before_fingerprint}" != "${after_fingerprint}" ]]; then
+      result=1
+    else
+      result=0
+    fi
+  fi
+  GUILD_PAYLOAD_REFRESH_STATE="complete"
+  GUILD_PAYLOAD_REFRESH_RESULT="${result}"
+  return "${result}"
+}
+
+# A branch change is a complete source/payload transaction. Only the dispatcher
+# is allowed to publish the resulting deployment metadata.
+deployment_set_branch() {
   local branch="${1:-}"
-  local manifest manifest_dir staged stored_branch stored_repository stored_account
-  local stored_service expected_service
+  local refresh_status
 
   if ! deployment_branch_valid "${branch}"; then
     printf "Invalid deployment branch: '%s'\n" "${branch}" >&2
     return 2
   fi
-  command -v jq >/dev/null 2>&1 || {
-    printf "Cannot update deployment metadata: jq is not available\n" >&2
-    return 2
-  }
-
-  manifest="$(deployment_file)" || return 2
-  manifest_dir="$(dirname "${manifest}")"
-  if [[ ! -d "${manifest_dir}" ||
-        ! -f "${manifest}" ||
-        -L "${manifest}" ||
-        ! -s "${manifest}" ]]; then
-    printf "Cannot update deployment branch: a valid manifest is required at %s. Re-run guild-deploy.sh first.\n" \
-      "${manifest}" >&2
-    return 1
-  fi
-  deployment_target_lock_acquire "${NODE_HOME}" || return 1
-  trap 'deployment_target_lock_release' EXIT
-  trap 'deployment_target_lock_release; exit 130' HUP INT TERM
-
-  if ! jq -e '
-    type == "object" and
-    .schemaVersion == 1 and
-    .deploymentStatus == "deployed" and
-    (.implementation == "cnode" or .implementation == "dingo" or .implementation == "amaru") and
-    (
-      (.implementation == "cnode" and
-        (.network == "mainnet" or .network == "guild" or .network == "preprod" or .network == "preview")) or
-      ((.implementation == "dingo" or .implementation == "amaru") and
-        (.network == "preprod" or .network == "preview"))
-    ) and
-    (.branch | type == "string" and length > 0) and
-    (.repository | type == "string" and test("^[A-Za-z0-9_.-]+/guild-operators$")) and
-    (.serviceName | type == "string" and test("^[A-Za-z0-9_.@-]+$")) and
-    (.nodeVersion | type == "string") and
-    (.targetNodeVersion | type == "string") and
-    (.metricsProvider | type == "string" and length > 0) and
-    (.capabilities | type == "object") and
-    (.capabilities | keys == ["forging", "localCli", "metrics", "n2c"]) and
-    (.capabilities.n2c | type == "boolean") and
-    (.capabilities.localCli | type == "boolean") and
-    (.capabilities.metrics | type == "boolean") and
-    (.capabilities.forging | type == "boolean") and
-    (
-      (.implementation == "cnode" and
-        .metricsProvider == "prometheus" and
-        .capabilities.n2c == true and
-        .capabilities.localCli == true and
-        .capabilities.metrics == true and
-        .capabilities.forging == true) or
-      (.implementation == "dingo" and
-        .metricsProvider == "prometheus" and
-        .capabilities.n2c == true and
-        .capabilities.localCli == true and
-        .capabilities.metrics == true and
-        .capabilities.forging == true) or
-      (.implementation == "amaru" and
-        .metricsProvider == "otel" and
-        .capabilities.n2c == false and
-        .capabilities.localCli == false and
-        .capabilities.metrics == true and
-        .capabilities.forging == false)
-    )
-  ' "${manifest}" >/dev/null 2>&1; then
-    printf "Cannot update deployment branch: %s is malformed or incomplete. Re-run guild-deploy.sh first.\n" \
-      "${manifest}" >&2
-    return 1
-  fi
-  stored_branch="$(jq -r '.branch' "${manifest}")"
-  stored_repository="$(jq -r '.repository' "${manifest}")"
-  stored_service="$(jq -r '.serviceName' "${manifest}")"
-  stored_account="${stored_repository%/guild-operators}"
-  if ! deployment_branch_valid "${stored_branch}"; then
-    printf "Cannot update deployment branch: %s contains an invalid branch. Re-run guild-deploy.sh first.\n" \
-      "${manifest}" >&2
-    return 1
-  fi
-  expected_service="$(basename "${NODE_HOME}" | tr '[:upper:]' '[:lower:]')"
-  if [[ "${stored_service}" != "${expected_service}" ]]; then
-    printf "Cannot update deployment branch: serviceName '%s' does not match target folder '%s'. Re-run guild-deploy.sh first.\n" \
-      "${stored_service}" "${expected_service}" >&2
-    return 1
-  fi
-  if ! deployment_branch_exists "${branch}" "${stored_account}"; then
-    printf "Cannot update deployment branch: '%s' was not found in %s/guild-operators. The manifest was not changed.\n" \
-      "${branch}" "${stored_account}" >&2
-    return 1
-  fi
-
-  staged="$(mktemp "${manifest_dir}/.deployment.json.tmp.XXXXXX")" || return 1
-  if ! jq --arg branch "${branch}" '.branch = $branch' "${manifest}" > "${staged}"; then
-    rm -f "${staged}"
-    return 1
-  fi
-
-  if ! chmod 644 "${staged}"; then
-    rm -f "${staged}"
-    return 1
-  fi
-  if ! mv -f "${staged}" "${manifest}"; then
-    rm -f "${staged}"
-    return 1
-  fi
-)
+  deployment_refresh_payload Y "${branch}"
+  refresh_status=$?
+  case "${refresh_status}" in
+    0|1) return 0 ;;
+    *) return 1 ;;
+  esac
+}

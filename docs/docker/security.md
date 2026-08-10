@@ -63,9 +63,17 @@ untrusted image, script branch, or host safe.
 
 - Prefer immutable image digests for production deployments rather than a
   moving `latest` tag.
-- Review the selected `G_ACCOUNT` and `GUILD_DEPLOY_BRANCH`; the Dockerfile
-  downloads deployment scripts, manifests, configuration, and container assets
-  from that source.
+- Review `G_ACCOUNT`, `GUILD_DEPLOY_BRANCH`, and the full
+  `GUILD_DEPLOY_REVISION`. The revision is a mandatory full lowercase commit
+  ID. The Dockerfile runs one dispatcher seed, requires
+  the selected branch or tag to resolve to that revision, and obtains both the
+  node payload and Docker supplement from the resulting exact snapshot. It
+  does not silently fall back to `master`.
+- Verify `${NODE_HOME}/.guild-source-receipt.json` against the digest in
+  `.deployment.json`, and verify
+  `/usr/share/guild-operators/docker-source-receipt.json` with its adjacent
+  checksum. They deliberately cover the target and Docker-only files
+  separately while recording the same source revision.
 - Guild release manifests checksum node and tool artifacts, but this does not
   replace review of the Dockerfile, source branch, base image, or workflow.
 - Scan images and their dependencies before deployment and after material
@@ -83,7 +91,10 @@ untrusted image, script branch, or host safe.
 - Alert on repeated restarts, unexpected image changes, resource exhaustion,
   and published-port changes.
 - Recreate containers from reviewed images instead of making undocumented
-  changes inside a running container.
+  changes inside a running container. Guild images reject `UPDATE_CHECK=Y`;
+  software and source configuration updates require a pinned image rebuild.
+  cnode's necessary startup-time configuration changes occur only in a
+  disposable non-receipted overlay.
 - Test cnode upgrades on a relay or test network first. Dingo and Amaru images
   are experimental and restricted to `preprod` and `preview`; Dingo producer
   mode is for testnet evaluation only and Amaru remains relay-only.

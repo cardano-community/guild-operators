@@ -21,9 +21,27 @@ jobs:
       with:
         scandir: "./scripts"
         severity: "warning"
-        additional_files: "./scripts/common-helper-scripts/env, ./scripts/common-helper-scripts/cntools.library, ./scripts/cnode-helper-scripts/mithril.library"
+        additional_files: >-
+          env
+          cntools.library
+          mithril.library
+          deployment.library
+          env.library
+          node-api.library
+          systemd.library
+    - name: Docker shell lint check
+      run: |
+        shellcheck -S warning -e SC2034,SC2327,SC2328 \
+          files/docker/node/addons/entrypoint.sh \
+          files/docker/node/addons/healthcheck.sh \
+          files/docker/node/addons/block_watcher.sh \
+          files/tests/docker-deployment.sh
     - name: Deployment dispatcher tests
       run: bash files/tests/guild-deploy-dispatcher.sh
+    - name: Deployment source manifest tests
+      run: bash files/tests/guild-source-manifest.sh
+    - name: Deployment transaction tests
+      run: bash files/tests/guild-deploy-transaction.sh
     - name: Alternate deployment tests
       run: bash files/tests/alternate-deployments.sh
     - name: Deployment layout tests

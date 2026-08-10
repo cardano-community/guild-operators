@@ -17,6 +17,15 @@ default and carries the broader cnode helper payload described below. Dingo
 and Amaru images are experimental and limited to preprod and preview. Dingo
 can run as a relay or testnet block producer; Amaru is relay-only.
 
+The build-context dispatcher is only a seed. One invocation prepares and
+re-executes an exact managed Git snapshot, installs the complete node target,
+and exports the Docker-only supplement from that same revision. Production and
+workflow builds pin the mandatory `GUILD_DEPLOY_REVISION` to the full commit
+SHA. Runtime payload refresh is rejected; updates are made by rebuilding and
+recreating the container from another reviewed exact revision. The target
+and Docker supplement have separate, cross-linked source receipts; see the
+[build guide](build.md) for their paths and manual build arguments.
+
 Implementation and network are fixed at build time and recorded in
 `.deployment.json`. A runtime override that contradicts the manifest is
 rejected; build another image to change either value.
@@ -93,7 +102,8 @@ The node image is built in a single stage using
   - Install the os prerequisites
   - Deploy the selected node implementation from verified release binaries
   - Install the implementation's configuration and compatible helper set
-  - Create authoritative deployment metadata
+  - Create authoritative deployment metadata and a complete payload receipt
+  - Export separately receipted Docker-only files from the same source revision
 
 
 ### Additional docs

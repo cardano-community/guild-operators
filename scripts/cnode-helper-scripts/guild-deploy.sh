@@ -18,6 +18,11 @@
 #UPDATE_CHECK="Y"                    # Check this dispatcher for updates
 #SUDO="Y"                            # Set to N in containers already running as root
 #PACKAGE_MANAGER_OUTPUT="compact"    # compact | verbose
+#GUILD_SOURCE_MODE="managed"         # managed | cached | local
+#GUILD_SOURCE_CHECKOUT=""             # Absolute checkout path required by local mode
+#GUILD_SOURCE_ALLOW_DIRTY="N"         # Allow an explicitly selected dirty local checkout
+#GUILD_SOURCE_ALLOW_REPOSITORY_CHANGE="N" # Allow an existing target to move to another fork
+#GUILD_SOURCE_EXPECT_REVISION=""      # Optional bootstrap pin; mismatch fails before handoff
 #
 # cnode-specific variables
 #CNODE_SKIP_DBSYNC_DOWNLOAD="N"      # Skip cardano-db-sync when using cnode -s d
@@ -431,7 +436,7 @@ dispatcher_resolve_github_release() {
 dispatcher_usage() {
   cat <<-EOF
 
-	Usage: $(basename "$0") [-i <cnode|dingo|amaru>] [-n <network>] [-p path] [-t name] [-b branch] [-u] [-s flags]
+	Usage: $(basename "$0") [-i <cnode|dingo|amaru>] [-n <network>] [-p path] [-t name] [-b branch] [-a account] [-S mode] [-L checkout] [-D] [-R] [-E export-dir] [-u] [-s flags]
 
 	Common Guild Operators deployment entrypoint.
 
@@ -440,6 +445,12 @@ dispatcher_usage() {
 	-p    Parent path below which the top-level folder is created (Default: /opt/cardano)
 	-t    Alternate top-level folder/service name (Default: selected implementation)
 	-b    Guild Operators repository branch (Default: stored deployment branch, then master)
+	-a    Guild Operators GitHub account or fork owner
+	-S    Source mode: managed (default), cached (explicit offline), or local
+	-L    Absolute Git checkout used only with -S local
+	-D    Allow a dirty local checkout; records a deterministic source tree digest
+	-R    Explicitly allow an existing deployment to move to another repository/fork
+	-E    Export the separately receipted Docker supplement to a new empty path
 	-u    Skip dispatcher update check
 	-s    Selective install flags. Common meanings:
 	        p  runtime OS prerequisites
@@ -510,12 +521,12 @@ validate_deployment_path() {
   [[ "${1:-}" =~ ^/[A-Za-z0-9._/+@:-]+$ ]]
 }
 
-# Dormant managed-source provider -------------------------------------------------
+# Managed-source provider ---------------------------------------------------------
 #
-# Stage 0B freezes this interface without calling it from the deployment path.
-# The later transactional cutover can prepare one immutable source snapshot
-# before acquiring a deployment-target lock. Until that cutover, sourcing or
-# executing guild-deploy.sh has exactly the existing raw-download behavior.
+# The bootstrap prepares one immutable source snapshot through this interface,
+# releases the source-cache lock, and re-executes the dispatcher from that exact
+# snapshot before acquiring a deployment-target lock. Profiles and the complete
+# payload transaction then copy only from the adopted snapshot.
 #
 # Public contract:
 #   guild_source_prepare <account/guild-operators> <channel> \
@@ -1536,6 +1547,96 @@ guild_source_report() {
     "${_GUILD_SOURCE_DIRTY}" "${digest_json}"
 }
 
+# A prepared snapshot outlives exec(2), but shell-private provider state does
+# not. The bootstrap therefore passes a narrowly validated descriptor to the
+# dispatcher inside that same snapshot. Adoption is accepted only when the
+# running file is the expected snapshot dispatcher and the private marker,
+# owner, paths, source identity, and dirty-state invariants all agree.
+guild_source_adopt_handoff() {
+  local snapshot="${GUILD_SOURCE_HANDOFF_SNAPSHOT:-}"
+  local container="${GUILD_SOURCE_HANDOFF_CONTAINER:-}"
+  local token="${GUILD_SOURCE_HANDOFF_TOKEN:-}"
+  local repository="${GUILD_SOURCE_HANDOFF_REPOSITORY:-}"
+  local channel="${GUILD_SOURCE_HANDOFF_CHANNEL:-}"
+  local mode="${GUILD_SOURCE_HANDOFF_MODE:-}"
+  local source_ref="${GUILD_SOURCE_HANDOFF_REF:-}"
+  local revision="${GUILD_SOURCE_HANDOFF_REVISION:-}"
+  local dirty="${GUILD_SOURCE_HANDOFF_DIRTY:-}"
+  local digest="${GUILD_SOURCE_HANDOFF_TREE_DIGEST:-}"
+  local running_script=""
+  local expected_script=""
+  local marker=""
+
+  [[ "${GUILD_SOURCE_HANDOFF_ACTIVE:-N}" == "Y" ]] || return 1
+  running_script="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)/$(basename -- "${BASH_SOURCE[0]}")" ||
+    return 2
+  expected_script="${snapshot}/scripts/cnode-helper-scripts/guild-deploy.sh"
+  [[ -n "${snapshot}" && -n "${container}" && -n "${token}" &&
+     "${container}" == "$(dirname -- "${container}")"/guild-source-transaction.* &&
+     "${snapshot}" == "${container}/snapshot" &&
+     "${running_script}" == "${expected_script}" &&
+     -d "${container}" && ! -L "${container}" && -O "${container}" &&
+     -d "${snapshot}" && ! -L "${snapshot}" && -O "${snapshot}" &&
+     -f "${expected_script}" && ! -L "${expected_script}" && -O "${expected_script}" ]] ||
+    return 2
+  marker="${snapshot}/guild-source-snapshot"
+  [[ -f "${marker}" && ! -L "${marker}" && -O "${marker}" &&
+     "$(sed -n '1p' "${marker}" 2>/dev/null)" == "${token}" ]] || return 2
+  _guild_source_resolve_git || return 2
+  _guild_source_repository_valid "${repository}" || return 2
+  _guild_source_channel_valid "${channel}" || return 2
+  case "${mode}" in managed|cached|local) ;; *) return 2 ;; esac
+  [[ "${source_ref}" == "refs/heads/${channel}" ||
+     "${source_ref}" == "refs/tags/${channel}" ]] || return 2
+  [[ "${revision}" =~ ^[0-9a-f]{40,64}$ ]] || return 2
+  if [[ -n "${GUILD_SOURCE_EXPECT_REVISION:-}" ]]; then
+    [[ "${GUILD_SOURCE_EXPECT_REVISION}" =~ ^[0-9a-f]{40,64}$ &&
+       "${GUILD_SOURCE_EXPECT_REVISION}" == "${revision}" ]] || return 2
+  fi
+  case "${dirty}" in true|false) ;; *) return 2 ;; esac
+  if [[ "${dirty}" == "true" ]]; then
+    [[ "${mode}" == "local" && "${digest}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  else
+    [[ -z "${digest}" ]] || return 2
+  fi
+
+  _GUILD_SOURCE_PREPARED="Y"
+  _GUILD_SOURCE_REPOSITORY="${repository}"
+  _GUILD_SOURCE_CHANNEL="${channel}"
+  _GUILD_SOURCE_MODE="${mode}"
+  _GUILD_SOURCE_REF="${source_ref}"
+  _GUILD_SOURCE_REVISION="${revision}"
+  _GUILD_SOURCE_DIRTY="${dirty}"
+  _GUILD_SOURCE_TREE_DIGEST="${digest}"
+  _GUILD_SOURCE_SNAPSHOT="${snapshot}"
+  _GUILD_SOURCE_SNAPSHOT_CONTAINER="${container}"
+  _GUILD_SOURCE_SNAPSHOT_PARENT="$(dirname -- "${container}")"
+  _GUILD_SOURCE_SNAPSHOT_TOKEN="${token}"
+
+  unset GUILD_SOURCE_HANDOFF_ACTIVE GUILD_SOURCE_HANDOFF_SNAPSHOT
+  unset GUILD_SOURCE_HANDOFF_CONTAINER GUILD_SOURCE_HANDOFF_TOKEN
+  unset GUILD_SOURCE_HANDOFF_REPOSITORY GUILD_SOURCE_HANDOFF_CHANNEL
+  unset GUILD_SOURCE_HANDOFF_MODE GUILD_SOURCE_HANDOFF_REF
+  unset GUILD_SOURCE_HANDOFF_REVISION GUILD_SOURCE_HANDOFF_DIRTY
+  unset GUILD_SOURCE_HANDOFF_TREE_DIGEST
+}
+
+dispatcher_source_path() {
+  guild_source_path "$1"
+}
+
+dispatcher_source_copy() {
+  local relative_path="${1:-}"
+  local destination="${2:-}"
+  local source_path=""
+
+  (( $# == 2 )) || return 2
+  source_path="$(dispatcher_source_path "${relative_path}")" || return $?
+  [[ -n "${destination}" && "${destination}" == /* && ! -L "${destination}" ]] ||
+    return 2
+  cp -- "${source_path}" "${destination}"
+}
+
 dispatcher_canonical_target_path() {
   local target="${1:-}"
   local canonical="/"
@@ -1588,13 +1689,108 @@ dispatcher_lock_key() {
     awk '{printf "%s-%s", $1, $2}'
 }
 
+dispatcher_process_identity() {
+  local pid="${1:-}"
+  local started="" checksum=""
+
+  [[ "${pid}" =~ ^[0-9]+$ ]] || return 2
+  if [[ -r "/proc/${pid}/stat" ]]; then
+    started="$(sed 's/^.*) //' "/proc/${pid}/stat" 2>/dev/null |
+      awk '{print $20}')"
+    [[ "${started}" =~ ^[0-9]+$ ]] || return 1
+    printf 'proc-%s' "${started}"
+    return 0
+  fi
+  started="$(LC_ALL=C ps -o lstart= -p "${pid}" 2>/dev/null || true)"
+  if [[ -n "${started//[[:space:]]/}" ]]; then
+    checksum="$(printf '%s' "${started}" | cksum |
+      awk '{printf "%s-%s", $1, $2}')"
+    [[ "${checksum}" =~ ^[0-9]+-[0-9]+$ ]] || return 1
+    printf 'ps-%s' "${checksum}"
+    return 0
+  fi
+  # Some restricted environments deny process-start inspection. PID liveness
+  # still permits safe dead-owner recovery; full process identity is used
+  # whenever /proc or ps is available.
+  printf 'pid-only'
+}
+
+dispatcher_directory_lock_is_owned() {
+  local lock_path="${1:-}"
+  local expected_pid="${2:-${BASHPID:-$$}}"
+  local owner_pid="" owner_identity="" current_identity=""
+
+  [[ -d "${lock_path}" && ! -L "${lock_path}" && -O "${lock_path}" &&
+     -f "${lock_path}/owner" && ! -L "${lock_path}/owner" &&
+     -O "${lock_path}/owner" ]] || return 1
+  IFS=$'\t' read -r owner_pid owner_identity < "${lock_path}/owner" || return 1
+  [[ "${owner_pid}" == "${expected_pid}" &&
+     "${owner_identity}" =~ ^(proc-[0-9]+|ps-[0-9]+-[0-9]+|pid-only)$ ]] ||
+    return 1
+  current_identity="$(dispatcher_process_identity "${owner_pid}")" || return 1
+  [[ "${current_identity}" == "${owner_identity}" ]]
+}
+
+dispatcher_directory_lock_acquire() {
+  local lock_path="${1:-}"
+  local owner_pid="" owner_identity="" current_identity="" stale_path=""
+  local current_pid="${BASHPID:-$$}"
+
+  [[ -n "${lock_path}" &&
+     "${lock_path}" == /tmp/guild-operators-deployment-locks-[0-9]*/*.lock.d ]] ||
+    return 2
+  while :; do
+    if (umask 077 && mkdir -- "${lock_path}") 2>/dev/null; then
+      owner_identity="$(dispatcher_process_identity "${current_pid}")" || {
+        rmdir -- "${lock_path}" 2>/dev/null || true
+        return 2
+      }
+      if ! printf '%s\t%s\n' "${current_pid}" "${owner_identity}" > "${lock_path}/owner" ||
+         ! chmod 0600 "${lock_path}/owner"; then
+        rm -f -- "${lock_path}/owner" 2>/dev/null || true
+        rmdir -- "${lock_path}" 2>/dev/null || true
+        return 2
+      fi
+      return 0
+    fi
+    [[ -d "${lock_path}" && ! -L "${lock_path}" && -O "${lock_path}" &&
+       -f "${lock_path}/owner" && ! -L "${lock_path}/owner" &&
+       -O "${lock_path}/owner" ]] || return 2
+    IFS=$'\t' read -r owner_pid owner_identity < "${lock_path}/owner" || return 2
+    [[ "${owner_pid}" =~ ^[0-9]+$ &&
+       "${owner_identity}" =~ ^(proc-[0-9]+|ps-[0-9]+-[0-9]+|pid-only)$ ]] ||
+      return 2
+    current_identity="$(dispatcher_process_identity "${owner_pid}" 2>/dev/null || true)"
+    if kill -0 "${owner_pid}" 2>/dev/null &&
+       [[ -n "${current_identity}" && "${current_identity}" == "${owner_identity}" ]]; then
+      return 1
+    fi
+    stale_path="${lock_path}.stale.${current_pid}.$RANDOM"
+    if mv -- "${lock_path}" "${stale_path}" 2>/dev/null; then
+      [[ -d "${stale_path}" && ! -L "${stale_path}" && -O "${stale_path}" ]] ||
+        return 2
+      rm -f -- "${stale_path}/owner" || return 2
+      rmdir -- "${stale_path}" || return 2
+      continue
+    fi
+    return 1
+  done
+}
+
+dispatcher_directory_lock_release() {
+  local lock_path="${1:-}"
+  dispatcher_directory_lock_is_owned "${lock_path}" "${BASHPID:-$$}" || return 1
+  rm -f -- "${lock_path}/owner" 2>/dev/null || return 1
+  rmdir -- "${lock_path}" 2>/dev/null
+}
+
 dispatcher_target_lock_is_owned() {
   local requested_target="${1:-}"
   local canonical_target
   canonical_target="$(dispatcher_canonical_target_path "${requested_target}")" ||
     return 1
   [[ "${DISPATCHER_LOCK_CANONICAL_TARGET:-}" = "${canonical_target}" &&
-     "${DISPATCHER_LOCK_OWNER_PID:-}" = "$$" ]] || return 1
+     "${DISPATCHER_LOCK_OWNER_PID:-}" = "${BASHPID:-$$}" ]] || return 1
 
   case "${DISPATCHER_LOCK_KIND:-}" in
     flock)
@@ -1606,10 +1802,8 @@ dispatcher_target_lock_is_owned() {
       flock -n 9 >/dev/null 2>&1 || return 1
       ;;
     directory)
-      [[ -n "${DISPATCHER_LOCK_PATH:-}" &&
-         -d "${DISPATCHER_LOCK_PATH}" &&
-         ! -L "${DISPATCHER_LOCK_PATH}" &&
-         -O "${DISPATCHER_LOCK_PATH}" ]] || return 1
+      dispatcher_directory_lock_is_owned "${DISPATCHER_LOCK_PATH:-}" "${BASHPID:-$$}" ||
+        return 1
       ;;
     *)
       return 1
@@ -1621,6 +1815,7 @@ dispatcher_acquire_target_lock() {
   local lock_base
   local lock_key
   local canonical_target
+  local lock_backend="${GUILD_DEPLOY_LOCK_BACKEND:-auto}"
   lock_base="/tmp/guild-operators-deployment-locks-$(id -u)"
   canonical_target="$(dispatcher_canonical_target_path "${NODE_HOME:-}")" ||
     err_exit "Unable to resolve a safe physical deployment target for ${NODE_HOME:-unset}."
@@ -1634,15 +1829,62 @@ dispatcher_acquire_target_lock() {
   chmod 0700 "${lock_base}" ||
     err_exit "Unable to secure deployment lock directory ${lock_base}."
 
+  case "${lock_backend}" in
+    auto)
+      command -v flock >/dev/null 2>&1 && lock_backend="flock" ||
+        lock_backend="directory"
+      ;;
+    flock)
+      command -v flock >/dev/null 2>&1 ||
+        err_exit "GUILD_DEPLOY_LOCK_BACKEND=flock requires flock."
+      ;;
+    directory) ;;
+    *) err_exit "GUILD_DEPLOY_LOCK_BACKEND must be auto, flock, or directory." ;;
+  esac
+
+  if [[ "${lock_backend}" == "flock" ]]; then
+    DISPATCHER_USER_LOCK_PATH="${lock_base}/user.lock"
+    if [[ -L "${DISPATCHER_USER_LOCK_PATH}" ]] ||
+       { [[ -e "${DISPATCHER_USER_LOCK_PATH}" ]] &&
+         [[ ! -f "${DISPATCHER_USER_LOCK_PATH}" ||
+            ! -O "${DISPATCHER_USER_LOCK_PATH}" ]]; }; then
+      err_exit "Unsafe shared-user deployment lock: ${DISPATCHER_USER_LOCK_PATH}"
+    fi
+    (umask 077 && : >> "${DISPATCHER_USER_LOCK_PATH}") ||
+      err_exit "Unable to create shared-user deployment lock."
+    chmod 0600 "${DISPATCHER_USER_LOCK_PATH}" ||
+      err_exit "Unable to secure shared-user deployment lock."
+    exec 8>>"${DISPATCHER_USER_LOCK_PATH}" ||
+      err_exit "Unable to open shared-user deployment lock."
+    flock -n 8 || {
+      exec 8>&-
+      err_exit "Another Guild deployment is updating shared user resources."
+    }
+    DISPATCHER_USER_LOCK_KIND="flock"
+  else
+    DISPATCHER_USER_LOCK_PATH="${lock_base}/user.lock.d"
+    dispatcher_directory_lock_acquire "${DISPATCHER_USER_LOCK_PATH}" || {
+      case "$?" in
+        1) err_exit "Another Guild deployment is updating shared user resources." ;;
+        *) err_exit "Unsafe or unusable shared-user deployment lock: ${DISPATCHER_USER_LOCK_PATH}" ;;
+      esac
+    }
+    DISPATCHER_USER_LOCK_KIND="directory"
+  fi
+
   lock_key="$(dispatcher_lock_key "${canonical_target}")" ||
     err_exit "Unable to derive the deployment lock key."
-  if command -v flock >/dev/null 2>&1; then
+  if [[ "${lock_backend}" == "flock" ]]; then
     DISPATCHER_LOCK_PATH="${lock_base}/${lock_key}.lock"
     if [[ -L "${DISPATCHER_LOCK_PATH}" ]] ||
        { [[ -e "${DISPATCHER_LOCK_PATH}" ]] && [[ ! -O "${DISPATCHER_LOCK_PATH}" ]]; }; then
       err_exit "Unsafe deployment lock file: ${DISPATCHER_LOCK_PATH}"
     fi
-    if ! exec 9>"${DISPATCHER_LOCK_PATH}"; then
+    (umask 077 && : >> "${DISPATCHER_LOCK_PATH}") ||
+      err_exit "Unable to create deployment lock ${DISPATCHER_LOCK_PATH}."
+    chmod 0600 "${DISPATCHER_LOCK_PATH}" ||
+      err_exit "Unable to secure deployment lock ${DISPATCHER_LOCK_PATH}."
+    if ! exec 9>>"${DISPATCHER_LOCK_PATH}"; then
       err_exit "Unable to open deployment lock ${DISPATCHER_LOCK_PATH}."
     fi
     if ! flock -n 9; then
@@ -1652,13 +1894,16 @@ dispatcher_acquire_target_lock() {
     DISPATCHER_LOCK_KIND="flock"
   else
     DISPATCHER_LOCK_PATH="${lock_base}/${lock_key}.lock.d"
-    if ! mkdir "${DISPATCHER_LOCK_PATH}" 2>/dev/null; then
-      err_exit "Another deployment or branch update is active for ${NODE_HOME}, or a stale lock exists at ${DISPATCHER_LOCK_PATH}."
-    fi
+    dispatcher_directory_lock_acquire "${DISPATCHER_LOCK_PATH}" || {
+      case "$?" in
+        1) err_exit "Another deployment or branch update is active for ${NODE_HOME}." ;;
+        *) err_exit "Unsafe or unusable deployment lock: ${DISPATCHER_LOCK_PATH}" ;;
+      esac
+    }
     DISPATCHER_LOCK_KIND="directory"
   fi
   DISPATCHER_LOCK_CANONICAL_TARGET="${canonical_target}"
-  DISPATCHER_LOCK_OWNER_PID="$$"
+  DISPATCHER_LOCK_OWNER_PID="${BASHPID:-$$}"
   GUILD_DEPLOY_LOCK_HELD_FOR="${canonical_target}"
   export GUILD_DEPLOY_LOCK_HELD_FOR
 }
@@ -1670,7 +1915,7 @@ dispatcher_release_target_lock() {
       exec 9>&-
       ;;
     directory)
-      rmdir "${DISPATCHER_LOCK_PATH}" 2>/dev/null || true
+      dispatcher_directory_lock_release "${DISPATCHER_LOCK_PATH}" || true
       ;;
   esac
   DISPATCHER_LOCK_KIND=""
@@ -1678,6 +1923,17 @@ dispatcher_release_target_lock() {
   DISPATCHER_LOCK_CANONICAL_TARGET=""
   DISPATCHER_LOCK_OWNER_PID=""
   unset GUILD_DEPLOY_LOCK_HELD_FOR
+  case "${DISPATCHER_USER_LOCK_KIND:-}" in
+    flock)
+      flock -u 8 2>/dev/null || true
+      exec 8>&-
+      ;;
+    directory)
+      dispatcher_directory_lock_release "${DISPATCHER_USER_LOCK_PATH}" || true
+      ;;
+  esac
+  DISPATCHER_USER_LOCK_KIND=""
+  DISPATCHER_USER_LOCK_PATH=""
 }
 
 # Profiles use the same interface as the installed deployment library. The
@@ -1835,7 +2091,7 @@ dispatcher_install_common_runtime_bundle() (
       return 2
     fi
     if [[ ! -s "${downloads[i]}" ]] ||
-       ! bash -n "${downloads[i]}" >/dev/null 2>&1; then
+       ! "${BASH}" -n "${downloads[i]}" >/dev/null 2>&1; then
       log_warn "Downloaded common runtime member failed validation: ${target_name}"
       return 2
     fi
@@ -1856,7 +2112,7 @@ dispatcher_install_common_runtime_bundle() (
   else
     cp -- "${downloads[5]}" "${candidates[5]}" || return 2
   fi
-  if ! bash -n "${candidates[5]}" >/dev/null 2>&1; then
+  if ! "${BASH}" -n "${candidates[5]}" >/dev/null 2>&1; then
     log_warn "Preserved common env header failed shell validation."
     return 2
   fi
@@ -1998,10 +2254,41 @@ dispatcher_set_defaults() {
   [[ -z "${UPDATE_CHECK:-}" ]] && UPDATE_CHECK="Y"
   [[ -z "${SUDO:-}" ]] && SUDO="Y"
   [[ -z "${PACKAGE_MANAGER_OUTPUT:-}" ]] && PACKAGE_MANAGER_OUTPUT="compact"
+  [[ -z "${GUILD_SOURCE_MODE:-}" ]] && GUILD_SOURCE_MODE="managed"
+  [[ -z "${GUILD_SOURCE_CHECKOUT:-}" ]] && GUILD_SOURCE_CHECKOUT=""
+  [[ -z "${GUILD_SOURCE_ALLOW_DIRTY:-}" ]] && GUILD_SOURCE_ALLOW_DIRTY="N"
+  [[ -z "${GUILD_SOURCE_ALLOW_REPOSITORY_CHANGE:-}" ]] &&
+    GUILD_SOURCE_ALLOW_REPOSITORY_CHANGE="N"
+  [[ -z "${GUILD_SOURCE_EXPECT_REVISION:-}" ]] &&
+    GUILD_SOURCE_EXPECT_REVISION=""
+  [[ -z "${GUILD_DOCKER_EXPORT_ROOT:-}" ]] && GUILD_DOCKER_EXPORT_ROOT=""
   case "${PACKAGE_MANAGER_OUTPUT}" in
     compact|verbose) ;;
     *) err_exit "PACKAGE_MANAGER_OUTPUT must be compact or verbose." ;;
   esac
+  case "${GUILD_SOURCE_MODE}" in managed|cached|local) ;; *)
+    err_exit "GUILD_SOURCE_MODE must be managed, cached, or local." ;;
+  esac
+  case "${GUILD_SOURCE_ALLOW_DIRTY}" in Y|N) ;; *)
+    err_exit "GUILD_SOURCE_ALLOW_DIRTY must be Y or N." ;;
+  esac
+  case "${GUILD_SOURCE_ALLOW_REPOSITORY_CHANGE}" in Y|N) ;; *)
+    err_exit "GUILD_SOURCE_ALLOW_REPOSITORY_CHANGE must be Y or N." ;;
+  esac
+  [[ -z "${GUILD_SOURCE_EXPECT_REVISION}" ||
+     "${GUILD_SOURCE_EXPECT_REVISION}" =~ ^[0-9a-f]{40,64}$ ]] ||
+    err_exit "GUILD_SOURCE_EXPECT_REVISION must be an exact lowercase Git commit ID."
+  if [[ -n "${GUILD_DOCKER_EXPORT_ROOT}" ]]; then
+    [[ "${GUILD_DOCKER_EXPORT_ROOT}" == /* &&
+       "${GUILD_DOCKER_EXPORT_ROOT}" != "/" &&
+       "${GUILD_DOCKER_EXPORT_ROOT}" != *//* &&
+       "${GUILD_DOCKER_EXPORT_ROOT}" != */../* &&
+       "${GUILD_DOCKER_EXPORT_ROOT}" != */.. &&
+       "${GUILD_DOCKER_EXPORT_ROOT}" != */./* &&
+       "${GUILD_DOCKER_EXPORT_ROOT}" != */. &&
+       ! "${GUILD_DOCKER_EXPORT_ROOT}" =~ [[:cntrl:]] ]] ||
+      err_exit "Docker supplement export path is unsafe: ${GUILD_DOCKER_EXPORT_ROOT}"
+  fi
 
   [[ -z "${NODE_IMPLEMENTATION:-}" ]] && NODE_IMPLEMENTATION="${CNODE_IMPLEMENTATION:-cnode}"
   validate_implementation "${NODE_IMPLEMENTATION}" || err_exit "Unknown node implementation '${NODE_IMPLEMENTATION}'. Expected cnode, dingo, or amaru."
@@ -2013,11 +2300,6 @@ dispatcher_set_defaults() {
       amaru) NODE_PORT=3000 ;;
     esac
   fi
-  if [[ ! "${NODE_PORT}" =~ ^[0-9]+$ ]] ||
-     (( 10#${NODE_PORT} < 1 || 10#${NODE_PORT} > 65535 )); then
-    err_exit "NODE_PORT must be an integer from 1 to 65535."
-  fi
-  NODE_PORT="$((10#${NODE_PORT}))"
   if [[ ! "${DOWNLOAD_TIMEOUT}" =~ ^[0-9]+$ ]] ||
      (( 10#${DOWNLOAD_TIMEOUT} < 1 )); then
     err_exit "DOWNLOAD_TIMEOUT must be a positive integer."
@@ -2060,11 +2342,19 @@ dispatcher_set_defaults() {
   NODE_SERVICE="$(printf '%s' "${NODE_NAME}" | tr '[:upper:]' '[:lower:]')"
   validate_deployment_path "${NODE_HOME}" ||
     err_exit "The computed deployment path contains unsupported characters: ${NODE_HOME}"
+  if [[ -n "${GUILD_DOCKER_EXPORT_ROOT:-}" &&
+        ( "${GUILD_DOCKER_EXPORT_ROOT}" == "${NODE_HOME}" ||
+          "${GUILD_DOCKER_EXPORT_ROOT}" == "${NODE_HOME}"/* ) ]]; then
+    err_exit "Docker supplement export must be outside the deployment target: ${NODE_HOME}"
+  fi
   [[ "${NODE_SERVICE}" =~ ^[a-z0-9_]+$ ]] ||
     err_exit "The computed service name is invalid: ${NODE_SERVICE}"
   DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
   if [[ "${DISPATCHER_LOCK_TARGET:-N}" = "Y" ]]; then
     dispatcher_acquire_target_lock
+    if [[ -d "${NODE_HOME}" && ! -L "${NODE_HOME}" ]]; then
+      dispatcher_recover_interrupted_transaction
+    fi
   fi
 
   local stored_implementation=""
@@ -2075,6 +2365,7 @@ dispatcher_set_defaults() {
   local stored_repository=""
   local stored_service=""
   local stored_account=""
+  local stored_node_port=""
   if [[ -L "${DEPLOYMENT_FILE}" ||
         ( -e "${DEPLOYMENT_FILE}" && ! -s "${DEPLOYMENT_FILE}" ) ]]; then
     err_exit "Deployment metadata is empty or an unsafe symbolic link: ${DEPLOYMENT_FILE}"
@@ -2090,6 +2381,9 @@ dispatcher_set_defaults() {
       (.branch | type == "string" and length > 0) and
       (.repository | type == "string" and test("^[A-Za-z0-9_.-]+/guild-operators$")) and
       (.serviceName | type == "string" and length > 0) and
+      ((has("nodePort") | not) or
+        (.nodePort | type == "number" and . >= 1 and . <= 65535 and
+          . == floor)) and
       (.nodeVersion | type == "string") and
       (.targetNodeVersion | type == "string") and
       (.metricsProvider | type == "string" and length > 0) and
@@ -2099,6 +2393,24 @@ dispatcher_set_defaults() {
       (.capabilities.localCli | type == "boolean") and
       (.capabilities.metrics | type == "boolean") and
       (.capabilities.forging | type == "boolean") and
+      (
+        (has("sourceSchemaVersion") | not) or
+        (
+          .sourceSchemaVersion == 1 and
+          (.sourceMode == "managed" or .sourceMode == "cached" or .sourceMode == "local") and
+          (.sourceRef | type == "string" and test("^refs/(heads|tags)/")) and
+          (.sourceRevision | type == "string" and test("^[0-9a-f]{40,64}$")) and
+          (.sourceDirty | type == "boolean") and
+          (
+            (.sourceDirty == false and (has("sourceTreeDigest") | not)) or
+            (.sourceDirty == true and .sourceMode == "local" and
+              (.sourceTreeDigest | type == "string" and test("^[0-9a-f]{64}$")))
+          ) and
+          (.payloadReceipt | type == "string" and . == ".guild-source-receipt.json") and
+          (.payloadReceiptSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+          (.transactionId | type == "string" and test("^[0-9a-f]{16,64}$"))
+        )
+      ) and
       (
         (.implementation == "cnode" and
           .metricsProvider == "prometheus" and
@@ -2129,6 +2441,7 @@ dispatcher_set_defaults() {
     stored_branch="$(deployment_json_get "${DEPLOYMENT_FILE}" branch || true)"
     stored_repository="$(deployment_json_get "${DEPLOYMENT_FILE}" repository || true)"
     stored_service="$(deployment_json_get "${DEPLOYMENT_FILE}" serviceName || true)"
+    stored_node_port="$(deployment_json_get "${DEPLOYMENT_FILE}" nodePort || true)"
 
     [[ "${stored_schema}" = "1" ]] ||
       err_exit "Unsupported or invalid deployment manifest schema in ${DEPLOYMENT_FILE}."
@@ -2153,6 +2466,9 @@ dispatcher_set_defaults() {
       stored_account="${BASH_REMATCH[1]}"
       if [[ "${G_ACCOUNT_PRESET:-N}" != "Y" ]]; then
         G_ACCOUNT="${stored_account}"
+      elif [[ "${stored_account}" != "${G_ACCOUNT}" &&
+              "${GUILD_SOURCE_ALLOW_REPOSITORY_CHANGE}" != "Y" ]]; then
+        err_exit "Target ${NODE_HOME} belongs to '${stored_repository}'. Use -R with an explicit -a account to migrate it to '${G_ACCOUNT}/guild-operators'."
       fi
     fi
 
@@ -2164,6 +2480,9 @@ dispatcher_set_defaults() {
 
     if [[ "${BRANCH_EXPLICIT}" != "Y" && "${BRANCH_PRESET}" != "Y" && -n "${stored_branch}" ]]; then
       BRANCH="${stored_branch}"
+    fi
+    if [[ "${NODE_PORT_PRESET:-N}" != "Y" && -n "${stored_node_port}" ]]; then
+      NODE_PORT="${stored_node_port}"
     fi
   elif [[ -d "${NODE_HOME}" ]] && find "${NODE_HOME}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
     local detected_network=""
@@ -2193,6 +2512,12 @@ dispatcher_set_defaults() {
     fi
   fi
 
+  if [[ ! "${NODE_PORT}" =~ ^[0-9]+$ ]] ||
+     (( 10#${NODE_PORT} < 1 || 10#${NODE_PORT} > 65535 )); then
+    err_exit "NODE_PORT must be an integer from 1 to 65535."
+  fi
+  NODE_PORT="$((10#${NODE_PORT}))"
+
   if [[ -z "${NETWORK:-}" ]]; then
     if [[ "${NODE_IMPLEMENTATION}" = "cnode" && "${LEGACY_CNODE_TARGET}" != "Y" ]]; then
       NETWORK="mainnet"
@@ -2205,19 +2530,24 @@ dispatcher_set_defaults() {
   [[ -z "${BRANCH:-}" ]] && BRANCH="master"
   validate_branch_name "${BRANCH}" || err_exit "Invalid branch name '${BRANCH}'."
   validate_account_name "${G_ACCOUNT}" || err_exit "Invalid GitHub account '${G_ACCOUNT}'."
+  if [[ "${_GUILD_SOURCE_PREPARED:-N}" == "Y" ]]; then
+    [[ "${_GUILD_SOURCE_REPOSITORY,,}" == "${G_ACCOUNT,,}/guild-operators" &&
+       "${_GUILD_SOURCE_CHANNEL}" == "${BRANCH}" &&
+       "${_GUILD_SOURCE_MODE}" == "${GUILD_SOURCE_MODE}" ]] ||
+      err_exit "The locked target identity disagrees with the prepared Guild source snapshot."
+  fi
 
   [[ "${SUDO}" = "Y" ]] && sudo="sudo" || sudo=""
   if [[ "${SUDO}" = "Y" && "$(id -u)" -eq 0 ]]; then
     err_exit "Please run as a non-root user, or set SUDO=N for a controlled container build."
   fi
 
-  REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
-  URL_RAW="${REPO_RAW}/${BRANCH}"
-
   export G_ACCOUNT CURL_TIMEOUT DOWNLOAD_TIMEOUT UPDATE_CHECK SUDO sudo
   export PACKAGE_MANAGER_OUTPUT
   export NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NODE_HOME NODE_SERVICE
-  export NODE_PORT NETWORK BRANCH REPO_RAW URL_RAW S_ARGS
+  export NODE_PORT NETWORK BRANCH S_ARGS
+  export GUILD_SOURCE_MODE GUILD_SOURCE_CHECKOUT GUILD_SOURCE_ALLOW_DIRTY
+  export GUILD_SOURCE_ALLOW_REPOSITORY_CHANGE
   if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
     export CNODE_SKIP_DBSYNC_DOWNLOAD
   else
@@ -2232,94 +2562,422 @@ dispatcher_set_defaults() {
   export CNODE_PATH CNODE_NAME CNODE_HOME CNODE_VNAME
 }
 
-dispatcher_validate_branch() {
-  if curl -sSf -m "${CURL_TIMEOUT}" "${REPO_RAW}/${BRANCH}/LICENSE" -o /dev/null 2>/dev/null; then
-    return 0
-  fi
-  if [[ "${BRANCH}" != "master" ]]; then
-    log_warn "Branch '${BRANCH}' was not found; falling back to master."
-    BRANCH="master"
-    URL_RAW="${REPO_RAW}/${BRANCH}"
-    export BRANCH URL_RAW
-    curl -sSf -m "${CURL_TIMEOUT}" "${URL_RAW}/LICENSE" -o /dev/null 2>/dev/null ||
-      err_exit "Unable to reach ${G_ACCOUNT}/guild-operators."
+dispatcher_sha256() {
+  local file="$1"
+  local digest=""
+
+  [[ -f "${file}" && ! -L "${file}" ]] || return 1
+  if command -v sha256sum >/dev/null 2>&1; then
+    digest="$(sha256sum "${file}" 2>/dev/null)" || return 1
+    digest="${digest%% *}"
+  elif command -v shasum >/dev/null 2>&1; then
+    digest="$(shasum -a 256 "${file}" 2>/dev/null)" || return 1
+    digest="${digest%% *}"
   else
-    err_exit "Unable to reach ${G_ACCOUNT}/guild-operators branch master."
+    return 1
   fi
+  [[ "${digest}" =~ ^[0-9a-fA-F]{64}$ ]] || return 1
+  printf '%s\n' "$(printf '%s' "${digest}" | tr '[:upper:]' '[:lower:]')"
+}
+
+dispatcher_validate_bootstrap_prerequisites() {
+  local -a missing=()
+
+  _guild_source_resolve_git >/dev/null 2>&1 || missing+=(git)
+  command -v jq >/dev/null 2>&1 || missing+=(jq)
+  if ! command -v sha256sum >/dev/null 2>&1 &&
+     ! command -v shasum >/dev/null 2>&1; then
+    missing+=(sha256sum-or-shasum)
+  fi
+  if (( ${#missing[@]} > 0 )); then
+    err_exit "Missing bootstrap prerequisite(s): ${missing[*]}. Install Git, jq, and a SHA-256 utility before running guild-deploy.sh."
+  fi
+}
+
+dispatcher_target_fingerprint() {
+  local metadata="${1:-}"
+  local digest=""
+
+  [[ -n "${metadata}" && "${metadata}" == /* ]] || return 2
+  if [[ -L "${metadata}" ]]; then
+    printf 'symlink\n'
+  elif [[ -f "${metadata}" ]]; then
+    digest="$(dispatcher_sha256 "${metadata}")" || return 1
+    printf 'file:%s\n' "${digest}"
+  elif [[ -e "${metadata}" ]]; then
+    printf 'other\n'
+  else
+    printf 'absent\n'
+  fi
+}
+
+dispatcher_verify_target_fingerprint() {
+  local current=""
+
+  [[ -n "${GUILD_SOURCE_TARGET_METADATA:-}" &&
+     -n "${GUILD_SOURCE_TARGET_FINGERPRINT:-}" &&
+     "${DEPLOYMENT_FILE:-}" == "${GUILD_SOURCE_TARGET_METADATA}" ]] ||
+    err_exit "The source handoff target identity is incomplete or changed."
+  current="$(dispatcher_target_fingerprint "${DEPLOYMENT_FILE}")" ||
+    err_exit "Could not revalidate deployment metadata after source preparation."
+  [[ "${current}" == "${GUILD_SOURCE_TARGET_FINGERPRINT}" ]] ||
+    err_exit "Deployment metadata changed while the source snapshot was prepared; rerun the command."
+  unset GUILD_SOURCE_TARGET_METADATA GUILD_SOURCE_TARGET_FINGERPRINT
+}
+
+dispatcher_prepare_source_and_handoff() {
+  local source_mode="${GUILD_SOURCE_MODE:-managed}"
+  local source_checkout="${GUILD_SOURCE_CHECKOUT:-}"
+  local source_dispatcher=""
+  local launcher=""
+  local launcher_header=""
+  local installed_revision=""
+  local resolved_revision=""
+
+  case "${source_mode}" in
+    managed|cached)
+      [[ -z "${source_checkout}" ]] ||
+        err_exit "GUILD_SOURCE_CHECKOUT is valid only with local source mode."
+      ;;
+    local)
+      [[ -n "${source_checkout}" ]] ||
+        err_exit "Local source mode requires -L or GUILD_SOURCE_CHECKOUT."
+      ;;
+    *) err_exit "Unknown Guild source mode '${source_mode}'." ;;
+  esac
+  case "${GUILD_SOURCE_ALLOW_DIRTY:-N}" in Y|N) ;; *)
+    err_exit "GUILD_SOURCE_ALLOW_DIRTY must be Y or N." ;;
+  esac
+  export GUILD_SOURCE_ALLOW_DIRTY
+
+  launcher="$(cd -P -- "$(dirname -- "$0")" 2>/dev/null && pwd -P)/$(basename -- "$0")" ||
+    err_exit "Could not resolve the bootstrap dispatcher path."
+  [[ -f "${launcher}" && ! -L "${launcher}" && -O "${launcher}" &&
+     -s "${launcher}" ]] ||
+    err_exit "The bootstrap dispatcher must be a regular, owner-controlled file: ${launcher}"
+  "${BASH}" -n "${launcher}" >/dev/null 2>&1 ||
+    err_exit "The bootstrap dispatcher failed shell validation: ${launcher}"
+  grep -q '^# Do NOT modify code below' "${launcher}" ||
+    err_exit "The bootstrap dispatcher does not expose the user-header boundary: ${launcher}"
+  launcher_header="$(awk '/^#!/{copy=1} /^# Do NOT modify/{exit} copy' "${launcher}")"
+  [[ -n "${launcher_header}" ]] ||
+    err_exit "Could not freeze the bootstrap dispatcher user header."
+
+  log_progress "Preparing Guild source snapshot" "${G_ACCOUNT}/guild-operators ${BRANCH} (${source_mode})"
+  guild_source_prepare "${G_ACCOUNT}/guild-operators" "${BRANCH}" \
+    "${source_mode}" "${source_checkout}" ||
+    err_exit "Could not prepare exact Guild source '${G_ACCOUNT}/guild-operators' channel '${BRANCH}' in ${source_mode} mode."
+  resolved_revision="$(guild_source_revision)" ||
+    err_exit "The prepared Guild source did not publish a revision."
+  if [[ -n "${GUILD_SOURCE_EXPECT_REVISION:-}" &&
+        "${resolved_revision}" != "${GUILD_SOURCE_EXPECT_REVISION}" ]]; then
+    err_exit "Prepared Guild revision ${resolved_revision} does not match required revision ${GUILD_SOURCE_EXPECT_REVISION}."
+  fi
+  log_ok "Guild source snapshot ready" "${resolved_revision}"
+
+  if [[ "${GUILD_SOURCE_CHECK_ONLY:-N}" == "Y" ]]; then
+    if [[ -s "${DEPLOYMENT_FILE}" ]]; then
+      installed_revision="$(deployment_json_get "${DEPLOYMENT_FILE}" sourceRevision || true)"
+    fi
+    printf '%s\n' "${resolved_revision}"
+    guild_source_release || true
+    [[ -n "${installed_revision}" && "${installed_revision}" == "${resolved_revision}" ]] &&
+      return 0
+    return 10
+  fi
+
+  source_dispatcher="$(guild_source_path scripts/cnode-helper-scripts/guild-deploy.sh)" ||
+    err_exit "The prepared source does not contain guild-deploy.sh."
+  [[ -s "${source_dispatcher}" ]] && "${BASH}" -n "${source_dispatcher}" ||
+    err_exit "The prepared guild-deploy.sh failed validation."
+  GUILD_SOURCE_HANDOFF_ACTIVE="Y"
+  GUILD_SOURCE_HANDOFF_SNAPSHOT="${_GUILD_SOURCE_SNAPSHOT}"
+  GUILD_SOURCE_HANDOFF_CONTAINER="${_GUILD_SOURCE_SNAPSHOT_CONTAINER}"
+  GUILD_SOURCE_HANDOFF_TOKEN="${_GUILD_SOURCE_SNAPSHOT_TOKEN}"
+  GUILD_SOURCE_HANDOFF_REPOSITORY="${_GUILD_SOURCE_REPOSITORY}"
+  GUILD_SOURCE_HANDOFF_CHANNEL="${_GUILD_SOURCE_CHANNEL}"
+  GUILD_SOURCE_HANDOFF_MODE="${_GUILD_SOURCE_MODE}"
+  GUILD_SOURCE_HANDOFF_REF="${_GUILD_SOURCE_REF}"
+  GUILD_SOURCE_HANDOFF_REVISION="${_GUILD_SOURCE_REVISION}"
+  GUILD_SOURCE_HANDOFF_DIRTY="${_GUILD_SOURCE_DIRTY}"
+  GUILD_SOURCE_HANDOFF_TREE_DIGEST="${_GUILD_SOURCE_TREE_DIGEST}"
+  GUILD_SOURCE_LAUNCHER_PATH="${launcher}"
+  GUILD_SOURCE_LAUNCHER_HEADER="${launcher_header}"
+  GUILD_SOURCE_LAUNCHER_LOCAL_REPO="${DISPATCHER_LOCAL_REPO}"
+  GUILD_SOURCE_LAUNCHER_MANAGED_TARGET="N"
+  [[ "${launcher}" == "${NODE_HOME}/scripts/guild-deploy.sh" ]] &&
+    GUILD_SOURCE_LAUNCHER_MANAGED_TARGET="Y"
+  GUILD_SOURCE_TARGET_METADATA="${DEPLOYMENT_FILE}"
+  GUILD_SOURCE_TARGET_FINGERPRINT="$(dispatcher_target_fingerprint "${DEPLOYMENT_FILE}")" ||
+    err_exit "Could not fingerprint deployment metadata before source handoff."
+  GUILD_SOURCE_REQUEST_ACCOUNT_PRESET="${G_ACCOUNT_PRESET:-N}"
+  GUILD_SOURCE_REQUEST_BRANCH_PRESET="${BRANCH_PRESET:-N}"
+  GUILD_SOURCE_REQUEST_NETWORK_PRESET="${NETWORK_PRESET:-N}"
+  GUILD_SOURCE_REQUEST_MODE_PRESET="${GUILD_SOURCE_MODE_PRESET:-N}"
+  GUILD_SOURCE_REQUEST_NODE_PORT_PRESET="${NODE_PORT_PRESET:-N}"
+
+  export GUILD_SOURCE_HANDOFF_ACTIVE GUILD_SOURCE_HANDOFF_SNAPSHOT
+  export GUILD_SOURCE_HANDOFF_CONTAINER GUILD_SOURCE_HANDOFF_TOKEN
+  export GUILD_SOURCE_HANDOFF_REPOSITORY GUILD_SOURCE_HANDOFF_CHANNEL
+  export GUILD_SOURCE_HANDOFF_MODE GUILD_SOURCE_HANDOFF_REF
+  export GUILD_SOURCE_HANDOFF_REVISION GUILD_SOURCE_HANDOFF_DIRTY
+  export GUILD_SOURCE_HANDOFF_TREE_DIGEST GUILD_SOURCE_LAUNCHER_PATH
+  export GUILD_SOURCE_LAUNCHER_HEADER
+  export GUILD_SOURCE_LAUNCHER_LOCAL_REPO GUILD_SOURCE_LAUNCHER_MANAGED_TARGET
+  export GUILD_SOURCE_TARGET_METADATA GUILD_SOURCE_TARGET_FINGERPRINT
+  export GUILD_SOURCE_REQUEST_ACCOUNT_PRESET GUILD_SOURCE_REQUEST_BRANCH_PRESET
+  export GUILD_SOURCE_REQUEST_NETWORK_PRESET GUILD_SOURCE_REQUEST_MODE_PRESET
+  export GUILD_SOURCE_REQUEST_NODE_PORT_PRESET
+  export G_ACCOUNT NODE_IMPLEMENTATION NETWORK NODE_PARENT NODE_NAME NODE_PORT
+  export BRANCH S_ARGS UPDATE_CHECK SUDO PACKAGE_MANAGER_OUTPUT CURL_TIMEOUT
+  export DOWNLOAD_TIMEOUT CNODE_SKIP_DBSYNC_DOWNLOAD GUILD_SOURCE_MODE
+  export GUILD_SOURCE_CHECKOUT GUILD_SOURCE_ALLOW_REPOSITORY_CHANGE
+  export GUILD_SOURCE_EXPECT_REVISION GUILD_DOCKER_EXPORT_ROOT
+
+  # Replacing the bootstrap process is the handoff contract: no parent-side
+  # deployment logic may continue after the exact snapshot is prepared.
+  # shellcheck disable=SC2093
+  exec "${BASH}" "${source_dispatcher}" "$@"
+  err_exit "Could not execute the dispatcher from the prepared Guild source snapshot."
 }
 
 dispatcher_update_check() {
   [[ "${UPDATE_CHECK}" = "Y" ]] || return 0
-  [[ "${DISPATCHER_LOCAL_REPO}" = "Y" ]] && return 0
+  [[ "${GUILD_SOURCE_LAUNCHER_LOCAL_REPO:-N}" = "Y" ]] && return 0
+  [[ "${GUILD_SOURCE_LAUNCHER_MANAGED_TARGET:-N}" = "Y" ]] && return 0
 
-  local current_script
-  local current_dir
-  local current_name
-  local downloaded_script
+  local current_script="${GUILD_SOURCE_LAUNCHER_PATH:-}"
+  local current_dir=""
+  local current_name=""
+  local source_script=""
+  local staged_script=""
   local merged_script
   local backup_script
   local existing_user
   local new_code
-  current_script="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+
+  [[ -n "${current_script}" && "${current_script}" == /* &&
+     -f "${current_script}" && ! -L "${current_script}" && -O "${current_script}" ]] ||
+    err_exit "The bootstrap dispatcher path is unsafe or unavailable: ${current_script:-unset}"
   current_dir="$(dirname "${current_script}")"
   current_name="$(basename "${current_script}")"
-  downloaded_script="$(mktemp "${current_dir}/.${current_name}.download.XXXXXX")" ||
+  source_script="$(guild_source_path scripts/cnode-helper-scripts/guild-deploy.sh)" ||
+    err_exit "The prepared snapshot no longer exposes guild-deploy.sh."
+  staged_script="$(mktemp "${current_dir}/.${current_name}.source.XXXXXX")" ||
     err_exit "Unable to create dispatcher update staging file."
   merged_script="$(mktemp "${current_dir}/.${current_name}.merged.XXXXXX")" || {
-    rm -f -- "${downloaded_script}"
+    rm -f -- "${staged_script}"
     err_exit "Unable to create dispatcher update merge file."
   }
 
-  log_progress "Checking guild-deploy.sh update" "${BRANCH}"
-  if ! curl -sSf -m "${CURL_TIMEOUT}" \
-    -o "${downloaded_script}" \
-    "${URL_RAW}/scripts/cnode-helper-scripts/guild-deploy.sh"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
-    log_warn "Could not check for a dispatcher update; continuing with the current copy."
-    return 0
+  log_progress "Checking bootstrap dispatcher" "$(guild_source_revision)"
+  cp -- "${source_script}" "${staged_script}" || {
+    rm -f -- "${staged_script}" "${merged_script}"
+    err_exit "Unable to stage guild-deploy.sh from the prepared snapshot."
+  }
+
+  if [[ ! -s "${staged_script}" ]] ||
+     ! grep -q '^# Do NOT modify code below' "${staged_script}" ||
+     ! "${BASH}" -n "${staged_script}"; then
+    rm -f -- "${staged_script}" "${merged_script}"
+    err_exit "Snapshot guild-deploy.sh failed validation."
   fi
 
-  if [[ ! -s "${downloaded_script}" ]] ||
-     ! grep -q '^# Do NOT modify code below' "${downloaded_script}" ||
-     ! bash -n "${downloaded_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
-    err_exit "Downloaded guild-deploy.sh failed validation."
-  fi
-
-  if cmp -s "${current_script}" "${downloaded_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
+  if cmp -s "${current_script}" "${staged_script}"; then
+    rm -f -- "${staged_script}" "${merged_script}"
     log_ok "guild-deploy.sh is current"
     return 0
   fi
 
   existing_user="$(awk '/^#!/{copy=1} /^# Do NOT modify/{exit} copy' "${current_script}")"
-  new_code="$(awk '/^# Do NOT modify code below/{copy=1} copy' "${downloaded_script}")"
+  new_code="$(awk '/^# Do NOT modify code below/{copy=1} copy' "${staged_script}")"
   if [[ -z "${existing_user}" || -z "${new_code}" ]] ||
      ! printf '%s\n%s\n' "${existing_user}" "${new_code}" > "${merged_script}" ||
-     ! bash -n "${merged_script}" ||
+     ! "${BASH}" -n "${merged_script}" ||
      ! chmod 0755 "${merged_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
+    rm -f -- "${staged_script}" "${merged_script}"
     err_exit "Unable to prepare a validated guild-deploy.sh update."
   fi
 
   if cmp -s "${current_script}" "${merged_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
+    rm -f -- "${staged_script}" "${merged_script}"
     log_ok "guild-deploy.sh is current"
     return 0
   fi
 
   backup_script="${current_script}_bkp$(date +%s).$$"
   if ! cp -p -- "${current_script}" "${backup_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
+    rm -f -- "${staged_script}" "${merged_script}"
     err_exit "Unable to back up the current guild-deploy.sh."
   fi
   if ! mv -f -- "${merged_script}" "${current_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
+    rm -f -- "${staged_script}" "${merged_script}"
     err_exit "Unable to atomically replace guild-deploy.sh; the current copy is unchanged."
   fi
-  rm -f -- "${downloaded_script}"
-  log_ok "Updated guild-deploy.sh" "run it again"
-  exit 0
+  rm -f -- "${staged_script}"
+  log_ok "Updated bootstrap guild-deploy.sh" "${_GUILD_SOURCE_REVISION}"
+}
+
+# Emit the complete directory contract for the selected implementation in
+# parent-first order. Profiles must use this inventory instead of maintaining
+# their own mkdir lists so dispatcher preflight and privileged setup cannot
+# drift apart.
+dispatcher_profile_layout_paths() {
+  [[ -n "${NODE_HOME:-}" ]] || return 2
+  case "${NODE_IMPLEMENTATION:-}" in
+    cnode)
+      printf '%s\n' \
+        "${NODE_HOME}" \
+        "${NODE_HOME}/files" \
+        "${NODE_HOME}/db" \
+        "${NODE_HOME}/guild-db" \
+        "${NODE_HOME}/logs" \
+        "${NODE_HOME}/scripts" \
+        "${NODE_HOME}/scripts/adapters" \
+        "${NODE_HOME}/scripts/archive" \
+        "${NODE_HOME}/scripts/lib" \
+        "${NODE_HOME}/sockets" \
+        "${NODE_HOME}/priv" \
+        "${NODE_HOME}/mithril" \
+        "${NODE_HOME}/mithril/data-stores"
+      ;;
+    dingo)
+      printf '%s\n' \
+        "${NODE_HOME}" \
+        "${NODE_HOME}/db" \
+        "${NODE_HOME}/files" \
+        "${NODE_HOME}/logs" \
+        "${NODE_HOME}/priv" \
+        "${NODE_HOME}/priv/pool" \
+        "${NODE_HOME}/snapshots" \
+        "${NODE_HOME}/sockets" \
+        "${NODE_HOME}/scripts" \
+        "${NODE_HOME}/scripts/adapters" \
+        "${NODE_HOME}/scripts/archive" \
+        "${NODE_HOME}/scripts/lib"
+      ;;
+    amaru)
+      printf '%s\n' \
+        "${NODE_HOME}" \
+        "${NODE_HOME}/files" \
+        "${NODE_HOME}/logs" \
+        "${NODE_HOME}/runtime" \
+        "${NODE_HOME}/snapshots" \
+        "${NODE_HOME}/scripts" \
+        "${NODE_HOME}/scripts/adapters" \
+        "${NODE_HOME}/scripts/archive" \
+        "${NODE_HOME}/scripts/lib"
+      ;;
+    *) return 2 ;;
+  esac
+}
+
+dispatcher_layout_reject() {
+  printf 'Unsafe deployment layout: %s\n' "${1:-validation failed}" >&2
+  return 2
+}
+
+# Validate every existing path component without dereferencing symlinks.
+# Missing components are allowed during preflight, but anything that exists at
+# a contracted directory path must be a real directory. This function performs
+# no mutation and is intentionally called both before profile execution and
+# immediately before privileged ownership/mode changes.
+dispatcher_validate_profile_layout() {
+  local layout_output="" layout_path="" relative_path=""
+  local component="" current="" path_count=0
+  local -a components
+
+  if [[ -z "${NODE_HOME:-}" || "${NODE_HOME}" != /* ||
+        "${NODE_HOME}" == "/" ]]; then
+    dispatcher_layout_reject "NODE_HOME is not a safe absolute target"
+    return 2
+  fi
+  if ! layout_output="$(dispatcher_profile_layout_paths)"; then
+    dispatcher_layout_reject \
+      "no directory contract exists for ${NODE_IMPLEMENTATION:-unset}"
+    return 2
+  fi
+
+  while IFS= read -r layout_path; do
+    [[ -n "${layout_path}" ]] || continue
+    path_count=$((path_count + 1))
+    if [[ "${layout_path}" == "${NODE_HOME}" ]]; then
+      relative_path=""
+    elif [[ "${layout_path}" == "${NODE_HOME}/"* ]]; then
+      relative_path="${layout_path#"${NODE_HOME}/"}"
+      if [[ -z "${relative_path}" || "${relative_path}" == */ ||
+            "${relative_path}" == *//* ||
+            "${relative_path}" =~ [[:cntrl:]] ]]; then
+        dispatcher_layout_reject "invalid contracted path ${layout_path}"
+        return 2
+      fi
+    else
+      dispatcher_layout_reject "contracted path escapes NODE_HOME: ${layout_path}"
+      return 2
+    fi
+
+    current="${NODE_HOME}"
+    if [[ -L "${current}" ]]; then
+      dispatcher_layout_reject "symbolic link is not allowed at ${current}" || return 2
+    elif [[ -e "${current}" && ! -d "${current}" ]]; then
+      dispatcher_layout_reject "non-directory exists at ${current}" || return 2
+    fi
+    [[ -n "${relative_path}" ]] || continue
+
+    IFS='/' read -r -a components <<< "${relative_path}"
+    for component in "${components[@]}"; do
+      if [[ -z "${component}" || "${component}" == "." ||
+            "${component}" == ".." ]]; then
+        dispatcher_layout_reject "invalid path component in ${layout_path}"
+        return 2
+      fi
+      current="${current}/${component}"
+      if [[ -L "${current}" ]]; then
+        dispatcher_layout_reject "symbolic link is not allowed at ${current}" || return 2
+      elif [[ -e "${current}" && ! -d "${current}" ]]; then
+        dispatcher_layout_reject "non-directory exists at ${current}" || return 2
+      fi
+    done
+  done <<< "${layout_output}"
+
+  if (( path_count == 0 )); then
+    dispatcher_layout_reject "directory contract is empty"
+    return 2
+  fi
+}
+
+# Create the profile directory contract one component at a time. A complete
+# non-mutating preflight happens before the first mkdir. The entire contract is
+# then revalidated immediately before and after every individual creation, so
+# no later directory creation, chown, or chmod is attempted after a symlink or
+# non-directory is observed. The callback is a profile-owned privilege wrapper.
+dispatcher_prepare_profile_layout() {
+  local privileged_runner="${1:-}"
+  local layout_output="" layout_path=""
+
+  if [[ ! "${privileged_runner}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    dispatcher_layout_reject "invalid privileged layout runner"
+    return 2
+  fi
+  if ! declare -F "${privileged_runner}" >/dev/null 2>&1; then
+    dispatcher_layout_reject "privileged layout runner is unavailable"
+    return 2
+  fi
+  layout_output="$(dispatcher_profile_layout_paths)" || return 2
+  dispatcher_validate_profile_layout || return 2
+
+  while IFS= read -r layout_path; do
+    [[ -n "${layout_path}" ]] || continue
+    dispatcher_validate_profile_layout || return 2
+    if [[ ! -e "${layout_path}" && ! -L "${layout_path}" ]]; then
+      if [[ "${layout_path}" == "${NODE_HOME}" ]]; then
+        "${privileged_runner}" mkdir -p -- "${layout_path}" || return 2
+      else
+        "${privileged_runner}" mkdir -- "${layout_path}" || return 2
+      fi
+    fi
+    dispatcher_validate_profile_layout || return 2
+  done <<< "${layout_output}"
 }
 
 dispatcher_profile_relative_path() {
@@ -2333,15 +2991,11 @@ dispatcher_profile_relative_path() {
 dispatcher_load_profile() {
   local relative_path
   relative_path="$(dispatcher_profile_relative_path)"
-  PROFILE_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/guild-deploy-profile.XXXXXX")" ||
-    err_exit "Unable to create a temporary profile directory."
-  DISPATCHER_PROFILE_TMP_OWNED="Y"
-  PROFILE_PATH="${PROFILE_TMP_DIR}/$(basename "${relative_path}")"
-  log_progress "Downloading ${NODE_IMPLEMENTATION} deployment profile" "${BRANCH}"
-  curl -sSf -m "${CURL_TIMEOUT}" -o "${PROFILE_PATH}" "${URL_RAW}/${relative_path}" ||
-    err_exit "Could not download ${relative_path}."
+  PROFILE_PATH="$(guild_source_path "${relative_path}")" ||
+    err_exit "The source snapshot does not contain ${relative_path}."
+  log_progress "Loading ${NODE_IMPLEMENTATION} deployment profile" "${_GUILD_SOURCE_REVISION}"
 
-  if ! bash -n "${PROFILE_PATH}"; then
+  if ! "${BASH}" -n "${PROFILE_PATH}"; then
     err_exit "Deployment profile ${relative_path} failed shell validation."
   fi
   # shellcheck source=/dev/null
@@ -2353,6 +3007,881 @@ dispatcher_load_profile() {
   declare -F "${function_name}" >/dev/null ||
     err_exit "Deployment profile ${relative_path} does not expose ${function_name}."
   PROFILE_ENTRYPOINT="${function_name}"
+}
+
+dispatcher_distribution_relative_path_valid() {
+  local relative_path="${1:-}"
+  local component=""
+  local -a components
+
+  [[ -n "${relative_path}" && "${relative_path}" != /* &&
+     "${relative_path}" != */ && "${relative_path}" != *//* &&
+     ! "${relative_path}" =~ [[:cntrl:]] &&
+     "${relative_path}" =~ ^(scripts|files)/[A-Za-z0-9._/+@:-]+$ ]] ||
+    return 1
+  IFS='/' read -r -a components <<< "${relative_path}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" && "${component}" != "." &&
+       "${component}" != ".." ]] || return 1
+  done
+}
+
+dispatcher_distribution_render_cnode() {
+  local source_file="$1"
+  local candidate="$2"
+  local escaped_home=""
+  local escaped_name=""
+
+  escaped_home="$(printf '%s' "${NODE_HOME}" | sed 's/[&|\\]/\\&/g')"
+  escaped_name="$(printf '%s' "${NODE_NAME}" | sed 's/[&|\\]/\\&/g')"
+  sed \
+    -e "s|/opt/cardano/cnode|${escaped_home}|g" \
+    -e "s|\"TraceOptionNodeName\": \"cnode\"|\"TraceOptionNodeName\": \"${escaped_name}\"|g" \
+    "${source_file}" > "${candidate}"
+}
+
+dispatcher_distribution_render_dingo() {
+  local source_file="$1"
+  local candidate="$2"
+  local escaped_home="" escaped_service="" escaped_binary=""
+
+  escaped_home="$(printf '%s' "${NODE_HOME}" | sed 's/[&|\\]/\\&/g')"
+  escaped_service="$(printf '%s' "${NODE_SERVICE}" | sed 's/[&|\\]/\\&/g')"
+  escaped_binary="$(printf '%s' "${HOME}/.local/bin/dingo" | sed 's/[&|\\]/\\&/g')"
+  sed \
+    -e "s|@NODE_HOME@|${escaped_home}|g" \
+    -e "s|@NODE_SERVICE@|${escaped_service}|g" \
+    -e "s|@BINARY_PATH@|${escaped_binary}|g" \
+    -e "s|\"@NODE_PORT@\"|${NODE_PORT:-3001}|g" \
+    "${source_file}" > "${candidate}"
+}
+
+dispatcher_distribution_render_amaru() {
+  local source_file="$1"
+  local candidate="$2"
+  local escaped_home="" escaped_service="" escaped_binary=""
+
+  escaped_home="$(printf '%s' "${NODE_HOME}" | sed 's/[&|\\]/\\&/g')"
+  escaped_service="$(printf '%s' "${NODE_SERVICE}" | sed 's/[&|\\]/\\&/g')"
+  escaped_binary="$(printf '%s' "${HOME}/.local/bin/amaru" | sed 's/[&|\\]/\\&/g')"
+  sed \
+    -e "s|@NODE_HOME@|${escaped_home}|g" \
+    -e "s|@NODE_SERVICE@|${escaped_service}|g" \
+    -e "s|@BINARY_PATH@|${escaped_binary}|g" \
+    -e "s|@NODE_PORT@|${NODE_PORT:-3000}|g" \
+    "${source_file}" > "${candidate}"
+}
+
+dispatcher_distribution_merge_header() {
+  local source_file="$1"
+  local installed_file="$2"
+  local candidate="$3"
+  local header_override="${4:-}"
+  local old_header="" source_header="" new_runtime="" line="" variable=""
+  local use_header_override="N"
+  local insertion_index=0 index=0
+  local -a installed_lines=() missing_variables=()
+  local -A installed_variables=()
+
+  if [[ ! -e "${installed_file}" && ! -L "${installed_file}" &&
+        -n "${header_override}" ]]; then
+    use_header_override="Y"
+  fi
+  if [[ "${DISPATCHER_FORCE_SCRIPTS:-N}" != "Y" &&
+        ( ( -f "${installed_file}" && ! -L "${installed_file}" ) ||
+          "${use_header_override}" == "Y" ) &&
+        ( "${use_header_override}" == "Y" ||
+          -n "$(grep '^# Do NOT modify' "${installed_file}" 2>/dev/null)" ) &&
+        -n "$(grep '^# Do NOT modify' "${source_file}" 2>/dev/null)" ]]; then
+    if [[ "${use_header_override}" == "Y" ]]; then
+      old_header="${header_override}"
+    else
+      old_header="$(awk '/^# Do NOT modify/{exit} {print}' "${installed_file}")"
+    fi
+    source_header="$(awk '/^# Do NOT modify/{exit} {print}' "${source_file}")"
+    [[ -n "${old_header}" && -n "${source_header}" ]] || return 1
+    if [[ "${old_header}" == "${source_header}" ]]; then
+      cp -- "${source_file}" "${candidate}"
+    else
+      while IFS= read -r line; do
+        [[ "${line}" != '# Do NOT modify'* ]] || break
+        installed_lines+=("${line}")
+        if [[ "${line}" =~ ^\#*[[:space:]]*([[:alnum:]_]+)= ]]; then
+          installed_variables["${BASH_REMATCH[1]}"]="Y"
+        fi
+      done <<< "${old_header}"
+      while IFS= read -r line; do
+        [[ "${line}" != '# Do NOT modify'* ]] || break
+        if [[ "${line}" =~ ^\#*[[:space:]]*([[:alnum:]_]+)= ]]; then
+          variable="${BASH_REMATCH[1]}"
+          if [[ -z "${installed_variables[${variable}]+set}" ]]; then
+            missing_variables+=("${line}")
+            installed_variables["${variable}"]="Y"
+          fi
+        fi
+      done < "${source_file}"
+      new_runtime="$(awk 'copy || /^# Do NOT modify/{copy=1; print}' "${source_file}")"
+      [[ -n "${new_runtime}" ]] || return 1
+      insertion_index="${#installed_lines[@]}"
+      while (( insertion_index > 0 )); do
+        line="${installed_lines[insertion_index - 1]}"
+        [[ -z "${line}" || "${line}" =~ ^#+[[:space:]]*$ ]] || break
+        insertion_index=$((insertion_index - 1))
+      done
+      {
+        for (( index = 0; index < insertion_index; index++ )); do
+          printf '%s\n' "${installed_lines[index]}"
+        done
+        for line in "${missing_variables[@]}"; do
+          printf '%s\n' "${line}"
+        done
+        for (( index = insertion_index; index < ${#installed_lines[@]}; index++ )); do
+          printf '%s\n' "${installed_lines[index]}"
+        done
+        printf '%s\n' "${new_runtime}"
+      } > "${candidate}"
+    fi
+  else
+    cp -- "${source_file}" "${candidate}"
+  fi
+}
+
+dispatcher_distribution_seed_cnode_port() {
+  local candidate="$1"
+  local seeded="${candidate}.seeded"
+
+  [[ "${NODE_IMPLEMENTATION}" == "cnode" &&
+     ! -e "${NODE_HOME}/scripts/env" ]] || return 0
+  if ! awk -v node_port="${NODE_PORT}" '
+    BEGIN { updated = 0 }
+    /^#CNODE_PORT=/ && updated == 0 {
+      printf "CNODE_PORT=%s\n", node_port
+      updated = 1
+      next
+    }
+    { print }
+    END { if (updated == 0) exit 42 }
+  ' "${candidate}" > "${seeded}"; then
+    rm -f -- "${seeded}"
+    return 1
+  fi
+  mv -- "${seeded}" "${candidate}"
+}
+
+dispatcher_distribution_validate_prior_receipt() {
+  local receipt="${NODE_HOME}/.guild-source-receipt.json"
+  local metadata="${NODE_HOME}/.deployment.json"
+  local expected_hash="" actual_hash=""
+
+  DISPATCHER_PRIOR_RECEIPT=""
+  if [[ ! -e "${receipt}" && ! -L "${receipt}" ]]; then
+    if [[ -f "${metadata}" ]] &&
+       [[ -n "$(deployment_json_get "${metadata}" payloadReceiptSha256 || true)" ]]; then
+      return 2
+    fi
+    return 0
+  fi
+  [[ -f "${receipt}" && ! -L "${receipt}" && -O "${receipt}" &&
+     -f "${metadata}" && ! -L "${metadata}" ]] || return 2
+  command -v jq >/dev/null 2>&1 || return 2
+  expected_hash="$(deployment_json_get "${metadata}" payloadReceiptSha256 || true)"
+  [[ "${expected_hash}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  actual_hash="$(dispatcher_sha256 "${receipt}")" || return 2
+  [[ "${actual_hash}" == "${expected_hash}" ]] || return 2
+  jq -e '
+    type == "object" and .schemaVersion == 1 and
+    (.files | type == "array") and
+    (all(.files[];
+      (.path | type == "string" and test("^(scripts|files)/[A-Za-z0-9._/+@:-]+$")) and
+      (.installedSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      (.managed | type == "boolean"))) and
+    (([.files[].path] | length) == ([.files[].path] | unique | length))
+  ' "${receipt}" >/dev/null 2>&1 || return 2
+  DISPATCHER_PRIOR_RECEIPT="${receipt}"
+}
+
+dispatcher_file_mode() {
+  local file="${1:-}"
+  local mode=""
+
+  [[ -f "${file}" && ! -L "${file}" ]] || return 2
+  mode="$(find "${file}" -prune -printf '%m' 2>/dev/null || true)"
+  if [[ -z "${mode}" ]]; then
+    mode="$(stat -f '%Lp' "${file}" 2>/dev/null || true)"
+  fi
+  case "${mode}" in
+    [0-7][0-7][0-7]) mode="0${mode}" ;;
+    [0-7][0-7][0-7][0-7]) ;;
+    *) return 2 ;;
+  esac
+  printf '%s\n' "${mode}"
+}
+
+# Existing preserve-render targets are operator data. Without -f their bytes
+# and mode remain untouched. When the prior receipt still describes those
+# bytes, retain its policy label so an identical refresh is fully idempotent;
+# otherwise classify the file explicitly as operator-preserved.
+dispatcher_distribution_preserve_existing() {
+  local target_path="$1"
+  local target="${NODE_HOME}/${target_path}"
+  local record="" managed="" installed_hash="" prior_policy=""
+  local actual_hash=""
+
+  DISPATCHER_PRESERVED_POLICY="operator-preserved"
+  DISPATCHER_PRESERVED_MODE=""
+
+  [[ -f "${target}" && ! -L "${target}" ]] || return 1
+  DISPATCHER_PRESERVED_MODE="$(dispatcher_file_mode "${target}")" || return 2
+  [[ -n "${DISPATCHER_PRIOR_RECEIPT:-}" ]] || return 0
+  record="$(jq -er --arg path "${target_path}" '
+    [.files[] | select(.path == $path)] |
+    if length == 0 then "missing"
+    elif length == 1 then
+      (.[0].managed | tostring) + "\t" + .[0].installedSha256 +
+        "\t" + .[0].policy
+    else error("duplicate receipt path") end
+  ' "${DISPATCHER_PRIOR_RECEIPT}")" || return 2
+  [[ "${record}" != "missing" ]] || return 0
+  IFS=$'\t' read -r managed installed_hash prior_policy <<< "${record}"
+  [[ "${managed}" == "true" || "${managed}" == "false" ]] || return 2
+  [[ "${installed_hash}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  case "${prior_policy}" in
+    render-cnode|render-dingo|render-amaru|operator-preserved) ;;
+    *) return 2 ;;
+  esac
+  actual_hash="$(dispatcher_sha256 "${target}")" || return 2
+  if [[ "${actual_hash}" == "${installed_hash}" ]]; then
+    DISPATCHER_PRESERVED_POLICY="${prior_policy}"
+  fi
+  return 0
+}
+
+dispatcher_distribution_prepare() {
+  local manifest="" stage_root="" candidate_root="" plan=""
+  local first_line=""
+  local implementation="" source_path="" target_path="" mode=""
+  local policy="" validator="" extra="" source_file="" candidate=""
+  local effective_policy="" source_hash="" seen='|' record_count=0
+  local force_scripts="N" force_config="N"
+  local merge_header_override=""
+
+  [[ "${_GUILD_SOURCE_PREPARED:-N}" == "Y" ]] || return 2
+  dispatcher_distribution_validate_prior_receipt || return 2
+  manifest="$(guild_source_path files/node-implementations/source-manifest.tsv)" ||
+    return 2
+  IFS= read -r first_line < "${manifest}" || return 2
+  [[ "${first_line}" == '# Guild Operators deployment source manifest, schema 1.' ]] ||
+    return 2
+  stage_root="$(mktemp -d "${TMPDIR:-/tmp}/guild-deploy-distribution.XXXXXX")" ||
+    return 2
+  DISPATCHER_TX_STAGE_ROOT="${stage_root}"
+  chmod 0700 "${stage_root}" || return 2
+  candidate_root="${stage_root}/candidates"
+  plan="${stage_root}/plan.tsv"
+  mkdir -- "${candidate_root}" || return 2
+  chmod 0700 "${candidate_root}" || return 2
+  : > "${plan}" || return 2
+  chmod 0600 "${plan}" || return 2
+  [[ "${S_ARGS:-}" == *s* ]] && force_scripts="Y"
+  [[ "${S_ARGS:-}" == *f* ]] && force_config="Y"
+  DISPATCHER_FORCE_SCRIPTS="${force_scripts}"
+  DISPATCHER_FORCE_CONFIG="${force_config}"
+
+  while IFS=$'\t' read -r implementation source_path target_path mode policy validator extra; do
+    [[ -n "${implementation}" && "${implementation}" != \#* ]] || continue
+    [[ -z "${extra}" ]] || return 2
+    [[ -n "${source_path}" && -n "${target_path}" && -n "${mode}" &&
+       -n "${policy}" && -n "${validator}" ]] || return 2
+    case "${implementation}" in common|cnode|dingo|amaru) ;; *) return 2 ;; esac
+    [[ "${implementation}" == "common" ||
+       "${implementation}" == "${NODE_IMPLEMENTATION}" ]] || continue
+    source_path="${source_path//\{implementation\}/${NODE_IMPLEMENTATION}}"
+    source_path="${source_path//\{network\}/${NETWORK}}"
+    target_path="${target_path//\{implementation\}/${NODE_IMPLEMENTATION}}"
+    target_path="${target_path//\{network\}/${NETWORK}}"
+    [[ "${source_path}" != *'{'* && "${target_path}" != *'{'* ]] || return 2
+    dispatcher_distribution_relative_path_valid "${target_path}" || return 2
+    [[ "${seen}" != *"|${target_path}|"* ]] || return 2
+    seen="${seen}${target_path}|"
+    case "${policy}" in
+      exact|merge-header|render-cnode|render-dingo|render-amaru|preserve-render)
+        [[ "${mode}" == "0644" || "${mode}" == "0640" ||
+           "${mode}" == "0755" ]] || return 2
+        case "${validator}" in shell|json|text) ;; *) return 2 ;; esac
+        _guild_source_relative_path_valid "${source_path}" || return 2
+        ;;
+      retire)
+        [[ "${source_path}" == "-" && "${mode}" == "-" &&
+           "${validator}" == "-" ]] || return 2
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+          "${source_path}" "${target_path}" "${mode}" "${policy}" \
+          "${policy}" "${validator}" "-" >> "${plan}" || return 2
+        record_count=$((record_count + 1))
+        continue
+        ;;
+      *) return 2 ;;
+    esac
+
+    source_file="$(guild_source_path "${source_path}")" || return 2
+    source_hash="$(dispatcher_sha256 "${source_file}")" || return 2
+    candidate="${candidate_root}/${target_path}"
+    mkdir -p -- "$(dirname -- "${candidate}")" || return 2
+    effective_policy="${policy}"
+    case "${policy}" in
+      exact)
+        cp -- "${source_file}" "${candidate}" || return 2
+        ;;
+      merge-header)
+        merge_header_override=""
+        if [[ "${target_path}" == "scripts/guild-deploy.sh" &&
+              ! -e "${NODE_HOME}/${target_path}" &&
+              ! -L "${NODE_HOME}/${target_path}" ]]; then
+          merge_header_override="${GUILD_SOURCE_LAUNCHER_HEADER:-}"
+        fi
+        dispatcher_distribution_merge_header "${source_file}" \
+          "${NODE_HOME}/${target_path}" "${candidate}" \
+          "${merge_header_override}" || return 2
+        if [[ "${target_path}" == "scripts/env" ]]; then
+          dispatcher_distribution_seed_cnode_port "${candidate}" || return 2
+        fi
+        ;;
+      render-cnode)
+        dispatcher_distribution_render_cnode "${source_file}" "${candidate}" ||
+          return 2
+        ;;
+      render-dingo)
+        dispatcher_distribution_render_dingo "${source_file}" "${candidate}" ||
+          return 2
+        ;;
+      render-amaru)
+        dispatcher_distribution_render_amaru "${source_file}" "${candidate}" ||
+          return 2
+        ;;
+      preserve-render)
+        if [[ -f "${NODE_HOME}/${target_path}" &&
+              "${force_config}" != "Y" ]]; then
+          dispatcher_distribution_preserve_existing "${target_path}" || return 2
+          cp -- "${NODE_HOME}/${target_path}" "${candidate}" || return 2
+          effective_policy="${DISPATCHER_PRESERVED_POLICY}"
+          mode="${DISPATCHER_PRESERVED_MODE}"
+        else
+          case "${NODE_IMPLEMENTATION}" in
+            cnode) dispatcher_distribution_render_cnode "${source_file}" "${candidate}" ;;
+            dingo) dispatcher_distribution_render_dingo "${source_file}" "${candidate}" ;;
+            amaru) dispatcher_distribution_render_amaru "${source_file}" "${candidate}" ;;
+          esac || return 2
+          effective_policy="render-${NODE_IMPLEMENTATION}"
+        fi
+        ;;
+    esac
+    [[ -s "${candidate}" && ! -L "${candidate}" ]] || return 2
+    chmod "${mode}" "${candidate}" || return 2
+    if [[ "${validator}" == "shell" ]]; then
+      "${BASH}" -n "${candidate}" >/dev/null 2>&1 || return 2
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${source_path}" "${target_path}" "${mode}" "${policy}" \
+      "${effective_policy}" "${validator}" "${source_hash}" >> "${plan}" ||
+      return 2
+    record_count=$((record_count + 1))
+  done < "${manifest}"
+
+  (( record_count > 0 )) || return 2
+  grep -Fq $'scripts/cnode-helper-scripts/guild-deploy.sh\tscripts/guild-deploy.sh\t' \
+    "${plan}" || return 2
+  DISPATCHER_TX_CANDIDATE_ROOT="${candidate_root}"
+  DISPATCHER_TX_PLAN="${plan}"
+  DISPATCHER_TX_PREPARED="Y"
+  DISPATCHER_TX_ACTIVE="N"
+  DISPATCHER_TX_ACTIVATED="N"
+}
+
+dispatcher_distribution_validate_candidates() {
+  local source_path="" target_path="" mode="" policy=""
+  local effective_policy="" validator="" source_hash="" candidate=""
+
+  [[ "${DISPATCHER_TX_PREPARED:-N}" == "Y" &&
+     -f "${DISPATCHER_TX_PLAN:-}" &&
+     -d "${DISPATCHER_TX_CANDIDATE_ROOT:-}" ]] || return 2
+  while IFS=$'\t' read -r source_path target_path mode policy effective_policy validator source_hash; do
+    [[ "${policy}" != "retire" ]] || continue
+    candidate="${DISPATCHER_TX_CANDIDATE_ROOT}/${target_path}"
+    [[ -s "${candidate}" && -f "${candidate}" && ! -L "${candidate}" &&
+       -n "$(find "${candidate}" -prune -perm "${mode}" -print 2>/dev/null)" ]] ||
+      return 2
+    case "${validator}" in
+      shell) "${BASH}" -n "${candidate}" >/dev/null 2>&1 || return 2 ;;
+      json)
+        command -v jq >/dev/null 2>&1 || return 2
+        jq -e . "${candidate}" >/dev/null 2>&1 || return 2
+        ;;
+      text) : ;;
+      *) return 2 ;;
+    esac
+    case "${effective_policy}" in
+      render-cnode|render-dingo|render-amaru)
+        if grep -q '@\(NODE_HOME\|NODE_SERVICE\|BINARY_PATH\|NODE_PORT\)@' \
+          "${candidate}" 2>/dev/null; then
+          return 2
+        fi
+        ;;
+    esac
+  done < "${DISPATCHER_TX_PLAN}"
+
+  case "${NODE_IMPLEMENTATION}" in
+    cnode)
+      declare -F cnode_deploy_validate_release_metadata >/dev/null 2>&1 &&
+        cnode_deploy_validate_release_metadata \
+          "${DISPATCHER_TX_CANDIDATE_ROOT}/files/cnode-release.json" || return 2
+      ;;
+    dingo)
+      declare -F dingo_deploy_validate_release_metadata >/dev/null 2>&1 &&
+        dingo_deploy_validate_release_metadata \
+          "${DISPATCHER_TX_CANDIDATE_ROOT}/files/dingo-release.json" || return 2
+      ;;
+    amaru)
+      declare -F amaru_deploy_validate_release_metadata >/dev/null 2>&1 &&
+        amaru_deploy_validate_release_metadata \
+          "${DISPATCHER_TX_CANDIDATE_ROOT}/files/amaru-release.json" || return 2
+      ;;
+  esac
+}
+
+dispatcher_transaction_relative_path_valid() {
+  dispatcher_distribution_relative_path_valid "${1:-}" ||
+    [[ "${1:-}" == ".deployment.json" ||
+       "${1:-}" == ".guild-source-receipt.json" ]]
+}
+
+dispatcher_transaction_path_has_symlink() {
+  local relative_path="$1"
+  local component="" current="${NODE_HOME}"
+  local -a components
+
+  [[ -d "${NODE_HOME}" && ! -L "${NODE_HOME}" ]] || return 0
+  IFS='/' read -r -a components <<< "${relative_path}"
+  for component in "${components[@]}"; do
+    current="${current}/${component}"
+    [[ ! -L "${current}" ]] || return 0
+    [[ -e "${current}" ]] || return 1
+  done
+  return 1
+}
+
+# Deterministic transaction failures are available only to the Stage 0C
+# contract test. A failpoint name alone is deliberately inert: activation also
+# requires the exact test mode, a private context beside TMPDIR, and context
+# records bound to this local-source invocation. This keeps the hooks useful for
+# crash/rollback coverage without exposing a plausible production switch.
+dispatcher_test_failpoint() {
+  local reached="${1:-}"
+  local configured="${GUILD_DEPLOY_TEST_FAILPOINT:-}"
+  local action="${GUILD_DEPLOY_TEST_ACTION:-return}"
+  local context="${GUILD_DEPLOY_TEST_CONTEXT:-}"
+  local context_dir="" context_name="" context_mode="" context_dir_mode=""
+  local canonical_tmp="" marker="" target_record="" source_record="" extra=""
+
+  [[ -n "${configured}" ]] || return 0
+  [[ "${GUILD_DEPLOY_TEST_MODE:-}" == "stage0c-transaction-failure-injection-v1" ]] ||
+    return 0
+  case "${configured}" in
+    before-durable-journal|after-durable-journal|after-retire-archive|after-history-archive|after-obsolete-remove|before-receipt-publish|after-receipt-publish|before-metadata-publish|after-metadata-publish) ;;
+    *) [[ "${configured}" =~ ^after-payload:[1-9][0-9]*$ ]] || return 2 ;;
+  esac
+  [[ "${reached}" == "${configured}" ]] || return 0
+  case "${action}" in
+    return|enospc|crash|HUP|INT|TERM) ;;
+    *) return 2 ;;
+  esac
+
+  [[ -n "${TMPDIR:-}" && "${context}" == /* &&
+     -f "${context}" && ! -L "${context}" && -O "${context}" ]] || return 2
+  context_dir="$(cd -P -- "$(dirname -- "${context}")" 2>/dev/null && pwd -P)" ||
+    return 2
+  context_name="$(basename -- "${context}")"
+  canonical_tmp="$(cd -P -- "${TMPDIR}" 2>/dev/null && pwd -P)" || return 2
+  [[ "${context}" == "${context_dir}/${context_name}" &&
+     "${context_name}" == "guild-deploy-failure.context" &&
+     "${canonical_tmp}" == "${context_dir}/tmp" ]] || return 2
+  context_mode="$(dispatcher_file_mode "${context}")" || return 2
+  context_dir_mode="$(find "${context_dir}" -prune -printf '%m' 2>/dev/null || true)"
+  if [[ -z "${context_dir_mode}" ]]; then
+    context_dir_mode="$(stat -f '%Lp' "${context_dir}" 2>/dev/null || true)"
+  fi
+  [[ "${context_mode}" == "0600" &&
+     ( "${context_dir_mode}" == "700" ||
+       "${context_dir_mode}" == "0700" ) &&
+     -d "${context_dir}" && ! -L "${context_dir}" &&
+     -O "${context_dir}" ]] || return 2
+  {
+    IFS= read -r marker &&
+      IFS= read -r target_record &&
+      IFS= read -r source_record &&
+      ! IFS= read -r extra
+  } < "${context}" || return 2
+  [[ "${marker}" == "guild-deploy-stage0c-transaction-context-v1" &&
+     "${target_record}" == "target=${NODE_HOME}" &&
+     "${source_record}" == "source=${GUILD_SOURCE_CHECKOUT:-}" &&
+     "${_GUILD_SOURCE_MODE:-}" == "local" &&
+     "${GUILD_SOURCE_ALLOW_DIRTY:-N}" == "Y" ]] || return 2
+
+  log_warn "TEST ONLY: injecting '${action}' at transaction failpoint '${reached}'."
+  case "${action}" in
+    return) return 97 ;;
+    enospc)
+      log_warn "TEST ONLY: simulated write failure: No space left on device (ENOSPC)."
+      return 28
+      ;;
+    crash)
+      kill -s KILL "${BASHPID}"
+      return 137
+      ;;
+    HUP|INT|TERM)
+      kill -s "${action}" "${BASHPID}"
+      return 128
+      ;;
+  esac
+}
+
+dispatcher_transaction_remove_root() {
+  local root="${1:-}"
+  [[ -n "${root}" && "${root}" == "${NODE_HOME}"/.guild-deploy-transaction* &&
+     -d "${root}" && ! -L "${root}" && -O "${root}" ]] || return 2
+  chmod -R u+rwX "${root}" 2>/dev/null || true
+  rm -rf -- "${root}"
+}
+
+dispatcher_transaction_rollback_root() {
+  local root="$1"
+  local baseline="${root}/baseline.tsv"
+  local activation="${root}/activation.tsv"
+  local rollback_relative_path="" existed_state="" backup_name="" target=""
+  local backup="" restore_tmp="" commit_tmp="" mode=""
+  local rollback_ok="Y"
+
+  [[ -d "${root}" && ! -L "${root}" && -O "${root}" &&
+     -f "${baseline}" && ! -L "${baseline}" && -O "${baseline}" ]] ||
+    return 2
+  if [[ -f "${activation}" && ! -L "${activation}" ]]; then
+    while IFS=$'\t' read -r rollback_relative_path commit_tmp; do
+      dispatcher_transaction_relative_path_valid "${rollback_relative_path}" || return 2
+      [[ "${commit_tmp}" == "${NODE_HOME}"/* &&
+         "$(basename -- "${commit_tmp}")" == .guild-deploy-* ]] || return 2
+      rm -f -- "${commit_tmp}" 2>/dev/null || rollback_ok="N"
+    done < "${activation}"
+  fi
+
+  while IFS=$'\t' read -r rollback_relative_path existed_state mode backup_name; do
+    dispatcher_transaction_relative_path_valid "${rollback_relative_path}" || return 2
+    target="${NODE_HOME}/${rollback_relative_path}"
+    case "${existed_state}" in
+      Y)
+        [[ "${backup_name}" =~ ^backup\.[0-9]+$ ]] || return 2
+        backup="${root}/${backup_name}"
+        [[ -f "${backup}" && ! -L "${backup}" && -O "${backup}" ]] ||
+          return 2
+        mkdir -p -- "$(dirname -- "${target}")" || {
+          rollback_ok="N"
+          continue
+        }
+        restore_tmp="$(dirname -- "${target}")/.guild-deploy-restore.$$.$RANDOM"
+        if ! cp -p -- "${backup}" "${restore_tmp}" ||
+           ! chmod "${mode}" "${restore_tmp}" ||
+           ! mv -f -- "${restore_tmp}" "${target}"; then
+          rm -f -- "${restore_tmp}"
+          rollback_ok="N"
+        fi
+        ;;
+      N)
+        rm -f -- "${target}" 2>/dev/null || rollback_ok="N"
+        ;;
+      *) return 2 ;;
+    esac
+  done < "${baseline}"
+  [[ "${rollback_ok}" == "Y" ]] || return 1
+  dispatcher_transaction_remove_root "${root}"
+}
+
+dispatcher_recover_interrupted_transaction() {
+  local root="${NODE_HOME}/.guild-deploy-transaction"
+  local prepare=""
+
+  while IFS= read -r prepare; do
+    [[ -n "${prepare}" ]] || continue
+    dispatcher_transaction_remove_root "${prepare}" ||
+      err_exit "Could not remove an incomplete pre-activation transaction at ${prepare}."
+  done < <(find "${NODE_HOME}" -mindepth 1 -maxdepth 1 -type d \
+    -name '.guild-deploy-transaction.prepare.*' -print 2>/dev/null)
+  [[ -e "${root}" || -L "${root}" ]] || return 0
+  [[ -d "${root}" && ! -L "${root}" && -O "${root}" ]] ||
+    err_exit "Unsafe interrupted deployment transaction at ${root}."
+  if [[ -f "${root}/journal" && ! -L "${root}/journal" ]] &&
+     grep -Fqx 'state=committed' "${root}/journal"; then
+    dispatcher_transaction_remove_root "${root}" ||
+      err_exit "Could not remove the completed transaction journal at ${root}."
+    return 0
+  fi
+  log_warn "Recovering an interrupted Guild payload transaction before continuing."
+  dispatcher_transaction_rollback_root "${root}" ||
+    err_exit "Automatic rollback of ${root} failed; manual recovery is required."
+  log_ok "Interrupted Guild payload transaction recovered" "${NODE_HOME}"
+}
+
+dispatcher_distribution_old_managed_paths() {
+  local receipt="${NODE_HOME}/.guild-source-receipt.json"
+  local metadata="${NODE_HOME}/.deployment.json"
+  local expected_hash="" actual_hash=""
+
+  [[ -e "${receipt}" || -L "${receipt}" ]] || return 0
+  [[ -f "${receipt}" && ! -L "${receipt}" && -O "${receipt}" &&
+     -f "${metadata}" && ! -L "${metadata}" ]] || return 2
+  command -v jq >/dev/null 2>&1 || return 2
+  expected_hash="$(deployment_json_get "${metadata}" payloadReceiptSha256 || true)"
+  [[ "${expected_hash}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  actual_hash="$(dispatcher_sha256 "${receipt}")" || return 2
+  [[ "${actual_hash}" == "${expected_hash}" ]] || return 2
+  jq -er '
+    select(type == "object" and .schemaVersion == 1 and
+      (.files | type == "array")) |
+    .files[] |
+    select(.managed == true) |
+    select(
+      (.path | type == "string") and
+      (.installedSha256 | type == "string" and test("^[0-9a-f]{64}$"))) |
+    [.path, .installedSha256] | @tsv
+  ' "${receipt}"
+}
+
+dispatcher_distribution_rollback() {
+  local root="${DISPATCHER_TX_DURABLE_ROOT:-}"
+  local status=0
+
+  [[ "${DISPATCHER_TX_ACTIVE:-N}" == "Y" && -n "${root}" ]] || return 0
+  dispatcher_transaction_rollback_root "${root}" || status=$?
+  DISPATCHER_TX_ACTIVE="N"
+  DISPATCHER_TX_ACTIVATED="N"
+  DISPATCHER_TX_DURABLE_ROOT=""
+  return "${status}"
+}
+
+dispatcher_distribution_activate() {
+  local txid="" prepare_root="" durable_root=""
+  local baseline="" activation="" targets_file="" current_file="" old_paths_file=""
+  local archives_file="" history_file="" archive_path="" archive_target=""
+  local history_path="" history_target="" history_name=""
+  local validated_old_paths=""
+  local source_path="" target_path="" mode="" policy=""
+  local effective_policy="" validator="" source_hash="" old_path=""
+  local old_hash="" actual_hash=""
+  local target="" candidate="" backup_name="" commit_tmp=""
+  local seen='|' old_seen='|' index=0 target_mode=""
+
+  [[ "${DISPATCHER_TX_PREPARED:-N}" == "Y" &&
+     "${DISPATCHER_TX_ACTIVATED:-N}" != "Y" ]] || return 2
+  dispatcher_distribution_validate_candidates || return 2
+  [[ -d "${NODE_HOME}" && ! -L "${NODE_HOME}" && -O "${NODE_HOME}" ]] ||
+    return 2
+  durable_root="${NODE_HOME}/.guild-deploy-transaction"
+  [[ ! -e "${durable_root}" && ! -L "${durable_root}" ]] || return 2
+  validated_old_paths="${DISPATCHER_TX_STAGE_ROOT}/old-managed-paths.validated"
+  dispatcher_distribution_old_managed_paths > "${validated_old_paths}" || return 2
+  while IFS=$'\t' read -r old_path old_hash; do
+    [[ -n "${old_path}" ]] || continue
+    dispatcher_distribution_relative_path_valid "${old_path}" || return 2
+    [[ "${old_hash}" =~ ^[0-9a-f]{64}$ ]] || return 2
+    [[ "${old_seen}" != *"|${old_path}|"* ]] || return 2
+    old_seen="${old_seen}${old_path}|"
+  done < "${validated_old_paths}"
+  txid="$(date +%s).${BASHPID}.${RANDOM}"
+  prepare_root="${NODE_HOME}/.guild-deploy-transaction.prepare.${txid}"
+  (umask 077 && mkdir -- "${prepare_root}") || return 2
+  DISPATCHER_TX_PREPARE_ROOT="${prepare_root}"
+  chmod 0700 "${prepare_root}" || return 2
+  baseline="${prepare_root}/baseline.tsv"
+  activation="${prepare_root}/activation.tsv"
+  targets_file="${prepare_root}/targets.tsv"
+  current_file="${prepare_root}/current-targets"
+  old_paths_file="${prepare_root}/old-managed-paths"
+  archives_file="${prepare_root}/archives.tsv"
+  history_file="${prepare_root}/history.tsv"
+  : > "${baseline}" && : > "${activation}" && : > "${targets_file}" &&
+    : > "${current_file}" && : > "${old_paths_file}" &&
+    : > "${archives_file}" && : > "${history_file}" || return 2
+  chmod 0600 "${baseline}" "${activation}" "${targets_file}" \
+    "${current_file}" "${old_paths_file}" "${archives_file}" \
+    "${history_file}" || return 2
+  cp -- "${validated_old_paths}" "${old_paths_file}" || return 2
+
+  while IFS=$'\t' read -r source_path target_path mode policy effective_policy validator source_hash; do
+    dispatcher_transaction_relative_path_valid "${target_path}" || return 2
+    printf '%s\n' "${target_path}" >> "${current_file}" || return 2
+    if [[ "${seen}" != *"|${target_path}|"* ]]; then
+      printf '%s\n' "${target_path}" >> "${targets_file}" || return 2
+      seen="${seen}${target_path}|"
+    fi
+    if [[ "${policy}" == "retire" &&
+          ( -e "${NODE_HOME}/${target_path}" ||
+            -L "${NODE_HOME}/${target_path}" ) ]]; then
+      case "${target_path}" in
+        scripts/deploy-as-systemd.sh)
+          archive_path="scripts/archive/deploy-as-systemd.sh_deprecated_${txid}"
+          ;;
+        scripts/.env_branch)
+          archive_path="scripts/archive/.env_branch_migrated_${txid}"
+          ;;
+        *)
+          archive_path="scripts/archive/$(basename -- "${target_path}")_retired_${txid}"
+          ;;
+      esac
+      dispatcher_transaction_relative_path_valid "${archive_path}" || return 2
+      [[ ! -e "${NODE_HOME}/${archive_path}" &&
+         ! -L "${NODE_HOME}/${archive_path}" &&
+         "${seen}" != *"|${archive_path}|"* ]] || return 2
+      printf '%s\n' "${archive_path}" >> "${targets_file}" || return 2
+      printf '%s\t%s\n' "${target_path}" "${archive_path}" \
+        >> "${archives_file}" || return 2
+      seen="${seen}${archive_path}|"
+    elif [[ -f "${NODE_HOME}/${target_path}" &&
+            ! -L "${NODE_HOME}/${target_path}" &&
+            ( ( "${policy}" == "merge-header" &&
+                "${DISPATCHER_FORCE_SCRIPTS:-N}" == "Y" ) ||
+              ( "${policy}" == "preserve-render" &&
+                "${DISPATCHER_FORCE_CONFIG:-N}" == "Y" ) ) ]]; then
+      candidate="${DISPATCHER_TX_CANDIDATE_ROOT}/${target_path}"
+      target_mode="$(dispatcher_file_mode "${NODE_HOME}/${target_path}")" ||
+        return 2
+      if ! cmp -s "${candidate}" "${NODE_HOME}/${target_path}" ||
+         [[ "${target_mode}" != "${mode}" ]]; then
+        history_name="${target_path//\//_}"
+        history_path="scripts/archive/${history_name}_bkp${txid}"
+        dispatcher_transaction_relative_path_valid "${history_path}" || return 2
+        [[ ! -e "${NODE_HOME}/${history_path}" &&
+           ! -L "${NODE_HOME}/${history_path}" &&
+           "${seen}" != *"|${history_path}|"* ]] || return 2
+        printf '%s\n' "${history_path}" >> "${targets_file}" || return 2
+        printf '%s\t%s\n' "${target_path}" "${history_path}" \
+          >> "${history_file}" || return 2
+        seen="${seen}${history_path}|"
+      fi
+    fi
+  done < "${DISPATCHER_TX_PLAN}"
+  for target_path in .guild-source-receipt.json .deployment.json; do
+    if [[ "${seen}" != *"|${target_path}|"* ]]; then
+      printf '%s\n' "${target_path}" >> "${targets_file}" || return 2
+      seen="${seen}${target_path}|"
+    fi
+  done
+  while IFS=$'\t' read -r old_path old_hash; do
+    [[ -n "${old_path}" ]] || continue
+    dispatcher_distribution_relative_path_valid "${old_path}" || return 2
+    if [[ "${seen}" != *"|${old_path}|"* ]]; then
+      printf '%s\n' "${old_path}" >> "${targets_file}" || return 2
+      seen="${seen}${old_path}|"
+    fi
+  done < "${old_paths_file}"
+
+  while IFS= read -r target_path; do
+    [[ -n "${target_path}" ]] || continue
+    dispatcher_transaction_relative_path_valid "${target_path}" || return 2
+    target="${NODE_HOME}/${target_path}"
+    dispatcher_transaction_path_has_symlink "${target_path}" && return 2
+    if [[ -e "${target}" ]]; then
+      [[ -f "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+      index=$((index + 1))
+      backup_name="backup.${index}"
+      cp -p -- "${target}" "${prepare_root}/${backup_name}" || return 2
+      target_mode="$(find "${target}" -prune -printf '%m' 2>/dev/null || true)"
+      if [[ -z "${target_mode}" ]]; then
+        target_mode="$(stat -f '%Lp' "${target}" 2>/dev/null || true)"
+      fi
+      [[ "${target_mode}" =~ ^[0-7]{3,4}$ ]] || return 2
+      printf '%s\tY\t%s\t%s\n' "${target_path}" "${target_mode}" \
+        "${backup_name}" >> "${baseline}" || return 2
+    else
+      printf '%s\tN\t-\t-\n' "${target_path}" >> "${baseline}" || return 2
+    fi
+  done < "${targets_file}"
+
+  dispatcher_test_failpoint before-durable-journal || return $?
+  printf 'schemaVersion=1\ntransactionId=%s\nstate=prepared\n' "${txid}" \
+    > "${prepare_root}/journal" || return 2
+  chmod 0600 "${prepare_root}/journal" || return 2
+  mv -- "${prepare_root}" "${durable_root}" || return 2
+  DISPATCHER_TX_PREPARE_ROOT=""
+  prepare_root="${durable_root}"
+  baseline="${durable_root}/baseline.tsv"
+  activation="${durable_root}/activation.tsv"
+  archives_file="${durable_root}/archives.tsv"
+  history_file="${durable_root}/history.tsv"
+  DISPATCHER_TX_DURABLE_ROOT="${durable_root}"
+  DISPATCHER_TX_ACTIVE="Y"
+  dispatcher_test_failpoint after-durable-journal || return $?
+
+  index=0
+  while IFS=$'\t' read -r source_path target_path mode policy effective_policy validator source_hash; do
+    target="${NODE_HOME}/${target_path}"
+    if [[ "${policy}" == "retire" ]]; then
+      if [[ -e "${target}" || -L "${target}" ]]; then
+        archive_path="$(awk -F '\t' -v path="${target_path}" \
+          '$1 == path { print $2 }' "${archives_file}")"
+        dispatcher_transaction_relative_path_valid "${archive_path}" || return 2
+        archive_target="${NODE_HOME}/${archive_path}"
+        [[ ! -e "${archive_target}" && ! -L "${archive_target}" ]] || return 2
+        mkdir -p -- "$(dirname -- "${archive_target}")" || return 2
+        mv -- "${target}" "${archive_target}" || return 2
+        dispatcher_test_failpoint after-retire-archive || return $?
+      fi
+      continue
+    fi
+    candidate="${DISPATCHER_TX_CANDIDATE_ROOT}/${target_path}"
+    history_path="$(awk -F '\t' -v path="${target_path}" \
+      '$1 == path { print $2 }' "${history_file}")"
+    if [[ -n "${history_path}" ]]; then
+      dispatcher_transaction_relative_path_valid "${history_path}" || return 2
+      history_target="${NODE_HOME}/${history_path}"
+      [[ -f "${target}" && ! -L "${target}" &&
+         ! -e "${history_target}" && ! -L "${history_target}" ]] || return 2
+      mkdir -p -- "$(dirname -- "${history_target}")" || return 2
+      cp -p -- "${target}" "${history_target}" || return 2
+      dispatcher_test_failpoint after-history-archive || return $?
+    fi
+    mkdir -p -- "$(dirname -- "${target}")" || return 2
+    index=$((index + 1))
+    commit_tmp="$(dirname -- "${target}")/.guild-deploy-${txid}.${index}"
+    printf '%s\t%s\n' "${target_path}" "${commit_tmp}" >> "${activation}" ||
+      return 2
+    [[ ! -e "${commit_tmp}" && ! -L "${commit_tmp}" ]] || return 2
+    (umask 077 && cp -- "${candidate}" "${commit_tmp}") || return 2
+    chmod "${mode}" "${commit_tmp}" || return 2
+    if [[ -f "${target}" ]] && cmp -s "${candidate}" "${target}" &&
+       [[ -n "$(find "${target}" -prune -perm "${mode}" -print 2>/dev/null)" ]]; then
+      rm -f -- "${commit_tmp}" || return 2
+    else
+      mv -f -- "${commit_tmp}" "${target}" || return 2
+    fi
+    dispatcher_test_failpoint "after-payload:${index}" || return $?
+  done < "${DISPATCHER_TX_PLAN}"
+
+  while IFS=$'\t' read -r old_path old_hash; do
+    [[ -n "${old_path}" ]] || continue
+    if ! grep -Fqx "${old_path}" "${durable_root}/current-targets"; then
+      target="${NODE_HOME}/${old_path}"
+      if [[ -e "${target}" || -L "${target}" ]]; then
+        [[ -f "${target}" && ! -L "${target}" ]] || return 2
+        actual_hash="$(dispatcher_sha256 "${target}")" || return 2
+        if [[ "${actual_hash}" == "${old_hash}" ]]; then
+          rm -f -- "${target}" || return 2
+          dispatcher_test_failpoint after-obsolete-remove || return $?
+        else
+          log_warn "Preserving customized obsolete Guild payload path: ${target}"
+        fi
+      fi
+    fi
+  done < "${durable_root}/old-managed-paths"
+
+  printf 'schemaVersion=1\ntransactionId=%s\nstate=activated\n' "${txid}" \
+    > "${durable_root}/journal" || return 2
+  DISPATCHER_TX_ACTIVATED="Y"
 }
 
 dispatcher_capability_default() {
@@ -2418,26 +3947,172 @@ dispatcher_validate_capability() {
   esac
 }
 
+dispatcher_distribution_write_receipt() {
+  local output="$1"
+  local source_path="" target_path="" mode="" policy=""
+  local effective_policy="" validator="" source_hash=""
+  local installed_hash="" target="" managed="true" first="Y"
+  local digest_line=""
+
+  [[ "${DISPATCHER_TX_ACTIVE:-N}" == "Y" &&
+     "${DISPATCHER_TX_ACTIVATED:-N}" == "Y" &&
+     "${output}" == "${DISPATCHER_TX_DURABLE_ROOT}"/* ]] || return 2
+  if [[ "${_GUILD_SOURCE_DIRTY}" == "true" ]]; then
+    digest_line="    \"treeDigest\": \"$(dispatcher_json_escape "${_GUILD_SOURCE_TREE_DIGEST}")\","
+  fi
+  {
+    printf '{\n'
+    printf '  "schemaVersion": 1,\n'
+    printf '  "implementation": "%s",\n' "$(dispatcher_json_escape "${NODE_IMPLEMENTATION}")"
+    printf '  "network": "%s",\n' "$(dispatcher_json_escape "${NETWORK}")"
+    printf '  "source": {\n'
+    printf '    "repository": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_REPOSITORY}")"
+    printf '    "channel": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_CHANNEL}")"
+    printf '    "ref": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_REF}")"
+    printf '    "revision": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_REVISION}")"
+    printf '    "mode": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_MODE}")"
+    printf '    "dirty": %s' "${_GUILD_SOURCE_DIRTY}"
+    if [[ -n "${digest_line}" ]]; then
+      printf ',\n%s\n' "${digest_line%,}"
+    else
+      printf '\n'
+    fi
+    printf '  },\n'
+    printf '  "files": [\n'
+    while IFS=$'\t' read -r source_path target_path mode policy effective_policy validator source_hash; do
+      [[ "${policy}" != "retire" ]] || continue
+      target="${NODE_HOME}/${target_path}"
+      installed_hash="$(dispatcher_sha256 "${target}")" || return 2
+      managed="true"
+      [[ "${policy}" == "preserve-render" ||
+         "${effective_policy}" == "operator-preserved" ]] && managed="false"
+      if [[ "${effective_policy}" == "exact" &&
+            "${installed_hash}" != "${source_hash}" ]]; then
+        return 2
+      fi
+      [[ "${first}" == "Y" ]] || printf ',\n'
+      first="N"
+      printf '    {"path":"%s","source":"%s","mode":"%s",' \
+        "$(dispatcher_json_escape "${target_path}")" \
+        "$(dispatcher_json_escape "${source_path}")" \
+        "$(dispatcher_json_escape "${mode}")"
+      printf '"policy":"%s","sourceSha256":"%s",' \
+        "$(dispatcher_json_escape "${effective_policy}")" "${source_hash}"
+      printf '"installedSha256":"%s","managed":%s}' \
+        "${installed_hash}" "${managed}"
+    done < "${DISPATCHER_TX_PLAN}"
+    printf '\n  ]\n}\n'
+  } > "${output}" || return 2
+  chmod 0644 "${output}" || return 2
+  command -v jq >/dev/null 2>&1 || return 2
+  jq -e '
+    type == "object" and .schemaVersion == 1 and
+    (.source.revision | test("^[0-9a-f]{40,64}$")) and
+    (.files | type == "array" and length > 0) and
+    (all(.files[];
+      (.path | type == "string" and length > 0) and
+      (.source | type == "string" and length > 0) and
+      (.mode | type == "string" and test("^0[0-7]{3}$")) and
+      (.policy | type == "string" and length > 0) and
+      (.sourceSha256 | test("^[0-9a-f]{64}$")) and
+      (.installedSha256 | test("^[0-9a-f]{64}$")) and
+      (.managed | type == "boolean")))
+  ' "${output}" >/dev/null 2>&1
+}
+
+dispatcher_distribution_commit_receipt_and_metadata() {
+  local receipt_candidate="$1"
+  local metadata_candidate="$2"
+  local receipt_target="${NODE_HOME}/.guild-source-receipt.json"
+  local metadata_target="${NODE_HOME}/.deployment.json"
+  local receipt_tmp="${NODE_HOME}/.guild-deploy-receipt.${BASHPID}"
+  local metadata_tmp="${NODE_HOME}/.guild-deploy-metadata.${BASHPID}"
+  local activation="${DISPATCHER_TX_DURABLE_ROOT:-}/activation.tsv"
+  local expected_receipt_hash="${DISPATCHER_PAYLOAD_RECEIPT_SHA256:-}"
+
+  [[ "${DISPATCHER_TX_ACTIVE:-N}" == "Y" &&
+     "${DISPATCHER_TX_ACTIVATED:-N}" == "Y" &&
+     -f "${receipt_candidate}" && -f "${metadata_candidate}" &&
+     -f "${activation}" && ! -L "${activation}" && -O "${activation}" &&
+     "${expected_receipt_hash}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  rm -f -- "${receipt_tmp}" "${metadata_tmp}" || return 2
+  printf '.guild-source-receipt.json\t%s\n' "${receipt_tmp}" >> "${activation}" ||
+    return 2
+  printf '.deployment.json\t%s\n' "${metadata_tmp}" >> "${activation}" ||
+    return 2
+  cp -- "${receipt_candidate}" "${receipt_tmp}" &&
+    chmod 0644 "${receipt_tmp}" || return 2
+  cp -- "${metadata_candidate}" "${metadata_tmp}" &&
+    chmod 0644 "${metadata_tmp}" || return 2
+
+  dispatcher_test_failpoint before-receipt-publish || return $?
+  if [[ -f "${receipt_target}" ]] &&
+     cmp -s "${receipt_candidate}" "${receipt_target}" &&
+     [[ -n "$(find "${receipt_target}" -prune -perm 0644 -print 2>/dev/null)" ]]; then
+    rm -f -- "${receipt_tmp}" || return 2
+  else
+    mv -f -- "${receipt_tmp}" "${receipt_target}" || return 2
+  fi
+  [[ "$(dispatcher_sha256 "${receipt_target}")" == "${expected_receipt_hash}" ]] ||
+    return 2
+  dispatcher_test_failpoint after-receipt-publish || return $?
+
+  dispatcher_test_failpoint before-metadata-publish || return $?
+  if [[ -f "${metadata_target}" ]] &&
+     cmp -s "${metadata_candidate}" "${metadata_target}" &&
+     [[ -n "$(find "${metadata_target}" -prune -perm 0644 -print 2>/dev/null)" ]]; then
+    rm -f -- "${metadata_tmp}" || return 2
+  else
+    mv -f -- "${metadata_tmp}" "${metadata_target}" || return 2
+  fi
+  cmp -s "${metadata_candidate}" "${metadata_target}" || return 2
+  dispatcher_test_failpoint after-metadata-publish || return $?
+
+  printf 'schemaVersion=1\ntransactionId=%s\nstate=committed\n' \
+    "${DISPATCHER_TRANSACTION_ID:-unknown}" \
+    > "${DISPATCHER_TX_DURABLE_ROOT}/journal" || return 2
+  DISPATCHER_TX_ACTIVE="N"
+  DISPATCHER_TX_ACTIVATED="N"
+  dispatcher_transaction_remove_root "${DISPATCHER_TX_DURABLE_ROOT}" || return 2
+  DISPATCHER_TX_DURABLE_ROOT=""
+  return 0
+}
+
 dispatcher_write_manifest() {
   local deployment_status="${1:-deployed}"
   [[ -d "${NODE_HOME}" ]] || err_exit "Deployment profile completed without creating ${NODE_HOME}."
   case "${deployment_status}" in
-    deploying|deployed) ;;
+    deploying) return 0 ;;
+    deployed) ;;
     *) err_exit "Invalid deployment status '${deployment_status}'." ;;
   esac
 
   local node_version
   local manifest_tmp
+  local receipt_tmp
+  local receipt_hash
+  local transaction_id
   local cap_n2c
   local cap_local_cli
   local cap_metrics
   local cap_forging
   local metrics_provider
   local target_node_version
+  [[ "${DISPATCHER_TX_ACTIVE:-N}" == "Y" &&
+     "${DISPATCHER_TX_ACTIVATED:-N}" == "Y" &&
+     -d "${DISPATCHER_TX_DURABLE_ROOT:-}" ]] ||
+    err_exit "Deployment metadata can be published only by an active complete payload transaction."
+  receipt_tmp="${DISPATCHER_TX_DURABLE_ROOT}/receipt.candidate.json"
+  dispatcher_distribution_write_receipt "${receipt_tmp}" ||
+    err_exit "Could not build or validate the installed Guild payload receipt."
+  receipt_hash="$(dispatcher_sha256 "${receipt_tmp}")" ||
+    err_exit "Could not hash the installed Guild payload receipt."
+  transaction_id="${receipt_hash:0:24}"
+  DISPATCHER_PAYLOAD_RECEIPT_SHA256="${receipt_hash}"
+  DISPATCHER_TRANSACTION_ID="${transaction_id}"
   node_version="$(dispatcher_detect_node_version)"
   target_node_version="${PROFILE_TARGET_NODE_VERSION:-}"
-  manifest_tmp="$(mktemp "${NODE_HOME}/.deployment.json.tmp.XXXXXX")" ||
-    err_exit "Unable to create a temporary deployment manifest in ${NODE_HOME}."
+  manifest_tmp="${DISPATCHER_TX_DURABLE_ROOT}/deployment.candidate.json"
   cap_n2c="${PROFILE_CAP_N2C:-$(dispatcher_capability_default n2c)}"
   cap_local_cli="${PROFILE_CAP_LOCAL_CLI:-$(dispatcher_capability_default local_cli)}"
   cap_metrics="${PROFILE_CAP_METRICS:-$(dispatcher_capability_default metrics)}"
@@ -2456,7 +4131,20 @@ dispatcher_write_manifest() {
     printf '  "network": "%s",\n' "$(dispatcher_json_escape "${NETWORK}")"
     printf '  "branch": "%s",\n' "$(dispatcher_json_escape "${BRANCH}")"
     printf '  "repository": "%s/guild-operators",\n' "$(dispatcher_json_escape "${G_ACCOUNT}")"
+    printf '  "sourceSchemaVersion": 1,\n'
+    printf '  "sourceMode": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_MODE}")"
+    printf '  "sourceRef": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_REF}")"
+    printf '  "sourceRevision": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_REVISION}")"
+    printf '  "sourceDirty": %s,\n' "${_GUILD_SOURCE_DIRTY}"
+    if [[ "${_GUILD_SOURCE_DIRTY}" == "true" ]]; then
+      printf '  "sourceTreeDigest": "%s",\n' \
+        "$(dispatcher_json_escape "${_GUILD_SOURCE_TREE_DIGEST}")"
+    fi
+    printf '  "payloadReceipt": ".guild-source-receipt.json",\n'
+    printf '  "payloadReceiptSha256": "%s",\n' "${receipt_hash}"
+    printf '  "transactionId": "%s",\n' "${transaction_id}"
     printf '  "serviceName": "%s",\n' "$(dispatcher_json_escape "${NODE_SERVICE}")"
+    printf '  "nodePort": %s,\n' "${NODE_PORT}"
     printf '  "nodeVersion": "%s",\n' "$(dispatcher_json_escape "${node_version}")"
     printf '  "targetNodeVersion": "%s",\n' "$(dispatcher_json_escape "${target_node_version}")"
     printf '  "metricsProvider": "%s",\n' "$(dispatcher_json_escape "${metrics_provider}")"
@@ -2472,61 +4160,287 @@ dispatcher_write_manifest() {
     err_exit "Unable to write the temporary deployment manifest."
   fi
 
-  if command -v jq >/dev/null 2>&1; then
-    if ! jq -e . "${manifest_tmp}" >/dev/null 2>&1; then
-      rm -f -- "${manifest_tmp}"
-      err_exit "Generated deployment manifest is invalid."
-    fi
+  command -v jq >/dev/null 2>&1 ||
+    err_exit "jq is required to validate generated deployment metadata."
+  if ! jq -e . "${manifest_tmp}" >/dev/null 2>&1; then
+    rm -f -- "${manifest_tmp}"
+    err_exit "Generated deployment manifest is invalid."
   fi
   if ! chmod 644 "${manifest_tmp}"; then
     rm -f -- "${manifest_tmp}"
     err_exit "Unable to set deployment manifest permissions."
   fi
 
-  if [[ "${deployment_status}" = "deployed" && -f "${NODE_HOME}/scripts/.env_branch" ]]; then
-    if ! mkdir -p "${NODE_HOME}/scripts/archive"; then
-      rm -f -- "${manifest_tmp}"
-      err_exit "Unable to create the legacy branch archive directory."
+  dispatcher_distribution_commit_receipt_and_metadata \
+    "${receipt_tmp}" "${manifest_tmp}" ||
+    err_exit "Could not commit payload receipt and deployment metadata; the previous target was restored."
+  log_ok "Deployment metadata updated" "${DEPLOYMENT_FILE}"
+}
+
+dispatcher_docker_export_relative_path_valid() {
+  local relative_path="${1:-}"
+  local component=""
+  local -a components=()
+
+  [[ -n "${relative_path}" && "${relative_path}" != /* &&
+     "${relative_path}" != */ && "${relative_path}" != *//* &&
+     ! "${relative_path}" =~ [[:cntrl:]] &&
+     "${relative_path}" =~ ^rootfs/[A-Za-z0-9._/+@:-]+$ ]] || return 1
+  IFS='/' read -r -a components <<< "${relative_path}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" && "${component}" != "." &&
+       "${component}" != ".." ]] || return 1
+  done
+}
+
+dispatcher_docker_export_supplement() {
+  local export_root="${GUILD_DOCKER_EXPORT_ROOT:-}"
+  local export_parent="" export_name="" physical_parent="" stage_root=""
+  local manifest="" first_line="" line="" without_tabs="" plan=""
+  local implementation="" source_path="" export_path="" mode=""
+  local validator="" extra="" source_file="" exported_file=""
+  local source_hash="" exported_hash="" final_path="" seen='|' count=0
+  local host_receipt="${NODE_HOME}/.guild-source-receipt.json"
+  local host_receipt_hash="" metadata_receipt_hash="" transaction_id=""
+  local receipt="" receipt_hash="" first="Y" digest_line=""
+
+  [[ -n "${export_root}" ]] || return 0
+  [[ "${export_root}" == /* && "${export_root}" != "/" &&
+     ! -e "${export_root}" && ! -L "${export_root}" ]] || return 2
+  export_parent="$(dirname -- "${export_root}")" || return 2
+  export_name="$(basename -- "${export_root}")" || return 2
+  [[ "${export_name}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || return 2
+  _guild_source_cache_parent_prepare "${export_parent}" || return 2
+  physical_parent="$(cd -P -- "${export_parent}" 2>/dev/null && pwd -P)" || return 2
+  export_root="${physical_parent}/${export_name}"
+  [[ ! -e "${export_root}" && ! -L "${export_root}" &&
+     "${export_root}" != "${NODE_HOME}" &&
+     "${export_root}" != "${NODE_HOME}"/* ]] || return 2
+  stage_root="$(mktemp -d "${physical_parent}/.${export_name}.prepare.XXXXXX")" ||
+    return 2
+  DISPATCHER_DOCKER_EXPORT_STAGE="${stage_root}"
+  chmod 0700 "${stage_root}" || return 2
+  plan="${stage_root}/export-plan.tsv"
+  : > "${plan}" || return 2
+  chmod 0600 "${plan}" || return 2
+
+  manifest="$(guild_source_path files/docker/node/source-manifest.tsv)" || return 2
+  IFS= read -r first_line < "${manifest}" || return 2
+  [[ "${first_line}" == '# Guild Operators Docker supplement source manifest, schema 1.' ]] ||
+    return 2
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ -z "${line}" || "${line}" == \#* ]] && continue
+    without_tabs="${line//$'\t'/}"
+    (( ${#line} - ${#without_tabs} == 4 )) || return 2
+    IFS=$'\t' read -r implementation source_path export_path mode validator extra <<< "${line}"
+    [[ -n "${implementation}" && -n "${source_path}" &&
+       -n "${export_path}" && -n "${mode}" && -n "${validator}" &&
+       -z "${extra}" ]] || return 2
+    case "${implementation}" in common|cnode|dingo|amaru) ;; *) return 2 ;; esac
+    case "${mode}" in 0644|0755) ;; *) return 2 ;; esac
+    case "${validator}" in shell|json|text) ;; *) return 2 ;; esac
+    _guild_source_relative_path_valid "${source_path}" || return 2
+    [[ "${source_path}" != *'{'* && "${source_path}" != *'}'* ]] || return 2
+    export_path="${export_path//\{implementation\}/${NODE_IMPLEMENTATION}}"
+    [[ "${export_path}" != *'{'* && "${export_path}" != *'}'* ]] || return 2
+    dispatcher_docker_export_relative_path_valid "${export_path}" || return 2
+    source_file="$(guild_source_path "${source_path}")" || return 2
+    case "${validator}" in
+      shell) "${BASH}" -n "${source_file}" >/dev/null 2>&1 || return 2 ;;
+      json) jq -e . "${source_file}" >/dev/null 2>&1 || return 2 ;;
+      text) [[ -s "${source_file}" ]] || return 2 ;;
+    esac
+    [[ "${implementation}" == "common" ||
+       "${implementation}" == "${NODE_IMPLEMENTATION}" ]] || continue
+    [[ "${seen}" != *"|${export_path}|"* ]] || return 2
+    seen="${seen}${export_path}|"
+    exported_file="${stage_root}/${export_path}"
+    mkdir -p -- "$(dirname -- "${exported_file}")" || return 2
+    cp -- "${source_file}" "${exported_file}" || return 2
+    chmod "${mode}" "${exported_file}" || return 2
+    source_hash="$(dispatcher_sha256 "${source_file}")" || return 2
+    exported_hash="$(dispatcher_sha256 "${exported_file}")" || return 2
+    [[ "${source_hash}" == "${exported_hash}" ]] || return 2
+    printf '%s\t%s\t%s\t%s\n' "${source_path}" "${export_path}" \
+      "${mode}" "${source_hash}" >> "${plan}" || return 2
+    count=$((count + 1))
+  done < "${manifest}"
+  (( count > 0 )) || return 2
+  find "${stage_root}/rootfs" -type d -exec chmod 0755 {} + || return 2
+
+  [[ -f "${host_receipt}" && ! -L "${host_receipt}" ]] || return 2
+  host_receipt_hash="$(dispatcher_sha256 "${host_receipt}")" || return 2
+  metadata_receipt_hash="$(deployment_json_get "${DEPLOYMENT_FILE}" payloadReceiptSha256 || true)"
+  transaction_id="$(deployment_json_get "${DEPLOYMENT_FILE}" transactionId || true)"
+  [[ "${host_receipt_hash}" == "${metadata_receipt_hash}" &&
+     "${host_receipt_hash}" =~ ^[0-9a-f]{64}$ &&
+     "${transaction_id}" =~ ^[0-9a-f]{16,64}$ ]] || return 2
+  if [[ "${_GUILD_SOURCE_DIRTY}" == "true" ]]; then
+    digest_line="    \"treeDigest\": \"$(dispatcher_json_escape "${_GUILD_SOURCE_TREE_DIGEST}")\","
+  fi
+  receipt="${stage_root}/docker-source-receipt.json"
+  {
+    printf '{\n'
+    printf '  "schemaVersion": 1,\n'
+    printf '  "implementation": "%s",\n' "$(dispatcher_json_escape "${NODE_IMPLEMENTATION}")"
+    printf '  "network": "%s",\n' "$(dispatcher_json_escape "${NETWORK}")"
+    printf '  "source": {\n'
+    printf '    "repository": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_REPOSITORY}")"
+    printf '    "channel": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_CHANNEL}")"
+    printf '    "ref": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_REF}")"
+    printf '    "revision": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_REVISION}")"
+    printf '    "mode": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_MODE}")"
+    printf '    "dirty": %s' "${_GUILD_SOURCE_DIRTY}"
+    if [[ -n "${digest_line}" ]]; then
+      printf ',\n%s\n' "${digest_line%,}"
+    else
+      printf '\n'
     fi
-    if ! mv -f -- "${NODE_HOME}/scripts/.env_branch" \
-      "${NODE_HOME}/scripts/archive/.env_branch_migrated_$(date +%s).$$"; then
-      rm -f -- "${manifest_tmp}"
-      err_exit "Unable to archive the legacy scripts/.env_branch file."
-    fi
-  fi
-  if ! mv -f -- "${manifest_tmp}" "${DEPLOYMENT_FILE}"; then
-    rm -f -- "${manifest_tmp}"
-    err_exit "Unable to atomically replace ${DEPLOYMENT_FILE}."
-  fi
-  if [[ "${deployment_status}" = "deployed" ]]; then
-    log_ok "Deployment metadata updated" "${DEPLOYMENT_FILE}"
-  fi
+    printf '  },\n'
+    printf '  "hostPayloadReceipt": ".guild-source-receipt.json",\n'
+    printf '  "hostPayloadReceiptSha256": "%s",\n' "${host_receipt_hash}"
+    printf '  "hostTransactionId": "%s",\n' "${transaction_id}"
+    printf '  "files": [\n'
+    while IFS=$'\t' read -r source_path export_path mode source_hash; do
+      exported_file="${stage_root}/${export_path}"
+      exported_hash="$(dispatcher_sha256 "${exported_file}")" || return 2
+      final_path="/${export_path#rootfs/}"
+      [[ "${first}" == "Y" ]] || printf ',\n'
+      first="N"
+      printf '    {"source":"%s","path":"%s","mode":"%s",' \
+        "$(dispatcher_json_escape "${source_path}")" \
+        "$(dispatcher_json_escape "${final_path}")" "${mode}"
+      printf '"sourceSha256":"%s","exportedSha256":"%s"}' \
+        "${source_hash}" "${exported_hash}"
+    done < "${plan}"
+    printf '\n  ]\n}\n'
+  } > "${receipt}" || return 2
+  chmod 0644 "${receipt}" || return 2
+  jq -e --arg revision "${_GUILD_SOURCE_REVISION}" \
+    --arg host_hash "${host_receipt_hash}" --arg transaction "${transaction_id}" '
+    type == "object" and .schemaVersion == 1 and
+    .source.revision == $revision and
+    .hostPayloadReceiptSha256 == $host_hash and
+    .hostTransactionId == $transaction and
+    (.files | type == "array" and length > 0) and
+    (all(.files[];
+      (.source | type == "string" and test("^(scripts|files)/")) and
+      (.path | type == "string" and test("^/")) and
+      (.mode == "0644" or .mode == "0755") and
+      (.sourceSha256 | test("^[0-9a-f]{64}$")) and
+      (.exportedSha256 == .sourceSha256)))
+  ' "${receipt}" >/dev/null 2>&1 || return 2
+  receipt_hash="$(dispatcher_sha256 "${receipt}")" || return 2
+  printf '%s  docker-source-receipt.json\n' "${receipt_hash}" \
+    > "${stage_root}/docker-source-receipt.sha256" || return 2
+  chmod 0644 "${stage_root}/docker-source-receipt.sha256" || return 2
+  rm -f -- "${plan}" || return 2
+  mv -- "${stage_root}" "${export_root}" || return 2
+  DISPATCHER_DOCKER_EXPORT_STAGE=""
+  log_ok "Docker supplement exported" "${export_root}"
 }
 
 dispatcher_mark_in_progress() {
-  dispatcher_write_manifest deploying
+  # Progress lives only in the private transaction journal. The last deployed
+  # manifest remains authoritative until receipt and metadata commit together.
+  return 0
+}
+
+dispatcher_signal_exit() {
+  local signal_name="${1:-TERM}"
+  local status=143
+
+  case "${signal_name}" in
+    HUP) status=129 ;;
+    INT) status=130 ;;
+    TERM) status=143 ;;
+    *) status=143 ;;
+  esac
+  trap - HUP INT TERM
+  exit "${status}"
 }
 
 cleanup_dispatcher() {
+  local cleanup_status="${1:-0}"
+
+  trap - EXIT
+  trap '' HUP INT TERM
+  if [[ "${DISPATCHER_TX_ACTIVE:-N}" == "Y" ]]; then
+    dispatcher_distribution_rollback ||
+      log_warn "Automatic Guild payload rollback failed; inspect ${NODE_HOME:-target} before retrying."
+  fi
+  if [[ -n "${DISPATCHER_TX_PREPARE_ROOT:-}" &&
+        -n "${NODE_HOME:-}" &&
+        "${DISPATCHER_TX_PREPARE_ROOT}" == "${NODE_HOME}"/.guild-deploy-transaction.prepare.* &&
+        -d "${DISPATCHER_TX_PREPARE_ROOT}" &&
+        ! -L "${DISPATCHER_TX_PREPARE_ROOT}" &&
+        -O "${DISPATCHER_TX_PREPARE_ROOT}" ]]; then
+    dispatcher_transaction_remove_root "${DISPATCHER_TX_PREPARE_ROOT}" ||
+      log_warn "Could not remove incomplete Guild transaction preparation at ${DISPATCHER_TX_PREPARE_ROOT}."
+  fi
+  if [[ -n "${DISPATCHER_TX_STAGE_ROOT:-}" &&
+        "${DISPATCHER_TX_STAGE_ROOT}" == "${TMPDIR:-/tmp}"/guild-deploy-distribution.* &&
+        -d "${DISPATCHER_TX_STAGE_ROOT}" && ! -L "${DISPATCHER_TX_STAGE_ROOT}" &&
+        -O "${DISPATCHER_TX_STAGE_ROOT}" ]]; then
+    rm -rf -- "${DISPATCHER_TX_STAGE_ROOT}"
+  fi
+  if [[ -n "${DISPATCHER_DOCKER_EXPORT_STAGE:-}" &&
+        "${DISPATCHER_DOCKER_EXPORT_STAGE}" == */.*.prepare.* &&
+        -d "${DISPATCHER_DOCKER_EXPORT_STAGE}" &&
+        ! -L "${DISPATCHER_DOCKER_EXPORT_STAGE}" &&
+        -O "${DISPATCHER_DOCKER_EXPORT_STAGE}" ]]; then
+    chmod -R u+rwX "${DISPATCHER_DOCKER_EXPORT_STAGE}" 2>/dev/null || true
+    rm -rf -- "${DISPATCHER_DOCKER_EXPORT_STAGE}"
+  fi
   if [[ "${DISPATCHER_PROFILE_TMP_OWNED:-N}" = "Y" &&
         -n "${PROFILE_TMP_DIR:-}" &&
         -d "${PROFILE_TMP_DIR}" ]]; then
     rm -rf -- "${PROFILE_TMP_DIR}"
   fi
   dispatcher_release_target_lock
+  guild_source_release || true
+  return "${cleanup_status}"
 }
 
 guild_deploy_main() {
+  local -a original_args=("$@")
+  local source_handoff="${GUILD_SOURCE_HANDOFF_ACTIVE:-N}"
+  local requested_account_preset="${GUILD_SOURCE_REQUEST_ACCOUNT_PRESET:-}"
+  local requested_branch_preset="${GUILD_SOURCE_REQUEST_BRANCH_PRESET:-}"
+  local requested_network_preset="${GUILD_SOURCE_REQUEST_NETWORK_PRESET:-}"
+  local requested_mode_preset="${GUILD_SOURCE_REQUEST_MODE_PRESET:-}"
+  local requested_node_port_preset="${GUILD_SOURCE_REQUEST_NODE_PORT_PRESET:-}"
+
   # Never trust cleanup paths inherited from the caller's environment.
   PROFILE_TMP_DIR=""
   DISPATCHER_PROFILE_TMP_OWNED="N"
+  DISPATCHER_TX_STAGE_ROOT=""
+  DISPATCHER_TX_CANDIDATE_ROOT=""
+  DISPATCHER_TX_PLAN=""
+  DISPATCHER_TX_DURABLE_ROOT=""
+  DISPATCHER_TX_PREPARE_ROOT=""
+  DISPATCHER_DOCKER_EXPORT_STAGE=""
+  DISPATCHER_TX_PREPARED="N"
+  DISPATCHER_TX_ACTIVE="N"
+  DISPATCHER_TX_ACTIVATED="N"
   unset GUILD_DEPLOY_LOCK_HELD_FOR
   unset DISPATCHER_LOCK_KIND DISPATCHER_LOCK_PATH
   unset DISPATCHER_LOCK_CANONICAL_TARGET DISPATCHER_LOCK_OWNER_PID
+  unset DISPATCHER_USER_LOCK_KIND DISPATCHER_USER_LOCK_PATH
   unset PROFILE_PATH PROFILE_ENTRYPOINT PROFILE_TARGET_NODE_VERSION
   unset PROFILE_METRICS_PROVIDER PROFILE_CAP_N2C PROFILE_CAP_LOCAL_CLI
   unset PROFILE_CAP_METRICS PROFILE_CAP_FORGING
-  trap cleanup_dispatcher EXIT
+  trap 'cleanup_dispatcher "$?"' EXIT
+  trap 'dispatcher_signal_exit HUP' HUP
+  trap 'dispatcher_signal_exit INT' INT
+  trap 'dispatcher_signal_exit TERM' TERM
+
+  if [[ "${source_handoff}" == "Y" ]]; then
+    guild_source_adopt_handoff ||
+      err_exit "The prepared Guild source handoff is invalid or does not match the running dispatcher."
+  elif [[ "${source_handoff}" != "N" ]]; then
+    err_exit "Invalid Guild source handoff marker."
+  fi
 
   NODE_IMPLEMENTATION_EXPLICIT="N"
   NETWORK_EXPLICIT="N"
@@ -2535,15 +4449,26 @@ guild_deploy_main() {
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   G_ACCOUNT_PRESET="N"
+  GUILD_SOURCE_MODE_PRESET="N"
+  NODE_PORT_PRESET="N"
   LEGACY_CNODE_TARGET="N"
   DISPATCHER_LOCK_TARGET="Y"
   S_ARGS="${S_ARGS:-}"
   [[ -n "${BRANCH:-}" ]] && BRANCH_PRESET="Y"
   [[ -n "${NETWORK:-}" ]] && NETWORK_PRESET="Y"
   [[ -n "${G_ACCOUNT:-}" ]] && G_ACCOUNT_PRESET="Y"
+  [[ -n "${GUILD_SOURCE_MODE:-}" ]] && GUILD_SOURCE_MODE_PRESET="Y"
+  [[ -n "${NODE_PORT:-}" ]] && NODE_PORT_PRESET="Y"
+  if [[ "${source_handoff}" == "Y" ]]; then
+    G_ACCOUNT_PRESET="${requested_account_preset:-N}"
+    BRANCH_PRESET="${requested_branch_preset:-N}"
+    NETWORK_PRESET="${requested_network_preset:-N}"
+    GUILD_SOURCE_MODE_PRESET="${requested_mode_preset:-N}"
+    NODE_PORT_PRESET="${requested_node_port_preset:-N}"
+  fi
   OPTIND=1
 
-  while getopts ":i:n:p:t:s:b:uh" opt; do
+  while getopts ":i:n:p:t:s:b:a:S:L:E:DRuh" opt; do
     case "${opt}" in
       i)
         NODE_IMPLEMENTATION="${OPTARG}"
@@ -2563,6 +4488,18 @@ guild_deploy_main() {
         BRANCH="${OPTARG}"
         BRANCH_EXPLICIT="Y"
         ;;
+      a)
+        G_ACCOUNT="${OPTARG}"
+        G_ACCOUNT_PRESET="Y"
+        ;;
+      S)
+        GUILD_SOURCE_MODE="${OPTARG}"
+        GUILD_SOURCE_MODE_PRESET="Y"
+        ;;
+      L) GUILD_SOURCE_CHECKOUT="${OPTARG}" ;;
+      E) GUILD_DOCKER_EXPORT_ROOT="${OPTARG}" ;;
+      D) GUILD_SOURCE_ALLOW_DIRTY="Y" ;;
+      R) GUILD_SOURCE_ALLOW_REPOSITORY_CHANGE="Y" ;;
       u) UPDATE_CHECK="N" ;;
       h)
         dispatcher_usage
@@ -2580,8 +4517,21 @@ guild_deploy_main() {
   shift $((OPTIND - 1))
   [[ $# -eq 0 ]] || err_exit "Unexpected positional arguments: $*"
 
+  # Help is intentionally available without deployment tools. Every real run
+  # validates source and receipt tooling before source preparation, target
+  # locking, recovery, directory creation, or payload mutation.
+  dispatcher_validate_bootstrap_prerequisites
+
+  if [[ "${source_handoff}" != "Y" ]]; then
+    DISPATCHER_LOCK_TARGET="N"
+    dispatcher_set_defaults
+    dispatcher_prepare_source_and_handoff "${original_args[@]}"
+    return $?
+  fi
+
+  DISPATCHER_LOCK_TARGET="Y"
   dispatcher_set_defaults
-  dispatcher_validate_branch
+  dispatcher_verify_target_fingerprint
   dispatcher_update_check
 
   printf "\n%sGuild Operators deployment%s\n" "${STYLE_BOLD}" "${STYLE_RESET}"
@@ -2594,9 +4544,20 @@ guild_deploy_main() {
   PROFILE_MANAGED="Y"
   export PROFILE_MANAGED
   dispatcher_load_profile
+  # Reject every pre-existing symlink or non-directory in the selected
+  # implementation's layout before candidate rendering can read through it or
+  # the profile can perform any privileged layout mutation.
+  dispatcher_validate_profile_layout ||
+    err_exit "The ${NODE_IMPLEMENTATION} target contains an unsafe directory layout."
+  dispatcher_distribution_prepare ||
+    err_exit "Could not stage and validate the complete ${NODE_IMPLEMENTATION} Guild payload."
   "${PROFILE_ENTRYPOINT}" ||
     err_exit "${NODE_IMPLEMENTATION} deployment profile failed."
+  [[ "${DISPATCHER_TX_ACTIVATED:-N}" == "Y" ]] ||
+    err_exit "${NODE_IMPLEMENTATION} profile returned without activating the prepared Guild payload."
   dispatcher_write_manifest deployed
+  dispatcher_docker_export_supplement ||
+    err_exit "Could not export the Docker supplement from the prepared Guild revision."
 
   printf "\n%sDeployment finished%s\n" "${STYLE_GREEN}${STYLE_BOLD}" "${STYLE_RESET}"
 }

@@ -30,16 +30,13 @@ The default endpoints are:
 Open only the ports that are required for your deployment. In particular,
 Grafana listens on all interfaces by default.
 
-## Download
+## Installation
 
 The cnode deployment profile installs `setup_mon.sh` in the selected node's
-`scripts` directory. If you need to download it manually:
-
-```bash
-cd "${CNODE_HOME}/scripts"
-wget https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/setup_mon.sh
-chmod 750 setup_mon.sh
-```
+`scripts` directory. If it is missing or stale, re-run `guild-deploy.sh` for
+the same cnode target. Do not raw-download this helper independently: the
+dispatcher installs the complete validated Guild payload and records it in the
+target's source receipt.
 
 ## Configuration
 
