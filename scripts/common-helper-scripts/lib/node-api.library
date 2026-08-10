@@ -156,9 +156,7 @@ node_metric_unset_info() {
   NODE_INFO_METRICS=("${remaining[@]}")
 }
 
-# Pure display helpers used by gLiveView. They live in the existing common
-# runtime bundle so older deployments can update transactionally without
-# needing to discover an additional runtime file first.
+# Pure display helpers used by gLiveView's common runtime bundle.
 glv_text_clip() {
   local width="${1:-0}"
   local value="${2-}"
@@ -518,8 +516,8 @@ common_parse_cardano_metrics() {
   node_metrics="$(printf '%s\n' "${node_metrics}" | prometheus_normalize_metrics)"
   declare -p NODE_METRIC_AVAILABLE >/dev/null 2>&1 || node_metric_reset_availability
 
-  # Safe defaults keep legacy arithmetic callers working. Availability remains
-  # false until a sample is actually observed.
+  # Initialize arithmetic-facing values safely. Availability remains false
+  # until a sample is actually observed.
   for metric_name in "${normalized_metrics[@]}"; do
     case "${metric_name}" in
       density) printf -v "${metric_name}" '%s' "0.0" ;;

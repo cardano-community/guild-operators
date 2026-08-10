@@ -242,6 +242,13 @@ case "${NODE_IMPLEMENTATION}" in
     return 1
     ;;
 esac
+
+if [[ "${NODE_IMPLEMENTATION}" != "cnode" &&
+      -z "${_deployment_implementation}" ]]; then
+  printf "A finalized deployment manifest is required for implementation '%s': %s\n" \
+    "${NODE_IMPLEMENTATION}" "${_deployment_manifest}" >&2
+  return 1
+fi
 NODE_IMPL="${NODE_IMPLEMENTATION}"
 
 if [[ ! -f "${GUILD_COMMON_LIB_DIR}/env.library" || ! -f "${GUILD_COMMON_LIB_DIR}/node-api.library" ]]; then
@@ -253,16 +260,20 @@ fi
 
 NODE_ADAPTER_FILE="${NODE_ADAPTER_PATH:-}"
 if [[ -z "${NODE_ADAPTER_FILE}" ]]; then
-  for _adapter_candidate in \
-    "${PARENT}/adapters/${NODE_IMPLEMENTATION}.adapter" \
-    "${GUILD_COMMON_ENV_DIR}/adapters/${NODE_IMPLEMENTATION}.adapter" \
-    "${GUILD_COMMON_ENV_DIR}/../${NODE_IMPLEMENTATION}-helper-scripts/${NODE_IMPLEMENTATION}.adapter" \
-    "${PARENT}/${NODE_IMPLEMENTATION}.adapter"; do
-    if [[ -f "${_adapter_candidate}" ]]; then
-      NODE_ADAPTER_FILE="${_adapter_candidate}"
-      break
-    fi
-  done
+  if [[ "${NODE_IMPLEMENTATION}" == "cnode" ]]; then
+    for _adapter_candidate in \
+      "${PARENT}/adapters/${NODE_IMPLEMENTATION}.adapter" \
+      "${GUILD_COMMON_ENV_DIR}/adapters/${NODE_IMPLEMENTATION}.adapter" \
+      "${GUILD_COMMON_ENV_DIR}/../${NODE_IMPLEMENTATION}-helper-scripts/${NODE_IMPLEMENTATION}.adapter" \
+      "${PARENT}/${NODE_IMPLEMENTATION}.adapter"; do
+      if [[ -f "${_adapter_candidate}" ]]; then
+        NODE_ADAPTER_FILE="${_adapter_candidate}"
+        break
+      fi
+    done
+  else
+    NODE_ADAPTER_FILE="${PARENT}/adapters/${NODE_IMPLEMENTATION}.adapter"
+  fi
 fi
 
 if [[ -z "${NODE_ADAPTER_FILE}" || ! -f "${NODE_ADAPTER_FILE}" ]]; then
@@ -277,8 +288,8 @@ case "${1:-full}" in
     ENV_PROFILE="${1:-full}"
     ;;
   *)
-    # Sourced files inherit caller positional parameters. Preserve the legacy
-    # behavior by treating unrelated arguments as a normal/full load.
+    # Sourced files inherit caller positional parameters. Treat unrelated
+    # arguments as a normal/full load.
     ENV_PROFILE="full"
     ;;
 esac
@@ -291,8 +302,8 @@ esac
 node_adapter_defaults || return 1
 set_default_vars || return 1
 
-# set_default_vars creates the legacy aliases and update URLs. Reassert the
-# deployment metadata values, which are authoritative for common updates.
+# set_default_vars creates shared aliases and update URLs. Reassert deployment
+# metadata values, which are authoritative for common updates.
 NODE_HOME="${NODE_HOME:-${CNODE_HOME}}"
 CNODE_HOME="${CNODE_HOME:-${NODE_HOME}}"
 BRANCH="${GUILD_BRANCH_OVERRIDE:-${_deployment_branch:-${BRANCH:-master}}}"

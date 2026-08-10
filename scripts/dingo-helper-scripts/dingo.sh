@@ -124,9 +124,6 @@ esac
 
 DINGO_SYSTEMD_LIBRARY="${DINGO_SCRIPT_DIR}/lib/systemd.library"
 if [[ ! -r "${DINGO_SYSTEMD_LIBRARY}" ]]; then
-  DINGO_SYSTEMD_LIBRARY="${DINGO_SCRIPT_DIR}/../common-helper-scripts/lib/systemd.library"
-fi
-if [[ ! -r "${DINGO_SYSTEMD_LIBRARY}" ]]; then
   printf 'ERROR: common systemd library is missing\n' >&2
   exit 1
 fi

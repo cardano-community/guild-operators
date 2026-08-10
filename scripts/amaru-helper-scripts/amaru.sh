@@ -146,9 +146,6 @@ fi
 
 AMARU_SYSTEMD_LIBRARY="${AMARU_SCRIPT_DIR}/lib/systemd.library"
 if [[ ! -r "${AMARU_SYSTEMD_LIBRARY}" ]]; then
-  AMARU_SYSTEMD_LIBRARY="${AMARU_SCRIPT_DIR}/../common-helper-scripts/lib/systemd.library"
-fi
-if [[ ! -r "${AMARU_SYSTEMD_LIBRARY}" ]]; then
   printf 'ERROR: common systemd library is missing\n' >&2
   exit 1
 fi

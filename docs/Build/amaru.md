@@ -27,11 +27,8 @@ The supported selective-install flags are:
 The cnode-specific flags `b`, `l`, `m`, `c`, `o`, `w`, `x`, and `r` are
 rejected. With no `-s` value, the profile refreshes scripts, common libraries,
 the release manifest, and missing configuration while preserving an existing
-Amaru environment file. Before preserving it, the deployment verifies that it
-contains the managed OpenTelemetry settings required by gLiveView. An older
-environment with telemetry disabled or without the managed bridge contract is
-rejected with an instruction to re-run using `-s f`; the forced replacement
-archives the old file before installing the current template.
+Amaru environment file. Select `-s f` when the managed environment template
+should replace that file; the current file is archived first.
 
 The executables are installed as `~/.local/bin/amaru` and
 `~/.local/bin/otelcol-contrib`. Existing binaries are copied to
@@ -87,9 +84,7 @@ Amaru embeds the global parameters, bootstrap snapshot catalogue, and default
 peer information for well-known networks. No cardano-node-style config or
 genesis JSON bundle is needed for the supported networks. Guild Operators
 self-hosts a small environment template for each network, the rolling Amaru
-release policy, and pinned collector metadata. Automatic chain-database
-migration is disabled so an upgrade cannot transform persistent state without
-an explicit operator decision.
+release policy, and pinned collector metadata.
 
 The profile deliberately does not create `chain/` or `ledger/`. Upstream
 bootstrap refuses to proceed if either target already exists, which prevents a
@@ -153,8 +148,7 @@ enables OpenTelemetry and sends:
 
 | Signal | Local collector endpoint |
 | --- | --- |
-| OTLP traces and logs | `127.0.0.1:4317` using gRPC |
-| OTLP metrics | `127.0.0.1:4318/v1/metrics` using HTTP |
+| OTLP metrics, traces, and logs | `127.0.0.1:4317` using gRPC |
 | Prometheus output for gLiveView | `127.0.0.1:8889/metrics` |
 
 Amaru does not embed a Prometheus server. The `:8889` endpoint in Amaru's
@@ -165,7 +159,7 @@ names, resource-label filtering, batching, and stale-series expiry. The local
 profile uses the equivalent current collector options for suffix and scope
 handling.
 
-All three endpoints bind only to loopback. Unlike Amaru's complete Docker
+Both endpoints bind only to loopback. Unlike Amaru's complete Docker
 monitoring stack, the Guild profile does not require Loki or Tempo; traces and
 logs are accepted into a no-op sink while metrics are converted to Prometheus.
 The node service wants and starts after the companion metrics service.
