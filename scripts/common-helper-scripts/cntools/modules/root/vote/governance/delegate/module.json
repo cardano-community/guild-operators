@@ -1,0 +1,30 @@
+{
+  "description": "Legacy CNTools workflow: Delegate",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local",
+      "light"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "vote.governance.delegate",
+  "kind": "action",
+  "label": "Delegate",
+  "order": 20,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "d",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

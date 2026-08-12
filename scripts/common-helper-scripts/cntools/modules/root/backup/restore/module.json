@@ -1,0 +1,31 @@
+{
+  "description": "Legacy CNTools workflow: Restore",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "backup.restore",
+  "kind": "action",
+  "label": "Restore",
+  "order": 20,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "r",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

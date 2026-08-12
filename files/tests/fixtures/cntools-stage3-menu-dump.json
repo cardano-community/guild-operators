@@ -1,0 +1,2284 @@
+{
+  "counts": {
+    "actions": 54,
+    "controls": 22,
+    "menus": 15,
+    "modules": 69,
+    "options": 90
+  },
+  "menus": [
+    {
+      "controlPolicy": "root",
+      "description": "CNTools application root",
+      "id": "root",
+      "label": "CNTools",
+      "options": [
+        {
+          "description": "Legacy CNTools menu: Wallet",
+          "id": "wallet",
+          "kind": "menu",
+          "label": "Wallet",
+          "order": 10,
+          "shortcut": "w",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools menu: Funds",
+          "id": "funds",
+          "kind": "menu",
+          "label": "Funds",
+          "order": 20,
+          "shortcut": "f",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools menu: Pool",
+          "id": "pool",
+          "kind": "menu",
+          "label": "Pool",
+          "order": 30,
+          "shortcut": "p",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools menu: Transaction",
+          "id": "transaction",
+          "kind": "menu",
+          "label": "Transaction",
+          "order": 40,
+          "shortcut": "t",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools menu: Vote",
+          "id": "vote",
+          "kind": "menu",
+          "label": "Vote",
+          "order": 50,
+          "shortcut": "v",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools menu: Blocks",
+          "id": "blocks",
+          "kind": "menu",
+          "label": "Blocks",
+          "order": 60,
+          "shortcut": "b",
+          "visibility": {
+            "features": [
+              "blocklog"
+            ],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools menu: Backup & Restore",
+          "id": "backup",
+          "kind": "menu",
+          "label": "Backup & Restore",
+          "order": 70,
+          "shortcut": "z",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools menu: Advanced",
+          "id": "advanced",
+          "kind": "menu",
+          "label": "Advanced",
+          "order": 80,
+          "shortcut": "a",
+          "visibility": {
+            "features": [
+              "advanced"
+            ],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "root.refresh",
+          "kind": "control",
+          "label": "Refresh",
+          "navigation": "refresh-root",
+          "shortcut": "r"
+        },
+        {
+          "id": "root.quit",
+          "kind": "control",
+          "label": "Quit",
+          "navigation": "exit",
+          "shortcut": "q"
+        }
+      ],
+      "parent": null,
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "home",
+      "description": "Legacy CNTools menu: Wallet",
+      "id": "wallet",
+      "label": "Wallet",
+      "options": [
+        {
+          "description": "Legacy CNTools menu: New",
+          "id": "wallet.new",
+          "kind": "menu",
+          "label": "New",
+          "order": 10,
+          "shortcut": "n",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools menu: Import",
+          "id": "wallet.import",
+          "kind": "menu",
+          "label": "Import",
+          "order": 20,
+          "shortcut": "i",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Register",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "wallet.register",
+          "kind": "action",
+          "label": "Register",
+          "order": 30,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "r",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: De-Register",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "wallet.deregister",
+          "kind": "action",
+          "label": "De-Register",
+          "order": 40,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "z",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: List",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "wallet.list",
+          "kind": "action",
+          "label": "List",
+          "order": 50,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "l",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Show",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "wallet.show",
+          "kind": "action",
+          "label": "Show",
+          "order": 60,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "s",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Remove",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "wallet.remove",
+          "kind": "action",
+          "label": "Remove",
+          "order": 70,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "x",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Decrypt",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "wallet.decrypt",
+          "kind": "action",
+          "label": "Decrypt",
+          "order": 80,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "d",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Encrypt",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "wallet.encrypt",
+          "kind": "action",
+          "label": "Encrypt",
+          "order": 90,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "e",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "wallet.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "root",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "back-home",
+      "description": "Legacy CNTools menu: New",
+      "id": "wallet.new",
+      "label": "New",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: Mnemonic",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "wallet.new.mnemonic",
+          "kind": "action",
+          "label": "Mnemonic",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "m",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: CLI",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "wallet.new.cli",
+          "kind": "action",
+          "label": "CLI",
+          "order": 20,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "c",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "wallet.new.back",
+          "kind": "control",
+          "label": "Back",
+          "navigation": "wallet",
+          "shortcut": "b"
+        },
+        {
+          "id": "wallet.new.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "wallet",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "back-home",
+      "description": "Legacy CNTools menu: Import",
+      "id": "wallet.import",
+      "label": "Import",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: Mnemonic",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "wallet.import.mnemonic",
+          "kind": "action",
+          "label": "Mnemonic",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "m",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: HW Wallet",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "wallet.import.hardware",
+          "kind": "action",
+          "label": "HW Wallet",
+          "order": 20,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "w",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "wallet.import.back",
+          "kind": "control",
+          "label": "Back",
+          "navigation": "wallet",
+          "shortcut": "b"
+        },
+        {
+          "id": "wallet.import.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "wallet",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "home",
+      "description": "Legacy CNTools menu: Funds",
+      "id": "funds",
+      "label": "Funds",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: Send",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "funds.send",
+          "kind": "action",
+          "label": "Send",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "s",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Delegate",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "funds.delegate",
+          "kind": "action",
+          "label": "Delegate",
+          "order": 20,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "d",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Withdraw Rewards",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "funds.withdraw",
+          "kind": "action",
+          "label": "Withdraw Rewards",
+          "order": 30,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "w",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "funds.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "root",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "home",
+      "description": "Legacy CNTools menu: Pool",
+      "id": "pool",
+      "label": "Pool",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: New",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "pool.new",
+          "kind": "action",
+          "label": "New",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "n",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Import",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "pool.import",
+          "kind": "action",
+          "label": "Import",
+          "order": 20,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "i",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Register",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "pool.register",
+          "kind": "action",
+          "label": "Register",
+          "order": 30,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "r",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Modify",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "pool.modify",
+          "kind": "action",
+          "label": "Modify",
+          "order": 40,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "m",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Retire",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "pool.retire",
+          "kind": "action",
+          "label": "Retire",
+          "order": 50,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "x",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: List",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "pool.list",
+          "kind": "action",
+          "label": "List",
+          "order": 60,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "l",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Show",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "pool.show",
+          "kind": "action",
+          "label": "Show",
+          "order": 70,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "s",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Rotate",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "pool.rotate",
+          "kind": "action",
+          "label": "Rotate",
+          "order": 80,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "o",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Decrypt",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "pool.decrypt",
+          "kind": "action",
+          "label": "Decrypt",
+          "order": 90,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "d",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Encrypt",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "pool.encrypt",
+          "kind": "action",
+          "label": "Encrypt",
+          "order": 100,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "e",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Calidus",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "pool.calidus",
+          "kind": "action",
+          "label": "Calidus",
+          "order": 110,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "c",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "pool.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "root",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "home",
+      "description": "Legacy CNTools menu: Transaction",
+      "id": "transaction",
+      "label": "Transaction",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: Sign",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "transaction.sign",
+          "kind": "action",
+          "label": "Sign",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "s",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Submit",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "transaction.submit",
+          "kind": "action",
+          "label": "Submit",
+          "order": 20,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "t",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "transaction.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "root",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "home",
+      "description": "Legacy CNTools menu: Vote",
+      "id": "vote",
+      "label": "Vote",
+      "options": [
+        {
+          "description": "Legacy CNTools menu: Governance",
+          "id": "vote.governance",
+          "kind": "menu",
+          "label": "Governance",
+          "order": 10,
+          "shortcut": "g",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools menu: Catalyst",
+          "id": "vote.catalyst",
+          "kind": "menu",
+          "label": "Catalyst",
+          "order": 20,
+          "shortcut": "c",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "vote.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "root",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "back-home",
+      "description": "Legacy CNTools menu: Governance",
+      "id": "vote.governance",
+      "label": "Governance",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: Info & Status",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "vote.governance.info",
+          "kind": "action",
+          "label": "Info & Status",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "i",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Delegate",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "vote.governance.delegate",
+          "kind": "action",
+          "label": "Delegate",
+          "order": 20,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "d",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: List Proposals",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "vote.governance.proposals",
+          "kind": "action",
+          "label": "List Proposals",
+          "order": 30,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "l",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Cast vote",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "vote.governance.cast",
+          "kind": "action",
+          "label": "Cast vote",
+          "order": 40,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "v",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: DRep Registration / Update",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "vote.governance.drep-register",
+          "kind": "action",
+          "label": "DRep Registration / Update",
+          "order": 50,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "r",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: DRep Retire",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "vote.governance.drep-retire",
+          "kind": "action",
+          "label": "DRep Retire",
+          "order": 60,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "x",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: MultiSig DRep",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "vote.governance.multisig-drep",
+          "kind": "action",
+          "label": "MultiSig DRep",
+          "order": 70,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "m",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Derive Keys",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "vote.governance.derive-keys",
+          "kind": "action",
+          "label": "Derive Keys",
+          "order": 80,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "k",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "vote.governance.back",
+          "kind": "control",
+          "label": "Back",
+          "navigation": "vote",
+          "shortcut": "b"
+        },
+        {
+          "id": "vote.governance.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "vote",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "back-home",
+      "description": "Legacy CNTools menu: Catalyst",
+      "id": "vote.catalyst",
+      "label": "Catalyst",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: Registration",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "vote.catalyst.register",
+          "kind": "action",
+          "label": "Registration",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "r",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Display QR",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "vote.catalyst.qr",
+          "kind": "action",
+          "label": "Display QR",
+          "order": 20,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "q",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Verify",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "vote.catalyst.verify",
+          "kind": "action",
+          "label": "Verify",
+          "order": 30,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "v",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "vote.catalyst.back",
+          "kind": "control",
+          "label": "Back",
+          "navigation": "vote",
+          "shortcut": "b"
+        },
+        {
+          "id": "vote.catalyst.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "vote",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "escape-root",
+      "description": "Legacy CNTools menu: Blocks",
+      "id": "blocks",
+      "label": "Blocks",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: Summary",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "blocks.summary",
+          "kind": "action",
+          "label": "Summary",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "s",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Epoch",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "blocks.epoch",
+          "kind": "action",
+          "label": "Epoch",
+          "order": 20,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "e",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "blocks.escape",
+          "kind": "control",
+          "label": "Cancel",
+          "navigation": "root",
+          "shortcut": "Esc"
+        }
+      ],
+      "parent": "root",
+      "visibility": {
+        "features": [
+          "blocklog"
+        ],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "escape-root",
+      "description": "Legacy CNTools menu: Backup & Restore",
+      "id": "backup",
+      "label": "Backup & Restore",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: Backup",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "backup.create",
+          "kind": "action",
+          "label": "Backup",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "b",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Restore",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "backup.restore",
+          "kind": "action",
+          "label": "Restore",
+          "order": 20,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "r",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "backup.escape",
+          "kind": "control",
+          "label": "Cancel",
+          "navigation": "root",
+          "shortcut": "Esc"
+        }
+      ],
+      "parent": "root",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "home",
+      "description": "Legacy CNTools menu: Advanced",
+      "id": "advanced",
+      "label": "Advanced",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: Metadata",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.metadata",
+          "kind": "action",
+          "label": "Metadata",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "m",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools menu: Asset",
+          "id": "advanced.asset",
+          "kind": "menu",
+          "label": "Asset",
+          "order": 20,
+          "shortcut": "a",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools menu: MultiSig",
+          "id": "advanced.multisig",
+          "kind": "menu",
+          "label": "MultiSig",
+          "order": 30,
+          "shortcut": "s",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Delete Private Keys",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.delete-private-keys",
+          "kind": "action",
+          "label": "Delete Private Keys",
+          "order": 40,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "x",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "advanced.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "root",
+      "visibility": {
+        "features": [
+          "advanced"
+        ],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "back-home",
+      "description": "Legacy CNTools menu: Asset",
+      "id": "advanced.asset",
+      "label": "Asset",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: Create Policy",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.asset.create-policy",
+          "kind": "action",
+          "label": "Create Policy",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "c",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: List Assets",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.asset.list",
+          "kind": "action",
+          "label": "List Assets",
+          "order": 20,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "l",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Show Asset",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.asset.show",
+          "kind": "action",
+          "label": "Show Asset",
+          "order": 30,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "s",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Decrypt / Unlock Policy",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.asset.decrypt-policy",
+          "kind": "action",
+          "label": "Decrypt / Unlock Policy",
+          "order": 40,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "d",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Encrypt / Lock Policy",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.asset.encrypt-policy",
+          "kind": "action",
+          "label": "Encrypt / Lock Policy",
+          "order": 50,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "e",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Mint Asset",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.asset.mint",
+          "kind": "action",
+          "label": "Mint Asset",
+          "order": 60,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "m",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Burn Asset",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.asset.burn",
+          "kind": "action",
+          "label": "Burn Asset",
+          "order": 70,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "x",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Register Asset",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.asset.register",
+          "kind": "action",
+          "label": "Register Asset",
+          "order": 80,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "r",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "advanced.asset.back",
+          "kind": "control",
+          "label": "Back",
+          "navigation": "advanced",
+          "shortcut": "b"
+        },
+        {
+          "id": "advanced.asset.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "advanced",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    },
+    {
+      "controlPolicy": "back-home",
+      "description": "Legacy CNTools menu: MultiSig",
+      "id": "advanced.multisig",
+      "label": "MultiSig",
+      "options": [
+        {
+          "description": "Legacy CNTools workflow: Create",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.multisig.create",
+          "kind": "action",
+          "label": "Create",
+          "order": 10,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "c",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "description": "Legacy CNTools workflow: Derive Keys",
+          "executionRequirements": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          },
+          "id": "advanced.multisig.derive-keys",
+          "kind": "action",
+          "label": "Derive Keys",
+          "order": 20,
+          "runtime": {
+            "apiVersion": 1,
+            "libraries": []
+          },
+          "shortcut": "d",
+          "visibility": {
+            "features": [],
+            "modes": [
+              "local",
+              "light",
+              "offline"
+            ],
+            "nodeCapabilities": []
+          }
+        },
+        {
+          "id": "advanced.multisig.back",
+          "kind": "control",
+          "label": "Back",
+          "navigation": "advanced",
+          "shortcut": "b"
+        },
+        {
+          "id": "advanced.multisig.home",
+          "kind": "control",
+          "label": "Home",
+          "navigation": "root",
+          "shortcut": "h"
+        }
+      ],
+      "parent": "advanced",
+      "visibility": {
+        "features": [],
+        "modes": [
+          "local",
+          "light",
+          "offline"
+        ],
+        "nodeCapabilities": []
+      }
+    }
+  ],
+  "moduleSchemaVersion": 2,
+  "schemaVersion": 1
+}

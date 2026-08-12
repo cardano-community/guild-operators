@@ -18,15 +18,51 @@ Koios CNTools is like a swiss army knife for pool operators to simplify typical 
 Visit the [Changelog](cntools-changelog.md) section to see progress and current release.
 
 #### Overview
-The tool consists of two CNTools-specific files:
+The active tool keeps its two stable public paths and adds an internal
+compatibility bundle:
 
-- `cntools.sh` - the main script to launch cntools.
-- `cntools.library` - internal script with helper functions.
+- `cntools.sh` - the main script and authoritative legacy menu entrypoint;
+- `cntools.library` - a compatibility facade that preserves the legacy
+  initialization and loads its fixed library fragments; and
+- `cntools/libs/legacy/<64-character-sha256>/` - ten read-only,
+  content-addressed fragments containing the mechanically split legacy
+  function bodies.
 
 In addition to those files, CNTools depends on the common [`env`](env.md)
 entrypoint and its runtime libraries. CNTools connects to the node through the
 `env` file in the same directory. Customize `env` and `cntools.sh` only where
 their User Variables sections require it.
+
+During this modular-refactor stage, the installed `scripts/cntools.sh` remains
+the authoritative runtime and the facade reconstructs the characterized
+legacy library behavior. Function names, menu behavior, initialization,
+globals, and workflows have not moved to the new modular APIs. cnode and Dingo
+deployments also install a complete,
+content-addressed candidate below
+`scripts/.cntools/generations/<64-character-sha256>`. That generation is bound
+to the deployment receipt but remains inactive: deployment does not create or
+move `active` or `previous` pointers, and the public launcher does not load it.
+Amaru installs neither the active CNTools files nor a candidate generation.
+
+Both the public facade and the inactive generation carry the same immutable
+legacy bundle layout. The facade resolves the bundle relative to its own file,
+checks its exact identity before legacy initialization, and never mixes public,
+repository, or generation files. An interrupted deployment journal blocks a
+new facade load until dispatcher recovery completes.
+
+The candidate includes a strict configuration parser, migration analyzer, and
+`cntools.conf.example` for development and validation. They are inert in this
+stage. Deployment does not create a live `cntools.conf`, and the authoritative
+launcher does not read one yet.
+
+The Stage 3 candidate also contains a deterministic shadow registry with 69
+metadata documents: 15 menus and 54 inert action leaves. Four internal control
+policies synthesize 22 navigation controls and a static 90-option menu model.
+Its generation-root launcher can validate the installed generation and module
+registry or dump that model, but only after authenticating the deployment
+receipt, metadata, complete immutable generation, and version binding before
+and under the generation lock. These are inactive diagnostics, not additional
+options for the public legacy launcher, and they never dispatch an action.
 
 On Dingo, `env` selects `$HOME/.local/bin/cardano-cli-dingo` and
 `$NODE_HOME/sockets/dingo.socket` automatically. The CLI is pinned in Dingo's
@@ -81,6 +117,13 @@ CNTools can check for updates, but it no longer downloads only CNTools files.
 The check delegates to the installed `guild-deploy.sh`, which validates and
 updates the complete source-receipted Guild payload as one transaction. A
 selected branch or tag must resolve and never silently falls back to `master`.
+
+The dispatcher publishes the complete compatibility bundle atomically before
+installing its facade and commits the source receipt and deployment metadata
+last. Existing valid bundle IDs are retained during the compatibility stages
+so an already-running invocation can finish on one version. Do not invoke an
+implementation profile directly or copy only `cntools.library`; the historical
+nontransactional profile fallback deliberately refuses this split payload.
 
 Automatic refresh cannot reproduce a deployment made from a local or dirty
 checkout. In that case, re-run the dispatcher explicitly with

@@ -13,6 +13,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 MANIFEST="${REPO_ROOT}/files/tests/fixtures/cntools-persistent-artifacts.json"
 ENV_LIBRARY="${REPO_ROOT}/scripts/common-helper-scripts/lib/env.library"
 CNTOOLS_LIBRARY="${REPO_ROOT}/scripts/common-helper-scripts/cntools.library"
+CNTOOLS_LIBRARY_STATIC=""
 CNTOOLS_SCRIPT="${REPO_ROOT}/scripts/common-helper-scripts/cntools.sh"
 CNODE_ADAPTER="${REPO_ROOT}/scripts/cnode-helper-scripts/cnode.adapter"
 CNCLI_SCRIPT="${REPO_ROOT}/scripts/cnode-helper-scripts/cncli.sh"
@@ -302,6 +303,10 @@ validate_source_anchors() {
   while IFS=$'\t' read -r anchor_id relative_file needle minimum_matches; do
     source_file="${REPO_ROOT}/${relative_file}"
     assert_file_exists "${source_file}" "source anchor ${anchor_id}"
+    if [[ "${relative_file}" == \
+          "scripts/common-helper-scripts/cntools.library" ]]; then
+      source_file="${CNTOOLS_LIBRARY_STATIC}"
+    fi
     assert_literal_matches \
       "${source_file}" "${needle}" "${minimum_matches}" \
       "source anchor ${anchor_id}"
@@ -340,7 +345,7 @@ validate_known_undefined_hardware_names() {
 
   while IFS= read -r variable; do
     assert_literal_matches \
-      "${CNTOOLS_LIBRARY}" "\${${variable}}" 1 \
+      "${CNTOOLS_LIBRARY_STATIC}" "\${${variable}}" 1 \
       "known undefined hardware filename reference ${variable}"
     if grep -Eq "(^|[^[:alnum:]_])${variable}[[:space:]]*=" "${ENV_LIBRARY}"; then
       fail "known legacy gap changed: ${variable} is now assigned in env.library"
@@ -664,6 +669,17 @@ for required_file in \
   "${CNCLI_SCRIPT}"; do
   assert_file_exists "${required_file}" "characterization input"
 done
+
+# Static legacy anchors moved into exact byte-preserving fragments in Stage 2.
+# Aggregate the facade and the fixed lexical fragment order for grep-only
+# characterization; runtime probes below continue to source the real facade.
+CNTOOLS_LIBRARY_STATIC="${TEST_ROOT}/cntools-library-static.aggregate"
+command cat "${CNTOOLS_LIBRARY}" > "${CNTOOLS_LIBRARY_STATIC}"
+while IFS= read -r legacy_member; do
+  command cat "${legacy_member}" >> "${CNTOOLS_LIBRARY_STATIC}"
+done < <(find \
+  "${REPO_ROOT}/scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f" \
+  -mindepth 1 -maxdepth 1 -type f -print | LC_ALL=C sort)
 
 prepare_command_guards
 validate_manifest

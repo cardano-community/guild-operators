@@ -240,14 +240,32 @@ The default target remains `/opt/cardano/cnode`:
 ├── mithril/
 ├── priv/
 ├── scripts/
+│   ├── .cntools/
+│   │   └── generations/
+│   │       └── <64-character-sha256>/
 │   ├── adapters/cnode.adapter
 │   ├── lib/
+│   ├── cntools/
+│   │   └── libs/legacy/
+│   │       └── <64-character-sha256>/   # ten read-only fragments
+│   ├── cntools.library
+│   ├── cntools.sh
 │   ├── cnode.sh
 │   ├── env
 │   └── compatible helper scripts
 └── sockets/
     └── node.socket
 ```
+
+The content-addressed CNTools directory is an inactive candidate bound to the
+deployment receipt. Deployment neither creates nor moves `.cntools/active` or
+`.cntools/previous`; the top-level `cntools.sh` remains the authoritative
+legacy-menu entrypoint during this refactor stage. `cntools.library` is now a
+compatibility facade over the exact bundle beneath `scripts/cntools`. The
+dispatcher publishes that complete bundle atomically before its facade and
+retains preceding valid bundle IDs during the transition. The inactive Stage 3
+candidate carries a validated 15-menu/54-action shadow registry, but its 54
+action stubs cannot dispatch production workflows.
 
 The initial `NODE_PORT` value is written to the newly installed common `env`.
 Later deployments preserve the operator's existing `CNODE_PORT` setting unless

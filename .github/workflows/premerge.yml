@@ -24,7 +24,7 @@ on:
 jobs:
   deployment-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
     - uses: actions/checkout@v4
       with:
@@ -55,6 +55,18 @@ jobs:
       run: bash files/tests/guild-source-provider.sh
     - name: Test deployment source manifest
       run: bash files/tests/guild-source-manifest.sh
+    - name: Test CNTools legacy library split contract
+      run: bash files/tests/cntools-library-split-contract.sh
+    - name: Test CNTools modular payload contract
+      run: bash files/tests/cntools-payload-contract.sh
+    - name: Test CNTools module registry
+      run: bash files/tests/cntools-module-registry.sh
+    - name: Test CNTools generation diagnostics
+      run: bash files/tests/cntools-generation-diagnostics.sh
+    - name: Test CNTools generation lifecycle
+      run: bash files/tests/cntools-generation-lifecycle.sh
+    - name: Test CNTools configuration contract
+      run: bash files/tests/cntools-config-contract.sh
     - name: Test deployment transaction
       run: bash files/tests/guild-deploy-transaction.sh
     - name: Test managed Git source safety
@@ -71,16 +83,35 @@ jobs:
           scripts/common-helper-scripts/lib/env.library \
           scripts/common-helper-scripts/lib/node-api.library \
           scripts/common-helper-scripts/lib/systemd.library \
+          scripts/common-helper-scripts/cntools/launcher.sh \
+          scripts/common-helper-scripts/cntools/core/bootstrap.sh \
+          scripts/common-helper-scripts/cntools/core/config.sh \
+          scripts/common-helper-scripts/cntools/core/context.sh \
+          scripts/common-helper-scripts/cntools/core/dispatcher.sh \
+          scripts/common-helper-scripts/cntools/core/lifecycle.sh \
+          scripts/common-helper-scripts/cntools/core/registry.sh \
+          scripts/common-helper-scripts/cntools/core/result.sh \
+          scripts/common-helper-scripts/cntools/templates/action/action.sh \
           files/docker/node/addons/entrypoint.sh \
           files/docker/node/addons/healthcheck.sh \
           files/docker/node/addons/block_watcher.sh \
           files/tests/docker-deployment.sh \
+          files/tests/common-runtime.sh \
+          files/tests/cntools-library-split-contract.sh \
+          files/tests/cntools-payload-contract.sh \
+          files/tests/cntools-module-registry.sh \
+          files/tests/cntools-generation-diagnostics.sh \
+          files/tests/cntools-generation-lifecycle.sh \
+          files/tests/cntools-config-contract.sh \
           files/tests/guild-deploy-transaction.sh \
           files/tests/guild-source-manifest.sh \
           files/tests/guild-source-provider.sh \
           files/tests/guild-source-safety.sh \
           files/tests/guild-source-locking.sh \
           files/tests/guild-source-shadow.sh
+        shellcheck -s bash -S warning \
+          -e SC2034,SC2086,SC2089,SC2090,SC2230,SC2206,SC2140,SC2059,SC2154 \
+          scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/*.sh
     - name: Test cnode runtime transaction
       run: bash files/tests/cnode-runtime-transaction.sh
     - name: Test systemd helpers
@@ -98,13 +129,13 @@ jobs:
           -print0 | xargs -0 -n1 bash -n
     - name: Validate deployment metadata
       run: |
-        find files/node-implementations files/configs/cnode files/configs/dingo files/configs/amaru \
+        find files/node-implementations files/configs/cnode files/configs/dingo files/configs/amaru scripts/common-helper-scripts/cntools \
           -type f -name '*.json' -print0 | xargs -0 -r -n1 jq -e .
 
-  stage-zero-bash-compatibility:
-    name: Stage 0 / Bash ${{ matrix.bash_version }}
+  stage-three-bash-compatibility:
+    name: Stage 0-3 / Bash ${{ matrix.bash_version }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -122,7 +153,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.branch || github.ref }}
-    - name: Run Stage 0 compatibility suites
+    - name: Run Stage 0-3 compatibility suites
       run: |
         docker run --rm \
           --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
@@ -145,6 +176,12 @@ jobs:
               files/tests/docker-deployment.sh \
               files/tests/guild-source-provider.sh \
               files/tests/guild-source-manifest.sh \
+              files/tests/cntools-library-split-contract.sh \
+              files/tests/cntools-payload-contract.sh \
+              files/tests/cntools-module-registry.sh \
+              files/tests/cntools-generation-diagnostics.sh \
+              files/tests/cntools-generation-lifecycle.sh \
+              files/tests/cntools-config-contract.sh \
               files/tests/guild-deploy-transaction.sh \
               files/tests/guild-source-safety.sh \
               files/tests/guild-source-locking.sh \

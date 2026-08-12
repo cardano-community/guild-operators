@@ -1,4 +1,4 @@
-# Guild Operators deployment source manifest, schema 1.
+# Guild Operators deployment source manifest, schema 2.
 #
 # Columns are tab-separated:
 # implementation  source path  installed path  mode  policy  validator
@@ -6,9 +6,23 @@
 # `common` entries apply to every implementation. The only substitutions are
 # {implementation} and {network}. Paths are repository- or target-relative.
 # Policies are exact, merge-header, render-cnode, render-dingo,
-# render-amaru, preserve-render, or retire. A retire entry has `-` as its
-# source, mode, and validator. Unknown columns, policies, substitutions, paths,
-# modes, or duplicate installed paths are fatal before target mutation.
+# render-amaru, preserve-render, cntools-legacy-bundle,
+# cntools-generation, or retire. A
+# cntools-legacy-bundle row stages and publishes the complete immutable legacy
+# library bundle named by the strict nested CNTools payload manifest. A
+# cntools-generation row names the strict nested CNTools payload manifest and
+# its private target root; its individual immutable files are not ordinary
+# distribution-plan records. A retire entry has `-` as its source, mode, and
+# validator. Unknown columns, policies, substitutions, paths, modes, or
+# duplicate installed paths are fatal before target mutation.
+# Reader isolation requires the CNTools facade to be the first ordinary
+# cnode/Dingo payload activated. The private bundle and generation legs publish
+# before this row; the facade then refuses launch while the durable journal is
+# present until every remaining ordinary file commits.
+cnode	scripts/common-helper-scripts/cntools/manifest.json	scripts/cntools/libs/legacy	0700	cntools-legacy-bundle	cntools
+cnode	scripts/common-helper-scripts/cntools.library	scripts/cntools.library	0644	merge-header	shell
+dingo	scripts/common-helper-scripts/cntools/manifest.json	scripts/cntools/libs/legacy	0700	cntools-legacy-bundle	cntools
+dingo	scripts/common-helper-scripts/cntools.library	scripts/cntools.library	0644	merge-header	shell
 common	scripts/cnode-helper-scripts/guild-deploy.sh	scripts/guild-deploy.sh	0755	merge-header	shell
 common	scripts/common-helper-scripts/lib/deployment.library	scripts/lib/deployment.library	0644	exact	shell
 common	scripts/common-helper-scripts/lib/env.library	scripts/lib/env.library	0644	exact	shell
@@ -23,7 +37,7 @@ cnode	scripts/cnode-helper-scripts/cabal-build-all.sh	scripts/cabal-build-all.sh
 cnode	scripts/cnode-helper-scripts/cncli.sh	scripts/cncli.sh	0755	merge-header	shell
 cnode	scripts/cnode-helper-scripts/cnode.sh	scripts/cnode.sh	0755	merge-header	shell
 cnode	scripts/common-helper-scripts/cntools.sh	scripts/cntools.sh	0755	merge-header	shell
-cnode	scripts/common-helper-scripts/cntools.library	scripts/cntools.library	0644	merge-header	shell
+cnode	scripts/common-helper-scripts/cntools/manifest.json	scripts/.cntools	0700	cntools-generation	cntools
 cnode	scripts/cnode-helper-scripts/dbsync.sh	scripts/dbsync.sh	0755	merge-header	shell
 cnode	scripts/common-helper-scripts/gLiveView.sh	scripts/gLiveView.sh	0755	merge-header	shell
 cnode	scripts/cnode-helper-scripts/topologyUpdater.sh	scripts/topologyUpdater.sh	0755	merge-header	shell
@@ -51,8 +65,8 @@ cnode	files/configs/cnode/{network}/db-sync-config.json	files/dbsync.json	0644	p
 cnode	files/configs/cnode/{network}/submitapi.json	files/submitapi.json	0644	exact	json
 dingo	scripts/dingo-helper-scripts/dingo.sh	scripts/dingo.sh	0755	exact	shell
 dingo	scripts/common-helper-scripts/gLiveView.sh	scripts/gLiveView.sh	0755	merge-header	shell
-dingo	scripts/common-helper-scripts/cntools.library	scripts/cntools.library	0644	merge-header	shell
 dingo	scripts/common-helper-scripts/cntools.sh	scripts/cntools.sh	0755	merge-header	shell
+dingo	scripts/common-helper-scripts/cntools/manifest.json	scripts/.cntools	0700	cntools-generation	cntools
 dingo	files/configs/dingo/{network}/dingo.yaml	files/dingo.yaml	0640	preserve-render	text
 dingo	files/configs/dingo/{network}/dingo.env	scripts/dingo.env	0640	preserve-render	shell
 dingo	files/node-implementations/dingo/release.json	files/dingo-release.json	0644	exact	json

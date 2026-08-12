@@ -1,0 +1,19 @@
+{
+  "controlPolicy": "home",
+  "description": "Legacy CNTools menu: Pool",
+  "id": "pool",
+  "kind": "menu",
+  "label": "Pool",
+  "order": 30,
+  "schemaVersion": 2,
+  "shortcut": "p",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

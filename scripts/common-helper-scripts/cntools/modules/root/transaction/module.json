@@ -1,0 +1,19 @@
+{
+  "controlPolicy": "home",
+  "description": "Legacy CNTools menu: Transaction",
+  "id": "transaction",
+  "kind": "menu",
+  "label": "Transaction",
+  "order": 40,
+  "schemaVersion": 2,
+  "shortcut": "t",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

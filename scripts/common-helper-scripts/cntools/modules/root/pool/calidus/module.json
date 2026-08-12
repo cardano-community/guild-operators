@@ -1,0 +1,30 @@
+{
+  "description": "Legacy CNTools workflow: Calidus",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local",
+      "light"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "pool.calidus",
+  "kind": "action",
+  "label": "Calidus",
+  "order": 110,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "c",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

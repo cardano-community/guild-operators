@@ -106,9 +106,10 @@ While we do not intend to hand out step-by-step instructions, the tools are ofte
 
 The deployment script can install node and tool prerequisites, but its own
 bootstrap prerequisites must already be present: `curl`, Git, `jq`, a SHA-256
-utility (`sha256sum` or `shasum`), and Bash 4.4 or newer. Install them with the
-host package manager and verify the Bash version before running the dispatcher.
-For example:
+utility (`sha256sum` or `shasum`), the platform advisory-lock utility
+(`flock` from `util-linux` on Linux), and Bash 4.4 or newer. Install them with
+the host package manager and verify the Bash version before running the
+dispatcher. For example:
 
 ```bash
 mkdir -p "$HOME/tmp"
@@ -116,10 +117,10 @@ cd "$HOME/tmp"
 
 # Ubuntu / Debian
 sudo apt-get update
-sudo apt-get install -y bash curl git jq coreutils
+sudo apt-get install -y bash curl git jq coreutils util-linux
 
 # Or, on CentOS / Red Hat
-# sudo dnf -y install bash curl git jq coreutils
+# sudo dnf -y install bash curl git jq coreutils util-linux
 
 bash --version
 curl -sS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
@@ -127,8 +128,9 @@ chmod 755 guild-deploy.sh
 ```
 
 The reported Bash version must be at least 4.4. `guild-deploy.sh` checks Git,
-`jq`, and SHA-256 support before it prepares a source snapshot, locks a target,
-or changes deployment files. The single raw download above
+`jq`, SHA-256 support, and the required advisory-lock backend before it
+prepares a source snapshot, locks a target, or changes deployment files. The
+single raw download above
 is the bootstrap seed, not the deployment payload. It uses public HTTPS and
 does not require a GitHub API key or access token. The seed prepares one exact
 Git snapshot and re-executes the dispatcher from that snapshot; profiles,

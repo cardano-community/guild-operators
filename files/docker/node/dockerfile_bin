@@ -52,7 +52,7 @@ RUN case "${IMAGE_NODE_IMPLEMENTATION}:${IMAGE_NODE_NETWORK}" in \
     esac
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y locales apt-utils curl wget udev jq ca-certificates git \
+    && apt-get install --no-install-recommends -y locales apt-utils curl wget udev jq ca-certificates git util-linux \
     && apt-get -y clean \
     && rm -rf /var/lib/apt/lists/* \
     && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \

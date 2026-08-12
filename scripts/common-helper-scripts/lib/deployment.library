@@ -366,74 +366,825 @@ deployment_payload_relative_path_valid() {
 }
 
 deployment_payload_sha256() {
-  local file="${1:-}"
+  local file="${1:-}" sha256_path="" output="" hash=""
   [[ -f "${file}" && ! -L "${file}" ]] || return 1
-  command -v sha256sum >/dev/null 2>&1 || return 2
-  sha256sum -- "${file}" | awk '{print $1}'
+  sha256_path="$(builtin type -P sha256sum 2>/dev/null)" || return 2
+  [[ "${sha256_path}" == /* && -x "${sha256_path}" ]] || return 2
+  output="$("${sha256_path}" -- "${file}")" || return 1
+  hash="${output%%[[:space:]]*}"
+  [[ "${hash}" =~ ^[0-9a-f]{64}$ ]] || return 1
+  printf '%s\n' "${hash}"
 }
 
-# Verify the committed receipt and every dispatcher-managed installed file.
-# Operator-preserved configuration entries are deliberately excluded.
-deployment_payload_is_current() (
-  local manifest receipt expected_receipt_hash actual_receipt_hash transaction_id
-  local relative_path expected_mode expected_hash managed target actual_hash
+deployment_payload_path_mode() {
+  local target="${1:-}" mode="" find_path="" stat_path=""
 
+  [[ -e "${target}" && ! -L "${target}" ]] || return 1
+  find_path="$(builtin type -P find 2>/dev/null || true)"
+  if [[ "${find_path}" == /* && -x "${find_path}" ]]; then
+    mode="$("${find_path}" "${target}" -prune -printf '%m' 2>/dev/null || true)"
+  fi
+  if [[ -z "${mode}" ]]; then
+    stat_path="$(builtin type -P stat 2>/dev/null || true)"
+    [[ "${stat_path}" == /* && -x "${stat_path}" ]] || return 1
+    mode="$("${stat_path}" -f '%Lp' "${target}" 2>/dev/null || true)"
+  fi
+  case "${mode}" in
+    [0-7][0-7][0-7]) printf '0%s\n' "${mode}" ;;
+    [0-7][0-7][0-7][0-7]) printf '%s\n' "${mode}" ;;
+    *) return 1 ;;
+  esac
+}
+
+deployment_payload_path_has_no_symlink_components() {
+  local target="${1:-}" component="" current=""
+  local -a components=()
+
+  [[ "${target}" == /* && "${target}" != "/" ]] || return 1
+  IFS='/' read -r -a components <<< "${target}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" ]] || continue
+    current="${current}/${component}"
+    [[ ! -L "${current}" ]] || return 1
+    if [[ -e "${current}" && "${current}" != "${target}" ]]; then
+      [[ -d "${current}" ]] || return 1
+    fi
+  done
+}
+
+deployment_payload_owned_target_components() {
+  local target="${1:-}" relative="" component="" current=""
+  local -a components=()
+
+  [[ "${NODE_HOME:-}" == /* && "${target}" == "${NODE_HOME}/"* ]] ||
+    return 1
+  [[ -d "${NODE_HOME}" && ! -L "${NODE_HOME}" && -O "${NODE_HOME}" ]] ||
+    return 1
+  relative="${target#"${NODE_HOME}/"}"
+  deployment_payload_relative_path_valid "${relative}" || return 1
+  current="${NODE_HOME}"
+  IFS='/' read -r -a components <<< "${relative}"
+  for component in "${components[@]:0:${#components[@]}-1}"; do
+    current="${current}/${component}"
+    [[ -d "${current}" && ! -L "${current}" && -O "${current}" ]] ||
+      return 1
+  done
+}
+
+deployment_payload_installed_file_authority_valid() {
+  local target="${1:-}" expected_mode="${2:-}"
+  local actual_mode=""
+
+  deployment_payload_path_has_no_symlink_components "${target}" || return 1
+  deployment_payload_owned_target_components "${target}" || return 1
+  [[ -f "${target}" && ! -L "${target}" && -O "${target}" &&
+     -s "${target}" ]] || return 1
+  actual_mode="$(deployment_payload_path_mode "${target}")" || return 1
+  [[ "${actual_mode}" == "${expected_mode}" ]]
+}
+
+deployment_payload_inventory_emit() {
+  local path="${1:-}" source="${2:-}" mode="${3:-}" role="${4:-}"
+  printf '%s\t%s\t%s\t%s\n' "${path}" "${source}" "${mode}" "${role}"
+}
+
+# The committed receipt is an ordered projection of the frozen source
+# manifest. Keep this inventory independent from the installed receipt so a
+# count-preserving path substitution cannot authenticate itself.
+deployment_payload_expected_inventory() {
+  local implementation="${1:-}" network="${2:-}" order_class="${3:-}"
+
+  case "${implementation}:${network}:${order_class}" in
+    cnode:mainnet:legacy|cnode:guild:legacy|cnode:preprod:legacy|\
+    cnode:preview:legacy|dingo:preprod:legacy|dingo:preview:legacy|\
+    amaru:preprod:legacy|amaru:preview:legacy|\
+    cnode:mainnet:reader-isolated|cnode:guild:reader-isolated|\
+    cnode:preprod:reader-isolated|cnode:preview:reader-isolated|\
+    dingo:preprod:reader-isolated|dingo:preview:reader-isolated) ;;
+    *) return 1 ;;
+  esac
+
+  if [[ "${order_class}" == "reader-isolated" ]]; then
+    deployment_payload_inventory_emit \
+      scripts/cntools.library scripts/common-helper-scripts/cntools.library \
+      0644 merge
+  fi
+  deployment_payload_inventory_emit \
+    scripts/guild-deploy.sh scripts/cnode-helper-scripts/guild-deploy.sh \
+    0755 merge
+  deployment_payload_inventory_emit \
+    scripts/lib/deployment.library \
+    scripts/common-helper-scripts/lib/deployment.library 0644 exact
+  deployment_payload_inventory_emit \
+    scripts/lib/env.library scripts/common-helper-scripts/lib/env.library \
+    0644 exact
+  deployment_payload_inventory_emit \
+    scripts/lib/node-api.library \
+    scripts/common-helper-scripts/lib/node-api.library 0644 exact
+  deployment_payload_inventory_emit \
+    scripts/lib/systemd.library \
+    scripts/common-helper-scripts/lib/systemd.library 0644 exact
+  deployment_payload_inventory_emit \
+    "scripts/adapters/${implementation}.adapter" \
+    "scripts/${implementation}-helper-scripts/${implementation}.adapter" \
+    0644 exact
+  deployment_payload_inventory_emit \
+    scripts/env scripts/common-helper-scripts/env 0644 merge
+
+  case "${implementation}" in
+    cnode)
+      deployment_payload_inventory_emit scripts/blockPerf.sh \
+        scripts/cnode-helper-scripts/blockPerf.sh 0755 merge
+      deployment_payload_inventory_emit scripts/cabal-build-all.sh \
+        scripts/cnode-helper-scripts/cabal-build-all.sh 0755 merge
+      deployment_payload_inventory_emit scripts/cncli.sh \
+        scripts/cnode-helper-scripts/cncli.sh 0755 merge
+      deployment_payload_inventory_emit scripts/cnode.sh \
+        scripts/cnode-helper-scripts/cnode.sh 0755 merge
+      deployment_payload_inventory_emit scripts/cntools.sh \
+        scripts/common-helper-scripts/cntools.sh 0755 merge
+      if [[ "${order_class}" == "legacy" ]]; then
+        deployment_payload_inventory_emit scripts/cntools.library \
+          scripts/common-helper-scripts/cntools.library 0644 merge
+      fi
+      deployment_payload_inventory_emit scripts/dbsync.sh \
+        scripts/cnode-helper-scripts/dbsync.sh 0755 merge
+      deployment_payload_inventory_emit scripts/gLiveView.sh \
+        scripts/common-helper-scripts/gLiveView.sh 0755 merge
+      deployment_payload_inventory_emit scripts/topologyUpdater.sh \
+        scripts/cnode-helper-scripts/topologyUpdater.sh 0755 merge
+      deployment_payload_inventory_emit scripts/logMonitor.sh \
+        scripts/cnode-helper-scripts/logMonitor.sh 0755 merge
+      deployment_payload_inventory_emit scripts/ogmios.sh \
+        scripts/cnode-helper-scripts/ogmios.sh 0755 merge
+      deployment_payload_inventory_emit scripts/submitapi.sh \
+        scripts/cnode-helper-scripts/submitapi.sh 0755 merge
+      deployment_payload_inventory_emit scripts/setup_mon.sh \
+        scripts/cnode-helper-scripts/setup_mon.sh 0755 merge
+      deployment_payload_inventory_emit scripts/setup-grest.sh \
+        scripts/grest-helper-scripts/setup-grest.sh 0755 merge
+      deployment_payload_inventory_emit scripts/grest-poll.sh \
+        scripts/grest-helper-scripts/grest-poll.sh 0755 merge
+      deployment_payload_inventory_emit scripts/checkstatus.sh \
+        scripts/grest-helper-scripts/checkstatus.sh 0755 merge
+      deployment_payload_inventory_emit scripts/getmetrics.sh \
+        scripts/grest-helper-scripts/getmetrics.sh 0755 merge
+      deployment_payload_inventory_emit scripts/mithril-client.sh \
+        scripts/cnode-helper-scripts/mithril-client.sh 0755 merge
+      deployment_payload_inventory_emit scripts/mithril-relay.sh \
+        scripts/cnode-helper-scripts/mithril-relay.sh 0755 merge
+      deployment_payload_inventory_emit scripts/mithril-signer.sh \
+        scripts/cnode-helper-scripts/mithril-signer.sh 0755 merge
+      deployment_payload_inventory_emit scripts/mithril.library \
+        scripts/cnode-helper-scripts/mithril.library 0644 merge
+      deployment_payload_inventory_emit files/cnode-release.json \
+        files/node-implementations/cnode/release.json 0644 exact
+      deployment_payload_inventory_emit files/cntools-changelog.md \
+        files/node-implementations/cnode/cntools-changelog.md 0644 exact
+      deployment_payload_inventory_emit files/alonzo-genesis.json \
+        "files/configs/cnode/${network}/alonzo-genesis.json" 0644 preserve-cnode
+      deployment_payload_inventory_emit files/byron-genesis.json \
+        "files/configs/cnode/${network}/byron-genesis.json" 0644 preserve-cnode
+      deployment_payload_inventory_emit files/conway-genesis.json \
+        "files/configs/cnode/${network}/conway-genesis.json" 0644 preserve-cnode
+      deployment_payload_inventory_emit files/shelley-genesis.json \
+        "files/configs/cnode/${network}/shelley-genesis.json" 0644 preserve-cnode
+      deployment_payload_inventory_emit files/topology.json \
+        "files/configs/cnode/${network}/topology.json" 0644 preserve-cnode
+      deployment_payload_inventory_emit files/config.json \
+        "files/configs/cnode/${network}/config.json" 0644 preserve-cnode
+      deployment_payload_inventory_emit files/dbsync.json \
+        "files/configs/cnode/${network}/db-sync-config.json" 0644 preserve-cnode
+      deployment_payload_inventory_emit files/submitapi.json \
+        "files/configs/cnode/${network}/submitapi.json" 0644 exact
+      ;;
+    dingo)
+      deployment_payload_inventory_emit scripts/dingo.sh \
+        scripts/dingo-helper-scripts/dingo.sh 0755 exact
+      deployment_payload_inventory_emit scripts/gLiveView.sh \
+        scripts/common-helper-scripts/gLiveView.sh 0755 merge
+      if [[ "${order_class}" == "legacy" ]]; then
+        deployment_payload_inventory_emit scripts/cntools.library \
+          scripts/common-helper-scripts/cntools.library 0644 merge
+      fi
+      deployment_payload_inventory_emit scripts/cntools.sh \
+        scripts/common-helper-scripts/cntools.sh 0755 merge
+      deployment_payload_inventory_emit files/dingo.yaml \
+        "files/configs/dingo/${network}/dingo.yaml" 0640 preserve-dingo
+      deployment_payload_inventory_emit scripts/dingo.env \
+        "files/configs/dingo/${network}/dingo.env" 0640 preserve-dingo
+      deployment_payload_inventory_emit files/dingo-release.json \
+        files/node-implementations/dingo/release.json 0644 exact
+      deployment_payload_inventory_emit files/cntools-changelog.md \
+        files/node-implementations/cnode/cntools-changelog.md 0644 exact
+      ;;
+    amaru)
+      deployment_payload_inventory_emit scripts/amaru.sh \
+        scripts/amaru-helper-scripts/amaru.sh 0755 exact
+      deployment_payload_inventory_emit scripts/gLiveView.sh \
+        scripts/common-helper-scripts/gLiveView.sh 0755 merge
+      deployment_payload_inventory_emit scripts/amaru.env \
+        "files/configs/amaru/${network}/amaru.env" 0640 preserve-amaru
+      deployment_payload_inventory_emit files/otelcol.yaml \
+        files/configs/amaru/otelcol.yaml 0644 exact
+      deployment_payload_inventory_emit files/amaru-release.json \
+        files/node-implementations/amaru/release.json 0644 exact
+      ;;
+  esac
+}
+
+deployment_payload_inventory_valid() {
+  local receipt="${1:-}" schema="${2:-}" implementation="${3:-}"
+  local network="${4:-}" file_count="${5:-}"
+  local generation_manifest="${6:-}" work_root="${7:-}"
+  local jq_path="${8:-}"
+  local expected="${work_root}/expected-inventory.tsv"
+  local actual="${work_root}/actual-inventory.tsv"
+  local include_bundle=N bundle_id="" order_class="legacy"
+  local expected_path="" expected_source="" expected_mode="" role=""
+  local expected_hash="" actual_path="" actual_source="" actual_mode=""
+  local policy="" managed="" source_hash="" installed_hash=""
+  local expected_status=0 actual_status=0 visited=0
+
+  [[ -f "${receipt}" && ! -L "${receipt}" && -d "${work_root}" &&
+     -x "${jq_path}" ]] || return 1
+  if [[ "${schema}" == "2" &&
+        ( "${implementation}" == "cnode" ||
+          "${implementation}" == "dingo" ) ]]; then
+    case "${file_count}" in
+      20) ;;
+      30|152)
+        include_bundle=Y
+        order_class=reader-isolated
+        ;;
+      *) return 1 ;;
+    esac
+  elif [[ "${schema}" != "1" &&
+          "${schema}:${implementation}" != "2:amaru" ]]; then
+    return 1
+  fi
+
+  printf '' > "${expected}" || return 1
+  if [[ "${include_bundle}" == "Y" ]]; then
+    [[ -f "${generation_manifest}" && ! -L "${generation_manifest}" ]] ||
+      return 1
+    "${jq_path}" -e '
+      .legacyBundle as $bundle |
+      ($bundle | type == "object") and
+      ($bundle | keys == ["facade", "id", "idAlgorithm",
+        "logicalBodySha256", "logicalBodySize", "members", "path",
+        "schemaVersion"]) and
+      $bundle.schemaVersion == 1 and
+      $bundle.idAlgorithm == "sha256-cntools-legacy-bundle-v1" and
+      ($bundle.id | type == "string" and test("^[0-9a-f]{64}$")) and
+      $bundle.path == ("cntools/libs/legacy/" + $bundle.id) and
+      $bundle.facade == "cntools.library" and
+      ($bundle.logicalBodySha256 | type == "string" and
+        test("^[0-9a-f]{64}$")) and
+      ($bundle.logicalBodySize | type == "number" and . > 0 and
+        . == floor) and
+      ($bundle.members | type == "array" and length == 10) and
+      ($bundle.members | map(.path)) == [
+        "010-common-dialog.sh",
+        "020-terminal-selection-security.sh",
+        "030-governance-query.sh",
+        "040-address-wallet-query.sh",
+        "050-wallet-create-registration.sh",
+        "060-wallet-actions.sh",
+        "070-pool-actions.sh",
+        "080-metadata-assets.sh",
+        "090-governance-actions.sh",
+        "100-transaction-hardware-price.sh"
+      ] and
+      all($bundle.members[];
+        type == "object" and
+        keys == ["mode", "path", "sha256", "size"] and
+        .mode == "0444" and
+        (.sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+        (.size | type == "number" and . > 0 and . == floor))
+    ' "${generation_manifest}" >/dev/null 2>&1 || return 1
+    bundle_id="$("${jq_path}" -er '.legacyBundle.id' \
+      "${generation_manifest}")" || return 1
+    "${jq_path}" -er --arg id "${bundle_id}" '
+      .legacyBundle.members[] |
+      ["scripts/cntools/libs/legacy/" + $id + "/" + .path,
+       "scripts/common-helper-scripts/cntools/libs/legacy/" + $id + "/" + .path,
+       .mode, "bundle", .sha256] | @tsv
+    ' "${generation_manifest}" > "${expected}" || return 1
+  fi
+  deployment_payload_expected_inventory \
+    "${implementation}" "${network}" "${order_class}" >> "${expected}" ||
+    return 1
+  "${jq_path}" -er '
+    .files[] |
+    [.path, .source, .mode, .policy, (.managed | tostring),
+      .sourceSha256, .installedSha256] | @tsv
+  ' "${receipt}" > "${actual}" || return 1
+
+  exec 7< "${expected}" 8< "${actual}" || return 1
+  while builtin true; do
+    IFS=$'\t' read -r expected_path expected_source expected_mode role \
+      expected_hash <&7
+    expected_status=$?
+    IFS=$'\t' read -r actual_path actual_source actual_mode policy managed \
+      source_hash installed_hash <&8
+    actual_status=$?
+    if [[ ${expected_status} -ne 0 || ${actual_status} -ne 0 ]]; then
+      [[ ${expected_status} -ne 0 && ${actual_status} -ne 0 ]] || {
+        exec 7<&- 8<&-
+        return 1
+      }
+      break
+    fi
+    [[ "${actual_path}" == "${expected_path}" &&
+       "${actual_source}" == "${expected_source}" ]] || {
+      exec 7<&- 8<&-
+      return 1
+    }
+    case "${role}" in
+      bundle)
+        [[ "${actual_mode}" == "${expected_mode}" &&
+           "${policy}" == "cntools-legacy-bundle" &&
+           "${managed}" == "true" &&
+           "${source_hash}" == "${expected_hash}" &&
+           "${installed_hash}" == "${expected_hash}" ]] || {
+          exec 7<&- 8<&-
+          return 1
+        }
+        ;;
+      exact)
+        [[ "${actual_mode}" == "${expected_mode}" &&
+           "${policy}" == "exact" && "${managed}" == "true" &&
+           "${installed_hash}" == "${source_hash}" ]] || {
+          exec 7<&- 8<&-
+          return 1
+        }
+        ;;
+      merge)
+        [[ "${actual_mode}" == "${expected_mode}" &&
+           "${policy}" == "merge-header" && "${managed}" == "true" ]] || {
+          exec 7<&- 8<&-
+          return 1
+        }
+        ;;
+      preserve-cnode|preserve-dingo|preserve-amaru)
+        [[ "${managed}" == "false" &&
+           ( ( "${policy}" == "render-${implementation}" &&
+               "${actual_mode}" == "${expected_mode}" ) ||
+             ( "${policy}" == "operator-preserved" &&
+               "${actual_mode}" =~ ^0[4-7][0145][0145]$ ) ) ]] || {
+          exec 7<&- 8<&-
+          return 1
+        }
+        ;;
+      *)
+        exec 7<&- 8<&-
+        return 1
+        ;;
+    esac
+    visited=$((visited + 1))
+  done
+  exec 7<&- 8<&-
+  case "${implementation}" in
+    cnode)
+      if [[ "${include_bundle}" == "Y" ]]; then
+        [[ ${visited} -eq 48 ]]
+      else
+        [[ ${visited} -eq 38 ]]
+      fi
+      ;;
+    dingo)
+      if [[ "${include_bundle}" == "Y" ]]; then
+        [[ ${visited} -eq 25 ]]
+      else
+        [[ ${visited} -eq 15 ]]
+      fi
+      ;;
+    amaru) [[ ${visited} -eq 12 ]] ;;
+    *) return 1 ;;
+  esac
+}
+
+deployment_payload_generation_tree_authority_valid() {
+  local generation="${1:-}" work_root="${2:-}" find_path="${3:-}"
+  local state_root="${NODE_HOME}/scripts/.cntools"
+  local generations_root="${state_root}/generations"
+  local directories="${work_root}/generation-directories.list"
+  local symlinks="${work_root}/generation-symlinks.list"
+  local directory="" directory_count=0
+
+  [[ "${find_path}" == /* && -x "${find_path}" &&
+     "${generation}" == "${generations_root}/"* &&
+     -d "${state_root}" && ! -L "${state_root}" && -O "${state_root}" &&
+     -d "${generations_root}" && ! -L "${generations_root}" &&
+     -O "${generations_root}" &&
+     -d "${generation}" && ! -L "${generation}" && -O "${generation}" ]] ||
+    return 1
+  deployment_payload_path_has_no_symlink_components "${generation}" || return 1
+  [[ "$(deployment_payload_path_mode "${state_root}")" == "0700" &&
+     "$(deployment_payload_path_mode "${generations_root}")" == "0700" &&
+     "$(deployment_payload_path_mode "${generation}")" == "0555" ]] ||
+    return 1
+  "${find_path}" "${generation}" -type l -print0 > "${symlinks}" || return 1
+  [[ ! -s "${symlinks}" ]] || return 1
+  "${find_path}" "${generation}" -type d -print0 > "${directories}" || return 1
+  while IFS= read -r -d '' directory; do
+    [[ "${directory}" == "${generation}" ||
+       "${directory}" == "${generation}/"* ]] || return 1
+    [[ -d "${directory}" && ! -L "${directory}" && -O "${directory}" &&
+       "$(deployment_payload_path_mode "${directory}")" == "0555" ]] ||
+      return 1
+    directory_count=$((directory_count + 1))
+  done < "${directories}"
+  [[ ${directory_count} -gt 0 ]]
+}
+
+# Verify the committed authority and its exact installed payload inventory.
+# Preserve rows remain operator-editable, but they must still exist as safe,
+# owner-controlled physical files at the mode recorded by the receipt.
+deployment_payload_is_current() (
+  local manifest="" receipt="" journal="${NODE_HOME}/.guild-deploy-transaction"
+  local snapshot_root="" snapshot_manifest="" snapshot_receipt=""
+  local snapshot_manifest_hash="" snapshot_receipt_hash=""
+  local expected_receipt_hash="" transaction_id="" receipt_schema=""
+  local source_schema="" implementation="" network="" generation_id=""
+  local generation_path="" generation="" generation_manifest=""
+  local generation_receipt="" generation_lifecycle=""
+  local snapshot_generation_manifest="" snapshot_generation_receipt=""
+  local expected_manifest_hash="" expected_generation_receipt_hash=""
+  local file_count="" expected_lifecycle_hash="" lifecycle_record=""
+  local relative_path="" source_path="" expected_mode="" policy=""
+  local managed="" source_hash="" expected_hash="" target=""
+  local actual_hash="" declared_count=0 visited_count=0
+  local jq_path="" find_path="" mktemp_path="" cp_path="" rm_path=""
+  local rmdir_path=""
+
+  [[ ! -e "${journal}" && ! -L "${journal}" ]] || return 1
   manifest="$(deployment_file)" || return 1
   receipt="${NODE_HOME}/.guild-source-receipt.json"
-  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" &&
-     -f "${receipt}" && ! -L "${receipt}" && -s "${receipt}" ]] || return 1
-  command -v jq >/dev/null 2>&1 || return 1
-  jq -e '
-    type == "object" and .schemaVersion == 1 and
-    .deploymentStatus == "deployed" and
-    .sourceSchemaVersion == 1 and
-    .payloadReceipt == ".guild-source-receipt.json" and
-    (.payloadReceiptSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
-    (.transactionId | type == "string" and test("^[0-9a-f]{16,64}$"))
-  ' "${manifest}" >/dev/null 2>&1 || return 1
-  jq -e '
-    type == "object" and .schemaVersion == 1 and
-    (.files | type == "array" and length > 0) and
-    (all(.files[];
-      (.path | type == "string" and length > 0) and
-      (.mode | type == "string" and test("^0[0-7]{3}$")) and
-      (.installedSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
-      (.managed | type == "boolean")))
-  ' "${receipt}" >/dev/null 2>&1 || return 1
+  [[ "${manifest}" == "${NODE_HOME}/.deployment.json" ]] || return 1
+  deployment_payload_installed_file_authority_valid "${manifest}" 0644 ||
+    return 1
+  deployment_payload_installed_file_authority_valid "${receipt}" 0644 ||
+    return 1
 
-  expected_receipt_hash="$(jq -er '.payloadReceiptSha256' "${manifest}")" || return 1
-  actual_receipt_hash="$(deployment_payload_sha256 "${receipt}")" || return 1
-  [[ "${actual_receipt_hash}" == "${expected_receipt_hash}" ]] || return 1
-  transaction_id="$(jq -er '.transactionId' "${manifest}")" || return 1
-  [[ "${transaction_id}" == "${expected_receipt_hash:0:${#transaction_id}}" ]] || return 1
-  jq -e -s '
-    .[0] as $metadata | .[1] as $receipt |
-    $receipt.implementation == $metadata.implementation and
-    $receipt.network == $metadata.network and
-    $receipt.source.repository == $metadata.repository and
-    $receipt.source.channel == $metadata.branch and
-    $receipt.source.ref == $metadata.sourceRef and
-    $receipt.source.revision == $metadata.sourceRevision and
-    $receipt.source.mode == $metadata.sourceMode and
-    $receipt.source.dirty == $metadata.sourceDirty and
+  jq_path="$(builtin type -P jq 2>/dev/null)" || return 1
+  find_path="$(builtin type -P find 2>/dev/null)" || return 1
+  mktemp_path="$(builtin type -P mktemp 2>/dev/null)" || return 1
+  cp_path="$(builtin type -P cp 2>/dev/null)" || return 1
+  rm_path="$(builtin type -P rm 2>/dev/null)" || return 1
+  rmdir_path="$(builtin type -P rmdir 2>/dev/null)" || return 1
+  [[ "${jq_path}" == /* && -x "${jq_path}" &&
+     "${find_path}" == /* && -x "${find_path}" &&
+     "${mktemp_path}" == /* && -x "${mktemp_path}" &&
+     "${cp_path}" == /* && -x "${cp_path}" &&
+     "${rm_path}" == /* && -x "${rm_path}" &&
+     "${rmdir_path}" == /* && -x "${rmdir_path}" ]] || return 1
+
+  snapshot_root="$("${mktemp_path}" -d \
+    "${TMPDIR:-/tmp}/guild-payload-current.XXXXXXXX")" || return 1
+  snapshot_manifest="${snapshot_root}/deployment.json"
+  snapshot_receipt="${snapshot_root}/receipt.json"
+  snapshot_generation_manifest="${snapshot_root}/generation-manifest.json"
+  snapshot_generation_receipt="${snapshot_root}/generation-receipt.json"
+  trap '"${rm_path}" -f "${snapshot_manifest}" "${snapshot_receipt}" \
+    "${snapshot_generation_manifest}" "${snapshot_generation_receipt}" \
+    "${snapshot_root}/expected-inventory.tsv" \
+    "${snapshot_root}/actual-inventory.tsv" \
+    "${snapshot_root}/generation-directories.list" \
+    "${snapshot_root}/generation-symlinks.list" 2>/dev/null || builtin true; \
+    "${rmdir_path}" "${snapshot_root}" 2>/dev/null || builtin true' EXIT
+  [[ -d "${snapshot_root}" && ! -L "${snapshot_root}" &&
+     -O "${snapshot_root}" &&
+     "$(deployment_payload_path_mode "${snapshot_root}")" == "0700" ]] ||
+    return 1
+  "${cp_path}" -- "${manifest}" "${snapshot_manifest}" || return 1
+  "${cp_path}" -- "${receipt}" "${snapshot_receipt}" || return 1
+  snapshot_manifest_hash="$(deployment_payload_sha256 \
+    "${snapshot_manifest}")" || return 1
+  snapshot_receipt_hash="$(deployment_payload_sha256 \
+    "${snapshot_receipt}")" || return 1
+  [[ "$(deployment_payload_sha256 "${manifest}")" == \
+       "${snapshot_manifest_hash}" &&
+     "$(deployment_payload_sha256 "${receipt}")" == \
+       "${snapshot_receipt_hash}" ]] || return 1
+
+  "${jq_path}" -e '
+    . as $receipt |
+    type == "object" and
     (
-      ($metadata.sourceDirty == false and
-        ($receipt.source | has("treeDigest") | not)) or
-      ($metadata.sourceDirty == true and
-        $receipt.source.treeDigest == $metadata.sourceTreeDigest)
+      if .schemaVersion == 1 then
+        keys == ["files", "implementation", "network", "schemaVersion",
+          "source"] and (has("cntoolsGeneration") | not)
+      elif .schemaVersion == 2 and
+           (.implementation == "cnode" or .implementation == "dingo") then
+        keys == ["cntoolsGeneration", "files", "implementation", "network",
+          "schemaVersion", "source"]
+      elif .schemaVersion == 2 and .implementation == "amaru" then
+        keys == ["files", "implementation", "network", "schemaVersion",
+          "source"] and (has("cntoolsGeneration") | not)
+      else false end
+    ) and
+    ((.implementation == "cnode" and
+       (.network == "mainnet" or .network == "guild" or
+        .network == "preprod" or .network == "preview")) or
+     ((.implementation == "dingo" or .implementation == "amaru") and
+       (.network == "preprod" or .network == "preview"))) and
+    (.source as $source |
+      ($source | type == "object") and
+      (($source.dirty == false and
+        ($source | keys == ["channel", "dirty", "mode", "ref",
+          "repository", "revision"])) or
+       ($source.dirty == true and $source.mode == "local" and
+        ($source | keys == ["channel", "dirty", "mode", "ref",
+          "repository", "revision", "treeDigest"]) and
+        ($source.treeDigest | type == "string" and
+          test("^[0-9a-f]{64}$")))) and
+      ($source.repository | type == "string" and
+        test("^[A-Za-z0-9_.-]+/guild-operators$")) and
+      ($source.channel | type == "string" and length > 0) and
+      ($source.ref | type == "string" and test("^refs/(heads|tags)/")) and
+      ($source.revision | type == "string" and
+        test("^[0-9a-f]{40,64}$")) and
+      ($source.mode == "managed" or $source.mode == "cached" or
+        $source.mode == "local") and
+      ($source.dirty | type == "boolean")) and
+    (.files | type == "array" and length > 0) and
+    ([.files[].path] | length == (unique | length)) and
+    all(.files[];
+      type == "object" and
+      keys == ["installedSha256", "managed", "mode", "path", "policy",
+        "source", "sourceSha256"] and
+      (.path | type == "string" and
+        test("^(scripts|files)/[A-Za-z0-9._/+@:-]+$") and
+        (contains("//") | not) and
+        (split("/") | all(. != "" and . != "." and . != ".."))) and
+      (.source | type == "string" and
+        test("^(scripts|files)/[A-Za-z0-9._/+@:-]+$") and
+        (contains("//") | not) and
+        (split("/") | all(. != "" and . != "." and . != ".."))) and
+      (.mode | type == "string" and test("^0[0-7]{3}$")) and
+      (.policy == "exact" or .policy == "merge-header" or
+        .policy == "render-cnode" or .policy == "render-dingo" or
+        .policy == "render-amaru" or .policy == "operator-preserved" or
+        .policy == "cntools-legacy-bundle") and
+      (.sourceSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      (.installedSha256 | type == "string" and
+        test("^[0-9a-f]{64}$")) and
+      (.managed | type == "boolean")) and
+    (
+      if .schemaVersion == 1 then
+        (if .implementation == "cnode" then (.files | length == 38)
+         elif .implementation == "dingo" then (.files | length == 15)
+         else (.files | length == 12) end)
+      elif .implementation == "amaru" then
+        (.files | length == 12)
+      else
+        (.cntoolsGeneration as $generation |
+          ($generation | type == "object") and
+          ($generation | keys == ["active", "fileCount",
+            "generationReceipt", "generationReceiptSha256", "id", "path",
+            "payloadManifest", "payloadManifestSha256", "schemaVersion",
+            "version"]) and
+          $generation.schemaVersion == 1 and $generation.active == false and
+          ($generation.fileCount == 20 or $generation.fileCount == 30 or
+            $generation.fileCount == 152) and
+          ($generation.id | type == "string" and
+            test("^[0-9a-f]{64}$")) and
+          ($generation.version | type == "string" and length > 0) and
+          $generation.path ==
+            ("scripts/.cntools/generations/" + $generation.id) and
+          $generation.payloadManifest ==
+            ($generation.path + "/cntools/manifest.json") and
+          $generation.generationReceipt ==
+            ($generation.path + "/.generation.json") and
+          ($generation.payloadManifestSha256 | type == "string" and
+            test("^[0-9a-f]{64}$")) and
+          ($generation.generationReceiptSha256 | type == "string" and
+            test("^[0-9a-f]{64}$")) and
+          (($receipt.files | length) ==
+            (if $receipt.implementation == "cnode" then
+               (if $generation.fileCount == 20 then 38 else 48 end)
+             else
+               (if $generation.fileCount == 20 then 15 else 25 end)
+             end)))
+      end
     )
-  ' "${manifest}" "${receipt}" >/dev/null 2>&1 || return 1
+  ' "${snapshot_receipt}" >/dev/null 2>&1 || return 1
 
-  while IFS=$'\t' read -r relative_path expected_mode expected_hash managed; do
-    [[ "${managed}" == "true" ]] || continue
-    deployment_payload_relative_path_valid "${relative_path}" || return 1
-    target="${NODE_HOME}/${relative_path}"
-    [[ -f "${target}" && ! -L "${target}" && -s "${target}" ]] || return 1
-    [[ -n "$(find "${target}" -prune -perm "${expected_mode}" -print 2>/dev/null)" ]] ||
+  receipt_schema="$("${jq_path}" -er '.schemaVersion' \
+    "${snapshot_receipt}")" || return 1
+  implementation="$("${jq_path}" -er '.implementation' \
+    "${snapshot_receipt}")" || return 1
+  network="$("${jq_path}" -er '.network' "${snapshot_receipt}")" || return 1
+  "${jq_path}" -e --arg receipt_hash "${snapshot_receipt_hash}" \
+    --argjson receipt_schema "${receipt_schema}" '
+    type == "object" and
+    ((.sourceDirty == false and
+      keys == ["branch", "capabilities", "deploymentStatus",
+        "implementation", "metricsProvider", "network", "nodePort",
+        "nodeVersion", "payloadReceipt", "payloadReceiptSha256",
+        "repository", "schemaVersion", "serviceName", "sourceDirty",
+        "sourceMode", "sourceRef", "sourceRevision", "sourceSchemaVersion",
+        "targetNodeVersion", "transactionId"]) or
+     (.sourceDirty == true and
+      keys == ["branch", "capabilities", "deploymentStatus",
+        "implementation", "metricsProvider", "network", "nodePort",
+        "nodeVersion", "payloadReceipt", "payloadReceiptSha256",
+        "repository", "schemaVersion", "serviceName", "sourceDirty",
+        "sourceMode", "sourceRef", "sourceRevision", "sourceSchemaVersion",
+        "sourceTreeDigest", "targetNodeVersion", "transactionId"] and
+      .sourceMode == "local" and
+      (.sourceTreeDigest | type == "string" and
+        test("^[0-9a-f]{64}$")))) and
+    .schemaVersion == 1 and .deploymentStatus == "deployed" and
+    (.implementation == "cnode" or .implementation == "dingo" or
+      .implementation == "amaru") and
+    (.network | type == "string" and length > 0) and
+    (.branch | type == "string" and length > 0) and
+    (.repository | type == "string" and
+      test("^[A-Za-z0-9_.-]+/guild-operators$")) and
+    (.serviceName | type == "string" and length > 0) and
+    (.nodePort | type == "number" and . >= 1 and . <= 65535 and
+      . == floor) and
+    (.nodeVersion | type == "string") and
+    (.targetNodeVersion | type == "string") and
+    (.metricsProvider | type == "string" and length > 0) and
+    (.capabilities as $capabilities |
+      ($capabilities | type == "object") and
+      ($capabilities | keys == ["forging", "localCli", "metrics", "n2c"]) and
+      all($capabilities[]; type == "boolean")) and
+    (.sourceSchemaVersion == 1 or .sourceSchemaVersion == 2) and
+    (.sourceMode == "managed" or .sourceMode == "cached" or
+      .sourceMode == "local") and
+    (.sourceRef | type == "string" and test("^refs/(heads|tags)/")) and
+    (.sourceRevision | type == "string" and test("^[0-9a-f]{40,64}$")) and
+    (.sourceDirty | type == "boolean") and
+    .payloadReceipt == ".guild-source-receipt.json" and
+    .payloadReceiptSha256 == $receipt_hash and
+    (if $receipt_schema == 1 then
+       (.transactionId | type == "string" and
+         (test("^[0-9a-f]{16}$") or test("^[0-9a-f]{24}$")))
+     else
+       (.transactionId | type == "string" and test("^[0-9a-f]{24}$"))
+     end)
+  ' "${snapshot_manifest}" >/dev/null 2>&1 || return 1
+
+  expected_receipt_hash="$("${jq_path}" -er '.payloadReceiptSha256' \
+    "${snapshot_manifest}")" || return 1
+  [[ "${expected_receipt_hash}" == "${snapshot_receipt_hash}" ]] || return 1
+  transaction_id="$("${jq_path}" -er '.transactionId' \
+    "${snapshot_manifest}")" || return 1
+  [[ "${transaction_id}" == \
+       "${snapshot_receipt_hash:0:${#transaction_id}}" ]] || return 1
+  "${jq_path}" -e -s '
+    .[0] as $receipt | .[1] as $metadata |
+    $metadata.implementation == $receipt.implementation and
+    $metadata.network == $receipt.network and
+    $metadata.repository == $receipt.source.repository and
+    $metadata.branch == $receipt.source.channel and
+    $metadata.sourceSchemaVersion == $receipt.schemaVersion and
+    $metadata.sourceMode == $receipt.source.mode and
+    $metadata.sourceRef == $receipt.source.ref and
+    $metadata.sourceRevision == $receipt.source.revision and
+    $metadata.sourceDirty == $receipt.source.dirty and
+    (if $receipt.source.dirty then
+       $metadata.sourceTreeDigest == $receipt.source.treeDigest
+     else
+       ($metadata | has("sourceTreeDigest") | not) and
+       ($receipt.source | has("treeDigest") | not)
+     end)
+  ' "${snapshot_receipt}" "${snapshot_manifest}" >/dev/null 2>&1 || return 1
+
+  source_schema="${receipt_schema}"
+  if [[ "${source_schema}" == "2" &&
+        ( "${implementation}" == "cnode" ||
+          "${implementation}" == "dingo" ) ]]; then
+    generation_id="$("${jq_path}" -er '.cntoolsGeneration.id' \
+      "${snapshot_receipt}")" || return 1
+    generation_path="$("${jq_path}" -er '.cntoolsGeneration.path' \
+      "${snapshot_receipt}")" || return 1
+    expected_manifest_hash="$("${jq_path}" -er \
+      '.cntoolsGeneration.payloadManifestSha256' \
+      "${snapshot_receipt}")" || return 1
+    expected_generation_receipt_hash="$("${jq_path}" -er \
+      '.cntoolsGeneration.generationReceiptSha256' \
+      "${snapshot_receipt}")" || return 1
+    file_count="$("${jq_path}" -er '.cntoolsGeneration.fileCount' \
+      "${snapshot_receipt}")" || return 1
+    [[ "${generation_path}" == \
+         "scripts/.cntools/generations/${generation_id}" &&
+       "${generation_id}" =~ ^[0-9a-f]{64}$ ]] || return 1
+    generation="${NODE_HOME}/${generation_path}"
+    generation_manifest="${generation}/cntools/manifest.json"
+    generation_receipt="${generation}/.generation.json"
+    generation_lifecycle="${generation}/cntools/core/lifecycle.sh"
+    deployment_payload_generation_tree_authority_valid \
+      "${generation}" "${snapshot_root}" "${find_path}" || return 1
+    deployment_payload_installed_file_authority_valid \
+      "${generation_manifest}" 0444 || return 1
+    deployment_payload_installed_file_authority_valid \
+      "${generation_receipt}" 0444 || return 1
+    deployment_payload_installed_file_authority_valid \
+      "${generation_lifecycle}" 0444 || return 1
+    "${cp_path}" -- "${generation_manifest}" \
+      "${snapshot_generation_manifest}" || return 1
+    "${cp_path}" -- "${generation_receipt}" \
+      "${snapshot_generation_receipt}" || return 1
+    [[ "$(deployment_payload_sha256 "${snapshot_generation_manifest}")" == \
+         "${expected_manifest_hash}" &&
+       "$(deployment_payload_sha256 "${snapshot_generation_receipt}")" == \
+         "${expected_generation_receipt_hash}" &&
+       "$(deployment_payload_sha256 "${generation_manifest}")" == \
+         "${expected_manifest_hash}" &&
+       "$(deployment_payload_sha256 "${generation_receipt}")" == \
+         "${expected_generation_receipt_hash}" ]] || return 1
+    "${jq_path}" -e -s '
+      .[0].cntoolsGeneration as $outer |
+      $outer.version == .[1].version and $outer.version == .[2].version and
+      (if $outer.fileCount == 20 then
+         .[1].schemaVersion == 1 and (.[1].files | length == 19) and
+         .[2].schemaVersion == 1 and (.[2].files | length == 20)
+       elif $outer.fileCount == 30 then
+         .[1].schemaVersion == 2 and (.[1].files | length == 29) and
+         .[2].schemaVersion == 2 and (.[2].files | length == 30)
+       elif $outer.fileCount == 152 then
+         .[1].schemaVersion == 3 and (.[1].files | length == 151) and
+         .[2].schemaVersion == 3 and (.[2].files | length == 152)
+       else false end)
+    ' "${snapshot_receipt}" "${snapshot_generation_manifest}" \
+      "${snapshot_generation_receipt}" >/dev/null 2>&1 || return 1
+    lifecycle_record="$("${jq_path}" -er '
+      [.files[] | select(.path == "cntools/core/lifecycle.sh")] |
+      if length == 1 and
+         .[0].source ==
+           "scripts/common-helper-scripts/cntools/core/lifecycle.sh" and
+         .[0].mode == "0444" and .[0].validator == "shell" and
+         (.[0].sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+      then .[0].sha256 else error("invalid lifecycle record") end
+    ' "${snapshot_generation_receipt}")" || return 1
+    expected_lifecycle_hash="${lifecycle_record}"
+    [[ "$(deployment_payload_sha256 "${generation_lifecycle}")" == \
+         "${expected_lifecycle_hash}" ]] || return 1
+    deployment_payload_inventory_valid "${snapshot_receipt}" \
+      "${source_schema}" "${implementation}" "${network}" "${file_count}" \
+      "${snapshot_generation_manifest}" "${snapshot_root}" "${jq_path}" ||
       return 1
-    actual_hash="$(deployment_payload_sha256 "${target}")" || return 1
-    [[ "${actual_hash}" == "${expected_hash}" ]] || return 1
-  done < <(jq -r '.files[] | [.path, .mode, .installedSha256, .managed] | @tsv' "${receipt}")
+    # Recheck the exact authenticated source immediately before evaluation.
+    deployment_payload_generation_tree_authority_valid \
+      "${generation}" "${snapshot_root}" "${find_path}" || return 1
+    deployment_payload_installed_file_authority_valid \
+      "${generation_manifest}" 0444 || return 1
+    deployment_payload_installed_file_authority_valid \
+      "${generation_receipt}" 0444 || return 1
+    deployment_payload_installed_file_authority_valid \
+      "${generation_lifecycle}" 0444 || return 1
+    [[ "$(deployment_payload_sha256 "${generation_manifest}")" == \
+         "${expected_manifest_hash}" &&
+       "$(deployment_payload_sha256 "${generation_receipt}")" == \
+         "${expected_generation_receipt_hash}" &&
+       "$(deployment_payload_sha256 "${generation_lifecycle}")" == \
+         "${expected_lifecycle_hash}" ]] || return 1
+    # shellcheck source=/dev/null
+    builtin source "${generation_lifecycle}" || return 1
+    cntools_generation_validate "${generation}" "${generation_id}" || return 1
+    cntools_generation_pointers_validate \
+      "${NODE_HOME}/scripts/.cntools" || return 1
+  else
+    deployment_payload_inventory_valid "${snapshot_receipt}" \
+      "${source_schema}" "${implementation}" "${network}" "" "" \
+      "${snapshot_root}" "${jq_path}" || return 1
+  fi
+
+  declared_count="$("${jq_path}" -er '.files | length' \
+    "${snapshot_receipt}")" || return 1
+  while IFS=$'\t' read -r relative_path source_path expected_mode policy \
+    managed source_hash expected_hash; do
+    visited_count=$((visited_count + 1))
+    deployment_payload_relative_path_valid "${relative_path}" || return 1
+    deployment_payload_relative_path_valid "${source_path}" || return 1
+    target="${NODE_HOME}/${relative_path}"
+    deployment_payload_installed_file_authority_valid \
+      "${target}" "${expected_mode}" || return 1
+    if [[ "${managed}" == "true" ]]; then
+      actual_hash="$(deployment_payload_sha256 "${target}")" || return 1
+      [[ "${actual_hash}" == "${expected_hash}" ]] || return 1
+    else
+      [[ "${managed}" == "false" ]] || return 1
+    fi
+  done < "${snapshot_root}/actual-inventory.tsv"
+  [[ ${visited_count} -eq ${declared_count} ]] || return 1
+
+  [[ ! -e "${journal}" && ! -L "${journal}" ]] || return 1
+  deployment_payload_installed_file_authority_valid "${manifest}" 0644 ||
+    return 1
+  deployment_payload_installed_file_authority_valid "${receipt}" 0644 ||
+    return 1
+  [[ "$(deployment_payload_sha256 "${manifest}")" == \
+       "${snapshot_manifest_hash}" &&
+     "$(deployment_payload_sha256 "${receipt}")" == \
+       "${snapshot_receipt_hash}" ]] || return 1
+  return 0
 )
 
 deployment_payload_metadata_fingerprint() {

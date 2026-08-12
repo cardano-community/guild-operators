@@ -1,0 +1,30 @@
+{
+  "description": "Legacy CNTools workflow: Register",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local",
+      "light"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "wallet.register",
+  "kind": "action",
+  "label": "Register",
+  "order": 30,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "r",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

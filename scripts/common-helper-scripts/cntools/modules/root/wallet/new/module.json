@@ -1,0 +1,19 @@
+{
+  "controlPolicy": "back-home",
+  "description": "Legacy CNTools menu: New",
+  "id": "wallet.new",
+  "kind": "menu",
+  "label": "New",
+  "order": 10,
+  "schemaVersion": 2,
+  "shortcut": "n",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

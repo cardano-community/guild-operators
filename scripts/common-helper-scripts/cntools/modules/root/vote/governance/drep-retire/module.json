@@ -1,0 +1,30 @@
+{
+  "description": "Legacy CNTools workflow: DRep Retire",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local",
+      "light"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "vote.governance.drep-retire",
+  "kind": "action",
+  "label": "DRep Retire",
+  "order": 60,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "x",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

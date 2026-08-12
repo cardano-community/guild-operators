@@ -139,12 +139,18 @@ if grep -Eq \
   "${ROOT_DIR}/scripts/cnode-helper-scripts/deploy-cnode.sh"; then
   fail "hardware-wallet support still downloads mutable privileged rules"
 fi
+CNTOOLS_COMMON_FRAGMENT="$(find \
+  "${ROOT_DIR}/scripts/common-helper-scripts/cntools/libs/legacy" \
+  -mindepth 2 -maxdepth 2 -type f -name '010-common-dialog.sh' -print)"
+[[ -f "${CNTOOLS_COMMON_FRAGMENT}" &&
+   "${CNTOOLS_COMMON_FRAGMENT}" != *$'\n'* ]] ||
+  fail "could not resolve the unique CNTools common compatibility fragment"
 if grep -q 'cmdAvailable "catalyst-toolbox".*return 0' \
-  "${ROOT_DIR}/scripts/common-helper-scripts/cntools.library"; then
+  "${CNTOOLS_COMMON_FRAGMENT}"; then
   fail "Catalyst Toolbox still bypasses pinned release verification when present"
 fi
 grep -q 'sha256sum "${installed_binary}"' \
-  "${ROOT_DIR}/scripts/common-helper-scripts/cntools.library" ||
+  "${CNTOOLS_COMMON_FRAGMENT}" ||
   fail "installed Catalyst Toolbox is not compared with the pinned artifact"
 
 [[ ! -e "${ROOT_DIR}/files/node-deps.json" ]] ||

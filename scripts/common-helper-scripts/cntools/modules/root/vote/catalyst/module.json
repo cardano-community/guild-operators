@@ -1,0 +1,19 @@
+{
+  "controlPolicy": "back-home",
+  "description": "Legacy CNTools menu: Catalyst",
+  "id": "vote.catalyst",
+  "kind": "menu",
+  "label": "Catalyst",
+  "order": 20,
+  "schemaVersion": 2,
+  "shortcut": "c",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "controlPolicy": "home",
+  "description": "Legacy CNTools menu: Funds",
+  "id": "funds",
+  "kind": "menu",
+  "label": "Funds",
+  "order": 20,
+  "schemaVersion": 2,
+  "shortcut": "f",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

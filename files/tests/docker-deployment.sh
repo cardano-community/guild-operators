@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/guild-docker-deployment.XXXXXX")"
 
 cleanup() {
+  chmod -R u+rwX "${TEST_DIR}" >/dev/null 2>&1 || true
   rm -rf -- "${TEST_DIR}"
 }
 trap cleanup EXIT
@@ -12,6 +13,51 @@ trap cleanup EXIT
 fail() {
   printf 'docker deployment test failed: %s\n' "$1" >&2
   exit 1
+}
+
+stat_mode() {
+  stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"
+}
+
+stat_inode() {
+  stat -f '%i' "$1" 2>/dev/null || stat -c '%i' "$1"
+}
+
+stat_mtime() {
+  stat -f '%m' "$1" 2>/dev/null || stat -c '%Y' "$1"
+}
+
+immutable_cntools_state() {
+  local node_root="$1"
+  local output="$2"
+  local base="${node_root}/scripts"
+  local path="" relative="" kind="" value=""
+  local -a paths=()
+
+  for path in "${base}/cntools.sh" "${base}/cntools.library"; do
+    [[ -e "${path}" || -L "${path}" ]] && paths+=("${path}")
+  done
+  if [[ -e "${base}/.cntools" || -L "${base}/.cntools" ]]; then
+    while IFS= read -r path; do paths+=("${path}"); done \
+      < <(find "${base}/.cntools" -print | LC_ALL=C sort)
+  fi
+  : > "${output}"
+  for path in "${paths[@]}"; do
+    relative="${path#"${node_root}"/}"
+    value=""
+    if [[ -L "${path}" ]]; then
+      kind="link"
+      value="$(readlink "${path}")"
+    elif [[ -d "${path}" ]]; then
+      kind="dir"
+    else
+      kind="file"
+      value="$(sha256sum "${path}" | awk '{print $1}')"
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${relative}" "${kind}" \
+      "$(stat_mode "${path}")" "$(stat_inode "${path}")" \
+      "$(stat_mtime "${path}")" "${value}" >> "${output}"
+  done
 }
 
 extract_docker_receipt_files() {
@@ -92,6 +138,16 @@ grep -Fq 'COPY scripts/cnode-helper-scripts/guild-deploy.sh /guild-deploy.sh' \
   fail "Dockerfile does not invoke guild-deploy.sh exactly once"
 grep -q 'ca-certificates git' "${DOCKERFILE}" ||
   fail "Dockerfile does not install Git before the bootstrap dispatcher"
+awk '
+  !bootstrap_layer && /^RUN apt-get update/ { bootstrap_layer = 1 }
+  bootstrap_layer && /util-linux/ { util_linux = 1 }
+  /^[[:space:]]*&& \/guild-deploy[.]sh \\/ {
+    deploy = 1
+    exit !(bootstrap_layer && util_linux)
+  }
+  END { if (!deploy || !util_linux) exit 1 }
+' "${DOCKERFILE}" ||
+  fail "Dockerfile does not install util-linux before the bootstrap dispatcher"
 grep -Fq 'GUILD_SOURCE_CACHE_ROOT=/var/cache/guild-operators' "${DOCKERFILE}" ||
   fail "Dockerfile does not use a root-owned cache while deploying"
 grep -Fq 'CNODE_SKIP_HW_UDEV_RULES=Y' "${DOCKERFILE}" ||
@@ -212,6 +268,19 @@ for network in guild mainnet preprod preview; do
 done
 if grep -Fq 'files/docker/node/' "${HOST_SOURCE_MANIFEST}"; then
   fail "host payload receipt inventory incorrectly owns Docker supplement assets"
+fi
+for implementation in cnode dingo; do
+  expected_stage1_row="${implementation}"$'\t''scripts/common-helper-scripts/cntools/manifest.json'$'\t''scripts/.cntools'$'\t''0700'$'\t''cntools-generation'$'\t''cntools'
+  [[ "$(grep -Fxc "${expected_stage1_row}" "${HOST_SOURCE_MANIFEST}")" == "1" ]] ||
+    fail "${implementation} host manifest does not own one inactive CNTools generation"
+done
+if awk -F '\t' '$1 == "amaru" && $5 == "cntools-generation" { found=1 }
+  END { exit(found ? 0 : 1) }' "${HOST_SOURCE_MANIFEST}"; then
+  fail "Amaru host manifest unexpectedly owns a CNTools generation"
+fi
+if grep -Eq 'cntools/manifest[.]json|scripts/[.]cntools' \
+  "${DOCKER_SOURCE_MANIFEST}"; then
+  fail "Docker supplement inventory duplicates the host CNTools generation"
 fi
 grep -Fq 'alias gLiveView=${IMAGE_NODE_HOME}/scripts/gLiveView.sh' "${DOCKERFILE}" ||
   fail "Dockerfile does not expose gLiveView for every implementation"
@@ -356,6 +425,24 @@ launcher_log="${TEST_DIR}/launcher.log"
 mkdir -p "${home_dir}/.scripts" "${node_home}/scripts" "${fake_bin}"
 : > "${home_dir}/.bashrc"
 printf 'Guild Operators test\n' > "${home_dir}/.scripts/banner.txt"
+cat > "${node_home}/scripts/cntools.sh" <<'EOF'
+#!/usr/bin/env bash
+# legacy Dingo CNTools launcher
+EOF
+cat > "${node_home}/scripts/cntools.library" <<'EOF'
+# legacy Dingo CNTools library
+EOF
+generation_fixture_id=1111111111111111111111111111111111111111111111111111111111111111
+mkdir -p "${node_home}/scripts/.cntools/generations/${generation_fixture_id}"
+printf 'inactive immutable generation\n' > \
+  "${node_home}/scripts/.cntools/generations/${generation_fixture_id}/sentinel"
+chmod 0755 "${node_home}/scripts/cntools.sh"
+chmod 0644 "${node_home}/scripts/cntools.library"
+chmod 0444 "${node_home}/scripts/.cntools/generations/${generation_fixture_id}/sentinel"
+chmod 0555 "${node_home}/scripts/.cntools/generations/${generation_fixture_id}"
+chmod 0700 "${node_home}/scripts/.cntools" \
+  "${node_home}/scripts/.cntools/generations"
+immutable_cntools_state "${node_home}" "${TEST_DIR}/dingo-cntools.before"
 
 cat > "${node_home}/.deployment.json" <<'EOF'
 {
@@ -401,6 +488,12 @@ chmod 0755 "${fake_bin}/dingo" "${node_home}/scripts/dingo.sh"
 )
 [[ "$(cat "${launcher_log}")" == "bootstrap --verify" ]] ||
   fail "Dingo container entrypoint did not dispatch to the selected launcher"
+immutable_cntools_state "${node_home}" "${TEST_DIR}/dingo-cntools.after"
+cmp -s "${TEST_DIR}/dingo-cntools.before" "${TEST_DIR}/dingo-cntools.after" || {
+  diff -u "${TEST_DIR}/dingo-cntools.before" \
+    "${TEST_DIR}/dingo-cntools.after" >&2 || true
+  fail "Dingo entrypoint mutated inactive generation or legacy CNTools files"
+}
 
 if (
   unset CNODE_HOME NODE_NETWORK NODE_IMPLEMENTATION NODE_HOME
@@ -467,6 +560,17 @@ cat > "${cnode_home}/scripts/cntools.sh" <<'EOF'
 #ENABLE_CHATTR=true
 #ENABLE_DIALOG=false
 EOF
+cat > "${cnode_home}/scripts/cntools.library" <<'EOF'
+# legacy cnode CNTools library
+EOF
+mkdir -p "${cnode_home}/scripts/.cntools/generations/${generation_fixture_id}"
+printf 'inactive immutable generation\n' > \
+  "${cnode_home}/scripts/.cntools/generations/${generation_fixture_id}/sentinel"
+chmod 0644 "${cnode_home}/scripts/cntools.library"
+chmod 0444 "${cnode_home}/scripts/.cntools/generations/${generation_fixture_id}/sentinel"
+chmod 0555 "${cnode_home}/scripts/.cntools/generations/${generation_fixture_id}"
+chmod 0700 "${cnode_home}/scripts/.cntools" \
+  "${cnode_home}/scripts/.cntools/generations"
 cat > "${cnode_conf}/config.json" <<'EOF'
 {"TraceOptions":{"":{"backends":["PrometheusSimple suffix 127.0.0.1 12798"]}}}
 EOF
@@ -537,10 +641,12 @@ jq --arg revision "${cnode_revision}" --arg receipt_hash "${cnode_receipt_hash}"
     }
   ' "${cnode_home}/.deployment.json" > "${cnode_home}/.deployment.json.tmp"
 mv -f "${cnode_home}/.deployment.json.tmp" "${cnode_home}/.deployment.json"
+cnode_metadata_hash="$(sha256sum "${cnode_home}/.deployment.json" | awk '{print $1}')"
 
 target_config_hash="$(sha256sum "${cnode_home}/files/config.json" | awk '{print $1}')"
 target_cntools_hash="$(sha256sum "${cnode_home}/scripts/cntools.sh" | awk '{print $1}')"
 cached_config_hash="$(sha256sum "${cnode_conf}/config.json" | awk '{print $1}')"
+immutable_cntools_state "${cnode_home}" "${TEST_DIR}/cnode-cntools.before"
 (
   unset CNODE_HOME NETWORK NODE_NETWORK NODE_IMPLEMENTATION NODE_HOME CONFIG TOPOLOGY
   HOME="${home_dir}" \
@@ -570,13 +676,18 @@ fi
   fail "cnode entrypoint mutated a host-receipted config file"
 [[ "$(sha256sum "${cnode_home}/scripts/cntools.sh" | awk '{print $1}')" == "${target_cntools_hash}" ]] ||
   fail "container entrypoint mutated the receipted CNTools script"
+immutable_cntools_state "${cnode_home}" "${TEST_DIR}/cnode-cntools.after"
+cmp -s "${TEST_DIR}/cnode-cntools.before" "${TEST_DIR}/cnode-cntools.after" || {
+  diff -u "${TEST_DIR}/cnode-cntools.before" \
+    "${TEST_DIR}/cnode-cntools.after" >&2 || true
+  fail "cnode entrypoint mutated inactive generation or legacy CNTools files"
+}
 [[ "$(sha256sum "${cnode_conf}/config.json" | awk '{print $1}')" == "${cached_config_hash}" ]] ||
   fail "cnode entrypoint changed the Docker supplement cache"
-(
-  NODE_HOME="${cnode_home}"
-  # shellcheck source=/dev/null
-  . "${ROOT_DIR}/scripts/common-helper-scripts/lib/deployment.library"
-  deployment_payload_is_current
-) || fail "cnode entrypoint invalidated the committed host payload receipt"
+[[ "$(sha256sum "${cnode_receipt}" | awk '{print $1}')" == \
+   "${cnode_receipt_hash}" &&
+   "$(sha256sum "${cnode_home}/.deployment.json" | awk '{print $1}')" == \
+   "${cnode_metadata_hash}" ]] ||
+  fail "cnode entrypoint invalidated the committed host payload authority"
 
 printf 'docker deployment tests passed\n'

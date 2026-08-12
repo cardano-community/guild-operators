@@ -2350,8 +2350,22 @@ dispatcher_set_defaults() {
   [[ "${NODE_SERVICE}" =~ ^[a-z0-9_]+$ ]] ||
     err_exit "The computed service name is invalid: ${NODE_SERVICE}"
   DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
+  if [[ "${DISPATCHER_LOCK_TARGET:-N}" != "Y" ]]; then
+    GUILD_SOURCE_TARGET_JOURNAL_ADMITTED="N"
+    GUILD_SOURCE_TARGET_JOURNAL_TOKEN=""
+    if [[ -e "${NODE_HOME}/.guild-deploy-transaction" ||
+          -L "${NODE_HOME}/.guild-deploy-transaction" ]]; then
+      GUILD_SOURCE_TARGET_JOURNAL_TOKEN="$(
+        dispatcher_transaction_handoff_admission_token
+      )" || err_exit "Unsafe interrupted deployment journal at ${NODE_HOME}/.guild-deploy-transaction."
+      GUILD_SOURCE_TARGET_JOURNAL_ADMITTED="Y"
+      log_info "Interrupted deployment journal detected; recovery will run after source handoff."
+    fi
+  fi
   if [[ "${DISPATCHER_LOCK_TARGET:-N}" = "Y" ]]; then
     dispatcher_acquire_target_lock
+    dispatcher_transaction_handoff_revalidate ||
+      err_exit "The interrupted deployment journal changed during source preparation; rerun the command."
     if [[ -d "${NODE_HOME}" && ! -L "${NODE_HOME}" ]]; then
       dispatcher_recover_interrupted_transaction
     fi
@@ -2396,7 +2410,7 @@ dispatcher_set_defaults() {
       (
         (has("sourceSchemaVersion") | not) or
         (
-          .sourceSchemaVersion == 1 and
+          (.sourceSchemaVersion == 1 or .sourceSchemaVersion == 2) and
           (.sourceMode == "managed" or .sourceMode == "cached" or .sourceMode == "local") and
           (.sourceRef | type == "string" and test("^refs/(heads|tags)/")) and
           (.sourceRevision | type == "string" and test("^[0-9a-f]{40,64}$")) and
@@ -2486,7 +2500,13 @@ dispatcher_set_defaults() {
     fi
   elif [[ -d "${NODE_HOME}" ]] && find "${NODE_HOME}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
     local detected_network=""
-    if partial_target_matches_implementation; then
+    if [[ "${DISPATCHER_LOCK_TARGET:-N}" != "Y" &&
+          "${GUILD_SOURCE_TARGET_JOURNAL_ADMITTED:-N}" == "Y" ]]; then
+      # Exact journal identity was authenticated above regardless of whether
+      # deployment metadata exists. Defer all mutation until the snapshot
+      # dispatcher holds the target lock and revalidates the handed-off token.
+      :
+    elif partial_target_matches_implementation; then
       detected_network="$(detect_partial_target_network || true)"
       if [[ "${NETWORK_EXPLICIT}" != "Y" && "${NETWORK_PRESET}" != "Y" &&
             -z "${NETWORK:-}" && -n "${detected_network}" ]]; then
@@ -2582,6 +2602,7 @@ dispatcher_sha256() {
 
 dispatcher_validate_bootstrap_prerequisites() {
   local -a missing=()
+  local lock_os=""
 
   _guild_source_resolve_git >/dev/null 2>&1 || missing+=(git)
   command -v jq >/dev/null 2>&1 || missing+=(jq)
@@ -2589,8 +2610,24 @@ dispatcher_validate_bootstrap_prerequisites() {
      ! command -v shasum >/dev/null 2>&1; then
     missing+=(sha256sum-or-shasum)
   fi
+  # Before defaults/legacy metadata are restored, an omitted -i still means
+  # cnode. Use that effective default so the lock backend is rejected during
+  # bootstrap instead of much later while staging the generation transaction.
+  if [[ "${NODE_IMPLEMENTATION:-cnode}" == "cnode" ||
+        "${NODE_IMPLEMENTATION:-cnode}" == "dingo" ]]; then
+    lock_os="$(command -p uname -s 2>/dev/null || true)"
+    case "${lock_os}" in
+      Linux)
+        command -v flock >/dev/null 2>&1 || missing+=(flock)
+        ;;
+      Darwin|FreeBSD|OpenBSD|NetBSD)
+        command -v lockf >/dev/null 2>&1 || missing+=(lockf)
+        ;;
+      *) missing+=(supported-advisory-lock-backend) ;;
+    esac
+  fi
   if (( ${#missing[@]} > 0 )); then
-    err_exit "Missing bootstrap prerequisite(s): ${missing[*]}. Install Git, jq, and a SHA-256 utility before running guild-deploy.sh."
+    err_exit "Missing bootstrap prerequisite(s): ${missing[*]}. Install Git, jq, a SHA-256 utility, and the platform advisory-lock utility before running guild-deploy.sh."
   fi
 }
 
@@ -2623,6 +2660,34 @@ dispatcher_verify_target_fingerprint() {
   [[ "${current}" == "${GUILD_SOURCE_TARGET_FINGERPRINT}" ]] ||
     err_exit "Deployment metadata changed while the source snapshot was prepared; rerun the command."
   unset GUILD_SOURCE_TARGET_METADATA GUILD_SOURCE_TARGET_FINGERPRINT
+  unset GUILD_SOURCE_TARGET_JOURNAL_ADMITTED
+  unset GUILD_SOURCE_TARGET_JOURNAL_TOKEN
+  DISPATCHER_HANDOFF_JOURNAL_REFRESH_AUTHORIZED="N"
+}
+
+dispatcher_refresh_handoff_fingerprint_after_recovery() {
+  local current=""
+
+  dispatcher_target_lock_is_owned "${NODE_HOME}" || return 2
+  if [[ -z "${GUILD_SOURCE_TARGET_METADATA:-}" &&
+        -z "${GUILD_SOURCE_TARGET_FINGERPRINT:-}" ]]; then
+    return 0
+  fi
+  [[ -n "${GUILD_SOURCE_TARGET_METADATA:-}" &&
+     -n "${GUILD_SOURCE_TARGET_FINGERPRINT:-}" &&
+     "${GUILD_SOURCE_TARGET_METADATA}" == "${DEPLOYMENT_FILE}" &&
+     "${GUILD_SOURCE_TARGET_JOURNAL_ADMITTED:-N}" == "Y" &&
+     -n "${GUILD_SOURCE_TARGET_JOURNAL_TOKEN:-}" &&
+     "${DISPATCHER_HANDOFF_JOURNAL_REFRESH_AUTHORIZED:-N}" == "Y" ]] ||
+    return 2
+  current="$(dispatcher_target_fingerprint "${DEPLOYMENT_FILE}")" || return 2
+  # Recovery is the sole authorized target mutation between handoff
+  # fingerprints. Refresh only after the locked journal has been completely
+  # authenticated, recovered/retired, and removed.
+  GUILD_SOURCE_TARGET_FINGERPRINT="${current}"
+  GUILD_SOURCE_TARGET_JOURNAL_ADMITTED="N"
+  GUILD_SOURCE_TARGET_JOURNAL_TOKEN=""
+  DISPATCHER_HANDOFF_JOURNAL_REFRESH_AUTHORIZED="N"
 }
 
 dispatcher_prepare_source_and_handoff() {
@@ -2710,6 +2775,17 @@ dispatcher_prepare_source_and_handoff() {
   GUILD_SOURCE_TARGET_METADATA="${DEPLOYMENT_FILE}"
   GUILD_SOURCE_TARGET_FINGERPRINT="$(dispatcher_target_fingerprint "${DEPLOYMENT_FILE}")" ||
     err_exit "Could not fingerprint deployment metadata before source handoff."
+  case "${GUILD_SOURCE_TARGET_JOURNAL_ADMITTED:-N}" in
+    N)
+      [[ -z "${GUILD_SOURCE_TARGET_JOURNAL_TOKEN:-}" ]] ||
+        err_exit "The target journal handoff token is inconsistent."
+      ;;
+    Y)
+      [[ -n "${GUILD_SOURCE_TARGET_JOURNAL_TOKEN:-}" ]] ||
+        err_exit "The target journal handoff token is missing."
+      ;;
+    *) err_exit "The target journal handoff marker is invalid." ;;
+  esac
   GUILD_SOURCE_REQUEST_ACCOUNT_PRESET="${G_ACCOUNT_PRESET:-N}"
   GUILD_SOURCE_REQUEST_BRANCH_PRESET="${BRANCH_PRESET:-N}"
   GUILD_SOURCE_REQUEST_NETWORK_PRESET="${NETWORK_PRESET:-N}"
@@ -2725,6 +2801,8 @@ dispatcher_prepare_source_and_handoff() {
   export GUILD_SOURCE_LAUNCHER_HEADER
   export GUILD_SOURCE_LAUNCHER_LOCAL_REPO GUILD_SOURCE_LAUNCHER_MANAGED_TARGET
   export GUILD_SOURCE_TARGET_METADATA GUILD_SOURCE_TARGET_FINGERPRINT
+  export GUILD_SOURCE_TARGET_JOURNAL_ADMITTED
+  export GUILD_SOURCE_TARGET_JOURNAL_TOKEN
   export GUILD_SOURCE_REQUEST_ACCOUNT_PRESET GUILD_SOURCE_REQUEST_BRANCH_PRESET
   export GUILD_SOURCE_REQUEST_NETWORK_PRESET GUILD_SOURCE_REQUEST_MODE_PRESET
   export GUILD_SOURCE_REQUEST_NODE_PORT_PRESET
@@ -3171,7 +3249,7 @@ dispatcher_distribution_seed_cnode_port() {
 dispatcher_distribution_validate_prior_receipt() {
   local receipt="${NODE_HOME}/.guild-source-receipt.json"
   local metadata="${NODE_HOME}/.deployment.json"
-  local expected_hash="" actual_hash=""
+  local expected_hash="" actual_hash="" metadata_source_schema=""
 
   DISPATCHER_PRIOR_RECEIPT=""
   if [[ ! -e "${receipt}" && ! -L "${receipt}" ]]; then
@@ -3185,26 +3263,52 @@ dispatcher_distribution_validate_prior_receipt() {
      -f "${metadata}" && ! -L "${metadata}" ]] || return 2
   command -v jq >/dev/null 2>&1 || return 2
   expected_hash="$(deployment_json_get "${metadata}" payloadReceiptSha256 || true)"
+  metadata_source_schema="$(deployment_json_get "${metadata}" sourceSchemaVersion || true)"
   [[ "${expected_hash}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  [[ "${metadata_source_schema}" == "1" ||
+     "${metadata_source_schema}" == "2" ]] || return 2
   actual_hash="$(dispatcher_sha256 "${receipt}")" || return 2
   [[ "${actual_hash}" == "${expected_hash}" ]] || return 2
   jq -e '
-    type == "object" and .schemaVersion == 1 and
+    type == "object" and
+    (.schemaVersion == 1 or .schemaVersion == 2) and
     (.files | type == "array") and
     (all(.files[];
       (.path | type == "string" and test("^(scripts|files)/[A-Za-z0-9._/+@:-]+$")) and
       (.installedSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
       (.managed | type == "boolean"))) and
-    (([.files[].path] | length) == ([.files[].path] | unique | length))
+    (([.files[].path] | length) == ([.files[].path] | unique | length)) and
+    (
+      if .schemaVersion == 1 then
+        (has("cntoolsGeneration") | not)
+      elif (.implementation == "cnode" or .implementation == "dingo") then
+        (.cntoolsGeneration | type == "object" and
+          keys == ["active", "fileCount", "generationReceipt",
+            "generationReceiptSha256", "id", "path", "payloadManifest",
+            "payloadManifestSha256", "schemaVersion", "version"] and
+          .schemaVersion == 1 and .active == false and
+          (.fileCount == 20 or .fileCount == 30 or .fileCount == 152) and
+          (.id | type == "string" and test("^[0-9a-f]{64}$")) and
+          .path == ("scripts/.cntools/generations/" + .id) and
+          .payloadManifest == (.path + "/cntools/manifest.json") and
+          .generationReceipt == (.path + "/.generation.json") and
+          (.payloadManifestSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+          (.generationReceiptSha256 | type == "string" and test("^[0-9a-f]{64}$")))
+      else
+        (has("cntoolsGeneration") | not)
+      end
+    )
   ' "${receipt}" >/dev/null 2>&1 || return 2
+  [[ "$(jq -er '.schemaVersion' "${receipt}")" == \
+     "${metadata_source_schema}" ]] || return 2
   DISPATCHER_PRIOR_RECEIPT="${receipt}"
 }
 
-dispatcher_file_mode() {
+dispatcher_path_mode() {
   local file="${1:-}"
   local mode=""
 
-  [[ -f "${file}" && ! -L "${file}" ]] || return 2
+  [[ -e "${file}" && ! -L "${file}" ]] || return 2
   mode="$(find "${file}" -prune -printf '%m' 2>/dev/null || true)"
   if [[ -z "${mode}" ]]; then
     mode="$(stat -f '%Lp' "${file}" 2>/dev/null || true)"
@@ -3215,6 +3319,11 @@ dispatcher_file_mode() {
     *) return 2 ;;
   esac
   printf '%s\n' "${mode}"
+}
+
+dispatcher_file_mode() {
+  [[ -f "${1:-}" && ! -L "${1:-}" ]] || return 2
+  dispatcher_path_mode "$1"
 }
 
 # Existing preserve-render targets are operator data. Without -f their bytes
@@ -3232,6 +3341,11 @@ dispatcher_distribution_preserve_existing() {
 
   [[ -f "${target}" && ! -L "${target}" ]] || return 1
   DISPATCHER_PRESERVED_MODE="$(dispatcher_file_mode "${target}")" || return 2
+  if [[ ! "${DISPATCHER_PRESERVED_MODE}" =~ ^0[4-7][0145][0145]$ ]]; then
+    printf 'Cannot preserve %s with unsafe mode %s; make it owner-readable and remove group/world write access, or use -s f to replace it.\n' \
+      "${target}" "${DISPATCHER_PRESERVED_MODE}" >&2
+    return 2
+  fi
   [[ -n "${DISPATCHER_PRIOR_RECEIPT:-}" ]] || return 0
   record="$(jq -er --arg path "${target_path}" '
     [.files[] | select(.path == $path)] |
@@ -3256,6 +3370,1330 @@ dispatcher_distribution_preserve_existing() {
   return 0
 }
 
+# Return the immutable Stage 1 CNTools member contract for a generation path.
+# Output fields are repository source, installed mode, and validator. Keeping
+# this allowlist independent of the nested JSON prevents a modified manifest
+# from turning the package installer into an arbitrary repository copier.
+dispatcher_cntools_expected_record() {
+  case "${1:-}" in
+    cntools.sh)
+      printf '%s\t%s\t%s\n' \
+        'scripts/common-helper-scripts/cntools/launcher.sh' 0555 shell
+      ;;
+    cntools.library)
+      printf '%s\t%s\t%s\n' \
+        'scripts/common-helper-scripts/cntools.library' 0444 shell
+      ;;
+    cntools.conf.example)
+      printf '%s\t%s\t%s\n' \
+        'scripts/common-helper-scripts/cntools.conf.example' 0444 config
+      ;;
+    cntools/VERSION)
+      printf '%s\t%s\t%s\n' \
+        'scripts/common-helper-scripts/cntools/VERSION' 0444 text
+      ;;
+    cntools/core/bootstrap.sh|cntools/core/config.sh|cntools/core/context.sh|cntools/core/registry.sh|cntools/core/dispatcher.sh|cntools/core/lifecycle.sh|cntools/core/result.sh)
+      printf 'scripts/common-helper-scripts/%s\t%s\t%s\n' "${1}" 0444 shell
+      ;;
+    cntools/schema/module.schema.json|cntools/libs/manifest.json|cntools/modules/root/module.json|cntools/templates/action/module.json)
+      printf 'scripts/common-helper-scripts/%s\t%s\t%s\n' "${1}" 0444 json
+      ;;
+    cntools/modules/root/*/module.json)
+      printf 'scripts/common-helper-scripts/%s\t%s\t%s\n' "${1}" 0444 json
+      ;;
+    cntools/modules/root/*/action.sh)
+      printf 'scripts/common-helper-scripts/%s\t%s\t%s\n' "${1}" 0444 shell
+      ;;
+    cntools/docs/ARCHITECTURE.md|cntools/docs/DEVELOPMENT.md|cntools/docs/TESTING.md)
+      printf 'scripts/common-helper-scripts/%s\t%s\t%s\n' "${1}" 0444 text
+      ;;
+    cntools/templates/action/action.sh)
+      printf 'scripts/common-helper-scripts/%s\t%s\t%s\n' "${1}" 0444 shell
+      ;;
+    cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/010-common-dialog.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/020-terminal-selection-security.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/030-governance-query.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/040-address-wallet-query.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/050-wallet-create-registration.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/060-wallet-actions.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/070-pool-actions.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/080-metadata-assets.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/090-governance-actions.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/100-transaction-hardware-price.sh)
+      printf 'scripts/common-helper-scripts/%s\t%s\t%s\n' "${1}" 0444 shell
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+dispatcher_cntools_generation_manifest_valid() {
+  local manifest="${1:-}"
+
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] ||
+    return 2
+  jq -e '
+    type == "object" and
+    keys == [
+      "compatibilityLibrary", "contextApiVersion", "entrypoint", "files",
+      "generationIdAlgorithm", "legacyBundle", "libraryManifest",
+      "moduleApiVersion", "moduleSchema", "moduleSchemaVersion",
+      "releaseStage", "rootModule", "runtimeApiVersion", "schemaVersion",
+      "version"
+    ] and
+    .schemaVersion == 3 and
+    .version == "13.5.7" and
+    .releaseStage == "shadow" and
+    .runtimeApiVersion == 1 and
+    .contextApiVersion == 1 and
+    .moduleApiVersion == 1 and
+    .moduleSchemaVersion == 2 and
+    .generationIdAlgorithm == "sha256-path-mode-content-v1" and
+    .entrypoint == "cntools.sh" and
+    .compatibilityLibrary == "cntools.library" and
+    .moduleSchema == "cntools/schema/module.schema.json" and
+    .libraryManifest == "cntools/libs/manifest.json" and
+    .rootModule == "cntools/modules/root/module.json" and
+    (.files | type == "array" and length == 151) and
+    ([.files[].path] == ([.files[].path] | sort)) and
+    ([.files[].path] | length == (unique | length)) and
+    ([.files[].source] | length == (unique | length)) and
+    ([.files[] | select(.path | startswith("cntools/modules/root/")) |
+      select(.path | endswith("/module.json"))] | length == 69) and
+    ([.files[] | select(.path | startswith("cntools/modules/root/")) |
+      select(.path | endswith("/action.sh"))] | length == 54) and
+    all(.files[];
+      type == "object" and
+      keys == ["mode", "path", "sha256", "source", "validator"] and
+      (.path | type == "string" and
+        test("^[A-Za-z0-9._/+@:-]+$") and
+        (contains("//") | not) and
+        (split("/") | all(. != "" and . != "." and . != ".."))) and
+      (.source | type == "string" and test("^scripts/[A-Za-z0-9._/+@:-]+$") and
+        (contains("//") | not) and
+        (split("/") | all(. != "" and . != "." and . != ".."))) and
+      (.mode == "0444" or .mode == "0555") and
+      (.validator == "shell" or .validator == "json" or
+        .validator == "text" or .validator == "config") and
+      (.sha256 | type == "string" and test("^[0-9a-f]{64}$")))
+  ' "${manifest}" >/dev/null 2>&1 || return 2
+  dispatcher_cntools_legacy_bundle_metadata_valid "${manifest}"
+}
+
+# Parse the only two durable generation-record shapes. Stage 1/2 recovery
+# retains the exact six-field record. Stage 3 appends an authenticated schema
+# discriminator so recovery remains unambiguous after both trees are retracted.
+dispatcher_cntools_generation_record_parse() {
+  local record="${1:-}" line="" tabless="" tab_count=0
+  local id="" relative="" root_existed="" generations_existed=""
+  local target_existed="" lifecycle_sha="" manifest_schema=""
+  local manifest_count="" receipt_schema="" receipt_count="" extra=""
+  local -a lines=()
+
+  DISPATCHER_CNTOOLS_RECORD_SHAPE=""
+  DISPATCHER_CNTOOLS_RECORD_ID=""
+  DISPATCHER_CNTOOLS_RECORD_RELATIVE=""
+  DISPATCHER_CNTOOLS_RECORD_ROOT_EXISTED=""
+  DISPATCHER_CNTOOLS_RECORD_GENERATIONS_EXISTED=""
+  DISPATCHER_CNTOOLS_RECORD_TARGET_EXISTED=""
+  DISPATCHER_CNTOOLS_RECORD_LIFECYCLE_SHA256=""
+  DISPATCHER_CNTOOLS_RECORD_MANIFEST_SCHEMA=""
+  DISPATCHER_CNTOOLS_RECORD_MANIFEST_COUNT=""
+  DISPATCHER_CNTOOLS_RECORD_RECEIPT_SCHEMA=""
+  DISPATCHER_CNTOOLS_RECORD_RECEIPT_COUNT=""
+  [[ -f "${record}" && ! -L "${record}" && -O "${record}" ]] || return 2
+  mapfile -t lines < "${record}" || return 2
+  (( ${#lines[@]} == 1 )) || return 2
+  line="${lines[0]}"
+  builtin printf '%s\n' "${line}" | cmp -s - "${record}" || return 2
+  # Tabs are the record delimiter, so reject carriage returns explicitly;
+  # embedded newlines are already rejected by the exact one-line mapfile
+  # check and every field below has its own closed lexical contract.
+  [[ -n "${line}" && "${line}" != *$'\r'* ]] || return 2
+  tabless="${line//$'\t'/}"
+  tab_count=$(( ${#line} - ${#tabless} ))
+  [[ ${tab_count} -eq 5 || ${tab_count} -eq 9 ]] || return 2
+  IFS=$'\t' read -r id relative root_existed generations_existed \
+    target_existed lifecycle_sha manifest_schema manifest_count \
+    receipt_schema receipt_count extra <<< "${line}" || return 2
+  [[ -z "${extra}" && "${id}" =~ ^[0-9a-f]{64}$ &&
+     "${relative}" == "scripts/.cntools/generations/${id}" &&
+     "${lifecycle_sha}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  case "${root_existed}:${generations_existed}:${target_existed}" in
+    Y:Y:Y|Y:Y:N|Y:N:N|N:N:N) ;;
+    *) return 2 ;;
+  esac
+  if [[ ${tab_count} -eq 5 ]]; then
+    [[ -z "${manifest_schema}${manifest_count}${receipt_schema}${receipt_count}" ]] ||
+      return 2
+    DISPATCHER_CNTOOLS_RECORD_SHAPE="legacy"
+  else
+    [[ "${manifest_schema}:${manifest_count}:${receipt_schema}:${receipt_count}" == \
+       "3:151:3:152" ]] || return 2
+    DISPATCHER_CNTOOLS_RECORD_SHAPE="stage3"
+  fi
+  DISPATCHER_CNTOOLS_RECORD_ID="${id}"
+  DISPATCHER_CNTOOLS_RECORD_RELATIVE="${relative}"
+  DISPATCHER_CNTOOLS_RECORD_ROOT_EXISTED="${root_existed}"
+  DISPATCHER_CNTOOLS_RECORD_GENERATIONS_EXISTED="${generations_existed}"
+  DISPATCHER_CNTOOLS_RECORD_TARGET_EXISTED="${target_existed}"
+  DISPATCHER_CNTOOLS_RECORD_LIFECYCLE_SHA256="${lifecycle_sha}"
+  DISPATCHER_CNTOOLS_RECORD_MANIFEST_SCHEMA="${manifest_schema}"
+  DISPATCHER_CNTOOLS_RECORD_MANIFEST_COUNT="${manifest_count}"
+  DISPATCHER_CNTOOLS_RECORD_RECEIPT_SCHEMA="${receipt_schema}"
+  DISPATCHER_CNTOOLS_RECORD_RECEIPT_COUNT="${receipt_count}"
+}
+
+dispatcher_cntools_legacy_bundle_metadata_valid() {
+  local manifest="${1:-}"
+
+  jq -e '
+    . as $manifest |
+    (.legacyBundle | type == "object" and
+      keys == [
+        "facade", "id", "idAlgorithm", "logicalBodySha256",
+        "logicalBodySize", "members", "path", "schemaVersion"
+      ] and
+      .schemaVersion == 1 and
+      .idAlgorithm == "sha256-cntools-legacy-bundle-v1" and
+      .id == "15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f" and
+      .path == "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f" and
+      .facade == "cntools.library" and
+      .logicalBodySize == 278034 and
+      .logicalBodySha256 == "c9c900b9f14399d024dea9b5b10184ebbdebdaed7d8cba1c246d69ca37971408" and
+      .members == [
+        {"mode":"0444","path":"010-common-dialog.sh","sha256":"5408355794fa187dbac5af7b66b956ab84216fd91ee4b6ec8bbe420b05fea8a7","size":14532},
+        {"mode":"0444","path":"020-terminal-selection-security.sh","sha256":"bb6f10e533f45cb90577e32d0d7a57ca86fe0c97d950938911be8eecec4a1460","size":31976},
+        {"mode":"0444","path":"030-governance-query.sh","sha256":"9e9179c73ccdd945c6ed6b7921038b7f6bc7679c4609af86565f7ad99ff8d519","size":46236},
+        {"mode":"0444","path":"040-address-wallet-query.sh","sha256":"b23fdfec65fd7e991a3e46d2bef1d5c9ed09102e345cac7f3f5b75c761957df0","size":38284},
+        {"mode":"0444","path":"050-wallet-create-registration.sh","sha256":"a1fba108e3e9d3e8c388c54bd3a95332ee4444e61519330dd65347f4cfbe9b53","size":34499},
+        {"mode":"0444","path":"060-wallet-actions.sh","sha256":"73f150b684713b6c64211ff8c900a6deedb90a4aa15afde85dae44b8af220db5","size":18393},
+        {"mode":"0444","path":"070-pool-actions.sh","sha256":"689a52e0e8f18a30984cebda6ef29dd929b66fb4cdba7ff03f673debb6e25257","size":27577},
+        {"mode":"0444","path":"080-metadata-assets.sh","sha256":"1444e366a79483bdcd538b59e01f8a623e3c6b4bf4fe58f5deaedc53ec247c80","size":17503},
+        {"mode":"0444","path":"090-governance-actions.sh","sha256":"91fd56011304f4528851f8cd3b241ca63393440a51faa5c5380a22081a146ec8","size":22753},
+        {"mode":"0444","path":"100-transaction-hardware-price.sh","sha256":"237b3847db52432ff523c36c5ca7bcb08b437f8b8978389259789a70fee5071f","size":22300}
+      ]) and
+    ([.legacyBundle.members[] as $member |
+      $manifest.files[] |
+      select(.path == ($manifest.legacyBundle.path + "/" + $member.path) and
+        .source == ("scripts/common-helper-scripts/" +
+          $manifest.legacyBundle.path + "/" + $member.path) and
+        .mode == $member.mode and .validator == "shell" and
+        .sha256 == $member.sha256)] | length == 10) and
+    ([.files[] |
+      select(.path | startswith($manifest.legacyBundle.path + "/"))] |
+      length == 10)
+  ' "${manifest}" >/dev/null 2>&1
+}
+
+# Validate a data-only bundle contract retained in a durable transaction. This
+# generic shape permits dispatcher B to recover an interrupted bundle A while
+# still requiring the frozen Stage 2 fragment inventory. IDs, hashes, and sizes
+# may change across legitimate revisions; fragment roles and ordering may not.
+dispatcher_cntools_legacy_bundle_data_manifest_valid() {
+  local manifest="${1:-}"
+
+  [[ -f "${manifest}" && ! -L "${manifest}" && -O "${manifest}" ]] || return 2
+  jq -e '
+    type == "object" and keys == ["legacyBundle"] and
+    (.legacyBundle | type == "object" and
+      keys == [
+        "facade", "id", "idAlgorithm", "logicalBodySha256",
+        "logicalBodySize", "members", "path", "schemaVersion"
+      ] and
+      .schemaVersion == 1 and .facade == "cntools.library" and
+      .idAlgorithm == "sha256-cntools-legacy-bundle-v1" and
+      (.id | type == "string" and test("^[0-9a-f]{64}$")) and
+      .path == ("cntools/libs/legacy/" + .id) and
+      (.logicalBodySha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      (.logicalBodySize | type == "number" and . > 0 and . <= 16777216 and
+        floor == .) and
+      (.members | type == "array") and
+      ([.members[].path] == [
+          "010-common-dialog.sh",
+          "020-terminal-selection-security.sh",
+          "030-governance-query.sh",
+          "040-address-wallet-query.sh",
+          "050-wallet-create-registration.sh",
+          "060-wallet-actions.sh",
+          "070-pool-actions.sh",
+          "080-metadata-assets.sh",
+          "090-governance-actions.sh",
+          "100-transaction-hardware-price.sh"
+        ]) and
+      all(.members[];
+        type == "object" and keys == ["mode", "path", "sha256", "size"] and
+        .mode == "0444" and
+        (.path | type == "string" and
+          test("^[A-Za-z0-9][A-Za-z0-9._+-]*$") and
+          (contains("/") | not)) and
+        (.sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+        (.size | type == "number" and . > 0 and . <= 16777216 and floor == .)))
+  ' "${manifest}" >/dev/null 2>&1
+}
+
+# Bind the transaction-owned bundle description to the generation that was
+# independently validated as inert data. Recovery may legitimately find that
+# generation at either its durable staged path or its published path. If an
+# earlier cleanup already retracted both, the authenticated bundle snapshot is
+# sufficient for the idempotent remainder of rollback.
+dispatcher_cntools_legacy_bundle_matches_transaction_generation() {
+  local root="${1:-}" data_manifest="${2:-}"
+  local record="${root}/cntools-generation.tsv"
+  local id="" relative="" root_existed="" generations_existed=""
+  local target_existed="" lifecycle_sha=""
+  local target="" staged="" generation="" generation_manifest=""
+  local target_present="N" staged_present="N"
+
+  dispatcher_cntools_generation_record_parse "${record}" || return 2
+  id="${DISPATCHER_CNTOOLS_RECORD_ID}"
+  relative="${DISPATCHER_CNTOOLS_RECORD_RELATIVE}"
+  root_existed="${DISPATCHER_CNTOOLS_RECORD_ROOT_EXISTED}"
+  generations_existed="${DISPATCHER_CNTOOLS_RECORD_GENERATIONS_EXISTED}"
+  target_existed="${DISPATCHER_CNTOOLS_RECORD_TARGET_EXISTED}"
+  lifecycle_sha="${DISPATCHER_CNTOOLS_RECORD_LIFECYCLE_SHA256}"
+  target="${NODE_HOME}/${relative}"
+  staged="${root}/cntools-generation/${id}"
+  if [[ "${target_existed}" == "Y" ]]; then
+    [[ -d "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+    generation="${target}"
+  else
+    if [[ -e "${target}" || -L "${target}" ]]; then
+      [[ -d "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+      target_present="Y"
+    fi
+    if [[ -e "${staged}" || -L "${staged}" ]]; then
+      [[ -d "${staged}" && ! -L "${staged}" && -O "${staged}" ]] || return 2
+      staged_present="Y"
+    fi
+    case "${target_present}:${staged_present}" in
+      Y:N) generation="${target}" ;;
+      N:Y) generation="${staged}" ;;
+      N:N) return 0 ;;
+      *) return 2 ;;
+    esac
+  fi
+  dispatcher_cntools_absolute_path_has_no_symlinks "${generation}" || return 2
+  generation_manifest="${generation}/cntools/manifest.json"
+  [[ -f "${generation_manifest}" && ! -L "${generation_manifest}" &&
+     -O "${generation_manifest}" &&
+     "$(dispatcher_file_mode "${generation_manifest}")" == "0444" ]] ||
+    return 2
+  jq -e -s '
+    length == 2 and
+    .[0].legacyBundle == .[1].legacyBundle
+  ' "${data_manifest}" "${generation_manifest}" >/dev/null 2>&1
+}
+
+dispatcher_cntools_generation_validate_member() {
+  local file="${1:-}"
+  local validator="${2:-}"
+
+  [[ -f "${file}" && ! -L "${file}" && -s "${file}" ]] || return 2
+  case "${validator}" in
+    shell) "${BASH}" -n "${file}" >/dev/null 2>&1 ;;
+    json) jq -e . "${file}" >/dev/null 2>&1 ;;
+    text) : ;;
+    # The complete generation validator applies its own data-only parser after
+    # all member bytes and the content-addressed ID have been verified.
+    config) : ;;
+    *) return 2 ;;
+  esac
+}
+
+dispatcher_cntools_absolute_path_has_no_symlinks() {
+  local target="${1:-}" current="" component=""
+  local -a components=()
+
+  [[ "${target}" == /* && "${target}" != "/" ]] || return 2
+  IFS='/' read -r -a components <<< "${target}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" ]] || continue
+    current="${current}/${component}"
+    [[ ! -L "${current}" ]] || return 2
+    if [[ -e "${current}" && "${current}" != "${target}" ]]; then
+      [[ -d "${current}" ]] || return 2
+    fi
+  done
+}
+
+# Source lifecycle code only after authenticating it against a hash retained
+# outside the generation being inspected. This avoids allowing a modified
+# installed generation to execute code merely because it is being validated.
+dispatcher_cntools_source_trusted_lifecycle() {
+  local lifecycle="${1:-}" expected_sha="${2:-}" expected_mode="${3:-0444}"
+  local actual_sha="" actual_mode=""
+
+  [[ "${expected_sha}" =~ ^[0-9a-f]{64}$ &&
+     ( "${expected_mode}" == "0400" || "${expected_mode}" == "0444" ) &&
+     -f "${lifecycle}" && ! -L "${lifecycle}" && -O "${lifecycle}" ]] ||
+    return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${lifecycle}" || return 2
+  actual_mode="$(dispatcher_file_mode "${lifecycle}")" || return 2
+  actual_sha="$(dispatcher_sha256 "${lifecycle}")" || return 2
+  [[ "${actual_mode}" == "${expected_mode}" &&
+     "${actual_sha}" == "${expected_sha}" ]] || return 2
+  "${BASH}" -n "${lifecycle}" >/dev/null 2>&1 || return 2
+  # shellcheck source=/dev/null
+  builtin source "${lifecycle}" || return 2
+  declare -F cntools_generation_validate >/dev/null 2>&1 || return 2
+}
+
+# Load the generic lifecycle implementation only from the already-adopted,
+# owner-controlled Guild source snapshot. Recovery must not bootstrap trust
+# from an executable snapshot and checksum stored together in its mutable
+# interrupted transaction journal.
+dispatcher_cntools_source_snapshot_lifecycle() {
+  local manifest="" path="" source="" mode="" validator="" expected_sha=""
+  local expected="" expected_source="" expected_mode=""
+  local expected_validator="" lifecycle_source="" lifecycle_sha=""
+  local actual_sha="" count=0
+
+  manifest="$(guild_source_path \
+    scripts/common-helper-scripts/cntools/manifest.json)" || return 2
+  dispatcher_cntools_generation_manifest_valid "${manifest}" || return 2
+  while IFS=$'\t' read -r path source mode validator expected_sha; do
+    expected="$(dispatcher_cntools_expected_record "${path}")" || return 2
+    IFS=$'\t' read -r expected_source expected_mode expected_validator \
+      <<< "${expected}"
+    [[ "${source}" == "${expected_source}" &&
+       "${mode}" == "${expected_mode}" &&
+       "${validator}" == "${expected_validator}" &&
+       "${expected_sha}" =~ ^[0-9a-f]{64}$ ]] || return 2
+    if [[ "${path}" == "cntools/core/lifecycle.sh" ]]; then
+      lifecycle_source="${source}"
+      lifecycle_sha="${expected_sha}"
+    fi
+    count=$((count + 1))
+  done < <(jq -er '.files[] |
+    [.path,.source,.mode,.validator,.sha256] | @tsv' "${manifest}")
+  (( count == 151 )) || return 2
+  [[ "${lifecycle_source}" == \
+       "scripts/common-helper-scripts/cntools/core/lifecycle.sh" &&
+     "${lifecycle_sha}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  lifecycle_source="$(guild_source_path "${lifecycle_source}")" || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${lifecycle_source}" ||
+    return 2
+  actual_sha="$(dispatcher_sha256 "${lifecycle_source}")" || return 2
+  [[ "${actual_sha}" == "${lifecycle_sha}" ]] || return 2
+  "${BASH}" -n "${lifecycle_source}" >/dev/null 2>&1 || return 2
+  # shellcheck source=/dev/null
+  builtin source "${lifecycle_source}" || return 2
+  declare -F cntools_generation_validate >/dev/null 2>&1 || return 2
+  declare -F cntools_generation_deployment_lock_acquire >/dev/null 2>&1 ||
+    return 2
+  DISPATCHER_CNTOOLS_GENERATION_SOURCE_LIFECYCLE_SHA256="${lifecycle_sha}"
+}
+
+dispatcher_cntools_generation_lock_acquire() {
+  local lifecycle="${1:-}" expected_sha="${2:-}" mode="${3:-0444}"
+  local recovery_authorized="${4:-N}"
+  local root="${NODE_HOME}/scripts/.cntools"
+
+  [[ "${DISPATCHER_CNTOOLS_GENERATION_LOCK_OWNED:-N}" != "Y" ]] || {
+    cntools_generation_lock_is_owned "${root}"
+    return $?
+  }
+  dispatcher_cntools_source_trusted_lifecycle \
+    "${lifecycle}" "${expected_sha}" "${mode}" || return 2
+  cntools_generation_deployment_lock_acquire \
+    "${root}" "${recovery_authorized}" || return $?
+  DISPATCHER_CNTOOLS_GENERATION_LOCK_ROOT="${root}"
+  DISPATCHER_CNTOOLS_GENERATION_LOCK_OWNED="Y"
+}
+
+dispatcher_cntools_generation_lock_release() {
+  local root="${DISPATCHER_CNTOOLS_GENERATION_LOCK_ROOT:-}"
+
+  [[ "${DISPATCHER_CNTOOLS_GENERATION_LOCK_OWNED:-N}" == "Y" ]] || return 0
+  [[ "${root}" == "${NODE_HOME}/scripts/.cntools" ]] || return 2
+  declare -F cntools_generation_lock_release >/dev/null 2>&1 || return 2
+  cntools_generation_lock_release "${root}" || return 2
+  DISPATCHER_CNTOOLS_GENERATION_LOCK_OWNED="N"
+  DISPATCHER_CNTOOLS_GENERATION_LOCK_ROOT=""
+  unset CNTOOLS_GENERATION_LOCK_PATH CNTOOLS_GENERATION_LOCK_ROOT
+  unset CNTOOLS_GENERATION_LOCK_BACKEND CNTOOLS_GENERATION_LOCK_CONTROL
+  unset CNTOOLS_GENERATION_LOCK_HOLDER_PID
+  unset CNTOOLS_GENERATION_LOCK_HOLDER_IDENTITY CNTOOLS_GENERATION_LOCK_PID
+}
+
+dispatcher_cntools_generation_recovery_lock_acquire() {
+  local durable_root="${1:-}"
+  local record="${durable_root}/cntools-generation.tsv"
+  local validator="${durable_root}/cntools-generation-validator.sh"
+  local id="" relative="" root_existed="" generations_existed=""
+  local target_existed="" lifecycle_sha="" receipt_lifecycle_sha=""
+  local root="${NODE_HOME}/scripts/.cntools" target="" staged="" inspected=""
+  local validator_sha="" validator_mode=""
+  local target_present="N" staged_present="N" inspected_mode=""
+
+  [[ -e "${record}" || -L "${record}" ]] || return 0
+  dispatcher_cntools_generation_record_parse "${record}" || return 2
+  id="${DISPATCHER_CNTOOLS_RECORD_ID}"
+  relative="${DISPATCHER_CNTOOLS_RECORD_RELATIVE}"
+  root_existed="${DISPATCHER_CNTOOLS_RECORD_ROOT_EXISTED}"
+  generations_existed="${DISPATCHER_CNTOOLS_RECORD_GENERATIONS_EXISTED}"
+  target_existed="${DISPATCHER_CNTOOLS_RECORD_TARGET_EXISTED}"
+  lifecycle_sha="${DISPATCHER_CNTOOLS_RECORD_LIFECYCLE_SHA256}"
+  dispatcher_cntools_source_snapshot_lifecycle || return 2
+  target="${NODE_HOME}/${relative}"
+  staged="${durable_root}/cntools-generation/${id}"
+  if [[ "${target_existed}" == "Y" ]]; then
+    [[ -d "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+    inspected="${target}"
+  else
+    if [[ -e "${target}" || -L "${target}" ]]; then
+      [[ -d "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+      target_present="Y"
+    fi
+    if [[ -e "${staged}" || -L "${staged}" ]]; then
+      [[ -d "${staged}" && ! -L "${staged}" && -O "${staged}" ]] || return 2
+      staged_present="Y"
+    fi
+    # A newly-created generation is always in exactly one recorded location:
+    # the durable stage before publish, or the public target after publish.
+    # Rollback moves the latter back into the former. Both copies at once are
+    # impossible; neither copy means an earlier transaction-root cleanup was
+    # interrupted after retracting this tree and is idempotently complete.
+    case "${target_present}:${staged_present}" in
+      Y:N) inspected="${target}" ;;
+      N:Y) inspected="${staged}" ;;
+      N:N) inspected="" ;;
+      *) return 2 ;;
+    esac
+    # A hard crash on either side of an APFS-compatible rename can leave only
+    # the transaction-owned root at its temporary 0755 mode. Normalize that
+    # one root before full validation; descendants are never relaxed.
+    if [[ -n "${inspected}" ]]; then
+      inspected_mode="$(dispatcher_path_mode "${inspected}")" || return 2
+      case "${inspected_mode}" in
+        0555) ;;
+        0755) chmod 0555 "${inspected}" || return 2 ;;
+        *) return 2 ;;
+      esac
+    fi
+  fi
+  if [[ -n "${inspected}" ]]; then
+    cntools_generation_validate "${inspected}" "${id}" || return 2
+    receipt_lifecycle_sha="$(jq -er '
+      [.files[] | select(
+        .path == "cntools/core/lifecycle.sh" and
+        .source == "scripts/common-helper-scripts/cntools/core/lifecycle.sh" and
+        .mode == "0444" and .validator == "shell")] |
+      if length == 1 then .[0].sha256 else error("lifecycle record") end
+    ' "${inspected}/.generation.json")" || return 2
+    [[ "${receipt_lifecycle_sha}" =~ ^[0-9a-f]{64}$ &&
+       "${receipt_lifecycle_sha}" == "${lifecycle_sha}" ]] || return 2
+  else
+    receipt_lifecycle_sha="${lifecycle_sha}"
+  fi
+  [[ -f "${validator}" && ! -L "${validator}" && -O "${validator}" ]] ||
+    return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${validator}" || return 2
+  validator_mode="$(dispatcher_file_mode "${validator}")" || return 2
+  validator_sha="$(dispatcher_sha256 "${validator}")" || return 2
+  [[ "${validator_mode}" == "0400" &&
+     "${validator_sha}" == "${receipt_lifecycle_sha}" ]] || return 2
+  "${BASH}" -n "${validator}" >/dev/null 2>&1 || return 2
+  cntools_generation_deployment_lock_acquire "${root}" Y || return $?
+  DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256="${receipt_lifecycle_sha}"
+  DISPATCHER_CNTOOLS_GENERATION_LOCK_ROOT="${root}"
+  DISPATCHER_CNTOOLS_GENERATION_LOCK_OWNED="Y"
+}
+
+dispatcher_cntools_generation_prepare() {
+  local source_manifest="${1:-}"
+  local source_manifest_path="${2:-}"
+  local target_root="${3:-}"
+  local work_root="" candidate="" records="" canonical="" files_json=""
+  local path="" source="" mode="" validator="" expected_sha=""
+  local expected="" expected_source="" expected_mode="" expected_validator=""
+  local source_file="" destination="" actual_sha="" manifest_sha=""
+  local generation_id="" generation_receipt="" version="" count=0
+  local seen='|'
+
+  [[ "${NODE_IMPLEMENTATION}" == "cnode" ||
+     "${NODE_IMPLEMENTATION}" == "dingo" ]] || return 2
+  [[ "${DISPATCHER_CNTOOLS_GENERATION_PREPARED:-N}" != "Y" ]] || return 2
+  [[ "${source_manifest_path}" == \
+       'scripts/common-helper-scripts/cntools/manifest.json' &&
+     "${target_root}" == 'scripts/.cntools' ]] || return 2
+  dispatcher_cntools_generation_manifest_valid "${source_manifest}" || return 2
+
+  work_root="${DISPATCHER_TX_STAGE_ROOT}/cntools-generation"
+  candidate="${work_root}/candidate"
+  records="${work_root}/records.tsv"
+  canonical="${work_root}/canonical.tsv"
+  files_json="${work_root}/files.json"
+  mkdir -- "${work_root}" "${candidate}" || return 2
+  chmod 0700 "${work_root}" "${candidate}" || return 2
+  : > "${records}" || return 2
+  chmod 0600 "${records}" || return 2
+
+  while IFS=$'\t' read -r path source mode validator expected_sha; do
+    [[ -n "${path}" && -n "${source}" && -n "${mode}" &&
+       -n "${validator}" && "${expected_sha}" =~ ^[0-9a-f]{64}$ ]] ||
+      return 2
+    [[ "${seen}" != *"|${path}|"* ]] || return 2
+    seen="${seen}${path}|"
+    expected="$(dispatcher_cntools_expected_record "${path}")" || return 2
+    IFS=$'\t' read -r expected_source expected_mode expected_validator \
+      <<< "${expected}"
+    [[ "${source}" == "${expected_source}" &&
+       "${mode}" == "${expected_mode}" &&
+       "${validator}" == "${expected_validator}" ]] || return 2
+    source_file="$(guild_source_path "${source}")" || return 2
+    actual_sha="$(dispatcher_sha256 "${source_file}")" || return 2
+    [[ "${actual_sha}" == "${expected_sha}" ]] || return 2
+    dispatcher_cntools_generation_validate_member \
+      "${source_file}" "${validator}" || return 2
+    if [[ "${path}" == "cntools/core/lifecycle.sh" ]]; then
+      DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256="${actual_sha}"
+    fi
+    destination="${candidate}/${path}"
+    mkdir -p -- "$(dirname -- "${destination}")" || return 2
+    cp -- "${source_file}" "${destination}" || return 2
+    chmod "${mode}" "${destination}" || return 2
+    printf '%s\t%s\t%s\t%s\t%s\n' \
+      "${path}" "${source}" "${mode}" "${validator}" "${actual_sha}" \
+      >> "${records}" || return 2
+    count=$((count + 1))
+  done < <(jq -er '.files[] | [.path,.source,.mode,.validator,.sha256] | @tsv' \
+    "${source_manifest}")
+  (( count == 151 )) || return 2
+  [[ "${DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256:-}" =~ \
+       ^[0-9a-f]{64}$ ]] || return 2
+
+  destination="${candidate}/cntools/manifest.json"
+  mkdir -p -- "$(dirname -- "${destination}")" || return 2
+  cp -- "${source_manifest}" "${destination}" || return 2
+  chmod 0444 "${destination}" || return 2
+  manifest_sha="$(dispatcher_sha256 "${destination}")" || return 2
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    'cntools/manifest.json' "${source_manifest_path}" 0444 json \
+    "${manifest_sha}" >> "${records}" || return 2
+
+  LC_ALL=C sort -t $'\t' -k1,1 "${records}" |
+    awk -F '\t' 'BEGIN { OFS="\t" } { print $1, $3, $5 }' \
+    > "${canonical}" || return 2
+  generation_id="$(dispatcher_sha256 "${canonical}")" || return 2
+  [[ "${generation_id}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  version="$(jq -er '.version' "${source_manifest}")" || return 2
+
+  LC_ALL=C sort -t $'\t' -k1,1 "${records}" |
+    jq -Rn '[inputs | split("\t") |
+      {path:.[0],source:.[1],mode:.[2],validator:.[3],sha256:.[4]}]' \
+      > "${files_json}" || return 2
+  generation_receipt="${candidate}/.generation.json"
+  jq -n \
+    --arg id "${generation_id}" \
+    --arg version "${version}" \
+    --arg manifest_sha "${manifest_sha}" \
+    --slurpfile files "${files_json}" '
+      {
+        schemaVersion: 3,
+        id: $id,
+        version: $version,
+        generationIdAlgorithm: "sha256-path-mode-content-v1",
+        payloadManifest: "cntools/manifest.json",
+        payloadManifestSha256: $manifest_sha,
+        files: $files[0]
+      }
+    ' > "${generation_receipt}" || return 2
+  chmod 0444 "${generation_receipt}" || return 2
+
+  while IFS= read -r destination; do
+    chmod 0555 "${destination}" || return 2
+  done < <(find "${candidate}" -depth -type d -print)
+  mv -- "${candidate}" "${work_root}/${generation_id}" || return 2
+  candidate="${work_root}/${generation_id}"
+
+  DISPATCHER_CNTOOLS_GENERATION_STAGE="${candidate}"
+  DISPATCHER_CNTOOLS_GENERATION_ID="${generation_id}"
+  DISPATCHER_CNTOOLS_GENERATION_VERSION="${version}"
+  DISPATCHER_CNTOOLS_GENERATION_MANIFEST_SHA256="${manifest_sha}"
+  DISPATCHER_CNTOOLS_GENERATION_FILE_COUNT=152
+  DISPATCHER_CNTOOLS_GENERATION_TARGET_ROOT="${target_root}"
+  DISPATCHER_CNTOOLS_GENERATION_PREPARED="Y"
+}
+
+dispatcher_cntools_generation_validate_staged() {
+  local stage="${DISPATCHER_CNTOOLS_GENERATION_STAGE:-}"
+  local lifecycle="${stage}/cntools/core/lifecycle.sh"
+
+  [[ "${DISPATCHER_CNTOOLS_GENERATION_PREPARED:-N}" == "Y" &&
+     -d "${stage}" && ! -L "${stage}" && -f "${lifecycle}" &&
+     ! -L "${lifecycle}" ]] || return 2
+  (
+    dispatcher_cntools_source_trusted_lifecycle \
+      "${lifecycle}" \
+      "${DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256}" 0444 || exit 2
+    cntools_generation_validate \
+      "${stage}" "${DISPATCHER_CNTOOLS_GENERATION_ID}"
+  )
+}
+
+dispatcher_cntools_generation_validate_prior_installed() {
+  local prior="${DISPATCHER_PRIOR_RECEIPT:-}" schema="" id="" path=""
+  local manifest_hash="" receipt_hash="" generation="" root=""
+  local file_count="" version=""
+  local lifecycle="${1:-${DISPATCHER_CNTOOLS_GENERATION_STAGE:-}/cntools/core/lifecycle.sh}"
+  local lifecycle_mode="${2:-0444}"
+
+  root="${NODE_HOME}/scripts/.cntools"
+  if [[ -n "${prior}" ]]; then
+    schema="$(jq -er '.schemaVersion' "${prior}")" || return 2
+    [[ "${schema}" == "1" || "${schema}" == "2" ]] || return 2
+  fi
+  if [[ "${schema}" == "2" ]]; then
+    jq -e --arg implementation "${NODE_IMPLEMENTATION}" \
+      '.implementation == $implementation' "${prior}" >/dev/null 2>&1 || return 2
+    id="$(jq -er '.cntoolsGeneration.id' "${prior}")" || return 2
+    path="$(jq -er '.cntoolsGeneration.path' "${prior}")" || return 2
+    manifest_hash="$(jq -er \
+      '.cntoolsGeneration.payloadManifestSha256' "${prior}")" || return 2
+    receipt_hash="$(jq -er \
+      '.cntoolsGeneration.generationReceiptSha256' "${prior}")" || return 2
+    file_count="$(jq -er '.cntoolsGeneration.fileCount' "${prior}")" ||
+      return 2
+    version="$(jq -er '.cntoolsGeneration.version' "${prior}")" || return 2
+    [[ "${id}" =~ ^[0-9a-f]{64}$ &&
+       "${path}" == "scripts/.cntools/generations/${id}" &&
+       "${manifest_hash}" =~ ^[0-9a-f]{64}$ &&
+       "${receipt_hash}" =~ ^[0-9a-f]{64}$ &&
+       "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ &&
+       ( "${file_count}" == "20" || "${file_count}" == "30" ||
+         "${file_count}" == "152" ) ]] || return 2
+    generation="${NODE_HOME}/${path}"
+    [[ -d "${generation}" && ! -L "${generation}" && -O "${generation}" &&
+       "$(dispatcher_sha256 "${generation}/cntools/manifest.json")" == \
+         "${manifest_hash}" &&
+       "$(dispatcher_sha256 "${generation}/.generation.json")" == \
+         "${receipt_hash}" ]] || return 2
+    jq -e -s --arg version "${version}" --argjson count "${file_count}" '
+      length == 2 and .[0].version == $version and .[1].version == $version and
+      (if $count == 20 then
+         .[0].schemaVersion == 1 and (.[0].files | length == 19) and
+         .[1].schemaVersion == 1 and (.[1].files | length == 20)
+       elif $count == 30 then
+         .[0].schemaVersion == 2 and (.[0].files | length == 29) and
+         .[1].schemaVersion == 2 and (.[1].files | length == 30)
+       elif $count == 152 then
+         .[0].schemaVersion == 3 and (.[0].files | length == 151) and
+         .[1].schemaVersion == 3 and (.[1].files | length == 152)
+       else false end)
+    ' "${generation}/cntools/manifest.json" \
+      "${generation}/.generation.json" >/dev/null 2>&1 || return 2
+  fi
+  [[ -e "${root}" || -L "${root}" ]] || return 0
+
+  dispatcher_cntools_source_trusted_lifecycle \
+    "${lifecycle}" \
+    "${DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256}" \
+    "${lifecycle_mode}" || return 2
+  if [[ "${schema}" == "2" ]]; then
+    cntools_generation_validate "${generation}" "${id}" || return 2
+  fi
+  cntools_generation_pointers_validate "${root}"
+}
+
+dispatcher_cntools_generation_prepare_durable() {
+  local prepare_root="${1:-}"
+  local durable_parent="${prepare_root}/cntools-generation"
+  local durable_stage="${durable_parent}/${DISPATCHER_CNTOOLS_GENERATION_ID:-}"
+  local validator_snapshot="${prepare_root}/cntools-generation-validator.sh"
+  local record="${prepare_root}/cntools-generation.tsv"
+  local target_relative="scripts/.cntools/generations/${DISPATCHER_CNTOOLS_GENERATION_ID:-}"
+  local target="${NODE_HOME}/${target_relative}"
+  local root="${NODE_HOME}/scripts/.cntools"
+  local generations="${root}/generations"
+  local root_existed="N" generations_existed="N" target_existed="N"
+
+  [[ "${DISPATCHER_CNTOOLS_GENERATION_PREPARED:-N}" == "Y" &&
+     -d "${prepare_root}" && ! -L "${prepare_root}" &&
+     "${DISPATCHER_CNTOOLS_GENERATION_ID}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  [[ -e "${root}" || -L "${root}" ]] && root_existed="Y"
+  [[ -e "${generations}" || -L "${generations}" ]] &&
+    generations_existed="Y"
+  [[ -e "${target}" || -L "${target}" ]] && target_existed="Y"
+  mkdir -- "${durable_parent}" || return 2
+  chmod 0700 "${durable_parent}" || return 2
+  cp -a -- "${DISPATCHER_CNTOOLS_GENERATION_STAGE}" "${durable_stage}" ||
+    return 2
+  cp -- "${DISPATCHER_CNTOOLS_GENERATION_STAGE}/cntools/core/lifecycle.sh" \
+    "${validator_snapshot}" || return 2
+  chmod 0400 "${validator_snapshot}" || return 2
+  (
+    dispatcher_cntools_source_trusted_lifecycle \
+      "${validator_snapshot}" \
+      "${DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256}" 0400 || exit 2
+    cntools_generation_validate \
+      "${durable_stage}" "${DISPATCHER_CNTOOLS_GENERATION_ID}"
+  ) || return 2
+  dispatcher_cntools_generation_lock_acquire \
+    "${validator_snapshot}" \
+    "${DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256}" 0400 N || return 2
+  # Repeat receipt/pointer preflight immediately before the durable journal is
+  # created. Candidate validation performs the same check earlier; this closes
+  # the normal staging window while publish still revalidates same-ID reuse.
+  dispatcher_cntools_generation_validate_prior_installed \
+    "${validator_snapshot}" 0400 || return 2
+  if [[ "${target_existed}" == "Y" ]]; then
+    [[ -d "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+    (
+      dispatcher_cntools_source_trusted_lifecycle \
+        "${validator_snapshot}" \
+        "${DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256}" 0400 || exit 2
+      cntools_generation_validate \
+        "${target}" "${DISPATCHER_CNTOOLS_GENERATION_ID}"
+    ) || return 2
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t3\t151\t3\t152\n' \
+    "${DISPATCHER_CNTOOLS_GENERATION_ID}" "${target_relative}" \
+    "${root_existed}" "${generations_existed}" "${target_existed}" \
+    "${DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256}" \
+    > "${record}" || return 2
+  chmod 0600 "${record}" || return 2
+}
+
+dispatcher_cntools_generation_publish() {
+  local durable_root="${1:-}"
+  local record="${durable_root}/cntools-generation.tsv"
+  local id="" relative="" root_existed="" generations_existed=""
+  local target_existed="" lifecycle_sha=""
+  local root="${NODE_HOME}/scripts/.cntools"
+  local generations="${root}/generations" target="" staged=""
+
+  dispatcher_cntools_generation_record_parse "${record}" || return 2
+  [[ "${DISPATCHER_CNTOOLS_RECORD_SHAPE}" == "stage3" ]] || return 2
+  id="${DISPATCHER_CNTOOLS_RECORD_ID}"
+  relative="${DISPATCHER_CNTOOLS_RECORD_RELATIVE}"
+  root_existed="${DISPATCHER_CNTOOLS_RECORD_ROOT_EXISTED}"
+  generations_existed="${DISPATCHER_CNTOOLS_RECORD_GENERATIONS_EXISTED}"
+  target_existed="${DISPATCHER_CNTOOLS_RECORD_TARGET_EXISTED}"
+  lifecycle_sha="${DISPATCHER_CNTOOLS_RECORD_LIFECYCLE_SHA256}"
+  [[ "${DISPATCHER_CNTOOLS_GENERATION_LOCK_OWNED:-N}" == "Y" &&
+     "${DISPATCHER_CNTOOLS_GENERATION_LOCK_ROOT:-}" == "${root}" ]] || return 2
+  cntools_generation_lock_is_owned "${root}" || return 2
+  [[ "${lifecycle_sha}" == \
+       "${DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256:-}" ]] || return 2
+  declare -F cntools_generation_validate >/dev/null 2>&1 || return 2
+  target="${NODE_HOME}/${relative}"
+  staged="${durable_root}/cntools-generation/${id}"
+  [[ -d "${staged}" && ! -L "${staged}" ]] || return 2
+  cntools_generation_validate "${staged}" "${id}" || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${root}" || return 2
+
+  if [[ "${root_existed}" == "Y" ]]; then
+    [[ -d "${root}" && ! -L "${root}" && -O "${root}" &&
+       "$(dispatcher_path_mode "${root}")" == "0700" ]] || return 2
+  else
+    [[ ! -e "${root}" && ! -L "${root}" ]] || return 2
+    mkdir -- "${root}" || return 2
+    chmod 0700 "${root}" || return 2
+    [[ -d "${root}" && ! -L "${root}" && -O "${root}" &&
+       "$(dispatcher_path_mode "${root}")" == "0700" ]] || return 2
+  fi
+  if [[ "${generations_existed}" == "Y" ]]; then
+    [[ -d "${generations}" && ! -L "${generations}" &&
+       -O "${generations}" &&
+       "$(dispatcher_path_mode "${generations}")" == "0700" ]] || return 2
+  else
+    [[ ! -e "${generations}" && ! -L "${generations}" ]] || return 2
+    mkdir -- "${generations}" || return 2
+    chmod 0700 "${generations}" || return 2
+    [[ -d "${generations}" && ! -L "${generations}" &&
+       -O "${generations}" &&
+       "$(dispatcher_path_mode "${generations}")" == "0700" ]] || return 2
+  fi
+
+  if [[ "${target_existed}" == "Y" ]]; then
+    [[ -d "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+    cntools_generation_validate "${target}" "${id}" || return 2
+    # Keep the redundant immutable stage inside the private transaction.
+    # Commit/rollback quarantine cleanup removes it by relaxing directories
+    # only; publication must never chmod packaged files or hard links.
+  else
+    [[ ! -e "${target}" && ! -L "${target}" ]] || return 2
+    # BSD/APFS mv refuses to rename a directory whose own mode is 0555.
+    # Temporarily make only the already-validated generation root writable;
+    # all member files and descendant directories remain immutable. Restore
+    # the required root mode immediately after the atomic directory rename.
+    chmod 0755 "${staged}" || return 2
+    if ! mv -- "${staged}" "${target}"; then
+      chmod 0555 "${staged}" 2>/dev/null || true
+      return 2
+    fi
+    dispatcher_test_failpoint after-cntools-generation-rename || return $?
+    chmod 0555 "${target}" || return 2
+  fi
+  cntools_generation_validate "${target}" "${id}" || return 2
+  DISPATCHER_CNTOOLS_GENERATION_INSTALLED_PATH="${relative}"
+  DISPATCHER_CNTOOLS_GENERATION_PUBLISHED="Y"
+}
+
+dispatcher_cntools_generation_rollback_root() {
+  local root="${1:-}"
+  local record="${root}/cntools-generation.tsv"
+  local id="" relative="" root_existed="" generations_existed=""
+  local target_existed="" lifecycle_sha="" target=""
+  local cntools_root="" generations="" staged="" inspected="" mode=""
+  local target_present="N" staged_present="N"
+
+  [[ -e "${record}" || -L "${record}" ]] || return 0
+  dispatcher_cntools_generation_record_parse "${record}" || return 2
+  id="${DISPATCHER_CNTOOLS_RECORD_ID}"
+  relative="${DISPATCHER_CNTOOLS_RECORD_RELATIVE}"
+  root_existed="${DISPATCHER_CNTOOLS_RECORD_ROOT_EXISTED}"
+  generations_existed="${DISPATCHER_CNTOOLS_RECORD_GENERATIONS_EXISTED}"
+  target_existed="${DISPATCHER_CNTOOLS_RECORD_TARGET_EXISTED}"
+  lifecycle_sha="${DISPATCHER_CNTOOLS_RECORD_LIFECYCLE_SHA256}"
+  [[ "${DISPATCHER_CNTOOLS_GENERATION_LOCK_OWNED:-N}" == "Y" &&
+     "${DISPATCHER_CNTOOLS_GENERATION_LOCK_ROOT:-}" == \
+       "${NODE_HOME}/scripts/.cntools" ]] || return 2
+  cntools_generation_lock_is_owned "${NODE_HOME}/scripts/.cntools" || return 2
+  [[ "${lifecycle_sha}" == \
+       "${DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256:-}" ]] || return 2
+  declare -F cntools_generation_validate >/dev/null 2>&1 || return 2
+  target="${NODE_HOME}/${relative}"
+  cntools_root="${NODE_HOME}/scripts/.cntools"
+  generations="${cntools_root}/generations"
+  staged="${root}/cntools-generation/${id}"
+  if [[ "${target_existed}" == "N" ]]; then
+    if [[ -e "${target}" || -L "${target}" ]]; then
+      [[ -d "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+      target_present="Y"
+    fi
+    if [[ -e "${staged}" || -L "${staged}" ]]; then
+      [[ -d "${staged}" && ! -L "${staged}" && -O "${staged}" ]] || return 2
+      staged_present="Y"
+    fi
+    case "${target_present}:${staged_present}" in
+      Y:N) inspected="${target}" ;;
+      N:Y) inspected="${staged}" ;;
+      N:N) inspected="" ;;
+      *) return 2 ;;
+    esac
+    if [[ -n "${inspected}" ]]; then
+      mode="$(dispatcher_path_mode "${inspected}")" || return 2
+      case "${mode}" in
+        0555) ;;
+        0755) chmod 0555 "${inspected}" || return 2 ;;
+        *) return 2 ;;
+      esac
+      cntools_generation_validate "${inspected}" "${id}" || return 2
+    fi
+    if [[ "${target_present}" == "Y" ]]; then
+      # Move the validated target back into the now-empty durable stage. This
+      # is atomic on the NODE_HOME filesystem and keeps every member and
+      # descendant directory immutable through all rollback crash windows.
+      chmod 0755 "${target}" || return 2
+      if ! mv -- "${target}" "${staged}"; then
+        [[ ! -d "${target}" || -L "${target}" ]] ||
+          chmod 0555 "${target}" 2>/dev/null || true
+        [[ ! -d "${staged}" || -L "${staged}" ]] ||
+          chmod 0555 "${staged}" 2>/dev/null || true
+        return 2
+      fi
+      chmod 0555 "${staged}" || return 2
+      cntools_generation_validate "${staged}" "${id}" || return 2
+    fi
+  fi
+  if [[ "${generations_existed}" == "N" && -d "${generations}" &&
+        ! -L "${generations}" ]]; then
+    [[ -O "${generations}" &&
+       "$(dispatcher_path_mode "${generations}")" == "0700" ]] || return 2
+    rmdir -- "${generations}" || return 2
+  elif [[ "${generations_existed}" == "N" &&
+          ( -e "${generations}" || -L "${generations}" ) ]]; then
+    return 2
+  fi
+  if [[ "${root_existed}" == "N" && -d "${cntools_root}" &&
+        ! -L "${cntools_root}" ]]; then
+    [[ -O "${cntools_root}" &&
+       "$(dispatcher_path_mode "${cntools_root}")" == "0700" ]] || return 2
+    rmdir -- "${cntools_root}" || return 2
+  elif [[ "${root_existed}" == "N" &&
+          ( -e "${cntools_root}" || -L "${cntools_root}" ) ]]; then
+    return 2
+  fi
+}
+
+dispatcher_cntools_legacy_bundle_validate_tree() {
+  local tree="${1:-}" manifest="${2:-}" contract="${3:-current}"
+  local root_mode_contract="${4:-immutable}"
+  local id="" expected_path=""
+  local member="" mode="" size="" sha="" member_file=""
+  local actual_mode="" actual_size="" actual_sha="" canonical_id=""
+  local actual_inventory="" expected_inventory=""
+
+  case "${contract}" in
+    current) dispatcher_cntools_legacy_bundle_metadata_valid "${manifest}" ;;
+    durable) dispatcher_cntools_legacy_bundle_data_manifest_valid "${manifest}" ;;
+    *) return 2 ;;
+  esac || return 2
+  id="$(jq -er '.legacyBundle.id' "${manifest}")" || return 2
+  expected_path="$(jq -er '.legacyBundle.path' "${manifest}")" || return 2
+  [[ "${id}" =~ ^[0-9a-f]{64}$ && "$(basename -- "${tree}")" == "${id}" &&
+     "$(basename -- "${expected_path}")" == "${id}" &&
+     -d "${tree}" && ! -L "${tree}" && -O "${tree}" ]] || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${tree}" || return 2
+  actual_mode="$(dispatcher_path_mode "${tree}")" || return 2
+  case "${root_mode_contract}" in
+    immutable) [[ "${actual_mode}" == "0555" ]] || return 2 ;;
+    rollback-transient)
+      [[ "${actual_mode}" == "0555" || "${actual_mode}" == "0755" ]] ||
+        return 2
+      ;;
+    *) return 2 ;;
+  esac
+  while IFS=$'\t' read -r member mode size sha; do
+    [[ "${member}" != */* && "${mode}" == "0444" &&
+       "${size}" =~ ^(0|[1-9][0-9]*)$ && "${sha}" =~ ^[0-9a-f]{64}$ ]] ||
+      return 2
+    member_file="${tree}/${member}"
+    [[ -f "${member_file}" && ! -L "${member_file}" &&
+       -O "${member_file}" ]] || return 2
+    actual_mode="$(dispatcher_file_mode "${member_file}")" || return 2
+    actual_size="$(wc -c < "${member_file}" 2>/dev/null)" || return 2
+    actual_size="${actual_size//[[:space:]]/}"
+    actual_sha="$(dispatcher_sha256 "${member_file}")" || return 2
+    [[ "${actual_mode}" == "${mode}" && "${actual_size}" == "${size}" &&
+       "${actual_sha}" == "${sha}" ]] || return 2
+  done < <(jq -er '.legacyBundle.members[] |
+    [.path,.mode,(.size|tostring),.sha256] | @tsv' "${manifest}")
+  actual_inventory="$(find "${tree}" -mindepth 1 -maxdepth 1 -type f -print |
+    sed "s#^${tree}/##" | LC_ALL=C sort)" || return 2
+  expected_inventory="$(jq -er '.legacyBundle.members[].path' "${manifest}" |
+    LC_ALL=C sort)" || return 2
+  [[ "${actual_inventory}" == "${expected_inventory}" &&
+     -z "$(find "${tree}" -mindepth 1 -maxdepth 1 ! -type f -print -quit \
+       2>/dev/null)" ]] || return 2
+  canonical_id="$({
+    printf 'cntools-legacy-bundle-v1\n'
+    printf 'facade\t%s\n' "$(jq -er '.legacyBundle.facade' "${manifest}")" ||
+      return 2
+    printf 'logical-body\t%s\t%s\n' \
+      "$(jq -er '.legacyBundle.logicalBodySize' "${manifest}")" \
+      "$(jq -er '.legacyBundle.logicalBodySha256' "${manifest}")"
+    jq -er '.legacyBundle.members[] |
+      "member\t\(.path)\t\(.mode)\t\(.size)\t\(.sha256)"' \
+      "${manifest}" || return 2
+  } | if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum
+  else
+    shasum -a 256
+  fi)" || return 2
+  canonical_id="${canonical_id%% *}"
+  [[ "${canonical_id}" == "${id}" ]]
+}
+
+dispatcher_cntools_legacy_bundle_prepare() {
+  local source_manifest="${1:-}" source_manifest_path="${2:-}"
+  local target_root="${3:-}" id="" bundle_path="" work_root="" candidate=""
+  local member="" mode="" size="" sha="" source="" source_file=""
+  local destination="" actual_size="" actual_sha=""
+
+  [[ "${NODE_IMPLEMENTATION}" == "cnode" ||
+     "${NODE_IMPLEMENTATION}" == "dingo" ]] || return 2
+  [[ "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_PREPARED:-N}" != "Y" &&
+     "${source_manifest_path}" == \
+       'scripts/common-helper-scripts/cntools/manifest.json' &&
+     "${target_root}" == 'scripts/cntools/libs/legacy' ]] || return 2
+  dispatcher_cntools_generation_manifest_valid "${source_manifest}" || return 2
+  id="$(jq -er '.legacyBundle.id' "${source_manifest}")" || return 2
+  bundle_path="$(jq -er '.legacyBundle.path' "${source_manifest}")" || return 2
+  [[ "${id}" =~ ^[0-9a-f]{64}$ &&
+     "${bundle_path}" == "cntools/libs/legacy/${id}" ]] || return 2
+  work_root="${DISPATCHER_TX_STAGE_ROOT}/cntools-legacy-bundle"
+  candidate="${work_root}/${id}"
+  mkdir -- "${work_root}" "${candidate}" || return 2
+  chmod 0700 "${work_root}" "${candidate}" || return 2
+  while IFS=$'\t' read -r member mode size sha; do
+    source="scripts/common-helper-scripts/${bundle_path}/${member}"
+    source_file="$(guild_source_path "${source}")" || return 2
+    [[ -f "${source_file}" && ! -L "${source_file}" ]] || return 2
+    actual_size="$(wc -c < "${source_file}" 2>/dev/null)" || return 2
+    actual_size="${actual_size//[[:space:]]/}"
+    actual_sha="$(dispatcher_sha256 "${source_file}")" || return 2
+    [[ "${mode}" == "0444" && "${actual_size}" == "${size}" &&
+       "${actual_sha}" == "${sha}" ]] || return 2
+    destination="${candidate}/${member}"
+    cp -- "${source_file}" "${destination}" || return 2
+    chmod 0444 "${destination}" || return 2
+  done < <(jq -er '.legacyBundle.members[] |
+    [.path,.mode,(.size|tostring),.sha256] | @tsv' "${source_manifest}")
+  chmod 0555 "${candidate}" || return 2
+  dispatcher_cntools_legacy_bundle_validate_tree \
+    "${candidate}" "${source_manifest}" || return 2
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_MANIFEST="${source_manifest}"
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_STAGE="${candidate}"
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_ID="${id}"
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_TARGET_ROOT="${target_root}"
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_PREPARED="Y"
+}
+
+dispatcher_cntools_legacy_bundle_parent_safe() {
+  local directory="${1:-}" mode=""
+
+  [[ -d "${directory}" && ! -L "${directory}" && -O "${directory}" ]] ||
+    return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${directory}" || return 2
+  mode="$(dispatcher_path_mode "${directory}")" || return 2
+  [[ "${mode}" == "0700" || "${mode}" == "0755" ]]
+}
+
+dispatcher_cntools_legacy_bundle_prepare_durable() {
+  local prepare_root="${1:-}" id="${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_ID:-}"
+  local durable_parent="${prepare_root}/cntools-legacy-bundle"
+  local durable_stage="${durable_parent}/${id}"
+  local record="${prepare_root}/cntools-legacy-bundle.tsv"
+  local data_manifest="${prepare_root}/cntools-legacy-bundle-manifest.json"
+  local data_manifest_sha=""
+  local target_relative="scripts/cntools/libs/legacy/${id}"
+  local cntools="${NODE_HOME}/scripts/cntools" libs="" legacy="" target=""
+  local cntools_existed="N" libs_existed="N" legacy_existed="N"
+  local target_existed="N"
+
+  libs="${cntools}/libs"
+  legacy="${libs}/legacy"
+  target="${legacy}/${id}"
+  [[ "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_PREPARED:-N}" == "Y" &&
+     -d "${prepare_root}" && ! -L "${prepare_root}" &&
+     "${id}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${cntools}" || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${libs}" || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${legacy}" || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
+  [[ -e "${cntools}" || -L "${cntools}" ]] && cntools_existed="Y"
+  [[ -e "${libs}" || -L "${libs}" ]] && libs_existed="Y"
+  [[ -e "${legacy}" || -L "${legacy}" ]] && legacy_existed="Y"
+  [[ -e "${target}" || -L "${target}" ]] && target_existed="Y"
+  case "${cntools_existed}:${libs_existed}:${legacy_existed}:${target_existed}" in
+    Y:Y:Y:Y|Y:Y:Y:N|Y:Y:N:N|Y:N:N:N|N:N:N:N) ;;
+    *) return 2 ;;
+  esac
+  [[ "${cntools_existed}" == "N" ]] ||
+    dispatcher_cntools_legacy_bundle_parent_safe "${cntools}" || return 2
+  [[ "${libs_existed}" == "N" ]] ||
+    dispatcher_cntools_legacy_bundle_parent_safe "${libs}" || return 2
+  [[ "${legacy_existed}" == "N" ]] ||
+    dispatcher_cntools_legacy_bundle_parent_safe "${legacy}" || return 2
+  if [[ "${target_existed}" == "Y" ]]; then
+    dispatcher_cntools_legacy_bundle_validate_tree \
+      "${target}" "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_MANIFEST}" || return 2
+  fi
+  mkdir -- "${durable_parent}" || return 2
+  chmod 0700 "${durable_parent}" || return 2
+  cp -a -- "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_STAGE}" "${durable_stage}" ||
+    return 2
+  jq -e '{legacyBundle:.legacyBundle}' \
+    "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_MANIFEST}" > "${data_manifest}" ||
+    return 2
+  chmod 0400 "${data_manifest}" || return 2
+  dispatcher_cntools_legacy_bundle_data_manifest_valid "${data_manifest}" ||
+    return 2
+  data_manifest_sha="$(dispatcher_sha256 "${data_manifest}")" || return 2
+  dispatcher_cntools_legacy_bundle_validate_tree \
+    "${durable_stage}" "${data_manifest}" durable || return 2
+  dispatcher_cntools_legacy_bundle_matches_transaction_generation \
+    "${prepare_root}" "${data_manifest}" || return 2
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "${id}" "${target_relative}" "${cntools_existed}" "${libs_existed}" \
+    "${legacy_existed}" "${target_existed}" "${data_manifest_sha}" \
+    > "${record}" || return 2
+  chmod 0600 "${record}" || return 2
+}
+
+dispatcher_cntools_legacy_bundle_publish() {
+  local durable_root="${1:-}"
+  local record="${durable_root}/cntools-legacy-bundle.tsv"
+  local id="" relative="" cntools_existed="" libs_existed=""
+  local legacy_existed="" target_existed="" extra="" staged="" target=""
+  local data_manifest="${durable_root}/cntools-legacy-bundle-manifest.json"
+  local data_manifest_sha="" actual_manifest_sha=""
+  local cntools="${NODE_HOME}/scripts/cntools" libs="" legacy=""
+
+  libs="${cntools}/libs"
+  legacy="${libs}/legacy"
+  [[ -f "${record}" && ! -L "${record}" && -O "${record}" ]] || return 2
+  IFS=$'\t' read -r id relative cntools_existed libs_existed legacy_existed \
+    target_existed data_manifest_sha extra < "${record}" || return 2
+  [[ -z "${extra}" && "${id}" == \
+       "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_ID:-}" &&
+     "${relative}" == "scripts/cntools/libs/legacy/${id}" &&
+     "${data_manifest_sha}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  case "${cntools_existed}:${libs_existed}:${legacy_existed}:${target_existed}" in
+    Y:Y:Y:Y|Y:Y:Y:N|Y:Y:N:N|Y:N:N:N|N:N:N:N) ;;
+    *) return 2 ;;
+  esac
+  staged="${durable_root}/cntools-legacy-bundle/${id}"
+  target="${NODE_HOME}/${relative}"
+  dispatcher_cntools_absolute_path_has_no_symlinks "${staged}" || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
+  [[ -f "${data_manifest}" && ! -L "${data_manifest}" &&
+     -O "${data_manifest}" &&
+     "$(dispatcher_file_mode "${data_manifest}")" == "0400" ]] || return 2
+  actual_manifest_sha="$(dispatcher_sha256 "${data_manifest}")" || return 2
+  [[ "${actual_manifest_sha}" == "${data_manifest_sha}" &&
+     "$(jq -er '.legacyBundle.id' "${data_manifest}")" == "${id}" ]] || return 2
+  dispatcher_cntools_legacy_bundle_data_manifest_valid "${data_manifest}" ||
+    return 2
+  dispatcher_cntools_legacy_bundle_matches_transaction_generation \
+    "${durable_root}" "${data_manifest}" || return 2
+  dispatcher_cntools_legacy_bundle_validate_tree \
+    "${staged}" "${data_manifest}" durable || return 2
+  if [[ "${cntools_existed}" == "N" ]]; then
+    dispatcher_cntools_absolute_path_has_no_symlinks "${cntools}" || return 2
+    mkdir -- "${cntools}" && chmod 0700 "${cntools}" || return 2
+  else
+    dispatcher_cntools_legacy_bundle_parent_safe "${cntools}" || return 2
+  fi
+  if [[ "${libs_existed}" == "N" ]]; then
+    dispatcher_cntools_absolute_path_has_no_symlinks "${libs}" || return 2
+    mkdir -- "${libs}" && chmod 0700 "${libs}" || return 2
+  else
+    dispatcher_cntools_legacy_bundle_parent_safe "${libs}" || return 2
+  fi
+  if [[ "${legacy_existed}" == "N" ]]; then
+    dispatcher_cntools_absolute_path_has_no_symlinks "${legacy}" || return 2
+    mkdir -- "${legacy}" && chmod 0700 "${legacy}" || return 2
+  else
+    dispatcher_cntools_legacy_bundle_parent_safe "${legacy}" || return 2
+  fi
+  if [[ "${target_existed}" == "Y" ]]; then
+    dispatcher_cntools_legacy_bundle_validate_tree \
+      "${target}" "${data_manifest}" durable || return 2
+    # Leave the redundant immutable stage under the durable journal. The
+    # quarantined transaction cleanup owns deletion and never chmods files.
+  else
+    [[ ! -e "${target}" && ! -L "${target}" ]] || return 2
+    dispatcher_cntools_absolute_path_has_no_symlinks "${staged}" || return 2
+    dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
+    chmod 0755 "${staged}" || return 2
+    if ! mv -- "${staged}" "${target}"; then
+      chmod 0555 "${staged}" 2>/dev/null || true
+      return 2
+    fi
+    dispatcher_test_failpoint after-cntools-legacy-bundle-rename || return $?
+    chmod 0555 "${target}" || return 2
+  fi
+  dispatcher_cntools_legacy_bundle_validate_tree \
+    "${target}" "${data_manifest}" durable || return 2
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_INSTALLED_PATH="${relative}"
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_PUBLISHED="Y"
+}
+
+dispatcher_cntools_legacy_bundle_rollback_root() {
+  local root="${1:-}"
+  local record="${root}/cntools-legacy-bundle.tsv"
+  local id="" relative="" cntools_existed="" libs_existed=""
+  local legacy_existed="" target_existed="" extra="" target=""
+  local data_manifest="${root}/cntools-legacy-bundle-manifest.json"
+  local data_manifest_sha="" actual_manifest_sha=""
+  local cntools="${NODE_HOME}/scripts/cntools" libs="" legacy="" staged=""
+  local inspected="" mode="" target_present="N" staged_present="N"
+
+  [[ -e "${record}" || -L "${record}" ]] || return 0
+  [[ -f "${record}" && ! -L "${record}" && -O "${record}" ]] || return 2
+  IFS=$'\t' read -r id relative cntools_existed libs_existed legacy_existed \
+    target_existed data_manifest_sha extra < "${record}" || return 2
+  [[ -z "${extra}" && "${id}" =~ ^[0-9a-f]{64}$ &&
+     "${relative}" == "scripts/cntools/libs/legacy/${id}" &&
+     "${data_manifest_sha}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  case "${cntools_existed}:${libs_existed}:${legacy_existed}:${target_existed}" in
+    Y:Y:Y:Y|Y:Y:Y:N|Y:Y:N:N|Y:N:N:N|N:N:N:N) ;;
+    *) return 2 ;;
+  esac
+  target="${NODE_HOME}/${relative}"
+  staged="${root}/cntools-legacy-bundle/${id}"
+  libs="${cntools}/libs"
+  legacy="${libs}/legacy"
+  dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${staged}" || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${cntools}" || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${libs}" || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${legacy}" || return 2
+  [[ -f "${data_manifest}" && ! -L "${data_manifest}" &&
+     -O "${data_manifest}" &&
+     "$(dispatcher_file_mode "${data_manifest}")" == "0400" ]] || return 2
+  actual_manifest_sha="$(dispatcher_sha256 "${data_manifest}")" || return 2
+  [[ "${actual_manifest_sha}" == "${data_manifest_sha}" &&
+     "$(jq -er '.legacyBundle.id' "${data_manifest}")" == "${id}" ]] || return 2
+  dispatcher_cntools_legacy_bundle_data_manifest_valid "${data_manifest}" ||
+    return 2
+  dispatcher_cntools_legacy_bundle_matches_transaction_generation \
+    "${root}" "${data_manifest}" || return 2
+  if [[ "${target_existed}" == "Y" ]]; then
+    # A pre-existing content-addressed target is part of the authoritative
+    # baseline. Authenticate it from the transaction-owned data manifest
+    # before allowing receipt/metadata rollback to restore that authority.
+    dispatcher_cntools_legacy_bundle_validate_tree \
+      "${target}" "${data_manifest}" durable || return 2
+  else
+    if [[ -e "${target}" || -L "${target}" ]]; then
+      [[ -d "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+      target_present="Y"
+    fi
+    if [[ -e "${staged}" || -L "${staged}" ]]; then
+      [[ -d "${staged}" && ! -L "${staged}" && -O "${staged}" ]] || return 2
+      staged_present="Y"
+    fi
+    case "${target_present}:${staged_present}" in
+      Y:N) inspected="${target}" ;;
+      N:Y) inspected="${staged}" ;;
+      N:N) inspected="" ;;
+      *) return 2 ;;
+    esac
+    if [[ -n "${inspected}" ]]; then
+      mode="$(dispatcher_path_mode "${inspected}")" || return 2
+      case "${mode}" in
+        0555) ;;
+        0755) chmod 0555 "${inspected}" || return 2 ;;
+        *) return 2 ;;
+      esac
+      dispatcher_cntools_legacy_bundle_validate_tree \
+        "${inspected}" "${data_manifest}" durable || return 2
+    fi
+    if [[ "${target_present}" == "Y" ]]; then
+      # Preserve the complete immutable bundle by moving it back under the
+      # durable transaction root. Transaction cleanup, after all rollback
+      # legs succeed, owns deletion of this staged tree.
+      dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
+      dispatcher_cntools_absolute_path_has_no_symlinks "${staged}" || return 2
+      chmod 0755 "${target}" || return 2
+      if ! mv -- "${target}" "${staged}"; then
+        [[ ! -d "${target}" || -L "${target}" ]] ||
+          chmod 0555 "${target}" 2>/dev/null || true
+        [[ ! -d "${staged}" || -L "${staged}" ]] ||
+          chmod 0555 "${staged}" 2>/dev/null || true
+        return 2
+      fi
+      chmod 0555 "${staged}" || return 2
+      dispatcher_cntools_legacy_bundle_validate_tree \
+        "${staged}" "${data_manifest}" durable || return 2
+    fi
+  fi
+  if [[ "${legacy_existed}" == "N" ]]; then
+    if [[ -e "${legacy}" || -L "${legacy}" ]]; then
+      dispatcher_cntools_absolute_path_has_no_symlinks "${legacy}" || return 2
+      [[ -d "${legacy}" && ! -L "${legacy}" && -O "${legacy}" &&
+         "$(dispatcher_path_mode "${legacy}")" == "0700" ]] || return 2
+      rmdir -- "${legacy}" || return 2
+    fi
+  fi
+  if [[ "${libs_existed}" == "N" ]]; then
+    if [[ -e "${libs}" || -L "${libs}" ]]; then
+      dispatcher_cntools_absolute_path_has_no_symlinks "${libs}" || return 2
+      [[ -d "${libs}" && ! -L "${libs}" && -O "${libs}" &&
+         "$(dispatcher_path_mode "${libs}")" == "0700" ]] || return 2
+      rmdir -- "${libs}" || return 2
+    fi
+  fi
+  if [[ "${cntools_existed}" == "N" ]]; then
+    if [[ -e "${cntools}" || -L "${cntools}" ]]; then
+      dispatcher_cntools_absolute_path_has_no_symlinks "${cntools}" || return 2
+      [[ -d "${cntools}" && ! -L "${cntools}" && -O "${cntools}" &&
+         "$(dispatcher_path_mode "${cntools}")" == "0700" ]] || return 2
+      rmdir -- "${cntools}" || return 2
+    fi
+  fi
+}
+
+dispatcher_cntools_legacy_bundle_managed_path() {
+  [[ "${1:-}" =~ ^scripts/cntools/libs/legacy/[0-9a-f]{64}/[A-Za-z0-9][A-Za-z0-9._+-]*$ ]]
+}
+
 dispatcher_distribution_prepare() {
   local manifest="" stage_root="" candidate_root="" plan=""
   local first_line=""
@@ -3264,13 +4702,14 @@ dispatcher_distribution_prepare() {
   local effective_policy="" source_hash="" seen='|' record_count=0
   local force_scripts="N" force_config="N"
   local merge_header_override=""
+  local first_plan_target=""
 
   [[ "${_GUILD_SOURCE_PREPARED:-N}" == "Y" ]] || return 2
   dispatcher_distribution_validate_prior_receipt || return 2
   manifest="$(guild_source_path files/node-implementations/source-manifest.tsv)" ||
     return 2
   IFS= read -r first_line < "${manifest}" || return 2
-  [[ "${first_line}" == '# Guild Operators deployment source manifest, schema 1.' ]] ||
+  [[ "${first_line}" == '# Guild Operators deployment source manifest, schema 2.' ]] ||
     return 2
   stage_root="$(mktemp -d "${TMPDIR:-/tmp}/guild-deploy-distribution.XXXXXX")" ||
     return 2
@@ -3309,6 +4748,34 @@ dispatcher_distribution_prepare() {
            "${mode}" == "0755" ]] || return 2
         case "${validator}" in shell|json|text) ;; *) return 2 ;; esac
         _guild_source_relative_path_valid "${source_path}" || return 2
+        ;;
+      cntools-generation)
+        [[ "${source_path}" == \
+             'scripts/common-helper-scripts/cntools/manifest.json' &&
+           "${target_path}" == 'scripts/.cntools' &&
+           "${mode}" == '0700' && "${validator}" == 'cntools' &&
+           ( "${implementation}" == 'cnode' ||
+             "${implementation}" == 'dingo' ) ]] || return 2
+        _guild_source_relative_path_valid "${source_path}" || return 2
+        source_file="$(guild_source_path "${source_path}")" || return 2
+        dispatcher_cntools_generation_prepare "${source_file}" \
+          "${source_path}" "${target_path}" || return 2
+        record_count=$((record_count + 1))
+        continue
+        ;;
+      cntools-legacy-bundle)
+        [[ "${source_path}" == \
+             'scripts/common-helper-scripts/cntools/manifest.json' &&
+           "${target_path}" == 'scripts/cntools/libs/legacy' &&
+           "${mode}" == '0700' && "${validator}" == 'cntools' &&
+           ( "${implementation}" == 'cnode' ||
+             "${implementation}" == 'dingo' ) ]] || return 2
+        _guild_source_relative_path_valid "${source_path}" || return 2
+        source_file="$(guild_source_path "${source_path}")" || return 2
+        dispatcher_cntools_legacy_bundle_prepare "${source_file}" \
+          "${source_path}" "${target_path}" || return 2
+        record_count=$((record_count + 1))
+        continue
         ;;
       retire)
         [[ "${source_path}" == "-" && "${mode}" == "-" &&
@@ -3387,8 +4854,29 @@ dispatcher_distribution_prepare() {
   done < "${manifest}"
 
   (( record_count > 0 )) || return 2
+  first_plan_target="$(awk -F '\t' 'NR == 1 { print $2 }' "${plan}")" ||
+    return 2
+  case "${NODE_IMPLEMENTATION}" in
+    cnode|dingo)
+      [[ "${first_plan_target}" == "scripts/cntools.library" ]] || return 2
+      ;;
+    amaru) ;;
+    *) return 2 ;;
+  esac
   grep -Fq $'scripts/cnode-helper-scripts/guild-deploy.sh\tscripts/guild-deploy.sh\t' \
     "${plan}" || return 2
+  case "${NODE_IMPLEMENTATION}" in
+    cnode|dingo)
+      [[ "${DISPATCHER_CNTOOLS_GENERATION_PREPARED:-N}" == "Y" &&
+         "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_PREPARED:-N}" == "Y" ]] ||
+        return 2
+      ;;
+    amaru)
+      [[ "${DISPATCHER_CNTOOLS_GENERATION_PREPARED:-N}" != "Y" &&
+         "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_PREPARED:-N}" != "Y" ]] ||
+        return 2
+      ;;
+  esac
   DISPATCHER_TX_CANDIDATE_ROOT="${candidate_root}"
   DISPATCHER_TX_PLAN="${plan}"
   DISPATCHER_TX_PREPARED="Y"
@@ -3427,6 +4915,21 @@ dispatcher_distribution_validate_candidates() {
         ;;
     esac
   done < "${DISPATCHER_TX_PLAN}"
+
+  case "${NODE_IMPLEMENTATION}" in
+    cnode|dingo)
+      dispatcher_cntools_legacy_bundle_validate_tree \
+        "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_STAGE}" \
+        "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_MANIFEST}" || return 2
+      dispatcher_cntools_generation_validate_staged || return 2
+      dispatcher_cntools_generation_validate_prior_installed || return 2
+      ;;
+    amaru)
+      [[ "${DISPATCHER_CNTOOLS_GENERATION_PREPARED:-N}" != "Y" &&
+         "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_PREPARED:-N}" != "Y" ]] ||
+        return 2
+      ;;
+  esac
 
   case "${NODE_IMPLEMENTATION}" in
     cnode)
@@ -3480,17 +4983,18 @@ dispatcher_test_failpoint() {
   local context="${GUILD_DEPLOY_TEST_CONTEXT:-}"
   local context_dir="" context_name="" context_mode="" context_dir_mode=""
   local canonical_tmp="" marker="" target_record="" source_record="" extra=""
+  local ready_file="" release_file="" deadline=0 release_mode=""
 
   [[ -n "${configured}" ]] || return 0
   [[ "${GUILD_DEPLOY_TEST_MODE:-}" == "stage0c-transaction-failure-injection-v1" ]] ||
     return 0
   case "${configured}" in
-    before-durable-journal|after-durable-journal|after-retire-archive|after-history-archive|after-obsolete-remove|before-receipt-publish|after-receipt-publish|before-metadata-publish|after-metadata-publish) ;;
+    before-durable-journal|after-durable-journal|after-cntools-generation-rename|after-cntools-generation-publish|after-cntools-legacy-bundle-rename|after-cntools-legacy-bundle-publish|after-retire-archive|after-history-archive|after-obsolete-remove|before-receipt-publish|after-receipt-publish|before-metadata-publish|after-metadata-publish|after-transaction-quarantine) ;;
     *) [[ "${configured}" =~ ^after-payload:[1-9][0-9]*$ ]] || return 2 ;;
   esac
   [[ "${reached}" == "${configured}" ]] || return 0
   case "${action}" in
-    return|enospc|crash|HUP|INT|TERM) ;;
+    return|enospc|crash|pause|HUP|INT|TERM) ;;
     *) return 2 ;;
   esac
 
@@ -3536,6 +5040,29 @@ dispatcher_test_failpoint() {
       kill -s KILL "${BASHPID}"
       return 137
       ;;
+    pause)
+      ready_file="${context_dir}/guild-deploy-failure.ready"
+      release_file="${context_dir}/guild-deploy-failure.release"
+      [[ ! -e "${ready_file}" && ! -L "${ready_file}" &&
+         ! -e "${release_file}" && ! -L "${release_file}" ]] || return 2
+      printf 'failpoint=%s\npid=%s\n' "${reached}" "${BASHPID}" \
+        > "${ready_file}" || return 2
+      chmod 0600 "${ready_file}" || return 2
+      deadline=$((SECONDS + 60))
+      while (( SECONDS < deadline )); do
+        if [[ -e "${release_file}" || -L "${release_file}" ]]; then
+          [[ -f "${release_file}" && ! -L "${release_file}" &&
+             -O "${release_file}" ]] || return 2
+          release_mode="$(dispatcher_file_mode "${release_file}")" || return 2
+          [[ "${release_mode}" == "0600" ]] || return 2
+          rm -f -- "${ready_file}" "${release_file}" || return 2
+          return 0
+        fi
+        sleep 0.1
+      done
+      rm -f -- "${ready_file}" 2>/dev/null || true
+      return 124
+      ;;
     HUP|INT|TERM)
       kill -s "${action}" "${BASHPID}"
       return 128
@@ -3543,12 +5070,943 @@ dispatcher_test_failpoint() {
   esac
 }
 
+dispatcher_transaction_cleanup_root_remove() {
+  local root="${1:-}" directory="" cleanup_name=""
+
+  dispatcher_target_lock_is_owned "${NODE_HOME}" || return 2
+  [[ "${root}" == "${NODE_HOME}"/* ]] || return 2
+  cleanup_name="${root#"${NODE_HOME}"/}"
+  [[ "${cleanup_name}" =~ ^\.guild-deploy-transaction\.(prepare|cleanup)\.[0-9]{1,20}\.[0-9]{1,20}\.[0-9]{1,5}$ &&
+     "${root}" == "${NODE_HOME}/${cleanup_name}" && -d "${root}" &&
+     ! -L "${root}" && -O "${root}" ]] || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${root}" || return 2
+  # Only directories need write/search permission for unlinking. Never chmod
+  # immutable files (or hard links) during cleanup; a crash can safely retry
+  # this strictly named, non-authoritative quarantine from any directory-mode
+  # prefix already normalized by an earlier attempt.
+  while IFS= read -r -d '' directory; do
+    [[ "${directory}" == "${root}" || "${directory}" == "${root}"/* ]] ||
+      return 2
+    [[ -d "${directory}" && ! -L "${directory}" && -O "${directory}" ]] ||
+      return 2
+    chmod 0700 "${directory}" || return 2
+  done < <(find "${root}" -depth -type d -print0)
+  rm -rf -- "${root}" || return 2
+  [[ ! -e "${root}" && ! -L "${root}" ]]
+}
+
 dispatcher_transaction_remove_root() {
+  local root="${1:-}" cleanup_id="" cleanup_root="" attempt=0
+  local canonical="${NODE_HOME}/.guild-deploy-transaction"
+
+  dispatcher_target_lock_is_owned "${NODE_HOME}" || return 2
+  if [[ "${root}" == "${canonical}" ]]; then
+    [[ -d "${root}" && ! -L "${root}" && -O "${root}" ]] || return 2
+    dispatcher_cntools_absolute_path_has_no_symlinks "${root}" || return 2
+    # Retire the authoritative journal atomically before relaxing or deleting
+    # any byte. Once this rename succeeds, CNTools readers may proceed and a
+    # future dispatcher can finish deleting the non-authoritative quarantine.
+    while (( attempt < 10 )); do
+      cleanup_id="$(date +%s).${BASHPID}.${RANDOM}"
+      cleanup_root="${NODE_HOME}/.guild-deploy-transaction.cleanup.${cleanup_id}"
+      if [[ ! -e "${cleanup_root}" && ! -L "${cleanup_root}" ]]; then
+        break
+      fi
+      cleanup_root=""
+      attempt=$((attempt + 1))
+    done
+    [[ -n "${cleanup_root}" ]] || return 2
+    mv -- "${root}" "${cleanup_root}" || return 2
+    dispatcher_test_failpoint after-transaction-quarantine || return $?
+    dispatcher_transaction_cleanup_root_remove "${cleanup_root}"
+    return $?
+  fi
+  dispatcher_transaction_cleanup_root_remove "${root}"
+}
+
+dispatcher_transaction_control_file_valid() {
+  local file="${1:-}" expected_mode="${2:-}" allow_empty="${3:-N}"
+  local bytes="" actual_mode=""
+
+  [[ "${file}" == "${NODE_HOME}/.guild-deploy-transaction"/* &&
+     -f "${file}" && ! -L "${file}" && -O "${file}" ]] || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${file}" || return 2
+  actual_mode="$(dispatcher_file_mode "${file}")" || return 2
+  [[ "${actual_mode}" == "${expected_mode}" ]] || return 2
+  bytes="$(wc -c < "${file}" 2>/dev/null)" || return 2
+  bytes="${bytes//[[:space:]]/}"
+  [[ "${bytes}" =~ ^(0|[1-9][0-9]*)$ && "${bytes}" -le 1048576 ]] ||
+    return 2
+  [[ "${allow_empty}" == "Y" || "${bytes}" != "0" ]] || return 2
+  if (( bytes > 0 )); then
+    # Bash variables cannot represent NUL bytes. Reject them before parsing,
+    # and require a final LF so every durable row is visited by read.
+    if LC_ALL=C od -An -v -t u1 "${file}" 2>/dev/null |
+        grep -Eq '(^|[[:space:]])0([[:space:]]|$)'; then
+      return 2
+    fi
+    [[ -z "$(tail -c 1 -- "${file}")" ]] || return 2
+  fi
+}
+
+dispatcher_transaction_journal_record() {
   local root="${1:-}"
-  [[ -n "${root}" && "${root}" == "${NODE_HOME}"/.guild-deploy-transaction* &&
-     -d "${root}" && ! -L "${root}" && -O "${root}" ]] || return 2
-  chmod -R u+rwX "${root}" 2>/dev/null || true
-  rm -rf -- "${root}"
+  local journal="${root}/journal"
+  local schema_line="" transaction_line="" state_line="" extra=""
+  local transaction_id="" state=""
+
+  dispatcher_transaction_control_file_valid "${journal}" 0600 N || return 2
+  {
+    IFS= read -r schema_line &&
+      IFS= read -r transaction_line &&
+      IFS= read -r state_line &&
+      ! IFS= read -r extra
+  } < "${journal}" || return 2
+  [[ "${schema_line}" == "schemaVersion=1" &&
+     "${transaction_line}" == transactionId=* &&
+     "${state_line}" == state=* ]] || return 2
+  transaction_id="${transaction_line#transactionId=}"
+  state="${state_line#state=}"
+  case "${state}" in
+    prepared|activated)
+      [[ "${transaction_id}" =~ ^[0-9]{1,20}\.[0-9]{1,20}\.[0-9]{1,5}$ ]] ||
+        return 2
+      ;;
+    committed)
+      [[ "${transaction_id}" =~ ^[0-9a-f]{24}$ ]] || return 2
+      ;;
+    *) return 2 ;;
+  esac
+  # Byte-for-byte equality rejects appended, torn, CRLF, and hidden-byte
+  # journals even when their first three parsed lines look plausible.
+  printf 'schemaVersion=1\ntransactionId=%s\nstate=%s\n' \
+    "${transaction_id}" "${state}" | cmp -s - "${journal}" || return 2
+  printf '%s\t%s\n' "${state}" "${transaction_id}"
+}
+
+dispatcher_transaction_handoff_admission_token() {
+  local root="${NODE_HOME}/.guild-deploy-transaction"
+  local journal_record="" state="" transaction_id="" extra="" digest=""
+
+  [[ -d "${root}" && ! -L "${root}" && -O "${root}" &&
+     "$(dispatcher_path_mode "${root}")" == "0700" ]] || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${root}" || return 2
+  journal_record="$(dispatcher_transaction_journal_record "${root}")" || return 2
+  IFS=$'\t' read -r state transaction_id extra <<< "${journal_record}"
+  [[ -z "${extra}" ]] || return 2
+  digest="$(dispatcher_sha256 "${root}/journal")" || return 2
+  [[ "${digest}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  # State and transaction ID make the token human-auditable; the digest binds
+  # the exact byte-validated journal across the source-preparation exec.
+  printf '%s:%s:%s\n' "${state}" "${transaction_id}" "${digest}"
+}
+
+dispatcher_transaction_handoff_admission_valid() {
+  dispatcher_transaction_handoff_admission_token >/dev/null
+}
+
+dispatcher_transaction_handoff_revalidate() {
+  local root="${NODE_HOME}/.guild-deploy-transaction"
+  local admitted="${GUILD_SOURCE_TARGET_JOURNAL_ADMITTED:-N}"
+  local expected_token="${GUILD_SOURCE_TARGET_JOURNAL_TOKEN:-}"
+  local current_token=""
+
+  dispatcher_target_lock_is_owned "${NODE_HOME}" || return 2
+  DISPATCHER_HANDOFF_JOURNAL_REFRESH_AUTHORIZED="N"
+  case "${admitted}" in
+    N)
+      [[ -z "${expected_token}" && ! -e "${root}" && ! -L "${root}" ]] ||
+        return 2
+      ;;
+    Y)
+      [[ -n "${expected_token}" ]] || return 2
+      if [[ ! -e "${root}" && ! -L "${root}" ]]; then
+        # A peer may have completed recovery before this process obtained the
+        # lock. The metadata fingerprint, not stale journal authority, decides
+        # whether the handoff may continue.
+        GUILD_SOURCE_TARGET_JOURNAL_ADMITTED="N"
+        GUILD_SOURCE_TARGET_JOURNAL_TOKEN=""
+        return 0
+      fi
+      current_token="$(dispatcher_transaction_handoff_admission_token)" ||
+        return 2
+      [[ "${current_token}" == "${expected_token}" ]] || return 2
+      DISPATCHER_HANDOFF_JOURNAL_REFRESH_AUTHORIZED="Y"
+      ;;
+    *) return 2 ;;
+  esac
+}
+
+dispatcher_transaction_target_parent_safe() {
+  local target="${1:-}" parent="" relative_parent="" component=""
+  local current="${NODE_HOME}"
+  local -a components=()
+
+  [[ "${target}" == "${NODE_HOME}"/* && -d "${NODE_HOME}" &&
+     ! -L "${NODE_HOME}" && -O "${NODE_HOME}" ]] || return 2
+  parent="$(dirname -- "${target}")" || return 2
+  [[ "${parent}" == "${NODE_HOME}" || "${parent}" == "${NODE_HOME}"/* ]] ||
+    return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${parent}" || return 2
+  [[ -d "${parent}" && ! -L "${parent}" && -O "${parent}" ]] || return 2
+  [[ "${parent}" != "${NODE_HOME}" ]] || return 0
+  relative_parent="${parent#"${NODE_HOME}"/}"
+  IFS='/' read -r -a components <<< "${relative_parent}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" && "${component}" != "." &&
+       "${component}" != ".." ]] || return 2
+    current="${current}/${component}"
+    [[ -d "${current}" && ! -L "${current}" && -O "${current}" ]] ||
+      return 2
+  done
+  [[ "${current}" == "${parent}" ]]
+}
+
+# Validate an immutable generation without changing a transient 0755 root left
+# by a crash between rename and mode restoration. The trusted lifecycle still
+# validates every descendant byte, mode, directory, and content-addressed ID;
+# only the already-inspected generation root is presented as its final 0555
+# mode inside this subshell.
+dispatcher_cntools_generation_rollback_tree_preflight() (
+  local generation="${1:-}" expected_id="${2:-}" actual_mode=""
+
+  [[ "${expected_id}" =~ ^[0-9a-f]{64}$ &&
+     -d "${generation}" && ! -L "${generation}" && -O "${generation}" ]] ||
+    return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${generation}" || return 2
+  actual_mode="$(dispatcher_path_mode "${generation}")" || return 2
+  case "${actual_mode}" in
+    0555) ;;
+    0755)
+      _cntools_generation_file_mode() {
+        if [[ "${1:-}" == "${generation}" ]]; then
+          printf '0555\n'
+        else
+          dispatcher_path_mode "${1:-}"
+        fi
+      }
+      ;;
+    *) return 2 ;;
+  esac
+  cntools_generation_validate "${generation}" "${expected_id}"
+)
+
+dispatcher_cntools_generation_rollback_preflight() {
+  local root="${1:-}"
+  local record="${root}/cntools-generation.tsv"
+  local validator="${root}/cntools-generation-validator.sh"
+  local id="" relative="" root_existed=""
+  local generations_existed="" target_existed="" lifecycle_sha=""
+  local target="" staged="" cntools_root="${NODE_HOME}/scripts/.cntools"
+  local generations="${NODE_HOME}/scripts/.cntools/generations"
+  local durable_parent="${root}/cntools-generation" path="" mode=""
+  local receipt_lifecycle_sha="" target_present="N" staged_present="N"
+  local inventory_count=0
+
+  dispatcher_transaction_control_file_valid "${record}" 0600 N || return 2
+  dispatcher_transaction_control_file_valid "${validator}" 0400 N || return 2
+  dispatcher_cntools_generation_record_parse "${record}" || return 2
+  id="${DISPATCHER_CNTOOLS_RECORD_ID}"
+  relative="${DISPATCHER_CNTOOLS_RECORD_RELATIVE}"
+  root_existed="${DISPATCHER_CNTOOLS_RECORD_ROOT_EXISTED}"
+  generations_existed="${DISPATCHER_CNTOOLS_RECORD_GENERATIONS_EXISTED}"
+  target_existed="${DISPATCHER_CNTOOLS_RECORD_TARGET_EXISTED}"
+  lifecycle_sha="${DISPATCHER_CNTOOLS_RECORD_LIFECYCLE_SHA256}"
+  [[ "$(dispatcher_sha256 "${validator}")" == "${lifecycle_sha}" ]] || return 2
+  "${BASH}" -n "${validator}" >/dev/null 2>&1 || return 2
+  declare -F cntools_generation_validate >/dev/null 2>&1 || return 2
+  target="${NODE_HOME}/${relative}"
+  staged="${durable_parent}/${id}"
+  for path in "${cntools_root}" "${generations}" "${target}" \
+    "${durable_parent}" "${staged}"; do
+    dispatcher_cntools_absolute_path_has_no_symlinks "${path}" || return 2
+  done
+  [[ -d "${durable_parent}" && ! -L "${durable_parent}" &&
+     -O "${durable_parent}" &&
+     "$(dispatcher_path_mode "${durable_parent}")" == "0700" ]] || return 2
+
+  if [[ -e "${target}" || -L "${target}" ]]; then
+    [[ -d "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+    target_present="Y"
+  fi
+  if [[ -e "${staged}" || -L "${staged}" ]]; then
+    [[ -d "${staged}" && ! -L "${staged}" && -O "${staged}" ]] || return 2
+    staged_present="Y"
+  fi
+  case "${target_existed}:${target_present}:${staged_present}" in
+    Y:Y:Y|Y:Y:N|N:Y:N|N:N:Y|N:N:N) ;;
+    *) return 2 ;;
+  esac
+  for path in "${target}" "${staged}"; do
+    [[ -e "${path}" || -L "${path}" ]] || continue
+    dispatcher_cntools_generation_rollback_tree_preflight \
+      "${path}" "${id}" || return 2
+    receipt_lifecycle_sha="$(jq -er '
+      [.files[] | select(
+        .path == "cntools/core/lifecycle.sh" and
+        .source == "scripts/common-helper-scripts/cntools/core/lifecycle.sh" and
+        .mode == "0444" and .validator == "shell")] |
+      if length == 1 then .[0].sha256 else error("lifecycle record") end
+    ' "${path}/.generation.json")" || return 2
+    [[ "${receipt_lifecycle_sha}" == "${lifecycle_sha}" ]] || return 2
+  done
+  while IFS= read -r path; do
+    [[ -n "${path}" ]] || continue
+    inventory_count=$((inventory_count + 1))
+    [[ "${path}" == "${staged}" ]] || return 2
+  done < <(find "${durable_parent}" -mindepth 1 -maxdepth 1 -print)
+  case "${staged_present}:${inventory_count}" in
+    Y:1|N:0) ;;
+    *) return 2 ;;
+  esac
+
+  case "${root_existed}" in
+    Y)
+      [[ -d "${cntools_root}" && ! -L "${cntools_root}" &&
+         -O "${cntools_root}" &&
+         "$(dispatcher_path_mode "${cntools_root}")" == "0700" ]] || return 2
+      ;;
+    N)
+      if [[ -e "${cntools_root}" || -L "${cntools_root}" ]]; then
+        [[ -d "${cntools_root}" && ! -L "${cntools_root}" &&
+           -O "${cntools_root}" &&
+           "$(dispatcher_path_mode "${cntools_root}")" == "0700" ]] ||
+          return 2
+      fi
+      ;;
+    *) return 2 ;;
+  esac
+  case "${generations_existed}" in
+    Y)
+      [[ -d "${generations}" && ! -L "${generations}" &&
+         -O "${generations}" &&
+         "$(dispatcher_path_mode "${generations}")" == "0700" ]] || return 2
+      ;;
+    N)
+      if [[ -e "${generations}" || -L "${generations}" ]]; then
+        [[ -d "${generations}" && ! -L "${generations}" &&
+           -O "${generations}" &&
+           "$(dispatcher_path_mode "${generations}")" == "0700" ]] ||
+          return 2
+      fi
+      ;;
+    *) return 2 ;;
+  esac
+}
+
+dispatcher_cntools_generation_rollback_schema_pair() {
+  local root="${1:-}" expected_manifest_schema="${2:-}"
+  local expected_manifest_count="${3:-}" expected_receipt_schema="${4:-}"
+  local expected_receipt_count="${5:-}" record="${root}/cntools-generation.tsv"
+  local allow_retracted="${6:-N}"
+  local expected_pair="" expected_shape="" id="" relative="" path=""
+  local inspected=0
+
+  expected_pair="${expected_manifest_schema}:${expected_manifest_count}:"
+  expected_pair+="${expected_receipt_schema}:${expected_receipt_count}"
+  case "${expected_pair}" in
+    1:19:1:20|2:29:2:30) expected_shape="legacy" ;;
+    3:151:3:152) expected_shape="stage3" ;;
+    *) return 2 ;;
+  esac
+  case "${allow_retracted}" in Y|N) ;; *) return 2 ;; esac
+  dispatcher_cntools_generation_record_parse "${record}" || return 2
+  [[ "${DISPATCHER_CNTOOLS_RECORD_SHAPE}" == "${expected_shape}" ]] ||
+    return 2
+  id="${DISPATCHER_CNTOOLS_RECORD_ID}"
+  relative="${DISPATCHER_CNTOOLS_RECORD_RELATIVE}"
+  for path in "${NODE_HOME}/${relative}" \
+    "${root}/cntools-generation/${id}"; do
+    [[ -e "${path}" || -L "${path}" ]] || continue
+    jq -e --argjson manifest_schema "${expected_manifest_schema}" \
+      --argjson manifest_count "${expected_manifest_count}" '
+        type == "object" and .schemaVersion == $manifest_schema and
+        (.files | type == "array" and length == $manifest_count)
+      ' "${path}/cntools/manifest.json" >/dev/null 2>&1 || return 2
+    jq -e --argjson receipt_schema "${expected_receipt_schema}" \
+      --argjson receipt_count "${expected_receipt_count}" '
+        type == "object" and .schemaVersion == $receipt_schema and
+        (.files | type == "array" and length == $receipt_count)
+      ' "${path}/.generation.json" >/dev/null 2>&1 || return 2
+    inspected=$((inspected + 1))
+  done
+  if (( inspected == 0 )); then
+    # Paired Stage 2 records remain distinguishable by their exact legacy
+    # six-field shape; Stage 3 records carry the exact appended schema/count
+    # discriminator. A lone Stage 1 record has no independent discriminator
+    # and remains fail-closed when its tree is absent.
+    [[ "${allow_retracted}" == "Y" ]] || return 2
+  fi
+}
+
+dispatcher_cntools_legacy_bundle_rollback_preflight() {
+  local root="${1:-}"
+  local record="${root}/cntools-legacy-bundle.tsv"
+  local data_manifest="${root}/cntools-legacy-bundle-manifest.json"
+  local durable_parent="${root}/cntools-legacy-bundle"
+  local line="" tabs="" id="" relative="" cntools_existed=""
+  local libs_existed="" legacy_existed="" target_existed=""
+  local data_manifest_sha="" extra="" actual_manifest_sha=""
+  local cntools="${NODE_HOME}/scripts/cntools" libs="" legacy=""
+  local target="" staged="" path="" target_present="N" staged_present="N"
+  local inventory_count=0
+
+  libs="${cntools}/libs"
+  legacy="${libs}/legacy"
+  dispatcher_transaction_control_file_valid "${record}" 0600 N || return 2
+  dispatcher_transaction_control_file_valid "${data_manifest}" 0400 N || return 2
+  IFS= read -r line < "${record}" || return 2
+  tabs="${line//[^$'\t']/}"
+  [[ "${#tabs}" -eq 6 ]] || return 2
+  IFS=$'\t' read -r id relative cntools_existed libs_existed \
+    legacy_existed target_existed data_manifest_sha extra <<< "${line}"
+  [[ -z "${extra}" && "${id}" =~ ^[0-9a-f]{64}$ &&
+     "${relative}" == "scripts/cntools/libs/legacy/${id}" &&
+     "${data_manifest_sha}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  case "${cntools_existed}:${libs_existed}:${legacy_existed}:${target_existed}" in
+    Y:Y:Y:Y|Y:Y:Y:N|Y:Y:N:N|Y:N:N:N|N:N:N:N) ;;
+    *) return 2 ;;
+  esac
+  actual_manifest_sha="$(dispatcher_sha256 "${data_manifest}")" || return 2
+  [[ "${actual_manifest_sha}" == "${data_manifest_sha}" &&
+     "$(jq -er '.legacyBundle.id' "${data_manifest}")" == "${id}" ]] ||
+    return 2
+  dispatcher_cntools_legacy_bundle_data_manifest_valid "${data_manifest}" ||
+    return 2
+  target="${NODE_HOME}/${relative}"
+  staged="${durable_parent}/${id}"
+  for path in "${cntools}" "${libs}" "${legacy}" "${target}" \
+    "${durable_parent}" "${staged}"; do
+    dispatcher_cntools_absolute_path_has_no_symlinks "${path}" || return 2
+  done
+  [[ -d "${durable_parent}" && ! -L "${durable_parent}" &&
+     -O "${durable_parent}" &&
+     "$(dispatcher_path_mode "${durable_parent}")" == "0700" ]] || return 2
+  if [[ -e "${target}" || -L "${target}" ]]; then
+    [[ -d "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+    target_present="Y"
+  fi
+  if [[ -e "${staged}" || -L "${staged}" ]]; then
+    [[ -d "${staged}" && ! -L "${staged}" && -O "${staged}" ]] || return 2
+    staged_present="Y"
+  fi
+  case "${target_existed}:${target_present}:${staged_present}" in
+    Y:Y:Y|Y:Y:N|N:Y:N|N:N:Y|N:N:N) ;;
+    *) return 2 ;;
+  esac
+  for path in "${target}" "${staged}"; do
+    [[ -e "${path}" || -L "${path}" ]] || continue
+    dispatcher_cntools_legacy_bundle_validate_tree \
+      "${path}" "${data_manifest}" durable rollback-transient || return 2
+  done
+  while IFS= read -r path; do
+    [[ -n "${path}" ]] || continue
+    inventory_count=$((inventory_count + 1))
+    [[ "${path}" == "${staged}" ]] || return 2
+  done < <(find "${durable_parent}" -mindepth 1 -maxdepth 1 -print)
+  case "${staged_present}:${inventory_count}" in
+    Y:1|N:0) ;;
+    *) return 2 ;;
+  esac
+  dispatcher_cntools_legacy_bundle_matches_transaction_generation \
+    "${root}" "${data_manifest}" || return 2
+
+  for path in "${cntools}" "${libs}" "${legacy}"; do
+    case "${path}" in
+      "${cntools}") extra="${cntools_existed}" ;;
+      "${libs}") extra="${libs_existed}" ;;
+      "${legacy}") extra="${legacy_existed}" ;;
+    esac
+    case "${extra}" in
+      Y) dispatcher_cntools_legacy_bundle_parent_safe "${path}" || return 2 ;;
+      N)
+        if [[ -e "${path}" || -L "${path}" ]]; then
+          [[ -d "${path}" && ! -L "${path}" && -O "${path}" &&
+             "$(dispatcher_path_mode "${path}")" == "0700" ]] || return 2
+        fi
+        ;;
+      *) return 2 ;;
+    esac
+  done
+}
+
+dispatcher_transaction_special_rollback_preflight() {
+  local root="${1:-}" generation_present="N" bundle_present="N"
+  local auxiliary="" generation_shape="" manifest_schema=""
+  local manifest_count="" receipt_schema="" receipt_count=""
+
+  [[ ! -e "${root}/cntools-generation.tsv" &&
+     ! -L "${root}/cntools-generation.tsv" ]] || generation_present="Y"
+  [[ ! -e "${root}/cntools-legacy-bundle.tsv" &&
+     ! -L "${root}/cntools-legacy-bundle.tsv" ]] || bundle_present="Y"
+  case "${generation_present}:${bundle_present}" in
+    Y:Y)
+      dispatcher_cntools_generation_record_parse \
+        "${root}/cntools-generation.tsv" || return 2
+      generation_shape="${DISPATCHER_CNTOOLS_RECORD_SHAPE}"
+      case "${generation_shape}" in
+        legacy)
+          manifest_schema=2
+          manifest_count=29
+          receipt_schema=2
+          receipt_count=30
+          ;;
+        stage3)
+          manifest_schema=3
+          manifest_count=151
+          receipt_schema=3
+          receipt_count=152
+          ;;
+        *) return 2 ;;
+      esac
+      # Never trust a caller/imported function with this public name. Source
+      # the lifecycle unconditionally from the authenticated Guild snapshot
+      # before it is allowed to inspect transaction-controlled paths.
+      dispatcher_cntools_source_snapshot_lifecycle || return 2
+      dispatcher_cntools_generation_rollback_preflight "${root}" || return 2
+      dispatcher_cntools_generation_rollback_schema_pair \
+        "${root}" "${manifest_schema}" "${manifest_count}" \
+        "${receipt_schema}" "${receipt_count}" Y || return 2
+      dispatcher_cntools_legacy_bundle_rollback_preflight "${root}" || return 2
+      printf 'modular\n'
+      ;;
+    Y:N)
+      # Stage 1 transactions predate the content-addressed legacy bundle but
+      # already contain the generic 19/20-file generation contract. The Stage
+      # 2 lifecycle is intentionally able to validate and roll back that
+      # exact generation-only durable shape without executing candidate code.
+      for auxiliary in cntools-legacy-bundle \
+        cntools-legacy-bundle-manifest.json; do
+        [[ ! -e "${root}/${auxiliary}" && ! -L "${root}/${auxiliary}" ]] ||
+          return 2
+      done
+      dispatcher_cntools_generation_record_parse \
+        "${root}/cntools-generation.tsv" || return 2
+      [[ "${DISPATCHER_CNTOOLS_RECORD_SHAPE}" == "legacy" ]] || return 2
+      dispatcher_cntools_source_snapshot_lifecycle || return 2
+      dispatcher_cntools_generation_rollback_preflight "${root}" || return 2
+      dispatcher_cntools_generation_rollback_schema_pair \
+        "${root}" 1 19 1 20 || return 2
+      printf 'generation-only\n'
+      ;;
+    N:N)
+      for auxiliary in cntools-generation cntools-generation-validator.sh \
+        cntools-legacy-bundle cntools-legacy-bundle-manifest.json; do
+        [[ ! -e "${root}/${auxiliary}" && ! -L "${root}/${auxiliary}" ]] ||
+          return 2
+      done
+      printf 'plain\n'
+      ;;
+    *) return 2 ;;
+  esac
+}
+
+dispatcher_transaction_rollback_control_preflight() {
+  local root="${1:-}"
+  local baseline="${root}/baseline.tsv"
+  local activation="${root}/activation.tsv"
+  local targets_file="${root}/targets.tsv"
+  local journal_record="" journal_state="" transaction_id=""
+  local line="" tabs="" relative_path="" existed_state="" mode=""
+  local backup_name="" extra="" target="" backup="" actual_mode=""
+  local normalized_mode="" commit_tmp="" commit_name="" commit_parent=""
+  local expected_parent="" facade_count=0 baseline_count=0 target_count=0
+  local activation_count=0 backup_count=0 inventory_backup_count=0
+  local transaction_shape="" transaction_pid="" inventory_backup_name=""
+  local inventory_backup_index=""
+  local first_baseline_path=""
+  local -A baseline_paths=() target_paths=() activation_paths=()
+
+  [[ "${root}" == "${NODE_HOME}/.guild-deploy-transaction" &&
+     -d "${root}" && ! -L "${root}" && -O "${root}" &&
+     "$(dispatcher_path_mode "${root}")" == "0700" ]] || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${root}" || return 2
+  journal_record="$(dispatcher_transaction_journal_record "${root}")" ||
+    return 2
+  IFS=$'\t' read -r journal_state transaction_id extra <<< "${journal_record}"
+  [[ -z "${extra}" &&
+     ( "${journal_state}" == "prepared" ||
+       "${journal_state}" == "activated" ) ]] || return 2
+  dispatcher_transaction_control_file_valid "${baseline}" 0600 N || return 2
+  dispatcher_transaction_control_file_valid "${activation}" 0600 Y || return 2
+  dispatcher_transaction_control_file_valid "${targets_file}" 0600 N || return 2
+  transaction_shape="$(dispatcher_transaction_special_rollback_preflight \
+    "${root}")" || return 2
+  transaction_pid="${transaction_id#*.}"
+  transaction_pid="${transaction_pid%%.*}"
+  [[ "${transaction_pid}" =~ ^[0-9]{1,20}$ ]] || return 2
+
+  while IFS= read -r line; do
+    tabs="${line//[^$'\t']/}"
+    [[ "${#tabs}" -eq 3 ]] || return 2
+    IFS=$'\t' read -r relative_path existed_state mode backup_name extra \
+      <<< "${line}"
+    [[ -z "${extra}" ]] || return 2
+    dispatcher_transaction_relative_path_valid "${relative_path}" || return 2
+    [[ -z "${baseline_paths[${relative_path}]+set}" ]] || return 2
+    baseline_paths["${relative_path}"]=1
+    [[ -n "${first_baseline_path}" ]] || first_baseline_path="${relative_path}"
+    target="${NODE_HOME}/${relative_path}"
+    dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
+    case "${existed_state}" in
+      Y)
+        [[ "${mode}" =~ ^[0-7]{3,4}$ ]] || return 2
+        backup_count=$((backup_count + 1))
+        [[ "${backup_name}" == "backup.${backup_count}" ]] || return 2
+        backup="${root}/${backup_name}"
+        [[ -f "${backup}" && ! -L "${backup}" && -O "${backup}" ]] ||
+          return 2
+        dispatcher_cntools_absolute_path_has_no_symlinks "${backup}" || return 2
+        actual_mode="$(dispatcher_file_mode "${backup}")" || return 2
+        normalized_mode="${mode}"
+        [[ "${#normalized_mode}" -eq 4 ]] || normalized_mode="0${normalized_mode}"
+        [[ "${actual_mode}" == "${normalized_mode}" ]] || return 2
+        dispatcher_transaction_target_parent_safe "${target}" || return 2
+        ;;
+      N)
+        [[ "${mode}" == "-" && "${backup_name}" == "-" ]] || return 2
+        ;;
+      *) return 2 ;;
+    esac
+    if [[ -e "${target}" || -L "${target}" ]]; then
+      [[ -f "${target}" && ! -L "${target}" && -O "${target}" ]] ||
+        return 2
+    fi
+    [[ "${relative_path}" == "scripts/cntools.library" ]] &&
+      facade_count=$((facade_count + 1))
+    baseline_count=$((baseline_count + 1))
+  done < "${baseline}"
+  (( baseline_count > 0 )) || return 2
+
+  while IFS= read -r line; do
+    [[ "${line}" != *$'\t'* ]] || return 2
+    relative_path="${line}"
+    dispatcher_transaction_relative_path_valid "${relative_path}" || return 2
+    [[ -z "${target_paths[${relative_path}]+set}" ]] || return 2
+    target_paths["${relative_path}"]=1
+    [[ -n "${baseline_paths[${relative_path}]+set}" ]] || return 2
+    target_count=$((target_count + 1))
+  done < "${targets_file}"
+  (( target_count == baseline_count )) || return 2
+  # Baseline is produced directly from targets.tsv; require exact order as
+  # well as set equality so a forged duplicate cannot hide behind counts.
+  cmp -s <(cut -f 1 "${baseline}") "${targets_file}" || return 2
+
+  while IFS= read -r line; do
+    tabs="${line//[^$'\t']/}"
+    [[ "${#tabs}" -eq 1 ]] || return 2
+    IFS=$'\t' read -r relative_path commit_tmp extra <<< "${line}"
+    [[ -z "${extra}" && -n "${commit_tmp}" ]] || return 2
+    dispatcher_transaction_relative_path_valid "${relative_path}" || return 2
+    [[ -n "${baseline_paths[${relative_path}]+set}" &&
+       -z "${activation_paths[${relative_path}]+set}" ]] || return 2
+    activation_paths["${relative_path}"]=1
+    target="${NODE_HOME}/${relative_path}"
+    expected_parent="$(dirname -- "${target}")" || return 2
+    commit_parent="$(dirname -- "${commit_tmp}")" || return 2
+    commit_name="$(basename -- "${commit_tmp}")" || return 2
+    [[ "${commit_tmp}" == "${expected_parent}"/* &&
+       "${commit_parent}" == "${expected_parent}" ]] || return 2
+    case "${relative_path}" in
+      .guild-source-receipt.json)
+        [[ "${commit_name}" == ".guild-deploy-receipt.${transaction_pid}" ]] ||
+          return 2
+        ;;
+      .deployment.json)
+        [[ "${commit_name}" == ".guild-deploy-metadata.${transaction_pid}" ]] ||
+          return 2
+        ;;
+      *)
+        [[ "${commit_name}" =~ ^\.guild-deploy-${transaction_id}\.[1-9][0-9]*$ ]] ||
+          return 2
+        ;;
+    esac
+    dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
+    dispatcher_cntools_absolute_path_has_no_symlinks "${commit_tmp}" || return 2
+    if [[ -e "${commit_tmp}" || -L "${commit_tmp}" ]]; then
+      [[ -f "${commit_tmp}" && ! -L "${commit_tmp}" &&
+         -O "${commit_tmp}" ]] || return 2
+    fi
+    activation_count=$((activation_count + 1))
+  done < "${activation}"
+
+  while IFS= read -r -d '' backup; do
+    [[ -n "${backup}" ]] || continue
+    inventory_backup_count=$((inventory_backup_count + 1))
+    inventory_backup_name="$(basename -- "${backup}")" || return 2
+    [[ "${inventory_backup_name}" =~ ^backup\.([1-9][0-9]*)$ ]] || return 2
+    inventory_backup_index="${inventory_backup_name#backup.}"
+    (( inventory_backup_index <= backup_count )) || return 2
+  done < <(find "${root}" -mindepth 1 -maxdepth 1 -name 'backup.*' -print0)
+  (( inventory_backup_count == backup_count )) || return 2
+  case "${transaction_shape}" in
+    modular|generation-only)
+      [[ "${NODE_IMPLEMENTATION}" == "cnode" ||
+         "${NODE_IMPLEMENTATION}" == "dingo" ]] || return 2
+      (( facade_count == 1 )) || return 2
+      ;;
+    plain)
+      if [[ "${NODE_IMPLEMENTATION}" == "amaru" ]]; then
+        (( facade_count == 0 )) || return 2
+      elif [[ "${NODE_IMPLEMENTATION}" == "cnode" ||
+              "${NODE_IMPLEMENTATION}" == "dingo" ]]; then
+        # Stage 0 cnode/Dingo journals have no special controls and use the
+        # legacy ordinary ordering. Stage 2 starts with the facade, so deleting
+        # both special records from a current journal cannot masquerade as A.
+        (( facade_count == 1 )) || return 2
+        [[ "${first_baseline_path}" == "scripts/guild-deploy.sh" ]] || return 2
+      else
+        return 2
+      fi
+      ;;
+    *) return 2 ;;
+  esac
+}
+
+dispatcher_transaction_committed_preflight() {
+  local root="${1:-}" journal_record="" state="" transaction_id="" extra=""
+  local receipt_candidate="${root}/receipt.candidate.json"
+  local metadata_candidate="${root}/deployment.candidate.json"
+  local receipt_target="${NODE_HOME}/.guild-source-receipt.json"
+  local metadata_target="${NODE_HOME}/.deployment.json"
+  local receipt_sha="" metadata_receipt_sha="" metadata_transaction_id=""
+  local relative_path="" mode="" installed_sha="" managed="" target=""
+  local actual_mode="" actual_sha=""
+  local receipt_schema="" receipt_implementation="" generation_id=""
+  local generation_path="" generation="" generation_manifest_sha=""
+  local generation_receipt_sha=""
+
+  [[ "${root}" == "${NODE_HOME}/.guild-deploy-transaction" &&
+     -d "${root}" && ! -L "${root}" && -O "${root}" &&
+     "$(dispatcher_path_mode "${root}")" == "0700" ]] || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${root}" || return 2
+  journal_record="$(dispatcher_transaction_journal_record "${root}")" ||
+    return 2
+  IFS=$'\t' read -r state transaction_id extra <<< "${journal_record}"
+  [[ "${state}" == "committed" && -z "${extra}" ]] || return 2
+  dispatcher_transaction_control_file_valid \
+    "${receipt_candidate}" 0644 N || return 2
+  dispatcher_transaction_control_file_valid \
+    "${metadata_candidate}" 0644 N || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${receipt_target}" || return 2
+  dispatcher_cntools_absolute_path_has_no_symlinks "${metadata_target}" || return 2
+  [[ -f "${receipt_target}" && ! -L "${receipt_target}" &&
+     -O "${receipt_target}" &&
+     "$(dispatcher_file_mode "${receipt_target}")" == "0644" &&
+     -f "${metadata_target}" && ! -L "${metadata_target}" &&
+     -O "${metadata_target}" &&
+     "$(dispatcher_file_mode "${metadata_target}")" == "0644" ]] || return 2
+  cmp -s "${receipt_candidate}" "${receipt_target}" || return 2
+  cmp -s "${metadata_candidate}" "${metadata_target}" || return 2
+  ( dispatcher_distribution_validate_prior_receipt ) || return 2
+  jq -e '
+    type == "object" and
+    (
+      if .schemaVersion == 1 then
+        keys == ["files", "implementation", "network", "schemaVersion",
+          "source"] and (has("cntoolsGeneration") | not)
+      elif .schemaVersion == 2 then
+        (keys == ["cntoolsGeneration", "files", "implementation", "network",
+          "schemaVersion", "source"] or
+         keys == ["files", "implementation", "network", "schemaVersion",
+          "source"])
+      else false end
+    ) and
+    (.implementation == "cnode" or .implementation == "dingo" or
+      .implementation == "amaru") and
+    (.network | type == "string" and length > 0) and
+    (.source | type == "object") and
+    (
+      (.source.dirty == false and
+        (.source | keys == ["channel", "dirty", "mode", "ref", "repository",
+          "revision"])) or
+      (.source.dirty == true and
+        (.source | keys == ["channel", "dirty", "mode", "ref", "repository",
+          "revision", "treeDigest"]) and
+        (.source.treeDigest | type == "string" and test("^[0-9a-f]{64}$")))
+    ) and
+    (.source.repository | type == "string" and length > 0) and
+    (.source.channel | type == "string" and length > 0) and
+    (.source.ref | type == "string" and test("^refs/(heads|tags)/")) and
+    (.source.revision | type == "string" and test("^[0-9a-f]{40,64}$")) and
+    (.source.mode == "managed" or .source.mode == "cached" or
+      .source.mode == "local") and
+    (.files | type == "array" and length > 0) and
+    (all(.files[];
+      type == "object" and
+      keys == ["installedSha256", "managed", "mode", "path", "policy",
+        "source", "sourceSha256"] and
+      (.path | type == "string" and
+        test("^(scripts|files)/[A-Za-z0-9._/+@:-]+$")) and
+      (.source | type == "string" and length > 0) and
+      (.mode | type == "string" and test("^0[0-7]{3}$")) and
+      (.policy | type == "string" and length > 0) and
+      (.sourceSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      (.installedSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      (.managed | type == "boolean"))) and
+    (([.files[].path] | length) == ([.files[].path] | unique | length)) and
+    (
+      if .schemaVersion == 1 then
+        (if .implementation == "cnode" then (.files | length == 38)
+         elif .implementation == "dingo" then (.files | length == 15)
+         else (.files | length == 12) end)
+      elif (.implementation == "cnode" or .implementation == "dingo") then
+        (. as $receipt | .cntoolsGeneration as $generation |
+          ($generation |
+            type == "object" and
+            keys == ["active", "fileCount", "generationReceipt",
+              "generationReceiptSha256", "id", "path", "payloadManifest",
+              "payloadManifestSha256", "schemaVersion", "version"] and
+            .schemaVersion == 1 and .active == false and
+            (.fileCount == 20 or .fileCount == 30 or
+              .fileCount == 152) and
+            (.id | type == "string" and test("^[0-9a-f]{64}$")) and
+            .path == ("scripts/.cntools/generations/" + .id) and
+            .payloadManifest == (.path + "/cntools/manifest.json") and
+            .generationReceipt == (.path + "/.generation.json") and
+            (.payloadManifestSha256 | type == "string" and
+              test("^[0-9a-f]{64}$")) and
+            (.generationReceiptSha256 | type == "string" and
+              test("^[0-9a-f]{64}$"))) and
+          (if $receipt.implementation == "cnode" then
+             ($receipt.files | length == (if $generation.fileCount == 20
+               then 38 else 48 end))
+           else
+             ($receipt.files | length == (if $generation.fileCount == 20
+               then 15 else 25 end))
+           end))
+      else
+        (has("cntoolsGeneration") | not) and (.files | length == 12)
+      end
+    )
+  ' "${receipt_candidate}" >/dev/null 2>&1 || return 2
+  while IFS=$'\t' read -r relative_path mode installed_sha managed; do
+    dispatcher_distribution_relative_path_valid "${relative_path}" || return 2
+    [[ "${mode}" =~ ^0[0-7]{3}$ &&
+       "${installed_sha}" =~ ^[0-9a-f]{64}$ &&
+       ( "${managed}" == "true" || "${managed}" == "false" ) ]] || return 2
+    target="${NODE_HOME}/${relative_path}"
+    dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
+    dispatcher_transaction_target_parent_safe "${target}" || return 2
+    [[ -f "${target}" && ! -L "${target}" && -O "${target}" ]] || return 2
+    actual_mode="$(dispatcher_file_mode "${target}")" || return 2
+    actual_sha="$(dispatcher_sha256 "${target}")" || return 2
+    [[ "${actual_mode}" == "${mode}" &&
+       "${actual_sha}" == "${installed_sha}" ]] || return 2
+  done < <(jq -er '.files[] |
+    [.path,.mode,.installedSha256,(.managed|tostring)] | @tsv' \
+    "${receipt_candidate}")
+  receipt_schema="$(jq -er '.schemaVersion' "${receipt_candidate}")" || return 2
+  receipt_implementation="$(jq -er '.implementation' \
+    "${receipt_candidate}")" || return 2
+  if [[ "${receipt_schema}" == "2" &&
+        ( "${receipt_implementation}" == "cnode" ||
+          "${receipt_implementation}" == "dingo" ) ]]; then
+    generation_id="$(jq -er '.cntoolsGeneration.id' \
+      "${receipt_candidate}")" || return 2
+    generation_path="$(jq -er '.cntoolsGeneration.path' \
+      "${receipt_candidate}")" || return 2
+    [[ "${generation_id}" =~ ^[0-9a-f]{64}$ &&
+       "${generation_path}" == \
+         "scripts/.cntools/generations/${generation_id}" ]] || return 2
+    generation="${NODE_HOME}/${generation_path}"
+    dispatcher_cntools_absolute_path_has_no_symlinks "${generation}" || return 2
+    [[ -d "${generation}" && ! -L "${generation}" &&
+       -O "${generation}" ]] || return 2
+    dispatcher_cntools_source_snapshot_lifecycle || return 2
+    cntools_generation_validate "${generation}" "${generation_id}" || return 2
+    generation_manifest_sha="$(dispatcher_sha256 \
+      "${generation}/cntools/manifest.json")" || return 2
+    generation_receipt_sha="$(dispatcher_sha256 \
+      "${generation}/.generation.json")" || return 2
+    [[ "${generation_manifest_sha}" == "$(jq -er \
+         '.cntoolsGeneration.payloadManifestSha256' \
+         "${receipt_candidate}")" &&
+       "${generation_receipt_sha}" == "$(jq -er \
+         '.cntoolsGeneration.generationReceiptSha256' \
+         "${receipt_candidate}")" ]] || return 2
+    jq -e -s '
+      .[0].cntoolsGeneration as $outer |
+      $outer.version == .[1].version and $outer.version == .[2].version and
+      (if $outer.fileCount == 20 then
+         .[1].schemaVersion == 1 and (.[1].files | length == 19) and
+         .[2].schemaVersion == 1 and (.[2].files | length == 20)
+       elif $outer.fileCount == 30 then
+         .[1].schemaVersion == 2 and (.[1].files | length == 29) and
+         .[2].schemaVersion == 2 and (.[2].files | length == 30)
+       elif $outer.fileCount == 152 then
+         .[1].schemaVersion == 3 and (.[1].files | length == 151) and
+         .[2].schemaVersion == 3 and (.[2].files | length == 152)
+       else false end)
+    ' "${receipt_candidate}" "${generation}/cntools/manifest.json" \
+      "${generation}/.generation.json" >/dev/null 2>&1 || return 2
+  fi
+  jq -e '
+    type == "object" and
+    ((keys - ["sourceTreeDigest"]) == ["branch", "capabilities",
+      "deploymentStatus", "implementation", "metricsProvider", "network",
+      "nodePort", "nodeVersion", "payloadReceipt", "payloadReceiptSha256",
+      "repository", "schemaVersion", "serviceName", "sourceDirty",
+      "sourceMode", "sourceRef", "sourceRevision", "sourceSchemaVersion",
+      "targetNodeVersion", "transactionId"]) and
+    .schemaVersion == 1 and
+    .deploymentStatus == "deployed" and
+    (.implementation == "cnode" or .implementation == "dingo" or
+      .implementation == "amaru") and
+    (.network | type == "string" and length > 0) and
+    (.branch | type == "string" and length > 0) and
+    (.repository | type == "string" and
+      test("^[A-Za-z0-9_.-]+/guild-operators$")) and
+    (.serviceName | type == "string" and length > 0) and
+    (.nodePort | type == "number" and . >= 1 and . <= 65535 and . == floor) and
+    (.nodeVersion | type == "string") and
+    (.targetNodeVersion | type == "string") and
+    (.metricsProvider | type == "string" and length > 0) and
+    (.capabilities | type == "object" and
+      keys == ["forging", "localCli", "metrics", "n2c"]) and
+    (all(.capabilities[]; type == "boolean")) and
+    (.sourceSchemaVersion == 1 or .sourceSchemaVersion == 2) and
+    (.sourceMode == "managed" or .sourceMode == "cached" or
+      .sourceMode == "local") and
+    (.sourceRef | type == "string" and test("^refs/(heads|tags)/")) and
+    (.sourceRevision | type == "string" and test("^[0-9a-f]{40,64}$")) and
+    (.sourceDirty | type == "boolean") and
+    ((.sourceDirty == false and (has("sourceTreeDigest") | not)) or
+     (.sourceDirty == true and .sourceMode == "local" and
+       (.sourceTreeDigest | type == "string" and test("^[0-9a-f]{64}$")))) and
+    .payloadReceipt == ".guild-source-receipt.json" and
+    (.payloadReceiptSha256 | type == "string" and
+      test("^[0-9a-f]{64}$")) and
+    (.transactionId | type == "string" and test("^[0-9a-f]{24}$"))
+  ' "${metadata_candidate}" >/dev/null 2>&1 || return 2
+  receipt_sha="$(dispatcher_sha256 "${receipt_candidate}")" || return 2
+  metadata_receipt_sha="$(jq -er '.payloadReceiptSha256' \
+    "${metadata_candidate}")" || return 2
+  metadata_transaction_id="$(jq -er '.transactionId' \
+    "${metadata_candidate}")" || return 2
+  [[ "${receipt_sha}" == "${metadata_receipt_sha}" &&
+     "${transaction_id}" == "${metadata_transaction_id}" &&
+     "${transaction_id}" == "${receipt_sha:0:24}" ]] || return 2
+  jq -e -s '
+    .[0] as $receipt | .[1] as $metadata |
+    ($receipt | type == "object" and
+      (.schemaVersion == 1 or .schemaVersion == 2)) and
+    ($metadata.implementation == $receipt.implementation) and
+    ($metadata.network == $receipt.network) and
+    ($metadata.repository == $receipt.source.repository) and
+    ($metadata.branch == $receipt.source.channel) and
+    ($metadata.sourceSchemaVersion == $receipt.schemaVersion) and
+    ($metadata.sourceMode == $receipt.source.mode) and
+    ($metadata.sourceRef == $receipt.source.ref) and
+    ($metadata.sourceRevision == $receipt.source.revision) and
+    ($metadata.sourceDirty == $receipt.source.dirty) and
+    (if $receipt.source.dirty then
+       $metadata.sourceTreeDigest == $receipt.source.treeDigest
+     else
+       ($metadata | has("sourceTreeDigest") | not) and
+       ($receipt.source | has("treeDigest") | not)
+     end)
+  ' "${receipt_candidate}" "${metadata_candidate}" >/dev/null 2>&1 || return 2
 }
 
 dispatcher_transaction_rollback_root() {
@@ -3558,33 +6016,66 @@ dispatcher_transaction_rollback_root() {
   local rollback_relative_path="" existed_state="" backup_name="" target=""
   local backup="" restore_tmp="" commit_tmp="" mode=""
   local rollback_ok="Y"
+  local facade_found="N" facade_existed_state="" facade_mode=""
+  local facade_backup_name=""
 
   [[ -d "${root}" && ! -L "${root}" && -O "${root}" &&
      -f "${baseline}" && ! -L "${baseline}" && -O "${baseline}" ]] ||
     return 2
+  # This shared gate is deliberately repeated by recovery and in-process
+  # rollback. It is read-only and authenticates every durable control and
+  # special-tree leg before the first chmod, move, remove, or baseline restore.
+  dispatcher_transaction_rollback_control_preflight "${root}" || return 2
+  # Authenticate the durable bundle contract before any other rollback leg
+  # can mutate generation or ordinary payload state. A forged or malformed
+  # bundle journal must leave the complete transaction untouched for manual
+  # inspection or a trusted retry.
+  dispatcher_cntools_legacy_bundle_rollback_root "${root}" || return $?
+  dispatcher_cntools_generation_rollback_root "${root}" || rollback_ok="N"
   if [[ -f "${activation}" && ! -L "${activation}" ]]; then
     while IFS=$'\t' read -r rollback_relative_path commit_tmp; do
       dispatcher_transaction_relative_path_valid "${rollback_relative_path}" || return 2
       [[ "${commit_tmp}" == "${NODE_HOME}"/* &&
          "$(basename -- "${commit_tmp}")" == .guild-deploy-* ]] || return 2
+      dispatcher_cntools_absolute_path_has_no_symlinks \
+        "${NODE_HOME}/${rollback_relative_path}" || return 2
+      dispatcher_cntools_absolute_path_has_no_symlinks "${commit_tmp}" || return 2
       rm -f -- "${commit_tmp}" 2>/dev/null || rollback_ok="N"
     done < "${activation}"
   fi
 
   while IFS=$'\t' read -r rollback_relative_path existed_state mode backup_name; do
     dispatcher_transaction_relative_path_valid "${rollback_relative_path}" || return 2
+    if [[ "${rollback_relative_path}" == "scripts/cntools.library" ]]; then
+      [[ "${facade_found}" == "N" ]] || return 2
+      facade_found="Y"
+      facade_existed_state="${existed_state}"
+      facade_mode="${mode}"
+      facade_backup_name="${backup_name}"
+      continue
+    fi
     target="${NODE_HOME}/${rollback_relative_path}"
+    dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
     case "${existed_state}" in
       Y)
         [[ "${backup_name}" =~ ^backup\.[0-9]+$ ]] || return 2
         backup="${root}/${backup_name}"
         [[ -f "${backup}" && ! -L "${backup}" && -O "${backup}" ]] ||
           return 2
-        mkdir -p -- "$(dirname -- "${target}")" || {
+        dispatcher_transaction_target_parent_safe "${target}" || {
           rollback_ok="N"
           continue
         }
-        restore_tmp="$(dirname -- "${target}")/.guild-deploy-restore.$$.$RANDOM"
+        restore_tmp="$(mktemp \
+          "$(dirname -- "${target}")/.guild-deploy-restore.XXXXXX")" || {
+          rollback_ok="N"
+          continue
+        }
+        dispatcher_transaction_target_parent_safe "${target}" || return 2
+        dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
+        dispatcher_cntools_absolute_path_has_no_symlinks "${restore_tmp}" || return 2
+        [[ -f "${restore_tmp}" && ! -L "${restore_tmp}" &&
+           -O "${restore_tmp}" ]] || return 2
         if ! cp -p -- "${backup}" "${restore_tmp}" ||
            ! chmod "${mode}" "${restore_tmp}" ||
            ! mv -f -- "${restore_tmp}" "${target}"; then
@@ -3598,32 +6089,103 @@ dispatcher_transaction_rollback_root() {
       *) return 2 ;;
     esac
   done < "${baseline}"
+
+  case "${NODE_IMPLEMENTATION}" in
+    cnode|dingo) [[ "${facade_found}" == "Y" ]] || return 2 ;;
+    amaru) [[ "${facade_found}" == "N" ]] || return 2 ;;
+    *) return 2 ;;
+  esac
+
+  # Keep the journal-aware facade installed until every other baseline member
+  # has been restored. If any earlier leg fails, leave both facade and journal
+  # in place so concurrent CNTools readers continue to fail closed. The
+  # deferred record is idempotent when recovery retries this journal.
+  if [[ "${rollback_ok}" == "Y" && "${facade_found}" == "Y" ]]; then
+    rollback_relative_path="scripts/cntools.library"
+    target="${NODE_HOME}/${rollback_relative_path}"
+    dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
+    case "${facade_existed_state}" in
+      Y)
+        [[ "${facade_backup_name}" =~ ^backup\.[0-9]+$ ]] || return 2
+        backup="${root}/${facade_backup_name}"
+        [[ -f "${backup}" && ! -L "${backup}" && -O "${backup}" ]] ||
+          return 2
+        dispatcher_transaction_target_parent_safe "${target}" || rollback_ok="N"
+        if [[ "${rollback_ok}" == "Y" ]]; then
+          restore_tmp="$(mktemp \
+            "$(dirname -- "${target}")/.guild-deploy-restore.XXXXXX")" ||
+            rollback_ok="N"
+        fi
+        if [[ "${rollback_ok}" == "Y" ]]; then
+          dispatcher_transaction_target_parent_safe "${target}" || return 2
+          dispatcher_cntools_absolute_path_has_no_symlinks "${target}" || return 2
+          dispatcher_cntools_absolute_path_has_no_symlinks "${restore_tmp}" || return 2
+          [[ -f "${restore_tmp}" && ! -L "${restore_tmp}" &&
+             -O "${restore_tmp}" ]] || return 2
+          if ! cp -p -- "${backup}" "${restore_tmp}" ||
+             ! chmod "${facade_mode}" "${restore_tmp}" ||
+             ! mv -f -- "${restore_tmp}" "${target}"; then
+            rm -f -- "${restore_tmp}"
+            rollback_ok="N"
+          fi
+        fi
+        ;;
+      N)
+        rm -f -- "${target}" 2>/dev/null || rollback_ok="N"
+        ;;
+      *) return 2 ;;
+    esac
+  fi
   [[ "${rollback_ok}" == "Y" ]] || return 1
   dispatcher_transaction_remove_root "${root}"
 }
 
 dispatcher_recover_interrupted_transaction() {
   local root="${NODE_HOME}/.guild-deploy-transaction"
-  local prepare=""
+  local prepare="" cleanup_root="" journal_record="" journal_state=""
+  local transaction_id="" extra=""
+
+  while IFS= read -r cleanup_root; do
+    [[ -n "${cleanup_root}" ]] || continue
+    dispatcher_transaction_remove_root "${cleanup_root}" ||
+      err_exit "Could not remove completed transaction quarantine at ${cleanup_root}."
+  done < <(find "${NODE_HOME}" -mindepth 1 -maxdepth 1 \
+    -name '.guild-deploy-transaction.cleanup.*' -print 2>/dev/null)
 
   while IFS= read -r prepare; do
     [[ -n "${prepare}" ]] || continue
     dispatcher_transaction_remove_root "${prepare}" ||
       err_exit "Could not remove an incomplete pre-activation transaction at ${prepare}."
-  done < <(find "${NODE_HOME}" -mindepth 1 -maxdepth 1 -type d \
+  done < <(find "${NODE_HOME}" -mindepth 1 -maxdepth 1 \
     -name '.guild-deploy-transaction.prepare.*' -print 2>/dev/null)
   [[ -e "${root}" || -L "${root}" ]] || return 0
   [[ -d "${root}" && ! -L "${root}" && -O "${root}" ]] ||
     err_exit "Unsafe interrupted deployment transaction at ${root}."
-  if [[ -f "${root}/journal" && ! -L "${root}/journal" ]] &&
-     grep -Fqx 'state=committed' "${root}/journal"; then
+  journal_record="$(dispatcher_transaction_journal_record "${root}")" ||
+    err_exit "Unsafe interrupted deployment transaction journal at ${root}."
+  IFS=$'\t' read -r journal_state transaction_id extra <<< "${journal_record}"
+  [[ -z "${extra}" ]] ||
+    err_exit "Unsafe interrupted deployment transaction journal at ${root}."
+  if [[ "${journal_state}" == "committed" ]]; then
+    dispatcher_transaction_committed_preflight "${root}" ||
+      err_exit "Committed deployment transaction at ${root} failed authentication."
     dispatcher_transaction_remove_root "${root}" ||
       err_exit "Could not remove the completed transaction journal at ${root}."
+    dispatcher_refresh_handoff_fingerprint_after_recovery ||
+      err_exit "Could not refresh target identity after committed transaction recovery."
     return 0
   fi
+  dispatcher_transaction_rollback_control_preflight "${root}" ||
+    err_exit "Interrupted deployment transaction at ${root} failed recovery preflight."
+  dispatcher_cntools_generation_recovery_lock_acquire "${root}" ||
+    err_exit "Could not reclaim the interrupted CNTools generation transaction lock."
   log_warn "Recovering an interrupted Guild payload transaction before continuing."
   dispatcher_transaction_rollback_root "${root}" ||
     err_exit "Automatic rollback of ${root} failed; manual recovery is required."
+  dispatcher_cntools_generation_lock_release ||
+    err_exit "Could not release the recovered CNTools generation transaction lock."
+  dispatcher_refresh_handoff_fingerprint_after_recovery ||
+    err_exit "Could not refresh target identity after interrupted transaction recovery."
   log_ok "Interrupted Guild payload transaction recovered" "${NODE_HOME}"
 }
 
@@ -3641,7 +6203,8 @@ dispatcher_distribution_old_managed_paths() {
   actual_hash="$(dispatcher_sha256 "${receipt}")" || return 2
   [[ "${actual_hash}" == "${expected_hash}" ]] || return 2
   jq -er '
-    select(type == "object" and .schemaVersion == 1 and
+    select(type == "object" and
+      (.schemaVersion == 1 or .schemaVersion == 2) and
       (.files | type == "array")) |
     .files[] |
     select(.managed == true) |
@@ -3774,6 +6337,7 @@ dispatcher_distribution_activate() {
   while IFS=$'\t' read -r old_path old_hash; do
     [[ -n "${old_path}" ]] || continue
     dispatcher_distribution_relative_path_valid "${old_path}" || return 2
+    dispatcher_cntools_legacy_bundle_managed_path "${old_path}" && continue
     if [[ "${seen}" != *"|${old_path}|"* ]]; then
       printf '%s\n' "${old_path}" >> "${targets_file}" || return 2
       seen="${seen}${old_path}|"
@@ -3802,6 +6366,14 @@ dispatcher_distribution_activate() {
     fi
   done < "${targets_file}"
 
+  case "${NODE_IMPLEMENTATION}" in
+    cnode|dingo)
+      dispatcher_cntools_generation_prepare_durable "${prepare_root}" || return 2
+      dispatcher_cntools_legacy_bundle_prepare_durable "${prepare_root}" ||
+        return 2
+      ;;
+  esac
+
   dispatcher_test_failpoint before-durable-journal || return $?
   printf 'schemaVersion=1\ntransactionId=%s\nstate=prepared\n' "${txid}" \
     > "${prepare_root}/journal" || return 2
@@ -3816,6 +6388,15 @@ dispatcher_distribution_activate() {
   DISPATCHER_TX_DURABLE_ROOT="${durable_root}"
   DISPATCHER_TX_ACTIVE="Y"
   dispatcher_test_failpoint after-durable-journal || return $?
+
+  case "${NODE_IMPLEMENTATION}" in
+    cnode|dingo)
+      dispatcher_cntools_generation_publish "${durable_root}" || return 2
+      dispatcher_test_failpoint after-cntools-generation-publish || return $?
+      dispatcher_cntools_legacy_bundle_publish "${durable_root}" || return 2
+      dispatcher_test_failpoint after-cntools-legacy-bundle-publish || return $?
+      ;;
+  esac
 
   index=0
   while IFS=$'\t' read -r source_path target_path mode policy effective_policy validator source_hash; do
@@ -3864,6 +6445,7 @@ dispatcher_distribution_activate() {
 
   while IFS=$'\t' read -r old_path old_hash; do
     [[ -n "${old_path}" ]] || continue
+    dispatcher_cntools_legacy_bundle_managed_path "${old_path}" && continue
     if ! grep -Fqx "${old_path}" "${durable_root}/current-targets"; then
       target="${NODE_HOME}/${old_path}"
       if [[ -e "${target}" || -L "${target}" ]]; then
@@ -3953,6 +6535,10 @@ dispatcher_distribution_write_receipt() {
   local effective_policy="" validator="" source_hash=""
   local installed_hash="" target="" managed="true" first="Y"
   local digest_line=""
+  local generation_path="" generation_root="" generation_manifest=""
+  local generation_receipt="" generation_receipt_hash=""
+  local bundle_manifest="" bundle_id="" bundle_path="" bundle_root=""
+  local bundle_member="" bundle_mode="" bundle_sha="" bundle_size=""
 
   [[ "${DISPATCHER_TX_ACTIVE:-N}" == "Y" &&
      "${DISPATCHER_TX_ACTIVATED:-N}" == "Y" &&
@@ -3960,9 +6546,33 @@ dispatcher_distribution_write_receipt() {
   if [[ "${_GUILD_SOURCE_DIRTY}" == "true" ]]; then
     digest_line="    \"treeDigest\": \"$(dispatcher_json_escape "${_GUILD_SOURCE_TREE_DIGEST}")\","
   fi
+  if [[ "${NODE_IMPLEMENTATION}" == "cnode" ||
+        "${NODE_IMPLEMENTATION}" == "dingo" ]]; then
+    generation_path="scripts/.cntools/generations/${DISPATCHER_CNTOOLS_GENERATION_ID:-}"
+    [[ "${DISPATCHER_CNTOOLS_GENERATION_PUBLISHED:-N}" == "Y" &&
+       "${DISPATCHER_CNTOOLS_GENERATION_INSTALLED_PATH:-}" == "${generation_path}" &&
+       "${DISPATCHER_CNTOOLS_GENERATION_ID:-}" =~ ^[0-9a-f]{64}$ ]] ||
+      return 2
+    generation_root="${NODE_HOME}/${generation_path}"
+    generation_manifest="${generation_root}/cntools/manifest.json"
+    generation_receipt="${generation_root}/.generation.json"
+    [[ "$(dispatcher_sha256 "${generation_manifest}")" == \
+       "${DISPATCHER_CNTOOLS_GENERATION_MANIFEST_SHA256}" ]] || return 2
+    generation_receipt_hash="$(dispatcher_sha256 "${generation_receipt}")" ||
+      return 2
+    bundle_manifest="${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_MANIFEST:-}"
+    bundle_id="${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_ID:-}"
+    bundle_path="scripts/cntools/libs/legacy/${bundle_id}"
+    bundle_root="${NODE_HOME}/${bundle_path}"
+    [[ "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_PUBLISHED:-N}" == "Y" &&
+       "${DISPATCHER_CNTOOLS_LEGACY_BUNDLE_INSTALLED_PATH:-}" == \
+         "${bundle_path}" ]] || return 2
+    dispatcher_cntools_legacy_bundle_validate_tree \
+      "${bundle_root}" "${bundle_manifest}" || return 2
+  fi
   {
     printf '{\n'
-    printf '  "schemaVersion": 1,\n'
+    printf '  "schemaVersion": 2,\n'
     printf '  "implementation": "%s",\n' "$(dispatcher_json_escape "${NODE_IMPLEMENTATION}")"
     printf '  "network": "%s",\n' "$(dispatcher_json_escape "${NETWORK}")"
     printf '  "source": {\n'
@@ -3978,7 +6588,48 @@ dispatcher_distribution_write_receipt() {
       printf '\n'
     fi
     printf '  },\n'
+    if [[ "${NODE_IMPLEMENTATION}" == "cnode" ||
+          "${NODE_IMPLEMENTATION}" == "dingo" ]]; then
+      printf '  "cntoolsGeneration": {\n'
+      printf '    "schemaVersion": 1,\n'
+      printf '    "id": "%s",\n' "${DISPATCHER_CNTOOLS_GENERATION_ID}"
+      printf '    "version": "%s",\n' \
+        "$(dispatcher_json_escape "${DISPATCHER_CNTOOLS_GENERATION_VERSION}")"
+      printf '    "path": "%s",\n' "${generation_path}"
+      printf '    "payloadManifest": "%s/cntools/manifest.json",\n' \
+        "${generation_path}"
+      printf '    "payloadManifestSha256": "%s",\n' \
+        "${DISPATCHER_CNTOOLS_GENERATION_MANIFEST_SHA256}"
+      printf '    "generationReceipt": "%s/.generation.json",\n' \
+        "${generation_path}"
+      printf '    "generationReceiptSha256": "%s",\n' \
+        "${generation_receipt_hash}"
+      printf '    "fileCount": %s,\n' \
+        "${DISPATCHER_CNTOOLS_GENERATION_FILE_COUNT}"
+      printf '    "active": false\n'
+      printf '  },\n'
+    fi
     printf '  "files": [\n'
+    if [[ "${NODE_IMPLEMENTATION}" == "cnode" ||
+          "${NODE_IMPLEMENTATION}" == "dingo" ]]; then
+      while IFS=$'\t' read -r bundle_member bundle_mode bundle_size bundle_sha; do
+        source_path="scripts/common-helper-scripts/cntools/libs/legacy/${bundle_id}/${bundle_member}"
+        target_path="${bundle_path}/${bundle_member}"
+        target="${NODE_HOME}/${target_path}"
+        installed_hash="$(dispatcher_sha256 "${target}")" || return 2
+        [[ "${bundle_mode}" == "0444" &&
+           "${installed_hash}" == "${bundle_sha}" ]] || return 2
+        [[ "${first}" == "Y" ]] || printf ',\n'
+        first="N"
+        printf '    {"path":"%s","source":"%s","mode":"%s",' \
+          "$(dispatcher_json_escape "${target_path}")" \
+          "$(dispatcher_json_escape "${source_path}")" "${bundle_mode}"
+        printf '"policy":"cntools-legacy-bundle","sourceSha256":"%s",' \
+          "${bundle_sha}"
+        printf '"installedSha256":"%s","managed":true}' "${installed_hash}"
+      done < <(jq -er '.legacyBundle.members[] |
+        [.path,.mode,(.size|tostring),.sha256] | @tsv' "${bundle_manifest}")
+    fi
     while IFS=$'\t' read -r source_path target_path mode policy effective_policy validator source_hash; do
       [[ "${policy}" != "retire" ]] || continue
       target="${NODE_HOME}/${target_path}"
@@ -4006,7 +6657,7 @@ dispatcher_distribution_write_receipt() {
   chmod 0644 "${output}" || return 2
   command -v jq >/dev/null 2>&1 || return 2
   jq -e '
-    type == "object" and .schemaVersion == 1 and
+    type == "object" and .schemaVersion == 2 and
     (.source.revision | test("^[0-9a-f]{40,64}$")) and
     (.files | type == "array" and length > 0) and
     (all(.files[];
@@ -4016,7 +6667,29 @@ dispatcher_distribution_write_receipt() {
       (.policy | type == "string" and length > 0) and
       (.sourceSha256 | test("^[0-9a-f]{64}$")) and
       (.installedSha256 | test("^[0-9a-f]{64}$")) and
-      (.managed | type == "boolean")))
+      (.managed | type == "boolean"))) and
+    (
+      if (.implementation == "cnode" or .implementation == "dingo") then
+        (.cntoolsGeneration | type == "object" and
+          keys == ["active", "fileCount", "generationReceipt",
+            "generationReceiptSha256", "id", "path", "payloadManifest",
+            "payloadManifestSha256", "schemaVersion", "version"] and
+          .schemaVersion == 1 and .active == false and
+          .fileCount == 152 and
+          (.id | test("^[0-9a-f]{64}$")) and
+          .path == ("scripts/.cntools/generations/" + .id) and
+          .payloadManifest == (.path + "/cntools/manifest.json") and
+          .generationReceipt == (.path + "/.generation.json") and
+          (.payloadManifestSha256 | test("^[0-9a-f]{64}$")) and
+          (.generationReceiptSha256 | test("^[0-9a-f]{64}$")))
+      else
+        (has("cntoolsGeneration") | not)
+      end
+    ) and
+    (if .implementation == "cnode" then (.files | length == 48)
+     elif .implementation == "dingo" then (.files | length == 25)
+     elif .implementation == "amaru" then (.files | length == 12)
+     else false end)
   ' "${output}" >/dev/null 2>&1
 }
 
@@ -4130,8 +6803,9 @@ dispatcher_write_manifest() {
     printf '  "implementation": "%s",\n' "$(dispatcher_json_escape "${NODE_IMPLEMENTATION}")"
     printf '  "network": "%s",\n' "$(dispatcher_json_escape "${NETWORK}")"
     printf '  "branch": "%s",\n' "$(dispatcher_json_escape "${BRANCH}")"
-    printf '  "repository": "%s/guild-operators",\n' "$(dispatcher_json_escape "${G_ACCOUNT}")"
-    printf '  "sourceSchemaVersion": 1,\n'
+    printf '  "repository": "%s",\n' \
+      "$(dispatcher_json_escape "${_GUILD_SOURCE_REPOSITORY}")"
+    printf '  "sourceSchemaVersion": 2,\n'
     printf '  "sourceMode": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_MODE}")"
     printf '  "sourceRef": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_REF}")"
     printf '  "sourceRevision": "%s",\n' "$(dispatcher_json_escape "${_GUILD_SOURCE_REVISION}")"
@@ -4175,6 +6849,26 @@ dispatcher_write_manifest() {
     "${receipt_tmp}" "${manifest_tmp}" ||
     err_exit "Could not commit payload receipt and deployment metadata; the previous target was restored."
   log_ok "Deployment metadata updated" "${DEPLOYMENT_FILE}"
+}
+
+dispatcher_cntools_generation_prune_after_commit() {
+  local generation_root=""
+
+  case "${NODE_IMPLEMENTATION}" in
+    cnode|dingo) ;;
+    *) return 0 ;;
+  esac
+  [[ "${DISPATCHER_CNTOOLS_GENERATION_ID:-}" =~ ^[0-9a-f]{64}$ ]] ||
+    return 2
+  generation_root="${NODE_HOME}/scripts/.cntools"
+  declare -F cntools_generation_validate >/dev/null 2>&1 || return 2
+  declare -F cntools_generation_prune_locked >/dev/null 2>&1 || return 2
+  cntools_generation_lock_is_owned "${generation_root}" || return 2
+  cntools_generation_validate \
+    "${generation_root}/generations/${DISPATCHER_CNTOOLS_GENERATION_ID}" \
+    "${DISPATCHER_CNTOOLS_GENERATION_ID}" || return 2
+  cntools_generation_prune_locked \
+    "${generation_root}" "${DISPATCHER_CNTOOLS_GENERATION_ID}"
 }
 
 dispatcher_docker_export_relative_path_valid() {
@@ -4382,6 +7076,7 @@ cleanup_dispatcher() {
         "${DISPATCHER_TX_STAGE_ROOT}" == "${TMPDIR:-/tmp}"/guild-deploy-distribution.* &&
         -d "${DISPATCHER_TX_STAGE_ROOT}" && ! -L "${DISPATCHER_TX_STAGE_ROOT}" &&
         -O "${DISPATCHER_TX_STAGE_ROOT}" ]]; then
+    chmod -R u+rwX "${DISPATCHER_TX_STAGE_ROOT}" 2>/dev/null || true
     rm -rf -- "${DISPATCHER_TX_STAGE_ROOT}"
   fi
   if [[ -n "${DISPATCHER_DOCKER_EXPORT_STAGE:-}" &&
@@ -4397,6 +7092,13 @@ cleanup_dispatcher() {
         -d "${PROFILE_TMP_DIR}" ]]; then
     rm -rf -- "${PROFILE_TMP_DIR}"
   fi
+  # The durable outer journal, not this process-scoped kernel lock, blocks
+  # standalone lifecycle operations. Release the generation lock before the
+  # target lock; authenticated recovery will reacquire it under that lock.
+  if ! dispatcher_cntools_generation_lock_release; then
+    log_warn "Could not release the CNTools generation transaction lock."
+    [[ "${cleanup_status}" -ne 0 ]] || cleanup_status=2
+  fi
   dispatcher_release_target_lock
   guild_source_release || true
   return "${cleanup_status}"
@@ -4405,6 +7107,8 @@ cleanup_dispatcher() {
 guild_deploy_main() {
   local -a original_args=("$@")
   local source_handoff="${GUILD_SOURCE_HANDOFF_ACTIVE:-N}"
+  local target_journal_admitted="${GUILD_SOURCE_TARGET_JOURNAL_ADMITTED:-}"
+  local target_journal_token="${GUILD_SOURCE_TARGET_JOURNAL_TOKEN:-}"
   local requested_account_preset="${GUILD_SOURCE_REQUEST_ACCOUNT_PRESET:-}"
   local requested_branch_preset="${GUILD_SOURCE_REQUEST_BRANCH_PRESET:-}"
   local requested_network_preset="${GUILD_SOURCE_REQUEST_NETWORK_PRESET:-}"
@@ -4423,6 +7127,30 @@ guild_deploy_main() {
   DISPATCHER_TX_PREPARED="N"
   DISPATCHER_TX_ACTIVE="N"
   DISPATCHER_TX_ACTIVATED="N"
+  DISPATCHER_CNTOOLS_GENERATION_PREPARED="N"
+  DISPATCHER_CNTOOLS_GENERATION_PUBLISHED="N"
+  DISPATCHER_CNTOOLS_GENERATION_STAGE=""
+  DISPATCHER_CNTOOLS_GENERATION_ID=""
+  DISPATCHER_CNTOOLS_GENERATION_VERSION=""
+  DISPATCHER_CNTOOLS_GENERATION_MANIFEST_SHA256=""
+  DISPATCHER_CNTOOLS_GENERATION_LIFECYCLE_SHA256=""
+  DISPATCHER_CNTOOLS_GENERATION_LOCK_OWNED="N"
+  DISPATCHER_CNTOOLS_GENERATION_LOCK_ROOT=""
+  unset CNTOOLS_GENERATION_LOCK_PATH CNTOOLS_GENERATION_LOCK_ROOT
+  unset CNTOOLS_GENERATION_LOCK_BACKEND CNTOOLS_GENERATION_LOCK_CONTROL
+  unset CNTOOLS_GENERATION_LOCK_HOLDER_PID
+  unset CNTOOLS_GENERATION_LOCK_HOLDER_IDENTITY CNTOOLS_GENERATION_LOCK_PID
+  DISPATCHER_CNTOOLS_GENERATION_FILE_COUNT=""
+  DISPATCHER_CNTOOLS_GENERATION_TARGET_ROOT=""
+  DISPATCHER_CNTOOLS_GENERATION_INSTALLED_PATH=""
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_PREPARED="N"
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_PUBLISHED="N"
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_MANIFEST=""
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_STAGE=""
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_ID=""
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_TARGET_ROOT=""
+  DISPATCHER_CNTOOLS_LEGACY_BUNDLE_INSTALLED_PATH=""
+  DISPATCHER_HANDOFF_JOURNAL_REFRESH_AUTHORIZED="N"
   unset GUILD_DEPLOY_LOCK_HELD_FOR
   unset DISPATCHER_LOCK_KIND DISPATCHER_LOCK_PATH
   unset DISPATCHER_LOCK_CANONICAL_TARGET DISPATCHER_LOCK_OWNER_PID
@@ -4438,8 +7166,29 @@ guild_deploy_main() {
   if [[ "${source_handoff}" == "Y" ]]; then
     guild_source_adopt_handoff ||
       err_exit "The prepared Guild source handoff is invalid or does not match the running dispatcher."
+    case "${target_journal_admitted:-N}" in
+      N)
+        [[ -z "${target_journal_token}" ]] ||
+          err_exit "The prepared target journal handoff is inconsistent."
+        GUILD_SOURCE_TARGET_JOURNAL_ADMITTED="N"
+        GUILD_SOURCE_TARGET_JOURNAL_TOKEN=""
+        ;;
+      Y)
+        [[ "${target_journal_token}" =~ ^(prepared|activated):[0-9]{1,20}\.[0-9]{1,20}\.[0-9]{1,5}:[0-9a-f]{64}$ ||
+           "${target_journal_token}" =~ ^committed:[0-9a-f]{24}:[0-9a-f]{64}$ ]] ||
+          err_exit "The prepared target journal handoff token is invalid."
+        GUILD_SOURCE_TARGET_JOURNAL_ADMITTED="Y"
+        GUILD_SOURCE_TARGET_JOURNAL_TOKEN="${target_journal_token}"
+        ;;
+      *) err_exit "The prepared target journal handoff marker is invalid." ;;
+    esac
   elif [[ "${source_handoff}" != "N" ]]; then
     err_exit "Invalid Guild source handoff marker."
+  else
+    # Caller-provided target recovery authority is never trusted. Phase 1
+    # derives a new exact marker/token only after inspecting the target.
+    GUILD_SOURCE_TARGET_JOURNAL_ADMITTED="N"
+    GUILD_SOURCE_TARGET_JOURNAL_TOKEN=""
   fi
 
   NODE_IMPLEMENTATION_EXPLICIT="N"
@@ -4556,6 +7305,11 @@ guild_deploy_main() {
   [[ "${DISPATCHER_TX_ACTIVATED:-N}" == "Y" ]] ||
     err_exit "${NODE_IMPLEMENTATION} profile returned without activating the prepared Guild payload."
   dispatcher_write_manifest deployed
+  if ! dispatcher_cntools_generation_prune_after_commit; then
+    log_warn "Could not prune one or more unreferenced CNTools generations; preserved them for inspection."
+  fi
+  dispatcher_cntools_generation_lock_release ||
+    err_exit "Could not release the committed CNTools generation transaction lock."
   dispatcher_docker_export_supplement ||
     err_exit "Could not export the Docker supplement from the prepared Guild revision."
 

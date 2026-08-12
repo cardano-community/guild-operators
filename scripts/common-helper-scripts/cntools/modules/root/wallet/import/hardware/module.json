@@ -1,0 +1,31 @@
+{
+  "description": "Legacy CNTools workflow: HW Wallet",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "wallet.import.hardware",
+  "kind": "action",
+  "label": "HW Wallet",
+  "order": 20,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "w",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

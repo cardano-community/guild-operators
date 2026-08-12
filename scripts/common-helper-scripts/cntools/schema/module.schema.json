@@ -1,0 +1,306 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardano-community.github.io/guild-operators/cntools/module.schema.v2.json",
+  "title": "CNTools module metadata",
+  "description": "Strict schema for CNTools menus and executable action leaves.",
+  "oneOf": [
+    {"$ref": "#/$defs/menu"},
+    {"$ref": "#/$defs/action"}
+  ],
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "pattern": "^(root|[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*)$",
+      "maxLength": 128
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9.-]{0,127}$"
+    },
+    "displayLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]+$"
+    },
+    "displayDescription": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]+$"
+    },
+    "orderedModes": {
+      "enum": [
+        ["local"],
+        ["light"],
+        ["offline"],
+        ["local", "light"],
+        ["local", "offline"],
+        ["light", "offline"],
+        ["local", "light", "offline"]
+      ]
+    },
+    "orderedFeatures": {
+      "enum": [
+        [],
+        ["advanced"],
+        ["blocklog"],
+        ["advanced", "blocklog"]
+      ]
+    },
+    "orderedNodeCapabilities": {
+      "enum": [
+        [],
+        ["forging"],
+        ["local-cli"],
+        ["metrics"],
+        ["n2c"],
+        ["forging", "local-cli"],
+        ["forging", "metrics"],
+        ["forging", "n2c"],
+        ["local-cli", "metrics"],
+        ["local-cli", "n2c"],
+        ["metrics", "n2c"],
+        ["forging", "local-cli", "metrics"],
+        ["forging", "local-cli", "n2c"],
+        ["forging", "metrics", "n2c"],
+        ["local-cli", "metrics", "n2c"],
+        ["forging", "local-cli", "metrics", "n2c"]
+      ]
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modes", "features", "nodeCapabilities"],
+      "properties": {
+        "modes": {"$ref": "#/$defs/orderedModes"},
+        "features": {"$ref": "#/$defs/orderedFeatures"},
+        "nodeCapabilities": {"$ref": "#/$defs/orderedNodeCapabilities"}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "libraries"],
+      "properties": {
+        "apiVersion": {"const": 1},
+        "libraries": {
+          "type": "array",
+          "description": "Registry-enforced adjunct: IDs are in canonical lexical order, and the complete module.json uses the exact jq -S canonical byte form with one terminal newline.",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/identifier"}
+        }
+      }
+    },
+    "controlPolicy": {
+      "enum": ["root", "home", "back-home", "escape-root"]
+    },
+    "menu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "id", "kind", "label", "description",
+        "visibility", "controlPolicy"
+      ],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "id": {"$ref": "#/$defs/stableId"},
+        "kind": {"const": "menu"},
+        "order": {"type": "integer", "minimum": 0, "maximum": 9999},
+        "shortcut": {"type": "string", "pattern": "^[a-z0-9]$"},
+        "label": {"$ref": "#/$defs/displayLabel"},
+        "description": {"$ref": "#/$defs/displayDescription"},
+        "visibility": {"$ref": "#/$defs/requirements"},
+        "controlPolicy": {"$ref": "#/$defs/controlPolicy"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"id": {"const": "root"}}, "required": ["id"]},
+          "then": {
+            "properties": {"controlPolicy": {"const": "root"}},
+            "not": {
+              "anyOf": [
+                {"required": ["order"]},
+                {"required": ["shortcut"]}
+              ]
+            }
+          },
+          "else": {
+            "required": ["order", "shortcut"],
+            "not": {
+              "properties": {"controlPolicy": {"const": "root"}},
+              "required": ["controlPolicy"]
+            }
+          }
+        }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "id", "kind", "order", "shortcut", "label",
+        "description", "visibility", "executionRequirements", "runtime"
+      ],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "id": {"$ref": "#/$defs/stableId"},
+        "kind": {"const": "action"},
+        "order": {"type": "integer", "minimum": 0, "maximum": 9999},
+        "shortcut": {"type": "string", "pattern": "^[a-z0-9]$"},
+        "label": {"$ref": "#/$defs/displayLabel"},
+        "description": {"$ref": "#/$defs/displayDescription"},
+        "visibility": {"$ref": "#/$defs/requirements"},
+        "executionRequirements": {"$ref": "#/$defs/requirements"},
+        "runtime": {"$ref": "#/$defs/runtime"}
+      },
+      "not": {"properties": {"id": {"const": "root"}}, "required": ["id"]},
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "executionRequirements": {
+                "properties": {"modes": {"contains": {"const": "local"}}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "visibility": {
+                "properties": {"modes": {"contains": {"const": "local"}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "executionRequirements": {
+                "properties": {"modes": {"contains": {"const": "light"}}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "visibility": {
+                "properties": {"modes": {"contains": {"const": "light"}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "executionRequirements": {
+                "properties": {"modes": {"contains": {"const": "offline"}}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "visibility": {
+                "properties": {"modes": {"contains": {"const": "offline"}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "visibility": {
+                "properties": {"features": {"contains": {"const": "advanced"}}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "executionRequirements": {
+                "properties": {"features": {"contains": {"const": "advanced"}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "visibility": {
+                "properties": {"features": {"contains": {"const": "blocklog"}}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "executionRequirements": {
+                "properties": {"features": {"contains": {"const": "blocklog"}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "visibility": {
+                "properties": {"nodeCapabilities": {"contains": {"const": "forging"}}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "executionRequirements": {
+                "properties": {"nodeCapabilities": {"contains": {"const": "forging"}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "visibility": {
+                "properties": {"nodeCapabilities": {"contains": {"const": "local-cli"}}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "executionRequirements": {
+                "properties": {"nodeCapabilities": {"contains": {"const": "local-cli"}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "visibility": {
+                "properties": {"nodeCapabilities": {"contains": {"const": "metrics"}}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "executionRequirements": {
+                "properties": {"nodeCapabilities": {"contains": {"const": "metrics"}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "visibility": {
+                "properties": {"nodeCapabilities": {"contains": {"const": "n2c"}}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "executionRequirements": {
+                "properties": {"nodeCapabilities": {"contains": {"const": "n2c"}}}
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

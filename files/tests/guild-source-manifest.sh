@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate the Stage 0C Guild-owned source distribution manifest as data. This
+# Validate the Guild-owned source distribution manifest as data. This
 # suite deliberately does not source deployment code: the manifest contract
 # must remain independently reviewable and fail closed before target mutation.
 set -euo pipefail
@@ -41,7 +41,7 @@ for required_command in awk cmp grep jq mktemp; do
     fail "required command is unavailable: ${required_command}"
 done
 
-# This is the complete installed/retired Stage 0C inventory. Keeping the
+# This is the complete installed/retired Stage 1 inventory. Keeping the
 # expected records here makes adding an owned path an intentional contract
 # change instead of allowing an unreviewed record to become authoritative.
 EXPECTED_ROWS=(
@@ -59,7 +59,9 @@ EXPECTED_ROWS=(
   $'cnode\tscripts/cnode-helper-scripts/cncli.sh\tscripts/cncli.sh\t0755\tmerge-header\tshell'
   $'cnode\tscripts/cnode-helper-scripts/cnode.sh\tscripts/cnode.sh\t0755\tmerge-header\tshell'
   $'cnode\tscripts/common-helper-scripts/cntools.sh\tscripts/cntools.sh\t0755\tmerge-header\tshell'
+  $'cnode\tscripts/common-helper-scripts/cntools/manifest.json\tscripts/cntools/libs/legacy\t0700\tcntools-legacy-bundle\tcntools'
   $'cnode\tscripts/common-helper-scripts/cntools.library\tscripts/cntools.library\t0644\tmerge-header\tshell'
+  $'cnode\tscripts/common-helper-scripts/cntools/manifest.json\tscripts/.cntools\t0700\tcntools-generation\tcntools'
   $'cnode\tscripts/cnode-helper-scripts/dbsync.sh\tscripts/dbsync.sh\t0755\tmerge-header\tshell'
   $'cnode\tscripts/common-helper-scripts/gLiveView.sh\tscripts/gLiveView.sh\t0755\tmerge-header\tshell'
   $'cnode\tscripts/cnode-helper-scripts/topologyUpdater.sh\tscripts/topologyUpdater.sh\t0755\tmerge-header\tshell'
@@ -87,8 +89,10 @@ EXPECTED_ROWS=(
   $'cnode\tfiles/configs/cnode/{network}/submitapi.json\tfiles/submitapi.json\t0644\texact\tjson'
   $'dingo\tscripts/dingo-helper-scripts/dingo.sh\tscripts/dingo.sh\t0755\texact\tshell'
   $'dingo\tscripts/common-helper-scripts/gLiveView.sh\tscripts/gLiveView.sh\t0755\tmerge-header\tshell'
+  $'dingo\tscripts/common-helper-scripts/cntools/manifest.json\tscripts/cntools/libs/legacy\t0700\tcntools-legacy-bundle\tcntools'
   $'dingo\tscripts/common-helper-scripts/cntools.library\tscripts/cntools.library\t0644\tmerge-header\tshell'
   $'dingo\tscripts/common-helper-scripts/cntools.sh\tscripts/cntools.sh\t0755\tmerge-header\tshell'
+  $'dingo\tscripts/common-helper-scripts/cntools/manifest.json\tscripts/.cntools\t0700\tcntools-generation\tcntools'
   $'dingo\tfiles/configs/dingo/{network}/dingo.yaml\tfiles/dingo.yaml\t0640\tpreserve-render\ttext'
   $'dingo\tfiles/configs/dingo/{network}/dingo.env\tscripts/dingo.env\t0640\tpreserve-render\tshell'
   $'dingo\tfiles/node-implementations/dingo/release.json\tfiles/dingo-release.json\t0644\texact\tjson'
@@ -172,7 +176,7 @@ manifest_validate_source_file() {
     shell)
       "${BASH}" -n "${absolute_source}" >/dev/null 2>&1 || return 1
       ;;
-    json)
+    json|cntools)
       jq -e . "${absolute_source}" >/dev/null 2>&1 || return 1
       ;;
     text) ;;
@@ -212,7 +216,7 @@ validate_manifest_structure() {
     return 1
   }
   IFS= read -r first_line < "${manifest}" || return 1
-  [[ "${first_line}" == '# Guild Operators deployment source manifest, schema 1.' ]] || {
+  [[ "${first_line}" == '# Guild Operators deployment source manifest, schema 2.' ]] || {
     printf '%s: unsupported or missing schema declaration\n' "${manifest}" >&2
     return 1
   }
@@ -235,13 +239,13 @@ validate_manifest_structure() {
       manifest_error "${manifest}" "${line_number}" "unsupported implementation '${implementation}'" || return 1
     esac
     case "${policy}" in
-      exact|merge-header|render-cnode|render-dingo|render-amaru|preserve-render|retire) ;;
+      exact|merge-header|render-cnode|render-dingo|render-amaru|preserve-render|retire|cntools-legacy-bundle|cntools-generation) ;;
       *) manifest_error "${manifest}" "${line_number}" "unsupported policy '${policy}'" || return 1 ;;
     esac
-    case "${mode}" in 0640|0644|0755|-) ;; *)
+    case "${mode}" in 0640|0644|0700|0755|-) ;; *)
       manifest_error "${manifest}" "${line_number}" "unsupported mode '${mode}'" || return 1 ;;
     esac
-    case "${validator}" in shell|json|text|-) ;; *)
+    case "${validator}" in shell|json|text|cntools|-) ;; *)
       manifest_error "${manifest}" "${line_number}" "unsupported validator '${validator}'" || return 1 ;;
     esac
 
@@ -267,6 +271,24 @@ validate_manifest_structure() {
 
     if [[ "${policy}" == "merge-header" && "${validator}" != "shell" ]]; then
       manifest_error "${manifest}" "${line_number}" "merge-header requires the shell validator" || return 1
+    fi
+    if [[ "${policy}" == "cntools-generation" ]]; then
+      [[ ( "${implementation}" == "cnode" ||
+           "${implementation}" == "dingo" ) &&
+         "${source_path}" == "scripts/common-helper-scripts/cntools/manifest.json" &&
+         "${target_path}" == "scripts/.cntools" &&
+         "${mode}" == "0700" && "${validator}" == "cntools" ]] ||
+        manifest_error "${manifest}" "${line_number}" "cntools-generation requires the fixed cnode/Dingo source, target, mode, and validator" || return 1
+    elif [[ "${policy}" == "cntools-legacy-bundle" ]]; then
+      [[ ( "${implementation}" == "cnode" ||
+           "${implementation}" == "dingo" ) &&
+         "${source_path}" == "scripts/common-helper-scripts/cntools/manifest.json" &&
+         "${target_path}" == "scripts/cntools/libs/legacy" &&
+         "${mode}" == "0700" && "${validator}" == "cntools" ]] ||
+        manifest_error "${manifest}" "${line_number}" "cntools-legacy-bundle requires the fixed cnode/Dingo source, target, mode, and validator" || return 1
+    else
+      [[ "${mode}" != "0700" && "${validator}" != "cntools" ]] ||
+        manifest_error "${manifest}" "${line_number}" "0700/cntools are reserved for CNTools special policies" || return 1
     fi
     if [[ "${policy}" == "preserve-render" &&
           "${implementation}" == "common" ]]; then
@@ -296,6 +318,11 @@ validate_manifest_structure() {
           manifest_expanded_path_valid "${expanded_source}" ||
             manifest_error "${manifest}" "${line_number}" "source does not normalize safely: '${expanded_source}'" || return 1
           source_key="${effective_implementation}|${network}|${expanded_source}"
+          case "${policy}" in
+            cntools-generation|cntools-legacy-bundle)
+              source_key+="|${policy}"
+              ;;
+          esac
           [[ -z "${source_paths[${source_key}]+set}" ]] ||
             manifest_error "${manifest}" "${line_number}" "duplicate effective source '${expanded_source}' for ${effective_implementation}/${network}" || return 1
           source_paths["${source_key}"]="${line_number}"
@@ -351,6 +378,38 @@ assert_required_inventory() {
   done
 }
 
+assert_cntools_reader_isolation_order() {
+  local manifest="$1"
+  local selected_implementation=""
+  local implementation="" source_path="" target_path="" mode=""
+  local policy="" validator="" extra=""
+  local first_applicable_policy="" first_ordinary_target=""
+
+  for selected_implementation in cnode dingo; do
+    first_applicable_policy=""
+    first_ordinary_target=""
+    while IFS=$'\t' read -r implementation source_path target_path mode \
+      policy validator extra; do
+      [[ -n "${implementation}" && "${implementation}" != \#* ]] || continue
+      [[ -z "${extra}" ]] ||
+        fail "reader-isolation order probe found an extra source-manifest field"
+      [[ "${implementation}" == "common" ||
+         "${implementation}" == "${selected_implementation}" ]] || continue
+      [[ -n "${first_applicable_policy}" ]] ||
+        first_applicable_policy="${policy}"
+      case "${policy}" in
+        cntools-legacy-bundle|cntools-generation) continue ;;
+      esac
+      first_ordinary_target="${target_path}"
+      break
+    done < "${manifest}"
+    [[ "${first_applicable_policy}" == "cntools-legacy-bundle" ]] ||
+      fail "${selected_implementation} legacy bundle is not the first applicable source record"
+    [[ "${first_ordinary_target}" == "scripts/cntools.library" ]] ||
+      fail "${selected_implementation} facade is not the first ordinary activation target"
+  done
+}
+
 expect_structural_rejection() {
   local name="$1"
   local awk_program="$2"
@@ -366,6 +425,7 @@ expect_structural_rejection() {
 validate_manifest_structure "${MANIFEST}" ||
   fail "checked-in source manifest failed structural validation"
 assert_required_inventory "${MANIFEST}"
+assert_cntools_reader_isolation_order "${MANIFEST}"
 cmp -s "${REPO_ROOT}/docs/Scripts/cntools-changelog.md" \
   "${REPO_ROOT}/files/node-implementations/cnode/cntools-changelog.md" ||
   fail "packaged CNTools changelog differs from its documentation source"
@@ -419,6 +479,76 @@ expect_structural_rejection malformed-retire '
   BEGIN { FS = OFS = "\t"; changed = 0 }
   !changed && $0 !~ /^#/ && NF && $5 == "retire" {
     $4 = "0644"; changed = 1
+  }
+  { print }
+'
+expect_structural_rejection cntools-generation-common-scope '
+  BEGIN { FS = OFS = "\t"; changed = 0 }
+  !changed && $5 == "cntools-generation" {
+    $1 = "common"; changed = 1
+  }
+  { print }
+'
+expect_structural_rejection cntools-generation-wrong-source '
+  BEGIN { FS = OFS = "\t"; changed = 0 }
+  !changed && $5 == "cntools-generation" {
+    $2 = "scripts/common-helper-scripts/cntools/VERSION"; changed = 1
+  }
+  { print }
+'
+expect_structural_rejection cntools-generation-wrong-target '
+  BEGIN { FS = OFS = "\t"; changed = 0 }
+  !changed && $5 == "cntools-generation" {
+    $3 = "scripts/cntools"; changed = 1
+  }
+  { print }
+'
+expect_structural_rejection cntools-generation-wrong-mode '
+  BEGIN { FS = OFS = "\t"; changed = 0 }
+  !changed && $5 == "cntools-generation" {
+    $4 = "0644"; changed = 1
+  }
+  { print }
+'
+expect_structural_rejection cntools-generation-wrong-validator '
+  BEGIN { FS = OFS = "\t"; changed = 0 }
+  !changed && $5 == "cntools-generation" {
+    $6 = "json"; changed = 1
+  }
+  { print }
+'
+expect_structural_rejection cntools-legacy-bundle-common-scope '
+  BEGIN { FS = OFS = "\t"; changed = 0 }
+  !changed && $5 == "cntools-legacy-bundle" {
+    $1 = "common"; changed = 1
+  }
+  { print }
+'
+expect_structural_rejection cntools-legacy-bundle-wrong-source '
+  BEGIN { FS = OFS = "\t"; changed = 0 }
+  !changed && $5 == "cntools-legacy-bundle" {
+    $2 = "scripts/common-helper-scripts/cntools/VERSION"; changed = 1
+  }
+  { print }
+'
+expect_structural_rejection cntools-legacy-bundle-wrong-target '
+  BEGIN { FS = OFS = "\t"; changed = 0 }
+  !changed && $5 == "cntools-legacy-bundle" {
+    $3 = "scripts/cntools/libs"; changed = 1
+  }
+  { print }
+'
+expect_structural_rejection cntools-legacy-bundle-wrong-mode '
+  BEGIN { FS = OFS = "\t"; changed = 0 }
+  !changed && $5 == "cntools-legacy-bundle" {
+    $4 = "0644"; changed = 1
+  }
+  { print }
+'
+expect_structural_rejection cntools-legacy-bundle-wrong-validator '
+  BEGIN { FS = OFS = "\t"; changed = 0 }
+  !changed && $5 == "cntools-legacy-bundle" {
+    $6 = "json"; changed = 1
   }
   { print }
 '

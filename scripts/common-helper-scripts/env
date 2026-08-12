@@ -90,6 +90,7 @@ _deployment_metrics_provider=""
 _deployment_capabilities=""
 _deployment_repository=""
 _deployment_repository_account=""
+_deployment_source_schema=""
 
 if [[ -e "${_deployment_manifest}" || -L "${_deployment_manifest}" ]]; then
   if [[ -L "${_deployment_manifest}" ||
@@ -124,7 +125,7 @@ if [[ -e "${_deployment_manifest}" || -L "${_deployment_manifest}" ]]; then
     (
       (has("sourceSchemaVersion") | not) or
       (
-        .sourceSchemaVersion == 1 and
+        (.sourceSchemaVersion == 1 or .sourceSchemaVersion == 2) and
         (.sourceMode == "managed" or .sourceMode == "cached" or .sourceMode == "local") and
         (.sourceRef | type == "string" and test("^refs/(heads|tags)/")) and
         (.sourceRevision | type == "string" and test("^[0-9a-f]{40,64}$")) and
@@ -180,6 +181,14 @@ if [[ -e "${_deployment_manifest}" || -L "${_deployment_manifest}" ]]; then
   _deployment_capabilities="$(deployment_get capabilities)" || return 1
   _deployment_repository="$(deployment_get repository)" || return 1
   _deployment_repository_account="${_deployment_repository%/guild-operators}"
+  _deployment_source_schema="$(deployment_get sourceSchemaVersion || true)"
+
+  if [[ "${_deployment_source_schema}" == "2" ]] &&
+     ! deployment_payload_is_current; then
+    printf "Deployment source receipt or CNTools generation is incomplete or inconsistent: %s\n" \
+      "${_deployment_manifest}" >&2
+    return 1
+  fi
 
   deployment_branch_valid "${_deployment_branch}" || {
     printf "Invalid branch in deployment metadata: '%s'\n" "${_deployment_branch}" >&2

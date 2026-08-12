@@ -1,0 +1,31 @@
+{
+  "description": "Legacy CNTools workflow: Mnemonic",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "wallet.new.mnemonic",
+  "kind": "action",
+  "label": "Mnemonic",
+  "order": 10,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "m",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

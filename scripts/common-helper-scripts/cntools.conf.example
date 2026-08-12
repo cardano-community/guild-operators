@@ -1,0 +1,21 @@
+# CNTools configuration schema. This file is data and must never be sourced.
+# Copy it to cntools.conf only when the modular launcher becomes authoritative.
+# Assignments are unquoted KEY=VALUE records. Inline comments, whitespace around
+# assignments, shell expansions, and unknown keys are invalid.
+
+CNTOOLS_CONFIG_VERSION=1
+
+#TIMEOUT_NO_OF_SLOTS=600
+#CNTOOLS_LOG=/opt/cardano/cnode/logs/cntools-history.log
+#CHECK_KES=true
+#KES_ALERT_PERIOD=172800
+#KES_WARNING_PERIOD=604800
+#TX_TTL=3600
+#WALLET_SELECTION_FILTER_LIMIT=10
+#ENABLE_CHATTR=true
+#ENABLE_DIALOG=false
+#ENABLE_ADVANCED=false
+#CURRENCY=off
+#CNTOOLS_MODE=local
+#CATALYST_API=https://api.projectcatalyst.io/api/v1
+#EXPLORER_TX=https://adastat.net/transactions/__tx_id__

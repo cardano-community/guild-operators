@@ -1775,6 +1775,11 @@ cnode_deploy_seed_initial_env_port() {
 # Download and update scripts for cnode
 populate_cnode() {
   local cnode_env_preexisted="N"
+
+  if [[ "${DISPATCHER_TX_PREPARED:-N}" != "Y" ]]; then
+    err_exit "The cnode payload now requires the complete managed guild-deploy transaction; direct profile installation is unsupported."
+    return 1
+  fi
   [[ -f "${NODE_HOME}/scripts/env" ]] && cnode_env_preexisted="Y"
 
   if [[ ! -d "${NODE_HOME}"/files ]]; then

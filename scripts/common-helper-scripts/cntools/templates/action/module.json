@@ -1,0 +1,29 @@
+{
+  "description": "Describe one stable operator workflow",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "template.action",
+  "kind": "action",
+  "label": "Action label",
+  "order": 10,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "x",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "controlPolicy": "back-home",
+  "description": "Legacy CNTools menu: Governance",
+  "id": "vote.governance",
+  "kind": "menu",
+  "label": "Governance",
+  "order": 10,
+  "schemaVersion": 2,
+  "shortcut": "g",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "controlPolicy": "escape-root",
+  "description": "Legacy CNTools menu: Blocks",
+  "id": "blocks",
+  "kind": "menu",
+  "label": "Blocks",
+  "order": 60,
+  "schemaVersion": 2,
+  "shortcut": "b",
+  "visibility": {
+    "features": [
+      "blocklog"
+    ],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

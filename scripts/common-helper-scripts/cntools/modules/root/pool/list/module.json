@@ -1,0 +1,31 @@
+{
+  "description": "Legacy CNTools workflow: List",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "pool.list",
+  "kind": "action",
+  "label": "List",
+  "order": 60,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "l",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

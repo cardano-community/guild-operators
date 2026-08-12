@@ -1,0 +1,1145 @@
+{
+  "compatibilityLibrary": "cntools.library",
+  "contextApiVersion": 1,
+  "entrypoint": "cntools.sh",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "cntools.conf.example",
+      "sha256": "134884fc0181c532d408b5719f8107abcf979c3e196b133c592b88b950258cd0",
+      "source": "scripts/common-helper-scripts/cntools.conf.example",
+      "validator": "config"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools.library",
+      "sha256": "6c3aa64f4cfbd23849955efa4e3815e3f3700d29de075def1df4189e73769dac",
+      "source": "scripts/common-helper-scripts/cntools.library",
+      "validator": "shell"
+    },
+    {
+      "mode": "0555",
+      "path": "cntools.sh",
+      "sha256": "ccf8c2b667ae3d6677bae2e3fc5a473c8b18d81626126df9cde7a00505b1c046",
+      "source": "scripts/common-helper-scripts/cntools/launcher.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/VERSION",
+      "sha256": "587e89b48cb27ab0f9bcd8e4263a1bdb42c4d2bb0a939daf20fc89400e6ca854",
+      "source": "scripts/common-helper-scripts/cntools/VERSION",
+      "validator": "text"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/core/bootstrap.sh",
+      "sha256": "be1b4fee06e781eb6102c826d1084cc2247aa6d7ca06f5be8b7610e29590d599",
+      "source": "scripts/common-helper-scripts/cntools/core/bootstrap.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/core/config.sh",
+      "sha256": "5ec308a9e348f33fb3eb18db7ca236ebf4abfe876fd2a7dbac155d525ce97ecf",
+      "source": "scripts/common-helper-scripts/cntools/core/config.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/core/context.sh",
+      "sha256": "ede5daf5130437014ec35bf1a692399c933dd2aae41bb8d1d89d7f63377967dd",
+      "source": "scripts/common-helper-scripts/cntools/core/context.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/core/dispatcher.sh",
+      "sha256": "fefa0f926a97ddc4a47e16345669585692a0664d25d4a24216268db2e120225d",
+      "source": "scripts/common-helper-scripts/cntools/core/dispatcher.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/core/lifecycle.sh",
+      "sha256": "c08dcfe36ca8db571f96ecc277978b0d28f93c170b8123b5f2a46de4d0f09a33",
+      "source": "scripts/common-helper-scripts/cntools/core/lifecycle.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/core/registry.sh",
+      "sha256": "6f7e0347f475a77a43be9477a9ce690efbca26b40077c3edcf4505b9af2fa597",
+      "source": "scripts/common-helper-scripts/cntools/core/registry.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/core/result.sh",
+      "sha256": "a14bc0080afd49b455ff2a924bee4a3cc8aa94b7d87138f97f350fe100cc851c",
+      "source": "scripts/common-helper-scripts/cntools/core/result.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/docs/ARCHITECTURE.md",
+      "sha256": "4c7063d90547a331bb68e97435bcd636683208307c7b23cf8eea5ce5910be36a",
+      "source": "scripts/common-helper-scripts/cntools/docs/ARCHITECTURE.md",
+      "validator": "text"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/docs/DEVELOPMENT.md",
+      "sha256": "daec97662b4ce6eeb9d36a73b47589d54de1838a26dc3ba787f27058eaecc6cb",
+      "source": "scripts/common-helper-scripts/cntools/docs/DEVELOPMENT.md",
+      "validator": "text"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/docs/TESTING.md",
+      "sha256": "1439ef980ead4cf51858c458a4d8b122cd269487741966c093c31eeb64f50e0d",
+      "source": "scripts/common-helper-scripts/cntools/docs/TESTING.md",
+      "validator": "text"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/010-common-dialog.sh",
+      "sha256": "5408355794fa187dbac5af7b66b956ab84216fd91ee4b6ec8bbe420b05fea8a7",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/010-common-dialog.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/020-terminal-selection-security.sh",
+      "sha256": "bb6f10e533f45cb90577e32d0d7a57ca86fe0c97d950938911be8eecec4a1460",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/020-terminal-selection-security.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/030-governance-query.sh",
+      "sha256": "9e9179c73ccdd945c6ed6b7921038b7f6bc7679c4609af86565f7ad99ff8d519",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/030-governance-query.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/040-address-wallet-query.sh",
+      "sha256": "b23fdfec65fd7e991a3e46d2bef1d5c9ed09102e345cac7f3f5b75c761957df0",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/040-address-wallet-query.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/050-wallet-create-registration.sh",
+      "sha256": "a1fba108e3e9d3e8c388c54bd3a95332ee4444e61519330dd65347f4cfbe9b53",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/050-wallet-create-registration.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/060-wallet-actions.sh",
+      "sha256": "73f150b684713b6c64211ff8c900a6deedb90a4aa15afde85dae44b8af220db5",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/060-wallet-actions.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/070-pool-actions.sh",
+      "sha256": "689a52e0e8f18a30984cebda6ef29dd929b66fb4cdba7ff03f673debb6e25257",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/070-pool-actions.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/080-metadata-assets.sh",
+      "sha256": "1444e366a79483bdcd538b59e01f8a623e3c6b4bf4fe58f5deaedc53ec247c80",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/080-metadata-assets.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/090-governance-actions.sh",
+      "sha256": "91fd56011304f4528851f8cd3b241ca63393440a51faa5c5380a22081a146ec8",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/090-governance-actions.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/100-transaction-hardware-price.sh",
+      "sha256": "237b3847db52432ff523c36c5ca7bcb08b437f8b8978389259789a70fee5071f",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/100-transaction-hardware-price.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/libs/manifest.json",
+      "sha256": "5a20997ad38e48c2b538c081ced0c930203bc82e556a595947dc518b303b18d3",
+      "source": "scripts/common-helper-scripts/cntools/libs/manifest.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/burn/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/burn/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/burn/module.json",
+      "sha256": "712b5db9a1476840a12f9d55617d44523e9650d235888a6770b6b2835d9ae8be",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/burn/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/create-policy/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/create-policy/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/create-policy/module.json",
+      "sha256": "092923dcd7479972ec07bc7d9c5db6e6f4f2646cbf478492a62c73773bc303fe",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/create-policy/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/decrypt-policy/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/decrypt-policy/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/decrypt-policy/module.json",
+      "sha256": "bce17a10feb6cbd045c8cc5fbea96b74f9022b43fcf7b09d821208bf7229f90b",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/decrypt-policy/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/encrypt-policy/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/encrypt-policy/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/encrypt-policy/module.json",
+      "sha256": "07b238c5a76e56f20fc8673ee2d157af6ce31574adb58a11c0390b08b72dfbf7",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/encrypt-policy/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/list/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/list/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/list/module.json",
+      "sha256": "191a2b75a6d2ba137cca97ac8cdbe81b3c6c7f224bdd09a921a24bbeae24b520",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/list/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/mint/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/mint/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/mint/module.json",
+      "sha256": "a35c020492aefef03c9f0c65b38db8d0665d243c18ad1e804b32feca86495b68",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/mint/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/module.json",
+      "sha256": "cb95c498c1955763235670e79c6434e533b727cb5ab07623bde4a18a9ccb13d5",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/register/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/register/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/register/module.json",
+      "sha256": "5495d166e283bc39175cf20d23e8cf66ce19e8153fb9620dc2dee9646f890e76",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/register/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/show/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/show/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/asset/show/module.json",
+      "sha256": "d52311eb38edf5d9b7d77b3f5136413277ac1e6409e1eacbd233d61cda529fd3",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/show/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/delete-private-keys/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/delete-private-keys/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/delete-private-keys/module.json",
+      "sha256": "18a6411c130c1908c191c9afa3c455163d4512d936fa0b645fd7fcdad6ecdd1c",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/delete-private-keys/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/metadata/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/metadata/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/metadata/module.json",
+      "sha256": "b7e95bfb688d847e881523b77ff5f87fd3200bfa429a9970c4bfd23c903bfd18",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/metadata/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/module.json",
+      "sha256": "396863e6c0a80676f56ca0afe42e1cf1e80d57ec406376d7cc5601fc83c596b8",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/multisig/create/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/multisig/create/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/multisig/create/module.json",
+      "sha256": "1a2fd86744f4139290252c75c55807336cecc123afd89a589858d0e7bb8cb6e8",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/multisig/create/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/multisig/derive-keys/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/multisig/derive-keys/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/multisig/derive-keys/module.json",
+      "sha256": "ddbfdf572c2247d7962a00055ce79795298f64254895289b88aec21c9ee421a0",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/multisig/derive-keys/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/advanced/multisig/module.json",
+      "sha256": "42a3154a8bbf77018e41555e7e4f889242a4cc97094a849fbc4b2a33728521b8",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/multisig/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/backup/create/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/backup/create/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/backup/create/module.json",
+      "sha256": "9d8d79d19bb7323b93a2d1fb8c4e0935d235a7181117fd6f1b9553c1db7eb8ee",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/backup/create/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/backup/module.json",
+      "sha256": "e92ac9051b0bfeb173ab6a3e6d740cc931b2b569e1b168240f082b57bf71911d",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/backup/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/backup/restore/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/backup/restore/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/backup/restore/module.json",
+      "sha256": "134f232342752cdf94dacf1d9f5360b3415da2ac78e32f919fb1bf506edfcf22",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/backup/restore/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/blocks/epoch/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/blocks/epoch/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/blocks/epoch/module.json",
+      "sha256": "762a4e3455687004bc3a030f6a1b08c4d2ebbeb01e7fc89215e3c924a385298f",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/blocks/epoch/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/blocks/module.json",
+      "sha256": "daaa70f96c8ca5e8e416e69f8827a7c83f77447d089a0f438d29634e3df0acf0",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/blocks/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/blocks/summary/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/blocks/summary/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/blocks/summary/module.json",
+      "sha256": "90f5f08913faf2327e2bc3b21824920dd6b8b10a80bf5f57e355cda9fc60643f",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/blocks/summary/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/funds/delegate/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/funds/delegate/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/funds/delegate/module.json",
+      "sha256": "584faf491bac6ed7557a0c9c8cb788b427e0083340b97baa249eb9f903c5fa20",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/funds/delegate/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/funds/module.json",
+      "sha256": "3d035fb59cd8d1745c75524adcc947e9ea7d4f1387ba03b5c6a3fbbcc01849fa",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/funds/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/funds/send/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/funds/send/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/funds/send/module.json",
+      "sha256": "12c7ba183236aa5b206a76343d784ede59d188af28740ecbf329d453fed6e212",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/funds/send/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/funds/withdraw/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/funds/withdraw/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/funds/withdraw/module.json",
+      "sha256": "77dbc71bf61235c1c772fe02e6f2b5a19e585b0add7506e4445e7ffe489a7781",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/funds/withdraw/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/module.json",
+      "sha256": "a063f551c7362b634de5aa386613c584b5d7768bac93b7541d2743ceee8cf916",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/calidus/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/calidus/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/calidus/module.json",
+      "sha256": "30396248e3eb7f3750b1ed16f6dcab1c9f9d856c577d546f47121e005f530404",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/calidus/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/decrypt/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/decrypt/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/decrypt/module.json",
+      "sha256": "ca580257b8b59b4dd7e1e3091e45a44a90ed009037e141f88c6390ddfa39b214",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/decrypt/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/encrypt/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/encrypt/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/encrypt/module.json",
+      "sha256": "b22404372e7cf70c241eace49d1875dcd18790f8cc4c629466e7ed1e7c27d27a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/encrypt/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/import/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/import/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/import/module.json",
+      "sha256": "eab31dffc36c06821a30dd404a17f56a859d98f4e94431fe0663305582cb87d6",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/import/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/list/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/list/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/list/module.json",
+      "sha256": "dd31a1fa0c5675ad985e03af46464755e60a5f60f7f2fe6fbc403d6cc0735b1b",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/list/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/modify/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/modify/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/modify/module.json",
+      "sha256": "5aa13834fb501c60783fbe4a4d702df17146c1deabc4d43d16963c8898b45b9d",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/modify/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/module.json",
+      "sha256": "f325894bf2e0847e7d5c30785b048d60b8ab6740bc4ded0ea9a08d925ff318be",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/new/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/new/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/new/module.json",
+      "sha256": "b1b25fb1d36477f158317c0d702c8b53b74c013c3f9861ed6ac3f8d974ca3207",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/new/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/register/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/register/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/register/module.json",
+      "sha256": "0b846776e943094f730c8a4799dab8e09c0175cbd1f5ac191c9c976b0446d976",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/register/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/retire/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/retire/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/retire/module.json",
+      "sha256": "d852706a9275e5528589d93f7b4d0688a3132f01fee216ed2007699a8a5730ce",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/retire/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/rotate/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/rotate/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/rotate/module.json",
+      "sha256": "8288c47635e3e4251ae958cef65eff7a9a6b387e75aa7f6d62086ca9e6ac663b",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/rotate/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/show/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/show/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/pool/show/module.json",
+      "sha256": "a2b5eeddb4af8ffc65c93cb1c74e43093a63cd1171f9e960b238ef6884f9034e",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/pool/show/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/transaction/module.json",
+      "sha256": "79acc95b28013496375b4770cbc3544bc9207a07976ec2009c119a5e526811df",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/transaction/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/transaction/sign/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/transaction/sign/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/transaction/sign/module.json",
+      "sha256": "b2993f79cb535d625b33049a7eda7b7e26ab0faaaf8e650735c325b06a86a778",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/transaction/sign/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/transaction/submit/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/transaction/submit/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/transaction/submit/module.json",
+      "sha256": "61ee514e361d39be86b2d60fa731784dbcbca0f5a068260bda21f60f0903b620",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/transaction/submit/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/catalyst/module.json",
+      "sha256": "a25d1cd071a7fd2a7018a889d01bd242b016cdbf298d74479e0dc08e3a371854",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/catalyst/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/catalyst/qr/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/catalyst/qr/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/catalyst/qr/module.json",
+      "sha256": "b4eb3e19a41a948755155ee2e655a439e0a9de13432a58482d428db2c460e59e",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/catalyst/qr/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/catalyst/register/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/catalyst/register/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/catalyst/register/module.json",
+      "sha256": "96d93ddc9fbcae2b7d7d1cfb1325b26b67c1259274f92d1057e5cafc64d9e645",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/catalyst/register/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/catalyst/verify/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/catalyst/verify/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/catalyst/verify/module.json",
+      "sha256": "b198a2791ace1759867b9772364239060aaf70c3ddd77f290631855fec081b03",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/catalyst/verify/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/cast/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/cast/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/cast/module.json",
+      "sha256": "ffc8564da87761c46d495db193f4e47e300b834a17bc370ea851d7ce3c4d4d4c",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/cast/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/delegate/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/delegate/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/delegate/module.json",
+      "sha256": "703ca09758d984927cd239aa8ce4c60303f60fc0692b10e9cf691b04d8dc58bf",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/delegate/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/derive-keys/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/derive-keys/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/derive-keys/module.json",
+      "sha256": "1853016d5f7adf04138f7e3edf893f0961df39d53ce9c99b83b322e73855c0fd",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/derive-keys/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/drep-register/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/drep-register/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/drep-register/module.json",
+      "sha256": "0d21b404288107fef05826dce42b5c35f89d98fdcc4c785bff90e54596e703df",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/drep-register/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/drep-retire/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/drep-retire/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/drep-retire/module.json",
+      "sha256": "59e8a398eb4202d1833aafde5ca5ca53ee31a900fdb751013342b2abd478d4b1",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/drep-retire/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/info/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/info/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/info/module.json",
+      "sha256": "db778f201a54dd3d7ac189ef597bd1ddbaec222da63fb186452f74ac7df9b7bf",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/info/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/module.json",
+      "sha256": "5e9079d2bd5005504d4f29396e7cfc43d53c3a154951b44ec8662132a856eba4",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/multisig-drep/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/multisig-drep/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/multisig-drep/module.json",
+      "sha256": "76f5ab89496b2d4711116ab6fd486d7f30bf769cfa375b2046fcfff5c90b793c",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/multisig-drep/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/proposals/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/proposals/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/governance/proposals/module.json",
+      "sha256": "40378b9925cead79514bdf5be01eda084360be1df9f188f16fc6e640ca0bb89a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/proposals/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/vote/module.json",
+      "sha256": "29577084fe9a1db1235bd7b9fca01f4e95175da58b41faf5f42e3bdbbd77f65c",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/vote/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/decrypt/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/decrypt/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/decrypt/module.json",
+      "sha256": "656203dd9f40f4b67be30bafeaea68aface609a17aff1a6b348596dd8e287baa",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/decrypt/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/deregister/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/deregister/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/deregister/module.json",
+      "sha256": "0c67265a4d79a4f370c30520cbfa9b1a854b095a5fef3654d6825565e307be63",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/deregister/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/encrypt/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/encrypt/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/encrypt/module.json",
+      "sha256": "f5981e2bebc2348504affe346f86c6edb156d254187b3de06473d9bffbb8719a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/encrypt/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/import/hardware/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/import/hardware/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/import/hardware/module.json",
+      "sha256": "2ac4f3f88044ace4decfe8a378bcb889e427aeb5104732f70ca64065564ccf13",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/import/hardware/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/import/mnemonic/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/import/mnemonic/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/import/mnemonic/module.json",
+      "sha256": "43410af959d9e621189a47e77ce88dc162a45485e529a83a89ff9defefae808b",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/import/mnemonic/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/import/module.json",
+      "sha256": "f457820f9c7f21a494bb82f3df67ddd384d9f9ba7eb2a276e78078e1c33bd346",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/import/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/list/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/list/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/list/module.json",
+      "sha256": "22c5fe36328dfc6fdbdd965e7a987c11267964fef4421997a5401290344d83e3",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/list/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/module.json",
+      "sha256": "987d1996a42eb21ef76f5b1ab1990b6d0c18f0c9644a279ac6f2d32b92ac2569",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/new/cli/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/new/cli/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/new/cli/module.json",
+      "sha256": "2964a235cb5ad975ca38cd08e7246e9d55bca3814f6fd282497752d874e29dbe",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/new/cli/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/new/mnemonic/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/new/mnemonic/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/new/mnemonic/module.json",
+      "sha256": "166b61417923d23a5d8d2f7547b309f7334bb43fb77c63baf9bb8edd6c84698f",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/new/mnemonic/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/new/module.json",
+      "sha256": "777b8c83ebaf3121baca05a0791bf0830bdd8279de09db338e0b5e9561172259",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/new/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/register/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/register/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/register/module.json",
+      "sha256": "69e75c09582ccde8c0d403d1e076c0dbc3a3537aab4046cc776bf12e11cd2967",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/register/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/remove/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/remove/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/remove/module.json",
+      "sha256": "0bab4ebccb50421b56d6c40ddfcfbee1344cfcb090d91d31b282655081c96578",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/remove/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/show/action.sh",
+      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/show/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/modules/root/wallet/show/module.json",
+      "sha256": "32e06e017540437cdefccfc3a79a958874b83ffe6477820024c089327d32b96d",
+      "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/show/module.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/schema/module.schema.json",
+      "sha256": "05ce470d77724c471c406ebff5d62dfc3d94102185e7bb4082ea7ca9b3ce7da1",
+      "source": "scripts/common-helper-scripts/cntools/schema/module.schema.json",
+      "validator": "json"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/templates/action/action.sh",
+      "sha256": "1f8cb8481f84dab36ce6322a9740a6fbd426767a46416af8da093ce1b3de1727",
+      "source": "scripts/common-helper-scripts/cntools/templates/action/action.sh",
+      "validator": "shell"
+    },
+    {
+      "mode": "0444",
+      "path": "cntools/templates/action/module.json",
+      "sha256": "cdee06ec44a45c3d52effa077eab7fb9ffacad7dbd8c2d1f90c96396263fb6cc",
+      "source": "scripts/common-helper-scripts/cntools/templates/action/module.json",
+      "validator": "json"
+    }
+  ],
+  "generationIdAlgorithm": "sha256-path-mode-content-v1",
+  "legacyBundle": {
+    "facade": "cntools.library",
+    "id": "15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f",
+    "idAlgorithm": "sha256-cntools-legacy-bundle-v1",
+    "logicalBodySha256": "c9c900b9f14399d024dea9b5b10184ebbdebdaed7d8cba1c246d69ca37971408",
+    "logicalBodySize": 278034,
+    "members": [
+      {
+        "mode": "0444",
+        "path": "010-common-dialog.sh",
+        "sha256": "5408355794fa187dbac5af7b66b956ab84216fd91ee4b6ec8bbe420b05fea8a7",
+        "size": 14532
+      },
+      {
+        "mode": "0444",
+        "path": "020-terminal-selection-security.sh",
+        "sha256": "bb6f10e533f45cb90577e32d0d7a57ca86fe0c97d950938911be8eecec4a1460",
+        "size": 31976
+      },
+      {
+        "mode": "0444",
+        "path": "030-governance-query.sh",
+        "sha256": "9e9179c73ccdd945c6ed6b7921038b7f6bc7679c4609af86565f7ad99ff8d519",
+        "size": 46236
+      },
+      {
+        "mode": "0444",
+        "path": "040-address-wallet-query.sh",
+        "sha256": "b23fdfec65fd7e991a3e46d2bef1d5c9ed09102e345cac7f3f5b75c761957df0",
+        "size": 38284
+      },
+      {
+        "mode": "0444",
+        "path": "050-wallet-create-registration.sh",
+        "sha256": "a1fba108e3e9d3e8c388c54bd3a95332ee4444e61519330dd65347f4cfbe9b53",
+        "size": 34499
+      },
+      {
+        "mode": "0444",
+        "path": "060-wallet-actions.sh",
+        "sha256": "73f150b684713b6c64211ff8c900a6deedb90a4aa15afde85dae44b8af220db5",
+        "size": 18393
+      },
+      {
+        "mode": "0444",
+        "path": "070-pool-actions.sh",
+        "sha256": "689a52e0e8f18a30984cebda6ef29dd929b66fb4cdba7ff03f673debb6e25257",
+        "size": 27577
+      },
+      {
+        "mode": "0444",
+        "path": "080-metadata-assets.sh",
+        "sha256": "1444e366a79483bdcd538b59e01f8a623e3c6b4bf4fe58f5deaedc53ec247c80",
+        "size": 17503
+      },
+      {
+        "mode": "0444",
+        "path": "090-governance-actions.sh",
+        "sha256": "91fd56011304f4528851f8cd3b241ca63393440a51faa5c5380a22081a146ec8",
+        "size": 22753
+      },
+      {
+        "mode": "0444",
+        "path": "100-transaction-hardware-price.sh",
+        "sha256": "237b3847db52432ff523c36c5ca7bcb08b437f8b8978389259789a70fee5071f",
+        "size": 22300
+      }
+    ],
+    "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f",
+    "schemaVersion": 1
+  },
+  "libraryManifest": "cntools/libs/manifest.json",
+  "moduleApiVersion": 1,
+  "moduleSchema": "cntools/schema/module.schema.json",
+  "moduleSchemaVersion": 2,
+  "releaseStage": "shadow",
+  "rootModule": "cntools/modules/root/module.json",
+  "runtimeApiVersion": 1,
+  "schemaVersion": 3,
+  "version": "13.5.7"
+}

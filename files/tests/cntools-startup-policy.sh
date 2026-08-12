@@ -13,6 +13,7 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_SCRIPT="${REPO_ROOT}/scripts/common-helper-scripts/cntools.sh"
 CNTOOLS_LIBRARY="${REPO_ROOT}/scripts/common-helper-scripts/cntools.library"
+CNTOOLS_LEGACY_BUNDLE_ID="15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f"
 COMMON_ENV="${REPO_ROOT}/scripts/common-helper-scripts/env"
 # Keep Unix-domain socket fixture paths below the platform length limit even
 # when the caller has a deeply nested TMPDIR (notably macOS launchd paths).
@@ -40,6 +41,7 @@ cleanup_test() {
     printf 'Preserved startup-policy fixture: %s\n' "${TEST_ROOT}" >&2
     return
   fi
+  chmod -R u+rwX "${TEST_ROOT}" >/dev/null 2>&1 || true
   rm -rf -- "${TEST_ROOT}"
 }
 trap cleanup_test EXIT
@@ -412,6 +414,14 @@ prepare_fixture() {
     "${node_root}/tmp/runtime"
   cp "${CNTOOLS_SCRIPT}" "${node_root}/scripts/cntools.sh"
   cp "${CNTOOLS_LIBRARY}" "${node_root}/scripts/cntools.library"
+  mkdir -p "${node_root}/scripts/cntools/libs/legacy"
+  cp -R \
+    "${REPO_ROOT}/scripts/common-helper-scripts/cntools/libs/legacy/${CNTOOLS_LEGACY_BUNDLE_ID}" \
+    "${node_root}/scripts/cntools/libs/legacy/${CNTOOLS_LEGACY_BUNDLE_ID}"
+  find "${node_root}/scripts/cntools/libs/legacy/${CNTOOLS_LEGACY_BUNDLE_ID}" \
+    -type f -exec chmod 0444 {} +
+  find "${node_root}/scripts/cntools/libs/legacy/${CNTOOLS_LEGACY_BUNDLE_ID}" \
+    -depth -type d -exec chmod 0555 {} +
   cp "${COMMON_ENV}" "${node_root}/scripts/env"
   write_fake_dispatcher "${node_root}/scripts/guild-deploy.sh"
   cp \
@@ -420,6 +430,11 @@ prepare_fixture() {
     "${REPO_ROOT}/scripts/common-helper-scripts/lib/node-api.library" \
     "${REPO_ROOT}/scripts/common-helper-scripts/lib/systemd.library" \
     "${node_root}/scripts/lib/"
+  # Startup-policy characterization uses a one-file fake dispatcher only to
+  # observe branch delegation. Exact deployment inventories/currentness are
+  # exercised by common-runtime.sh, so keep that concern out of this fixture.
+  printf '%s\n' 'deployment_payload_is_current() { return 0; }' >> \
+    "${node_root}/scripts/lib/deployment.library"
 
   case "${implementation}" in
     cnode) adapter_source="${REPO_ROOT}/scripts/cnode-helper-scripts/cnode.adapter" ;;

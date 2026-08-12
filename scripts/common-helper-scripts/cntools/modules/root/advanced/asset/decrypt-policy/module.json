@@ -1,0 +1,31 @@
+{
+  "description": "Legacy CNTools workflow: Decrypt / Unlock Policy",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "advanced.asset.decrypt-policy",
+  "kind": "action",
+  "label": "Decrypt / Unlock Policy",
+  "order": 40,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "d",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

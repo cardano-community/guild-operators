@@ -1,0 +1,19 @@
+{
+  "controlPolicy": "home",
+  "description": "Legacy CNTools menu: Vote",
+  "id": "vote",
+  "kind": "menu",
+  "label": "Vote",
+  "order": 50,
+  "schemaVersion": 2,
+  "shortcut": "v",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

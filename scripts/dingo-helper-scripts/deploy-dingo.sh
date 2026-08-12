@@ -360,6 +360,10 @@ dingo_deploy_validate_release_metadata() {
 }
 
 dingo_deploy_install_payloads() {
+  if [[ "${DISPATCHER_TX_PREPARED:-N}" != "Y" ]]; then
+    dingo_deploy_fail "The Dingo payload now requires the complete managed guild-deploy transaction; direct profile installation is unsupported"
+    return 1
+  fi
   dingo_deploy_progress "Refreshing Dingo scripts and configuration" "${BRANCH:-master}"
   if [[ "${DISPATCHER_TX_PREPARED:-N}" == "Y" ]]; then
     dingo_deploy_check_network_change || return 1

@@ -1045,6 +1045,51 @@ run_install_order_test() {
   fi
 }
 
+run_managed_payload_gate_test() (
+  local node_root="${TEST_ROOT}/managed-payload-gate"
+  local sentinel="${node_root}/operator-sentinel"
+  local before="" after="" prepared_marker="${TEST_ROOT}/cnode-prepared.marker"
+  local gate_value=""
+
+  mkdir -p "${node_root}/files"
+  printf 'operator data\n' > "${sentinel}"
+  NODE_HOME="${node_root}"
+  err_exit() {
+    printf '%s\n' "$*" > "${TEST_ROOT}/cnode-gate.error"
+    return 1
+  }
+  snapshot_gate_tree() {
+    find "${node_root}" -print | LC_ALL=C sort
+    sha256sum "${sentinel}"
+  }
+
+  for gate_value in unset N; do
+    before="$(snapshot_gate_tree)"
+    if [[ "${gate_value}" == unset ]]; then
+      unset DISPATCHER_TX_PREPARED
+    else
+      DISPATCHER_TX_PREPARED="${gate_value}"
+    fi
+    if populate_cnode >/dev/null 2>&1; then
+      fail "cnode direct payload fallback succeeded with gate ${gate_value}"
+    fi
+    after="$(snapshot_gate_tree)"
+    assert_eq "${after}" "${before}" \
+      "cnode direct payload refusal mutated the target (${gate_value})"
+  done
+
+  cnode_deploy_prepare_layout() { :; }
+  secure_cnode_private_directory() { :; }
+  dispatcher_distribution_activate() { : > "${prepared_marker}"; }
+  cnode_deploy_load_release_metadata() { :; }
+  log_progress() { :; }
+  log_ok() { :; }
+  DISPATCHER_TX_PREPARED="Y"
+  populate_cnode || fail "prepared cnode managed payload path failed"
+  [[ -f "${prepared_marker}" ]] ||
+    fail "prepared cnode path did not activate the managed distribution"
+)
+
 run_legacy_orchestrator_retirement_test() (
   local node_root="${TEST_ROOT}/legacy-systemd-orchestrator"
   local legacy_script="${node_root}/scripts/deploy-as-systemd.sh"
@@ -1080,6 +1125,7 @@ run_managed_installer_policy_test
 run_source_checkout_test
 run_transaction_tests
 run_install_order_test
+run_managed_payload_gate_test
 run_legacy_orchestrator_retirement_test
 
 printf 'cnode runtime transaction tests passed\n'

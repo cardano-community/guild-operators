@@ -1,0 +1,19 @@
+{
+  "controlPolicy": "escape-root",
+  "description": "Legacy CNTools menu: Backup & Restore",
+  "id": "backup",
+  "kind": "menu",
+  "label": "Backup & Restore",
+  "order": 70,
+  "schemaVersion": 2,
+  "shortcut": "z",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

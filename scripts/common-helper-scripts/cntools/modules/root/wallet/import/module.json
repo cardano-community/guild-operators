@@ -1,0 +1,19 @@
+{
+  "controlPolicy": "back-home",
+  "description": "Legacy CNTools menu: Import",
+  "id": "wallet.import",
+  "kind": "menu",
+  "label": "Import",
+  "order": 20,
+  "schemaVersion": 2,
+  "shortcut": "i",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

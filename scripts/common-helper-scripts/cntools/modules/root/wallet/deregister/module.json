@@ -1,0 +1,30 @@
+{
+  "description": "Legacy CNTools workflow: De-Register",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local",
+      "light"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "wallet.deregister",
+  "kind": "action",
+  "label": "De-Register",
+  "order": 40,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "z",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

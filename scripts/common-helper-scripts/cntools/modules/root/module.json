@@ -1,0 +1,17 @@
+{
+  "controlPolicy": "root",
+  "description": "CNTools application root",
+  "id": "root",
+  "kind": "menu",
+  "label": "CNTools",
+  "schemaVersion": 2,
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

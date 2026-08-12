@@ -73,6 +73,7 @@ The default layout below assumes `/opt/cardano/dingo`:
 ```text
 /opt/cardano/dingo/
 ├── .deployment.json
+├── .guild-source-receipt.json
 ├── db/
 ├── files/
 │   ├── dingo-release.json
@@ -88,9 +89,15 @@ The default layout below assumes `/opt/cardano/dingo`:
 ├── sockets/
 │   └── dingo.socket       # created while Dingo is running
 └── scripts/
+    ├── .cntools/
+    │   └── generations/
+    │       └── <64-character-sha256>/
     ├── adapters/dingo.adapter
     ├── archive/
     ├── lib/
+    ├── cntools/
+    │   └── libs/legacy/
+    │       └── <64-character-sha256>/   # ten read-only fragments
     ├── cntools.library
     ├── cntools.sh
     ├── dingo.env
@@ -98,6 +105,16 @@ The default layout below assumes `/opt/cardano/dingo`:
     ├── gLiveView.sh
     └── env
 ```
+
+The content-addressed CNTools directory is an inactive candidate bound to the
+deployment receipt. Deployment neither creates nor moves `.cntools/active` or
+`.cntools/previous`; the top-level `cntools.sh` remains the authoritative
+legacy-menu entrypoint during this refactor stage. `cntools.library` is now a
+compatibility facade over the exact bundle beneath `scripts/cntools`. The
+dispatcher publishes that complete bundle atomically before its facade and
+retains preceding valid bundle IDs during the transition. The inactive Stage 3
+candidate carries a validated 15-menu/54-action shadow registry, but its 54
+action stubs cannot dispatch production workflows.
 
 Dingo embeds the Cardano configuration, genesis files, and topology for known
 networks in its executable. Guild Operators therefore self-hosts only the

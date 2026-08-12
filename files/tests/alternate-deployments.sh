@@ -17,6 +17,57 @@ assert_not_exists() {
   [[ ! -e "$1" ]] || fail "unexpected path: $1"
 }
 
+run_dingo_managed_payload_gate_test() (
+  local node_root=""
+  local sentinel=""
+  local before="" after="" gate_value=""
+  local prepared_marker=""
+
+  node_root="$(mktemp -d "${TMPDIR:-/tmp}/guild-dingo-payload-gate.XXXXXX")"
+  sentinel="${node_root}/operator-sentinel"
+  prepared_marker="${node_root}/prepared-marker"
+  mkdir -p "${node_root}/files"
+  printf 'operator data\n' > "${sentinel}"
+  NODE_HOME="${node_root}"
+  BRANCH="test"
+  # shellcheck source=/dev/null
+  . "${REPO_ROOT}/scripts/dingo-helper-scripts/deploy-dingo.sh"
+  dingo_deploy_fail() { return 1; }
+  snapshot_gate_tree() {
+    find "${node_root}" -print | LC_ALL=C sort
+    sha256sum "${sentinel}"
+  }
+
+  for gate_value in unset N; do
+    before="$(snapshot_gate_tree)"
+    if [[ "${gate_value}" == unset ]]; then
+      unset DISPATCHER_TX_PREPARED
+    else
+      DISPATCHER_TX_PREPARED="${gate_value}"
+    fi
+    if dingo_deploy_install_payloads >/dev/null 2>&1; then
+      fail "Dingo direct payload fallback succeeded with gate ${gate_value}"
+    fi
+    after="$(snapshot_gate_tree)"
+    [[ "${after}" == "${before}" ]] ||
+      fail "Dingo direct payload refusal mutated the target (${gate_value})"
+  done
+
+  printf '{"version":"test-version"}\n' > \
+    "${node_root}/files/dingo-release.json"
+  dingo_deploy_progress() { :; }
+  dingo_deploy_check_network_change() { :; }
+  dispatcher_distribution_activate() { : > "${prepared_marker}"; }
+  dingo_deploy_validate_release_metadata() { :; }
+  dingo_deploy_ok() { :; }
+  DISPATCHER_TX_PREPARED="Y"
+  dingo_deploy_install_payloads ||
+    fail "prepared Dingo managed payload path failed"
+  [[ -f "${prepared_marker}" ]] ||
+    fail "prepared Dingo path did not activate the managed distribution"
+  rm -rf -- "${node_root}"
+)
+
 write_fake_executable() {
   local destination="$1"
   local version_output="$2"
@@ -104,7 +155,7 @@ run_alternate_profile_test() (
   local test_root
   local profile
   local deploy_function
-  local install_payloads_function
+  local prepare_layout_function
   local runtime_bundle_function="dispatcher_install_common_runtime_bundle"
   local runtime_fetch_function
   local release_validator
@@ -138,7 +189,11 @@ run_alternate_profile_test() (
   local -a runtime_targets
 
   test_root="$(mktemp -d "${TMPDIR:-/tmp}/guild-${implementation}-profile.XXXXXX")"
-  trap 'rm -rf -- "${test_root}"' EXIT
+  test_root="$(cd "${test_root}" && pwd -P)"
+  trap 'declare -F dispatcher_release_target_lock >/dev/null 2>&1 && dispatcher_release_target_lock; chmod -R u+rwX "${test_root}" >/dev/null 2>&1 || true; rm -rf -- "${test_root}"' EXIT
+  TMPDIR="${test_root}/tmp"
+  mkdir -p "${TMPDIR}"
+  export TMPDIR
 
   HOME="${test_root}/home"
   NODE_IMPLEMENTATION="${implementation}"
@@ -182,7 +237,7 @@ run_alternate_profile_test() (
       fi
       profile="${REPO_ROOT}/scripts/dingo-helper-scripts/deploy-dingo.sh"
       deploy_function="deploy_dingo_profile"
-      install_payloads_function="dingo_deploy_install_payloads"
+      prepare_layout_function="dingo_deploy_prepare_layout"
       runtime_fetch_function="dingo_deploy_fetch"
       release_validator="dingo_deploy_validate_release_metadata"
       binary_resolver_function="dingo_deploy_resolve_binary"
@@ -193,7 +248,7 @@ run_alternate_profile_test() (
     amaru)
       profile="${REPO_ROOT}/scripts/amaru-helper-scripts/deploy-amaru.sh"
       deploy_function="deploy_amaru_profile"
-      install_payloads_function="amaru_deploy_install_payloads"
+      prepare_layout_function="amaru_deploy_prepare_layout"
       runtime_fetch_function="amaru_deploy_fetch"
       release_validator="amaru_deploy_validate_release_metadata"
       binary_resolver_function="amaru_deploy_resolve_binary"
@@ -315,7 +370,36 @@ run_alternate_profile_test() (
   fi
   S_ARGS=""
 
+  "${validate_function}" ||
+    fail "${implementation} could not initialize the managed payload context"
+  "${parse_function}" ||
+    fail "${implementation} could not initialize managed payload flags"
+  "${prepare_layout_function}" ||
+    fail "${implementation} could not prepare its transaction target"
+  BINARY_PATH="${HOME}/.local/bin"
+  DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
+  G_ACCOUNT="cardano-community"
+  _GUILD_SOURCE_PREPARED="Y"
+  _GUILD_SOURCE_REPOSITORY="cardano-community/guild-operators"
+  _GUILD_SOURCE_CHANNEL="branch"
+  _GUILD_SOURCE_MODE="local"
+  _GUILD_SOURCE_REF="master"
+  _GUILD_SOURCE_REVISION="1111111111111111111111111111111111111111"
+  _GUILD_SOURCE_DIRTY="false"
+  _GUILD_SOURCE_TREE_DIGEST=""
+  _GUILD_SOURCE_SNAPSHOT="${REPO_ROOT}"
+  GUILD_DEPLOY_LOCK_BACKEND=directory
+  dispatcher_acquire_target_lock ||
+    fail "${implementation} could not acquire its transaction target lock"
+  dispatcher_distribution_prepare ||
+    fail "${implementation} could not prepare the complete managed payload"
   "${deploy_function}"
+  [[ "${DISPATCHER_TX_ACTIVATED:-N}" == "Y" ]] ||
+    fail "${implementation} did not activate the managed payload"
+  dispatcher_write_manifest deployed
+  dispatcher_cntools_generation_lock_release ||
+    fail "${implementation} could not release the generation lock"
+  dispatcher_release_target_lock
 
   launcher="${NODE_HOME}/scripts/${implementation}.sh"
   resolved_node_home="$(cd "${NODE_HOME}" && pwd -P)"
@@ -924,24 +1008,11 @@ run_alternate_profile_test() (
     }
   fi
   release_checksum="$(sha256sum "${release_path}" | awk '{print $1}')"
-  if (
-    mv() {
-      local destination="${*: -1}"
-      if [[ "${destination}" == "${release_path}" ]]; then
-        return 1
-      fi
-      command mv "$@"
-    }
-    "${install_payloads_function}"
-  ) >/dev/null 2>&1; then
-    fail "${implementation} payload refresh ignored a failed release metadata replacement"
-  fi
   [[ "$(sha256sum "${release_path}" | awk '{print $1}')" == "${release_checksum}" ]] ||
-    fail "${implementation} release metadata changed after failed replacement"
-  if find "${NODE_HOME}/files" \
-    -name ".${implementation}-release.json.tmp.*" -print -quit | grep -q .; then
-    fail "${implementation} left temporary release metadata after failed replacement"
-  fi
+    fail "${implementation} managed release metadata changed unexpectedly"
+  [[ "${DISPATCHER_TX_ACTIVE:-N}" == "N" &&
+     ! -e "${NODE_HOME}/.guild-deploy-transaction" ]] ||
+    fail "${implementation} committed payload left an active transaction"
 
   if [[ "${implementation}" == "dingo" ]]; then
     assert_file "${NODE_HOME}/files/dingo.yaml"
@@ -1465,6 +1536,7 @@ run_alternate_profile_test() (
   fi
 )
 
+run_dingo_managed_payload_gate_test
 run_alternate_profile_test dingo preview 3001
 run_alternate_profile_test amaru preprod 3000
 

@@ -39,21 +39,43 @@ gLiveView, CNTools, Topology Updater, setup-grest, or the deployment dispatcher
 requests a complete deployment transaction from that branch or tag; no helper
 edits only the manifest field.
 
-An existing manifest is authoritative and must be valid schema version 1 with
+An existing deployment manifest is authoritative and must be valid schema
+version 1 with
 `deploymentStatus: "deployed"` and complete implementation, network,
 repository, branch, service, source revision and mode, receipt digest,
 transaction ID, node-version, metrics, and capability data. Its
 `.guild-source-receipt.json` binds that source identity to the installed file
-hashes and modes. The common environment stops on malformed, incomplete,
+hashes and modes. New receipts use source schema version 2; source schema
+version 1 remains accepted for an existing legacy deployment. For cnode and
+Dingo, a version-2 receipt also binds the immutable, inactive CNTools
+generation below `scripts/.cntools/generations/<64-character-sha256>`. Amaru
+receipts contain no CNTools generation. During the compatibility transition,
+validation accepts only the exact schema-1 19-manifest/20-receipt generation,
+the exact schema-2 29-manifest/30-receipt generation with its ten-member legacy
+bundle, or the current schema-3 151-manifest/152-receipt shadow generation. It
+does not treat those counts as an open-ended compatibility range or accept
+hybrid schema/count pairs.
+The common environment verifies every receipt-managed public bundle member;
+the facade then validates the exact directory inventory and canonical bundle
+identity before loading any fragment. It stops on malformed, incomplete,
 future-schema, mismatched, or interrupted metadata instead of silently loading
 the cnode adapter. A missing manifest is accepted only for the documented
 legacy/source-tree fallback.
 
+The inactive Stage 3 generation launcher independently authenticates the outer
+receipt, deployment metadata, exact generation, and version binding before and
+again under the generation lock. It exposes diagnostics only; the public
+legacy `cntools.sh` remains the production menu and does not load the modular
+registry.
+
 An update check from any helper compares and, after confirmation where
 applicable, refreshes the complete compatible Guild payload through the
 installed dispatcher. All candidates are staged and validated before the
-target-wide transaction starts. A failed activation restores the previous
-generation, and the receipt and deployed manifest are committed last.
+target-wide transaction starts. A failed activation restores the preceding
+payload, and the receipt and deployed manifest are committed last. Publishing
+the compatibility bundle is a separate atomic directory operation completed
+before the referring facade is installed. Publishing the inactive CNTools
+generation does not create or move its `active` or `previous` pointers.
 
 The manifest branch or tag is also the authoritative update source. If it is
 missing or cannot be reached, a helper update fails without replacing files;

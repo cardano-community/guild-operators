@@ -28,8 +28,9 @@ installs the shared CNTools wallet/pool interface; Amaru remains relay-only.
 ## Dispatcher and implementation profiles
 
 The one downloaded `guild-deploy.sh` is a bootstrap seed and common
-dispatcher. Git, `jq`, a SHA-256 utility, and Bash 4.4 or newer must already be
-installed. The seed validates these bootstrap tools before target mutation and:
+dispatcher. Git, `jq`, a SHA-256 utility, `flock` from `util-linux` on Linux,
+and Bash 4.4 or newer must already be installed. The seed validates these
+bootstrap tools before target mutation and:
 
 1. parses and validates common arguments;
 2. chooses the implementation-specific default for `-t`;
@@ -138,7 +139,7 @@ not node configuration:
   "network": "preview",
   "branch": "master",
   "repository": "cardano-community/guild-operators",
-  "sourceSchemaVersion": 1,
+  "sourceSchemaVersion": 2,
   "sourceMode": "managed",
   "sourceRef": "refs/heads/master",
   "sourceRevision": "0123456789abcdef0123456789abcdef01234567",
@@ -171,19 +172,47 @@ the binary currently on the host. A dirty local source also has a
 
 The payload receipt binds the manifest's source identity to each installed
 Guild file. It records the relative path, mode, source hash, installed hash,
-installation policy, and whether the file remains deployment-managed.
+installation policy, and whether the file remains deployment-managed. New
+receipts use schema version 2, while the dispatcher and common runtime continue
+to accept valid schema-version-1 receipts from existing deployments.
 Configuration governed by the `preserve-render` policy becomes operator-owned
 as soon as it is initially rendered and is recorded with `managed: false`.
 Existing configuration is never replaced or made more permissive without
 `-s f`; its bytes and mode remain unchanged. It is not misrepresented as
 repository-identical managed content.
 
-The dispatcher validates the complete version-1 manifest and refuses to reuse
-a manifest-owned folder with malformed or incomplete metadata, a different
-implementation or network, or a service name that does not match the target
-folder. Common helpers and alternate launchers apply the same fail-closed
-rule. Configuration and chain data are never automatically converted between
-implementations.
+For cnode and Dingo, the version-2 receipt also contains a
+`cntoolsGeneration` record. It binds a validated, content-addressed CNTools
+candidate at `scripts/.cntools/generations/<64-character-sha256>` to its
+payload manifest and generation receipt. The record is explicitly inactive.
+The nested receipt describes content only; repository, ref, revision, and
+dirty-source provenance remain authoritative in the outer deployment receipt,
+so byte-identical payloads can safely reuse the same immutable generation.
+Deployment publishes or reuses that immutable directory transactionally but
+does not create or move `scripts/.cntools/active` or
+`scripts/.cntools/previous`. The top-level `scripts/cntools.sh` therefore
+remains the authoritative legacy-menu entrypoint. Its `cntools.library` is a
+compatibility facade over ten mechanically extracted, content-addressed
+fragments; this changes storage structure without switching menu dispatch or
+redesigning function and global-state contracts. Amaru has no
+`cntoolsGeneration` receipt record and installs no CNTools generation.
+
+The generation lifecycle validates three bounded compatibility shapes. A Stage
+1 schema-1 generation has exactly 19 payload-manifest members and 20
+nested-receipt members. A Stage 2 schema-2 generation has exactly 29 and 30
+respectively, adding the ten-member legacy bundle. The current Stage 3 schema-3
+generation has exactly 151 and 152, adding the complete deterministic shadow
+registry. New deployments emit only the Stage 3 shape, while the trusted
+current lifecycle can still validate and roll back to either earlier exact
+shape without sourcing its code. Arbitrary member counts, hybrid schema/count
+pairs, and substituted paths are not accepted.
+
+The dispatcher validates the complete deployment metadata document (schema
+version 1) and refuses to reuse a manifest-owned folder with malformed or
+incomplete metadata, a different implementation or network, or a service name
+that does not match the target folder. Common helpers and alternate launchers
+apply the same fail-closed rule. Configuration and chain data are never
+automatically converted between implementations.
 
 On both first installs and updates, candidates are staged and validated before
 activation. A private transaction journal and baseline backups support
@@ -191,6 +220,22 @@ recovery or rollback if activation is interrupted. The canonical manifest is
 not changed to advertise work in progress: the new receipt and
 `deploymentStatus: "deployed"` manifest are published only after the complete
 payload succeeds.
+
+The private generation recovery record is also shape-bound. Stage 1 and Stage
+2 records have exactly six fields. A Stage 3 record has exactly ten and ends in
+the discriminator `3,151,3,152`. Recovery rejects truncated, extended, or
+hybrid records before target mutation rather than inferring a generation shape
+from a permissive member count.
+
+The CNTools compatibility bundle uses a dedicated source-manifest policy. Its
+ten read-only files are staged and validated as one directory, then atomically
+published or exactly reused before the referring facade. That facade is the
+first ordinary cnode/Dingo payload member installed and refuses to load while
+the durable deployment journal exists; rollback restores it last. Prior bundle
+IDs are retained throughout compatibility stages, so a facade already being
+sourced cannot lose its members during an update. The historical direct
+cnode/Dingo profile fallback cannot provide these guarantees and fails closed;
+supported installation and refresh go through `guild-deploy.sh`.
 
 When `-s s` or `-s f` actually replaces a script or configuration file, its
 preceding bytes and mode are retained under `scripts/archive` by the same
@@ -226,6 +271,16 @@ common-helper-scripts/
 ├── gLiveView.sh
 ├── cntools.sh
 ├── cntools.library
+├── cntools.conf.example
+├── cntools/
+│   ├── core/
+│   ├── docs/
+│   ├── libs/
+│   │   ├── manifest.json
+│   │   └── legacy/<64-character-sha256>/
+│   ├── modules/
+│   ├── schema/
+│   └── templates/
 └── lib/
     ├── deployment.library
     ├── env.library
@@ -261,6 +316,19 @@ Capability checks fail closed when an adapter cannot provide the required node
 interface. cnode and Dingo install the same canonical CNTools files; the Dingo
 adapter supplies `cardano-cli-dingo` and its node-to-client socket. Amaru does
 not install CNTools.
+
+The modular launcher, dispatcher, configuration parser, and 69-document module
+tree are currently packaged only as the inactive, receipt-bound generation
+described above. Its 15-menu, 54-action shadow registry deterministically
+synthesizes 22 navigation controls and 90 options, but all 54 action
+entrypoints remain inert. The generation-root launcher exposes validation and
+menu-dump diagnostics only after authenticating the installed outer receipt,
+metadata, immutable generation, and version binding before and under the
+generation lock. The legacy fragments beneath `cntools/libs/legacy` are the one
+intentional exception: the public compatibility facade loads its exact sibling
+bundle to preserve the existing implementation. The public launcher does not
+load the modular core, deployment does not create a live `cntools.conf`, and
+no production menu or action dispatch has changed.
 
 ### Common monitoring contract
 

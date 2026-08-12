@@ -1,0 +1,30 @@
+{
+  "description": "Legacy CNTools workflow: Mint Asset",
+  "executionRequirements": {
+    "features": [],
+    "modes": [
+      "local",
+      "light"
+    ],
+    "nodeCapabilities": []
+  },
+  "id": "advanced.asset.mint",
+  "kind": "action",
+  "label": "Mint Asset",
+  "order": 60,
+  "runtime": {
+    "apiVersion": 1,
+    "libraries": []
+  },
+  "schemaVersion": 2,
+  "shortcut": "m",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

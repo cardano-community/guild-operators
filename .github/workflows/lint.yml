@@ -21,6 +21,8 @@ jobs:
       with:
         scandir: "./scripts"
         severity: "warning"
+        ignore_paths: >-
+          scripts/common-helper-scripts/cntools/libs/legacy
         additional_files: >-
           env
           cntools.library
@@ -29,17 +31,41 @@ jobs:
           env.library
           node-api.library
           systemd.library
-    - name: Docker shell lint check
+    - name: Docker and Stage 3 shell lint check
       run: |
         shellcheck -S warning -e SC2034,SC2327,SC2328 \
           files/docker/node/addons/entrypoint.sh \
           files/docker/node/addons/healthcheck.sh \
           files/docker/node/addons/block_watcher.sh \
-          files/tests/docker-deployment.sh
+          files/tests/docker-deployment.sh \
+          files/tests/common-runtime.sh \
+          files/tests/cntools-library-split-contract.sh \
+          files/tests/cntools-payload-contract.sh \
+          files/tests/cntools-module-registry.sh \
+          files/tests/cntools-generation-diagnostics.sh \
+          files/tests/cntools-generation-lifecycle.sh \
+          files/tests/cntools-config-contract.sh \
+          files/tests/guild-deploy-transaction.sh \
+          files/tests/guild-source-manifest.sh
+        shellcheck -s bash -S warning \
+          -e SC2034,SC2086,SC2089,SC2090,SC2230,SC2206,SC2140,SC2059,SC2154 \
+          scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/*.sh
     - name: Deployment dispatcher tests
       run: bash files/tests/guild-deploy-dispatcher.sh
     - name: Deployment source manifest tests
       run: bash files/tests/guild-source-manifest.sh
+    - name: CNTools legacy library split contract tests
+      run: bash files/tests/cntools-library-split-contract.sh
+    - name: CNTools modular payload contract tests
+      run: bash files/tests/cntools-payload-contract.sh
+    - name: CNTools module registry tests
+      run: bash files/tests/cntools-module-registry.sh
+    - name: CNTools generation diagnostic tests
+      run: bash files/tests/cntools-generation-diagnostics.sh
+    - name: CNTools generation lifecycle tests
+      run: bash files/tests/cntools-generation-lifecycle.sh
+    - name: CNTools configuration contract tests
+      run: bash files/tests/cntools-config-contract.sh
     - name: Deployment transaction tests
       run: bash files/tests/guild-deploy-transaction.sh
     - name: Alternate deployment tests

@@ -1,0 +1,21 @@
+{
+  "controlPolicy": "home",
+  "description": "Legacy CNTools menu: Advanced",
+  "id": "advanced",
+  "kind": "menu",
+  "label": "Advanced",
+  "order": 80,
+  "schemaVersion": 2,
+  "shortcut": "a",
+  "visibility": {
+    "features": [
+      "advanced"
+    ],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

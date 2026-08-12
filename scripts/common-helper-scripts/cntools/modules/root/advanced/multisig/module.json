@@ -1,0 +1,19 @@
+{
+  "controlPolicy": "back-home",
+  "description": "Legacy CNTools menu: MultiSig",
+  "id": "advanced.multisig",
+  "kind": "menu",
+  "label": "MultiSig",
+  "order": 30,
+  "schemaVersion": 2,
+  "shortcut": "s",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

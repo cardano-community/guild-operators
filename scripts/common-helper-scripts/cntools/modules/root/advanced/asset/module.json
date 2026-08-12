@@ -1,0 +1,19 @@
+{
+  "controlPolicy": "back-home",
+  "description": "Legacy CNTools menu: Asset",
+  "id": "advanced.asset",
+  "kind": "menu",
+  "label": "Asset",
+  "order": 20,
+  "schemaVersion": 2,
+  "shortcut": "a",
+  "visibility": {
+    "features": [],
+    "modes": [
+      "local",
+      "light",
+      "offline"
+    ],
+    "nodeCapabilities": []
+  }
+}

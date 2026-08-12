@@ -170,10 +170,18 @@ rm -rf -- "${inherited_tmp}"
 )
 
 TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/guild-dispatcher-test.XXXXXX")"
+TEST_DIR="$(cd "${TEST_DIR}" && pwd -P)"
 LOCK_TEST_HOLDER_PID=""
 LOCK_TEST_USER_PATH=""
 LOCK_TEST_TARGET_PATH=""
+CLEANUP_TEST_CALLER_PID=""
+CLEANUP_TEST_STOP=""
 cleanup_dispatcher_test() {
+  if [[ -n "${CLEANUP_TEST_CALLER_PID}" ]]; then
+    [[ -z "${CLEANUP_TEST_STOP}" ]] || : > "${CLEANUP_TEST_STOP}"
+    kill -KILL "${CLEANUP_TEST_CALLER_PID}" 2>/dev/null || true
+    wait "${CLEANUP_TEST_CALLER_PID}" 2>/dev/null || true
+  fi
   if [[ -n "${LOCK_TEST_HOLDER_PID}" ]]; then
     kill -KILL "${LOCK_TEST_HOLDER_PID}" 2>/dev/null || true
     wait "${LOCK_TEST_HOLDER_PID}" 2>/dev/null || true
@@ -530,6 +538,136 @@ if (( BASH_VERSINFO[0] > 4 ||
   [[ ! -e "${LOCK_TEST_USER_PATH}" && ! -e "${LOCK_TEST_TARGET_PATH}" ]] ||
     fail "recovered directory locks were not released"
 fi
+
+# Cleanup must synchronously release the dedicated generation-lock holder
+# before it releases the ordinary target lock, even while a durable outer
+# journal remains for authenticated recovery. Keep the old caller alive after
+# cleanup and prove that a real second process can acquire both locks.
+cleanup_lock_parent="${TEST_DIR}/cleanup-generation-lock"
+mkdir -p -- "${cleanup_lock_parent}"
+cleanup_lock_parent="$(cd -P -- "${cleanup_lock_parent}" && pwd -P)"
+cleanup_lock_target="${cleanup_lock_parent}/node"
+cleanup_lock_root="${cleanup_lock_target}/scripts/.cntools"
+cleanup_lock_journal="${cleanup_lock_target}/.guild-deploy-transaction"
+cleanup_lock_ready="${TEST_DIR}/cleanup-generation-lock.ready"
+cleanup_lock_start="${TEST_DIR}/cleanup-generation-lock.start"
+cleanup_lock_complete="${TEST_DIR}/cleanup-generation-lock.complete"
+cleanup_lock_ordered="${TEST_DIR}/cleanup-generation-lock.ordered"
+CLEANUP_TEST_STOP="${TEST_DIR}/cleanup-generation-lock.stop"
+cleanup_lock_output="${TEST_DIR}/cleanup-generation-lock.output"
+mkdir -p -- "${cleanup_lock_root}/generations" "${cleanup_lock_journal}"
+chmod 0700 "${cleanup_lock_target}" \
+  "${cleanup_lock_target}/scripts" "${cleanup_lock_root}" \
+  "${cleanup_lock_root}/generations" "${cleanup_lock_journal}"
+
+"${BASH}" --noprofile --norc -c '
+  set -euo pipefail
+  dispatcher=$1; lifecycle=$2; node_home=$3; root=$4; ready=$5
+  start=$6; complete=$7; ordered=$8; stop=$9
+  # shellcheck source=/dev/null
+  . "${dispatcher}"
+  # shellcheck source=/dev/null
+  . "${lifecycle}"
+  NODE_HOME="${node_home}"
+  dispatcher_acquire_target_lock
+  cntools_generation_deployment_lock_acquire "${root}" Y
+  DISPATCHER_CNTOOLS_GENERATION_LOCK_ROOT="${root}"
+  DISPATCHER_CNTOOLS_GENERATION_LOCK_OWNED=Y
+  DISPATCHER_TX_ACTIVE=N
+  DISPATCHER_TX_PREPARE_ROOT=""
+  DISPATCHER_TX_STAGE_ROOT=""
+  DISPATCHER_DOCKER_EXPORT_STAGE=""
+  DISPATCHER_PROFILE_TMP_OWNED=N
+  generation_holder="${CNTOOLS_GENERATION_LOCK_HOLDER_PID}"
+  release_definition="$(declare -f dispatcher_release_target_lock)"
+  release_definition="${release_definition/#dispatcher_release_target_lock /dispatcher_release_target_lock_real }"
+  eval "${release_definition}"
+  declare -F dispatcher_release_target_lock_real >/dev/null
+  dispatcher_release_target_lock() {
+    [[ "${DISPATCHER_CNTOOLS_GENERATION_LOCK_OWNED:-N}" == N ]]
+    ! kill -0 "${generation_holder}" 2>/dev/null
+    (umask 077 && printf "generation-before-target\n" > "${ordered}")
+    dispatcher_release_target_lock_real
+  }
+  caller_pid="${BASHPID:-$$}"
+  (umask 077 && printf "%s\t%s\n" \
+    "${caller_pid}" "${generation_holder}" > "${ready}")
+  while [[ ! -e "${start}" && ! -L "${start}" ]]; do sleep 0.1; done
+  cleanup_dispatcher 0
+  ! kill -0 "${generation_holder}" 2>/dev/null
+  (umask 077 && printf "%s\t%s\n" \
+    "${caller_pid}" "${generation_holder}" > "${complete}")
+  while [[ ! -e "${stop}" && ! -L "${stop}" ]]; do sleep 0.1; done
+' bash "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
+  "${REPO_ROOT}/scripts/common-helper-scripts/cntools/core/lifecycle.sh" \
+  "${cleanup_lock_target}" "${cleanup_lock_root}" "${cleanup_lock_ready}" \
+  "${cleanup_lock_start}" "${cleanup_lock_complete}" \
+  "${cleanup_lock_ordered}" "${CLEANUP_TEST_STOP}" \
+  > "${cleanup_lock_output}" 2>&1 &
+CLEANUP_TEST_CALLER_PID=$!
+for _ in {1..100}; do
+  [[ -s "${cleanup_lock_ready}" ]] && break
+  kill -0 "${CLEANUP_TEST_CALLER_PID}" 2>/dev/null || break
+  sleep 0.1
+done
+if [[ ! -s "${cleanup_lock_ready}" ]]; then
+  sed -n '1,120p' "${cleanup_lock_output}" >&2 || true
+  fail "cleanup generation-lock holder did not become ready"
+fi
+IFS=$'\t' read -r cleanup_caller cleanup_holder < "${cleanup_lock_ready}"
+[[ "${cleanup_caller}" =~ ^[0-9]+$ && "${cleanup_holder}" =~ ^[0-9]+$ &&
+   "${cleanup_caller}" != "${cleanup_holder}" ]] ||
+  fail "cleanup fixture reported invalid caller/holder process IDs"
+kill -0 "${cleanup_caller}" 2>/dev/null &&
+  kill -0 "${cleanup_holder}" 2>/dev/null ||
+  fail "cleanup fixture did not retain live caller and holder processes"
+: > "${cleanup_lock_start}"
+for _ in {1..100}; do
+  [[ -s "${cleanup_lock_complete}" ]] && break
+  kill -0 "${CLEANUP_TEST_CALLER_PID}" 2>/dev/null || break
+  sleep 0.1
+done
+if [[ ! -s "${cleanup_lock_complete}" ]]; then
+  sed -n '1,120p' "${cleanup_lock_output}" >&2 || true
+  fail "dispatcher cleanup did not synchronously release its generation holder"
+fi
+[[ "$(< "${cleanup_lock_ordered}")" == generation-before-target ]] ||
+  fail "dispatcher cleanup released the target lock before generation holder"
+kill -0 "${cleanup_caller}" 2>/dev/null ||
+  fail "old dispatcher caller exited before post-cleanup contention"
+if kill -0 "${cleanup_holder}" 2>/dev/null; then
+  fail "dispatcher cleanup returned before its generation holder exited"
+fi
+[[ -d "${cleanup_lock_journal}" && ! -L "${cleanup_lock_journal}" ]] ||
+  fail "dispatcher cleanup removed the durable outer journal"
+
+if ! "${BASH}" --noprofile --norc -c '
+  set -euo pipefail
+  dispatcher=$1; lifecycle=$2; node_home=$3; root=$4
+  # shellcheck source=/dev/null
+  . "${dispatcher}"
+  # shellcheck source=/dev/null
+  . "${lifecycle}"
+  NODE_HOME="${node_home}"
+  dispatcher_acquire_target_lock
+  release_target() { dispatcher_release_target_lock || true; }
+  trap release_target EXIT
+  cntools_generation_deployment_lock_acquire "${root}" Y
+  cntools_generation_lock_release "${root}"
+  dispatcher_release_target_lock
+  trap - EXIT
+' bash "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
+  "${REPO_ROOT}/scripts/common-helper-scripts/cntools/core/lifecycle.sh" \
+  "${cleanup_lock_target}" "${cleanup_lock_root}"; then
+  fail "real contender could not acquire locks after dispatcher cleanup"
+fi
+: > "${CLEANUP_TEST_STOP}"
+if ! wait "${CLEANUP_TEST_CALLER_PID}"; then
+  sed -n '1,120p' "${cleanup_lock_output}" >&2 || true
+  fail "old dispatcher caller failed after cleanup contention"
+fi
+CLEANUP_TEST_CALLER_PID=""
+CLEANUP_TEST_STOP=""
 (
   NODE_HOME="${TEST_DIR}/target-alias/./node"
   canonical_target="$(dispatcher_canonical_target_path "${NODE_HOME}")"
@@ -785,6 +923,9 @@ printf 'legacy-branch\n' > "${transaction_target}/scripts/.env_branch"
 transaction_manifest_checksum="$(dispatcher_sha256 \
   "${transaction_target}/.deployment.json")"
 (
+  # This focused fixture exercises only the ordinary payload transaction. Use
+  # the implementation whose contract deliberately has no CNTools generation.
+  NODE_IMPLEMENTATION="amaru"
   NODE_HOME="${transaction_target}"
   DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
   DISPATCHER_TX_STAGE_ROOT="${TEST_DIR}/transaction-progress-stage"
@@ -793,6 +934,9 @@ transaction_manifest_checksum="$(dispatcher_sha256 \
   DISPATCHER_TX_PREPARED="Y"
   DISPATCHER_TX_ACTIVE="N"
   DISPATCHER_TX_ACTIVATED="N"
+  GUILD_DEPLOY_LOCK_BACKEND=directory
+  dispatcher_acquire_target_lock
+  trap 'dispatcher_release_target_lock' EXIT
   mkdir -p "${DISPATCHER_TX_CANDIDATE_ROOT}/scripts"
   printf '#!/usr/bin/env bash\nprintf "transaction fixture\\n"\n' \
     > "${DISPATCHER_TX_CANDIDATE_ROOT}/scripts/progress.sh"
@@ -843,6 +987,8 @@ transaction_manifest_checksum="$(dispatcher_sha256 \
     fail "rolled-back transaction left an activated payload"
   [[ -f "${NODE_HOME}/scripts/.env_branch" ]] ||
     fail "rollback did not restore a retired legacy sidecar"
+  dispatcher_release_target_lock
+  trap - EXIT
 )
 
 mkdir -p "${TEST_DIR}/manifest-outside-transaction"
@@ -1043,6 +1189,10 @@ branch_metadata_checksum="$(dispatcher_sha256 \
   unset GUILD_PAYLOAD_REFRESH_RESULT
   # shellcheck source=/dev/null
   . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
+  # This case verifies branch/delegation arguments only; its one-file receipt
+  # is intentionally not a complete deployable payload. Exact cross-version
+  # currentness is exercised by common-runtime.sh.
+  deployment_payload_is_current() { return 0; }
   if ! deployment_set_branch "_alpha"; then
     fail "branch change did not delegate through the installed dispatcher"
   fi
