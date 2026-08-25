@@ -42,9 +42,13 @@ _cntools_generation_file_mode() {
   local mode=""
 
   [[ -e "${file}" && ! -L "${file}" ]] || return 1
-  mode="$(find "${file}" -prune -printf '%m' 2>/dev/null || true)"
+  mode="$(find "${file}" -prune -printf '%m' 2>/dev/null)" || mode=""
   if [[ -z "${mode}" ]]; then
-    mode="$(stat -f '%Lp' "${file}" 2>/dev/null || true)"
+    if mode="$(stat -f '%Lp' "${file}" 2>/dev/null)"; then
+      :
+    else
+      mode="$(stat -c '%a' -- "${file}" 2>/dev/null)" || return 1
+    fi
   fi
   case "${mode}" in
     [0-7][0-7][0-7]) printf '0%s\n' "${mode}" ;;

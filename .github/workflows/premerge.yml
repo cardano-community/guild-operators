@@ -61,6 +61,10 @@ jobs:
       run: bash files/tests/cntools-payload-contract.sh
     - name: Test CNTools module registry
       run: bash files/tests/cntools-module-registry.sh
+    - name: Test CNTools compatibility runner
+      run: bash files/tests/cntools-compatibility-runner.sh
+    - name: Test CNTools advanced asset list action
+      run: bash files/tests/cntools-asset-list-characterization.sh
     - name: Test CNTools generation diagnostics
       run: bash files/tests/cntools-generation-diagnostics.sh
     - name: Test CNTools generation lifecycle
@@ -100,6 +104,8 @@ jobs:
           files/tests/cntools-library-split-contract.sh \
           files/tests/cntools-payload-contract.sh \
           files/tests/cntools-module-registry.sh \
+          files/tests/cntools-compatibility-runner.sh \
+          files/tests/cntools-asset-list-characterization.sh \
           files/tests/cntools-generation-diagnostics.sh \
           files/tests/cntools-generation-lifecycle.sh \
           files/tests/cntools-config-contract.sh \
@@ -111,7 +117,7 @@ jobs:
           files/tests/guild-source-shadow.sh
         shellcheck -s bash -S warning \
           -e SC2034,SC2086,SC2089,SC2090,SC2230,SC2206,SC2140,SC2059,SC2154 \
-          scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/*.sh
+          scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/*.sh
     - name: Test cnode runtime transaction
       run: bash files/tests/cnode-runtime-transaction.sh
     - name: Test systemd helpers
@@ -179,6 +185,8 @@ jobs:
               files/tests/cntools-library-split-contract.sh \
               files/tests/cntools-payload-contract.sh \
               files/tests/cntools-module-registry.sh \
+              files/tests/cntools-compatibility-runner.sh \
+              files/tests/cntools-asset-list-characterization.sh \
               files/tests/cntools-generation-diagnostics.sh \
               files/tests/cntools-generation-lifecycle.sh \
               files/tests/cntools-config-contract.sh \

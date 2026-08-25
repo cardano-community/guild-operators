@@ -13,7 +13,7 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_SCRIPT="${REPO_ROOT}/scripts/common-helper-scripts/cntools.sh"
 CNTOOLS_LIBRARY="${REPO_ROOT}/scripts/common-helper-scripts/cntools.library"
-CNTOOLS_LEGACY_BUNDLE_ID="15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f"
+CNTOOLS_LEGACY_BUNDLE_ID="6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59"
 COMMON_ENV="${REPO_ROOT}/scripts/common-helper-scripts/env"
 # Keep Unix-domain socket fixture paths below the platform length limit even
 # when the caller has a deeply nested TMPDIR (notably macOS launchd paths).

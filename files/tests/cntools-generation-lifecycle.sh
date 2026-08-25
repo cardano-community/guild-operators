@@ -83,7 +83,7 @@ copy_payload_source() {
 reconstruct_legacy_monolith() {
   local source_root="$1"
   local facade="${source_root}/scripts/common-helper-scripts/cntools.library"
-  local bundle_id="15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f"
+  local bundle_id="6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59"
   local bundle="${source_root}/scripts/common-helper-scripts/cntools/libs/legacy/${bundle_id}"
   local staged="${facade}.legacy.$$" member=""
   local -a members=(
@@ -486,7 +486,7 @@ build_schema1_substitution_generation() {
   local receipt="${stage}/.generation.json"
   local removed_path="cntools/docs/TESTING.md"
   local added_name="010-common-dialog.sh"
-  local bundle_id="15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f"
+  local bundle_id="6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59"
   local added_path="cntools/libs/legacy/${bundle_id}/${added_name}"
   local added_source="scripts/common-helper-scripts/${added_path}"
   local inventory="${TEST_ROOT}/schema1-substitution.inventory.json"

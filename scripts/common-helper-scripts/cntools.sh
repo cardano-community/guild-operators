@@ -297,6 +297,720 @@ fi # direct-execution startup
 
 ###################################################################
 
+# Run one literal compatibility action from a private snapshot of the
+# receipt-bound immutable generation. Public reachability remains controlled by
+# the legacy call sites; accepting an action ID here does not expose a menu.
+cntools_compatibility_dispatch_action() (
+  local action_id="${1:-}" action_relative=""
+  local receipt="${NODE_HOME}/.guild-source-receipt.json"
+  local metadata="${NODE_HOME}/.deployment.json"
+  local state_root="${NODE_HOME}/scripts/.cntools"
+  local generation_id="" generation="" generation_manifest=""
+  local generation_receipt="" lifecycle="" expected_lifecycle_hash=""
+  local receipt_hash="" metadata_hash="" current_receipt_hash=""
+  local current_metadata_hash="" current_generation_id="" context_mode=""
+  local node_home_physical=""
+  local module_relative="" action_file_relative=""
+  local module_source_relative="" action_source_relative=""
+  local source_module="" source_action=""
+  local expected_module_hash="" expected_action_hash=""
+  local mnemonic_sidecar_required="N" legacy_bundle_id=""
+  local legacy_bundle_relative="" mnemonic_member_relative=""
+  local mnemonic_member_source_relative="" source_mnemonic_sidecar=""
+  local expected_mnemonic_hash="" expected_mnemonic_size=""
+  local mnemonic_metadata="" receipt_mnemonic_hash=""
+    local expected_context_hash=""
+  local private_root="" snapshot_directory="" snapshot_module=""
+  local snapshot_action="" snapshot_mnemonic_sidecar=""
+  local context_file="" result_file=""
+  local jq_path="" mktemp_path="" mkdir_path="" cp_path="" chmod_path=""
+  local rm_path="" rmdir_path="" bash_path=""
+    local action_status=70 cleanup_status=0 lock_acquired="N"
+    local -A mnemonic_before_functions=()
+    local -A mnemonic_before_variables=()
+
+  case "${action_id}" in
+    advanced.asset.burn) ;;
+    advanced.asset.create-policy) ;;
+    advanced.asset.decrypt-policy) ;;
+    advanced.asset.encrypt-policy) ;;
+    advanced.asset.list) ;;
+    advanced.asset.mint) ;;
+    advanced.asset.register) ;;
+    advanced.asset.show) ;;
+    advanced.delete-private-keys) ;;
+    advanced.metadata) ;;
+    advanced.multisig.create) ;;
+    advanced.multisig.derive-keys) ;;
+    backup.create) ;;
+    backup.restore) ;;
+    blocks.epoch) ;;
+    blocks.summary) ;;
+    funds.delegate) ;;
+    funds.send) ;;
+    funds.withdraw) ;;
+    pool.calidus) ;;
+    pool.decrypt) ;;
+    pool.encrypt) ;;
+    pool.import) ;;
+    pool.list) ;;
+    pool.modify) ;;
+    pool.new) ;;
+    pool.register) ;;
+    pool.retire) ;;
+    pool.rotate) ;;
+    pool.show) ;;
+    transaction.sign) ;;
+    transaction.submit) ;;
+    vote.catalyst.qr) ;;
+    vote.catalyst.register) ;;
+    vote.catalyst.verify) ;;
+    vote.governance.cast) ;;
+    vote.governance.delegate) ;;
+    vote.governance.derive-keys) ;;
+    vote.governance.drep-register) ;;
+    vote.governance.drep-retire) ;;
+    vote.governance.info) ;;
+    vote.governance.multisig-drep) ;;
+    vote.governance.proposals) ;;
+    wallet.decrypt) ;;
+    wallet.deregister) ;;
+    wallet.encrypt) ;;
+    wallet.import.hardware) ;;
+    wallet.import.mnemonic) mnemonic_sidecar_required="Y" ;;
+    wallet.list) ;;
+    wallet.new.cli) ;;
+    wallet.new.mnemonic) mnemonic_sidecar_required="Y" ;;
+    wallet.register) ;;
+    wallet.remove) ;;
+    wallet.show) ;;
+    *) return 70 ;;
+  esac
+  shift
+  action_relative="${action_id//.//}"
+  module_relative="cntools/modules/root/${action_relative}/module.json"
+  action_file_relative="cntools/modules/root/${action_relative}/action.sh"
+  module_source_relative="scripts/common-helper-scripts/cntools/modules/root/${action_relative}/module.json"
+  action_source_relative="scripts/common-helper-scripts/cntools/modules/root/${action_relative}/action.sh"
+
+  _cntools_compatibility_cleanup() {
+    local cleanup_target=""
+
+    if [[ -n "${private_root}" ]]; then
+      for cleanup_target in \
+        "${result_file}" \
+        "${context_file}" \
+        "${snapshot_mnemonic_sidecar}" \
+        "${snapshot_action}" \
+        "${snapshot_module}"; do
+        [[ -n "${cleanup_target}" ]] || continue
+        if [[ -d "${cleanup_target}" && ! -L "${cleanup_target}" ]]; then
+          "${rmdir_path}" -- "${cleanup_target}" >/dev/null 2>&1 ||
+            cleanup_status=1
+        elif [[ -e "${cleanup_target}" || -L "${cleanup_target}" ]]; then
+          "${rm_path}" -f -- "${cleanup_target}" >/dev/null 2>&1 ||
+            cleanup_status=1
+        fi
+      done
+      if [[ -n "${snapshot_directory}" ]]; then
+        if [[ -d "${snapshot_directory}" &&
+              ! -L "${snapshot_directory}" ]]; then
+          "${rmdir_path}" -- "${snapshot_directory}" >/dev/null 2>&1 ||
+            cleanup_status=1
+        elif [[ -e "${snapshot_directory}" ||
+                -L "${snapshot_directory}" ]]; then
+          "${rm_path}" -f -- "${snapshot_directory}" >/dev/null 2>&1 ||
+            cleanup_status=1
+        fi
+      fi
+      "${rmdir_path}" -- "${private_root}" >/dev/null 2>&1 ||
+        cleanup_status=1
+      private_root=""
+    fi
+    if [[ "${lock_acquired}" == "Y" ]]; then
+      cntools_generation_lock_release "${state_root}" >/dev/null 2>&1 ||
+        cleanup_status=1
+      lock_acquired="N"
+    fi
+  }
+
+  _cntools_compatibility_private_file_validate() {
+    local target="${1:-}" expected_mode="${2:-}"
+    local expected_hash="${3:-}" expected_size="${4:-}" file_metadata=""
+    local owner="" mode="" links="" size="" parent="" actual_hash=""
+
+    [[ -f "${target}" && ! -L "${target}" ]] || return 1
+    _cntools_result_path_valid "${target}" || return 1
+    _cntools_registry_path_has_no_symlinks "${target}" || return 1
+    parent="${target%/*}"
+    [[ -n "${parent}" ]] || parent="/"
+    _cntools_result_private_parent_validate "${parent}" || return 1
+    file_metadata="$(_cntools_result_stat "${target}")" || return 1
+    IFS=$'\t' read -r owner mode links size <<< "${file_metadata}" ||
+      return 1
+    [[ "${owner}" == "${EUID}" &&
+       ( "${mode}" == "${expected_mode}" ||
+         "${mode}" == "0${expected_mode}" ) &&
+       "${links}" == "1" && "${size}" =~ ^[0-9]+$ &&
+       "${size}" -ge 1 ]] || return 1
+    [[ -z "${expected_size}" || "${size}" == "${expected_size}" ]] ||
+      return 1
+    if [[ -n "${expected_hash}" ]]; then
+      actual_hash="$(deployment_payload_sha256 "${target}")" || return 1
+      [[ "${actual_hash}" == "${expected_hash}" ]] || return 1
+    fi
+  }
+
+  _cntools_compatibility_generation_file_validate() {
+    local target="${1:-}" expected_mode="${2:-}"
+    local expected_hash="${3:-}" expected_size="${4:-}"
+    local file_metadata="" owner="" mode="" links="" size=""
+    local actual_hash=""
+
+    [[ -f "${target}" && ! -L "${target}" && -O "${target}" ]] || return 1
+    _cntools_result_path_valid "${target}" || return 1
+    _cntools_registry_path_has_no_symlinks "${target}" || return 1
+    file_metadata="$(_cntools_result_stat "${target}")" || return 1
+    IFS=$'\t' read -r owner mode links size <<< "${file_metadata}" ||
+      return 1
+    [[ "${owner}" == "${EUID}" &&
+       ( "${mode}" == "${expected_mode}" ||
+         "${mode}" == "0${expected_mode}" ) &&
+       "${links}" == "1" && "${size}" == "${expected_size}" ]] || return 1
+    actual_hash="$(deployment_payload_sha256 "${target}")" || return 1
+    [[ "${actual_hash}" == "${expected_hash}" ]]
+  }
+
+  _cntools_compatibility_mnemonic_sidecar_contract_validate() {
+    local target="${1:-}" baseline_output="" validation_output=""
+    local baseline_status=0 validation_status=0 contract_script=""
+
+    contract_script='
+          _cntools_contract_mode=${1:-}
+          _cntools_contract_target=${2:-}
+          _cntools_contract_name=""
+          _cntools_contract_source_status=0
+          while IFS= read -r _cntools_contract_name; do
+            builtin unset -f "${_cntools_contract_name}" 2>/dev/null || exit 1
+          done < <(builtin compgen -A function)
+          _cntools_contract_expected=(
+            _cntools_compatibility_wallet_mnemonic_run
+            buildOfflineJSON
+            createMnemonicWallet
+            createNewWallet
+            deregisterStakeWallet
+            printWalletInfo
+            registerStakeWallet
+          )
+          declare -A _cntools_contract_expected_names=()
+          _cntools_contract_count=0
+          for _cntools_contract_name in "${_cntools_contract_expected[@]}"; do
+            _cntools_contract_expected_names["${_cntools_contract_name}"]=Y
+          done
+          _cntools_contract_before_pwd=${PWD}
+          _cntools_contract_before_ifs=$(builtin printf %q "${IFS}")
+          _cntools_contract_before_options=$(builtin set +o)
+          _cntools_contract_before_shopt=$(builtin shopt -p)
+          _cntools_contract_before_aliases=$(builtin alias -p)
+          _cntools_contract_before_traps=$(builtin trap -p)
+          _cntools_contract_before_args=$(builtin printf "%q " "$@")
+          _cntools_contract_before_umask=$(builtin umask)
+          builtin readonly _cntools_contract_mode _cntools_contract_target \
+            _cntools_contract_before_pwd _cntools_contract_before_ifs \
+            _cntools_contract_before_options _cntools_contract_before_shopt \
+            _cntools_contract_before_aliases _cntools_contract_before_traps \
+            _cntools_contract_before_args _cntools_contract_before_umask
+          builtin readonly -a _cntools_contract_expected
+          builtin readonly -A _cntools_contract_expected_names
+          if [[ "${_cntools_contract_mode}" == source ]]; then
+            if builtin source "${_cntools_contract_target}"; then
+              _cntools_contract_source_status=0
+            else
+              _cntools_contract_source_status=$?
+            fi
+            (( _cntools_contract_source_status == 0 )) || exit 1
+            [[ "${PWD}" == "${_cntools_contract_before_pwd}" &&
+               "$(builtin printf %q "${IFS}")" == \
+                 "${_cntools_contract_before_ifs}" &&
+               "$(builtin set +o)" == "${_cntools_contract_before_options}" &&
+               "$(builtin shopt -p)" == "${_cntools_contract_before_shopt}" &&
+               "$(builtin alias -p)" == \
+                 "${_cntools_contract_before_aliases}" &&
+               "$(builtin trap -p)" == "${_cntools_contract_before_traps}" &&
+               "$(builtin printf "%q " "$@")" == \
+                 "${_cntools_contract_before_args}" &&
+               "$(builtin umask)" == "${_cntools_contract_before_umask}" ]] ||
+              exit 1
+            _cntools_contract_count=0
+            while IFS= read -r _cntools_contract_name; do
+              [[ -n "${_cntools_contract_name}" &&
+                 -n "${_cntools_contract_expected_names[${_cntools_contract_name}]+set}" &&
+                 "$(builtin declare -p -F "${_cntools_contract_name}")" == \
+                   "declare -f ${_cntools_contract_name}" ]] ||
+                exit 1
+              _cntools_contract_count=$((_cntools_contract_count + 1))
+            done < <(builtin compgen -A function)
+            (( _cntools_contract_count == ${#_cntools_contract_expected[@]} )) ||
+              exit 1
+          elif [[ "${_cntools_contract_mode}" != baseline ]]; then
+            exit 1
+          fi
+          while IFS= read -r _cntools_contract_name; do
+            case "${_cntools_contract_name}" in
+              _cntools_contract_*|_|BASHPID|BASH_ARGC|BASH_ARGV|BASH_COMMAND|\
+              BASH_LINENO|BASH_SOURCE|EPOCHREALTIME|EPOCHSECONDS|FUNCNAME|\
+              LINENO|PIPESTATUS|PPID|RANDOM|SECONDS|SRANDOM) continue ;;
+            esac
+            builtin declare -p "${_cntools_contract_name}" || exit 1
+          done < <(builtin compgen -A variable)
+        '
+    baseline_output="$(
+      BASH_ENV=/dev/null ENV=/dev/null HOME="${private_root}" \
+        TMPDIR="${private_root}" \
+        CNTOOLS_COMPATIBILITY_SIDECAR_CONTRACT=Y \
+        "${bash_path}" --noprofile --norc -c "${contract_script}" \
+        bridge-sidecar baseline "${target}" 2>&1
+    )" || baseline_status=$?
+    validation_output="$(
+      BASH_ENV=/dev/null ENV=/dev/null HOME="${private_root}" \
+        TMPDIR="${private_root}" \
+        CNTOOLS_COMPATIBILITY_SIDECAR_CONTRACT=Y \
+        "${bash_path}" --noprofile --norc -c "${contract_script}" \
+        bridge-sidecar source "${target}" 2>&1
+    )" || validation_status=$?
+    [[ ${baseline_status} -eq 0 && ${validation_status} -eq 0 &&
+       "${validation_output}" == "${baseline_output}" ]]
+  }
+
+  _cntools_compatibility_mnemonic_sidecar_source() {
+    local function_name="" function_declaration="" variable_name=""
+    local variable_declaration="" variable_declaration_after=""
+    local source_status=0
+    local before_pwd="" before_ifs="" before_options="" before_shopt=""
+    local before_aliases="" before_traps="" before_args="" before_umask=""
+    local -a expected_functions=(
+      _cntools_compatibility_wallet_mnemonic_run
+      buildOfflineJSON
+      createMnemonicWallet
+      createNewWallet
+      deregisterStakeWallet
+      printWalletInfo
+      registerStakeWallet
+    )
+    local -A expected_names=()
+
+    mnemonic_before_functions=()
+    mnemonic_before_variables=()
+    for function_name in "${expected_functions[@]}"; do
+      expected_names["${function_name}"]="Y"
+    done
+    while IFS= read -r function_name; do
+      [[ -n "${function_name}" ]] || return 1
+      case "${function_name}" in
+        _cntools_compatibility_wallet_mnemonic_*|buildOfflineJSON|\
+        createMnemonicWallet|createNewWallet|deregisterStakeWallet|\
+        printWalletInfo|registerStakeWallet) continue ;;
+      esac
+      function_declaration="$(builtin declare -f "${function_name}")" ||
+        return 1
+      mnemonic_before_functions["${function_name}"]="${function_declaration}"
+    done < <(builtin compgen -A function)
+    while IFS= read -r function_name; do
+      case "${function_name}" in
+        _cntools_compatibility_wallet_mnemonic_*|buildOfflineJSON|\
+        createMnemonicWallet|createNewWallet|deregisterStakeWallet|\
+        printWalletInfo|registerStakeWallet)
+          builtin unset -f "${function_name}" 2>/dev/null || return 1
+          ;;
+      esac
+    done < <(builtin compgen -A function)
+    builtin unset CNTOOLS_COMPATIBILITY_SIDECAR_CONTRACT 2>/dev/null ||
+      builtin true
+    before_pwd="${PWD}"
+    before_ifs="$(builtin printf %q "${IFS}")"
+    before_options="$(builtin set +o)"
+    before_shopt="$(builtin shopt -p)"
+    before_aliases="$(builtin alias -p)"
+    before_traps="$(builtin trap -p)"
+    before_args="$(builtin printf '%q ' "$@")"
+    before_umask="$(builtin umask)"
+    builtin readonly -a expected_functions
+    builtin readonly -A expected_names mnemonic_before_functions
+    builtin readonly before_pwd before_ifs before_options before_shopt \
+      before_aliases before_traps before_args before_umask
+    while IFS= read -r variable_name; do
+      case "${variable_name}" in
+        mnemonic_before_variables|variable_name|variable_declaration|\
+        variable_declaration_after|\
+        source_status|BASHPID|BASH_ARGC|BASH_ARGV|BASH_COMMAND|BASH_LINENO|\
+        BASH_SOURCE|EPOCHREALTIME|EPOCHSECONDS|FUNCNAME|LINENO|PIPESTATUS|\
+        PPID|RANDOM|SECONDS|SRANDOM|_) continue ;;
+      esac
+      variable_declaration="$(builtin declare -p "${variable_name}")" ||
+        return 1
+      mnemonic_before_variables["${variable_name}"]="${variable_declaration}"
+    done < <(builtin compgen -A variable)
+    if builtin source "${snapshot_mnemonic_sidecar}" >/dev/null 2>&1; then
+      source_status=0
+    else
+      source_status=$?
+    fi
+    [[ ${source_status} -eq 0 && "${PWD}" == "${before_pwd}" &&
+       "$(builtin printf %q "${IFS}")" == "${before_ifs}" &&
+       "$(builtin set +o)" == "${before_options}" &&
+       "$(builtin shopt -p)" == "${before_shopt}" &&
+       "$(builtin alias -p)" == "${before_aliases}" &&
+       "$(builtin trap -p)" == "${before_traps}" &&
+       "$(builtin printf '%q ' "$@")" == "${before_args}" &&
+       "$(builtin umask)" == "${before_umask}" ]] || return 1
+    for variable_name in "${!mnemonic_before_variables[@]}"; do
+      variable_declaration_after="$(builtin declare -p "${variable_name}")" ||
+        return 1
+      [[ "${variable_declaration_after}" == \
+         "${mnemonic_before_variables[${variable_name}]}" ]] || return 1
+    done
+    while IFS= read -r variable_name; do
+      case "${variable_name}" in
+        mnemonic_before_variables|variable_name|variable_declaration|\
+        variable_declaration_after|\
+        source_status|BASHPID|BASH_ARGC|BASH_ARGV|BASH_COMMAND|BASH_LINENO|\
+        BASH_SOURCE|EPOCHREALTIME|EPOCHSECONDS|FUNCNAME|LINENO|PIPESTATUS|\
+        PPID|RANDOM|SECONDS|SRANDOM|_) continue ;;
+      esac
+      [[ -n "${mnemonic_before_variables[${variable_name}]+set}" ]] ||
+        return 1
+    done < <(builtin compgen -A variable)
+    for function_name in "${expected_functions[@]}"; do
+      [[ "$(builtin declare -p -F "${function_name}" 2>/dev/null)" == \
+         "declare -f ${function_name}" ]] || return 1
+    done
+    for function_name in "${!mnemonic_before_functions[@]}"; do
+      function_declaration="$(builtin declare -f "${function_name}")" ||
+        return 1
+      [[ "${function_declaration}" == \
+         "${mnemonic_before_functions[${function_name}]}" ]] || return 1
+    done
+    while IFS= read -r function_name; do
+      [[ -n "${expected_names[${function_name}]+set}" ||
+         -n "${mnemonic_before_functions[${function_name}]+set}" ]] || return 1
+    done < <(builtin compgen -A function)
+  }
+
+  declare -F deployment_payload_is_current >/dev/null 2>&1 &&
+    declare -F deployment_payload_sha256 >/dev/null 2>&1 || return 70
+  jq_path="$(builtin type -P jq 2>/dev/null)" || return 70
+  mktemp_path="$(builtin type -P mktemp 2>/dev/null)" || return 70
+  mkdir_path="$(builtin type -P mkdir 2>/dev/null)" || return 70
+  cp_path="$(builtin type -P cp 2>/dev/null)" || return 70
+  chmod_path="$(builtin type -P chmod 2>/dev/null)" || return 70
+  rm_path="$(builtin type -P rm 2>/dev/null)" || return 70
+  rmdir_path="$(builtin type -P rmdir 2>/dev/null)" || return 70
+  bash_path="${BASH:-}"
+  [[ "${jq_path}" == /* && -x "${jq_path}" &&
+     "${mktemp_path}" == /* && -x "${mktemp_path}" &&
+     "${mkdir_path}" == /* && -x "${mkdir_path}" &&
+     "${cp_path}" == /* && -x "${cp_path}" &&
+     "${chmod_path}" == /* && -x "${chmod_path}" &&
+     "${rm_path}" == /* && -x "${rm_path}" &&
+     "${rmdir_path}" == /* && -x "${rmdir_path}" &&
+     "${bash_path}" == /* && -f "${bash_path}" && -x "${bash_path}" ]] ||
+    return 70
+
+  trap '_cntools_compatibility_cleanup' EXIT
+  trap 'exit 70' HUP INT TERM
+
+  deployment_payload_is_current >/dev/null 2>&1 || return 70
+  receipt_hash="$(deployment_payload_sha256 "${receipt}")" || return 70
+  metadata_hash="$(deployment_payload_sha256 "${metadata}")" || return 70
+  generation_id="$("${jq_path}" -er '
+    select(
+      .schemaVersion == 2 and
+      (.implementation == "cnode" or .implementation == "dingo") and
+      (.cntoolsGeneration as $generation |
+        $generation.fileCount == 152 and
+        ($generation.id | type == "string" and test("^[0-9a-f]{64}$")) and
+        $generation.path ==
+          ("scripts/.cntools/generations/" + $generation.id))) |
+    .cntoolsGeneration.id
+  ' "${receipt}" 2>/dev/null)" || return 70
+  generation="${state_root}/generations/${generation_id}"
+  generation_manifest="${generation}/cntools/manifest.json"
+  generation_receipt="${generation}/.generation.json"
+  lifecycle="${generation}/cntools/core/lifecycle.sh"
+  expected_lifecycle_hash="$("${jq_path}" -er '
+    [.files[] | select(
+      .path == "cntools/core/lifecycle.sh" and
+      .source == "scripts/common-helper-scripts/cntools/core/lifecycle.sh" and
+      .mode == "0444" and .validator == "shell")] |
+    if length == 1 then .[0].sha256 else error("lifecycle") end
+  ' "${generation_receipt}" 2>/dev/null)" || return 70
+  [[ "$(deployment_payload_sha256 "${lifecycle}")" == \
+       "${expected_lifecycle_hash}" ]] || return 70
+
+  # shellcheck source=/dev/null
+  builtin source "${lifecycle}" >/dev/null 2>&1 || return 70
+  declare -F cntools_generation_validate >/dev/null 2>&1 &&
+  declare -F cntools_generation_pointers_validate >/dev/null 2>&1 &&
+    declare -F cntools_generation_lock_acquire >/dev/null 2>&1 &&
+    declare -F cntools_generation_lock_release >/dev/null 2>&1 || return 70
+  # Revalidate the full outer authority immediately before lock acquisition.
+  # The currentness helper owns its own short lifecycle lock, so it must finish
+  # before this longer action lock is acquired.
+  deployment_payload_is_current >/dev/null 2>&1 || return 70
+  current_receipt_hash="$(deployment_payload_sha256 "${receipt}")" || return 70
+  current_metadata_hash="$(deployment_payload_sha256 "${metadata}")" || return 70
+  current_generation_id="$("${jq_path}" -er '.cntoolsGeneration.id' \
+    "${receipt}" 2>/dev/null)" || return 70
+  [[ "${current_receipt_hash}" == "${receipt_hash}" &&
+     "${current_metadata_hash}" == "${metadata_hash}" &&
+     "${current_generation_id}" == "${generation_id}" ]] || return 70
+
+  cntools_generation_lock_acquire "${state_root}" || return 70
+  lock_acquired="Y"
+  current_receipt_hash="$(deployment_payload_sha256 "${receipt}")" || return 70
+  current_metadata_hash="$(deployment_payload_sha256 "${metadata}")" || return 70
+  current_generation_id="$("${jq_path}" -er '.cntoolsGeneration.id' \
+    "${receipt}" 2>/dev/null)" || return 70
+  [[ "${current_receipt_hash}" == "${receipt_hash}" &&
+     "${current_metadata_hash}" == "${metadata_hash}" &&
+     "${current_generation_id}" == "${generation_id}" &&
+     ! -e "${NODE_HOME}/.guild-deploy-transaction" &&
+     ! -L "${NODE_HOME}/.guild-deploy-transaction" ]] || return 70
+  cntools_generation_validate "${generation}" "${generation_id}" || return 70
+  cntools_generation_pointers_validate "${state_root}" || return 70
+
+  # The complete generation is now authenticated and locked. Load the fixed
+  # compatibility toolchain, then snapshot only the allowlisted action bytes.
+  # shellcheck source=/dev/null
+  builtin source "${generation}/cntools/core/registry.sh" >/dev/null 2>&1 &&
+    builtin source "${generation}/cntools/core/context.sh" >/dev/null 2>&1 &&
+    builtin source "${generation}/cntools/core/result.sh" >/dev/null 2>&1 &&
+    builtin source "${generation}/cntools/core/dispatcher.sh" >/dev/null 2>&1 ||
+    return 70
+  declare -F cntools_context_validate >/dev/null 2>&1 &&
+    declare -F cntools_dispatcher_validate_action >/dev/null 2>&1 &&
+    declare -F cntools_dispatcher_run_action >/dev/null 2>&1 &&
+    declare -F cntools_result_validate >/dev/null 2>&1 &&
+    declare -F _cntools_result_path_valid >/dev/null 2>&1 &&
+    declare -F _cntools_result_stat >/dev/null 2>&1 &&
+    declare -F _cntools_result_private_parent_validate >/dev/null 2>&1 &&
+    declare -F _cntools_registry_path_has_no_symlinks >/dev/null 2>&1 ||
+    return 70
+
+  expected_module_hash="$("${jq_path}" -er \
+    --arg path "${module_relative}" \
+    --arg source "${module_source_relative}" '
+      [.files[] | select(
+        .path == $path and .source == $source and .mode == "0444" and
+        .validator == "json" and
+        (.sha256 | type == "string" and test("^[0-9a-f]{64}$")))] |
+      if length == 1 then .[0].sha256 else error("module") end
+    ' "${generation_receipt}" 2>/dev/null)" || return 70
+  expected_action_hash="$("${jq_path}" -er \
+    --arg path "${action_file_relative}" \
+    --arg source "${action_source_relative}" '
+      [.files[] | select(
+        .path == $path and .source == $source and .mode == "0444" and
+        .validator == "shell" and
+        (.sha256 | type == "string" and test("^[0-9a-f]{64}$")))] |
+      if length == 1 then .[0].sha256 else error("action") end
+    ' "${generation_receipt}" 2>/dev/null)" || return 70
+  source_module="${generation}/${module_relative}"
+  source_action="${generation}/${action_file_relative}"
+
+  if [[ "${mnemonic_sidecar_required}" == "Y" ]]; then
+    mnemonic_metadata="$("${jq_path}" -er '
+      .legacyBundle as $bundle |
+      select(
+        ($bundle | type == "object") and
+        ($bundle | keys == ["facade","id","idAlgorithm",
+          "logicalBodySha256","logicalBodySize","members","path",
+          "schemaVersion"]) and
+        $bundle.schemaVersion == 1 and
+        $bundle.facade == "cntools.library" and
+        $bundle.idAlgorithm == "sha256-cntools-legacy-bundle-v1" and
+        ($bundle.id | type == "string" and test("^[0-9a-f]{64}$")) and
+        $bundle.path == ("cntools/libs/legacy/" + $bundle.id) and
+        ($bundle.logicalBodySha256 | type == "string" and
+          test("^[0-9a-f]{64}$")) and
+        ($bundle.logicalBodySize | type == "number" and . == floor and
+          . > 0 and . <= 16777216) and
+        ($bundle.members | type == "array")
+      ) |
+      [$bundle.members[] |
+        select(.path == "050-wallet-create-registration.sh")] as $members |
+      if ($members | length) == 1 and
+         ($members[0] | keys == ["mode","path","sha256","size"]) and
+         $members[0].mode == "0444" and
+         ($members[0].sha256 | type == "string" and
+           test("^[0-9a-f]{64}$")) and
+         ($members[0].size | type == "number" and . == floor and
+           . > 0 and . <= 16777216)
+      then [$bundle.id,$bundle.path,$members[0].sha256,
+        ($members[0].size | tostring)] | @tsv
+      else error("mnemonic-sidecar") end
+    ' "${generation_manifest}" 2>/dev/null)" || return 70
+    IFS=$'\t' read -r legacy_bundle_id legacy_bundle_relative \
+      expected_mnemonic_hash expected_mnemonic_size \
+      <<< "${mnemonic_metadata}" || return 70
+    [[ -n "${legacy_bundle_id}" && -n "${legacy_bundle_relative}" &&
+       "${expected_mnemonic_hash}" =~ ^[0-9a-f]{64}$ &&
+       "${expected_mnemonic_size}" =~ ^[0-9]+$ ]] || return 70
+    mnemonic_member_relative="${legacy_bundle_relative}/050-wallet-create-registration.sh"
+    mnemonic_member_source_relative="scripts/common-helper-scripts/${mnemonic_member_relative}"
+    receipt_mnemonic_hash="$("${jq_path}" -er \
+      --arg path "${mnemonic_member_relative}" \
+      --arg source "${mnemonic_member_source_relative}" '
+        [.files[] | select(.path == $path)] as $records |
+        if ($records | length) == 1 and $records[0].source == $source and
+           $records[0].mode == "0444" and
+           $records[0].validator == "shell" and
+           ($records[0].sha256 | type == "string" and
+             test("^[0-9a-f]{64}$"))
+        then $records[0].sha256 else error("mnemonic-sidecar") end
+      ' "${generation_receipt}" 2>/dev/null)" || return 70
+    [[ "${receipt_mnemonic_hash}" == "${expected_mnemonic_hash}" ]] ||
+      return 70
+    source_mnemonic_sidecar="${generation}/${mnemonic_member_relative}"
+    _cntools_compatibility_generation_file_validate \
+      "${source_mnemonic_sidecar}" 444 "${expected_mnemonic_hash}" \
+      "${expected_mnemonic_size}" || return 70
+    BASH_ENV=/dev/null ENV=/dev/null \
+      "${bash_path}" --noprofile --norc -n \
+      "${source_mnemonic_sidecar}" >/dev/null 2>&1 || return 70
+  fi
+
+  umask 077
+  private_root="$("${mktemp_path}" -d \
+    "${TMP_DIR%/}/cntools-compatibility.XXXXXXXX")" || return 70
+  private_root="$(cd -P -- "${private_root}" >/dev/null 2>&1 && pwd -P)" ||
+    return 70
+  "${chmod_path}" 0700 "${private_root}" || return 70
+  snapshot_directory="${private_root}/action"
+  "${mkdir_path}" -- "${snapshot_directory}" >/dev/null 2>&1 || return 70
+  "${chmod_path}" 0700 "${snapshot_directory}" || return 70
+  snapshot_module="${snapshot_directory}/module.json"
+  snapshot_action="${snapshot_directory}/action.sh"
+  if [[ "${mnemonic_sidecar_required}" == "Y" ]]; then
+    snapshot_mnemonic_sidecar="${private_root}/compatibility-wallet-mnemonic.sh"
+  fi
+  context_file="${private_root}/context.json"
+  result_file="${private_root}/result.json"
+  "${cp_path}" -- "${source_module}" "${snapshot_module}" \
+    >/dev/null 2>&1 || return 70
+  "${cp_path}" -- "${source_action}" "${snapshot_action}" \
+    >/dev/null 2>&1 || return 70
+  if [[ "${mnemonic_sidecar_required}" == "Y" ]]; then
+    "${cp_path}" -- "${source_mnemonic_sidecar}" \
+      "${snapshot_mnemonic_sidecar}" >/dev/null 2>&1 || return 70
+  fi
+  "${chmod_path}" 0400 "${snapshot_module}" "${snapshot_action}" || return 70
+  if [[ "${mnemonic_sidecar_required}" == "Y" ]]; then
+    "${chmod_path}" 0400 "${snapshot_mnemonic_sidecar}" || return 70
+  fi
+  node_home_physical="$(cd -P -- "${NODE_HOME}" >/dev/null 2>&1 && pwd -P)" ||
+    return 70
+  context_mode="${CNTOOLS_MODE,,}"
+  "${jq_path}" -S \
+    --arg mode "${context_mode}" \
+    --arg node_home "${node_home_physical}" \
+    --arg generation_version "$("${jq_path}" -er '.version' \
+      "${generation_manifest}")" \
+    --argjson advanced "$([[ "${ADVANCED_MODE}" == "true" ]] &&
+      printf true || printf false)" \
+    --argjson blocklog "$([[ -f "${BLOCKLOG_DB}" ]] &&
+      printf true || printf false)" '
+      {
+        advanced: $advanced,
+        apiVersion: 1,
+        capabilities: ([
+          if .capabilities.forging then "forging" else empty end,
+          if .capabilities.localCli then "local-cli" else empty end,
+          if .capabilities.metrics then "metrics" else empty end,
+          if .capabilities.n2c then "n2c" else empty end
+        ] | sort),
+        features: (["advanced"] +
+          (if $blocklog then ["blocklog"] else [] end) | sort),
+        generationVersion: $generation_version,
+        mode: $mode,
+        nodeHome: $node_home,
+        nodeImplementation: .implementation,
+        nodeNetwork: .network,
+        schemaVersion: 1
+      }
+    ' "${metadata}" > "${context_file}" || return 70
+  "${chmod_path}" 0400 "${context_file}" || return 70
+  expected_context_hash="$(deployment_payload_sha256 "${context_file}")" ||
+    return 70
+
+  _cntools_result_private_parent_validate "${private_root}" || return 70
+  _cntools_result_private_parent_validate "${snapshot_directory}" || return 70
+  _cntools_compatibility_private_file_validate \
+    "${snapshot_module}" 400 "${expected_module_hash}" || return 70
+  _cntools_compatibility_private_file_validate \
+    "${snapshot_action}" 400 "${expected_action_hash}" || return 70
+  if [[ "${mnemonic_sidecar_required}" == "Y" ]]; then
+    _cntools_compatibility_private_file_validate \
+      "${snapshot_mnemonic_sidecar}" 400 "${expected_mnemonic_hash}" \
+      "${expected_mnemonic_size}" || return 70
+    _cntools_compatibility_mnemonic_sidecar_contract_validate \
+      "${snapshot_mnemonic_sidecar}" || return 70
+    _cntools_compatibility_mnemonic_sidecar_source || return 70
+  fi
+  _cntools_compatibility_private_file_validate \
+    "${context_file}" 400 "${expected_context_hash}" || return 70
+  "${jq_path}" -e --arg id "${action_id}" '
+    type == "object" and .kind == "action" and .id == $id
+  ' "${snapshot_module}" >/dev/null 2>&1 || return 70
+  cntools_context_validate "${context_file}" >/dev/null 2>&1 || return 70
+  cntools_dispatcher_validate_action "${snapshot_directory}" \
+    >/dev/null 2>&1 || return 70
+
+  current_receipt_hash="$(deployment_payload_sha256 "${receipt}")" || return 70
+  current_metadata_hash="$(deployment_payload_sha256 "${metadata}")" || return 70
+  current_generation_id="$("${jq_path}" -er '.cntoolsGeneration.id' \
+    "${receipt}" 2>/dev/null)" || return 70
+  [[ "${current_receipt_hash}" == "${receipt_hash}" &&
+     "${current_metadata_hash}" == "${metadata_hash}" &&
+     "${current_generation_id}" == "${generation_id}" &&
+     ! -e "${NODE_HOME}/.guild-deploy-transaction" &&
+     ! -L "${NODE_HOME}/.guild-deploy-transaction" ]] || return 70
+
+  # The action and its context are now an authenticated private snapshot. The
+  # generation lock must be gone before any action-owned prompt or wait runs.
+  cntools_generation_lock_release "${state_root}" >/dev/null 2>&1 || return 70
+  lock_acquired="N"
+  _cntools_compatibility_private_file_validate \
+    "${snapshot_module}" 400 "${expected_module_hash}" || return 70
+  _cntools_compatibility_private_file_validate \
+    "${snapshot_action}" 400 "${expected_action_hash}" || return 70
+  if [[ "${mnemonic_sidecar_required}" == "Y" ]]; then
+    _cntools_compatibility_private_file_validate \
+      "${snapshot_mnemonic_sidecar}" 400 "${expected_mnemonic_hash}" \
+      "${expected_mnemonic_size}" || return 70
+  fi
+  _cntools_compatibility_private_file_validate \
+    "${context_file}" 400 "${expected_context_hash}" || return 70
+
+  if cntools_dispatcher_run_action "${snapshot_directory}" \
+      "${context_file}" "${result_file}" "$@"; then
+    action_status=0
+  else
+    action_status=$?
+  fi
+  if [[ -e "${result_file}" || -L "${result_file}" ]]; then
+    cntools_result_validate "${result_file}" >/dev/null 2>&1 ||
+      action_status=70
+  fi
+
+  _cntools_compatibility_cleanup
+  trap - EXIT HUP INT TERM
+  [[ ${cleanup_status} -eq 0 ]] || action_status=70
+  return "${action_status}"
+)
+
+###################################################################
+
 function main {
   while true; do # Main loop
     # Start with a clean slate after each completed or canceled command excluding .dialogrc from purge
@@ -442,78 +1156,14 @@ function main {
                     waitToProceed && continue
                     ;; ###################################################################
                   cli)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> WALLET >> NEW >> CLI"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
-                    createNewWallet || continue
-                    # Wallet key filenames
-                    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-                    payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-                    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-                    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-                    drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
-                    drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SK_FILENAME}"
-                    cc_cold_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_COLD_VK_FILENAME}"
-                    cc_cold_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_COLD_SK_FILENAME}"
-                    cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
-                    cc_hot_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_SK_FILENAME}"
-                    ms_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_SK_FILENAME}"
-                    ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
-                    ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
-                    ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
-                    ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_SK_FILENAME}"
-                    ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
-                    if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}$wallet_name${NC} already exists"
-                      println "      Choose another name or delete the existing one"
-                      waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} address key-gen --verification-key-file ${payment_vk_file} --signing-key-file ${payment_sk_file}"
-                    if ! stdout=$(${CCLI} address key-gen --verification-key-file "${payment_vk_file}" --signing-key-file "${payment_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} latest stake-address key-gen --verification-key-file ${stake_vk_file} --signing-key-file ${stake_sk_file}"
-                    if ! stdout=$(${CCLI} latest stake-address key-gen --verification-key-file "${stake_vk_file}" --signing-key-file "${stake_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake key creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} latest governance drep key-gen --verification-key-file ${drep_vk_file} --signing-key-file ${drep_sk_file}"
-                    if ! stdout=$(${CCLI} latest governance drep key-gen --verification-key-file "${drep_vk_file}" --signing-key-file "${drep_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during governance drep key creation!\n${stdout}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} latest governance committee key-gen-cold --cold-verification-key-file ${cc_cold_vk_file} --cold-signing-key-file ${cc_cold_sk_file}"
-                    if ! stdout=$(${CCLI} latest governance committee key-gen-cold --cold-verification-key-file "${cc_cold_vk_file}" --cold-signing-key-file "${cc_cold_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during governance committee cold key creation!\n${stdout}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} latest governance committee key-gen-hot --verification-key-file ${cc_hot_vk_file} --signing-key-file ${cc_hot_sk_file}"
-                    if ! stdout=$(${CCLI} latest governance committee key-gen-hot --verification-key-file "${cc_hot_vk_file}" --signing-key-file "${cc_hot_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during governance committee hot key creation!\n${stdout}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} address key-gen --verification-key-file ${ms_payment_vk_file} --signing-key-file ${ms_payment_sk_file}"
-                    if ! stdout=$(${CCLI} address key-gen --verification-key-file "${ms_payment_vk_file}" --signing-key-file "${ms_payment_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment key creation!\n${stdout}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} latest stake-address key-gen --verification-key-file ${ms_stake_vk_file} --signing-key-file ${ms_stake_sk_file}"
-                    if ! stdout=$(${CCLI} latest stake-address key-gen --verification-key-file "${ms_stake_vk_file}" --signing-key-file "${ms_stake_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake key creation!\n${stdout}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} latest governance drep key-gen --verification-key-file ${ms_drep_vk_file} --signing-key-file ${ms_drep_sk_file}"
-                    if ! stdout=$(${CCLI} latest governance drep key-gen --verification-key-file "${ms_drep_vk_file}" --signing-key-file "${ms_drep_sk_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig governance drep key creation!\n${stdout}"; waitToProceed && continue
-                    fi
-                    chmod 600 "${WALLET_FOLDER}/${wallet_name}/"*
-                    getBaseAddress ${wallet_name}
-                    getPayAddress ${wallet_name}
-                    getRewardAddress ${wallet_name}
-                    getCredentials ${wallet_name}
-                    println "New Wallet      : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Address         : ${FG_LGRAY}${base_addr}${NC}"
-                    println "Payment Address : ${FG_LGRAY}${pay_addr}${NC}"
-                    println DEBUG "\nYou can now send and receive ADA using the above addresses."
-                    println DEBUG "Note that Payment Address will not take part in staking."
-                    println DEBUG "Wallet will be automatically registered on chain if you\nchoose to delegate or pledge wallet when registering a stake pool."
-                    waitToProceed && continue
+                    cntools_compatibility_dispatch_action wallet.new.cli
+                    action_status=$?
+                    case "${action_status}" in
+                      0|21) continue ;;
+                      20) break 2 ;;
+                      22) myExit 0 "CNTools closed!" ;;
+                      *) waitToProceed; continue ;;
+                    esac
                     ;; ###################################################################
                 esac # wallet >> new sub OPERATION
               done # Wallet >> new loop
@@ -563,113 +1213,13 @@ function main {
                     waitToProceed && continue
                     ;; ###################################################################
                   hardware)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> WALLET >> IMPORT >> HARDWARE WALLET"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
-                    println DEBUG "${FG_BLUE}NOTE${NC}: Make sure your hardware wallet supported by Cardano and cardano-hw-cli utility"
-                    echo
-                    if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
-                      println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli not found in path or executable permission not set."
-                      println ERROR "Please run '${FG_YELLOW}guild-deploy.sh -s w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}guild-deploy.sh -h${NC}' shows all available options"
-                      waitToProceed && continue
-                    fi
-                    if ! HWCLIversionCheck; then waitToProceed && continue; fi
-                    createNewWallet || continue
-                    getCustomDerivationPath || continue
-                    derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
-                    echo "1852H/1815H/${acct_idx}H/x/${key_idx}" > "${derivation_path_file}"
-                    payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_PAY_SK_FILENAME}"
-                    payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_VK_FILENAME}"
-                    stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_HW_STAKE_SK_FILENAME}"
-                    stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_VK_FILENAME}"
-                    drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_HW_DREP_SK_FILENAME}"
-                    drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_VK_FILENAME}"
-                    cc_cold_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_HW_CC_COLD_SK_FILENAME}"
-                    cc_cold_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_COLD_VK_FILENAME}"
-                    cc_hot_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_HW_CC_HOT_SK_FILENAME}"
-                    cc_hot_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_CC_HOT_VK_FILENAME}"
-                    ms_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_PAY_SK_FILENAME}"
-                    ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
-                    ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_SK_FILENAME}"
-                    ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
-                    ms_drep_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_HW_DREP_SK_FILENAME}"
-                    ms_drep_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_GOV_DREP_VK_FILENAME}"
-                    if ! unlockHWDevice "extract ${FG_LGRAY}keys${NC}"; then safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue; fi
-                    println "Include governance (drep & committee) keys (only Ledger supported)?"
-                    select_opt "[n] No" "[y] Yes"
+                    cntools_compatibility_dispatch_action wallet.import.hardware
                     case $? in
-                      0)
-                        HW_DERIVATION_CMD=(
-                          cardano-hw-cli address key-gen
-                          --path 1852H/1815H/${acct_idx}H/0/${key_idx}
-                          --path 1852H/1815H/${acct_idx}H/2/${key_idx}
-                          --path 1854H/1815H/${acct_idx}H/0/${key_idx}
-                          --path 1854H/1815H/${acct_idx}H/2/${key_idx}
-                          --verification-key-file "${payment_vk_file}"
-                          --verification-key-file "${stake_vk_file}"
-                          --verification-key-file "${ms_payment_vk_file}"
-                          --verification-key-file "${ms_stake_vk_file}"
-                          --hw-signing-file "${payment_sk_file}"
-                          --hw-signing-file "${stake_sk_file}"
-                          --hw-signing-file "${ms_payment_sk_file}"
-                          --hw-signing-file "${ms_stake_sk_file}"
-                        )
-                        ;; # do nothing
-                      1)
-                        HW_DERIVATION_CMD=(
-                          cardano-hw-cli address key-gen
-                          --path 1852H/1815H/${acct_idx}H/0/${key_idx}
-                          --path 1852H/1815H/${acct_idx}H/2/${key_idx}
-                          --path 1852H/1815H/${acct_idx}H/3/${key_idx}
-                          --path 1852H/1815H/${acct_idx}H/4/${key_idx}
-                          --path 1852H/1815H/${acct_idx}H/5/${key_idx}
-                          --path 1854H/1815H/${acct_idx}H/0/${key_idx}
-                          --path 1854H/1815H/${acct_idx}H/2/${key_idx}
-                          --verification-key-file "${payment_vk_file}"
-                          --verification-key-file "${stake_vk_file}"
-                          --verification-key-file "${drep_vk_file}"
-                          --verification-key-file "${cc_cold_vk_file}"
-                          --verification-key-file "${cc_hot_sk_file}"
-                          --verification-key-file "${ms_payment_vk_file}"
-                          --verification-key-file "${ms_stake_vk_file}"
-                          --hw-signing-file "${payment_sk_file}"
-                          --hw-signing-file "${stake_sk_file}"
-                          --hw-signing-file "${drep_sk_file}"
-                          --hw-signing-file "${cc_cold_sk_file}"
-                          --hw-signing-file "${cc_hot_sk_file}"
-                          --hw-signing-file "${ms_payment_sk_file}"
-                          --hw-signing-file "${ms_stake_sk_file}"
-                        )
-                        ;;
+                      0|21) continue ;;
+                      20) break 2 ;;
+                      22) myExit 0 "CNTools closed!" ;;
+                      *) waitToProceed; continue ;;
                     esac
-                    println ACTION "${HW_DERIVATION_CMD[*]}"
-                    if ! stdout=$("${HW_DERIVATION_CMD[@]}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                    fi
-                    # make a copy of 1852 DRep keys to 1854 multisig due to lacking HW support
-                    cp "${drep_sk_file}" "${ms_drep_sk_file}"
-                    cp "${drep_vk_file}" "${ms_drep_vk_file}"
-                    jq '.description = "Payment Hardware Verification Key"' "${payment_vk_file}" > "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${payment_vk_file}").tmp" "${payment_vk_file}"
-                    jq '.description = "Stake Hardware Verification Key"' "${stake_vk_file}" > "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${stake_vk_file}").tmp" "${stake_vk_file}"
-                    jq '.description = "Delegate Representative Hardware Verification Key"' "${drep_vk_file}" > "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${drep_vk_file}").tmp" "${drep_vk_file}"
-                    jq '.description = "Constitutional Committee Cold Hardware Verification Key"' "${cc_cold_vk_file}" > "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_cold_vk_file}").tmp" "${cc_cold_vk_file}"
-                    jq '.description = "Constitutional Committee Hot Hardware Verification Key"' "${cc_hot_sk_file}" > "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${cc_hot_sk_file}").tmp" "${cc_hot_sk_file}"
-                    jq '.description = "MultiSig Payment Hardware Verification Key"' "${ms_payment_vk_file}" > "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" "${ms_payment_vk_file}"
-                    jq '.description = "MultiSig Stake Hardware Verification Key"' "${ms_stake_vk_file}" > "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" "${ms_stake_vk_file}"
-                    jq '.description = "MultiSig Delegate Representative Hardware Verification Key"' "${ms_drep_vk_file}" > "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_drep_vk_file}").tmp" "${ms_drep_vk_file}"
-                    getBaseAddress ${wallet_name}
-                    getPayAddress ${wallet_name}
-                    getRewardAddress ${wallet_name}
-                    getCredentials ${wallet_name}
-                    echo
-                    println "HW Wallet Imported : ${FG_GREEN}${wallet_name}${NC}"
-                    println "Address            : ${FG_LGRAY}${base_addr}${NC}"
-                    println "Payment Address    : ${FG_LGRAY}${pay_addr}${NC}"
-                    echo
-                    printWalletInfo
-                    waitToProceed && continue
                     ;; ###################################################################
                 esac # wallet >> import sub OPERATION
               done # Wallet >> Import loop
@@ -724,492 +1274,34 @@ function main {
               waitToProceed && continue
               ;; ###################################################################
             deregister)
-              clear
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> WALLET >> DE-REGISTER"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
-              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                println ERROR "${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                waitToProceed && continue
-              else
-                if ! selectOpMode; then continue; fi
-              fi
-              echo
-              println DEBUG "Select wallet to de-register (only registered wallets shown)"
-              if [[ ${op_mode} = "online" ]]; then
-                selectWallet "reg"
-                case $? in
-                  1) waitToProceed; continue ;;
-                  2) continue ;;
-                esac
-                getWalletType ${wallet_name}
-                case $? in
-                  2) println ERROR "${FG_RED}ERROR${NC}: signing keys encrypted, please decrypt before use!" && waitToProceed && continue ;;
-                  3) println ERROR "${FG_RED}ERROR${NC}: payment and/or stake signing keys missing from wallet!" && waitToProceed && continue ;;
-                esac
-              else
-                selectWallet "reg"
-                case $? in
-                  1) waitToProceed; continue ;;
-                  2) continue ;;
-                esac
-                getWalletType ${wallet_name}
-              fi
-              getWalletRewards ${wallet_name}
-              if [[ "${reward_lovelace}" -gt 0 ]]; then
-                println "\n${FG_YELLOW}WARN${NC}: wallet has unclaimed rewards, please use 'Funds >> Withdraw Rewards' before de-registration to claim your rewards"
-                waitToProceed && continue
-              fi
-              getWalletBalance ${wallet_name} true true false true
-              if [[ ${base_lovelace} -le 0 ]]; then
-                println ERROR "\n${FG_RED}ERROR${NC}: no funds available in base address for wallet ${FG_GREEN}${wallet_name}${NC}"
-                println ERROR "Funds for transaction fee needed to deregister the wallet"
-                waitToProceed && continue
-              fi
-              if ! deregisterStakeWallet; then
-                [[ -f ${stake_dereg_file} ]] && rm -f ${stake_dereg_file}
-                waitToProceed && continue
-              fi
-              echo
-              if ! verifyTx ${base_addr}; then waitToProceed && continue; fi
-              echo
-              println "${FG_GREEN}${wallet_name}${NC} successfully de-registered from chain!"
-              println "Key deposit fee that will be refunded : ${FG_LBLUE}$(formatLovelace ${KEY_DEPOSIT})${NC} ADA"
-              waitToProceed && continue
+              cntools_compatibility_dispatch_action wallet.deregister
+              action_status=$?
+              case "${action_status}" in
+                0|21) continue ;;
+                20) break ;;
+                22) myExit 0 "CNTools closed!" ;;
+                *) waitToProceed; continue ;;
+              esac
               ;; ###################################################################
             list)
-              clear
-              [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> WALLET >> LIST"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
-              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, wallet balance not shown!"
-              fi
-              if [[ -n ${KOIOS_API} ]]; then
-                tput sc
-                println OFF "\n${FG_YELLOW}> Querying Koios API for wallet information${NC}"
-                addr_list=()
-                reward_addr_list=()
-                while IFS= read -r -d '' wallet; do
-                  wallet_name=$(basename ${wallet})
-                  getBaseAddress ${wallet_name}
-                  [[ -n ${base_addr} ]] && addr_list+=(${base_addr})
-                  getPayAddress ${wallet_name}
-                  [[ -n ${pay_addr} ]] && addr_list+=(${pay_addr})
-                  getRewardAddress ${wallet_name}
-                  [[ -n ${reward_addr} ]] && reward_addr_list+=(${reward_addr})
-                done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0)
-                [[ ${#addr_list[@]} -gt 0 ]] && getBalanceKoios
-                [[ ${#reward_addr_list[@]} -gt 0 ]] && getRewardInfoKoios
-                tput rc && tput ed
-              fi
-
-              while IFS= read -r -d '' wallet; do
-                wallet_name=$(basename ${wallet})
-                enc_files=$(find "${wallet}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
-                if [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && isWalletRegistered ${wallet_name}; then registered="yes"; else registered="no"; fi
-                echo
-                if [[ ${registered} = "yes" ]]; then
-                  postfix="- ${FG_LBLUE}REGISTERED${NC}"
-                else
-                  postfix="- ${FG_LGRAY}UNREGISTERED${NC}"
-                fi
-                getWalletType ${wallet_name}
-                [[ $? -eq 5 ]] && postfix="${postfix} (${FG_LGRAY}MultiSig${NC})"
-                [[ ${enc_files} -gt 0 ]] && postfix="${postfix} (${FG_YELLOW}encrypted${NC})"
-                if [[ ${enc_files} -gt 0 && ${registered} = "yes" ]]; then
-                  println "${FG_GREEN}${wallet_name}${NC} - ${FG_LGRAY}REGISTERED${NC} (${FG_YELLOW}encrypted${NC})"
-                elif [[ ${registered} = "yes" ]]; then
-                  println "${FG_GREEN}${wallet_name}${NC} - ${FG_LGRAY}REGISTERED${NC}"
-                elif [[ ${enc_files} -gt 0 ]]; then
-                  println "${FG_GREEN}${wallet_name}${NC} (${FG_YELLOW}encrypted${NC})"
-                else
-                  println "${FG_GREEN}${wallet_name}${NC}"
-                fi
-                getWalletType ${wallet_name}
-                case $? in
-                  0) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Hardware")" ;;
-                  1) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "CLI")" ;;
-                  5) println "$(printf "%-15s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "MultiSig")" ;;
-                esac
-                getBaseAddress ${wallet_name}
-                getPayAddress ${wallet_name}
-                if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
-                  println ERROR "${FG_RED}ERROR${NC}: wallet missing pay/base addr files or vkey/script files to generate them!"
-                  continue
-                fi
-                if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                  [[ -n ${base_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
-                  [[ -n ${pay_addr} ]] && println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Payment Addr" "${pay_addr}")"
-                else
-                  if [[ -n ${base_addr} ]]; then
-                    lovelace=0
-                    asset_cnt=0
-                    if [[ -n ${KOIOS_API} ]]; then
-                      for key in "${!assets[@]}"; do
-                        [[ ${key} = "${base_addr},lovelace" ]] && lovelace=${assets["${base_addr},lovelace"]} && continue
-                        [[ ${key} = "${base_addr},"* ]] && ((asset_cnt++))
-                      done
-                    else
-                      getBalance ${base_addr}
-                      lovelace=${assets[lovelace]}
-                      asset_cnt=$(( ${#assets[@]} - 1 ))
-                    fi
-                    getPriceString ${lovelace}
-                    println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Address"  "${base_addr}")"
-                    if [[ ${asset_cnt} -eq 0 ]]; then
-                      println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds"  "$(formatLovelace ${lovelace})")"
-                    else
-                      println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Base Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
-                    fi
-                  fi
-                  if [[ -n ${pay_addr} ]]; then
-                    lovelace=0
-                    asset_cnt=0
-                    if [[ -n ${KOIOS_API} ]]; then
-                      for key in "${!assets[@]}"; do
-                        [[ ${key} = "${pay_addr},lovelace" ]] && lovelace=${assets["${pay_addr},lovelace"]} && continue
-                        [[ ${key} = "${pay_addr},"* ]] && ((asset_cnt++))
-                      done
-                    else
-                      getBalance ${pay_addr}
-                      lovelace=${assets[lovelace]}
-                      asset_cnt=$(( ${#assets[@]} - 1 ))
-                    fi
-                    getPriceString ${lovelace}
-                    if [[ ${lovelace} -gt 0 ]]; then
-                      println "$(printf "%-15s : ${FG_LGRAY}%s${NC}" "Payment Addr" "${pay_addr}")"
-                      if [[ ${asset_cnt} -eq 0 ]]; then
-                        println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Payment Funds" "$(formatLovelace ${lovelace})")"
-                      else
-                        println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str} - ${FG_LBLUE}%s${NC} additional asset(s) on address! [WALLET >> SHOW for details]" "Payment Funds" "$(formatLovelace ${lovelace})" "${asset_cnt}")"
-                      fi
-                    fi
-                  fi
-                  if [[ -n ${KOIOS_API} ]]; then
-                    [[ -v rewards_available[${reward_addr}] ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
-                    pool_delegation=${pool_delegations[${reward_addr}]}
-                  else
-                    getWalletRewards ${wallet_name}
-                  fi
-                  if [[ -n ${pool_delegation} ]]; then
-                    getPriceString ${reward_lovelace}
-                    println "$(printf "%-15s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards" "$(formatLovelace ${reward_lovelace})")"
-                    unset poolName
-                    while IFS= read -r -d '' pool; do
-                      getPoolID "$(basename ${pool})"
-                      if [[ "${pool_id_bech32}" = "${pool_delegation}" ]]; then
-                        poolName=$(basename ${pool}) && break
-                      fi
-                    done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-                    println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${pool_delegation})${NC}"
-                  fi
-                fi
-              done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-              waitToProceed && continue
+              cntools_compatibility_dispatch_action wallet.list
+              action_status=$?
+              case "${action_status}" in
+                0|21) continue ;;
+                20) break ;;
+                22) myExit 0 "CNTools closed!" ;;
+                *) waitToProceed; continue ;;
+              esac
               ;; ###################################################################
             show)
-              clear
-              [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> WALLET >> SHOW"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
-              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, limited wallet info shown!"
-              fi
-              tput sc
-              selectWallet "none"
-              case $? in
-                1) waitToProceed; continue ;;
-                2) continue ;;
+              cntools_compatibility_dispatch_action wallet.show
+              action_status=$?
+              case "${action_status}" in
+                0|21) continue ;;
+                20) break ;;
+                22) myExit 0 "CNTools closed!" ;;
+                *) waitToProceed; continue ;;
               esac
-              tput rc && tput ed
-              enc_files=$(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
-              if [[ ${enc_files} -gt 0 ]]; then
-                println "Wallet: ${FG_GREEN}${wallet_name}${NC} (${FG_YELLOW}encrypted${NC})"
-              else
-                println "Wallet: ${FG_GREEN}${wallet_name}${NC}"
-              fi
-              getBaseAddress ${wallet_name}
-              getPayAddress ${wallet_name}
-              if [[ -z ${base_addr} && -z ${pay_addr} ]]; then
-                println ERROR "\n${FG_RED}ERROR${NC}: wallet missing pay/base addr files or vkey/script files to generate them!"
-                waitToProceed && continue
-              fi
-              getRewardAddress ${wallet_name}
-              if [[ -n ${KOIOS_API} ]]; then
-                tput sc
-                println OFF "\n${FG_YELLOW}> Querying Koios API for wallet information${NC}"
-                addr_list=()
-                [[ -n ${base_addr} ]] && addr_list+=("${base_addr}")
-                [[ -n ${pay_addr} ]] && addr_list+=("${pay_addr}")
-                reward_addr_list=("${reward_addr}")
-                [[ ${#addr_list[@]} -gt 0 ]] && getBalanceKoios
-                [[ ${#reward_addr_list[@]} -gt 0 ]] && getRewardInfoKoios
-                tput rc && tput ed
-              fi
-              total_lovelace=0
-              if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
-                for i in {1..2}; do
-                  if [[ $i -eq 1 ]]; then
-                    [[ -z ${base_addr} ]] && continue
-                    address_type="Base"
-                    address=${base_addr}
-                    if [[ -n ${KOIOS_API} ]]; then
-                      base_lovelace=${assets["${base_addr},lovelace"]}
-                    else
-                      getBalance ${base_addr}
-                      base_lovelace=${assets[lovelace]}
-                    fi
-                    total_lovelace=$((total_lovelace + base_lovelace))
-                  else
-                    [[ -z ${pay_addr} ]] && continue
-                    address_type="Payment"
-                    address=${pay_addr}
-                    if [[ -n ${KOIOS_API} ]]; then
-                      pay_lovelace=${assets["${pay_addr},lovelace"]}
-                      [[ ${utxos_cnt["${pay_addr}"]:-0} -eq 0 ]] && continue # Dont print if empty
-                    else
-                      getBalance ${pay_addr}
-                      pay_lovelace=${assets[lovelace]}
-                      [[ ${utxo_cnt} -eq 0 ]] && continue # Dont print if empty
-                    fi
-                    total_lovelace=$((total_lovelace + pay_lovelace))
-                  fi
-
-                  echo
-                  if [[ -n ${KOIOS_API} ]]; then
-                    utxo_cnt=${utxos_cnt["${address}"]:-0}
-                    asset_name_maxlen=${asset_name_maxlen_arr["${address}"]:-5}
-                    asset_amount_maxlen=${asset_amount_maxlen_arr["${address}"]:-12}
-                  fi
-                  println "${FG_LBLUE}${utxo_cnt} UTxO(s)${NC} found for ${FG_GREEN}${address_type}${NC} Address!"
-                  if [[ ${utxo_cnt} -gt 0 ]]; then
-                    echo
-                    println DEBUG "$(printf "%-68s ${FG_DGRAY}|${NC} %${asset_name_maxlen}s ${FG_DGRAY}|${NC} %-${asset_amount_maxlen}s\n" "UTxO Hash#Index" "Asset" "Amount")"
-                    println DEBUG "${FG_DGRAY}$(printf "%69s+%$((asset_name_maxlen+2))s+%$((asset_amount_maxlen+1))s\n" "" "" "" | tr " " "-")${NC}"
-                    mapfile -d '' utxos_sorted < <(printf '%s\0' "${!utxos[@]}" | sort -z)
-                    for utxo in "${utxos_sorted[@]}"; do
-                      [[ -n ${KOIOS_API} && ${utxo} != "${address},"* ]] && continue
-                      IFS='.' read -ra utxo_arr <<< "${utxo#*,}"
-                      if [[ ${#utxo_arr[@]} -eq 2 && ${utxo_arr[1]} = " ADA" ]]; then
-                        println DEBUG "$(printf "%-68s ${FG_DGRAY}|${NC} ${FG_GREEN}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "${utxo_arr[0]}" "ADA" "$(formatLovelace ${utxos["${utxo}"]})")"
-                      else
-                        [[ ${#utxo_arr[@]} -eq 3 ]] && asset_name="${utxo_arr[2]}" || asset_name=""
-                        tname="$(hexToAscii ${asset_name})"
-                        tname="${tname//[![:print:]]/}"
-                        ! assets_id_bech32=$(getAssetIDBech32 ${utxo_arr[1]} ${asset_name}) && continue 3
-                        println DEBUG "$(printf "${FG_DGRAY}%20s${NC}${FG_LGRAY}%-48s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LBLUE}%-${asset_amount_maxlen}s${NC}\n" "Asset Fingerprint: " "${assets_id_bech32}" "${tname}" "$(formatAsset ${utxos["${utxo}"]})")"
-                      fi
-                    done
-                  fi
-                  lovelace=0
-                  asset_cnt=0
-                  if [[ -n ${KOIOS_API} ]]; then
-                    for key in "${!assets[@]}"; do
-                      [[ ${key} = "${address},lovelace" ]] && lovelace=${assets["${address},lovelace"]}
-                      [[ ${key} = "${address},"* ]] && ((asset_cnt++))
-                    done
-                  else
-                    lovelace=${assets[lovelace]}
-                    asset_cnt=${#assets[@]}
-                  fi
-                  if [[ ${asset_cnt} -gt 0 ]]; then
-                    println "\nASSET SUMMARY: ${FG_LBLUE}${asset_cnt} Asset-Type(s)${NC}\n"
-                    println DEBUG "$(printf "%${asset_amount_maxlen}s ${FG_DGRAY}|${NC} %-${asset_name_maxlen}s%s\n" "Total Amount" "Asset" "$([[ ${asset_cnt} -gt 1 ]] && echo -e " ${FG_DGRAY}|${NC} Asset Fingerprint")")"
-                    println DEBUG "${FG_DGRAY}$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+2))s%s\n" "" "" "$([[ ${asset_cnt} -gt 1 ]] && printf "+%57s" "")" | tr " " "-")${NC}"
-                    println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_GREEN}%-${asset_name_maxlen}s${NC}%s\n" "$(formatLovelace ${lovelace})" "ADA" "$([[ ${asset_cnt} -gt 1 ]] && echo -n " ${FG_DGRAY}|${NC}")")"
-                    mapfile -d '' assets_sorted < <(printf '%s\0' "${!assets[@]}" | sort -z)
-                    for asset in "${assets_sorted[@]}"; do
-                      [[ ${asset} = *"lovelace" ]] && continue
-                      IFS='.' read -ra asset_arr <<< "${asset#*,}"
-                      [[ ${#asset_arr[@]} -eq 1 ]] && asset_name="" || asset_name="${asset_arr[1]}"
-                      ! assets_id_bech32=$(getAssetIDBech32 ${asset_arr[0]} ${asset_name}) && assets_id_bech32="?"
-                      tname="$(hexToAscii ${asset_name})"
-                      tname="${tname//[![:print:]]/}"
-                      println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_MAGENTA}%-${asset_name_maxlen}s${NC} ${FG_DGRAY}|${NC} ${FG_LGRAY}%s${NC}\n" "$(formatAsset ${assets["${asset}"]})" "${tname}" "${assets_id_bech32}")"
-                    done
-                  fi
-                done
-
-                println DEBUG "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                if isWalletRegistered ${wallet_name}; then
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_GREEN}%s${NC}" "Registered" "Yes")"
-                else
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_RED}%s${NC}" "Registered" "No")"
-                fi
-              else
-                println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Registered" "Unknown")"
-              fi
-
-              getWalletType ${wallet_name}
-              case $? in
-                0) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "Hardware")" ;;
-                1) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "CLI")" ;;
-                5) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Type" "MultiSig")" ;;
-              esac
-
-              derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
-              if getSavedDerivationPath "${derivation_path_file}"; then
-                println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Derivation Path" "${derivation_path}")"
-              fi
-
-              if [[ -f ${payment_script_file} ]]; then
-                unset timelock_after atleast total_signers script_sig_list
-                while read -r _slot; do
-                  timelock_after=${_slot}
-                  break
-                done < <( jq -r '.. | select(.type?=="after") | .slot' "${payment_script_file}" )
-                while IFS=',' read -r _required _total _sig_list; do
-                  atleast=${_required}
-                  total_signers=${_total}
-                  IFS=$'\t' read -ra script_sig_list <<< "${_sig_list}"
-                  break
-                done < <( jq -r '.. | select(.type?=="atLeast") | "\(.required),\(.scripts|length),\(.scripts|map(.keyHash)|@tsv)"' "${payment_script_file}" )
-                if [[ -n ${timelock_after} ]]; then
-                  timelock_date=$(getDateFromSlot ${timelock_after} '%(%F %T %Z)T')
-                  [[ $(getSlotTipRef) -gt ${timelock_after} ]] && timelock_color="${FG_GREEN}" || timelock_color="${FG_YELLOW}"
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${timelock_color}%s${NC}" "Time Locked Until" "${timelock_date}")"
-                fi
-                if [[ -n ${atleast} ]]; then
-                  cred_header="MultiSig Creds (${total_signers})"
-                  for _sig in "${script_sig_list[@]}"; do
-                    unset wallet_str
-                    while IFS= read -r -d '' wallet; do
-                      getCredentials "$(basename ${wallet})"
-                      if [[ ${ms_pay_cred} = "${_sig}" ]]; then
-                        wallet_str=" (${FG_GREEN}$(basename ${wallet})${NC})" && break
-                      fi
-                    done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}%s" "${cred_header}" "${_sig}" "${wallet_str}")"
-                    unset cred_header
-                  done
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Required signers" "${atleast}")"
-                fi
-              fi
-
-              [[ -n ${base_addr} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Address" "${base_addr}")"
-              if [[ -n ${pay_addr} ]]; then
-                println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment Address" "${pay_addr}")"
-              fi
-              [[ -n ${reward_addr} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Reward/Stake Address" "${reward_addr}")"
-              getCredentials ${wallet_name}
-              if [[ -n ${pay_cred} || -n ${stake_cred} || -n ${ms_pay_cred} || -n ${ms_stake_cred} ]]; then
-                println "${FG_DGRAY}# Credentials${NC}"
-              fi
-              [[ -n ${pay_cred} ]]          && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Payment" "${pay_cred}")"
-              [[ -n ${stake_cred} ]]        && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Stake" "${stake_cred}")"
-              [[ -n ${ms_pay_cred} ]]       && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "MultiSig Payment" "${ms_pay_cred}")"
-              [[ -n ${ms_stake_cred} ]]     && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "MultiSig Stake" "${ms_stake_cred}")"
-              [[ -n ${script_pay_cred} ]]   && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Payment" "${script_pay_cred}")"
-              [[ -n ${script_stake_cred} ]] && println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Script Stake" "${script_stake_cred}")"
-
-              if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
-                println "${FG_DGRAY}# Funds${NC}"
-                if [[ -n ${reward_addr} ]]; then
-                  if [[ -n ${KOIOS_API} ]]; then
-                    [[ -v rewards_available[${reward_addr}] ]] && reward_lovelace=${rewards_available[${reward_addr}]} || reward_lovelace=0
-                    pool_delegation=${pool_delegations[${reward_addr}]}
-                  else
-                    getRewardsFromAddr ${reward_addr}
-                  fi
-                  total_lovelace=$((total_lovelace + reward_lovelace))
-                  getPriceString ${reward_lovelace}
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Rewards Available" "$(formatLovelace ${reward_lovelace})")"
-                fi
-                getPriceString ${total_lovelace}
-                println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA${price_str}" "Funds + Rewards" "$(formatLovelace ${total_lovelace})")"
-                if [[ -n ${pool_delegation} ]]; then
-                  unset poolName
-                  while IFS= read -r -d '' pool; do
-                    getPoolID "$(basename ${pool})"
-                    if [[ "${pool_id_bech32}" = "${pool_delegation}" ]]; then
-                      poolName=$(basename ${pool}) && break
-                    fi
-                  done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-                  echo
-                  println "${FG_RED}Delegated${NC} to ${FG_GREEN}${poolName}${NC} ${FG_LGRAY}(${pool_delegation})${NC}"
-                fi
-              fi
-              if [[ -z ${pay_addr} && -z ${pay_script_addr} ]]; then
-                println "\n${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_PAY_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}' to generate it!"
-              fi
-              [[ -z ${base_addr} ]]   && println "\n${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_BASE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_PAY_VK_FILENAME}${NC}/${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
-              [[ -z ${reward_addr} ]] && println "\n${FG_YELLOW}INFO${NC}: '${FG_LGRAY}${WALLET_STAKE_ADDR_FILENAME}${NC}' missing and '${FG_LGRAY}${WALLET_STAKE_VK_FILENAME}${NC}' to generate it!"
-
-              drep_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
-              if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]] && versionCheck "9.0" "${PROT_VERSION}"; then
-                println "DEBUG" "\nGovernance Vote Delegation Status"
-                unset walletName
-                if getWalletVoteDelegation ${wallet_name}; then
-                  unset vote_delegation_hash
-                  vote_delegation_type="${vote_delegation%-*}"
-                  if [[ ${vote_delegation} = always* ]]; then
-                    if [[ ${vote_delegation} = alwaysAbstain ]]; then
-                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Delegation" "Always abstain")"
-                    else
-                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Delegation" "Always no confidence")"
-                    fi
-                  else
-                    if [[ ${vote_delegation} = *-* ]]; then
-                      vote_delegation_hash="${vote_delegation#*-}"
-                      while IFS= read -r -d '' _wallet; do
-                        getGovKeyInfo "$(basename ${_wallet})"
-                        if [[ "${drep_hash}" = "${vote_delegation_hash}" ]]; then
-                          walletName="$(basename ${_wallet})" && break
-                        fi
-                      done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-                    fi
-                    getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
-                    println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "Delegation" "${drep_id}")"
-                    println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${drep_id_cip129}")"
-                    if [[ -n ${walletName} ]]; then
-                      println "$(printf "%-20s ${FG_DGRAY}: Wallet  =>${NC} ${FG_GREEN}%s${NC}" "" "${walletName}")"
-                    fi
-                    if [[ ${vote_delegation_type} = keyHash ]]; then
-                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "Key")"
-                    else
-                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "MultiSig")"
-                    fi
-                    if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
-                      [[ $(getEpoch) -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                      println "$(printf "%-20s ${FG_DGRAY}:${NC} epoch ${FG_LBLUE}%s${NC} - %s" "DRep expiry" "${drep_expiry}" "${expire_status}")"
-                      if [[ -n ${drep_anchor_url} ]]; then
-                        println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep anchor url" "${drep_anchor_url}")"
-                        getDRepAnchor "${drep_anchor_url}" "${drep_anchor_hash}"
-                        case $? in
-                          0) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
-                            jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
-                            println DEBUG "${NC}"
-                            ;;
-                          1) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor data" "Invalid URL or currently not available")" ;;
-                          2) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
-                            jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
-                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor hash" "mismatch")"
-                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  registered" "${drep_anchor_hash}")"
-                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  actual" "${drep_anchor_real_hash}")"
-                            ;;
-                        esac
-                      fi
-                    else
-                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_RED}%s${NC}" "Status" "Unable to get DRep status, retired?")"
-                    fi
-                  fi
-                  getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
-                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA (${FG_LBLUE}%s${NC} %%)" "Active Vote power" "$(formatLovelace ${vote_power:=0})" "${vote_power_pct:=0}")"
-                else
-                  if versionCheck "10.0" "${PROT_VERSION}"; then
-                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC} - %s" "Delegation" "undelegated" "please note that reward withdrawals will not work until wallet is vote delegated")"
-                  else
-                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Delegation" "undelegated")"
-                  fi
-                fi
-              fi
-              waitToProceed && continue
               ;; ###################################################################
             remove)
               clear
@@ -1283,111 +1375,24 @@ function main {
               waitToProceed && continue
               ;; ###################################################################
             decrypt)
-              clear
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> WALLET >> DECRYPT"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              echo
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
-              println DEBUG "Select wallet to decrypt"
-              selectWallet "encrypted"
-              case $? in
-                1) waitToProceed; continue ;;
-                2) continue ;;
+              cntools_compatibility_dispatch_action wallet.decrypt
+              action_status=$?
+              case "${action_status}" in
+                0|21) continue ;;
+                20) break ;;
+                22) myExit 0 "CNTools closed!" ;;
+                *) waitToProceed; continue ;;
               esac
-              filesUnlocked=0
-              keysDecrypted=0
-              echo
-              println DEBUG "Removing write protection from all wallet files"
-              while IFS= read -r -d '' file; do
-                unlockFile "${file}"
-                filesUnlocked=$((++filesUnlocked))
-                println DEBUG "${file}"
-              done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
-              if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
-                echo
-                println DEBUG "Decrypting GPG encrypted wallet files"
-                echo
-                if ! getPasswordCust; then # $password variable populated by getPasswordCust function
-                  println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
-                  waitToProceed && continue
-                fi
-                while IFS= read -r -d '' file; do
-                  decryptFile "${file}" "${password}" && \
-                  chmod 600 "${file::-4}" && \
-                  keysDecrypted=$((++keysDecrypted))
-                done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0)
-                unset password
-              fi
-              echo
-              println "Wallet unprotected : ${FG_GREEN}${wallet_name}${NC}"
-              println "Files unlocked     : ${FG_LBLUE}${filesUnlocked}${NC}"
-              println "Files decrypted    : ${FG_LBLUE}${keysDecrypted}${NC}"
-              if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
-                echo
-                println DEBUG "${FG_YELLOW}Wallet files are now unprotected${NC}"
-                println DEBUG "Use 'WALLET >> ENCRYPT' to re-lock"
-              fi
-              waitToProceed && continue
               ;; ###################################################################
             encrypt)
-              clear
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> WALLET >> ENCRYPT"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              echo
-              [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
-              println DEBUG "Select wallet to encrypt"
-              selectWallet "encrypted"
-              case $? in
-                1) waitToProceed; continue ;;
-                2) continue ;;
+              cntools_compatibility_dispatch_action wallet.encrypt
+              action_status=$?
+              case "${action_status}" in
+                0|21) continue ;;
+                20) break ;;
+                22) myExit 0 "CNTools closed!" ;;
+                *) waitToProceed; continue ;;
               esac
-              filesLocked=0
-              keysEncrypted=0
-              if [[ $(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
-                echo
-                println DEBUG "Encrypting sensitive wallet keys with GPG"
-                echo
-                if ! getPasswordCust confirm; then # $password variable populated by getPasswordCust function
-                  println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
-                  waitToProceed && continue
-                fi
-                keyFiles=(
-                  "${WALLET_FOLDER}/${wallet_name}/${WALLET_PAY_SK_FILENAME}"
-                  "${WALLET_FOLDER}/${wallet_name}/${WALLET_STAKE_SK_FILENAME}"
-                )
-                for keyFile in "${keyFiles[@]}"; do
-                  if [[ -f "${keyFile}" ]]; then
-                    chmod 400 "${keyFile}" && \
-                    encryptFile "${keyFile}" "${password}" && \
-                    keysEncrypted=$((++keysEncrypted))
-                  fi
-                done
-                unset password
-              else
-                echo
-                println DEBUG "${FG_YELLOW}NOTE${NC}: found GPG encrypted files in folder, please decrypt/unlock wallet files before encrypting"
-                waitToProceed && continue
-              fi
-              echo
-              println DEBUG "Write protecting all wallet keys with 400 permission and if enabled 'chattr +i'"
-              while IFS= read -r -d '' file; do
-                [[ ${file} = *.addr ]] && continue
-                lockFile "${file}"
-                filesLocked=$((++filesLocked))
-                println DEBUG "${file}"
-              done < <(find "${WALLET_FOLDER}/${wallet_name}" -mindepth 1 -maxdepth 1 -type f -print0)
-              echo
-              println "Wallet protected : ${FG_GREEN}${wallet_name}${NC}"
-              println "Files locked     : ${FG_LBLUE}${filesLocked}${NC}"
-              println "Files encrypted  : ${FG_LBLUE}${keysEncrypted}${NC}"
-              if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
-                echo
-                println DEBUG "${FG_BLUE}INFO${NC}: wallet files are now protected"
-                println DEBUG "Use 'WALLET >> DECRYPT' to unlock"
-              fi
-              waitToProceed && continue
               ;; ###################################################################
           esac # wallet sub OPERATION
         done # Wallet loop
@@ -2800,424 +2805,24 @@ function main {
               waitToProceed && continue
               ;; ###################################################################
             list)
-              clear
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> POOL >> LIST"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
-              current_epoch=$(getEpoch)
-              while IFS= read -r -d '' pool; do
-                echo
-                pool_name="$(basename ${pool})"
-                getPoolID "${pool_name}"
-                pool_regcert_file="${pool}/${POOL_REGCERT_FILENAME}"
-                isPoolRegistered "${pool_name}"
-                case $? in
-                  0) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitToProceed && continue ;;
-                  1) pool_registered="${FG_RED}No${NC}" ;;
-                  2) pool_registered="${FG_GREEN}Yes${NC}" ;;
-                  3) if [[ ${current_epoch} -lt ${p_retiring_epoch} ]]; then
-                       pool_registered="${FG_YELLOW}Yes${NC} - Retiring in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
-                     else
-                       pool_registered="${FG_RED}No${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
-                     fi ;;
-                  4) pool_registered="${FG_RED}No${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}" ;;
-                esac
-                enc_files=$(find "${pool}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c)
-                if [[ ${enc_files} -gt 0 ]]; then
-                  println "${FG_GREEN}${pool_name}${NC} (${FG_YELLOW}encrypted${NC})"
-                else
-                  println "${FG_GREEN}${pool_name}${NC}"
-                fi
-                println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
-                [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
-                println "$(printf "%-21s : %s" "Registered" "${pool_registered}")"
-
-                if [[ ${pool_registered} = *Yes* ]]; then
-                  unset pool_kes_start
-                  unset remaining_kes_periods
-                  [[ -f "${pool}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${pool}/${POOL_CURRENT_KES_START}")"
-
-                  if ! kesExpiration ${pool_kes_start}; then
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC}%s${FG_GREEN}%s${NC}" "KES expiration date" "ERROR" ": failure during KES calculation for " "$(basename ${pool})")"
-                  else
-                    if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
-                      if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-                        println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${kes_expiration}" "EXPIRED!" "$(timeLeft ${expiration_time_sec_diff:1})")"
-                      else
-                        println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "ALERT!" "$(timeLeft ${expiration_time_sec_diff})")"
-                      fi
-                    elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "WARNING!" "$(timeLeft ${expiration_time_sec_diff})")"
-                    else
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "KES expiration date" "${kes_expiration}")"
-                    fi
-                  fi
-                fi
-              done < <(find "${POOL_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-              echo
-              waitToProceed && continue
+              cntools_compatibility_dispatch_action pool.list
+              action_status=$?
+              case "${action_status}" in
+                0|21) continue ;;
+                20) break ;;
+                22) myExit 0 "CNTools closed!" ;;
+                *) waitToProceed; continue ;;
+              esac
               ;; ###################################################################
             show)
-              clear
-              [[ ${CNTOOLS_MODE} != "OFFLINE" ]] && getPriceInfo
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              println " >> POOL >> SHOW"
-              println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-              [[ ! $(ls -A "${POOL_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No pools available!${NC}" && waitToProceed && continue
-              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                println DEBUG "${FG_LGRAY}OFFLINE MODE${NC}: CNTools started in offline mode, locally saved info shown!"
-              fi
-              tput sc
-              selectPool "all" "${POOL_ID_FILENAME}"
-              case $? in
-                1) waitToProceed; continue ;;
-                2) continue ;;
+              cntools_compatibility_dispatch_action pool.show
+              action_status=$?
+              case "${action_status}" in
+                0|21) continue ;;
+                20) break ;;
+                22) myExit 0 "CNTools closed!" ;;
+                *) waitToProceed; continue ;;
               esac
-              current_epoch=$(getEpoch)
-              getPoolID ${pool_name}
-              tput rc && tput ed
-              if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                tput sc && println DEBUG "Querying pool parameters from node, can take a while...\n"
-                println ACTION "${CCLI} query pool-state --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER}"
-                if ! pool_params=$(${CCLI} query pool-state --stake-pool-id ${pool_id_bech32} ${NETWORK_IDENTIFIER} 2>&1); then
-                  tput rc && tput ed
-                  println ERROR "${FG_RED}ERROR${NC}: pool-state query failed: ${pool_params}"
-                  waitToProceed && continue
-                fi
-                pool_coldkey_vk_file="${POOL_FOLDER}/${pool_name}/${POOL_COLDKEY_VK_FILENAME}"
-                if [[ -f "${pool_coldkey_vk_file}" ]]; then
-                  println ACTION "${CCLI} latest query stake-pool-default-vote --spo-verification-key-file ${pool_coldkey_vk_file} ${NETWORK_IDENTIFIER} | tr -d '\"'"
-                  if ! pool_default_vote=$(${CCLI} latest query stake-pool-default-vote --spo-verification-key-file "${pool_coldkey_vk_file}" ${NETWORK_IDENTIFIER} 2>&1); then
-                    println LOG "${FG_RED}ERROR${NC}: stake-pool-default-vote query failed: ${pool_default_vote}"
-                    unset pool_default_vote
-                  else
-                    pool_default_vote="${pool_default_vote%\"}" # remove end quote
-                    pool_default_vote="${pool_default_vote:8}"  # remove '"Default' prefix from output
-                  fi
-                fi
-                tput rc && tput ed
-              fi
-              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                pool_registered="${FG_LGRAY}status unavailable in offline mode${NC}"
-              elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                ledger_pParams=$(jq -r '.[].poolParams // empty' <<< ${pool_params})
-                ledger_fPParams=$(jq -r '.[].futurePoolParams // empty' <<< ${pool_params})
-                ledger_retiring=$(jq -r '.[].retiring // empty' <<< ${pool_params})
-                [[ -z ${ledger_retiring} ]] && p_retiring_epoch=0 || p_retiring_epoch=${ledger_retiring}
-                [[ -z "${ledger_fPParams}" ]] && ledger_fPParams="${ledger_pParams}"
-                [[ -n "${ledger_pParams}" ]] && pool_registered="${FG_GREEN}Yes${NC}" || pool_registered="${FG_RED}No${NC}"
-                if [[ ${p_retiring_epoch} -gt 0 ]]; then
-                  if [[ ${current_epoch} -lt ${p_retiring_epoch} ]]; then
-                    pool_registered="${FG_YELLOW}Yes${NC} - Retiring in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
-                  else
-                    pool_registered="${FG_RED}No${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
-                  fi
-                fi
-              else
-                println OFF "\n${FG_YELLOW}> Querying Koios API for pool information (some data can have a small delay)${NC}"
-                isPoolRegistered ${pool_name} # variables set in isPoolRegistered [pool_info, error_msg, p_<metric>]
-                case $? in
-                  0) println "ERROR" "\n${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" && waitToProceed && continue ;;
-                  1) pool_registered="${FG_RED}No${NC}" ;;
-                  2) pool_registered="${FG_GREEN}Yes${NC}" ;;
-                  3) if [[ ${current_epoch} -lt ${p_retiring_epoch} ]]; then
-                       pool_registered="${FG_YELLOW}Yes${NC} - Retiring in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
-                     else
-                       pool_registered="${FG_RED}No${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}"
-                     fi ;;
-                  4) pool_registered="${FG_RED}No${NC} - Retired in epoch ${FG_LBLUE}${p_retiring_epoch}${NC}" ;;
-                esac
-              fi
-              echo
-              [[ -n ${p_active_epoch_no} && ${p_active_epoch_no} -gt ${current_epoch} ]] && println "${FG_YELLOW}Pool modified recently, displaying latest registration update.${NC}\n"
-              println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Pool Name" "${pool_name}")"
-              println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (hex)" "${pool_id}")"
-              [[ -n ${pool_id_bech32} ]] && println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "ID (bech32)" "${pool_id_bech32}")"
-              println "$(printf "%-21s : %s" "Registered" "${pool_registered}")"
-              if [[ -n ${pool_default_vote} ]]; then
-                println "$(printf "%-21s : %s" "Default vote" "${pool_default_vote}")"
-              fi
-              pool_meta_file="${POOL_FOLDER}/${pool_name}/poolmeta.json"
-              pool_config="${POOL_FOLDER}/${pool_name}/${POOL_CONFIG_FILENAME}"
-              if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                if [[ -f "${pool_meta_file}" ]]; then
-                  println "Metadata"
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Name" "$(jq -r .name "${pool_meta_file}")")"
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Ticker" "$(jq -r .ticker "${pool_meta_file}")")"
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Homepage" "$(jq -r .homepage "${pool_meta_file}")")"
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Description" "$(jq -r .description "${pool_meta_file}")")"
-                  [[ -f "${pool_config}" ]] && meta_url="$(jq -r .json_url "${pool_config}")" || meta_url="---"
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "URL" "${meta_url}")"
-                  println "ACTION" "${CCLI} latest stake-pool metadata-hash --pool-metadata-file ${pool_meta_file}"
-                  meta_hash="$( ${CCLI} latest stake-pool metadata-hash --pool-metadata-file "${pool_meta_file}" )"
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash" "${meta_hash}")"
-                fi
-              elif [[ ${pool_registered} = *Yes* ]]; then
-                if [[ -n ${KOIOS_API} ]]; then
-                  meta_json_url=${p_meta_url}
-                elif [[ -n ${ledger_fPParams} ]]; then
-                  meta_json_url=$(jq -r '.spsMetadata.url //empty' <<< "${ledger_fPParams}")
-                elif [[ -f "${pool_config}" ]]; then
-                  meta_json_url=$(jq -r .json_url "${pool_config}")
-                fi
-                if [[ -n ${meta_json_url} ]] && curl -sL -f -m ${CURL_TIMEOUT} -o "${TMP_DIR}/url_poolmeta.json" ${meta_json_url}; then
-                  println "Metadata"
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Name" "$(jq -r .name "$TMP_DIR/url_poolmeta.json")")"
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Ticker" "$(jq -r .ticker "$TMP_DIR/url_poolmeta.json")")"
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Homepage" "$(jq -r .homepage "$TMP_DIR/url_poolmeta.json")")"
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Description" "$(jq -r .description "$TMP_DIR/url_poolmeta.json")")"
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "URL" "${meta_json_url}")"
-                  println ACTION "${CCLI} latest stake-pool metadata-hash --pool-metadata-file ${TMP_DIR}/url_poolmeta.json"
-                  if ! meta_hash_url=$(${CCLI} latest stake-pool metadata-hash --pool-metadata-file "${TMP_DIR}/url_poolmeta.json" 2>&1); then
-                    println ERROR "\n${FG_RED}ERROR${NC}: failure during metadata hash creation!\n${meta_hash_url}"; waitToProceed && continue
-                  fi
-                  println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash URL" "${meta_hash_url}")"
-                  if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                    meta_hash_pParams=$(jq -r '.spsMetadata.hash //empty' <<< "${ledger_pParams}")
-                    meta_hash_fPParams=$(jq -r '.spsMetadata.hash //empty' <<< "${ledger_fPParams}")
-                  else
-                    meta_hash_fPParams=${p_meta_hash}
-                    meta_hash_pParams=${meta_hash_fPParams}
-                  fi
-                  if [[ "${meta_hash_pParams}" = "${meta_hash_fPParams}" ]]; then
-                    println "$(printf "  %-19s : ${FG_LGRAY}%s${NC}" "Hash Ledger" "${meta_hash_pParams}")"
-                  else
-                    println "$(printf "  %-13s (${FG_LGRAY}%s${NC}) : %s" "Hash Ledger" "old" "${meta_hash_pParams}")"
-                    println "$(printf "  %-13s (${FG_YELLOW}%s${NC}) : %s" "Hash Ledger" "new" "${meta_hash_fPParams}")"
-                  fi
-                else
-                  println "$(printf "%-21s : %s" "Metadata" "download failed for ${meta_json_url}")"
-                fi
-              fi
-              if [[ ${CNTOOLS_MODE} = "OFFLINE" && -f "${pool_config}" ]]; then
-                conf_pledge=$(jq -r '.pledgeADA //0' "${pool_config}")
-                conf_margin=$(jq -r '.margin //0' "${pool_config}")
-                conf_cost=$(jq -r '.costADA //0' "${pool_config}")
-                conf_owner=$(jq -r '.pledgeWallet //"unknown"' "${pool_config}")
-                conf_reward=$(jq -r '.rewardWallet //"unknown"' "${pool_config}")
-                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Pledge" "$(formatLovelace "$(ADAToLovelace ${conf_pledge})")")"
-                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Margin" "${conf_margin}")"
-                println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Cost" "$(formatLovelace "$(ADAToLovelace ${conf_cost})")")"
-                println "$(printf "%-21s : ${FG_GREEN}%s${NC} (%s)" "Owner Wallet" "${conf_owner}" "primary only, use online mode for multi-owner")"
-                println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward Wallet" "${conf_reward}")"
-                relay_title="Relay(s)"
-                while read -r type address port; do
-                  if [[ ${type} != "DNS_A" && ${type} != "IPv4" && ${type} != "IPv6" ]]; then
-                    println "$(printf "%-21s : ${FG_YELLOW}%s${NC}" "${relay_title}" "unknown type (only IPv4/v6/DNS supported in CNTools)")"
-                  else
-                    println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${address}" "${port}")"
-                  fi
-                  relay_title=""
-                done < <(jq -r '.relays[] | "\(.type) \(.address) \(.port)"' "${pool_config}")
-              elif [[ ${pool_registered} = *Yes* ]]; then
-                # get pledge
-                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  pParams_pledge=$(jq -r '.spsPledge //0' <<< "${ledger_pParams}")
-                  fPParams_pledge=$(jq -r '.spsPledge //0' <<< "${ledger_fPParams}")
-                else
-                  fPParams_pledge=${p_pledge}
-                  pParams_pledge=${fPParams_pledge}
-                fi
-                if [[ ${pParams_pledge} -eq ${fPParams_pledge} ]]; then
-                  getPriceString ${pParams_pledge}
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Pledge" "$(formatLovelace "${pParams_pledge}")")"
-                else
-                  getPriceString ${fPParams_pledge}
-                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} ADA${price_str}" "Pledge" "new" "$(formatLovelace "${fPParams_pledge}")" )"
-                fi
-                [[ -n ${KOIOS_API} ]] && getPriceString ${p_live_pledge} && println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA${price_str}" "Live Pledge" "$(formatLovelace "${p_live_pledge}")")"
-
-                # get margin
-                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  pParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.spsMargin //0' <<< "${ledger_pParams}")")
-                  fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "$(jq -r '.spsMargin //0' <<< "${ledger_fPParams}")")
-                else
-                  fPParams_margin=$(LC_NUMERIC=C printf "%.4f" "${p_margin}")
-                  pParams_margin=${fPParams_margin}
-                fi
-                if [[ "${pParams_margin}" = "${fPParams_margin}" ]]; then
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Margin" "$(fractionToPCT "${pParams_margin}")")"
-                else
-                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} %%" "Margin" "new" "$(fractionToPCT "${fPParams_margin}")" )"
-                fi
-
-                # get fixed cost
-                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  pParams_cost=$(jq -r '.spsCost //0' <<< "${ledger_pParams}")
-                  fPParams_cost=$(jq -r '.spsCost //0' <<< "${ledger_fPParams}")
-                else
-                  fPParams_cost=${p_fixed_cost}
-                  pParams_cost=${fPParams_cost}
-                fi
-                if [[ ${pParams_cost} -eq ${fPParams_cost} ]]; then
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Cost" "$(formatLovelace "${pParams_cost}")")"
-                else
-                  println "$(printf "%-15s (${FG_YELLOW}%s${NC}) : ${FG_LBLUE}%s${NC} ADA" "Cost" "new" "$(formatLovelace "${fPParams_cost}")" )"
-                fi
-
-                # get relays
-                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  relays=$(jq -c '.spsRelays[] //empty' <<< "${ledger_fPParams}")
-                  if [[ ${relays} != $(jq -c '.spsRelays[] //empty' <<< "${ledger_pParams}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Relay(s) updated, showing latest registered")"
-                  fi
-                else
-                  relays=$(jq -c '.[] //empty' <<< "${p_relays}")
-                fi
-                relay_title="Relay(s)"
-                if [[ -n "${relays}" ]]; then
-                  while read -r relay; do
-                    relay_addr=""; relay_port=""
-                    if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                      relay_addr="$(jq -r '."single host address".IPv4 //empty' <<< ${relay})"
-                      if [[ -n ${relay_addr} ]]; then
-                        relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
-                      else
-                        relay_addr="$(jq -r '."single host name".dnsName //empty' <<< ${relay})"
-                        if [[ -n ${relay_addr} ]]; then
-                          relay_port="$(jq -r '."single host name".port //empty' <<< ${relay})"
-                        else
-                          relay_addr="$(jq -r '."single host address".IPv6 //empty' <<< ${relay})"
-                          if [[ -n ${relay_addr} ]]; then
-                            relay_port="$(jq -r '."single host address".port //empty' <<< ${relay})"
-                          else
-                            relay_addr="unknown type"
-                            relay_port=" only IPv4/v6/DNS supported in CNTools"
-                          fi
-                        fi
-                      fi
-                    else
-                      relay_addr="$(jq -r '.ipv4 //empty' <<< ${relay})"
-                      relay_port="$(jq -r '.port //empty' <<< ${relay})"
-                      if [[ -z ${relay_addr} ]]; then
-                        relay_addr="$(jq -r '.dns //empty' <<< ${relay})"
-                        if [[ -z ${relay_addr} ]]; then
-                          relay_addr="$(jq -r '.ipv6 //empty' <<< ${relay})"
-                          if [[ -z ${relay_addr} ]]; then
-                            relay_addr="$(jq -r '.srv //empty' <<< ${relay})"
-                            if [[ -z ${relay_addr} ]]; then
-                              relay_addr="unknown type"
-                              relay_port=" only IPv4/v6/DNS/SRV supported in CNTools"
-                            fi
-                          fi
-                        fi
-                      fi
-                    fi
-                    println "$(printf "%-21s : ${FG_LGRAY}%s:%s${NC}" "${relay_title}" "${relay_addr}" "${relay_port}")"
-                    relay_title=""
-                  done <<< "${relays}"
-                fi
-
-                # get owners
-                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  owners=$(jq -rc '.spsOwners[] // empty' <<< "${ledger_fPParams}")
-                  if [[ ${owners} != $(jq -rc '.spsOwners[] // empty' <<< "${ledger_pParams}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Owner(s) updated, showing latest registered")"
-                  fi
-                else
-                  owners=$(jq -rc '.[] //empty' <<< "${p_owners}")
-                fi
-                owner_title="Owner(s)"
-                while read -r owner; do
-                  owner_wallet=$(grep -r ${owner} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
-                  if [[ -n ${owner_wallet} ]]; then
-                    owner_wallet="$(basename "$(dirname "${owner_wallet}")")"
-                    println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "${owner_title}" "${owner_wallet}")"
-                  else
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "${owner_title}" "${owner}")"
-                  fi
-                  owner_title=""
-                done <<< "${owners}"
-
-                # get reward account
-                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  reward_account=$(jq -r '.spsAccountId.keyHash // empty' <<< "${ledger_fPParams}")
-                  if [[ ${reward_account} != $(jq -r '.spsAccountId.keyHash // empty' <<< "${ledger_pParams}") ]]; then
-                    println "$(printf "%-23s ${FG_YELLOW}%s${NC}" "" "Reward account updated, showing latest registered")"
-                  fi
-                else
-                  reward_account=${p_reward_addr}
-                fi
-                if [[ -n ${reward_account} ]]; then
-                  reward_wallet=$(grep -r ${reward_account} "${WALLET_FOLDER}" | head -1 | cut -d':' -f1)
-                  if [[ -n ${reward_wallet} ]]; then
-                    reward_wallet="$(basename "$(dirname "${reward_wallet}")")"
-                    println "$(printf "%-21s : ${FG_GREEN}%s${NC}" "Reward wallet" "${reward_wallet}")"
-                  else
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "Reward account" "${reward_account}")"
-                  fi
-                fi
-
-                if [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  # get stake distribution
-                  println ACTION "${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | jq '.${pool_id_bech32}'"
-                  stake_distribution=$(${CCLI} query stake-distribution ${NETWORK_IDENTIFIER} | jq ".${pool_id_bech32}" )
-                  stake_pct=$(LC_NUMERIC=C printf "%.10f" "$(jq -r '(.numerator //0) / (.denominator //1) * 100' <<< "${stake_distribution}")" | sed '/\./ s/\.\{0,1\}0\{1,\}$//')
-                  if validateDecimalNbr ${stake_pct}; then
-                    println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Stake distribution" "${stake_pct}")"
-                  fi
-                else
-                  # get active/live stake/block info
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Active Stake" "$(formatLovelace "${p_active_stake}")")"
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC}" "Lifetime Blocks" "${p_block_count}")"
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} ADA" "Live Stake" "$(formatLovelace "${p_live_stake}")")"
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} (incl owners)" "Delegators" "${p_live_delegators}")"
-                  println "$(printf "%-21s : ${FG_LBLUE}%s${NC} %%" "Saturation" "${p_live_saturation}")"
-                fi
-
-                if [[ -n ${KOIOS_API} ]]; then
-                  [[ ${p_op_cert_counter} != null ]] && kes_counter_str="${FG_LBLUE}${p_op_cert_counter}${FG_LGRAY} - use counter ${FG_LBLUE}$((p_op_cert_counter+1))${FG_LGRAY} for rotation in offline mode.${NC}" || kes_counter_str="${FG_LGRAY}No blocks minted so far with active operational certificate. Use counter ${FG_LBLUE}0${FG_LGRAY} for rotation in offline mode.${NC}"
-                  println "$(printf "%-21s : %s" "KES counter" "${kes_counter_str}")"
-                elif [[ ${CNTOOLS_MODE} = "LOCAL" ]]; then
-                  pool_opcert_file="${POOL_FOLDER}/${pool_name}/${POOL_OPCERT_FILENAME}"
-                  println ACTION "${CCLI} query kes-period-info --op-cert-file ${pool_opcert_file} ${NETWORK_IDENTIFIER}"
-                  if ! kes_period_info=$(${CCLI} query kes-period-info --op-cert-file "${pool_opcert_file}" ${NETWORK_IDENTIFIER}); then
-                    kes_counter_str="${FG_RED}ERROR${NC}: failed to grab counter from node: [${FG_LGRAY}${kes_period_info}${NC}]"
-                  else
-                    if op_cert_counter=$(awk '/{/,0' <<< "${kes_period_info}" | jq -er '.qKesNodeStateOperationalCertificateNumber' 2>/dev/null); then
-                      kes_counter_str="${FG_LBLUE}${op_cert_counter}${FG_LGRAY} - use counter ${FG_LBLUE}$((op_cert_counter+1))${FG_LGRAY} for rotation in offline mode.${NC}"
-                    else
-                      kes_counter_str="${FG_LGRAY}No blocks minted so far with active operational certificate. Use counter ${FG_LBLUE}0${FG_LGRAY} for rotation in offline mode.${NC}"
-                    fi
-                  fi
-                  println "$(printf "%-21s : %s" "KES counter" "${kes_counter_str}")"
-                  getNodeMetrics
-                fi
-
-                unset pool_kes_start
-                [[ -f "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}" ]] && pool_kes_start="$(cat "${POOL_FOLDER}/${pool_name}/${POOL_CURRENT_KES_START}")"
-                unset remaining_kes_periods
-
-                if ! kesExpiration ${pool_kes_start}; then
-                  println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC}%s${FG_GREEN}%s${NC}" "KES expiration date" "ERROR" ": failure during KES calculation for " "$(basename ${pool})")"
-                else
-                  if [[ ${expiration_time_sec_diff} -lt ${KES_ALERT_PERIOD} ]]; then
-                    if [[ ${expiration_time_sec_diff} -lt 0 ]]; then
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s ago" "KES expiration date" "${kes_expiration}" "EXPIRED!" "$(timeLeft ${expiration_time_sec_diff:1})")"
-                    else
-                      println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_RED}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "ALERT!" "$(timeLeft ${expiration_time_sec_diff})")"
-                    fi
-                  elif [[ ${expiration_time_sec_diff} -lt ${KES_WARNING_PERIOD} ]]; then
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC} - ${FG_YELLOW}%s${NC} %s until expiration" "KES expiration date" "${kes_expiration}" "WARNING!" "$(timeLeft ${expiration_time_sec_diff})")"
-                  else
-                    println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "KES expiration date" "${kes_expiration}")"
-                  fi
-                fi
-
-                if [[ ${CNTOOLS_MODE} = "LIGHT" ]]; then
-                  println "Calidus Key"
-                  poolCalidusInfo ${pool_name}
-                  case $? in
-                    0) println "$(printf "${FG_RED}%-21s${NC} : ${FG_LGRAY}%s${NC}" "  Error" "${error_msg}")" ;;
-                    1) println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "  Status" "No valid key registered")" ;;
-                    2) println "$(printf "%-21s : ${FG_LGRAY}%s${NC} ${FG_LBLUE}%s${NC} (${FG_LGRAY}%s${NC})" "  Status" "Registered epoch" "${pc_epoch_no}" "$(printf '%(%F %T %Z)T' "${pc_block_time}")")"
-                       println "$(printf "%-21s : ${FG_LGRAY}%s${NC}" "  Id" "${pc_id}")"
-                       ;;
-                  esac
-                fi
-              fi
-              waitToProceed && continue
               ;; ###################################################################
             rotate)
               clear
@@ -4132,139 +3737,14 @@ function main {
                 esac
                 case $SUBCOMMAND in
                   info-status)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> VOTE >> GOVERNANCE >> INFO & STATUS"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
-                    if ! versionCheck "9.0" "${PROT_VERSION}"; then
-                      println INFO "${FG_YELLOW}Not yet in Conway era, please revisit once network has crossed into Cardano governance era!${NC}"; waitToProceed && continue
-                    fi
-                    [[ ! $(ls -A "${WALLET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No wallets available!${NC}" && waitToProceed && continue
-                    println DEBUG "Select wallet (derive governance keys if missing)"
-                    selectWallet "none"
-                    case $? in
-                      1) waitToProceed; continue ;;
-                      2) continue ;;
+                    cntools_compatibility_dispatch_action vote.governance.info
+                    action_status=$?
+                    case "${action_status}" in
+                      0) continue ;;
+                      20|21) break 2 ;;
+                      22) myExit ;;
+                      *) waitToProceed; continue ;;
                     esac
-                    current_epoch=$(getEpoch)
-                    drep_script_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_GOV_DREP_SCRIPT_FILENAME}"
-                    if [[ ${CNTOOLS_MODE} != "OFFLINE" && ! -f "${drep_script_file}" ]]; then
-                      println DEBUG "\n${BOLD}~~ Vote Delegation Status ~~${NC}"
-                      unset walletName
-                      if getWalletVoteDelegation ${wallet_name}; then
-                        unset vote_delegation_hash
-                        vote_delegation_type="${vote_delegation%-*}"
-                        if [[ ${vote_delegation} = always* ]]; then
-                          if [[ ${vote_delegation} = alwaysAbstain ]]; then
-                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Delegation" "Always abstain")"
-                          else
-                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "Delegation" "Always no confidence")"
-                          fi
-                        else
-                          if [[ ${vote_delegation} = *-* ]]; then
-                            vote_delegation_hash="${vote_delegation#*-}"
-                            while IFS= read -r -d '' _wallet; do
-                              getGovKeyInfo "$(basename ${_wallet})"
-                              if [[ ${drep_hash} = "${vote_delegation_hash}" ]]; then
-                                walletName="$(basename ${_wallet})" && break
-                              fi
-                            done < <(find "${WALLET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-                          fi
-                          getDRepIds ${vote_delegation_type} ${vote_delegation_hash}
-                          println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "Delegation" "${drep_id}")"
-                          println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${drep_id_cip129}")"
-                          if [[ -n ${walletName} ]]; then
-                            println "$(printf "%-20s ${FG_DGRAY}: Wallet  =>${NC} ${FG_GREEN}%s${NC}" "" "${walletName}")"
-                          fi
-                          if [[ ${vote_delegation_type} = keyHash ]]; then
-                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "Key")"
-                          else
-                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "MultiSig")"
-                          fi
-                          if getDRepStatus ${vote_delegation_type} ${vote_delegation_hash}; then
-                            [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                            println "$(printf "%-20s ${FG_DGRAY}:${NC} epoch ${FG_LBLUE}%s${NC} - %s" "DRep expiry" "${drep_expiry}" "${expire_status}")"
-                            if [[ -n ${drep_anchor_url} ]]; then
-                              println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep anchor url" "${drep_anchor_url}")"
-                              getDRepAnchor "${drep_anchor_url}" "${drep_anchor_hash}"
-                              case $? in
-                                0) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
-                                  jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
-                                  println DEBUG "${NC}"
-                                  ;;
-                                1) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor data" "Invalid URL or currently not available")" ;;
-                                2) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
-                                  jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
-                                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor hash" "mismatch")"
-                                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  registered" "${drep_anchor_hash}")"
-                                  println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  actual" "${drep_anchor_real_hash}")"
-                                  ;;
-                              esac
-                            fi
-                          else
-                            println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_RED}%s${NC}" "Status" "Unable to get DRep status, retired?")"
-                          fi
-                        fi
-                        getDRepVotePower ${vote_delegation_type} ${vote_delegation_hash}
-                        println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA (${FG_LBLUE}%s${NC} %%)" "Active Vote power" "$(formatLovelace ${vote_power:=0})" "${vote_power_pct:=0}")"
-                      else
-                        if versionCheck "10.0" "${PROT_VERSION}"; then
-                          println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC} - %s" "Delegation" "undelegated" "please note that reward withdrawals will not work until wallet is vote delegated")"
-                        else
-                          println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Delegation" "undelegated")"
-                        fi
-                      fi
-                    fi
-                    getGovKeyInfo ${wallet_name}
-                    println DEBUG "\n${BOLD}~~ Own DRep Status ~~${NC}"
-                    if [[ -z ${drep_id} ]]; then
-                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Status" "Governance keys missing, please derive them if needed")"
-                      waitToProceed && continue
-                    fi
-                    println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "DRep ID" "${drep_id}")"
-                    println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${drep_id_cip129}")"
-                    println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Hash" "${drep_hash}")"
-                    if [[ ${hash_type} = keyHash ]]; then
-                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "Key")"
-                    else
-                      println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep Type" "MultiSig")"
-                    fi
-                    if [[ ${CNTOOLS_MODE} != "OFFLINE" ]]; then
-                      if getDRepStatus ${hash_type} ${drep_hash}; then
-                        [[ ${current_epoch} -lt ${drep_expiry} ]] && expire_status="${FG_GREEN}active${NC}" || expire_status="${FG_RED}inactive${NC} (vote power does not count)"
-                        println "$(printf "%-20s ${FG_DGRAY}:${NC} epoch ${FG_LBLUE}%s${NC} - %s" "DRep expiry" "${drep_expiry}" "${expire_status}")"
-                        if [[ -n ${drep_anchor_url} ]]; then
-                          println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "DRep anchor url" "${drep_anchor_url}")"
-                          getDRepAnchor "${drep_anchor_url}" "${drep_anchor_hash}"
-                          case $? in
-                            0) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
-                              jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
-                              println DEBUG "${NC}"
-                              ;;
-                            1) println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor data" "Invalid URL or currently not available")" ;;
-                            2) println "$(printf "%-20s ${FG_DGRAY}:${NC}\n${FG_LGRAY}" "DRep anchor data")"
-                              jq -er "${drep_anchor_file}" 2>/dev/null || cat "${drep_anchor_file}"
-                              println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "DRep anchor hash" "mismatch")"
-                              println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  registered" "${drep_anchor_hash}")"
-                              println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LGRAY}%s${NC}" "  actual" "${drep_anchor_real_hash}")"
-                              ;;
-                          esac
-                        fi
-                        getDRepVotePower ${hash_type} ${drep_hash}
-                        println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_LBLUE}%s${NC} ADA (${FG_LBLUE}%s${NC} %%)" "Active Vote power" "$(formatLovelace ${vote_power:=0})" "${vote_power_pct:=0}")"
-                      else
-                        println "$(printf "%-20s ${FG_DGRAY}:${NC} ${FG_YELLOW}%s${NC}" "Status" "DRep key not registered")"
-                      fi
-                    fi
-                    if [[ -n ${cc_cold_id} ]]; then
-                      echo
-                      println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "Committee Cold ID" "${cc_cold_id}")"
-                      println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${cc_cold_id_cip129}")"
-                      println "$(printf "%-20s ${FG_DGRAY}: CIP-105 =>${NC} ${FG_LGRAY}%s${NC}" "Committee Hot ID" "${cc_hot_id}")"
-                      println "$(printf "%-20s ${FG_DGRAY}: CIP-129 =>${NC} ${FG_LGRAY}%s${NC}" "" "${cc_hot_id_cip129}")"
-                    fi
-                    waitToProceed && continue
                     ;; ###################################################################
                   delegate)
                     clear
@@ -4387,298 +3867,14 @@ function main {
                     waitToProceed && continue
                     ;; ###################################################################
                   list-proposals)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> VOTE >> GOVERNANCE >> LIST PROPOSALS"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
-                    tput sc && println DEBUG "Querying for number of active proposals...\n"
-                    if ! getActiveGovActionCount; then
-                      println "${FG_RED}Failed to grab list of proposals!${NC}"
-                      waitToProceed && continue
-                    fi
-                    tput rc && tput ed
-                    if [[ ${vote_action_count} -eq 0 ]]; then
-                      println "${FG_YELLOW}No active proposals to vote on!${NC}"
-                      waitToProceed && continue
-                    fi
-                    println "${FG_LBLUE}${vote_action_count}${NC} active proposals to vote on found!"
-                    waitToProceed
-                    page_entries=2
-                    curr_epoch=$(getEpoch)
-                    page=1
-                    pages=$(( (vote_action_count + (page_entries - 1)) / page_entries ))
-                    start_idx=$(( (page *  page_entries) - page_entries ))
-                    end_idx=$(( page_entries * page )); [[ ${end_idx} -gt ${vote_action_count} ]] && end_idx=${vote_action_count}
-                    tput sc && println DEBUG "Querying for proposals [$((start_idx+1))-${end_idx}]...\n"
-                    getAllGovActions ${page_entries} ${start_idx} true
-                    tput rc && tput ed
-                    action_cnt=${#vote_action_list[@]}
-                    if [[ ${action_cnt} -eq 0 ]]; then
-                      println "${FG_RED}Failed to grab proposals!${NC}"
-                      waitToProceed && continue
-                    fi
-                    vote_action_list_ui=()
-                    for vote_action in "${vote_action_list[@]}"; do
-                      vote_action_list_ui+=( "${vote_action}" )
-                    done
-                    while true; do
-                      clear
-                      if [[ ${show_details} = Y ]]; then
-                        tput sc && println DEBUG "\nFetching proposal details and metadata...\n"
-                        getGovAction "${action_tx_id}" "${action_idx}"
-                        res=$?
-                        tput rc && tput ed
-                        case ${res} in
-                          1) println ERROR "\n${FG_RED}ERROR${NC}: governance action id not found!"
-                             waitToProceed && continue ;;
-                          2) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor url or content"
-                             println DEBUG "URL : ${FG_LGRAY}${proposal_url}${NC}"
-                             waitToProceed ;;
-                          3) println ERROR "\n${FG_YELLOW}WARN${NC}: invalid governance action proposal anchor hash"
-                             println DEBUG "Action hash : ${FG_LGRAY}${proposal_hash}${NC}"
-                             println DEBUG "Real hash   : ${FG_LGRAY}${proposal_meta_hash}${NC}"
-                             waitToProceed ;;
-                        esac
-                        println DEBUG "\nGovernance Action Details${FG_LGRAY}"
-                        jq -er <<< "${vote_action}" 2>/dev/null || echo "${vote_action}"
-                        println DEBUG "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                        if [[ -f "${proposal_meta_file}" ]]; then
-                          println DEBUG "\nGovernance Action Anchor Content${FG_LGRAY}"
-                          jq -er "${proposal_meta_file}" 2>/dev/null || cat "${proposal_meta_file}"
-                        fi
-                        unset show_details
-                        waitToProceed && continue
-                      fi
-                      start_idx=$(( (page *  page_entries) - page_entries ))
-                      # loop current page to find max length of entries
-                      max_len=70 # assume action id in CIP-129 format (70)
-                      total_len=$(( max_len + 13 + 5 ))
-                      border_line="|$(printf "%${total_len}s" "" | tr " " "=")|" # max value length + longest title (13) + spacing (5)
-                      println DEBUG "Current epoch : ${FG_LBLUE}$(getEpoch)${NC}"
-                      println DEBUG "Proposals     : ${FG_LBLUE}${vote_action_count}${NC}"
-                      idx=1
-                      for vote_action in "${vote_action_list_ui[@]:${start_idx}:${page_entries}}"; do
-                        println DEBUG "\n${border_line}"
-                        # calculate length of strings
-                        IFS=',' read -r action_id action_type proposed_in expires_after anchor_url drep_yes drep_yes_power drep_yes_pct drep_no drep_no_power drep_no_pct spo_yes spo_yes_power spo_yes_pct spo_no spo_no_power spo_no_pct cc_yes cc_yes_pct cc_no cc_no_pct drep_vt spo_vt cc_vt isParameterSecurityGroup <<< "${vote_action}"
-                        max_yes_len=${#drep_yes}
-                        max_no_len=${#drep_no}
-                        [[ ${#spo_yes} -gt ${max_yes_len} ]] && max_yes_len=${#spo_yes}
-                        [[ ${#spo_no} -gt ${max_no_len} ]] && max_no_len=${#spo_no}
-                        [[ ${#cc_yes} -gt ${max_yes_len} ]] && max_yes_len=${#cc_yes}
-                        [[ ${#cc_no} -gt ${max_no_len} ]] && max_no_len=${#cc_no}
-                        drep_yes_power="$(formatLovelaceHuman ${drep_yes_power})"; max_yes_power_len=${#drep_yes_power}
-                        drep_no_power="$(formatLovelaceHuman ${drep_no_power})"; max_no_power_len=${#drep_no_power}
-                        spo_yes_power="$(formatLovelaceHuman ${spo_yes_power})"; [[ ${#spo_yes_power} -gt ${max_yes_power_len} ]] && max_yes_power_len=${#spo_yes_power}
-                        spo_no_power="$(formatLovelaceHuman ${spo_no_power})"; [[ ${#spo_no_power} -gt ${max_no_power_len} ]] && max_no_power_len=${#spo_no_power}
-                        max_yes_pct_len=${#drep_yes_pct}
-                        max_no_pct_len=${#drep_no_pct}
-                        [[ ${#spo_yes_pct} -gt ${max_yes_pct_len} ]] && max_yes_pct_len=${#spo_yes_pct}
-                        [[ ${#spo_no_pct} -gt ${max_no_pct_len} ]] && max_no_pct_len=${#spo_no_pct}
-                        [[ ${#cc_yes_pct} -gt ${max_yes_pct_len} ]] && max_yes_pct_len=${#cc_yes_pct}
-                        [[ ${#cc_no_pct} -gt ${max_no_pct_len} ]] && max_no_pct_len=${#cc_no_pct}
-                        max_vt_len=${#drep_vt}
-                        [[ ${#spo_vt} -gt ${max_vt_len} ]] && max_vt_len=${#spo_vt}
-                        [[ ${#cc_vt} -gt ${max_vt_len} ]] && max_vt_len=${#cc_vt}
-                        anchor_url_arr=()
-                        anchor_url_start=0
-                        while true; do
-                          anchor_url_chunk=${anchor_url:${anchor_url_start}:${max_len}}
-                          [[ -z ${anchor_url_chunk} ]] && break
-                          anchor_url_arr+=( ${anchor_url_chunk} )
-                          anchor_url_start=$(( anchor_url_start + max_len ))
-                        done
-                        # print data
-                        IFS='#' read -r proposal_tx_id proposal_index <<< "${action_id}"
-                        getGovActionId ${proposal_tx_id} ${proposal_index}
-                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Action ID" "${action_id}"
-                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "  CIP-129" "${action_id_cip129}"
-                        printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "Type" "${action_type}"
-                        printf "| %-13s : ${FG_LGRAY}epoch${NC} ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Proposed In" "${proposed_in}"
-                        if [[ ${expires_after} -lt ${curr_epoch} ]]; then
-                          printf "| %-13s : ${FG_LGRAY}epoch${NC} ${FG_RED}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
-                        else
-                          printf "| %-13s : ${FG_LGRAY}epoch${NC} ${FG_LBLUE}%-$(( max_len - 6 ))s${NC} |\n" "Expires After" "${expires_after}"
-                        fi
-                        for i in "${!anchor_url_arr[@]}"; do
-                          [[ $i -eq 0 ]] && anchor_label="Anchor URL" || anchor_label=""
-                          printf "| %-13s : ${FG_LGRAY}%-${max_len}s${NC} |\n" "${anchor_label}" "${anchor_url_arr[$i]}"
-                        done
-                        three_col_width=$(( max_len / 3 ))
-                        three_col_start=18
-                        three_col_2_start=$(( three_col_start + three_col_width ))
-                        three_col_3_start=$(( three_col_2_start + three_col_width ))
-                        # Header
-                        printf "|${FG_LGRAY}$(printf "%17s" "" | tr " " "-")${NC}${FG_BLACK}\e[42mYES${NC}${FG_LGRAY}$(printf "%$((three_col_width-3))s" " " | tr " " "-")${NC}${FG_BLACK}\e[41mNO${NC}${FG_LGRAY}$(printf "%$((three_col_width-2))s" "" | tr " " "-")${NC}${FG_BLACK}\e[47mSTATUS${NC}${FG_LGRAY}$(printf "%$(((max_len-(2*three_col_width))-5))s" "" | tr " " "-")${NC}|\n"
-                        tput sc
-                        if isAllowedToVote "drep" "${action_type}" "${isParameterSecurityGroup:=N}"; then
-                          # DRep Yes
-                          printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_yes_power_len}s${NC} ${FG_LGRAY}VP${NC}" "DRep" "${drep_yes}" "${drep_yes_power}"
-                          # move to second column
-                          tput rc && tput cuf ${three_col_2_start}
-                          # DRep No
-                          printf "${FG_LBLUE}%-${max_no_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_no_power_len}s${NC} ${FG_LGRAY}VP${NC}" "${drep_no}" "${drep_no_power}"
-                          # move to third column
-                          tput rc && tput cuf ${three_col_3_start}
-                          # DRep STATUS
-                          if [[ -n ${drep_vt} ]]; then
-                            (( $(bc -l <<< "${drep_yes_pct} >= ${drep_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
-                          fi
-                          printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#drep_yes_pct}+1))s${NC}" "${drep_yes_pct}" "%"
-                          if [[ -n ${drep_vt} ]]; then
-                            printf " ${FG_LGRAY}VT:${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#drep_vt}+1))s${NC}" "${drep_vt}" "%"
-                          fi
-                          # move to end and close line
-                          tput rc && tput cuf ${total_len} && printf " |\n"
-                        else
-                          printf "| %-13s : ${FG_DGRAY}N|A${NC}" 'DRep'
-                          # move to second column and print NA
-                          tput rc && tput cuf ${three_col_2_start} && printf "${FG_DGRAY}N|A${NC}"
-                          # move to third column and print NA
-                          tput rc && tput cuf ${three_col_3_start} && printf "${FG_DGRAY}N|A${NC}"
-                          # move to end and close line
-                          tput rc && tput cuf ${total_len} && printf " |\n"
-                        fi
-                        tput sc
-                        if isAllowedToVote "spo" "${action_type}" "${isParameterSecurityGroup:=N}"; then
-                          # SPO Yes
-                          printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_yes_power_len}s${NC} ${FG_LGRAY}VP${NC}" "SPO" "${spo_yes}" "${spo_yes_power}"
-                          # move to second column
-                          tput rc && tput cuf ${three_col_2_start}
-                          # SPO No
-                          printf "${FG_LBLUE}%-${max_no_len}s${NC} ${FG_LGRAY}@${NC} ${FG_LBLUE}%${max_no_power_len}s${NC} ${FG_LGRAY}VP${NC}" "${spo_no}" "${spo_no_power}"
-                          # move to third column
-                          tput rc && tput cuf ${three_col_3_start}
-                          # SPO STATUS
-                          if [[ -n ${spo_vt} ]]; then
-                            (( $(bc -l <<< "${spo_yes_pct} >= ${spo_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
-                          fi
-                          printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#spo_yes_pct}+1))s${NC}" "${spo_yes_pct}" "%"
-                          if [[ -n ${spo_vt} ]]; then
-                            printf " ${FG_LGRAY}VT:${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#spo_vt}+1))s${NC}" "${spo_vt}" "%"
-                          fi
-                          # move to end and close line
-                          tput rc && tput cuf ${total_len} && printf " |\n"
-                        else
-                          printf "| %-13s : ${FG_DGRAY}N|A${NC}" 'SPO'
-                          # move to second column and print NA
-                          tput rc && tput cuf ${three_col_2_start} && printf "${FG_DGRAY}N|A${NC}"
-                          # move to third column and print NA
-                          tput rc && tput cuf ${three_col_3_start} && printf "${FG_DGRAY}N|A${NC}"
-                          # move to end and close line
-                          tput rc && tput cuf ${total_len} && printf " |\n"
-                        fi
-                        tput sc
-                        if isAllowedToVote "committee" "${action_type}" "${isParameterSecurityGroup:=N}"; then
-                          # CC Yes
-                          printf "| %-13s : ${FG_LBLUE}%-${max_yes_len}s${NC}" "Committee" "${cc_yes}"
-                          # move to second column
-                          tput rc && tput cuf ${three_col_2_start}
-                          # CC No
-                          printf "${FG_LBLUE}%-${max_no_len}s${NC}" "${cc_no}"
-                          # move to third column
-                          tput rc && tput cuf ${three_col_3_start}
-                          # CC STATUS
-                          if [[ -n ${cc_vt} ]]; then
-                            (( $(bc -l <<< "${cc_yes_pct} >= ${cc_vt}") )) && printf "${FG_GREEN}${ICON_CHECK}${NC} " || printf "${FG_RED}${ICON_CROSS}${NC} "
-                          fi
-                          printf "${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_yes_pct_len-${#cc_yes_pct}+1))s${NC}" "${cc_yes_pct}" "%"
-                          if [[ -n ${cc_vt} ]]; then
-                            printf " ${FG_LGRAY}VT:${NC} ${FG_LBLUE}%s${NC} ${FG_LGRAY}%-$((max_vt_len-${#cc_vt}+1))s${NC}" "${cc_vt}" "%"
-                          fi
-                          # move to end and close line
-                          tput rc && tput cuf ${total_len} && printf " |\n"
-                        else
-                          printf "| %-13s : ${FG_DGRAY}N|A${NC}" 'Committee'
-                          # move to second column and print NA
-                          tput rc && tput cuf ${three_col_2_start} && printf "${FG_DGRAY}N|A${NC}"
-                          # move to third column and print NA
-                          tput rc && tput cuf ${three_col_3_start} && printf "${FG_DGRAY}N|A${NC}"
-                          # move to end and close line
-                          tput rc && tput cuf ${total_len} && printf " |\n"
-                        fi
-                        unset printed_own
-                        for own_vote in ${own_spo_votes}; do
-                          if [[ ${own_vote} = "${action_id}"* ]]; then
-                            IFS=';' read -ra own_vote_arr <<< "${own_vote}"
-                            [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
-                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_DGRAY}"; fi
-                            tput sc
-                            printf "| You voted ${vote_color}%s${NC} with pool ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
-                            tput rc && tput cuf ${total_len} && printf " |\n"
-                          fi
-                        done
-                        for own_vote in ${own_drep_votes}; do
-                          if [[ ${own_vote} = "${action_id}"* ]]; then
-                            IFS=';' read -ra own_vote_arr <<< "${own_vote}"
-                            [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
-                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_DGRAY}"; fi
-                            tput sc
-                            printf "| You voted ${vote_color}%s${NC} with DRep wallet ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
-                            tput rc && tput cuf ${total_len} && printf " |\n"
-                          fi
-                        done
-                        for own_vote in ${own_cc_votes}; do
-                          if [[ ${own_vote} = "${action_id}"* ]]; then
-                            IFS=';' read -ra own_vote_arr <<< "${own_vote}"
-                            [[ -z ${printed_own} ]] && printf "|$(printf "%${total_len}s" "" | tr " " "-")|\n" && printed_own=Y
-                            if [[ ${own_vote_arr[2]} = Yes ]]; then vote_color="${FG_GREEN}"; elif [[ ${own_vote_arr[2]} = No ]]; then vote_color="${FG_RED}"; else vote_color="${FG_DGRAY}"; fi
-                            tput sc
-                            printf "| You voted ${vote_color}%s${NC} with committee wallet ${FG_GREEN}%s${NC}" "${own_vote_arr[2]}" "${own_vote_arr[1]}"
-                            tput rc && tput cuf ${total_len} && printf " |\n"
-                          fi
-                        done
-                        println DEBUG "${border_line}"
-                      done
-                      println DEBUG "\n${FG_GREEN}Yes${NC}    = Total power of 'yes' votes."
-                      println DEBUG "${FG_RED}No${NC}     = Total power of 'no' votes, including buckets of 'no vote cast' and 'always no confidence'."
-                      println DEBUG "         ${FG_LGRAY}For motion of no confidence, 'always no confidence' power is switched to yes bucket.${NC}"
-                      println DEBUG "${FG_DGRAY}STATUS${NC} = Percent of yes votes compared to total valid vote power. If above vote threshold for all, proposal is to be enacted."
-                      println DEBUG "\n${FG_LGRAY}Info action doesn't have any threshold.${NC}"
-                      [[ ${pages} -eq 1 ]] && waitToProceed && continue 2
-                      unset hasPrev hasNext
-                      println OFF "\nPage ${FG_LBLUE}${page}${NC} of ${FG_LGRAY}${pages}${NC}\n"
-                      if [[ ${page} -gt 1 && ${page} -lt ${pages} ]]; then
-                        hasPrev=Y; hasNext=Y
-                        println OFF "[p] Previous Page | [n] Next Page | [r] Return | [d] Details"
-                      elif [[ ${page} -eq 1 && ${page} -lt ${pages} ]]; then
-                        hasNext=Y
-                        println OFF "${FG_DGRAY}[p] Previous Page${NC} | [n] Next Page | [r] Return | [d] Details"
-                      else
-                        hasPrev=Y
-                        println OFF "[p] Previous Page | ${FG_DGRAY}[n] Next Page${NC} | [r] Return | [d] Details"
-                      fi
-                      read -rsn1 key
-                      case ${key} in
-                        r ) continue 2 ;;
-                        p ) [[ -n ${hasPrev} ]] && ((page--)) ;;
-                        n ) [[ -n ${hasNext} ]] && ((page++)) ;;
-                        d ) getAnswerAnyCust action_id "\nGovernance Action ID [<tx_id>#<action_idx> | CIP-129] (blank to cancel)"
-                            [[ -z "${action_id}" ]] && continue
-                            [[ ${action_id} = gov_action* ]] && parseGovActionId ${action_id} || IFS='#' read -r action_tx_id action_idx <<< "${action_id}"
-                            ! isNumber "${action_idx}" && println ERROR "\n${FG_RED}ERROR${NC}: invalid action id!" && waitToProceed && continue
-                            show_details=Y
-                            continue
-                            ;;
-                      esac
-                      if [[ -n ${hasNext} && ${key} == n ]]; then
-                        clear
-                        start_idx=$(( (page *  page_entries) - page_entries ))
-                        end_idx=$(( page_entries * page )); [[ ${end_idx} -gt ${vote_action_count} ]] && end_idx=${vote_action_count}
-                        [[ ${#vote_action_list_ui[@]} -ge ${end_idx} ]] && continue
-                        println DEBUG "Querying for proposals [$((start_idx+1))-${end_idx}]...\n"
-                        getAllGovActions ${page_entries} ${start_idx} false
-                        action_cnt=${#vote_action_list[@]}
-                        if [[ ${action_cnt} -eq 0 ]]; then
-                          println "${FG_RED}Failed to grab proposals!${NC}"
-                          waitToProceed && continue 2
-                        fi
-                        for vote_action in "${vote_action_list[@]}"; do
-                          vote_action_list_ui+=( "${vote_action}" )
-                        done
-                      fi
-                    done
+                    cntools_compatibility_dispatch_action vote.governance.proposals
+                    action_status=$?
+                    case "${action_status}" in
+                      0) continue ;;
+                      20|21) break 2 ;;
+                      22) myExit ;;
+                      *) waitToProceed; continue ;;
+                    esac
                     ;; ###################################################################
                   vote)
                     clear
@@ -5591,78 +4787,13 @@ function main {
                     waitToProceed && continue
                     ;; ###################################################################
                   catalyst_verify)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> VOTE >> CATALYST >> VERIFY"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    if [[ ${CNTOOLS_MODE} = "OFFLINE" ]]; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: CNTools started in offline mode, option not available!"
-                      waitToProceed && continue
-                    fi
-                    if [[ ${NWMAGIC} != "764824073" ]]; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: Catalyst registration verification only available for Mainnet at this time!"
-                      waitToProceed && continue
-                    fi
-                    println DEBUG "Select wallet or enter vote public key?"
-                    select_opt "[w] Wallet" "[p] Vote public key"
+                    cntools_compatibility_dispatch_action vote.catalyst.verify
                     case $? in
-                      0) println DEBUG "\nSelect a Catalyst registered wallet"
-                         selectWallet "none" "${WALLET_CATALYST_VK_FILENAME}"
-                         case $? in
-                           1) waitToProceed; continue ;;
-                           2) continue ;;
-                         esac
-                         catalyst_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_CATALYST_VK_FILENAME}"
-                         vote_key_hex="$(jq -r .cborHex "${catalyst_vk_file}" | cut -c 5-)"
-                        ;;
-                      1) getAnswerAnyCust vote_key_hex "Enter public key"
-                         if [[ ${#vote_key_hex} -ne 64 ]]; then
-                           println ERROR "\n${FG_RED}ERROR${NC}: invalid pub key, expected 64 characters! Supply public key in hex format without prefix (5820 or 0x)"; waitToProceed && continue
-                         fi
-                        ;;
+                      0) continue ;;
+                      20|21) break 2 ;;
+                      22) myExit ;;
+                      *) waitToProceed; continue ;;
                     esac
-                    voter_status_url="${CATALYST_API}/registration/voter/0x${vote_key_hex}?with_delegators=true"
-                    println ACTION "curl -sSL -m ${CURL_TIMEOUT} -f -H \"Content-Type: application/json\" ${voter_status_url}"
-                    if ! catalyst_status=$(curl -sSL -m ${CURL_TIMEOUT} -f -H "Content-Type: application/json" "${voter_status_url}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during Catalyst verification query!\n${catalyst_status}"; waitToProceed && continue
-                    fi
-                    echo
-                    if [[ ${catalyst_status} = *error\":* ]]; then
-                      println DEBUG "Status:           ${FG_YELLOW}$(jq -r .error <<< "${catalyst_status}")${NC}"
-                      waitToProceed && continue
-                    fi
-                    while IFS=',' read -r _last_updated _final _voting_power _delegations_count _delegator_addresses; do
-                      final_color=$([[ ${_final} = false ]] && echo "${FG_YELLOW}" || echo "${FG_GREEN}")
-                      println DEBUG "Status:           ${FG_GREEN}registered${NC}"
-                      println DEBUG "Last updated:     ${FG_LGRAY}$(printf '%(%F %T %Z)T' "$(date -d"${_last_updated}" +%s)")${NC}"
-                      println DEBUG "Is Finalized:     ${final_color}${_final}${NC}"
-                      println DEBUG "Voting power:     ${FG_LBLUE}$(formatLovelace ${_voting_power})${NC}"
-                      println DEBUG "Delegation count: ${FG_LBLUE}${_delegations_count}${NC}"
-                      println DEBUG "\nDelegator list:"
-                      for pubkey_hex in ${_delegator_addresses//;/ }; do
-                        echo
-                        unset delegation_wallet
-                        wallet_match=$(grep -r ${pubkey_hex:2} ${WALLET_FOLDER} | head -n1)
-                        if [[ -n ${wallet_match} ]]; then
-                          println DEBUG "Wallet:           ${FG_GREEN}$(basename ${wallet_match%/*})${NC}"
-                        fi
-                        println ACTION "${CCLI} latest stake-address build --stake-verification-key ${pubkey_hex:2} ${NETWORK_IDENTIFIER}"
-                        stake_addr=$(${CCLI} latest stake-address build --stake-verification-key ${pubkey_hex:2} ${NETWORK_IDENTIFIER})
-                        println DEBUG "Stake address:    ${FG_LGRAY}${stake_addr}${NC}"
-                        delegator_status_url="${CATALYST_API}/registration/delegations/${pubkey_hex}"
-                        println ACTION "curl -sSL -m ${CURL_TIMEOUT} -f -H \"Content-Type: application/json\" ${delegator_status_url}"
-                        if ! delegator_status=$(curl -sSL -m ${CURL_TIMEOUT} -f -H "Content-Type: application/json" "${delegator_status_url}" 2>&1); then
-                          println ERROR "${FG_RED}ERROR${NC}: failure during Catalyst delegation query!\n${delegator_status}"; continue
-                        fi
-                        while IFS=',' read -r _reward_address _reward_payable _raw_power; do
-                          payable_color=$([[ ${_reward_payable} = false ]] && echo "${FG_YELLOW}" || echo "${FG_GREEN}")
-                          println DEBUG "Reward address:   ${FG_LGRAY}${_reward_address}${NC}"
-                          println DEBUG "Reward payable:   ${payable_color}${_reward_payable}${NC}"
-                          println DEBUG "Raw power:        ${FG_LBLUE}$(formatLovelace ${_raw_power})${NC}"
-                        done < <( jq -cr '"\(.reward_address),\(.reward_payable),\(.raw_power)"' <<< "${delegator_status}" )
-                      done
-                    done < <( jq -cr '"\(.last_updated),\(.final),\(.voter_info.voting_power),\(.voter_info.delegations_count),\(.voter_info.delegator_addresses | join(";"))"' <<< "${catalyst_status}" )
-                    waitToProceed && continue
                     ;; ###################################################################
                 esac # vote sub OPERATION
               done # vote loop
@@ -5684,191 +4815,22 @@ function main {
         println DEBUG "Show a block summary for all epochs or a detailed view for a specific epoch?"
         select_opt "[s] Summary" "[e] Epoch" "[Esc] Cancel"
         case $? in
-          0) getAnswerAnyCust epoch_enter "Enter number of epochs to show (enter for 10)"
-             epoch_enter=${epoch_enter:-10}
-             if ! isNumber ${epoch_enter}; then
-               println ERROR "\n${FG_RED}ERROR${NC}: not a number"
-               waitToProceed && continue
-             fi
-             view=1; view_output="${FG_YELLOW}[b] Block View${NC} | [i] Info"
-             while true; do
-               clear
-               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-               println " >> BLOCKS"
-               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-               current_epoch=$(getEpoch)
-               println DEBUG "Current epoch: ${FG_LBLUE}${current_epoch}${NC}\n"
-               if [[ ${view} -eq 1 ]]; then
-                 [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && ((current_epoch++))
-                 first_epoch=$(( current_epoch - epoch_enter ))
-                 [[ ${first_epoch} -lt 0 ]] && first_epoch=0
-                 ideal_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(epoch_slots_ideal) FROM epochdata WHERE epoch BETWEEN ${first_epoch} and ${current_epoch} ORDER BY LENGTH(epoch_slots_ideal) DESC LIMIT 1;")
-                 [[ ${ideal_len} -lt 5 ]] && ideal_len=5
-                 luck_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(max_performance) FROM epochdata WHERE epoch BETWEEN ${first_epoch} and ${current_epoch} ORDER BY LENGTH(max_performance) DESC LIMIT 1;")
-                 [[ $((luck_len+1)) -le 4 ]] && luck_len=4 || luck_len=$((luck_len+1))
-                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" "" | tr " " "="; printf '|\n'
-                 printf "| %-5s | %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Epoch" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid"
-                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" "" | tr " " "="; printf '|\n'
-                 while [[ ${current_epoch} -gt ${first_epoch} ]]; do
-                   invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='invalid';" 2>/dev/null)
-                   missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='missed';" 2>/dev/null)
-                   ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='ghosted';" 2>/dev/null)
-                   stolen_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='stolen';" 2>/dev/null)
-                   confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='confirmed';" 2>/dev/null)
-                   adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='adopted';" 2>/dev/null) + confirmed_cnt ))
-                   leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${current_epoch} AND status='leader';" 2>/dev/null) + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
-                   IFS='|' && read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${current_epoch};" 2>/dev/null)" && IFS=' '
-                   if [[ ${#epoch_stats[@]} -eq 0 ]]; then
-                     epoch_stats=("-" "-")
-                   else
-                     epoch_stats[1]="${epoch_stats[1]}%"
-                   fi
-                   printf "| ${FG_LGRAY}%-5s${NC} | ${FG_LGRAY}%-6s${NC} | ${FG_LGRAY}%-${ideal_len}s${NC} | ${FG_LGRAY}%-${luck_len}s${NC} | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${current_epoch}" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}"
-                   ((current_epoch--))
-                 done
-                 printf '|'; printf "%$((5+6+ideal_len+luck_len+7+9+6+7+6+7+27+2))s" "" | tr " " "="; printf '|\n'
-               else
-                 println OFF "Block Status:\n"
-                 println OFF "Leader    - Scheduled to make block at this slot"
-                 println OFF "Ideal     - Expected/Ideal number of blocks assigned based on active stake (sigma)"
-                 println OFF "Luck      - Leader slots assigned vs Ideal slots for this epoch"
-                 println OFF "Adopted   - Block created successfully"
-                 println OFF "Confirmed - Block created validated to be on-chain with the certainty"
-                 println OFF "            set in 'cncli.sh' for 'CONFIRM_BLOCK_CNT'"
-                 println OFF "Missed    - Scheduled at slot but no record of it in cncli DB and no"
-                 println OFF "            other pool has made a block for this slot"
-                 println OFF "Ghosted   - Block created but marked as orphaned and no other pool has made"
-                 println OFF "            a valid block for this slot, height battle or block propagation issue"
-                 println OFF "Stolen    - Another pool has a valid block registered on-chain for the same slot"
-                 println OFF "Invalid   - Pool failed to create block, base64 encoded error message"
-                 println OFF "            can be decoded with 'echo <base64 hash> | base64 -d | jq -r'"
-               fi
-               echo
-               println OFF "[h] Home | ${view_output} | [*] Refresh"
-               read -rsn1 key
-               case ${key} in
-                 h ) continue 2 ;;
-                 b ) view=1; view_output="${FG_YELLOW}[b] Block View${NC} | [i] Info" ;;
-                 i ) view=2; view_output="[b] Block View | ${FG_YELLOW}[i] Info${NC}" ;;
-                 * ) continue ;;
-               esac
-             done
+          0) cntools_compatibility_dispatch_action blocks.summary
+             action_status=$?
+             case "${action_status}" in
+               0) waitToProceed; continue ;;
+               20|21) continue ;;
+               22) myExit 0 "CNTools closed!" ;;
+               *) waitToProceed; continue ;;
+             esac
              ;;
-          1) [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=$((current_epoch+1)) LIMIT 1);" 2>/dev/null) -eq 1 ]] && println DEBUG "\n${FG_YELLOW}Leader schedule for next epoch[$((current_epoch+1))] available${NC}"
-             echo && getAnswerAnyCust epoch_enter "Enter epoch to list (enter for current)"
-             [[ -z "${epoch_enter}" ]] && epoch_enter=${current_epoch}
-             if [[ $(sqlite3 "${BLOCKLOG_DB}" "SELECT EXISTS(SELECT 1 FROM blocklog WHERE epoch=${epoch_enter} LIMIT 1);" 2>/dev/null) -eq 0 ]]; then
-               println "No blocks in epoch ${epoch_enter}"
-               waitToProceed && continue
-             fi
-             view=1; view_output="${FG_YELLOW}[1] View 1${NC} | [2] View 2 | [3] View 3 | [i] Info"
-             while true; do
-               clear
-               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-               println " >> BLOCKS"
-               println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-               current_epoch=$(getEpoch)
-               println DEBUG "Current epoch  : ${FG_LBLUE}${current_epoch}${NC}"
-               println DEBUG "Selected epoch : ${FG_LBLUE}${epoch_enter}${NC}\n"
-               invalid_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='invalid';" 2>/dev/null)
-               missed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='missed';" 2>/dev/null)
-               ghosted_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='ghosted';" 2>/dev/null)
-               stolen_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='stolen';" 2>/dev/null)
-               confirmed_cnt=$(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='confirmed';" 2>/dev/null)
-               adopted_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='adopted';" 2>/dev/null) + confirmed_cnt ))
-               leader_cnt=$(( $(sqlite3 "${BLOCKLOG_DB}" "SELECT COUNT(*) FROM blocklog WHERE epoch=${epoch_enter} AND status='leader';" 2>/dev/null) + adopted_cnt + invalid_cnt + missed_cnt + ghosted_cnt + stolen_cnt ))
-               IFS='|' && read -ra epoch_stats <<< "$(sqlite3 "${BLOCKLOG_DB}" "SELECT epoch_slots_ideal, max_performance FROM epochdata WHERE epoch=${epoch_enter};" 2>/dev/null)" && IFS=' '
-               if [[ ${#epoch_stats[@]} -eq 0 ]]; then
-                 epoch_stats=("-" "-")
-               else
-                 epoch_stats[1]="${epoch_stats[1]}%"
-               fi
-               [[ ${#epoch_stats[0]} -gt 5 ]] && ideal_len=${#epoch_stats[0]} || ideal_len=5
-               [[ ${#epoch_stats[1]} -gt 4 ]] && luck_len=${#epoch_stats[1]} || luck_len=4
-               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" "" | tr " " "="; printf '|\n'
-               printf "| %-6s | %-${ideal_len}s | %-${luck_len}s | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "Leader" "Ideal" "Luck" "Adopted" "Confirmed" "Missed" "Ghosted" "Stolen" "Invalid"
-               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" "" | tr " " "="; printf '|\n'
-               printf "| ${FG_LGRAY}%-6s${NC} | ${FG_LGRAY}%-${ideal_len}s${NC} | ${FG_LGRAY}%-${luck_len}s${NC} | ${FG_LBLUE}%-7s${NC} | ${FG_GREEN}%-9s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} | ${FG_RED}%-6s${NC} | ${FG_RED}%-7s${NC} |\n" "${leader_cnt}" "${epoch_stats[0]}" "${epoch_stats[1]}" "${adopted_cnt}" "${confirmed_cnt}" "${missed_cnt}" "${ghosted_cnt}" "${stolen_cnt}" "${invalid_cnt}"
-               printf '|'; printf "%$((6+ideal_len+luck_len+7+9+6+7+6+7+24+2))s" "" | tr " " "="; printf '|\n'
-               echo
-               # print block table
-               block_cnt=1
-               status_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(status) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(status) DESC LIMIT 1;")
-               [[ ${status_len} -lt 6 ]] && status_len=6
-               block_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(block) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(slot) DESC LIMIT 1;")
-               [[ ${block_len} -lt 5 ]] && block_len=5
-               slot_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(slot) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(slot) DESC LIMIT 1;")
-               [[ ${slot_len} -lt 4 ]] && slot_len=4
-               slot_in_epoch_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(slot_in_epoch) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(slot_in_epoch) DESC LIMIT 1;")
-               [[ ${slot_in_epoch_len} -lt 11 ]] && slot_in_epoch_len=11
-               at_len=24
-               size_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(size) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(size) DESC LIMIT 1;")
-               [[ ${size_len} -lt 4 ]] && size_len=4
-               hash_len=$(sqlite3 "${BLOCKLOG_DB}" "SELECT LENGTH(hash) FROM blocklog WHERE epoch=${epoch_enter} ORDER BY LENGTH(hash) DESC LIMIT 1;")
-               [[ ${hash_len} -lt 4 ]] && hash_len=4
-               if [[ ${view} -eq 1 ]]; then
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" "" | tr " " "="; printf '|\n'
-                 printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At"
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" "" | tr " " "="; printf '|\n'
-                 while IFS='|' read -r status block slot slot_in_epoch at; do
-                   at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
-                   [[ ${block} -eq 0 ]] && block="-"
-                   printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${block_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${slot_in_epoch_len}s${NC} | ${FG_LGRAY}%-${at_len}s${NC} |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}"
-                   ((block_cnt++))
-                 done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+17))s" "" | tr " " "="; printf '|\n'
-               elif [[ ${view} -eq 2 ]]; then
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" "" | tr " " "="; printf '|\n'
-                 printf "| %-${#leader_cnt}s | %-${status_len}s | %-${slot_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Slot" "Size" "Hash"
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" "" | tr " " "="; printf '|\n'
-                 while IFS='|' read -r status slot size hash; do
-                   [[ ${size} -eq 0 ]] && size="-"
-                   [[ -z ${hash} ]] && hash="-"
-                   printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${size_len}s${NC} | ${FG_LGRAY}%-${hash_len}s${NC} |\n" "${block_cnt}" "${status}" "${slot}" "${size}" "${hash}"
-                   ((block_cnt++))
-                 done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, slot, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+slot_len+size_len+hash_len+14))s" "" | tr " " "="; printf '|\n'
-               elif [[ ${view} -eq 3 ]]; then
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" "" | tr " " "="; printf '|\n'
-                 printf "| %-${#leader_cnt}s | %-${status_len}s | %-${block_len}s | %-${slot_len}s | %-${slot_in_epoch_len}s | %-${at_len}s | %-${size_len}s | %-${hash_len}s |\n" "#" "Status" "Block" "Slot" "SlotInEpoch" "Scheduled At" "Size" "Hash"
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" "" | tr " " "="; printf '|\n'
-                 while IFS='|' read -r status block slot slot_in_epoch at size hash; do
-                   at=$(TZ="${BLOCKLOG_TZ}" date '+%F %T %Z' --date="${at}")
-                   [[ ${block} -eq 0 ]] && block="-"
-                   [[ ${size} -eq 0 ]] && size="-"
-                   [[ -z ${hash} ]] && hash="-"
-                   printf "| ${FG_LGRAY}%-${#leader_cnt}s${NC} | ${FG_LGRAY}%-${status_len}s${NC} | ${FG_LGRAY}%-${block_len}s${NC} | ${FG_LGRAY}%-${slot_len}s${NC} | ${FG_LGRAY}%-${slot_in_epoch_len}s${NC} | ${FG_LGRAY}%-${at_len}s${NC} | ${FG_LGRAY}%-${size_len}s${NC} | ${FG_LGRAY}%-${hash_len}s${NC} |\n" "${block_cnt}" "${status}" "${block}" "${slot}" "${slot_in_epoch}" "${at}" "${size}" "${hash}"
-                   ((block_cnt++))
-                 done < <(sqlite3 "${BLOCKLOG_DB}" "SELECT status, block, slot, slot_in_epoch, at, size, hash FROM blocklog WHERE epoch=${epoch_enter} ORDER BY slot;" 2>/dev/null)
-                 printf '|'; printf "%$((${#leader_cnt}+status_len+block_len+slot_len+slot_in_epoch_len+at_len+size_len+hash_len+23))s" "" | tr " " "="; printf '|\n'
-               elif [[ ${view} -eq 4 ]]; then
-                 println OFF "Block Status:\n"
-                 println OFF "Leader    - Scheduled to make block at this slot"
-                 println OFF "Ideal     - Expected/Ideal number of blocks assigned based on active stake (sigma)"
-                 println OFF "Luck      - Leader slots assigned vs Ideal slots for this epoch"
-                 println OFF "Adopted   - Block created successfully"
-                 println OFF "Confirmed - Block created validated to be on-chain with the certainty"
-                 println OFF "            set in 'cncli.sh' for 'CONFIRM_BLOCK_CNT'"
-                 println OFF "Missed    - Scheduled at slot but no record of it in cncli DB and no"
-                 println OFF "            other pool has made a block for this slot"
-                 println OFF "Ghosted   - Block created but marked as orphaned and no other pool has made"
-                 println OFF "            a valid block for this slot, height battle or block propagation issue"
-                 println OFF "Stolen    - Another pool has a valid block registered on-chain for the same slot"
-                 println OFF "Invalid   - Pool failed to create block, base64 encoded error message"
-                 println OFF "            can be decoded with 'echo <base64 hash> | base64 -d | jq -r'"
-               fi
-               echo
-               println OFF "[h] Home | ${view_output} | [*] Refresh"
-               read -rsn1 key
-               case ${key} in
-                 h ) continue 2 ;;
-                 1 ) view=1; view_output="${FG_YELLOW}[1] View 1${NC} | [2] View 2 | [3] View 3 | [i] Info" ;;
-                 2 ) view=2; view_output="[1] View 1 | ${FG_YELLOW}[2] View 2${NC} | [3] View 3 | [i] Info" ;;
-                 3 ) view=3; view_output="[1] View 1 | [2] View 2 | ${FG_YELLOW}[3] View 3${NC} | [i] Info" ;;
-                 i ) view=4; view_output="[1] View 1 | [2] View 2 | [3] View 3 | ${FG_YELLOW}[i] Info${NC}" ;;
-                 * ) continue ;;
-               esac
-             done
+          1) cntools_compatibility_dispatch_action blocks.epoch
+             action_status=$?
+             case "${action_status}" in
+               0|20|21) continue ;;
+               22) myExit 0 "CNTools closed!" ;;
+               *) waitToProceed; continue ;;
+             esac
              ;;
           2) continue ;;
         esac
@@ -6279,256 +5241,54 @@ function main {
                 esac
                 case $SUBCOMMAND in
                   create-policy)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> ASSET >> CREATE POLICY"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
-                    getAnswerAnyCust policy_name "Internal name to give the generated policy"
-                    # Remove unwanted characters from policy name
-                    policy_name=${policy_name//[^[:alnum:]]/_}
-                    if [[ -z "${policy_name}" ]]; then
-                      println ERROR "${FG_RED}ERROR${NC}: Empty policy name, please retry!"
-                      waitToProceed && continue
-                    fi
-                    policy_folder="${ASSET_FOLDER}/${policy_name}"
-                    echo
-                    if ! mkdir -p "${policy_folder}"; then
-                      println ERROR "${FG_RED}ERROR${NC}: Failed to create directory for policy:\n${policy_folder}"
-                      waitToProceed && continue
-                    fi
-                    # Policy filenames
-                    policy_sk_file="${policy_folder}/${ASSET_POLICY_SK_FILENAME}"
-                    policy_vk_file="${policy_folder}/${ASSET_POLICY_VK_FILENAME}"
-                    policy_script_file="${policy_folder}/${ASSET_POLICY_SCRIPT_FILENAME}"
-                    policy_id_file="${policy_folder}/${ASSET_POLICY_ID_FILENAME}"
-                    if [[ $(find "${policy_folder}" -type f -print0 | wc -c) -gt 0 ]]; then
-                      println "${FG_RED}WARN${NC}: A policy ${FG_GREEN}${policy_name}${NC} already exist!"
-                      println "      Choose another name or delete the existing one"
-                      waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} address key-gen --verification-key-file ${policy_vk_file} --signing-key-file ${policy_sk_file}"
-                    if ! stdout=$(${CCLI} address key-gen --verification-key-file "${policy_vk_file}" --signing-key-file "${policy_sk_file}" 2>&1); then
-                      println ERROR "${FG_RED}ERROR${NC}: failure during policy key creation!\n${stdout}"; safeDel "${policy_folder}"; waitToProceed && continue
-                    fi
-                    println ACTION "${CCLI} address key-hash --payment-verification-key-file ${policy_vk_file}"
-                    if ! policy_key_hash=$(${CCLI} address key-hash --payment-verification-key-file "${policy_vk_file}" 2>&1); then
-                      println ERROR "${FG_RED}ERROR${NC}: failure during policy verification key hashing!\n${policy_key_hash}"; safeDel "${policy_folder}"; waitToProceed && continue
-                    fi
-                    println DEBUG "How long do you want the policy to be valid? (0/blank=unlimited)"
-                    println DEBUG "${FG_YELLOW}Setting a limit will prevent you from minting/burning assets after the policy expire !!\nLeave blank/unlimited if unsure and just press enter${NC}"
-                    getAnswerAnyCust ttl_enter "TTL (in seconds)"
-                    ttl_enter=${ttl_enter:-0}
-                    if ! isNumber ${ttl_enter}; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: invalid TTL number, non digit characters found: ${ttl_enter}"
-                      safeDel "${policy_folder}"; waitToProceed && continue
-                    fi
-                    if [[ ${ttl_enter} -eq 0 ]]; then
-                      echo "{ \"keyHash\": \"${policy_key_hash}\", \"type\": \"sig\" }" > "${policy_script_file}"
-                    else
-                      ttl=$(( $(getSlotTipRef) + (ttl_enter/SLOT_LENGTH) ))
-                      echo "{ \"type\": \"all\", \"scripts\": [ { \"slot\": ${ttl}, \"type\": \"before\" }, { \"keyHash\": \"${policy_key_hash}\", \"type\": \"sig\" } ] }" > "${policy_script_file}"
-                    fi
-                    println ACTION "${CCLI} hash script --script-file ${policy_script_file} --out-file ${policy_id_file}"
-                    if ! stdout=$(${CCLI} hash script --script-file "${policy_script_file}" --out-file "${policy_id_file}" 2>&1); then
-                      println ERROR "${FG_RED}ERROR${NC}: failure during policy ID generation!\n${stdout}"; safeDel "${policy_folder}"; waitToProceed && continue
-                    fi
-                    policy_id=$(cat "${policy_id_file}")
-                    chmod 600 "${policy_folder}/"*
-                    echo
-                    println "Policy Name   : ${FG_GREEN}${policy_name}${NC}"
-                    println "Policy ID     : ${FG_LGRAY}${policy_id}${NC}"
-                    println "Policy Expire : $([[ ${ttl_enter} -eq 0 ]] && echo "${FG_LGRAY}unlimited${NC}" || echo "${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_LGRAY}$(timeLeft $((ttl-$(getSlotTipRef))))${NC} remaining")"
-                    println DEBUG "\nYou can now start minting your custom assets using this Policy!"
-                    waitToProceed && continue
+                    cntools_compatibility_dispatch_action advanced.asset.create-policy
+                    action_status=$?
+                    case "${action_status}" in
+                      0) continue ;;
+                      20|21) break 2 ;;
+                      22) myExit 0 "CNTools closed!" ;;
+                      *) waitToProceed; continue ;;
+                    esac
                     ;; ###################################################################
                   list-assets)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> ASSET >> LIST ASSETS"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitToProceed && continue
-                    while IFS= read -r -d '' policy; do
-                      echo
-                      println "Policy Name   : ${FG_GREEN}$(basename "${policy}")${NC}"
-                      println "Policy ID     : ${FG_LGRAY}$(cat "${policy}/${ASSET_POLICY_ID_FILENAME}")${NC}"
-                      ttl=$(jq -er '.scripts[0].slot //0' "${policy}/${ASSET_POLICY_SCRIPT_FILENAME}")
-                      current_slot=$(getSlotTipRef)
-                      if [[ ${ttl} -eq 0 ]]; then
-                        println "Policy Expire : ${FG_LGRAY}unlimited${NC}"
-                      elif [[ ${ttl} -gt ${current_slot} ]]; then
-                        println "Policy Expire : ${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_LGRAY}$(timeLeft $((ttl-current_slot)))${NC} remaining"
-                      else
-                        println "Policy Expire : ${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_RED}expired $(timeLeft $((current_slot-ttl))) ago !!${NC}"
-                      fi
-                      if [[ $(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
-                        while IFS= read -r -d '' asset; do
-                          asset_name=$(jq -r '.name //empty' "${asset}")
-                          [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
-                          println "Asset         : Name: ${FG_MAGENTA}${asset_name}${NC} (${FG_LGRAY}${asset_name_hex}${NC}) - Minted: ${FG_LBLUE}$(formatAsset "$(jq -r .minted "${asset}")")${NC}"
-                        done < <(find "${policy}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
-                      else
-                        println "Asset         : ${FG_LGRAY}No assets minted for this policy!${NC}"
-                      fi
-                    done < <(find "${ASSET_FOLDER}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-                    waitToProceed && continue
+                    cntools_compatibility_dispatch_action advanced.asset.list
+                    action_status=$?
+                    case "${action_status}" in
+                      0) waitToProceed; continue ;;
+                      20|21) break 2 ;;
+                      22) myExit 0 "CNTools closed!" ;;
+                      *) waitToProceed; continue ;;
+                    esac
                     ;; ###################################################################
                   show-asset)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> ASSET >> SHOW ASSET"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies or assets found!${NC}" && waitToProceed && continue
-                    println DEBUG "Select minted asset to show information for"
-                    selectAsset
-                    case $? in
-                      1) waitToProceed; continue ;;
-                      2) continue ;;
+                    cntools_compatibility_dispatch_action advanced.asset.show
+                    action_status=$?
+                    case "${action_status}" in
+                      0) continue ;;
+                      20|21) break 2 ;;
+                      22) myExit 0 "CNTools closed!" ;;
+                      *) waitToProceed; continue ;;
                     esac
-                    echo
-                    policy_id=$(cat "${ASSET_FOLDER}/${policy_dir}/${ASSET_POLICY_ID_FILENAME}")
-                    println "Policy Name    : ${FG_GREEN}${policy_dir}${NC}"
-                    println "Policy ID      : ${FG_LGRAY}${policy_id}${NC}"
-                    ttl=$(jq -er '.scripts[0].slot //0' "${ASSET_FOLDER}/${policy_dir}/${ASSET_POLICY_SCRIPT_FILENAME}")
-                    current_slot=$(getSlotTipRef)
-                    if [[ ${ttl} -eq 0 ]]; then
-                      println "Policy Expire  : ${FG_LGRAY}unlimited${NC}"
-                    elif [[ ${ttl} -gt ${current_slot} ]]; then
-                      println "Policy Expire  : ${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_LGRAY}$(timeLeft $((ttl-current_slot)))${NC} remaining"
-                    else
-                      println "Policy Expire  : ${FG_LGRAY}$(getDateFromSlot ${ttl} '%(%F %T %Z)T')${NC}, ${FG_RED}expired $(timeLeft $((current_slot-ttl))) ago !!${NC}"
-                    fi
-                    asset_name=$(jq -r '.name //empty' "${asset_file}")
-                    [[ -z ${asset_name} ]] && asset_name_hex="" || asset_name_hex="$(asciiToHex "${asset_name}")"
-                    println "Asset Name     : ${FG_MAGENTA}${asset_name}${NC}${FG_LGRAY} (${asset_name_hex})${NC}"
-                    getAssetInfo "${policy_id}" "${asset_name_hex}"
-                    case $? in
-                      0) println "Fingerprint    : ${FG_LGRAY}${a_fingerprint}${NC}"
-                         println "In Circulation : ${FG_LBLUE}$(formatAsset ${a_total_supply})${NC}"
-                         println "Mint Count     : ${FG_LBLUE}${a_mint_cnt}${NC}"
-                         println "Burn Count     : ${FG_LBLUE}${a_burn_cnt}${NC}"
-                         println "Mint Tx Meta   :"
-                         if [[ ${a_minting_tx_metadata} != '-' ]]; then jq -r . <<< "${a_minting_tx_metadata}"; fi
-                         println "Token Reg Meta :"
-                         if [[ ${a_token_registry_metadata} != '-' ]]; then jq -r . <<< "${a_token_registry_metadata}"; fi ;;
-                      1) println "ERROR" "${FG_RED}KOIOS_API ERROR${NC}: ${error_msg}" ;;
-                      2) a_minted=$(jq -er '.minted //0' "${asset_file}")
-                         println "In Circulation : ${FG_LBLUE}$(formatAsset "$(jq -er '.minted //0' "${asset_file}")")${NC} (local tracking)" ;;
-                    esac
-                    a_last_update=$(jq -er '.lastUpdate //"-"' "${asset_file}")
-                    a_last_action=$(jq -er '.lastAction //"-"' "${asset_file}")
-                    println "Last Updated   : ${FG_LGRAY}${a_last_update}${NC}"
-                    println "Last Action    : ${FG_LGRAY}${a_last_action}${NC}"
-                    waitToProceed && continue
                     ;; ###################################################################
                   decrypt-policy)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> ASSET >> DECRYPT / UNLOCK POLICY"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
-                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitToProceed && continue
-                    println DEBUG "Select policy to decrypt"
-                    selectPolicy "encrypted"
-                    case $? in
-                      1) waitToProceed; continue ;;
-                      2) continue ;;
+                    cntools_compatibility_dispatch_action advanced.asset.decrypt-policy
+                    action_status=$?
+                    case "${action_status}" in
+                      0) continue ;;
+                      20|21) break 2 ;;
+                      22) myExit 0 "CNTools closed!" ;;
+                      *) waitToProceed; continue ;;
                     esac
-                    filesUnlocked=0
-                    keysDecrypted=0
-                    echo
-                    println DEBUG "Removing write protection from all policy files"
-                    while IFS= read -r -d '' file; do
-                      if [[ ${ENABLE_CHATTR} = true && $(lsattr -R "$file") =~ -i- ]]; then
-                        sudo chattr -i "${file}"
-                      fi
-                      chmod 600 "${file}"
-                      filesUnlocked=$((++filesUnlocked))
-                      println DEBUG "${file}"
-                    done < <(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -print0)
-                    if [[ $(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -gt 0 ]]; then
-                      echo
-                      println "Decrypting GPG encrypted policy key"
-                      if ! getPasswordCust; then # $password variable populated by getPasswordCust function
-                        println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
-                        waitToProceed && continue
-                      fi
-                      while IFS= read -r -d '' file; do
-                        decryptFile "${file}" "${password}" && \
-                        chmod 600 "${file::-4}" && \
-                        keysDecrypted=$((++keysDecrypted))
-                      done < <(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0)
-                      unset password
-                    fi
-                    echo
-                    println "Policy decrypted : ${FG_GREEN}${policy_name}${NC}"
-                    println "Files unlocked   : ${FG_LBLUE}${filesUnlocked}${NC}"
-                    println "Files decrypted  : ${FG_LBLUE}${keysDecrypted}${NC}"
-                    if [[ ${filesUnlocked} -ne 0 || ${keysDecrypted} -ne 0 ]]; then
-                      echo
-                      println DEBUG "${FG_YELLOW}Policy files are now unprotected${NC}"
-                      println DEBUG "Use 'ADVANCED >> ASSET >> ENCRYPT / LOCK POLICY' to re-lock"
-                    fi
-                    waitToProceed && continue
                     ;; ###################################################################
                   encrypt-policy)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> ASSET >> ENCRYPT / LOCK POLICY"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
-                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && println "${FG_YELLOW}No policies available!${NC}" && waitToProceed && continue
-                    println DEBUG "Select policy to encrypt"
-                    selectPolicy "encrypted"
-                    case $? in
-                      1) waitToProceed; continue ;;
-                      2) continue ;;
+                    cntools_compatibility_dispatch_action advanced.asset.encrypt-policy
+                    action_status=$?
+                    case "${action_status}" in
+                      0) continue ;;
+                      20|21) break 2 ;;
+                      22) myExit 0 "CNTools closed!" ;;
+                      *) waitToProceed; continue ;;
                     esac
-                    filesLocked=0
-                    keysEncrypted=0
-                    if [[ $(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -name '*.gpg' -print0 | wc -c) -le 0 ]]; then
-                      echo
-                      println DEBUG "Encrypting policy signing key with GPG"
-                      if ! getPasswordCust confirm; then # $password variable populated by getPasswordCust function
-                        println "\n\n" && println ERROR "${FG_RED}ERROR${NC}: password input aborted!"
-                        waitToProceed && continue
-                      fi
-                      keyFiles=(
-                        "${ASSET_FOLDER}/${policy_name}/${ASSET_POLICY_SK_FILENAME}"
-                      )
-                      for keyFile in "${keyFiles[@]}"; do
-                        if [[ -f "${keyFile}" ]]; then
-                          chmod 400 "${keyFile}" && \
-                          encryptFile "${keyFile}" "${password}" && \
-                          keysEncrypted=$((++keysEncrypted))
-                        fi
-                      done
-                      unset password
-                    else
-                      echo
-                      println DEBUG "${FG_YELLOW}NOTE${NC}: found GPG encrypted files in folder, please decrypt/unlock policy files before encrypting"
-                      waitToProceed && continue
-                    fi
-                    echo
-                    println DEBUG "Write protecting all policy files with 400 permission and if enabled 'chattr +i'"
-                    while IFS= read -r -d '' file; do
-                      chmod 400 "$file"
-                      if [[ ${ENABLE_CHATTR} = true && ! $(lsattr -R "$file") =~ -i- ]]; then
-                        sudo chattr +i "$file"
-                      fi
-                      filesLocked=$((++filesLocked))
-                      println DEBUG "$file"
-                    done < <(find "${ASSET_FOLDER}/${policy_name}" -mindepth 1 -maxdepth 1 -type f -print0)
-                    echo
-                    println "Policy encrypted : ${FG_GREEN}${policy_name}${NC}"
-                    println "Files locked     : ${FG_LBLUE}${filesLocked}${NC}"
-                    println "Files encrypted  : ${FG_LBLUE}${keysEncrypted}${NC}"
-                    if [[ ${filesLocked} -ne 0 || ${keysEncrypted} -ne 0 ]]; then
-                      echo
-                      println DEBUG "${FG_BLUE}INFO${NC}: policy files are now protected"
-                      println DEBUG "Use 'ADVANCED >> ASSET >> DECRYPT / UNLOCK POLICY' to unlock"
-                    fi
-                    waitToProceed && continue
                     ;; ###################################################################
                   mint-asset)
                     clear
@@ -6831,151 +5591,14 @@ function main {
                     waitToProceed && continue
                     ;; ###################################################################
                   register-asset)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> ASSET >> REGISTER ASSET"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
-                    if ! cmdAvailable "token-metadata-creator"; then
-                      println ERROR "Please follow instructions on Guild Operators site to download or build the tool:"
-                      println ERROR "${FG_YELLOW}https://cardano-community.github.io/guild-operators/Build/offchain-metadata-tools/${NC}"
-                      waitToProceed && continue
-                    fi
-                    [[ ! $(ls -A "${ASSET_FOLDER}" 2>/dev/null) ]] && echo && println "${FG_YELLOW}No policies found!${NC}\n\nPlease first create a policy to use for Cardano Token Registry" && waitToProceed && continue
-                    println DEBUG "Select the policy to use for Cardano Token Registry"
-                    selectPolicy "all" "${ASSET_POLICY_SK_FILENAME}" "${ASSET_POLICY_SCRIPT_FILENAME}" "${ASSET_POLICY_ID_FILENAME}"
-                    case $? in
-                      1) waitToProceed; continue ;;
-                      2) continue ;;
+                    cntools_compatibility_dispatch_action advanced.asset.register
+                    action_status=$?
+                    case "${action_status}" in
+                      0) continue ;;
+                      20|21) break 2 ;;
+                      22) myExit 0 "CNTools closed!" ;;
+                      *) waitToProceed; continue ;;
                     esac
-                    policy_folder="${ASSET_FOLDER}/${policy_name}"
-                    # Policy filenames
-                    policy_sk_file="${policy_folder}/${ASSET_POLICY_SK_FILENAME}"
-                    policy_script_file="${policy_folder}/${ASSET_POLICY_SCRIPT_FILENAME}"
-                    policy_id="$(cat "${policy_folder}/${ASSET_POLICY_ID_FILENAME}")"
-                    echo
-                    if [[ $(find "${policy_folder}" -type f -name '*.asset' -print0 | wc -c) -gt 0 ]]; then
-                      println DEBUG "Assets previously minted for this Policy\n"
-                      asset_name_maxlen=5; asset_amount_maxlen=12
-                      while IFS= read -r -d '' asset; do
-                        asset_filename=$(basename "${asset}")
-                        [[ -z ${asset_filename%.*} ]] && asset_name="." || asset_name="${asset_filename%.*}"
-                        [[ ${#asset_name} -gt ${asset_name_maxlen} ]] && asset_name_maxlen=${#asset_name}
-                        asset_minted=$(jq -r '.minted //0' "${asset}")
-                        [[ ${#asset_minted} -gt ${asset_amount_maxlen} ]] && asset_amount_maxlen=${#asset_minted}
-                      done < <(find "${policy_folder}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
-                      println DEBUG "$(printf "%${asset_amount_maxlen}s | %s\n" "Total Amount" "Policy ID[.AssetName]")"
-                      println DEBUG "$(printf "%$((asset_amount_maxlen+1))s+%$((asset_name_maxlen+58))s\n" "" "" | tr " " "-")"
-                      while IFS= read -r -d '' asset; do
-                        asset_filename=$(basename "${asset}")
-                        [[ -z ${asset_filename%.*} ]] && asset_name="${FG_LGRAY}${policy_id}${NC}" || asset_name="${FG_LGRAY}${policy_id}.${FG_MAGENTA}${asset_filename%.*}${NC}"
-                        asset_minted=$(jq -r '.minted //0' "${asset}")
-                        println DEBUG "$(printf "${FG_LBLUE}%${asset_amount_maxlen}s${NC} | %s\n" "${asset_minted}" "${asset_name}")"
-                      done < <(find "${policy_folder}" -mindepth 1 -maxdepth 1 -type f -name '*.asset' -print0 | sort -z)
-                      echo
-                    fi
-                    println "Please enter the asset name as part of PolicyID.AssetName to create registry file for, either a previously minted coin or new"
-                    getAnswerAnyCust asset_name "Asset Name (empty valid)"
-                    [[ ${asset_name} =~ ^[^[:alnum:]]$ ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name should only contain alphanummeric chars!" && waitToProceed && continue
-                    [[ ${#asset_name} -gt 32 ]] && println ERROR "${FG_RED}ERROR${NC}: Asset name is limited to 32 chars in length!" && waitToProceed && continue
-                    asset_file="${policy_folder}/${asset_name}.asset"
-                    echo
-                    sequence_number=0
-                    if [[ -f ${asset_file} ]]; then # a previous asset file exist, check if metadata has previously been entered
-                      if jq -er .metadata "${asset_file}" &>/dev/null; then
-                        println DEBUG "${FG_YELLOW}Previous metadata registration found:${NC}"
-                        jq -r .metadata "${asset_file}"
-                        sequence_number=$(( $(jq -r '.metadata.sequenceNumber //0' "${asset_file}" 2>/dev/null) + 1 ))
-                        echo
-                      fi
-                    fi
-                    println DEBUG "Enter metadata (optional fields can be left empty)"
-                    getAnswerAnyCust meta_name "Name        [${FG_RED}required${NC}] (Max. 50 chars) "
-                    [[ -z ${meta_name} || ${#meta_name} -gt 50 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata name is a required field and limited to 50 chars in length!" && waitToProceed && continue
-                    getAnswerAnyCust meta_desc "Description [${FG_RED}required${NC}] (Max. 500 chars)"
-                    [[ -z ${meta_desc} || ${#meta_desc} -gt 500 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata description is a required field and limited to 500 chars in length!" && waitToProceed && continue
-                    getAnswerAnyCust meta_ticker "Ticker      [${FG_YELLOW}optional${NC}] (3-9 chars)     "
-                    [[ -n ${meta_ticker} && ( ${#meta_ticker} -lt 3 || ${#meta_ticker} -gt 9 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Metadata ticker is limited to 3-9 chars in length!" && waitToProceed && continue
-                    getAnswerAnyCust meta_url "URL         [${FG_YELLOW}optional${NC}] (Max. 250 chars)"
-                    [[ -n ${meta_url} && ( ! ${meta_url} =~ https://.* || ${#meta_url} -gt 250 ) ]] && println ERROR "\n${FG_RED}ERROR${NC}: Invalid metadata URL format or greater than 250 char limit!" && waitToProceed && continue
-                    getAnswerAnyCust meta_decimals "Decimals    [${FG_YELLOW}optional${NC}]"
-                    [[ -n ${meta_decimals} ]] && ! isNumber ${meta_decimals} && println ERROR "\n${FG_RED}ERROR${NC}: Invalid decimal number" && waitToProceed && continue
-                    fileDialog "Logo/Icon   [${FG_YELLOW}optional${NC}] (PNG, <64kb)    " "${TMP_DIR}/"
-                    meta_logo="${file}"
-                    if [[ -n ${meta_logo} ]]; then
-                      [[ ! -f ${meta_logo} ]] && println ERROR "\n${FG_RED}ERROR${NC}: Logo not found!" && waitToProceed && continue
-                      [[ $(wc -c ${meta_logo} | cut -d' ' -f1) -gt 64000 ]] && println ERROR "\n${FG_RED}ERROR${NC}: Logo more than 64kb in size!" && waitToProceed && continue
-                      [[ $(file -b ${meta_logo}) != "PNG"* ]] && println ERROR "\n${FG_RED}ERROR${NC}: Logo not of PNG image type!" && waitToProceed && continue
-                    fi
-
-                    asset_subject="${policy_id}$(asciiToHex "${asset_name}")"
-
-                    cmd_args=(
-                      "entry"
-                      "${asset_subject}"
-                      "--init"
-                      "--name" "${meta_name}"
-                      "--description" "${meta_desc}"
-                      "--policy" "${policy_script_file}"
-                    )
-                    [[ -n ${meta_ticker} ]] && cmd_args+=( "--ticker" "${meta_ticker}" )
-                    [[ -n ${meta_url} ]] && cmd_args+=( "--url" "${meta_url}" )
-                    [[ -n ${meta_decimals} && ${meta_decimals} -gt 0 ]] && cmd_args+=( "--decimals" "${meta_decimals}" )
-                    [[ -n ${meta_logo} ]] && cmd_args+=( "--logo" "${meta_logo}" )
-
-                    pushd ${policy_folder} &>/dev/null || { println ERROR "\n${FG_RED}ERROR${NC}: unable to change directory to: ${policy_folder}" && waitToProceed && continue; }
-
-                    # Create JSON draft
-                    println DEBUG false "\nCreating Cardano Metadata Registry JSON draft file ..."
-                    ! meta_file=$(token-metadata-creator "${cmd_args[@]}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator draft:\n${meta_file}" && popd >/dev/null && waitToProceed && continue
-                    println DEBUG " ${FG_GREEN}OK${NC}!"
-
-                    # Update the sequence number if needed
-                    if [[ ${sequence_number} -ne 0 ]]; then
-                      println DEBUG false "Updating sequence number to ${FG_LBLUE}${sequence_number}${NC} ..."
-                      ! sed -i "s/\"sequenceNumber\":\ .*,/\"sequenceNumber\":\ ${sequence_number},/g" ${meta_file} && popd >/dev/null && waitToProceed && continue
-                      println DEBUG " ${FG_GREEN}OK${NC}!"
-                    fi
-
-                    # Signing draft file with policy signing key
-                    println DEBUG false "Signing draft file with policy signing key ..."
-                    ! meta_file=$(token-metadata-creator entry ${asset_subject} -a "${policy_sk_file}" 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator signing:\n${meta_file}" && popd >/dev/null && waitToProceed && continue
-                    println DEBUG " ${FG_GREEN}OK${NC}!"
-
-                    # Finalizing the draft file
-                    println DEBUG false "Finalizing the draft file ..."
-                    ! meta_file=$(token-metadata-creator entry ${asset_subject} --finalize 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator finalize:\n${meta_file}" && popd >/dev/null && waitToProceed && continue
-                    println DEBUG " ${FG_GREEN}OK${NC}!"
-
-                    # Validating the final metadata registry submission file
-                    println DEBUG false "Validating the final metadata registry submission file ..."
-                    ! output=$(token-metadata-creator validate ${meta_file} 2>&1) && println ERROR "\n${FG_RED}ERROR${NC}: failure during token-metadata-creator validation:\n${output}" && popd >/dev/null && waitToProceed && continue
-                    println DEBUG " ${FG_GREEN}OK${NC}!"
-
-                    popd &>/dev/null || println ERROR "\n${FG_RED}ERROR${NC}: unable to return to previous directory!"
-
-                    # Update .asset file with registered metadata
-                    assetFileJSON=$(cat "${asset_file}")
-                    assetFileJSON=$(jq ". += {metadata: {name: \"${meta_name}\", description: \"${meta_desc}\", ticker: \"${meta_ticker}\", url: \"${meta_url}\", logo: \"${meta_logo}\", sequenceNumber: \"${sequence_number}\"} } " <<< ${assetFileJSON})
-                    assetFileJSON=$(jq ". += {lastUpdate: \"$(date -R)\", lastAction: \"created Cardano Token Registry submission file\"}" <<< ${assetFileJSON})
-                    echo -e "${assetFileJSON}" > "${asset_file}"
-
-                    echo
-                    println "Cardano Metadata Registry submission file successfully created!"
-                    println "Available at: ${policy_folder}/${meta_file}"
-                    case ${NWMAGIC} in
-                      764824073)  # mainnet
-                        println "\nPlease follow directions on CF Token Registry GitHub site to create a PR for the generated metadata file"
-                        println "https://github.com/cardano-foundation/cardano-token-registry/wiki/How-to-submit-an-entry-to-the-registry"
-                        ;;
-                      *) # public testnet
-                        println "\nPlease create a PR on IOHK Metadata Registry TestNet GitHub site for the generated metadata file"
-                        println "https://github.com/input-output-hk/metadata-registry-testnet"
-                        ;;
-                    esac
-
-                    waitToProceed && continue
-
                     ;; ###################################################################
                 esac # advanced >> asset sub OPERATION
               done # Asset loop
@@ -7000,256 +5623,24 @@ function main {
                 esac
                 case $SUBCOMMAND in
                   create-ms-wallet)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTISIG >> CREATE WALLET"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
-                    createNewWallet || continue
-                    ms_wallet_name="${wallet_name}"
-                    # Wallet key filenames
-                    ms_pay_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_PAY_SCRIPT_FILENAME}"
-                    ms_stake_script_file="${WALLET_FOLDER}/${ms_wallet_name}/${WALLET_STAKE_SCRIPT_FILENAME}"
-                    if [[ $(find "${WALLET_FOLDER}/${ms_wallet_name}" -type f -print0 | wc -c) -gt 0 ]]; then
-                      println "${FG_RED}WARN${NC}: A wallet ${FG_GREEN}${ms_wallet_name}${NC} already exists"
-                      println "      Choose another name or delete the existing one"
-                      waitToProceed && continue
-                    fi
-                    # pay key hashes as keys to associative array to act as a set, with stake key hash as value
-                    declare -gA key_hashes=()
-                    unset timelock_after
-                    println OFF "Select wallet(s) / credentials (key hashes) to include in MultiSig wallet"
-                    println OFF "${FG_YELLOW}!${NC} Please use 1854H (MultiSig) derived keys according to CIP-1854!"
-                    println OFF "${FG_YELLOW}!${NC} Only wallets with these keys will be listed, use 'Derive Keys' option to generate them."
-                    echo
-                    selected_wallets=()
-                    while true; do
-                      println DEBUG "Select wallet or manually enter credentials?"
-                      select_opt "[w] Wallet" "[c] Credentials" "[d] I'm done" "[Esc] Cancel"
-                      case $? in
-                        0) selectWallet "balance" "${selected_wallets[@]}" "${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}" "${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
-                          case $? in
-                            1) waitToProceed; continue ;;
-                            2) continue ;;
-                          esac
-                          getCredentials ${wallet_name}
-                          [[ -z ${ms_pay_cred} ]] && println ERROR "\n${FG_RED}ERROR${NC}: wallet MultiSig payment credentials not set!" && waitToProceed && continue
-                          [[ -z ${ms_stake_cred} ]] && println ERROR "\n${FG_RED}ERROR${NC}: wallet MultiSig stake credentials not set!" && waitToProceed && continue
-                          key_hashes[${ms_pay_cred}]="${ms_stake_cred}"
-                          selected_wallets+=("${wallet_name}")
-                          ;;
-                        1) getAnswerAnyCust ms_pay_cred "MultiSig Payment Credential (key hash)"
-                          [[ ${#ms_pay_cred} -ne 56 ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid payment credential entered!" && waitToProceed && continue
-                          getAnswerAnyCust ms_stake_cred "MultiSig Stake Credential (key hash)"
-                          [[ ${#ms_stake_cred} -ne 56 ]] && println ERROR "\n${FG_RED}ERROR${NC}: invalid stake credential entered!" && waitToProceed && continue
-                          key_hashes[${ms_pay_cred}]="${ms_stake_cred}"
-                          ;;
-                        2) break ;;
-                        3) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
-                      esac
-                      println DEBUG "\nMultiSig size: ${#key_hashes[@]} - Add more wallets / credentials to MultiSig?"
-                      select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
-                      case $? in
-                        0) break ;;
-                        1) : ;;
-                        2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue 2 ;;
-                      esac
-                    done
-                    if [[ ${#key_hashes[@]} -eq 0 ]]; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: no signers added, please add at least one"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
-                    fi
-                    println DEBUG "\n${#key_hashes[@]} wallets / credentials added to MultiSig, how many are required to witness the transaction?"
-                    getAnswerAnyCust required_sig_cnt "Number of Required signatures"
-                    if ! isNumber ${required_sig_cnt} || [[ ${required_sig_cnt} -lt 1 || ${required_sig_cnt} -gt ${#key_hashes[@]} ]]; then
-                      println ERROR "\n${FG_RED}ERROR${NC}: invalid signature count entered, must be above 1 and max ${#key_hashes[@]}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue
-                    fi
-                    println DEBUG "\nAdd time lock to MultiSig wallet by only allowing spending from wallet after a certain epoch start?"
-                    select_opt "[n] No" "[y] Yes" "[Esc] Cancel"
-                    case $? in
-                      0) : ;;
-                      1) getAnswerAnyCust epoch_no "Epoch"
-                        if ! isNumber ${epoch_no}; then println ERROR "${FG_RED}ERROR${NC}: invalid epoch number entered!"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed; continue; fi
-                        timelock_after=$(getEpochStart ${epoch_no})
-                        ;;
-                      2) safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; continue ;;
+                    cntools_compatibility_dispatch_action advanced.multisig.create
+                    action_status=$?
+                    case "${action_status}" in
+                      0) continue ;;
+                      20|21) break 2 ;;
+                      22) myExit 0 "CNTools closed!" ;;
+                      *) waitToProceed; continue ;;
                     esac
-                    # build MultiSig script
-                    pay_script=$(jq -n --argjson req_sig "${required_sig_cnt}" '{type:"atLeast",required:$req_sig,scripts:[]}')
-                    stake_script="${pay_script}"
-                    for sig in "${!key_hashes[@]}"; do
-                      pay_script=$(jq --arg sig "${sig}" '.scripts += [{type:"sig",keyHash:$sig}]' <<< "${pay_script}")
-                      stake_script=$(jq --arg sig "${key_hashes[${sig}]}" '.scripts += [{type:"sig",keyHash:$sig}]' <<< "${stake_script}")
-                    done
-                    if [[ -n ${timelock_after} ]]; then
-                      pay_script=$(jq -n --argjson after "${timelock_after}" --argjson sig_script "${jsonscript}" '{type:"all",scripts:[{type:"after",slot:$after},$sig_script]}')
-                    fi
-                    if ! stdout=$(jq -e . <<< "${pay_script}" > "${ms_pay_script_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during payment script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
-                    fi
-                    if ! stdout=$(jq -e . <<< "${stake_script}" > "${ms_stake_script_file}" 2>&1); then
-                      println ERROR "\n${FG_RED}ERROR${NC}: failure during stake script file creation!\n${stdout}"; safeDel "${WALLET_FOLDER}/${ms_wallet_name}"; waitToProceed && continue
-                    fi
-
-                    chmod 600 "${WALLET_FOLDER}/${ms_wallet_name}/"*
-                    getBaseAddress ${ms_wallet_name}
-                    getPayAddress ${ms_wallet_name}
-                    getRewardAddress ${ms_wallet_name}
-                    getCredentials ${ms_wallet_name}
-                    echo
-                    println "New MultiSig Wallet : ${FG_GREEN}${ms_wallet_name}${NC}"
-                    println "Address             : ${FG_LGRAY}${base_addr}${NC}"
-                    println "Payment Address     : ${FG_LGRAY}${pay_addr}${NC}"
-                    println "Reward Address      : ${FG_LGRAY}${reward_addr}${NC}"
-                    println "Payment Credential  : ${FG_LGRAY}${script_pay_cred}${NC}"
-                    println "Reward Credential   : ${FG_LGRAY}${script_stake_cred}${NC}"
-                    println DEBUG "\nYou can now send and receive ADA using the above 'Address' or 'Payment Address'."
-                    println DEBUG "Note that Payment Address will not take part in staking."
-                    waitToProceed && continue
                     ;; ###################################################################
                   derive-ms-keys)
-                    clear
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    println " >> ADVANCED >> MULTISIG >> DERIVE KEYS"
-                    println DEBUG "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    echo
-                    println DEBUG "Select wallet to derive MultiSig keys for (only wallets with missing keys shown)"
-                    selectWallet "non-ms"
-                    case $? in
-                      1) waitToProceed; continue ;;
-                      2) continue ;;
+                    cntools_compatibility_dispatch_action advanced.multisig.derive-keys
+                    action_status=$?
+                    case "${action_status}" in
+                      0) continue ;;
+                      20|21) break 2 ;;
+                      22) myExit 0 "CNTools closed!" ;;
+                      *) waitToProceed; continue ;;
                     esac
-                    getWalletType ${wallet_name}
-                    case $? in
-                      0) # Hardware wallet
-                        if ! cmdAvailable "cardano-hw-cli" &>/dev/null; then
-                          println ERROR "${FG_RED}ERROR${NC}: cardano-hw-cli not found in path or executable permission not set."
-                          println ERROR "Please run '${FG_YELLOW}guild-deploy.sh -s w${NC}' to add hardware wallet support and install Vaccumlabs cardano-hw-cli, '${FG_YELLOW}guild-deploy.sh -h${NC}' shows all available options"
-                          waitToProceed && continue
-                        fi
-                        if ! HWCLIversionCheck; then waitToProceed && continue; fi
-                        ms_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_PAY_SK_FILENAME}"
-                        ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
-                        ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_HW_STAKE_SK_FILENAME}"
-                        ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
-                        if [[ -f ${ms_payment_sk_file} || -f ${ms_stake_sk_file} ]]; then
-                          println ERROR "\n${FG_RED}ERROR${NC}: MultiSig payment and/or stake signing keys already exist!\n${stdout}"; waitToProceed && continue
-                        fi
-                        derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
-                        if ! getSavedDerivationPath "${derivation_path_file}"; then
-                          getCustomDerivationPath || continue
-                          echo "1852H/1815H/${acct_idx}H/x/${key_idx}" > "${derivation_path_file}"
-                        fi
-                        if ! unlockHWDevice "extract ${FG_LGRAY}MultiSig keys${NC}"; then waitToProceed && continue; fi
-                        HW_DERIVATION_CMD=(
-                          cardano-hw-cli address key-gen
-                          --path 1854H/1815H/${acct_idx}H/0/${key_idx}
-                          --path 1854H/1815H/${acct_idx}H/2/${key_idx}
-                          --verification-key-file "${ms_payment_vk_file}"
-                          --verification-key-file "${ms_stake_vk_file}"
-                          --hw-signing-file "${ms_payment_sk_file}"
-                          --hw-signing-file "${ms_stake_sk_file}"
-                        )
-                        println ACTION "${HW_DERIVATION_CMD[*]}"
-                        if ! stdout=$("${HW_DERIVATION_CMD[@]}" 2>&1); then
-                          println ERROR "\n${FG_RED}ERROR${NC}: failure during key extraction!\n${stdout}"; safeDel "${WALLET_FOLDER}/${wallet_name}"; waitToProceed && continue
-                        fi
-                        jq '.description = "MultiSig Payment Hardware Verification Key"' "${ms_payment_vk_file}" > "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_payment_vk_file}").tmp" "${ms_payment_vk_file}"
-                        jq '.description = "MultiSig Stake Hardware Verification Key"' "${ms_stake_vk_file}" > "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" && mv -f "${TMP_DIR}/$(basename "${ms_stake_vk_file}").tmp" "${ms_stake_vk_file}"
-                        ;;
-                      *)
-                        ms_payment_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_SK_FILENAME}"
-                        ms_payment_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_PAY_VK_FILENAME}"
-                        ms_stake_sk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_SK_FILENAME}"
-                        ms_stake_vk_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}${WALLET_STAKE_VK_FILENAME}"
-                        if [[ -f ${ms_payment_sk_file} || -f ${ms_stake_sk_file} ]]; then
-                          println ERROR "\n${FG_RED}ERROR${NC}: MultiSig payment and/or stake signing keys already exist!\n${stdout}"; waitToProceed && continue
-                        fi
-                        println DEBUG "Is selected wallet a CLI generated wallet or derived from mnemonic?"
-                        select_opt "[c] CLI" "[m] Mnemonic"
-                        case $? in
-                          0) println ACTION "${CCLI} address key-gen --verification-key-file ${ms_payment_vk_file} --signing-key-file ${ms_payment_sk_file}"
-                            if ! stdout=$(${CCLI} address key-gen --verification-key-file "${ms_payment_vk_file}" --signing-key-file "${ms_payment_sk_file}" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment key creation!\n${stdout}"; waitToProceed && continue
-                            fi
-                            println ACTION "${CCLI} latest stake-address key-gen --verification-key-file ${ms_stake_vk_file} --signing-key-file ${ms_stake_sk_file}"
-                            if ! stdout=$(${CCLI} latest stake-address key-gen --verification-key-file "${ms_stake_vk_file}" --signing-key-file "${ms_stake_sk_file}" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake key creation!\n${stdout}"; waitToProceed && continue
-                            fi
-                            ;;
-                          1) if ! cmdAvailable "bech32" &>/dev/null || \
-                              ! cmdAvailable "cardano-address" &>/dev/null; then
-                              println ERROR "${FG_RED}ERROR${NC}: bech32 and/or cardano-address not found in '\$PATH'"
-                              println ERROR "Please run updated guild-deploy.sh and re-build/re-download cardano-node"
-                              waitToProceed && continue
-                            fi
-                            getAnswerAnyCust mnemonic false "24 or 15 word mnemonic(space separated)"
-                            echo
-                            IFS=" " read -r -a words <<< "${mnemonic}"
-                            if [[ ${#words[@]} -ne 24 ]] && [[ ${#words[@]} -ne 15 ]]; then
-                              println ERROR "${FG_RED}ERROR${NC}: 24 or 15 words expected, found ${FG_RED}${#words[@]}${NC}"
-                              unset mnemonic; unset words
-                              waitToProceed && continue
-                            fi
-                            derivation_path_file="${WALLET_FOLDER}/${wallet_name}/${WALLET_DERIVATION_PATH_FILENAME}"
-                            if ! getSavedDerivationPath "${derivation_path_file}"; then
-                              getCustomDerivationPath || continue
-                              echo "1852H/1815H/${acct_idx}H/x/${key_idx}" > "${derivation_path_file}"
-                            fi
-                            caddr_v="$(cardano-address -v | awk '{print $1}')"
-                            [[ "${caddr_v}" == 3* ]] && caddr_arg="--with-chain-code" || caddr_arg=""
-                            if ! root_prv=$(cardano-address key from-recovery-phrase Shelley <<< ${mnemonic}); then
-                              unset mnemonic; unset words
-                              waitToProceed && continue
-                            fi
-                            unset mnemonic; unset words
-                            payment_xprv=$(cardano-address key child 1854H/1815H/${acct_idx}H/0/${key_idx} <<< ${root_prv})
-                            stake_xprv=$(cardano-address key child 1854H/1815H/${acct_idx}H/2/${key_idx} <<< ${root_prv})
-                            payment_xpub=$(cardano-address key public ${caddr_arg} <<< ${payment_xprv})
-                            stake_xpub=$(cardano-address key public ${caddr_arg} <<< ${stake_xprv})
-                            pes_key=$(bech32 <<< ${payment_xprv} | cut -b -128)$(bech32 <<< ${payment_xpub})
-                            ses_key=$(bech32 <<< ${stake_xprv} | cut -b -128)$(bech32 <<< ${stake_xpub})
-                            cat <<-EOF > "${ms_payment_sk_file}"
-															{
-																	"type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
-																	"description": "MultiSig Payment Signing Key",
-																	"cborHex": "5880${pes_key}"
-															}
-															EOF
-                            cat <<-EOF > "${ms_stake_sk_file}"
-															{
-																	"type": "StakeExtendedSigningKeyShelley_ed25519_bip32",
-																	"description": "MultiSig Stake Signing Key",
-																	"cborHex": "5880${ses_key}"
-															}
-															EOF
-                            println ACTION "${CCLI} key verification-key --signing-key-file ${ms_payment_sk_file} --verification-key-file ${TMP_DIR}/ms_payment.evkey"
-                            if ! stdout=$(${CCLI} key verification-key --signing-key-file "${ms_payment_sk_file}" --verification-key-file "${TMP_DIR}/ms_payment.evkey" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment signing key extraction!\n${stdout}"; waitToProceed && continue
-                            fi
-                            println ACTION "${CCLI} key verification-key --signing-key-file ${ms_stake_sk_file} --verification-key-file ${TMP_DIR}/ms_stake.evkey"
-                            if ! stdout=$(${CCLI} key verification-key --signing-key-file "${ms_stake_sk_file}" --verification-key-file "${TMP_DIR}/ms_stake.evkey" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake signing key extraction!\n${stdout}"; waitToProceed && continue
-                            fi
-                            println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_payment.evkey --verification-key-file ${ms_payment_vk_file}"
-                            if ! stdout=$(${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_payment.evkey" --verification-key-file "${ms_payment_vk_file}" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig payment verification key extraction!\n${stdout}"; waitToProceed && continue
-                            fi
-                            println ACTION "${CCLI} key non-extended-key --extended-verification-key-file ${TMP_DIR}/ms_stake.evkey --verification-key-file ${ms_stake_vk_file}"
-                            if ! stdout=$(${CCLI} key non-extended-key --extended-verification-key-file "${TMP_DIR}/ms_stake.evkey" --verification-key-file "${ms_stake_vk_file}" 2>&1); then
-                              println ERROR "\n${FG_RED}ERROR${NC}: failure during MultiSig stake verification key extraction!\n${stdout}"; waitToProceed && continue
-                            fi
-                            ;;
-                        esac
-                        ;;
-                    esac
-                    chmod 600 "${WALLET_FOLDER}/${wallet_name}/${WALLET_MULTISIG_PREFIX}"*
-                    echo
-                    getCredentials ${wallet_name}
-                    println "Wallet   : ${FG_GREEN}${wallet_name}${NC}"
-                    println "MultiSig Credentials"
-                    println "Payment  : ${ms_pay_cred}"
-                    println "Stake    : ${ms_stake_cred}"
-                    waitToProceed && continue
                     ;; ###################################################################
                 esac # advanced >> MultiSig sub OPERATION
               done # MultiSig loop

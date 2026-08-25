@@ -1,4 +1,5 @@
 HWCLIversionCheck
+_cntools_compatibility_wallet_mnemonic_run
 archiveLog
 assembleTx
 buildOfflineJSON

@@ -13,7 +13,7 @@
     {
       "mode": "0444",
       "path": "cntools.library",
-      "sha256": "6c3aa64f4cfbd23849955efa4e3815e3f3700d29de075def1df4189e73769dac",
+      "sha256": "1404c5ce1bba3fe732478e905e4d9c3258a9f8d41ee77ca4d75d5aae4f0fa52f",
       "source": "scripts/common-helper-scripts/cntools.library",
       "validator": "shell"
     },
@@ -55,14 +55,14 @@
     {
       "mode": "0444",
       "path": "cntools/core/dispatcher.sh",
-      "sha256": "fefa0f926a97ddc4a47e16345669585692a0664d25d4a24216268db2e120225d",
+      "sha256": "46afc9b7efb57e1cca61e54ac945686de8cbec008f82ab70a8127973e53b13f8",
       "source": "scripts/common-helper-scripts/cntools/core/dispatcher.sh",
       "validator": "shell"
     },
     {
       "mode": "0444",
       "path": "cntools/core/lifecycle.sh",
-      "sha256": "c08dcfe36ca8db571f96ecc277978b0d28f93c170b8123b5f2a46de4d0f09a33",
+      "sha256": "132ca2401db29bf717f50b3b3f14d24adfabd77588475b990ee8f306bf4f802a",
       "source": "scripts/common-helper-scripts/cntools/core/lifecycle.sh",
       "validator": "shell"
     },
@@ -76,7 +76,7 @@
     {
       "mode": "0444",
       "path": "cntools/core/result.sh",
-      "sha256": "a14bc0080afd49b455ff2a924bee4a3cc8aa94b7d87138f97f350fe100cc851c",
+      "sha256": "3e087da9ecc5b40b24903445cbfb6aefe03c410428868959d7625decfd3d35d2",
       "source": "scripts/common-helper-scripts/cntools/core/result.sh",
       "validator": "shell"
     },
@@ -103,72 +103,72 @@
     },
     {
       "mode": "0444",
-      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/010-common-dialog.sh",
+      "path": "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/010-common-dialog.sh",
       "sha256": "5408355794fa187dbac5af7b66b956ab84216fd91ee4b6ec8bbe420b05fea8a7",
-      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/010-common-dialog.sh",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/010-common-dialog.sh",
       "validator": "shell"
     },
     {
       "mode": "0444",
-      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/020-terminal-selection-security.sh",
+      "path": "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/020-terminal-selection-security.sh",
       "sha256": "bb6f10e533f45cb90577e32d0d7a57ca86fe0c97d950938911be8eecec4a1460",
-      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/020-terminal-selection-security.sh",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/020-terminal-selection-security.sh",
       "validator": "shell"
     },
     {
       "mode": "0444",
-      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/030-governance-query.sh",
+      "path": "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/030-governance-query.sh",
       "sha256": "9e9179c73ccdd945c6ed6b7921038b7f6bc7679c4609af86565f7ad99ff8d519",
-      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/030-governance-query.sh",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/030-governance-query.sh",
       "validator": "shell"
     },
     {
       "mode": "0444",
-      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/040-address-wallet-query.sh",
+      "path": "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/040-address-wallet-query.sh",
       "sha256": "b23fdfec65fd7e991a3e46d2bef1d5c9ed09102e345cac7f3f5b75c761957df0",
-      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/040-address-wallet-query.sh",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/040-address-wallet-query.sh",
       "validator": "shell"
     },
     {
       "mode": "0444",
-      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/050-wallet-create-registration.sh",
-      "sha256": "a1fba108e3e9d3e8c388c54bd3a95332ee4444e61519330dd65347f4cfbe9b53",
-      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/050-wallet-create-registration.sh",
+      "path": "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/050-wallet-create-registration.sh",
+      "sha256": "2ff4b5f29674fb1cf65e5cda736c9e4f41af51adbe76b29fa5a41bb369f63fdc",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/050-wallet-create-registration.sh",
       "validator": "shell"
     },
     {
       "mode": "0444",
-      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/060-wallet-actions.sh",
+      "path": "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/060-wallet-actions.sh",
       "sha256": "73f150b684713b6c64211ff8c900a6deedb90a4aa15afde85dae44b8af220db5",
-      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/060-wallet-actions.sh",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/060-wallet-actions.sh",
       "validator": "shell"
     },
     {
       "mode": "0444",
-      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/070-pool-actions.sh",
+      "path": "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/070-pool-actions.sh",
       "sha256": "689a52e0e8f18a30984cebda6ef29dd929b66fb4cdba7ff03f673debb6e25257",
-      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/070-pool-actions.sh",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/070-pool-actions.sh",
       "validator": "shell"
     },
     {
       "mode": "0444",
-      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/080-metadata-assets.sh",
+      "path": "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/080-metadata-assets.sh",
       "sha256": "1444e366a79483bdcd538b59e01f8a623e3c6b4bf4fe58f5deaedc53ec247c80",
-      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/080-metadata-assets.sh",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/080-metadata-assets.sh",
       "validator": "shell"
     },
     {
       "mode": "0444",
-      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/090-governance-actions.sh",
+      "path": "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/090-governance-actions.sh",
       "sha256": "91fd56011304f4528851f8cd3b241ca63393440a51faa5c5380a22081a146ec8",
-      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/090-governance-actions.sh",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/090-governance-actions.sh",
       "validator": "shell"
     },
     {
       "mode": "0444",
-      "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/100-transaction-hardware-price.sh",
+      "path": "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/100-transaction-hardware-price.sh",
       "sha256": "237b3847db52432ff523c36c5ca7bcb08b437f8b8978389259789a70fee5071f",
-      "source": "scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/100-transaction-hardware-price.sh",
+      "source": "scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/100-transaction-hardware-price.sh",
       "validator": "shell"
     },
     {
@@ -195,7 +195,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/advanced/asset/create-policy/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "08acde4408e012e33d71a8c80549b39c2edb5e33b12a9794c2a6150798fe2fff",
       "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/create-policy/action.sh",
       "validator": "shell"
     },
@@ -209,7 +209,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/advanced/asset/decrypt-policy/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "80cb1c5a1377af45016a35efb509027b34117fc219f7719d7bca1ed4229af3d3",
       "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/decrypt-policy/action.sh",
       "validator": "shell"
     },
@@ -223,7 +223,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/advanced/asset/encrypt-policy/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "607d992609e4587b8852c8f388cd85cd8dd99e1c0dc8fa32e7427ad6d7fb2cc1",
       "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/encrypt-policy/action.sh",
       "validator": "shell"
     },
@@ -237,7 +237,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/advanced/asset/list/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "beec4a361bbbbbd46178bc6dffc79354307b7b60ded03a09286b09660339a259",
       "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/list/action.sh",
       "validator": "shell"
     },
@@ -272,7 +272,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/advanced/asset/register/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "98424351c83b56ca016943dd3dab2ba923c0975e18e690a6400d51a23495cfe4",
       "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/register/action.sh",
       "validator": "shell"
     },
@@ -286,7 +286,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/advanced/asset/show/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "83abc3e1ac430bd784de702a1aa076fd3895200d84ea4c18d6feca54c770e24d",
       "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/asset/show/action.sh",
       "validator": "shell"
     },
@@ -335,7 +335,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/advanced/multisig/create/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "fa94f874560e20cc1f8e051cc1a7160ddec7cd96a456946207aa7081a28868da",
       "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/multisig/create/action.sh",
       "validator": "shell"
     },
@@ -349,7 +349,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/advanced/multisig/derive-keys/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "ef280e2900d59f6d9b0a71f43c8448a41ddbfda6bde3b454a642509064a70150",
       "source": "scripts/common-helper-scripts/cntools/modules/root/advanced/multisig/derive-keys/action.sh",
       "validator": "shell"
     },
@@ -405,7 +405,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/blocks/epoch/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "b7f6b3d50c1020d3d1d4db639533fd43c259b77465e6351f4aea8fd43d395597",
       "source": "scripts/common-helper-scripts/cntools/modules/root/blocks/epoch/action.sh",
       "validator": "shell"
     },
@@ -426,7 +426,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/blocks/summary/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "fb4e6c0e7a66c186259156b7add44cc8aa4bc29c1465ad882c8b52302f911ccb",
       "source": "scripts/common-helper-scripts/cntools/modules/root/blocks/summary/action.sh",
       "validator": "shell"
     },
@@ -552,7 +552,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/pool/list/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "ba8e9e322126dc30ced80343a5285e982ce2d4dc1f01a71a13dbfdd3fe08f6da",
       "source": "scripts/common-helper-scripts/cntools/modules/root/pool/list/action.sh",
       "validator": "shell"
     },
@@ -643,7 +643,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/pool/show/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "07e81e60c3ccbb0d584deba97c1ab82b2094843da7f5da9e112e3b4e2ca8342a",
       "source": "scripts/common-helper-scripts/cntools/modules/root/pool/show/action.sh",
       "validator": "shell"
     },
@@ -727,14 +727,14 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/vote/catalyst/verify/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "9a6223a99226acda12190ec5e8c28f3a24a67d3257ae978aceea82ec7c5a174a",
       "source": "scripts/common-helper-scripts/cntools/modules/root/vote/catalyst/verify/action.sh",
       "validator": "shell"
     },
     {
       "mode": "0444",
       "path": "cntools/modules/root/vote/catalyst/verify/module.json",
-      "sha256": "b198a2791ace1759867b9772364239060aaf70c3ddd77f290631855fec081b03",
+      "sha256": "24179d83df74cfb7ffa9b7395f8876a4483787c2b89952a9674c5ad059de4b85",
       "source": "scripts/common-helper-scripts/cntools/modules/root/vote/catalyst/verify/module.json",
       "validator": "json"
     },
@@ -811,7 +811,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/vote/governance/info/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "fcf904aef981effefabe262ac7323453450aae68877c3f25aed49c32d4c1b6c7",
       "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/info/action.sh",
       "validator": "shell"
     },
@@ -846,7 +846,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/vote/governance/proposals/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "5bf324fa122b5c0c220863fd5343977ba9d680b0986ea090c08d15b284f937dc",
       "source": "scripts/common-helper-scripts/cntools/modules/root/vote/governance/proposals/action.sh",
       "validator": "shell"
     },
@@ -867,7 +867,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/wallet/decrypt/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "384c60a5ee5565fd94fc18315651ec08fb9e1873ad4a79de79bf7a1a83d97bca",
       "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/decrypt/action.sh",
       "validator": "shell"
     },
@@ -881,7 +881,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/wallet/deregister/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "743da15f4a220ba30dc8968be7ba04e1d2256bda0abd3c77af9cdf8bf5434be7",
       "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/deregister/action.sh",
       "validator": "shell"
     },
@@ -895,7 +895,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/wallet/encrypt/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "066ed53ef77ae42db6514ad26a566d545819ac9d0b4507c49fec8ff964533adf",
       "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/encrypt/action.sh",
       "validator": "shell"
     },
@@ -909,7 +909,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/wallet/import/hardware/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "05810321b883203290fda33c06fecb7619cc4f628010e4ed055597131c458009",
       "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/import/hardware/action.sh",
       "validator": "shell"
     },
@@ -944,7 +944,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/wallet/list/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "791fa9f0ae50f4db6d4edb9b9a711c7b2b0b1dd75865278a01a0d98f16d865c1",
       "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/list/action.sh",
       "validator": "shell"
     },
@@ -965,7 +965,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/wallet/new/cli/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "08e428171b1100343981ade4701d8e76403e3fc47f4a8b48a075d4bf15edb3dc",
       "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/new/cli/action.sh",
       "validator": "shell"
     },
@@ -1028,7 +1028,7 @@
     {
       "mode": "0444",
       "path": "cntools/modules/root/wallet/show/action.sh",
-      "sha256": "fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a",
+      "sha256": "93983a88dd0bbf3a9d5d26ace2295e438fb80c8479d5d2bf759f32cf40609bcb",
       "source": "scripts/common-helper-scripts/cntools/modules/root/wallet/show/action.sh",
       "validator": "shell"
     },
@@ -1064,10 +1064,10 @@
   "generationIdAlgorithm": "sha256-path-mode-content-v1",
   "legacyBundle": {
     "facade": "cntools.library",
-    "id": "15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f",
+    "id": "6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59",
     "idAlgorithm": "sha256-cntools-legacy-bundle-v1",
-    "logicalBodySha256": "c9c900b9f14399d024dea9b5b10184ebbdebdaed7d8cba1c246d69ca37971408",
-    "logicalBodySize": 278034,
+    "logicalBodySha256": "f86a3753a2c4b2251a4bc2fcc4f8ac69b5ca42cf3c527979580f0d931641575a",
+    "logicalBodySize": 357616,
     "members": [
       {
         "mode": "0444",
@@ -1096,8 +1096,8 @@
       {
         "mode": "0444",
         "path": "050-wallet-create-registration.sh",
-        "sha256": "a1fba108e3e9d3e8c388c54bd3a95332ee4444e61519330dd65347f4cfbe9b53",
-        "size": 34499
+        "sha256": "2ff4b5f29674fb1cf65e5cda736c9e4f41af51adbe76b29fa5a41bb369f63fdc",
+        "size": 114081
       },
       {
         "mode": "0444",
@@ -1130,7 +1130,7 @@
         "size": 22300
       }
     ],
-    "path": "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f",
+    "path": "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59",
     "schemaVersion": 1
   },
   "libraryManifest": "cntools/libs/manifest.json",

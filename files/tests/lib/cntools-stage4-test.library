@@ -1,0 +1,96 @@
+# shellcheck shell=bash
+# Definition-only helpers shared by focused Stage 4 action tests.
+# Callers provide fail() and select HASH_COMMAND as sha256sum or shasum.
+# shellcheck disable=SC2154
+
+file_mode() {
+  local target="$1"
+  local mode=""
+
+  if mode="$(stat -f '%Lp' "${target}" 2>/dev/null)"; then
+    :
+  else
+    mode="$(stat -c '%a' -- "${target}" 2>/dev/null)" || return 1
+  fi
+  [[ -n "${mode}" ]] || return 1
+  printf '%s\n' "${mode#0}"
+}
+
+file_hash() {
+  local target="$1"
+  local result=""
+
+  if [[ "${HASH_COMMAND}" == "sha256sum" ]]; then
+    result="$(sha256sum -- "${target}")" || return 1
+  else
+    result="$(shasum -a 256 -- "${target}")" || return 1
+  fi
+  printf '%s\n' "${result%% *}"
+}
+
+tree_snapshot() {
+  local root="$1"
+  local output_file="$2"
+  local target="" relative="" mode="" size="" digest="" link_target=""
+
+  : > "${output_file}"
+  mode="$(file_mode "${root}")" || return 1
+  printf 'd\t.\t%s\t-\t-\n' "${mode}" >> "${output_file}"
+  while IFS= read -r -d '' target; do
+    relative="${target#"${root}"/}"
+    mode="$(file_mode "${target}")" || return 1
+    if [[ -L "${target}" ]]; then
+      link_target="$(readlink "${target}")" || return 1
+      printf 'l\t%q\t%s\t-\t%q\n' \
+        "${relative}" "${mode}" "${link_target}" >> "${output_file}"
+    elif [[ -d "${target}" ]]; then
+      printf 'd\t%q\t%s\t-\t-\n' \
+        "${relative}" "${mode}" >> "${output_file}"
+    elif [[ -f "${target}" ]]; then
+      size="$(wc -c < "${target}")"
+      size="${size//[[:space:]]/}"
+      digest="$(file_hash "${target}")" || return 1
+      printf 'f\t%q\t%s\t%s\t%s\n' \
+        "${relative}" "${mode}" "${size}" "${digest}" >> "${output_file}"
+    else
+      printf 'o\t%q\t%s\t-\t-\n' \
+        "${relative}" "${mode}" >> "${output_file}"
+    fi
+  done < <(find "${root}" -mindepth 1 -print0 | LC_ALL=C sort -z)
+}
+
+assert_files_equal() {
+  local actual="$1"
+  local expected="$2"
+  local context="$3"
+
+  cmp -s -- "${actual}" "${expected}" || {
+    printf '%s\n' "--- expected: ${context} ---" >&2
+    awk '{ printf "%04d %s\\n", NR, $0 }' "${expected}" >&2
+    printf '%s\n' "--- actual: ${context} ---" >&2
+    awk '{ printf "%04d %s\\n", NR, $0 }' "${actual}" >&2
+    fail "${context} changed"
+  }
+}
+
+write_context() {
+  local target="$1"
+  local mode="$2"
+  local node_home="$3"
+
+  jq -nS --arg mode "${mode,,}" --arg node_home "${node_home}" '
+    {
+      advanced: true,
+      apiVersion: 1,
+      capabilities: ["forging", "local-cli", "metrics", "n2c"],
+      features: ["advanced"],
+      generationVersion: "13.5.7",
+      mode: $mode,
+      nodeHome: $node_home,
+      nodeImplementation: "cnode",
+      nodeNetwork: "preview",
+      schemaVersion: 1
+    }
+  ' > "${target}"
+  chmod 0400 "${target}"
+}

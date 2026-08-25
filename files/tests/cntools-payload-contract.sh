@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Validate the Stage 3 CNTools payload as inert, strictly described source data.
+# Validate the CNTools payload as strictly described source data with the
+# ledger-declared Stage 4 compatibility actions and remaining inert stubs.
 # This suite is intentionally independent of the deployment implementation so
 # a broken or weakened runtime validator cannot make its own fixture pass.
 set -euo pipefail
@@ -17,9 +18,13 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 MANIFEST_RELATIVE="scripts/common-helper-scripts/cntools/manifest.json"
 MANIFEST="${REPO_ROOT}/${MANIFEST_RELATIVE}"
 EXPECTED_INVENTORY="${REPO_ROOT}/files/tests/fixtures/cntools-stage3-payload.tsv"
+ACTIVE_ACTION_LEDGER="${REPO_ROOT}/files/tests/fixtures/cntools-stage4-active-actions.tsv"
+ACTIVE_ACTION_LEDGER_HEADER='# Stage 4 active action payload path and expected SHA-256.'
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-payload.XXXXXX")"
 TEST_ROOT="$(cd -P -- "${TEST_ROOT}" && pwd -P)"
 ACTION_STUB_SHA256='fe54f5f35ace512a21c33038600b6f21039db1a4ce1cd54fc5f8a5c3890e5d1a'
+ACTIVE_ACTION_COUNT=0
+declare -A ACTIVE_ACTION_SHA256=()
 
 cleanup() {
   rm -rf -- "${TEST_ROOT}"
@@ -31,7 +36,7 @@ fail() {
   exit 1
 }
 
-for required_command in awk cmp cp diff find grep jq ln mktemp mv sed sort; do
+for required_command in awk cat cmp cp diff find grep jq ln mktemp mv sed sort; do
   command -v "${required_command}" >/dev/null 2>&1 ||
     fail "required command is unavailable: ${required_command}"
 done
@@ -68,6 +73,33 @@ payload_path_valid() {
     [[ -n "${component}" && "${component}" != "." &&
        "${component}" != ".." ]] || return 1
   done
+}
+
+load_active_action_ledger() {
+  local header="" line="" path="" expected_hash="" extra=""
+  local previous_path=""
+
+  [[ -f "${ACTIVE_ACTION_LEDGER}" && ! -L "${ACTIVE_ACTION_LEDGER}" &&
+     -s "${ACTIVE_ACTION_LEDGER}" ]] || return 1
+  IFS= read -r header < "${ACTIVE_ACTION_LEDGER}" || return 1
+  [[ "${header}" == "${ACTIVE_ACTION_LEDGER_HEADER}" ]] || return 1
+
+  ACTIVE_ACTION_COUNT=0
+  ACTIVE_ACTION_SHA256=()
+  while IFS= read -r line; do
+    IFS=$'\t' read -r path expected_hash extra <<< "${line}"
+    [[ "${line}" == "${path}"$'\t'"${expected_hash}" &&
+       -z "${extra}" &&
+       "${path}" == cntools/modules/root/*/action.sh ]] || return 1
+    payload_path_valid "${path}" || return 1
+    [[ "${expected_hash}" =~ ^[0-9a-f]{64}$ ]] || return 1
+    [[ -z "${previous_path}" || "${previous_path}" < "${path}" ]] || return 1
+    [[ -z "${ACTIVE_ACTION_SHA256[${path}]+set}" ]] || return 1
+    ACTIVE_ACTION_SHA256["${path}"]="${expected_hash}"
+    ACTIVE_ACTION_COUNT=$((ACTIVE_ACTION_COUNT + 1))
+    previous_path="${path}"
+  done < <(sed -n '2,$p' "${ACTIVE_ACTION_LEDGER}")
+  (( ACTIVE_ACTION_COUNT <= 54 ))
 }
 
 payload_expected_source() {
@@ -136,14 +168,17 @@ validate_stage3_module_schema() {
   ' "$1" >/dev/null 2>&1
 }
 
-assert_definition_only_shell_member() {
+definition_only_shell_member() {
   local source_file="$1"
   local member_id="$2"
-  local sandbox="${TEST_ROOT}/definition-only-${member_id//\//_}"
+  local sandbox=""
   local output="${sandbox}.output"
+  local status=0
 
-  mkdir -p -- "${sandbox}"
-  if ! HOME="${sandbox}" TMPDIR="${sandbox}" \
+  sandbox="$(mktemp -d "${TEST_ROOT}/definition-only.XXXXXXXX")" ||
+    return 1
+  output="${sandbox}.output"
+  if HOME="${sandbox}" TMPDIR="${sandbox}" BASH_ENV=/dev/null ENV=/dev/null \
     "${BASH}" -c '
       member_source=$1
       set -f
@@ -169,13 +204,147 @@ assert_definition_only_shell_member() {
       [[ "$(umask)" == "${before_umask}" ]]
       [[ -z "$(find "${HOME}" -mindepth 1 -print -quit)" ]]
     ' bash "${source_file}" > "${output}" 2>&1; then
-    [[ ! -s "${output}" ]] || sed -n '1,40p' "${output}" >&2
-    fail "sourcing ${member_id} changed process state or created a file"
+    status=0
+  else
+    status=$?
   fi
-  [[ ! -s "${output}" ]] || {
-    sed -n '1,40p' "${output}" >&2
-    fail "sourcing ${member_id} produced output"
-  }
+  [[ "${status}" == 0 && ! -s "${output}" ]] || status=1
+  rm -rf -- "${sandbox}" "${output}"
+  return "${status}"
+}
+
+assert_definition_only_shell_member() {
+  local source_file="$1"
+  local member_id="$2"
+
+  definition_only_shell_member "${source_file}" "${member_id}" ||
+    fail "sourcing ${member_id} changed state, created a file, or produced output"
+}
+
+action_helper_prefix() {
+  local payload_path="${1:-}"
+  local action_relative="" action_identifier=""
+
+  [[ "${payload_path}" == cntools/modules/root/*/action.sh ]] || return 1
+  action_relative="${payload_path#cntools/modules/root/}"
+  action_relative="${action_relative%/action.sh}"
+  [[ "${action_relative}" =~ ^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*)*$ ]] ||
+    return 1
+  action_identifier="${action_relative//\//_}"
+  action_identifier="${action_identifier//-/_}"
+  [[ "${action_identifier}" =~ ^[a-z][a-z0-9_]*$ ]] || return 1
+  printf '_cntools_action_%s_\n' "${action_identifier}"
+}
+
+action_function_names() {
+  local source_file="${1:-}"
+  local sandbox="" output="" status=0
+
+  sandbox="$(mktemp -d "${TEST_ROOT}/action-functions.XXXXXXXX")" ||
+    return 1
+  output="${sandbox}.names"
+  if HOME="${sandbox}" TMPDIR="${sandbox}" BASH_ENV=/dev/null ENV=/dev/null \
+      "${BASH}" --noprofile --norc -c '
+        source_file=$1
+        while IFS=" " read -r declaration flag name extra; do
+          [[ "${declaration}" == "declare" && "${flag}" == "-f" &&
+             -n "${name}" && -z "${extra}" ]] || exit 1
+          builtin unset -f "${name}" 2>/dev/null || exit 1
+        done < <(builtin declare -F)
+        # shellcheck source=/dev/null
+        builtin source "${source_file}" >/dev/null 2>&1 || exit 1
+        while IFS=" " read -r declaration flag name extra; do
+          [[ "${declaration}" == "declare" && "${flag}" == "-f" &&
+             "${name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ && -z "${extra}" ]] ||
+            exit 1
+          builtin printf "%s\n" "${name}"
+        done < <(builtin declare -F)
+      ' bash "${source_file}" > "${output}" 2>/dev/null; then
+    status=0
+  else
+    status=$?
+  fi
+  if [[ "${status}" == 0 ]]; then
+    cat -- "${output}"
+  fi
+  rm -rf -- "${sandbox}"
+  return "${status}"
+}
+
+action_entrypoint_definition_count() {
+  local source_file="${1:-}"
+
+  awk '
+    /^[[:space:]]*cntools_action_main[[:space:]]*\(\)[[:space:]]*(\{|$)/ {
+      count++
+      next
+    }
+    /^[[:space:]]*function[[:space:]]+cntools_action_main([[:space:]]*\(\))?[[:space:]]*(\{|$)/ {
+      count++
+    }
+    END { print count + 0 }
+  ' "${source_file}"
+}
+
+action_direct_guard_valid() {
+  local source_file="${1:-}"
+  local sandbox="" stdout_file="" stderr_file="" expected_stderr=""
+  local status=0
+
+  sandbox="$(mktemp -d "${TEST_ROOT}/action-direct.XXXXXXXX")" || return 1
+  stdout_file="${sandbox}.stdout"
+  stderr_file="${sandbox}.stderr"
+  expected_stderr="${sandbox}.expected"
+  printf '%s\n' \
+    'CNTools actions are launched by the dispatcher, not directly.' \
+    > "${expected_stderr}"
+  if HOME="${sandbox}" TMPDIR="${sandbox}" BASH_ENV=/dev/null ENV=/dev/null \
+      "${BASH}" --noprofile --norc "${source_file}" \
+      > "${stdout_file}" 2> "${stderr_file}"; then
+    status=0
+  else
+    status=$?
+  fi
+  if [[ "${status}" == 64 && ! -s "${stdout_file}" &&
+        -z "$(find "${sandbox}" -mindepth 1 -print -quit)" ]] &&
+      cmp -s -- "${stderr_file}" "${expected_stderr}"; then
+    status=0
+  else
+    status=1
+  fi
+  rm -rf -- "${sandbox}" "${stdout_file}" "${stderr_file}" \
+    "${expected_stderr}"
+  return "${status}"
+}
+
+validate_action_source_contract() {
+  local payload_path="${1:-}"
+  local source_file="${2:-}"
+  local helper_prefix="" function_name="" entrypoint_count=0
+  local semantic_entrypoint_count=0 function_names=""
+
+  [[ -f "${source_file}" && ! -L "${source_file}" ]] || return 1
+  helper_prefix="$(action_helper_prefix "${payload_path}")" || return 1
+  "${BASH}" -n "${source_file}" >/dev/null 2>&1 || return 1
+  entrypoint_count="$(action_entrypoint_definition_count "${source_file}")" ||
+    return 1
+  [[ "${entrypoint_count}" == 1 ]] || return 1
+  function_names="$(action_function_names "${source_file}")" || return 1
+  [[ -n "${function_names}" ]] || return 1
+  while IFS= read -r function_name; do
+    [[ "${function_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+    if [[ "${function_name}" == "cntools_action_main" ]]; then
+      semantic_entrypoint_count=$((semantic_entrypoint_count + 1))
+    elif [[ "${function_name}" == "${helper_prefix}"* &&
+            "${function_name}" != "${helper_prefix}" ]]; then
+      :
+    else
+      return 1
+    fi
+  done <<< "${function_names}"
+  [[ "${semantic_entrypoint_count}" == 1 ]] || return 1
+  definition_only_shell_member "${source_file}" "${payload_path}" || return 1
+  action_direct_guard_valid "${source_file}"
 }
 
 validate_payload_contract() {
@@ -188,10 +357,13 @@ validate_payload_contract() {
   local expected_inventory="${TEST_ROOT}/expected-inventory.$$.tsv"
   local path="" source="" mode="" validator="" expected_hash=""
   local expected_source="" source_file="" actual_hash="" extra=""
+  local legacy_bundle_source_root=""
   local version_file="${repository_root}/scripts/common-helper-scripts/cntools/VERSION"
-  local record_count=0 action_stub_count=0 function_count=0
+  local record_count=0 action_count=0 action_stub_count=0
+  local active_action_count=0 active_path=""
   local -A seen_paths=()
   local -A seen_sources=()
+  local -A seen_active_actions=()
 
   [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] ||
     return 1
@@ -225,16 +397,16 @@ validate_payload_contract() {
       .schemaVersion == 1 and
       .facade == "cntools.library" and
       .idAlgorithm == "sha256-cntools-legacy-bundle-v1" and
-      .id == "15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f" and
-      .path == "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f" and
-      .logicalBodySize == 278034 and
-      .logicalBodySha256 == "c9c900b9f14399d024dea9b5b10184ebbdebdaed7d8cba1c246d69ca37971408" and
+      .id == "6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59" and
+      .path == "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59" and
+      .logicalBodySize == 357616 and
+      .logicalBodySha256 == "f86a3753a2c4b2251a4bc2fcc4f8ac69b5ca42cf3c527979580f0d931641575a" and
       .members == [
         {"mode":"0444","path":"010-common-dialog.sh","sha256":"5408355794fa187dbac5af7b66b956ab84216fd91ee4b6ec8bbe420b05fea8a7","size":14532},
         {"mode":"0444","path":"020-terminal-selection-security.sh","sha256":"bb6f10e533f45cb90577e32d0d7a57ca86fe0c97d950938911be8eecec4a1460","size":31976},
         {"mode":"0444","path":"030-governance-query.sh","sha256":"9e9179c73ccdd945c6ed6b7921038b7f6bc7679c4609af86565f7ad99ff8d519","size":46236},
         {"mode":"0444","path":"040-address-wallet-query.sh","sha256":"b23fdfec65fd7e991a3e46d2bef1d5c9ed09102e345cac7f3f5b75c761957df0","size":38284},
-        {"mode":"0444","path":"050-wallet-create-registration.sh","sha256":"a1fba108e3e9d3e8c388c54bd3a95332ee4444e61519330dd65347f4cfbe9b53","size":34499},
+        {"mode":"0444","path":"050-wallet-create-registration.sh","sha256":"2ff4b5f29674fb1cf65e5cda736c9e4f41af51adbe76b29fa5a41bb369f63fdc","size":114081},
         {"mode":"0444","path":"060-wallet-actions.sh","sha256":"73f150b684713b6c64211ff8c900a6deedb90a4aa15afde85dae44b8af220db5","size":18393},
         {"mode":"0444","path":"070-pool-actions.sh","sha256":"689a52e0e8f18a30984cebda6ef29dd929b66fb4cdba7ff03f673debb6e25257","size":27577},
         {"mode":"0444","path":"080-metadata-assets.sh","sha256":"1444e366a79483bdcd538b59e01f8a623e3c6b4bf4fe58f5deaedc53ec247c80","size":17503},
@@ -283,6 +455,11 @@ validate_payload_contract() {
      "$(awk 'END { print NR }' "${version_file}")" == "1" &&
      "$(< "${version_file}")" == "13.5.7" ]] || return 1
   [[ -d "${payload_source_root}" && ! -L "${payload_source_root}" ]] || return 1
+  legacy_bundle_source_root="${repository_root}/scripts/common-helper-scripts/$(
+    jq -er '.legacyBundle.path' "${manifest}"
+  )" || return 1
+  [[ -d "${legacy_bundle_source_root}" &&
+     ! -L "${legacy_bundle_source_root}" ]] || return 1
   [[ -z "$(find "${payload_source_root}" -type l -print -quit)" ]] || return 1
   for source_file in \
     "${repository_root}/scripts/common-helper-scripts/cntools.library" \
@@ -307,15 +484,18 @@ validate_payload_contract() {
     actual_hash="$(sha256_file "${source_file}")" || return 1
     [[ "${actual_hash}" == "${expected_hash}" ]] || return 1
     if [[ "${path}" == cntools/modules/root/*/action.sh ]]; then
-      [[ "${actual_hash}" == "${ACTION_STUB_SHA256}" ]] || return 1
-      function_count="$(grep -Ec \
-        '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(\)[[:space:]]*\{' \
-        "${source_file}")" || return 1
-      [[ "${function_count}" == 1 ]] || return 1
-      grep -Eq \
-        '^[[:space:]]*cntools_action_main[[:space:]]*\(\)[[:space:]]*\{' \
-        "${source_file}" || return 1
-      action_stub_count=$((action_stub_count + 1))
+      validate_action_source_contract "${path}" "${source_file}" || return 1
+      action_count=$((action_count + 1))
+      if [[ -n "${ACTIVE_ACTION_SHA256[${path}]+set}" ]]; then
+        [[ "${actual_hash}" == "${ACTIVE_ACTION_SHA256[${path}]}" ]] || return 1
+        grep -Eq 'Stage 4 ([[:alnum:]_-]+ )*compatibility action' \
+          "${source_file}" || return 1
+        seen_active_actions["${path}"]="Y"
+        active_action_count=$((active_action_count + 1))
+      else
+        [[ "${actual_hash}" == "${ACTION_STUB_SHA256}" ]] || return 1
+        action_stub_count=$((action_stub_count + 1))
+      fi
     fi
     case "${validator}" in
       shell) "${BASH}" -n "${source_file}" >/dev/null 2>&1 || return 1 ;;
@@ -328,16 +508,21 @@ validate_payload_contract() {
     record_count=$((record_count + 1))
   done < <(jq -r '.files[] | [.path, .source, .mode, .validator, .sha256] | @tsv' "${manifest}")
   (( record_count == 151 )) || return 1
-  (( action_stub_count == 54 )) || return 1
+  (( action_count == 54 && active_action_count == ACTIVE_ACTION_COUNT &&
+     action_stub_count + active_action_count == action_count )) || return 1
+  for active_path in "${!ACTIVE_ACTION_SHA256[@]}"; do
+    [[ -n "${seen_active_actions[${active_path}]+set}" ]] || return 1
+  done
 
   {
     printf '%s\n' \
       scripts/common-helper-scripts/cntools.library \
       scripts/common-helper-scripts/cntools.conf.example
     find "${payload_source_root}" -type f \
-      ! -path "${repository_root}/${MANIFEST_RELATIVE}" -print |
-      sed "s#^${repository_root}/##"
-  } | sort > "${actual_sources}"
+      ! -path "${repository_root}/${MANIFEST_RELATIVE}" \
+      ! -path "${payload_source_root}/libs/legacy/*" -print
+    find "${legacy_bundle_source_root}" -type f -print
+  } | sed "s#^${repository_root}/##" | sort > "${actual_sources}"
   sort -o "${declared_sources}" "${declared_sources}"
   cmp -s "${actual_sources}" "${declared_sources}" || return 1
 
@@ -584,6 +769,111 @@ expect_manifest_rejection() {
   fi
 }
 
+run_action_source_contract_tests() {
+  local fixture_root="${TEST_ROOT}/action-source-contract"
+  local payload_path='cntools/modules/root/vote/catalyst/verify/action.sh'
+  local valid_action="${fixture_root}/valid.sh"
+  local no_helper_action="${fixture_root}/no-helper.sh"
+  local wrong_prefix_action="${fixture_root}/wrong-prefix.sh"
+  local public_helper_action="${fixture_root}/public-helper.sh"
+  local duplicate_main_action="${fixture_root}/duplicate-main.sh"
+  local top_level_action="${fixture_root}/top-level.sh"
+  local missing_guard_action="${fixture_root}/missing-guard.sh"
+
+  write_direct_guard() {
+    local target="$1"
+
+    printf '%s\n' \
+      'if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then' \
+      '  printf '\''%s\n'\'' '\''CNTools actions are launched by the dispatcher, not directly.'\'' >&2' \
+      '  exit 64' \
+      'fi' \
+      >> "${target}"
+  }
+
+  expect_action_source_rejection() {
+    local target="$1"
+    local context="$2"
+
+    if validate_action_source_contract "${payload_path}" "${target}"; then
+      fail "action source contract accepted ${context}"
+    fi
+  }
+
+  mkdir -p -- "${fixture_root}"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    '_cntools_action_vote_catalyst_verify_parse() { :; }' \
+    '_cntools_action_vote_catalyst_verify_render()' \
+    '{' \
+    '  :' \
+    '}' \
+    'cntools_action_main() {' \
+    '  _cntools_action_vote_catalyst_verify_parse' \
+    '  _cntools_action_vote_catalyst_verify_render' \
+    '}' \
+    > "${valid_action}"
+  write_direct_guard "${valid_action}"
+  validate_action_source_contract "${payload_path}" "${valid_action}" ||
+    fail 'action source contract rejected valid ID-scoped helpers'
+
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'cntools_action_main() { :; }' \
+    > "${no_helper_action}"
+  write_direct_guard "${no_helper_action}"
+  validate_action_source_contract "${payload_path}" "${no_helper_action}" ||
+    fail 'action source contract rejected an action without helpers'
+
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    '_cntools_action_vote_catalyst_other_parse() { :; }' \
+    'cntools_action_main() { :; }' \
+    > "${wrong_prefix_action}"
+  write_direct_guard "${wrong_prefix_action}"
+  expect_action_source_rejection "${wrong_prefix_action}" \
+    'a helper using another action ID prefix'
+
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'parse_response() { :; }' \
+    'cntools_action_main() { :; }' \
+    > "${public_helper_action}"
+  write_direct_guard "${public_helper_action}"
+  expect_action_source_rejection "${public_helper_action}" \
+    'a public unscoped helper'
+
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'cntools_action_main() { :; }' \
+    'function cntools_action_main {' \
+    '  :' \
+    '}' \
+    > "${duplicate_main_action}"
+  write_direct_guard "${duplicate_main_action}"
+  expect_action_source_rejection "${duplicate_main_action}" \
+    'duplicate cntools_action_main definitions'
+
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'printf executed > "${HOME}/top-level.executed"' \
+    'cntools_action_main() { :; }' \
+    > "${top_level_action}"
+  write_direct_guard "${top_level_action}"
+  expect_action_source_rejection "${top_level_action}" \
+    'top-level action execution'
+
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'cntools_action_main() { :; }' \
+    > "${missing_guard_action}"
+  expect_action_source_rejection "${missing_guard_action}" \
+    'an action without the direct-execution guard'
+}
+
+load_active_action_ledger ||
+  fail "Stage 4 active-action ledger is malformed or unsafe"
+run_action_source_contract_tests
 validate_payload_contract "${MANIFEST}" "${REPO_ROOT}" ||
   fail "checked-in CNTools payload failed validation"
 assert_expected_inventory "${MANIFEST}"

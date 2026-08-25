@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Prove that the temporary Stage 2 compatibility split is byte-for-byte and
-# source-time compatible with the frozen CNTools 13.5.7 monolith. This suite is
-# intentionally independent of the deployment and payload validators.
+# Prove that the content-addressed compatibility split reconstructs its pinned
+# logical monolith and remains source-time compatible with that oracle. This
+# suite is intentionally independent of the deployment and payload validators.
 # shellcheck disable=SC1090,SC1091,SC2034,SC2154,SC2329
 set -euo pipefail
 
@@ -17,12 +17,12 @@ export LC_ALL
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 FACADE_SOURCE="${REPO_ROOT}/scripts/common-helper-scripts/cntools.library"
 FUNCTION_FIXTURE="${REPO_ROOT}/files/tests/fixtures/cntools-library-functions.txt"
-BUNDLE_ID="15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f"
+BUNDLE_ID="6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59"
 BUNDLE_SOURCE="${REPO_ROOT}/scripts/common-helper-scripts/cntools/libs/legacy/${BUNDLE_ID}"
-LOGICAL_BODY_SIZE=278034
-LOGICAL_BODY_SHA256="c9c900b9f14399d024dea9b5b10184ebbdebdaed7d8cba1c246d69ca37971408"
-MONOLITH_SIZE=278228
-MONOLITH_SHA256="92e800f58948a570da401bef431d6e2449f25b337138f242ab3eeb48b0cf162b"
+LOGICAL_BODY_SIZE=357616
+LOGICAL_BODY_SHA256="f86a3753a2c4b2251a4bc2fcc4f8ac69b5ca42cf3c527979580f0d931641575a"
+MONOLITH_SIZE=357810
+MONOLITH_SHA256="3ab063ed604ad7e4fab00371362a71e464d1a91dc3b77b7cb03cee43e5d2d391"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-split.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 
@@ -38,14 +38,14 @@ MEMBERS=(
   090-governance-actions.sh
   100-transaction-hardware-price.sh
 )
-MEMBER_LINES=(344 727 740 768 584 414 527 406 521 445)
-MEMBER_SIZES=(14532 31976 46236 38284 34499 18393 27577 17503 22753 22300)
+MEMBER_LINES=(344 727 740 768 2600 414 527 406 521 445)
+MEMBER_SIZES=(14532 31976 46236 38284 114081 18393 27577 17503 22753 22300)
 MEMBER_HASHES=(
   5408355794fa187dbac5af7b66b956ab84216fd91ee4b6ec8bbe420b05fea8a7
   bb6f10e533f45cb90577e32d0d7a57ca86fe0c97d950938911be8eecec4a1460
   9e9179c73ccdd945c6ed6b7921038b7f6bc7679c4609af86565f7ad99ff8d519
   b23fdfec65fd7e991a3e46d2bef1d5c9ed09102e345cac7f3f5b75c761957df0
-  a1fba108e3e9d3e8c388c54bd3a95332ee4444e61519330dd65347f4cfbe9b53
+  2ff4b5f29674fb1cf65e5cda736c9e4f41af51adbe76b29fa5a41bb369f63fdc
   73f150b684713b6c64211ff8c900a6deedb90a4aa15afde85dae44b8af220db5
   689a52e0e8f18a30984cebda6ef29dd929b66fb4cdba7ff03f673debb6e25257
   1444e366a79483bdcd538b59e01f8a623e3c6b4bf4fe58f5deaedc53ec247c80
@@ -218,7 +218,7 @@ stage_runtime_fixture() {
 run_facade_inventory_probe() {
   local facade="$1" runtime_root="$2" working_directory="$3" output="$4"
 
-  env -i PATH="${PATH}" HOME="${runtime_root}/home" \
+  env -i PATH="${PATH}" PWD="${PWD}" HOME="${runtime_root}/home" \
     "${BASH}" --noprofile --norc -c '
       set -eo pipefail
       set +u
@@ -269,12 +269,12 @@ run_facade_inventory_probe() {
       test "${TMP_DIR}" = "${runtime}/tmp/cntools"
       test "${CNTOOLS_VERSION}" = 13.5.7
       test "${CNTOOLS_MODE}" = OFFLINE
-      ! declare -F __guild_cntools_legacy_bundle_15b90fa1 >/dev/null
+      ! declare -F __guild_cntools_legacy_bundle_6e40118f >/dev/null
       ! declare -f logln | grep -q preexisting-logln-sentinel
       declare -F | awk "{print \$3}" | LC_ALL=C sort
       builtin source "$facade"
       test "${TMP_DIR}" = "${runtime}/tmp/cntools/cntools"
-      ! declare -F __guild_cntools_legacy_bundle_15b90fa1 >/dev/null
+      ! declare -F __guild_cntools_legacy_bundle_6e40118f >/dev/null
     ' cntools-facade-probe "${facade}" "${runtime_root}" \
       "${working_directory}" > "${output}"
 }
@@ -302,7 +302,7 @@ run_source_state_probe() {
 
   mkdir -p "${probe_root}/cwd" "${probe_root}/runtime/home" \
     "${probe_root}/runtime/logs"
-  env -i PATH="${PATH}" HOME="${probe_root}/runtime/home" \
+  env -i PATH="${PATH}" PWD="${PWD}" HOME="${probe_root}/runtime/home" \
     PROBE_FACADE="${facade}" PROBE_ROOT="${probe_root}" \
     "${BASH}" --noprofile --norc -c '
       set +e
@@ -387,7 +387,7 @@ run_source_state_probe() {
       test ! -s "$probe_second_stdout" && test ! -s "$probe_second_stderr" || exit 110
       test "$probe_first_tmp" = "${PROBE_ROOT}/runtime/tmp/cntools" || exit 111
       test "$TMP_DIR" = "${PROBE_ROOT}/runtime/tmp/cntools/cntools" || exit 112
-      ! declare -F __guild_cntools_legacy_bundle_15b90fa1 >/dev/null || exit 113
+      ! declare -F __guild_cntools_legacy_bundle_6e40118f >/dev/null || exit 113
       ! declare -f logln | grep -q preexisting-logln-sentinel || exit 114
 
       probe_after_variable_names=$(compgen -A variable | LC_ALL=C sort)
@@ -469,7 +469,7 @@ snapshot_tree() {
 run_early_failure_probe() {
   local node_home="$1" expected_error="$2" output_prefix="$3"
 
-  env -i PATH="${PATH}" HOME="${node_home}/home" NODE_HOME="${node_home}" \
+  env -i PATH="${PATH}" PWD="${PWD}" HOME="${node_home}/home" NODE_HOME="${node_home}" \
     "${BASH}" --noprofile --norc -c '
       set +e
       set +u
@@ -529,7 +529,7 @@ run_early_failure_probe() {
       ! declare -p CNTOOLS_MAJOR_VERSION >/dev/null 2>&1 || exit 91
       ! declare -p ESC >/dev/null 2>&1 || exit 92
       ! declare -F logln >/dev/null || exit 93
-      ! declare -F __guild_cntools_legacy_bundle_15b90fa1 >/dev/null || exit 94
+      ! declare -F __guild_cntools_legacy_bundle_6e40118f >/dev/null || exit 94
       test ! -e "${runtime}/tmp" && test ! -e "${runtime}/wallet" || exit 95
       test ! -e "${runtime}/pool" && test ! -e "${runtime}/asset" || exit 96
       printf "%s\n" "$source_status"
@@ -558,7 +558,7 @@ assert_failed_fixture_unchanged() {
 run_loader_collision_probe() {
   local node_home="$1" output="${TEST_ROOT}/loader-collision"
 
-  env -i PATH="${PATH}" HOME="${node_home}/home" NODE_HOME="${node_home}" \
+  env -i PATH="${PATH}" PWD="${PWD}" HOME="${node_home}/home" NODE_HOME="${node_home}" \
     "${BASH}" --noprofile --norc -c '
       set +e
       set +u
@@ -568,13 +568,13 @@ run_loader_collision_probe() {
       POOL_FOLDER="${NODE_HOME}/runtime/pool"
       ASSET_FOLDER="${NODE_HOME}/runtime/asset"
       LOG_DIR="${NODE_HOME}/runtime/logs"
-      __guild_cntools_legacy_bundle_15b90fa1() {
+      __guild_cntools_legacy_bundle_6e40118f() {
         printf "preexisting-loader-sentinel\n"
       }
-      before_function=$(declare -f __guild_cntools_legacy_bundle_15b90fa1)
+      before_function=$(declare -f __guild_cntools_legacy_bundle_6e40118f)
       builtin source "$facade" >"$1.stdout" 2>"$1.stderr"
       source_status=$?
-      after_function=$(declare -f __guild_cntools_legacy_bundle_15b90fa1)
+      after_function=$(declare -f __guild_cntools_legacy_bundle_6e40118f)
       test "$source_status" -ne 0 || exit 70
       test "$before_function" = "$after_function" || exit 71
       test ! -s "$1.stdout" || exit 72
@@ -591,7 +591,7 @@ run_missing_middle_propagation_probe() {
   local node_home="$1" output="${TEST_ROOT}/missing-middle"
 
   set +e
-  env -i PATH="${PATH}" HOME="${node_home}/home" NODE_HOME="${node_home}" \
+  env -i PATH="${PATH}" PWD="${PWD}" HOME="${node_home}/home" NODE_HOME="${node_home}" \
     "${BASH}" --noprofile --norc -c '
       set -e
       set +u
@@ -624,7 +624,7 @@ run_hostile_alias_probe() {
   local alias_status=0
 
   set +e
-  env -i PATH="${PATH}" HOME="${node_home}/home" NODE_HOME="${node_home}" \
+  env -i PATH="${PATH}" PWD="${PWD}" HOME="${node_home}/home" NODE_HOME="${node_home}" \
     PROBE_SENTINEL="${sentinel}" \
     "${BASH}" --noprofile --norc -c '
       set +e
@@ -714,7 +714,7 @@ run_hostile_command_collision_probe() {
   local source_status=0
 
   set +e
-  env -i PATH="${PATH}" HOME="${node_home}/home" NODE_HOME="${node_home}" \
+  env -i PATH="${PATH}" PWD="${PWD}" HOME="${node_home}/home" NODE_HOME="${node_home}" \
     PROBE_SENTINEL="${output}.tampered-member-executed" \
     TAMPERED_MEMBER="${member_path}" EXPECTED_MEMBER_HASH="${expected_hash}" \
     "${BASH}" --noprofile --norc -c '
@@ -805,6 +805,7 @@ assert_eq "$(sha256_file "${identity_stream}")" "${BUNDLE_ID}" \
 boundary_bundle="${TEST_ROOT}/boundary-bundle"
 mkdir -p -- "${boundary_bundle}"
 for member in "${MEMBERS[@]}"; do cp -- "${BUNDLE_SOURCE}/${member}" "${boundary_bundle}/${member}"; done
+chmod 0644 "${boundary_bundle}"/*.sh
 sed '$d' "${BUNDLE_SOURCE}/${MEMBERS[0]}" > "${boundary_bundle}/${MEMBERS[0]}"
 {
   tail -n 1 "${BUNDLE_SOURCE}/${MEMBERS[0]}"
@@ -956,7 +957,7 @@ run_source_state_probe "${candidate_probe_root}" \
   "${TEST_ROOT}/candidate-source-state"
 diff -u "${TEST_ROOT}/oracle-source-state" \
   "${TEST_ROOT}/candidate-source-state" ||
-  fail "facade source-time state differs from the frozen monolith"
+  fail "facade source-time state differs from the pinned logical monolith"
 
 runtime_scripts="${TEST_ROOT}/installed/scripts"
 stage_runtime_fixture "${runtime_scripts}"
@@ -964,7 +965,7 @@ run_facade_inventory_probe "${runtime_scripts}/cntools.library" \
   "${TEST_ROOT}/runtime" "${TEST_ROOT}/arbitrary-cwd" \
   "${TEST_ROOT}/facade-functions.actual"
 diff -u "${FUNCTION_FIXTURE}" "${TEST_ROOT}/facade-functions.actual" ||
-  fail "facade changed the exact 121-function inventory"
+  fail "facade changed the exact 122-function inventory"
 
 # A fresh Git checkout uses ordinary 0755 directories and 0644 files. The
 # facade must still be directly sourceable for development; strict 0555/0444
@@ -972,7 +973,7 @@ diff -u "${FUNCTION_FIXTURE}" "${TEST_ROOT}/facade-functions.actual" ||
 run_facade_inventory_probe "${FACADE_SOURCE}" "${TEST_ROOT}/repo-runtime" \
   "${TEST_ROOT}/arbitrary-cwd" "${TEST_ROOT}/repo-functions.actual"
 diff -u "${FUNCTION_FIXTURE}" "${TEST_ROOT}/repo-functions.actual" ||
-  fail "fresh-checkout facade changed the exact 121-function inventory"
+  fail "fresh-checkout facade changed the exact 122-function inventory"
 
-printf 'CNTools library split contract tests passed (10 members, 121 functions, %s)\n' \
+printf 'CNTools library split contract tests passed (10 members, 122 functions, %s)\n' \
   "${BUNDLE_ID}"

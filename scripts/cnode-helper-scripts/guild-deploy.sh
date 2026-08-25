@@ -3410,7 +3410,7 @@ dispatcher_cntools_expected_record() {
     cntools/templates/action/action.sh)
       printf 'scripts/common-helper-scripts/%s\t%s\t%s\n' "${1}" 0444 shell
       ;;
-    cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/010-common-dialog.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/020-terminal-selection-security.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/030-governance-query.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/040-address-wallet-query.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/050-wallet-create-registration.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/060-wallet-actions.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/070-pool-actions.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/080-metadata-assets.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/090-governance-actions.sh|cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f/100-transaction-hardware-price.sh)
+    cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/010-common-dialog.sh|cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/020-terminal-selection-security.sh|cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/030-governance-query.sh|cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/040-address-wallet-query.sh|cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/050-wallet-create-registration.sh|cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/060-wallet-actions.sh|cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/070-pool-actions.sh|cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/080-metadata-assets.sh|cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/090-governance-actions.sh|cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59/100-transaction-hardware-price.sh)
       printf 'scripts/common-helper-scripts/%s\t%s\t%s\n' "${1}" 0444 shell
       ;;
     *) return 1 ;;
@@ -3546,17 +3546,17 @@ dispatcher_cntools_legacy_bundle_metadata_valid() {
       ] and
       .schemaVersion == 1 and
       .idAlgorithm == "sha256-cntools-legacy-bundle-v1" and
-      .id == "15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f" and
-      .path == "cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f" and
+      .id == "6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59" and
+      .path == "cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59" and
       .facade == "cntools.library" and
-      .logicalBodySize == 278034 and
-      .logicalBodySha256 == "c9c900b9f14399d024dea9b5b10184ebbdebdaed7d8cba1c246d69ca37971408" and
+      .logicalBodySize == 357616 and
+      .logicalBodySha256 == "f86a3753a2c4b2251a4bc2fcc4f8ac69b5ca42cf3c527979580f0d931641575a" and
       .members == [
         {"mode":"0444","path":"010-common-dialog.sh","sha256":"5408355794fa187dbac5af7b66b956ab84216fd91ee4b6ec8bbe420b05fea8a7","size":14532},
         {"mode":"0444","path":"020-terminal-selection-security.sh","sha256":"bb6f10e533f45cb90577e32d0d7a57ca86fe0c97d950938911be8eecec4a1460","size":31976},
         {"mode":"0444","path":"030-governance-query.sh","sha256":"9e9179c73ccdd945c6ed6b7921038b7f6bc7679c4609af86565f7ad99ff8d519","size":46236},
         {"mode":"0444","path":"040-address-wallet-query.sh","sha256":"b23fdfec65fd7e991a3e46d2bef1d5c9ed09102e345cac7f3f5b75c761957df0","size":38284},
-        {"mode":"0444","path":"050-wallet-create-registration.sh","sha256":"a1fba108e3e9d3e8c388c54bd3a95332ee4444e61519330dd65347f4cfbe9b53","size":34499},
+        {"mode":"0444","path":"050-wallet-create-registration.sh","sha256":"2ff4b5f29674fb1cf65e5cda736c9e4f41af51adbe76b29fa5a41bb369f63fdc","size":114081},
         {"mode":"0444","path":"060-wallet-actions.sh","sha256":"73f150b684713b6c64211ff8c900a6deedb90a4aa15afde85dae44b8af220db5","size":18393},
         {"mode":"0444","path":"070-pool-actions.sh","sha256":"689a52e0e8f18a30984cebda6ef29dd929b66fb4cdba7ff03f673debb6e25257","size":27577},
         {"mode":"0444","path":"080-metadata-assets.sh","sha256":"1444e366a79483bdcd538b59e01f8a623e3c6b4bf4fe58f5deaedc53ec247c80","size":17503},

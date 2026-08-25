@@ -11,7 +11,7 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_SCRIPT="${REPO_ROOT}/scripts/common-helper-scripts/cntools.sh"
 CNTOOLS_LIBRARY="${REPO_ROOT}/scripts/common-helper-scripts/cntools.library"
-CNTOOLS_LEGACY_BUNDLE_ID="15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f"
+CNTOOLS_LEGACY_BUNDLE_ID="6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59"
 FUNCTION_FIXTURE="${REPO_ROOT}/files/tests/fixtures/cntools-library-functions.txt"
 OFFLINE_JSON_FIXTURE="${REPO_ROOT}/files/tests/fixtures/cntools-offline-base.json"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-entrypoint.XXXXXX")"

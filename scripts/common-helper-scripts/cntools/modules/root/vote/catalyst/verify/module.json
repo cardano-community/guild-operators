@@ -4,7 +4,8 @@
     "features": [],
     "modes": [
       "local",
-      "light"
+      "light",
+      "offline"
     ],
     "nodeCapabilities": []
   },

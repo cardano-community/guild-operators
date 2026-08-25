@@ -678,7 +678,7 @@ command cat "${CNTOOLS_LIBRARY}" > "${CNTOOLS_LIBRARY_STATIC}"
 while IFS= read -r legacy_member; do
   command cat "${legacy_member}" >> "${CNTOOLS_LIBRARY_STATIC}"
 done < <(find \
-  "${REPO_ROOT}/scripts/common-helper-scripts/cntools/libs/legacy/15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f" \
+  "${REPO_ROOT}/scripts/common-helper-scripts/cntools/libs/legacy/6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59" \
   -mindepth 1 -maxdepth 1 -type f -print | LC_ALL=C sort)
 
 prepare_command_guards

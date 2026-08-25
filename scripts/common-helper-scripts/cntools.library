@@ -19,13 +19,13 @@
 # bundle is validated as a complete sibling tree before legacy initialization
 # creates directories or mutates ambient state. This temporary helper removes
 # itself after loading so the historical function inventory stays unchanged.
-if \builtin declare -F __guild_cntools_legacy_bundle_15b90fa1 \
+if \builtin declare -F __guild_cntools_legacy_bundle_6e40118f \
     >/dev/null 2>&1; then
   \builtin printf '%s\n' \
     'CNTools legacy bundle loader collides with an existing caller function.' >&2
   \builtin return 1
 fi
-__guild_cntools_legacy_bundle_15b90fa1() {
+__guild_cntools_legacy_bundle_6e40118f() {
   \builtin local operation="${1:-}"
   \builtin local facade_source="${BASH_SOURCE[0]}"
   \builtin local facade_dir="" bundle_root="" bundle_dir="" entry=""
@@ -35,9 +35,9 @@ __guild_cntools_legacy_bundle_15b90fa1() {
   \builtin local expected_member_mode="" expected_bundle_mode=""
   \builtin local actual_size="" actual_sha="" canonical_id=""
   \builtin local aliases_enabled="N"
-  \builtin local bundle_id="15b90fa18f302a89b7e3d0562c9909aacd06d684080fa28ef1a6a98112a5b47f"
-  \builtin local logical_body_sha="c9c900b9f14399d024dea9b5b10184ebbdebdaed7d8cba1c246d69ca37971408"
-  \builtin local logical_body_size="278034"
+  \builtin local bundle_id="6e40118f106169924a372a9d98fbc946cfc5362fcd1cd5a3ff048ae9287d5d59"
+  \builtin local logical_body_sha="f86a3753a2c4b2251a4bc2fcc4f8ac69b5ca42cf3c527979580f0d931641575a"
+  \builtin local logical_body_size="357616"
   \builtin local -a members member_sizes member_hashes
   members=(
     010-common-dialog.sh
@@ -52,14 +52,14 @@ __guild_cntools_legacy_bundle_15b90fa1() {
     100-transaction-hardware-price.sh
   )
   member_sizes=(
-    14532 31976 46236 38284 34499 18393 27577 17503 22753 22300
+    14532 31976 46236 38284 114081 18393 27577 17503 22753 22300
   )
   member_hashes=(
     5408355794fa187dbac5af7b66b956ab84216fd91ee4b6ec8bbe420b05fea8a7
     bb6f10e533f45cb90577e32d0d7a57ca86fe0c97d950938911be8eecec4a1460
     9e9179c73ccdd945c6ed6b7921038b7f6bc7679c4609af86565f7ad99ff8d519
     b23fdfec65fd7e991a3e46d2bef1d5c9ed09102e345cac7f3f5b75c761957df0
-    a1fba108e3e9d3e8c388c54bd3a95332ee4444e61519330dd65347f4cfbe9b53
+    2ff4b5f29674fb1cf65e5cda736c9e4f41af51adbe76b29fa5a41bb369f63fdc
     73f150b684713b6c64211ff8c900a6deedb90a4aa15afde85dae44b8af220db5
     689a52e0e8f18a30984cebda6ef29dd929b66fb4cdba7ff03f673debb6e25257
     1444e366a79483bdcd538b59e01f8a623e3c6b4bf4fe58f5deaedc53ec247c80
@@ -273,8 +273,8 @@ ESC=$(printf "\033")
 __CNTOOLS_LEGACY_LOGICAL_INTERSTITIAL__
 }
 
-if ! \__guild_cntools_legacy_bundle_15b90fa1 preflight; then
-  \builtin unset -f __guild_cntools_legacy_bundle_15b90fa1
+if ! \__guild_cntools_legacy_bundle_6e40118f preflight; then
+  \builtin unset -f __guild_cntools_legacy_bundle_6e40118f
   \builtin return 1
 fi
 
@@ -333,8 +333,8 @@ printf -v launch_modes_info "${FG_BLUE}INFO${NC}: Available launch modes, re-run
 
 # __CNTOOLS_LEGACY_LOGICAL_INITIALIZATION_END__
 
-if ! \__guild_cntools_legacy_bundle_15b90fa1 load; then
-  \builtin unset -f __guild_cntools_legacy_bundle_15b90fa1
+if ! \__guild_cntools_legacy_bundle_6e40118f load; then
+  \builtin unset -f __guild_cntools_legacy_bundle_6e40118f
   \builtin return 1
 fi
-\builtin unset -f __guild_cntools_legacy_bundle_15b90fa1
+\builtin unset -f __guild_cntools_legacy_bundle_6e40118f
