@@ -24,5 +24,4 @@ RUN set -x && apt-get -y update && apt-get -y --no-install-recommends install cu
     chmod 0755 guild-deploy.sh &&\
     export SUDO='N' &&\
     export G_ACCOUNT="${G_ACCOUNT}" &&\
-    export UPDATE_CHECK='N' &&\
     ./guild-deploy.sh -b "${BRANCH}" -s pblcowx

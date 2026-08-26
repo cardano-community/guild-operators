@@ -176,47 +176,51 @@ for network in guild mainnet preprod preview; do
 done
 
 (
+  # shellcheck source=../../scripts/cnode-helper-scripts/guild-deploy.sh
+  . "${ROOT_DIR}/scripts/cnode-helper-scripts/guild-deploy.sh"
   # shellcheck source=../../scripts/cnode-helper-scripts/deploy-cnode.sh
   . "${ROOT_DIR}/scripts/cnode-helper-scripts/deploy-cnode.sh"
 
-  URL_RAW="https://raw.example/fork/guild-operators/test-branch"
+  GIT_SOURCE_ROOT="${ROOT_DIR}"
   NETWORK="preview"
-  CURL_TIMEOUT=10
-  request_log="$(mktemp "${TMPDIR:-/tmp}/cnode-config-requests.XXXXXX")"
   output_file="$(mktemp "${TMPDIR:-/tmp}/cnode-config-output.XXXXXX")"
-  trap 'rm -f -- "${request_log}" "${output_file}"' EXIT
+  trap 'rm -f -- "${output_file}"' EXIT
 
   curl() {
-    local destination=""
-    local url=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        -o)
-          destination="$2"
-          shift 2
-          ;;
-        -*)
-          shift
-          [[ "$1" =~ ^[0-9]+$ ]] && shift || true
-          ;;
-        *)
-          url="$1"
-          shift
-          ;;
-      esac
-    done
-    printf '%s\n' "${url}" >> "${request_log}"
-    printf '%s\n' "${url}" > "${destination}"
+    fail "cnode configuration attempted network access: $*"
   }
 
   cnode_deploy_fetch_network_config "config.json" "${output_file}" ||
-    fail "canonical cnode configuration fetch failed"
-  [[ "$(wc -l < "${request_log}" | tr -d '[:space:]')" == "1" ]] ||
-    fail "cnode configuration fetch made more than one request"
-  grep -q '^https://raw.example/fork/guild-operators/test-branch/files/configs/cnode/preview/config.json$' \
-    "${request_log}" ||
-    fail "cnode configuration request used the wrong repository, branch, or path"
+    fail "canonical cnode configuration snapshot copy failed"
+  cmp -s "${ROOT_DIR}/files/configs/cnode/preview/config.json" "${output_file}" ||
+    fail "cnode configuration used the wrong snapshot path"
 )
+
+for profile in \
+  "${ROOT_DIR}/scripts/cnode-helper-scripts/deploy-cnode.sh" \
+  "${ROOT_DIR}/scripts/dingo-helper-scripts/deploy-dingo.sh" \
+  "${ROOT_DIR}/scripts/amaru-helper-scripts/deploy-amaru.sh"; do
+  if grep -q 'URL_RAW' "${profile}"; then
+    fail "$(basename "${profile}") still reads Guild payloads from raw URLs"
+  fi
+done
+
+for implementation in dingo amaru; do
+  profile="${ROOT_DIR}/scripts/${implementation}-helper-scripts/deploy-${implementation}.sh"
+  preflight_line="$(grep -n "${implementation}_deploy_preflight_snapshot || return 1" "${profile}" | tail -n 1 | cut -d: -f1)"
+  layout_line="$(grep -n "${implementation}_deploy_prepare_layout || return 1" "${profile}" | tail -n 1 | cut -d: -f1)"
+  [[ -n "${preflight_line}" && -n "${layout_line}" &&
+     "${preflight_line}" -lt "${layout_line}" ]] ||
+    fail "${implementation} does not preflight its complete snapshot before target layout"
+done
+
+cnode_preflight_line="$(grep -n 'run_step "Guild source preflight"' \
+  "${ROOT_DIR}/scripts/cnode-helper-scripts/deploy-cnode.sh" | cut -d: -f1)"
+cnode_populate_line="$(grep -n 'run_step "Scripts and configuration"' \
+  "${ROOT_DIR}/scripts/cnode-helper-scripts/deploy-cnode.sh" | cut -d: -f1)"
+[[ -n "${cnode_preflight_line}" && -n "${cnode_populate_line}" &&
+   "${cnode_preflight_line}" -lt "${cnode_populate_line}" ]] ||
+  fail "cnode does not preflight its complete snapshot before target mutation"
 
 GLIVEVIEW="${ROOT_DIR}/scripts/common-helper-scripts/gLiveView.sh"
 grep -Fq 'tip_gap "Tip gap" "slots"' "${GLIVEVIEW}" ||

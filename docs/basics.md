@@ -110,9 +110,9 @@ To download the pre-requisites scripts, execute the below:
 ```bash
 mkdir -p "$HOME/tmp"
 cd "$HOME/tmp"
-# Install curl
-# CentOS / RedHat - sudo dnf -y install curl
-# Ubuntu / Debian - sudo apt -y install curl
+# Install curl and git
+# CentOS / RedHat - sudo dnf -y install curl git
+# Ubuntu / Debian - sudo apt -y install curl git
 curl -sS -o guild-deploy.sh https://raw.githubusercontent.com/cardano-community/guild-operators/master/scripts/cnode-helper-scripts/guild-deploy.sh
 chmod 755 guild-deploy.sh
 ```
@@ -124,14 +124,24 @@ chmod 755 guild-deploy.sh
 
 The bootstrap URL intentionally remains under `scripts/cnode-helper-scripts`.
 That stable path preserves the existing download and upgrade workflow, but the
-downloaded dispatcher itself is node-agnostic.
+downloaded dispatcher itself is node-agnostic. It prepares one temporary
+shallow Git checkout of the selected account and branch, then runs the
+dispatcher and reads every Guild-owned deployment file from that checkout.
+Tracked files must still match the selected commit, and the chosen profile
+validates all required payloads before changing the node target. The temporary
+checkout is removed when deployment finishes or fails. Release APIs and
+third-party binary downloads remain separate because they are not files in
+Guild Operators.
+Fallback to `master` happens only after Git confirms that the selected branch
+or tag is absent. A historical branch that predates this snapshot protocol
+must be run with the matching historical `guild-deploy.sh` from that branch.
 
 The usage syntax can be checked using `./guild-deploy.sh -h`. The same
 downloaded entrypoint dispatches to the selected node implementation:
 
 ``` bash
 Usage: guild-deploy.sh [-i <cnode|dingo|amaru>] [-n <network>] \
-                       [-p path] [-t name] [-b branch] [-u] [-s flags]
+                       [-p path] [-t name] [-b branch] [-s flags]
 
 -i    Node implementation (default: cnode)
 -n    Network. cnode defaults to mainnet; alternate profiles require an
@@ -140,7 +150,6 @@ Usage: guild-deploy.sh [-i <cnode|dingo|amaru>] [-n <network>] \
 -p    Parent folder (default: /opt/cardano)
 -t    Top-level folder and service name (default: selected implementation)
 -b    Guild Operators branch (default: stored deployment branch, then master)
--u    Skip the dispatcher update check
 -s    Selective install flags
         p  runtime prerequisites
         d  selected implementation binaries
@@ -228,9 +237,9 @@ including prereleases, and verifies its GitHub-published asset digest. For
 Dingo the same selection installs its separately pinned and
 checksum-verified CLI companion. Every successful
 target also contains `.deployment.json`, which records the implementation,
-network, Guild repository and branch, service name, installed and targeted
-versions, and declared capabilities. Re-running the dispatcher restores those
-values from the manifest. An explicit
+network, Guild repository, branch and exact source revision, service name,
+installed and targeted versions, and declared capabilities. Re-running the
+dispatcher restores those values from the manifest. An explicit
 `G_ACCOUNT` user-variable/environment override or `-b` branch selects a new
 update source; an explicit network must match the existing deployment and
 cannot convert the target.

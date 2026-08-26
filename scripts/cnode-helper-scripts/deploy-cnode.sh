@@ -133,6 +133,64 @@ err_exit() {
 }
 
 # Validate dispatcher context and initialise cnode-specific profile state.
+cnode_deploy_fetch() {
+  dispatcher_source_copy "$1" "$2"
+}
+
+cnode_deploy_preflight_snapshot() {
+  local release_path=""
+  local -a shell_payloads json_payloads
+
+  shell_payloads=(
+    scripts/common-helper-scripts/lib/deployment.library
+    scripts/common-helper-scripts/lib/env.library
+    scripts/common-helper-scripts/lib/node-api.library
+    scripts/common-helper-scripts/lib/systemd.library
+    scripts/cnode-helper-scripts/cnode.adapter
+    scripts/common-helper-scripts/env
+    scripts/cnode-helper-scripts/blockPerf.sh
+    scripts/cnode-helper-scripts/cabal-build-all.sh
+    scripts/cnode-helper-scripts/cncli.sh
+    scripts/cnode-helper-scripts/cnode.sh
+    scripts/common-helper-scripts/cntools.sh
+    scripts/common-helper-scripts/cntools.library
+    scripts/cnode-helper-scripts/dbsync.sh
+    scripts/common-helper-scripts/gLiveView.sh
+    scripts/cnode-helper-scripts/topologyUpdater.sh
+    scripts/cnode-helper-scripts/logMonitor.sh
+    scripts/cnode-helper-scripts/ogmios.sh
+    scripts/cnode-helper-scripts/submitapi.sh
+    scripts/cnode-helper-scripts/setup_mon.sh
+    scripts/grest-helper-scripts/setup-grest.sh
+    scripts/cnode-helper-scripts/mithril-client.sh
+    scripts/cnode-helper-scripts/mithril-relay.sh
+    scripts/cnode-helper-scripts/mithril-signer.sh
+    scripts/cnode-helper-scripts/mithril.library
+  )
+  json_payloads=(
+    files/node-implementations/cnode/release.json
+    "files/configs/cnode/${NETWORK}/alonzo-genesis.json"
+    "files/configs/cnode/${NETWORK}/byron-genesis.json"
+    "files/configs/cnode/${NETWORK}/conway-genesis.json"
+    "files/configs/cnode/${NETWORK}/shelley-genesis.json"
+    "files/configs/cnode/${NETWORK}/topology.json"
+    "files/configs/cnode/${NETWORK}/config.json"
+    "files/configs/cnode/${NETWORK}/db-sync-config.json"
+    "files/configs/cnode/${NETWORK}/submitapi.json"
+  )
+
+  declare -F dispatcher_preflight_shell_payloads >/dev/null 2>&1 &&
+    dispatcher_preflight_shell_payloads "${shell_payloads[@]}" ||
+    err_exit "Guild shell payload preflight failed."
+  declare -F dispatcher_preflight_json_payloads >/dev/null 2>&1 &&
+    dispatcher_preflight_json_payloads "${json_payloads[@]}" ||
+    err_exit "Guild JSON payload preflight failed."
+  release_path="$(dispatcher_source_path 'files/node-implementations/cnode/release.json')" ||
+    err_exit "Could not resolve cnode release metadata during preflight."
+  cnode_deploy_validate_release_metadata "${release_path}" ||
+    err_exit "Guild cnode release metadata failed preflight validation."
+}
+
 cnode_deploy_init_context() {
   [[ "${PROFILE_MANAGED:-N}" == "Y" ]] ||
     err_exit "deploy-cnode.sh must be loaded by guild-deploy.sh."
@@ -141,9 +199,11 @@ cnode_deploy_init_context() {
   [[ -n "${NODE_HOME:-}" && -n "${NODE_NAME:-}" &&
      -n "${NODE_SERVICE:-}" && -n "${NETWORK:-}" &&
      -n "${BRANCH:-}" && -n "${G_ACCOUNT:-}" &&
-     -n "${URL_RAW:-}" && -n "${CURL_TIMEOUT:-}" &&
+     -n "${GIT_SOURCE_ROOT:-}" && -n "${CURL_TIMEOUT:-}" &&
      -n "${DOWNLOAD_TIMEOUT:-}" ]] ||
     err_exit "cnode profile received incomplete dispatcher context."
+  declare -F dispatcher_source_copy >/dev/null 2>&1 ||
+    err_exit "cnode profile did not receive the Guild source snapshot helper."
   [[ "${CNODE_SKIP_DBSYNC_DOWNLOAD:-}" =~ ^[YN]$ ]] ||
     err_exit "CNODE_SKIP_DBSYNC_DOWNLOAD must be Y or N."
   sudo="${sudo:-}"
@@ -174,16 +234,26 @@ updateWithCustomConfig() {
   file=$1
   [[ $# -ne 2 ]] && subdir="cnode-helper-scripts" || subdir=$2
   ACTIVE_STEP="Refreshing ${file}"
-  curl -s -f -m ${CURL_TIMEOUT} -o ${file}.tmp "${URL_RAW}/scripts/${subdir}/${file}"
-  [[ ! -f ${file}.tmp ]] && err_exit "Failed to download '${file}' from GitHub"
+  if ! cnode_deploy_fetch "scripts/${subdir}/${file}" "${file}.tmp"; then
+    rm -f -- "${file}.tmp"
+    err_exit "Failed to stage '${file}' from the Guild source snapshot"
+  fi
+  if ! bash -n "${file}.tmp" >/dev/null 2>&1; then
+    rm -f -- "${file}.tmp"
+    err_exit "The staged Guild shell payload '${file}' failed validation."
+  fi
   if [[ -f ${file} && ${CNODE_DEPLOY_FORCE_SCRIPTS} != 'Y' ]]; then
     if grep '^# Do NOT modify' ${file}.tmp >/dev/null 2>&1; then
       TEMPL_CMD=$(awk '/^# Do NOT modify/,0' ${file}.tmp)
       STATIC_CMD=$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' ${file})
       printf '%s\n%s\n' "${STATIC_CMD}" "${TEMPL_CMD}" > ${file}.tmp
+      if ! bash -n "${file}.tmp" >/dev/null 2>&1; then
+        rm -f -- "${file}.tmp"
+        err_exit "The preserved user header makes '${file}' invalid."
+      fi
     else
       rm -f ${file}.tmp
-      err_exit "Problems encountered while fetching \"${file}\" from Github, could be an issue with connectivity or Github site!"
+      err_exit "The staged Guild source for '${file}' is missing its template boundary."
     fi
   fi
   [[ ! -d ./archive ]] && mkdir archive
@@ -193,7 +263,7 @@ updateWithCustomConfig() {
 }
 
 # Install the complete common runtime as one transaction. All six members are
-# downloaded and shell-validated before any installed member is replaced.
+# staged and shell-validated before any installed member is replaced.
 # Existing env user variables are retained unless script overwrite was
 # explicitly requested. A failed or interrupted commit restores every member.
 updateCommonRuntimeBundle() (
@@ -203,7 +273,7 @@ updateCommonRuntimeBundle() (
   local transaction_active="N"
   local committed_count=0
   local i rollback_index rollback_ok restore_tmp
-  local target_dir target_name remote_url
+  local target_dir target_name
   local static_cmd templ_cmd archive_name archive_stamp
   local -a targets sources downloads candidates changed
   local -a commit_tmps backups existed
@@ -293,20 +363,19 @@ updateCommonRuntimeBundle() (
   stage_root="$(mktemp -d "${NODE_HOME}/scripts/.common-runtime-install.XXXXXX")" ||
     return 2
 
-  # Stage and validate all upstream files before deriving the env candidate.
+  # Stage and validate all snapshot files before deriving the env candidate.
   for (( i = 0; i < bundle_count; i++ )); do
     downloads[i]="${stage_root}/download.${i}"
     candidates[i]="${stage_root}/candidate.${i}"
     target_name="$(basename "${targets[i]}")"
-    remote_url="${URL_RAW}/scripts/${sources[i]}/${target_name}"
-    if ! curl -s -f -m "${CURL_TIMEOUT}" \
-      -o "${downloads[i]}" "${remote_url}" 2>/dev/null; then
+    if ! cnode_deploy_fetch \
+      "scripts/${sources[i]}/${target_name}" "${downloads[i]}"; then
       log_warn "Failed to stage common runtime member: ${target_name}"
       return 2
     fi
     if [[ ! -s "${downloads[i]}" ]] ||
        ! bash -n "${downloads[i]}" >/dev/null 2>&1; then
-      log_warn "Downloaded common runtime member failed validation: ${target_name}"
+      log_warn "Staged common runtime member failed validation: ${target_name}"
       return 2
     fi
   done
@@ -317,7 +386,7 @@ updateCommonRuntimeBundle() (
 
   if [[ -f "${targets[5]}" && ${CNODE_DEPLOY_FORCE_SCRIPTS:-N} != "Y" ]]; then
     if ! grep -q '^# Do NOT modify' "${downloads[5]}"; then
-      log_warn "Downloaded env file does not contain the expected template boundary."
+      log_warn "Staged env file does not contain the expected template boundary."
       return 2
     fi
     static_cmd="$(awk '/#!/{x=1}/^# Do NOT modify/{exit} x' "${targets[5]}")"
@@ -1176,15 +1245,14 @@ cnode_deploy_install_release_metadata() {
 
   temporary="$(mktemp "${NODE_HOME}/files/.cnode-release.json.tmp.XXXXXX")" ||
     err_exit "Could not create cnode release metadata staging file."
-  if ! curl -sSfL -m "${CURL_TIMEOUT}" \
-    "${URL_RAW}/files/node-implementations/cnode/release.json" \
-    -o "${temporary}"; then
+  if ! cnode_deploy_fetch \
+    "files/node-implementations/cnode/release.json" "${temporary}"; then
     rm -f -- "${temporary}"
-    err_exit "Could not download cnode release metadata."
+    err_exit "Could not stage cnode release metadata from the Guild source snapshot."
   fi
   if ! cnode_deploy_validate_release_metadata "${temporary}"; then
     rm -f -- "${temporary}"
-    err_exit "Downloaded cnode release metadata is invalid."
+    err_exit "Staged cnode release metadata is invalid."
   fi
   if ! chmod 0644 "${temporary}" ||
      ! mv -f -- "${temporary}" "${destination}"; then
@@ -1672,9 +1740,9 @@ retire_legacy_systemd_orchestrator() {
 cnode_deploy_fetch_network_config() {
   local remote_name="$1"
   local destination="$2"
-  local canonical_url="${URL_RAW}/files/configs/cnode/${NETWORK}/${remote_name}"
 
-  curl -sSfL -m "${CURL_TIMEOUT}" -o "${destination}" "${canonical_url}"
+  cnode_deploy_fetch \
+    "files/configs/cnode/${NETWORK}/${remote_name}" "${destination}"
 }
 
 cnode_deploy_seed_initial_env_port() {
@@ -1714,9 +1782,10 @@ cnode_deploy_seed_initial_env_port() {
   fi
 }
 
-# Download and update scripts for cnode
+# Install cnode configuration and helper scripts from the source snapshot.
 populate_cnode() {
   local cnode_env_preexisted="N"
+  local staged_json=""
   [[ -f "${NODE_HOME}/scripts/env" ]] && cnode_env_preexisted="Y"
 
   if [[ ! -d "${NODE_HOME}"/files ]]; then
@@ -1742,11 +1811,11 @@ populate_cnode() {
   log_progress "Installing cnode release metadata"
   cnode_deploy_install_release_metadata
   log_ok "cnode release metadata ready" "${CARDANO_NODE_VERSION}"
-  log_progress "Downloading network configuration" "${NETWORK}"
+  log_progress "Staging network configuration" "${NETWORK}"
   pushd "${NODE_HOME}"/files >/dev/null || err_exit "Could not enter files directory: ${NODE_HOME}/files"
 
-  local err_msg="Could not download network configuration file:"
-  # Download node config, genesis and topology from the cnode namespace.
+  local err_msg="Could not stage network configuration file:"
+  # Stage node config, genesis and topology from the cnode namespace.
   if [[ ${NETWORK} =~ ^(mainnet|preprod|preview|guild)$ ]]; then
     cnode_deploy_fetch_network_config "alonzo-genesis.json" "alonzo-genesis.json.tmp" || err_exit "${err_msg} alonzo-genesis.json"
     cnode_deploy_fetch_network_config "byron-genesis.json" "byron-genesis.json.tmp" || err_exit "${err_msg} byron-genesis.json"
@@ -1755,13 +1824,19 @@ populate_cnode() {
     cnode_deploy_fetch_network_config "topology.json" "topology.json.tmp" || err_exit "${err_msg} topology.json"
     cnode_deploy_fetch_network_config "config.json" "config.json.tmp" || err_exit "${err_msg} config.json"
     cnode_deploy_fetch_network_config "db-sync-config.json" "dbsync.json.tmp" || err_exit "${err_msg} db-sync-config.json"
-    cnode_deploy_fetch_network_config "submitapi.json" "submitapi.json" || err_exit "${err_msg} submitapi.json"
+    cnode_deploy_fetch_network_config "submitapi.json" "submitapi.json.tmp" || err_exit "${err_msg} submitapi.json"
   else
     err_exit "Unknown network specified! Kindly re-check the network name, valid options are: mainnet, guild, preprod, or preview."
   fi
-  log_ok "Network configuration downloaded" "${NETWORK}"
+  log_ok "Network configuration staged" "${NETWORK}"
   sed -e "s@/opt/cardano/cnode@${NODE_HOME}@g" -i ./*.json.tmp
   sed -e "s@\"TraceOptionNodeName\": \"cnode\"@\"TraceOptionNodeName\": \"${NODE_NAME}\"@" -i ./config.json.tmp
+  for staged_json in ./*.json.tmp; do
+    jq -e 'type == "object"' "${staged_json}" >/dev/null 2>&1 ||
+      err_exit "Rendered network configuration failed JSON validation: $(basename "${staged_json}")"
+  done
+  mv -f submitapi.json.tmp submitapi.json ||
+    err_exit "Could not install the validated submit-api configuration."
   if [[ ${CNODE_DEPLOY_FORCE_CONFIG} = 'Y' ]]; then
     [[ -f topology.json ]] && cp -f topology.json "topology.json_bkp$(date +%s)"
     [[ -f config.json ]] && cp -f config.json "config.json_bkp$(date +%s)"
@@ -1885,6 +1960,7 @@ cnode_deploy_main_flow() {
   [[ "${CNODE_DEPLOY_ADDED_LOCAL_BIN_PATH}" == "Y" ]] && log_info "Added ${HOME}/.local/bin to PATH in ${HOME}/.bashrc."
   [[ "${CNODE_DEPLOY_FRESH_TARGET}" == "Y" ]] && log_info "Fresh target detected; OS dependency check enabled."
   [[ "${CNODE_DEPLOY_INSTALL_OS_DEPS}" == "Y" ]] && run_step "OS dependencies" "auto/-s p/b/l/w" os_dependencies
+  [[ "${CNODE_DEPLOY_REFRESH_PAYLOAD}" == "Y" ]] && run_step "Guild source preflight" "snapshot" cnode_deploy_preflight_snapshot
   [[ "${CNODE_DEPLOY_REFRESH_PAYLOAD}" == "Y" ]] && run_step "Scripts and configuration" "default/-s f/s" populate_cnode
   [[ "${CNODE_DEPLOY_BUILD_DEPS}" == "Y" ]] && run_step "Haskell build toolchain" "-s b" build_dependencies
   [[ "${CNODE_DEPLOY_INSTALL_LIBSODIUM}" == "Y" ]] && run_step "libsodium" "-s l" build_libsodium

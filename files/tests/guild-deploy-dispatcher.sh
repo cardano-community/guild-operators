@@ -10,6 +10,31 @@ fail() {
   exit 1
 }
 
+if grep -q 'UPDATE_CHECK' \
+  "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh"; then
+  fail "dispatcher still contains obsolete self-update compatibility state"
+fi
+if dispatcher_usage | grep -Eq '(^|[[:space:]])-u([[:space:]]|$)'; then
+  fail "dispatcher usage still advertises the removed -u option"
+fi
+
+missing_git_error=""
+if missing_git_error="$(
+  command() {
+    if [[ "${1:-}" = "-v" && "${2:-}" = "git" ]]; then
+      return 1
+    fi
+    builtin command "$@"
+  }
+  dispatcher_prepare_snapshot 2>&1
+  )"; then
+  fail "dispatcher continued without Git"
+fi
+case "${missing_git_error}" in
+  *"Install Git and re-run guild-deploy.sh."*) ;;
+  *) fail "missing-Git error does not explain how to continue" ;;
+esac
+
 assert_eq() {
   [[ "$1" = "$2" ]] || fail "expected '$2', got '$1'"
 }
@@ -26,7 +51,6 @@ run_defaults_case() (
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
   assert_eq "${NODE_NAME}" "$1"
   assert_eq "${NODE_HOME}" "/tmp/guild-dispatcher-test/$1"
@@ -58,7 +82,6 @@ run_defaults_case amaru
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
   assert_eq "${NODE_PORT}" "3001"
   assert_eq "${DOWNLOAD_TIMEOUT}" "600"
@@ -85,7 +108,6 @@ for invalid_input in port timeout dbsync package_output; do
     BRANCH_EXPLICIT="N"
     BRANCH_PRESET="N"
     SUDO="N"
-    UPDATE_CHECK="N"
     dispatcher_set_defaults
   ) >/dev/null 2>&1; then
     fail "dispatcher accepted invalid ${invalid_input} input"
@@ -102,7 +124,6 @@ done
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
   [[ -z "${CNODE_SKIP_DBSYNC_DOWNLOAD+x}" ]] ||
     fail "cnode-only db-sync input was exported to an alternate profile"
@@ -117,7 +138,6 @@ done
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
   assert_eq "${NODE_PARENT}" "/tmp/guild-dispatcher-test"
   assert_eq "${CNODE_PATH}" "/tmp/guild-dispatcher-test"
@@ -126,15 +146,17 @@ done
     fail "Unicode top-level name produced an unsafe service name"
 )
 
-inherited_tmp="${TEST_DIR:-${TMPDIR:-/tmp}}/guild-inherited-profile-test.$$"
+inherited_tmp="${TEST_DIR:-${TMPDIR:-/tmp}}/guild-inherited-source-test.$$"
 mkdir -p "${inherited_tmp}"
 printf 'keep\n' > "${inherited_tmp}/sentinel"
 (
-  PROFILE_TMP_DIR="${inherited_tmp}"
+  GUILD_SOURCE_TMP_DIR="${inherited_tmp}"
+  GIT_SOURCE_ROOT="${inherited_tmp}/repository"
+  DISPATCHER_SOURCE_TMP_OWNED="Y"
   guild_deploy_main -h >/dev/null
 )
 [[ -f "${inherited_tmp}/sentinel" ]] ||
-  fail "dispatcher cleanup removed an inherited PROFILE_TMP_DIR"
+  fail "dispatcher cleanup removed an inherited source directory"
 rm -rf -- "${inherited_tmp}"
 
 (
@@ -147,7 +169,6 @@ rm -rf -- "${inherited_tmp}"
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
   assert_eq "${NODE_NAME}" "dingo"
   assert_eq "${NODE_HOME}" "/tmp/guild-dispatcher-test/dingo"
@@ -163,7 +184,6 @@ rm -rf -- "${inherited_tmp}"
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
   assert_eq "${NODE_NAME}" "relay_one"
   assert_eq "${NODE_HOME}" "/tmp/guild-dispatcher-test/relay_one"
@@ -171,6 +191,40 @@ rm -rf -- "${inherited_tmp}"
 
 TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/guild-dispatcher-test.XXXXXX")"
 trap 'rm -rf "${TEST_DIR}"' EXIT
+
+obsolete_update_marker="${TEST_DIR}/obsolete-update-option-ran"
+obsolete_update_target="${TEST_DIR}/obsolete_update"
+if (
+  dispatcher_prepare_snapshot() {
+    touch "${obsolete_update_marker}"
+  }
+  unset NODE_IMPLEMENTATION NETWORK BRANCH G_ACCOUNT
+  NODE_PARENT="${TEST_DIR}"
+  NODE_NAME="obsolete-update"
+  SUDO="N"
+  guild_deploy_main -u
+) >/dev/null 2>&1; then
+  fail "dispatcher accepted the removed -u option"
+fi
+[[ ! -e "${obsolete_update_marker}" ]] ||
+  fail "removed -u option reached source snapshot preparation"
+[[ ! -e "${obsolete_update_target}" ]] ||
+  fail "removed -u option changed the deployment target"
+
+target_token_path="${TEST_DIR}/target-state.json"
+assert_eq "$(dispatcher_target_state_token "${target_token_path}")" "absent"
+printf 'first state\n' > "${target_token_path}"
+first_target_token="$(dispatcher_target_state_token "${target_token_path}")"
+assert_eq \
+  "$(dispatcher_target_state_token "${target_token_path}")" \
+  "${first_target_token}"
+printf 'second state\n' > "${target_token_path}"
+[[ "$(dispatcher_target_state_token "${target_token_path}")" != "${first_target_token}" ]] ||
+  fail "target-state token did not change with deployment metadata"
+ln -s "${target_token_path}" "${TEST_DIR}/target-state-link.json"
+if dispatcher_target_state_token "${TEST_DIR}/target-state-link.json" >/dev/null 2>&1; then
+  fail "target-state token accepted a symbolic-link manifest"
+fi
 
 package_apt_success_fixture() {
   printf '%s\n' \
@@ -391,7 +445,6 @@ printf '%s\n' \
   BRANCH_PRESET="N"
   G_ACCOUNT_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
   assert_eq "${NETWORK}" "preview"
   assert_eq "${BRANCH}" "alpha"
@@ -412,7 +465,6 @@ if (
   BRANCH_PRESET="N"
   G_ACCOUNT_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
 ) >/dev/null 2>&1; then
   fail "dispatcher accepted incomplete authoritative deployment metadata"
@@ -501,7 +553,6 @@ if (
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
 ) >/dev/null 2>&1; then
   fail "dispatcher accepted shell syntax in a deployment path"
@@ -517,7 +568,6 @@ if (
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
 ) >/dev/null 2>&1; then
   fail "alternate implementation accepted an implicit network"
@@ -542,7 +592,6 @@ if (
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
 ) >/dev/null 2>&1; then
   fail "dispatcher accepted a future deployment manifest schema"
@@ -571,7 +620,6 @@ for invalid_manifest_case in zero-byte dangling-symlink; do
     BRANCH_PRESET="N"
     G_ACCOUNT_PRESET="N"
     SUDO="N"
-    UPDATE_CHECK="N"
     dispatcher_set_defaults
   ) >/dev/null 2>&1; then
     fail "dispatcher accepted ${invalid_manifest_case} deployment metadata"
@@ -602,7 +650,6 @@ jq '.deploymentStatus = "deploying" | .serviceName = "resume_deploying"' \
   BRANCH_PRESET="N"
   G_ACCOUNT_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
   assert_eq "${NETWORK}" "preview"
   assert_eq "${BRANCH}" "alpha"
@@ -664,7 +711,6 @@ for semantic_case in cnode-metrics dingo-capability amaru-capability extra-capab
     BRANCH_PRESET="N"
     G_ACCOUNT_PRESET="N"
     SUDO="N"
-    UPDATE_CHECK="N"
     dispatcher_set_defaults
   ) >/dev/null 2>&1; then
     fail "dispatcher accepted inconsistent ${semantic_case} manifest semantics"
@@ -695,7 +741,6 @@ printf '%s\n' \
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
   assert_eq "${NODE_HOME}" "${TEST_DIR}/partial_dingo"
 )
@@ -715,7 +760,6 @@ if (
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
   SUDO="N"
-  UPDATE_CHECK="N"
   dispatcher_set_defaults
 ) >/dev/null 2>&1; then
   fail "legacy target accepted a preset network conflicting with genesis"
@@ -736,12 +780,14 @@ printf 'legacy-branch\n' > "${TEST_DIR}/interrupted/scripts/.env_branch"
   NETWORK="preview"
   BRANCH="alpha"
   G_ACCOUNT="cardano-community"
+  GUILD_SOURCE_REVISION="0123456789abcdef0123456789abcdef01234567"
   DEPLOYMENT_FILE="${NODE_HOME}/.deployment.json"
   dispatcher_mark_in_progress
   assert_eq "$(jq -r '.deploymentStatus' "${DEPLOYMENT_FILE}")" "deploying"
   assert_eq "$(jq -r '.implementation' "${DEPLOYMENT_FILE}")" "amaru"
   assert_eq "$(jq -r '.nodeVersion' "${DEPLOYMENT_FILE}")" "${installed_version}"
   assert_eq "$(jq -r '.targetNodeVersion' "${DEPLOYMENT_FILE}")" "${PROFILE_TARGET_NODE_VERSION}"
+  assert_eq "$(jq -r '.sourceRevision' "${DEPLOYMENT_FILE}")" "${GUILD_SOURCE_REVISION}"
   [[ -f "${NODE_HOME}/scripts/.env_branch" ]] ||
     fail "legacy branch sidecar was archived before deployment completed"
   dispatcher_write_manifest deployed
@@ -828,8 +874,6 @@ if find "${TEST_DIR}/manifest-write-failure" -name '.deployment.json.tmp.*' -pri
 fi
 
 if (
-  dispatcher_validate_branch() { return 0; }
-  dispatcher_update_check() { return 0; }
   failing_profile() {
     mkdir -p "${NODE_HOME}"
     dispatcher_mark_in_progress
@@ -838,14 +882,23 @@ if (
   dispatcher_load_profile() {
     PROFILE_ENTRYPOINT="failing_profile"
   }
+  dispatcher_adopt_snapshot() {
+    GIT_SOURCE_ROOT="${REPO_ROOT}"
+    GUILD_SOURCE_REVISION="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
+  }
   unset NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NETWORK BRANCH
   SUDO="N"
+  GUILD_DEPLOY_SNAPSHOT_STAGE="ready"
+  GUILD_DEPLOY_SOURCE_ACCOUNT="cardano-community"
+  GUILD_DEPLOY_SOURCE_BRANCH="master"
+  GUILD_DEPLOY_SOURCE_REVISION="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
+  GUILD_DEPLOY_TARGET_PATH="$(dispatcher_canonical_target_path "${TEST_DIR}/failed_profile")"
+  GUILD_DEPLOY_TARGET_STATE_TOKEN="absent"
   guild_deploy_main \
     -i dingo \
     -n preprod \
     -p "${TEST_DIR}" \
-    -t failed-profile \
-    -u
+    -t failed-profile
 ) >/dev/null 2>&1; then
   fail "dispatcher reported success after a deployment profile failed"
 fi
@@ -853,111 +906,420 @@ assert_eq \
   "$(jq -r '.deploymentStatus' "${TEST_DIR}/failed_profile/.deployment.json")" \
   "deploying"
 
-update_driver="${TEST_DIR}/update-driver.sh"
-printf '%s\n' \
-  '#!/usr/bin/env bash' \
-  '#TEST_SETTING="preserved"' \
-  '# Do NOT modify code below' \
-  '. "${DISPATCHER_SOURCE:?}"' \
-  'DISPATCHER_LOCAL_REPO="N"' \
-  'UPDATE_CHECK="Y"' \
-  'BRANCH="master"' \
-  'CURL_TIMEOUT=10' \
-  'URL_RAW="https://not-used.invalid/master"' \
-  'curl() {' \
-  '  local output=""' \
-  '  while [[ $# -gt 0 ]]; do' \
-  '    case "$1" in' \
-  '      -o) output="$2"; shift 2 ;;' \
-  '      *) shift ;;' \
-  '    esac' \
-  '  done' \
-  '  command cp -- "${REMOTE_DISPATCHER:?}" "${output:?}"' \
-  '}' \
-  'mv() { return 1; }' \
-  'dispatcher_update_check' \
-  > "${update_driver}"
-chmod 0755 "${update_driver}"
-update_driver_checksum="$(sha256sum "${update_driver}" | awk '{print $1}')"
-if DISPATCHER_SOURCE="${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
-  REMOTE_DISPATCHER="${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
-  bash "${update_driver}" >/dev/null 2>&1; then
-  fail "dispatcher self-update ignored an atomic replacement failure"
-fi
-assert_eq \
-  "$(sha256sum "${update_driver}" | awk '{print $1}')" \
-  "${update_driver_checksum}"
-if find "${TEST_DIR}" \
-  \( -name '.update-driver.sh.download.*' -o -name '.update-driver.sh.merged.*' \) \
-  -print -quit | grep -q .; then
-  fail "failed dispatcher update left a staging file"
-fi
+source_helper_root="${TEST_DIR}/source-helper"
+mkdir -p "${source_helper_root}/safe"
+printf 'snapshot payload\n' > "${source_helper_root}/safe/payload"
+ln -s payload "${source_helper_root}/safe/payload-link"
+ln -s safe "${source_helper_root}/safe-link"
+(
+  GIT_SOURCE_ROOT="${source_helper_root}"
+  dispatcher_source_copy "safe/payload" "${TEST_DIR}/source-copy"
+)
+assert_eq "$(cat "${TEST_DIR}/source-copy")" "snapshot payload"
+for unsafe_path in \
+  "/etc/passwd" \
+  "../source-helper/safe/payload" \
+  "safe/../safe/payload" \
+  "safe/payload-link" \
+  "safe-link/payload" \
+  "safe/missing"; do
+  if (
+    GIT_SOURCE_ROOT="${source_helper_root}"
+    dispatcher_source_copy "${unsafe_path}" "${TEST_DIR}/unsafe-copy"
+  ) >/dev/null 2>&1; then
+    fail "snapshot source helper accepted unsafe path: ${unsafe_path}"
+  fi
+done
 
-custom_dispatcher="${TEST_DIR}/custom-dispatcher.sh"
+install_root="${TEST_DIR}/dispatcher-install"
+mkdir -p "${install_root}/scripts/archive"
 awk '
   /^#CURL_TIMEOUT=60/ {
     print "CURL_TIMEOUT=17                     # operator customization"
     next
   }
   { print }
-' "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" > "${custom_dispatcher}"
-chmod 0755 "${custom_dispatcher}"
-custom_dispatcher_checksum="$(sha256sum "${custom_dispatcher}" | awk '{print $1}')"
-update_output="$(
-  DISPATCHER_SOURCE="${custom_dispatcher}" \
-  REMOTE_DISPATCHER="${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
-  bash -c '
-    . "${DISPATCHER_SOURCE}"
-    DISPATCHER_LOCAL_REPO="N"
-    UPDATE_CHECK="Y"
-    BRANCH="master"
-    CURL_TIMEOUT=10
-    URL_RAW="https://not-used.invalid/master"
-    curl() {
-      local output=""
-      while [[ $# -gt 0 ]]; do
-        case "$1" in
-          -o) output="$2"; shift 2 ;;
-          *) shift ;;
-        esac
-      done
-      command cp -- "${REMOTE_DISPATCHER}" "${output}"
-    }
-    dispatcher_update_check
-  ' "${TEST_DIR}//custom-dispatcher.sh"
-)"
+  /^# Do NOT modify code below/ {
+    print "# stale-runtime-marker"
+  }
+' "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
+  > "${install_root}/scripts/guild-deploy.sh"
+chmod 0755 "${install_root}/scripts/guild-deploy.sh"
+(
+  NODE_HOME="${install_root}"
+  GIT_SOURCE_ROOT="${REPO_ROOT}"
+  dispatcher_install_self
+) >/dev/null
+grep -q '^CURL_TIMEOUT=17 .*operator customization$' \
+  "${install_root}/scripts/guild-deploy.sh" ||
+  fail "dispatcher install did not preserve the operator user-variable header"
+if grep -q '^# stale-runtime-marker$' "${install_root}/scripts/guild-deploy.sh"; then
+  fail "dispatcher install retained stale runtime code"
+fi
 assert_eq \
-  "$(sha256sum "${custom_dispatcher}" | awk '{print $1}')" \
-  "${custom_dispatcher_checksum}"
-grep -F "guild-deploy.sh is current" <<< "${update_output}" >/dev/null ||
-  fail "customized dispatcher did not recognize its merged remote code as current"
-if find "${TEST_DIR}" -name 'custom-dispatcher.sh_bkp*' -print -quit | grep -q .; then
-  fail "current customized dispatcher created a needless backup/update loop"
+  "$(find "${install_root}/scripts/archive" -type f | wc -l | tr -d '[:space:]')" \
+  "1"
+(
+  NODE_HOME="${install_root}"
+  GIT_SOURCE_ROOT="${REPO_ROOT}"
+  dispatcher_install_self
+) >/dev/null
+assert_eq \
+  "$(find "${install_root}/scripts/archive" -type f | wc -l | tr -d '[:space:]')" \
+  "1"
+
+atomic_root="${TEST_DIR}/dispatcher-atomic-failure"
+mkdir -p "${atomic_root}/scripts/archive"
+cp "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
+  "${atomic_root}/scripts/guild-deploy.sh"
+printf '\n# stale-runtime-marker\n' >> "${atomic_root}/scripts/guild-deploy.sh"
+chmod 0755 "${atomic_root}/scripts/guild-deploy.sh"
+atomic_checksum="$(sha256sum "${atomic_root}/scripts/guild-deploy.sh" | awk '{print $1}')"
+if (
+  NODE_HOME="${atomic_root}"
+  GIT_SOURCE_ROOT="${REPO_ROOT}"
+  mv() { return 1; }
+  dispatcher_install_self
+) >/dev/null 2>&1; then
+  fail "dispatcher install ignored an atomic replacement failure"
+fi
+assert_eq \
+  "$(sha256sum "${atomic_root}/scripts/guild-deploy.sh" | awk '{print $1}')" \
+  "${atomic_checksum}"
+if find "${atomic_root}/scripts" -name '.guild-deploy.sh.install.*' -print -quit |
+  grep -q .; then
+  fail "failed dispatcher install left a staging file"
 fi
 
-mkdir -p "${TEST_DIR}/invalid-profile-source"
+invalid_profile_root="${TEST_DIR}/invalid-profile-source"
+mkdir -p "${invalid_profile_root}/scripts/dingo-helper-scripts"
+printf 'if then\n' \
+  > "${invalid_profile_root}/scripts/dingo-helper-scripts/deploy-dingo.sh"
 if (
-  DISPATCHER_LOCAL_REPO="N"
-  DISPATCHER_DIR="${TEST_DIR}/invalid-profile-source"
+  GIT_SOURCE_ROOT="${invalid_profile_root}"
   NODE_IMPLEMENTATION="dingo"
-  URL_RAW="https://not-used.invalid/master"
-  CURL_TIMEOUT=10
-  PROFILE_TMP_DIR=""
-  DISPATCHER_PROFILE_TMP_OWNED="N"
-  TMPDIR="${TEST_DIR}"
-  curl() {
-    local output=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        -o) output="$2"; shift 2 ;;
-        *) shift ;;
-      esac
-    done
-    printf 'if then\n' > "${output}"
-  }
+  curl() { fail "profile loading attempted network access: $*"; }
   dispatcher_load_profile
 ) >/dev/null 2>&1; then
   fail "dispatcher sourced a deployment profile that failed shell validation"
 fi
+
+snapshot_remote="${TEST_DIR}/snapshot-remote"
+mkdir -p \
+  "${snapshot_remote}/scripts/cnode-helper-scripts" \
+  "${snapshot_remote}/scripts/dingo-helper-scripts"
+git -C "${snapshot_remote}" init -q
+git -C "${snapshot_remote}" symbolic-ref HEAD refs/heads/master
+git -C "${snapshot_remote}" config user.name "Guild Operators Test"
+git -C "${snapshot_remote}" config user.email "guild-test@example.invalid"
+printf 'fixture license\n' > "${snapshot_remote}/LICENSE"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'NODE_PARENT="/remote/header/must-not-win"' \
+  'SUDO="Y"' \
+  '# Do NOT modify code below' \
+  'GUILD_DEPLOY_SNAPSHOT_CAPABLE="Y"' \
+  '{' \
+  '  printf "stage=%s\\n" "${GUILD_DEPLOY_SNAPSHOT_STAGE:-}"' \
+  '  printf "account=%s\\n" "${GUILD_DEPLOY_SOURCE_ACCOUNT:-}"' \
+  '  printf "branch=%s\\n" "${GUILD_DEPLOY_SOURCE_BRANCH:-}"' \
+  '  printf "expected_revision=%s\\n" "${GUILD_DEPLOY_SOURCE_REVISION:-}"' \
+  '  printf "revision=%s\\n" "${GUILD_SOURCE_REVISION:-}"' \
+  '  printf "root=%s\\n" "${GIT_SOURCE_ROOT:-}"' \
+  '  printf "node_parent=%s\\n" "${NODE_PARENT:-}"' \
+  '  printf "sudo=%s\\n" "${SUDO:-}"' \
+  '  printf "arg=%s\\n" "$@"' \
+  '} > "${SNAPSHOT_CHILD_LOG:?}"' \
+  'exit "${SNAPSHOT_CHILD_STATUS:-0}"' \
+  > "${snapshot_remote}/scripts/cnode-helper-scripts/guild-deploy.sh"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'deploy_dingo_profile() { :; }' \
+  > "${snapshot_remote}/scripts/dingo-helper-scripts/deploy-dingo.sh"
+git -C "${snapshot_remote}" add LICENSE scripts
+git -C "${snapshot_remote}" commit -q -m "master snapshot"
+master_revision="$(git -C "${snapshot_remote}" rev-parse HEAD)"
+git -C "${snapshot_remote}" checkout -q -b feature/snapshot
+printf 'feature snapshot\n' > "${snapshot_remote}/feature-marker"
+git -C "${snapshot_remote}" add feature-marker
+git -C "${snapshot_remote}" commit -q -m "feature snapshot"
+feature_revision="$(git -C "${snapshot_remote}" rev-parse HEAD)"
+git -C "${snapshot_remote}" checkout -q master
+git -C "${snapshot_remote}" checkout -q -b historical-dispatcher
+grep -v '^GUILD_DEPLOY_SNAPSHOT_CAPABLE="Y"$' \
+  "${snapshot_remote}/scripts/cnode-helper-scripts/guild-deploy.sh" \
+  > "${snapshot_remote}/scripts/cnode-helper-scripts/guild-deploy.sh.tmp"
+mv \
+  "${snapshot_remote}/scripts/cnode-helper-scripts/guild-deploy.sh.tmp" \
+  "${snapshot_remote}/scripts/cnode-helper-scripts/guild-deploy.sh"
+git -C "${snapshot_remote}" add scripts/cnode-helper-scripts/guild-deploy.sh
+git -C "${snapshot_remote}" commit -q -m "historical dispatcher"
+git -C "${snapshot_remote}" checkout -q master
+
+validation_checkout="${TEST_DIR}/snapshot-validation"
+git clone -q --branch master "${snapshot_remote}" "${validation_checkout}"
+(
+  NODE_IMPLEMENTATION="dingo"
+  GIT_SOURCE_ROOT="${validation_checkout}"
+  dispatcher_validate_snapshot "${validation_checkout}"
+) >/dev/null
+printf 'untracked payload\n' > "${validation_checkout}/untracked-payload"
+if (
+  GIT_SOURCE_ROOT="${validation_checkout}"
+  dispatcher_source_path untracked-payload
+) >/dev/null 2>&1; then
+  fail "snapshot source helper accepted an untracked payload"
+fi
+printf 'dirty tracked payload\n' >> "${validation_checkout}/LICENSE"
+if (
+  NODE_IMPLEMENTATION="dingo"
+  GIT_SOURCE_ROOT="${validation_checkout}"
+  dispatcher_validate_snapshot "${validation_checkout}"
+) >/dev/null 2>&1; then
+  fail "snapshot validation accepted modified tracked payloads"
+fi
+
+configure_local_git_remote() {
+  local local_repository="$1"
+  GIT_CONFIG_COUNT=1
+  GIT_CONFIG_KEY_0="url.file://${local_repository}.insteadOf"
+  GIT_CONFIG_VALUE_0="https://github.com/fixture-account/guild-operators.git"
+  export GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+}
+
+GUILD_DEPLOY_USER_HEADER="$(
+  dispatcher_extract_user_header \
+    "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh"
+)"
+
+snapshot_child_log="${TEST_DIR}/snapshot-child.log"
+(
+  trap cleanup_dispatcher EXIT
+  TMPDIR="${TEST_DIR}"
+  G_ACCOUNT="fixture-account"
+  BRANCH="feature/snapshot"
+  REPO_RAW="https://raw.invalid/fixture-account/guild-operators"
+  URL_RAW="${REPO_RAW}/${BRANCH}"
+  NODE_IMPLEMENTATION="dingo"
+  NODE_PARENT="${TEST_DIR}/expected-parent"
+  SUDO="N"
+  export NODE_PARENT SUDO
+  configure_local_git_remote "${snapshot_remote}"
+  SNAPSHOT_CHILD_LOG="${snapshot_child_log}"
+  export SNAPSHOT_CHILD_LOG
+  dispatcher_prepare_snapshot -i dingo -n preprod -b feature/snapshot
+) >/dev/null
+grep -q '^stage=ready$' "${snapshot_child_log}" ||
+  fail "snapshot child did not receive the ready stage"
+grep -q '^account=fixture-account$' "${snapshot_child_log}" ||
+  fail "snapshot child did not receive the resolved repository account"
+grep -q '^branch=feature/snapshot$' "${snapshot_child_log}" ||
+  fail "snapshot child did not receive the selected branch"
+grep -q "^revision=${feature_revision}$" "${snapshot_child_log}" ||
+  fail "snapshot child did not receive the selected commit"
+grep -q "^expected_revision=${feature_revision}$" "${snapshot_child_log}" ||
+  fail "snapshot child did not receive the expected source revision"
+grep -q "^node_parent=${TEST_DIR}/expected-parent$" "${snapshot_child_log}" ||
+  fail "snapshot dispatcher allowed its remote user header to replace local settings"
+grep -q '^sudo=N$' "${snapshot_child_log}" ||
+  fail "snapshot dispatcher did not preserve the local sudo setting"
+assert_eq "$(grep -c '^arg=' "${snapshot_child_log}")" "6"
+snapshot_checkout="$(sed -n 's/^root=//p' "${snapshot_child_log}")"
+[[ ! -e "${snapshot_checkout%/repository}" ]] ||
+  fail "successful snapshot deployment left its temporary checkout"
+
+fallback_child_log="${TEST_DIR}/snapshot-fallback.log"
+(
+  trap cleanup_dispatcher EXIT
+  TMPDIR="${TEST_DIR}"
+  G_ACCOUNT="fixture-account"
+  BRANCH="missing-branch"
+  REPO_RAW="https://raw.invalid/fixture-account/guild-operators"
+  URL_RAW="${REPO_RAW}/${BRANCH}"
+  NODE_IMPLEMENTATION="dingo"
+  configure_local_git_remote "${snapshot_remote}"
+  SNAPSHOT_CHILD_LOG="${fallback_child_log}"
+  export SNAPSHOT_CHILD_LOG
+  dispatcher_prepare_snapshot -i dingo -n preprod -b missing-branch
+) >/dev/null 2>&1
+grep -q '^branch=master$' "${fallback_child_log}" ||
+  fail "missing snapshot branch did not fall back to master"
+grep -q "^revision=${master_revision}$" "${fallback_child_log}" ||
+  fail "fallback snapshot did not use the master commit"
+
+historical_child_log="${TEST_DIR}/snapshot-historical.log"
+historical_error_log="${TEST_DIR}/snapshot-historical.err"
+if (
+  trap cleanup_dispatcher EXIT
+  TMPDIR="${TEST_DIR}"
+  G_ACCOUNT="fixture-account"
+  BRANCH="historical-dispatcher"
+  NODE_IMPLEMENTATION="dingo"
+  configure_local_git_remote "${snapshot_remote}"
+  SNAPSHOT_CHILD_LOG="${historical_child_log}"
+  export SNAPSHOT_CHILD_LOG
+  dispatcher_prepare_snapshot -i dingo -n preprod -b historical-dispatcher
+) >/dev/null 2>"${historical_error_log}"; then
+  fail "snapshot bootstrap executed a historical raw-download dispatcher"
+fi
+grep -q 'predates snapshot deployment' "${historical_error_log}" ||
+  fail "historical dispatcher failure did not explain the compatibility boundary"
+[[ ! -e "${historical_child_log}" ]] ||
+  fail "historical dispatcher was executed before compatibility validation"
+
+transient_error_log="${TEST_DIR}/snapshot-transient.err"
+if (
+  trap cleanup_dispatcher EXIT
+  TMPDIR="${TEST_DIR}"
+  G_ACCOUNT="fixture-account"
+  BRANCH="feature/snapshot"
+  NODE_IMPLEMENTATION="dingo"
+  configure_local_git_remote "${snapshot_remote}"
+  dispatcher_clone_snapshot() { return 1; }
+  dispatcher_prepare_snapshot -i dingo -n preprod -b feature/snapshot
+) >/dev/null 2>"${transient_error_log}"; then
+  fail "snapshot bootstrap fell back to master after an existing ref failed to clone"
+fi
+grep -q 'although the remote ref exists' "${transient_error_log}" ||
+  fail "existing-ref clone failure was misclassified as a missing branch"
+
+if (
+  TMPDIR="${TEST_DIR}"
+  G_ACCOUNT="fixture-account"
+  configure_local_git_remote "${TEST_DIR}/missing-repository"
+  SUDO="N"
+  guild_deploy_main \
+    -i dingo \
+    -n preprod \
+    -p "${TEST_DIR}" \
+    -t clone-failure-target \
+    -b master
+) >/dev/null 2>&1; then
+  fail "dispatcher accepted an unavailable master snapshot"
+fi
+[[ ! -e "${TEST_DIR}/clone_failure_target" ]] ||
+  fail "source clone failure changed the deployment target"
+
+stale_target_profile_called="${TEST_DIR}/stale-target-profile-called"
+if (
+  dispatcher_load_profile() {
+    touch "${stale_target_profile_called}"
+  }
+  unset NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NETWORK BRANCH G_ACCOUNT
+  SUDO="N"
+  GUILD_DEPLOY_SNAPSHOT_STAGE="ready"
+  GUILD_DEPLOY_SOURCE_ACCOUNT="cardano-community"
+  GUILD_DEPLOY_SOURCE_BRANCH="master"
+  GUILD_DEPLOY_SOURCE_REVISION="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
+  GUILD_DEPLOY_TARGET_PATH="$(dispatcher_canonical_target_path "${TEST_DIR}/different-target")"
+  GUILD_DEPLOY_TARGET_STATE_TOKEN="absent"
+  guild_deploy_main \
+    -i dingo \
+    -n preprod \
+    -p "${TEST_DIR}" \
+    -t stale-target
+) >/dev/null 2>&1; then
+  fail "snapshot child accepted a different target path than the bootstrap"
+fi
+[[ ! -e "${stale_target_profile_called}" ]] ||
+  fail "snapshot child loaded a profile before checking its target path"
+
+if (
+  stale_target_profile() {
+    touch "${stale_target_profile_called}"
+  }
+  dispatcher_load_profile() {
+    PROFILE_ENTRYPOINT="stale_target_profile"
+  }
+  unset NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NETWORK BRANCH G_ACCOUNT
+  SUDO="N"
+  GUILD_DEPLOY_SNAPSHOT_STAGE="ready"
+  GUILD_DEPLOY_SOURCE_ACCOUNT="cardano-community"
+  GUILD_DEPLOY_SOURCE_BRANCH="master"
+  GUILD_DEPLOY_SOURCE_REVISION="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
+  GUILD_DEPLOY_TARGET_PATH="$(dispatcher_canonical_target_path "${TEST_DIR}/stale_target")"
+  GUILD_DEPLOY_TARGET_STATE_TOKEN="file:1-1"
+  guild_deploy_main \
+    -i dingo \
+    -n preprod \
+    -p "${TEST_DIR}" \
+    -t stale-target
+) >/dev/null 2>&1; then
+  fail "snapshot child accepted a deployment target changed during checkout"
+fi
+[[ ! -e "${stale_target_profile_called}" ]] ||
+  fail "snapshot child loaded a profile before checking target state"
+
+full_snapshot_remote="${TEST_DIR}/full-snapshot-remote"
+mkdir -p \
+  "${full_snapshot_remote}/scripts/cnode-helper-scripts" \
+  "${full_snapshot_remote}/scripts/dingo-helper-scripts"
+git -C "${full_snapshot_remote}" init -q
+git -C "${full_snapshot_remote}" symbolic-ref HEAD refs/heads/master
+git -C "${full_snapshot_remote}" config user.name "Guild Operators Test"
+git -C "${full_snapshot_remote}" config user.email "guild-test@example.invalid"
+printf 'fixture license\n' > "${full_snapshot_remote}/LICENSE"
+cp "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh" \
+  "${full_snapshot_remote}/scripts/cnode-helper-scripts/guild-deploy.sh"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'deploy_dingo_profile() {' \
+  '  mkdir -p "${NODE_HOME}/scripts/archive"' \
+  '  PROFILE_TARGET_NODE_VERSION="fixture"' \
+  '  dispatcher_mark_in_progress' \
+  '}' \
+  > "${full_snapshot_remote}/scripts/dingo-helper-scripts/deploy-dingo.sh"
+git -C "${full_snapshot_remote}" add LICENSE scripts
+git -C "${full_snapshot_remote}" commit -q -m "full dispatcher snapshot"
+full_snapshot_revision="$(git -C "${full_snapshot_remote}" rev-parse HEAD)"
+(
+  TMPDIR="${TEST_DIR}"
+  G_ACCOUNT="fixture-account"
+  configure_local_git_remote "${full_snapshot_remote}"
+  SUDO="N"
+  guild_deploy_main \
+    -i dingo \
+    -n preprod \
+    -p "${TEST_DIR}" \
+    -t snapshot-e2e \
+    -b master
+) >/dev/null
+full_snapshot_target="${TEST_DIR}/snapshot_e2e"
+[[ -x "${full_snapshot_target}/scripts/guild-deploy.sh" ]] ||
+  fail "snapshot deployment did not install its dispatcher"
+assert_eq \
+  "$(jq -r '.deploymentStatus' "${full_snapshot_target}/.deployment.json")" \
+  "deployed"
+assert_eq \
+  "$(jq -r '.sourceRevision' "${full_snapshot_target}/.deployment.json")" \
+  "${full_snapshot_revision}"
+if find "${TEST_DIR}" -maxdepth 1 -type d -name 'guild-operators-source.*' \
+  -print -quit | grep -q .; then
+  fail "end-to-end snapshot deployment left a temporary checkout"
+fi
+
+failure_child_log="${TEST_DIR}/snapshot-child-failure.log"
+if (
+  trap cleanup_dispatcher EXIT
+  TMPDIR="${TEST_DIR}"
+  G_ACCOUNT="fixture-account"
+  BRANCH="feature/snapshot"
+  REPO_RAW="https://raw.invalid/fixture-account/guild-operators"
+  URL_RAW="${REPO_RAW}/${BRANCH}"
+  NODE_IMPLEMENTATION="dingo"
+  configure_local_git_remote "${snapshot_remote}"
+  SNAPSHOT_CHILD_LOG="${failure_child_log}"
+  SNAPSHOT_CHILD_STATUS=37
+  export SNAPSHOT_CHILD_LOG SNAPSHOT_CHILD_STATUS
+  dispatcher_prepare_snapshot -i dingo -n preprod
+); then
+  fail "snapshot dispatcher child failure was reported as success"
+else
+  child_status=$?
+fi
+assert_eq "${child_status}" "37"
+failure_checkout="$(sed -n 's/^root=//p' "${failure_child_log}")"
+[[ ! -e "${failure_checkout%/repository}" ]] ||
+  fail "failed snapshot deployment left its temporary checkout"
 
 printf 'guild-deploy dispatcher tests passed\n'

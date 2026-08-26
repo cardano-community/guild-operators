@@ -31,10 +31,36 @@ done
 
 set +u
 # shellcheck source=/dev/null
+. "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh"
+# shellcheck source=/dev/null
 . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
 # shellcheck source=/dev/null
 . "${REPO_ROOT}/scripts/cnode-helper-scripts/deploy-cnode.sh"
+GIT_SOURCE_ROOT="${REPO_ROOT}"
+export GIT_SOURCE_ROOT
 set -u
+
+(
+  NETWORK="mainnet"
+  GUILD_DEPLOY_PREFLIGHT_BASH_BIN="true"
+  cnode_deploy_preflight_snapshot
+) || fail "cnode rejected its complete Guild snapshot payload set"
+
+if (
+  NETWORK="mainnet"
+  GUILD_DEPLOY_PREFLIGHT_BASH_BIN="true"
+  eval "$(declare -f dispatcher_source_path |
+    sed '1s/dispatcher_source_path/dispatcher_source_path_original/')"
+  dispatcher_source_path() {
+    if [[ "$1" == "scripts/cnode-helper-scripts/mithril.library" ]]; then
+      return 1
+    fi
+    dispatcher_source_path_original "$@"
+  }
+  cnode_deploy_preflight_snapshot
+) >/dev/null 2>&1; then
+  fail "cnode accepted a snapshot with a missing late helper payload"
+fi
 
 run_profile_state_test() (
   set +u
@@ -84,41 +110,26 @@ run_release_metadata_test() (
   local node_root="${TEST_ROOT}/release-metadata"
   local valid_manifest="${REPO_ROOT}/files/node-implementations/cnode/release.json"
   local invalid_manifest="${node_root}/invalid-release.json"
-  local request_log="${node_root}/request.log"
   local release_fixture="${valid_manifest}"
+  local requested_source=""
 
   mkdir -p "${node_root}/files"
   jq '.implementation = "dingo"' "${valid_manifest}" > "${invalid_manifest}"
   NODE_HOME="${node_root}"
-  URL_RAW="https://raw.example/fork/guild-operators/test-branch"
-  CURL_TIMEOUT=30
 
+  dispatcher_source_copy() {
+    requested_source="$1"
+    cp -- "${release_fixture}" "$2"
+  }
   curl() {
-    local destination=""
-    local url=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        -o)
-          destination="$2"
-          shift 2
-          ;;
-        -m)
-          shift 2
-          ;;
-        -*)
-          shift
-          ;;
-        *)
-          url="$1"
-          shift
-          ;;
-      esac
-    done
-    printf '%s\n' "${url}" >> "${request_log}"
-    cp -- "${release_fixture}" "${destination}"
+    fail "cnode release metadata attempted network access: $*"
   }
 
   cnode_deploy_install_release_metadata
+  assert_eq \
+    "${requested_source}" \
+    "files/node-implementations/cnode/release.json" \
+    "cnode release metadata snapshot path"
   cmp -s "${valid_manifest}" "${node_root}/files/cnode-release.json" ||
     fail "cnode release metadata was not installed atomically"
   assert_eq "${CARDANO_NODE_VERSION}" \
@@ -151,10 +162,6 @@ run_release_metadata_test() (
   assert_eq "${CNODE_BUILD_BLST_VERSION}" \
     "$(jq -er '.build.sourceDependencies.blst.version' "${valid_manifest}")" \
     "BLST manifest version"
-  grep -q '^https://raw.example/fork/guild-operators/test-branch/files/node-implementations/cnode/release.json$' \
-    "${request_log}" ||
-    fail "cnode release metadata used the wrong repository or branch"
-
   release_fixture="${invalid_manifest}"
   if (cnode_deploy_install_release_metadata >/dev/null 2>&1); then
     fail "invalid cnode release metadata was accepted"
@@ -770,38 +777,12 @@ run_source_checkout_test() (
 
 run_transaction_tests() (
   local fixture_root="${TEST_ROOT}/transaction"
-  local fake_bin="${fixture_root}/bin"
   local fake_mv_bin="${fixture_root}/mv-bin"
   local real_mv
-  local node_root remote_root curl_counter mv_counter
+  local node_root remote_root source_counter mv_counter
   local target remote_file env_tmp before after status target_count
-  mkdir -p "${fake_bin}" "${fake_mv_bin}"
+  mkdir -p "${fake_mv_bin}"
   real_mv="$(command -v mv)"
-
-  printf '%s\n' \
-    '#!/usr/bin/env bash' \
-    'set -euo pipefail' \
-    'output=""' \
-    'url=""' \
-    'while (( $# > 0 )); do' \
-    '  case "$1" in' \
-    '    -o) output="$2"; shift 2 ;;' \
-    '    -m) shift 2 ;;' \
-    '    -*) shift ;;' \
-    '    *) url="$1"; shift ;;' \
-    '  esac' \
-    'done' \
-    'count=0' \
-    '[[ ! -f "${FAKE_CURL_COUNTER}" ]] || read -r count < "${FAKE_CURL_COUNTER}"' \
-    'count=$((count + 1))' \
-    'printf "%s\\n" "${count}" > "${FAKE_CURL_COUNTER}"' \
-    'if [[ -n "${FAKE_CURL_FAIL_AT:-}" && "${count}" -eq "${FAKE_CURL_FAIL_AT}" ]]; then' \
-    '  exit 22' \
-    'fi' \
-    'relative="${url#*/scripts/}"' \
-    'cp -- "${FAKE_CURL_ROOT}/${relative}" "${output}"' \
-    > "${fake_bin}/curl"
-  chmod 0755 "${fake_bin}/curl"
 
   printf '%s\n' \
     '#!/usr/bin/env bash' \
@@ -816,6 +797,26 @@ run_transaction_tests() (
     'exec "${FAKE_MV_REAL}" "$@"' \
     > "${fake_mv_bin}/mv"
   chmod 0755 "${fake_mv_bin}/mv"
+
+  cnode_deploy_fetch() {
+    local relative_path="${1#scripts/}"
+    local destination="$2"
+    local count=0
+
+    [[ ! -f "${FAKE_SOURCE_COUNTER}" ]] ||
+      read -r count < "${FAKE_SOURCE_COUNTER}"
+    count=$((count + 1))
+    printf '%s\n' "${count}" > "${FAKE_SOURCE_COUNTER}"
+    if [[ -n "${FAKE_SOURCE_FAIL_AT:-}" &&
+          "${count}" -eq "${FAKE_SOURCE_FAIL_AT}" ]]; then
+      return 1
+    fi
+    cp -- "${FAKE_SOURCE_ROOT}/${relative_path}" "${destination}"
+  }
+
+  curl() {
+    fail "common runtime transaction attempted network access: $*"
+  }
 
   runtime_paths() {
     printf '%s\n' \
@@ -852,7 +853,7 @@ run_transaction_tests() (
 
     node_root="${fixture_root}/${fixture_name}/node"
     remote_root="${fixture_root}/${fixture_name}/remote/scripts"
-    curl_counter="${fixture_root}/${fixture_name}/curl.count"
+    source_counter="${fixture_root}/${fixture_name}/source.count"
     mv_counter="${fixture_root}/${fixture_name}/mv.count"
     mkdir -p \
       "${node_root}/scripts/archive" \
@@ -908,51 +909,49 @@ EOF
       "${remote_root}/cnode-helper-scripts/cnode.adapter"
 
     NODE_HOME="${node_root}"
-    URL_RAW="https://invalid.example/guild-operators/master"
-    CURL_TIMEOUT=1
     CNODE_DEPLOY_FORCE_SCRIPTS="N"
-    FAKE_CURL_ROOT="${remote_root}"
-    FAKE_CURL_COUNTER="${curl_counter}"
-    export NODE_HOME URL_RAW CURL_TIMEOUT CNODE_DEPLOY_FORCE_SCRIPTS
-    export FAKE_CURL_ROOT FAKE_CURL_COUNTER
+    FAKE_SOURCE_ROOT="${remote_root}"
+    FAKE_SOURCE_COUNTER="${source_counter}"
+    export NODE_HOME CNODE_DEPLOY_FORCE_SCRIPTS
+    export FAKE_SOURCE_ROOT FAKE_SOURCE_COUNTER
   }
 
-  PATH="${fake_bin}:${BASE_PATH}"
+  PATH="${BASE_PATH}"
   export PATH
 
-  prepare_fixture "download-failure"
+  prepare_fixture "source-failure"
   before="$(runtime_snapshot)"
-  printf '0\n' > "${curl_counter}"
-  FAKE_CURL_FAIL_AT=3
-  export FAKE_CURL_FAIL_AT
+  printf '0\n' > "${source_counter}"
+  FAKE_SOURCE_FAIL_AT=3
+  export FAKE_SOURCE_FAIL_AT
   if updateCommonRuntimeBundle; then
     status=0
   else
     status=$?
   fi
-  unset FAKE_CURL_FAIL_AT
-  assert_eq "${status}" "2" "mid-download transaction status"
+  unset FAKE_SOURCE_FAIL_AT
+  assert_eq "${status}" "2" "mid-source transaction status"
   after="$(runtime_snapshot)"
   assert_eq "${after}" "${before}" \
-    "mid-download transaction changed installed runtime files"
-  assert_no_transaction_artifacts "mid-download transaction"
+    "mid-source transaction changed installed runtime files"
+  assert_no_transaction_artifacts "mid-source transaction"
 
   prepare_fixture "commit-failure"
   before="$(runtime_snapshot)"
-  printf '0\n' > "${curl_counter}"
+  printf '0\n' > "${source_counter}"
   printf '0\n' > "${mv_counter}"
   FAKE_MV_COUNTER="${mv_counter}"
   FAKE_MV_FAIL_AT=2
   FAKE_MV_REAL="${real_mv}"
   export FAKE_MV_COUNTER FAKE_MV_FAIL_AT FAKE_MV_REAL
-  PATH="${fake_mv_bin}:${fake_bin}:${BASE_PATH}"
+  PATH="${fake_mv_bin}:${BASE_PATH}"
   export PATH
   if updateCommonRuntimeBundle; then
     status=0
   else
     status=$?
   fi
-  PATH="${fake_bin}:${BASE_PATH}"
+  PATH="${BASE_PATH}"
   export PATH
   assert_eq "${status}" "2" "mid-commit transaction status"
   after="$(runtime_snapshot)"
@@ -964,7 +963,7 @@ EOF
   fi
 
   prepare_fixture "success"
-  printf '0\n' > "${curl_counter}"
+  printf '0\n' > "${source_counter}"
   if updateCommonRuntimeBundle; then
     status=0
   else
@@ -988,6 +987,63 @@ EOF
     "6" \
     "successful runtime archive count"
   assert_no_transaction_artifacts "successful transaction"
+)
+
+run_custom_script_snapshot_test() (
+  local fixture_root="${TEST_ROOT}/custom-script-snapshot"
+  local source_root="${fixture_root}/source"
+  local installed_root="${fixture_root}/installed"
+  local installed_script="${installed_root}/fixture.sh"
+  local before_failure=""
+
+  mkdir -p \
+    "${source_root}/scripts/cnode-helper-scripts" \
+    "${installed_root}/archive"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'SOURCE_SETTING="template"' \
+    '# Do NOT modify code below' \
+    'printf "new runtime\n"' \
+    > "${source_root}/scripts/cnode-helper-scripts/fixture.sh"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'SOURCE_SETTING="operator"' \
+    '# Do NOT modify code below' \
+    'printf "old runtime\n"' \
+    > "${installed_script}"
+  chmod 0644 "${installed_script}"
+
+  GIT_SOURCE_ROOT="${source_root}"
+  CNODE_DEPLOY_FORCE_SCRIPTS="N"
+  curl() { fail "custom script refresh attempted network access: $*"; }
+  cd "${installed_root}"
+  updateWithCustomConfig fixture.sh
+
+  grep -q '^SOURCE_SETTING="operator"$' "${installed_script}" ||
+    fail "custom script refresh did not preserve the operator header"
+  grep -Fq 'printf "new runtime\n"' "${installed_script}" ||
+    fail "custom script refresh did not install the snapshot runtime"
+  find "${installed_script}" -prune -perm 0755 -print -quit | grep -q . ||
+    fail "custom script refresh did not set executable permissions"
+  find "${installed_root}/archive" -type f -print -quit | grep -q . ||
+    fail "custom script refresh did not archive the previous script"
+
+  CNODE_DEPLOY_FORCE_SCRIPTS="Y"
+  updateWithCustomConfig fixture.sh
+  grep -q '^SOURCE_SETTING="template"$' "${installed_script}" ||
+    fail "forced custom script refresh did not replace the operator header"
+
+  before_failure="$(sha256sum "${installed_script}" | awk '{print $1}')"
+  if (
+    dispatcher_source_copy() { return 1; }
+    updateWithCustomConfig fixture.sh
+  ) >/dev/null 2>&1; then
+    fail "custom script refresh accepted a failed snapshot copy"
+  fi
+  assert_eq \
+    "$(sha256sum "${installed_script}" | awk '{print $1}')" \
+    "${before_failure}" \
+    "failed custom script snapshot refresh"
 )
 
 run_install_order_test() {
@@ -1060,6 +1116,7 @@ run_binary_staging_test
 run_managed_installer_policy_test
 run_source_checkout_test
 run_transaction_tests
+run_custom_script_snapshot_test
 run_install_order_test
 run_legacy_orchestrator_retirement_test
 

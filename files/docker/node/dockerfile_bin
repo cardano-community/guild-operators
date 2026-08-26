@@ -49,7 +49,7 @@ RUN case "${IMAGE_NODE_IMPLEMENTATION}:${IMAGE_NODE_NETWORK}" in \
     esac
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y locales apt-utils curl wget udev jq ca-certificates \
+    && apt-get install --no-install-recommends -y locales apt-utils curl git wget udev jq ca-certificates \
     && apt-get -y clean \
     && rm -rf /var/lib/apt/lists/* \
     && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \
@@ -76,13 +76,49 @@ RUN set -x \
       cnode) install_flags=dcmowx ;; \
       dingo|amaru) install_flags=dfs ;; \
     esac \
-    && /guild-deploy.sh \
+    && "${IMAGE_NODE_HOME}/scripts/guild-deploy.sh" \
       -i "${IMAGE_NODE_IMPLEMENTATION}" \
       -n "${IMAGE_NODE_NETWORK}" \
       -b "${GUILD_DEPLOY_BRANCH}" \
       -s "${install_flags}" \
+    && source_repository="$(jq -er '.repository' "${IMAGE_NODE_HOME}/.deployment.json")" \
+    && source_branch="$(jq -er '.branch' "${IMAGE_NODE_HOME}/.deployment.json")" \
+    && source_revision="$(jq -er '.sourceRevision' "${IMAGE_NODE_HOME}/.deployment.json")" \
+    && source_account="${source_repository%/guild-operators}" \
+    && test "${source_repository}" = "${source_account}/guild-operators" \
+    && git clone --quiet --depth 1 --single-branch --no-tags \
+      --branch "${source_branch}" \
+      "https://github.com/${source_account}/guild-operators.git" \
+      /guild-container-source \
+    && test "$(git -C /guild-container-source rev-parse HEAD)" = "${source_revision}" \
+    && install -m 0644 \
+      /guild-container-source/files/docker/node/addons/banner.txt \
+      "${USER_HOME}/.scripts/banner.txt" \
+    && install -m 0755 \
+      /guild-container-source/files/docker/node/addons/healthcheck.sh \
+      "${IMAGE_NODE_HOME}/scripts/healthcheck.sh" \
+    && install -m 0755 \
+      /guild-container-source/files/docker/node/addons/entrypoint.sh \
+      "${USER_HOME}/entrypoint.sh" \
+    && if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ]; then \
+      mkdir -p "/conf/${IMAGE_NODE_NETWORK}" \
+      && cp \
+        "${IMAGE_NODE_HOME}/files/alonzo-genesis.json" \
+        "${IMAGE_NODE_HOME}/files/byron-genesis.json" \
+        "${IMAGE_NODE_HOME}/files/conway-genesis.json" \
+        "${IMAGE_NODE_HOME}/files/shelley-genesis.json" \
+        "${IMAGE_NODE_HOME}/files/config.json" \
+        "${IMAGE_NODE_HOME}/files/dbsync.json" \
+        "${IMAGE_NODE_HOME}/files/topology.json" \
+        "/conf/${IMAGE_NODE_NETWORK}/" \
+      && install -m 0755 \
+        /guild-container-source/files/docker/node/addons/block_watcher.sh \
+        "${USER_HOME}/.scripts/block_watcher.sh"; \
+    fi \
+    && rm -rf /guild-container-source \
     && mkdir -p "${IMAGE_NODE_HOME}/priv/files" \
-    && chown -R guild:guild "${IMAGE_NODE_HOME}" "${USER_HOME}" \
+    && chmod -R a+rX /conf \
+    && chown -R guild:guild "${IMAGE_NODE_HOME}" "${USER_HOME}" /conf \
     && apt-get -y clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -99,48 +135,11 @@ RUN apt-get update \
     && apt-get -y clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Retain the cnode configuration cache used by the container entrypoint. The
-# alternate profiles install their implementation-native files directly.
-RUN if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ]; then \
-      for network in guild mainnet preprod preview; do \
-        mkdir -p "/conf/${network}"; \
-        for file in alonzo-genesis.json byron-genesis.json conway-genesis.json shelley-genesis.json config.json db-sync-config.json topology.json; do \
-          curl --fail --silent --show-error --location \
-            --output "/conf/${network}/${file}" \
-            "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/configs/cnode/${network}/${file}"; \
-        done; \
-      done; \
-    fi
-
-# Common container assets.
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/banner.txt ${USER_HOME}/.scripts/banner.txt
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/healthcheck.sh \
-    https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh ${IMAGE_NODE_HOME}/scripts/
-ADD https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/entrypoint.sh ${USER_HOME}/entrypoint.sh
-
-# These helpers are still cnode-only. Downloading them conditionally avoids
-# making an alternate-node image appear to support unverified tooling.
-RUN if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ]; then \
-      for helper in mithril-client.sh mithril-signer.sh mithril-relay.sh; do \
-        curl --fail --silent --show-error --location \
-          --output "${IMAGE_NODE_HOME}/scripts/${helper}" \
-          "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/${helper}"; \
-      done; \
-      curl --fail --silent --show-error --location \
-        --output "${USER_HOME}/.scripts/block_watcher.sh" \
-        "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/files/docker/node/addons/block_watcher.sh"; \
-    fi \
-    && chmod 0755 "${USER_HOME}/entrypoint.sh" \
-    && find "${USER_HOME}/.scripts" "${IMAGE_NODE_HOME}/scripts" -type f -name '*.sh' -exec chmod 0755 {} + \
-    && chmod -R a+rX /conf \
-    && chown -R guild:guild "${USER_HOME}" "${IMAGE_NODE_HOME}" /conf
-
 USER guild
 WORKDIR ${USER_HOME}
 
-RUN curl --fail --silent --show-error --location \
-      "https://api.github.com/repos/${G_ACCOUNT}/guild-operators/commits?sha=${GUILD_DEPLOY_BRANCH}&per_page=1" \
-      | jq -r '.[0].sha // "unknown"' > "${USER_HOME}/guild-latest.txt" \
+RUN jq -er '.sourceRevision' "${IMAGE_NODE_HOME}/.deployment.json" \
+      > "${USER_HOME}/guild-latest.txt" \
     && echo "head -n 8 ${USER_HOME}/.scripts/banner.txt" >> "${USER_HOME}/.bashrc" \
     && echo "grep MENU -A 6 ${USER_HOME}/.scripts/banner.txt | grep -v MENU" >> "${USER_HOME}/.bashrc" \
     && echo "alias env=/usr/bin/env" >> "${USER_HOME}/.bashrc" \

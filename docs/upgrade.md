@@ -14,9 +14,10 @@
     root (normally `${CNODE_HOME}` for cnode),
     imports the branch from the former `scripts/.env_branch`, and archives
     that sidecar. Subsequent `-b` updates are stored in the manifest.
-    Manifest-backed helper updates never silently fall back to `master` when
-    that recorded branch disappears or cannot be verified; select a reachable
-    branch explicitly before updating. For a new Dingo or Amaru deployment,
+    Manifest-backed runtime helpers never choose a different branch on their
+    own. Guild-deploy retains its visible fallback to `master`, but only after
+    Git confirms that the recorded branch or tag no longer exists; clone or
+    verification errors stop instead. For a new Dingo or Amaru deployment,
     `-n preprod` or `-n preview` is required. Later dispatcher runs may omit
     `-n` because the valid manifest restores the network.
 

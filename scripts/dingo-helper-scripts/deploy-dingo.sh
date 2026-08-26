@@ -2,8 +2,6 @@
 # Source-only Dingo deployment profile for the common guild-deploy dispatcher.
 # shellcheck disable=SC2034,SC2154
 
-DINGO_DEPLOY_PROFILE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-
 dingo_deploy_info() {
   if declare -F log_info >/dev/null 2>&1; then log_info "$1"; else printf 'INFO: %s\n' "$1"; fi
 }
@@ -106,22 +104,22 @@ dingo_deploy_install_dependencies() {
       dingo_deploy_privileged env DEBIAN_FRONTEND=noninteractive apt-get \
       -o Dpkg::Use-Pty=0 -o APT::Color=0 install -y \
       bc bsdmainutils ca-certificates coreutils curl diffutils e2fsprogs findutils \
-      gawk gnupg grep gzip iproute2 jq less ncurses-bin procps sed sqlite3 tar \
+      gawk git gnupg grep gzip iproute2 jq less ncurses-bin procps sed sqlite3 tar \
       unzip xxd || return 1
   elif command -v dnf >/dev/null 2>&1; then
     dispatcher_run_package_command "Dingo prerequisite package installation" \
       dingo_deploy_privileged dnf install -y \
-      bc ca-certificates coreutils curl diffutils e2fsprogs findutils gawk gnupg2 \
+      bc ca-certificates coreutils curl diffutils e2fsprogs findutils gawk git gnupg2 \
       grep gzip iproute jq less ncurses procps-ng sed sqlite tar unzip util-linux \
       vim-common || return 1
   elif command -v yum >/dev/null 2>&1; then
     dispatcher_run_package_command "Dingo prerequisite package installation" \
       dingo_deploy_privileged yum install -y \
-      bc ca-certificates coreutils curl diffutils e2fsprogs findutils gawk gnupg2 \
+      bc ca-certificates coreutils curl diffutils e2fsprogs findutils gawk git gnupg2 \
       grep gzip iproute jq less ncurses procps-ng sed sqlite tar unzip util-linux \
       vim-common || return 1
   else
-    dingo_deploy_fail "Unsupported package manager; install bc, chattr, column, coreutils, curl, findutils, gawk, gpg, grep, gzip, iproute, jq, less, ncurses, procps, sed, sqlite3, tar, unzip, and xxd"
+    dingo_deploy_fail "Unsupported package manager; install bc, chattr, column, coreutils, curl, findutils, gawk, git, gpg, grep, gzip, iproute, jq, less, ncurses, procps, sed, sqlite3, tar, unzip, and xxd"
     return 1
   fi
   dingo_deploy_ok "Dingo runtime prerequisites"
@@ -129,7 +127,7 @@ dingo_deploy_install_dependencies() {
 
 dingo_deploy_require_commands() {
   local command_name
-  for command_name in awk cmp cp curl find grep head install jq mktemp mv sed sha256sum tar; do
+  for command_name in awk cmp cp curl find git grep head install jq mktemp mv sed sha256sum tar; do
     command -v "${command_name}" >/dev/null 2>&1 || {
       dingo_deploy_fail "Required command '${command_name}' is missing; re-run with -s p"
       return 1
@@ -137,32 +135,60 @@ dingo_deploy_require_commands() {
   done
 }
 
-dingo_deploy_local_payload() {
-  local relative_path="$1"
-  local repository_root
-  repository_root="$(cd -- "${DINGO_DEPLOY_PROFILE_DIR}/../.." && pwd -P)"
-  [[ -f "${repository_root}/${relative_path}" ]] || return 1
-  printf '%s\n' "${repository_root}/${relative_path}"
+dingo_deploy_fetch() {
+  declare -F dispatcher_source_copy >/dev/null 2>&1 || {
+    dingo_deploy_fail "Guild source snapshot helper is unavailable"
+    return 1
+  }
+  dispatcher_source_copy "$1" "$2"
 }
 
-dingo_deploy_fetch() {
-  local relative_path="$1"
-  local destination="$2"
-  local local_payload=""
-  local_payload="$(dingo_deploy_local_payload "${relative_path}" 2>/dev/null || true)"
-  if [[ -n "${local_payload}" ]]; then
-    cp -- "${local_payload}" "${destination}"
-  else
-    [[ -n "${URL_RAW:-}" ]] || {
-      dingo_deploy_fail "URL_RAW is required when profile payloads are not available locally"
-      return 1
-    }
-    curl --fail --silent --show-error --location \
-      --connect-timeout "${CURL_TIMEOUT:-20}" \
-      --max-time "${CURL_TIMEOUT:-60}" \
-      "${URL_RAW}/${relative_path}" \
-      --output "${destination}"
-  fi
+dingo_deploy_preflight_snapshot() {
+  local release_path=""
+  local dingo_config=""
+  local dingo_environment=""
+  local -a shell_payloads source_payloads
+
+  shell_payloads=(
+    scripts/dingo-helper-scripts/dingo.sh
+    scripts/common-helper-scripts/lib/deployment.library
+    scripts/common-helper-scripts/lib/env.library
+    scripts/common-helper-scripts/lib/node-api.library
+    scripts/common-helper-scripts/lib/systemd.library
+    scripts/dingo-helper-scripts/dingo.adapter
+    scripts/common-helper-scripts/env
+    scripts/common-helper-scripts/gLiveView.sh
+    scripts/common-helper-scripts/cntools.library
+    scripts/common-helper-scripts/cntools.sh
+    "files/configs/dingo/${NETWORK}/dingo.env"
+  )
+  source_payloads=(
+    "files/configs/dingo/${NETWORK}/dingo.yaml"
+  )
+
+  GUILD_DEPLOY_PREFLIGHT_BASH_BIN="${DINGO_DEPLOY_BASH_BIN:-bash}" \
+    dispatcher_preflight_shell_payloads "${shell_payloads[@]}" || return 1
+  dispatcher_preflight_source_payloads "${source_payloads[@]}" || return 1
+  dispatcher_preflight_json_payloads \
+    files/node-implementations/dingo/release.json || return 1
+  dingo_config="$(dispatcher_source_path "${source_payloads[0]}")" || return 1
+  grep -Fq "network: \"${NETWORK}\"" "${dingo_config}" || {
+    dingo_deploy_fail "Dingo configuration failed network validation during preflight"
+    return 1
+  }
+  dingo_environment="$(
+    dispatcher_source_path "files/configs/dingo/${NETWORK}/dingo.env"
+  )" || return 1
+  grep -Fq "CARDANO_NETWORK=\"${NETWORK}\"" "${dingo_environment}" || {
+    dingo_deploy_fail "Dingo environment failed network validation during preflight"
+    return 1
+  }
+  release_path="$(dispatcher_source_path 'files/node-implementations/dingo/release.json')" ||
+    return 1
+  dingo_deploy_validate_release_metadata "${release_path}" || {
+    dingo_deploy_fail "Dingo release metadata failed preflight validation"
+    return 1
+  }
 }
 
 dingo_deploy_prepare_layout() {
@@ -583,6 +609,7 @@ deploy_dingo_profile() {
     dingo_deploy_install_dependencies || return 1
   fi
   dingo_deploy_require_commands || return 1
+  dingo_deploy_preflight_snapshot || return 1
   dingo_deploy_prepare_layout || return 1
   if declare -F dispatcher_mark_in_progress >/dev/null 2>&1; then
     dispatcher_mark_in_progress || return 1

@@ -34,16 +34,29 @@ The downloaded `guild-deploy.sh` is the common dispatcher. It:
 3. protects an existing target from implementation or network collisions;
 4. restores the stored repository, branch, network, and service identity from
    `.deployment.json` (an explicitly configured network must match);
-5. downloads the selected implementation profile from that exact repository
-   branch;
-6. marks the manifest as `deploying`, runs the profile, and finalizes the
-   manifest as `deployed` only after success.
+5. makes one shallow checkout of that exact repository branch and records its
+   commit revision;
+6. loads the selected profile and all Guild-owned payloads from that checkout;
+7. runs the profile with the manifest marked `deploying`, installs the current
+   dispatcher in the target `scripts` directory, and finalizes the manifest as
+   `deployed` only after success.
 
-The dispatcher never substitutes profile or payload files from the local Git
-checkout. This keeps `repository` and `branch` truthful when the entrypoint is
-run by a contributor from a different checkout. Deployment, branch changes,
-and common-runtime refreshes also take the same target-wide lock; concurrent
-writers fail without partially interleaving files or metadata.
+The bootstrap file does not download profiles or payload files one by one.
+Every Guild-owned file comes from the same temporary checkout, while external
+release APIs and checksum-verified binary downloads retain their existing
+flows. The checkout must have no modified tracked files, and each profile
+preflights its required shell, JSON, and template payloads before changing the
+node target. Deployment, branch changes, and common-runtime refreshes also take
+the same target-wide lock; concurrent writers fail without partially
+interleaving files or metadata. Guild-deploy reads the stored source selection
+under that lock, releases it while cloning, then verifies under a new lock that
+the target did not change before the checkout is applied.
+
+The checkout dispatcher carries a small snapshot-capability marker. A branch
+or tag from before snapshot deployment fails with an instruction to use its
+matching historical `guild-deploy.sh`; it never falls back to that dispatcher's
+former per-file download flow. A failed clone falls back to `master` only when
+Git can confirm that the requested remote branch or tag does not exist.
 
 Implementation-specific work remains separate:
 
@@ -119,6 +132,7 @@ configuration:
   "network": "preview",
   "branch": "master",
   "repository": "cardano-community/guild-operators",
+  "sourceRevision": "0123456789abcdef0123456789abcdef01234567",
   "serviceName": "dingo",
   "nodeVersion": "vX.Y.Z (commit REVISION)",
   "targetNodeVersion": "latest",
@@ -139,6 +153,12 @@ the release policy selected by the deployment profile, even when `-s d` was
 not requested. It is a concrete cnode version and `latest` for Dingo or Amaru.
 This distinction prevents rolling release metadata from being mistaken for
 the binary currently on the host.
+
+`sourceRevision` is the exact Git commit used for the dispatcher runtime,
+profile, and Guild-owned payload files in that deployment. The invoking
+dispatcher's editable user-variable header is preserved separately. Older
+manifests without this field remain readable during migration; every new
+successful deployment records it.
 
 The dispatcher validates the complete version-1 manifest and refuses to reuse
 a manifest-owned folder with malformed or incomplete metadata, a different

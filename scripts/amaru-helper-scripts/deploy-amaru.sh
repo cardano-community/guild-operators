@@ -2,8 +2,6 @@
 # Source-only Amaru deployment profile for the common guild-deploy dispatcher.
 # shellcheck disable=SC2034,SC2154
 
-AMARU_DEPLOY_PROFILE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-
 amaru_deploy_info() {
   if declare -F log_info >/dev/null 2>&1; then log_info "$1"; else printf 'INFO: %s\n' "$1"; fi
 }
@@ -105,20 +103,20 @@ amaru_deploy_install_dependencies() {
     dispatcher_run_package_command "Amaru prerequisite package installation" \
       amaru_deploy_privileged env DEBIAN_FRONTEND=noninteractive apt-get \
       -o Dpkg::Use-Pty=0 -o APT::Color=0 install -y \
-      bc ca-certificates coreutils curl diffutils findutils gawk grep gzip iproute2 jq \
+      bc ca-certificates coreutils curl diffutils findutils gawk git grep gzip iproute2 jq \
       ncurses-bin procps sed tar || return 1
   elif command -v dnf >/dev/null 2>&1; then
     dispatcher_run_package_command "Amaru prerequisite package installation" \
       amaru_deploy_privileged dnf install -y \
-      bc ca-certificates coreutils curl diffutils findutils gawk grep gzip iproute jq \
+      bc ca-certificates coreutils curl diffutils findutils gawk git grep gzip iproute jq \
       ncurses procps-ng sed tar || return 1
   elif command -v yum >/dev/null 2>&1; then
     dispatcher_run_package_command "Amaru prerequisite package installation" \
       amaru_deploy_privileged yum install -y \
-      bc ca-certificates coreutils curl diffutils findutils gawk grep gzip iproute jq \
+      bc ca-certificates coreutils curl diffutils findutils gawk git grep gzip iproute jq \
       ncurses procps-ng sed tar || return 1
   else
-    amaru_deploy_fail "Unsupported package manager; install bc, coreutils, curl, findutils, grep, gzip, iproute, jq, ncurses, procps, sed, and tar"
+    amaru_deploy_fail "Unsupported package manager; install bc, coreutils, curl, findutils, git, grep, gzip, iproute, jq, ncurses, procps, sed, and tar"
     return 1
   fi
   amaru_deploy_ok "Amaru runtime prerequisites"
@@ -126,7 +124,7 @@ amaru_deploy_install_dependencies() {
 
 amaru_deploy_require_commands() {
   local command_name
-  for command_name in awk cmp cp curl find grep head install jq mktemp mv sed sha256sum tar; do
+  for command_name in awk cmp cp curl find git grep head install jq mktemp mv sed sha256sum tar; do
     command -v "${command_name}" >/dev/null 2>&1 || {
       amaru_deploy_fail "Required command '${command_name}' is missing; re-run with -s p"
       return 1
@@ -134,32 +132,58 @@ amaru_deploy_require_commands() {
   done
 }
 
-amaru_deploy_local_payload() {
-  local relative_path="$1"
-  local repository_root
-  repository_root="$(cd -- "${AMARU_DEPLOY_PROFILE_DIR}/../.." && pwd -P)"
-  [[ -f "${repository_root}/${relative_path}" ]] || return 1
-  printf '%s\n' "${repository_root}/${relative_path}"
+amaru_deploy_fetch() {
+  declare -F dispatcher_source_copy >/dev/null 2>&1 || {
+    amaru_deploy_fail "Guild source snapshot helper is unavailable"
+    return 1
+  }
+  dispatcher_source_copy "$1" "$2"
 }
 
-amaru_deploy_fetch() {
-  local relative_path="$1"
-  local destination="$2"
-  local local_payload=""
-  local_payload="$(amaru_deploy_local_payload "${relative_path}" 2>/dev/null || true)"
-  if [[ -n "${local_payload}" ]]; then
-    cp -- "${local_payload}" "${destination}"
-  else
-    [[ -n "${URL_RAW:-}" ]] || {
-      amaru_deploy_fail "URL_RAW is required when profile payloads are not available locally"
-      return 1
-    }
-    curl --fail --silent --show-error --location \
-      --connect-timeout "${CURL_TIMEOUT:-20}" \
-      --max-time "${CURL_TIMEOUT:-60}" \
-      "${URL_RAW}/${relative_path}" \
-      --output "${destination}"
-  fi
+amaru_deploy_preflight_snapshot() {
+  local environment_path=""
+  local otel_path=""
+  local release_path=""
+  local -a shell_payloads source_payloads
+
+  shell_payloads=(
+    scripts/amaru-helper-scripts/amaru.sh
+    scripts/common-helper-scripts/lib/deployment.library
+    scripts/common-helper-scripts/lib/env.library
+    scripts/common-helper-scripts/lib/node-api.library
+    scripts/common-helper-scripts/lib/systemd.library
+    scripts/amaru-helper-scripts/amaru.adapter
+    scripts/common-helper-scripts/env
+    scripts/common-helper-scripts/gLiveView.sh
+    "files/configs/amaru/${NETWORK}/amaru.env"
+  )
+  source_payloads=(
+    files/configs/amaru/otelcol.yaml
+  )
+
+  dispatcher_preflight_shell_payloads "${shell_payloads[@]}" || return 1
+  dispatcher_preflight_source_payloads "${source_payloads[@]}" || return 1
+  dispatcher_preflight_json_payloads \
+    files/node-implementations/amaru/release.json || return 1
+  environment_path="$(
+    dispatcher_source_path "files/configs/amaru/${NETWORK}/amaru.env"
+  )" || return 1
+  grep -Fq "AMARU_NETWORK=\"${NETWORK}\"" "${environment_path}" || {
+    amaru_deploy_fail "Amaru environment failed network validation during preflight"
+    return 1
+  }
+  otel_path="$(dispatcher_source_path 'files/configs/amaru/otelcol.yaml')" ||
+    return 1
+  grep -Fq 'endpoint: 127.0.0.1:8889' "${otel_path}" || {
+    amaru_deploy_fail "Amaru collector configuration failed preflight validation"
+    return 1
+  }
+  release_path="$(dispatcher_source_path 'files/node-implementations/amaru/release.json')" ||
+    return 1
+  amaru_deploy_validate_release_metadata "${release_path}" || {
+    amaru_deploy_fail "Amaru release metadata failed preflight validation"
+    return 1
+  }
 }
 
 amaru_deploy_prepare_layout() {
@@ -547,6 +571,7 @@ deploy_amaru_profile() {
     amaru_deploy_install_dependencies || return 1
   fi
   amaru_deploy_require_commands || return 1
+  amaru_deploy_preflight_snapshot || return 1
   amaru_deploy_prepare_layout || return 1
   if declare -F dispatcher_mark_in_progress >/dev/null 2>&1; then
     dispatcher_mark_in_progress || return 1

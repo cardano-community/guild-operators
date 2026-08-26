@@ -158,7 +158,6 @@ refresh_deployment() {
   "${NODE_HOME}/scripts/guild-deploy.sh" \
     -i "${NODE_IMPLEMENTATION}" \
     -n "${NETWORK}" \
-    -u \
     -s "${refresh_flags}"
 }
 

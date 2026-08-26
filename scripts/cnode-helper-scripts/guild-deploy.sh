@@ -15,7 +15,6 @@
 #NODE_PORT=                           # Node-to-node port (Default: cnode 6000, dingo 3001, amaru 3000)
 #CURL_TIMEOUT=60                     # Download timeout in seconds
 #DOWNLOAD_TIMEOUT=600                # Large binary download timeout in seconds
-#UPDATE_CHECK="Y"                    # Check this dispatcher for updates
 #SUDO="Y"                            # Set to N in containers already running as root
 #PACKAGE_MANAGER_OUTPUT="compact"    # compact | verbose
 #
@@ -27,10 +26,10 @@
 
 export LANG="C.UTF-8"
 export LC_ALL="${LANG}"
+GUILD_DEPLOY_SNAPSHOT_CAPABLE="Y"
 
 DISPATCHER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DISPATCHER_LOCAL_REPO="N"
-[[ -e "${DISPATCHER_DIR}/../../.git" ]] && DISPATCHER_LOCAL_REPO="Y"
+DISPATCHER_SCRIPT_PATH="${DISPATCHER_DIR}/$(basename "${BASH_SOURCE[0]}")"
 
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1; then
   STYLE_RESET="$(tput sgr0 2>/dev/null || true)"
@@ -431,7 +430,7 @@ dispatcher_resolve_github_release() {
 dispatcher_usage() {
   cat <<-EOF
 
-	Usage: $(basename "$0") [-i <cnode|dingo|amaru>] [-n <network>] [-p path] [-t name] [-b branch] [-u] [-s flags]
+	Usage: $(basename "$0") [-i <cnode|dingo|amaru>] [-n <network>] [-p path] [-t name] [-b branch] [-s flags]
 
 	Common Guild Operators deployment entrypoint.
 
@@ -440,7 +439,6 @@ dispatcher_usage() {
 	-p    Parent path below which the top-level folder is created (Default: /opt/cardano)
 	-t    Alternate top-level folder/service name (Default: selected implementation)
 	-b    Guild Operators repository branch (Default: stored deployment branch, then master)
-	-u    Skip dispatcher update check
 	-s    Selective install flags. Common meanings:
 	        p  runtime OS prerequisites
 	        d  selected node implementation binaries
@@ -504,6 +502,336 @@ validate_branch_name() {
 
 validate_account_name() {
   [[ "$1" =~ ^[A-Za-z0-9_.-]+$ ]]
+}
+
+dispatcher_source_relative_path_valid() {
+  local relative_path="${1:-}"
+  local component
+  local -a components
+
+  [[ -n "${relative_path}" &&
+     "${relative_path}" != /* &&
+     "${relative_path}" != *$'\n'* &&
+     "${relative_path}" != *$'\r'* ]] || return 1
+  IFS='/' read -r -a components <<< "${relative_path}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" &&
+       "${component}" != "." &&
+       "${component}" != ".." ]] || return 1
+  done
+}
+
+dispatcher_source_path() {
+  local relative_path="${1:-}"
+  local current_path="${GIT_SOURCE_ROOT:-}"
+  local component
+  local repository_root=""
+  local source_root=""
+  local -a components
+
+  dispatcher_source_relative_path_valid "${relative_path}" || return 2
+  [[ -n "${current_path}" &&
+     "${current_path}" = /* &&
+     -d "${current_path}" &&
+     ! -L "${current_path}" ]] || return 2
+  source_root="$(cd -- "${current_path}" && pwd -P)" || return 2
+  current_path="${source_root}"
+
+  IFS='/' read -r -a components <<< "${relative_path}"
+  for component in "${components[@]}"; do
+    current_path="${current_path}/${component}"
+    [[ ! -L "${current_path}" ]] || return 2
+  done
+  [[ -f "${current_path}" ]] || return 1
+  repository_root="$(git -C "${source_root}" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "${repository_root}" && "${repository_root}" = "${source_root}" ]]; then
+    git -C "${source_root}" ls-files --error-unmatch \
+      -- "${relative_path}" >/dev/null 2>&1 || return 2
+  fi
+  printf '%s\n' "${current_path}"
+}
+
+dispatcher_source_copy() {
+  local relative_path="${1:-}"
+  local destination="${2:-}"
+  local source_path=""
+
+  [[ -n "${destination}" ]] || return 2
+  source_path="$(dispatcher_source_path "${relative_path}")" || {
+    log_warn "Guild source payload is missing or unsafe: ${relative_path:-empty path}"
+    return 1
+  }
+  cp -- "${source_path}" "${destination}"
+}
+
+dispatcher_preflight_source_payloads() {
+  local relative_path=""
+  local source_path=""
+
+  for relative_path in "$@"; do
+    source_path="$(dispatcher_source_path "${relative_path}")" || {
+      log_warn "Required Guild source payload is missing or unsafe: ${relative_path}"
+      return 1
+    }
+    [[ -s "${source_path}" ]] || {
+      log_warn "Required Guild source payload is empty: ${relative_path}"
+      return 1
+    }
+  done
+}
+
+dispatcher_preflight_shell_payloads() {
+  local relative_path=""
+  local source_path=""
+  local bash_bin="${GUILD_DEPLOY_PREFLIGHT_BASH_BIN:-bash}"
+
+  for relative_path in "$@"; do
+    source_path="$(dispatcher_source_path "${relative_path}")" || {
+      log_warn "Required Guild shell payload is missing or unsafe: ${relative_path}"
+      return 1
+    }
+    [[ -s "${source_path}" ]] && "${bash_bin}" -n "${source_path}" || {
+      log_warn "Required Guild shell payload failed validation: ${relative_path}"
+      return 1
+    }
+  done
+}
+
+dispatcher_preflight_json_payloads() {
+  local relative_path=""
+  local source_path=""
+
+  command -v jq >/dev/null 2>&1 || {
+    log_warn "jq is required to validate Guild JSON payloads; re-run with -s p."
+    return 1
+  }
+  for relative_path in "$@"; do
+    source_path="$(dispatcher_source_path "${relative_path}")" || {
+      log_warn "Required Guild JSON payload is missing or unsafe: ${relative_path}"
+      return 1
+    }
+    jq -e 'type == "object"' "${source_path}" >/dev/null 2>&1 || {
+      log_warn "Required Guild JSON payload failed validation: ${relative_path}"
+      return 1
+    }
+  done
+}
+
+dispatcher_target_state_token() {
+  local manifest_path="${1:-${DEPLOYMENT_FILE:-}}"
+  local checksum_output=""
+
+  [[ -n "${manifest_path}" ]] || return 2
+  if [[ -L "${manifest_path}" ]]; then
+    return 2
+  elif [[ -e "${manifest_path}" ]]; then
+    [[ -f "${manifest_path}" && -r "${manifest_path}" ]] || return 2
+    checksum_output="$(cksum < "${manifest_path}")" || return 2
+    [[ "${checksum_output}" =~ ^([0-9]+)[[:space:]]+([0-9]+)$ ]] || return 2
+    printf 'file:%s-%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  else
+    printf 'absent\n'
+  fi
+}
+
+dispatcher_snapshot_revision() {
+  local source_root="${1:-${GIT_SOURCE_ROOT:-}}"
+  local revision=""
+
+  revision="$(git -C "${source_root}" rev-parse --verify 'HEAD^{commit}' 2>/dev/null)" ||
+    return 1
+  [[ "${revision}" =~ ^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$ ]] || return 1
+  printf '%s\n' "${revision}" | tr '[:upper:]' '[:lower:]'
+}
+
+dispatcher_validate_snapshot() {
+  local source_root="${1:-}"
+  local expected_dispatcher=""
+  local profile_path=""
+  local repository_root=""
+
+  command -v git >/dev/null 2>&1 ||
+    err_exit "Git is required. Install Git and re-run guild-deploy.sh."
+  [[ -n "${source_root}" && -d "${source_root}" && ! -L "${source_root}" ]] ||
+    err_exit "The prepared Guild Operators source snapshot is unavailable."
+  source_root="$(cd -- "${source_root}" && pwd -P)" ||
+    err_exit "Could not resolve the Guild Operators source snapshot."
+  repository_root="$(git -C "${source_root}" rev-parse --show-toplevel 2>/dev/null)" ||
+    err_exit "The prepared source snapshot is not a Git checkout."
+  repository_root="$(cd -- "${repository_root}" && pwd -P)" ||
+    err_exit "Could not resolve the prepared Git checkout."
+  [[ "${repository_root}" = "${source_root}" ]] ||
+    err_exit "The prepared source snapshot has an unexpected repository root."
+  git -C "${source_root}" diff --quiet --no-ext-diff -- ||
+    err_exit "The prepared source snapshot contains modified tracked files."
+  git -C "${source_root}" diff --cached --quiet --no-ext-diff -- ||
+    err_exit "The prepared source snapshot contains staged tracked changes."
+
+  GIT_SOURCE_ROOT="${source_root}"
+  GUILD_SOURCE_REVISION="$(dispatcher_snapshot_revision "${source_root}")" ||
+    err_exit "Could not resolve the source snapshot revision."
+  expected_dispatcher="$(dispatcher_source_path 'scripts/cnode-helper-scripts/guild-deploy.sh')" ||
+    err_exit "The source snapshot does not contain a safe guild-deploy.sh."
+  grep -qx 'GUILD_DEPLOY_SNAPSHOT_CAPABLE="Y"' "${expected_dispatcher}" ||
+    err_exit "The selected branch predates snapshot deployment. Run its matching historical guild-deploy.sh instead."
+  dispatcher_source_path 'LICENSE' >/dev/null ||
+    err_exit "The source snapshot does not contain a safe LICENSE file."
+  profile_path="$(dispatcher_source_path "$(dispatcher_profile_relative_path)")" ||
+    err_exit "The source snapshot does not contain the selected deployment profile."
+  bash -n "${expected_dispatcher}" ||
+    err_exit "The source snapshot guild-deploy.sh failed shell validation."
+  bash -n "${profile_path}" ||
+    err_exit "The selected deployment profile failed shell validation."
+  export GIT_SOURCE_ROOT GUILD_SOURCE_REVISION
+}
+
+dispatcher_adopt_snapshot() {
+  local source_root=""
+
+  source_root="$(cd -- "${DISPATCHER_DIR}/../.." && pwd -P)" ||
+    err_exit "Could not resolve the source snapshot used to run guild-deploy.sh."
+  dispatcher_validate_snapshot "${source_root}"
+  dispatcher_validate_prepared_dispatcher "${DISPATCHER_SCRIPT_PATH}"
+}
+
+dispatcher_clone_snapshot() {
+  local branch="${1:-}"
+  local repository_url="${2:-}"
+  local destination="${3:-}"
+
+  GIT_TERMINAL_PROMPT=0 git -c advice.detachedHead=false \
+    clone --quiet --depth 1 --single-branch --no-tags \
+    --branch "${branch}" "${repository_url}" "${destination}"
+}
+
+dispatcher_remote_ref_status() {
+  local ref_name="${1:-}"
+  local repository_url="${2:-}"
+
+  GIT_TERMINAL_PROMPT=0 git ls-remote --quiet --exit-code --refs \
+    "${repository_url}" \
+    "refs/heads/${ref_name}" \
+    "refs/tags/${ref_name}" >/dev/null 2>&1
+}
+
+dispatcher_compose_snapshot_dispatcher() {
+  local source_file="${1:-}"
+  local staged_file=""
+  local runtime_body=""
+
+  [[ -n "${GUILD_DEPLOY_USER_HEADER:-}" &&
+     -f "${source_file}" &&
+     ! -L "${source_file}" ]] ||
+    err_exit "Could not preserve the local guild-deploy.sh user header."
+  [[ "$(grep -c '^# Do NOT modify code below' "${source_file}" 2>/dev/null)" = "1" ]] ||
+    err_exit "The source snapshot guild-deploy.sh has an invalid user-variable boundary."
+  runtime_body="$(awk '/^# Do NOT modify code below/{copy=1} copy' "${source_file}")"
+  [[ -n "${runtime_body}" ]] ||
+    err_exit "Could not read the source snapshot guild-deploy.sh runtime."
+
+  staged_file="$(mktemp "$(dirname "${source_file}")/.guild-deploy.sh.prepared.XXXXXX")" ||
+    err_exit "Could not stage the source snapshot guild-deploy.sh."
+  if ! printf '%s\n%s\n' "${GUILD_DEPLOY_USER_HEADER}" "${runtime_body}" > "${staged_file}" ||
+     ! bash -n "${staged_file}" ||
+     ! chmod 0755 "${staged_file}"; then
+    rm -f -- "${staged_file}"
+    err_exit "Could not compose a validated source snapshot guild-deploy.sh."
+  fi
+  SNAPSHOT_DISPATCHER_PATH="${staged_file}"
+}
+
+dispatcher_validate_prepared_dispatcher() {
+  local prepared_file="${1:-}"
+  local source_file="${GIT_SOURCE_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh"
+  local prepared_header=""
+  local prepared_runtime=""
+  local source_runtime=""
+
+  [[ -f "${prepared_file}" && ! -L "${prepared_file}" &&
+     "$(dirname "${prepared_file}")" = "${GIT_SOURCE_ROOT}/scripts/cnode-helper-scripts" ]] ||
+    err_exit "Snapshot mode requires a prepared guild-deploy.sh inside the source checkout."
+  case "$(basename "${prepared_file}")" in
+    .guild-deploy.sh.prepared.*) ;;
+    *) err_exit "Snapshot mode received an unexpected dispatcher path." ;;
+  esac
+  prepared_header="$(dispatcher_extract_user_header "${prepared_file}")" ||
+    err_exit "The prepared guild-deploy.sh has an invalid user-variable header."
+  [[ "${prepared_header}" = "${GUILD_DEPLOY_USER_HEADER:-}" ]] ||
+    err_exit "The prepared guild-deploy.sh did not preserve the invoking user header."
+  prepared_runtime="$(awk '/^# Do NOT modify code below/{copy=1} copy' "${prepared_file}")"
+  source_runtime="$(awk '/^# Do NOT modify code below/{copy=1} copy' "${source_file}")"
+  [[ -n "${prepared_runtime}" && "${prepared_runtime}" = "${source_runtime}" ]] ||
+    err_exit "The prepared guild-deploy.sh runtime does not match the source snapshot."
+  bash -n "${prepared_file}" ||
+    err_exit "The prepared guild-deploy.sh failed shell validation."
+}
+
+dispatcher_prepare_snapshot() {
+  local repository_url=""
+  local snapshot_dispatcher=""
+  local child_status=0
+  local remote_ref_status=0
+  local -a original_args=("$@")
+
+  command -v git >/dev/null 2>&1 ||
+    err_exit "Git is required. Install Git and re-run guild-deploy.sh."
+  GUILD_SOURCE_TMP_DIR="$(
+    umask 077
+    mktemp -d "${TMPDIR:-/tmp}/guild-operators-source.XXXXXX"
+  )" || err_exit "Could not create a temporary source directory."
+  DISPATCHER_SOURCE_TMP_OWNED="Y"
+  GIT_SOURCE_ROOT="${GUILD_SOURCE_TMP_DIR}/repository"
+  GUILD_SOURCE_TMP_DIR="$(cd -- "${GUILD_SOURCE_TMP_DIR}" && pwd -P)" ||
+    err_exit "Could not resolve the temporary source directory."
+  GIT_SOURCE_ROOT="${GUILD_SOURCE_TMP_DIR}/repository"
+  chmod 0700 "${GUILD_SOURCE_TMP_DIR}" ||
+    err_exit "Could not secure the temporary source directory."
+  repository_url="https://github.com/${G_ACCOUNT}/guild-operators.git"
+
+  log_progress "Preparing Guild Operators source snapshot" "${G_ACCOUNT}/${BRANCH}"
+  if ! dispatcher_clone_snapshot "${BRANCH}" "${repository_url}" "${GIT_SOURCE_ROOT}"; then
+    if [[ "${BRANCH}" = "master" ]]; then
+      err_exit "Could not clone ${G_ACCOUNT}/guild-operators branch master."
+    fi
+    if dispatcher_remote_ref_status "${BRANCH}" "${repository_url}"; then
+      err_exit "Could not clone ${G_ACCOUNT}/guild-operators branch '${BRANCH}', although the remote ref exists."
+    else
+      remote_ref_status=$?
+    fi
+    [[ "${remote_ref_status}" -eq 2 ]] ||
+      err_exit "Could not verify ${G_ACCOUNT}/guild-operators branch '${BRANCH}' after the clone failed."
+    log_warn "Branch '${BRANCH}' was not found; falling back to master."
+    [[ "${GIT_SOURCE_ROOT}" = "${GUILD_SOURCE_TMP_DIR}/repository" ]] ||
+      err_exit "Refusing to clear an unexpected source checkout path."
+    rm -rf -- "${GIT_SOURCE_ROOT}"
+    BRANCH="master"
+    URL_RAW="${REPO_RAW}/${BRANCH}"
+    export BRANCH URL_RAW
+    dispatcher_clone_snapshot "${BRANCH}" "${repository_url}" "${GIT_SOURCE_ROOT}" ||
+      err_exit "Could not clone ${G_ACCOUNT}/guild-operators branch master."
+  fi
+
+  dispatcher_validate_snapshot "${GIT_SOURCE_ROOT}"
+  snapshot_dispatcher="$(dispatcher_source_path 'scripts/cnode-helper-scripts/guild-deploy.sh')" ||
+    err_exit "Could not locate guild-deploy.sh in the prepared source snapshot."
+  dispatcher_compose_snapshot_dispatcher "${snapshot_dispatcher}"
+  snapshot_dispatcher="${SNAPSHOT_DISPATCHER_PATH}"
+  dispatcher_validate_prepared_dispatcher "${snapshot_dispatcher}"
+  log_ok "Source snapshot ready" "${GUILD_SOURCE_REVISION:0:12}"
+
+  if GUILD_DEPLOY_SNAPSHOT_STAGE="ready" \
+     GUILD_DEPLOY_SOURCE_ACCOUNT="${G_ACCOUNT}" \
+     GUILD_DEPLOY_SOURCE_BRANCH="${BRANCH}" \
+     GUILD_DEPLOY_SOURCE_REVISION="${GUILD_SOURCE_REVISION}" \
+     GUILD_DEPLOY_TARGET_PATH="${GUILD_DEPLOY_TARGET_PATH:-}" \
+     GUILD_DEPLOY_TARGET_STATE_TOKEN="${GUILD_DEPLOY_TARGET_STATE_TOKEN:-}" \
+     GUILD_DEPLOY_USER_HEADER="${GUILD_DEPLOY_USER_HEADER:-}" \
+     bash "${snapshot_dispatcher}" "${original_args[@]}"; then
+    child_status=0
+  else
+    child_status=$?
+  fi
+  return "${child_status}"
 }
 
 validate_deployment_path() {
@@ -810,7 +1138,7 @@ dispatcher_install_common_runtime_bundle() (
     fi
     if [[ ! -s "${downloads[i]}" ]] ||
        ! bash -n "${downloads[i]}" >/dev/null 2>&1; then
-      log_warn "Downloaded common runtime member failed validation: ${target_name}"
+      log_warn "Staged common runtime member failed validation: ${target_name}"
       return 2
     fi
   done
@@ -969,7 +1297,6 @@ dispatcher_set_defaults() {
   [[ -z "${G_ACCOUNT:-}" ]] && G_ACCOUNT="cardano-community"
   [[ -z "${CURL_TIMEOUT:-}" ]] && CURL_TIMEOUT=60
   [[ -z "${DOWNLOAD_TIMEOUT:-}" ]] && DOWNLOAD_TIMEOUT=600
-  [[ -z "${UPDATE_CHECK:-}" ]] && UPDATE_CHECK="Y"
   [[ -z "${SUDO:-}" ]] && SUDO="Y"
   [[ -z "${PACKAGE_MANAGER_OUTPUT:-}" ]] && PACKAGE_MANAGER_OUTPUT="compact"
   case "${PACKAGE_MANAGER_OUTPUT}" in
@@ -1063,6 +1390,8 @@ dispatcher_set_defaults() {
       (.network | type == "string" and length > 0) and
       (.branch | type == "string" and length > 0) and
       (.repository | type == "string" and test("^[A-Za-z0-9_.-]+/guild-operators$")) and
+      ((has("sourceRevision") | not) or
+        (.sourceRevision | type == "string" and test("^[0-9a-f]{40}([0-9a-f]{24})?$"))) and
       (.serviceName | type == "string" and length > 0) and
       (.nodeVersion | type == "string") and
       (.targetNodeVersion | type == "string") and
@@ -1188,7 +1517,7 @@ dispatcher_set_defaults() {
   REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
   URL_RAW="${REPO_RAW}/${BRANCH}"
 
-  export G_ACCOUNT CURL_TIMEOUT DOWNLOAD_TIMEOUT UPDATE_CHECK SUDO sudo
+  export G_ACCOUNT CURL_TIMEOUT DOWNLOAD_TIMEOUT SUDO sudo
   export PACKAGE_MANAGER_OUTPUT
   export NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NODE_HOME NODE_SERVICE
   export NODE_PORT NETWORK BRANCH REPO_RAW URL_RAW S_ARGS
@@ -1206,96 +1535,6 @@ dispatcher_set_defaults() {
   export CNODE_PATH CNODE_NAME CNODE_HOME CNODE_VNAME
 }
 
-dispatcher_validate_branch() {
-  if curl -sSf -m "${CURL_TIMEOUT}" "${REPO_RAW}/${BRANCH}/LICENSE" -o /dev/null 2>/dev/null; then
-    return 0
-  fi
-  if [[ "${BRANCH}" != "master" ]]; then
-    log_warn "Branch '${BRANCH}' was not found; falling back to master."
-    BRANCH="master"
-    URL_RAW="${REPO_RAW}/${BRANCH}"
-    export BRANCH URL_RAW
-    curl -sSf -m "${CURL_TIMEOUT}" "${URL_RAW}/LICENSE" -o /dev/null 2>/dev/null ||
-      err_exit "Unable to reach ${G_ACCOUNT}/guild-operators."
-  else
-    err_exit "Unable to reach ${G_ACCOUNT}/guild-operators branch master."
-  fi
-}
-
-dispatcher_update_check() {
-  [[ "${UPDATE_CHECK}" = "Y" ]] || return 0
-  [[ "${DISPATCHER_LOCAL_REPO}" = "Y" ]] && return 0
-
-  local current_script
-  local current_dir
-  local current_name
-  local downloaded_script
-  local merged_script
-  local backup_script
-  local existing_user
-  local new_code
-  current_script="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-  current_dir="$(dirname "${current_script}")"
-  current_name="$(basename "${current_script}")"
-  downloaded_script="$(mktemp "${current_dir}/.${current_name}.download.XXXXXX")" ||
-    err_exit "Unable to create dispatcher update staging file."
-  merged_script="$(mktemp "${current_dir}/.${current_name}.merged.XXXXXX")" || {
-    rm -f -- "${downloaded_script}"
-    err_exit "Unable to create dispatcher update merge file."
-  }
-
-  log_progress "Checking guild-deploy.sh update" "${BRANCH}"
-  if ! curl -sSf -m "${CURL_TIMEOUT}" \
-    -o "${downloaded_script}" \
-    "${URL_RAW}/scripts/cnode-helper-scripts/guild-deploy.sh"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
-    log_warn "Could not check for a dispatcher update; continuing with the current copy."
-    return 0
-  fi
-
-  if [[ ! -s "${downloaded_script}" ]] ||
-     ! grep -q '^# Do NOT modify code below' "${downloaded_script}" ||
-     ! bash -n "${downloaded_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
-    err_exit "Downloaded guild-deploy.sh failed validation."
-  fi
-
-  if cmp -s "${current_script}" "${downloaded_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
-    log_ok "guild-deploy.sh is current"
-    return 0
-  fi
-
-  existing_user="$(awk '/^#!/{copy=1} /^# Do NOT modify/{exit} copy' "${current_script}")"
-  new_code="$(awk '/^# Do NOT modify code below/{copy=1} copy' "${downloaded_script}")"
-  if [[ -z "${existing_user}" || -z "${new_code}" ]] ||
-     ! printf '%s\n%s\n' "${existing_user}" "${new_code}" > "${merged_script}" ||
-     ! bash -n "${merged_script}" ||
-     ! chmod 0755 "${merged_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
-    err_exit "Unable to prepare a validated guild-deploy.sh update."
-  fi
-
-  if cmp -s "${current_script}" "${merged_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
-    log_ok "guild-deploy.sh is current"
-    return 0
-  fi
-
-  backup_script="${current_script}_bkp$(date +%s).$$"
-  if ! cp -p -- "${current_script}" "${backup_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
-    err_exit "Unable to back up the current guild-deploy.sh."
-  fi
-  if ! mv -f -- "${merged_script}" "${current_script}"; then
-    rm -f -- "${downloaded_script}" "${merged_script}"
-    err_exit "Unable to atomically replace guild-deploy.sh; the current copy is unchanged."
-  fi
-  rm -f -- "${downloaded_script}"
-  log_ok "Updated guild-deploy.sh" "run it again"
-  exit 0
-}
-
 dispatcher_profile_relative_path() {
   case "${NODE_IMPLEMENTATION}" in
     cnode) printf 'scripts/cnode-helper-scripts/deploy-cnode.sh' ;;
@@ -1307,13 +1546,9 @@ dispatcher_profile_relative_path() {
 dispatcher_load_profile() {
   local relative_path
   relative_path="$(dispatcher_profile_relative_path)"
-  PROFILE_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/guild-deploy-profile.XXXXXX")" ||
-    err_exit "Unable to create a temporary profile directory."
-  DISPATCHER_PROFILE_TMP_OWNED="Y"
-  PROFILE_PATH="${PROFILE_TMP_DIR}/$(basename "${relative_path}")"
-  log_progress "Downloading ${NODE_IMPLEMENTATION} deployment profile" "${BRANCH}"
-  curl -sSf -m "${CURL_TIMEOUT}" -o "${PROFILE_PATH}" "${URL_RAW}/${relative_path}" ||
-    err_exit "Could not download ${relative_path}."
+  PROFILE_PATH="$(dispatcher_source_path "${relative_path}")" ||
+    err_exit "Could not load ${relative_path} from the prepared source snapshot."
+  log_progress "Loading ${NODE_IMPLEMENTATION} deployment profile" "${BRANCH}"
 
   if ! bash -n "${PROFILE_PATH}"; then
     err_exit "Deployment profile ${relative_path} failed shell validation."
@@ -1327,6 +1562,80 @@ dispatcher_load_profile() {
   declare -F "${function_name}" >/dev/null ||
     err_exit "Deployment profile ${relative_path} does not expose ${function_name}."
   PROFILE_ENTRYPOINT="${function_name}"
+}
+
+dispatcher_extract_user_header() {
+  local source_file="${1:-}"
+
+  [[ -f "${source_file}" ]] || return 1
+  [[ "$(grep -c '^# Do NOT modify code below' "${source_file}" 2>/dev/null)" = "1" ]] ||
+    return 1
+  awk '/^#!/{copy=1} /^# Do NOT modify code below/{exit} copy' "${source_file}"
+}
+
+dispatcher_install_self() {
+  local source_file=""
+  local target_file="${NODE_HOME}/scripts/guild-deploy.sh"
+  local archive_dir="${NODE_HOME}/scripts/archive"
+  local staged_file=""
+  local user_header=""
+  local runtime_body=""
+
+  source_file="$(dispatcher_source_path 'scripts/cnode-helper-scripts/guild-deploy.sh')" ||
+    err_exit "Could not stage guild-deploy.sh from the prepared source snapshot."
+  [[ -d "${NODE_HOME}/scripts" ]] ||
+    err_exit "Deployment profile completed without creating ${NODE_HOME}/scripts."
+  if [[ -L "${target_file}" ||
+        ( -e "${target_file}" && ! -f "${target_file}" ) ]]; then
+    err_exit "Refusing to replace unsafe dispatcher target ${target_file}."
+  fi
+
+  if [[ -f "${target_file}" ]]; then
+    user_header="$(dispatcher_extract_user_header "${target_file}")" ||
+      err_exit "Installed guild-deploy.sh has an invalid user-variable header."
+  elif [[ -n "${GUILD_DEPLOY_USER_HEADER:-}" ]]; then
+    user_header="${GUILD_DEPLOY_USER_HEADER}"
+  else
+    user_header="$(dispatcher_extract_user_header "${source_file}")" ||
+      err_exit "Source guild-deploy.sh has an invalid user-variable header."
+  fi
+  runtime_body="$(awk '/^# Do NOT modify code below/{copy=1} copy' "${source_file}")"
+  [[ -n "${user_header}" && -n "${runtime_body}" ]] ||
+    err_exit "Could not prepare the installed guild-deploy.sh."
+
+  staged_file="$(mktemp "${NODE_HOME}/scripts/.guild-deploy.sh.install.XXXXXX")" ||
+    err_exit "Could not create dispatcher installation staging file."
+  if ! printf '%s\n%s\n' "${user_header}" "${runtime_body}" > "${staged_file}" ||
+     ! bash -n "${staged_file}" ||
+     ! chmod 0755 "${staged_file}"; then
+    rm -f -- "${staged_file}"
+    err_exit "Could not validate the installed guild-deploy.sh candidate."
+  fi
+
+  if [[ -f "${target_file}" ]] &&
+     cmp -s "${target_file}" "${staged_file}" &&
+     [[ -n "$(find "${target_file}" -prune -perm 0755 -print)" ]]; then
+    rm -f -- "${staged_file}"
+    log_ok "guild-deploy.sh is current" "${target_file}"
+    return 0
+  fi
+
+  mkdir -p "${archive_dir}" || {
+    rm -f -- "${staged_file}"
+    err_exit "Could not create the dispatcher archive directory."
+  }
+  if [[ -f "${target_file}" ]]; then
+    cp -p -- "${target_file}" \
+      "${archive_dir}/guild-deploy.sh_bkp$(date +%s).$$" || {
+      rm -f -- "${staged_file}"
+      err_exit "Could not archive the installed guild-deploy.sh."
+    }
+  fi
+  mv -f -- "${staged_file}" "${target_file}" || {
+    rm -f -- "${staged_file}"
+    err_exit "Could not atomically install guild-deploy.sh."
+  }
+  log_ok "guild-deploy.sh installed" "${target_file}"
 }
 
 dispatcher_capability_default() {
@@ -1430,6 +1739,9 @@ dispatcher_write_manifest() {
     printf '  "network": "%s",\n' "$(dispatcher_json_escape "${NETWORK}")"
     printf '  "branch": "%s",\n' "$(dispatcher_json_escape "${BRANCH}")"
     printf '  "repository": "%s/guild-operators",\n' "$(dispatcher_json_escape "${G_ACCOUNT}")"
+    if [[ -n "${GUILD_SOURCE_REVISION:-}" ]]; then
+      printf '  "sourceRevision": "%s",\n' "$(dispatcher_json_escape "${GUILD_SOURCE_REVISION}")"
+    fi
     printf '  "serviceName": "%s",\n' "$(dispatcher_json_escape "${NODE_SERVICE}")"
     printf '  "nodeVersion": "%s",\n' "$(dispatcher_json_escape "${node_version}")"
     printf '  "targetNodeVersion": "%s",\n' "$(dispatcher_json_escape "${target_node_version}")"
@@ -1482,18 +1794,38 @@ dispatcher_mark_in_progress() {
 }
 
 cleanup_dispatcher() {
-  if [[ "${DISPATCHER_PROFILE_TMP_OWNED:-N}" = "Y" &&
-        -n "${PROFILE_TMP_DIR:-}" &&
-        -d "${PROFILE_TMP_DIR}" ]]; then
-    rm -rf -- "${PROFILE_TMP_DIR}"
+  if [[ "${DISPATCHER_SOURCE_TMP_OWNED:-N}" = "Y" &&
+        -n "${GUILD_SOURCE_TMP_DIR:-}" &&
+        "${GIT_SOURCE_ROOT:-}" = "${GUILD_SOURCE_TMP_DIR}/repository" &&
+        "$(basename "${GUILD_SOURCE_TMP_DIR}")" = guild-operators-source.* &&
+        -d "${GUILD_SOURCE_TMP_DIR}" &&
+        ! -L "${GUILD_SOURCE_TMP_DIR}" ]]; then
+    rm -rf -- "${GUILD_SOURCE_TMP_DIR}"
   fi
   dispatcher_release_target_lock
 }
 
 guild_deploy_main() {
-  # Never trust cleanup paths inherited from the caller's environment.
-  PROFILE_TMP_DIR=""
-  DISPATCHER_PROFILE_TMP_OWNED="N"
+  local snapshot_stage="${GUILD_DEPLOY_SNAPSHOT_STAGE:-bootstrap}"
+  local resolved_source_account="${GUILD_DEPLOY_SOURCE_ACCOUNT:-}"
+  local resolved_source_branch="${GUILD_DEPLOY_SOURCE_BRANCH:-}"
+  local expected_source_revision="${GUILD_DEPLOY_SOURCE_REVISION:-}"
+  local expected_target_path="${GUILD_DEPLOY_TARGET_PATH:-}"
+  local expected_target_state="${GUILD_DEPLOY_TARGET_STATE_TOKEN:-}"
+  local current_target_state=""
+  local inherited_user_header="${GUILD_DEPLOY_USER_HEADER:-}"
+  local -a original_args=("$@")
+
+  # Never trust source or cleanup paths inherited from the caller's environment.
+  unset GUILD_DEPLOY_SNAPSHOT_STAGE GUILD_DEPLOY_SOURCE_ACCOUNT
+  unset GUILD_DEPLOY_SOURCE_BRANCH GUILD_DEPLOY_SOURCE_REVISION
+  unset GUILD_DEPLOY_TARGET_PATH
+  unset GUILD_DEPLOY_TARGET_STATE_TOKEN
+  unset GUILD_DEPLOY_USER_HEADER
+  GIT_SOURCE_ROOT=""
+  GUILD_SOURCE_REVISION=""
+  GUILD_SOURCE_TMP_DIR=""
+  DISPATCHER_SOURCE_TMP_OWNED="N"
   unset GUILD_DEPLOY_LOCK_HELD_FOR
   unset DISPATCHER_LOCK_KIND DISPATCHER_LOCK_PATH
   unset DISPATCHER_LOCK_CANONICAL_TARGET DISPATCHER_LOCK_OWNER_PID
@@ -1510,14 +1842,14 @@ guild_deploy_main() {
   BRANCH_PRESET="N"
   G_ACCOUNT_PRESET="N"
   LEGACY_CNODE_TARGET="N"
-  DISPATCHER_LOCK_TARGET="Y"
+  DISPATCHER_LOCK_TARGET="N"
   S_ARGS="${S_ARGS:-}"
   [[ -n "${BRANCH:-}" ]] && BRANCH_PRESET="Y"
   [[ -n "${NETWORK:-}" ]] && NETWORK_PRESET="Y"
   [[ -n "${G_ACCOUNT:-}" ]] && G_ACCOUNT_PRESET="Y"
   OPTIND=1
 
-  while getopts ":i:n:p:t:s:b:uh" opt; do
+  while getopts ":i:n:p:t:s:b:h" opt; do
     case "${opt}" in
       i)
         NODE_IMPLEMENTATION="${OPTARG}"
@@ -1537,7 +1869,6 @@ guild_deploy_main() {
         BRANCH="${OPTARG}"
         BRANCH_EXPLICIT="Y"
         ;;
-      u) UPDATE_CHECK="N" ;;
       h)
         dispatcher_usage
         return 0
@@ -1554,15 +1885,65 @@ guild_deploy_main() {
   shift $((OPTIND - 1))
   [[ $# -eq 0 ]] || err_exit "Unexpected positional arguments: $*"
 
+  case "${snapshot_stage}" in
+    bootstrap)
+      GUILD_DEPLOY_USER_HEADER="$(dispatcher_extract_user_header "${DISPATCHER_SCRIPT_PATH}")" ||
+        err_exit "The running guild-deploy.sh has an invalid user-variable header."
+      DISPATCHER_LOCK_TARGET="Y"
+      ;;
+    ready)
+      validate_account_name "${resolved_source_account}" ||
+        err_exit "The prepared source snapshot has an invalid repository account."
+      validate_branch_name "${resolved_source_branch}" ||
+        err_exit "The prepared source snapshot has an invalid branch."
+      [[ "${expected_source_revision}" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] ||
+        err_exit "The prepared source snapshot has an invalid expected revision."
+      G_ACCOUNT="${resolved_source_account}"
+      BRANCH="${resolved_source_branch}"
+      G_ACCOUNT_PRESET="Y"
+      BRANCH_PRESET="Y"
+      GUILD_DEPLOY_USER_HEADER="${inherited_user_header}"
+      [[ -n "${expected_target_path}" &&
+         "${expected_target_path}" = /* &&
+         "${expected_target_path}" != *$'\n'* &&
+         "${expected_target_path}" != *$'\r'* ]] ||
+        err_exit "The prepared source snapshot has an invalid target path."
+      [[ "${expected_target_state}" = "absent" ||
+         "${expected_target_state}" =~ ^file:[0-9]+-[0-9]+$ ]] ||
+        err_exit "The prepared source snapshot has invalid target-state metadata."
+      DISPATCHER_LOCK_TARGET="Y"
+      ;;
+    *)
+      err_exit "Invalid internal Guild source snapshot stage."
+      ;;
+  esac
+
   dispatcher_set_defaults
-  dispatcher_validate_branch
-  dispatcher_update_check
+  if [[ "${snapshot_stage}" = "bootstrap" ]]; then
+    GUILD_DEPLOY_TARGET_PATH="${DISPATCHER_LOCK_CANONICAL_TARGET}"
+    GUILD_DEPLOY_TARGET_STATE_TOKEN="$(dispatcher_target_state_token "${DEPLOYMENT_FILE}")" ||
+      err_exit "Could not record the deployment state before preparing the source snapshot."
+    export GUILD_DEPLOY_TARGET_PATH GUILD_DEPLOY_TARGET_STATE_TOKEN
+    dispatcher_release_target_lock
+    dispatcher_prepare_snapshot "${original_args[@]}"
+    return $?
+  fi
+  [[ "${DISPATCHER_LOCK_CANONICAL_TARGET}" = "${expected_target_path}" ]] ||
+    err_exit "The deployment target path changed while its source snapshot was prepared. Re-run guild-deploy.sh."
+  current_target_state="$(dispatcher_target_state_token "${DEPLOYMENT_FILE}")" ||
+    err_exit "Could not verify the deployment state after preparing the source snapshot."
+  [[ "${current_target_state}" = "${expected_target_state}" ]] ||
+    err_exit "The deployment target changed while its source snapshot was prepared. Re-run guild-deploy.sh."
+  dispatcher_adopt_snapshot
+  [[ "${GUILD_SOURCE_REVISION}" = "${expected_source_revision}" ]] ||
+    err_exit "The prepared source snapshot revision changed before deployment."
 
   printf "\n%sGuild Operators deployment%s\n" "${STYLE_BOLD}" "${STYLE_RESET}"
   printf "  Implementation : %s\n" "${NODE_IMPLEMENTATION}"
   printf "  Target         : %s\n" "${NODE_HOME}"
   printf "  Network        : %s\n" "${NETWORK:-not selected}"
   printf "  Branch         : %s\n" "${BRANCH}"
+  printf "  Source         : %s\n" "${GUILD_SOURCE_REVISION:0:12}"
   printf "  Flags          : %s\n" "${S_ARGS:-script/config refresh}"
 
   PROFILE_MANAGED="Y"
@@ -1570,6 +1951,7 @@ guild_deploy_main() {
   dispatcher_load_profile
   "${PROFILE_ENTRYPOINT}" ||
     err_exit "${NODE_IMPLEMENTATION} deployment profile failed."
+  dispatcher_install_self
   dispatcher_write_manifest deployed
 
   printf "\n%sDeployment finished%s\n" "${STYLE_GREEN}${STYLE_BOLD}" "${STYLE_RESET}"

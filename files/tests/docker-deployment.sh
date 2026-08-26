@@ -29,8 +29,28 @@ grep -q -- '-i "${IMAGE_NODE_IMPLEMENTATION}"' "${DOCKERFILE}" ||
   fail "Dockerfile does not pass the implementation to guild-deploy.sh"
 grep -q -- '-n "${IMAGE_NODE_NETWORK}"' "${DOCKERFILE}" ||
   fail "Dockerfile does not pass the network to guild-deploy.sh"
-grep -q '/files/configs/cnode/${network}/${file}' "${DOCKERFILE}" ||
-  fail "Dockerfile does not use the implementation-scoped cnode config path"
+grep -Fq 'locales apt-utils curl git wget' "${DOCKERFILE}" ||
+  fail "Dockerfile does not install the Git snapshot prerequisite"
+grep -Fq '&& "${IMAGE_NODE_HOME}/scripts/guild-deploy.sh" \' "${DOCKERFILE}" ||
+  fail "Dockerfile does not reuse the dispatcher installed from the snapshot"
+if grep -Fq 'scripts/cnode-helper-scripts/guild-deploy.sh ${IMAGE_NODE_HOME}/scripts/' \
+  "${DOCKERFILE}"; then
+  fail "Dockerfile overwrites the snapshot-installed dispatcher with a raw file"
+fi
+[[ "$(grep -c 'raw.githubusercontent.com' "${DOCKERFILE}")" == "1" ]] ||
+  fail "Dockerfile performs raw Guild downloads beyond the initial bootstrap"
+grep -Fq 'source_revision="$(jq -er '\''.sourceRevision'\'' "${IMAGE_NODE_HOME}/.deployment.json")"' \
+  "${DOCKERFILE}" ||
+  fail "Dockerfile does not read the deployed source revision"
+grep -Fq 'test "$(git -C /guild-container-source rev-parse HEAD)" = "${source_revision}"' \
+  "${DOCKERFILE}" ||
+  fail "Dockerfile does not bind container assets to the deployed revision"
+grep -Fq '"${IMAGE_NODE_HOME}/files/config.json"' "${DOCKERFILE}" ||
+  fail "Dockerfile does not cache the snapshot-deployed cnode configuration"
+if grep -Fq 'api.github.com/repos/${G_ACCOUNT}/guild-operators/commits' \
+  "${DOCKERFILE}"; then
+  fail "Dockerfile still looks up a mutable branch revision after deployment"
+fi
 grep -Fq 'alias gLiveView=${IMAGE_NODE_HOME}/scripts/gLiveView.sh' "${DOCKERFILE}" ||
   fail "Dockerfile does not expose gLiveView for every implementation"
 grep -Fq '"${IMAGE_NODE_IMPLEMENTATION}" = "dingo"' "${DOCKERFILE}" ||

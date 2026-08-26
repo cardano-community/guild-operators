@@ -148,14 +148,14 @@ run_alternate_profile_test() (
   NODE_SERVICE="${implementation}-test"
   NETWORK="${network}"
   BRANCH="master"
-  URL_RAW="https://not-used.invalid"
+  GIT_SOURCE_ROOT="${REPO_ROOT}"
   S_ARGS=""
   UPDATE_CHECK="N"
   SUDO="N"
   sudo=""
   unset NODE_PORT
   export HOME NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NODE_HOME NODE_SERVICE
-  export NETWORK BRANCH URL_RAW S_ARGS UPDATE_CHECK SUDO sudo
+  export NETWORK BRANCH GIT_SOURCE_ROOT S_ARGS UPDATE_CHECK SUDO sudo
 
   uname() {
     case "${1:-}" in
@@ -202,8 +202,8 @@ run_alternate_profile_test() (
       ;;
   esac
 
-  # Alternate profiles receive their shared transaction and lock helpers from
-  # the minimal dispatcher that downloads and sources them in production.
+  # Alternate profiles receive their snapshot and transaction helpers from the
+  # dispatcher that loads them from one prepared checkout in production.
   # shellcheck source=/dev/null
   . "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh"
   # Profiles normally delegate fatal errors to the dispatcher's exiting
@@ -305,6 +305,26 @@ run_alternate_profile_test() (
     fail "${implementation} accepted cnode-only selective-install flags"
   fi
   S_ARGS=""
+
+  missing_preflight_target="${NODE_PARENT}/${implementation}-missing-preflight"
+  if (
+    NODE_NAME="${implementation}-missing-preflight"
+    NODE_HOME="${missing_preflight_target}"
+    NODE_SERVICE="${implementation}-missing-preflight"
+    eval "$(declare -f dispatcher_source_path |
+      sed '1s/dispatcher_source_path/dispatcher_source_path_original/')"
+    dispatcher_source_path() {
+      if [[ "$1" == "files/node-implementations/${implementation}/release.json" ]]; then
+        return 1
+      fi
+      dispatcher_source_path_original "$@"
+    }
+    "${deploy_function}"
+  ) >/dev/null 2>&1; then
+    fail "${implementation} accepted a snapshot with a missing late payload"
+  fi
+  [[ ! -e "${missing_preflight_target}" ]] ||
+    fail "${implementation} mutated its target before snapshot preflight completed"
 
   "${deploy_function}"
 
