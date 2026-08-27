@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "Submit",
+  "description": "Submit a signed transaction",
+  "shortcut": "t",
+  "order": 20,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

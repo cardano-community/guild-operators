@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "Delegate",
+  "description": "Delegate stake to a stake pool",
+  "shortcut": "d",
+  "order": 20,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "Send",
+  "description": "Build and submit a funds transfer",
+  "shortcut": "s",
+  "order": 10,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

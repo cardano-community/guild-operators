@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "Encrypt",
+  "description": "Encrypt stake pool keys",
+  "shortcut": "e",
+  "order": 100,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

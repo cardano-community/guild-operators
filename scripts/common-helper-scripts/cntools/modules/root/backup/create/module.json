@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "Backup",
+  "description": "Create a CNTools backup",
+  "shortcut": "b",
+  "order": 10,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

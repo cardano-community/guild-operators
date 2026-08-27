@@ -208,8 +208,11 @@ first. See the [gLiveView guide](../Scripts/gliveview.md) for display controls.
 Metrics absent from the current scrape are omitted rather than displayed as
 zero. This relay profile does not expose cnode block-production, KES,
 operational-certificate, CNCLI blocklog, Koios, Mithril signer, or interactive
-peer-analysis sections. CNTools, Mithril helpers, db-sync, Ogmios, and other
-socket-dependent cnode tools remain undeployed.
+peer-analysis sections. Legacy CNTools, Mithril helpers, db-sync, Ogmios, and
+other socket-dependent cnode tools remain undeployed. The separate modular
+CNTools framework is present at `scripts/cntools/` for development, but its
+current framework phase has no operational actions and does not imply a
+compatible Amaru local interface.
 
 If the node is running but gLiveView reports that metrics are unavailable,
 check the bridge and its loopback output:

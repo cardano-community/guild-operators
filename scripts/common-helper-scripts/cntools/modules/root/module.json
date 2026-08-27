@@ -1,0 +1,5 @@
+{
+  "kind": "menu",
+  "label": "CNTools",
+  "description": "Cardano pool and wallet operations"
+}

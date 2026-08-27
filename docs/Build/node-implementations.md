@@ -64,10 +64,12 @@ Implementation-specific work remains separate:
   cardano-node deployment behavior and selective flags;
 - `scripts/dingo-helper-scripts/deploy-dingo.sh` installs Dingo's node
   layout, rolling release, independently pinned CLI companion, configuration,
-  launcher, adapter, common gLiveView dashboard, and CNTools;
+  launcher, adapter, common gLiveView dashboard, legacy CNTools, and the new
+  modular CNTools framework;
 - `scripts/amaru-helper-scripts/deploy-amaru.sh` installs Amaru's relay
   layout, rolling release, environment, launcher, adapter, managed
-  OpenTelemetry bridge, and common gLiveView dashboard.
+  OpenTelemetry bridge, common gLiveView dashboard, and the new modular CNTools
+  framework. It does not install the legacy CNTools files.
 
 This split keeps each node's bootstrap, configuration, and command-line
 semantics in its own profile. It intentionally does not introduce a generic
@@ -224,9 +226,11 @@ replaced.
 
 Deploying a common runtime does not imply that every common tool is supported.
 Capability checks fail closed when an adapter cannot provide the required node
-interface. cnode and Dingo install the same canonical CNTools files; the Dingo
-adapter supplies `cardano-cli-dingo` and its node-to-client socket. Amaru does
-not install CNTools.
+interface. cnode and Dingo retain the same legacy CNTools files; the Dingo
+adapter supplies `cardano-cli-dingo` and its node-to-client socket. All three
+profiles also install the separate modular CNTools framework at
+`scripts/cntools/`. During its framework phases it contains no operational
+actions and does not make legacy CNTools workflows available on Amaru.
 
 ### Common monitoring contract
 
@@ -279,7 +283,8 @@ Mithril signer, and interactive peer-analysis sections remain cnode-only. See th
 | Node launcher and systemd unit | Yes | Yes | Yes |
 | Shared environment and adapter | Yes | Yes | Yes |
 | gLiveView | Yes, native Prometheus | Yes, native Prometheus | Yes, managed OTLP-to-Prometheus bridge |
-| CNTools | Yes | Not deployed | Not deployed |
+| Legacy CNTools workflows | Yes | Experimental | Not deployed |
+| Modular CNTools framework | Framework only | Framework only | Framework only |
 | cardano-cli local queries | Yes | Not exposed through the profile | No compatible node-to-client socket |
 | db-sync, Ogmios, standalone Mithril helpers | Existing support | Not deployed | Not deployed |
 | Block production | Yes | Experimental on preprod/preview | Not supported by this profile |

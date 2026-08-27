@@ -179,12 +179,18 @@ cnode_deploy_preflight_snapshot() {
     "files/configs/cnode/${NETWORK}/submitapi.json"
   )
 
-  declare -F dispatcher_preflight_shell_payloads >/dev/null 2>&1 &&
-    dispatcher_preflight_shell_payloads "${shell_payloads[@]}" ||
+  declare -F dispatcher_preflight_shell_payloads >/dev/null 2>&1 ||
+    err_exit "Guild shell payload preflight helper is unavailable."
+  dispatcher_preflight_shell_payloads "${shell_payloads[@]}" ||
     err_exit "Guild shell payload preflight failed."
-  declare -F dispatcher_preflight_json_payloads >/dev/null 2>&1 &&
-    dispatcher_preflight_json_payloads "${json_payloads[@]}" ||
+  declare -F dispatcher_preflight_json_payloads >/dev/null 2>&1 ||
+    err_exit "Guild JSON payload preflight helper is unavailable."
+  dispatcher_preflight_json_payloads "${json_payloads[@]}" ||
     err_exit "Guild JSON payload preflight failed."
+  declare -F dispatcher_preflight_cntools_tree >/dev/null 2>&1 ||
+    err_exit "CNTools tree preflight helper is unavailable."
+  dispatcher_preflight_cntools_tree ||
+    err_exit "CNTools tree preflight failed."
   release_path="$(dispatcher_source_path 'files/node-implementations/cnode/release.json')" ||
     err_exit "Could not resolve cnode release metadata during preflight."
   cnode_deploy_validate_release_metadata "${release_path}" ||
@@ -1894,7 +1900,14 @@ populate_cnode() {
   # commands. Retire an installed legacy copy only after those scripts refresh.
   retire_legacy_systemd_orchestrator
 
-  find "${NODE_HOME}/scripts" -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
+  find "${NODE_HOME}/scripts" \
+    -path "${NODE_HOME}/scripts/cntools" -prune -o \
+    -type f -name '*.sh' -exec chmod 755 {} \; 2>/dev/null
+  ACTIVE_STEP="Installing CNTools framework"
+  declare -F dispatcher_install_cntools_tree >/dev/null 2>&1 ||
+    err_exit "CNTools tree transaction helper is unavailable."
+  dispatcher_install_cntools_tree ||
+    err_exit "CNTools tree validation or installation failed; the previous tree was restored."
   chmod 750 "${NODE_HOME}"/priv 2>/dev/null
   log_ok "Helper scripts refreshed" "${BRANCH}"
 }

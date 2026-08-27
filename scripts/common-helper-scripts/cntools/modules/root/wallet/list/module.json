@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "List",
+  "description": "List available wallets",
+  "shortcut": "l",
+  "order": 50,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

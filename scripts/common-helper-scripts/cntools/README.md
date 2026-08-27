@@ -29,11 +29,12 @@ starts. It is deliberately not a package format or plugin system.
   `CNTOOLS_` prefix.
 
 The initial framework dependencies are Bash 4.4 or newer, `jq`, `curl`, `tput`,
-and the standard `date`, `mktemp`, `mkdir`, `chmod`, and `stty` commands. Git is
-a guild-deploy dependency rather than a CNTools runtime dependency. No compiled
-UI framework or additional scripting language is required.
+and standard Linux tools including `awk`, `date`, `env`, `mktemp`, `mkdir`,
+`chmod`, `mv`, `rm`, `stat`, `stty`, and `wc`. Git is a Guild Deploy dependency
+rather than a CNTools runtime dependency. No compiled UI framework or
+additional scripting language is required.
 
-## Source layout
+## Target source layout
 
 ```text
 cntools/
@@ -45,8 +46,9 @@ cntools/
 │   ├── menu.sh
 │   ├── startup.sh
 │   ├── ui.sh
-│   └── update.sh
+│   └── update.sh     # Phase 5
 ├── lib/
+│   ├── placeholder.sh
 │   └── ...
 └── modules/
     └── root/
@@ -60,14 +62,17 @@ and action files beneath `modules/` are not loaded during startup.
 `VERSION` contains exactly one numeric `MAJOR.MINOR.PATCH` application release
 number, without a `v` prefix. It is used by `cntools.sh -v`, the UI, and the
 availability checker, but is never included in the CNTools name or source path.
+The rewritten implementation continues the existing CNTools release lineage at
+`14.0.0`; it is not a separately versioned product.
 
 The filesystem is the menu tree. Opening a menu scans only its immediate child
 directories; CNTools does not build or deploy a generated menu catalog.
 
-The framework milestone mirrors the current CNTools menu hierarchy. Every
+The Phase 4 framework mirrors the current CNTools menu hierarchy. Every
 operational leaf has its own inert `action.sh` which logs its selection and
-shows a consistent TBD message. The existing phase-0 menu inventory is an
-implementation checklist, not a generated runtime manifest.
+shows a consistent not-implemented message. The existing phase-0 menu
+inventory remains an implementation checklist, not a generated runtime
+manifest.
 
 ## Runtime modes
 
@@ -168,7 +173,8 @@ The complete metadata vocabulary is:
 - `label`: required; one-line display label.
 - `description`: required; one-line help text.
 - `shortcut`: required except for the root; one lowercase letter or digit.
-- `order`: required except for the root; integer display order among siblings.
+- `order`: required except for the root; integer display order from `0` through
+  `2147483647` among siblings.
 - `modes`: required for actions; a non-empty subset of `local`, `light`, and
   `offline`.
 - `libs`: optional for actions and defaults to an empty list. Entries are
@@ -190,7 +196,7 @@ An action that does not support the current mode remains visible but disabled,
 with the reason shown in the UI. Navigation controls are supplied by the menu
 engine rather than action metadata: root reserves `r` for Refresh and `q` for
 Quit; nested menus reserve `h` for Home and Escape for Back. Update is a normal
-root action that delegates to guild-deploy.
+filesystem-backed submenu.
 
 ## Action and library loading
 
@@ -211,7 +217,8 @@ Selecting an action runs a Bash subshell which:
 5. calls it without a context or result protocol.
 
 The subshell inherits a snapshot of the `CNTOOLS_` session values and core
-UI/logging functions. The loader sets `CNTOOLS_ACTION_ID` to the module path.
+UI/logging functions. The loader sets `CNTOOLS_ACTION_ID` to the module path
+and `CNTOOLS_ACTION_LABEL` to its display label.
 Subshell variables and loaded functions disappear when it returns. A zero
 status returns normally to the menu, and handled user cancellation also
 returns zero. A non-zero status is logged and shown as an action error before
@@ -233,10 +240,11 @@ failures produce a visible and logged error rather than being silently skipped.
 ## UI and terminal behavior
 
 The UI uses Bash input handling and `tput` capabilities. It provides a shared
-header, breadcrumb, content area, status area, prompt, and footer. Arrow keys,
-`j`, `k`, and Enter are always reserved for selection. At the root, `r` is
-Refresh and `q` is Quit. Below the root, Escape is Back and `h` is Home. A
-module shortcut must not collide with a control reserved by its parent menu.
+header, breadcrumb, content area, status area, prompt, and footer. Arrow keys
+and Enter navigate and open the selected row. At the root, `r` is Refresh and
+`q` is Quit. Below the root, Escape is Back and `h` is Home. Other letters,
+including `j` and `k`, remain available as module shortcuts. A module shortcut
+must not collide with a control reserved by its parent menu.
 
 Color and cursor movement are enabled only for a capable interactive terminal.
 A plain-text fallback remains usable without color or cursor addressing. One
@@ -290,15 +298,17 @@ New CNTools code never enables shell tracing with `set -x`.
 Guild-deploy is the only component allowed to install or update CNTools. It
 stages and validates the complete `cntools/` directory from one resolved Guild
 source snapshot before changing the installed tree. A failed stage leaves the
-installed tree unchanged; a successful install swaps the directory as one
-unit. The legacy sibling files are outside that replacement boundary.
+installed tree unchanged; a successful install replaces the complete directory
+as one transaction, with rollback if the new tree cannot be installed or
+validated. The legacy sibling files are outside that replacement boundary.
 
 CNTools does not download or replace individual source files. Guild-deploy
 installs its runnable dispatcher at
-`${CNTOOLS_NODE_HOME}/scripts/guild-deploy.sh`. The Update action restores the
+`${CNTOOLS_NODE_HOME}/scripts/guild-deploy.sh`. Install Update restores the
 terminal, delegates to that dispatcher using the recorded deployment account,
-branch, implementation, network, and target, then exits. A running process
-never resumes after its installed source tree has been replaced. If the
+branch, implementation, network, and target, then exits after every dispatcher
+attempt, including a failed one. A running process never resumes after its
+installed source tree may have been replaced. If the
 dispatcher is unavailable, CNTools prints the exact command the operator
 should run instead of falling back to raw-file downloads.
 
@@ -313,6 +323,20 @@ selected Update remains available. Offline mode disables both checking and
 update application because guild-deploy requires network access. Applying an
 update always remains a guild-deploy operation.
 
+The Update submenu contains Check Again, View Changes, and Install Update.
+Only an `available` result places an update notice on the root menu. View
+Changes downloads the existing `docs/Scripts/cntools-changelog.md` file on
+demand and displays only numeric release sections newer than the installed
+version and no newer than the detected version. Downloaded version and
+changelog content is size-bounded, treated only as data, and never sourced.
+
+Install Update refreshes scripts and configuration from the configured Guild
+branch without requesting OS packages or node binaries. It passes the account
+explicitly and requires the requested ref to exist, so the update path cannot
+silently fall back to `master`. Selecting arbitrary historical versions is not
+part of this phase: it requires a repository release-tag and rollback policy
+before it can be offered safely.
+
 ## Phase 2 deployment foundation
 
 Guild-deploy now prepares one temporary shallow Git checkout for the selected
@@ -325,10 +349,13 @@ single-file bootstrap path; external release discovery and checksum-verified
 third-party downloads keep their existing flows.
 
 Tracked checkout files must match the recorded commit. Each implementation
-profile keeps a direct list of its required shell, JSON, and template payloads
-and validates that list before changing the node target. Container-only Guild
-assets are copied from a checkout whose commit must equal `sourceRevision`;
-the container does not perform later per-file Guild downloads.
+profile keeps a direct list of its required single-file shell, JSON, and
+template payloads and validates that list before changing the node target. The
+recursively managed CNTools directory is the one exception: its complete
+tracked tree is discovered and validated together so future modules do not
+need to be repeated in three profile lists. Container-only Guild assets are
+copied from a checkout whose commit must equal `sourceRevision`; the container
+does not perform later per-file Guild downloads.
 
 The deployment CLI, fork and branch selection, confirmed-missing-ref fallback
 to `master`, implementation profiles, selective flags, and user-variable header behavior
@@ -336,6 +363,76 @@ remain otherwise intact. Historical refs without snapshot support require
 their matching historical dispatcher and cannot re-enter raw per-file
 deployment. This phase does not add the new CNTools runtime or any functional
 action.
+
+## Phase 3 framework
+
+Phase 3 adds the first runnable framework without replacing the legacy tool.
+Guild-deploy installs the new source tree at `${NODE_HOME}/scripts/cntools` for
+cnode, Dingo, and Amaru. The legacy sibling `cntools.sh`, `cntools.library`, and
+`env` deployment remains unchanged for backwards compatibility.
+
+The framework now provides:
+
+- the `cntools/cntools.sh` entrypoint and normalized `env definitions` startup;
+- local, light, and offline session selection for every implementation;
+- terminal rendering, keyboard navigation, and reliable cleanup;
+- private session logging plus redacted command and HTTP wrappers;
+- strict filesystem menu discovery and lazy, subshell-isolated action loading;
+- full-tree deployment validation and transactional replacement; and
+- branch redeployment delegated to the installed Guild Deploy dispatcher.
+
+Only the root menu metadata is shipped in this phase, so there are no
+operational actions yet. The complete inert menu/action inventory is Phase 4,
+and the automatic availability check and Update action are Phase 5.
+
+Phase 3 is complete when focused framework, startup, and deployment tests pass,
+all repository deployment checks remain green, only `cntools/cntools.sh` is
+executable within the installed tree, and the three legacy files remain
+byte-for-byte untouched.
+
+## Phase 4 menu skeleton
+
+Phase 4 adds the complete current CNTools navigation tree as filesystem
+metadata: 15 menus including the root and 54 operational actions. Each action
+is deliberately inert, loads only `lib/placeholder.sh`, and presents a shared
+"Not implemented yet" notice. No wallet, pool, transaction, query, submission,
+or governance implementation is copied from the legacy tool in this phase.
+
+Actions remain visible when the current runtime mode cannot support them, but
+the menu disables them before invocation. The declarations cover local
+cnode/Dingo/Amaru sessions, Koios-backed light sessions, and genuinely offline
+workflows. Governance proposal listing is intentionally online-only because
+the current implementation performs a live chain query despite lacking an
+early offline guard.
+
+Advanced and its descendants remain hidden unless `-a` is selected. Blocks is
+always visible in this inert skeleton; its future functional phase will decide
+availability from the new block-history implementation instead of importing
+the legacy `BLOCKLOG_DB` visibility check. Refresh, Quit, Back, and Home remain
+framework controls rather than metadata modules. Update remains Phase 5.
+
+## Phase 5 update experience
+
+Phase 5 adds one small filesystem-backed Update submenu and three actions. The
+eager core layer owns only bounded availability checking and session state;
+changelog parsing, confirmation, and installation behavior live in
+`lib/update.sh` and load only when an Update action is selected.
+
+The automatic VERSION request occurs after logging is ready and before the
+first menu render. Transport errors, HTTP errors, and invalid version data are
+logged but do not prevent CNTools from opening. `-u` skips this one automatic
+request without removing the manual Update menu. Offline sessions issue no
+update HTTP or deployment commands.
+
+An update is installed exclusively through the complete Guild Deploy source
+snapshot. CNTools closes after Guild Deploy starts regardless of its result,
+because even a later deployment failure may occur after the running CNTools
+tree changed. The exact dispatcher status becomes the CNTools process status.
+The update is blocked if the configured log lives inside the replaceable
+CNTools source tree, ensuring that both this lifecycle decision and its audit
+records survive the replacement. Its canonical parent must also be owned by
+the current user and not writable by group or other users, so another local
+account cannot remove the deployment lifecycle marker.
 
 ## Explicit non-goals
 

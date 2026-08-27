@@ -1,0 +1,69 @@
+root	menu	-	-	-	-	CNTools
+wallet	menu	w	10	-	-	Wallet
+wallet/new	menu	n	10	-	-	New
+wallet/new/mnemonic	action	m	10	local,light,offline	-	Mnemonic
+wallet/new/cli	action	c	20	local,light,offline	-	CLI
+wallet/import	menu	i	20	-	-	Import
+wallet/import/mnemonic	action	m	10	local,light,offline	-	Mnemonic
+wallet/import/hardware	action	w	20	local,light,offline	-	HW Wallet
+wallet/register	action	r	30	local,light	-	Register
+wallet/deregister	action	z	40	local,light	-	De-Register
+wallet/list	action	l	50	local,light,offline	-	List
+wallet/show	action	s	60	local,light,offline	-	Show
+wallet/remove	action	x	70	local,light,offline	-	Remove
+wallet/decrypt	action	d	80	local,light,offline	-	Decrypt
+wallet/encrypt	action	e	90	local,light,offline	-	Encrypt
+funds	menu	f	20	-	-	Funds
+funds/send	action	s	10	local,light	-	Send
+funds/delegate	action	d	20	local,light	-	Delegate
+funds/withdraw	action	w	30	local,light	-	Withdraw Rewards
+pool	menu	p	30	-	-	Pool
+pool/new	action	n	10	local,light,offline	-	New
+pool/import	action	i	20	local,light,offline	-	Import
+pool/register	action	r	30	local,light	-	Register
+pool/modify	action	m	40	local,light	-	Modify
+pool/retire	action	x	50	local,light	-	Retire
+pool/list	action	l	60	local,light,offline	-	List
+pool/show	action	s	70	local,light,offline	-	Show
+pool/rotate	action	o	80	local,light,offline	-	Rotate
+pool/decrypt	action	d	90	local,light,offline	-	Decrypt
+pool/encrypt	action	e	100	local,light,offline	-	Encrypt
+pool/calidus	action	c	110	local,light	-	Calidus
+transaction	menu	t	40	-	-	Transaction
+transaction/sign	action	s	10	local,light,offline	-	Sign
+transaction/submit	action	t	20	local,light	-	Submit
+vote	menu	v	50	-	-	Vote
+vote/governance	menu	g	10	-	-	Governance
+vote/governance/info	action	i	10	local,light,offline	-	Info & Status
+vote/governance/delegate	action	d	20	local,light	-	Delegate
+vote/governance/proposals	action	l	30	local,light	-	List Proposals
+vote/governance/cast	action	v	40	local,light	-	Cast vote
+vote/governance/drep-register	action	r	50	local,light	-	DRep Registration / Update
+vote/governance/drep-retire	action	x	60	local,light	-	DRep Retire
+vote/governance/multisig-drep	action	m	70	local,light,offline	-	MultiSig DRep
+vote/governance/derive-keys	action	k	80	local,light,offline	-	Derive Keys
+vote/catalyst	menu	c	20	-	-	Catalyst
+vote/catalyst/register	action	r	10	local,light	-	Registration
+vote/catalyst/qr	action	q	20	local,light,offline	-	Display QR
+vote/catalyst/verify	action	v	30	local,light	-	Verify
+blocks	menu	b	60	-	-	Blocks
+blocks/summary	action	s	10	local,light,offline	-	Summary
+blocks/epoch	action	e	20	local,light,offline	-	Epoch
+backup	menu	z	70	-	-	Backup & Restore
+backup/create	action	b	10	local,light,offline	-	Backup
+backup/restore	action	r	20	local,light,offline	-	Restore
+advanced	menu	a	80	-	true	Advanced
+advanced/metadata	action	m	10	local,light	-	Metadata
+advanced/asset	menu	a	20	-	-	Asset
+advanced/asset/create-policy	action	c	10	local,light,offline	-	Create Policy
+advanced/asset/list	action	l	20	local,light,offline	-	List Assets
+advanced/asset/show	action	s	30	local,light,offline	-	Show Asset
+advanced/asset/decrypt-policy	action	d	40	local,light,offline	-	Decrypt / Unlock Policy
+advanced/asset/encrypt-policy	action	e	50	local,light,offline	-	Encrypt / Lock Policy
+advanced/asset/mint	action	m	60	local,light	-	Mint Asset
+advanced/asset/burn	action	x	70	local,light	-	Burn Asset
+advanced/asset/register	action	r	80	local,light,offline	-	Register Asset
+advanced/multisig	menu	s	30	-	-	MultiSig
+advanced/multisig/create	action	c	10	local,light,offline	-	Create
+advanced/multisig/derive-keys	action	d	20	local,light,offline	-	Derive Keys
+advanced/delete-private-keys	action	x	40	local,light,offline	-	Delete Private Keys

@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "DRep Retire",
+  "description": "Retire a registered DRep",
+  "shortcut": "x",
+  "order": 60,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

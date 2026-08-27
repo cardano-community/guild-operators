@@ -24,6 +24,16 @@ jobs:
     - uses: actions/checkout@v4
     - name: Test deployment dispatcher
       run: bash files/tests/guild-deploy-dispatcher.sh
+    - name: Test CNTools deployment transaction
+      run: bash files/tests/cntools-deployment.sh
+    - name: Test CNTools startup
+      run: bash files/tests/cntools-startup.sh
+    - name: Test CNTools updates
+      run: bash files/tests/cntools-update.sh
+    - name: Test CNTools framework
+      run: bash files/tests/cntools-framework.sh
+    - name: Test CNTools menu skeleton
+      run: bash files/tests/cntools-menu-skeleton.sh
     - name: Test alternate deployments
       run: bash files/tests/alternate-deployments.sh
     - name: Test deployment layout

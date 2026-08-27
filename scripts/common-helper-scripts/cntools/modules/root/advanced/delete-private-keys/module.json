@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "Delete Private Keys",
+  "description": "Delete private keys from CNTools storage",
+  "shortcut": "x",
+  "order": 40,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

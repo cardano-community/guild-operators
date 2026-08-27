@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "Mnemonic",
+  "description": "Create a wallet from a new recovery phrase",
+  "shortcut": "m",
+  "order": 10,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

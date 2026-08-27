@@ -1,0 +1,7 @@
+{
+  "kind": "menu",
+  "label": "Funds",
+  "description": "Send funds, delegate stake, and withdraw rewards",
+  "shortcut": "f",
+  "order": 20
+}

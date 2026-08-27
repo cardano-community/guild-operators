@@ -1,0 +1,7 @@
+{
+  "kind": "menu",
+  "label": "Vote",
+  "description": "Participate in Cardano governance and Catalyst",
+  "shortcut": "v",
+  "order": 50
+}

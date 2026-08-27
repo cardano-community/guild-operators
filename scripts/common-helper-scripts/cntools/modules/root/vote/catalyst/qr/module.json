@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "Display QR",
+  "description": "Display the Catalyst voting QR code",
+  "shortcut": "q",
+  "order": 20,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

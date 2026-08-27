@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "List Proposals",
+  "description": "List active governance proposals",
+  "shortcut": "l",
+  "order": 30,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

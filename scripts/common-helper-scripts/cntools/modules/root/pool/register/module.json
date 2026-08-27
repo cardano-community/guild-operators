@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "Register",
+  "description": "Register a stake pool on-chain",
+  "shortcut": "r",
+  "order": 30,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

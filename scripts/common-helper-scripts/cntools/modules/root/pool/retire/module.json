@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "Retire",
+  "description": "Retire a registered stake pool",
+  "shortcut": "x",
+  "order": 50,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

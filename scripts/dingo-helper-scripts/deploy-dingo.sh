@@ -171,6 +171,12 @@ dingo_deploy_preflight_snapshot() {
   dispatcher_preflight_source_payloads "${source_payloads[@]}" || return 1
   dispatcher_preflight_json_payloads \
     files/node-implementations/dingo/release.json || return 1
+  if ! declare -F dispatcher_preflight_cntools_tree >/dev/null 2>&1 ||
+     ! GUILD_DEPLOY_PREFLIGHT_BASH_BIN="${DINGO_DEPLOY_BASH_BIN:-bash}" \
+       dispatcher_preflight_cntools_tree; then
+    dingo_deploy_fail "CNTools tree preflight failed"
+    return 1
+  fi
   dingo_config="$(dispatcher_source_path "${source_payloads[0]}")" || return 1
   grep -Fq "network: \"${NETWORK}\"" "${dingo_config}" || {
     dingo_deploy_fail "Dingo configuration failed network validation during preflight"
@@ -401,6 +407,12 @@ dingo_deploy_install_payloads() {
   fi
   dispatcher_install_common_runtime_bundle \
     "dingo" "dingo_deploy_fetch" "${DINGO_DEPLOY_FORCE_SCRIPTS}" || return 1
+  if ! declare -F dispatcher_install_cntools_tree >/dev/null 2>&1; then
+    dingo_deploy_fail "CNTools tree transaction helper is unavailable; run this profile through guild-deploy.sh"
+    return 1
+  fi
+  GUILD_DEPLOY_PREFLIGHT_BASH_BIN="${DINGO_DEPLOY_BASH_BIN:-bash}" \
+    dispatcher_install_cntools_tree || return 1
   dingo_deploy_install_code_payload \
     "scripts/common-helper-scripts/gLiveView.sh" \
     "${NODE_HOME}/scripts/gLiveView.sh" 0755 Y || return 1

@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "Verify",
+  "description": "Verify Catalyst voting registration",
+  "shortcut": "v",
+  "order": 30,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

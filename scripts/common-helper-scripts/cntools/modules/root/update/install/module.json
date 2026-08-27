@@ -1,0 +1,9 @@
+{
+  "kind": "action",
+  "label": "Install Update",
+  "description": "Refresh the deployment snapshot through Guild Deploy",
+  "shortcut": "i",
+  "order": 30,
+  "modes": ["local", "light"],
+  "libs": ["update.sh"]
+}

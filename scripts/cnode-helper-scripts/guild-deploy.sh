@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC2034,SC2154,SC2317
+# shellcheck disable=SC1090,SC2034,SC2154,SC2317,SC2329
 # shellcheck source=/dev/null
 
 ##########################################
@@ -430,10 +430,11 @@ dispatcher_resolve_github_release() {
 dispatcher_usage() {
   cat <<-EOF
 
-	Usage: $(basename "$0") [-i <cnode|dingo|amaru>] [-n <network>] [-p path] [-t name] [-b branch] [-s flags]
+	Usage: $(basename "$0") [-g account] [-i <cnode|dingo|amaru>] [-n <network>] [-p path] [-t name] [-b branch] [-s flags]
 
 	Common Guild Operators deployment entrypoint.
 
+	-g    GitHub account that owns the Guild Operators repository (Default: stored deployment account, then cardano-community)
 	-i    Node implementation (Default: cnode)
 	-n    Network. cnode defaults to mainnet; alternate implementations require an explicit supported network
 	-p    Parent path below which the top-level folder is created (Default: /opt/cardano)
@@ -450,9 +451,12 @@ dispatcher_usage() {
 
 	Package-manager output is compact by default. Set
 	PACKAGE_MANAGER_OUTPUT=verbose to stream it without filtering.
+	Set GUILD_DEPLOY_STRICT_REF=Y to reject a missing selected ref instead
+	of falling back to master.
 
 	Examples:
 	  ./guild-deploy.sh -n mainnet -s pd
+	  ./guild-deploy.sh -g my-guild-fork -n mainnet
 	  ./guild-deploy.sh -i dingo -n preprod -s pd
 	  ./guild-deploy.sh -i amaru -n preview -t amaru-preview -s pd
 
@@ -551,6 +555,38 @@ dispatcher_source_path() {
   printf '%s\n' "${current_path}"
 }
 
+# Resolve a tracked source directory without following symbolic links. Directory
+# payloads are kept separate from dispatcher_source_path so regular file
+# callers retain their deliberately small contract.
+dispatcher_source_directory() {
+  local relative_path="${1:-}"
+  local current_path="${GIT_SOURCE_ROOT:-}"
+  local component
+  local repository_root=""
+  local source_root=""
+  local -a components
+
+  dispatcher_source_relative_path_valid "${relative_path}" || return 2
+  [[ -n "${current_path}" &&
+     "${current_path}" = /* &&
+     -d "${current_path}" &&
+     ! -L "${current_path}" ]] || return 2
+  source_root="$(cd -- "${current_path}" && pwd -P)" || return 2
+  current_path="${source_root}"
+
+  IFS='/' read -r -a components <<< "${relative_path}"
+  for component in "${components[@]}"; do
+    current_path="${current_path}/${component}"
+    [[ ! -L "${current_path}" ]] || return 2
+  done
+  [[ -d "${current_path}" ]] || return 1
+  repository_root="$(git -C "${source_root}" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "${repository_root}" && "${repository_root}" = "${source_root}" ]]; then
+    [[ -n "$(git -C "${source_root}" ls-files -- "${relative_path}")" ]] || return 2
+  fi
+  printf '%s\n' "${current_path}"
+}
+
 dispatcher_source_copy() {
   local relative_path="${1:-}"
   local destination="${2:-}"
@@ -590,7 +626,11 @@ dispatcher_preflight_shell_payloads() {
       log_warn "Required Guild shell payload is missing or unsafe: ${relative_path}"
       return 1
     }
-    [[ -s "${source_path}" ]] && "${bash_bin}" -n "${source_path}" || {
+    [[ -s "${source_path}" ]] || {
+      log_warn "Required Guild shell payload is empty: ${relative_path}"
+      return 1
+    }
+    "${bash_bin}" -n "${source_path}" || {
       log_warn "Required Guild shell payload failed validation: ${relative_path}"
       return 1
     }
@@ -615,6 +655,183 @@ dispatcher_preflight_json_payloads() {
       return 1
     }
   done
+}
+
+dispatcher_validate_cntools_tree() {
+  local tree="${1:-}"
+  local require_tracked="${2:-N}"
+  local bash_bin="${GUILD_DEPLOY_PREFLIGHT_BASH_BIN:-bash}"
+  local source_root="${GIT_SOURCE_ROOT:-}"
+  local repository_root=""
+  local entry=""
+  local relative_path=""
+  local source_tree_relative=""
+  local tracked_found="N"
+  local version=""
+  local -a required_files required_directories
+
+  case "${require_tracked}" in
+    Y|N) ;;
+    *) return 2 ;;
+  esac
+  [[ -n "${tree}" && "${tree}" = /* && -d "${tree}" && ! -L "${tree}" ]] || {
+    log_warn "The CNTools source tree is missing or unsafe."
+    return 1
+  }
+  tree="$(cd -- "${tree}" && pwd -P)" || return 1
+  [[ -x "${bash_bin}" ]] || command -v "${bash_bin}" >/dev/null 2>&1 || {
+    log_warn "Bash is required to validate CNTools."
+    return 1
+  }
+  "${bash_bin}" -c '
+    (( BASH_VERSINFO[0] > 4 ||
+       (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) ))
+  ' >/dev/null 2>&1 || {
+    log_warn "Bash 4.4 or newer is required to run CNTools."
+    return 1
+  }
+  command -v jq >/dev/null 2>&1 || {
+    log_warn "jq is required to validate CNTools; re-run with -s p."
+    return 1
+  }
+
+  required_directories=(
+    core
+    lib
+    modules
+    modules/root
+  )
+  required_files=(
+    VERSION
+    cntools.sh
+    core/action.sh
+    core/log.sh
+    core/menu.sh
+    core/startup.sh
+    core/ui.sh
+    core/update.sh
+    modules/root/module.json
+  )
+  for relative_path in "${required_directories[@]}"; do
+    [[ -d "${tree}/${relative_path}" && ! -L "${tree}/${relative_path}" ]] || {
+      log_warn "Required CNTools directory is missing or unsafe: ${relative_path}"
+      return 1
+    }
+  done
+  for relative_path in "${required_files[@]}"; do
+    [[ -f "${tree}/${relative_path}" &&
+       ! -L "${tree}/${relative_path}" &&
+       -s "${tree}/${relative_path}" ]] || {
+      log_warn "Required CNTools file is missing, empty, or unsafe: ${relative_path}"
+      return 1
+    }
+  done
+
+  if [[ "${require_tracked}" = "Y" ]]; then
+    [[ -n "${source_root}" && -d "${source_root}" && ! -L "${source_root}" ]] || return 1
+    source_root="$(cd -- "${source_root}" && pwd -P)" || return 1
+    repository_root="$(git -C "${source_root}" rev-parse --show-toplevel 2>/dev/null)" || return 1
+    repository_root="$(cd -- "${repository_root}" && pwd -P)" || return 1
+    [[ "${repository_root}" = "${source_root}" &&
+       "${tree}" == "${source_root}/"* ]] || return 1
+    source_tree_relative="${tree#"${source_root}"/}"
+    git -C "${source_root}" diff --quiet --no-ext-diff \
+      -- "${source_tree_relative}" || {
+      log_warn "CNTools contains modified or deleted tracked files."
+      return 1
+    }
+    git -C "${source_root}" diff --cached --quiet --no-ext-diff \
+      -- "${source_tree_relative}" || {
+      log_warn "CNTools contains staged tracked changes."
+      return 1
+    }
+    while IFS= read -r -d '' relative_path; do
+      tracked_found="Y"
+      entry="${source_root}/${relative_path}"
+      [[ -f "${entry}" && ! -L "${entry}" && -s "${entry}" ]] || {
+        log_warn "CNTools tracked payload is missing, empty, or unsafe: ${relative_path#"${source_tree_relative}"/}"
+        return 1
+      }
+    done < <(git -C "${source_root}" ls-files -z -- "${source_tree_relative}")
+    [[ "${tracked_found}" = "Y" ]] || return 1
+  fi
+
+  while IFS= read -r -d '' entry; do
+    relative_path="${entry#"${tree}"/}"
+    [[ "${entry}" != "${tree}" &&
+       -n "${relative_path}" &&
+       "${relative_path}" != *$'\n'* &&
+       "${relative_path}" != *$'\r'* ]] || {
+      log_warn "CNTools contains an unsafe path."
+      return 1
+    }
+    if [[ -L "${entry}" ]]; then
+      log_warn "CNTools must not contain symbolic links: ${relative_path}"
+      return 1
+    elif [[ -d "${entry}" ]]; then
+      :
+    elif [[ -f "${entry}" ]]; then
+      [[ -s "${entry}" ]] || {
+        log_warn "CNTools contains an empty file: ${relative_path}"
+        return 1
+      }
+      if [[ "${require_tracked}" = "Y" ]]; then
+        git -C "${source_root}" ls-files --error-unmatch \
+          -- "${entry#"${source_root}"/}" >/dev/null 2>&1 || {
+          log_warn "CNTools contains an untracked file: ${relative_path}"
+          return 1
+        }
+      fi
+    else
+      log_warn "CNTools contains an unsupported filesystem entry: ${relative_path}"
+      return 1
+    fi
+  done < <(find "${tree}" -mindepth 1 -print0)
+
+  version="$(< "${tree}/VERSION")"
+  [[ "$(awk 'END { print NR }' "${tree}/VERSION")" = "1" &&
+     "${version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+    log_warn "CNTools VERSION must contain one semantic version."
+    return 1
+  }
+
+  while IFS= read -r -d '' entry; do
+    "${bash_bin}" -n "${entry}" >/dev/null 2>&1 || {
+      log_warn "CNTools shell validation failed: ${entry#"${tree}"/}"
+      return 1
+    }
+  done < <(find "${tree}" -type f -name '*.sh' -print0)
+  while IFS= read -r -d '' entry; do
+    jq -e 'type == "object"' "${entry}" >/dev/null 2>&1 || {
+      log_warn "CNTools metadata validation failed: ${entry#"${tree}"/}"
+      return 1
+    }
+  done < <(find "${tree}/modules" -type f -name 'module.json' -print0)
+
+  # shellcheck disable=SC2016
+  "${bash_bin}" -c '
+    tree="$1"
+    CNTOOLS_MODULE_ROOT="${tree}/modules/root"
+    CNTOOLS_LIB_DIR="${tree}/lib"
+    CNTOOLS_VALIDATION_BASH="$2"
+    source "${tree}/core/menu.sh"
+    cntools_menu_validate_tree
+  ' _ "${tree}" "${bash_bin}" >/dev/null 2>&1 || {
+    log_warn "CNTools menu tree failed semantic validation."
+    return 1
+  }
+}
+
+dispatcher_preflight_cntools_tree() {
+  local source_directory=""
+
+  source_directory="$(
+    dispatcher_source_directory 'scripts/common-helper-scripts/cntools'
+  )" || {
+    log_warn "The CNTools source directory is missing or unsafe."
+    return 1
+  }
+  dispatcher_validate_cntools_tree "${source_directory}" Y
 }
 
 dispatcher_target_state_token() {
@@ -800,6 +1017,9 @@ dispatcher_prepare_snapshot() {
     fi
     [[ "${remote_ref_status}" -eq 2 ]] ||
       err_exit "Could not verify ${G_ACCOUNT}/guild-operators branch '${BRANCH}' after the clone failed."
+    if [[ "${GUILD_DEPLOY_STRICT_REF:-N}" = "Y" ]]; then
+      err_exit "Guild repository ref '${BRANCH}' was not found; strict ref selection prevents fallback to master."
+    fi
     log_warn "Branch '${BRANCH}' was not found; falling back to master."
     [[ "${GIT_SOURCE_ROOT}" = "${GUILD_SOURCE_TMP_DIR}/repository" ]] ||
       err_exit "Refusing to clear an unexpected source checkout path."
@@ -1147,10 +1367,9 @@ dispatcher_install_common_runtime_bundle() (
     cp -- "${downloads[i]}" "${candidates[i]}" || return 2
   done
 
-  if [[ "${force_scripts}" != "Y" &&
-        -f "${targets[5]}" &&
-        -n "$(grep '^# Do NOT modify code below' "${targets[5]}" 2>/dev/null)" &&
-        -n "$(grep '^# Do NOT modify code below' "${downloads[5]}" 2>/dev/null)" ]]; then
+  if [[ "${force_scripts}" != "Y" && -f "${targets[5]}" ]] &&
+     grep -q '^# Do NOT modify code below' "${targets[5]}" 2>/dev/null &&
+     grep -q '^# Do NOT modify code below' "${downloads[5]}" 2>/dev/null; then
     old_header="$(awk '/^# Do NOT modify code below/{exit} {print}' "${targets[5]}")"
     new_runtime="$(awk 'copy || /^# Do NOT modify code below/{copy=1; print}' "${downloads[5]}")"
     printf '%s\n%s\n' "${old_header}" "${new_runtime}" > "${candidates[5]}" ||
@@ -1232,6 +1451,164 @@ dispatcher_install_common_runtime_bundle() (
   return 0
 )
 
+dispatcher_cntools_copy_tree() {
+  cp -R -- "$1/." "$2/"
+}
+
+dispatcher_cntools_move_tree() {
+  mv -- "$1" "$2"
+}
+
+# Install the complete CNTools directory as a single generation. The old tree
+# is kept inside the same-filesystem staging directory until the candidate has
+# been installed and revalidated, which permits rollback on every failure.
+dispatcher_install_cntools_tree() (
+  local source_directory=""
+  local scripts_directory="${NODE_HOME:-}/scripts"
+  local target_directory="${NODE_HOME:-}/scripts/cntools"
+  local stage_root=""
+  local candidate_directory=""
+  local previous_directory=""
+  local target_lock_acquired="N"
+  local target_existed="N"
+  local previous_moved="N"
+  local candidate_moved="N"
+  local transaction_active="N"
+
+  _dispatcher_cntools_safe_remove() {
+    local remove_path="${1:-}"
+
+    if [[ -n "${stage_root}" &&
+          "${remove_path}" = "${stage_root}" &&
+          "$(dirname "${remove_path}")" = "${scripts_directory}" &&
+          "$(basename "${remove_path}")" == .cntools-install.* &&
+          -d "${remove_path}" &&
+          ! -L "${remove_path}" ]]; then
+      rm -rf -- "${remove_path}"
+    elif [[ "${remove_path}" = "${target_directory}" &&
+            -d "${remove_path}" &&
+            ! -L "${remove_path}" ]]; then
+      rm -rf -- "${remove_path}"
+    else
+      return 1
+    fi
+  }
+
+  _dispatcher_cntools_cleanup() {
+    local saved_status="${1:-$?}"
+    local cleanup_stage="Y"
+
+    trap - EXIT HUP INT QUIT TERM
+    if [[ "${transaction_active}" = "Y" ]]; then
+      if [[ "${candidate_moved}" = "Y" &&
+            ! -e "${candidate_directory}" &&
+            ! -L "${candidate_directory}" &&
+            ( -e "${target_directory}" || -L "${target_directory}" ) ]]; then
+        _dispatcher_cntools_safe_remove "${target_directory}" || {
+          log_warn "Could not remove an invalid CNTools candidate during rollback."
+          cleanup_stage="N"
+        }
+      fi
+      if [[ "${previous_moved}" = "Y" &&
+            -d "${previous_directory}" &&
+            ! -L "${previous_directory}" ]]; then
+        if [[ -e "${target_directory}" || -L "${target_directory}" ]]; then
+          log_warn "Could not restore the previous CNTools tree because the target is occupied; recovery copy remains at ${previous_directory}."
+          cleanup_stage="N"
+        elif ! command mv -- "${previous_directory}" "${target_directory}"; then
+          log_warn "Could not restore the previous CNTools tree from ${previous_directory}."
+          cleanup_stage="N"
+        fi
+      fi
+    fi
+    if [[ "${cleanup_stage}" = "Y" &&
+          -n "${stage_root}" && -d "${stage_root}" ]]; then
+      _dispatcher_cntools_safe_remove "${stage_root}" ||
+        log_warn "Could not remove CNTools staging directory ${stage_root}."
+    fi
+    if [[ "${target_lock_acquired}" = "Y" ]]; then
+      deployment_target_lock_release
+    fi
+    return "${saved_status}"
+  }
+
+  trap '_dispatcher_cntools_cleanup "$?"' EXIT
+  trap 'exit 2' HUP INT QUIT TERM
+
+  [[ -n "${NODE_HOME:-}" &&
+     "${NODE_HOME}" = /* &&
+     -d "${NODE_HOME}" &&
+     ! -L "${NODE_HOME}" &&
+     -d "${scripts_directory}" &&
+     ! -L "${scripts_directory}" ]] || {
+    log_warn "The CNTools target layout is missing or unsafe."
+    return 2
+  }
+  deployment_target_lock_acquire "${NODE_HOME}" || return 2
+  target_lock_acquired="Y"
+  if [[ -e "${target_directory}" || -L "${target_directory}" ]]; then
+    [[ -d "${target_directory}" &&
+       ! -L "${target_directory}" &&
+       -O "${target_directory}" ]] || {
+      log_warn "The installed CNTools target is not a safe owned directory."
+      return 2
+    }
+    target_existed="Y"
+  fi
+
+  source_directory="$(
+    dispatcher_source_directory 'scripts/common-helper-scripts/cntools'
+  )" || {
+    log_warn "The CNTools source directory is missing or unsafe."
+    return 2
+  }
+  dispatcher_validate_cntools_tree "${source_directory}" Y || return 2
+
+  stage_root="$(mktemp -d "${scripts_directory}/.cntools-install.XXXXXX")" || return 2
+  [[ "$(dirname "${stage_root}")" = "${scripts_directory}" &&
+     "$(basename "${stage_root}")" == .cntools-install.* &&
+     -d "${stage_root}" &&
+     ! -L "${stage_root}" &&
+     -O "${stage_root}" ]] || return 2
+  candidate_directory="${stage_root}/candidate"
+  previous_directory="${stage_root}/previous"
+  mkdir "${candidate_directory}" || return 2
+
+  dispatcher_cntools_copy_tree "${source_directory}" "${candidate_directory}" || {
+    log_warn "Could not stage the CNTools source tree."
+    return 2
+  }
+  dispatcher_validate_cntools_tree "${candidate_directory}" N || return 2
+  find "${candidate_directory}" -type d -exec chmod 0755 {} + || return 2
+  find "${candidate_directory}" -type f -exec chmod 0644 {} + || return 2
+  chmod 0755 "${candidate_directory}/cntools.sh" || return 2
+  [[ -z "$(find "${candidate_directory}" -type d ! -perm 0755 -print -quit)" &&
+     -z "$(find "${candidate_directory}" -type f ! -path "${candidate_directory}/cntools.sh" ! -perm 0644 -print -quit)" &&
+     -n "$(find "${candidate_directory}/cntools.sh" -prune -perm 0755 -print)" ]] || {
+    log_warn "Could not normalize CNTools file permissions."
+    return 2
+  }
+  dispatcher_validate_cntools_tree "${candidate_directory}" N || return 2
+
+  transaction_active="Y"
+  if [[ "${target_existed}" = "Y" ]]; then
+    previous_moved="Y"
+    dispatcher_cntools_move_tree "${target_directory}" "${previous_directory}" || {
+      log_warn "Could not stage the previous CNTools installation."
+      return 2
+    }
+  fi
+  candidate_moved="Y"
+  dispatcher_cntools_move_tree "${candidate_directory}" "${target_directory}" || {
+    log_warn "Could not install the staged CNTools tree."
+    return 2
+  }
+  dispatcher_validate_cntools_tree "${target_directory}" N || return 2
+  [[ -x "${target_directory}/cntools.sh" ]] || return 2
+  transaction_active="N"
+  return 0
+)
+
 detect_legacy_network() {
   local genesis="${NODE_HOME}/files/shelley-genesis.json"
   local magic=""
@@ -1295,6 +1672,7 @@ dispatcher_set_defaults() {
   : "${LEGACY_CNODE_TARGET:=N}"
   : "${NETWORK_PRESET:=N}"
   [[ -z "${G_ACCOUNT:-}" ]] && G_ACCOUNT="cardano-community"
+  [[ -z "${GUILD_DEPLOY_STRICT_REF:-}" ]] && GUILD_DEPLOY_STRICT_REF="N"
   [[ -z "${CURL_TIMEOUT:-}" ]] && CURL_TIMEOUT=60
   [[ -z "${DOWNLOAD_TIMEOUT:-}" ]] && DOWNLOAD_TIMEOUT=600
   [[ -z "${SUDO:-}" ]] && SUDO="Y"
@@ -1302,6 +1680,10 @@ dispatcher_set_defaults() {
   case "${PACKAGE_MANAGER_OUTPUT}" in
     compact|verbose) ;;
     *) err_exit "PACKAGE_MANAGER_OUTPUT must be compact or verbose." ;;
+  esac
+  case "${GUILD_DEPLOY_STRICT_REF}" in
+    Y|N) ;;
+    *) err_exit "GUILD_DEPLOY_STRICT_REF must be Y or N." ;;
   esac
 
   [[ -z "${NODE_IMPLEMENTATION:-}" ]] && NODE_IMPLEMENTATION="${CNODE_IMPLEMENTATION:-cnode}"
@@ -1517,7 +1899,8 @@ dispatcher_set_defaults() {
   REPO_RAW="https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators"
   URL_RAW="${REPO_RAW}/${BRANCH}"
 
-  export G_ACCOUNT CURL_TIMEOUT DOWNLOAD_TIMEOUT SUDO sudo
+  export G_ACCOUNT GUILD_DEPLOY_STRICT_REF
+  export CURL_TIMEOUT DOWNLOAD_TIMEOUT SUDO sudo
   export PACKAGE_MANAGER_OUTPUT
   export NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NODE_HOME NODE_SERVICE
   export NODE_PORT NETWORK BRANCH REPO_RAW URL_RAW S_ARGS
@@ -1849,8 +2232,12 @@ guild_deploy_main() {
   [[ -n "${G_ACCOUNT:-}" ]] && G_ACCOUNT_PRESET="Y"
   OPTIND=1
 
-  while getopts ":i:n:p:t:s:b:h" opt; do
+  while getopts ":g:i:n:p:t:s:b:h" opt; do
     case "${opt}" in
+      g)
+        G_ACCOUNT="${OPTARG}"
+        G_ACCOUNT_PRESET="Y"
+        ;;
       i)
         NODE_IMPLEMENTATION="${OPTARG}"
         NODE_IMPLEMENTATION_EXPLICIT="Y"

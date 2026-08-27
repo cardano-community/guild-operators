@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "Encrypt",
+  "description": "Encrypt wallet keys",
+  "shortcut": "e",
+  "order": 90,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2016,SC2034,SC2329
+# shellcheck disable=SC2016,SC2030,SC2031,SC2034,SC2329
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
@@ -157,6 +157,14 @@ run_alternate_profile_test() (
   export HOME NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NODE_HOME NODE_SERVICE
   export NETWORK BRANCH GIT_SOURCE_ROOT S_ARGS UPDATE_CHECK SUDO sudo
 
+  if (( BASH_VERSINFO[0] < 4 ||
+        (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
+    # This host cannot execute the new framework validator. Focused framework
+    # tests exercise it on Bash 4.4+, while this suite covers profile wiring.
+    GUILD_DEPLOY_PREFLIGHT_BASH_BIN="true"
+    export GUILD_DEPLOY_PREFLIGHT_BASH_BIN
+  fi
+
   uname() {
     case "${1:-}" in
       -s) printf 'Linux\n' ;;
@@ -171,9 +179,8 @@ run_alternate_profile_test() (
 
   case "${implementation}" in
     dingo)
-      if (( BASH_VERSINFO[0] < 4 )); then
-        # macOS ships Bash 3, which cannot parse CNTools' Bash 4 associative
-        # array syntax. Linux CI and production still use the real validator.
+      if (( BASH_VERSINFO[0] < 4 ||
+            (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
         DINGO_DEPLOY_BASH_BIN="true"
       fi
       profile="${REPO_ROOT}/scripts/dingo-helper-scripts/deploy-dingo.sh"
@@ -206,6 +213,14 @@ run_alternate_profile_test() (
   # dispatcher that loads them from one prepared checkout in production.
   # shellcheck source=/dev/null
   . "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh"
+  # Strict Git-tracked validation is covered with a committed fixture in the
+  # focused CNTools deployment test. Profile tests run from a possibly dirty
+  # development tree, so keep their scope on profile integration.
+  eval "$(declare -f dispatcher_validate_cntools_tree |
+    sed '1s/dispatcher_validate_cntools_tree/dispatcher_validate_cntools_tree_original/')"
+  dispatcher_validate_cntools_tree() {
+    dispatcher_validate_cntools_tree_original "$1" N
+  }
   # Profiles normally delegate fatal errors to the dispatcher's exiting
   # handler. Tests need a return value so expected validation failures can be
   # asserted without terminating this isolated profile case.
@@ -346,6 +361,21 @@ run_alternate_profile_test() (
   assert_file "${NODE_HOME}/scripts/lib/systemd.library"
   [[ -x "${NODE_HOME}/scripts/gLiveView.sh" ]] ||
     fail "gLiveView is not executable: ${NODE_HOME}/scripts/gLiveView.sh"
+  [[ -x "${NODE_HOME}/scripts/cntools/cntools.sh" ]] ||
+    fail "modular CNTools entrypoint is not executable for ${implementation}"
+  assert_file "${NODE_HOME}/scripts/cntools/VERSION"
+  assert_file "${NODE_HOME}/scripts/cntools/core/startup.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/log.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/ui.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/menu.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/action.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/update.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/lib/update.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/modules/root/module.json"
+  assert_file "${NODE_HOME}/scripts/cntools/modules/root/update/module.json"
+  assert_file "${NODE_HOME}/scripts/cntools/modules/root/update/check/action.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/modules/root/update/view-changes/action.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/modules/root/update/install/action.sh"
   if [[ "${implementation}" == "dingo" ]]; then
     [[ -x "${NODE_HOME}/scripts/cntools.sh" ]] ||
       fail "CNTools is not executable for Dingo"

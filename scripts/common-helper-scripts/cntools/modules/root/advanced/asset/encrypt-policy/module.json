@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "Encrypt / Lock Policy",
+  "description": "Encrypt or lock a minting policy",
+  "shortcut": "e",
+  "order": 50,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

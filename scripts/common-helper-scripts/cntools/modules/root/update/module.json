@@ -1,0 +1,7 @@
+{
+  "kind": "menu",
+  "label": "Update",
+  "description": "Check for and install CNTools updates",
+  "shortcut": "u",
+  "order": 90
+}

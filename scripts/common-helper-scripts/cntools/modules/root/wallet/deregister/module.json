@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "De-Register",
+  "description": "De-register a wallet stake address",
+  "shortcut": "z",
+  "order": 40,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

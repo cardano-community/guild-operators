@@ -1,0 +1,7 @@
+{
+  "kind": "menu",
+  "label": "Blocks",
+  "description": "Review block production history",
+  "shortcut": "b",
+  "order": 60
+}

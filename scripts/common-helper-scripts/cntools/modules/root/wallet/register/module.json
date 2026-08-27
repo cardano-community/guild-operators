@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "Register",
+  "description": "Register a wallet stake address",
+  "shortcut": "r",
+  "order": 30,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

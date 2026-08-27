@@ -1,0 +1,7 @@
+{
+  "kind": "menu",
+  "label": "Governance",
+  "description": "Inspect governance and manage voting credentials",
+  "shortcut": "g",
+  "order": 10
+}

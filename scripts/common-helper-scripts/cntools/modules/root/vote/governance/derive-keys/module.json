@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "Derive Keys",
+  "description": "Derive governance keys",
+  "shortcut": "k",
+  "order": 80,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

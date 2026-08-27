@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "HW Wallet",
+  "description": "Import a hardware wallet",
+  "shortcut": "w",
+  "order": 20,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

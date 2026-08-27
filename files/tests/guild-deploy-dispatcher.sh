@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck source=/dev/null
 . "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh"
+unset GUILD_DEPLOY_STRICT_REF
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -17,6 +18,8 @@ fi
 if dispatcher_usage | grep -Eq '(^|[[:space:]])-u([[:space:]]|$)'; then
   fail "dispatcher usage still advertises the removed -u option"
 fi
+dispatcher_usage | grep -Eq '(^|[[:space:]])-g([[:space:]]|$)' ||
+  fail "dispatcher usage does not advertise the repository account option"
 
 missing_git_error=""
 if missing_git_error="$(
@@ -43,6 +46,7 @@ run_defaults_case() (
   unset CNODE_NAME CNODE_PATH NODE_NAME NODE_PARENT NODE_PORT
   unset NETWORK BRANCH DOWNLOAD_TIMEOUT
   unset PACKAGE_MANAGER_OUTPUT
+  unset GUILD_DEPLOY_STRICT_REF
   unset CNODE_SKIP_DBSYNC_DOWNLOAD SKIP_DBSYNC_DOWNLOAD
   NODE_IMPLEMENTATION="$1"
   NODE_PARENT="/tmp/guild-dispatcher-test"
@@ -56,6 +60,7 @@ run_defaults_case() (
   assert_eq "${NODE_HOME}" "/tmp/guild-dispatcher-test/$1"
   assert_eq "${DOWNLOAD_TIMEOUT}" "600"
   assert_eq "${PACKAGE_MANAGER_OUTPUT}" "compact"
+  assert_eq "${GUILD_DEPLOY_STRICT_REF}" "N"
   case "${NODE_IMPLEMENTATION}" in
     cnode)
       assert_eq "${NODE_PORT}" "6000"
@@ -90,11 +95,12 @@ run_defaults_case amaru
     fail "legacy db-sync skip input leaked into the cnode profile"
 )
 
-for invalid_input in port timeout dbsync package_output; do
+for invalid_input in port timeout dbsync package_output strict_ref; do
   if (
     unset CNODE_NAME CNODE_PATH NODE_NAME NETWORK BRANCH
     unset NODE_PORT DOWNLOAD_TIMEOUT
     unset PACKAGE_MANAGER_OUTPUT
+    unset GUILD_DEPLOY_STRICT_REF
     unset CNODE_SKIP_DBSYNC_DOWNLOAD SKIP_DBSYNC_DOWNLOAD
     NODE_IMPLEMENTATION="cnode"
     NODE_PARENT="/tmp/guild-dispatcher-test"
@@ -103,6 +109,7 @@ for invalid_input in port timeout dbsync package_output; do
       timeout) DOWNLOAD_TIMEOUT=0 ;;
       dbsync) CNODE_SKIP_DBSYNC_DOWNLOAD="yes" ;;
       package_output) PACKAGE_MANAGER_OUTPUT="quiet-ish" ;;
+      strict_ref) GUILD_DEPLOY_STRICT_REF="yes" ;;
     esac
     NETWORK_EXPLICIT="N"
     BRANCH_EXPLICIT="N"
@@ -434,6 +441,47 @@ printf '%s\n' \
   '    "forging": true' \
   '  }' \
   '}' > "${TEST_DIR}/existing/.deployment.json"
+
+account_override_trace="${TEST_DIR}/account-override.trace"
+(
+  dispatcher_prepare_snapshot() {
+    printf '%s\n' "${G_ACCOUNT}" > "${account_override_trace}"
+  }
+  unset CNODE_NAME CNODE_PATH NETWORK BRANCH
+  G_ACCOUNT="user-header-account"
+  NODE_PARENT="${TEST_DIR}"
+  SUDO="N"
+  guild_deploy_main \
+    -g authoritative-account \
+    -i cnode \
+    -n preview \
+    -p "${TEST_DIR}" \
+    -t existing \
+    -b alpha
+) >/dev/null
+assert_eq "$(< "${account_override_trace}")" "authoritative-account"
+
+invalid_account_marker="${TEST_DIR}/invalid-account-snapshot"
+if (
+  dispatcher_prepare_snapshot() {
+    touch "${invalid_account_marker}"
+  }
+  unset CNODE_NAME CNODE_PATH NETWORK BRANCH
+  G_ACCOUNT="user-header-account"
+  NODE_PARENT="${TEST_DIR}"
+  SUDO="N"
+  guild_deploy_main \
+    -g invalid/account \
+    -i cnode \
+    -n preview \
+    -p "${TEST_DIR}" \
+    -t invalid-account \
+    -b alpha
+) >/dev/null 2>&1; then
+  fail "dispatcher accepted an invalid explicit repository account"
+fi
+[[ ! -e "${invalid_account_marker}" ]] ||
+  fail "invalid explicit repository account reached snapshot preparation"
 
 (
   unset CNODE_NAME CNODE_PATH NETWORK BRANCH G_ACCOUNT
@@ -1137,6 +1185,7 @@ fallback_child_log="${TEST_DIR}/snapshot-fallback.log"
   REPO_RAW="https://raw.invalid/fixture-account/guild-operators"
   URL_RAW="${REPO_RAW}/${BRANCH}"
   NODE_IMPLEMENTATION="dingo"
+  GUILD_DEPLOY_STRICT_REF="N"
   configure_local_git_remote "${snapshot_remote}"
   SNAPSHOT_CHILD_LOG="${fallback_child_log}"
   export SNAPSHOT_CHILD_LOG
@@ -1146,6 +1195,30 @@ grep -q '^branch=master$' "${fallback_child_log}" ||
   fail "missing snapshot branch did not fall back to master"
 grep -q "^revision=${master_revision}$" "${fallback_child_log}" ||
   fail "fallback snapshot did not use the master commit"
+
+strict_ref_child_log="${TEST_DIR}/snapshot-strict-ref.log"
+strict_ref_error_log="${TEST_DIR}/snapshot-strict-ref.err"
+if (
+  trap cleanup_dispatcher EXIT
+  TMPDIR="${TEST_DIR}"
+  G_ACCOUNT="fixture-account"
+  BRANCH="missing-strict-ref"
+  REPO_RAW="https://raw.invalid/fixture-account/guild-operators"
+  URL_RAW="${REPO_RAW}/${BRANCH}"
+  NODE_IMPLEMENTATION="dingo"
+  GUILD_DEPLOY_STRICT_REF="Y"
+  configure_local_git_remote "${snapshot_remote}"
+  SNAPSHOT_CHILD_LOG="${strict_ref_child_log}"
+  export SNAPSHOT_CHILD_LOG
+  dispatcher_prepare_snapshot -i dingo -n preprod -b missing-strict-ref
+) >/dev/null 2>"${strict_ref_error_log}"; then
+  fail "strict ref selection fell back to master for a missing ref"
+fi
+grep -q "strict ref selection prevents fallback to master" \
+  "${strict_ref_error_log}" ||
+  fail "strict missing-ref failure did not explain that fallback was prevented"
+[[ ! -e "${strict_ref_child_log}" ]] ||
+  fail "strict missing-ref failure executed a snapshot dispatcher"
 
 historical_child_log="${TEST_DIR}/snapshot-historical.log"
 historical_error_log="${TEST_DIR}/snapshot-historical.err"

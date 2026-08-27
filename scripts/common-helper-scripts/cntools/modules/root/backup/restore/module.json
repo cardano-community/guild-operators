@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "Restore",
+  "description": "Restore CNTools data from a backup",
+  "shortcut": "r",
+  "order": 20,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

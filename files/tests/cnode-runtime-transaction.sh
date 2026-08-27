@@ -32,6 +32,14 @@ done
 set +u
 # shellcheck source=/dev/null
 . "${REPO_ROOT}/scripts/cnode-helper-scripts/guild-deploy.sh"
+# The focused deployment test exercises strict Git-tracked validation against a
+# committed fixture. This profile integration test runs from the working tree,
+# which may legitimately contain the Phase 3 files before they are committed.
+eval "$(declare -f dispatcher_validate_cntools_tree |
+  sed '1s/dispatcher_validate_cntools_tree/dispatcher_validate_cntools_tree_original/')"
+dispatcher_validate_cntools_tree() {
+  dispatcher_validate_cntools_tree_original "$1" N
+}
 # shellcheck source=/dev/null
 . "${REPO_ROOT}/scripts/common-helper-scripts/lib/deployment.library"
 # shellcheck source=/dev/null
@@ -1049,6 +1057,7 @@ run_custom_script_snapshot_test() (
 run_install_order_test() {
   local deploy_file="${REPO_ROOT}/scripts/cnode-helper-scripts/deploy-cnode.sh"
   local runtime_line dependent_line blockperf_line logmonitor_line retirement_line
+  local recursive_mode_line cntools_framework_line
 
   runtime_line="$(
     grep -n '^[[:space:]]*updateCommonRuntimeBundle ||' "${deploy_file}" |
@@ -1070,14 +1079,25 @@ run_install_order_test() {
     grep -n '^[[:space:]]*retire_legacy_systemd_orchestrator$' "${deploy_file}" |
       head -1 | cut -d: -f1
   )"
+  recursive_mode_line="$(
+    grep -nF -- '-path "${NODE_HOME}/scripts/cntools" -prune' \
+      "${deploy_file}" | head -1 | cut -d: -f1
+  )"
+  cntools_framework_line="$(
+    grep -n '^[[:space:]]*dispatcher_install_cntools_tree ||' "${deploy_file}" |
+      head -1 | cut -d: -f1
+  )"
   [[ -n "${runtime_line}" && -n "${dependent_line}" &&
      -n "${blockperf_line}" && -n "${logmonitor_line}" &&
-     -n "${retirement_line}" ]] ||
+     -n "${retirement_line}" && -n "${recursive_mode_line}" &&
+     -n "${cntools_framework_line}" ]] ||
     fail "could not locate cnode runtime/dependent installation calls"
   (( runtime_line < dependent_line )) ||
     fail "common runtime is not installed before dependent common scripts"
   (( blockperf_line < retirement_line && logmonitor_line < retirement_line )) ||
     fail "legacy systemd orchestrator is retired before every replacement component refreshes"
+  (( recursive_mode_line < cntools_framework_line )) ||
+    fail "cnode does not exclude modular CNTools from its legacy recursive chmod"
   if grep -q 'updateWithCustomConfig "env"' "${deploy_file}"; then
     fail "env is still installed outside the common runtime transaction"
   fi

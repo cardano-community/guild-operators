@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "Epoch",
+  "description": "Show block production for an epoch",
+  "shortcut": "e",
+  "order": 20,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

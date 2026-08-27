@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "Calidus",
+  "description": "Manage Calidus pool credentials",
+  "shortcut": "c",
+  "order": 110,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

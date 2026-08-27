@@ -6,6 +6,19 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [14.0.0] - Unreleased
+#### Added
+- New modular Bash framework with filesystem-backed menus and lazy action library loading.
+- Shared terminal UI, structured logging, and redacted command and HTTP wrappers.
+- First-class local, light, and offline runtime modes for cnode, Dingo, Amaru, and Koios-backed operation.
+- Snapshot-based, transactional deployment of the complete new CNTools source tree through Guild Deploy.
+- Bounded, non-fatal update availability checks with a clear main-menu notice.
+- Update menu for rechecking, viewing the existing CNTools changelog, and installing through Guild Deploy.
+
+#### Changed
+- CNTools is being completely rewritten while retaining the existing product name and continuing its release history at version 14.
+- The complete current menu hierarchy is available as an inert implementation skeleton. Operational actions will be implemented in subsequent development phases.
+
 ## [13.5.7] - 2026-06-28
 #### Fixed
 - Local mode pool info display was failing to parse output of cardano-cli query pool-state command.

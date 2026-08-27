@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "New",
+  "description": "Create a new stake pool",
+  "shortcut": "n",
+  "order": 10,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

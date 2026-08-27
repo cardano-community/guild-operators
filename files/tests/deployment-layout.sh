@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1091,SC2034,SC2329
+# shellcheck disable=SC1091,SC2016,SC2034,SC2329
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
@@ -203,6 +203,10 @@ for profile in \
   if grep -q 'URL_RAW' "${profile}"; then
     fail "$(basename "${profile}") still reads Guild payloads from raw URLs"
   fi
+  grep -q 'dispatcher_preflight_cntools_tree' "${profile}" ||
+    fail "$(basename "${profile}") does not preflight the modular CNTools tree"
+  grep -q 'dispatcher_install_cntools_tree' "${profile}" ||
+    fail "$(basename "${profile}") does not install the modular CNTools tree"
 done
 
 for implementation in dingo amaru; do

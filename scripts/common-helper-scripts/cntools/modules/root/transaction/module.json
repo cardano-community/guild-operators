@@ -1,0 +1,7 @@
+{
+  "kind": "menu",
+  "label": "Transaction",
+  "description": "Sign and submit transaction files",
+  "shortcut": "t",
+  "order": 40
+}

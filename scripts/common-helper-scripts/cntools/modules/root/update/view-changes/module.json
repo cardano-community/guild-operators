@@ -1,0 +1,9 @@
+{
+  "kind": "action",
+  "label": "View Changes",
+  "description": "View changelog entries newer than the installed version",
+  "shortcut": "v",
+  "order": 20,
+  "modes": ["local", "light"],
+  "libs": ["update.sh"]
+}

@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "Burn Asset",
+  "description": "Burn native assets",
+  "shortcut": "x",
+  "order": 70,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "DRep Registration / Update",
+  "description": "Register or update a DRep",
+  "shortcut": "r",
+  "order": 50,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

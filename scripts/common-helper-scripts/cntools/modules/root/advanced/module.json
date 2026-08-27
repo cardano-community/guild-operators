@@ -1,0 +1,8 @@
+{
+  "kind": "menu",
+  "label": "Advanced",
+  "description": "Metadata, native assets, multisignature scripts, and key cleanup",
+  "shortcut": "a",
+  "order": 80,
+  "advanced": true
+}

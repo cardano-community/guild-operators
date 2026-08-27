@@ -1,0 +1,7 @@
+{
+  "kind": "menu",
+  "label": "Pool",
+  "description": "Create and manage stake pools",
+  "shortcut": "p",
+  "order": 30
+}

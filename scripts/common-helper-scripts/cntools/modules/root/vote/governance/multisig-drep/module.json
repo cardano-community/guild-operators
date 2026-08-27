@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "MultiSig DRep",
+  "description": "Manage a multisignature DRep",
+  "shortcut": "m",
+  "order": 70,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "kind": "action",
+  "label": "Modify",
+  "description": "Update stake pool registration details",
+  "shortcut": "m",
+  "order": 40,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}

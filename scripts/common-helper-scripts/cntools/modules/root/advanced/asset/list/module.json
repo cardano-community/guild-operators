@@ -1,0 +1,15 @@
+{
+  "kind": "action",
+  "label": "List Assets",
+  "description": "List available native assets",
+  "shortcut": "l",
+  "order": 20,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ],
+  "libs": [
+    "placeholder.sh"
+  ]
+}
