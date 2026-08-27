@@ -20,6 +20,7 @@
 #
 # cnode-specific variables
 #CNODE_SKIP_DBSYNC_DOWNLOAD="N"      # Skip cardano-db-sync when using cnode -s d
+#CNODE_SKIP_HARDWARE_WALLET_RULES="N" # Skip host udev rules when using cnode -s w
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -1719,6 +1720,13 @@ dispatcher_set_defaults() {
   esac
   unset SKIP_DBSYNC_DOWNLOAD
 
+  [[ -z "${CNODE_SKIP_HARDWARE_WALLET_RULES:-}" ]] &&
+    CNODE_SKIP_HARDWARE_WALLET_RULES="N"
+  case "${CNODE_SKIP_HARDWARE_WALLET_RULES}" in
+    Y|N) ;;
+    *) err_exit "CNODE_SKIP_HARDWARE_WALLET_RULES must be Y or N." ;;
+  esac
+
   [[ -z "${NODE_PARENT:-}" ]] && NODE_PARENT="${CNODE_PATH:-/opt/cardano}"
   validate_deployment_path "${NODE_PARENT}" ||
     err_exit "The parent path must be absolute and contain only letters, digits, /, ., _, +, @, :, or -: ${NODE_PARENT}"
@@ -1905,9 +1913,9 @@ dispatcher_set_defaults() {
   export NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NODE_HOME NODE_SERVICE
   export NODE_PORT NETWORK BRANCH REPO_RAW URL_RAW S_ARGS
   if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
-    export CNODE_SKIP_DBSYNC_DOWNLOAD
+    export CNODE_SKIP_DBSYNC_DOWNLOAD CNODE_SKIP_HARDWARE_WALLET_RULES
   else
-    unset CNODE_SKIP_DBSYNC_DOWNLOAD
+    unset CNODE_SKIP_DBSYNC_DOWNLOAD CNODE_SKIP_HARDWARE_WALLET_RULES
   fi
 
   # Compatibility aliases used by the current cnode implementation profile.

@@ -49,6 +49,11 @@ The cnode-only `CNODE_SKIP_DBSYNC_DOWNLOAD=Y` dispatcher setting lets controlled
 container builds omit the optional db-sync binary from `-s d`. The historical
 `SKIP_DBSYNC_DOWNLOAD` name is accepted temporarily during migration.
 
+The cnode-only `CNODE_SKIP_HARDWARE_WALLET_RULES=Y` setting lets controlled
+container builds install Cardano Hardware CLI with `-s w` without attempting
+to install or reload udev rules inside the container. Hardware-device
+permissions must instead be configured on the container host.
+
 ## Release metadata
 
 All versioned software components and their primary download or installation

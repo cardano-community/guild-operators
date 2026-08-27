@@ -33,6 +33,10 @@ grep -Fq 'locales apt-utils curl git wget' "${DOCKERFILE}" ||
   fail "Dockerfile does not install the Git snapshot prerequisite"
 grep -Fq '&& "${IMAGE_NODE_HOME}/scripts/guild-deploy.sh" \' "${DOCKERFILE}" ||
   fail "Dockerfile does not reuse the dispatcher installed from the snapshot"
+grep -Fq 'CNODE_SKIP_HARDWARE_WALLET_RULES=Y' "${DOCKERFILE}" ||
+  fail "Dockerfile does not leave hardware-wallet udev rules to the host"
+grep -Fq 'cnode) install_flags=dcmowx ;;' "${DOCKERFILE}" ||
+  fail "Dockerfile no longer installs Cardano Hardware CLI for cnode"
 if grep -Fq 'scripts/cnode-helper-scripts/guild-deploy.sh ${IMAGE_NODE_HOME}/scripts/' \
   "${DOCKERFILE}"; then
   fail "Dockerfile overwrites the snapshot-installed dispatcher with a raw file"

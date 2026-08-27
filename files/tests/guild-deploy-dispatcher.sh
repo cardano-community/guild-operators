@@ -48,6 +48,7 @@ run_defaults_case() (
   unset PACKAGE_MANAGER_OUTPUT
   unset GUILD_DEPLOY_STRICT_REF
   unset CNODE_SKIP_DBSYNC_DOWNLOAD SKIP_DBSYNC_DOWNLOAD
+  unset CNODE_SKIP_HARDWARE_WALLET_RULES
   NODE_IMPLEMENTATION="$1"
   NODE_PARENT="/tmp/guild-dispatcher-test"
   [[ "${NODE_IMPLEMENTATION}" == "cnode" ]] || NETWORK="preprod"
@@ -65,6 +66,7 @@ run_defaults_case() (
     cnode)
       assert_eq "${NODE_PORT}" "6000"
       assert_eq "${CNODE_SKIP_DBSYNC_DOWNLOAD}" "N"
+      assert_eq "${CNODE_SKIP_HARDWARE_WALLET_RULES}" "N"
       ;;
     dingo) assert_eq "${NODE_PORT}" "3001" ;;
     amaru) assert_eq "${NODE_PORT}" "3000" ;;
@@ -78,11 +80,13 @@ run_defaults_case amaru
 (
   unset CNODE_NAME CNODE_PATH NODE_NAME NETWORK BRANCH
   unset CNODE_SKIP_DBSYNC_DOWNLOAD
+  unset CNODE_SKIP_HARDWARE_WALLET_RULES
   NODE_IMPLEMENTATION="cnode"
   NODE_PARENT="/tmp/guild-dispatcher-test"
   NODE_PORT="03001"
   DOWNLOAD_TIMEOUT="00600"
   SKIP_DBSYNC_DOWNLOAD="Y"
+  CNODE_SKIP_HARDWARE_WALLET_RULES="Y"
   NETWORK_EXPLICIT="N"
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
@@ -91,23 +95,26 @@ run_defaults_case amaru
   assert_eq "${NODE_PORT}" "3001"
   assert_eq "${DOWNLOAD_TIMEOUT}" "600"
   assert_eq "${CNODE_SKIP_DBSYNC_DOWNLOAD}" "Y"
+  assert_eq "${CNODE_SKIP_HARDWARE_WALLET_RULES}" "Y"
   [[ -z "${SKIP_DBSYNC_DOWNLOAD+x}" ]] ||
     fail "legacy db-sync skip input leaked into the cnode profile"
 )
 
-for invalid_input in port timeout dbsync package_output strict_ref; do
+for invalid_input in port timeout dbsync hardware_rules package_output strict_ref; do
   if (
     unset CNODE_NAME CNODE_PATH NODE_NAME NETWORK BRANCH
     unset NODE_PORT DOWNLOAD_TIMEOUT
     unset PACKAGE_MANAGER_OUTPUT
     unset GUILD_DEPLOY_STRICT_REF
     unset CNODE_SKIP_DBSYNC_DOWNLOAD SKIP_DBSYNC_DOWNLOAD
+    unset CNODE_SKIP_HARDWARE_WALLET_RULES
     NODE_IMPLEMENTATION="cnode"
     NODE_PARENT="/tmp/guild-dispatcher-test"
     case "${invalid_input}" in
       port) NODE_PORT=70000 ;;
       timeout) DOWNLOAD_TIMEOUT=0 ;;
       dbsync) CNODE_SKIP_DBSYNC_DOWNLOAD="yes" ;;
+      hardware_rules) CNODE_SKIP_HARDWARE_WALLET_RULES="yes" ;;
       package_output) PACKAGE_MANAGER_OUTPUT="quiet-ish" ;;
       strict_ref) GUILD_DEPLOY_STRICT_REF="yes" ;;
     esac
@@ -127,6 +134,7 @@ done
   NODE_PARENT="/tmp/guild-dispatcher-test"
   NETWORK="preprod"
   CNODE_SKIP_DBSYNC_DOWNLOAD="Y"
+  CNODE_SKIP_HARDWARE_WALLET_RULES="Y"
   NETWORK_EXPLICIT="Y"
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
@@ -134,6 +142,8 @@ done
   dispatcher_set_defaults
   [[ -z "${CNODE_SKIP_DBSYNC_DOWNLOAD+x}" ]] ||
     fail "cnode-only db-sync input was exported to an alternate profile"
+  [[ -z "${CNODE_SKIP_HARDWARE_WALLET_RULES+x}" ]] ||
+    fail "cnode-only hardware-rule input was exported to an alternate profile"
 )
 
 (

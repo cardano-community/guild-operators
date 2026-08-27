@@ -212,6 +212,8 @@ cnode_deploy_init_context() {
     err_exit "cnode profile did not receive the Guild source snapshot helper."
   [[ "${CNODE_SKIP_DBSYNC_DOWNLOAD:-}" =~ ^[YN]$ ]] ||
     err_exit "CNODE_SKIP_DBSYNC_DOWNLOAD must be Y or N."
+  [[ "${CNODE_SKIP_HARDWARE_WALLET_RULES:-}" =~ ^[YN]$ ]] ||
+    err_exit "CNODE_SKIP_HARDWARE_WALLET_RULES must be Y or N."
   sudo="${sudo:-}"
 
   dirs -c # clear dir stack
@@ -1415,9 +1417,16 @@ download_cncli() {
 }
 
 cnode_deploy_install_hardware_wallet_rules() {
-  local manifest="${CNODE_RELEASE_MANIFEST:-${NODE_HOME}/files/cnode-release.json}"
+  local manifest=""
   local release_data ledger_url ledger_sha trezor_url trezor_sha
   local staging_dir ledger_file trezor_file actual_sha
+
+  if [[ "${CNODE_SKIP_HARDWARE_WALLET_RULES:-N}" == "Y" ]]; then
+    log_info "Skipped hardware-wallet udev rules; device permissions are managed by the host."
+    return 0
+  fi
+
+  manifest="${CNODE_RELEASE_MANIFEST:-${NODE_HOME}/files/cnode-release.json}"
 
   [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ||
      ! -f "/etc/udev/rules.d/51-trezor.rules" ]] ||

@@ -670,6 +670,39 @@ run_binary_staging_test() (
   done
 )
 
+run_hardware_wallet_rules_skip_test() (
+  local node_root="${TEST_ROOT}/hardware-wallet-rules-skip"
+  local message=""
+
+  HOME="${node_root}/home"
+  TMPDIR="${node_root}/tmp"
+  mkdir -p "${HOME}/.local/bin" "${TMPDIR}"
+  CNODE_SKIP_HARDWARE_WALLET_RULES="Y"
+  jq() { fail "hardware-rule skip attempted to read release metadata"; }
+  curl() { fail "hardware-rule skip attempted a download"; }
+  log_info() { message="$1"; }
+  log_progress() { :; }
+  log_ok() { :; }
+  cnode_deploy_load_release_metadata() { :; }
+  cnode_deploy_architecture() { printf 'linux-x86_64\n'; }
+  cnode_deploy_resolve_tool() { CNODE_RESOLVED_VERSION="fixture-hw-cli"; }
+  cnode_deploy_download_resolved_artifact() {
+    printf 'fixture archive\n' > "$1"
+  }
+  tar() {
+    [[ "$1" == "zxf" && "$2" == "cardano-hw-cli.tar.gz" ]] ||
+      fail "unexpected hardware-wallet archive extraction: $*"
+    mkdir -p cardano-hw-cli
+    printf 'fixture hardware cli\n' > cardano-hw-cli/cardano-hw-cli
+  }
+
+  download_cardanohwcli
+  grep -q '^fixture hardware cli$' "${HOME}/.local/bin/cardano-hw-cli" ||
+    fail "hardware-rule skip also skipped the Cardano Hardware CLI binary"
+  [[ "${message}" == *"managed by the host"* ]] ||
+    fail "hardware-rule skip did not explain that device permissions are host-managed"
+)
+
 run_managed_installer_policy_test() (
   local node_root="${TEST_ROOT}/managed-installer"
   local manifest="${node_root}/files/cnode-release.json"
@@ -1133,6 +1166,7 @@ run_release_metadata_test
 run_release_manifest_validation_tests
 run_release_resolver_tests
 run_binary_staging_test
+run_hardware_wallet_rules_skip_test
 run_managed_installer_policy_test
 run_source_checkout_test
 run_transaction_tests
