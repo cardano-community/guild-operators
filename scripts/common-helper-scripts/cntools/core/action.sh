@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # CNTools lazy action and library loader. Functions only.
+# shellcheck disable=SC2034
 
 cntools_action_run() {
   local module_directory="${1:-}"
@@ -22,6 +23,14 @@ cntools_action_run() {
     local library_list=""
     local action_file="${physical_module}/action.sh"
     local status=0
+
+    # The parent menu owns the alternate screen. Actions use the normal
+    # terminal buffer so long output remains scrollable and child-local UI
+    # state cannot leave the parent in an unmatched alternate screen.
+    CNTOOLS_UI_USE_ALT_SCREEN="N"
+    CNTOOLS_UI_SCREEN_ACTIVE="N"
+    trap 'cntools_ui_suspend_for_job_control' TSTP
+    trap 'cntools_ui_mark_resize' CONT
 
     CNTOOLS_ACTION_ID="${action_id}"
     export CNTOOLS_ACTION_ID

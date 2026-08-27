@@ -360,7 +360,7 @@ while IFS=$'\t' read -r \
      "${output}" == *"Not implemented yet"* ]] ||
     fail "placeholder notice is incomplete for ${module_id}"
   if [[ "${module_id}" == "wallet/new/mnemonic" ]]; then
-    [[ "${output}" == *"CNTools / Wallet / New / Mnemonic"* ]] ||
+    [[ "${output}" == *"/ Wallet / New / Mnemonic"* ]] ||
       fail "placeholder breadcrumb does not preserve the full action path"
   fi
   grep -F $'ACTION\t'"${module_id}"$'\tnot implemented yet' \
@@ -401,7 +401,14 @@ assert_eq "${remaining_input}" "noninteractive-input" \
   "non-interactive placeholder input preservation"
 
 # An interactive placeholder pauses for exactly one key before returning.
+# Its normal entry path enables raw input before reading, so mock that terminal
+# operation while the test feeds input through a non-terminal file descriptor.
+stty() {
+  return 0
+}
 CNTOOLS_UI_INTERACTIVE="Y"
+CNTOOLS_UI_INPUT_ACTIVE="N"
+CNTOOLS_UI_STTY="saved-terminal-state"
 exec 9<<< 'xy'
 cntools_action_run "${MODULE_ROOT}/wallet/list" <&9 >/dev/null ||
   fail "interactive placeholder invocation failed"
@@ -410,6 +417,7 @@ IFS= read -r -n1 remaining_input <&9 ||
 exec 9<&-
 assert_eq "${remaining_input}" "y" "interactive placeholder pause"
 CNTOOLS_UI_INTERACTIVE="N"
+unset -f stty
 
 # Exercise representative deep routes and shortcut/control boundaries. In
 # particular, k and nested q must remain action shortcuts rather than controls.

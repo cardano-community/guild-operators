@@ -705,7 +705,9 @@ dispatcher_validate_cntools_tree() {
   required_files=(
     VERSION
     cntools.sh
+    cntools_gum.sh
     core/action.sh
+    core/gum.sh
     core/log.sh
     core/menu.sh
     core/startup.sh
@@ -1495,6 +1497,23 @@ dispatcher_install_cntools_tree() (
     fi
   }
 
+  _dispatcher_cntools_permissions_valid() {
+    local cntools_tree="${1:-}"
+
+    [[ -n "${cntools_tree}" &&
+       -d "${cntools_tree}" &&
+       ! -L "${cntools_tree}" &&
+       -z "$(find "${cntools_tree}" -type d ! -perm 0755 -print -quit)" &&
+       -z "$(find "${cntools_tree}" -type f \
+         ! -path "${cntools_tree}/cntools.sh" \
+         ! -path "${cntools_tree}/cntools_gum.sh" \
+         ! -perm 0644 -print -quit)" &&
+       -n "$(find "${cntools_tree}/cntools.sh" -prune \
+         -type f -perm 0755 -print)" &&
+       -n "$(find "${cntools_tree}/cntools_gum.sh" -prune \
+         -type f -perm 0755 -print)" ]]
+  }
+
   _dispatcher_cntools_cleanup() {
     local saved_status="${1:-$?}"
     local cleanup_stage="Y"
@@ -1582,10 +1601,10 @@ dispatcher_install_cntools_tree() (
   dispatcher_validate_cntools_tree "${candidate_directory}" N || return 2
   find "${candidate_directory}" -type d -exec chmod 0755 {} + || return 2
   find "${candidate_directory}" -type f -exec chmod 0644 {} + || return 2
-  chmod 0755 "${candidate_directory}/cntools.sh" || return 2
-  [[ -z "$(find "${candidate_directory}" -type d ! -perm 0755 -print -quit)" &&
-     -z "$(find "${candidate_directory}" -type f ! -path "${candidate_directory}/cntools.sh" ! -perm 0644 -print -quit)" &&
-     -n "$(find "${candidate_directory}/cntools.sh" -prune -perm 0755 -print)" ]] || {
+  chmod 0755 \
+    "${candidate_directory}/cntools.sh" \
+    "${candidate_directory}/cntools_gum.sh" || return 2
+  _dispatcher_cntools_permissions_valid "${candidate_directory}" || {
     log_warn "Could not normalize CNTools file permissions."
     return 2
   }
@@ -1605,7 +1624,7 @@ dispatcher_install_cntools_tree() (
     return 2
   }
   dispatcher_validate_cntools_tree "${target_directory}" N || return 2
-  [[ -x "${target_directory}/cntools.sh" ]] || return 2
+  _dispatcher_cntools_permissions_valid "${target_directory}" || return 2
   transaction_active="N"
   return 0
 )

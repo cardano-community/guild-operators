@@ -58,8 +58,11 @@ done
 for required_function in \
   cntools_log_init cntools_log cntools_log_close \
   cntools_run_command cntools_http_request \
-  cntools_ui_read_key cntools_ui_restore_terminal cntools_ui_cleanup \
-  cntools_menu_validate_metadata cntools_menu_open \
+  cntools_ui_session_enter cntools_ui_suspend_for_job_control \
+  cntools_ui_render_field cntools_ui_render_detail cntools_ui_read_key \
+  cntools_ui_restore_terminal cntools_ui_cleanup \
+  cntools_menu_validate_metadata cntools_menu_open cntools_menu_cache_build \
+  cntools_menu_cache_open \
   cntools_menu_validate_tree cntools_action_run; do
   declare -F "${required_function}" >/dev/null 2>&1 ||
     fail "missing Phase 3 function: ${required_function}"
@@ -460,6 +463,9 @@ cntools_fixture_unlisted() {
 cntools_action_main() {
   [[ "$(cntools_fixture_declared)" == "declared-library" ]] || return 81
   ! declare -F cntools_fixture_unlisted >/dev/null 2>&1 || return 82
+  [[ "${CNTOOLS_UI_USE_ALT_SCREEN:-}" == "N" ]] || return 83
+  [[ "$(trap -p TSTP)" == *cntools_ui_suspend_for_job_control* ]] || return 84
+  [[ "$(trap -p CONT)" == *cntools_ui_mark_resize* ]] || return 85
   printf "%s\n" "${CNTOOLS_ACTION_ID}" >> "${CNTOOLS_TEST_TRACE}"
   return "${CNTOOLS_TEST_ACTION_STATUS:-0}"
 }'
@@ -735,8 +741,21 @@ exit 0'
 
 run_ui_tests() (
   local key=""
+  local ignored_key=""
   local terminal_trace="${TEST_ROOT}/terminal.trace"
   local expected=""
+  local output=""
+
+  stty() {
+    printf 'stty:%s\n' "$*" >> "${terminal_trace}"
+  }
+  tput() {
+    printf 'tput:%s\n' "$*" >> "${terminal_trace}"
+    case "${1:-}" in
+      cols) printf '100' ;;
+      lines) printf '30' ;;
+    esac
+  }
 
   CNTOOLS_UI_INTERACTIVE="N"
   cntools_ui_read_key key </dev/null || fail "UI rejected closed input"
@@ -750,13 +769,49 @@ run_ui_tests() (
 
   # Exercise terminal escape decoding without requiring the test runner itself
   # to allocate a pseudo-terminal.
+  : > "${terminal_trace}"
   CNTOOLS_UI_INTERACTIVE="Y"
+  CNTOOLS_UI_INPUT_ACTIVE="N"
+  CNTOOLS_UI_RESIZE_PENDING="N"
+  CNTOOLS_UI_STTY=""
+  if cntools_ui_input_resume; then
+    fail "UI enabled raw input without a saved terminal state"
+  fi
+  [[ ! -s "${terminal_trace}" ]] ||
+    fail "UI changed terminal input without a saved state"
+  CNTOOLS_UI_STTY="saved-terminal-state"
   cntools_ui_read_key key <<< $'\e[A' || fail "UI did not read Up arrow"
   assert_eq "${key}" "up" "Up arrow mapping"
   cntools_ui_read_key key <<< $'\e[B' || fail "UI did not read Down arrow"
   assert_eq "${key}" "down" "Down arrow mapping"
+  cntools_ui_read_key key <<< $'\eOA' ||
+    fail "UI did not read application-mode Up arrow"
+  assert_eq "${key}" "up" "application-mode Up arrow mapping"
+  cntools_ui_read_key key <<< $'\eOB' ||
+    fail "UI did not read application-mode Down arrow"
+  assert_eq "${key}" "down" "application-mode Down arrow mapping"
   cntools_ui_read_key key <<< $'\e' || fail "UI did not read Escape"
   assert_eq "${key}" "escape" "Escape key mapping"
+
+  # Escape sequences can arrive back-to-back. A complete but unsupported
+  # sequence must be consumed as one key so its parameter bytes do not become
+  # later shortcuts. Parameterized arrows are emitted by terminals when a
+  # modifier is held and should retain their navigation meaning.
+  exec 3<<< $'\e[1;2A\e[1;2B\e[99~q'
+  cntools_ui_read_key key <&3 || fail "UI did not read parameterized Up arrow"
+  assert_eq "${key}" "up" "parameterized Up arrow mapping"
+  cntools_ui_read_key key <&3 || fail "UI did not read parameterized Down arrow"
+  assert_eq "${key}" "down" "parameterized Down arrow mapping"
+  cntools_ui_read_key ignored_key <&3 ||
+    fail "UI did not consume an unsupported escape sequence"
+  cntools_ui_read_key key <&3 ||
+    fail "UI leaked bytes after an unsupported escape sequence"
+  assert_eq "${key}" "q" "escape sequence fragment draining"
+  exec 3<&-
+  assert_eq "$(< "${terminal_trace}")" \
+    'stty:-echo -icanon min 1 time 0' \
+    "raw input entered once and retained across key reads"
+
   CNTOOLS_UI_INTERACTIVE="N"
   cntools_ui_read_key key <<< 'q' || fail "UI did not preserve a shortcut"
   assert_eq "${key}" "q" "shortcut key mapping"
@@ -768,16 +823,80 @@ run_ui_tests() (
   cntools_ui_cleanup || fail "plain terminal cleanup failed"
   cntools_ui_cleanup || fail "terminal cleanup was not idempotent"
 
-  stty() {
-    printf 'stty:%s\n' "$*" >> "${terminal_trace}"
-  }
-  tput() {
-    printf 'tput:%s\n' "$*" >> "${terminal_trace}"
-  }
+  : > "${terminal_trace}"
+  CNTOOLS_UI_CAPABLE="Y"
+  CNTOOLS_UI_RESIZE_PENDING="Y"
+  cntools_ui_dimensions || fail "initial terminal sizing failed"
+  cntools_ui_dimensions || fail "cached terminal sizing failed"
+  assert_eq "${CNTOOLS_UI_COLUMNS}" "100" "cached terminal columns"
+  assert_eq "${CNTOOLS_UI_LINES}" "30" "cached terminal lines"
+  assert_eq "${CNTOOLS_UI_DRAW_WIDTH}" "99" "safe terminal draw width"
+  expected=$'tput:cols\ntput:lines'
+  assert_eq "$(< "${terminal_trace}")" "${expected}" \
+    "terminal dimension cache"
+  cntools_ui_mark_resize
+  cntools_ui_dimensions || fail "resized terminal sizing failed"
+  expected+=$'\ntput:cols\ntput:lines'
+  assert_eq "$(< "${terminal_trace}")" "${expected}" \
+    "terminal resize invalidation"
+
+  # The menu owns the alternate screen while actions use normal scrollback.
+  # Entering and restoring a menu session must pair every terminal capability
+  # and restore the original input mode in a predictable order.
+  : > "${terminal_trace}"
   CNTOOLS_UI_CLEANED="N"
   CNTOOLS_UI_INTERACTIVE="Y"
   CNTOOLS_UI_CAPABLE="Y"
   CNTOOLS_UI_STTY="saved-terminal-state"
+  CNTOOLS_UI_INPUT_ACTIVE="N"
+  CNTOOLS_UI_SCREEN_ACTIVE="N"
+  CNTOOLS_UI_USE_ALT_SCREEN="Y"
+  CNTOOLS_UI_SCREEN_ENTER='<screen-enter>'
+  CNTOOLS_UI_SCREEN_LEAVE='<screen-leave>'
+  CNTOOLS_UI_CURSOR_HIDE='<cursor-hide>'
+  CNTOOLS_UI_CURSOR_SHOW='<cursor-show>'
+  CNTOOLS_UI_RESET='<reset>'
+  output="$(cntools_ui_session_enter && cntools_ui_restore_terminal)" ||
+    fail "capable terminal session lifecycle failed"
+  assert_eq "${output}" \
+    '<screen-enter><cursor-hide><reset><cursor-show><screen-leave>' \
+    "alternate screen and cursor lifecycle"
+  expected=$'stty:-echo -icanon min 1 time 0\nstty:saved-terminal-state'
+  assert_eq "$(< "${terminal_trace}")" "${expected}" \
+    "raw input session lifecycle"
+
+  # A job-control suspension restores the terminal before stopping and marks
+  # the UI for a complete redraw when execution continues.
+  kill() {
+    printf 'kill:%s\n' "$*" >> "${terminal_trace}"
+  }
+  : > "${terminal_trace}"
+  CNTOOLS_UI_INTERACTIVE="Y"
+  CNTOOLS_UI_CAPABLE="Y"
+  CNTOOLS_UI_STTY="saved-terminal-state"
+  CNTOOLS_UI_INPUT_ACTIVE="Y"
+  CNTOOLS_UI_SCREEN_ACTIVE="Y"
+  CNTOOLS_UI_SCREEN_LEAVE='<screen-leave>'
+  CNTOOLS_UI_CURSOR_SHOW='<cursor-show>'
+  CNTOOLS_UI_RESET='<reset>'
+  CNTOOLS_UI_RESIZE_PENDING="N"
+  output="$(cntools_ui_suspend_for_job_control)" ||
+    fail "job-control suspension handler failed"
+  assert_eq "${output}" '<reset><cursor-show><screen-leave>' \
+    "job-control terminal restoration"
+  expected="$(< "${terminal_trace}")"
+  [[ "${expected}" == $'stty:saved-terminal-state\nkill:-s TSTP '* ]] ||
+    fail "job-control suspension did not restore input before stopping"
+
+  : > "${terminal_trace}"
+  CNTOOLS_UI_CLEANED="N"
+  CNTOOLS_UI_INTERACTIVE="Y"
+  CNTOOLS_UI_CAPABLE="Y"
+  CNTOOLS_UI_STTY="saved-terminal-state"
+  CNTOOLS_UI_INPUT_ACTIVE="N"
+  CNTOOLS_UI_SCREEN_ACTIVE="N"
+  CNTOOLS_UI_CURSOR_SHOW=""
+  CNTOOLS_UI_RESET=""
   cntools_ui_cleanup || fail "interactive terminal cleanup failed"
   cntools_ui_cleanup || fail "interactive cleanup was not idempotent"
   expected=$'stty:saved-terminal-state\ntput:sgr0\ntput:cnorm'
@@ -837,6 +956,345 @@ cntools_action_main() {
   # of continuously redrawing it.
   cntools_menu_run </dev/null >/dev/null ||
     fail "menu did not exit cleanly when input closed"
+)
+
+run_navigation_cache_tests() (
+  local tree="${TEST_ROOT}/navigation-cache"
+  local load_trace="${TEST_ROOT}/navigation-cache.loads"
+  local action_trace="${TEST_ROOT}/navigation-cache.actions"
+  local navigation_output="${TEST_ROOT}/navigation-cache-navigation.out"
+  local refresh_output="${TEST_ROOT}/navigation-cache-refresh.out"
+  local failed_refresh_output="${TEST_ROOT}/navigation-cache-failed-refresh.out"
+  local mutation_target="${tree}/root/tools/run/module.json"
+  local original_definition=""
+  local expected_loads=""
+  local load_count=""
+  local output=""
+
+  make_root "${tree}"
+  make_action "${tree}/root/alpha" "Alpha" a 10 \
+    '["local", "light", "offline"]'
+  make_menu "${tree}/root/tools" "Tools" t 20
+  make_action "${tree}/root/tools/run" "Run Original" r 10 \
+    '["local", "light", "offline"]'
+  write_file "${tree}/root/tools/run/action.sh" '#!/usr/bin/env bash
+cntools_action_main() {
+  local staged="${CNTOOLS_TEST_MUTATION_TARGET}.tmp"
+
+  printf '\''run\n'\'' >> "${CNTOOLS_TEST_ACTION_TRACE}" || return 1
+  jq '\''.label = "Run Updated" |
+    .description = "Run Updated test action"'\'' \
+    "${CNTOOLS_TEST_MUTATION_TARGET}" > "${staged}" || return 1
+  mv -- "${staged}" "${CNTOOLS_TEST_MUTATION_TARGET}"
+}'
+
+  CNTOOLS_MODULE_ROOT="${tree}/root"
+  CNTOOLS_LIB_DIR="${tree}/lib"
+  CNTOOLS_VALIDATION_BASH="bash"
+  CNTOOLS_MODE="local"
+  CNTOOLS_BACKEND="cnode"
+  CNTOOLS_NETWORK="mainnet"
+  CNTOOLS_ADVANCED="N"
+  CNTOOLS_VERSION="14.0.0"
+  CNTOOLS_UI_INTERACTIVE="N"
+  CNTOOLS_UI_CAPABLE="N"
+  CNTOOLS_TEST_MUTATION_TARGET="${mutation_target}"
+  CNTOOLS_TEST_ACTION_TRACE="${action_trace}"
+
+  cntools_log() {
+    return 0
+  }
+
+  # Trace the real loader without replacing its validation behavior. Selection
+  # changes should render the catalog already in memory; only the initial
+  # catalog build and an explicit root Refresh should load metadata.
+  original_definition="$(declare -f cntools_menu_open)"
+  original_definition="${original_definition/cntools_menu_open ()/cntools_test_menu_open_original ()}"
+  [[ "${original_definition}" == cntools_test_menu_open_original* ]] ||
+    fail "could not preserve the menu loader for cache testing"
+  eval "${original_definition}"
+  cntools_menu_open() {
+    printf '%s\n' "$1" >> "${load_trace}"
+    cntools_test_menu_open_original "$@"
+  }
+
+  # The first catalog build walks the visible tree once. Actions are validated
+  # as children but only menu directories are opened recursively.
+  cntools_menu_cache_build || fail "initial menu catalog build failed"
+  expected_loads="${tree}/root"$'\n'"${tree}/root/tools"
+  assert_eq "$(< "${load_trace}")" "${expected_loads}" \
+    "initial recursive menu catalog loads"
+
+  # Once the catalog exists, arrows, nested navigation, and returning from an
+  # action must not touch menu metadata. The nested action edits its metadata
+  # on disk; the already-rendered catalog must continue to show the old label.
+  : > "${load_trace}"
+  cntools_menu_run <<< $'down\nup\nt\ndown\nup\nr\ndown\nup\nescape\ndown\nup\nq' \
+    > "${navigation_output}" || fail "cached navigation sequence failed"
+  load_count="$(wc -l < "${load_trace}")"
+  load_count="${load_count//[[:space:]]/}"
+  assert_eq "${load_count}" "0" \
+    "menu loads during arrows, nested navigation, and action return"
+  assert_eq "$(< "${action_trace}")" "run" \
+    "cached navigation action invocation"
+  assert_eq "$(jq -r '.label' "${mutation_target}")" "Run Updated" \
+    "action metadata edit on disk"
+  output="$(< "${navigation_output}")"
+  [[ "${output}" == *"Run Original"* ]] ||
+    fail "cached navigation did not render the original action label"
+  [[ "${output}" != *"Run Updated"* ]] ||
+    fail "disk metadata edit leaked into the menu before Refresh"
+  cntools_menu_cache_open "${tree}/root/tools" ||
+    fail "could not reopen nested menu from the session catalog"
+  menu_index_for run || fail "cached nested action is missing"
+  assert_eq "${CNTOOLS_MENU_LABELS[MENU_INDEX]}" "Run Original" \
+    "cached nested action label before Refresh"
+
+  # A later menu session must reuse the same catalog. Only root r rebuilds it;
+  # the disk edit is invisible before the success status and visible after it.
+  : > "${load_trace}"
+  cntools_menu_run <<< $'t\nescape\nr\nt\nescape\nq' \
+    > "${refresh_output}" || fail "explicit menu refresh sequence failed"
+  assert_eq "$(< "${load_trace}")" "${expected_loads}" \
+    "explicit Refresh recursive menu catalog loads"
+  output="$(< "${refresh_output}")"
+  [[ "${output}" == *"Menu definitions reloaded"* ]] ||
+    fail "successful Refresh status was not rendered"
+  [[ "${output%%Menu definitions reloaded*}" == *"Run Original"* ]] ||
+    fail "disk edit became visible before Refresh completed"
+  [[ "${output%%Menu definitions reloaded*}" != *"Run Updated"* ]] ||
+    fail "updated label was rendered before Refresh completed"
+  [[ "${output#*Menu definitions reloaded}" == *"Run Updated"* ]] ||
+    fail "updated label was not rendered after Refresh"
+
+  # Reload is transactional. Invalid disk metadata must fail validation while
+  # leaving the last valid catalog available for continued navigation.
+  replace_json "${mutation_target}" '.unknown = true'
+  : > "${load_trace}"
+  cntools_menu_run <<< $'r\nt\nescape\nq' > "${failed_refresh_output}" ||
+    fail "menu did not recover from a failed Refresh"
+  assert_eq "$(< "${load_trace}")" "${expected_loads}" \
+    "failed Refresh recursive menu catalog loads"
+  output="$(< "${failed_refresh_output}")"
+  [[ "${output}" == *"Reload failed; previous menus retained:"* ]] ||
+    fail "failed Refresh status was not rendered"
+  [[ "${output#*Reload failed; previous menus retained:}" == *"Run Updated"* ]] ||
+    fail "failed Refresh did not retain the prior nested menu catalog"
+  cntools_menu_cache_open "${tree}/root/tools" ||
+    fail "failed Refresh discarded the prior nested menu catalog"
+  menu_index_for run || fail "prior nested action is missing after failed Refresh"
+  assert_eq "${CNTOOLS_MENU_LABELS[MENU_INDEX]}" "Run Updated" \
+    "cached nested action label after failed Refresh"
+
+  # Navigation is catalog-backed as well as metadata-backed. Removing the
+  # directory after a failed reload must not destroy the last valid menu view;
+  # action execution still performs its own filesystem checks.
+  mv -- "${tree}/root/tools" "${tree}/root/tools.removed"
+  cntools_menu_cache_open "${tree}/root/tools" ||
+    fail "cached menu required its source directory after startup"
+  menu_index_for run || fail "cached action disappeared with its source directory"
+  assert_eq "${CNTOOLS_MENU_LABELS[MENU_INDEX]}" "Run Updated" \
+    "cached menu after source directory removal"
+  cntools_menu_run <<< $'t\nescape\nq' >/dev/null ||
+    fail "runtime navigation required removed menu metadata after startup"
+
+  while IFS= read -r loaded_menu; do
+    [[ "${loaded_menu}" == "${tree}/root" ||
+       "${loaded_menu}" == "${tree}/root/tools" ]] ||
+      fail "Refresh loaded an unexpected menu: ${loaded_menu}"
+  done < "${load_trace}"
+)
+
+run_cache_root_key_tests() (
+  local tree="${TEST_ROOT}/cache-root-key"
+  local output=""
+
+  make_root "${tree}"
+  make_menu "${tree}/root/root" "Nested Root" n 10
+  make_action "${tree}/root/root/run" "Run" r 10 \
+    '["local", "light", "offline"]'
+
+  CNTOOLS_MODULE_ROOT="${tree}/root"
+  CNTOOLS_LIB_DIR="${tree}/lib"
+  CNTOOLS_VALIDATION_BASH="bash"
+  CNTOOLS_MODE="local"
+  CNTOOLS_ADVANCED="N"
+
+  cntools_menu_cache_build ||
+    fail "catalog rejected a valid top-level module named root"
+  cntools_menu_cache_open "${tree}/root" ||
+    fail "catalog lost the real root when a child is named root"
+  assert_eq "${CNTOOLS_MENU_LABEL}" "CNTools" \
+    "real root label with root-named child"
+  assert_eq "${CNTOOLS_MENU_IDS[*]}" "root" \
+    "real root contents with root-named child"
+
+  cntools_menu_cache_open "${tree}/root/root" ||
+    fail "catalog lost a top-level menu named root"
+  assert_eq "${CNTOOLS_MENU_LABEL}" "Nested Root" \
+    "root-named child label"
+  assert_eq "${CNTOOLS_MENU_IDS[*]}" "root/run" \
+    "root-named child contents"
+  assert_eq "${CNTOOLS_MENU_BREADCRUMB}" "/ Nested Root" \
+    "root-named child breadcrumb"
+
+  # Root-only behavior follows navigation depth, not the public module ID.
+  # A child named root must never acquire the real root's update banner.
+  CNTOOLS_BACKEND="cnode"
+  CNTOOLS_NETWORK="mainnet"
+  CNTOOLS_VERSION="14.0.0"
+  CNTOOLS_UI_INTERACTIVE="N"
+  CNTOOLS_UI_CAPABLE="N"
+  CNTOOLS_UI_RESIZE_PENDING="Y"
+  CNTOOLS_UPDATE_STATUS="available"
+  CNTOOLS_UPDATE_REMOTE_VERSION="14.1.0"
+  cntools_log() { return 0; }
+  cntools_update_state_load() { return 0; }
+  output="$(cntools_menu_run <<< 'n')" ||
+    fail "navigation into a root-named child failed"
+  assert_eq "$(grep -c 'Update available:' <<< "${output}")" "1" \
+    "root-only update banner with root-named child"
+  [[ "${output#*/ Nested Root}" != *"Update available:"* ]] ||
+    fail "root-named child rendered the real root update banner"
+)
+
+run_selective_repaint_tests() (
+  local tree="${TEST_ROOT}/selective-repaint"
+  local full_renders=0
+  local row_repaints=0
+  local detail_repaints=0
+
+  make_root "${tree}"
+  make_action "${tree}/root/alpha" "Alpha" a 10 \
+    '["local", "light", "offline"]'
+  make_action "${tree}/root/bravo" "Bravo" b 20 \
+    '["local", "light", "offline"]'
+
+  CNTOOLS_MODULE_ROOT="${tree}/root"
+  CNTOOLS_LIB_DIR="${tree}/lib"
+  CNTOOLS_VALIDATION_BASH="bash"
+  CNTOOLS_MODE="local"
+  CNTOOLS_BACKEND="cnode"
+  CNTOOLS_NETWORK="mainnet"
+  CNTOOLS_ADVANCED="N"
+  CNTOOLS_VERSION="14.0.0"
+  CNTOOLS_UI_INTERACTIVE="N"
+  CNTOOLS_UI_CAPABLE="Y"
+  CNTOOLS_UI_REPAINT_CAPABLE="Y"
+  CNTOOLS_UI_TOO_SMALL="N"
+  CNTOOLS_UPDATE_STATUS="current"
+
+  cntools_log() { return 0; }
+  cntools_update_state_load() { return 0; }
+  cntools_update_render_banner() { return 0; }
+  cntools_ui_render_begin() {
+    full_renders=$((full_renders + 1))
+    CNTOOLS_UI_CONTENT_ROW=4
+    CNTOOLS_UI_TOO_SMALL="N"
+  }
+  cntools_ui_render_row() { return 0; }
+  cntools_ui_render_detail() { return 0; }
+  cntools_ui_render_status() { return 0; }
+  cntools_ui_render_footer() { return 0; }
+  cntools_ui_repaint_row() {
+    row_repaints=$((row_repaints + 1))
+  }
+  cntools_ui_repaint_detail() {
+    detail_repaints=$((detail_repaints + 1))
+  }
+
+  cntools_menu_cache_build || fail "selective repaint catalog build failed"
+  cntools_menu_run <<< $'down\nup\nq' ||
+    fail "selective repaint navigation failed"
+  assert_eq "${full_renders}" "1" \
+    "full renders during ordinary selection movement"
+  assert_eq "${row_repaints}" "4" \
+    "old and new row repaints during selection movement"
+  assert_eq "${detail_repaints}" "2" \
+    "detail repaints during selection movement"
+  assert_eq "${CNTOOLS_MENU_ID}" "/" \
+    "public root menu identity"
+
+  # If the footer would fall outside the terminal, cursor-addressed row
+  # updates are unsafe because the initial render may have scrolled.
+  full_renders=0
+  row_repaints=0
+  detail_repaints=0
+  CNTOOLS_UI_LINES=10
+  cntools_menu_run <<< $'down\nq' ||
+    fail "short-terminal navigation failed"
+  assert_eq "${full_renders}" "2" \
+    "short-terminal full-render fallback"
+  assert_eq "${row_repaints}" "0" \
+    "short-terminal row repaint suppression"
+  assert_eq "${detail_repaints}" "0" \
+    "short-terminal detail repaint suppression"
+)
+
+run_header_and_path_tests() (
+  local tree="${TEST_ROOT}/header-path"
+  local output=""
+  local first_line=""
+  local line=""
+
+  make_root "${tree}"
+  make_menu "${tree}/root/tools" "Tools" t 10
+  make_action "${tree}/root/tools/run" "Run" r 10 \
+    '["local", "light", "offline"]'
+
+  CNTOOLS_MODULE_ROOT="${tree}/root"
+  CNTOOLS_LIB_DIR="${tree}/lib"
+  CNTOOLS_MODE="local"
+  CNTOOLS_BACKEND="cnode"
+  CNTOOLS_NETWORK="mainnet"
+  CNTOOLS_VERSION="14.0.0"
+  CNTOOLS_UI_CAPABLE="N"
+
+  assert_eq "$(cntools_menu_breadcrumb "${tree}/root")" "/" \
+    "root display path"
+  assert_eq "$(cntools_menu_breadcrumb "${tree}/root/tools")" "/ Tools" \
+    "nested menu display path"
+  assert_eq "$(cntools_menu_breadcrumb "${tree}/root/tools/run")" \
+    "/ Tools / Run" "nested action display path"
+
+  output="$(cntools_ui_render_begin "Wallet" "/ Wallet")"
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    first_line="${line}"
+    break
+  done <<< "${output}"
+  [[ "${first_line}" == "CNTools v14.0.0"* ]] ||
+    fail "header is not anchored to the CNTools name and version: ${first_line}"
+  [[ "${output}" == *$'\n/ Wallet\n'* ]] ||
+    fail "header does not show the current path below the product name"
+  [[ "${first_line}" != Wallet* ]] ||
+    fail "current menu label replaced the static CNTools header"
+)
+
+run_update_render_width_tests() (
+  local output_file="${TEST_ROOT}/update-render-width.out"
+  local line=""
+
+  CNTOOLS_UI_DRAW_WIDTH=39
+  CNTOOLS_UI_BOLD=""
+  CNTOOLS_UI_RESET=""
+  CNTOOLS_UI_YELLOW=""
+  CNTOOLS_VERSION="14.12345678901234567890.0"
+  CNTOOLS_UPDATE_STATUS="available"
+  CNTOOLS_UPDATE_REMOTE_VERSION="14.98765432109876543210.0"
+  CNTOOLS_ACCOUNT="an-intentionally-long-account-name"
+  CNTOOLS_BRANCH="an-intentionally-long-branch-name"
+
+  {
+    cntools_update_render_banner
+    cntools_update_render_summary
+  } > "${output_file}"
+  while IFS= read -r line; do
+    (( ${#line} <= CNTOOLS_UI_DRAW_WIDTH )) ||
+      fail "update UI exceeded the safe draw width: ${line}"
+  done < "${output_file}"
+  assert_eq "$(wc -l < "${output_file}" | tr -d '[:space:]')" "7" \
+    "fixed-height update rendering"
 )
 
 run_errexit_tests() (
@@ -961,6 +1419,11 @@ run_log_and_wrapper_tests
 run_http_tests
 run_ui_tests
 run_navigation_tests
+run_navigation_cache_tests
+run_cache_root_key_tests
+run_selective_repaint_tests
+run_header_and_path_tests
+run_update_render_width_tests
 run_errexit_tests
 
 printf 'CNTools framework tests passed\n'

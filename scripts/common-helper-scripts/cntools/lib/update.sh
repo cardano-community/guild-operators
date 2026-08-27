@@ -84,7 +84,7 @@ cntools_update_action_check() {
   trap 'exit 130' INT
   trap 'exit 131' QUIT
   trap 'exit 143' TERM
-  cntools_ui_action_begin "Check Again" "CNTools / Update / Check Again"
+  cntools_ui_action_begin "Check Again" "/ Update / Check Again"
   printf 'Checking %s/guild-operators @ %s...\n\n' \
     "${CNTOOLS_ACCOUNT}" "${CNTOOLS_BRANCH}"
   if cntools_update_check manual; then
@@ -133,7 +133,7 @@ cntools_update_action_view_changes() {
   trap 'exit 131' QUIT
   trap 'exit 143' TERM
 
-  cntools_ui_action_begin "View Changes" "CNTools / Update / View Changes"
+  cntools_ui_action_begin "View Changes" "/ Update / View Changes"
   if ! cntools_update_state_load; then
     CNTOOLS_UPDATE_STATUS="error"
     CNTOOLS_UPDATE_REMOTE_VERSION=""
@@ -213,9 +213,13 @@ cntools_update_action_view_changes() {
   printf '%sChanges in v%s since v%s%s\n\n' \
     "${CNTOOLS_UI_BOLD:-}" "${CNTOOLS_UPDATE_REMOTE_VERSION}" \
     "${CNTOOLS_VERSION}" "${CNTOOLS_UI_RESET:-}"
-  while IFS= read -r line || [[ -n "${line}" ]]; do
-    printf '%s\n' "${line}"
-  done < "${notes_file}"
+  if declare -F cntools_ui_page_file >/dev/null 2>&1; then
+    cntools_ui_page_file "${notes_file}" || true
+  else
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      printf '%s\n' "${line}"
+    done < "${notes_file}"
+  fi
   rm -f -- "${notes_file}"
   CNTOOLS_UPDATE_RELEASE_NOTES_FILE=""
   cntools_log UPDATE \
@@ -226,7 +230,7 @@ cntools_update_action_view_changes() {
 cntools_update_action_install() {
   local deploy_status=0
 
-  cntools_ui_action_begin "Install Update" "CNTools / Update / Install"
+  cntools_ui_action_begin "Install Update" "/ Update / Install"
   if ! cntools_update_state_load; then
     CNTOOLS_UPDATE_STATUS="error"
     CNTOOLS_UPDATE_REMOTE_VERSION=""

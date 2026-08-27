@@ -32,6 +32,8 @@ jobs:
       run: bash files/tests/cntools-update.sh
     - name: Test CNTools framework
       run: bash files/tests/cntools-framework.sh
+    - name: Test CNTools Gum interface
+      run: bash files/tests/cntools-gum.sh
     - name: Test CNTools menu skeleton
       run: bash files/tests/cntools-menu-skeleton.sh
     - name: Test alternate deployments

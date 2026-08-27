@@ -363,12 +363,15 @@ run_alternate_profile_test() (
     fail "gLiveView is not executable: ${NODE_HOME}/scripts/gLiveView.sh"
   [[ -x "${NODE_HOME}/scripts/cntools/cntools.sh" ]] ||
     fail "modular CNTools entrypoint is not executable for ${implementation}"
+  [[ -x "${NODE_HOME}/scripts/cntools/cntools_gum.sh" ]] ||
+    fail "Gum CNTools entrypoint is not executable for ${implementation}"
   assert_file "${NODE_HOME}/scripts/cntools/VERSION"
   assert_file "${NODE_HOME}/scripts/cntools/core/startup.sh"
   assert_file "${NODE_HOME}/scripts/cntools/core/log.sh"
   assert_file "${NODE_HOME}/scripts/cntools/core/ui.sh"
   assert_file "${NODE_HOME}/scripts/cntools/core/menu.sh"
   assert_file "${NODE_HOME}/scripts/cntools/core/action.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/gum.sh"
   assert_file "${NODE_HOME}/scripts/cntools/core/update.sh"
   assert_file "${NODE_HOME}/scripts/cntools/lib/update.sh"
   assert_file "${NODE_HOME}/scripts/cntools/modules/root/module.json"

@@ -40,7 +40,7 @@ unset CNTOOLS_CORE_FILE
 
 cntools_entrypoint_cleanup() {
   local status="${1:-0}"
-  trap - EXIT HUP INT QUIT TERM
+  trap - EXIT HUP INT QUIT TERM WINCH TSTP CONT
   if [[ "${CNTOOLS_LOG_READY:-N}" == "Y" &&
         "${CNTOOLS_SESSION_ENDED:-N}" != "Y" ]]; then
     cntools_log SESSION "end status=${status}" || true
@@ -58,6 +58,9 @@ cntools_entrypoint_install_traps() {
   trap 'exit 130' INT
   trap 'exit 131' QUIT
   trap 'exit 143' TERM
+  trap 'cntools_ui_mark_resize' WINCH
+  trap 'cntools_ui_suspend_for_job_control' TSTP
+  trap 'cntools_ui_mark_resize' CONT
 }
 
 cntools_main() {
@@ -102,7 +105,7 @@ cntools_main() {
 
   cntools_update_init
   cntools_ui_init || return 1
-  if ! cntools_menu_open "${CNTOOLS_MODULE_ROOT}"; then
+  if ! cntools_menu_cache_build; then
     cntools_log ERROR "${CNTOOLS_MENU_ERROR}" || true
     printf 'CNTools: %s\n' "${CNTOOLS_MENU_ERROR}" >&2
     return 1

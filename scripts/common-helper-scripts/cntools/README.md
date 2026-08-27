@@ -10,7 +10,9 @@ starts. It is deliberately not a package format or plugin system.
 
 ## Scope and legacy boundary
 
-- The new implementation is pure Bash and targets Bash 4.4 or newer.
+- The framework and standard entrypoint are pure Bash and target Bash 4.4 or
+  newer. An optional parallel entrypoint uses Charm Gum only for presentation
+  and interaction.
 - Shell entrypoints, libraries, and actions use the `.sh` extension.
 - The existing sibling `cntools.sh`, `cntools.library`, and `env` files remain
   unchanged while the new implementation is developed.
@@ -28,11 +30,12 @@ starts. It is deliberately not a package format or plugin system.
 - New functions use the `cntools_` prefix. New application globals use the
   `CNTOOLS_` prefix.
 
-The initial framework dependencies are Bash 4.4 or newer, `jq`, `curl`, `tput`,
-and standard Linux tools including `awk`, `date`, `env`, `mktemp`, `mkdir`,
-`chmod`, `mv`, `rm`, `stat`, `stty`, and `wc`. Git is a Guild Deploy dependency
-rather than a CNTools runtime dependency. No compiled UI framework or
-additional scripting language is required.
+The standard entrypoint dependencies are Bash 4.4 or newer, `jq`, `curl`,
+`tput`, and standard Linux tools including `awk`, `date`, `env`, `mktemp`,
+`mkdir`, `chmod`, `mv`, `rm`, `stat`, `stty`, and `wc`. Git is a Guild Deploy
+dependency rather than a CNTools runtime dependency. The parallel Gum
+entrypoint additionally requires exactly Charm Gum `2.0.0`; no additional
+scripting language is required.
 
 ## Target source layout
 
@@ -40,8 +43,10 @@ additional scripting language is required.
 cntools/
 ├── VERSION
 ├── cntools.sh
+├── cntools_gum.sh
 ├── core/
 │   ├── action.sh
+│   ├── gum.sh
 │   ├── log.sh
 │   ├── menu.sh
 │   ├── startup.sh
@@ -56,17 +61,23 @@ cntools/
         └── ...
 ```
 
-`cntools.sh` loads the small `core/` layer. Domain libraries beneath `lib/`
-and action files beneath `modules/` are not loaded during startup.
+`cntools.sh` loads the small `core/` layer and uses its native Bash UI.
+`cntools_gum.sh` is a parallel presentation prototype over the same framework,
+menu metadata, and actions. Domain libraries beneath `lib/` and action files
+beneath `modules/` are not loaded during startup.
 
 `VERSION` contains exactly one numeric `MAJOR.MINOR.PATCH` application release
-number, without a `v` prefix. It is used by `cntools.sh -v`, the UI, and the
+number, without a `v` prefix. It is used by both entrypoints, the UI, and the
 availability checker, but is never included in the CNTools name or source path.
-The rewritten implementation continues the existing CNTools release lineage at
-`14.0.0`; it is not a separately versioned product.
+The rewritten implementation continues the existing CNTools release lineage
+at `14.0.0`; it is not a separately versioned product.
 
-The filesystem is the menu tree. Opening a menu scans only its immediate child
-directories; CNTools does not build or deploy a generated menu catalog.
+The filesystem is the menu tree and remains its source of truth. At startup,
+CNTools validates the complete visible tree and builds a small in-memory
+session catalog. Navigation reads only that catalog; it does not rescan JSON or
+action files when the selection moves, a submenu opens, or an action returns.
+Root `r` transactionally reloads the catalog from disk. A failed reload keeps
+the previous valid catalog. No catalog file is generated or deployed.
 
 The Phase 4 framework mirrors the current CNTools menu hierarchy. Every
 operational leaf has its own inert `action.sh` which logs its selection and
@@ -194,7 +205,7 @@ manifest. Duplicate sibling shortcuts are errors. Entries are sorted by
 
 An action that does not support the current mode remains visible but disabled,
 with the reason shown in the UI. Navigation controls are supplied by the menu
-engine rather than action metadata: root reserves `r` for Refresh and `q` for
+engine rather than action metadata: root reserves `r` for Reload and `q` for
 Quit; nested menus reserve `h` for Home and Escape for Back. Update is a normal
 filesystem-backed submenu.
 
@@ -232,25 +243,65 @@ subshell-local cleanup traps for its own temporary or sensitive files. An
 action lists every library it needs in dependency order; there is no library
 registry or dependency resolver.
 
-Runtime validation occurs as each menu is opened and immediately before an
-action is invoked. Deployment and CI validate the entire module tree and run
-`bash -n` over every `.sh` file. Invalid metadata, unsafe paths, and loading
-failures produce a visible and logged error rather than being silently skipped.
+Runtime menu validation occurs once while the startup catalog is built and
+again only after an explicit Reload. Actions and their declared libraries are
+still checked immediately before invocation and remain lazily loaded.
+Deployment and CI validate the entire module tree and run `bash -n` over every
+`.sh` file. Invalid metadata, unsafe paths, and loading failures produce a
+visible and logged error rather than being silently skipped.
 
-## UI and terminal behavior
+## Pure Bash UI and terminal behavior
 
-The UI uses Bash input handling and `tput` capabilities. It provides a shared
-header, breadcrumb, content area, status area, prompt, and footer. Arrow keys
-and Enter navigate and open the selected row. At the root, `r` is Refresh and
-`q` is Quit. Below the root, Escape is Back and `h` is Home. Other letters,
-including `j` and `k`, remain available as module shortcuts. A module shortcut
-must not collide with a control reserved by its parent menu.
+The shared UI library uses Bash input handling and `tput` capabilities. Every
+screen has a stable `CNTools v<version>` header, runtime context, a path rooted
+at `/`, content, selected-item detail, status, prompts, and navigation help.
+Arrow keys and Enter navigate and open the selected row. Left, Right,
+Backspace, Home, End, Page Up, and Page Down are also understood. At the root,
+`r` is Reload and `q` is Quit. Below the root, Escape is Back and `h` is Home.
+Other letters, including `j` and `k`, remain available as module shortcuts. A
+module shortcut must not collide with a control reserved by its parent menu.
 
-Color and cursor movement are enabled only for a capable interactive terminal.
-A plain-text fallback remains usable without color or cursor addressing. One
-entrypoint-owned cleanup trap always restores the cursor, attributes, and
-original terminal settings after normal exit, interruption, or action failure.
-Libraries and actions do not install their own process-wide terminal traps.
+Color, cursor movement, and the alternate screen are enabled only for a capable
+interactive terminal. The menu uses the alternate screen and repaints only the
+changed rows when the complete layout fits; actions use the normal terminal
+buffer so long output remains in scrollback. Menu input stays noncanonical with
+echo disabled for the navigation session, preventing partial escape sequences
+from appearing during redraws. Unknown sequences are consumed as a unit. A
+plain-text fallback remains usable without color or cursor addressing. Ctrl-Z
+restores the terminal before suspension and forces a complete redraw after the
+process resumes. One entrypoint-owned cleanup trap always restores the screen,
+cursor, attributes, and original terminal settings after normal exit,
+interruption, or action failure. Libraries and actions do not install their own
+process-wide terminal traps.
+
+## Gum UI prototype
+
+`cntools_gum.sh` preserves `cntools.sh` as the dependency-light, pure Bash
+entrypoint. It uses the same startup normalization, in-memory menu catalog,
+lazy action loader, logging, runtime modes, update state, and Guild Deploy
+update flow. An explicit Reload rebuilds the shared session catalog; moving
+between menus does not rescan the filesystem.
+
+The Gum interface takes its visual direction from Koios: a near-black canvas,
+green accent, muted secondary text, restrained borders, and compact cards for
+the current path, runtime context, and status. Menu labels and descriptions
+come from the existing module metadata. `gum filter` presents the choices,
+allows fuzzy filtering by typing, and invokes the single selected menu or
+action when Enter is pressed. Other Gum controls provide consistent prompts,
+confirmation, tables, status messages, and long-text viewing without changing
+the action contract.
+
+Before starting this interface, the entrypoint requires an exact Gum `2.0.0`
+match. If Gum is missing or another version is found, CNTools shows the found
+and required versions and asks whether it may install the prerequisite. An
+accepted install downloads the official release archive, verifies it against
+the official release checksums, and installs only the Gum executable to the
+current account's private `~/.local/bin`. Declining the prompt, a failed
+checksum, or a failed install exits with a clear prerequisite error. The
+preflight does not use a system package manager, request root access, or modify
+the CNTools source tree. Offline mode never downloads the prerequisite; Gum
+must already be available at the exact version before that interface can open
+an offline session.
 
 ## Logging and redaction
 
@@ -301,6 +352,11 @@ source snapshot before changing the installed tree. A failed stage leaves the
 installed tree unchanged; a successful install replaces the complete directory
 as one transaction, with rollback if the new tree cannot be installed or
 validated. The legacy sibling files are outside that replacement boundary.
+
+Guild Deploy installs both CNTools entrypoint source files but does not install,
+package, or update Gum. The Gum entrypoint owns its launch-time, opt-in,
+checksum-verified private prerequisite install described above. This does not
+change Guild Deploy's ownership of CNTools source deployment and updates.
 
 CNTools does not download or replace individual source files. Guild-deploy
 installs its runnable dispatcher at
@@ -377,7 +433,7 @@ The framework now provides:
 - local, light, and offline session selection for every implementation;
 - terminal rendering, keyboard navigation, and reliable cleanup;
 - private session logging plus redacted command and HTTP wrappers;
-- strict filesystem menu discovery and lazy, subshell-isolated action loading;
+- validated in-memory menu discovery and lazy, subshell-isolated action loading;
 - full-tree deployment validation and transactional replacement; and
 - branch redeployment delegated to the installed Guild Deploy dispatcher.
 
@@ -385,10 +441,11 @@ Only the root menu metadata is shipped in this phase, so there are no
 operational actions yet. The complete inert menu/action inventory is Phase 4,
 and the automatic availability check and Update action are Phase 5.
 
-Phase 3 is complete when focused framework, startup, and deployment tests pass,
-all repository deployment checks remain green, only `cntools/cntools.sh` is
-executable within the installed tree, and the three legacy files remain
-byte-for-byte untouched.
+Phase 3 was complete when focused framework, startup, and deployment tests
+passed, all repository deployment checks remained green, and the three legacy
+files remained byte-for-byte untouched. At that checkpoint only
+`cntools/cntools.sh` was executable within the installed tree; the later Gum UI
+prototype intentionally adds `cntools/cntools_gum.sh` as a second executable.
 
 ## Phase 4 menu skeleton
 
@@ -408,7 +465,7 @@ early offline guard.
 Advanced and its descendants remain hidden unless `-a` is selected. Blocks is
 always visible in this inert skeleton; its future functional phase will decide
 availability from the new block-history implementation instead of importing
-the legacy `BLOCKLOG_DB` visibility check. Refresh, Quit, Back, and Home remain
+the legacy `BLOCKLOG_DB` visibility check. Reload, Quit, Back, and Home remain
 framework controls rather than metadata modules. Update remains Phase 5.
 
 ## Phase 5 update experience
@@ -439,7 +496,8 @@ account cannot remove the deployment lifecycle marker.
 The new implementation does not use:
 
 - copied or mechanically split legacy CNTools code;
-- a `bin/` directory or `.bash` filenames;
+- a CNTools-owned `bin/` directory or `.bash` filenames (the optional Gum
+  prerequisite uses the standard user-private `~/.local/bin` location);
 - versioned names, stable library IDs, or content hashes;
 - library manifests or dependency graphs;
 - generated menu catalogs or compiled registries;

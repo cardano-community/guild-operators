@@ -322,13 +322,13 @@ cntools_update_check() {
 }
 
 cntools_update_render_banner() {
-  if ! cntools_update_state_load; then
-    CNTOOLS_UPDATE_STATUS="error"
-    CNTOOLS_UPDATE_REMOTE_VERSION=""
-  fi
+  local banner=""
+
   [[ "${CNTOOLS_UPDATE_STATUS:-}" == "available" ]] || return 0
-  printf '\n%sUpdate available: v%s  [u]%s\n' \
-    "${CNTOOLS_UI_YELLOW:-}" "${CNTOOLS_UPDATE_REMOTE_VERSION}" \
+  banner="Update available: v${CNTOOLS_UPDATE_REMOTE_VERSION}  [u]"
+  printf '\n%s%s%s\n' \
+    "${CNTOOLS_UI_YELLOW:-}" \
+    "$(cntools_ui_fit "${banner}" "${CNTOOLS_UI_DRAW_WIDTH:-79}")" \
     "${CNTOOLS_UI_RESET:-}"
 }
 
@@ -336,10 +336,6 @@ cntools_update_render_summary() {
   local available=""
   local status_text=""
 
-  if ! cntools_update_state_load; then
-    CNTOOLS_UPDATE_STATUS="error"
-    CNTOOLS_UPDATE_REMOTE_VERSION=""
-  fi
   case "${CNTOOLS_UPDATE_STATUS:-unchecked}" in
     available)
       available="${CNTOOLS_UPDATE_REMOTE_VERSION}"
@@ -359,15 +355,12 @@ cntools_update_render_summary() {
     *) status_text="Not checked" ;;
   esac
   [[ -n "${available}" ]] || available="Not known"
-  printf '%sInstalled:%s  %s\n' \
-    "${CNTOOLS_UI_BOLD:-}" "${CNTOOLS_UI_RESET:-}" "${CNTOOLS_VERSION:-unknown}"
-  printf '%sAvailable:%s  %s\n' \
-    "${CNTOOLS_UI_BOLD:-}" "${CNTOOLS_UI_RESET:-}" "${available}"
-  printf '%sSource:%s     %s/guild-operators @ %s\n' \
-    "${CNTOOLS_UI_BOLD:-}" "${CNTOOLS_UI_RESET:-}" \
-    "${CNTOOLS_ACCOUNT:-unknown}" "${CNTOOLS_BRANCH:-unknown}"
-  printf '%sStatus:%s     %s\n\n' \
-    "${CNTOOLS_UI_BOLD:-}" "${CNTOOLS_UI_RESET:-}" "${status_text}"
+  cntools_ui_render_field Installed "${CNTOOLS_VERSION:-unknown}"
+  cntools_ui_render_field Available "${available}"
+  cntools_ui_render_field Source \
+    "${CNTOOLS_ACCOUNT:-unknown}/guild-operators @ ${CNTOOLS_BRANCH:-unknown}"
+  cntools_ui_render_field Status "${status_text}"
+  printf '\n'
 }
 
 cntools_update_cleanup() {
