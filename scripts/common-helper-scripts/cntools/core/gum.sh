@@ -11,6 +11,15 @@ CNTOOLS_GUM_BIN="${CNTOOLS_GUM_BIN:-}"
 CNTOOLS_GUM_INSTALL_TMP=""
 CNTOOLS_GUM_INSTALL_STAGE=""
 
+# Gum's explicit filter height includes its header, help and vertical padding,
+# but not the input row. Keep these values together so menu sizing can account
+# for the complete widget instead of mistaking the number of choices for its
+# requested height.
+CNTOOLS_GUM_HEADER_ROWS=5
+CNTOOLS_GUM_CONTEXT_ROWS=5
+CNTOOLS_GUM_FILTER_CHROME_ROWS=6
+CNTOOLS_GUM_FILTER_INPUT_ROWS=1
+
 # Koios visual language: near-black surfaces, restrained grey text and the
 # Koios green for focus and primary actions.
 CNTOOLS_GUM_COLOR_CANVAS="#1B1B1F"
@@ -499,6 +508,48 @@ cntools_gum_width() {
   printf '%s\n' "$((width - 2))"
 }
 
+cntools_gum_terminal_lines() {
+  local lines=""
+
+  lines="$(tput lines 2>/dev/null || true)"
+  if [[ ! "${lines}" =~ ^[0-9]+$ || ${lines} -lt 1 ]]; then
+    lines="${LINES:-24}"
+  fi
+  [[ "${lines}" =~ ^[0-9]+$ && ${lines} -ge 1 ]] || lines=24
+  printf '%s\n' "${lines}"
+}
+
+cntools_gum_filter_height() {
+  local choice_count="${1:-}"
+  local rows_above="${2:-${CNTOOLS_GUM_HEADER_ROWS}}"
+  local terminal_lines=""
+  local visible_choices=1
+
+  [[ "${choice_count}" =~ ^[0-9]+$ && ${choice_count} -ge 1 ]] || return 2
+  [[ "${rows_above}" =~ ^[0-9]+$ ]] || return 2
+  terminal_lines="$(cntools_gum_terminal_lines)" || return 1
+  [[ "${terminal_lines}" =~ ^[0-9]+$ && ${terminal_lines} -ge 1 ]] || return 1
+
+  visible_choices=$((terminal_lines - rows_above -
+    CNTOOLS_GUM_FILTER_CHROME_ROWS - CNTOOLS_GUM_FILTER_INPUT_ROWS))
+  (( visible_choices >= 1 )) || visible_choices=1
+  (( visible_choices <= choice_count )) || visible_choices="${choice_count}"
+  printf '%s\n' "$((visible_choices + CNTOOLS_GUM_FILTER_CHROME_ROWS))"
+}
+
+cntools_gum_filter_header() {
+  local label="${1:-Select an action}"
+  local choice_count="${2:-0}"
+  local clipped="${3:-N}"
+  local noun="options"
+
+  [[ "${choice_count}" =~ ^[0-9]+$ ]] || return 2
+  (( choice_count != 1 )) || noun="option"
+  printf '%s  ·  %s %s' "${label}" "${choice_count}" "${noun}"
+  [[ "${clipped}" != "Y" ]] || printf '  ·  more below'
+  printf '\n'
+}
+
 cntools_gum_clear() {
   [[ -t 1 ]] || return 0
   tput clear 2>/dev/null || printf '\033[2J\033[H'
@@ -774,6 +825,10 @@ cntools_gum_menu_run() {
   local index=0
   local height=12
   local mapping=-1
+  local rows_above_filter="${CNTOOLS_GUM_HEADER_ROWS}"
+  local visible_choices=0
+  local filter_header=""
+  local filter_clipped="N"
 
   if [[ "${CNTOOLS_MENU_CACHE_READY:-N}" != "Y" ]] &&
      ! cntools_menu_cache_build; then
@@ -799,16 +854,20 @@ cntools_gum_menu_run() {
     [[ "${CNTOOLS_MENU_ID}" != "${CNTOOLS_MENU_ROOT_ID}" ]] || CNTOOLS_MENU_ID="/"
 
     cntools_gum_header "${breadcrumb}" || return 1
+    rows_above_filter="${CNTOOLS_GUM_HEADER_ROWS}"
     cntools_update_state_load || true
     if [[ "${context}" == "N" &&
           "${CNTOOLS_UPDATE_STATUS:-}" == "available" ]]; then
       cntools_ui_render_status warn \
         "CNTools v${CNTOOLS_UPDATE_REMOTE_VERSION} is available in Update."
+      rows_above_filter=$((rows_above_filter + CNTOOLS_GUM_CONTEXT_ROWS))
     elif [[ "${CNTOOLS_MENU_ID}" == "update" ]]; then
       cntools_update_render_summary
+      rows_above_filter=$((rows_above_filter + CNTOOLS_GUM_CONTEXT_ROWS))
     fi
     if [[ -n "${status_message}" ]]; then
       cntools_ui_render_status "${status_level}" "${status_message}"
+      rows_above_filter=$((rows_above_filter + CNTOOLS_GUM_CONTEXT_ROWS))
       status_level=""
       status_message=""
     fi
@@ -829,13 +888,18 @@ cntools_gum_menu_run() {
     rows+=("↻ Reload menu definitions" "✕ Quit CNTools")
     row_types+=("reload" "quit")
     row_indices+=("-1" "-1")
-    height="${#rows[@]}"
-    (( height <= 16 )) || height=16
-    (( height >= 6 )) || height=6
+    height="$(cntools_gum_filter_height \
+      "${#rows[@]}" "${rows_above_filter}")" || return 1
+    visible_choices=$((height - CNTOOLS_GUM_FILTER_CHROME_ROWS))
+    filter_clipped="N"
+    (( visible_choices >= ${#rows[@]} )) || filter_clipped="Y"
+    filter_header="$(cntools_gum_filter_header \
+      "${CNTOOLS_MENU_LABEL:-Select an action}" \
+      "${#rows[@]}" "${filter_clipped}")" || return 1
 
     selected_row=""
     if cntools_gum_filter selected_row "${height}" \
-      "${CNTOOLS_MENU_LABEL:-Select an action}" "${rows[@]}"; then
+      "${filter_header}" "${rows[@]}"; then
       filter_status=0
     else
       filter_status=$?

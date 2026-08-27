@@ -78,7 +78,9 @@ fi
 . "${GUM_ENTRYPOINT}" || fail "unable to source the Gum entrypoint"
 for required_function in \
   cntools_gum_find cntools_gum_require cntools_gum_install \
-  cntools_gum_archive_member cntools_gum_filter cntools_gum_menu_run; do
+  cntools_gum_archive_member cntools_gum_filter \
+  cntools_gum_filter_height cntools_gum_filter_header \
+  cntools_gum_menu_run; do
   declare -F "${required_function}" >/dev/null 2>&1 ||
     fail "Gum interface function is missing: ${required_function}"
 done
@@ -267,17 +269,66 @@ run_filter_presentation_test() (
     printf '%s\n' "${argument}"
   }
   COLUMNS=80
-  cntools_gum_filter selected 8 "Wallet" \
+  cntools_gum_filter selected 8 \
+    "$(cntools_gum_filter_header Wallet 2 N)" \
     "01  • First" "02  • Second" ||
     fail "the Gum filter wrapper failed with a fake Gum command"
   assert_eq "${selected}" "01  • First" "filter result forwarding"
   for expected in \
-    filter --header "Wallet  ·  type to filter" \
+    filter --header "Wallet  ·  2 options  ·  type to filter" \
     "Filter actions…" "${CNTOOLS_GUM_COLOR_BRAND}" \
     "${CNTOOLS_GUM_COLOR_CANVAS}" "${CNTOOLS_GUM_COLOR_SUCCESS}"; do
     grep -Fx -- "${expected}" "${argument_log}" >/dev/null ||
       fail "Gum filter omitted its Koios-themed argument: ${expected}"
   done
+)
+
+run_filter_layout_test() (
+  local fake_terminal_lines=22
+  local height=""
+  local header=""
+
+  cntools_gum_terminal_lines() {
+    printf '%s\n' "${fake_terminal_lines}"
+  }
+
+  height="$(cntools_gum_filter_height 10 5)" ||
+    fail "root menu filter height calculation failed"
+  assert_eq "${height}" "16" \
+    "root menu height when every option fits"
+
+  fake_terminal_lines=25
+  height="$(cntools_gum_filter_height 13 5)" ||
+    fail "submenu filter height calculation failed"
+  assert_eq "${height}" "19" \
+    "submenu height when every option fits"
+
+  fake_terminal_lines=18
+  height="$(cntools_gum_filter_height 13 5)" ||
+    fail "constrained filter height calculation failed"
+  assert_eq "${height}" "12" \
+    "submenu height in a constrained terminal"
+
+  fake_terminal_lines=24
+  height="$(cntools_gum_filter_height 10 10)" ||
+    fail "status-aware filter height calculation failed"
+  assert_eq "${height}" "13" \
+    "filter height below an additional status block"
+
+  fake_terminal_lines=8
+  height="$(cntools_gum_filter_height 10 5)" ||
+    fail "minimum filter height calculation failed"
+  assert_eq "${height}" "7" \
+    "minimum one-option filter height"
+
+  header="$(cntools_gum_filter_header Wallet 13 Y)" ||
+    fail "clipped filter header calculation failed"
+  assert_eq "${header}" \
+    "Wallet  ·  13 options  ·  more below" \
+    "clipped filter header"
+  assert_eq "$(cntools_gum_filter_header Update 1 N)" \
+    "Update  ·  1 option" \
+    "single-option filter header"
 )
 
 run_menu_mapping_test() (
@@ -290,6 +341,7 @@ run_menu_mapping_test() (
   local cache_build_calls=0
   local action_calls=""
   local status_log=""
+  local filter_header_log=""
   local first_duplicate=""
   local second_duplicate=""
 
@@ -352,6 +404,7 @@ run_menu_mapping_test() (
     local row=""
     local selected=""
     local wanted=""
+    filter_header_log+="$3"$'\n'
     shift 3
     filter_index=$((filter_index + 1))
 
@@ -386,6 +439,7 @@ run_menu_mapping_test() (
     action_calls+="${1}"$'\n'
   }
   cntools_gum_header() { return 0; }
+  cntools_gum_terminal_lines() { printf '24\n'; }
   cntools_gum_log() { return 0; }
   cntools_update_state_load() { return 0; }
   cntools_update_render_summary() { return 0; }
@@ -413,6 +467,12 @@ run_menu_mapping_test() (
     "disabled action feedback"
   assert_contains "${status_log}" "selected row was not recognized" \
     "unknown Gum filter result feedback"
+  assert_contains "${filter_header_log}" \
+    "CNTools  ·  6 options" \
+    "root Gum menu option count"
+  assert_contains "${filter_header_log}" \
+    "Tools  ·  5 options" \
+    "submenu Gum menu option count"
   assert_eq "${filter_index}" "7" \
     "submenu back, reload and unknown-row navigation sequence"
 )
@@ -453,6 +513,7 @@ run_archive_member_tests
 run_pinned_checksum_test
 run_offline_installer_test
 run_filter_presentation_test
+run_filter_layout_test
 run_menu_mapping_test
 run_early_option_tests
 

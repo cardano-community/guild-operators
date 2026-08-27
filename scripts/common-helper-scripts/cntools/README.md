@@ -287,7 +287,10 @@ green accent, muted secondary text, restrained borders, and compact cards for
 the current path, runtime context, and status. Menu labels and descriptions
 come from the existing module metadata. `gum filter` presents the choices,
 allows fuzzy filtering by typing, and invokes the single selected menu or
-action when Enter is pressed. Other Gum controls provide consistent prompts,
+action when Enter is pressed. Its choice area is recalculated on every menu
+draw: all options are shown when the current terminal has room, while smaller
+terminals use a scrolling list and mark the heading when more options are below.
+Other Gum controls provide consistent prompts,
 confirmation, tables, status messages, and long-text viewing without changing
 the action contract.
 
