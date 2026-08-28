@@ -251,17 +251,18 @@ if (( BASH_VERSINFO[0] < 4 ||
 fi
 
 # The live tests use only the new framework. They do not source env, the
-# legacy CNTools entrypoint, or cntools.library.
+# legacy CNTools entrypoint, or cntools.library. Gum presentation boundaries
+# are replaced below so catalog and action-loader checks need no terminal.
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/startup.sh"
-# shellcheck source=/dev/null
-. "${CNTOOLS_ROOT}/core/ui.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/menu.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/action.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/update.sh"
+# shellcheck source=/dev/null
+. "${CNTOOLS_ROOT}/core/gum.sh"
 
 CNTOOLS_MODULE_ROOT="${MODULE_ROOT}"
 CNTOOLS_LIB_DIR="${CNTOOLS_ROOT}/lib"
@@ -274,12 +275,45 @@ CNTOOLS_VERSION="$(< "${CNTOOLS_ROOT}/VERSION")"
 CNTOOLS_UI_INTERACTIVE="N"
 CNTOOLS_UI_CAPABLE="N"
 CNTOOLS_TEST_LOG_TRACE="${TEST_ROOT}/actions.log"
+CNTOOLS_TEST_UI_TRACE="${TEST_ROOT}/ui.log"
 
 cntools_log() {
   local category="${1:-INFO}"
   shift || true
   printf '%s\t%s\t%s\n' \
     "${category}" "${CNTOOLS_ACTION_ID:-}" "$*" >> "${CNTOOLS_TEST_LOG_TRACE}"
+}
+
+cntools_ui_render_begin() {
+  local label="${1:-CNTools}"
+  local breadcrumb="${2:-/}"
+
+  printf 'BEGIN\t%s\t%s\n' "${label}" "${breadcrumb}" >> "${CNTOOLS_TEST_UI_TRACE}"
+  printf '%s\n%s\n' "${label}" "${breadcrumb}"
+}
+
+cntools_ui_render_status() {
+  local level="${1:-info}"
+  local message="${2:-}"
+
+  printf 'STATUS\t%s\t%s\n' "${level}" "${message}" >> "${CNTOOLS_TEST_UI_TRACE}"
+  printf '%s\n' "${message}"
+}
+
+cntools_ui_read_key() {
+  local output_variable="${1:-}"
+
+  printf 'WAIT\n' >> "${CNTOOLS_TEST_UI_TRACE}"
+  printf -v "${output_variable}" '%s' enter
+}
+
+ui_trace_count() {
+  local record_type="${1:-}"
+
+  awk -F '\t' -v record_type="${record_type}" '
+    $1 == record_type { count++ }
+    END { print count + 0 }
+  ' "${CNTOOLS_TEST_UI_TRACE}"
 }
 
 cntools_menu_validate_tree ||
@@ -400,38 +434,15 @@ exec 9<&-
 assert_eq "${remaining_input}" "noninteractive-input" \
   "non-interactive placeholder input preservation"
 
-# An interactive placeholder pauses for exactly one key before returning.
-# Its normal entry path enables raw input before reading, so mock that terminal
-# operation while the test feeds input through a non-terminal file descriptor.
-stty() {
-  return 0
-}
+# An interactive placeholder invokes the Gum wait boundary exactly once. The
+# boundary is stubbed above because Gum input behavior has its own UI tests.
+waits_before="$(ui_trace_count WAIT)"
 CNTOOLS_UI_INTERACTIVE="Y"
-CNTOOLS_UI_INPUT_ACTIVE="N"
-CNTOOLS_UI_STTY="saved-terminal-state"
-exec 9<<< 'xy'
-cntools_action_run "${MODULE_ROOT}/wallet/list" <&9 >/dev/null ||
+cntools_action_run "${MODULE_ROOT}/wallet/list" </dev/null >/dev/null ||
   fail "interactive placeholder invocation failed"
-IFS= read -r -n1 remaining_input <&9 ||
-  fail "interactive placeholder consumed more than one key"
-exec 9<&-
-assert_eq "${remaining_input}" "y" "interactive placeholder pause"
+waits_after="$(ui_trace_count WAIT)"
+assert_eq "$((waits_after - waits_before))" "1" \
+  "interactive placeholder wait boundary"
 CNTOOLS_UI_INTERACTIVE="N"
-unset -f stty
-
-# Exercise representative deep routes and shortcut/control boundaries. In
-# particular, k and nested q must remain action shortcuts rather than controls.
-CNTOOLS_ADVANCED="N"
-CNTOOLS_MODE="local"
-cntools_menu_run <<< $'w\nn\nm\nescape\nh\nv\ng\nk\nescape\nc\nq\nh\nr\nq' \
-  >/dev/null || fail "production menu navigation sequence failed"
-for selected_action in \
-  wallet/new/mnemonic \
-  vote/governance/derive-keys \
-  vote/catalyst/qr; do
-  grep -F $'ACTION\t'"${selected_action}"$'\tnot implemented yet' \
-    "${CNTOOLS_TEST_LOG_TRACE}" >/dev/null ||
-    fail "navigation did not invoke ${selected_action}"
-done
 
 printf 'CNTools menu skeleton tests passed\n'

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Charm Gum prerequisite, Koios-inspired presentation and menu navigation.
-# Functions only; sourced after the regular CNTools framework.
-# shellcheck disable=SC2034
+# Functions only; sourced by the CNTools entrypoint.
+# shellcheck disable=SC2034,SC2153
 
 CNTOOLS_GUM_REQUIRED_VERSION="2.0.0"
 CNTOOLS_GUM_RELEASE_ROOT="https://github.com/charmbracelet/gum/releases/download/v${CNTOOLS_GUM_REQUIRED_VERSION}"
@@ -39,9 +39,9 @@ CNTOOLS_GUM_COLOR_SUCCESS="#3DD68C"
 
 cntools_gum_usage() {
   cat <<EOF
-Usage: cntools_gum.sh [-n|-l|-o] [-a] [-u] [-b BRANCH] [-v] [-h]
+Usage: cntools_main.sh [-n|-l|-o] [-a] [-u] [-b BRANCH] [-v] [-h]
 
-CNTools - Cardano pool and wallet operations (Charm Gum interface)
+CNTools - Cardano pool and wallet operations
 
   -n          Local node mode (default)
   -l          Light mode using Koios
@@ -67,7 +67,7 @@ cntools_gum_prerequisite_error() {
   local detail="${1:-}"
 
   [[ -z "${detail}" ]] || printf 'CNTools: %s\n' "${detail}" >&2
-  printf 'CNTools: Charm Gum v%s is required by cntools_gum.sh. Install it and try again.\n' \
+  printf 'CNTools: Charm Gum v%s is required. Install it and try again.\n' \
     "${CNTOOLS_GUM_REQUIRED_VERSION}" >&2
   cntools_gum_log ERROR \
     "Gum prerequisite unavailable${detail:+: ${detail}}"
@@ -568,6 +568,32 @@ cntools_gum_header_rows() {
   fi
 }
 
+cntools_ui_path() {
+  local value="${1:-/}"
+
+  case "${value}" in
+    CNTools) value="/" ;;
+    'CNTools / '*) value="/ ${value#CNTools / }" ;;
+    /*) ;;
+    *) value="/ ${value}" ;;
+  esac
+  printf '%s' "${value}"
+}
+
+cntools_ui_runtime_context() {
+  local separator=" | "
+
+  if [[ "${CNTOOLS_MODE:-}" == "offline" ]]; then
+    printf 'Offline'
+    return 0
+  fi
+  [[ "${CNTOOLS_UI_UTF8:-N}" != "Y" ]] || separator=" · "
+  printf '%s%s%s%s%s' \
+    "${CNTOOLS_MODE:-unknown}" "${separator}" \
+    "${CNTOOLS_BACKEND:-unknown}" "${separator}" \
+    "${CNTOOLS_NETWORK:-unknown}"
+}
+
 cntools_gum_breadcrumb() {
   local breadcrumb=""
   local parent=""
@@ -662,22 +688,14 @@ cntools_gum_header() {
   printf '%s\n' "${rendered_header}"
 }
 
-# Generic CNTools UI driver. These definitions intentionally replace the
-# pure-Bash renderer only inside cntools_gum.sh.
+# Generic CNTools UI driver backed by Charm Gum.
 cntools_ui_init() {
   CNTOOLS_UI_INTERACTIVE="N"
   [[ -t 0 && -t 1 ]] && CNTOOLS_UI_INTERACTIVE="Y"
   CNTOOLS_UI_CAPABLE="Y"
   CNTOOLS_UI_CLEANED="N"
-  CNTOOLS_UI_INPUT_ACTIVE="N"
-  CNTOOLS_UI_SCREEN_ACTIVE="N"
-  CNTOOLS_UI_USE_ALT_SCREEN="N"
-  CNTOOLS_UI_REPAINT_CAPABLE="N"
-  CNTOOLS_UI_RESIZE_PENDING="N"
-  CNTOOLS_UI_TOO_SMALL="N"
   CNTOOLS_UI_UTF8="Y"
   CNTOOLS_UI_COLUMNS="$(cntools_gum_width)"
-  CNTOOLS_UI_DRAW_WIDTH="${CNTOOLS_UI_COLUMNS}"
   CNTOOLS_UI_LINES="$(tput lines 2>/dev/null || printf '24')"
   CNTOOLS_UI_RESET=""
   CNTOOLS_UI_BOLD=""
@@ -686,16 +704,10 @@ cntools_ui_init() {
   CNTOOLS_UI_GREEN=""
   CNTOOLS_UI_YELLOW=""
   CNTOOLS_UI_RED=""
-  CNTOOLS_UI_DRIVER="gum"
   return 0
 }
 
-cntools_ui_dimensions() { return 0; }
 cntools_ui_mark_resize() { return 0; }
-cntools_ui_input_resume() { return 0; }
-cntools_ui_input_suspend() { return 0; }
-cntools_ui_session_enter() { return 0; }
-cntools_ui_screen_begin() { return 0; }
 cntools_ui_restore_terminal() { return 0; }
 
 cntools_ui_suspend_for_job_control() {

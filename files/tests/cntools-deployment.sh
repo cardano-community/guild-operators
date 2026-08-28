@@ -89,6 +89,11 @@ dispatcher_install_cntools_tree ||
 
 [[ ! -e "${TARGET_TREE}/obsolete/stale.txt" ]] ||
   fail "whole-tree replacement retained a stale installed file"
+for retired_file in cntools.sh cntools_gum.sh core/ui.sh; do
+  [[ ! -e "${TARGET_TREE}/${retired_file}" &&
+     ! -L "${TARGET_TREE}/${retired_file}" ]] ||
+    fail "installed CNTools retained retired file: ${retired_file}"
+done
 
 source_files="$(cd "${SOURCE_TREE}" && find . -type f -print | LC_ALL=C sort)"
 target_files="$(cd "${TARGET_TREE}" && find . -type f -print | LC_ALL=C sort)"
@@ -107,7 +112,7 @@ done < <(find "${TARGET_TREE}" -type d -print0)
 while IFS= read -r -d '' installed_file; do
   expected_mode="644"
   case "${installed_file}" in
-    "${TARGET_TREE}/cntools.sh"|"${TARGET_TREE}/cntools_gum.sh")
+    "${TARGET_TREE}/cntools_main.sh")
       expected_mode="755"
       ;;
   esac
@@ -134,12 +139,12 @@ if find "${NODE_HOME}/scripts" -mindepth 1 -maxdepth 1 \
 fi
 restore_file "${saved_file}" "${SOURCE_TREE}/VERSION"
 
-saved_file="${TEST_ROOT}/ui.sh.saved"
-cp -- "${SOURCE_TREE}/core/ui.sh" "${saved_file}"
-printf 'if\n' > "${SOURCE_TREE}/core/ui.sh"
+saved_file="${TEST_ROOT}/gum.sh.saved"
+cp -- "${SOURCE_TREE}/core/gum.sh" "${saved_file}"
+printf 'if\n' > "${SOURCE_TREE}/core/gum.sh"
 assert_rejected "invalid CNTools shell file" \
   dispatcher_validate_cntools_tree "${SOURCE_TREE}" N
-restore_file "${saved_file}" "${SOURCE_TREE}/core/ui.sh"
+restore_file "${saved_file}" "${SOURCE_TREE}/core/gum.sh"
 
 saved_file="${TEST_ROOT}/module.json.saved"
 cp -- "${SOURCE_TREE}/modules/root/module.json" "${saved_file}"
@@ -154,11 +159,11 @@ assert_rejected "missing required CNTools file" \
   dispatcher_validate_cntools_tree "${SOURCE_TREE}" N
 restore_file "${saved_file}" "${SOURCE_TREE}/core/action.sh"
 
-saved_file="${TEST_ROOT}/cntools_gum.sh.saved"
-mv -- "${SOURCE_TREE}/cntools_gum.sh" "${saved_file}"
-assert_rejected "missing Gum CNTools entrypoint" \
+saved_file="${TEST_ROOT}/cntools_main.sh.saved"
+mv -- "${SOURCE_TREE}/cntools_main.sh" "${saved_file}"
+assert_rejected "missing CNTools main entrypoint" \
   dispatcher_validate_cntools_tree "${SOURCE_TREE}" N
-restore_file "${saved_file}" "${SOURCE_TREE}/cntools_gum.sh"
+restore_file "${saved_file}" "${SOURCE_TREE}/cntools_main.sh"
 
 saved_file="${TEST_ROOT}/gum.sh.saved"
 mv -- "${SOURCE_TREE}/core/gum.sh" "${saved_file}"
@@ -177,6 +182,14 @@ mv -- "${SOURCE_TREE}/core/update.sh" "${saved_file}"
 assert_rejected "missing required CNTools update core" \
   dispatcher_validate_cntools_tree "${SOURCE_TREE}" N
 restore_file "${saved_file}" "${SOURCE_TREE}/core/update.sh"
+
+for retired_file in cntools.sh cntools_gum.sh core/ui.sh; do
+  mkdir -p "$(dirname "${SOURCE_TREE}/${retired_file}")"
+  printf '#!/usr/bin/env bash\n' > "${SOURCE_TREE}/${retired_file}"
+  assert_rejected "retired CNTools file ${retired_file}" \
+    dispatcher_validate_cntools_tree "${SOURCE_TREE}" N
+  rm -f -- "${SOURCE_TREE}/${retired_file}"
+done
 
 if (( BASH_VERSINFO[0] > 4 ||
       (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
@@ -237,8 +250,7 @@ fi
 
 printf 'keep this installation\n' > "${TARGET_TREE}/local-state"
 printf '9.9.9\n' > "${TARGET_TREE}/VERSION"
-before_entrypoint="$(cksum < "${TARGET_TREE}/cntools.sh")"
-before_gum_entrypoint="$(cksum < "${TARGET_TREE}/cntools_gum.sh")"
+before_entrypoint="$(cksum < "${TARGET_TREE}/cntools_main.sh")"
 if (
   dispatcher_cntools_move_tree() {
     if [[ "$1" = "${TARGET_TREE}" && "$(basename "$2")" = "previous" ]]; then
@@ -276,10 +288,8 @@ fi
   fail "candidate move failure did not restore the previous CNTools tree"
 [[ "$(< "${TARGET_TREE}/VERSION")" = "9.9.9" ]] ||
   fail "candidate move failure replaced the previous CNTools version"
-[[ "$(cksum < "${TARGET_TREE}/cntools.sh")" = "${before_entrypoint}" ]] ||
+[[ "$(cksum < "${TARGET_TREE}/cntools_main.sh")" = "${before_entrypoint}" ]] ||
   fail "candidate move failure changed the previous CNTools entrypoint"
-[[ "$(cksum < "${TARGET_TREE}/cntools_gum.sh")" = "${before_gum_entrypoint}" ]] ||
-  fail "candidate move failure changed the previous Gum CNTools entrypoint"
 if find "${NODE_HOME}/scripts" -mindepth 1 -maxdepth 1 \
   -type d -name '.cntools-install.*' -print -quit | grep -q .; then
   fail "candidate move rollback left a CNTools staging directory"
@@ -302,10 +312,8 @@ fi
   fail "post-rename failure did not restore the previous CNTools tree"
 [[ "$(< "${TARGET_TREE}/VERSION")" = "9.9.9" ]] ||
   fail "post-rename failure replaced the previous CNTools version"
-[[ "$(cksum < "${TARGET_TREE}/cntools.sh")" = "${before_entrypoint}" ]] ||
+[[ "$(cksum < "${TARGET_TREE}/cntools_main.sh")" = "${before_entrypoint}" ]] ||
   fail "post-rename failure changed the previous CNTools entrypoint"
-[[ "$(cksum < "${TARGET_TREE}/cntools_gum.sh")" = "${before_gum_entrypoint}" ]] ||
-  fail "post-rename failure changed the previous Gum CNTools entrypoint"
 if find "${NODE_HOME}/scripts" -mindepth 1 -maxdepth 1 \
   -type d -name '.cntools-install.*' -print -quit | grep -q .; then
   fail "post-rename rollback left a CNTools staging directory"

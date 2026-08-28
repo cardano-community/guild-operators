@@ -55,6 +55,7 @@ for required_command in \
 done
 
 for source_file in \
+  "${CNTOOLS_ROOT}/core/gum.sh" \
   "${CNTOOLS_ROOT}/core/update.sh" \
   "${CNTOOLS_ROOT}/lib/update.sh" \
   "${MODULE_ROOT}/update/check/action.sh" \
@@ -101,15 +102,34 @@ trap cleanup_test EXIT
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/log.sh"
 # shellcheck source=/dev/null
-. "${CNTOOLS_ROOT}/core/ui.sh"
+. "${CNTOOLS_ROOT}/core/update.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/menu.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/action.sh"
 # shellcheck source=/dev/null
-. "${CNTOOLS_ROOT}/core/update.sh"
+. "${CNTOOLS_ROOT}/core/gum.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/lib/update.sh"
+
+# Update behavior is tested without invoking the external Gum process. The
+# Gum interaction itself is covered by cntools-main.sh; these stubs preserve
+# its shared UI contract while keeping update tests deterministic.
+cntools_ui_action_begin() { return 0; }
+cntools_ui_render_field() { printf '%s: %s\n' "$1" "$2"; }
+cntools_ui_render_status() {
+  [[ -z "${2:-}" ]] || printf '%s\n' "$2"
+}
+cntools_ui_wait() { return 0; }
+cntools_ui_page_file() {
+  local page_line=""
+
+  while IFS= read -r page_line || [[ -n "${page_line}" ]]; do
+    printf '%s\n' "${page_line}"
+  done < "$1"
+}
+cntools_ui_confirm() { return 1; }
+cntools_ui_restore_terminal() { return 0; }
 
 for required_function in \
   cntools_update_version_valid cntools_update_version_compare \
@@ -614,16 +634,6 @@ run_update_action_tests() (
   assert_eq "$(< "${ui_trace}")" "page" \
     "Gum View Changes pager return flow"
 
-  # The pure-Bash fallback prints the file itself and still needs one pause.
-  unset -f cntools_ui_page_file
-  : > "${ui_trace}"
-  output="$(cntools_update_action_view_changes)" ||
-    fail "fallback View Changes action failed"
-  assert_contains "${output}" 'RANGE_VERSION_14_2' \
-    "fallback View Changes content"
-  assert_eq "$(< "${ui_trace}")" "wait" \
-    "fallback View Changes return flow"
-
   cntools_update_set_state available 14.2.0
   cntools_http_request() {
     printf '%s\n' 'partial response' > "$3"
@@ -666,8 +676,8 @@ run_update_action_tests() (
     "no-update View Changes message"
   [[ ! -s "${trace}" ]] || fail "no-update View Changes fetched the changelog"
 
-  # Manual checking is a normal lazy action, but its state file lets the
-  # parent menu observe the new result after the action subshell exits.
+  # Manual checking is a normal lazy action. Its state file lets the Gum menu
+  # observe the new result after the action subshell exits.
   cntools_update_set_state skipped ''
   cntools_http_request() {
     printf '%s\n' "$2" >> "${trace}"
@@ -685,10 +695,6 @@ run_update_action_tests() (
     "Check Again available message"
   assert_eq "$(wc -l < "${trace}" | tr -d ' ')" "1" \
     "Check Again request count"
-  output="$(cntools_menu_run <<< 'q')" ||
-    fail "parent menu could not render the manual-check result"
-  assert_contains "${output}" 'Update available: v14.1.0  [u]' \
-    "parent menu manual-check result"
 
   # View and Install must fail closed if the private persisted state can no
   # longer be trusted, even if the in-memory values still say available.
@@ -728,65 +734,6 @@ run_update_action_tests() (
   fi
 
   close_update_context
-)
-
-run_update_ui_tests() (
-  local output=""
-  local banner_count=""
-
-  setup_update_context update-ui
-  cntools_update_init
-  cntools_update_set_state available 14.2.0
-
-  output="$(cntools_menu_run <<< 'w')" ||
-    fail "available-update root navigation failed"
-  banner_count="$(grep -Fc 'Update available: v14.2.0  [u]' <<< "${output}" || true)"
-  assert_eq "${banner_count}" "1" "root-only update banner count"
-  assert_contains "${output}" '[u] Update' "root Update menu entry"
-
-  output="$(cntools_menu_run <<< 'u')" ||
-    fail "Update summary navigation failed"
-  assert_contains "${output}" 'Installed:  14.0.0' "Update summary installed version"
-  assert_contains "${output}" 'Available:  14.2.0' "Update summary available version"
-  assert_contains "${output}" 'fixture-account/guild-operators @ feature/update' \
-    "Update summary source"
-  assert_contains "${output}" '[c] Check Again' "Update summary check action"
-  assert_contains "${output}" '[v] View Changes' "Update summary changelog action"
-  assert_contains "${output}" '[i] Install Update' "Update summary install action"
-
-  cntools_update_set_state current 14.0.0
-  output="$(cntools_menu_run <<< 'q')" ||
-    fail "current-version root navigation failed"
-  assert_not_contains "${output}" 'Update available:' \
-    "current-version root banner"
-
-  cntools_update_set_state error ''
-  output="$(cntools_menu_run <<< 'q')" ||
-    fail "failed-check root navigation failed"
-  assert_not_contains "${output}" 'Update available:' \
-    "failed-check root banner"
-  output="$(cntools_menu_run <<< 'u')" ||
-    fail "failed-check Update summary navigation failed"
-  assert_contains "${output}" 'Check unavailable; use Check Again' \
-    "failed-check Update summary"
-  close_update_context
-)
-
-run_confirmation_tests() (
-  local response=""
-
-  for response in y Y yes YeS; do
-    cntools_ui_confirm 'Confirm?' <<< "${response}" >/dev/null ||
-      fail "confirmation rejected '${response}'"
-  done
-  for response in '' n no maybe 'yes please'; do
-    if cntools_ui_confirm 'Confirm?' <<< "${response}" >/dev/null; then
-      fail "confirmation accepted '${response}'"
-    fi
-  done
-  if cntools_ui_confirm 'Confirm?' </dev/null >/dev/null; then
-    fail "confirmation accepted closed input"
-  fi
 )
 
 prepare_dispatcher() {
@@ -837,7 +784,8 @@ run_install_case() (
   cntools_ui_restore_terminal() {
     printf '%s\n' restore >> "${sequence_trace}"
   }
-  if output="$(cntools_menu_run <<< $'u\ni\ny\nunused-input\n' 2>&1)"; then
+  cntools_ui_confirm() { return 0; }
+  if output="$(cntools_update_action_install 2>&1)"; then
     status=0
   else
     status=$?
@@ -852,21 +800,12 @@ run_install_case() (
     "${name} dispatcher environment and arguments"
   cntools_startup_deployment_was_started ||
     fail "${name} did not persist the deployment-started lifecycle marker"
-  assert_not_contains "${output}" 'Returned from Install Update' \
-    "${name} post-deployment menu resume"
-  if (( dispatcher_status == 0 )); then
-    assert_contains "${output}" \
-      'CNTools was replaced. Refresh this shell before restarting it:' \
-      "${name} post-update shell guidance"
-    assert_contains "${output}" "cd -- ${CNTOOLS_ROOT}" \
-      "${name} post-update re-entry path"
-  else
-    assert_not_contains "${output}" 'CNTools was replaced.' \
-      "${name} failed-update shell guidance"
-  fi
-  grep -F "Guild Deploy completed with status ${dispatcher_status}; closing" \
-    "${CNTOOLS_LOG}" >/dev/null ||
-    fail "${name} outer-process close was not logged"
+  assert_not_contains "${output}" 'CNTools was replaced.' \
+    "${name} obsolete replacement message"
+  assert_not_contains "${output}" 'Refresh this shell' \
+    "${name} obsolete shell-refresh guidance"
+  assert_not_contains "${output}" "cd -- ${CNTOOLS_ROOT}" \
+    "${name} obsolete re-entry command"
   grep -F 'GUILD_DEPLOY_STRICT_REF=Y' "${CNTOOLS_LOG}" >/dev/null ||
     fail "${name} dispatcher command was not logged"
   awk '
@@ -902,28 +841,30 @@ run_install_guard_tests() (
   cntools_update_init
   cntools_update_set_state available 14.2.0
 
-  cntools_menu_run <<< $'u\ni\nn\nescape\nq\n' >/dev/null ||
-    fail "cancelled update navigation failed"
+  cntools_ui_confirm() { return 1; }
+  cntools_update_action_install >/dev/null ||
+    fail "cancelled update action failed"
   [[ ! -e "${dispatch_trace}" ]] || fail "cancelled update invoked Guild Deploy"
   ! cntools_startup_deployment_was_started ||
     fail "cancelled update created a deployment-started marker"
 
   cntools_update_set_state current 14.0.0
-  cntools_menu_run <<< $'u\ni\nescape\nq\n' >/dev/null ||
-    fail "no-update install navigation failed"
+  cntools_update_action_install >/dev/null ||
+    fail "no-update install action failed"
   [[ ! -e "${dispatch_trace}" ]] || fail "no-update install invoked Guild Deploy"
 
   cntools_update_set_state available 14.2.0
   rm -f -- "${CNTOOLS_NODE_HOME}/scripts/guild-deploy.sh"
   output_file="${CASE_ROOT}/missing-dispatcher.stdout"
   error_file="${CASE_ROOT}/missing-dispatcher.stderr"
-  if cntools_menu_run <<< $'u\ni\ny\nescape\nq\n' \
+  cntools_ui_confirm() { return 0; }
+  if cntools_update_action_install \
       > "${output_file}" 2> "${error_file}"; then
     status=0
   else
     status=$?
   fi
-  assert_eq "${status}" "0" "missing-dispatcher menu recovery"
+  assert_eq "${status}" "1" "missing-dispatcher action status"
   grep -F 'Guild Deploy is unavailable' "${error_file}" >/dev/null ||
     fail "missing dispatcher error is not actionable"
   grep -F 'GUILD_DEPLOY_STRICT_REF=Y' "${error_file}" >/dev/null ||
@@ -1078,8 +1019,6 @@ run_state_tests
 run_checker_tests
 run_changelog_tests
 run_update_action_tests
-run_update_ui_tests
-run_confirmation_tests
 run_install_case success 0 0
 run_install_case failure 37 37
 run_install_guard_tests

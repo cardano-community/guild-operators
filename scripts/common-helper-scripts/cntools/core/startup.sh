@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CNTools startup and session normalization. Functions only; source from cntools.sh.
+# CNTools startup and session normalization. Functions only.
 # Application globals are consumed by the entrypoint and other core files.
 # shellcheck disable=SC2034
 
@@ -39,23 +39,6 @@ cntools_startup_load_version() {
     return 1
   }
   CNTOOLS_VERSION="${version_lines[0]}"
-}
-
-cntools_startup_usage() {
-  cat <<EOF
-Usage: cntools.sh [-n|-l|-o] [-a] [-u] [-b BRANCH] [-v] [-h]
-
-CNTools - Cardano pool and wallet operations
-
-  -n          Local node mode (default)
-  -l          Light mode using Koios
-  -o          Offline mode
-  -a          Show advanced features
-  -u          Skip the automatic update-availability check
-  -b BRANCH   Redeploy from this Guild branch, then exit
-  -v          Print the CNTools version
-  -h          Show this help
-EOF
 }
 
 cntools_startup_parse_args() {
@@ -100,7 +83,7 @@ cntools_startup_require_commands() {
   local command_name=""
   local -a missing=()
 
-  for command_name in awk jq curl tput date env mktemp mkdir chmod mv rm stat stty wc; do
+  for command_name in awk jq curl tput date env mktemp mkdir chmod mv rm stat wc; do
     command -v "${command_name}" >/dev/null 2>&1 || missing+=("${command_name}")
   done
   if (( ${#missing[@]} > 0 )); then

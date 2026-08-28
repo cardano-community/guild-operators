@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CNTools modular entrypoint.
+# CNTools modular entrypoint using the Charm Gum interface.
 # Application globals are consumed by separately sourced core files.
 # shellcheck disable=SC2034
 
@@ -14,8 +14,9 @@ if [[ -L "${BASH_SOURCE[0]}" ]]; then
   printf 'CNTools: the entrypoint must not be a symbolic link.\n' >&2
   exit 1
 fi
+
 CNTOOLS_ROOT="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || exit 1
-CNTOOLS_ENTRYPOINT="${CNTOOLS_ROOT}/cntools.sh"
+CNTOOLS_ENTRYPOINT="${CNTOOLS_ROOT}/cntools_main.sh"
 CNTOOLS_CORE_DIR="${CNTOOLS_ROOT}/core"
 CNTOOLS_LIB_DIR="${CNTOOLS_ROOT}/lib"
 CNTOOLS_MODULE_ROOT="${CNTOOLS_ROOT}/modules/root"
@@ -25,7 +26,8 @@ CNTOOLS_ENV_SOURCED="N"
 export CNTOOLS_ROOT CNTOOLS_ENTRYPOINT CNTOOLS_CORE_DIR CNTOOLS_LIB_DIR
 export CNTOOLS_MODULE_ROOT CNTOOLS_VERSION_FILE CNTOOLS_ENV_FILE
 
-for CNTOOLS_CORE_FILE in startup.sh log.sh ui.sh update.sh menu.sh action.sh; do
+for CNTOOLS_CORE_FILE in \
+  startup.sh log.sh update.sh menu.sh action.sh gum.sh health.sh; do
   if [[ ! -f "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ||
         -L "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ||
         ! -s "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ]]; then
@@ -40,6 +42,7 @@ unset CNTOOLS_CORE_FILE
 
 cntools_entrypoint_cleanup() {
   local status="${1:-0}"
+
   trap - EXIT HUP INT QUIT TERM WINCH TSTP CONT
   if [[ "${CNTOOLS_LOG_READY:-N}" == "Y" &&
         "${CNTOOLS_SESSION_ENDED:-N}" != "Y" ]]; then
@@ -68,11 +71,11 @@ cntools_main() {
 
   cntools_startup_require_bash || return 1
   cntools_startup_parse_args "$@" || {
-    cntools_startup_usage >&2
+    cntools_gum_usage >&2
     return 2
   }
   if [[ "${CNTOOLS_SHOW_HELP}" == "Y" ]]; then
-    cntools_startup_usage
+    cntools_gum_usage
     return 0
   fi
   if [[ -z "${CNTOOLS_BRANCH_REQUEST}" ]]; then
@@ -90,9 +93,11 @@ cntools_main() {
   CNTOOLS_SESSION_ENDED="N"
   cntools_entrypoint_install_traps
   cntools_log SESSION \
-    "start mode=${CNTOOLS_MODE} backend=${CNTOOLS_BACKEND} implementation=${CNTOOLS_IMPLEMENTATION} network=${CNTOOLS_NETWORK} account=${CNTOOLS_ACCOUNT} branch=${CNTOOLS_BRANCH}" ||
+    "start ui=gum mode=${CNTOOLS_MODE} backend=${CNTOOLS_BACKEND} implementation=${CNTOOLS_IMPLEMENTATION} network=${CNTOOLS_NETWORK} account=${CNTOOLS_ACCOUNT} branch=${CNTOOLS_BRANCH}" ||
     return 1
 
+  # Branch redeployment remains available without Gum so a missing UI
+  # prerequisite cannot prevent recovery from another Guild branch.
   if [[ -n "${CNTOOLS_BRANCH_REQUEST}" ]]; then
     cntools_log SESSION "redeploy branch=${CNTOOLS_BRANCH_REQUEST}" || true
     if cntools_startup_redeploy; then
@@ -103,6 +108,8 @@ cntools_main() {
     return "${status}"
   fi
 
+  cntools_gum_require || return 1
+  cntools_gum_require_terminal || return 1
   cntools_update_init
   cntools_ui_init || return 1
   if ! cntools_menu_cache_build; then
@@ -110,7 +117,7 @@ cntools_main() {
     printf 'CNTools: %s\n' "${CNTOOLS_MENU_ERROR}" >&2
     return 1
   fi
-  cntools_menu_run
+  cntools_gum_menu_run
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

@@ -16,21 +16,12 @@ cntools_action_placeholder() {
 
   cntools_log ACTION "not implemented yet" || true
   cntools_ui_render_begin "${action_label}" "${action_breadcrumb}"
-  if [[ "${CNTOOLS_UI_DRIVER:-}" != "gum" ]]; then
-    printf '%s%s%s\n' \
-      "${CNTOOLS_UI_BOLD:-}" "${action_label}" "${CNTOOLS_UI_RESET:-}"
-  fi
   cntools_ui_render_status warn "Not implemented yet"
   printf '\nThis action will be added in a later implementation phase.\n'
 
   if [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == "Y" ]]; then
-    if [[ "${CNTOOLS_UI_DRIVER:-}" != "gum" ]]; then
-      printf '\n%sPress any key to return.%s' \
-        "${CNTOOLS_UI_DIM:-}" "${CNTOOLS_UI_RESET:-}"
-    fi
     cntools_ui_read_key ignored_key || true
     : "${ignored_key}"
-    printf '\n'
   fi
   return 0
 }

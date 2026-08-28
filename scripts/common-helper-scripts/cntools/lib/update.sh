@@ -123,7 +123,6 @@ cntools_update_action_view_changes() {
   local notes_file=""
   local response_size=""
   local request_status=0
-  local line=""
 
   CNTOOLS_UPDATE_CHANGELOG_RESPONSE_FILE=""
   CNTOOLS_UPDATE_RELEASE_NOTES_FILE=""
@@ -213,14 +212,7 @@ cntools_update_action_view_changes() {
   printf '%sChanges in v%s since v%s%s\n\n' \
     "${CNTOOLS_UI_BOLD:-}" "${CNTOOLS_UPDATE_REMOTE_VERSION}" \
     "${CNTOOLS_VERSION}" "${CNTOOLS_UI_RESET:-}"
-  if declare -F cntools_ui_page_file >/dev/null 2>&1; then
-    cntools_ui_page_file "${notes_file}" || true
-  else
-    while IFS= read -r line || [[ -n "${line}" ]]; do
-      printf '%s\n' "${line}"
-    done < "${notes_file}"
-    cntools_ui_wait
-  fi
+  cntools_ui_page_file "${notes_file}" || true
   rm -f -- "${notes_file}"
   CNTOOLS_UPDATE_RELEASE_NOTES_FILE=""
   cntools_log UPDATE \
@@ -275,10 +267,6 @@ cntools_update_action_install() {
     deploy_status=0
   else
     deploy_status=$?
-  fi
-  if (( deploy_status == 0 )); then
-    printf '\nCNTools was replaced. Refresh this shell before restarting it:\n'
-    printf '  cd -- %q\n' "${CNTOOLS_ROOT}"
   fi
   return "${deploy_status}"
 }

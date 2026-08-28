@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CNTools update availability state. Functions only; source from cntools.sh.
+# CNTools update availability state. Functions only.
 # Operational update actions live in lib/update.sh and are loaded on demand.
 
 cntools_update_version_valid() {
@@ -319,17 +319,6 @@ cntools_update_check() {
   fi
   cntools_log UPDATE \
     "${check_kind} availability check status=${CNTOOLS_UPDATE_STATUS} installed=${CNTOOLS_VERSION} remote=${remote_version} source=${CNTOOLS_ACCOUNT}/guild-operators@${CNTOOLS_BRANCH}" || true
-}
-
-cntools_update_render_banner() {
-  local banner=""
-
-  [[ "${CNTOOLS_UPDATE_STATUS:-}" == "available" ]] || return 0
-  banner="Update available: v${CNTOOLS_UPDATE_REMOTE_VERSION}  [u]"
-  printf '\n%s%s%s\n' \
-    "${CNTOOLS_UI_YELLOW:-}" \
-    "$(cntools_ui_fit "${banner}" "${CNTOOLS_UI_DRAW_WIDTH:-79}")" \
-    "${CNTOOLS_UI_RESET:-}"
 }
 
 cntools_update_render_summary() {

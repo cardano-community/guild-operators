@@ -24,11 +24,7 @@ cntools_action_run() {
     local action_file="${physical_module}/action.sh"
     local status=0
 
-    # The parent menu owns the alternate screen. Actions use the normal
-    # terminal buffer so long output remains scrollable and child-local UI
-    # state cannot leave the parent in an unmatched alternate screen.
-    CNTOOLS_UI_USE_ALT_SCREEN="N"
-    CNTOOLS_UI_SCREEN_ACTIVE="N"
+    # Each action owns only its subshell-local traps and temporary state.
     trap 'cntools_ui_suspend_for_job_control' TSTP
     trap 'cntools_ui_mark_resize' CONT
 

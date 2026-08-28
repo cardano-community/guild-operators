@@ -669,7 +669,7 @@ dispatcher_validate_cntools_tree() {
   local source_tree_relative=""
   local tracked_found="N"
   local version=""
-  local -a required_files required_directories
+  local -a required_files required_directories retired_files
 
   case "${require_tracked}" in
     Y|N) ;;
@@ -704,17 +704,20 @@ dispatcher_validate_cntools_tree() {
   )
   required_files=(
     VERSION
-    cntools.sh
-    cntools_gum.sh
+    cntools_main.sh
     core/action.sh
     core/gum.sh
     core/health.sh
     core/log.sh
     core/menu.sh
     core/startup.sh
-    core/ui.sh
     core/update.sh
     modules/root/module.json
+  )
+  retired_files=(
+    cntools.sh
+    cntools_gum.sh
+    core/ui.sh
   )
   for relative_path in "${required_directories[@]}"; do
     [[ -d "${tree}/${relative_path}" && ! -L "${tree}/${relative_path}" ]] || {
@@ -727,6 +730,13 @@ dispatcher_validate_cntools_tree() {
        ! -L "${tree}/${relative_path}" &&
        -s "${tree}/${relative_path}" ]] || {
       log_warn "Required CNTools file is missing, empty, or unsafe: ${relative_path}"
+      return 1
+    }
+  done
+  for relative_path in "${retired_files[@]}"; do
+    [[ ! -e "${tree}/${relative_path}" &&
+       ! -L "${tree}/${relative_path}" ]] || {
+      log_warn "Retired CNTools file is still present: ${relative_path}"
       return 1
     }
   done
@@ -1506,12 +1516,9 @@ dispatcher_install_cntools_tree() (
        ! -L "${cntools_tree}" &&
        -z "$(find "${cntools_tree}" -type d ! -perm 0755 -print -quit)" &&
        -z "$(find "${cntools_tree}" -type f \
-         ! -path "${cntools_tree}/cntools.sh" \
-         ! -path "${cntools_tree}/cntools_gum.sh" \
+         ! -path "${cntools_tree}/cntools_main.sh" \
          ! -perm 0644 -print -quit)" &&
-       -n "$(find "${cntools_tree}/cntools.sh" -prune \
-         -type f -perm 0755 -print)" &&
-       -n "$(find "${cntools_tree}/cntools_gum.sh" -prune \
+       -n "$(find "${cntools_tree}/cntools_main.sh" -prune \
          -type f -perm 0755 -print)" ]]
   }
 
@@ -1602,9 +1609,7 @@ dispatcher_install_cntools_tree() (
   dispatcher_validate_cntools_tree "${candidate_directory}" N || return 2
   find "${candidate_directory}" -type d -exec chmod 0755 {} + || return 2
   find "${candidate_directory}" -type f -exec chmod 0644 {} + || return 2
-  chmod 0755 \
-    "${candidate_directory}/cntools.sh" \
-    "${candidate_directory}/cntools_gum.sh" || return 2
+  chmod 0755 "${candidate_directory}/cntools_main.sh" || return 2
   _dispatcher_cntools_permissions_valid "${candidate_directory}" || {
     log_warn "Could not normalize CNTools file permissions."
     return 2

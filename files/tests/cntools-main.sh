@@ -3,7 +3,7 @@
 
 if (( BASH_VERSINFO[0] < 4 ||
       (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
-  printf 'CNTools Gum tests skipped: Bash 4.4+ is required\n'
+  printf 'CNTools main tests skipped: Bash 4.4+ is required\n'
   exit 0
 fi
 
@@ -11,11 +11,10 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
-GUM_ENTRYPOINT="${CNTOOLS_ROOT}/cntools_gum.sh"
+MAIN_ENTRYPOINT="${CNTOOLS_ROOT}/cntools_main.sh"
 GUM_CORE="${CNTOOLS_ROOT}/core/gum.sh"
 HEALTH_CORE="${CNTOOLS_ROOT}/core/health.sh"
-PURE_ENTRYPOINT="${CNTOOLS_ROOT}/cntools.sh"
-TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-gum.XXXXXX")"
+TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-main.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 
 cleanup_test() {
@@ -69,26 +68,30 @@ for required_command in bash chmod cp grep mktemp mkdir rm tar; do
     fail "required command is unavailable: ${required_command}"
 done
 
-[[ -f "${GUM_ENTRYPOINT}" && ! -L "${GUM_ENTRYPOINT}" ]] ||
-  fail "Gum entrypoint is missing or unsafe"
+[[ -f "${MAIN_ENTRYPOINT}" && ! -L "${MAIN_ENTRYPOINT}" ]] ||
+  fail "CNTools main entrypoint is missing or unsafe"
 [[ -f "${GUM_CORE}" && ! -L "${GUM_CORE}" ]] ||
   fail "Gum UI core is missing or unsafe"
 [[ -f "${HEALTH_CORE}" && ! -L "${HEALTH_CORE}" ]] ||
   fail "Gum health core is missing or unsafe"
-[[ -f "${PURE_ENTRYPOINT}" && ! -L "${PURE_ENTRYPOINT}" ]] ||
-  fail "pure-Bash entrypoint is missing or unsafe"
+bash -n "${MAIN_ENTRYPOINT}" "${GUM_CORE}" "${HEALTH_CORE}" ||
+  fail "the CNTools main entrypoint or Gum-owned core has invalid Bash syntax"
+for retired_path in \
+  "${CNTOOLS_ROOT}/cntools.sh" \
+  "${CNTOOLS_ROOT}/cntools_gum.sh" \
+  "${CNTOOLS_ROOT}/core/ui.sh"; do
+  [[ ! -e "${retired_path}" && ! -L "${retired_path}" ]] ||
+    fail "retired CNTools UI file is still present: ${retired_path}"
+done
 
-bash -n "${GUM_ENTRYPOINT}" "${GUM_CORE}" "${HEALTH_CORE}" \
-  "${PURE_ENTRYPOINT}" ||
-  fail "a CNTools entrypoint or Gum core file has invalid Bash syntax"
-if grep -Eq 'cntools_gum|core/gum[.]sh' "${PURE_ENTRYPOINT}"; then
-  fail "the pure-Bash entrypoint depends on the experimental Gum interface"
-fi
-
-# Loading the parallel entrypoint must define the Gum driver without invoking
-# either entrypoint's main function.
+# Loading the sole entrypoint must define the Gum driver without invoking its
+# main function.
 # shellcheck source=/dev/null
-. "${GUM_ENTRYPOINT}" || fail "unable to source the Gum entrypoint"
+. "${MAIN_ENTRYPOINT}" || fail "unable to source the CNTools main entrypoint"
+declare -F cntools_main >/dev/null 2>&1 ||
+  fail "CNTools main function is missing"
+assert_eq "${CNTOOLS_ENTRYPOINT}" "${MAIN_ENTRYPOINT}" \
+  "CNTools main entrypoint identity"
 for required_function in \
   cntools_gum_find cntools_gum_require cntools_gum_install \
   cntools_gum_archive_member cntools_gum_filter \
@@ -649,7 +652,7 @@ run_header_test() (
     fail "offline Gum header rendering failed"
   grep -F $'style\t#4FBC85\tY\t/' "${argument_log}" >/dev/null ||
     fail "root breadcrumb was not highlighted"
-  grep -F $'style\t#98989F\tN\toffline · none · preprod' \
+  grep -F $'style\t#98989F\tN\tOffline' \
     "${argument_log}" >/dev/null ||
     fail "offline Gum runtime row was not compact"
   if grep -F 'node offline' "${argument_log}" >/dev/null; then
@@ -705,7 +708,6 @@ run_wait_and_placeholder_test() (
   CNTOOLS_ACTION_ID="wallet/new"
   CNTOOLS_ACTION_LABEL="New"
   CNTOOLS_MODULE_ROOT="${CNTOOLS_ROOT}/modules/root"
-  CNTOOLS_UI_DRIVER="gum"
   CNTOOLS_UI_INTERACTIVE="Y"
   cntools_menu_breadcrumb() { printf '/ Wallet / New\n'; }
   cntools_log() { return 0; }
@@ -859,18 +861,18 @@ run_early_option_tests() (
 
   help_output="$(
     CNTOOLS_TEST_GUM_MARKER="${marker}" \
-      PATH="${case_root}/bin:${PATH}" "${BASH}" "${GUM_ENTRYPOINT}" -h
-  )" || fail "Gum entrypoint help failed without Gum"
-  assert_contains "${help_output}" "Usage: cntools_gum.sh" \
-    "Gum entrypoint help"
+      PATH="${case_root}/bin:${PATH}" "${BASH}" "${MAIN_ENTRYPOINT}" -h
+  )" || fail "CNTools main help failed without Gum"
+  assert_contains "${help_output}" "Usage: cntools_main.sh" \
+    "CNTools main entrypoint help"
   [[ ! -e "${marker}" ]] || fail "help invoked Gum"
 
   version_output="$(
     CNTOOLS_TEST_GUM_MARKER="${marker}" \
-      PATH="${case_root}/bin:${PATH}" "${BASH}" "${GUM_ENTRYPOINT}" -v
-  )" || fail "Gum entrypoint version failed without Gum"
+      PATH="${case_root}/bin:${PATH}" "${BASH}" "${MAIN_ENTRYPOINT}" -v
+  )" || fail "CNTools main version failed without Gum"
   [[ "${version_output}" =~ ^[0-9]+[.][0-9]+[.][0-9]+ ]] ||
-    fail "Gum entrypoint returned an invalid CNTools version: ${version_output}"
+    fail "CNTools main returned an invalid version: ${version_output}"
   [[ ! -e "${marker}" ]] || fail "version output invoked Gum"
 )
 
@@ -891,4 +893,4 @@ run_wait_and_placeholder_test
 run_health_test
 run_early_option_tests
 
-printf 'CNTools Gum tests passed\n'
+printf 'CNTools main tests passed\n'

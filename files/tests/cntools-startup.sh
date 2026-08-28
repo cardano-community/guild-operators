@@ -4,7 +4,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_SOURCE="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
-ENTRYPOINT_SOURCE="${CNTOOLS_SOURCE}/cntools.sh"
+ENTRYPOINT_SOURCE="${CNTOOLS_SOURCE}/cntools_main.sh"
 STARTUP_SOURCE="${CNTOOLS_SOURCE}/core/startup.sh"
 
 fail() {
@@ -28,7 +28,8 @@ for source_file in \
   "${ENTRYPOINT_SOURCE}" \
   "${CNTOOLS_SOURCE}/core/startup.sh" \
   "${CNTOOLS_SOURCE}/core/log.sh" \
-  "${CNTOOLS_SOURCE}/core/ui.sh" \
+  "${CNTOOLS_SOURCE}/core/gum.sh" \
+  "${CNTOOLS_SOURCE}/core/health.sh" \
   "${CNTOOLS_SOURCE}/core/menu.sh" \
   "${CNTOOLS_SOURCE}/core/action.sh" \
   "${CNTOOLS_SOURCE}/core/update.sh"; do
@@ -96,6 +97,7 @@ prepare_layout() {
   CURL_TRACE="${CASE_ROOT}/curl.trace"
   RUN_STDOUT="${CASE_ROOT}/stdout"
   RUN_STDERR="${CASE_ROOT}/stderr"
+  TEST_DRIVER="${CASE_ROOT}/startup-driver.sh"
   CASE_BIN="${CASE_ROOT}/bin"
   CASE_PATH="${PATH}"
   CASE_DISPATCH_STATUS=0
@@ -103,7 +105,28 @@ prepare_layout() {
 
   mkdir -p "${NODE_ROOT}/scripts" "${CASE_BIN}"
   cp -R "${CNTOOLS_SOURCE}" "${APP_ROOT}"
-  chmod 0755 "${APP_ROOT}/cntools.sh"
+  chmod 0755 "${APP_ROOT}/cntools_main.sh"
+  write_file "${TEST_DRIVER}" '#!/usr/bin/env bash
+main_entrypoint="$1"
+shift
+# Source the real entrypoint so the complete startup wiring is exercised, but
+# replace only the interactive boundary. TTY/Gum behavior has dedicated tests.
+. "${main_entrypoint}"
+cntools_gum_require() { return 0; }
+cntools_gum_require_terminal() { return 0; }
+cntools_ui_init() {
+  CNTOOLS_UI_INTERACTIVE="N"
+  CNTOOLS_UI_CAPABLE="Y"
+  CNTOOLS_UI_CLEANED="N"
+}
+cntools_gum_menu_run() {
+  local inspection_action="${CNTOOLS_MODULE_ROOT}/inspect"
+
+  [[ -d "${inspection_action}" ]] || return 0
+  cntools_action_run "${inspection_action}"
+}
+cntools_main "$@"'
+  chmod 0755 "${TEST_DRIVER}"
 }
 
 write_fake_env() {
@@ -295,7 +318,7 @@ run_installed() {
     CNTOOLS_TEST_CURL_TRACE="${CURL_TRACE}" \
     CNTOOLS_TEST_REMOTE_VERSION="${remote_version}" \
     CNTOOLS_TEST_DEPENDENCY_TRACE="${CASE_DEPENDENCY_TRACE:-}" \
-    "${TEST_BASH}" "${APP_ROOT}/cntools.sh" "$@" \
+    "${TEST_BASH}" "${TEST_DRIVER}" "${APP_ROOT}/cntools_main.sh" "$@" \
     > "${RUN_STDOUT}" 2> "${RUN_STDERR}"; then
     RUN_STATUS=0
   else
@@ -367,7 +390,7 @@ exit 97"
   set_case_identity cnode preview
   run_installed '' -h
   assert_eq "${RUN_STATUS}" "0" "help status without VERSION or env"
-  grep -F 'Usage: cntools.sh' "${RUN_STDOUT}" >/dev/null ||
+  grep -F 'Usage: cntools_main.sh' "${RUN_STDOUT}" >/dev/null ||
     fail "early help output is missing"
   [[ ! -e "${ENV_TRACE}" ]] || fail "help sourced the common env"
   [[ ! -e "${dependency_trace}" ]] || fail "help invoked a runtime dependency"
@@ -542,7 +565,7 @@ run_session_matrix_tests() {
       assert_trace_value backend "${expected_backend}"
       assert_trace_value advanced "${expected_advanced}"
       assert_trace_value root "${APP_ROOT}"
-      assert_trace_value entrypoint "${APP_ROOT}/cntools.sh"
+      assert_trace_value entrypoint "${APP_ROOT}/cntools_main.sh"
       assert_trace_value node_home "${NODE_ROOT}"
       assert_trace_value implementation "${implementation}"
       assert_trace_value implementation_name "${expected_name}"
@@ -566,7 +589,7 @@ run_session_matrix_tests() {
       assert_trace_value curl_timeout "17"
       assert_trace_value posix "N"
       grep -F \
-        "start mode=${mode} backend=${expected_backend} implementation=${implementation}" \
+        "start ui=gum mode=${mode} backend=${expected_backend} implementation=${implementation}" \
         "${NODE_ROOT}/runtime/logs/cntools.log" >/dev/null ||
         fail "${implementation} ${mode} session start was not logged"
     done
