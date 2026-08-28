@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # CNTools logging plus operational command and HTTP wrappers. Functions only.
 
+declare -ag CNTOOLS_HTTP_SECRET_FILES=()
+
 cntools_log_path_components_safe() {
   local path="${1:-}"
   local current="/"
@@ -108,11 +110,86 @@ cntools_log() {
 }
 
 cntools_log_close() {
+  cntools_http_secret_files_cleanup
   if [[ "${CNTOOLS_LOG_FD:-}" =~ ^[0-9]+$ ]]; then
     exec {CNTOOLS_LOG_FD}>&-
   fi
   CNTOOLS_LOG_FD=""
   CNTOOLS_LOG_READY="N"
+}
+
+cntools_http_secret_file_create() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_token="${CNTOOLS_KOIOS_TOKEN:-}"
+  local _cntools_temporary_directory="${CNTOOLS_TMP_DIR:-}"
+  local _cntools_secret_file=""
+  local _cntools_previous_umask=""
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  [[ -n "${_cntools_token}" ]] || return 2
+  export -n CNTOOLS_KOIOS_TOKEN KOIOS_API_TOKEN 2>/dev/null || return 1
+  unset KOIOS_API_TOKEN 2>/dev/null || return 1
+  [[ -n "${_cntools_temporary_directory}" &&
+     "${_cntools_temporary_directory}" = /* &&
+     -d "${_cntools_temporary_directory}" &&
+     ! -L "${_cntools_temporary_directory}" &&
+     -O "${_cntools_temporary_directory}" &&
+     -w "${_cntools_temporary_directory}" ]] || return 1
+
+  _cntools_previous_umask="$(umask)"
+  umask 077
+  _cntools_secret_file="$(mktemp \
+    "${_cntools_temporary_directory}/.cntools-http-auth.XXXXXX")" || {
+    umask "${_cntools_previous_umask}"
+    return 1
+  }
+  umask "${_cntools_previous_umask}"
+  chmod 0600 "${_cntools_secret_file}" || {
+    rm -f -- "${_cntools_secret_file}"
+    return 1
+  }
+  if [[ ! -f "${_cntools_secret_file}" || -L "${_cntools_secret_file}" ||
+        ! -O "${_cntools_secret_file}" ]]; then
+    rm -f -- "${_cntools_secret_file}" 2>/dev/null || true
+    return 1
+  fi
+  CNTOOLS_HTTP_SECRET_FILES+=("${_cntools_secret_file}")
+  if ! printf 'Authorization: Bearer %s\n' \
+      "${_cntools_token}" > "${_cntools_secret_file}"; then
+    cntools_http_secret_file_remove "${_cntools_secret_file}" || true
+    return 1
+  fi
+  _cntools_output_ref="${_cntools_secret_file}"
+}
+
+cntools_http_secret_file_remove() {
+  local secret_file="${1:-}"
+  local candidate=""
+  local -a remaining=()
+
+  [[ -n "${secret_file}" &&
+     "${secret_file}" = "${CNTOOLS_TMP_DIR:-/invalid}/.cntools-http-auth."* ]] ||
+    return 2
+  if [[ -f "${secret_file}" && ! -L "${secret_file}" &&
+        -O "${secret_file}" ]]; then
+    : > "${secret_file}" 2>/dev/null || true
+    rm -f -- "${secret_file}" 2>/dev/null || true
+  fi
+  for candidate in "${CNTOOLS_HTTP_SECRET_FILES[@]}"; do
+    [[ "${candidate}" == "${secret_file}" ]] || remaining+=("${candidate}")
+  done
+  CNTOOLS_HTTP_SECRET_FILES=("${remaining[@]}")
+}
+
+cntools_http_secret_files_cleanup() {
+  local secret_file=""
+
+  for secret_file in "${CNTOOLS_HTTP_SECRET_FILES[@]}"; do
+    cntools_http_secret_file_remove "${secret_file}" || true
+  done
+  CNTOOLS_HTTP_SECRET_FILES=()
 }
 
 cntools_log_render_argument() {
@@ -152,6 +229,73 @@ cntools_run_command() {
   return "${status}"
 }
 
+cntools_run_command_timeout() {
+  local timeout_seconds="${1:-}"
+  local mask="${2:-}"
+  local rendered=""
+  local piece=""
+  local index=0
+  local status=0
+  local command_pid=0
+  local deadline=0
+  local kill_deadline=0
+  local timed_out="N"
+  shift 2 2>/dev/null || return 2
+  [[ "${1:-}" == "--" ]] || return 2
+  shift
+  (( $# > 0 )) || return 2
+  [[ "${timeout_seconds}" =~ ^[1-9][0-9]*$ ]] || return 2
+  [[ "${mask}" =~ ^[01]+$ && ${#mask} -eq $# ]] || return 2
+
+  for piece in "$@"; do
+    [[ -z "${rendered}" ]] || rendered+=" "
+    if [[ "${mask:index:1}" == "1" ]]; then
+      rendered+="<redacted>"
+    else
+      rendered+="$(cntools_log_render_argument "${piece}")"
+    fi
+    index=$((index + 1))
+  done
+  cntools_log CMD "${rendered}" || return 1
+
+  if [[ -n "${CNTOOLS_TIMEOUT_BIN:-}" &&
+        "${CNTOOLS_TIMEOUT_BIN}" = /* &&
+        -x "${CNTOOLS_TIMEOUT_BIN}" &&
+        ! -d "${CNTOOLS_TIMEOUT_BIN}" ]]; then
+    if "${CNTOOLS_TIMEOUT_BIN}" --signal=TERM --kill-after=2 \
+        "${timeout_seconds}" "$@"; then
+      status=0
+    else
+      status=$?
+    fi
+  else
+    "$@" &
+    command_pid=$!
+    deadline=$((SECONDS + timeout_seconds))
+    while (( SECONDS < deadline )) && kill -0 "${command_pid}" 2>/dev/null; do
+      command sleep 0.1
+    done
+    if kill -0 "${command_pid}" 2>/dev/null; then
+      timed_out="Y"
+      kill -TERM "${command_pid}" 2>/dev/null || true
+      kill_deadline=$((SECONDS + 2))
+      while (( SECONDS < kill_deadline )) &&
+            kill -0 "${command_pid}" 2>/dev/null; do
+        command sleep 0.1
+      done
+      kill -KILL "${command_pid}" 2>/dev/null || true
+    fi
+    if wait "${command_pid}"; then
+      status=0
+    else
+      status=$?
+    fi
+    [[ "${timed_out}" != "Y" ]] || status=124
+  fi
+  cntools_log CMD "${rendered} -> ${status}" || true
+  return "${status}"
+}
+
 cntools_http_sanitized_endpoint() {
   local url="${1:-}"
   local remainder=""
@@ -168,6 +312,30 @@ cntools_http_sanitized_endpoint() {
   printf '%s' "${endpoint}"
 }
 
+cntools_http_curl_error_detail() {
+  local error_file="${1:-}"
+  local request_url="${2:-}"
+  local detail=""
+  local token="${CNTOOLS_KOIOS_TOKEN:-}"
+
+  [[ -f "${error_file}" && ! -L "${error_file}" ]] || return 1
+  IFS= read -r detail < "${error_file}" || true
+  detail="$(cntools_log_sanitize_line "${detail:0:400}")"
+  [[ -n "${detail}" ]] || return 1
+
+  # Curl normally reports only transport details. If it ever echoes the full
+  # request or an authorization value, discard that detail rather than trying
+  # to partially redact an unknown credential format.
+  if [[ ( -n "${token}" && "${detail}" == *"${token}"* ) ||
+        "${detail}" == *"${request_url}"* ||
+        "${detail}" == *Authorization:* ||
+        "${detail}" == *"Bearer "* ]]; then
+    printf 'sensitive curl error detail redacted'
+  else
+    printf '%s' "${detail}"
+  fi
+}
+
 cntools_http_request() {
   local method="${1:-}"
   local url="${2:-}"
@@ -177,6 +345,9 @@ cntools_http_request() {
   local curl_status=0
   local start_time=0
   local end_time=0
+  local error_file=""
+  local error_detail=""
+  local previous_umask=""
   shift 3 2>/dev/null || return 2
 
   [[ "${CNTOOLS_MODE:-}" != "offline" ]] || {
@@ -189,23 +360,38 @@ cntools_http_request() {
      ( ! -e "${output_file}" || -f "${output_file}" ) ]] || return 2
   command -v curl >/dev/null 2>&1 || return 127
 
+  previous_umask="$(umask)"
+  umask 077
+  error_file="$(mktemp "${output_file}.curl-error.XXXXXX")" || {
+    umask "${previous_umask}"
+    return 1
+  }
+  umask "${previous_umask}"
+  chmod 0600 "${error_file}" || {
+    rm -f -- "${error_file}"
+    return 1
+  }
+
   endpoint="$(cntools_http_sanitized_endpoint "${url}")"
   start_time="$(command date '+%s')" || start_time=0
   if http_status="$(
       command curl --silent --show-error \
         --max-time "${CNTOOLS_CURL_TIMEOUT:-10}" \
         --request "${method}" --output "${output_file}" \
-        --write-out '%{http_code}' "$@" "${url}"
+        --write-out '%{http_code}' "$@" "${url}" 2> "${error_file}"
     )"; then
     curl_status=0
   else
     curl_status=$?
   fi
   end_time="$(command date '+%s')" || end_time="${start_time}"
+  error_detail="$(cntools_http_curl_error_detail \
+    "${error_file}" "${url}" 2>/dev/null || true)"
+  rm -f -- "${error_file}" 2>/dev/null || true
 
   if [[ ${curl_status} -ne 0 ]]; then
     cntools_log API \
-      "${method} ${endpoint} -> curl:${curl_status} ($((end_time - start_time))s)" || true
+      "${method} ${endpoint} -> curl:${curl_status} ($((end_time - start_time))s)${error_detail:+: ${error_detail}}" || true
     return "${curl_status}"
   fi
   [[ "${http_status}" =~ ^[0-9]{3}$ ]] || http_status="000"

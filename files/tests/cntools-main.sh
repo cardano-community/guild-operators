@@ -97,7 +97,7 @@ for required_function in \
   cntools_gum_archive_member cntools_gum_filter \
   cntools_gum_filter_height \
   cntools_gum_capture cntools_gum_header_rows cntools_gum_breadcrumb \
-  cntools_gum_menu_run \
+  cntools_gum_menu_run cntools_ui_choose cntools_ui_static_table \
   cntools_health_refresh; do
   declare -F "${required_function}" >/dev/null 2>&1 ||
     fail "Gum interface function is missing: ${required_function}"
@@ -301,6 +301,59 @@ run_filter_presentation_test() (
       "${argument_log}" >/dev/null; then
     fail "Gum filter retained its redundant menu heading"
   fi
+)
+
+run_action_choice_helper_test() (
+  local argument_log="${TEST_ROOT}/choice-helper-arguments"
+  local fake_terminal_lines=18
+  local gum_status=0
+  local selected_height=""
+  local previous_argument=""
+  local argument=""
+  local value="sentinel"
+  local status=0
+  local -a choices=()
+
+  for (( status = 1; status <= 13; status++ )); do
+    choices+=("Choice ${status}")
+  done
+  cntools_gum_terminal_lines() {
+    printf '%s\n' "${fake_terminal_lines}"
+  }
+  cntools_gum_header_rows() {
+    printf '6\n'
+  }
+  cntools_gum() {
+    : > "${argument_log}"
+    printf '%s\n' "$@" > "${argument_log}"
+    (( gum_status == 0 )) || return "${gum_status}"
+    IFS= read -r argument
+    printf '%s\n' "${argument}"
+  }
+
+  cntools_ui_choose value "Filter wallets…" "${choices[@]}" ||
+    fail "the reusable action selector rejected a valid choice"
+  assert_eq "${value}" "Choice 1" \
+    "action selector output-variable collision"
+  while IFS= read -r argument; do
+    if [[ "${previous_argument}" == "--height" ]]; then
+      selected_height="${argument}"
+      break
+    fi
+    previous_argument="${argument}"
+  done < "${argument_log}"
+  assert_eq "${selected_height}" "13" \
+    "action selector terminal-aware height"
+
+  gum_status=1
+  value="sentinel"
+  if cntools_ui_choose value "Filter wallets…" "${choices[@]}"; then
+    fail "the reusable action selector discarded Gum cancellation"
+  else
+    status=$?
+  fi
+  assert_eq "${status}" "1" "action selector cancellation status"
+  assert_eq "${value}" "" "action selector cancellation output"
 )
 
 run_filter_layout_test() (
@@ -882,6 +935,7 @@ run_archive_member_tests
 run_pinned_checksum_test
 run_offline_installer_test
 run_filter_presentation_test
+run_action_choice_helper_test
 run_filter_layout_test
 run_status_spacing_test
 run_menu_mapping_test

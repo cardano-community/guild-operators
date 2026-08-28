@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Best-effort CNTools health snapshots for the Gum header. Functions only.
+# shellcheck disable=SC2034
 
 CNTOOLS_HEALTH_CACHE_SECONDS="${CNTOOLS_HEALTH_CACHE_SECONDS:-5}"
 CNTOOLS_HEALTH_LAST_REFRESH=0
@@ -229,13 +230,14 @@ cntools_health_fetch_local() {
 
 cntools_health_fetch_koios() {
   local response_file=""
+  local auth_header_file=""
   local response=""
   local endpoint="${CNTOOLS_KOIOS_API%/}/tip"
+  local request_status=0
   local -a request_arguments=(
     --connect-timeout 1
     --max-time 2
     --max-filesize 65536
-    --no-show-error
     --header "accept: application/json"
   )
 
@@ -247,14 +249,24 @@ cntools_health_fetch_koios() {
     return 1
   }
   if [[ -n "${CNTOOLS_KOIOS_TOKEN:-}" ]]; then
-    request_arguments+=(
-      --header "Authorization: Bearer ${CNTOOLS_KOIOS_TOKEN}"
-    )
+    if ! cntools_http_secret_file_create auth_header_file; then
+      cntools_log ERROR "Could not prepare the protected Koios authorization header" || true
+      rm -f -- "${response_file}"
+      return 1
+    fi
+    request_arguments+=(--header "@${auth_header_file}")
   fi
-  if ! cntools_http_request GET "${endpoint}" "${response_file}" \
+  if cntools_http_request GET "${endpoint}" "${response_file}" \
       "${request_arguments[@]}"; then
+    request_status=0
+  else
+    request_status=$?
+  fi
+  [[ -z "${auth_header_file}" ]] ||
+    cntools_http_secret_file_remove "${auth_header_file}" || true
+  if (( request_status != 0 )); then
     rm -f -- "${response_file}"
-    return 1
+    return "${request_status}"
   fi
   response="$(< "${response_file}")"
   rm -f -- "${response_file}"

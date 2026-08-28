@@ -42,7 +42,7 @@ assert_fails() {
   fi
 }
 
-for required_command in bash chmod grep jq ln mktemp mv rm stat tr wc; do
+for required_command in bash chmod grep jq ln mktemp mv rm sleep stat tr wc; do
   command -v "${required_command}" >/dev/null 2>&1 ||
     fail "required command is unavailable: ${required_command}"
 done
@@ -57,7 +57,7 @@ done
 
 for required_function in \
   cntools_log_init cntools_log cntools_log_close \
-  cntools_run_command cntools_http_request \
+  cntools_run_command cntools_run_command_timeout cntools_http_request \
   cntools_ui_suspend_for_job_control cntools_ui_mark_resize \
   cntools_menu_validate_metadata cntools_menu_open cntools_menu_cache_build \
   cntools_menu_cache_open \
@@ -551,6 +551,7 @@ run_log_and_wrapper_tests() (
   local command_stub="${TEST_ROOT}/command-output.sh"
   local failure_stub="${TEST_ROOT}/command-failure.sh"
   local invocation_trace="${TEST_ROOT}/invalid-mask.trace"
+  local sleep_bin=""
 
   CNTOOLS_LOG_DIR="${log_dir}"
   CNTOOLS_LOG="${log_file}"
@@ -599,6 +600,18 @@ exit 23'
   grep -E -- '-> 23$' "${log_file}" >/dev/null ||
     fail "command failure status was not logged"
 
+  sleep_bin="$(command -v sleep)"
+  CNTOOLS_TIMEOUT_BIN=""
+  if cntools_run_command_timeout 1 "00" -- \
+      "${sleep_bin}" 5 >/dev/null 2>&1; then
+    fail "bounded command wrapper did not stop a hung command"
+  else
+    status=$?
+  fi
+  assert_eq "${status}" "124" "bounded command timeout status"
+  grep -E -- 'sleep 5 -> 124$' "${log_file}" >/dev/null ||
+    fail "bounded command timeout was not logged"
+
   write_file "${TEST_ROOT}/must-not-run.sh" "#!/usr/bin/env bash
 printf invoked > '${invocation_trace}'"
   chmod 0700 "${TEST_ROOT}/must-not-run.sh"
@@ -630,10 +643,14 @@ run_http_tests() (
   local status=0
 
   mkdir -p "${bin_dir}"
-  write_file "${bin_dir}/curl" '#!/usr/bin/env bash
+write_file "${bin_dir}/curl" '#!/usr/bin/env bash
 output=""
 format=""
 printf "%s\n" "$@" > "${CNTOOLS_TEST_CURL_TRACE}"
+if [[ "${CNTOOLS_TEST_CURL_STATUS:-0}" != "0" ]]; then
+  printf "%s\n" "${CNTOOLS_TEST_CURL_ERROR:-fixture transport failure}" >&2
+  exit "${CNTOOLS_TEST_CURL_STATUS}"
+fi
 while (( $# > 0 )); do
   case "$1" in
     --output|-o)
@@ -688,6 +705,21 @@ exit 0'
      grep -F 'token=' "${log_file}" >/dev/null; then
     fail "HTTP credentials, query, headers, or body were logged"
   fi
+
+  CNTOOLS_TEST_CURL_STATUS=7
+  CNTOOLS_TEST_CURL_ERROR="fixture transport failure"
+  export CNTOOLS_TEST_CURL_STATUS CNTOOLS_TEST_CURL_ERROR
+  rm -f -- "${response}"
+  if cntools_http_request GET \
+      'https://example.test/transport-failure' "${response}"; then
+    fail "HTTP wrapper discarded a curl transport failure"
+  else
+    status=$?
+  fi
+  assert_eq "${status}" "7" "HTTP transport failure status"
+  grep -F 'fixture transport failure' "${log_file}" >/dev/null ||
+    fail "sanitized curl transport detail was not logged"
+  unset CNTOOLS_TEST_CURL_STATUS CNTOOLS_TEST_CURL_ERROR
 
   : > "${curl_trace}"
   rm -f -- "${response}"

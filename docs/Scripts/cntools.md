@@ -6,9 +6,9 @@ but replaces the former monolithic implementation with a modular framework and
 a Charm Gum interface.
 
 !!! warning "Version 14 implementation status"
-    The complete navigation tree is available for interface testing, but its
-    operational actions are placeholders. Do not expect wallet, pool,
-    transaction, governance, or chain operations to work yet.
+    Wallet List and Show are functional and read-only in version 14.1.0. Other
+    wallet actions and all pool, transaction, governance, backup, block, and
+    advanced actions remain placeholders.
 
 ## Installation and migration
 
@@ -76,8 +76,27 @@ does not prevent the menu from opening.
 
 CNTools validates the menu metadata once at startup and keeps the catalog in
 memory. Gum provides filtering and keyboard navigation, while action code and
-its focused libraries are loaded only when selected. In version 14.0.0 those
-actions display a not-implemented notice.
+its focused libraries are loaded only when selected. Wallet List and Show load
+their wallet libraries on demand; remaining operational actions display a
+not-implemented notice.
+
+Wallet List reads existing direct subdirectories beneath the configured
+`WALLET_FOLDER` and shows wallet type, key protection, and available address
+files. Wallet Show adds balances, UTxO and native asset counts, rewards,
+registration, and delegation when its backend supports those queries. Local
+cnode and Dingo sessions use the deployed Cardano CLI, light mode uses Koios,
+offline mode never contacts a backend, and local Amaru sessions clearly mark
+live values unavailable while still showing wallet files.
+
+Local Cardano CLI calls are bounded by a timeout. Light mode sends all distinct
+funding addresses for the selected wallet in one Koios request and uses one
+separate stake-account request. Partial responses remain visibly partial and
+are never promoted to a complete wallet total.
+
+These actions do not create missing addresses, update keys, or change the
+existing CNTools wallet layout. Unsafe symbolic links and malformed address
+files are skipped or reported and recorded in the CNTools log. Koios tokens are
+kept out of logged commands, process arguments, and child environments.
 
 The Update menu can check again, show changelog entries newer than the running
 version, or invoke Guild Deploy. Updates replace the complete managed CNTools

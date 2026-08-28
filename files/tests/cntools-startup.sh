@@ -177,6 +177,10 @@ POOL_FOLDER="${NODE_HOME}/private/pools"
 ASSET_FOLDER="${NODE_HOME}/private/assets"
 DBSYNC_QUERY_FOLDER="${NODE_HOME}/runtime/dbsync-queries"
 CONFIG="${NODE_HOME}/custom/node-config.json"
+CCLI="/usr/bin/false"
+SOCKET="${NODE_HOME}/custom/node.socket"
+WALLET_PAY_ADDR_FILENAME="custom-payment.addr"
+WALLET_STAKE_ADDR_FILENAME="custom-reward.addr"
 UPDATE_CHECK="Y"
 ENABLE_KOIOS="Y"
 KOIOS_API=""
@@ -258,10 +262,15 @@ cntools_action_main() {
     printf "%s\n" "metrics=${CNTOOLS_METRICS_PROVIDER}"
     printf "%s\n" "config=${CNTOOLS_CONFIG}"
     printf "%s\n" "capabilities=${CNTOOLS_CAPABILITIES}"
+    printf "%s\n" "local_cli_capable=${CNTOOLS_LOCAL_CLI_CAPABLE}"
+    printf "%s\n" "cli=${CNTOOLS_CLI}"
+    printf "%s\n" "socket=${CNTOOLS_SOCKET}"
     printf "%s\n" "log_dir=${CNTOOLS_LOG_DIR}"
     printf "%s\n" "log=${CNTOOLS_LOG}"
     printf "%s\n" "tmp=${CNTOOLS_TMP_DIR}"
     printf "%s\n" "wallet=${CNTOOLS_WALLET_DIR}"
+    printf "%s\n" "wallet_payment_address_file=${CNTOOLS_WALLET_PAY_ADDR_FILENAME}"
+    printf "%s\n" "wallet_reward_address_file=${CNTOOLS_WALLET_STAKE_ADDR_FILENAME}"
     printf "%s\n" "pool=${CNTOOLS_POOL_DIR}"
     printf "%s\n" "asset=${CNTOOLS_ASSET_DIR}"
     printf "%s\n" "dbsync=${CNTOOLS_DBSYNC_QUERY_DIR}"
@@ -269,6 +278,16 @@ cntools_action_main() {
     printf "%s\n" "koios_enabled=${CNTOOLS_KOIOS_ENABLED}"
     printf "%s\n" "koios_api=${CNTOOLS_KOIOS_API}"
     printf "%s\n" "curl_timeout=${CNTOOLS_CURL_TIMEOUT}"
+    if [[ "${CNTOOLS_KOIOS_TOKEN:-}" == "fixture-token" ]]; then
+      printf "%s\n" "koios_token_available=Y"
+    else
+      printf "%s\n" "koios_token_available=N"
+    fi
+    if env | grep -Eq "^(CNTOOLS_KOIOS_TOKEN|KOIOS_API_TOKEN)="; then
+      printf "%s\n" "koios_token_exported=Y"
+    else
+      printf "%s\n" "koios_token_exported=N"
+    fi
     printf "%s\n" "posix=${posix_state}"
   } > "${CNTOOLS_TEST_SESSION_TRACE}"
 }'
@@ -576,10 +595,19 @@ run_session_matrix_tests() {
       assert_trace_value metrics "${expected_metrics}"
       assert_trace_value config "${NODE_ROOT}/custom/node-config.json"
       assert_trace_value capabilities "${expected_capabilities}"
+      if [[ "${implementation}" == "amaru" ]]; then
+        assert_trace_value local_cli_capable "false"
+      else
+        assert_trace_value local_cli_capable "true"
+      fi
+      assert_trace_value cli "/usr/bin/false"
+      assert_trace_value socket "${NODE_ROOT}/custom/node.socket"
       assert_trace_value log_dir "${NODE_ROOT}/runtime/logs"
       assert_trace_value log "${NODE_ROOT}/runtime/logs/cntools.log"
       assert_trace_value tmp "${NODE_ROOT}/runtime/tmp"
       assert_trace_value wallet "${NODE_ROOT}/private/wallets"
+      assert_trace_value wallet_payment_address_file "custom-payment.addr"
+      assert_trace_value wallet_reward_address_file "custom-reward.addr"
       assert_trace_value pool "${NODE_ROOT}/private/pools"
       assert_trace_value asset "${NODE_ROOT}/private/assets"
       assert_trace_value dbsync "${NODE_ROOT}/runtime/dbsync-queries"
@@ -587,6 +615,8 @@ run_session_matrix_tests() {
       assert_trace_value koios_enabled "Y"
       assert_trace_value koios_api "${expected_koios}"
       assert_trace_value curl_timeout "17"
+      assert_trace_value koios_token_available "Y"
+      assert_trace_value koios_token_exported "N"
       assert_trace_value posix "N"
       grep -F \
         "start ui=gum mode=${mode} backend=${expected_backend} implementation=${implementation}" \

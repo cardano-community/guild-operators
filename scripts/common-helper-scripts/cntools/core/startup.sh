@@ -83,7 +83,7 @@ cntools_startup_require_commands() {
   local command_name=""
   local -a missing=()
 
-  for command_name in awk jq curl tput date env mktemp mkdir chmod mv rm stat wc; do
+  for command_name in awk jq curl tput date env mktemp mkdir chmod mv rm sleep stat wc; do
     command -v "${command_name}" >/dev/null 2>&1 || missing+=("${command_name}")
   done
   if (( ${#missing[@]} > 0 )); then
@@ -155,9 +155,48 @@ cntools_startup_default_koios_api() {
   esac
 }
 
+cntools_startup_resolve_command() {
+  local candidate="${1:-}"
+  local parent=""
+
+  [[ -n "${candidate}" &&
+     "${candidate}" != *$'\n'* &&
+     "${candidate}" != *$'\r'* ]] || return 1
+  if [[ "${candidate}" != */* ]]; then
+    candidate="$(type -P "${candidate}" 2>/dev/null || true)"
+  elif [[ "${candidate}" != /* ]]; then
+    parent="$(cd -- "$(dirname "${candidate}")" 2>/dev/null && pwd -P)" ||
+      return 1
+    candidate="${parent}/$(basename "${candidate}")"
+  fi
+  [[ "${candidate}" = /* && -x "${candidate}" && ! -d "${candidate}" ]] ||
+    return 1
+  printf '%s\n' "${candidate}"
+}
+
+cntools_startup_wallet_filename_valid() {
+  local value="${1:-}"
+
+  [[ "${value}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ &&
+     "${value}" != "." && "${value}" != ".." ]]
+}
+
 cntools_startup_normalize_session() {
   local node_home="${NODE_HOME:-${CNODE_HOME:-}}"
+  local cli_candidate="${CCLI:-}"
+  local filename_value=""
   local path_value=""
+  local timeout_candidate=""
+  local timeout_path=""
+  local timeout_version=""
+
+  # Isolate credentials before normalization invokes any external command.
+  CNTOOLS_KOIOS_TOKEN="${KOIOS_API_TOKEN:-}"
+  if ! export -n CNTOOLS_KOIOS_TOKEN KOIOS_API_TOKEN 2>/dev/null ||
+     ! unset KOIOS_API_TOKEN 2>/dev/null; then
+    cntools_startup_error "KOIOS_API_TOKEN could not be isolated from child processes."
+    return 1
+  fi
 
   [[ "${DEPLOYMENT_SCHEMA_VERSION:-}" == "1" ]] || {
     cntools_startup_error "A finalized Guild deployment manifest is required."
@@ -194,6 +233,8 @@ cntools_startup_normalize_session() {
   CNTOOLS_METRICS_URL="${NODE_METRICS_URL:-}"
   CNTOOLS_CONFIG="${CONFIG:-${NODE_CONFIG:-${CNTOOLS_NODE_HOME}/files/config.json}}"
   CNTOOLS_CAPABILITIES="${NODE_DEPLOYMENT_CAPABILITIES:-}"
+  CNTOOLS_LOCAL_CLI_CAPABLE="$(jq -r '.localCli // false' \
+    <<< "${CNTOOLS_CAPABILITIES}" 2>/dev/null || printf 'false')"
   CNTOOLS_LOG_DIR="${LOG_DIR:-${CNTOOLS_NODE_HOME}/logs}"
   CNTOOLS_LOG="${CNTOOLS_LOG:-${CNTOOLS_LOG_DIR}/cntools.log}"
   CNTOOLS_TMP_DIR="${TMP_DIR:-/tmp/$(basename "${CNTOOLS_NODE_HOME}")}"
@@ -204,8 +245,44 @@ cntools_startup_normalize_session() {
   CNTOOLS_UPDATE_CHECK="${CNTOOLS_UPDATE_CHECK_OVERRIDE:-${UPDATE_CHECK:-Y}}"
   CNTOOLS_KOIOS_ENABLED="${ENABLE_KOIOS:-Y}"
   CNTOOLS_KOIOS_API="${KOIOS_API:-}"
-  CNTOOLS_KOIOS_TOKEN="${KOIOS_API_TOKEN:-}"
   CNTOOLS_CURL_TIMEOUT="${CURL_TIMEOUT:-10}"
+  CNTOOLS_CLI_TIMEOUT="${CLI_TIMEOUT:-${CNTOOLS_CURL_TIMEOUT}}"
+  CNTOOLS_SOCKET="${NODE_SOCKET:-${SOCKET:-${CARDANO_NODE_SOCKET_PATH:-}}}"
+  if [[ -z "${CNTOOLS_SOCKET}" ]]; then
+    case "${CNTOOLS_IMPLEMENTATION}" in
+      cnode) CNTOOLS_SOCKET="${CNTOOLS_NODE_HOME}/sockets/node.socket" ;;
+      dingo) CNTOOLS_SOCKET="${CNTOOLS_NODE_HOME}/sockets/dingo.socket" ;;
+    esac
+  fi
+  if [[ -z "${cli_candidate}" ]]; then
+    case "${CNTOOLS_IMPLEMENTATION}" in
+      cnode) cli_candidate="cardano-cli" ;;
+      dingo) cli_candidate="cardano-cli-dingo" ;;
+    esac
+  fi
+  CNTOOLS_CLI="$(cntools_startup_resolve_command \
+    "${cli_candidate}" 2>/dev/null || true)"
+  CNTOOLS_TIMEOUT_BIN=""
+  for timeout_candidate in timeout gtimeout; do
+    timeout_path="$(cntools_startup_resolve_command \
+      "${timeout_candidate}" 2>/dev/null || true)"
+    [[ -n "${timeout_path}" ]] || continue
+    timeout_version="$(LC_ALL=C "${timeout_path}" --version 2>/dev/null || true)"
+    [[ "${timeout_version}" == *"GNU coreutils"* ]] || continue
+    CNTOOLS_TIMEOUT_BIN="${timeout_path}"
+    break
+  done
+
+  CNTOOLS_WALLET_PAY_VKEY_FILENAME="${WALLET_PAY_VK_FILENAME:-payment.vkey}"
+  CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME="${WALLET_HW_PAY_SK_FILENAME:-payment.hwsfile}"
+  CNTOOLS_WALLET_PAY_ADDR_FILENAME="${WALLET_PAY_ADDR_FILENAME:-payment.addr}"
+  CNTOOLS_WALLET_PAY_SCRIPT_FILENAME="${WALLET_PAY_SCRIPT_FILENAME:-payment.script}"
+  CNTOOLS_WALLET_BASE_ADDR_FILENAME="${WALLET_BASE_ADDR_FILENAME:-base.addr}"
+  CNTOOLS_WALLET_STAKE_VKEY_FILENAME="${WALLET_STAKE_VK_FILENAME:-stake.vkey}"
+  CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME="${WALLET_HW_STAKE_SK_FILENAME:-stake.hwsfile}"
+  CNTOOLS_WALLET_STAKE_ADDR_FILENAME="${WALLET_STAKE_ADDR_FILENAME:-reward.addr}"
+  CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME="${WALLET_STAKE_SCRIPT_FILENAME:-stake.script}"
+  CNTOOLS_WALLET_MULTISIG_PREFIX="${WALLET_MULTISIG_PREFIX:-ms_}"
 
   [[ -n "${CNTOOLS_SERVICE}" &&
      "${CNTOOLS_SERVICE}" != *$'\n'* &&
@@ -235,6 +312,11 @@ cntools_startup_normalize_session() {
     cntools_startup_error "The deployment capabilities are not defined or are invalid."
     return 1
   }
+  [[ "${CNTOOLS_LOCAL_CLI_CAPABLE}" == "true" ||
+     "${CNTOOLS_LOCAL_CLI_CAPABLE}" == "false" ]] || {
+    cntools_startup_error "The deployment local CLI capability is invalid."
+    return 1
+  }
   case "${CNTOOLS_UPDATE_CHECK}" in Y|N) ;; *)
     cntools_startup_error "UPDATE_CHECK must be Y or N."
     return 1
@@ -247,6 +329,10 @@ cntools_startup_normalize_session() {
     cntools_startup_error "CURL_TIMEOUT must be a positive integer."
     return 1
   }
+  [[ "${CNTOOLS_CLI_TIMEOUT}" =~ ^[1-9][0-9]*$ ]] || {
+    cntools_startup_error "CLI_TIMEOUT must be a positive integer."
+    return 1
+  }
   for path_value in \
     "${CNTOOLS_LOG_DIR}" "${CNTOOLS_LOG}" "${CNTOOLS_TMP_DIR}" \
     "${CNTOOLS_WALLET_DIR}" "${CNTOOLS_POOL_DIR}" "${CNTOOLS_ASSET_DIR}" \
@@ -257,6 +343,35 @@ cntools_startup_normalize_session() {
       return 1
     }
   done
+  if [[ -n "${CNTOOLS_SOCKET}" &&
+        ( "${CNTOOLS_SOCKET}" != /* ||
+          "${CNTOOLS_SOCKET}" == *$'\n'* ||
+          "${CNTOOLS_SOCKET}" == *$'\r'* ) ]]; then
+    cntools_startup_error \
+      "CNTools received an unsafe node socket path: ${CNTOOLS_SOCKET}"
+    return 1
+  fi
+  for filename_value in \
+    "${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" \
+    "${CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME}" \
+    "${CNTOOLS_WALLET_PAY_ADDR_FILENAME}" \
+    "${CNTOOLS_WALLET_PAY_SCRIPT_FILENAME}" \
+    "${CNTOOLS_WALLET_BASE_ADDR_FILENAME}" \
+    "${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" \
+    "${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}" \
+    "${CNTOOLS_WALLET_STAKE_ADDR_FILENAME}" \
+    "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}"; do
+    cntools_startup_wallet_filename_valid "${filename_value}" || {
+      cntools_startup_error \
+        "CNTools received an unsafe wallet filename: ${filename_value:-unset}"
+      return 1
+    }
+  done
+  [[ "${CNTOOLS_WALLET_MULTISIG_PREFIX}" =~ ^[A-Za-z0-9._-]*$ ]] || {
+    cntools_startup_error \
+      "CNTools received an unsafe wallet multisignature prefix."
+    return 1
+  }
 
   if [[ -z "${CNTOOLS_KOIOS_API}" ]]; then
     CNTOOLS_KOIOS_API="$(cntools_startup_default_koios_api "${CNTOOLS_NETWORK}")" || {
@@ -299,11 +414,18 @@ cntools_startup_normalize_session() {
   export CNTOOLS_NETWORK CNTOOLS_SERVICE CNTOOLS_ACCOUNT CNTOOLS_BRANCH
   export CNTOOLS_METRICS_PROVIDER CNTOOLS_METRICS_HOST CNTOOLS_METRICS_PORT
   export CNTOOLS_METRICS_PATH CNTOOLS_METRICS_URL CNTOOLS_CONFIG
-  export CNTOOLS_CAPABILITIES
+  export CNTOOLS_CAPABILITIES CNTOOLS_LOCAL_CLI_CAPABLE CNTOOLS_CLI CNTOOLS_SOCKET
   export CNTOOLS_LOG_DIR CNTOOLS_LOG
   export CNTOOLS_TMP_DIR CNTOOLS_WALLET_DIR CNTOOLS_POOL_DIR CNTOOLS_ASSET_DIR
   export CNTOOLS_DBSYNC_QUERY_DIR CNTOOLS_UPDATE_CHECK CNTOOLS_KOIOS_ENABLED
-  export CNTOOLS_KOIOS_API CNTOOLS_CURL_TIMEOUT CNTOOLS_MODE CNTOOLS_BACKEND
+  export CNTOOLS_KOIOS_API CNTOOLS_CURL_TIMEOUT CNTOOLS_CLI_TIMEOUT
+  export CNTOOLS_TIMEOUT_BIN
+  export CNTOOLS_WALLET_PAY_VKEY_FILENAME CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME
+  export CNTOOLS_WALLET_PAY_ADDR_FILENAME CNTOOLS_WALLET_PAY_SCRIPT_FILENAME
+  export CNTOOLS_WALLET_BASE_ADDR_FILENAME CNTOOLS_WALLET_STAKE_VKEY_FILENAME
+  export CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME CNTOOLS_WALLET_STAKE_ADDR_FILENAME
+  export CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME CNTOOLS_WALLET_MULTISIG_PREFIX
+  export CNTOOLS_MODE CNTOOLS_BACKEND
   export CNTOOLS_ADVANCED CNTOOLS_SESSION_ID
 }
 

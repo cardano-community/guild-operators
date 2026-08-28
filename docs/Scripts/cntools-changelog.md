@@ -6,7 +6,27 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [14.0.0] - Unreleased
+## [14.1.0] - Unreleased
+#### Added
+- Functional, read-only Wallet List and Show actions using the existing CNTools wallet directory layout.
+- Local cnode and Dingo balance, UTxO, native asset, reward, registration, and delegation queries through the deployed Cardano CLI.
+- Koios-backed wallet and stake account queries in light mode.
+- Offline wallet inspection and capability-aware local fallback for implementations without local CLI queries.
+- Focused wallet discovery and query libraries with logged commands, API requests, selections, and failures.
+
+#### Changed
+- Wallet folders and checksum-valid, network-appropriate Bech32 address files are validated without regenerating or modifying existing wallet data.
+- Wallet List uses a compact Gum table or card layout based on terminal width.
+- Wallet selection uses the available terminal height and preserves normal Gum cancellation behavior.
+
+#### Fixed
+- Wallet Show revalidates a selected wallet before reading it, fails clearly on inaccessible folders, and rejects symbolic-link replacement after discovery.
+- Duplicate funding addresses are queried once, while incomplete backend results can no longer be presented as a complete wallet total, UTxO count, or asset count.
+- Koios light mode batches funding addresses into one `address_info` request and keeps stake information in one `account_info` request.
+- Local UTxO queries explicitly request machine-readable JSON, and malformed or mismatched stake-query rows are rejected instead of being shown as real wallet state.
+- Local CLI calls are time-bounded, and Koios credentials are kept out of child environments, command arguments, and logs.
+
+## [14.0.0] - 2026-08-28
 #### Added
 - New modular Bash framework with filesystem-backed menus and lazy action library loading.
 - Shared terminal UI, structured logging, and redacted command and HTTP wrappers.

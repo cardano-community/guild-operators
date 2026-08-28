@@ -38,6 +38,8 @@ jobs:
       run: bash files/tests/cntools-main.sh
     - name: Test CNTools menu skeleton
       run: bash files/tests/cntools-menu-skeleton.sh
+    - name: Test CNTools wallet actions
+      run: bash files/tests/cntools-wallet.sh
     - name: Test alternate deployments
       run: bash files/tests/alternate-deployments.sh
     - name: Test deployment layout

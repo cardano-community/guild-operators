@@ -53,6 +53,8 @@ cntools/
 │   └── update.sh     # Phase 5
 ├── lib/
 │   ├── placeholder.sh
+│   ├── wallet.sh
+│   ├── wallet-query.sh
 │   └── ...
 └── modules/
     └── root/
@@ -70,7 +72,7 @@ loaded during startup.
 number, without a `v` prefix. It is used by the entrypoint, the UI, and the
 availability checker, but is never included in the CNTools name or source path.
 The rewritten implementation continues the existing CNTools release lineage
-at `14.0.0`; it is not a separately versioned product.
+at version 14; it is not a separately versioned product.
 
 The filesystem is the menu tree and remains its source of truth. At startup,
 CNTools validates the complete visible tree and builds a small in-memory
@@ -79,11 +81,12 @@ action files when the selection moves, a submenu opens, or an action returns.
 Restarting CNTools rebuilds the catalog after definitions change on disk. No
 catalog file is generated or deployed.
 
-The Phase 4 framework mirrors the current CNTools menu hierarchy. Every
-operational leaf has its own inert `action.sh` which logs its selection and
-shows a consistent not-implemented message. The existing phase-0 menu
-inventory remains an implementation checklist, not a generated runtime
-manifest.
+The Phase 4 framework mirrors the current CNTools menu hierarchy. It initially
+gave every operational leaf an inert `action.sh` with a consistent
+not-implemented message. Functional phases replace those placeholders in
+small vertical slices; Phase 7 activates Wallet List and Show. The existing
+phase-0 menu inventory remains an implementation checklist, not a generated
+runtime manifest.
 
 ## Runtime modes
 
@@ -307,8 +310,8 @@ Log records are human-readable single lines:
 
 ```text
 2026-08-26T12:34:56+0200 [ACTION] [wallet/list] selected
-2026-08-26T12:34:57+0200 [CMD] [wallet/list] cardano-cli query ... -> 0
-2026-08-26T12:34:58+0200 [API] [wallet/list] GET /address_info -> 200
+2026-08-26T12:34:57+0200 [CMD] [wallet/show] cardano-cli query ... -> 0
+2026-08-26T12:34:58+0200 [API] [wallet/show] POST /address_info -> 200
 ```
 
 Core wrappers log:
@@ -505,8 +508,33 @@ installed legacy library only after the new entrypoint is usable. The common
 current Guild Deploy snapshot for this migration; the retired per-file CNTools
 self-updater cannot perform the layout transition.
 
-This phase changes the public entrypoint and deployment boundary only. The
-Phase 4 operational menu entries remain placeholders.
+This phase changed the public entrypoint and deployment boundary only. Its
+operational menu entries remained placeholders until later functional phases.
+
+## Phase 7 read-only wallet slice
+
+Phase 7 activates Wallet List and Show without copying legacy implementation
+code or changing existing wallet data. `lib/wallet.sh` discovers direct wallet
+directories, rejects symbolic-link traversal, reads the configured legacy
+address filenames, and classifies CLI, hardware, multisignature, protected,
+and incomplete wallets. It never generates a missing address or rewrites a
+wallet file.
+
+`lib/wallet-query.sh` loads only for Show. Local cnode and Dingo sessions use
+the deployment-selected Cardano CLI and node socket with bounded execution.
+Light sessions use the official bulk-array Koios `address_info` and
+`account_info` POST contracts. Offline sessions perform no command or HTTP
+query. Amaru remains a first-class local
+deployment: its wallet files are shown, while live chain values are clearly
+marked unavailable because its deployment manifest declares no local CLI
+capability.
+
+Backend failures are non-destructive and do not prevent filesystem wallet
+details from being shown. Complete aggregates are shown only when every
+distinct funding-address query succeeds. External commands, API endpoints and
+status codes, wallet selections, validation failures, and backend errors use
+the CNTools logger. Authorization headers are passed through private temporary
+files and, together with request bodies, remain outside the log.
 
 ## Explicit non-goals
 

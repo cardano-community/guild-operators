@@ -150,7 +150,7 @@ assert_eq "$(find "${MODULE_ROOT}" -type f -name module.json -print | wc -l | tr
 assert_eq "$(find "${MODULE_ROOT}" -type f -name action.sh -print | wc -l | trim_count)" "57" \
   "Phase 5 action entrypoint count"
 assert_eq "$(find "${MODULE_ROOT}" -type f -print | wc -l | trim_count)" "130" \
-  "Phase 5 module payload file count"
+  "Phase 7 module payload file count"
 [[ -z "$(find "${MODULE_ROOT}" -type l -print)" ]] ||
   fail "CNTools menu skeleton contains a symbolic link"
 
@@ -210,18 +210,35 @@ while IFS=$'\t' read -r \
       fail "action entrypoint is missing or unsafe: ${module_id}"
     bash -n "${action_file}" ||
       fail "action entrypoint has invalid Bash syntax: ${module_id}"
-    jq -e '.libs == ["placeholder.sh"]' "${metadata}" >/dev/null ||
-      fail "placeholder action has unexpected library declarations: ${module_id}"
-    grep -F 'cntools_action_placeholder' "${action_file}" >/dev/null ||
-      fail "action does not call the shared placeholder: ${module_id}"
+    case "${module_id}" in
+      wallet/list)
+        jq -e '.libs == ["wallet.sh"]' "${metadata}" >/dev/null ||
+          fail "Wallet List has unexpected library declarations"
+        grep -F 'cntools_wallet_action_list' "${action_file}" >/dev/null ||
+          fail "Wallet List does not call its functional entrypoint"
+        ;;
+      wallet/show)
+        jq -e '.libs == ["wallet.sh", "wallet-query.sh"]' \
+          "${metadata}" >/dev/null ||
+          fail "Wallet Show has unexpected library declarations"
+        grep -F 'cntools_wallet_action_show' "${action_file}" >/dev/null ||
+          fail "Wallet Show does not call its functional entrypoint"
+        ;;
+      *)
+        jq -e '.libs == ["placeholder.sh"]' "${metadata}" >/dev/null ||
+          fail "placeholder action has unexpected library declarations: ${module_id}"
+        grep -F 'cntools_action_placeholder' "${action_file}" >/dev/null ||
+          fail "action does not call the shared placeholder: ${module_id}"
+        if [[ -z "${canonical_action}" ]]; then
+          canonical_action="${action_file}"
+        else
+          cmp -s "${canonical_action}" "${action_file}" ||
+            fail "Phase 4 placeholder entrypoints are not identical: ${module_id}"
+        fi
+        ;;
+    esac
     [[ -z "$(find "${module_directory}" -mindepth 1 -type d -print)" ]] ||
       fail "action module contains a child directory: ${module_id}"
-    if [[ -z "${canonical_action}" ]]; then
-      canonical_action="${action_file}"
-    else
-      cmp -s "${canonical_action}" "${action_file}" ||
-        fail "Phase 4 action entrypoints are not identical: ${module_id}"
-    fi
     case "${modes}" in
       local,light) connected_only=$((connected_only + 1)) ;;
       local,light,offline) offline_capable=$((offline_capable + 1)) ;;
@@ -378,11 +395,12 @@ for mode in local light offline; do
   done < "${MENU_FIXTURE}"
 done
 
-# Every Phase 4 action is a runnable placeholder in its baseline local mode.
+# Every action not implemented by Phase 7 remains a runnable placeholder.
 CNTOOLS_MODE="local"
 while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
+  case "${module_id}" in wallet/list|wallet/show) continue ;; esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then
     status=0
@@ -418,7 +436,7 @@ while IFS=$'\t' read -r \
     "unsupported offline action status for ${module_id}"
 done < "${MENU_FIXTURE}"
 
-grep -F $'ACTION\twallet/list\tselected' \
+grep -F $'ACTION\twallet/remove\tselected' \
   "${CNTOOLS_TEST_LOG_TRACE}" >/dev/null ||
   fail "action selection was not logged with the action identity"
 
@@ -426,7 +444,7 @@ grep -F $'ACTION\twallet/list\tselected' \
 CNTOOLS_MODE="local"
 CNTOOLS_UI_INTERACTIVE="N"
 exec 9<<< 'noninteractive-input'
-cntools_action_run "${MODULE_ROOT}/wallet/list" <&9 >/dev/null ||
+cntools_action_run "${MODULE_ROOT}/wallet/remove" <&9 >/dev/null ||
   fail "non-interactive placeholder invocation failed"
 IFS= read -r remaining_input <&9 ||
   fail "non-interactive placeholder consumed its input"
@@ -438,7 +456,7 @@ assert_eq "${remaining_input}" "noninteractive-input" \
 # boundary is stubbed above because Gum input behavior has its own UI tests.
 waits_before="$(ui_trace_count WAIT)"
 CNTOOLS_UI_INTERACTIVE="Y"
-cntools_action_run "${MODULE_ROOT}/wallet/list" </dev/null >/dev/null ||
+cntools_action_run "${MODULE_ROOT}/wallet/remove" </dev/null >/dev/null ||
   fail "interactive placeholder invocation failed"
 waits_after="$(ui_trace_count WAIT)"
 assert_eq "$((waits_after - waits_before))" "1" \

@@ -791,24 +791,80 @@ cntools_ui_wait() {
 }
 
 cntools_ui_read_key() {
-  local output_variable="${1:-}"
+  local _cntools_output_name="${1:-}"
 
-  [[ "${output_variable}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
   cntools_ui_wait
-  printf -v "${output_variable}" '%s' enter
+  _cntools_output_ref="enter"
 }
 
 # Reusable interaction helpers for actions added later.
 cntools_ui_input() {
-  local output_variable="${1:-}"
-  local prompt="${2:-Value}"
-  local value=""
+  local _cntools_output_name="${1:-}"
+  local _cntools_prompt="${2:-Value}"
+  local _cntools_value=""
 
-  [[ "${output_variable}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  value="$(cntools_gum input --prompt "${prompt}: " \
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_value="$(cntools_gum input --prompt "${_cntools_prompt}: " \
     --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
     --cursor.foreground "${CNTOOLS_GUM_COLOR_BRAND}")" || return $?
-  printf -v "${output_variable}" '%s' "${value}"
+  _cntools_output_ref="${_cntools_value}"
+}
+
+cntools_ui_choose() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_placeholder="${2:-Select…}"
+  local _cntools_value=""
+  local _cntools_status=0
+  local _cntools_width=""
+  local _cntools_height=0
+  local _cntools_rows_above=""
+  shift 2 || return 2
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  (( $# > 0 )) || return 2
+  _cntools_width="$(cntools_gum_width)" || return 1
+  _cntools_rows_above="$(cntools_gum_header_rows)" || return 1
+  _cntools_height="$(cntools_gum_filter_height \
+    "$#" "${_cntools_rows_above}")" || return 1
+  if _cntools_value="$(printf '%s\n' "$@" | cntools_gum filter \
+      --limit 1 --height "${_cntools_height}" --width "${_cntools_width}" \
+      --padding "0 2 1 2" --no-show-help \
+      --placeholder "${_cntools_placeholder}" \
+      --placeholder.foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
+      --prompt "› " --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+      --indicator "▸ " \
+      --indicator.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+      --match.foreground "${CNTOOLS_GUM_COLOR_SUCCESS}" \
+      --text.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
+      --text.background "${CNTOOLS_GUM_COLOR_CANVAS}" \
+      --cursor-text.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
+      --cursor-text.background "${CNTOOLS_GUM_COLOR_SURFACE}")"; then
+    _cntools_status=0
+  else
+    _cntools_status=$?
+  fi
+  _cntools_output_ref="${_cntools_value}"
+  return "${_cntools_status}"
+}
+
+cntools_ui_static_table() {
+  local header="${1:-}"
+  local row=""
+  shift || return 2
+
+  [[ -n "${header}" ]] || return 2
+  cntools_gum style --margin "0 2" --padding "0 1" --bold \
+    --foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+    --background "${CNTOOLS_GUM_COLOR_SURFACE}" "${header}" || return 1
+  for row in "$@"; do
+    cntools_gum style --margin "0 2" --padding "0 1" \
+      --foreground "${CNTOOLS_GUM_COLOR_TEXT}" "${row}" || return 1
+  done
 }
 
 cntools_ui_pager() {
@@ -838,18 +894,20 @@ cntools_ui_spin() {
 }
 
 cntools_gum_filter() {
-  local output_variable="${1:-}"
-  local height="${2:-12}"
-  local result=""
-  local status=0
-  local width=""
+  local _cntools_output_name="${1:-}"
+  local _cntools_height="${2:-12}"
+  local _cntools_result=""
+  local _cntools_status=0
+  local _cntools_width=""
   shift 2 || return 2
 
-  [[ "${output_variable}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
   (( $# > 0 )) || return 2
-  width="$(cntools_gum_width)"
-  if result="$(printf '%s\n' "$@" | cntools_gum filter \
-      --limit 1 --height "${height}" --width "${width}" \
+  _cntools_width="$(cntools_gum_width)"
+  if _cntools_result="$(printf '%s\n' "$@" | cntools_gum filter \
+      --limit 1 --height "${_cntools_height}" --width "${_cntools_width}" \
       --padding "0 2 1 2" \
       --placeholder "Filter actions…" \
       --placeholder.foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
@@ -861,12 +919,12 @@ cntools_gum_filter() {
       --text.background "${CNTOOLS_GUM_COLOR_CANVAS}" \
       --cursor-text.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
       --cursor-text.background "${CNTOOLS_GUM_COLOR_SURFACE}")"; then
-    status=0
+    _cntools_status=0
   else
-    status=$?
+    _cntools_status=$?
   fi
-  printf -v "${output_variable}" '%s' "${result}"
-  return "${status}"
+  _cntools_output_ref="${_cntools_result}"
+  return "${_cntools_status}"
 }
 
 cntools_gum_menu_row() {

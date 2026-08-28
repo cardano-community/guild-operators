@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# CNTools placeholder action. Functions only.
+# CNTools wallet detail action. Functions only.
 
 cntools_action_main() {
-  cntools_action_placeholder
+  cntools_wallet_action_show
 }

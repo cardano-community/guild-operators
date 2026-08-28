@@ -10,6 +10,7 @@
     "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "wallet.sh",
+    "wallet-query.sh"
   ]
 }
