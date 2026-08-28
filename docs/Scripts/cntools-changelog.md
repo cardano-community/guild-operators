@@ -28,7 +28,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Wallet List deduplicates the complete catalog into size-bounded Koios bulk requests, validates batches atomically, and never commits malformed balances or token identities.
 - Local UTxO queries explicitly request machine-readable JSON, and malformed or mismatched stake-query rows are rejected instead of being shown as real wallet state.
 - Local CLI calls use the explicit normalized socket, log useful multi-line failures, and are time-bounded with a catalog timeout circuit breaker.
-- CNTools seeds the deployment home before loading legacy env overrides so socket paths cannot lose their node-home prefix.
+- CNTools seeds the deployment home before loading legacy env overrides and ignores stale socket aliases inherited from previously sourced environments, so local queries use the current deployment socket.
 - The styled header background now covers the separator between the CNTools name and version.
 - Koios credentials are kept out of child environments, command arguments, and logs.
 

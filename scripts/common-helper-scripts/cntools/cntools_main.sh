@@ -93,7 +93,7 @@ cntools_main() {
   CNTOOLS_SESSION_ENDED="N"
   cntools_entrypoint_install_traps
   cntools_log SESSION \
-    "start ui=gum mode=${CNTOOLS_MODE} backend=${CNTOOLS_BACKEND} implementation=${CNTOOLS_IMPLEMENTATION} network=${CNTOOLS_NETWORK} account=${CNTOOLS_ACCOUNT} branch=${CNTOOLS_BRANCH}" ||
+    "start ui=gum mode=${CNTOOLS_MODE} backend=${CNTOOLS_BACKEND} implementation=${CNTOOLS_IMPLEMENTATION} network=${CNTOOLS_NETWORK} socket=${CNTOOLS_SOCKET:-none} account=${CNTOOLS_ACCOUNT} branch=${CNTOOLS_BRANCH}" ||
     return 1
 
   # Branch redeployment remains available without Gum so a missing UI

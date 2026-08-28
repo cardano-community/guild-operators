@@ -127,6 +127,12 @@ cntools_startup_load_env() {
   NODE_HOME="${NODE_HOME:-${CNODE_HOME:-${inferred_node_home}}}"
   CNODE_HOME="${CNODE_HOME:-${NODE_HOME}}"
 
+  # These aliases can all be exported by a shell that previously sourced an
+  # older env and can therefore carry a stale, partially expanded socket into
+  # this definitions-only load. Clear the caller state first; a documented
+  # SOCKET override in the env file is evaluated again when it is sourced.
+  unset NODE_SOCKET SOCKET CARDANO_NODE_SOCKET_PATH
+
   [[ -o errexit ]] && errexit_was_enabled="Y"
   [[ -o nounset ]] && nounset_was_enabled="Y"
   [[ -o posix ]] && posix_was_enabled="Y"
@@ -264,7 +270,11 @@ cntools_startup_normalize_session() {
   CNTOOLS_KOIOS_API="${KOIOS_API:-}"
   CNTOOLS_CURL_TIMEOUT="${CURL_TIMEOUT:-10}"
   CNTOOLS_CLI_TIMEOUT="${CLI_TIMEOUT:-${CNTOOLS_CURL_TIMEOUT}}"
-  CNTOOLS_SOCKET="${NODE_SOCKET:-${SOCKET:-${CARDANO_NODE_SOCKET_PATH:-}}}"
+  # SOCKET is the documented env override. NODE_SOCKET may be established by
+  # an implementation adapter during the definitions profile (for example,
+  # Dingo). CARDANO_NODE_SOCKET_PATH is a full-runtime adapter output and must
+  # not be inherited as CNTools configuration.
+  CNTOOLS_SOCKET="${SOCKET:-${NODE_SOCKET:-}}"
   if [[ -z "${CNTOOLS_SOCKET}" ]]; then
     case "${CNTOOLS_IMPLEMENTATION}" in
       cnode) CNTOOLS_SOCKET="${CNTOOLS_NODE_HOME}/sockets/node.socket" ;;

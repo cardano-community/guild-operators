@@ -102,6 +102,10 @@ prepare_layout() {
   CASE_PATH="${PATH}"
   CASE_DISPATCH_STATUS=0
   CASE_DEPENDENCY_TRACE=""
+  CASE_SOCKET_OVERRIDE="Y"
+  CASE_INHERITED_SOCKET=""
+  CASE_INHERITED_NODE_SOCKET=""
+  CASE_INHERITED_CARDANO_SOCKET=""
 
   mkdir -p "${NODE_ROOT}/scripts" "${CASE_BIN}"
   cp -R "${CNTOOLS_SOURCE}" "${APP_ROOT}"
@@ -143,10 +147,15 @@ PARENT="/mutated/by/synthetic/env"
 ENV_PROFILE="definitions"
 OFFLINE_MODE="Y"
 
-# This mirrors legacy user configuration: the socket override is evaluated
-# before the common env body establishes CNODE_HOME. CNTools must seed the
-# deployment root before sourcing the file so the path remains complete.
-SOCKET="${CNODE_HOME}/sockets/node0.socket"
+# This mirrors legacy user configuration: the optional socket override is
+# evaluated before the common env body establishes CNODE_HOME. CNTools must
+# seed the deployment root before sourcing the file so the path remains
+# complete. With no override, startup must use the implementation default.
+if [[ "${CNTOOLS_TEST_SOCKET_OVERRIDE:-Y}" == "Y" ]]; then
+  SOCKET="${CNODE_HOME}/sockets/node0.socket"
+else
+  :
+fi
 DEPLOYMENT_SCHEMA_VERSION="1"
 NODE_HOME="${CNTOOLS_TEST_NODE_HOME}"
 NODE_IMPLEMENTATION="${CNTOOLS_TEST_IMPLEMENTATION}"
@@ -338,6 +347,7 @@ run_installed() {
     CNTOOLS_TEST_SERVICE="${CASE_SERVICE:-cnode-fixture}" \
     CNTOOLS_TEST_ACCOUNT="${CASE_ACCOUNT:-fixture-account}" \
     CNTOOLS_TEST_STORED_BRANCH="${CASE_STORED_BRANCH:-alpha}" \
+    CNTOOLS_TEST_SOCKET_OVERRIDE="${CASE_SOCKET_OVERRIDE:-Y}" \
     CNTOOLS_TEST_ENV_TRACE="${ENV_TRACE}" \
     CNTOOLS_TEST_PROBE_TRACE="${PROBE_TRACE}" \
     CNTOOLS_TEST_SESSION_TRACE="${SESSION_TRACE}" \
@@ -346,6 +356,9 @@ run_installed() {
     CNTOOLS_TEST_CURL_TRACE="${CURL_TRACE}" \
     CNTOOLS_TEST_REMOTE_VERSION="${remote_version}" \
     CNTOOLS_TEST_DEPENDENCY_TRACE="${CASE_DEPENDENCY_TRACE:-}" \
+    SOCKET="${CASE_INHERITED_SOCKET:-}" \
+    NODE_SOCKET="${CASE_INHERITED_NODE_SOCKET:-}" \
+    CARDANO_NODE_SOCKET_PATH="${CASE_INHERITED_CARDANO_SOCKET:-}" \
     "${TEST_BASH}" "${TEST_DRIVER}" "${APP_ROOT}/cntools_main.sh" "$@" \
     > "${RUN_STDOUT}" 2> "${RUN_STDERR}"; then
     RUN_STATUS=0
@@ -492,6 +505,35 @@ run_env_loading_tests() {
   )
   assert_eq "$(< "${posix_trace}")" "source:definitions" \
     "POSIX-shell definitions source"
+}
+
+run_socket_normalization_tests() {
+  prepare_layout socket-default
+  write_fake_env
+  install_inspection_action
+  set_case_identity cnode preview
+  CASE_SOCKET_OVERRIDE="N"
+  CASE_INHERITED_SOCKET="/sockets/node0.socket"
+  CASE_INHERITED_NODE_SOCKET="/sockets/node0.socket"
+  CASE_INHERITED_CARDANO_SOCKET="/sockets/node0.socket"
+  run_installed $'i\nq\n' -n -u
+  assert_eq "${RUN_STATUS}" "0" "default socket normalization status"
+  assert_trace_value socket "${NODE_ROOT}/sockets/node.socket"
+  if grep -F '/sockets/node0.socket' "${SESSION_TRACE}" >/dev/null; then
+    fail "CNTools accepted a stale adapter-derived socket from the caller"
+  fi
+
+  prepare_layout socket-override
+  write_fake_env
+  install_inspection_action
+  set_case_identity cnode preview
+  CASE_SOCKET_OVERRIDE="Y"
+  CASE_INHERITED_SOCKET="/sockets/stale-socket.socket"
+  CASE_INHERITED_NODE_SOCKET="/sockets/stale-node.socket"
+  CASE_INHERITED_CARDANO_SOCKET="/sockets/stale-cardano.socket"
+  run_installed $'i\nq\n' -n -u
+  assert_eq "${RUN_STATUS}" "0" "explicit socket override status"
+  assert_trace_value socket "${NODE_ROOT}/sockets/node0.socket"
 }
 
 run_session_matrix_tests() {
@@ -751,6 +793,7 @@ run_signal_cleanup_tests() {
 run_cli_parser_tests
 run_early_help_version_tests
 run_env_loading_tests
+run_socket_normalization_tests
 run_session_matrix_tests
 run_branch_tests
 run_signal_cleanup_tests

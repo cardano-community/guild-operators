@@ -108,6 +108,12 @@ update setting, and Koios configuration into `CNTOOLS_` names. New code uses
 those normalized names rather than generic environment state such as `PARENT`,
 `ENV_PROFILE`, or `OFFLINE_MODE`.
 
+Before sourcing the definitions profile, startup clears socket aliases that
+may have been inherited from a shell using another deployment. A `SOCKET`
+override declared in the current `env` file is then evaluated normally;
+otherwise CNTools derives the socket from the current implementation and node
+home.
+
 Startup does not source `env` again with the selected mode and does not perform
 blockchain queries. This is important for Amaru: the common Amaru adapter does
 not provide the legacy `local`, `light`, or `offline` initialization profiles.
