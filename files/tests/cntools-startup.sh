@@ -153,6 +153,7 @@ WALLET_FOLDER="${NODE_HOME}/private/wallets"
 POOL_FOLDER="${NODE_HOME}/private/pools"
 ASSET_FOLDER="${NODE_HOME}/private/assets"
 DBSYNC_QUERY_FOLDER="${NODE_HOME}/runtime/dbsync-queries"
+CONFIG="${NODE_HOME}/custom/node-config.json"
 UPDATE_CHECK="Y"
 ENABLE_KOIOS="Y"
 KOIOS_API=""
@@ -232,6 +233,7 @@ cntools_action_main() {
     printf "%s\n" "account=${CNTOOLS_ACCOUNT}"
     printf "%s\n" "branch=${CNTOOLS_BRANCH}"
     printf "%s\n" "metrics=${CNTOOLS_METRICS_PROVIDER}"
+    printf "%s\n" "config=${CNTOOLS_CONFIG}"
     printf "%s\n" "capabilities=${CNTOOLS_CAPABILITIES}"
     printf "%s\n" "log_dir=${CNTOOLS_LOG_DIR}"
     printf "%s\n" "log=${CNTOOLS_LOG}"
@@ -263,7 +265,12 @@ set_case_identity() {
 
 run_installed() {
   local input="$1"
+  local remote_version=""
   shift
+
+  if [[ -f "${APP_ROOT}/VERSION" ]]; then
+    remote_version="$(< "${APP_ROOT}/VERSION")"
+  fi
 
   rm -f -- \
     "${ENV_TRACE}" "${PROBE_TRACE}" "${SESSION_TRACE}" \
@@ -286,7 +293,7 @@ run_installed() {
     CNTOOLS_TEST_DISPATCH_TRACE="${DISPATCH_TRACE}" \
     CNTOOLS_TEST_DISPATCH_STATUS="${CASE_DISPATCH_STATUS:-0}" \
     CNTOOLS_TEST_CURL_TRACE="${CURL_TRACE}" \
-    CNTOOLS_TEST_REMOTE_VERSION="$(< "${APP_ROOT}/VERSION")" \
+    CNTOOLS_TEST_REMOTE_VERSION="${remote_version}" \
     CNTOOLS_TEST_DEPENDENCY_TRACE="${CASE_DEPENDENCY_TRACE:-}" \
     "${TEST_BASH}" "${APP_ROOT}/cntools.sh" "$@" \
     > "${RUN_STDOUT}" 2> "${RUN_STDERR}"; then
@@ -544,6 +551,7 @@ run_session_matrix_tests() {
       assert_trace_value account "fixture-account"
       assert_trace_value branch "alpha"
       assert_trace_value metrics "${expected_metrics}"
+      assert_trace_value config "${NODE_ROOT}/custom/node-config.json"
       assert_trace_value capabilities "${expected_capabilities}"
       assert_trace_value log_dir "${NODE_ROOT}/runtime/logs"
       assert_trace_value log "${NODE_ROOT}/runtime/logs/cntools.log"

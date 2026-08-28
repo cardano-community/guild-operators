@@ -708,6 +708,7 @@ dispatcher_validate_cntools_tree() {
     cntools_gum.sh
     core/action.sh
     core/gum.sh
+    core/health.sh
     core/log.sh
     core/menu.sh
     core/startup.sh

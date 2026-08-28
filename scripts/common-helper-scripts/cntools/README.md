@@ -47,6 +47,7 @@ cntools/
 ├── core/
 │   ├── action.sh
 │   ├── gum.sh
+│   ├── health.sh     # Best-effort Gum header snapshot
 │   ├── log.sh
 │   ├── menu.sh
 │   ├── startup.sh
@@ -279,13 +280,19 @@ process-wide terminal traps.
 `cntools_gum.sh` preserves `cntools.sh` as the dependency-light, pure Bash
 entrypoint. It uses the same startup normalization, in-memory menu catalog,
 lazy action loader, logging, runtime modes, update state, and Guild Deploy
-update flow. An explicit Reload rebuilds the shared session catalog; moving
-between menus does not rescan the filesystem.
+update flow. Moving between menus does not rescan the filesystem; reopening
+CNTools builds a fresh catalog when definitions have changed on disk.
 
 The Gum interface takes its visual direction from Koios: a near-black canvas,
-green accent, muted secondary text, restrained borders, and compact cards for
-the current path, runtime context, and status. Menu labels and descriptions
-come from the existing module metadata. `gum filter` presents the choices,
+green accent, muted secondary text, restrained borders, and one compact header
+for the version, current path, runtime values, and node health. The current
+path leaf uses the green accent so its location is immediately visible. Local
+and light sessions show a cached epoch, chain tip, and tip gap snapshot. A
+failed optional probe shows `node offline` without blocking CNTools; explicit
+offline mode makes no probe and omits the health row because the runtime row
+already shows `offline`. Health refreshes only on natural menu redraws, never
+while Gum owns keyboard input. Menu labels and descriptions come from the
+existing module metadata. `gum filter` presents the choices,
 allows fuzzy filtering by typing, and invokes the single selected menu or
 action when Enter is pressed. Its choice area is recalculated on every menu
 draw: all options are shown when the current terminal has room, while smaller
@@ -370,6 +377,13 @@ attempt, including a failed one. A running process never resumes after its
 installed source tree may have been replaced. If the
 dispatcher is unavailable, CNTools prints the exact command the operator
 should run instead of falling back to raw-file downloads.
+
+The full-tree transaction replaces the installed `cntools/` directory as one
+generation. A parent shell launched from inside that directory can remain
+attached to the retired directory object even after the new path is live.
+After a successful in-tool update, CNTools therefore prints the absolute
+`cd -- .../scripts/cntools` command needed to re-enter the installed tree
+before restarting.
 
 When enabled, `core/update.sh` makes one HTTP request through the logged HTTP
 wrapper for the selected account and branch's remote

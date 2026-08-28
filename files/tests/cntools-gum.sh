@@ -13,6 +13,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 GUM_ENTRYPOINT="${CNTOOLS_ROOT}/cntools_gum.sh"
 GUM_CORE="${CNTOOLS_ROOT}/core/gum.sh"
+HEALTH_CORE="${CNTOOLS_ROOT}/core/health.sh"
 PURE_ENTRYPOINT="${CNTOOLS_ROOT}/cntools.sh"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-gum.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
@@ -45,6 +46,15 @@ assert_contains() {
     fail "${context}: '${expected}' was not found"
 }
 
+assert_not_contains() {
+  local actual="$1"
+  local rejected="$2"
+  local context="${3:-unexpected text is present}"
+
+  [[ "${actual}" != *"${rejected}"* ]] ||
+    fail "${context}: '${rejected}' was found"
+}
+
 assert_fails() {
   local context="$1"
   shift
@@ -63,10 +73,13 @@ done
   fail "Gum entrypoint is missing or unsafe"
 [[ -f "${GUM_CORE}" && ! -L "${GUM_CORE}" ]] ||
   fail "Gum UI core is missing or unsafe"
+[[ -f "${HEALTH_CORE}" && ! -L "${HEALTH_CORE}" ]] ||
+  fail "Gum health core is missing or unsafe"
 [[ -f "${PURE_ENTRYPOINT}" && ! -L "${PURE_ENTRYPOINT}" ]] ||
   fail "pure-Bash entrypoint is missing or unsafe"
 
-bash -n "${GUM_ENTRYPOINT}" "${GUM_CORE}" "${PURE_ENTRYPOINT}" ||
+bash -n "${GUM_ENTRYPOINT}" "${GUM_CORE}" "${HEALTH_CORE}" \
+  "${PURE_ENTRYPOINT}" ||
   fail "a CNTools entrypoint or Gum core file has invalid Bash syntax"
 if grep -Eq 'cntools_gum|core/gum[.]sh' "${PURE_ENTRYPOINT}"; then
   fail "the pure-Bash entrypoint depends on the experimental Gum interface"
@@ -80,7 +93,9 @@ for required_function in \
   cntools_gum_find cntools_gum_require cntools_gum_install \
   cntools_gum_archive_member cntools_gum_filter \
   cntools_gum_filter_height cntools_gum_filter_header \
-  cntools_gum_menu_run; do
+  cntools_gum_capture cntools_gum_header_rows cntools_gum_breadcrumb \
+  cntools_gum_menu_run \
+  cntools_health_refresh; do
   declare -F "${required_function}" >/dev/null 2>&1 ||
     fail "Gum interface function is missing: ${required_function}"
 done
@@ -292,31 +307,37 @@ run_filter_layout_test() (
     printf '%s\n' "${fake_terminal_lines}"
   }
 
-  height="$(cntools_gum_filter_height 10 5)" ||
+  CNTOOLS_MODE="local"
+  assert_eq "$(cntools_gum_header_rows)" "6" "online Gum header rows"
+  CNTOOLS_MODE="offline"
+  assert_eq "$(cntools_gum_header_rows)" "5" "offline Gum header rows"
+  CNTOOLS_MODE="local"
+
+  height="$(cntools_gum_filter_height 10 6)" ||
     fail "root menu filter height calculation failed"
-  assert_eq "${height}" "16" \
+  assert_eq "${height}" "15" \
     "root menu height when every option fits"
 
-  fake_terminal_lines=25
-  height="$(cntools_gum_filter_height 13 5)" ||
+  fake_terminal_lines=26
+  height="$(cntools_gum_filter_height 13 6)" ||
     fail "submenu filter height calculation failed"
   assert_eq "${height}" "19" \
     "submenu height when every option fits"
 
   fake_terminal_lines=18
-  height="$(cntools_gum_filter_height 13 5)" ||
+  height="$(cntools_gum_filter_height 13 6)" ||
     fail "constrained filter height calculation failed"
-  assert_eq "${height}" "12" \
+  assert_eq "${height}" "11" \
     "submenu height in a constrained terminal"
 
   fake_terminal_lines=24
-  height="$(cntools_gum_filter_height 10 10)" ||
+  height="$(cntools_gum_filter_height 10 11)" ||
     fail "status-aware filter height calculation failed"
-  assert_eq "${height}" "13" \
+  assert_eq "${height}" "12" \
     "filter height below an additional status block"
 
   fake_terminal_lines=8
-  height="$(cntools_gum_filter_height 10 5)" ||
+  height="$(cntools_gum_filter_height 10 6)" ||
     fail "minimum filter height calculation failed"
   assert_eq "${height}" "7" \
     "minimum one-option filter height"
@@ -335,7 +356,7 @@ run_menu_mapping_test() (
   local fake_root="/fixture/root"
   local fake_submenu="/fixture/root/tools"
   local -a filter_responses=(
-    "item:2" "item:3" "item:0" "back" "reload" "unknown" "quit"
+    "item:2" "item:3" "item:0" "back" "unknown" "quit"
   )
   local filter_index=0
   local cache_build_calls=0
@@ -350,6 +371,7 @@ run_menu_mapping_test() (
   CNTOOLS_MENU_CACHE_MENU_DIRS=()
   CNTOOLS_MENU_CACHE_MENU_DIRS["${CNTOOLS_MENU_ROOT_ID}"]="${fake_root}"
   CNTOOLS_UPDATE_STATUS="current"
+  CNTOOLS_MODE="local"
 
   cntools_menu_cache_open() {
     local directory="$1"
@@ -419,11 +441,6 @@ run_menu_mapping_test() (
           [[ "${row}" != "← Back" ]] || selected="${row}"
         done
         ;;
-      reload)
-        for row in "$@"; do
-          [[ "${row}" != "↻ Reload menu definitions" ]] || selected="${row}"
-        done
-        ;;
       quit)
         for row in "$@"; do
           [[ "${row}" != "✕ Quit CNTools" ]] || selected="${row}"
@@ -441,6 +458,7 @@ run_menu_mapping_test() (
   cntools_gum_header() { return 0; }
   cntools_gum_terminal_lines() { printf '24\n'; }
   cntools_gum_log() { return 0; }
+  cntools_health_refresh() { return 0; }
   cntools_update_state_load() { return 0; }
   cntools_update_render_summary() { return 0; }
   cntools_startup_deployment_was_started() { return 1; }
@@ -461,20 +479,303 @@ run_menu_mapping_test() (
   cntools_gum_menu_run || fail "scripted Gum menu navigation failed"
   assert_eq "${action_calls}" "${fake_root}/action-b"$'\n' \
     "Gum menu action dispatch"
-  assert_eq "${cache_build_calls}" "1" \
-    "manual Gum menu reload count"
+  assert_eq "${cache_build_calls}" "0" \
+    "Gum menu cache rebuild count"
   assert_contains "${status_log}" "Not available in light mode" \
     "disabled action feedback"
   assert_contains "${status_log}" "selected row was not recognized" \
     "unknown Gum filter result feedback"
   assert_contains "${filter_header_log}" \
-    "CNTools  ·  6 options" \
+    "CNTools  ·  5 options" \
     "root Gum menu option count"
   assert_contains "${filter_header_log}" \
-    "Tools  ·  5 options" \
+    "Tools  ·  4 options" \
     "submenu Gum menu option count"
-  assert_eq "${filter_index}" "7" \
-    "submenu back, reload and unknown-row navigation sequence"
+  assert_not_contains "${status_log}" "Returned from" \
+    "successful Gum action return status"
+  assert_eq "${filter_index}" "6" \
+    "submenu back and unknown-row navigation sequence"
+)
+
+run_header_test() (
+  local argument_log="${TEST_ROOT}/header-arguments"
+  local line=""
+  local simulated_render_rows=0
+
+  unset NO_COLOR
+
+  cntools_gum_clear() { return 0; }
+  cntools_gum() {
+    local command_name="${1:-}"
+    local foreground=""
+    local bold="N"
+    local text_value="${!#}"
+    local argument=""
+    local previous=""
+    local outer_style="N"
+
+    if [[ "${command_name}" == "style" || "${command_name}" == "join" ]]; then
+      [[ "${CLICOLOR_FORCE:-}" == "1" ]] || return 98
+    fi
+
+    for argument in "$@"; do
+      if [[ "${previous}" == "--foreground" ]]; then
+        foreground="${argument}"
+      fi
+      [[ "${argument}" != "--bold" ]] || bold="Y"
+      [[ "${argument}" != "--no-strip-ansi" ]] || outer_style="Y"
+      previous="${argument}"
+    done
+    if [[ "${command_name}" == "style" ]]; then
+      printf 'style\t%s\t%s\t%s\n' \
+        "${foreground}" "${bold}" "${text_value}" >> "${argument_log}"
+      if [[ "${outer_style}" == "Y" && ${simulated_render_rows} -gt 0 ]]; then
+        for ((line = 1; line <= simulated_render_rows; line++)); do
+          printf 'rendered row %s\n' "${line}"
+        done
+      else
+        printf '%s' "${text_value}"
+      fi
+    elif [[ "${command_name}" == "join" ]]; then
+      shift 2
+      printf '%s' "$@"
+    else
+      return 2
+    fi
+  }
+
+  COLUMNS=100
+  CNTOOLS_VERSION="14.0.0"
+  CNTOOLS_MODE="local"
+  CNTOOLS_BACKEND="cnode"
+  CNTOOLS_NETWORK="preprod"
+  CNTOOLS_UI_UTF8="Y"
+  CNTOOLS_HEALTH_TEXT="Epoch 230  ·  Tip #456  ·  Gap 2 slots"
+  CNTOOLS_HEALTH_TONE="success"
+  : > "${argument_log}"
+  cntools_gum_header "/ Update / View Changes" >/dev/null ||
+    fail "nested Gum header rendering failed"
+  grep -F $'style\t#98989F\tN\t/ Update / ' \
+    "${argument_log}" >/dev/null ||
+    fail "Gum breadcrumb parent was not muted"
+  grep -F $'style\t#4FBC85\tY\tView Changes' \
+    "${argument_log}" >/dev/null ||
+    fail "Gum breadcrumb leaf was not highlighted"
+  grep -F $'style\t#98989F\tN\tlocal · cnode · preprod' \
+    "${argument_log}" >/dev/null ||
+    fail "Gum runtime row was not compact"
+  if grep -E $'\t(Mode|Backend|Network) ' "${argument_log}" >/dev/null; then
+    fail "Gum runtime row retained redundant labels"
+  fi
+  grep -F $'style\t#3DD68C\tN\tEpoch 230  ·  Tip #456  ·  Gap 2 slots' \
+    "${argument_log}" >/dev/null ||
+    fail "Gum health row was not rendered with its health color"
+
+  simulated_render_rows=7
+  cntools_gum_header "/ Wallet / Register" >/dev/null ||
+    fail "wrapped Gum header rendering failed"
+  assert_eq "$(cntools_gum_header_rows)" "7" \
+    "wrapped Gum header row count"
+  simulated_render_rows=0
+
+  CNTOOLS_MODE="offline"
+  CNTOOLS_BACKEND="none"
+  CNTOOLS_HEALTH_TEXT=""
+  : > "${argument_log}"
+  cntools_gum_header "/" >/dev/null ||
+    fail "offline Gum header rendering failed"
+  grep -F $'style\t#4FBC85\tY\t/' "${argument_log}" >/dev/null ||
+    fail "root breadcrumb was not highlighted"
+  grep -F $'style\t#98989F\tN\toffline · none · preprod' \
+    "${argument_log}" >/dev/null ||
+    fail "offline Gum runtime row was not compact"
+  if grep -F 'node offline' "${argument_log}" >/dev/null; then
+    fail "explicit offline mode rendered a duplicate health message"
+  fi
+)
+
+run_color_capture_preference_test() (
+  local capture_state=""
+
+  cntools_gum() {
+    printf '%s\n' "${CLICOLOR_FORCE-unset}"
+  }
+  unset CLICOLOR_FORCE NO_COLOR
+  capture_state="$(cntools_gum_capture style leaf)" ||
+    fail "forced-color Gum capture failed"
+  assert_eq "${capture_state}" "1" \
+    "Gum composed-color capture"
+
+  NO_COLOR=""
+  capture_state="$(cntools_gum_capture style leaf)" ||
+    fail "empty NO_COLOR Gum capture failed"
+  assert_eq "${capture_state}" "1" \
+    "Gum empty NO_COLOR capture preference"
+
+  NO_COLOR=1
+  capture_state="$(cntools_gum_capture style leaf)" ||
+    fail "NO_COLOR Gum capture failed"
+  assert_eq "${capture_state}" "unset" \
+    "Gum NO_COLOR capture preference"
+)
+
+run_wait_and_placeholder_test() (
+  local argument_log="${TEST_ROOT}/wait-arguments"
+  local output=""
+
+  cntools_gum() {
+    printf '%s\n' "$@" >> "${argument_log}"
+  }
+  CNTOOLS_UI_INTERACTIVE="Y"
+  : > "${argument_log}"
+  cntools_ui_wait
+  grep -Fx -- '--no-show-help' "${argument_log}" >/dev/null ||
+    fail "Gum return prompt retained its redundant key help"
+  grep -Fx -- 'Press Enter to return…' "${argument_log}" >/dev/null ||
+    fail "Gum return prompt lost its concise instruction"
+
+  # shellcheck source=/dev/null
+  . "${CNTOOLS_ROOT}/lib/placeholder.sh"
+  CNTOOLS_ACTION_ID="wallet/new"
+  CNTOOLS_ACTION_LABEL="New"
+  CNTOOLS_MODULE_ROOT="${CNTOOLS_ROOT}/modules/root"
+  CNTOOLS_UI_DRIVER="gum"
+  CNTOOLS_UI_INTERACTIVE="Y"
+  cntools_menu_breadcrumb() { printf '/ Wallet / New\n'; }
+  cntools_log() { return 0; }
+  cntools_ui_render_begin() { return 0; }
+  cntools_ui_render_status() { printf '%s\n' "$2"; }
+  cntools_ui_read_key() { printf -v "$1" '%s' enter; }
+  output="$(cntools_action_placeholder)" ||
+    fail "Gum placeholder action failed"
+  assert_contains "${output}" "Not implemented yet" \
+    "Gum placeholder content"
+  assert_not_contains "${output}" $'\nNew\n' \
+    "duplicate Gum leaf title"
+  assert_not_contains "${output}" "Press any key to return" \
+    "duplicate Gum return instruction"
+)
+
+run_health_test() (
+  local request_marker="${TEST_ROOT}/offline-health-requested"
+  local fetch_trace="${TEST_ROOT}/health-fetch.trace"
+  local cache_error="${TEST_ROOT}/health-cache.error"
+  local custom_config="${TEST_ROOT}/custom-cnode-config.json"
+
+  cntools_log() { return 0; }
+  CNTOOLS_HEALTH_CACHE_SECONDS=5
+  CNTOOLS_MODE="offline"
+  cntools_health_fetch_local() { : > "${request_marker}"; return 1; }
+  cntools_health_fetch_koios() { : > "${request_marker}"; return 1; }
+  cntools_health_refresh Y
+  assert_eq "${CNTOOLS_HEALTH_TEXT}" "" "offline health text"
+  assert_eq "${CNTOOLS_HEALTH_TONE}" "quiet" "offline health tone"
+  [[ ! -e "${request_marker}" ]] ||
+    fail "offline mode attempted a health request"
+
+  CNTOOLS_MODE="local"
+  CNTOOLS_NETWORK="preprod"
+  CNTOOLS_IMPLEMENTATION="cnode"
+  printf '%s\n' \
+    '{"TraceOptions":{"":{"backends":["PrometheusSimple suffix 127.0.0.9 19090"]}}}' \
+    > "${custom_config}"
+  CNTOOLS_CONFIG="${custom_config}"
+  assert_eq "$(cntools_health_cnode_metrics_url)" \
+    "http://127.0.0.9:19090/metrics" \
+    "custom cnode configuration metrics URL"
+  assert_eq "$(cntools_health_prometheus_value \
+    'cardano_node_metrics_blockNum_int{network="preprod"} 456 # {trace_id="abc"} 999' \
+    cardano_node_metrics_blockNum_int)" "456" \
+    "OpenMetrics exemplar sample parsing"
+  assert_eq "$(cntools_health_prometheus_value \
+    'cardano_node_metrics_blockNum_int 457 # {trace_id="def"} 998' \
+    cardano_node_metrics_blockNum_int)" "457" \
+    "unlabelled OpenMetrics exemplar sample parsing"
+  cntools_health_local_metrics_url() { printf 'http://127.0.0.1:12798/metrics\n'; }
+  cntools_health_reference_slot() { printf '1000\n'; }
+  cntools_health_fetch_local() {
+    printf '%s\n' \
+      'cardano_node_metrics_epoch_int 230' \
+      'cardano_node_metrics_blockNum_int 456' \
+      'cardano_node_metrics_slotNum_int 9.90e+02'
+  }
+  cntools_health_refresh Y
+  assert_eq "${CNTOOLS_HEALTH_TEXT}" \
+    "Epoch 230  ·  Tip #456  ·  Gap 10 slots" \
+    "local health snapshot"
+  assert_eq "${CNTOOLS_HEALTH_TONE}" "success" \
+    "local healthy tone"
+
+  cntools_health_fetch_local() {
+    printf '%s\n' \
+      'cardano_node_metrics_epoch_int 230' \
+      'cardano_node_metrics_blockNum_int 457' \
+      'cardano_node_metrics_slotNum_int 999' \
+      'dingo_tip_gap_slots 42'
+  }
+  cntools_health_refresh Y
+  assert_contains "${CNTOOLS_HEALTH_TEXT}" "Gap 42 slots" \
+    "native local tip gap"
+  assert_eq "${CNTOOLS_HEALTH_TONE}" "warning" \
+    "lagging local health tone"
+
+  cntools_health_fetch_local() { return 7; }
+  cntools_health_refresh Y
+  assert_eq "${CNTOOLS_HEALTH_TEXT}" "node offline" \
+    "unreachable local health text"
+  assert_eq "${CNTOOLS_HEALTH_TONE}" "danger" \
+    "unreachable local health tone"
+
+  CNTOOLS_MODE="light"
+  cntools_health_fetch_koios() {
+    printf '%s\n' \
+      '[{"epoch_no":230,"abs_slot":995,"block_height":800,"block_time":999}]'
+  }
+  cntools_health_refresh Y
+  assert_eq "${CNTOOLS_HEALTH_TEXT}" \
+    "Epoch 230  ·  Tip #800  ·  Gap 5 slots" \
+    "Koios health snapshot"
+
+  cntools_health_fetch_koios() {
+    printf '%s\n' \
+      '[{"epoch_no":230,"abs_slot":999,"block_no":799,"block_time":999}]'
+  }
+  cntools_health_refresh Y
+  assert_contains "${CNTOOLS_HEALTH_TEXT}" "Tip #799" \
+    "legacy Koios block number fallback"
+
+  cntools_health_fetch_koios() { printf '%s\n' '[{"epoch_no":"bad"}]'; }
+  cntools_health_refresh Y
+  assert_eq "${CNTOOLS_HEALTH_TEXT}" "node offline" \
+    "malformed Koios health text"
+
+  CNTOOLS_MODE="local"
+  FAKE_HEALTH_NOW=100
+  : > "${fetch_trace}"
+  cntools_health_now() { printf '%s\n' "${FAKE_HEALTH_NOW}"; }
+  cntools_health_fetch_local() {
+    printf 'fetch\n' >> "${fetch_trace}"
+    printf '%s\n' \
+      'cardano_node_metrics_epoch_int 230' \
+      'cardano_node_metrics_blockNum_int 456' \
+      'cardano_node_metrics_slotNum_int 990'
+  }
+  cntools_health_refresh Y
+  cntools_health_refresh
+  FAKE_HEALTH_NOW=106
+  cntools_health_refresh
+  assert_eq "$(wc -l < "${fetch_trace}" | tr -d ' ')" "2" \
+    "health cache request count"
+
+  : > "${fetch_trace}"
+  CNTOOLS_HEALTH_CACHE_SECONDS=08
+  CNTOOLS_HEALTH_LAST_REFRESH=007
+  FAKE_HEALTH_NOW=008
+  cntools_health_refresh 2> "${cache_error}"
+  [[ ! -s "${cache_error}" ]] ||
+    fail "leading-zero health cache values produced an arithmetic error"
+  [[ ! -s "${fetch_trace}" ]] ||
+    fail "leading-zero health cache values bypassed the cache"
 )
 
 run_early_option_tests() (
@@ -515,6 +816,10 @@ run_offline_installer_test
 run_filter_presentation_test
 run_filter_layout_test
 run_menu_mapping_test
+run_header_test
+run_color_capture_preference_test
+run_wait_and_placeholder_test
+run_health_test
 run_early_option_tests
 
 printf 'CNTools Gum tests passed\n'

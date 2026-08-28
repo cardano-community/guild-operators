@@ -564,11 +564,13 @@ run_changelog_tests() (
 run_update_action_tests() (
   local output=""
   local trace=""
+  local ui_trace=""
   local index=0
   local status=0
 
   setup_update_context update-actions
   trace="${CASE_ROOT}/http.trace"
+  ui_trace="${CASE_ROOT}/ui.trace"
   cntools_update_init
   cntools_update_set_state available 14.2.0 ||
     fail "could not prepare available state for update actions"
@@ -576,7 +578,19 @@ run_update_action_tests() (
     printf '%s\t%s\n' "$1" "$2" >> "${trace}"
     cp -- "${CHANGELOG_FIXTURE}" "$3"
   }
+  cntools_ui_wait() {
+    printf 'wait\n' >> "${ui_trace}"
+  }
+  cntools_ui_page_file() {
+    local page_line=""
 
+    printf 'page\n' >> "${ui_trace}"
+    while IFS= read -r page_line || [[ -n "${page_line}" ]]; do
+      printf '%s\n' "${page_line}"
+    done < "$1"
+  }
+
+  : > "${ui_trace}"
   output="$(cntools_update_action_view_changes)" ||
     fail "View Changes action failed"
   assert_contains "${output}" 'Changes in v14.2.0 since v14.0.0' \
@@ -597,12 +611,25 @@ run_update_action_tests() (
   if grep -F 'RANGE_VERSION_' "${CNTOOLS_LOG}" >/dev/null; then
     fail "View Changes copied changelog body content into the log"
   fi
+  assert_eq "$(< "${ui_trace}")" "page" \
+    "Gum View Changes pager return flow"
+
+  # The pure-Bash fallback prints the file itself and still needs one pause.
+  unset -f cntools_ui_page_file
+  : > "${ui_trace}"
+  output="$(cntools_update_action_view_changes)" ||
+    fail "fallback View Changes action failed"
+  assert_contains "${output}" 'RANGE_VERSION_14_2' \
+    "fallback View Changes content"
+  assert_eq "$(< "${ui_trace}")" "wait" \
+    "fallback View Changes return flow"
 
   cntools_update_set_state available 14.2.0
   cntools_http_request() {
     printf '%s\n' 'partial response' > "$3"
     return 7
   }
+  : > "${ui_trace}"
   output="$(cntools_update_action_view_changes)" ||
     fail "failed-download View Changes action did not recover"
   assert_contains "${output}" 'Release notes are unavailable' \
@@ -611,6 +638,8 @@ run_update_action_tests() (
       \( -name '.cntools-changelog.*' -o -name '.cntools-release-notes.*' \) \
       -print -quit)" ]] ||
     fail "failed-download View Changes left a response or notes file"
+  assert_eq "$(< "${ui_trace}")" "wait" \
+    "failed View Changes return flow"
 
   # The action normally runs in the loader's subshell. An unexpected exit or
   # interruption inside its HTTP layer must still remove both private files.
@@ -825,6 +854,16 @@ run_install_case() (
     fail "${name} did not persist the deployment-started lifecycle marker"
   assert_not_contains "${output}" 'Returned from Install Update' \
     "${name} post-deployment menu resume"
+  if (( dispatcher_status == 0 )); then
+    assert_contains "${output}" \
+      'CNTools was replaced. Refresh this shell before restarting it:' \
+      "${name} post-update shell guidance"
+    assert_contains "${output}" "cd -- ${CNTOOLS_ROOT}" \
+      "${name} post-update re-entry path"
+  else
+    assert_not_contains "${output}" 'CNTools was replaced.' \
+      "${name} failed-update shell guidance"
+  fi
   grep -F "Guild Deploy completed with status ${dispatcher_status}; closing" \
     "${CNTOOLS_LOG}" >/dev/null ||
     fail "${name} outer-process close was not logged"
@@ -980,9 +1019,14 @@ run_replacement_boundary_test() (
   [[ ! -e "${http_trace}" ]] ||
     fail "unsafe replacement-boundary state invoked the update API"
 
-  output="$(cntools_update_action_install)" ||
-    fail "replacement-boundary Install action did not return safely"
-  assert_contains "${output}" 'No newer version is currently known' \
+  if output="$(cntools_update_action_install)"; then
+    status=0
+  else
+    status=$?
+  fi
+  assert_eq "${status}" "1" \
+    "replacement-boundary Install action status"
+  assert_contains "${output}" 'Update state is unavailable' \
     "replacement-boundary Install message"
   [[ ! -e "${dispatch_trace}" ]] ||
     fail "unsafe replacement-boundary state invoked Guild Deploy"

@@ -166,6 +166,12 @@ assert_rejected "missing Gum CNTools core" \
   dispatcher_validate_cntools_tree "${SOURCE_TREE}" N
 restore_file "${saved_file}" "${SOURCE_TREE}/core/gum.sh"
 
+saved_file="${TEST_ROOT}/health.sh.saved"
+mv -- "${SOURCE_TREE}/core/health.sh" "${saved_file}"
+assert_rejected "missing CNTools health core" \
+  dispatcher_validate_cntools_tree "${SOURCE_TREE}" N
+restore_file "${saved_file}" "${SOURCE_TREE}/core/health.sh"
+
 saved_file="${TEST_ROOT}/update.sh.saved"
 mv -- "${SOURCE_TREE}/core/update.sh" "${saved_file}"
 assert_rejected "missing required CNTools update core" \

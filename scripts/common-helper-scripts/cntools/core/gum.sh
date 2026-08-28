@@ -10,12 +10,14 @@ CNTOOLS_GUM_SHA256_ARM64="ed51e91457a48f5681f67dd925bd40eb1794d41d1f48cf1d7e19e2
 CNTOOLS_GUM_BIN="${CNTOOLS_GUM_BIN:-}"
 CNTOOLS_GUM_INSTALL_TMP=""
 CNTOOLS_GUM_INSTALL_STAGE=""
+CNTOOLS_GUM_LAST_HEADER_ROWS=""
+CNTOOLS_GUM_LAST_HEADER_MODE=""
 
 # Gum's explicit filter height includes its header, help and vertical padding,
 # but not the input row. Keep these values together so menu sizing can account
 # for the complete widget instead of mistaking the number of choices for its
 # requested height.
-CNTOOLS_GUM_HEADER_ROWS=5
+CNTOOLS_GUM_HEADER_ROWS=6
 CNTOOLS_GUM_CONTEXT_ROWS=5
 CNTOOLS_GUM_FILTER_CHROME_ROWS=6
 CNTOOLS_GUM_FILTER_INPUT_ROWS=1
@@ -496,6 +498,17 @@ cntools_gum() {
   "${CNTOOLS_GUM_BIN}" "$@"
 }
 
+# Header fragments are composed through command substitutions. Gum correctly
+# treats those pipes as non-interactive, so explicitly retain ANSI styling for
+# the fragments that will immediately be rendered back to the user's terminal.
+cntools_gum_capture() {
+  if [[ -n "${NO_COLOR:-}" ]]; then
+    cntools_gum "$@"
+  else
+    CLICOLOR_FORCE=1 cntools_gum "$@"
+  fi
+}
+
 cntools_gum_width() {
   local width="${COLUMNS:-}"
 
@@ -555,6 +568,58 @@ cntools_gum_clear() {
   tput clear 2>/dev/null || printf '\033[2J\033[H'
 }
 
+cntools_gum_header_rows() {
+  if [[ "${CNTOOLS_GUM_LAST_HEADER_ROWS:-}" =~ ^[0-9]+$ &&
+        "${CNTOOLS_GUM_LAST_HEADER_MODE:-}" == "${CNTOOLS_MODE:-}" ]]; then
+    printf '%s\n' "${CNTOOLS_GUM_LAST_HEADER_ROWS}"
+  elif [[ "${CNTOOLS_MODE:-}" == "offline" ]]; then
+    printf '5\n'
+  else
+    printf '%s\n' "${CNTOOLS_GUM_HEADER_ROWS}"
+  fi
+}
+
+cntools_gum_breadcrumb() {
+  local breadcrumb=""
+  local parent=""
+  local leaf=""
+  local styled_parent=""
+  local styled_leaf=""
+
+  breadcrumb="$(cntools_ui_path "${1:-/}")"
+  if [[ "${breadcrumb}" == "/" ]]; then
+    cntools_gum_capture style \
+      --foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+      --background "${CNTOOLS_GUM_COLOR_SURFACE}" --bold "/"
+    return
+  fi
+  if [[ "${breadcrumb}" == *" / "* ]]; then
+    parent="${breadcrumb% / *} / "
+    leaf="${breadcrumb##* / }"
+  else
+    parent="/ "
+    leaf="${breadcrumb#/ }"
+  fi
+  styled_parent="$(cntools_gum_capture style \
+    --foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
+    --background "${CNTOOLS_GUM_COLOR_SURFACE}" \
+    "${parent}")" || return 1
+  styled_leaf="$(cntools_gum_capture style \
+    --foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+    --background "${CNTOOLS_GUM_COLOR_SURFACE}" --bold \
+    "${leaf}")" || return 1
+  cntools_gum_capture join --horizontal "${styled_parent}" "${styled_leaf}"
+}
+
+cntools_gum_health_color() {
+  case "${CNTOOLS_HEALTH_TONE:-quiet}" in
+    success) printf '%s\n' "${CNTOOLS_GUM_COLOR_SUCCESS}" ;;
+    warning) printf '%s\n' "${CNTOOLS_GUM_COLOR_WARNING}" ;;
+    danger) printf '%s\n' "${CNTOOLS_GUM_COLOR_DANGER}" ;;
+    *) printf '%s\n' "${CNTOOLS_GUM_COLOR_QUIET}" ;;
+  esac
+}
+
 cntools_gum_header() {
   local breadcrumb="${1:-/}"
   local width=""
@@ -564,33 +629,48 @@ cntools_gum_header() {
   local styled_title=""
   local styled_path=""
   local styled_runtime=""
+  local styled_health=""
+  local health_color=""
   local content=""
+  local rendered_header=""
+  local rendered_rows=""
 
   width="$(cntools_gum_width)"
-  runtime="Mode ${CNTOOLS_MODE:-unknown}  ·  Backend ${CNTOOLS_BACKEND:-unknown}  ·  Network ${CNTOOLS_NETWORK:-unknown}"
+  runtime="$(cntools_ui_runtime_context)"
   cntools_gum_clear
-  styled_name="$(cntools_gum style \
+  styled_name="$(cntools_gum_capture style \
     --foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
     --background "${CNTOOLS_GUM_COLOR_SURFACE}" --bold "CNTools")" || return 1
-  styled_version="$(cntools_gum style \
+  styled_version="$(cntools_gum_capture style \
     --foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
     --background "${CNTOOLS_GUM_COLOR_SURFACE}" \
     "v${CNTOOLS_VERSION:-?}")" || return 1
-  styled_title="$(cntools_gum join --horizontal \
+  styled_title="$(cntools_gum_capture join --horizontal \
     "${styled_name}" " " "${styled_version}")" || return 1
-  styled_path="$(cntools_gum style \
-    --foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
-    --background "${CNTOOLS_GUM_COLOR_SURFACE}" --bold \
-    "$(cntools_ui_path "${breadcrumb}")")" || return 1
-  styled_runtime="$(cntools_gum style \
+  styled_path="$(cntools_gum_breadcrumb "${breadcrumb}")" || return 1
+  styled_runtime="$(cntools_gum_capture style \
     --foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
     --background "${CNTOOLS_GUM_COLOR_SURFACE}" "${runtime}")" || return 1
   content="${styled_title}"$'\n'"${styled_path}"$'\n'"${styled_runtime}"
-  cntools_gum style --no-strip-ansi \
+  if [[ "${CNTOOLS_MODE:-}" != "offline" ]]; then
+    health_color="$(cntools_gum_health_color)" || return 1
+    styled_health="$(cntools_gum_capture style \
+      --foreground "${health_color}" \
+      --background "${CNTOOLS_GUM_COLOR_SURFACE}" \
+      "${CNTOOLS_HEALTH_TEXT:-node offline}")" || return 1
+    content+=$'\n'"${styled_health}"
+  fi
+  rendered_header="$(cntools_gum_capture style --no-strip-ansi \
     --width "${width}" --padding "0 2" --border rounded \
     --border-foreground "${CNTOOLS_GUM_COLOR_DIVIDER}" \
     --background "${CNTOOLS_GUM_COLOR_SURFACE}" \
-    --foreground "${CNTOOLS_GUM_COLOR_TEXT}" "${content}"
+    --foreground "${CNTOOLS_GUM_COLOR_TEXT}" "${content}")" || return 1
+  rendered_rows="$(LC_ALL=C awk 'END { print NR }' \
+    <<< "${rendered_header}")" || return 1
+  [[ "${rendered_rows}" =~ ^[1-9][0-9]*$ ]] || return 1
+  CNTOOLS_GUM_LAST_HEADER_ROWS="${rendered_rows}"
+  CNTOOLS_GUM_LAST_HEADER_MODE="${CNTOOLS_MODE:-}"
+  printf '%s\n' "${rendered_header}"
 }
 
 # Generic CNTools UI driver. These definitions intentionally replace the
@@ -703,7 +783,8 @@ cntools_ui_confirm() {
 
 cntools_ui_wait() {
   [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == "Y" ]] || return 0
-  cntools_gum input --prompt "" --placeholder "Press Enter to return…" \
+  cntools_gum input --no-show-help \
+    --prompt "" --placeholder "Press Enter to return…" \
     --cursor.foreground "${CNTOOLS_GUM_COLOR_BRAND}" >/dev/null || true
 }
 
@@ -825,7 +906,7 @@ cntools_gum_menu_run() {
   local index=0
   local height=12
   local mapping=-1
-  local rows_above_filter="${CNTOOLS_GUM_HEADER_ROWS}"
+  local rows_above_filter=""
   local visible_choices=0
   local filter_header=""
   local filter_clipped="N"
@@ -853,8 +934,11 @@ cntools_gum_menu_run() {
     CNTOOLS_MENU_ID="$(cntools_menu_cache_id_for_directory "${current}")" || return 1
     [[ "${CNTOOLS_MENU_ID}" != "${CNTOOLS_MENU_ROOT_ID}" ]] || CNTOOLS_MENU_ID="/"
 
+    if declare -F cntools_health_refresh >/dev/null 2>&1; then
+      cntools_health_refresh || true
+    fi
     cntools_gum_header "${breadcrumb}" || return 1
-    rows_above_filter="${CNTOOLS_GUM_HEADER_ROWS}"
+    rows_above_filter="$(cntools_gum_header_rows)" || return 1
     cntools_update_state_load || true
     if [[ "${context}" == "N" &&
           "${CNTOOLS_UPDATE_STATUS:-}" == "available" ]]; then
@@ -885,9 +969,9 @@ cntools_gum_menu_run() {
       row_types+=("back" "home")
       row_indices+=("-1" "-1")
     fi
-    rows+=("↻ Reload menu definitions" "✕ Quit CNTools")
-    row_types+=("reload" "quit")
-    row_indices+=("-1" "-1")
+    rows+=("✕ Quit CNTools")
+    row_types+=("quit")
+    row_indices+=("-1")
     height="$(cntools_gum_filter_height \
       "${#rows[@]}" "${rows_above_filter}")" || return 1
     visible_choices=$((height - CNTOOLS_GUM_FILTER_CHROME_ROWS))
@@ -946,19 +1030,6 @@ cntools_gum_menu_run() {
         cntools_gum_log MENU "home"
         continue
         ;;
-      reload)
-        cntools_gum_log MENU "reload"
-        if cntools_menu_cache_build; then
-          menu_stack=("${CNTOOLS_MENU_CACHE_MENU_DIRS[${CNTOOLS_MENU_ROOT_ID}]}")
-          status_level="success"
-          status_message="Menu definitions reloaded."
-        else
-          status_level="error"
-          status_message="Reload failed; previous menus retained: ${CNTOOLS_MENU_ERROR}"
-          cntools_gum_log ERROR "${CNTOOLS_MENU_ERROR}"
-        fi
-        continue
-        ;;
       quit)
         cntools_gum_log MENU "quit"
         return 0
@@ -995,10 +1066,7 @@ cntools_gum_menu_run() {
         "Guild Deploy completed with status ${action_status}; closing the current CNTools process"
       return "${action_status}"
     fi
-    if (( action_status == 0 )); then
-      status_level="success"
-      status_message="Returned from ${CNTOOLS_MENU_LABELS[selected_index]}."
-    else
+    if (( action_status != 0 )); then
       status_level="error"
       status_message="${CNTOOLS_MENU_LABELS[selected_index]} failed (status ${action_status})."
       cntools_gum_log ERROR \

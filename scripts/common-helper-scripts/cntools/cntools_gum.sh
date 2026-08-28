@@ -47,6 +47,16 @@ fi
 # shellcheck source=core/gum.sh
 . "${CNTOOLS_CORE_DIR}/gum.sh" || exit 1
 
+if [[ ! -f "${CNTOOLS_CORE_DIR}/health.sh" ||
+      -L "${CNTOOLS_CORE_DIR}/health.sh" ||
+      ! -s "${CNTOOLS_CORE_DIR}/health.sh" ]]; then
+  printf 'CNTools: health UI support is missing or unsafe: %s\n' \
+    "${CNTOOLS_CORE_DIR}/health.sh" >&2
+  exit 1
+fi
+# shellcheck source=core/health.sh
+. "${CNTOOLS_CORE_DIR}/health.sh" || exit 1
+
 cntools_gum_main() {
   local status=0
 

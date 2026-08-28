@@ -372,6 +372,7 @@ run_alternate_profile_test() (
   assert_file "${NODE_HOME}/scripts/cntools/core/menu.sh"
   assert_file "${NODE_HOME}/scripts/cntools/core/action.sh"
   assert_file "${NODE_HOME}/scripts/cntools/core/gum.sh"
+  assert_file "${NODE_HOME}/scripts/cntools/core/health.sh"
   assert_file "${NODE_HOME}/scripts/cntools/core/update.sh"
   assert_file "${NODE_HOME}/scripts/cntools/lib/update.sh"
   assert_file "${NODE_HOME}/scripts/cntools/modules/root/module.json"
