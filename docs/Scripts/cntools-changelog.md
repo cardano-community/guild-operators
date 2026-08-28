@@ -16,15 +16,21 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 #### Changed
 - Wallet folders and checksum-valid, network-appropriate Bech32 address files are validated without regenerating or modifying existing wallet data.
-- Wallet List uses a compact Gum table or card layout based on terminal width.
+- Wallet List uses a compact Gum table or card layout based on terminal width, asks before fetching live values, shows a Gum spinner during the query, and displays non-ADA tokens, rewards, UTxO balance, and an inclusive total.
+- CLI and mnemonic-derived wallets are identified separately while hardware and multisignature types retain precedence.
+- Node health colors now use fixed slot-gap ranges: through 120 green, through 600 amber, and above 600 red.
 - Wallet selection uses the available terminal height and preserves normal Gum cancellation behavior.
 
 #### Fixed
 - Wallet Show revalidates a selected wallet before reading it, fails clearly on inaccessible folders, and rejects symbolic-link replacement after discovery.
 - Duplicate funding addresses are queried once, while incomplete backend results can no longer be presented as a complete wallet total, UTxO count, or asset count.
 - Koios light mode batches funding addresses into one `address_info` request and keeps stake information in one `account_info` request.
+- Wallet List deduplicates the complete catalog into size-bounded Koios bulk requests, validates batches atomically, and never commits malformed balances or token identities.
 - Local UTxO queries explicitly request machine-readable JSON, and malformed or mismatched stake-query rows are rejected instead of being shown as real wallet state.
-- Local CLI calls are time-bounded, and Koios credentials are kept out of child environments, command arguments, and logs.
+- Local CLI calls use the explicit normalized socket, log useful multi-line failures, and are time-bounded with a catalog timeout circuit breaker.
+- CNTools seeds the deployment home before loading legacy env overrides so socket paths cannot lose their node-home prefix.
+- The styled header background now covers the separator between the CNTools name and version.
+- Koios credentials are kept out of child environments, command arguments, and logs.
 
 ## [14.0.0] - 2026-08-28
 #### Added

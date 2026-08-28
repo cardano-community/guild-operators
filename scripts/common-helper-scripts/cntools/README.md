@@ -270,11 +270,12 @@ green accent, muted secondary text, restrained borders, and one compact header
 for the version, current path, runtime values, and node health. The current
 path leaf uses the green accent so its location is immediately visible. Local
 and light sessions show a cached epoch, chain tip, and tip gap snapshot. A
-failed optional probe shows `Offline` in place of the runtime mode and omits
-the health row without blocking CNTools; explicit offline mode behaves the
-same way and makes no probe. Health refreshes only on natural menu redraws,
-never while Gum owns keyboard input. Menu labels and descriptions come from
-the existing module metadata. `gum filter` presents the choices,
+failed optional probe keeps the selected runtime values and shows `node
+offline` in the health row without blocking CNTools. Explicit offline mode
+instead shows only `Offline`, omits the health row, and makes no probe. Health
+refreshes only on natural menu redraws, never while Gum owns keyboard input.
+Menu labels and descriptions come from the existing module metadata. `gum
+filter` presents the choices,
 allows fuzzy filtering by typing, and invokes the single selected menu or
 action when Enter is pressed. Its choice area is recalculated on every menu
 draw: all options are shown when the current terminal has room, while smaller
@@ -520,14 +521,19 @@ address filenames, and classifies CLI, hardware, multisignature, protected,
 and incomplete wallets. It never generates a missing address or rewrites a
 wallet file.
 
-`lib/wallet-query.sh` loads only for Show. Local cnode and Dingo sessions use
-the deployment-selected Cardano CLI and node socket with bounded execution.
-Light sessions use the official bulk-array Koios `address_info` and
-`account_info` POST contracts. Offline sessions perform no command or HTTP
-query. Amaru remains a first-class local
-deployment: its wallet files are shown, while live chain values are clearly
-marked unavailable because its deployment manifest declares no local CLI
-capability.
+`lib/wallet-query.sh` loads only for List and Show. Local cnode and Dingo
+sessions use the deployment-selected Cardano CLI and explicit node socket with
+bounded execution. List shows distinct non-ADA token count, rewards, UTxO
+balance, and a total that includes both UTxO and rewards. Light List sessions
+deduplicate the complete wallet catalog into size-bounded Koios `address_info`
+and `account_info` bulk requests; Show uses the same contracts for one wallet.
+List asks before running either live backend. A decline renders the catalog
+with unavailable live columns and zero backend calls; acceptance runs the
+same-shell query beneath a Gum spinner so its prepared arrays remain available
+for rendering. Offline sessions perform no command or HTTP query and do not
+show this confirmation. Amaru remains a first-class local deployment: its
+wallet files are shown, while live chain values are clearly marked unavailable
+because its deployment manifest declares no local CLI capability.
 
 Backend failures are non-destructive and do not prevent filesystem wallet
 details from being shown. Complete aggregates are shown only when every

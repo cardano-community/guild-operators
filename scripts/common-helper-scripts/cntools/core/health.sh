@@ -76,20 +76,11 @@ cntools_health_reference_slot() {
   fi
 }
 
-cntools_health_expected_gap() {
-  case "${1:-${CNTOOLS_NETWORK:-}}" in
-    mainnet|guild|preprod|preview) printf '20\n' ;;
-    *) printf '60\n' ;;
-  esac
-}
-
 cntools_health_tone_for_gap() {
   local gap="${1:-}"
-  local healthy_gap=""
 
   [[ "${gap}" =~ ^[0-9]+$ ]] || return 1
-  healthy_gap="$(cntools_health_expected_gap)" || healthy_gap=60
-  if (( gap <= healthy_gap )); then
+  if (( gap <= 120 )); then
     printf 'success\n'
   elif (( gap <= 600 )); then
     printf 'warning\n'

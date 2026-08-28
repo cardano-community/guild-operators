@@ -15,6 +15,7 @@ WALLET_LIBRARY="${CNTOOLS_ROOT}/lib/wallet.sh"
 QUERY_LIBRARY="${CNTOOLS_ROOT}/lib/wallet-query.sh"
 STARTUP_LIBRARY="${CNTOOLS_ROOT}/core/startup.sh"
 SHOW_ACTION="${CNTOOLS_ROOT}/modules/root/wallet/show"
+LIST_ACTION="${CNTOOLS_ROOT}/modules/root/wallet/list"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-wallet.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 WALLET_ROOT="${TEST_ROOT}/wallets"
@@ -41,6 +42,8 @@ BAD_ALPHABET_ADDRESS="${TEST_BASE_ADDRESS:0:20}b${TEST_BASE_ADDRESS:21}"
 BAD_CHECKSUM_ADDRESS="${TEST_BASE_ADDRESS::-1}q"
 TEST_KOIOS_TOKEN="fixture-secret-token-never-log"
 TEST_DREP_ID="drep1y25j98kvqf7t3tj4pvxwrjr2728dsrfekptgg3kxqrr56qqcny8sn"
+TEST_POLICY_ID="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+TEST_ASSET_NAME="746f6b656e"
 
 cleanup_test() {
   chmod -R u+rwx -- "${TEST_ROOT}" 2>/dev/null || true
@@ -138,14 +141,17 @@ fi
 
 CNTOOLS_WALLET_DIR="${WALLET_ROOT}"
 CNTOOLS_WALLET_PAY_VKEY_FILENAME="payment.vkey"
+CNTOOLS_WALLET_PAY_SKEY_FILENAME="payment.skey"
 CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME="payment.hwsfile"
 CNTOOLS_WALLET_PAY_ADDR_FILENAME="payment.addr"
 CNTOOLS_WALLET_PAY_SCRIPT_FILENAME="payment.script"
 CNTOOLS_WALLET_BASE_ADDR_FILENAME="base.addr"
 CNTOOLS_WALLET_STAKE_VKEY_FILENAME="stake.vkey"
+CNTOOLS_WALLET_STAKE_SKEY_FILENAME="stake.skey"
 CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME="stake.hwsfile"
 CNTOOLS_WALLET_STAKE_ADDR_FILENAME="reward.addr"
 CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME="stake.script"
+CNTOOLS_WALLET_DERIVATION_PATH_FILENAME="derivation.path"
 CNTOOLS_WALLET_MULTISIG_PREFIX="ms_"
 CNTOOLS_LOG="${LOG_TRACE}"
 CNTOOLS_BACKEND="cnode"
@@ -239,6 +245,7 @@ write_wallet_file Bob payment.vkey \
 write_wallet_file Bob stake.vkey \
   '{"type":"StakeExtendedVerificationKeyShelley_ed25519_bip32","description":"Hardware Stake Verification Key"}'
 write_wallet_file Bob payment.hwsfile '{}'
+write_wallet_file Bob derivation.path '1852H/1815H/0H/x/0'
 write_wallet_file Bob payment.skey.gpg protected
 write_wallet_file Bob base.addr "${TEST_BASE_ADDRESS}"
 write_wallet_file Multisig payment.script '{"type":"sig","keyHash":"00"}'
@@ -255,6 +262,36 @@ assert_eq "${CNTOOLS_WALLET_ADDRESS_STATES[0]}" "3 / 3" \
   "complete address state"
 grep -F 'Skipped symbolic-link wallet entry: Linked' "${LOG_TRACE}" >/dev/null ||
   fail "symbolic-link wallet skip was not logged"
+
+write_cli_wallet Mnemonic
+write_wallet_file Mnemonic payment.skey \
+  '{"type":"PaymentExtendedSigningKeyShelley_ed25519_bip32"}'
+assert_eq "$(cntools_wallet_type "${WALLET_ROOT}/Mnemonic")" "Mnemonic" \
+  "extended-key-only mnemonic wallet type"
+
+write_cli_wallet WrongExtended
+write_wallet_file WrongExtended payment.skey \
+  '{"type":"StakeExtendedSigningKeyShelley_ed25519_bip32"}'
+assert_eq "$(cntools_wallet_type "${WALLET_ROOT}/WrongExtended")" "CLI" \
+  "mismatched extended signing key changed CLI wallet type"
+
+write_cli_wallet ProtectedMnemonic
+write_wallet_file ProtectedMnemonic payment.skey.gpg protected
+write_wallet_file ProtectedMnemonic stake.skey.gpg protected
+write_wallet_file ProtectedMnemonic derivation.path '1852H/1815H/9H/x/0'
+assert_eq "$(cntools_wallet_type "${WALLET_ROOT}/ProtectedMnemonic")" "Mnemonic" \
+  "protected mnemonic wallet type"
+assert_eq "$(cntools_wallet_protection "${WALLET_ROOT}/ProtectedMnemonic")" \
+  "Protected" "protected mnemonic key state"
+
+write_wallet_file Alice derivation.path 'not/a/derivation/path'
+assert_eq "$(cntools_wallet_type "${WALLET_ROOT}/Alice")" "CLI" \
+  "malformed derivation path changed CLI wallet type"
+assert_eq "$(cntools_wallet_type "${WALLET_ROOT}/Bob")" "Hardware" \
+  "hardware wallet lost precedence over derivation metadata"
+rm -rf -- \
+  "${WALLET_ROOT}/Mnemonic" "${WALLET_ROOT}/ProtectedMnemonic" \
+  "${WALLET_ROOT}/WrongExtended"
 
 test_reader_output_collision() {
   local value="sentinel"
@@ -318,6 +355,8 @@ write_wallet_file Bob reward.addr "${BAD_ALPHABET_ADDRESS}"
 cntools_wallet_catalog_build || fail "catalog rejected a wallet with one bad member"
 assert_eq "${CNTOOLS_WALLET_ADDRESS_STATES[1]}" "1 valid, 1 invalid" \
   "invalid address state"
+grep -F 'Wallet Bob has an invalid reward address file' "${LOG_TRACE}" \
+  >/dev/null || fail "invalid wallet address file was not logged"
 
 write_wallet_file Alice base.addr "${BAD_ALPHABET_ADDRESS}"
 assert_status 2 "bad Bech32 alphabet accepted" \
@@ -397,8 +436,20 @@ cntools_ui_static_table() {
   shift
   printf 'ROW\t%s\n' "$@" >> "${UI_TRACE}"
 }
+CONFIRM_STATUS=1
+cntools_ui_confirm() {
+  printf 'CONFIRM\t%s\n' "$1" >> "${UI_TRACE}"
+  return "${CONFIRM_STATUS}"
+}
+cntools_ui_spin_function() {
+  local title="$1"
+  shift
+
+  printf 'SPIN\t%s\n' "${title}" >> "${UI_TRACE}"
+  "$@"
+}
 cntools_ui_wait() { printf 'WAIT\n' >> "${UI_TRACE}"; }
-cntools_gum_width() { printf '80\n'; }
+cntools_gum_width() { printf '96\n'; }
 cntools_gum_clear() { printf 'CLEAR\n' >> "${UI_TRACE}"; }
 cntools_ui_suspend_for_job_control() { return 0; }
 cntools_ui_mark_resize() { return 0; }
@@ -406,6 +457,9 @@ cntools_ui_mark_resize() { return 0; }
 reset_wallet_root
 write_cli_wallet Alice \
   "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
+write_wallet_file LongType payment.vkey \
+  '{"type":"PaymentVerificationKeyShelley_ed25519"}'
+write_wallet_file LongType payment.skey.gpg protected
 CNTOOLS_MODE="offline"
 CNTOOLS_BACKEND="none"
 SELECTOR_MODE="first"
@@ -422,6 +476,18 @@ grep -F $'FIELD\tReward\t'"${TEST_REWARD_ADDRESS}" "${UI_TRACE}" >/dev/null ||
   fail "loader-level Wallet Show did not render the reward address"
 assert_eq "$(grep -c '^WAIT$' "${UI_TRACE}")" "1" \
   "loader-level Show return prompt count"
+
+: > "${UI_TRACE}"
+cntools_action_run "${LIST_ACTION}" ||
+  fail "Wallet List failed through the production action loader"
+grep -F $'ACTION\twallet/list\tselected' "${LOG_TRACE}" >/dev/null ||
+  fail "loader-level Wallet List selection was not logged"
+grep -F $'TABLE\tWallet          Type / Keys' "${UI_TRACE}" >/dev/null ||
+  fail "loader-level Wallet List did not render its balance table"
+grep -F 'Incomplete/Protec…' "${UI_TRACE}" >/dev/null ||
+  fail "Wallet List did not constrain a long Type / Keys value"
+[[ "$(grep -Ec '^(CONFIRM|SPIN)' "${UI_TRACE}" || true)" == "0" ]] ||
+  fail "offline Wallet List prompted for or fetched live balances"
 
 : > "${UI_TRACE}"
 SELECTOR_MODE="cancel"
@@ -463,6 +529,11 @@ fake_cli="${TEST_ROOT}/cardano-cli"
 printf '%s\n' \
   '#!/usr/bin/env bash' \
   'printf "%s\n" "$*" >> "${FAKE_CLI_TRACE}"' \
+  'if [[ "$*" == query\ * && "$*" != *"--socket-path ${FAKE_SOCKET_PATH}"* ]]; then' \
+  '  printf "%s\n" "fixture requires an explicit socket path" >&2' \
+  '  exit 6' \
+  'fi' \
+  'if [[ "${FAKE_CLI_SCENARIO}" == "timeout-all" ]]; then exit 124; fi' \
   'if [[ "$*" == *"query utxo"* ]]; then' \
   '  if [[ "$*" != *"--output-json"* ]]; then' \
   '    printf "%s\n" "fixture requires --output-json" >&2' \
@@ -492,6 +563,21 @@ printf '%s\n' \
   '    exit 9' \
   '  fi' \
   '  case "${FAKE_CLI_SCENARIO}" in' \
+  '    diagnostic-blank)' \
+  '      printf "\ncardano-cli: Network.Socket.connect: fixture socket failure\n" >&2' \
+  '      exit 1' \
+  '      ;;' \
+  '    diagnostic-stdout)' \
+  '      printf "\ncardano-cli: fixture stdout socket failure\n"' \
+  '      exit 1' \
+  '      ;;' \
+  '    diagnostic-multiline)' \
+  '      printf "%s\n" "Command failed: query stake-address-info" "Error: fixture handshake failure" >&2' \
+  '      exit 1' \
+  '      ;;' \
+  '    diagnostic-timeout)' \
+  '      exit 124' \
+  '      ;;' \
   '    stake-mismatch)' \
   '      printf "%s\n" '\''[{"address":"stake_test1unexpected","rewardAccountBalance":750000}]'\''' \
   '      ;;' \
@@ -517,7 +603,12 @@ export FAKE_BASE_ADDRESS="${TEST_BASE_ADDRESS}"
 export FAKE_PAYMENT_ADDRESS="${TEST_PAYMENT_ADDRESS}"
 export FAKE_REWARD_ADDRESS="${TEST_REWARD_ADDRESS}"
 export FAKE_DREP_ID="${TEST_DREP_ID}"
+export FAKE_SOCKET_PATH="${CNTOOLS_SOCKET}"
 export FAKE_CLI_SCENARIO="full"
+FAKE_SOCKET_READY="Y"
+cntools_wallet_query_local_socket_ready() {
+  [[ "${FAKE_SOCKET_READY}" == "Y" ]]
+}
 CNTOOLS_CLI="${fake_cli}"
 CNTOOLS_MODE="local"
 CNTOOLS_BACKEND="cnode"
@@ -564,8 +655,11 @@ assert_eq "${CNTOOLS_WALLET_ASSET_COUNT}" "3" \
 assert_eq "$(line_count "${CLI_TRACE}")" "3" "local CLI invocation count"
 [[ "$(grep -c 'query utxo .*--output-json' "${CLI_TRACE}")" == "2" ]] ||
   fail "local UTxO queries did not explicitly request JSON output"
-grep -F 'CARDANO_NODE_SOCKET_PATH=' "${LOG_TRACE}" >/dev/null ||
-  fail "local CLI command was not logged"
+[[ "$(grep -c -- "--socket-path ${CNTOOLS_SOCKET}" "${CLI_TRACE}")" == "3" ]] ||
+  fail "local CLI queries did not explicitly select the normalized socket"
+if grep -F 'CARDANO_NODE_SOCKET_PATH=' "${LOG_TRACE}" >/dev/null; then
+  fail "local CLI query retained an inherited socket environment wrapper"
+fi
 cntools_wallet_query_cleanup
 [[ -z "$(find "${CNTOOLS_TMP_DIR}" -type f -print)" ]] ||
   fail "local query left temporary files"
@@ -617,6 +711,171 @@ for invalid_stake_scenario in \
     "${invalid_stake_scenario} registration should be unknown"
 done
 
+for diagnostic_scenario in \
+  diagnostic-blank diagnostic-stdout diagnostic-multiline diagnostic-timeout; do
+  reset_query_traces
+  : > "${LOG_TRACE}"
+  FAKE_CLI_SCENARIO="${diagnostic_scenario}"
+  export FAKE_CLI_SCENARIO
+  cntools_wallet_query "" "" "${TEST_REWARD_ADDRESS}"
+  assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "unavailable" \
+    "${diagnostic_scenario} local query status"
+done
+grep -F 'status=124: timed out after' "${LOG_TRACE}" >/dev/null ||
+  fail "local CLI timeout did not produce a useful diagnostic"
+
+: > "${LOG_TRACE}"
+FAKE_CLI_SCENARIO="diagnostic-blank"
+export FAKE_CLI_SCENARIO
+cntools_wallet_query "" "" "${TEST_REWARD_ADDRESS}"
+grep -F 'status=1: cardano-cli: Network.Socket.connect: fixture socket failure' \
+  "${LOG_TRACE}" >/dev/null ||
+  fail "blank-prefixed cardano-cli stderr diagnostic was lost"
+
+: > "${LOG_TRACE}"
+FAKE_CLI_SCENARIO="diagnostic-stdout"
+export FAKE_CLI_SCENARIO
+cntools_wallet_query "" "" "${TEST_REWARD_ADDRESS}"
+grep -F 'status=1: cardano-cli: fixture stdout socket failure' \
+  "${LOG_TRACE}" >/dev/null ||
+  fail "stdout-only cardano-cli diagnostic was lost"
+
+: > "${LOG_TRACE}"
+FAKE_CLI_SCENARIO="diagnostic-multiline"
+export FAKE_CLI_SCENARIO
+cntools_wallet_query "" "" "${TEST_REWARD_ADDRESS}"
+grep -F 'status=1: Error: fixture handshake failure' \
+  "${LOG_TRACE}" >/dev/null ||
+  fail "the useful line of a multi-line cardano-cli diagnostic was lost"
+
+reset_query_traces
+FAKE_CLI_SCENARIO="full"
+export FAKE_CLI_SCENARIO
+FAKE_SOCKET_READY="N"
+cntools_wallet_query \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
+assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "unavailable" \
+  "missing local socket query status"
+assert_contains "${CNTOOLS_WALLET_QUERY_MESSAGE}" "${CNTOOLS_SOCKET}" \
+  "missing local socket explanation"
+assert_eq "$(line_count "${CLI_TRACE}")" "0" \
+  "missing local socket CLI call count"
+FAKE_SOCKET_READY="Y"
+
+# Wallet List uses the same bounded local query path per wallet and includes
+# rewards in its Total column.
+reset_wallet_root
+write_cli_wallet Alice \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
+write_cli_wallet Clone \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
+cntools_wallet_catalog_build || fail "local List catalog build failed"
+
+reset_query_traces
+FAKE_CLI_SCENARIO="full"
+export FAKE_CLI_SCENARIO
+cntools_wallet_list_query_catalog || fail "local Wallet List query failed"
+assert_eq "$(line_count "${CLI_TRACE}")" "6" \
+  "local multi-wallet List CLI call count"
+for wallet_index in 0 1; do
+  assert_eq "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[wallet_index]}" "3500000" \
+    "local List wallet ${wallet_index} UTxO balance"
+  assert_eq "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[wallet_index]}" "750000" \
+    "local List wallet ${wallet_index} rewards"
+  assert_eq "${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[wallet_index]}" "4250000" \
+    "local List wallet ${wallet_index} inclusive total"
+  assert_eq "${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[wallet_index]}" "3" \
+    "local List wallet ${wallet_index} native-token count"
+  assert_eq "${CNTOOLS_WALLET_LIST_QUERY_STATUSES[wallet_index]}" "available" \
+    "local List wallet ${wallet_index} status"
+done
+assert_empty "${CNTOOLS_WALLET_LIST_QUERY_SUMMARY}" \
+  "complete local List summary"
+
+# The List action asks before doing any live work. Declining leaves the catalog
+# available immediately; accepting performs the query under the shared spinner.
+reset_query_traces
+: > "${UI_TRACE}"
+CONFIRM_STATUS=1
+( cntools_wallet_action_list ) || fail "declined local List action failed"
+grep -Fx $'CONFIRM\tFetch balances and rewards for all wallets now?' \
+  "${UI_TRACE}" >/dev/null || fail "local List did not request confirmation"
+[[ "$(grep -c '^SPIN' "${UI_TRACE}" || true)" == "0" ]] ||
+  fail "declined local List started the balance spinner"
+assert_eq "$(line_count "${CLI_TRACE}")" "0" \
+  "declined local List CLI call count"
+grep -F $'STATUS\tinfo\tLive wallet balances were not requested.' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "declined local List did not explain its empty live columns"
+grep -F 'wallet catalog live balances skipped' "${LOG_TRACE}" >/dev/null ||
+  fail "declined local List choice was not logged"
+
+reset_query_traces
+: > "${UI_TRACE}"
+CONFIRM_STATUS=2
+confirmation_status=0
+if ( cntools_wallet_action_list ); then
+  fail "local List accepted a failed confirmation"
+else
+  confirmation_status=$?
+fi
+assert_eq "${confirmation_status}" "2" \
+  "local List confirmation failure status"
+assert_eq "$(line_count "${CLI_TRACE}")" "0" \
+  "failed-confirmation local List CLI call count"
+[[ "$(grep -c '^SPIN' "${UI_TRACE}" || true)" == "0" ]] ||
+  fail "failed local List confirmation started the balance spinner"
+
+reset_query_traces
+: > "${UI_TRACE}"
+CONFIRM_STATUS=0
+( cntools_wallet_action_list ) || fail "accepted local List action failed"
+grep -Fx $'SPIN\tFetching wallet balances and rewards from Cardano Node…' \
+  "${UI_TRACE}" >/dev/null || fail "local List did not use the Gum spinner"
+assert_eq "$(line_count "${CLI_TRACE}")" "6" \
+  "accepted local List CLI call count"
+grep -F 'wallet catalog live balances requested' "${LOG_TRACE}" >/dev/null ||
+  fail "accepted local List choice was not logged"
+
+reset_query_traces
+FAKE_CLI_SCENARIO="partial-payment"
+export FAKE_CLI_SCENARIO
+cntools_wallet_list_query_catalog || fail "partial local Wallet List query failed"
+for wallet_index in 0 1; do
+  assert_empty "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[wallet_index]}" \
+    "partial local List UTxO aggregate"
+  assert_eq "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[wallet_index]}" "750000" \
+    "partial local List rewards"
+  assert_empty "${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[wallet_index]}" \
+    "partial local List total"
+  assert_empty "${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[wallet_index]}" \
+    "partial local List token count"
+  assert_eq "${CNTOOLS_WALLET_LIST_QUERY_STATUSES[wallet_index]}" "partial" \
+    "partial local List status"
+done
+
+reset_query_traces
+FAKE_CLI_SCENARIO="full"
+export FAKE_CLI_SCENARIO
+FAKE_SOCKET_READY="N"
+cntools_wallet_list_query_catalog || fail "missing-socket local List failed"
+assert_eq "$(line_count "${CLI_TRACE}")" "0" \
+  "local List preflight CLI call count"
+assert_contains "${CNTOOLS_WALLET_LIST_QUERY_SUMMARY}" "${CNTOOLS_SOCKET}" \
+  "local List missing-socket summary"
+FAKE_SOCKET_READY="Y"
+
+reset_query_traces
+FAKE_CLI_SCENARIO="timeout-all"
+export FAKE_CLI_SCENARIO
+cntools_wallet_list_query_catalog || fail "timed-out local List failed"
+assert_eq "$(line_count "${CLI_TRACE}")" "1" \
+  "local List timeout circuit-breaker call count"
+assert_contains "${CNTOOLS_WALLET_LIST_QUERY_SUMMARY}" "stopped" \
+  "local List timeout circuit-breaker summary"
+FAKE_CLI_SCENARIO="full"
+export FAKE_CLI_SCENARIO
+
 # ---------------------------------------------------------------------------
 # Koios bulk, partial-result, and credential-boundary behavior
 # ---------------------------------------------------------------------------
@@ -651,6 +910,7 @@ cntools_http_request() {
   local previous=""
   local payload=""
   local file_argument=""
+  local requested="[]"
   local -a arguments=()
   shift 3
   arguments=("$@")
@@ -662,9 +922,11 @@ cntools_http_request() {
   else
     printf '%s\tCLEAN\n' "${url}" >> "${HTTP_ENV_TRACE}"
   fi
-  printf '%s\t%s\t' "${method}" "${url}" >> "${HTTP_ARGV_TRACE}"
-  printf '%q ' "${arguments[@]}" >> "${HTTP_ARGV_TRACE}"
-  printf '\n' >> "${HTTP_ARGV_TRACE}"
+  {
+    printf '%s\t%s\t' "${method}" "${url}"
+    printf '%q ' "${arguments[@]}"
+    printf '\n'
+  } >> "${HTTP_ARGV_TRACE}"
 
   for argument in "${arguments[@]}"; do
     if [[ "${previous}" == "--data" || "${previous}" == "--data-raw" ||
@@ -696,11 +958,16 @@ cntools_http_request() {
   case "${url}" in
     */address_info)
       printf '%s\n' "${payload}" > "${HTTP_CAPTURE_DIR}/address_info.json"
+      requested="$(jq -c '._addresses // []' <<< "${payload}")"
       case "${KOIOS_SCENARIO}" in
         address-fail) return 22 ;;
         partial-missing)
-          jq -cn --arg base "${TEST_BASE_ADDRESS}" \
-            '[{address:$base,balance:"1100000",utxo_set:[{asset_list:[]}]}]' \
+          jq -cn --argjson requested "${requested}" \
+            --arg base "${TEST_BASE_ADDRESS}" '
+              [{address:$base,balance:"1100000",utxo_set:[{asset_list:[]}]}]
+              | [.[] as $row
+                 | select($requested | index($row.address)) | $row]
+            ' \
             > "${output_file}"
           ;;
         duplicate)
@@ -708,29 +975,76 @@ cntools_http_request() {
             '[{address:$base,balance:"1100000",utxo_set:[{asset_list:[]}]}]' \
             > "${output_file}"
           ;;
-        *)
-          jq -cn \
+        null-asset-name)
+          jq -cn --argjson requested "${requested}" \
             --arg base "${TEST_BASE_ADDRESS}" \
             --arg payment "${TEST_PAYMENT_ADDRESS}" \
-            '[
-              {address:$base,balance:"1100000",utxo_set:[{asset_list:[]}]},
-              {address:$payment,balance:"2200000",utxo_set:[{asset_list:[
-                {policy_id:"policy",asset_name:"asset",quantity:"5"}
-              ]}]}
-            ]' > "${output_file}"
+            --arg policy "${TEST_POLICY_ID}" '
+              [
+                {address:$base,balance:"1100000",utxo_set:[{asset_list:[]}]},
+                {address:$payment,balance:"2200000",utxo_set:[{asset_list:[
+                  {policy_id:$policy,asset_name:null,quantity:"5"}
+                ]}]}
+              ]
+              | [.[] as $row
+                 | select($requested | index($row.address)) | $row]
+            ' > "${output_file}"
+          ;;
+        invalid-asset)
+          jq -cn --argjson requested "${requested}" \
+            --arg base "${TEST_BASE_ADDRESS}" \
+            --arg payment "${TEST_PAYMENT_ADDRESS}" '
+              [
+                {address:$base,balance:"1100000",utxo_set:[{asset_list:[]}]},
+                {address:$payment,balance:"2200000",utxo_set:[{asset_list:[
+                  {policy_id:"not-hex",asset_name:"00",quantity:"5"}
+                ]}]}
+              ]
+              | [.[] as $row
+                 | select($requested | index($row.address)) | $row]
+            ' > "${output_file}"
+          ;;
+        *)
+          jq -cn --argjson requested "${requested}" \
+            --arg base "${TEST_BASE_ADDRESS}" \
+            --arg payment "${TEST_PAYMENT_ADDRESS}" \
+            --arg policy "${TEST_POLICY_ID}" \
+            --arg asset "${TEST_ASSET_NAME}" '
+              [
+                {address:$base,balance:"1100000",utxo_set:[{asset_list:[]}]},
+                {address:$payment,balance:"2200000",utxo_set:[{asset_list:[
+                  {policy_id:$policy,asset_name:$asset,quantity:"5"}
+                ]}]}
+              ]
+              | [.[] as $row
+                 | select($requested | index($row.address)) | $row]
+            ' > "${output_file}"
           ;;
       esac
       ;;
     */account_info)
       printf '%s\n' "${payload}" > "${HTTP_CAPTURE_DIR}/account_info.json"
       [[ "${KOIOS_SCENARIO}" != "stake-fail" ]] || return 22
-      jq -cn \
-        --arg reward "${TEST_REWARD_ADDRESS}" \
-        --arg drep "${TEST_DREP_ID}" \
-        '[{
-          stake_address:$reward,status:"registered",rewards_available:"880000",
-          delegated_pool:"pool1koios",delegated_drep:$drep
-        }]' > "${output_file}"
+      requested="$(jq -c '._stake_addresses // []' <<< "${payload}")"
+      if [[ "${KOIOS_SCENARIO}" == "stake-number" ]]; then
+        jq -cn --argjson requested "${requested}" \
+          --arg reward "${TEST_REWARD_ADDRESS}" '
+            [{stake_address:$reward,status:"registered",rewards_available:1e20}]
+            | [.[] as $row
+               | select($requested | index($row.stake_address)) | $row]
+          ' > "${output_file}"
+      else
+        jq -cn --argjson requested "${requested}" \
+          --arg reward "${TEST_REWARD_ADDRESS}" \
+          --arg drep "${TEST_DREP_ID}" '
+            [{
+              stake_address:$reward,status:"registered",rewards_available:"880000",
+              delegated_pool:"pool1koios",delegated_drep:$drep
+            }]
+            | [.[] as $row
+               | select($requested | index($row.stake_address)) | $row]
+          ' > "${output_file}"
+      fi
       ;;
     *) return 22 ;;
   esac
@@ -830,6 +1144,108 @@ assert_eq "${CNTOOLS_WALLET_TOTAL_LOVELACE}" "1100000" \
 assert_eq "${CNTOOLS_WALLET_UTXO_COUNT}" "1" \
   "duplicate Koios address duplicated UTxOs"
 
+# Wallet List sends one deduplicated catalog request per Koios endpoint, then
+# projects the shared response back to every wallet.
+cntools_wallet_catalog_build || fail "Koios List catalog build failed"
+reset_query_traces
+KOIOS_SCENARIO="full"
+cntools_wallet_list_query_catalog || fail "Koios Wallet List query failed"
+assert_eq "$(line_count "${HTTP_TRACE}")" "2" \
+  "Koios multi-wallet List bulk request count"
+jq -e --arg base "${TEST_BASE_ADDRESS}" \
+  --arg payment "${TEST_PAYMENT_ADDRESS}" '
+    ._addresses | length == 2 and
+    (index($base) != null) and (index($payment) != null) and
+    (unique | length == 2)
+  ' "${HTTP_CAPTURE_DIR}/address_info.json" >/dev/null ||
+  fail "Koios List did not globally deduplicate funding addresses"
+for wallet_index in 0 1; do
+  assert_eq "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[wallet_index]}" "3300000" \
+    "Koios List wallet ${wallet_index} UTxO balance"
+  assert_eq "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[wallet_index]}" "880000" \
+    "Koios List wallet ${wallet_index} rewards"
+  assert_eq "${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[wallet_index]}" "4180000" \
+    "Koios List wallet ${wallet_index} inclusive total"
+  assert_eq "${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[wallet_index]}" "1" \
+    "Koios List wallet ${wallet_index} token union"
+  assert_eq "${CNTOOLS_WALLET_LIST_QUERY_STATUSES[wallet_index]}" "available" \
+    "Koios List wallet ${wallet_index} status"
+done
+
+reset_query_traces
+: > "${UI_TRACE}"
+CONFIRM_STATUS=0
+( cntools_wallet_action_list ) || fail "accepted Koios List action failed"
+grep -Fx $'SPIN\tFetching wallet balances and rewards from Koios…' \
+  "${UI_TRACE}" >/dev/null || fail "Koios List did not use the Gum spinner"
+assert_eq "$(line_count "${HTTP_TRACE}")" "2" \
+  "accepted Koios List bulk request count"
+
+reset_query_traces
+: > "${UI_TRACE}"
+CONFIRM_STATUS=1
+( cntools_wallet_action_list ) || fail "declined Koios List action failed"
+assert_eq "$(line_count "${HTTP_TRACE}")" "0" \
+  "declined Koios List request count"
+[[ "$(grep -c '^SPIN' "${UI_TRACE}" || true)" == "0" ]] ||
+  fail "declined Koios List started the balance spinner"
+
+reset_query_traces
+KOIOS_SCENARIO="partial-missing"
+cntools_wallet_list_query_catalog || fail "partial Koios Wallet List failed"
+for wallet_index in 0 1; do
+  assert_empty "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[wallet_index]}" \
+    "partial Koios List UTxO aggregate"
+  assert_eq "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[wallet_index]}" "880000" \
+    "partial Koios List rewards"
+  assert_empty "${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[wallet_index]}" \
+    "partial Koios List total"
+  assert_empty "${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[wallet_index]}" \
+    "partial Koios List token count"
+  assert_eq "${CNTOOLS_WALLET_LIST_QUERY_STATUSES[wallet_index]}" "partial" \
+    "partial Koios List status"
+done
+
+reset_query_traces
+KOIOS_SCENARIO="stake-number"
+cntools_wallet_list_query_catalog || fail "numeric Koios rewards List failed"
+assert_eq "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[0]}" "3300000" \
+  "numeric Koios rewards damaged funding result"
+assert_empty "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[0]}" \
+  "invalid numeric Koios rewards became a false zero"
+assert_empty "${CNTOOLS_WALLET_LIST_STAKE_REWARDS[${TEST_REWARD_ADDRESS}]:-}" \
+  "failed Koios stake batch committed partial state"
+
+reset_query_traces
+KOIOS_SCENARIO="invalid-asset"
+cntools_wallet_list_query_catalog || fail "invalid Koios asset List failed"
+assert_empty "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[0]}" \
+  "invalid Koios asset batch committed a funding balance"
+assert_empty "${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[0]}" \
+  "invalid Koios asset identity affected the token count"
+
+reset_query_traces
+KOIOS_SCENARIO="null-asset-name"
+cntools_wallet_list_query_catalog || fail "null-name Koios asset List failed"
+assert_eq "${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[0]}" "1" \
+  "valid empty-name Koios asset was not counted"
+assert_eq "${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[0]}" "4180000" \
+  "valid empty-name Koios asset invalidated the wallet total"
+
+reset_query_traces
+KOIOS_SCENARIO="full"
+cntools_wallet_list_koios_payload _addresses one_address_payload \
+  "${TEST_BASE_ADDRESS}" || fail "could not size a one-address Koios payload"
+CNTOOLS_WALLET_KOIOS_PAYLOAD_MAX_BYTES="${#one_address_payload}"
+cntools_wallet_list_query_catalog || fail "split Koios Wallet List query failed"
+assert_eq "$(grep -c '/address_info' "${HTTP_TRACE}")" "2" \
+  "Koios List funding payload was not split at its size bound"
+assert_eq "$(grep -c '/account_info' "${HTTP_TRACE}")" "1" \
+  "Koios List split duplicated its reward request"
+assert_eq "${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[0]}" "4180000" \
+  "split Koios List changed the projected total"
+CNTOOLS_WALLET_KOIOS_PAYLOAD_MAX_BYTES=1024
+
 reset_query_traces
 CNTOOLS_MODE="offline"
 CNTOOLS_BACKEND="none"
@@ -838,6 +1254,11 @@ cntools_wallet_query \
 assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "offline" "offline query status"
 [[ ! -s "${HTTP_TRACE}" && ! -s "${CLI_TRACE}" ]] ||
   fail "offline wallet query contacted a backend"
+cntools_wallet_list_query_catalog || fail "offline Wallet List query failed"
+[[ ! -s "${HTTP_TRACE}" && ! -s "${CLI_TRACE}" ]] ||
+  fail "offline Wallet List contacted a backend"
+assert_contains "${CNTOOLS_WALLET_LIST_QUERY_SUMMARY}" "Offline mode" \
+  "offline Wallet List summary"
 
 CNTOOLS_MODE="local"
 CNTOOLS_BACKEND="amaru"
@@ -850,5 +1271,19 @@ assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "unsupported" \
   "Amaru local query status"
 assert_contains "${CNTOOLS_WALLET_QUERY_MESSAGE}" \
   "does not provide local wallet queries" "Amaru capability explanation"
+reset_query_traces
+cntools_wallet_list_query_catalog || fail "Amaru Wallet List query failed"
+[[ ! -s "${HTTP_TRACE}" && ! -s "${CLI_TRACE}" ]] ||
+  fail "Amaru Wallet List contacted an unsupported backend"
+assert_contains "${CNTOOLS_WALLET_LIST_QUERY_SUMMARY}" \
+  "does not provide local wallet queries" "Amaru Wallet List explanation"
+
+: > "${UI_TRACE}"
+CONFIRM_STATUS=0
+( cntools_wallet_action_list ) || fail "Amaru List action failed"
+[[ "$(grep -Ec '^(CONFIRM|SPIN)' "${UI_TRACE}" || true)" == "0" ]] ||
+  fail "Amaru List action prompted for or fetched unsupported balances"
+[[ ! -s "${HTTP_TRACE}" && ! -s "${CLI_TRACE}" ]] ||
+  fail "Amaru List action contacted an unsupported backend"
 
 printf 'CNTools wallet tests passed\n'

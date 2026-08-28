@@ -11,8 +11,19 @@ apply to the rewritten CNTools 14 framework.
 
 Open **Wallet**, then select **List**. CNTools reads the existing configured
 wallet directory and shows each wallet's detected type, whether protected key
-files are present, and how many standard address files are available. This
-does not query the blockchain or change any wallet file.
+files are present, its non-ADA token count, rewards, UTxO balance, and an
+inclusive total. CLI wallets and wallets derived from a mnemonic are shown as
+separate types.
+
+Live columns follow the selected startup mode. Local cnode and Dingo sessions
+use the deployed Cardano CLI and node socket. Light mode deduplicates addresses
+across the complete wallet catalog and sends size-bounded bulk Koios requests.
+Before either backend is contacted, CNTools asks whether to fetch balances and
+rewards. Select **No** for an immediate filesystem-only list with `—` in the
+live columns, or **Yes** to run the query with a visible progress spinner.
+Offline mode makes no live request or asks an unnecessary question, and local
+Amaru leaves the live columns unavailable. CNTools never substitutes a false
+zero or incomplete total.
 
 ## Show a wallet
 

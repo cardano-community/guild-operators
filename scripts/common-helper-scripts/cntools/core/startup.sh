@@ -95,6 +95,7 @@ cntools_startup_require_commands() {
 
 cntools_startup_load_env() {
   local env_file="${CNTOOLS_ENV_FILE:-}"
+  local inferred_node_home=""
   local env_status=0
   local errexit_was_enabled="N"
   local nounset_was_enabled="N"
@@ -109,6 +110,22 @@ cntools_startup_load_env() {
     cntools_startup_error "Common env is missing or unsafe: ${env_file:-unset}"
     return 1
   }
+
+  # User overrides live before the common env bootstrap establishes its node
+  # home. Seed both the current and legacy names from the deployment layout so
+  # early values such as ${CNODE_HOME}/sockets/node0.socket do not collapse to
+  # /sockets/node0.socket. Explicit caller values remain authoritative for
+  # deployments that intentionally opt into system variables.
+  inferred_node_home="$(cd -- "${env_file%/*}/.." 2>/dev/null && pwd -P)" || {
+    cntools_startup_error "Could not determine the deployment home from the common env."
+    return 1
+  }
+  [[ -n "${inferred_node_home}" && "${inferred_node_home}" != "/" ]] || {
+    cntools_startup_error "The deployment home inferred from the common env is unsafe."
+    return 1
+  }
+  NODE_HOME="${NODE_HOME:-${CNODE_HOME:-${inferred_node_home}}}"
+  CNODE_HOME="${CNODE_HOME:-${NODE_HOME}}"
 
   [[ -o errexit ]] && errexit_was_enabled="Y"
   [[ -o nounset ]] && nounset_was_enabled="Y"
@@ -274,14 +291,17 @@ cntools_startup_normalize_session() {
   done
 
   CNTOOLS_WALLET_PAY_VKEY_FILENAME="${WALLET_PAY_VK_FILENAME:-payment.vkey}"
+  CNTOOLS_WALLET_PAY_SKEY_FILENAME="${WALLET_PAY_SK_FILENAME:-payment.skey}"
   CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME="${WALLET_HW_PAY_SK_FILENAME:-payment.hwsfile}"
   CNTOOLS_WALLET_PAY_ADDR_FILENAME="${WALLET_PAY_ADDR_FILENAME:-payment.addr}"
   CNTOOLS_WALLET_PAY_SCRIPT_FILENAME="${WALLET_PAY_SCRIPT_FILENAME:-payment.script}"
   CNTOOLS_WALLET_BASE_ADDR_FILENAME="${WALLET_BASE_ADDR_FILENAME:-base.addr}"
   CNTOOLS_WALLET_STAKE_VKEY_FILENAME="${WALLET_STAKE_VK_FILENAME:-stake.vkey}"
+  CNTOOLS_WALLET_STAKE_SKEY_FILENAME="${WALLET_STAKE_SK_FILENAME:-stake.skey}"
   CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME="${WALLET_HW_STAKE_SK_FILENAME:-stake.hwsfile}"
   CNTOOLS_WALLET_STAKE_ADDR_FILENAME="${WALLET_STAKE_ADDR_FILENAME:-reward.addr}"
   CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME="${WALLET_STAKE_SCRIPT_FILENAME:-stake.script}"
+  CNTOOLS_WALLET_DERIVATION_PATH_FILENAME="${WALLET_DERIVATION_PATH_FILENAME:-derivation.path}"
   CNTOOLS_WALLET_MULTISIG_PREFIX="${WALLET_MULTISIG_PREFIX:-ms_}"
 
   [[ -n "${CNTOOLS_SERVICE}" &&
@@ -353,14 +373,17 @@ cntools_startup_normalize_session() {
   fi
   for filename_value in \
     "${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" \
+    "${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" \
     "${CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME}" \
     "${CNTOOLS_WALLET_PAY_ADDR_FILENAME}" \
     "${CNTOOLS_WALLET_PAY_SCRIPT_FILENAME}" \
     "${CNTOOLS_WALLET_BASE_ADDR_FILENAME}" \
     "${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" \
+    "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" \
     "${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}" \
     "${CNTOOLS_WALLET_STAKE_ADDR_FILENAME}" \
-    "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}"; do
+    "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}" \
+    "${CNTOOLS_WALLET_DERIVATION_PATH_FILENAME}"; do
     cntools_startup_wallet_filename_valid "${filename_value}" || {
       cntools_startup_error \
         "CNTools received an unsafe wallet filename: ${filename_value:-unset}"
@@ -420,11 +443,14 @@ cntools_startup_normalize_session() {
   export CNTOOLS_DBSYNC_QUERY_DIR CNTOOLS_UPDATE_CHECK CNTOOLS_KOIOS_ENABLED
   export CNTOOLS_KOIOS_API CNTOOLS_CURL_TIMEOUT CNTOOLS_CLI_TIMEOUT
   export CNTOOLS_TIMEOUT_BIN
-  export CNTOOLS_WALLET_PAY_VKEY_FILENAME CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME
+  export CNTOOLS_WALLET_PAY_VKEY_FILENAME CNTOOLS_WALLET_PAY_SKEY_FILENAME
+  export CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME
   export CNTOOLS_WALLET_PAY_ADDR_FILENAME CNTOOLS_WALLET_PAY_SCRIPT_FILENAME
   export CNTOOLS_WALLET_BASE_ADDR_FILENAME CNTOOLS_WALLET_STAKE_VKEY_FILENAME
+  export CNTOOLS_WALLET_STAKE_SKEY_FILENAME
   export CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME CNTOOLS_WALLET_STAKE_ADDR_FILENAME
-  export CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME CNTOOLS_WALLET_MULTISIG_PREFIX
+  export CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME
+  export CNTOOLS_WALLET_DERIVATION_PATH_FILENAME CNTOOLS_WALLET_MULTISIG_PREFIX
   export CNTOOLS_MODE CNTOOLS_BACKEND
   export CNTOOLS_ADVANCED CNTOOLS_SESSION_ID
 }

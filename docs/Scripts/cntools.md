@@ -81,17 +81,28 @@ their wallet libraries on demand; remaining operational actions display a
 not-implemented notice.
 
 Wallet List reads existing direct subdirectories beneath the configured
-`WALLET_FOLDER` and shows wallet type, key protection, and available address
-files. Wallet Show adds balances, UTxO and native asset counts, rewards,
-registration, and delegation when its backend supports those queries. Local
-cnode and Dingo sessions use the deployed Cardano CLI, light mode uses Koios,
-offline mode never contacts a backend, and local Amaru sessions clearly mark
-live values unavailable while still showing wallet files.
+`WALLET_FOLDER` and shows wallet type, key protection, non-ADA token count,
+rewards, UTxO balance, and the inclusive UTxO-plus-rewards total. It
+distinguishes ordinary CLI wallets from mnemonic-derived wallets using the
+existing key and derivation metadata. Wallet Show adds addresses, UTxO and
+native asset counts, registration, and delegation. Local cnode and Dingo
+sessions use the deployed Cardano CLI, light mode uses Koios, offline mode
+never contacts a backend, and local Amaru sessions clearly mark live values
+unavailable while still showing wallet files.
 
-Local Cardano CLI calls are bounded by a timeout. Light mode sends all distinct
-funding addresses for the selected wallet in one Koios request and uses one
-separate stake-account request. Partial responses remain visibly partial and
-are never promoted to a complete wallet total.
+For Wallet List, live balances and rewards are opt-in on each visit. Declining
+the confirmation renders the filesystem catalog immediately with unavailable
+live columns and makes no Cardano CLI or Koios request. Accepting it displays a
+Gum spinner while CNTools fetches the catalog values. Offline mode and local
+implementations without wallet-query capability skip this confirmation.
+
+Local Cardano CLI calls are bounded by a timeout. Wallet List performs one
+local preflight and stops the remaining catalog queries after a backend
+timeout. In light mode, Wallet List deduplicates addresses across all wallets
+and divides them into bounded Koios bulk requests; Wallet Show sends the
+selected wallet's distinct funding addresses together and uses one separate
+stake-account request. Partial responses remain visibly partial and are never
+promoted to a complete wallet total.
 
 These actions do not create missing addresses, update keys, or change the
 existing CNTools wallet layout. Unsafe symbolic links and malformed address

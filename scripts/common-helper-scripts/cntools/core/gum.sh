@@ -640,6 +640,7 @@ cntools_gum_header() {
   local width=""
   local runtime=""
   local styled_name=""
+  local styled_title_gap=""
   local styled_version=""
   local styled_title=""
   local styled_path=""
@@ -660,8 +661,10 @@ cntools_gum_header() {
     --foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
     --background "${CNTOOLS_GUM_COLOR_SURFACE}" \
     "v${CNTOOLS_VERSION:-?}")" || return 1
+  styled_title_gap="$(cntools_gum_capture style \
+    --background "${CNTOOLS_GUM_COLOR_SURFACE}" " ")" || return 1
   styled_title="$(cntools_gum_capture join --horizontal \
-    "${styled_name}" " " "${styled_version}")" || return 1
+    "${styled_name}" "${styled_title_gap}" "${styled_version}")" || return 1
   styled_path="$(cntools_gum_breadcrumb "${breadcrumb}")" || return 1
   styled_runtime="$(cntools_gum_capture style \
     --foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
@@ -891,6 +894,91 @@ cntools_ui_spin() {
   (( $# > 0 )) || return 2
   cntools_gum spin --spinner dot --title "${title}" \
     --spinner.foreground "${CNTOOLS_GUM_COLOR_BRAND}" -- "$@"
+}
+
+# Run a shell function in this process while Gum owns only the spinner. Running
+# the function itself through `gum spin --` would put it in a child process and
+# discard any arrays or status values it prepared for the calling action.
+cntools_ui_spin_function() {
+  local title="${1:-Working…}"
+  local temporary_directory="${CNTOOLS_TMP_DIR:-}"
+  local marker=""
+  local previous_umask=""
+  local spinner_pid=""
+  local callback_status=0
+  local spinner_status=0
+  local parent_pid="${BASHPID:-$$}"
+  shift || true
+
+  (( $# > 0 )) || return 2
+  [[ -n "${temporary_directory}" &&
+     "${temporary_directory}" = /* &&
+     -d "${temporary_directory}" &&
+     ! -L "${temporary_directory}" &&
+     -O "${temporary_directory}" &&
+     -w "${temporary_directory}" &&
+     -n "${BASH:-}" && -x "${BASH}" ]] || return 1
+
+  previous_umask="$(umask)"
+  umask 077
+  marker="$(mktemp \
+    "${temporary_directory}/.cntools-spin.XXXXXX")" || {
+    umask "${previous_umask}"
+    return 1
+  }
+  umask "${previous_umask}"
+  chmod 0600 "${marker}" || {
+    rm -f -- "${marker}"
+    return 1
+  }
+
+  cntools_gum spin --spinner dot --title "${title}" \
+    --spinner.foreground "${CNTOOLS_GUM_COLOR_BRAND}" -- \
+    "${BASH}" -c '
+      marker=$1
+      parent_pid=$2
+      cleanup() {
+        [[ ! -f "${marker}" || -L "${marker}" ]] || rm -f -- "${marker}"
+      }
+      trap cleanup EXIT HUP INT TERM
+      while [[ -e "${marker}" ]] &&
+            kill -0 "${parent_pid}" 2>/dev/null; do
+        sleep 0.1
+      done
+    ' _ "${marker}" "${parent_pid}" &
+  spinner_pid=$!
+
+  if "$@"; then
+    callback_status=0
+  else
+    callback_status=$?
+  fi
+  if [[ -e "${marker}" || -L "${marker}" ]]; then
+    if [[ -f "${marker}" && ! -L "${marker}" && -O "${marker}" ]]; then
+      if rm -f -- "${marker}"; then
+        :
+      else
+        kill "${spinner_pid}" 2>/dev/null || true
+        wait "${spinner_pid}" 2>/dev/null || true
+        return 1
+      fi
+    else
+      kill "${spinner_pid}" 2>/dev/null || true
+      wait "${spinner_pid}" 2>/dev/null || true
+      return 1
+    fi
+  fi
+  if wait "${spinner_pid}"; then
+    spinner_status=0
+  else
+    spinner_status=$?
+  fi
+  if [[ -f "${marker}" && ! -L "${marker}" && -O "${marker}" ]]; then
+    rm -f -- "${marker}" 2>/dev/null || true
+  fi
+
+  (( callback_status == 0 )) || return "${callback_status}"
+  return "${spinner_status}"
 }
 
 cntools_gum_filter() {

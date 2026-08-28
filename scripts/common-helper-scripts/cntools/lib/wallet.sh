@@ -78,6 +78,40 @@ cntools_wallet_file_present() {
   cntools_wallet_safe_regular_file "${1:-}/${2:-}" 65536
 }
 
+cntools_wallet_derivation_path_valid() {
+  local wallet_directory="${1:-}"
+  local derivation_file="${wallet_directory}/${CNTOOLS_WALLET_DERIVATION_PATH_FILENAME}"
+  local derivation_path=""
+  local nul_probe=""
+  local -a derivation_lines=()
+
+  cntools_wallet_safe_regular_file "${derivation_file}" 128 || return 1
+  if IFS= read -r -d '' nul_probe < "${derivation_file}"; then
+    return 1
+  fi
+  mapfile -t derivation_lines < "${derivation_file}" || return 1
+  [[ ${#derivation_lines[@]} -eq 1 ]] || return 1
+  derivation_path="${derivation_lines[0]}"
+  [[ "${derivation_path}" =~ ^1852H/1815H/[0-9]+H/x/[0-9]+$ ]]
+}
+
+cntools_wallet_extended_signing_key_present() {
+  local wallet_directory="${1:-}"
+  local expected_type=""
+  local signing_file=""
+
+  while IFS=$'\t' read -r signing_file expected_type; do
+    cntools_wallet_safe_regular_file "${signing_file}" 65536 || continue
+    jq -e --arg expected_type "${expected_type}" '
+      .type == $expected_type
+    ' "${signing_file}" >/dev/null 2>&1 && return 0
+  done <<EOF
+${wallet_directory}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}	PaymentExtendedSigningKeyShelley_ed25519_bip32
+${wallet_directory}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}	StakeExtendedSigningKeyShelley_ed25519_bip32
+EOF
+  return 1
+}
+
 cntools_wallet_type() {
   local wallet_directory="${1:-}"
   local payment_vkey="${wallet_directory}/${CNTOOLS_WALLET_PAY_VKEY_FILENAME}"
@@ -108,6 +142,11 @@ cntools_wallet_type() {
   fi
   if [[ "${hardware_description}" == *Hardware* ]]; then
     printf 'Hardware\n'
+  elif cntools_wallet_safe_regular_file "${payment_vkey}" 65536 &&
+       cntools_wallet_safe_regular_file "${stake_vkey}" 65536 &&
+       { cntools_wallet_derivation_path_valid "${wallet_directory}" ||
+         cntools_wallet_extended_signing_key_present "${wallet_directory}"; }; then
+    printf 'Mnemonic\n'
   elif cntools_wallet_safe_regular_file "${payment_vkey}" 65536 &&
        cntools_wallet_safe_regular_file "${stake_vkey}" 65536; then
     printf 'CLI\n'
@@ -340,7 +379,11 @@ cntools_wallet_address_state() {
       status=$?
       case "${status}" in
         1) ;;
-        2) invalid=$((invalid + 1)) ;;
+        2)
+          invalid=$((invalid + 1))
+          cntools_wallet_log ERROR \
+            "Wallet ${wallet_directory##*/} has an invalid ${kind} address file"
+          ;;
         *) return "${status}" ;;
       esac
     fi
@@ -480,28 +523,48 @@ cntools_wallet_render_catalog() {
   local width=""
   local index=0
   local name=""
+  local type_and_keys=""
+  local tokens=""
+  local rewards=""
+  local utxo=""
+  local total=""
   local content=""
   local -a rows=()
 
   width="$(cntools_gum_width)" || width=78
-  if (( width >= 72 )); then
+  if (( width >= 94 )); then
     for (( index = 0; index < ${#CNTOOLS_WALLET_NAMES[@]}; index++ )); do
-      name="$(cntools_wallet_truncate "${CNTOOLS_WALLET_NAMES[index]}" 26)"
-      printf -v content '%-26s  %-10s  %-10s  %s' \
-        "${name}" "${CNTOOLS_WALLET_TYPES[index]}" \
-        "${CNTOOLS_WALLET_PROTECTIONS[index]}" \
-        "${CNTOOLS_WALLET_ADDRESS_STATES[index]}"
+      name="$(cntools_wallet_truncate "${CNTOOLS_WALLET_NAMES[index]}" 14)"
+      type_and_keys="$(cntools_wallet_truncate \
+        "${CNTOOLS_WALLET_TYPES[index]}/${CNTOOLS_WALLET_PROTECTIONS[index]}" 18)"
+      tokens="${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]:-—}"
+      rewards="$(cntools_wallet_format_lovelace_compact \
+        "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[index]}")"
+      utxo="$(cntools_wallet_format_lovelace_compact \
+        "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]}")"
+      total="$(cntools_wallet_format_lovelace_compact \
+        "${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[index]}")"
+      printf -v content '%-14s  %-18s  %6s  %14s  %14s  %14s' \
+        "${name}" "${type_and_keys}" "${tokens}" \
+        "${rewards}" "${utxo}" "${total}"
       rows+=("${content}")
     done
     cntools_ui_static_table \
-      "Wallet                      Type        Keys        Address files" \
+      "Wallet          Type / Keys         Tokens   Rewards (ADA)      UTxO (ADA)     Total (ADA)" \
       "${rows[@]}"
   else
     for (( index = 0; index < ${#CNTOOLS_WALLET_NAMES[@]}; index++ )); do
-      printf -v content '%s\nType: %s  ·  Keys: %s\nAddress files: %s' \
+      tokens="${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]:-—}"
+      rewards="$(cntools_wallet_format_lovelace \
+        "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[index]}")"
+      utxo="$(cntools_wallet_format_lovelace \
+        "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]}")"
+      total="$(cntools_wallet_format_lovelace \
+        "${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[index]}")"
+      printf -v content '%s\nType: %s  ·  Keys: %s  ·  Tokens: %s\nRewards: %s\nUTxO: %s\nTotal: %s' \
         "${CNTOOLS_WALLET_NAMES[index]}" "${CNTOOLS_WALLET_TYPES[index]}" \
-        "${CNTOOLS_WALLET_PROTECTIONS[index]}" \
-        "${CNTOOLS_WALLET_ADDRESS_STATES[index]}"
+        "${CNTOOLS_WALLET_PROTECTIONS[index]}" "${tokens}" \
+        "${rewards}" "${utxo}" "${total}"
       cntools_gum style --margin "0 2 1 2" --padding "0 1" \
         --border rounded --border-foreground "${CNTOOLS_GUM_COLOR_DIVIDER}" \
         --foreground "${CNTOOLS_GUM_COLOR_TEXT}" "${content}" || return 1
@@ -556,6 +619,11 @@ cntools_wallet_choose() {
 }
 
 cntools_wallet_action_list() {
+  local fetch_live="N"
+  local spinner_title="Fetching wallet balances and rewards…"
+  local confirmation_status=0
+
+  trap 'cntools_wallet_query_cleanup' EXIT
   cntools_ui_action_begin "List" "/ Wallet / List"
   if ! cntools_wallet_catalog_build; then
     cntools_ui_render_status error \
@@ -568,6 +636,53 @@ cntools_wallet_action_list() {
     cntools_ui_wait
     return 0
   fi
+
+  case "${CNTOOLS_MODE:-offline}" in
+    light)
+      fetch_live="Y"
+      spinner_title="Fetching wallet balances and rewards from Koios…"
+      ;;
+    local)
+      if [[ "${CNTOOLS_LOCAL_CLI_CAPABLE:-false}" == "true" ]]; then
+        fetch_live="Y"
+        spinner_title="Fetching wallet balances and rewards from ${CNTOOLS_IMPLEMENTATION_NAME:-the local node}…"
+      fi
+      ;;
+  esac
+
+  if [[ "${fetch_live}" == "Y" ]]; then
+    if cntools_ui_confirm "Fetch balances and rewards for all wallets now?"; then
+      cntools_wallet_log CHOICE "wallet catalog live balances requested"
+      if ! cntools_ui_spin_function \
+          "${spinner_title}" cntools_wallet_list_query_catalog; then
+        cntools_ui_render_status error \
+          "Wallet balances could not be prepared safely. See ${CNTOOLS_LOG}."
+        cntools_ui_wait
+        return 1
+      fi
+    else
+      confirmation_status=$?
+      if (( confirmation_status == 1 )); then
+        cntools_wallet_log CHOICE "wallet catalog live balances skipped"
+        cntools_wallet_list_query_reset
+        CNTOOLS_WALLET_LIST_QUERY_LEVEL="info"
+        CNTOOLS_WALLET_LIST_QUERY_SUMMARY="Live wallet balances were not requested."
+      else
+        cntools_wallet_log ERROR \
+          "wallet catalog confirmation failed status=${confirmation_status}"
+        return "${confirmation_status}"
+      fi
+    fi
+  elif ! cntools_wallet_list_query_catalog; then
+    cntools_ui_render_status error \
+      "Wallet balances could not be prepared safely. See ${CNTOOLS_LOG}."
+    cntools_ui_wait
+    return 1
+  fi
+  [[ -z "${CNTOOLS_WALLET_LIST_QUERY_SUMMARY}" ]] ||
+    cntools_ui_render_status \
+      "${CNTOOLS_WALLET_LIST_QUERY_LEVEL}" \
+      "${CNTOOLS_WALLET_LIST_QUERY_SUMMARY}"
   cntools_wallet_render_catalog || return 1
   cntools_ui_wait
 }

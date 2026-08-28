@@ -63,7 +63,7 @@ assert_fails() {
   fi
 }
 
-for required_command in bash chmod cp grep mktemp mkdir rm tar; do
+for required_command in bash chmod cp find grep mktemp mkdir rm tar; do
   command -v "${required_command}" >/dev/null 2>&1 ||
     fail "required command is unavailable: ${required_command}"
 done
@@ -98,6 +98,7 @@ for required_function in \
   cntools_gum_filter_height \
   cntools_gum_capture cntools_gum_header_rows cntools_gum_breadcrumb \
   cntools_gum_menu_run cntools_ui_choose cntools_ui_static_table \
+  cntools_ui_spin_function \
   cntools_health_refresh; do
   declare -F "${required_function}" >/dev/null 2>&1 ||
     fail "Gum interface function is missing: ${required_function}"
@@ -270,6 +271,70 @@ run_offline_installer_test() (
   fi
   assert_contains "${output}" "unavailable in offline mode" \
     "offline Gum installer boundary"
+)
+
+run_spin_function_test() (
+  local case_root="${TEST_ROOT}/spin-function"
+  local argument_log="${case_root}/gum-arguments"
+  local callback_value="pending"
+  local callback_status=0
+
+  mkdir -p "${case_root}"
+  CNTOOLS_TMP_DIR="${case_root}"
+  cntools_gum() {
+    local command_name="${1:-}"
+    shift || true
+
+    printf '%s\n' "${command_name}" "$@" >> "${argument_log}"
+    [[ "${command_name}" == "spin" ]] || return 2
+    while (( $# > 0 )); do
+      if [[ "$1" == "--" ]]; then
+        shift
+        "$@"
+        return $?
+      fi
+      shift
+    done
+    return 2
+  }
+  prepare_fixture_state() {
+    callback_value="prepared"
+  }
+  fail_fixture_state() {
+    callback_value="failed"
+    return 7
+  }
+
+  : > "${argument_log}"
+  cntools_ui_spin_function "Fetching fixture balances…" \
+    prepare_fixture_state || fail "same-shell Gum spinner failed"
+  assert_eq "${callback_value}" "prepared" \
+    "same-shell spinner callback state"
+  grep -Fx -- 'spin' "${argument_log}" >/dev/null ||
+    fail "same-shell spinner did not invoke Gum spin"
+  grep -Fx -- 'Fetching fixture balances…' "${argument_log}" >/dev/null ||
+    fail "same-shell spinner lost its title"
+  [[ -z "$(find "${case_root}" -name '.cntools-spin.*' -print)" ]] ||
+    fail "same-shell spinner left its completion marker"
+
+  if cntools_ui_spin_function "Failing fixture…" fail_fixture_state; then
+    fail "same-shell spinner discarded a callback failure"
+  else
+    callback_status=$?
+  fi
+  assert_eq "${callback_status}" "7" \
+    "same-shell spinner callback status"
+  assert_eq "${callback_value}" "failed" \
+    "failed same-shell spinner callback state"
+  [[ -z "$(find "${case_root}" -name '.cntools-spin.*' -print)" ]] ||
+    fail "failed same-shell spinner left its completion marker"
+
+  callback_value="pending"
+  CNTOOLS_TMP_DIR="${case_root}/missing"
+  assert_fails "same-shell spinner accepted a missing temp directory" \
+    cntools_ui_spin_function "Invalid fixture…" prepare_fixture_state
+  assert_eq "${callback_value}" "pending" \
+    "invalid same-shell spinner ran its callback"
 )
 
 run_filter_presentation_test() (
@@ -627,6 +692,7 @@ run_header_test() (
   cntools_gum() {
     local command_name="${1:-}"
     local foreground=""
+    local background=""
     local bold="N"
     local text_value="${!#}"
     local argument=""
@@ -640,14 +706,17 @@ run_header_test() (
     for argument in "$@"; do
       if [[ "${previous}" == "--foreground" ]]; then
         foreground="${argument}"
+      elif [[ "${previous}" == "--background" ]]; then
+        background="${argument}"
       fi
       [[ "${argument}" != "--bold" ]] || bold="Y"
       [[ "${argument}" != "--no-strip-ansi" ]] || outer_style="Y"
       previous="${argument}"
     done
     if [[ "${command_name}" == "style" ]]; then
-      printf 'style\t%s\t%s\t%s\n' \
-        "${foreground}" "${bold}" "${text_value}" >> "${argument_log}"
+      printf 'style\t%s\t%s\t%s\t%s\n' \
+        "${foreground}" "${background}" "${bold}" "${text_value}" \
+        >> "${argument_log}"
       if [[ "${outer_style}" == "Y" && ${simulated_render_rows} -gt 0 ]]; then
         for ((line = 1; line <= simulated_render_rows; line++)); do
           printf 'rendered row %s\n' "${line}"
@@ -674,21 +743,23 @@ run_header_test() (
   : > "${argument_log}"
   cntools_gum_header "/ Update / View Changes" >/dev/null ||
     fail "nested Gum header rendering failed"
-  grep -F $'style\t#98989F\tN\t/ Update / ' \
+  grep -F $'style\t#98989F\t#202127\tN\t/ Update / ' \
     "${argument_log}" >/dev/null ||
     fail "Gum breadcrumb parent was not muted"
-  grep -F $'style\t#4FBC85\tY\tView Changes' \
+  grep -F $'style\t#4FBC85\t#202127\tY\tView Changes' \
     "${argument_log}" >/dev/null ||
     fail "Gum breadcrumb leaf was not highlighted"
-  grep -F $'style\t#98989F\tN\tlocal · cnode · preprod' \
+  grep -F $'style\t#98989F\t#202127\tN\tlocal · cnode · preprod' \
     "${argument_log}" >/dev/null ||
     fail "Gum runtime row was not compact"
   if grep -E $'\t(Mode|Backend|Network) ' "${argument_log}" >/dev/null; then
     fail "Gum runtime row retained redundant labels"
   fi
-  grep -F $'style\t#3DD68C\tN\tEpoch 230  ·  Tip #456  ·  Gap 2 slots' \
+  grep -F $'style\t#3DD68C\t#202127\tN\tEpoch 230  ·  Tip #456  ·  Gap 2 slots' \
     "${argument_log}" >/dev/null ||
     fail "Gum health row was not rendered with its health color"
+  grep -F $'style\t\t#202127\tN\t ' "${argument_log}" >/dev/null ||
+    fail "Gum title separator did not inherit the info-header surface"
 
   simulated_render_rows=7
   cntools_gum_header "/ Wallet / Register" >/dev/null ||
@@ -703,9 +774,9 @@ run_header_test() (
   : > "${argument_log}"
   cntools_gum_header "/" >/dev/null ||
     fail "offline Gum header rendering failed"
-  grep -F $'style\t#4FBC85\tY\t/' "${argument_log}" >/dev/null ||
+  grep -F $'style\t#4FBC85\t#202127\tY\t/' "${argument_log}" >/dev/null ||
     fail "root breadcrumb was not highlighted"
-  grep -F $'style\t#98989F\tN\tOffline' \
+  grep -F $'style\t#98989F\t#202127\tN\tOffline' \
     "${argument_log}" >/dev/null ||
     fail "offline Gum runtime row was not compact"
   if grep -F 'node offline' "${argument_log}" >/dev/null; then
@@ -837,8 +908,19 @@ run_health_test() (
   cntools_health_refresh Y
   assert_contains "${CNTOOLS_HEALTH_TEXT}" "Gap 42 slots" \
     "native local tip gap"
-  assert_eq "${CNTOOLS_HEALTH_TONE}" "warning" \
-    "lagging local health tone"
+  assert_eq "${CNTOOLS_HEALTH_TONE}" "success" \
+    "healthy local health tone"
+
+  assert_eq "$(cntools_health_tone_for_gap 0)" "success" \
+    "zero-gap health tone"
+  assert_eq "$(cntools_health_tone_for_gap 120)" "success" \
+    "green health boundary"
+  assert_eq "$(cntools_health_tone_for_gap 121)" "warning" \
+    "warning health lower boundary"
+  assert_eq "$(cntools_health_tone_for_gap 600)" "warning" \
+    "warning health upper boundary"
+  assert_eq "$(cntools_health_tone_for_gap 601)" "danger" \
+    "danger health boundary"
 
   cntools_health_fetch_local() { return 7; }
   cntools_health_refresh Y
@@ -934,6 +1016,7 @@ run_noninteractive_prerequisite_test
 run_archive_member_tests
 run_pinned_checksum_test
 run_offline_installer_test
+run_spin_function_test
 run_filter_presentation_test
 run_action_choice_helper_test
 run_filter_layout_test
