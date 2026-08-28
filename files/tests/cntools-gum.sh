@@ -92,7 +92,7 @@ fi
 for required_function in \
   cntools_gum_find cntools_gum_require cntools_gum_install \
   cntools_gum_archive_member cntools_gum_filter \
-  cntools_gum_filter_height cntools_gum_filter_header \
+  cntools_gum_filter_height \
   cntools_gum_capture cntools_gum_header_rows cntools_gum_breadcrumb \
   cntools_gum_menu_run \
   cntools_health_refresh; do
@@ -285,23 +285,24 @@ run_filter_presentation_test() (
   }
   COLUMNS=80
   cntools_gum_filter selected 8 \
-    "$(cntools_gum_filter_header Wallet 2 N)" \
     "01  • First" "02  • Second" ||
     fail "the Gum filter wrapper failed with a fake Gum command"
   assert_eq "${selected}" "01  • First" "filter result forwarding"
   for expected in \
-    filter --header "Wallet  ·  2 options  ·  type to filter" \
-    "Filter actions…" "${CNTOOLS_GUM_COLOR_BRAND}" \
+    filter "0 2 1 2" "Filter actions…" "${CNTOOLS_GUM_COLOR_BRAND}" \
     "${CNTOOLS_GUM_COLOR_CANVAS}" "${CNTOOLS_GUM_COLOR_SUCCESS}"; do
     grep -Fx -- "${expected}" "${argument_log}" >/dev/null ||
       fail "Gum filter omitted its Koios-themed argument: ${expected}"
   done
+  if grep -E '^--header([.]foreground)?$|type to filter' \
+      "${argument_log}" >/dev/null; then
+    fail "Gum filter retained its redundant menu heading"
+  fi
 )
 
 run_filter_layout_test() (
   local fake_terminal_lines=22
   local height=""
-  local header=""
 
   cntools_gum_terminal_lines() {
     printf '%s\n' "${fake_terminal_lines}"
@@ -315,54 +316,67 @@ run_filter_layout_test() (
 
   height="$(cntools_gum_filter_height 10 6)" ||
     fail "root menu filter height calculation failed"
-  assert_eq "${height}" "15" \
+  assert_eq "${height}" "14" \
     "root menu height when every option fits"
 
   fake_terminal_lines=26
   height="$(cntools_gum_filter_height 13 6)" ||
     fail "submenu filter height calculation failed"
-  assert_eq "${height}" "19" \
+  assert_eq "${height}" "17" \
     "submenu height when every option fits"
 
   fake_terminal_lines=18
   height="$(cntools_gum_filter_height 13 6)" ||
     fail "constrained filter height calculation failed"
-  assert_eq "${height}" "11" \
+  assert_eq "${height}" "13" \
     "submenu height in a constrained terminal"
 
   fake_terminal_lines=24
-  height="$(cntools_gum_filter_height 10 11)" ||
+  height="$(cntools_gum_filter_height 10 10)" ||
     fail "status-aware filter height calculation failed"
-  assert_eq "${height}" "12" \
+  assert_eq "${height}" "14" \
     "filter height below an additional status block"
+
+  height="$(cntools_gum_filter_height 10 11)" ||
+    fail "update-summary-aware filter height calculation failed"
+  assert_eq "${height}" "14" \
+    "filter height below the Update summary"
 
   fake_terminal_lines=8
   height="$(cntools_gum_filter_height 10 6)" ||
     fail "minimum filter height calculation failed"
-  assert_eq "${height}" "7" \
+  assert_eq "${height}" "5" \
     "minimum one-option filter height"
+)
 
-  header="$(cntools_gum_filter_header Wallet 13 Y)" ||
-    fail "clipped filter header calculation failed"
-  assert_eq "${header}" \
-    "Wallet  ·  13 options  ·  more below" \
-    "clipped filter header"
-  assert_eq "$(cntools_gum_filter_header Update 1 N)" \
-    "Update  ·  1 option" \
-    "single-option filter header"
+run_status_spacing_test() (
+  local argument_log="${TEST_ROOT}/status-spacing-arguments"
+
+  cntools_gum() {
+    printf '%s\n' "$@" >> "${argument_log}"
+  }
+  : > "${argument_log}"
+  cntools_ui_render_status warn "Spacing check" >/dev/null ||
+    fail "Gum status rendering failed"
+  grep -Fx -- '0 2 1 2' "${argument_log}" >/dev/null ||
+    fail "Gum status retained a blank row above its content"
+  assert_eq "${CNTOOLS_GUM_STATUS_ROWS}" "4" \
+    "Gum compact status row accounting"
+  assert_eq "${CNTOOLS_GUM_UPDATE_SUMMARY_ROWS}" "5" \
+    "Gum Update summary row accounting"
 )
 
 run_menu_mapping_test() (
   local fake_root="/fixture/root"
   local fake_submenu="/fixture/root/tools"
   local -a filter_responses=(
-    "item:2" "item:3" "item:0" "back" "unknown" "quit"
+    "item:2" "item:3" "item:0" "cancel" "unknown" "cancel" "quit"
   )
   local filter_index=0
   local cache_build_calls=0
+  local clear_calls=0
   local action_calls=""
   local status_log=""
-  local filter_header_log=""
   local first_duplicate=""
   local second_duplicate=""
 
@@ -426,8 +440,7 @@ run_menu_mapping_test() (
     local row=""
     local selected=""
     local wanted=""
-    filter_header_log+="$3"$'\n'
-    shift 3
+    shift 2
     filter_index=$((filter_index + 1))
 
     case "${token}" in
@@ -436,11 +449,7 @@ run_menu_mapping_test() (
         wanted=$((wanted + 1))
         selected="${!wanted:-}"
         ;;
-      back)
-        for row in "$@"; do
-          [[ "${row}" != "← Back" ]] || selected="${row}"
-        done
-        ;;
+      cancel) return 1 ;;
       quit)
         for row in "$@"; do
           [[ "${row}" != "✕ Quit CNTools" ]] || selected="${row}"
@@ -456,6 +465,7 @@ run_menu_mapping_test() (
     action_calls+="${1}"$'\n'
   }
   cntools_gum_header() { return 0; }
+  cntools_gum_clear() { clear_calls=$((clear_calls + 1)); }
   cntools_gum_terminal_lines() { printf '24\n'; }
   cntools_gum_log() { return 0; }
   cntools_health_refresh() { return 0; }
@@ -485,17 +495,70 @@ run_menu_mapping_test() (
     "disabled action feedback"
   assert_contains "${status_log}" "selected row was not recognized" \
     "unknown Gum filter result feedback"
-  assert_contains "${filter_header_log}" \
-    "CNTools  ·  5 options" \
-    "root Gum menu option count"
-  assert_contains "${filter_header_log}" \
-    "Tools  ·  4 options" \
-    "submenu Gum menu option count"
   assert_not_contains "${status_log}" "Returned from" \
     "successful Gum action return status"
-  assert_eq "${filter_index}" "6" \
-    "submenu back and unknown-row navigation sequence"
+  assert_eq "${filter_index}" "7" \
+    "submenu and root Escape cancellation sequence"
+  assert_eq "${clear_calls}" "2" \
+    "transient Gum cancellation cleanup"
 )
+
+run_menu_filter_status_test() {
+  local requested_status="$1"
+  local expected_status="$2"
+  local expected_log="$3"
+  local case_output=""
+  local case_status=0
+  local log_trace=""
+  local fake_root="/fixture/status-root"
+
+  (
+    CNTOOLS_MENU_CACHE_READY="Y"
+    CNTOOLS_MENU_ROOT_ID="@root"
+    CNTOOLS_MENU_CACHE_MENU_DIRS=()
+    CNTOOLS_MENU_CACHE_MENU_DIRS["${CNTOOLS_MENU_ROOT_ID}"]="${fake_root}"
+    CNTOOLS_UPDATE_STATUS="current"
+    CNTOOLS_MODE="local"
+
+    cntools_menu_cache_open() {
+      CNTOOLS_MENU_LABEL="CNTools"
+      CNTOOLS_MENU_BREADCRUMB="/"
+      CNTOOLS_MENU_PATHS=("${fake_root}/action")
+      CNTOOLS_MENU_IDS=("action")
+      CNTOOLS_MENU_KINDS=("action")
+      CNTOOLS_MENU_LABELS=("Action")
+      CNTOOLS_MENU_DESCRIPTIONS=("Test action")
+      CNTOOLS_MENU_ENABLED=("Y")
+      CNTOOLS_MENU_DISABLED_REASONS=("")
+    }
+    cntools_menu_cache_id_for_directory() {
+      printf '%s\n' "${CNTOOLS_MENU_ROOT_ID}"
+    }
+    cntools_gum_filter() { return "${requested_status}"; }
+    cntools_gum_header() { return 0; }
+    cntools_gum_header_rows() { printf '6\n'; }
+    cntools_gum_terminal_lines() { printf '24\n'; }
+    cntools_health_refresh() { return 0; }
+    cntools_update_state_load() { return 0; }
+    cntools_gum_log() { printf '%s:%s\n' "$1" "$2" >&3; }
+
+    cntools_gum_menu_run
+  ) 3> "${TEST_ROOT}/menu-status.log" \
+      > "${TEST_ROOT}/menu-status.out" 2>&1 || case_status=$?
+  case_output="$(< "${TEST_ROOT}/menu-status.out")"
+  log_trace="$(< "${TEST_ROOT}/menu-status.log")"
+  assert_eq "${case_status}" "${expected_status}" \
+    "Gum filter status ${requested_status} routing"
+  assert_contains "${log_trace}" "${expected_log}" \
+    "Gum filter status ${requested_status} log"
+  if (( requested_status == 130 )); then
+    assert_not_contains "${case_output}" "selection failed" \
+      "Ctrl+C Gum interruption diagnostic"
+  else
+    assert_contains "${case_output}" "selection failed (status 2)" \
+      "unexpected Gum filter failure diagnostic"
+  fi
+}
 
 run_header_test() (
   local argument_log="${TEST_ROOT}/header-arguments"
@@ -621,6 +684,7 @@ run_color_capture_preference_test() (
 
 run_wait_and_placeholder_test() (
   local argument_log="${TEST_ROOT}/wait-arguments"
+  local wait_output="${TEST_ROOT}/wait-output"
   local output=""
 
   cntools_gum() {
@@ -628,7 +692,9 @@ run_wait_and_placeholder_test() (
   }
   CNTOOLS_UI_INTERACTIVE="Y"
   : > "${argument_log}"
-  cntools_ui_wait
+  cntools_ui_wait > "${wait_output}"
+  assert_eq "$(wc -c < "${wait_output}" | tr -d ' ')" "1" \
+    "blank line before Gum return prompt"
   grep -Fx -- '--no-show-help' "${argument_log}" >/dev/null ||
     fail "Gum return prompt retained its redundant key help"
   grep -Fx -- 'Press Enter to return…' "${argument_log}" >/dev/null ||
@@ -815,7 +881,10 @@ run_pinned_checksum_test
 run_offline_installer_test
 run_filter_presentation_test
 run_filter_layout_test
+run_status_spacing_test
 run_menu_mapping_test
+run_menu_filter_status_test 130 130 "MENU:abort (filter interrupted)"
+run_menu_filter_status_test 2 2 "ERROR:Gum filter failed with status 2"
 run_header_test
 run_color_capture_preference_test
 run_wait_and_placeholder_test

@@ -13,14 +13,14 @@ CNTOOLS_GUM_INSTALL_STAGE=""
 CNTOOLS_GUM_LAST_HEADER_ROWS=""
 CNTOOLS_GUM_LAST_HEADER_MODE=""
 
-# Gum's explicit filter height includes its header, help and vertical padding,
-# but not the input row. Keep these values together so menu sizing can account
-# for the complete widget instead of mistaking the number of choices for its
-# requested height.
+# Gum subtracts its help and vertical padding from the explicit filter height
+# to size the choice viewport. The input is already part of the rendered
+# widget, and Gum v2's complete frame occupies one row less than the requested
+# height, so the final available terminal row can safely be used by a choice.
 CNTOOLS_GUM_HEADER_ROWS=6
-CNTOOLS_GUM_CONTEXT_ROWS=5
-CNTOOLS_GUM_FILTER_CHROME_ROWS=6
-CNTOOLS_GUM_FILTER_INPUT_ROWS=1
+CNTOOLS_GUM_STATUS_ROWS=4
+CNTOOLS_GUM_UPDATE_SUMMARY_ROWS=5
+CNTOOLS_GUM_FILTER_CHROME_ROWS=4
 
 # Koios visual language: near-black surfaces, restrained grey text and the
 # Koios green for focus and primary actions.
@@ -486,9 +486,11 @@ cntools_gum_require() {
 }
 
 cntools_gum_require_terminal() {
-  if [[ ! -t 0 || ! -t 1 ]]; then
-    printf 'CNTools: the Gum interface requires an interactive terminal.\n' >&2
-    cntools_gum_log ERROR "Gum interface requires an interactive terminal"
+  if [[ ! -t 0 || ! -t 1 ]] ||
+     ! (: </dev/tty >/dev/tty) 2>/dev/null; then
+    printf 'CNTools: the Gum interface requires an accessible interactive terminal.\n' >&2
+    cntools_gum_log ERROR \
+      "Gum interface requires an interactive terminal accessible through /dev/tty"
     return 1
   fi
 }
@@ -543,24 +545,11 @@ cntools_gum_filter_height() {
   terminal_lines="$(cntools_gum_terminal_lines)" || return 1
   [[ "${terminal_lines}" =~ ^[0-9]+$ && ${terminal_lines} -ge 1 ]] || return 1
 
-  visible_choices=$((terminal_lines - rows_above -
-    CNTOOLS_GUM_FILTER_CHROME_ROWS - CNTOOLS_GUM_FILTER_INPUT_ROWS))
+  visible_choices=$((terminal_lines - rows_above + 1 -
+    CNTOOLS_GUM_FILTER_CHROME_ROWS))
   (( visible_choices >= 1 )) || visible_choices=1
   (( visible_choices <= choice_count )) || visible_choices="${choice_count}"
   printf '%s\n' "$((visible_choices + CNTOOLS_GUM_FILTER_CHROME_ROWS))"
-}
-
-cntools_gum_filter_header() {
-  local label="${1:-Select an action}"
-  local choice_count="${2:-0}"
-  local clipped="${3:-N}"
-  local noun="options"
-
-  [[ "${choice_count}" =~ ^[0-9]+$ ]] || return 2
-  (( choice_count != 1 )) || noun="option"
-  printf '%s  ·  %s %s' "${label}" "${choice_count}" "${noun}"
-  [[ "${clipped}" != "Y" ]] || printf '  ·  more below'
-  printf '\n'
 }
 
 cntools_gum_clear() {
@@ -746,7 +735,7 @@ cntools_ui_render_status() {
     warn) color="${CNTOOLS_GUM_COLOR_WARNING}" ;;
     success) color="${CNTOOLS_GUM_COLOR_SUCCESS}" ;;
   esac
-  cntools_gum style --margin "1 2" --padding "0 1" --border normal \
+  cntools_gum style --margin "0 2 1 2" --padding "0 1" --border normal \
     --border-foreground "${color}" --foreground "${color}" "${message}"
 }
 
@@ -783,6 +772,7 @@ cntools_ui_confirm() {
 
 cntools_ui_wait() {
   [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == "Y" ]] || return 0
+  printf '\n'
   cntools_gum input --no-show-help \
     --prompt "" --placeholder "Press Enter to return…" \
     --cursor.foreground "${CNTOOLS_GUM_COLOR_BRAND}" >/dev/null || true
@@ -838,19 +828,17 @@ cntools_ui_spin() {
 cntools_gum_filter() {
   local output_variable="${1:-}"
   local height="${2:-12}"
-  local header="${3:-Select an action}"
   local result=""
   local status=0
   local width=""
-  shift 3 || return 2
+  shift 2 || return 2
 
   [[ "${output_variable}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   (( $# > 0 )) || return 2
   width="$(cntools_gum_width)"
   if result="$(printf '%s\n' "$@" | cntools_gum filter \
-      --limit 1 --height "${height}" --width "${width}" --padding "1 2" \
-      --header "${header}  ·  type to filter" \
-      --header.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+      --limit 1 --height "${height}" --width "${width}" \
+      --padding "0 2 1 2" \
       --placeholder "Filter actions…" \
       --placeholder.foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
       --prompt "› " --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
@@ -907,9 +895,6 @@ cntools_gum_menu_run() {
   local height=12
   local mapping=-1
   local rows_above_filter=""
-  local visible_choices=0
-  local filter_header=""
-  local filter_clipped="N"
 
   if [[ "${CNTOOLS_MENU_CACHE_READY:-N}" != "Y" ]] &&
      ! cntools_menu_cache_build; then
@@ -944,14 +929,14 @@ cntools_gum_menu_run() {
           "${CNTOOLS_UPDATE_STATUS:-}" == "available" ]]; then
       cntools_ui_render_status warn \
         "CNTools v${CNTOOLS_UPDATE_REMOTE_VERSION} is available in Update."
-      rows_above_filter=$((rows_above_filter + CNTOOLS_GUM_CONTEXT_ROWS))
+      rows_above_filter=$((rows_above_filter + CNTOOLS_GUM_STATUS_ROWS))
     elif [[ "${CNTOOLS_MENU_ID}" == "update" ]]; then
       cntools_update_render_summary
-      rows_above_filter=$((rows_above_filter + CNTOOLS_GUM_CONTEXT_ROWS))
+      rows_above_filter=$((rows_above_filter + CNTOOLS_GUM_UPDATE_SUMMARY_ROWS))
     fi
     if [[ -n "${status_message}" ]]; then
       cntools_ui_render_status "${status_level}" "${status_message}"
-      rows_above_filter=$((rows_above_filter + CNTOOLS_GUM_CONTEXT_ROWS))
+      rows_above_filter=$((rows_above_filter + CNTOOLS_GUM_STATUS_ROWS))
       status_level=""
       status_message=""
     fi
@@ -974,28 +959,28 @@ cntools_gum_menu_run() {
     row_indices+=("-1")
     height="$(cntools_gum_filter_height \
       "${#rows[@]}" "${rows_above_filter}")" || return 1
-    visible_choices=$((height - CNTOOLS_GUM_FILTER_CHROME_ROWS))
-    filter_clipped="N"
-    (( visible_choices >= ${#rows[@]} )) || filter_clipped="Y"
-    filter_header="$(cntools_gum_filter_header \
-      "${CNTOOLS_MENU_LABEL:-Select an action}" \
-      "${#rows[@]}" "${filter_clipped}")" || return 1
 
     selected_row=""
-    if cntools_gum_filter selected_row "${height}" \
-      "${filter_header}" "${rows[@]}"; then
+    if cntools_gum_filter selected_row "${height}" "${rows[@]}"; then
       filter_status=0
     else
       filter_status=$?
     fi
-    if (( filter_status == 130 )); then
+    if (( filter_status == 1 )); then
+      # Gum v2 reports its second-Escape cancellation as status 1 and writes
+      # "nothing selected" after restoring the terminal. Clear that transient
+      # diagnostic before drawing the parent or root menu.
+      cntools_gum_clear
       if [[ "${context}" == "Y" ]]; then
         unset 'menu_stack[stack_index]'
         cntools_gum_log MENU "back (filter cancelled)"
-        continue
+      else
+        cntools_gum_log MENU "root menu redraw (filter cancelled)"
       fi
-      cntools_gum_log MENU "quit (filter cancelled)"
-      return 0
+      continue
+    elif (( filter_status == 130 )); then
+      cntools_gum_log MENU "abort (filter interrupted)"
+      return 130
     elif (( filter_status != 0 )); then
       cntools_gum_log ERROR "Gum filter failed with status ${filter_status}"
       printf 'CNTools: Gum menu selection failed (status %s).\n' \

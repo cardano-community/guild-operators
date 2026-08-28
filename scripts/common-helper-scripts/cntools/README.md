@@ -296,7 +296,9 @@ existing module metadata. `gum filter` presents the choices,
 allows fuzzy filtering by typing, and invokes the single selected menu or
 action when Enter is pressed. Its choice area is recalculated on every menu
 draw: all options are shown when the current terminal has room, while smaller
-terminals use a scrolling list and mark the heading when more options are below.
+terminals use a scrolling list. Escape first leaves the filter field; pressing
+it again goes back from a submenu or redraws the root menu. CNTools exits only
+through the Quit choice, while Ctrl+C remains an interruption.
 Other Gum controls provide consistent prompts,
 confirmation, tables, status messages, and long-text viewing without changing
 the action contract.
