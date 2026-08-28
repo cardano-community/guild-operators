@@ -73,6 +73,8 @@ The default layout below assumes `/opt/cardano/amaru`:
 └── scripts/
     ├── adapters/amaru.adapter
     ├── archive/
+    ├── cntools.sh          # public launcher
+    ├── cntools/            # modular CNTools tree
     ├── lib/
     ├── amaru.env
     ├── amaru.sh
@@ -208,11 +210,11 @@ first. See the [gLiveView guide](../Scripts/gliveview.md) for display controls.
 Metrics absent from the current scrape are omitted rather than displayed as
 zero. This relay profile does not expose cnode block-production, KES,
 operational-certificate, CNCLI blocklog, Koios, Mithril signer, or interactive
-peer-analysis sections. Legacy CNTools, Mithril helpers, db-sync, Ogmios, and
-other socket-dependent cnode tools remain undeployed. The separate modular
-CNTools framework is present at `scripts/cntools/` for development, but its
-current framework phase has no operational actions and does not imply a
-compatible Amaru local interface.
+peer-analysis sections. Mithril helpers, db-sync, Ogmios, and other
+socket-dependent cnode tools remain undeployed. CNTools 14 is available through
+the stable `scripts/cntools.sh` launcher, but its operational actions remain
+placeholders. Installing the interface skeleton does not imply that Amaru
+provides a compatible local backend for future actions.
 
 If the node is running but gLiveView reports that metrics are unavailable,
 check the bridge and its loopback output:

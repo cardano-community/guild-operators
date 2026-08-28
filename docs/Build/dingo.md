@@ -90,9 +90,9 @@ The default layout below assumes `/opt/cardano/dingo`:
 └── scripts/
     ├── adapters/dingo.adapter
     ├── archive/
+    ├── cntools.sh          # public launcher
+    ├── cntools/            # modular CNTools tree
     ├── lib/
-    ├── cntools.library
-    ├── cntools.sh
     ├── dingo.env
     ├── dingo.sh
     ├── gLiveView.sh
@@ -160,10 +160,10 @@ At startup Dingo itself validates the credential formats, operational
 certificate signature and counter, KES period, and the pool registration's
 VRF key against ledger state. Guild does not duplicate those protocol checks.
 The pool must already be registered and delegated on the selected testnet to
-have a chance of being elected as slot leader. The profile deploys CNTools for
-experimental wallet, operational-key, pool-registration, and pool-management
-testing. Keep cold signing keys and the operational-certificate counter in a
-reviewed offline workflow; Dingo support does not change that security model.
+have a chance of being elected as slot leader. Keep cold signing keys and the
+operational-certificate counter in a reviewed offline workflow; Dingo support
+does not change that security model. CNTools 14 is currently an interface
+skeleton and does not yet implement these operational workflows.
 
 `dingo.sh bootstrap` always forces relay mode and does not require hot keys.
 This permits state import before the operational credentials are copied. The
@@ -223,8 +223,8 @@ host or network firewall.
 
 ## Monitoring and helper compatibility
 
-The common `env`, libraries, Dingo adapter, `gLiveView.sh`, and CNTools are
-deployed.
+The common `env`, libraries, Dingo adapter, `gLiveView.sh`, and CNTools 14
+interface skeleton are deployed.
 Run the dashboard after the relay starts:
 
 ```bash
@@ -266,14 +266,13 @@ failed-forge counters, operational-certificate KES bounds, and Dingo-specific
 forge diagnostics. CNCLI blocklog, Koios pool data, Mithril signer, and
 interactive peer analysis remain cnode-only.
 
-CNTools local mode connects `cardano-cli-dingo` to
-`$NODE_HOME/sockets/dingo.socket`. The Dingo adapter supplies both paths and
-advertises local query and submission only for this profile. To use a reviewed
-custom CLI instead, uncomment `CCLI` in `scripts/env`; an explicit value is
-never replaced by the adapter. CNTools support is experimental and focused on
-wallet and pool workflows. cnode-only integrations such as CNCLI block logs,
-Catalyst's pinned cnode companion policy, hardware-wallet deployment flags,
-and leader-log tooling are not implied by installing the shared CNTools files.
+The Dingo adapter exposes `cardano-cli-dingo` and
+`$NODE_HOME/sockets/dingo.socket` for future CNTools local-mode actions. To use
+a reviewed custom CLI instead, uncomment `CCLI` in `scripts/env`; an explicit
+value is never replaced by the adapter. The current menu actions remain
+placeholders. cnode-only integrations such as CNCLI block logs, Catalyst's
+pinned cnode companion policy, hardware-wallet deployment flags, and
+leader-log tooling are not implied by installing CNTools.
 
 Ogmios, db-sync, and standalone Mithril helper scripts remain outside this
 experimental profile. Dingo contains its own Mithril bootstrap client, which

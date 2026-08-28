@@ -863,7 +863,7 @@ run_early_option_tests() (
     CNTOOLS_TEST_GUM_MARKER="${marker}" \
       PATH="${case_root}/bin:${PATH}" "${BASH}" "${MAIN_ENTRYPOINT}" -h
   )" || fail "CNTools main help failed without Gum"
-  assert_contains "${help_output}" "Usage: cntools_main.sh" \
+  assert_contains "${help_output}" "Usage: cntools.sh" \
     "CNTools main entrypoint help"
   [[ ! -e "${marker}" ]] || fail "help invoked Gum"
 

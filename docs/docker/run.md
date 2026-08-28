@@ -92,11 +92,12 @@ group or other permissions. Keep all cold keys and the operational-certificate
 counter offline. A partial set fails startup; the bootstrap command always
 suppresses block production.
 
-The Dingo image installs gLiveView, CNTools, and the isolated
-`cardano-cli-dingo` companion. It does not install Mithril helper scripts,
-db-sync, Ogmios, or the remaining cnode-only suite. Its healthcheck verifies
-deployment identity, Dingo process liveness, and the native Prometheus endpoint
-on loopback port 12798; it does not determine whether chain sync is current.
+The Dingo image installs gLiveView, the CNTools 14 interface skeleton, and the
+isolated `cardano-cli-dingo` companion. It does not install Mithril helper
+scripts, db-sync, Ogmios, or the remaining cnode-only suite. Its healthcheck
+verifies deployment identity, Dingo process liveness, and the native Prometheus
+endpoint on loopback port 12798; it does not determine whether chain sync is
+current.
 
 Open the dashboard in the running container with:
 
@@ -105,7 +106,7 @@ docker exec -it dingo-preprod \
   /opt/cardano/dingo/scripts/gLiveView.sh
 ```
 
-Run CNTools against the Dingo socket with:
+Open the CNTools interface with:
 
 ```bash
 docker exec -it dingo-preprod \
@@ -151,13 +152,24 @@ healthcheck verifies the deployment identity, both processes, and the loopback
 Prometheus endpoint on port 8889; it does not determine whether chain sync is
 current.
 
-The Amaru image installs gLiveView but does not install CNTools, Mithril helper
-scripts, db-sync, or Ogmios. Open the dashboard with:
+The Amaru image installs gLiveView and the CNTools 14 interface skeleton, but
+does not install Mithril helper scripts, db-sync, or Ogmios. Open the dashboard
+with:
 
 ```bash
 docker exec -it amaru-preprod \
   /opt/cardano/amaru/scripts/gLiveView.sh
 ```
+
+Open CNTools with:
+
+```bash
+docker exec -it amaru-preprod \
+  /opt/cardano/amaru/scripts/cntools.sh
+```
+
+The CNTools operational actions are placeholders in this release for every
+node implementation.
 
 The OTLP/gRPC receiver on 4317 and Prometheus exporter on 8889 bind inside the
 container to loopback and do not need host port publishing.
@@ -168,7 +180,8 @@ container to loopback and do not need host port publishing.
   an interactive shell.
 - `ENTRYPOINT_PROCESS` selects an installed script. The default is `cnode.sh`,
   `dingo.sh`, or `amaru.sh`, matching the image implementation. Additional
-  helper entrypoints are cnode-only except for the common `gLiveView.sh`.
+  helper entrypoints are cnode-only except for the common `gLiveView.sh` and
+  `cntools.sh` launchers.
   Amaru node/collector supervision applies only to the default `amaru.sh run`
   path.
 - `UPDATE_CHECK=Y` refreshes compatible scripts and configuration from the

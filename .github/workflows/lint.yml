@@ -21,7 +21,7 @@ jobs:
       with:
         scandir: "./scripts"
         severity: "warning"
-        additional_files: "./scripts/common-helper-scripts/env, ./scripts/common-helper-scripts/cntools.library, ./scripts/cnode-helper-scripts/mithril.library"
+        additional_files: "./scripts/common-helper-scripts/env, ./scripts/cnode-helper-scripts/mithril.library"
     - name: Deployment dispatcher tests
       run: bash files/tests/guild-deploy-dispatcher.sh
     - name: Alternate deployment tests

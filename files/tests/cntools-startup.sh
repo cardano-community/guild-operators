@@ -390,7 +390,7 @@ exit 97"
   set_case_identity cnode preview
   run_installed '' -h
   assert_eq "${RUN_STATUS}" "0" "help status without VERSION or env"
-  grep -F 'Usage: cntools_main.sh' "${RUN_STDOUT}" >/dev/null ||
+  grep -F 'Usage: cntools.sh' "${RUN_STDOUT}" >/dev/null ||
     fail "early help output is missing"
   [[ ! -e "${ENV_TRACE}" ]] || fail "help sourced the common env"
   [[ ! -e "${dependency_trace}" ]] || fail "help invoked a runtime dependency"

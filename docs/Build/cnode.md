@@ -134,9 +134,10 @@ The currently tracked tools are:
 | Mithril | Stable | x86_64, aarch64 | — |
 | openBlockPerf | Stable PyPI package | Python/Linux | — |
 
-Catalyst Toolbox is a pinned x86_64 tool consumed on demand by CNTools. Its
-previous unversioned Koios download is now represented by a concrete version,
-URL, and verified SHA-256 digest in the same manifest.
+Catalyst Toolbox remains a pinned x86_64 artifact for a future CNTools action.
+The CNTools 14 interface skeleton does not currently consume it. Its previous
+unversioned Koios download is represented by a concrete version, URL, and
+verified SHA-256 digest in the same manifest.
 
 GHCup is also pinned, architecture-selected, and checksum-verified. The source
 build no longer executes the mutable `get-ghcup` bootstrap or upgrades GHCup
@@ -175,8 +176,9 @@ PyPI/pip.
 
 `-s d` selects node, CLI, address, and optional db-sync artifacts from this
 file. The other cnode-specific selective flags consume their corresponding
-`tools` entries, `-s r` consumes `managedInstallers.openblockperf`, and CNTools
-consumes the pinned Catalyst Toolbox entry when that feature is first used.
+`tools` entries, and `-s r` consumes `managedInstallers.openblockperf`. A
+future functional CNTools Catalyst action may consume the pinned Catalyst
+Toolbox entry.
 Direct downloads performed by Guild Operators are SHA-256 verified before
 installation. The manifest therefore replaces scattered constants and
 separate version text files as the cnode deployment source of truth.

@@ -6,8 +6,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-deployment.XXXXXX")"
 SOURCE_ROOT="${TEST_ROOT}/source"
 SOURCE_TREE="${SOURCE_ROOT}/scripts/common-helper-scripts/cntools"
+SOURCE_LAUNCHER="${SOURCE_ROOT}/scripts/common-helper-scripts/cntools.sh"
 NODE_HOME="${TEST_ROOT}/node"
 TARGET_TREE="${NODE_HOME}/scripts/cntools"
+TARGET_LAUNCHER="${NODE_HOME}/scripts/cntools.sh"
+LEGACY_LIBRARY="${NODE_HOME}/scripts/cntools.library"
 
 cleanup() {
   rm -rf -- "${TEST_ROOT}"
@@ -51,11 +54,14 @@ done
 
 mkdir -p "${SOURCE_TREE}" "${NODE_HOME}/scripts"
 cp -R -- "${REPO_ROOT}/scripts/common-helper-scripts/cntools/." "${SOURCE_TREE}/"
+cp -- "${REPO_ROOT}/scripts/common-helper-scripts/cntools.sh" "${SOURCE_LAUNCHER}"
 git -C "${SOURCE_ROOT}" init -q
 git -C "${SOURCE_ROOT}" config user.name "CNTools deployment test"
 git -C "${SOURCE_ROOT}" config user.email "cntools-deployment@example.invalid"
 git -C "${SOURCE_ROOT}" config commit.gpgSign false
-git -C "${SOURCE_ROOT}" add scripts/common-helper-scripts/cntools
+git -C "${SOURCE_ROOT}" add \
+  scripts/common-helper-scripts/cntools \
+  scripts/common-helper-scripts/cntools.sh
 git -C "${SOURCE_ROOT}" commit -qm "Add tracked CNTools fixture"
 
 # shellcheck source=../../scripts/cnode-helper-scripts/guild-deploy.sh
@@ -81,6 +87,8 @@ export GIT_SOURCE_ROOT GUILD_DEPLOY_PREFLIGHT_BASH_BIN NODE_HOME
 
 dispatcher_preflight_cntools_tree ||
   fail "valid tracked CNTools source tree failed preflight"
+dispatcher_preflight_cntools_launcher ||
+  fail "valid tracked CNTools launcher failed preflight"
 
 mkdir -p "${TARGET_TREE}/obsolete"
 printf 'remove me\n' > "${TARGET_TREE}/obsolete/stale.txt"
@@ -119,6 +127,106 @@ while IFS= read -r -d '' installed_file; do
   [[ "$(file_mode "${installed_file}")" = "${expected_mode}" ]] ||
     fail "unexpected CNTools file mode for ${installed_file#"${TARGET_TREE}"/}"
 done < <(find "${TARGET_TREE}" -type f -print0)
+
+printf '%s\n' '#!/usr/bin/env bash' 'printf "legacy launcher\n"' \
+  > "${TARGET_LAUNCHER}"
+chmod 0755 "${TARGET_LAUNCHER}"
+printf 'legacy library\n' > "${LEGACY_LIBRARY}"
+dispatcher_install_cntools_launcher ||
+  fail "valid CNTools launcher failed installation"
+cmp -s "${SOURCE_LAUNCHER}" "${TARGET_LAUNCHER}" ||
+  fail "installed CNTools launcher differs from the source snapshot"
+[[ "$(file_mode "${TARGET_LAUNCHER}")" = "755" ]] ||
+  fail "installed CNTools launcher does not have mode 0755"
+[[ ! -e "${LEGACY_LIBRARY}" && ! -L "${LEGACY_LIBRARY}" ]] ||
+  fail "legacy CNTools library remained active after launcher cutover"
+archived_launcher="$(
+  find "${NODE_HOME}/scripts/archive" -type f \
+    -name 'cntools.sh_bkp*' -print -quit
+)"
+archived_library="$(
+  find "${NODE_HOME}/scripts/archive" -type f \
+    -name 'cntools.library_bkp*' -print -quit
+)"
+[[ -n "${archived_launcher}" ]] ||
+  fail "legacy CNTools launcher was not archived"
+[[ -n "${archived_library}" ]] ||
+  fail "legacy CNTools library was not archived"
+grep -q 'legacy launcher' "${archived_launcher}" ||
+  fail "archived CNTools launcher did not preserve legacy content"
+grep -q '^legacy library$' "${archived_library}" ||
+  fail "archived CNTools library did not preserve legacy content"
+archive_count="$(find "${NODE_HOME}/scripts/archive" -type f | wc -l | tr -d '[:space:]')"
+dispatcher_install_cntools_launcher ||
+  fail "idempotent CNTools launcher installation failed"
+[[ "$(find "${NODE_HOME}/scripts/archive" -type f | wc -l | tr -d '[:space:]')" = "${archive_count}" ]] ||
+  fail "idempotent CNTools launcher installation created redundant archives"
+if find "${NODE_HOME}/scripts" -maxdepth 1 \
+  \( -name '.cntools.sh.install.*' -o -name '.cntools.sh.restore.*' \) \
+  -print -quit | grep -q .; then
+  fail "CNTools launcher installation left a transaction file"
+fi
+
+printf '%s\n' '#!/usr/bin/env bash' 'printf "rollback launcher\n"' \
+  > "${TARGET_LAUNCHER}"
+chmod 0755 "${TARGET_LAUNCHER}"
+printf 'rollback library\n' > "${LEGACY_LIBRARY}"
+if (
+  cmp_calls=0
+  cmp() {
+    cmp_calls=$((cmp_calls + 1))
+    (( cmp_calls < 2 )) || return 1
+    command cmp "$@"
+  }
+  dispatcher_install_cntools_launcher
+) >/dev/null 2>&1; then
+  fail "CNTools launcher installation ignored a post-install validation failure"
+fi
+grep -q 'rollback launcher' "${TARGET_LAUNCHER}" ||
+  fail "failed CNTools launcher installation did not restore the previous launcher"
+grep -q '^rollback library$' "${LEGACY_LIBRARY}" ||
+  fail "failed CNTools launcher installation retired the legacy library"
+dispatcher_install_cntools_launcher ||
+  fail "CNTools launcher failed after rollback recovery"
+cmp -s "${SOURCE_LAUNCHER}" "${TARGET_LAUNCHER}" ||
+  fail "CNTools launcher recovery did not install the source snapshot"
+[[ ! -e "${LEGACY_LIBRARY}" && ! -L "${LEGACY_LIBRARY}" ]] ||
+  fail "CNTools launcher recovery did not retire the legacy library"
+
+printf '%s\n' '#!/usr/bin/env bash' 'printf "removal rollback launcher\n"' \
+  > "${TARGET_LAUNCHER}"
+chmod 0755 "${TARGET_LAUNCHER}"
+printf 'removal rollback library\n' > "${LEGACY_LIBRARY}"
+if (
+  rm() {
+    if [[ "${1:-}" == "-f" && "${2:-}" == "--" &&
+          "${3:-}" == "${LEGACY_LIBRARY}" ]]; then
+      command rm "$@"
+      return 1
+    fi
+    command rm "$@"
+  }
+  dispatcher_install_cntools_launcher
+) >/dev/null 2>&1; then
+  fail "CNTools launcher installation ignored a post-removal failure"
+fi
+grep -q 'removal rollback launcher' "${TARGET_LAUNCHER}" ||
+  fail "post-removal rollback did not restore the previous launcher"
+grep -q '^removal rollback library$' "${LEGACY_LIBRARY}" ||
+  fail "post-removal rollback did not restore the legacy library"
+dispatcher_install_cntools_launcher ||
+  fail "CNTools launcher failed after post-removal rollback"
+
+saved_file="${TEST_ROOT}/cntools-launcher.saved"
+cp -- "${SOURCE_LAUNCHER}" "${saved_file}"
+printf 'if\n' > "${SOURCE_LAUNCHER}"
+assert_rejected "invalid CNTools launcher preflight" \
+  dispatcher_preflight_cntools_launcher
+assert_rejected "installation from an invalid CNTools launcher" \
+  dispatcher_install_cntools_launcher
+cmp -s "${saved_file}" "${TARGET_LAUNCHER}" ||
+  fail "launcher source validation failure changed the installed launcher"
+restore_file "${saved_file}" "${SOURCE_LAUNCHER}"
 
 assert_rejected \
   "missing CNTools source tree" \

@@ -14,10 +14,12 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Snapshot-based, transactional deployment of the complete new CNTools source tree through Guild Deploy.
 - Bounded, non-fatal update availability checks with a clear main-menu notice.
 - Update menu for rechecking, viewing the existing CNTools changelog, and installing through Guild Deploy.
+- Stable `scripts/cntools.sh` launcher for the modular Gum interface on cnode, Dingo, and Amaru.
 
 #### Changed
 - CNTools is being completely rewritten while retaining the existing product name and continuing its release history at version 14.
 - The complete current menu hierarchy is available as an inert implementation skeleton. Operational actions will be implemented in subsequent development phases.
+- The legacy monolithic entrypoint and `cntools.library` are retired. Existing 13.x installations must migrate with the current Guild Deploy snapshot rather than the legacy in-application updater.
 
 ## [13.5.7] - 2026-06-28
 #### Fixed

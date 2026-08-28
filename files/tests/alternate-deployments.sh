@@ -101,6 +101,7 @@ run_alternate_profile_test() (
   local network="$2"
   local default_port="$3"
   local expected_version
+  local cntools_version
   local test_root
   local profile
   local deploy_function
@@ -380,14 +381,19 @@ run_alternate_profile_test() (
   assert_file "${NODE_HOME}/scripts/cntools/modules/root/update/check/action.sh"
   assert_file "${NODE_HOME}/scripts/cntools/modules/root/update/view-changes/action.sh"
   assert_file "${NODE_HOME}/scripts/cntools/modules/root/update/install/action.sh"
-  if [[ "${implementation}" == "dingo" ]]; then
-    [[ -x "${NODE_HOME}/scripts/cntools.sh" ]] ||
-      fail "CNTools is not executable for Dingo"
-    assert_file "${NODE_HOME}/scripts/cntools.library"
-  else
-    assert_not_exists "${NODE_HOME}/scripts/cntools.sh"
-    assert_not_exists "${NODE_HOME}/scripts/cntools.library"
+  [[ -x "${NODE_HOME}/scripts/cntools.sh" ]] ||
+    fail "CNTools launcher is not executable for ${implementation}"
+  cmp -s \
+    "${REPO_ROOT}/scripts/common-helper-scripts/cntools.sh" \
+    "${NODE_HOME}/scripts/cntools.sh" ||
+    fail "${implementation} did not install the exact CNTools launcher"
+  if (( BASH_VERSINFO[0] > 4 ||
+        (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
+    cntools_version="$(< "${NODE_HOME}/scripts/cntools/VERSION")"
+    [[ "$("${NODE_HOME}/scripts/cntools.sh" -v)" = "${cntools_version}" ]] ||
+      fail "${implementation} CNTools launcher did not report the installed version"
   fi
+  assert_not_exists "${NODE_HOME}/scripts/cntools.library"
   assert_not_exists "${NODE_HOME}/scripts/.env_branch"
   assert_not_exists "${NODE_HOME}/scripts/.node_implementation"
 

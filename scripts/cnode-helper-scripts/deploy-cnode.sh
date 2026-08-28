@@ -152,8 +152,6 @@ cnode_deploy_preflight_snapshot() {
     scripts/cnode-helper-scripts/cabal-build-all.sh
     scripts/cnode-helper-scripts/cncli.sh
     scripts/cnode-helper-scripts/cnode.sh
-    scripts/common-helper-scripts/cntools.sh
-    scripts/common-helper-scripts/cntools.library
     scripts/cnode-helper-scripts/dbsync.sh
     scripts/common-helper-scripts/gLiveView.sh
     scripts/cnode-helper-scripts/topologyUpdater.sh
@@ -191,6 +189,10 @@ cnode_deploy_preflight_snapshot() {
     err_exit "CNTools tree preflight helper is unavailable."
   dispatcher_preflight_cntools_tree ||
     err_exit "CNTools tree preflight failed."
+  declare -F dispatcher_preflight_cntools_launcher >/dev/null 2>&1 ||
+    err_exit "CNTools launcher preflight helper is unavailable."
+  dispatcher_preflight_cntools_launcher ||
+    err_exit "CNTools launcher preflight failed."
   release_path="$(dispatcher_source_path 'files/node-implementations/cnode/release.json')" ||
     err_exit "Could not resolve cnode release metadata during preflight."
   cnode_deploy_validate_release_metadata "${release_path}" ||
@@ -1891,8 +1893,6 @@ populate_cnode() {
   updateWithCustomConfig "cabal-build-all.sh"
   updateWithCustomConfig "cncli.sh"
   updateWithCustomConfig "cnode.sh"
-  updateWithCustomConfig "cntools.sh" "common-helper-scripts"
-  updateWithCustomConfig "cntools.library" "common-helper-scripts"
   updateWithCustomConfig "dbsync.sh"
   updateWithCustomConfig "gLiveView.sh" "common-helper-scripts"
   updateWithCustomConfig "topologyUpdater.sh"
@@ -1917,6 +1917,11 @@ populate_cnode() {
     err_exit "CNTools tree transaction helper is unavailable."
   dispatcher_install_cntools_tree ||
     err_exit "CNTools tree validation or installation failed; the previous tree was restored."
+  ACTIVE_STEP="Installing CNTools launcher"
+  declare -F dispatcher_install_cntools_launcher >/dev/null 2>&1 ||
+    err_exit "CNTools launcher transaction helper is unavailable."
+  dispatcher_install_cntools_launcher ||
+    err_exit "CNTools launcher installation failed; the previous launcher was restored."
   chmod 750 "${NODE_HOME}"/priv 2>/dev/null
   log_ok "Helper scripts refreshed" "${BRANCH}"
 }

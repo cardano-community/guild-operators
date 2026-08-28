@@ -158,8 +158,6 @@ dingo_deploy_preflight_snapshot() {
     scripts/dingo-helper-scripts/dingo.adapter
     scripts/common-helper-scripts/env
     scripts/common-helper-scripts/gLiveView.sh
-    scripts/common-helper-scripts/cntools.library
-    scripts/common-helper-scripts/cntools.sh
     "files/configs/dingo/${NETWORK}/dingo.env"
   )
   source_payloads=(
@@ -175,6 +173,12 @@ dingo_deploy_preflight_snapshot() {
      ! GUILD_DEPLOY_PREFLIGHT_BASH_BIN="${DINGO_DEPLOY_BASH_BIN:-bash}" \
        dispatcher_preflight_cntools_tree; then
     dingo_deploy_fail "CNTools tree preflight failed"
+    return 1
+  fi
+  if ! declare -F dispatcher_preflight_cntools_launcher >/dev/null 2>&1 ||
+     ! GUILD_DEPLOY_PREFLIGHT_BASH_BIN="${DINGO_DEPLOY_BASH_BIN:-bash}" \
+       dispatcher_preflight_cntools_launcher; then
+    dingo_deploy_fail "CNTools launcher preflight failed"
     return 1
   fi
   dingo_config="$(dispatcher_source_path "${source_payloads[0]}")" || return 1
@@ -413,15 +417,15 @@ dingo_deploy_install_payloads() {
   fi
   GUILD_DEPLOY_PREFLIGHT_BASH_BIN="${DINGO_DEPLOY_BASH_BIN:-bash}" \
     dispatcher_install_cntools_tree || return 1
+  if ! declare -F dispatcher_install_cntools_launcher >/dev/null 2>&1; then
+    dingo_deploy_fail "CNTools launcher transaction helper is unavailable; run this profile through guild-deploy.sh"
+    return 1
+  fi
+  GUILD_DEPLOY_PREFLIGHT_BASH_BIN="${DINGO_DEPLOY_BASH_BIN:-bash}" \
+    dispatcher_install_cntools_launcher || return 1
   dingo_deploy_install_code_payload \
     "scripts/common-helper-scripts/gLiveView.sh" \
     "${NODE_HOME}/scripts/gLiveView.sh" 0755 Y || return 1
-  dingo_deploy_install_code_payload \
-    "scripts/common-helper-scripts/cntools.library" \
-    "${NODE_HOME}/scripts/cntools.library" 0644 || return 1
-  dingo_deploy_install_code_payload \
-    "scripts/common-helper-scripts/cntools.sh" \
-    "${NODE_HOME}/scripts/cntools.sh" 0755 Y || return 1
   dingo_deploy_check_network_change || return 1
   dingo_deploy_install_config_file "dingo.yaml" "${NODE_HOME}/files/dingo.yaml" 0640 || return 1
   dingo_deploy_install_config_file "dingo.env" "${NODE_HOME}/scripts/dingo.env" 0640 || return 1

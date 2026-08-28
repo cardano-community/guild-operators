@@ -8,15 +8,17 @@ names. Normal application release numbers remain supported as data.
 This document fixes the small set of conventions needed before implementation
 starts. It is deliberately not a package format or plugin system.
 
-## Scope and legacy boundary
+## Scope and runtime boundary
 
 - The framework and entrypoint are written in Bash and target Bash 4.4 or
   newer. Charm Gum provides the terminal presentation and interaction layer.
 - Shell entrypoints, libraries, and actions use the `.sh` extension.
-- The existing sibling `cntools.sh`, `cntools.library`, and `env` files remain
-  unchanged while the new implementation is developed.
-- The new entrypoint is `cntools/cntools_main.sh`. During development it lives
-  beside, rather than replaces, the existing public `cntools.sh` entrypoint.
+- The sibling `cntools.sh` is the stable public launcher. It validates and
+  executes `cntools/cntools_main.sh` without containing application logic.
+- The former monolithic `cntools.sh` implementation and `cntools.library` are
+  retired. They are not compatibility APIs for version 14.
+- The common sibling `env` remains unchanged and outside the CNTools source
+  tree transaction.
 - The common `env` file is sourced exactly once using its `definitions`
   profile. The entrypoint records its own paths before sourcing `env`, because
   common environment loading may change generic variables such as `PARENT`.
@@ -24,8 +26,8 @@ starts. It is deliberately not a package format or plugin system.
   CNTools code consumes normalized values from it but does not call functions
   it leaves behind, including deployment, update, generic environment,
   `node_*`, or adapter functions.
-- New CNTools code must not source `cntools.library`, copy its functions, or
-  call the legacy CNTools helper API.
+- CNTools code must not recreate or source `cntools.library`, copy its
+  functions, or call the legacy CNTools helper API.
 - New functions use the `cntools_` prefix. New application globals use the
   `CNTOOLS_` prefix.
 
@@ -58,9 +60,11 @@ cntools/
         └── ...
 ```
 
-`cntools_main.sh` loads the small `core/` layer and uses Charm Gum for its
-terminal interface. Domain libraries beneath `lib/` and action files beneath
-`modules/` are not loaded during startup.
+The public sibling `../cntools.sh` resolves this tree from its own physical
+location and uses `exec` to start `cntools_main.sh`. The internal entrypoint
+loads the small `core/` layer and uses Charm Gum for its terminal interface.
+Domain libraries beneath `lib/` and action files beneath `modules/` are not
+loaded during startup.
 
 `VERSION` contains exactly one numeric `MAJOR.MINOR.PATCH` application release
 number, without a `v` prefix. It is used by the entrypoint, the UI, and the
@@ -263,11 +267,11 @@ green accent, muted secondary text, restrained borders, and one compact header
 for the version, current path, runtime values, and node health. The current
 path leaf uses the green accent so its location is immediately visible. Local
 and light sessions show a cached epoch, chain tip, and tip gap snapshot. A
-failed optional probe shows `node offline` without blocking CNTools; explicit
-offline mode makes no probe and shows only `Offline` because no health row is
-needed. Health refreshes only on natural menu redraws, never
-while Gum owns keyboard input. Menu labels and descriptions come from the
-existing module metadata. `gum filter` presents the choices,
+failed optional probe shows `Offline` in place of the runtime mode and omits
+the health row without blocking CNTools; explicit offline mode behaves the
+same way and makes no probe. Health refreshes only on natural menu redraws,
+never while Gum owns keyboard input. Menu labels and descriptions come from
+the existing module metadata. `gum filter` presents the choices,
 allows fuzzy filtering by typing, and invokes the single selected menu or
 action when Enter is pressed. Its choice area is recalculated on every menu
 draw: all options are shown when the current terminal has room, while smaller
@@ -338,12 +342,15 @@ stages and validates the complete `cntools/` directory from one resolved Guild
 source snapshot before changing the installed tree. A failed stage leaves the
 installed tree unchanged; a successful install replaces the complete directory
 as one transaction, with rollback if the new tree cannot be installed or
-validated. The legacy sibling files are outside that replacement boundary.
+validated. Guild Deploy manages the stable sibling launcher separately from
+that replacement boundary and retires any installed `cntools.library` only
+after the new tree and launcher are ready.
 
-Guild Deploy installs the single `cntools_main.sh` entrypoint but does not
-install, package, or update Gum. The entrypoint owns its launch-time, opt-in,
-checksum-verified private prerequisite install described above. This does not
-change Guild Deploy's ownership of CNTools source deployment and updates.
+Guild Deploy installs the complete tree and public launcher but does not
+install, package, or update Gum. The internal entrypoint owns its launch-time,
+opt-in, checksum-verified private prerequisite install described above. This
+does not change Guild Deploy's ownership of CNTools source deployment and
+updates.
 
 CNTools does not download or replace individual source files. Guild-deploy
 installs its runnable dispatcher at
@@ -413,10 +420,10 @@ action.
 
 ## Phase 3 framework
 
-Phase 3 adds the first runnable framework without replacing the legacy tool.
-Guild-deploy installs the new source tree at `${NODE_HOME}/scripts/cntools` for
-cnode, Dingo, and Amaru. The legacy sibling `cntools.sh`, `cntools.library`, and
-`env` deployment remains unchanged for backwards compatibility.
+Phase 3 added the first runnable framework beside the legacy tool.
+Guild-deploy installed the new source tree at `${NODE_HOME}/scripts/cntools`
+for cnode, Dingo, and Amaru while the three legacy sibling files remained
+unchanged. Phase 6 later replaced that temporary compatibility boundary.
 
 The framework now provides:
 
@@ -483,6 +490,24 @@ records survive the replacement. Its canonical parent must also be owned by
 the current user and not writable by group or other users, so another local
 account cannot remove the deployment lifecycle marker.
 
+## Phase 6 public cutover
+
+Phase 6 makes `${NODE_HOME}/scripts/cntools.sh` the public launcher for the Gum
+implementation on cnode, Dingo, and Amaru. The launcher contains no CNTools
+application framework: it validates the managed directory and entrypoint, then
+replaces itself with `cntools/cntools_main.sh`, forwarding arguments, signals,
+and exit status.
+
+Guild Deploy installs the modular tree before switching the public launcher.
+It no longer deploys the legacy monolith or `cntools.library`, and archives an
+installed legacy library only after the new entrypoint is usable. The common
+`env` contract remains unchanged. Existing 13.x installations must use the
+current Guild Deploy snapshot for this migration; the retired per-file CNTools
+self-updater cannot perform the layout transition.
+
+This phase changes the public entrypoint and deployment boundary only. The
+Phase 4 operational menu entries remain placeholders.
+
 ## Explicit non-goals
 
 The new implementation does not use:
@@ -496,12 +521,13 @@ The new implementation does not use:
 - immutable generations, receipts, signatures, or package schemas; or
 - a context/result serialization protocol between the menu and actions.
 
-## Phase 1 acceptance
+## Historical Phase 1 acceptance
 
-Phase 1 is complete when this contract is present and:
+Phase 1 was complete when this contract was introduced and:
 
-- the existing `cntools.sh`, `cntools.library`, and `env` files are unchanged;
+- the then-existing `cntools.sh`, `cntools.library`, and `env` files were
+  unchanged;
 - naming, layout, metadata, loading, runtime, logging, and update ownership are
-  no longer open design questions;
-- no functional action or new runtime behavior has been introduced; and
-- repository whitespace and Markdown checks pass.
+  were no longer open design questions;
+- no functional action or new runtime behavior had been introduced; and
+- repository whitespace and Markdown checks passed.

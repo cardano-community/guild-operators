@@ -57,10 +57,11 @@ if grep -Fq 'api.github.com/repos/${G_ACCOUNT}/guild-operators/commits' \
 fi
 grep -Fq 'alias gLiveView=${IMAGE_NODE_HOME}/scripts/gLiveView.sh' "${DOCKERFILE}" ||
   fail "Dockerfile does not expose gLiveView for every implementation"
-grep -Fq '"${IMAGE_NODE_IMPLEMENTATION}" = "dingo"' "${DOCKERFILE}" ||
-  fail "Dockerfile does not expose CNTools for Dingo"
-grep -Fq 'customise_cntools' "${ENTRYPOINT}" ||
-  fail "container entrypoint does not apply CNTools-safe container defaults"
+grep -Fq 'alias cntools=${IMAGE_NODE_HOME}/scripts/cntools.sh' "${DOCKERFILE}" ||
+  fail "Dockerfile does not expose CNTools for every implementation"
+if grep -Eq 'customise_cntools|ENABLE_(CHATTR|DIALOG)' "${ENTRYPOINT}"; then
+  fail "container entrypoint still customizes removed legacy CNTools settings"
+fi
 grep -Fq '"${NODE_HOME}/scripts/amaru.sh" metrics &' "${ENTRYPOINT}" ||
   fail "container entrypoint does not start the Amaru metrics bridge"
 grep -Fq 'wait -n -p completed_pid "${metrics_pid}" "${node_pid}"' "${ENTRYPOINT}" ||

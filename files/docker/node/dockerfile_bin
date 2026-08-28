@@ -147,9 +147,7 @@ RUN jq -er '.sourceRevision' "${IMAGE_NODE_HOME}/.deployment.json" \
     && echo "alias env=/usr/bin/env" >> "${USER_HOME}/.bashrc" \
     && echo "alias node=${IMAGE_NODE_HOME}/scripts/${IMAGE_NODE_IMPLEMENTATION}.sh" >> "${USER_HOME}/.bashrc" \
     && echo "alias gLiveView=${IMAGE_NODE_HOME}/scripts/gLiveView.sh" >> "${USER_HOME}/.bashrc" \
-    && if [ "${IMAGE_NODE_IMPLEMENTATION}" = "cnode" ] || [ "${IMAGE_NODE_IMPLEMENTATION}" = "dingo" ]; then \
-      echo "alias cntools=${IMAGE_NODE_HOME}/scripts/cntools.sh" >> "${USER_HOME}/.bashrc"; \
-    fi \
+    && echo "alias cntools=${IMAGE_NODE_HOME}/scripts/cntools.sh" >> "${USER_HOME}/.bashrc" \
     && echo "export PATH=${IMAGE_NODE_HOME}/scripts:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:${USER_HOME}/.local/bin" >> "${USER_HOME}/.bashrc" \
     && echo "alias ll='ls -alhF'" >> "${USER_HOME}/.bashrc"
 

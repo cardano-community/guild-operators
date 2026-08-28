@@ -39,7 +39,7 @@ CNTOOLS_GUM_COLOR_SUCCESS="#3DD68C"
 
 cntools_gum_usage() {
   cat <<EOF
-Usage: cntools_main.sh [-n|-l|-o] [-a] [-u] [-b BRANCH] [-v] [-h]
+Usage: cntools.sh [-n|-l|-o] [-a] [-u] [-b BRANCH] [-v] [-h]
 
 CNTools - Cardano pool and wallet operations
 

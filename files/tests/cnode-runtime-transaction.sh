@@ -1089,15 +1089,11 @@ run_custom_script_snapshot_test() (
 
 run_install_order_test() {
   local deploy_file="${REPO_ROOT}/scripts/cnode-helper-scripts/deploy-cnode.sh"
-  local runtime_line dependent_line blockperf_line logmonitor_line retirement_line
-  local recursive_mode_line cntools_framework_line
+  local runtime_line blockperf_line logmonitor_line retirement_line
+  local recursive_mode_line cntools_framework_line cntools_launcher_line
 
   runtime_line="$(
     grep -n '^[[:space:]]*updateCommonRuntimeBundle ||' "${deploy_file}" |
-      head -1 | cut -d: -f1
-  )"
-  dependent_line="$(
-    grep -n 'updateWithCustomConfig "cntools.sh"' "${deploy_file}" |
       head -1 | cut -d: -f1
   )"
   blockperf_line="$(
@@ -1120,19 +1116,30 @@ run_install_order_test() {
     grep -n '^[[:space:]]*dispatcher_install_cntools_tree ||' "${deploy_file}" |
       head -1 | cut -d: -f1
   )"
-  [[ -n "${runtime_line}" && -n "${dependent_line}" &&
-     -n "${blockperf_line}" && -n "${logmonitor_line}" &&
+  cntools_launcher_line="$(
+    grep -n '^[[:space:]]*dispatcher_install_cntools_launcher ||' "${deploy_file}" |
+      head -1 | cut -d: -f1
+  )"
+  [[ -n "${runtime_line}" && -n "${blockperf_line}" &&
+     -n "${logmonitor_line}" &&
      -n "${retirement_line}" && -n "${recursive_mode_line}" &&
-     -n "${cntools_framework_line}" ]] ||
+     -n "${cntools_framework_line}" && -n "${cntools_launcher_line}" ]] ||
     fail "could not locate cnode runtime/dependent installation calls"
-  (( runtime_line < dependent_line )) ||
-    fail "common runtime is not installed before dependent common scripts"
+  (( runtime_line < blockperf_line )) ||
+    fail "common runtime is not installed before dependent scripts"
   (( blockperf_line < retirement_line && logmonitor_line < retirement_line )) ||
     fail "legacy systemd orchestrator is retired before every replacement component refreshes"
   (( recursive_mode_line < cntools_framework_line )) ||
     fail "cnode does not exclude modular CNTools from its legacy recursive chmod"
+  (( cntools_framework_line < cntools_launcher_line )) ||
+    fail "cnode installs the public CNTools launcher before the modular tree"
   if grep -q 'updateWithCustomConfig "env"' "${deploy_file}"; then
     fail "env is still installed outside the common runtime transaction"
+  fi
+  if grep -Eq \
+    'updateWithCustomConfig "cntools[.](sh|library)"|common-helper-scripts/cntools[.]library' \
+    "${deploy_file}"; then
+    fail "cnode still routes CNTools through the legacy per-file updater"
   fi
 }
 

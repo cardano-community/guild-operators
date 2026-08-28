@@ -139,13 +139,12 @@ if grep -Eq \
   "${ROOT_DIR}/scripts/cnode-helper-scripts/deploy-cnode.sh"; then
   fail "hardware-wallet support still downloads mutable privileged rules"
 fi
-if grep -q 'cmdAvailable "catalyst-toolbox".*return 0' \
-  "${ROOT_DIR}/scripts/common-helper-scripts/cntools.library"; then
-  fail "Catalyst Toolbox still bypasses pinned release verification when present"
-fi
-grep -q 'sha256sum "${installed_binary}"' \
-  "${ROOT_DIR}/scripts/common-helper-scripts/cntools.library" ||
-  fail "installed Catalyst Toolbox is not compared with the pinned artifact"
+[[ ! -e "${ROOT_DIR}/scripts/common-helper-scripts/cntools.library" ]] ||
+  fail "retired legacy cntools.library still exists"
+[[ -x "${ROOT_DIR}/scripts/common-helper-scripts/cntools.sh" ]] ||
+  fail "public CNTools launcher is missing or not executable"
+bash -n "${ROOT_DIR}/scripts/common-helper-scripts/cntools.sh" ||
+  fail "public CNTools launcher failed shell validation"
 
 [[ ! -e "${ROOT_DIR}/files/node-deps.json" ]] ||
   fail "legacy node-deps.json still exists"
@@ -205,8 +204,20 @@ for profile in \
   fi
   grep -q 'dispatcher_preflight_cntools_tree' "${profile}" ||
     fail "$(basename "${profile}") does not preflight the modular CNTools tree"
+  grep -q 'dispatcher_preflight_cntools_launcher' "${profile}" ||
+    fail "$(basename "${profile}") does not preflight the public CNTools launcher"
   grep -q 'dispatcher_install_cntools_tree' "${profile}" ||
     fail "$(basename "${profile}") does not install the modular CNTools tree"
+  grep -q 'dispatcher_install_cntools_launcher' "${profile}" ||
+    fail "$(basename "${profile}") does not install the public CNTools launcher"
+  if grep -q 'common-helper-scripts/cntools[.]library' "${profile}"; then
+    fail "$(basename "${profile}") still deploys cntools.library"
+  fi
+  tree_line="$(grep -n 'dispatcher_install_cntools_tree' "${profile}" | tail -1 | cut -d: -f1)"
+  launcher_line="$(grep -n 'dispatcher_install_cntools_launcher' "${profile}" | tail -1 | cut -d: -f1)"
+  [[ -n "${tree_line}" && -n "${launcher_line}" &&
+     "${tree_line}" -lt "${launcher_line}" ]] ||
+    fail "$(basename "${profile}") installs the launcher before the CNTools tree"
 done
 
 for implementation in dingo amaru; do

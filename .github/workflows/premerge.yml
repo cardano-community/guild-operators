@@ -26,6 +26,8 @@ jobs:
       run: bash files/tests/guild-deploy-dispatcher.sh
     - name: Test CNTools deployment transaction
       run: bash files/tests/cntools-deployment.sh
+    - name: Test CNTools public launcher
+      run: bash files/tests/cntools-launcher.sh
     - name: Test CNTools startup
       run: bash files/tests/cntools-startup.sh
     - name: Test CNTools updates

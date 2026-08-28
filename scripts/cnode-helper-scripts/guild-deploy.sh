@@ -848,6 +848,11 @@ dispatcher_preflight_cntools_tree() {
   dispatcher_validate_cntools_tree "${source_directory}" Y
 }
 
+dispatcher_preflight_cntools_launcher() {
+  dispatcher_preflight_shell_payloads \
+    'scripts/common-helper-scripts/cntools.sh'
+}
+
 dispatcher_target_state_token() {
   local manifest_path="${1:-${DEPLOYMENT_FILE:-}}"
   local checksum_output=""
@@ -1631,6 +1636,192 @@ dispatcher_install_cntools_tree() (
   }
   dispatcher_validate_cntools_tree "${target_directory}" N || return 2
   _dispatcher_cntools_permissions_valid "${target_directory}" || return 2
+  transaction_active="N"
+  return 0
+)
+
+# Replace the public CNTools entrypoint only after a complete modular tree is
+# installed. Existing legacy files are archived before the exact launcher is
+# moved into place, so a failed post-install check can restore the prior state.
+dispatcher_install_cntools_launcher() (
+  local scripts_directory="${NODE_HOME:-}/scripts"
+  local target_tree="${NODE_HOME:-}/scripts/cntools"
+  local target_launcher="${NODE_HOME:-}/scripts/cntools.sh"
+  local legacy_library="${NODE_HOME:-}/scripts/cntools.library"
+  local archive_directory="${NODE_HOME:-}/scripts/archive"
+  local bash_bin="${GUILD_DEPLOY_PREFLIGHT_BASH_BIN:-bash}"
+  local source_launcher=""
+  local candidate_launcher=""
+  local archive_launcher=""
+  local archive_library=""
+  local restore_tmp=""
+  local target_lock_acquired="N"
+  local target_existed="N"
+  local library_existed="N"
+  local launcher_changed="N"
+  local launcher_installed="N"
+  local library_retired="N"
+  local transaction_active="N"
+
+  _dispatcher_cntools_launcher_rollback() {
+    local rollback_ok="Y"
+
+    # Restore the library before the old launcher. If library recovery fails,
+    # keep the new launcher active rather than restoring an unusable monolith.
+    if [[ "${library_retired}" = "Y" &&
+          "${library_existed}" = "Y" ]]; then
+      if [[ -f "${legacy_library}" && ! -L "${legacy_library}" ]]; then
+        library_retired="N"
+      elif [[ -e "${legacy_library}" || -L "${legacy_library}" ]]; then
+        rollback_ok="N"
+      else
+        restore_tmp="$(mktemp "${scripts_directory}/.cntools.library.restore.XXXXXX")" ||
+          rollback_ok="N"
+        if [[ -n "${restore_tmp}" ]] &&
+           cp -p -- "${archive_library}" "${restore_tmp}" &&
+           mv -f -- "${restore_tmp}" "${legacy_library}"; then
+          restore_tmp=""
+          library_retired="N"
+        else
+          [[ -n "${restore_tmp}" ]] && rm -f -- "${restore_tmp}"
+          rollback_ok="N"
+        fi
+      fi
+    fi
+    if [[ "${launcher_installed}" = "Y" && "${rollback_ok}" = "Y" ]]; then
+      if [[ "${target_existed}" = "Y" ]]; then
+        restore_tmp="$(mktemp "${scripts_directory}/.cntools.sh.restore.XXXXXX")" ||
+          rollback_ok="N"
+        if [[ -n "${restore_tmp}" ]] &&
+           cp -p -- "${archive_launcher}" "${restore_tmp}" &&
+           mv -f -- "${restore_tmp}" "${target_launcher}"; then
+          restore_tmp=""
+        else
+          [[ -n "${restore_tmp}" ]] && rm -f -- "${restore_tmp}"
+          rollback_ok="N"
+        fi
+      elif ! rm -f -- "${target_launcher}"; then
+        rollback_ok="N"
+      fi
+    fi
+    [[ "${rollback_ok}" = "Y" ]]
+  }
+
+  _dispatcher_cntools_launcher_cleanup() {
+    local saved_status="${1:-$?}"
+
+    trap - EXIT HUP INT QUIT TERM
+    if [[ "${transaction_active}" = "Y" ]]; then
+      _dispatcher_cntools_launcher_rollback ||
+        log_warn "Could not completely restore the previous CNTools launcher state."
+    fi
+    [[ -n "${candidate_launcher}" ]] && rm -f -- "${candidate_launcher}"
+    [[ -n "${restore_tmp}" ]] && rm -f -- "${restore_tmp}"
+    if [[ "${target_lock_acquired}" = "Y" ]]; then
+      deployment_target_lock_release
+    fi
+    return "${saved_status}"
+  }
+
+  trap '_dispatcher_cntools_launcher_cleanup "$?"' EXIT
+  trap 'exit 2' HUP INT QUIT TERM
+
+  source_launcher="$(
+    dispatcher_source_path 'scripts/common-helper-scripts/cntools.sh'
+  )" || {
+    log_warn "The CNTools launcher source is missing or unsafe."
+    return 2
+  }
+  dispatcher_preflight_cntools_launcher || return 2
+  [[ -n "${NODE_HOME:-}" &&
+     "${NODE_HOME}" = /* &&
+     -d "${NODE_HOME}" &&
+     ! -L "${NODE_HOME}" &&
+     -d "${scripts_directory}" &&
+     ! -L "${scripts_directory}" ]] || {
+    log_warn "The CNTools launcher target layout is missing or unsafe."
+    return 2
+  }
+
+  deployment_target_lock_acquire "${NODE_HOME}" || return 2
+  target_lock_acquired="Y"
+  dispatcher_validate_cntools_tree "${target_tree}" N || {
+    log_warn "The installed CNTools tree is unavailable or invalid."
+    return 2
+  }
+  if [[ -e "${target_launcher}" || -L "${target_launcher}" ]]; then
+    [[ -f "${target_launcher}" &&
+       ! -L "${target_launcher}" &&
+       -s "${target_launcher}" ]] || {
+      log_warn "The installed CNTools launcher is not a safe regular file."
+      return 2
+    }
+    target_existed="Y"
+  fi
+  if [[ -e "${legacy_library}" || -L "${legacy_library}" ]]; then
+    [[ -f "${legacy_library}" &&
+       ! -L "${legacy_library}" &&
+       -s "${legacy_library}" ]] || {
+      log_warn "The installed legacy CNTools library is not a safe regular file."
+      return 2
+    }
+    library_existed="Y"
+  fi
+  if [[ -e "${archive_directory}" || -L "${archive_directory}" ]]; then
+    [[ -d "${archive_directory}" &&
+       ! -L "${archive_directory}" ]] || {
+      log_warn "The CNTools archive directory is unsafe."
+      return 2
+    }
+  else
+    mkdir -m 0755 -- "${archive_directory}" || return 2
+  fi
+
+  candidate_launcher="$(mktemp "${scripts_directory}/.cntools.sh.install.XXXXXX")" ||
+    return 2
+  cp -- "${source_launcher}" "${candidate_launcher}" || return 2
+  chmod 0755 "${candidate_launcher}" || return 2
+  "${bash_bin}" -n "${candidate_launcher}" >/dev/null 2>&1 || return 2
+
+  if [[ "${target_existed}" = "N" ]] ||
+     ! cmp -s "${candidate_launcher}" "${target_launcher}" ||
+     [[ -z "$(find "${target_launcher}" -prune -perm 0755 -print)" ]]; then
+    launcher_changed="Y"
+  fi
+  if [[ "${launcher_changed}" = "N" &&
+        "${library_existed}" = "N" ]]; then
+    return 0
+  fi
+
+  if [[ "${launcher_changed}" = "Y" &&
+        "${target_existed}" = "Y" ]]; then
+    archive_launcher="$(
+      mktemp "${archive_directory}/cntools.sh_bkp$(date +%s).XXXXXX"
+    )" || return 2
+    cp -p -- "${target_launcher}" "${archive_launcher}" || return 2
+  fi
+  if [[ "${library_existed}" = "Y" ]]; then
+    archive_library="$(
+      mktemp "${archive_directory}/cntools.library_bkp$(date +%s).XXXXXX"
+    )" || return 2
+    cp -p -- "${legacy_library}" "${archive_library}" || return 2
+  fi
+
+  transaction_active="Y"
+  if [[ "${launcher_changed}" = "Y" ]]; then
+    mv -f -- "${candidate_launcher}" "${target_launcher}" || return 2
+    candidate_launcher=""
+    launcher_installed="Y"
+    "${bash_bin}" -n "${target_launcher}" >/dev/null 2>&1 || return 2
+    cmp -s "${source_launcher}" "${target_launcher}" || return 2
+    [[ -n "$(find "${target_launcher}" -prune -perm 0755 -print)" ]] ||
+      return 2
+  fi
+  if [[ "${library_existed}" = "Y" ]]; then
+    library_retired="Y"
+    rm -f -- "${legacy_library}" || return 2
+    [[ ! -e "${legacy_library}" && ! -L "${legacy_library}" ]] || return 2
+  fi
   transaction_active="N"
   return 0
 )

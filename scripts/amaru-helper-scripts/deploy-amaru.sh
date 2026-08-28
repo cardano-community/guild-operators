@@ -170,6 +170,11 @@ amaru_deploy_preflight_snapshot() {
     amaru_deploy_fail "CNTools tree preflight failed"
     return 1
   fi
+  if ! declare -F dispatcher_preflight_cntools_launcher >/dev/null 2>&1 ||
+     ! dispatcher_preflight_cntools_launcher; then
+    amaru_deploy_fail "CNTools launcher preflight failed"
+    return 1
+  fi
   environment_path="$(
     dispatcher_source_path "files/configs/amaru/${NETWORK}/amaru.env"
   )" || return 1
@@ -396,6 +401,11 @@ amaru_deploy_install_payloads() {
     return 1
   fi
   dispatcher_install_cntools_tree || return 1
+  if ! declare -F dispatcher_install_cntools_launcher >/dev/null 2>&1; then
+    amaru_deploy_fail "CNTools launcher transaction helper is unavailable; run this profile through guild-deploy.sh"
+    return 1
+  fi
+  dispatcher_install_cntools_launcher || return 1
   amaru_deploy_install_code_payload \
     "scripts/common-helper-scripts/gLiveView.sh" \
     "${NODE_HOME}/scripts/gLiveView.sh" 0755 Y || return 1
