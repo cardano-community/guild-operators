@@ -75,11 +75,11 @@ The rewritten implementation continues the existing CNTools release lineage
 at version 14; it is not a separately versioned product.
 
 The filesystem is the menu tree and remains its source of truth. At startup,
-CNTools validates the complete visible tree and builds a small in-memory
-session catalog. Navigation reads only that catalog; it does not rescan JSON or
-action files when the selection moves, a submenu opens, or an action returns.
-Restarting CNTools rebuilds the catalog after definitions change on disk. No
-catalog file is generated or deployed.
+CNTools validates the module definitions in one multi-file JSON pass and builds
+a small in-memory session catalog. Navigation reads only that catalog; it does
+not rescan JSON or action files when the selection moves, a submenu opens, or
+an action returns. Restarting CNTools rebuilds the catalog after definitions
+change on disk. No combined catalog file is generated or deployed.
 
 The Phase 4 framework mirrors the current CNTools menu hierarchy. It initially
 gave every operational leaf an inert `action.sh` with a consistent
@@ -262,9 +262,9 @@ temporary and sensitive files should use the cleanup hook. An
 action lists every library it needs in dependency order; there is no library
 registry or dependency resolver.
 
-Runtime menu validation occurs once while the startup catalog is built.
+Runtime metadata validation occurs once while the startup catalog is built.
 Restarting CNTools validates and rebuilds it after definitions change on disk.
-Actions and their declared libraries are still checked immediately before
+Action scripts and their declared libraries are checked immediately before
 invocation and remain lazily loaded.
 Deployment and CI validate the entire module tree and run `bash -n` over every
 `.sh` file. Invalid metadata, unsafe paths, and loading failures produce a
@@ -281,13 +281,13 @@ changed on disk.
 
 The Gum interface takes its visual direction from Koios: a near-black canvas,
 green accent, muted secondary text, restrained borders, and one compact header
-for the version, current path, runtime values, and node health. The current
-path leaf uses the green accent so its location is immediately visible. Local
-and light sessions show a cached epoch, chain tip, and tip gap snapshot. A
-failed optional probe keeps the selected runtime values and shows `node
-offline` in the health row without blocking CNTools. Explicit offline mode
-instead shows only `Offline`, omits the health row, and makes no probe. Health
-refreshes only on natural menu redraws, never while Gum owns keyboard input.
+for the version, current path, runtime values, and root-menu node health. The
+current path leaf uses the green accent so its location is immediately visible.
+Local and light sessions show the cached epoch, chain tip, and tip gap snapshot
+on the root menu. Health refreshes only on natural root-menu redraws, never
+while Gum owns keyboard input. A failed optional probe keeps the selected
+runtime values and shows `node offline`; submenus omit the health row. Explicit
+offline mode instead shows only `Offline` and never starts a probe.
 Menu labels and descriptions come from the existing module metadata. `gum
 filter` presents the choices,
 allows fuzzy filtering by typing, and invokes the single selected menu or

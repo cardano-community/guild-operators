@@ -17,6 +17,10 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Focused wallet discovery and query libraries with logged commands, API requests, selections, and failures.
 
 #### Changed
+- Startup validates the modular menu catalog in one multi-file JSON pass and
+  keeps parsed definitions, routes, and display rows in memory for the session.
+- Node health is refreshed only when the root menu is drawn; submenus neither
+  display nor request health data.
 - Wallet folders and checksum-valid, network-appropriate Bech32 address files are validated without regenerating or modifying existing wallet data.
 - Wallet List uses a compact Gum table or card layout based on terminal width, asks before fetching live values, shows a Gum spinner during the query, and displays non-ADA tokens, rewards, UTxO balance, and an inclusive total.
 - Wallet Show labels stake pool and DRep delegation separately and keeps on-chain native-asset holdings visible when optional Koios metadata is unavailable.

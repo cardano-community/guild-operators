@@ -63,7 +63,7 @@ assert_fails() {
   fi
 }
 
-for required_command in bash chmod cp find grep mktemp mkdir rm tar; do
+for required_command in bash chmod cp find grep mktemp mkdir rm tar wc; do
   command -v "${required_command}" >/dev/null 2>&1 ||
     fail "required command is unavailable: ${required_command}"
 done
@@ -496,6 +496,8 @@ run_menu_mapping_test() (
   local filter_index=0
   local cache_build_calls=0
   local clear_calls=0
+  local health_root_calls=0
+  local health_submenu_calls=0
   local action_calls=""
   local status_log=""
   local first_duplicate=""
@@ -589,7 +591,13 @@ run_menu_mapping_test() (
   cntools_gum_clear() { clear_calls=$((clear_calls + 1)); }
   cntools_gum_terminal_lines() { printf '24\n'; }
   cntools_gum_log() { return 0; }
-  cntools_health_refresh() { return 0; }
+  cntools_health_refresh() {
+    if [[ "${CNTOOLS_MENU_ID:-}" == "/" ]]; then
+      health_root_calls=$((health_root_calls + 1))
+    else
+      health_submenu_calls=$((health_submenu_calls + 1))
+    fi
+  }
   cntools_update_state_load() { return 0; }
   cntools_update_render_summary() { return 0; }
   cntools_startup_deployment_was_started() { return 1; }
@@ -622,6 +630,10 @@ run_menu_mapping_test() (
     "submenu and root Escape cancellation sequence"
   assert_eq "${clear_calls}" "2" \
     "transient Gum cancellation cleanup"
+  assert_eq "${health_root_calls}" "6" \
+    "root-only health refresh"
+  assert_eq "${health_submenu_calls}" "0" \
+    "submenu health refresh"
 )
 
 run_menu_filter_status_test() {
@@ -755,11 +767,20 @@ run_header_test() (
   if grep -E $'\t(Mode|Backend|Network) ' "${argument_log}" >/dev/null; then
     fail "Gum runtime row retained redundant labels"
   fi
-  grep -F $'style\t#3DD68C\t#202127\tN\tEpoch 230  ·  Tip #456  ·  Gap 2 slots' \
-    "${argument_log}" >/dev/null ||
-    fail "Gum health row was not rendered with its health color"
+  if grep -F 'Epoch 230  ·  Tip #456  ·  Gap 2 slots' \
+      "${argument_log}" >/dev/null; then
+    fail "nested Gum header rendered root-only health data"
+  fi
   grep -F $'style\t\t#202127\tN\t ' "${argument_log}" >/dev/null ||
     fail "Gum title separator did not inherit the info-header surface"
+
+  : > "${argument_log}"
+  CNTOOLS_MENU_ID="/"
+  cntools_gum_header "/" >/dev/null ||
+    fail "online root Gum header rendering failed"
+  grep -F $'style\t#3DD68C\t#202127\tN\tEpoch 230  ·  Tip #456  ·  Gap 2 slots' \
+    "${argument_log}" >/dev/null ||
+    fail "root Gum health row was not rendered with its health color"
 
   simulated_render_rows=7
   cntools_gum_header "/ Wallet / Register" >/dev/null ||

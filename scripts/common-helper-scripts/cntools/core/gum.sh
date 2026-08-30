@@ -12,6 +12,18 @@ CNTOOLS_GUM_INSTALL_TMP=""
 CNTOOLS_GUM_INSTALL_STAGE=""
 CNTOOLS_GUM_LAST_HEADER_ROWS=""
 CNTOOLS_GUM_LAST_HEADER_MODE=""
+CNTOOLS_GUM_STATIC_HEADER_KEY=""
+CNTOOLS_GUM_STATIC_HEADER_TITLE=""
+CNTOOLS_GUM_STATIC_HEADER_RUNTIME=""
+CNTOOLS_GUM_HEALTH_FRAGMENT_KEY=""
+CNTOOLS_GUM_HEALTH_FRAGMENT=""
+declare -Ag CNTOOLS_GUM_BREADCRUMB_KEYS=()
+declare -Ag CNTOOLS_GUM_BREADCRUMB_FRAGMENTS=()
+declare -Ag CNTOOLS_GUM_HEADER_RENDER_KEYS=()
+declare -Ag CNTOOLS_GUM_HEADER_RENDERED=()
+declare -Ag CNTOOLS_GUM_HEADER_RENDER_ROWS=()
+declare -Ag CNTOOLS_GUM_MENU_ROW_KEYS=()
+declare -Ag CNTOOLS_GUM_MENU_ROWS=()
 
 # Gum subtracts its help and vertical padding from the explicit filter height
 # to size the choice viewport. The input is already part of the rendered
@@ -561,99 +573,139 @@ cntools_gum_header_rows() {
   if [[ "${CNTOOLS_GUM_LAST_HEADER_ROWS:-}" =~ ^[0-9]+$ &&
         "${CNTOOLS_GUM_LAST_HEADER_MODE:-}" == "${CNTOOLS_MODE:-}" ]]; then
     printf '%s\n' "${CNTOOLS_GUM_LAST_HEADER_ROWS}"
-  elif [[ "${CNTOOLS_MODE:-}" == "offline" ]]; then
-    printf '5\n'
-  else
+  elif [[ "${CNTOOLS_MODE:-}" != "offline" &&
+          "${CNTOOLS_MENU_ID:-/}" == "/" ]]; then
     printf '%s\n' "${CNTOOLS_GUM_HEADER_ROWS}"
+  else
+    printf '5\n'
   fi
 }
 
-cntools_ui_path() {
-  local value="${1:-/}"
+cntools_ui_path_into() {
+  local output_name="${1:-}"
+  local value="${2:-/}"
 
+  [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n output_ref="${output_name}"
   case "${value}" in
     CNTools) value="/" ;;
     'CNTools / '*) value="/ ${value#CNTools / }" ;;
     /*) ;;
     *) value="/ ${value}" ;;
   esac
-  printf '%s' "${value}"
+  output_ref="${value}"
 }
 
-cntools_ui_runtime_context() {
+cntools_ui_runtime_context_into() {
+  local output_name="${1:-}"
   local separator=" | "
 
+  [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n output_ref="${output_name}"
   if [[ "${CNTOOLS_MODE:-}" == "offline" ]]; then
-    printf 'Offline'
+    output_ref="Offline"
     return 0
   fi
   [[ "${CNTOOLS_UI_UTF8:-N}" != "Y" ]] || separator=" · "
-  printf '%s%s%s%s%s' \
+  printf -v output_ref '%s%s%s%s%s' \
     "${CNTOOLS_MODE:-unknown}" "${separator}" \
     "${CNTOOLS_BACKEND:-unknown}" "${separator}" \
     "${CNTOOLS_NETWORK:-unknown}"
 }
 
-cntools_gum_breadcrumb() {
-  local breadcrumb=""
+cntools_gum_header_cache_id() {
+  local output_name="${1:-}"
+  local candidate="${CNTOOLS_ACTION_ID:-${CNTOOLS_MENU_ID:-@adhoc}}"
+
+  [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n output_ref="${output_name}"
+  [[ "${candidate}" != "/" ]] || candidate="@root"
+  if [[ "${candidate}" != "@root" &&
+        ! "${candidate}" =~ ^[a-z0-9][a-z0-9._/-]*$ ]]; then
+    candidate="@adhoc"
+  fi
+  output_ref="${candidate}"
+}
+
+cntools_gum_breadcrumb_into() {
+  local output_name="${1:-}"
+  local breadcrumb="${2:-/}"
+  local cache_id="${3:-@adhoc}"
+  local cache_key=""
   local parent=""
   local leaf=""
   local styled_parent=""
   local styled_leaf=""
 
-  breadcrumb="$(cntools_ui_path "${1:-/}")"
+  [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n output_ref="${output_name}"
+  cache_key="${breadcrumb}"$'\037'"${CNTOOLS_GUM_COLOR_MUTED}"$'\037'\
+"${CNTOOLS_GUM_COLOR_BRAND}"$'\037'"${CNTOOLS_GUM_COLOR_SURFACE}"$'\037'\
+"${NO_COLOR+x}:${NO_COLOR:-}"
+  if [[ "${CNTOOLS_GUM_BREADCRUMB_KEYS[${cache_id}]:-}" == "${cache_key}" &&
+        -n "${CNTOOLS_GUM_BREADCRUMB_FRAGMENTS[${cache_id}]+set}" ]]; then
+    output_ref="${CNTOOLS_GUM_BREADCRUMB_FRAGMENTS[${cache_id}]}"
+    return 0
+  fi
+
   if [[ "${breadcrumb}" == "/" ]]; then
-    cntools_gum_capture style \
+    output_ref="$(cntools_gum_capture style \
       --foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
-      --background "${CNTOOLS_GUM_COLOR_SURFACE}" --bold "/"
-    return
-  fi
-  if [[ "${breadcrumb}" == *" / "* ]]; then
-    parent="${breadcrumb% / *} / "
-    leaf="${breadcrumb##* / }"
+      --background "${CNTOOLS_GUM_COLOR_SURFACE}" --bold "/")" || return 1
   else
-    parent="/ "
-    leaf="${breadcrumb#/ }"
+    if [[ "${breadcrumb}" == *" / "* ]]; then
+      parent="${breadcrumb% / *} / "
+      leaf="${breadcrumb##* / }"
+    else
+      parent="/ "
+      leaf="${breadcrumb#/ }"
+    fi
+    styled_parent="$(cntools_gum_capture style \
+      --foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
+      --background "${CNTOOLS_GUM_COLOR_SURFACE}" \
+      "${parent}")" || return 1
+    styled_leaf="$(cntools_gum_capture style \
+      --foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+      --background "${CNTOOLS_GUM_COLOR_SURFACE}" --bold \
+      "${leaf}")" || return 1
+    output_ref="${styled_parent}${styled_leaf}"
   fi
-  styled_parent="$(cntools_gum_capture style \
-    --foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
-    --background "${CNTOOLS_GUM_COLOR_SURFACE}" \
-    "${parent}")" || return 1
-  styled_leaf="$(cntools_gum_capture style \
-    --foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
-    --background "${CNTOOLS_GUM_COLOR_SURFACE}" --bold \
-    "${leaf}")" || return 1
-  cntools_gum_capture join --horizontal "${styled_parent}" "${styled_leaf}"
+  CNTOOLS_GUM_BREADCRUMB_KEYS["${cache_id}"]="${cache_key}"
+  CNTOOLS_GUM_BREADCRUMB_FRAGMENTS["${cache_id}"]="${output_ref}"
 }
 
-cntools_gum_health_color() {
+cntools_gum_breadcrumb() {
+  local breadcrumb=""
+  local rendered=""
+
+  cntools_ui_path_into breadcrumb "${1:-/}" || return 1
+  cntools_gum_breadcrumb_into rendered "${breadcrumb}" "@adhoc" || return 1
+  printf '%s' "${rendered}"
+}
+
+cntools_gum_health_color_into() {
+  local output_name="${1:-}"
+
+  [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n output_ref="${output_name}"
   case "${CNTOOLS_HEALTH_TONE:-quiet}" in
-    success) printf '%s\n' "${CNTOOLS_GUM_COLOR_SUCCESS}" ;;
-    warning) printf '%s\n' "${CNTOOLS_GUM_COLOR_WARNING}" ;;
-    danger) printf '%s\n' "${CNTOOLS_GUM_COLOR_DANGER}" ;;
-    *) printf '%s\n' "${CNTOOLS_GUM_COLOR_QUIET}" ;;
+    success) output_ref="${CNTOOLS_GUM_COLOR_SUCCESS}" ;;
+    warning) output_ref="${CNTOOLS_GUM_COLOR_WARNING}" ;;
+    danger) output_ref="${CNTOOLS_GUM_COLOR_DANGER}" ;;
+    *) output_ref="${CNTOOLS_GUM_COLOR_QUIET}" ;;
   esac
 }
 
-cntools_gum_header() {
-  local breadcrumb="${1:-/}"
-  local width=""
-  local runtime=""
+cntools_gum_static_header_fragments() {
+  local runtime="${1:-}"
+  local static_key="${2:-}"
   local styled_name=""
   local styled_title_gap=""
   local styled_version=""
-  local styled_title=""
-  local styled_path=""
-  local styled_runtime=""
-  local styled_health=""
-  local health_color=""
-  local content=""
-  local rendered_header=""
-  local rendered_rows=""
 
-  width="$(cntools_gum_width)"
-  runtime="$(cntools_ui_runtime_context)"
-  cntools_gum_clear
+  if [[ "${CNTOOLS_GUM_STATIC_HEADER_KEY}" == "${static_key}" ]]; then
+    return 0
+  fi
   styled_name="$(cntools_gum_capture style \
     --foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
     --background "${CNTOOLS_GUM_COLOR_SURFACE}" --bold "CNTools")" || return 1
@@ -663,19 +715,100 @@ cntools_gum_header() {
     "v${CNTOOLS_VERSION:-?}")" || return 1
   styled_title_gap="$(cntools_gum_capture style \
     --background "${CNTOOLS_GUM_COLOR_SURFACE}" " ")" || return 1
-  styled_title="$(cntools_gum_capture join --horizontal \
-    "${styled_name}" "${styled_title_gap}" "${styled_version}")" || return 1
-  styled_path="$(cntools_gum_breadcrumb "${breadcrumb}")" || return 1
-  styled_runtime="$(cntools_gum_capture style \
+  CNTOOLS_GUM_STATIC_HEADER_TITLE="${styled_name}${styled_title_gap}${styled_version}"
+  CNTOOLS_GUM_STATIC_HEADER_RUNTIME="$(cntools_gum_capture style \
     --foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
     --background "${CNTOOLS_GUM_COLOR_SURFACE}" "${runtime}")" || return 1
-  content="${styled_title}"$'\n'"${styled_path}"$'\n'"${styled_runtime}"
-  if [[ "${CNTOOLS_MODE:-}" != "offline" ]]; then
-    health_color="$(cntools_gum_health_color)" || return 1
-    styled_health="$(cntools_gum_capture style \
+  CNTOOLS_GUM_STATIC_HEADER_KEY="${static_key}"
+}
+
+cntools_gum_health_fragment_into() {
+  local output_name="${1:-}"
+  local health_color="${2:-}"
+  local health_key="${3:-}"
+
+  [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n output_ref="${output_name}"
+  if [[ "${CNTOOLS_GUM_HEALTH_FRAGMENT_KEY}" != "${health_key}" ]]; then
+    CNTOOLS_GUM_HEALTH_FRAGMENT="$(cntools_gum_capture style \
       --foreground "${health_color}" \
       --background "${CNTOOLS_GUM_COLOR_SURFACE}" \
       "${CNTOOLS_HEALTH_TEXT:-node offline}")" || return 1
+    CNTOOLS_GUM_HEALTH_FRAGMENT_KEY="${health_key}"
+  fi
+  output_ref="${CNTOOLS_GUM_HEALTH_FRAGMENT}"
+}
+
+cntools_gum_text_rows_into() {
+  local output_name="${1:-}"
+  local remaining="${2:-}"
+  local rows=1
+
+  [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n output_ref="${output_name}"
+  while [[ "${remaining}" == *$'\n'* ]]; do
+    remaining="${remaining#*$'\n'}"
+    ((rows++))
+  done
+  output_ref="${rows}"
+}
+
+cntools_gum_header() {
+  local breadcrumb="${1:-/}"
+  local normalized_breadcrumb=""
+  local cache_id=""
+  local static_key=""
+  local health_key=""
+  local render_key=""
+  local width=""
+  local runtime=""
+  local styled_path=""
+  local styled_health=""
+  local health_color=""
+  local content=""
+  local rendered_header=""
+  local rendered_rows=""
+  local show_health="N"
+
+  width="$(cntools_gum_width)"
+  cntools_ui_path_into normalized_breadcrumb "${breadcrumb}" || return 1
+  cntools_ui_runtime_context_into runtime || return 1
+  cntools_gum_header_cache_id cache_id || return 1
+  if [[ "${normalized_breadcrumb}" == "/" &&
+        "${CNTOOLS_MODE:-}" != "offline" ]]; then
+    show_health="Y"
+    cntools_gum_health_color_into health_color || return 1
+  fi
+  static_key="${CNTOOLS_VERSION:-?}"$'\037'"${runtime}"$'\037'\
+"${CNTOOLS_GUM_COLOR_BRAND}"$'\037'"${CNTOOLS_GUM_COLOR_MUTED}"$'\037'\
+"${CNTOOLS_GUM_COLOR_SURFACE}"$'\037'"${NO_COLOR+x}:${NO_COLOR:-}"
+  if [[ "${show_health}" == "Y" ]]; then
+    health_key="${CNTOOLS_HEALTH_TONE:-quiet}"$'\037'\
+"${CNTOOLS_HEALTH_TEXT:-node offline}"$'\037'"${health_color}"$'\037'\
+"${CNTOOLS_GUM_COLOR_SURFACE}"$'\037'"${NO_COLOR+x}:${NO_COLOR:-}"
+  else
+    health_key="hidden"
+  fi
+  render_key="${width}"$'\037'"${normalized_breadcrumb}"$'\037'\
+"${static_key}"$'\037'"${health_key}"$'\037'"${CNTOOLS_GUM_COLOR_DIVIDER}"$'\037'\
+"${CNTOOLS_GUM_COLOR_TEXT}"
+  cntools_gum_clear
+  if [[ "${CNTOOLS_GUM_HEADER_RENDER_KEYS[${cache_id}]:-}" == "${render_key}" &&
+        -n "${CNTOOLS_GUM_HEADER_RENDERED[${cache_id}]+set}" ]]; then
+    CNTOOLS_GUM_LAST_HEADER_ROWS="${CNTOOLS_GUM_HEADER_RENDER_ROWS[${cache_id}]}"
+    CNTOOLS_GUM_LAST_HEADER_MODE="${CNTOOLS_MODE:-}"
+    printf '%s\n' "${CNTOOLS_GUM_HEADER_RENDERED[${cache_id}]}"
+    return 0
+  fi
+
+  cntools_gum_static_header_fragments "${runtime}" "${static_key}" || return 1
+  cntools_gum_breadcrumb_into styled_path \
+    "${normalized_breadcrumb}" "${cache_id}" || return 1
+  content="${CNTOOLS_GUM_STATIC_HEADER_TITLE}"$'\n'"${styled_path}"$'\n'\
+"${CNTOOLS_GUM_STATIC_HEADER_RUNTIME}"
+  if [[ "${show_health}" == "Y" ]]; then
+    cntools_gum_health_fragment_into styled_health \
+      "${health_color}" "${health_key}" || return 1
     content+=$'\n'"${styled_health}"
   fi
   rendered_header="$(cntools_gum_capture style --no-strip-ansi \
@@ -683,9 +816,11 @@ cntools_gum_header() {
     --border-foreground "${CNTOOLS_GUM_COLOR_DIVIDER}" \
     --background "${CNTOOLS_GUM_COLOR_SURFACE}" \
     --foreground "${CNTOOLS_GUM_COLOR_TEXT}" "${content}")" || return 1
-  rendered_rows="$(LC_ALL=C awk 'END { print NR }' \
-    <<< "${rendered_header}")" || return 1
+  cntools_gum_text_rows_into rendered_rows "${rendered_header}" || return 1
   [[ "${rendered_rows}" =~ ^[1-9][0-9]*$ ]] || return 1
+  CNTOOLS_GUM_HEADER_RENDER_KEYS["${cache_id}"]="${render_key}"
+  CNTOOLS_GUM_HEADER_RENDERED["${cache_id}"]="${rendered_header}"
+  CNTOOLS_GUM_HEADER_RENDER_ROWS["${cache_id}"]="${rendered_rows}"
   CNTOOLS_GUM_LAST_HEADER_ROWS="${rendered_rows}"
   CNTOOLS_GUM_LAST_HEADER_MODE="${CNTOOLS_MODE:-}"
   printf '%s\n' "${rendered_header}"
@@ -707,6 +842,20 @@ cntools_ui_init() {
   CNTOOLS_UI_GREEN=""
   CNTOOLS_UI_YELLOW=""
   CNTOOLS_UI_RED=""
+  CNTOOLS_GUM_LAST_HEADER_ROWS=""
+  CNTOOLS_GUM_LAST_HEADER_MODE=""
+  CNTOOLS_GUM_STATIC_HEADER_KEY=""
+  CNTOOLS_GUM_STATIC_HEADER_TITLE=""
+  CNTOOLS_GUM_STATIC_HEADER_RUNTIME=""
+  CNTOOLS_GUM_HEALTH_FRAGMENT_KEY=""
+  CNTOOLS_GUM_HEALTH_FRAGMENT=""
+  CNTOOLS_GUM_BREADCRUMB_KEYS=()
+  CNTOOLS_GUM_BREADCRUMB_FRAGMENTS=()
+  CNTOOLS_GUM_HEADER_RENDER_KEYS=()
+  CNTOOLS_GUM_HEADER_RENDERED=()
+  CNTOOLS_GUM_HEADER_RENDER_ROWS=()
+  CNTOOLS_GUM_MENU_ROW_KEYS=()
+  CNTOOLS_GUM_MENU_ROWS=()
   return 0
 }
 
@@ -1027,20 +1176,29 @@ cntools_gum_filter() {
   return "${_cntools_status}"
 }
 
-cntools_gum_menu_row() {
-  local index="${1:-0}"
+cntools_gum_menu_row_into() {
+  local output_name="${1:-}"
+  local index="${2:-0}"
   local marker="•"
   local suffix=""
-  local row=""
 
+  [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n output_ref="${output_name}"
   [[ "${CNTOOLS_MENU_KINDS[index]:-action}" != "menu" ]] || marker="›"
   if [[ "${CNTOOLS_MENU_ENABLED[index]:-Y}" != "Y" ]]; then
     marker="×"
     suffix="  [${CNTOOLS_MENU_DISABLED_REASONS[index]}]"
   fi
-  printf -v row '%02d  %s %-22s  %s%s' "$((index + 1))" "${marker}" \
+  printf -v output_ref '%02d  %s %-22s  %s%s' "$((index + 1))" "${marker}" \
     "${CNTOOLS_MENU_LABELS[index]}" \
     "${CNTOOLS_MENU_DESCRIPTIONS[index]}" "${suffix}"
+}
+
+cntools_gum_menu_row() {
+  local index="${1:-0}"
+  local row=""
+
+  cntools_gum_menu_row_into row "${index}" || return 1
   printf '%s\n' "${row}"
 }
 
@@ -1050,6 +1208,8 @@ cntools_gum_menu_run() {
   local -a row_types=()
   local -a row_indices=()
   local current=""
+  local root_directory=""
+  local cache_menu_id=""
   local context="N"
   local breadcrumb="/"
   local selected_row=""
@@ -1065,6 +1225,9 @@ cntools_gum_menu_run() {
   local height=12
   local mapping=-1
   local rows_above_filter=""
+  local row=""
+  local row_key=""
+  local row_signature=""
 
   if [[ "${CNTOOLS_MENU_CACHE_READY:-N}" != "Y" ]] &&
      ! cntools_menu_cache_build; then
@@ -1086,10 +1249,20 @@ cntools_gum_menu_run() {
     fi
     count="${#CNTOOLS_MENU_PATHS[@]}"
     breadcrumb="${CNTOOLS_MENU_BREADCRUMB}"
-    CNTOOLS_MENU_ID="$(cntools_menu_cache_id_for_directory "${current}")" || return 1
-    [[ "${CNTOOLS_MENU_ID}" != "${CNTOOLS_MENU_ROOT_ID}" ]] || CNTOOLS_MENU_ID="/"
+    root_directory="${CNTOOLS_MENU_CACHE_MENU_DIRS[${CNTOOLS_MENU_ROOT_ID}]}"
+    if [[ "${current}" == "${root_directory}" ]]; then
+      cache_menu_id="${CNTOOLS_MENU_ROOT_ID}"
+      CNTOOLS_MENU_ID="/"
+    elif [[ "${current}" == "${root_directory}/"* ]]; then
+      cache_menu_id="${current#"${root_directory}/"}"
+      CNTOOLS_MENU_ID="${cache_menu_id}"
+    else
+      cntools_gum_log ERROR "Cached menu path is outside the module root: ${current}"
+      return 1
+    fi
 
-    if declare -F cntools_health_refresh >/dev/null 2>&1; then
+    if [[ "${context}" == "N" ]] &&
+       declare -F cntools_health_refresh >/dev/null 2>&1; then
       cntools_health_refresh || true
     fi
     cntools_gum_header "${breadcrumb}" || return 1
@@ -1115,7 +1288,20 @@ cntools_gum_menu_run() {
     row_types=()
     row_indices=()
     for (( index = 0; index < count; index++ )); do
-      rows+=("$(cntools_gum_menu_row "${index}")")
+      row_key="${cache_menu_id}:${index}"
+      row_signature="${index}"$'\037'"${CNTOOLS_MENU_KINDS[index]:-action}"$'\037'\
+"${CNTOOLS_MENU_ENABLED[index]:-Y}"$'\037'\
+"${CNTOOLS_MENU_DISABLED_REASONS[index]:-}"$'\037'\
+"${CNTOOLS_MENU_LABELS[index]}"$'\037'"${CNTOOLS_MENU_DESCRIPTIONS[index]}"
+      if [[ "${CNTOOLS_GUM_MENU_ROW_KEYS[${row_key}]:-}" == "${row_signature}" &&
+            -n "${CNTOOLS_GUM_MENU_ROWS[${row_key}]+set}" ]]; then
+        row="${CNTOOLS_GUM_MENU_ROWS[${row_key}]}"
+      else
+        cntools_gum_menu_row_into row "${index}" || return 1
+        CNTOOLS_GUM_MENU_ROW_KEYS["${row_key}"]="${row_signature}"
+        CNTOOLS_GUM_MENU_ROWS["${row_key}"]="${row}"
+      fi
+      rows+=("${row}")
       row_types+=("item")
       row_indices+=("${index}")
     done

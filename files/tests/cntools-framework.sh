@@ -220,6 +220,14 @@ run_metadata_tests() (
     fail "valid child menu metadata was rejected"
   cntools_menu_validate_metadata "${tree}/root/tools/run" child ||
     fail "valid action metadata was rejected"
+  assert_eq "${CNTOOLS_MENU_VALIDATED_KIND}" "action" \
+    "validated action kind"
+  assert_eq "${CNTOOLS_MENU_VALIDATED_LABEL}" "Run" \
+    "validated action label"
+  assert_eq "${CNTOOLS_MENU_VALIDATED_MODES}" "local,light,offline" \
+    "validated action modes"
+  assert_eq "${CNTOOLS_MENU_VALIDATED_LIBS}" "" \
+    "validated action libraries"
   validate_tree "${tree}/root" ||
     fail "valid nested module tree was rejected"
 
@@ -409,8 +417,13 @@ run_action_tests() (
   local tree="${TEST_ROOT}/actions"
   local action_dir=""
   local trace="${TEST_ROOT}/action.trace"
+  local duplicate_trace="${TEST_ROOT}/duplicate-action.trace"
+  local duplicate_metadata=""
   local status=0
   local prior_lines=0
+  local real_jq=""
+  local jq_trace="${TEST_ROOT}/action-jq.trace"
+  local jq_calls=""
 
   make_root "${tree}"
   make_menu "${tree}/root/tools" "Tools" t 10
@@ -446,6 +459,12 @@ cntools_action_main() {
   CNTOOLS_LOG="${TEST_ROOT}/action-log/cntools.log"
   CNTOOLS_LOG_DIR="${TEST_ROOT}/action-log"
   cntools_log_init || fail "logger initialization failed for action tests"
+  real_jq="$(type -P jq)"
+  : > "${jq_trace}"
+  jq() {
+    printf 'jq\n' >> "${jq_trace}"
+    "${real_jq}" "$@"
+  }
 
   ! declare -F cntools_fixture_declared >/dev/null 2>&1 ||
     fail "declared action library was loaded before action selection"
@@ -454,6 +473,8 @@ cntools_action_main() {
 
   cntools_action_main() { return 99; }
   cntools_action_run "${action_dir}" || fail "valid action invocation failed"
+  jq_calls="$(wc -l < "${jq_trace}" | tr -d '[:space:]')"
+  assert_eq "${jq_calls}" "1" "selected action metadata jq count"
   assert_eq "$(< "${trace}")" "tools/run" "action routing identity"
   grep -F '[ACTION] [tools/run] selected' "${CNTOOLS_LOG}" >/dev/null ||
     fail "action selection was not logged with the action identity"
@@ -551,18 +572,30 @@ cntools_fixture_symlinked() { return 0; }'
   assert_fails "symlinked action library was loaded" \
     cntools_action_run "${action_dir}"
 
+  action_dir="${tree}/root/tools/duplicate-document"
+  make_action "${action_dir}" "Duplicate Document" d 55 '["local"]'
+  write_file "${action_dir}/action.sh" '#!/usr/bin/env bash
+cntools_action_main() {
+  : > "${CNTOOLS_TEST_DUPLICATE_TRACE}"
+}'
+  CNTOOLS_TEST_DUPLICATE_TRACE="${duplicate_trace}"
+  duplicate_metadata="$(< "${action_dir}/module.json")"
+  printf '%s\n%s\n' "${duplicate_metadata}" "${duplicate_metadata}" \
+    > "${action_dir}/module.json"
+  assert_fails "selected action accepted multiple JSON documents" \
+    cntools_action_run "${action_dir}"
+  [[ ! -e "${duplicate_trace}" ]] ||
+    fail "multiple-document action metadata reached its entrypoint"
+
   action_dir="${tree}/root/tools/run"
   jq() {
-    if [[ "${1:-}" == "-r" && "${2:-}" == ".libs[]?" ]]; then
-      return 88
-    fi
-    command jq "$@"
+    return 88
   }
-  assert_fails "action ignored a declared-library parser failure" \
+  assert_fails "action ignored a fresh metadata parser failure" \
     cntools_action_run "${action_dir}"
-  grep -F 'Could not read declared action libraries' "${CNTOOLS_LOG}" >/dev/null ||
-    fail "declared-library parser failure was not logged"
-  assert_fails "tree validation ignored a declared-library parser failure" \
+  grep -F 'Module metadata is invalid' "${CNTOOLS_LOG}" >/dev/null ||
+    fail "fresh metadata parser failure was not logged"
+  assert_fails "tree validation ignored a metadata parser failure" \
     validate_tree "${tree}/root"
 
   cntools_log_close || fail "logger close failed after action tests"
@@ -810,6 +843,206 @@ run_cache_root_key_tests() (
     "root-named child cache key"
 )
 
+run_catalog_optimization_tests() (
+  local tree="${TEST_ROOT}/catalog-optimization"
+  local jq_trace="${TEST_ROOT}/catalog-jq.trace"
+  local bash_trace="${TEST_ROOT}/catalog-bash.trace"
+  local real_jq=""
+  local jq_calls=""
+  local bash_calls=""
+  local cached_root=""
+  local cached_directory_id=""
+  local cached_action_modes=""
+  local cached_action_libs=""
+
+  make_root "${tree}"
+  make_menu "${tree}/root/advanced-tools" "Advanced" a 5 Y
+  make_action "${tree}/root/advanced-tools/inspect" "Inspect" i 10 \
+    '["local", "light", "offline"]'
+  make_menu "${tree}/root/tools" "Tools" t 10
+  mkdir -p "${tree}/lib/test"
+  write_file "${tree}/lib/test/common.sh" '#!/usr/bin/env bash
+cntools_catalog_fixture() { return 0; }'
+  make_action "${tree}/root/tools/run" "Run" r 10 \
+    '["local", "light"]' '["test/common.sh"]'
+  write_file "${tree}/root/tools/run/action.sh" \
+    'cntools_action_main() { this is not valid bash'
+
+  real_jq="$(type -P jq)"
+  : > "${jq_trace}"
+  : > "${bash_trace}"
+  jq() {
+    printf 'jq\n' >> "${jq_trace}"
+    "${real_jq}" "$@"
+  }
+  cntools_catalog_validation_bash() {
+    printf 'bash\n' >> "${bash_trace}"
+    bash "$@"
+  }
+
+  CNTOOLS_MODULE_ROOT="${tree}/root"
+  CNTOOLS_LIB_DIR="${tree}/lib"
+  CNTOOLS_VALIDATION_BASH="cntools_catalog_validation_bash"
+  CNTOOLS_MODE="local"
+  CNTOOLS_ADVANCED="N"
+
+  cntools_menu_cache_build ||
+    fail "single-pass catalog rejected valid metadata with a lazy action"
+  jq_calls="$(wc -l < "${jq_trace}" | tr -d '[:space:]')"
+  bash_calls="$(wc -l < "${bash_trace}" | tr -d '[:space:]')"
+  assert_eq "${jq_calls}" "1" "catalog jq process count"
+  assert_eq "${bash_calls}" "0" "catalog action syntax-check count"
+
+  cntools_menu_cache_open "${tree}/root" ||
+    fail "single-pass catalog could not open its cached root"
+  assert_eq "${CNTOOLS_MENU_IDS[*]}" "tools" \
+    "advanced catalog visibility"
+  assert_eq "${CNTOOLS_MENU_CACHE_DIRECTORY_IDS[${tree}/root/tools/run]}" \
+    "tools/run" "cached action directory lookup"
+  assert_eq "${CNTOOLS_MENU_CACHE_ACTION_MODES[tools/run]}" \
+    "local,light" "cached action modes"
+  assert_eq "${CNTOOLS_MENU_CACHE_ACTION_LIBS[tools/run]}" \
+    "test/common.sh" "cached action libraries"
+
+  : > "${jq_trace}"
+  : > "${bash_trace}"
+  assert_fails "fresh action validation ignored invalid shell syntax" \
+    cntools_menu_validate_metadata "${tree}/root/tools/run" child
+  jq_calls="$(wc -l < "${jq_trace}" | tr -d '[:space:]')"
+  bash_calls="$(wc -l < "${bash_trace}" | tr -d '[:space:]')"
+  assert_eq "${jq_calls}" "1" "fresh action validation jq count"
+  assert_eq "${bash_calls}" "1" "fresh action syntax-check count"
+
+  write_file "${tree}/root/tools/run/action.sh" '#!/usr/bin/env bash
+cntools_action_main() { return 0; }'
+  CNTOOLS_ADVANCED="Y"
+  : > "${jq_trace}"
+  : > "${bash_trace}"
+  cntools_menu_cache_build ||
+    fail "single-pass catalog could not include advanced menus"
+  jq_calls="$(wc -l < "${jq_trace}" | tr -d '[:space:]')"
+  bash_calls="$(wc -l < "${bash_trace}" | tr -d '[:space:]')"
+  assert_eq "${jq_calls}" "1" "advanced catalog jq process count"
+  assert_eq "${bash_calls}" "0" "advanced catalog syntax-check count"
+  cntools_menu_cache_open "${tree}/root" ||
+    fail "advanced catalog could not reopen its root"
+  assert_eq "${CNTOOLS_MENU_IDS[*]}" "advanced-tools tools" \
+    "advanced cached menu contents"
+
+  cached_root="${CNTOOLS_MENU_CACHE_ROOT}"
+  cached_directory_id="${CNTOOLS_MENU_CACHE_DIRECTORY_IDS[${tree}/root/tools/run]}"
+  cached_action_modes="${CNTOOLS_MENU_CACHE_ACTION_MODES[tools/run]}"
+  cached_action_libs="${CNTOOLS_MENU_CACHE_ACTION_LIBS[tools/run]}"
+
+  write_file "${tree}/root/tools/module.json" '{not-json'
+  : > "${jq_trace}"
+  : > "${bash_trace}"
+  assert_fails "invalid catalog rebuild unexpectedly succeeded" \
+    cntools_menu_cache_build
+  jq_calls="$(wc -l < "${jq_trace}" | tr -d '[:space:]')"
+  bash_calls="$(wc -l < "${bash_trace}" | tr -d '[:space:]')"
+  assert_eq "${jq_calls}" "1" "failed catalog jq process count"
+  assert_eq "${bash_calls}" "0" "failed catalog syntax-check count"
+  assert_eq "${CNTOOLS_MENU_CACHE_READY}" "Y" \
+    "failed rebuild preserved ready catalog"
+  cntools_menu_cache_open "${tree}/root" ||
+    fail "failed rebuild discarded the previous catalog"
+  assert_eq "${CNTOOLS_MENU_IDS[*]}" "advanced-tools tools" \
+    "failed rebuild preserved cached menu contents"
+
+  make_menu "${tree}/root/tools" "Tools" t 10
+  cntools_menu_cache_stage_directory() {
+    CNTOOLS_MENU_STAGE_MENU_DIRS[poison]="/outside/catalog"
+    CNTOOLS_MENU_STAGE_DIRECTORY_IDS[/outside/catalog]="poison"
+    CNTOOLS_MENU_STAGE_ACTION_MODES[poison]="offline"
+    CNTOOLS_MENU_STAGE_ACTION_LIBS[poison]="poison.sh"
+    return 1
+  }
+  assert_fails "partially staged catalog rebuild unexpectedly succeeded" \
+    cntools_menu_cache_build
+  assert_eq "${CNTOOLS_MENU_CACHE_READY}" "Y" \
+    "staging failure preserved ready catalog"
+  assert_eq "${CNTOOLS_MENU_CACHE_ROOT}" "${cached_root}" \
+    "staging failure preserved cached root"
+  assert_eq "${CNTOOLS_MENU_CACHE_DIRECTORY_IDS[${tree}/root/tools/run]}" \
+    "${cached_directory_id}" "staging failure preserved directory IDs"
+  assert_eq "${CNTOOLS_MENU_CACHE_ACTION_MODES[tools/run]}" \
+    "${cached_action_modes}" "staging failure preserved action modes"
+  assert_eq "${CNTOOLS_MENU_CACHE_ACTION_LIBS[tools/run]}" \
+    "${cached_action_libs}" "staging failure preserved action libraries"
+  [[ -z "${CNTOOLS_MENU_STAGE_MENU_DIRS[poison]+present}" &&
+     -z "${CNTOOLS_MENU_STAGE_DIRECTORY_IDS[/outside/catalog]+present}" &&
+     -z "${CNTOOLS_MENU_STAGE_ACTION_MODES[poison]+present}" &&
+     -z "${CNTOOLS_MENU_STAGE_ACTION_LIBS[poison]+present}" ]] ||
+    fail "failed rebuild retained partially staged catalog entries"
+)
+
+run_cache_isolation_tests() (
+  local tree_a="${TEST_ROOT}/cache-isolation-a"
+  local tree_b="${TEST_ROOT}/cache-isolation-b"
+  local external_trace="${TEST_ROOT}/cache-external-action.trace"
+  local breadcrumb=""
+
+  make_root "${tree_a}"
+  make_menu "${tree_a}/root/tools" "Tools A" t 10
+  make_action "${tree_a}/root/tools/run" "Run A" r 10 '["local"]'
+  make_root "${tree_b}"
+  make_menu "${tree_b}/root/tools" "Tools B" t 10
+  make_action "${tree_b}/root/tools/run" "Run B" r 10 '["local"]'
+  write_file "${tree_b}/root/tools/run/action.sh" '#!/usr/bin/env bash
+cntools_action_main() {
+  : > "${CNTOOLS_TEST_EXTERNAL_ACTION_TRACE}"
+}'
+
+  CNTOOLS_MODULE_ROOT="${tree_a}/root"
+  CNTOOLS_LIB_DIR="${tree_a}/lib"
+  CNTOOLS_VALIDATION_BASH="bash"
+  CNTOOLS_MODE="local"
+  CNTOOLS_ADVANCED="N"
+  cntools_menu_cache_build || fail "cache isolation fixture could not build"
+
+  CNTOOLS_MODULE_ROOT="${tree_b}/root"
+  CNTOOLS_LIB_DIR="${tree_b}/lib"
+  assert_fails "cache from another module root was served" \
+    cntools_menu_cache_open "${tree_b}/root"
+  breadcrumb="$(cntools_menu_breadcrumb "${tree_b}/root/tools")" ||
+    fail "fresh breadcrumb lookup failed after a root change"
+  assert_eq "${breadcrumb}" "/ Tools B" \
+    "cross-root breadcrumb cache isolation"
+
+  CNTOOLS_MODULE_ROOT="${tree_a}/root"
+  CNTOOLS_LIB_DIR="${tree_a}/lib"
+  mv "${tree_a}/root/tools" "${tree_a}/root/tools-original"
+  ln -s "${tree_b}/root/tools" "${tree_a}/root/tools"
+  assert_fails "cached ancestor symlink escaped module containment" \
+    cntools_menu_directory_within_root "${tree_a}/root/tools/run"
+  CNTOOLS_TEST_EXTERNAL_ACTION_TRACE="${external_trace}"
+  assert_fails "action loader followed a replaced cached ancestor" \
+    cntools_action_run "${tree_a}/root/tools/run"
+  [[ ! -e "${external_trace}" ]] ||
+    fail "external action ran through a replaced cached ancestor"
+)
+
+run_catalog_document_binding_tests() (
+  local tree="${TEST_ROOT}/catalog-document-binding"
+
+  make_root "${tree}"
+  make_action "${tree}/root/action-a" "Action A" a 10 '["local"]'
+  make_action "${tree}/root/action-b" "Action B" b 20 '["local"]'
+  write_file "${tree}/root/action-a/module.json" \
+    '{"kind":"action","label":"Action A","description":"First document","shortcut":"a","order":10,"modes":["local"]}
+{"kind":"action","label":"Action B","description":"Shifted document","shortcut":"b","order":20,"modes":["local"]}'
+  write_file "${tree}/root/action-b/module.json" '   '
+
+  CNTOOLS_MODULE_ROOT="${tree}/root"
+  CNTOOLS_LIB_DIR="${tree}/lib"
+  CNTOOLS_VALIDATION_BASH="bash"
+  CNTOOLS_MODE="local"
+  CNTOOLS_ADVANCED="N"
+  assert_fails "catalog reassigned JSON documents between module files" \
+    cntools_menu_cache_build
+)
+
 run_errexit_tests() (
   local tree="${TEST_ROOT}/errexit"
   local runner="${TEST_ROOT}/errexit-runner.sh"
@@ -909,6 +1142,9 @@ run_action_tests
 run_log_and_wrapper_tests
 run_http_tests
 run_cache_root_key_tests
+run_catalog_optimization_tests
+run_cache_isolation_tests
+run_catalog_document_binding_tests
 run_errexit_tests
 
 printf 'CNTools framework tests passed\n'

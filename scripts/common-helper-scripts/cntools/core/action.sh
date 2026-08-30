@@ -37,8 +37,10 @@ cntools_action_run() {
     local relative_library=""
     local library_path=""
     local library_list=""
+    local action_modes=""
     local action_file="${physical_module}/action.sh"
     local status=0
+    local -a libraries=()
 
     # Each action owns only its subshell-local traps and temporary state.
     unset -f cntools_action_cleanup 2>/dev/null || true
@@ -53,30 +55,27 @@ cntools_action_run() {
       cntools_log ERROR "${CNTOOLS_MENU_ERROR}" || true
       return 2
     }
-    [[ "$(jq -r '.kind' "${physical_module}/module.json")" == "action" ]] || {
+    [[ "${CNTOOLS_MENU_VALIDATED_KIND:-}" == "action" ]] || {
       cntools_log ERROR "Selected module is not an action" || true
       return 2
     }
-    action_label="$(jq -er '.label' "${physical_module}/module.json")" || {
+    action_label="${CNTOOLS_MENU_VALIDATED_LABEL:-}"
+    [[ -n "${action_label}" ]] || {
       cntools_log ERROR "Selected action has no valid label: ${action_id}" || true
       return 2
     }
     CNTOOLS_ACTION_LABEL="${action_label}"
     export CNTOOLS_ACTION_LABEL
-    jq -e --arg mode "${CNTOOLS_MODE:-local}" \
-      '.modes | index($mode) != null' \
-      "${physical_module}/module.json" >/dev/null || {
+    action_modes="${CNTOOLS_MENU_VALIDATED_MODES:-}"
+    if [[ ",${action_modes}," != *",${CNTOOLS_MODE:-local},"* ]]; then
       cntools_log ACTION "blocked in ${CNTOOLS_MODE:-unknown} mode" || true
       return 3
-    }
+    fi
 
     unset -f cntools_action_main 2>/dev/null || true
-    if ! library_list="$(jq -r '.libs[]?' \
-      "${physical_module}/module.json")"; then
-      cntools_log ERROR "Could not read declared action libraries: ${action_id}" || true
-      return 2
-    fi
-    while IFS= read -r relative_library; do
+    library_list="${CNTOOLS_MENU_VALIDATED_LIBS:-}"
+    IFS=',' read -r -a libraries <<< "${library_list}"
+    for relative_library in "${libraries[@]}"; do
       [[ -n "${relative_library}" ]] || continue
       library_path="$(cntools_menu_library_path "${relative_library}")" || {
         cntools_log ERROR "Declared library is missing or unsafe: ${relative_library}" || true
@@ -99,7 +98,7 @@ cntools_action_run() {
         cntools_log ERROR "Library defines reserved cntools_action_cleanup: ${relative_library}" || true
         return 2
       fi
-    done <<< "${library_list}"
+    done
 
     unset -f cntools_action_main 2>/dev/null || true
     unset -f cntools_action_cleanup 2>/dev/null || true

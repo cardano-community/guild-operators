@@ -18,7 +18,7 @@ cntools_health_set_offline() {
 }
 
 cntools_health_now() {
-  command date '+%s'
+  printf '%(%s)T\n' -1
 }
 
 cntools_health_reference_slot() {

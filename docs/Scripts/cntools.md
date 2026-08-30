@@ -70,16 +70,18 @@ Usage: cntools.sh [-n|-l|-o] [-a] [-u] [-b BRANCH] [-v] [-h]
 
 Local mode uses the selected deployment identity; light mode is intended for
 Koios-backed actions; offline mode prohibits network access. Node health is a
-best-effort interface detail, not a startup requirement. An unavailable node
-does not prevent the menu from opening.
+best-effort root-menu detail, not a startup requirement. It refreshes on
+natural root-menu draws and uses the existing short cache between draws.
+Submenus do not show or request health data, and an unavailable node does not
+prevent the menu from opening.
 
 ## Interface and updates
 
-CNTools validates the menu metadata once at startup and keeps the catalog in
-memory. Gum provides filtering and keyboard navigation, while action code and
-its focused libraries are loaded only when selected. Wallet List and Show load
-their wallet libraries on demand; remaining operational actions display a
-not-implemented notice.
+CNTools validates all modular menu metadata in one multi-file JSON pass at
+startup and keeps the resulting catalog in memory. Gum provides filtering and
+keyboard navigation, while action code and its focused libraries are checked
+and loaded only when selected. Wallet List and Show load their wallet libraries
+on demand; remaining operational actions display a not-implemented notice.
 
 Wallet List reads existing direct subdirectories beneath the configured
 `WALLET_FOLDER` and shows wallet type, key protection, non-ADA token count,
