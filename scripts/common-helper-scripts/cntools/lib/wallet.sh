@@ -618,12 +618,11 @@ cntools_wallet_choose() {
   return 2
 }
 
-cntools_wallet_action_list() {
+cntools_wallet_action_list_impl() {
   local fetch_live="N"
   local spinner_title="Fetching wallet balances and rewards…"
   local confirmation_status=0
 
-  trap 'cntools_wallet_query_cleanup' EXIT
   cntools_ui_action_begin "List" "/ Wallet / List"
   if ! cntools_wallet_catalog_build; then
     cntools_ui_render_status error \
@@ -685,4 +684,16 @@ cntools_wallet_action_list() {
       "${CNTOOLS_WALLET_LIST_QUERY_SUMMARY}"
   cntools_wallet_render_catalog || return 1
   cntools_ui_wait
+}
+
+cntools_wallet_action_list() {
+  local status=0
+
+  if cntools_wallet_action_list_impl; then
+    status=0
+  else
+    status=$?
+  fi
+  cntools_wallet_query_cleanup || true
+  return "${status}"
 }

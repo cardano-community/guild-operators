@@ -50,7 +50,8 @@ CNTools requires Bash 4.4 or newer, common Linux tools, and exactly Charm Gum
 2.0.0. If Gum is missing or has another version, interactive startup offers to
 install the verified official executable in `~/.local/bin`. Declining or a
 failed prerequisite check exits without starting the interface. Offline mode
-never downloads Gum.
+never downloads Gum. The interface also requires a UTF-8 locale; CNTools keeps
+an active UTF-8 locale or selects a common installed UTF-8 locale automatically.
 
 The available options are:
 
@@ -84,11 +85,12 @@ Wallet List reads existing direct subdirectories beneath the configured
 `WALLET_FOLDER` and shows wallet type, key protection, non-ADA token count,
 rewards, UTxO balance, and the inclusive UTxO-plus-rewards total. It
 distinguishes ordinary CLI wallets from mnemonic-derived wallets using the
-existing key and derivation metadata. Wallet Show adds addresses, UTxO and
-native asset counts, registration, and delegation. Local cnode and Dingo
-sessions use the deployed Cardano CLI, light mode uses Koios, offline mode
-never contacts a backend, and local Amaru sessions clearly mark live values
-unavailable while still showing wallet files.
+existing key and derivation metadata. Wallet Show presents wallet identity,
+addresses, balances, stake registration, stake pool delegation, DRep
+delegation, and exact native-asset holdings in separate Gum tables. Local
+cnode and Dingo sessions use the deployed Cardano CLI, light mode uses Koios,
+offline mode never contacts a backend, and local Amaru sessions clearly mark
+live values unavailable while still showing wallet files.
 
 For Wallet List, live balances and rewards are opt-in on each visit. Declining
 the confirmation renders the filesystem catalog immediately with unavailable
@@ -99,10 +101,15 @@ implementations without wallet-query capability skip this confirmation.
 Local Cardano CLI calls are bounded by a timeout. Wallet List performs one
 local preflight and stops the remaining catalog queries after a backend
 timeout. In light mode, Wallet List deduplicates addresses across all wallets
-and divides them into bounded Koios bulk requests; Wallet Show sends the
-selected wallet's distinct funding addresses together and uses one separate
-stake-account request. Partial responses remain visibly partial and are never
-promoted to a complete wallet total.
+and divides them into bounded Koios bulk requests. Wallet Show sends the
+selected wallet's distinct funding addresses together, uses one separate
+stake-account request, and enriches native assets through size-bounded Koios
+`asset_info` bulk requests. Token Registry name, ticker, decimals,
+description, URL, fingerprint, and total supply are shown when Koios provides
+them. Oversized native-asset overviews and details share one Gum scroll view.
+Metadata failure never removes validated on-chain holdings. Partial
+balance responses remain visibly partial and are never promoted to a complete
+wallet total.
 
 These actions do not create missing addresses, update keys, or change the
 existing CNTools wallet layout. Unsafe symbolic links and malformed address

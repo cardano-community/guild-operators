@@ -871,21 +871,33 @@ cntools_ui_static_table() {
 }
 
 cntools_ui_pager() {
-  cntools_gum pager --foreground "${CNTOOLS_GUM_COLOR_TEXT}" "$@"
+  cntools_gum pager --show-line-numbers=false \
+    --border rounded \
+    --border-foreground "${CNTOOLS_GUM_COLOR_DIVIDER}" \
+    --border-background "${CNTOOLS_GUM_COLOR_CANVAS}" \
+    --foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
+    --background "${CNTOOLS_GUM_COLOR_CANVAS}" \
+    --match.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+    --match.background "${CNTOOLS_GUM_COLOR_CANVAS}" \
+    --match-highlight.foreground "${CNTOOLS_GUM_COLOR_CANVAS}" \
+    --match-highlight.background "${CNTOOLS_GUM_COLOR_BRAND}" "$@"
 }
 
 cntools_ui_page_file() {
   local source_file="${1:-}"
 
   [[ -f "${source_file}" && ! -L "${source_file}" ]] || return 2
-  cntools_gum pager --soft-wrap \
-    --foreground "${CNTOOLS_GUM_COLOR_TEXT}" < "${source_file}"
+  cntools_ui_pager --soft-wrap < "${source_file}"
 }
 
 cntools_ui_table() {
-  cntools_gum table --border rounded \
+  cntools_gum table --print --border rounded --no-show-help \
     --border.foreground "${CNTOOLS_GUM_COLOR_DIVIDER}" \
-    --header.foreground "${CNTOOLS_GUM_COLOR_BRAND}" "$@"
+    --header.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+    --header.background "${CNTOOLS_GUM_COLOR_SURFACE}" \
+    --header.bold \
+    --cell.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
+    --cell.background "${CNTOOLS_GUM_COLOR_CANVAS}" "$@"
 }
 
 cntools_ui_spin() {

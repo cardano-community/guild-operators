@@ -1,7 +1,7 @@
 {
   "kind": "action",
   "label": "Show",
-  "description": "Show wallet details and balances",
+  "description": "Show wallet balances, delegation, and native assets",
   "shortcut": "s",
   "order": 60,
   "modes": [

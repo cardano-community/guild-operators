@@ -83,7 +83,7 @@ cntools_startup_require_commands() {
   local command_name=""
   local -a missing=()
 
-  for command_name in awk jq curl tput date env mktemp mkdir chmod mv rm sleep stat wc; do
+  for command_name in awk jq curl tput date env mktemp mkdir chmod mv rm sleep sort stat wc; do
     command -v "${command_name}" >/dev/null 2>&1 || missing+=("${command_name}")
   done
   if (( ${#missing[@]} > 0 )); then
@@ -91,6 +91,36 @@ cntools_startup_require_commands() {
       "Required command(s) missing: ${missing[*]}. Re-run guild-deploy.sh with -s p."
     return 1
   fi
+}
+
+cntools_startup_use_utf8_locale() {
+  local charmap=""
+  local locale_name=""
+  local -a candidates=(C.UTF-8 C.utf8 en_US.UTF-8)
+
+  command -v locale >/dev/null 2>&1 || {
+    cntools_startup_error \
+      "The locale command is required to start the terminal interface."
+    return 1
+  }
+  charmap="$(locale charmap 2>/dev/null || true)"
+  case "${charmap^^}" in
+    UTF-8|UTF8) return 0 ;;
+  esac
+  for locale_name in "${candidates[@]}"; do
+    charmap="$(LC_ALL="${locale_name}" LANG="${locale_name}" \
+      locale charmap 2>/dev/null || true)"
+    case "${charmap^^}" in
+      UTF-8|UTF8)
+        LC_ALL="${locale_name}"
+        LANG="${locale_name}"
+        export LC_ALL LANG
+        return 0
+        ;;
+    esac
+  done
+  cntools_startup_error \
+    "A UTF-8 locale is required to render the terminal interface safely."
 }
 
 cntools_startup_load_env() {

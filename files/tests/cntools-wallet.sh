@@ -22,6 +22,7 @@ WALLET_ROOT="${TEST_ROOT}/wallets"
 CNTOOLS_TMP_DIR="${TEST_ROOT}/tmp"
 LOG_TRACE="${TEST_ROOT}/wallet.log"
 UI_TRACE="${TEST_ROOT}/ui.log"
+PAGER_TRACE="${TEST_ROOT}/pager.log"
 CLI_TRACE="${TEST_ROOT}/cli.log"
 HTTP_TRACE="${TEST_ROOT}/http.log"
 HTTP_ARGV_TRACE="${TEST_ROOT}/http-argv.log"
@@ -42,8 +43,17 @@ BAD_ALPHABET_ADDRESS="${TEST_BASE_ADDRESS:0:20}b${TEST_BASE_ADDRESS:21}"
 BAD_CHECKSUM_ADDRESS="${TEST_BASE_ADDRESS::-1}q"
 TEST_KOIOS_TOKEN="fixture-secret-token-never-log"
 TEST_DREP_ID="drep1y25j98kvqf7t3tj4pvxwrjr2728dsrfekptgg3kxqrr56qqcny8sn"
+TEST_POOL_ID="pool1ynfnjspgckgxjf2zeye8s33jz3e3ndk9pcwp0qzaupzvvd8ukwt"
 TEST_POLICY_ID="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+TEST_BASE_POLICY_ID="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+TEST_PAYMENT_POLICY_ID="cccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 TEST_ASSET_NAME="746f6b656e"
+TEST_BASE_ASSET_NAME="62617365"
+TEST_PAYMENT_ASSET_NAME="706179"
+TEST_ASSET_ID="${TEST_POLICY_ID}.${TEST_ASSET_NAME}"
+TEST_BASE_ASSET_ID="${TEST_BASE_POLICY_ID}.${TEST_BASE_ASSET_NAME}"
+TEST_PAYMENT_ASSET_ID="${TEST_PAYMENT_POLICY_ID}.${TEST_PAYMENT_ASSET_NAME}"
+TEST_ASSET_FINGERPRINT="asset1ua6pz3yd5mdka946z8jw2fld3f8d0mmxt75gv9"
 
 cleanup_test() {
   chmod -R u+rwx -- "${TEST_ROOT}" 2>/dev/null || true
@@ -107,7 +117,7 @@ line_count() {
 }
 
 for required_command in \
-  bash chmod env find grep jq ln mktemp mkdir mv rm sed stat tr wc; do
+  awk bash chmod env find grep jq ln mktemp mkdir mv rm sed sort stat tr wc; do
   command -v "${required_command}" >/dev/null 2>&1 ||
     fail "required command is unavailable: ${required_command}"
 done
@@ -170,6 +180,7 @@ mkdir -p \
   "${WALLET_ROOT}" "${CNTOOLS_TMP_DIR}" "${HTTP_CAPTURE_DIR}"
 : > "${LOG_TRACE}"
 : > "${UI_TRACE}"
+: > "${PAGER_TRACE}"
 : > "${CLI_TRACE}"
 : > "${HTTP_TRACE}"
 : > "${HTTP_ARGV_TRACE}"
@@ -436,7 +447,182 @@ cntools_ui_static_table() {
   shift
   printf 'ROW\t%s\n' "$@" >> "${UI_TRACE}"
 }
+cntools_ui_table() {
+  local line=""
+  local first="Y"
+
+  printf 'DATA_TABLE_ARGS'
+  printf '\t%s' "$@"
+  printf '\n'
+  while IFS= read -r line; do
+    if [[ "${first}" == "Y" ]]; then
+      printf 'DATA_TABLE\t%s\n' "${line}"
+      first="N"
+    else
+      printf 'DATA_ROW\t%s\n' "${line}"
+    fi
+  done
+} >> "${UI_TRACE}"
+cntools_ui_pager() {
+  local line=""
+
+  printf 'PAGER_ARGS'
+  printf '\t%s' "$@"
+  printf '\n'
+  while IFS= read -r line; do
+    printf 'PAGER_ROW\t%s\n' "${line}"
+  done
+} >> "${PAGER_TRACE}"
+cntools_wallet_test_failure_rows() {
+  cntools_wallet_table_row "Partial" "row"
+  return 47
+}
+: > "${UI_TRACE}"
+set +o pipefail
+assert_status 47 "table row producer failure was hidden" \
+  cntools_wallet_render_rows_table \
+    "Must not render" cntools_wallet_test_failure_rows
+set -o pipefail
+if grep -F $'DETAIL\tMust not render' "${UI_TRACE}" >/dev/null; then
+  fail "a partial table rendered after its row producer failed"
+fi
+unset -f cntools_wallet_test_failure_rows
+assert_eq "$(cntools_wallet_table_row 'Fixture "Token"' plain)" \
+  $'"Fixture ""Token"""\tplain' \
+  "Gum table TSV quoting"
+assert_eq \
+  "$(cntools_wallet_sanitize_display $'pool1safe\aINJECT\u202e')" \
+  "pool1safe INJECT " \
+  "terminal control and bidirectional display sanitization"
+assert_eq "$(cntools_wallet_uint_add 999999999999999999999999 1)" \
+  "1000000000000000000000000" "arbitrary-precision asset carry"
+assert_eq "$(cntools_wallet_uint_add 000000000000000009 0001)" \
+  "10" "arbitrary-precision leading zeros"
+assert_eq "$(cntools_wallet_format_token_amount 5000000 6)" \
+  "5.000000" "token display amount"
+assert_eq "$(cntools_wallet_format_token_amount 5 6)" \
+  "0.000005" "small token display amount"
+assert_eq "$(cntools_wallet_format_lovelace 9223372036854775809)" \
+  "9223372036854.775809 ADA" "large exact ADA display amount"
+assert_eq "$(cntools_wallet_format_lovelace_compact 9223372036854775809)" \
+  "9223.372B" "large compact ADA display amount"
+cntools_wallet_query_reset
+cntools_wallet_asset_add "${TEST_ASSET_ID}" \
+  "999999999999999999999999" || fail "large asset quantity was rejected"
+cntools_wallet_asset_add "${TEST_ASSET_ID}" 1 ||
+  fail "duplicate asset quantity was rejected"
+assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_ASSET_ID}]}" \
+  "1000000000000000000000000" "aggregated large asset quantity"
+cntools_wallet_query_reset
+saved_ui_columns="${CNTOOLS_UI_COLUMNS-}"
+had_ui_columns="${CNTOOLS_UI_COLUMNS+x}"
+CNTOOLS_UI_COLUMNS=60
+wrapped_pair="$(cntools_wallet_table_wrapped_pair \
+  "Base" "${TEST_BASE_ADDRESS}" 15)"
+reassembled_value=""
+while IFS= read -r wrapped_line; do
+  wrapped_label="${wrapped_line%%$'\t'*}"
+  wrapped_value="${wrapped_line#*$'\t'}"
+  wrapped_width=$((
+    $(cntools_wallet_text_width "${wrapped_label}") +
+    $(cntools_wallet_text_width "${wrapped_value}") + 7
+  ))
+  (( wrapped_width <= CNTOOLS_UI_COLUMNS )) ||
+    fail "responsive two-column table exceeded the terminal width"
+  reassembled_value+="${wrapped_value}"
+done <<< "${wrapped_pair}"
+assert_eq "${reassembled_value}" "${TEST_BASE_ADDRESS}" \
+  "responsive address wrapping"
+wrapped_triple="$(cntools_wallet_table_wrapped_triple \
+  "01 · token" "Policy ID" "${TEST_POLICY_ID}" 22 20)"
+reassembled_value=""
+while IFS= read -r wrapped_line; do
+  wrapped_asset="${wrapped_line%%$'\t'*}"
+  wrapped_remainder="${wrapped_line#*$'\t'}"
+  wrapped_property="${wrapped_remainder%%$'\t'*}"
+  wrapped_value="${wrapped_remainder#*$'\t'}"
+  wrapped_width=$((
+    $(cntools_wallet_text_width "${wrapped_asset}") +
+    $(cntools_wallet_text_width "${wrapped_property}") +
+    $(cntools_wallet_text_width "${wrapped_value}") + 10
+  ))
+  (( wrapped_width <= CNTOOLS_UI_COLUMNS )) ||
+    fail "responsive three-column table exceeded the terminal width"
+  reassembled_value+="${wrapped_value}"
+done <<< "${wrapped_triple}"
+assert_eq "${reassembled_value}" "${TEST_POLICY_ID}" \
+  "responsive native-asset wrapping"
+unicode_value='代币😀Koios代币😀Koios代币😀Koios'
+wrapped_pair="$(cntools_wallet_table_wrapped_pair \
+  "Token metadata" "${unicode_value}" 15)"
+reassembled_value=""
+while IFS= read -r wrapped_line; do
+  wrapped_label="${wrapped_line%%$'\t'*}"
+  wrapped_value="${wrapped_line#*$'\t'}"
+  wrapped_width=$((
+    $(cntools_wallet_text_width "${wrapped_label}") +
+    $(cntools_wallet_text_width "${wrapped_value}") + 7
+  ))
+  (( wrapped_width <= CNTOOLS_UI_COLUMNS )) ||
+    fail "Unicode metadata exceeded the responsive table width"
+  reassembled_value+="${wrapped_value}"
+done <<< "${wrapped_pair}"
+assert_eq "${reassembled_value}" "${unicode_value}" \
+  "responsive Unicode metadata wrapping"
+CNTOOLS_UI_COLUMNS=98
+cntools_gum_width() { printf '52\n'; }
+assert_eq "$(cntools_wallet_table_width)" "52" \
+  "Wallet Show render-time terminal resize"
+unset -f cntools_gum_width
+cntools_wallet_query_reset
+cntools_wallet_asset_add "${TEST_ASSET_ID}" 1 ||
+  fail "could not prepare paged native asset"
+cntools_wallet_asset_sort_ids || fail "could not sort paged native assets"
+CNTOOLS_WALLET_ASSET_COUNT="${#CNTOOLS_WALLET_ASSET_IDS[@]}"
+CNTOOLS_WALLET_ASSET_REGISTRY_NAMES["${TEST_ASSET_ID}"]="Fixture Token"
+CNTOOLS_WALLET_ASSET_TICKERS["${TEST_ASSET_ID}"]="FIX"
+CNTOOLS_WALLET_ASSET_METADATA_DECIMALS["${TEST_ASSET_ID}"]=0
+CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES["${TEST_ASSET_ID}"]=1
+printf -v long_description '%0240d' 0
+CNTOOLS_WALLET_ASSET_DESCRIPTIONS["${TEST_ASSET_ID}"]="${long_description}"
+CNTOOLS_WALLET_ASSET_URLS["${TEST_ASSET_ID}"]="https://example.invalid/${long_description}"
+CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE["${TEST_ASSET_ID}"]=1
+CNTOOLS_WALLET_ASSET_METADATA_STATUS="available"
+CNTOOLS_MODE="light"
+printf -v oversized_metadata '%050000d' 0
+CNTOOLS_WALLET_ASSET_REGISTRY_NAMES["${TEST_ASSET_ID}"]="${oversized_metadata}"
+CNTOOLS_WALLET_ASSET_TICKERS["${TEST_ASSET_ID}"]="${oversized_metadata}"
+oversized_overview="$(cntools_wallet_asset_overview_rows)" ||
+  fail "oversized metadata could not be rendered safely"
+(( ${#oversized_overview} < 1000 )) ||
+  fail "oversized metadata was not bounded before table wrapping"
+CNTOOLS_WALLET_ASSET_REGISTRY_NAMES["${TEST_ASSET_ID}"]="Fixture Token"
+CNTOOLS_WALLET_ASSET_TICKERS["${TEST_ASSET_ID}"]="FIX"
+unset oversized_metadata oversized_overview
+CNTOOLS_UI_INTERACTIVE="Y"
+CNTOOLS_UI_COLUMNS=50
+cntools_gum_terminal_lines() { printf '24\n'; }
+: > "${UI_TRACE}"
+: > "${PAGER_TRACE}"
+cntools_wallet_render_asset_tables ||
+  fail "scrollable native-asset tables failed"
+grep -F $'PAGER_ARGS\t--soft-wrap' "${PAGER_TRACE}" >/dev/null ||
+  fail "long native-asset tables did not use one Gum pager"
+grep -F $'DETAIL\tNative assets (1)' "${UI_TRACE}" >/dev/null ||
+  fail "the paged native-asset overview was omitted"
+grep -F $'DETAIL\tNative asset details' "${UI_TRACE}" >/dev/null ||
+  fail "the paged native-asset details were omitted"
+cntools_wallet_query_cleanup
+unset -f cntools_gum_terminal_lines
+unset CNTOOLS_UI_INTERACTIVE
+if [[ -n "${had_ui_columns}" ]]; then
+  CNTOOLS_UI_COLUMNS="${saved_ui_columns}"
+else
+  unset CNTOOLS_UI_COLUMNS
+fi
 CONFIRM_STATUS=1
+SPIN_INTERRUPT="N"
+SPIN_HTTP_INTERRUPT="N"
 cntools_ui_confirm() {
   printf 'CONFIRM\t%s\n' "$1" >> "${UI_TRACE}"
   return "${CONFIRM_STATUS}"
@@ -446,6 +632,15 @@ cntools_ui_spin_function() {
   shift
 
   printf 'SPIN\t%s\n' "${title}" >> "${UI_TRACE}"
+  if [[ "${SPIN_INTERRUPT}" == "Y" ]]; then
+    local interrupt_file=""
+    cntools_wallet_query_temp_file interrupt_file || return 91
+    kill -TERM "${BASHPID}"
+  fi
+  if [[ "${SPIN_HTTP_INTERRUPT}" == "Y" ]]; then
+    CNTOOLS_TEST_ACTION_PID="${BASHPID}"
+    export CNTOOLS_TEST_ACTION_PID
+  fi
   "$@"
 }
 cntools_ui_wait() { printf 'WAIT\n' >> "${UI_TRACE}"; }
@@ -464,22 +659,41 @@ CNTOOLS_MODE="offline"
 CNTOOLS_BACKEND="none"
 SELECTOR_MODE="first"
 : > "${UI_TRACE}"
+saved_exit_trap="$(trap -p EXIT)"
 cntools_action_run "${SHOW_ACTION}" ||
   fail "Wallet Show failed through the production action loader"
+assert_eq "$(trap -p EXIT)" "${saved_exit_trap}" \
+  "Wallet Show replaced the process EXIT trap"
+if find "${CNTOOLS_TMP_DIR}" -maxdepth 1 -type f \
+    -name '.cntools-wallet.*' -print -quit | grep -q .; then
+  fail "Wallet Show retained query or table temporary files"
+fi
 grep -F $'ACTION\twallet/show\tselected' "${LOG_TRACE}" >/dev/null ||
   fail "loader-level Wallet Show selection was not logged"
-grep -F $'FIELD\tBase\t'"${TEST_BASE_ADDRESS}" "${UI_TRACE}" >/dev/null ||
+grep -F $'DATA_ROW\tBase\t'"${TEST_BASE_ADDRESS}" "${UI_TRACE}" >/dev/null ||
   fail "loader-level Wallet Show did not render the base address"
-grep -F $'FIELD\tPayment\t'"${TEST_PAYMENT_ADDRESS}" "${UI_TRACE}" >/dev/null ||
+grep -F $'DATA_ROW\tPayment\t'"${TEST_PAYMENT_ADDRESS}" "${UI_TRACE}" >/dev/null ||
   fail "loader-level Wallet Show did not render the payment address"
-grep -F $'FIELD\tReward\t'"${TEST_REWARD_ADDRESS}" "${UI_TRACE}" >/dev/null ||
+grep -F $'DATA_ROW\tStake / reward\t'"${TEST_REWARD_ADDRESS}" "${UI_TRACE}" >/dev/null ||
   fail "loader-level Wallet Show did not render the reward address"
+grep -F $'DATA_ROW\tStake pool delegation\tUnavailable' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Wallet Show did not label stake pool delegation clearly"
+grep -F $'DATA_ROW\tDRep delegation\tUnavailable' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Wallet Show did not label DRep delegation clearly"
 assert_eq "$(grep -c '^WAIT$' "${UI_TRACE}")" "1" \
   "loader-level Show return prompt count"
 
 : > "${UI_TRACE}"
 cntools_action_run "${LIST_ACTION}" ||
   fail "Wallet List failed through the production action loader"
+assert_eq "$(trap -p EXIT)" "${saved_exit_trap}" \
+  "Wallet List replaced the process EXIT trap"
+if find "${CNTOOLS_TMP_DIR}" -maxdepth 1 -type f \
+    -name '.cntools-wallet.*' -print -quit | grep -q .; then
+  fail "Wallet List retained query temporary files"
+fi
 grep -F $'ACTION\twallet/list\tselected' "${LOG_TRACE}" >/dev/null ||
   fail "loader-level Wallet List selection was not logged"
 grep -F $'TABLE\tWallet          Type / Keys' "${UI_TRACE}" >/dev/null ||
@@ -496,6 +710,53 @@ grep -Fx 'CLEAR' "${UI_TRACE}" >/dev/null ||
   fail "selector cancellation did not return cleanly to the menu"
 [[ "$(grep -c '^WAIT$' "${UI_TRACE}" || true)" == "0" ]] ||
   fail "selector cancellation rendered an unnecessary return prompt"
+
+SELECTOR_MODE="first"
+SPIN_INTERRUPT="Y"
+CNTOOLS_MODE="light"
+CNTOOLS_BACKEND="koios"
+if cntools_action_run "${SHOW_ACTION}" >/dev/null 2>&1; then
+  fail "interrupted Wallet Show unexpectedly succeeded"
+else
+  interrupted_status=$?
+fi
+assert_eq "${interrupted_status}" "143" "interrupted Wallet Show status"
+if find "${CNTOOLS_TMP_DIR}" -maxdepth 1 -type f \
+    -name '.cntools-wallet.*' -print -quit | grep -q .; then
+  fail "interrupted Wallet Show retained a private temporary file"
+fi
+SPIN_INTERRUPT="N"
+CNTOOLS_MODE="offline"
+CNTOOLS_BACKEND="none"
+
+interrupt_bin="${TEST_ROOT}/interrupt-bin"
+mkdir -p "${interrupt_bin}"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'kill -TERM "${CNTOOLS_TEST_ACTION_PID:?}"' \
+  'exit 143' > "${interrupt_bin}/curl"
+chmod 0700 "${interrupt_bin}/curl"
+saved_path="${PATH}"
+PATH="${interrupt_bin}:${PATH}"
+CNTOOLS_MODE="light"
+CNTOOLS_BACKEND="koios"
+SPIN_HTTP_INTERRUPT="Y"
+if cntools_action_run "${SHOW_ACTION}" >/dev/null 2>&1; then
+  fail "Wallet Show interrupted during HTTP unexpectedly succeeded"
+else
+  interrupted_status=$?
+fi
+assert_eq "${interrupted_status}" "143" \
+  "Wallet Show in-flight HTTP interruption status"
+if find "${CNTOOLS_TMP_DIR}" -maxdepth 1 -type f \
+    \( -name '.cntools-wallet.*' -o -name '.cntools-http-auth.*' \) \
+    -print -quit | grep -q .; then
+  fail "in-flight HTTP interruption retained a private temporary file"
+fi
+PATH="${saved_path}"
+SPIN_HTTP_INTERRUPT="N"
+CNTOOLS_MODE="offline"
+CNTOOLS_BACKEND="none"
 
 reset_wallet_root
 write_cli_wallet Swap \
@@ -549,10 +810,14 @@ printf '%s\n' \
   '    printf "%s\n" "fixture query failure" >&2' \
   '    exit 9' \
   '  fi' \
+  '  if [[ "${FAKE_CLI_SCENARIO}" == "large-numbers" ]]; then' \
+  '    printf "%s\n" '\''{"large#0":{"value":{"lovelace":9223372036854775808,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa":{"746f6b656e":9223372036854775808}}},"large#1":{"value":{"lovelace":1,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa":{"746f6b656e":1}}}}'\''' \
+  '    exit 0' \
+  '  fi' \
   '  if [[ "$address" == "${FAKE_BASE_ADDRESS}" ]]; then' \
-  '    printf "%s\n" '\''{"base#0":{"value":{"lovelace":1000000,"policy-shared":{"asset":1},"policy-base":{"asset":1}}}}'\''' \
+  '    printf "%s\n" '\''{"base#0":{"value":{"lovelace":1000000,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa":{"746f6b656e":1},"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb":{"62617365":1}}}}'\''' \
   '  elif [[ "$address" == "${FAKE_PAYMENT_ADDRESS}" ]]; then' \
-  '    printf "%s\n" '\''{"pay#0":{"value":{"lovelace":2000000,"policy-shared":{"asset":5},"policy-pay":{"asset":1}}},"pay#1":{"value":{"lovelace":500000}}}'\''' \
+  '    printf "%s\n" '\''{"pay#0":{"value":{"lovelace":2000000,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa":{"746f6b656e":5},"cccccccccccccccccccccccccccccccccccccccccccccccccccccccc":{"706179":1}}},"pay#1":{"value":{"lovelace":500000}}}'\''' \
   '  else' \
   '    printf "%s\n" "unknown fixture address" >&2' \
   '    exit 8' \
@@ -589,6 +854,9 @@ printf '%s\n' \
   '      ;;' \
   '    stake-invalid-delegation)' \
   '      printf "[{\"address\":\"%s\",\"rewardAccountBalance\":750000,\"stakeDelegation\":[]}]\n" "${FAKE_REWARD_ADDRESS}"' \
+  '      ;;' \
+  '    large-reward)' \
+  '      printf "[{\"address\":\"%s\",\"rewardAccountBalance\":9007199254740993}]\n" "${FAKE_REWARD_ADDRESS}"' \
   '      ;;' \
   '    *)' \
   '      printf "[{\"address\":\"%s\",\"rewardAccountBalance\":750000,\"stakeDelegation\":{\"stakePoolBech32\":\"pool1fixture\"},\"voteDelegation\":{\"cip129Bech32\":\"%s\"}}]\n" "${FAKE_REWARD_ADDRESS}" "${FAKE_DREP_ID}"' \
@@ -652,7 +920,71 @@ assert_eq "${CNTOOLS_WALLET_DREP_DELEGATION}" "${TEST_DREP_ID}" \
 assert_eq "${CNTOOLS_WALLET_UTXO_COUNT}" "3" "local UTxO count"
 assert_eq "${CNTOOLS_WALLET_ASSET_COUNT}" "3" \
   "wallet-wide unique local asset count"
+assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_ASSET_ID}]}" "6" \
+  "shared local asset quantity"
+assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_BASE_ASSET_ID}]}" "1" \
+  "base-only local asset quantity"
+assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_PAYMENT_ASSET_ID}]}" "1" \
+  "payment-only local asset quantity"
 assert_eq "$(line_count "${CLI_TRACE}")" "3" "local CLI invocation count"
+
+reset_query_traces
+FAKE_CLI_SCENARIO="large-numbers"
+export FAKE_CLI_SCENARIO
+cntools_wallet_query "${TEST_BASE_ADDRESS}" "" ""
+assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "available" \
+  "large local quantity query status"
+assert_eq "${CNTOOLS_WALLET_TOTAL_LOVELACE}" "9223372036854775809" \
+  "lossless local lovelace aggregation"
+assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_ASSET_ID}]}" \
+  "9223372036854775809" "lossless local native-asset aggregation"
+: > "${UI_TRACE}"
+cntools_wallet_render_balance_table
+grep -F $'DATA_ROW\tTotal UTxO\t9223372036854.775809 ADA' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "large local UTxO was corrupted in Wallet Show"
+reset_query_traces
+FAKE_CLI_SCENARIO="large-reward"
+export FAKE_CLI_SCENARIO
+cntools_wallet_query "${TEST_BASE_ADDRESS}" "" "${TEST_REWARD_ADDRESS}"
+assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "available" \
+  "large local reward query status"
+assert_eq "${CNTOOLS_WALLET_REWARD_LOVELACE}" "9007199254740993" \
+  "lossless local reward balance"
+: > "${UI_TRACE}"
+cntools_wallet_render_balance_table
+grep -F $'DATA_ROW\tTotal incl. rewards\t9007199255.740993 ADA' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "large reward was rounded in the inclusive wallet total"
+FAKE_CLI_SCENARIO="full"
+export FAKE_CLI_SCENARIO
+reset_query_traces
+cntools_wallet_query \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
+
+: > "${UI_TRACE}"
+cntools_wallet_render_query
+grep -F $'DATA_ROW\t01 · token\t6\t—' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "local native-assets table omitted the aggregated token holding"
+grep -F $'DATA_ROW\tStake pool delegation\tDelegated · pool1fixture' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "local delegation table omitted the stake pool target"
+grep -F $'DATA_ROW\tDRep delegation\tDelegated · '"${TEST_DREP_ID:0:30}" \
+  "${UI_TRACE}" >/dev/null ||
+  fail "local delegation table omitted the DRep target"
+
+CNTOOLS_WALLET_REGISTERED="yes"
+CNTOOLS_WALLET_POOL_DELEGATION=""
+CNTOOLS_WALLET_DREP_DELEGATION="alwaysAbstain"
+: > "${UI_TRACE}"
+cntools_wallet_render_delegation_table
+grep -F $'DATA_ROW\tStake pool delegation\tNot delegated' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "empty stake pool delegation was not explicit"
+grep -F $'DATA_ROW\tDRep delegation\tDelegated · Always abstain' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "special DRep delegation was not humanized"
 [[ "$(grep -c 'query utxo .*--output-json' "${CLI_TRACE}")" == "2" ]] ||
   fail "local UTxO queries did not explicitly request JSON output"
 [[ "$(grep -c -- "--socket-path ${CNTOOLS_SOCKET}" "${CLI_TRACE}")" == "3" ]] ||
@@ -678,10 +1010,13 @@ assert_empty "${CNTOOLS_WALLET_PAYMENT_LOVELACE}" \
 assert_no_funding_aggregate "partial local funding query"
 : > "${UI_TRACE}"
 cntools_wallet_render_query
-grep -q $'^FIELD\tTotal\t' "${UI_TRACE}" &&
-  fail "partial local subtotal was rendered as Total"
-grep -Eq $'^FIELD\t(UTxOs|Native assets)\t0$' "${UI_TRACE}" &&
-  fail "unknown partial local aggregate was rendered as zero"
+grep -F $'DATA_ROW\tBase UTxO\t1.000000 ADA' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "partial local balance table promoted a subtotal to Total UTxO"
+grep -F $'DATA_ROW\tTotal UTxO\tUnavailable' "${UI_TRACE}" >/dev/null ||
+  fail "partial local subtotal was rendered as Total UTxO"
+grep -F $'DATA_ROW\tUnavailable\t—\t—' "${UI_TRACE}" >/dev/null ||
+  fail "partial local native assets were rendered as a real zero"
 
 reset_query_traces
 FAKE_CLI_SCENARIO="full"
@@ -956,7 +1291,7 @@ cntools_http_request() {
   printf '%s\t%s\n' "${url}" "${payload}" >> "${HTTP_TRACE}"
 
   case "${url}" in
-    */address_info)
+    */address_info\?select=*)
       printf '%s\n' "${payload}" > "${HTTP_CAPTURE_DIR}/address_info.json"
       requested="$(jq -c '._addresses // []' <<< "${payload}")"
       case "${KOIOS_SCENARIO}" in
@@ -979,11 +1314,15 @@ cntools_http_request() {
           jq -cn --argjson requested "${requested}" \
             --arg base "${TEST_BASE_ADDRESS}" \
             --arg payment "${TEST_PAYMENT_ADDRESS}" \
-            --arg policy "${TEST_POLICY_ID}" '
+            --arg policy "${TEST_POLICY_ID}" \
+            --arg fingerprint "${TEST_ASSET_FINGERPRINT}" '
               [
                 {address:$base,balance:"1100000",utxo_set:[{asset_list:[]}]},
                 {address:$payment,balance:"2200000",utxo_set:[{asset_list:[
-                  {policy_id:$policy,asset_name:null,quantity:"5"}
+                  {
+                    policy_id:$policy,asset_name:null,quantity:"5",
+                    fingerprint:$fingerprint,decimals:0
+                  }
                 ]}]}
               ]
               | [.[] as $row
@@ -1004,7 +1343,7 @@ cntools_http_request() {
                  | select($requested | index($row.address)) | $row]
             ' > "${output_file}"
           ;;
-        *)
+        oversized-quantity)
           jq -cn --argjson requested "${requested}" \
             --arg base "${TEST_BASE_ADDRESS}" \
             --arg payment "${TEST_PAYMENT_ADDRESS}" \
@@ -1013,7 +1352,30 @@ cntools_http_request() {
               [
                 {address:$base,balance:"1100000",utxo_set:[{asset_list:[]}]},
                 {address:$payment,balance:"2200000",utxo_set:[{asset_list:[
-                  {policy_id:$policy,asset_name:$asset,quantity:"5"}
+                  {
+                    policy_id:$policy,asset_name:$asset,
+                    quantity:("0" * 50000)
+                  }
+                ]}]}
+              ]
+              | [.[] as $row
+                 | select($requested | index($row.address)) | $row]
+            ' > "${output_file}"
+          ;;
+        *)
+          jq -cn --argjson requested "${requested}" \
+            --arg base "${TEST_BASE_ADDRESS}" \
+            --arg payment "${TEST_PAYMENT_ADDRESS}" \
+            --arg policy "${TEST_POLICY_ID}" \
+            --arg asset "${TEST_ASSET_NAME}" \
+            --arg fingerprint "${TEST_ASSET_FINGERPRINT}" '
+              [
+                {address:$base,balance:"1100000",utxo_set:[{asset_list:[]}]},
+                {address:$payment,balance:"2200000",utxo_set:[{asset_list:[
+                  {
+                    policy_id:$policy,asset_name:$asset,quantity:"5",
+                    fingerprint:$fingerprint,decimals:6
+                  }
                 ]}]}
               ]
               | [.[] as $row
@@ -1022,7 +1384,7 @@ cntools_http_request() {
           ;;
       esac
       ;;
-    */account_info)
+    */account_info\?select=*)
       printf '%s\n' "${payload}" > "${HTTP_CAPTURE_DIR}/account_info.json"
       [[ "${KOIOS_SCENARIO}" != "stake-fail" ]] || return 22
       requested="$(jq -c '._stake_addresses // []' <<< "${payload}")"
@@ -1033,18 +1395,145 @@ cntools_http_request() {
             | [.[] as $row
                | select($requested | index($row.stake_address)) | $row]
           ' > "${output_file}"
+      elif [[ "${KOIOS_SCENARIO}" == "stake-special-drep" ]]; then
+        jq -cn --argjson requested "${requested}" \
+          --arg reward "${TEST_REWARD_ADDRESS}" '
+            [{
+              stake_address:$reward,status:"registered",
+              rewards_available:"880000",delegated_pool:null,
+              delegated_drep:"drep_always_abstain"
+            }]
+            | [.[] as $row
+               | select($requested | index($row.stake_address)) | $row]
+          ' > "${output_file}"
+      elif [[ "${KOIOS_SCENARIO}" == "stake-malformed-delegation" ]]; then
+        jq -cn --argjson requested "${requested}" \
+          --arg reward "${TEST_REWARD_ADDRESS}" '
+            [{
+              stake_address:$reward,status:"registered",
+              rewards_available:"880000",delegated_pool:("p" * 50000),
+              delegated_drep:"not-a-drep"
+            }]
+            | [.[] as $row
+               | select($requested | index($row.stake_address)) | $row]
+          ' > "${output_file}"
       else
         jq -cn --argjson requested "${requested}" \
           --arg reward "${TEST_REWARD_ADDRESS}" \
+          --arg pool "${TEST_POOL_ID}" \
           --arg drep "${TEST_DREP_ID}" '
             [{
               stake_address:$reward,status:"registered",rewards_available:"880000",
-              delegated_pool:"pool1koios",delegated_drep:$drep
+              delegated_pool:$pool,delegated_drep:$drep
             }]
             | [.[] as $row
                | select($requested | index($row.stake_address)) | $row]
           ' > "${output_file}"
       fi
+      ;;
+    */asset_info\?select=*)
+      printf '%s\n' "${payload}" > "${HTTP_CAPTURE_DIR}/asset_info.json"
+      requested="$(jq -c '._asset_list // []' <<< "${payload}")"
+      case "${KOIOS_METADATA_SCENARIO:-full}" in
+        fail) return 22 ;;
+        missing) printf '[]\n' > "${output_file}" ;;
+        hostile)
+          jq -cn \
+            --arg policy "${TEST_POLICY_ID}" \
+            --arg asset "${TEST_ASSET_NAME}" \
+            --arg fingerprint "${TEST_ASSET_FINGERPRINT}" '
+              [{
+                policy_id:$policy,asset_name:$asset,
+                asset_name_ascii:"token",fingerprint:$fingerprint,
+                total_supply:"9000000",
+                metadata_name:"Fixture\u202eToken\u0085",
+                metadata_ticker:"F\u2066IX",metadata_decimals:"6",
+                metadata_description:("Safe\u202d " + ("x" * 1000)),
+                metadata_url:null
+              }]
+            ' > "${output_file}"
+          ;;
+        malformed)
+          jq -cn \
+            --arg policy "${TEST_POLICY_ID}" \
+            --arg asset "${TEST_ASSET_NAME}" '
+              [{
+                policy_id:$policy,asset_name:$asset,
+                asset_name_ascii:"token",fingerprint:"not-a-fingerprint",
+                total_supply:"9000000",metadata_name:"Fixture Token",
+                metadata_ticker:"FIX",metadata_decimals:"999",
+                metadata_description:"Fixture metadata",metadata_url:null
+              }]
+            ' > "${output_file}"
+          ;;
+        duplicate)
+          jq -cn \
+            --arg policy "${TEST_POLICY_ID}" \
+            --arg asset "${TEST_ASSET_NAME}" \
+            --arg fingerprint "${TEST_ASSET_FINGERPRINT}" '
+              [{
+                policy_id:$policy,asset_name:$asset,
+                asset_name_ascii:"token",fingerprint:$fingerprint,
+                total_supply:"9000000",metadata_name:"Fixture Token",
+                metadata_ticker:"FIX",metadata_decimals:"6",
+                metadata_description:null,metadata_url:null
+              }] | . + .
+            ' > "${output_file}"
+          ;;
+        extra)
+          jq -cn \
+            --arg policy "${TEST_POLICY_ID}" \
+            --arg asset "${TEST_ASSET_NAME}" \
+            --arg extra_policy "${TEST_BASE_POLICY_ID}" \
+            --arg extra_asset "${TEST_BASE_ASSET_NAME}" \
+            --arg fingerprint "${TEST_ASSET_FINGERPRINT}" '
+              [
+                {
+                  policy_id:$policy,asset_name:$asset,
+                  asset_name_ascii:"token",fingerprint:$fingerprint,
+                  total_supply:"9000000",metadata_name:"Fixture Token",
+                  metadata_ticker:"FIX",metadata_decimals:"6",
+                  metadata_description:null,metadata_url:null
+                },
+                {
+                  policy_id:$extra_policy,asset_name:$extra_asset,
+                  asset_name_ascii:"base",fingerprint:$fingerprint,
+                  total_supply:"1",metadata_name:null,
+                  metadata_ticker:null,metadata_decimals:null,
+                  metadata_description:null,metadata_url:null
+                }
+              ]
+            ' > "${output_file}"
+          ;;
+        *)
+          jq -cn \
+            --argjson requested "${requested}" \
+            --arg policy "${TEST_POLICY_ID}" \
+            --arg asset "${TEST_ASSET_NAME}" \
+            --arg fingerprint "${TEST_ASSET_FINGERPRINT}" '
+              $requested | map(. as $identity | {
+                policy_id:$identity[0],asset_name:$identity[1],
+                asset_name_ascii:
+                  (if $identity == [$policy,$asset] then "token" else null end),
+                fingerprint:$fingerprint,
+                total_supply:
+                  (if $identity == [$policy,$asset] then "9000000" else "1" end),
+                metadata_name:
+                  (if $identity == [$policy,$asset] then "Fixture Token" else null end),
+                metadata_ticker:
+                  (if $identity == [$policy,$asset] then "FIX" else null end),
+                metadata_decimals:
+                  (if $identity == [$policy,$asset] then "6" else null end),
+                metadata_description:
+                  (if $identity == [$policy,$asset]
+                   then "Fixture token metadata" else null end),
+                metadata_url:
+                  (if $identity == [$policy,$asset]
+                   then "https://example.test/token" else null end)
+              })
+            ' > "${output_file}"
+          ;;
+      esac
       ;;
     *) return 22 ;;
   esac
@@ -1053,7 +1542,30 @@ cntools_http_request() {
 CNTOOLS_MODE="light"
 CNTOOLS_BACKEND="koios"
 CNTOOLS_KOIOS_TOKEN="${TEST_KOIOS_TOKEN}"
+KOIOS_METADATA_SCENARIO="full"
 export -n CNTOOLS_KOIOS_TOKEN 2>/dev/null || true
+assert_eq "$(cntools_wallet_query_koios_asset_payload_limit)" "5120" \
+  "authenticated Koios metadata payload limit"
+saved_koios_token="${CNTOOLS_KOIOS_TOKEN}"
+CNTOOLS_KOIOS_TOKEN=""
+assert_eq "$(cntools_wallet_query_koios_asset_payload_limit)" "1024" \
+  "public Koios metadata payload limit"
+CNTOOLS_KOIOS_TOKEN="${saved_koios_token}"
+saved_rate_batches="${CNTOOLS_WALLET_KOIOS_RATE_BATCHES}"
+saved_rate_pause="${CNTOOLS_WALLET_KOIOS_RATE_PAUSE_SECONDS}"
+CNTOOLS_WALLET_KOIOS_RATE_BATCHES=2
+CNTOOLS_WALLET_KOIOS_RATE_PAUSE_SECONDS=0
+rate_log_before="$(grep -c 'Koios asset_info rate window reached' \
+  "${LOG_TRACE}" || true)"
+cntools_wallet_query_koios_asset_pace 0 || fail "Koios initial batch pacing failed"
+cntools_wallet_query_koios_asset_pace 1 || fail "Koios pre-limit pacing failed"
+cntools_wallet_query_koios_asset_pace 2 || fail "Koios limit pacing failed"
+rate_log_after="$(grep -c 'Koios asset_info rate window reached' \
+  "${LOG_TRACE}" || true)"
+assert_eq "$((rate_log_after - rate_log_before))" "1" \
+  "Koios metadata rate-limit boundary"
+CNTOOLS_WALLET_KOIOS_RATE_BATCHES="${saved_rate_batches}"
+CNTOOLS_WALLET_KOIOS_RATE_PAUSE_SECONDS="${saved_rate_pause}"
 
 reset_query_traces
 cntools_wallet_query "" "" ""
@@ -1080,13 +1592,27 @@ cntools_wallet_query \
 assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "available" "Koios query status"
 assert_eq "${CNTOOLS_WALLET_TOTAL_LOVELACE}" "3300000" "Koios total balance"
 assert_eq "${CNTOOLS_WALLET_REWARD_LOVELACE}" "880000" "Koios rewards"
-assert_eq "${CNTOOLS_WALLET_POOL_DELEGATION}" "pool1koios" \
+assert_eq "${CNTOOLS_WALLET_POOL_DELEGATION}" "${TEST_POOL_ID}" \
   "Koios pool delegation"
 assert_eq "${CNTOOLS_WALLET_DREP_DELEGATION}" "${TEST_DREP_ID}" \
   "Koios DRep delegation"
 assert_eq "${CNTOOLS_WALLET_UTXO_COUNT}" "2" "Koios UTxO count"
 assert_eq "${CNTOOLS_WALLET_ASSET_COUNT}" "1" "Koios asset count"
-assert_eq "$(line_count "${HTTP_TRACE}")" "2" "Koios request count"
+assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_ASSET_ID}]}" "5" \
+  "Koios native asset quantity"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "available" \
+  "Koios asset metadata status"
+assert_eq "${CNTOOLS_WALLET_ASSET_REGISTRY_NAMES[${TEST_ASSET_ID}]}" \
+  "Fixture Token" "Koios registry name"
+assert_eq "${CNTOOLS_WALLET_ASSET_TICKERS[${TEST_ASSET_ID}]}" "FIX" \
+  "Koios registry ticker"
+assert_eq "${CNTOOLS_WALLET_ASSET_DECIMALS[${TEST_ASSET_ID}]}" "6" \
+  "Koios holding decimals"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${TEST_ASSET_ID}]}" "6" \
+  "Koios registry decimals"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE[${TEST_ASSET_ID}]}" "1" \
+  "Koios per-asset metadata availability"
+assert_eq "$(line_count "${HTTP_TRACE}")" "3" "Koios request count"
 jq -e \
   --arg base "${TEST_BASE_ADDRESS}" \
   --arg payment "${TEST_PAYMENT_ADDRESS}" \
@@ -1099,18 +1625,151 @@ jq -e --arg reward "${TEST_REWARD_ADDRESS}" \
   '._stake_addresses == [$reward]' \
   "${HTTP_CAPTURE_DIR}/account_info.json" >/dev/null ||
   fail "Koios account_info did not use its bulk-array contract"
+jq -e \
+  --arg policy "${TEST_POLICY_ID}" \
+  --arg asset "${TEST_ASSET_NAME}" \
+  '._asset_list == [[$policy, $asset]]' \
+  "${HTTP_CAPTURE_DIR}/asset_info.json" >/dev/null ||
+  fail "Koios asset_info did not receive one deduplicated bulk asset list"
 [[ "$(grep -c '/address_info' "${HTTP_TRACE}")" == "1" &&
-   "$(grep -c '/account_info' "${HTTP_TRACE}")" == "1" ]] ||
+   "$(grep -c '/account_info' "${HTTP_TRACE}")" == "1" &&
+   "$(grep -c '/asset_info' "${HTTP_TRACE}")" == "1" ]] ||
   fail "Koios full query did not use one request per bulk endpoint"
+grep -F "/address_info${CNTOOLS_WALLET_KOIOS_ADDRESS_SELECT}" \
+  "${HTTP_TRACE}" >/dev/null ||
+  fail "Koios funding query did not preserve balance as text"
+grep -F "/account_info${CNTOOLS_WALLET_KOIOS_ACCOUNT_SELECT}" \
+  "${HTTP_TRACE}" >/dev/null ||
+  fail "Koios stake query did not preserve rewards as text"
 if grep -F "${TEST_KOIOS_TOKEN}" \
     "${HTTP_ARGV_TRACE}" "${HTTP_ENV_TRACE}" "${LOG_TRACE}" >/dev/null; then
   fail "Koios token leaked into argv, child environment, or logs"
 fi
-[[ "$(grep -c $'\tY\t600$' "${HTTP_AUTH_TRACE}")" == "2" ]] ||
-  fail "Koios authorization did not reach both HTTP calls through mode-0600 files"
+[[ "$(grep -c $'\tY\t600$' "${HTTP_AUTH_TRACE}")" == "3" ]] ||
+  fail "Koios authorization did not reach all HTTP calls through mode-0600 files"
+
+: > "${UI_TRACE}"
+cntools_wallet_render_query
+grep -F $'DATA_ROW\t01 · Fixture Token\t0.000005\tFIX' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Koios native-assets table omitted the token holding"
+grep -F $'DATA_ROW\t\tTicker\tFIX' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Koios token metadata table omitted the ticker"
+grep -F $'DATA_ROW\t\tDescription\tFixture token metadata' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Koios token metadata table omitted the description"
 cntools_wallet_query_cleanup
 [[ -z "$(find "${CNTOOLS_TMP_DIR}" -type f -print)" ]] ||
   fail "Koios query left credential or response temporary files"
+
+# Metadata lookup must stay bulk and split only at the shared public Koios
+# payload ceiling. This also proves that every held identity survives batching.
+reset_query_traces
+cntools_wallet_query_reset
+saved_koios_token="${CNTOOLS_KOIOS_TOKEN}"
+CNTOOLS_KOIOS_TOKEN=""
+bulk_asset_total=24
+for (( bulk_index = 1; bulk_index <= bulk_asset_total; bulk_index++ )); do
+  printf -v bulk_policy '%056x' "${bulk_index}"
+  printf -v bulk_name '%02x' "${bulk_index}"
+  cntools_wallet_asset_add "${bulk_policy}.${bulk_name}" "${bulk_index}" ||
+    fail "could not prepare bulk metadata fixture asset ${bulk_index}"
+done
+cntools_wallet_query_koios_asset_metadata ||
+  fail "valid size-bounded Koios metadata batches were rejected"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "available" \
+  "bulk Koios metadata status"
+bulk_requests=0
+bulk_assets=0
+while IFS=$'\t' read -r bulk_url bulk_payload; do
+  [[ "${bulk_url}" == */asset_info\?select=* ]] || continue
+  bulk_requests=$((bulk_requests + 1))
+  (( ${#bulk_payload} <= CNTOOLS_WALLET_KOIOS_PAYLOAD_MAX_BYTES )) ||
+    fail "Koios metadata batch exceeded the configured payload ceiling"
+  bulk_batch_count="$(jq -er '._asset_list | length' <<< "${bulk_payload}")" ||
+    fail "Koios metadata batch payload was malformed"
+  bulk_assets=$((bulk_assets + bulk_batch_count))
+done < "${HTTP_TRACE}"
+(( bulk_requests > 1 )) ||
+  fail "large Koios metadata lookup was not divided into bulk batches"
+assert_eq "${bulk_assets}" "${bulk_asset_total}" \
+  "Koios metadata assets across batches"
+cntools_wallet_query_cleanup
+CNTOOLS_KOIOS_TOKEN="${saved_koios_token}"
+
+for metadata_scenario in fail missing duplicate extra malformed; do
+  reset_query_traces
+  KOIOS_SCENARIO="full"
+  KOIOS_METADATA_SCENARIO="${metadata_scenario}"
+  cntools_wallet_query \
+    "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" ""
+  assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "available" \
+    "${metadata_scenario} metadata changed funding query status"
+  assert_eq "${CNTOOLS_WALLET_TOTAL_LOVELACE}" "3300000" \
+    "${metadata_scenario} metadata erased the funding total"
+  assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_ASSET_ID}]}" "5" \
+    "${metadata_scenario} metadata erased the native asset quantity"
+  assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "unavailable" \
+    "${metadata_scenario} metadata status"
+  assert_empty "${CNTOOLS_WALLET_ASSET_REGISTRY_NAMES[${TEST_ASSET_ID}]:-}" \
+    "${metadata_scenario} metadata committed an invalid registry name"
+  assert_eq "$(line_count "${HTTP_TRACE}")" "2" \
+    "${metadata_scenario} metadata request count"
+done
+
+: > "${UI_TRACE}"
+cntools_wallet_render_query
+grep -F $'DATA_ROW\t01 · token\t0.000005\tUnavailable' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "metadata failure hid a valid Koios native asset holding"
+grep -F $'STATUS\twarn\tKoios token metadata is unavailable; holdings remain complete.' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "metadata failure was not explained without invalidating holdings"
+KOIOS_METADATA_SCENARIO="full"
+
+reset_query_traces
+KOIOS_SCENARIO="full"
+KOIOS_METADATA_SCENARIO="hostile"
+cntools_wallet_query \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" ""
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "available" \
+  "sanitized Koios metadata status"
+assert_eq "${CNTOOLS_WALLET_ASSET_REGISTRY_NAMES[${TEST_ASSET_ID}]}" \
+  "Fixture Token " "Koios metadata bidi and C1 sanitization"
+assert_eq "${CNTOOLS_WALLET_ASSET_TICKERS[${TEST_ASSET_ID}]}" \
+  "F IX" "Koios metadata isolate sanitization"
+assert_eq "${#CNTOOLS_WALLET_ASSET_DESCRIPTIONS[${TEST_ASSET_ID}]}" \
+  "160" "Koios metadata description bound"
+[[ "${CNTOOLS_WALLET_ASSET_DESCRIPTIONS[${TEST_ASSET_ID}]}" == *… ]] ||
+  fail "truncated Koios metadata description omitted its ellipsis"
+hostile_registry_name="${CNTOOLS_WALLET_ASSET_REGISTRY_NAMES[${TEST_ASSET_ID}]}"
+if [[ "${hostile_registry_name}" == *$'\u202e'* ||
+      "${hostile_registry_name}" == *$'\u0085'* ]]; then
+  fail "hostile Koios metadata retained terminal control characters"
+fi
+KOIOS_METADATA_SCENARIO="full"
+
+reset_query_traces
+KOIOS_SCENARIO="stake-special-drep"
+cntools_wallet_query "" "" "${TEST_REWARD_ADDRESS}"
+assert_eq "${CNTOOLS_WALLET_DREP_DELEGATION}" "drep_always_abstain" \
+  "Koios predefined DRep value"
+: > "${UI_TRACE}"
+cntools_wallet_render_delegation_table
+grep -F $'DATA_ROW\tDRep delegation\tDelegated · Always abstain' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Koios predefined DRep value was not humanized"
+
+reset_query_traces
+KOIOS_SCENARIO="stake-malformed-delegation"
+cntools_wallet_query "" "" "${TEST_REWARD_ADDRESS}"
+assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "unavailable" \
+  "malformed Koios delegation query status"
+assert_empty "${CNTOOLS_WALLET_POOL_DELEGATION}" \
+  "malformed Koios pool delegation was accepted"
+assert_empty "${CNTOOLS_WALLET_DREP_DELEGATION}" \
+  "malformed Koios DRep delegation was accepted"
 
 reset_query_traces
 KOIOS_SCENARIO="partial-missing"
@@ -1125,10 +1784,23 @@ assert_empty "${CNTOOLS_WALLET_PAYMENT_LOVELACE}" \
 assert_no_funding_aggregate "partial Koios funding query"
 : > "${UI_TRACE}"
 cntools_wallet_render_query
-grep -q $'^FIELD\tTotal\t' "${UI_TRACE}" &&
-  fail "partial Koios subtotal was rendered as Total"
-grep -Eq $'^FIELD\t(UTxOs|Native assets)\t0$' "${UI_TRACE}" &&
-  fail "unknown partial Koios aggregate was rendered as zero"
+grep -F $'DATA_ROW\tBase UTxO\t1.100000 ADA' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "partial Koios balance table promoted a subtotal to Total UTxO"
+grep -F $'DATA_ROW\tTotal UTxO\tUnavailable' "${UI_TRACE}" >/dev/null ||
+  fail "partial Koios subtotal was rendered as Total UTxO"
+grep -F $'DATA_ROW\tUnavailable\t—\t—' "${UI_TRACE}" >/dev/null ||
+  fail "partial Koios native assets were rendered as a real zero"
+
+reset_query_traces
+KOIOS_SCENARIO="oversized-quantity"
+cntools_wallet_query \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" ""
+assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "unavailable" \
+  "oversized Koios quantity query status"
+assert_no_funding_aggregate "oversized Koios quantity query"
+assert_empty "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_ASSET_ID}]:-}" \
+  "oversized Koios quantity changed native-asset holdings"
 
 reset_query_traces
 KOIOS_SCENARIO="duplicate"

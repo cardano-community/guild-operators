@@ -2,6 +2,22 @@
 # CNTools lazy action and library loader. Functions only.
 # shellcheck disable=SC2034
 
+cntools_action_subshell_cleanup() {
+  local status="${1:-0}"
+
+  trap - EXIT
+  if declare -F cntools_action_cleanup >/dev/null 2>&1; then
+    cntools_action_cleanup || true
+  fi
+  if declare -F cntools_http_temp_files_cleanup >/dev/null 2>&1; then
+    cntools_http_temp_files_cleanup || true
+  fi
+  if declare -F cntools_http_secret_files_cleanup >/dev/null 2>&1; then
+    cntools_http_secret_files_cleanup || true
+  fi
+  exit "${status}"
+}
+
 cntools_action_run() {
   local module_directory="${1:-}"
   local physical_root=""
@@ -25,6 +41,8 @@ cntools_action_run() {
     local status=0
 
     # Each action owns only its subshell-local traps and temporary state.
+    unset -f cntools_action_cleanup 2>/dev/null || true
+    trap 'cntools_action_subshell_cleanup $?' EXIT
     trap 'cntools_ui_suspend_for_job_control' TSTP
     trap 'cntools_ui_mark_resize' CONT
 
@@ -77,9 +95,14 @@ cntools_action_run() {
         cntools_log ERROR "Library defines reserved cntools_action_main: ${relative_library}" || true
         return 2
       fi
+      if declare -F cntools_action_cleanup >/dev/null 2>&1; then
+        cntools_log ERROR "Library defines reserved cntools_action_cleanup: ${relative_library}" || true
+        return 2
+      fi
     done <<< "${library_list}"
 
     unset -f cntools_action_main 2>/dev/null || true
+    unset -f cntools_action_cleanup 2>/dev/null || true
     # shellcheck source=/dev/null
     . "${action_file}" || {
       cntools_log ERROR "Action failed to load: ${action_id}" || true

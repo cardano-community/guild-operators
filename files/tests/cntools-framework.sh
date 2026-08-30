@@ -493,6 +493,25 @@ cntools_action_main() {
   assert_eq "${status}" "23" "isolated action exit status"
   cntools_log ACTION "outer shell survived action exit"
 
+  action_dir="${tree}/root/tools/interrupt-cleanup"
+  make_action "${action_dir}" "Interrupt Cleanup" i 25 '["local"]'
+  CNTOOLS_TEST_CLEANUP_TRACE="${tree}/interrupt-cleanup.trace"
+  write_file "${action_dir}/action.sh" '#!/usr/bin/env bash
+cntools_action_cleanup() {
+  printf "%s\n" "cleanup" >> "${CNTOOLS_TEST_CLEANUP_TRACE}"
+}
+cntools_action_main() {
+  kill -TERM "${BASHPID}"
+}'
+  if cntools_action_run "${action_dir}" >/dev/null 2>&1; then
+    fail "interrupted action unexpectedly succeeded"
+  else
+    status=$?
+  fi
+  assert_eq "${status}" "143" "interrupted action status"
+  assert_eq "$(< "${CNTOOLS_TEST_CLEANUP_TRACE}")" "cleanup" \
+    "interrupted action cleanup hook"
+
   action_dir="${tree}/root/tools/local-only"
   make_action "${action_dir}" "Local Only" l 30 '["local"]'
   CNTOOLS_MODE="light"
@@ -512,6 +531,16 @@ cntools_action_main() {
     cntools_action_run "${action_dir}"
   assert_eq "$(wc -l < "${trace}" | tr -d ' ')" "${prior_lines}" \
     "rejected library executed an action"
+
+  write_file "${tree}/lib/test/reserved-cleanup.sh" '#!/usr/bin/env bash
+cntools_action_cleanup() {
+  return 0
+}'
+  action_dir="${tree}/root/tools/reserved-cleanup"
+  make_action "${action_dir}" "Reserved Cleanup" c 45 '["local"]' \
+    '["test/reserved-cleanup.sh"]'
+  assert_fails "library-defined reserved action cleanup was accepted" \
+    cntools_action_run "${action_dir}"
 
   write_file "${tree}/lib/test/real.sh" '#!/usr/bin/env bash
 cntools_fixture_symlinked() { return 0; }'

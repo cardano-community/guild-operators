@@ -2,6 +2,7 @@
 # CNTools logging plus operational command and HTTP wrappers. Functions only.
 
 declare -ag CNTOOLS_HTTP_SECRET_FILES=()
+declare -ag CNTOOLS_HTTP_TEMP_FILES=()
 
 cntools_log_path_components_safe() {
   local path="${1:-}"
@@ -110,6 +111,7 @@ cntools_log() {
 }
 
 cntools_log_close() {
+  cntools_http_temp_files_cleanup
   cntools_http_secret_files_cleanup
   if [[ "${CNTOOLS_LOG_FD:-}" =~ ^[0-9]+$ ]]; then
     exec {CNTOOLS_LOG_FD}>&-
@@ -190,6 +192,37 @@ cntools_http_secret_files_cleanup() {
     cntools_http_secret_file_remove "${secret_file}" || true
   done
   CNTOOLS_HTTP_SECRET_FILES=()
+}
+
+cntools_http_temp_file_remove() {
+  local temporary_file="${1:-}"
+  local candidate=""
+  local tracked="N"
+  local -a remaining=()
+
+  [[ -n "${temporary_file}" ]] || return 2
+  for candidate in "${CNTOOLS_HTTP_TEMP_FILES[@]}"; do
+    if [[ "${candidate}" == "${temporary_file}" ]]; then
+      tracked="Y"
+    else
+      remaining+=("${candidate}")
+    fi
+  done
+  [[ "${tracked}" == "Y" ]] || return 2
+  if [[ -f "${temporary_file}" && ! -L "${temporary_file}" &&
+        -O "${temporary_file}" ]]; then
+    rm -f -- "${temporary_file}" 2>/dev/null || true
+  fi
+  CNTOOLS_HTTP_TEMP_FILES=("${remaining[@]}")
+}
+
+cntools_http_temp_files_cleanup() {
+  local temporary_file=""
+
+  for temporary_file in "${CNTOOLS_HTTP_TEMP_FILES[@]}"; do
+    cntools_http_temp_file_remove "${temporary_file}" || true
+  done
+  CNTOOLS_HTTP_TEMP_FILES=()
 }
 
 cntools_log_render_argument() {
@@ -371,6 +404,12 @@ cntools_http_request() {
     rm -f -- "${error_file}"
     return 1
   }
+  if [[ ! -f "${error_file}" || -L "${error_file}" ||
+        ! -O "${error_file}" ]]; then
+    rm -f -- "${error_file}" 2>/dev/null || true
+    return 1
+  fi
+  CNTOOLS_HTTP_TEMP_FILES+=("${error_file}")
 
   endpoint="$(cntools_http_sanitized_endpoint "${url}")"
   start_time="$(command date '+%s')" || start_time=0
@@ -387,7 +426,7 @@ cntools_http_request() {
   end_time="$(command date '+%s')" || end_time="${start_time}"
   error_detail="$(cntools_http_curl_error_detail \
     "${error_file}" "${url}" 2>/dev/null || true)"
-  rm -f -- "${error_file}" 2>/dev/null || true
+  cntools_http_temp_file_remove "${error_file}" || true
 
   if [[ ${curl_status} -ne 0 ]]; then
     cntools_log API \

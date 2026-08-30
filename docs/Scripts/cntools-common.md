@@ -28,21 +28,32 @@ zero or incomplete total.
 ## Show a wallet
 
 Open **Wallet**, select **Show**, then filter and choose a wallet. The action
-always shows the validated address files it can read. Additional information
-depends on the startup mode:
+always presents wallet identity and the validated address files it can read in
+Gum tables. Live data is divided into balance, delegation, and native-asset
+tables. Stake pool delegation and DRep delegation are labeled separately.
+Additional information depends on the startup mode:
 
 - local cnode or Dingo queries the deployed Cardano CLI and local socket;
 - local Amaru explains that live wallet queries are unavailable and continues
   showing filesystem details;
-- light mode batches the wallet's funding addresses through Koios, then queries
-  its reward account for registration and delegation;
+- light mode batches the wallet's funding addresses through Koios, queries its
+  reward account for registration and delegation, and retrieves available
+  Token Registry metadata for all held native assets in bounded bulk requests;
 - offline mode performs no external command or network request.
+
+Native-asset quantities are aggregated exactly across the wallet's funding
+addresses. Light mode also shows the asset fingerprint, registered name,
+ticker, decimals, total supply, description, and URL when available. A Koios
+metadata failure leaves the validated policy ID, asset-name hex, and quantity
+visible. If the combined native-asset overview and details are taller than the
+terminal, CNTools opens both tables in one Gum scroll view and returns to
+Wallet Show when that view closes.
 
 Missing or malformed addresses are reported but never regenerated. Wallet
 List and Show do not create keys, decrypt files, submit transactions, or alter
-the existing wallet layout. If only part of a live query succeeds, CNTools can
-show the individual value it received but does not label it as the wallet total
-or show incomplete UTxO and asset aggregates.
+the existing wallet layout. If only part of a live balance query succeeds,
+CNTools can show the individual value it received but does not label it as the
+wallet total or show incomplete UTxO and asset aggregates.
 
 Operational guides will be added as the remaining modular actions are
 implemented and tested. Until then, do not treat another visible menu entry as

@@ -228,15 +228,22 @@ Every `action.sh` defines this entrypoint:
 cntools_action_main() {
   # Action implementation.
 }
+
+# Optional: remove action-owned temporary or sensitive files.
+cntools_action_cleanup() {
+  # Cleanup implementation.
+}
 ```
 
 Selecting an action runs a Bash subshell which:
 
 1. validates each declared library path and sources those libraries in order;
-2. clears any inherited `cntools_action_main` definition;
+2. clears inherited action entrypoint and cleanup definitions;
 3. sources the adjacent `action.sh`;
-4. verifies that `cntools_action_main` exists; and
-5. calls it without a context or result protocol.
+4. verifies that `cntools_action_main` exists;
+5. calls it without a context or result protocol; and
+6. invokes `cntools_action_cleanup`, when defined, on normal or interrupted
+   subshell exit.
 
 The subshell inherits a snapshot of the `CNTOOLS_` session values and core
 UI/logging functions. The loader sets `CNTOOLS_ACTION_ID` to the module path
@@ -249,8 +256,9 @@ returning to the menu.
 Libraries and action files define functions only when sourced. They must not
 perform network access, change terminal state, install traps, or create files
 at source time, and libraries must not define the reserved
-`cntools_action_main` name. During `cntools_action_main`, an action may install
-subshell-local cleanup traps for its own temporary or sensitive files. An
+`cntools_action_main` or `cntools_action_cleanup` names. During
+`cntools_action_main`, an action may install other subshell-local traps; action
+temporary and sensitive files should use the cleanup hook. An
 action lists every library it needs in dependency order; there is no library
 registry or dependency resolver.
 
@@ -290,7 +298,10 @@ it again goes back from a submenu or redraws the root menu. CNTools exits only
 through the Quit choice, while Ctrl+C remains an interruption.
 Other Gum controls provide consistent prompts,
 confirmation, tables, status messages, and long-text viewing without changing
-the action contract.
+the action contract. Before Gum starts, CNTools verifies that Bash is operating
+under UTF-8 and selects `C.UTF-8`, `C.utf8`, or `en_US.UTF-8` when the caller's
+locale is not UTF-8. Startup fails clearly if none is installed, preventing
+multibyte labels or metadata from being split into unsafe terminal bytes.
 
 Before starting the interface, the entrypoint requires an exact Gum `2.0.0`
 match. If Gum is missing or another version is found, CNTools shows the found
@@ -533,13 +544,22 @@ bounded execution. List shows distinct non-ADA token count, rewards, UTxO
 balance, and a total that includes both UTxO and rewards. Light List sessions
 deduplicate the complete wallet catalog into size-bounded Koios `address_info`
 and `account_info` bulk requests; Show uses the same contracts for one wallet.
+Show renders wallet identity, addresses, balances, stake pool and DRep
+delegation, and exact native-asset quantities as Gum tables. Light mode adds
+Koios `asset_info` bulk requests bounded to 1 KiB publicly or 5 KiB with an
+API token, with request pacing below the documented rate ceiling. Funding and
+reward projections keep lovelace values as decimal strings so `jq` never
+rounds them. Compact Token Registry metadata excludes large logo and
+minting-metadata objects. Metadata failure does not hide validated on-chain
+holdings, and oversized native-asset overviews and details share one Gum pager.
 List asks before running either live backend. A decline renders the catalog
 with unavailable live columns and zero backend calls; acceptance runs the
 same-shell query beneath a Gum spinner so its prepared arrays remain available
-for rendering. Offline sessions perform no command or HTTP query and do not
-show this confirmation. Amaru remains a first-class local deployment: its
-wallet files are shown, while live chain values are clearly marked unavailable
-because its deployment manifest declares no local CLI capability.
+for rendering. Offline
+sessions perform no command or HTTP query and do not show this confirmation.
+Amaru remains a first-class local deployment: its wallet files are shown,
+while live chain values are clearly marked unavailable because its deployment
+manifest declares no local CLI capability.
 
 Backend failures are non-destructive and do not prevent filesystem wallet
 details from being shown. Complete aggregates are shown only when every

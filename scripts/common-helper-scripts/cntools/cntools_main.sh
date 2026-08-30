@@ -50,6 +50,9 @@ cntools_entrypoint_cleanup() {
     CNTOOLS_SESSION_ENDED="Y"
   fi
   cntools_ui_cleanup || true
+  if declare -F cntools_wallet_query_cleanup >/dev/null 2>&1; then
+    cntools_wallet_query_cleanup || true
+  fi
   cntools_update_cleanup || true
   cntools_log_close || true
   exit "${status}"
@@ -108,6 +111,7 @@ cntools_main() {
     return "${status}"
   fi
 
+  cntools_startup_use_utf8_locale || return 1
   cntools_gum_require || return 1
   cntools_gum_require_terminal || return 1
   cntools_update_init

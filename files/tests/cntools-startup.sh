@@ -306,6 +306,7 @@ cntools_action_main() {
     else
       printf "%s\n" "koios_token_exported=N"
     fi
+    printf "%s\n" "charmap=$(locale charmap)"
     printf "%s\n" "posix=${posix_state}"
   } > "${CNTOOLS_TEST_SESSION_TRACE}"
 }'
@@ -338,6 +339,7 @@ run_installed() {
   if printf '%b' "${input}" | env -i \
     PATH="${CASE_PATH:-${PATH}}" \
     HOME="${HOME:-${TEST_ROOT}}" \
+    LC_ALL="C" \
     LANG="C" \
     TERM="dumb" \
     TMPDIR="${TMPDIR:-/tmp}" \
@@ -671,6 +673,8 @@ run_session_matrix_tests() {
       assert_trace_value curl_timeout "17"
       assert_trace_value koios_token_available "Y"
       assert_trace_value koios_token_exported "N"
+      grep -Eq '^charmap=UTF-?8$' "${SESSION_TRACE}" ||
+        fail "${implementation} ${mode} did not normalize a UTF-8 locale"
       assert_trace_value posix "N"
       grep -F \
         "start ui=gum mode=${mode} backend=${expected_backend} implementation=${implementation}" \
