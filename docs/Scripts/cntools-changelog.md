@@ -8,6 +8,9 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [14.1.0] - Unreleased
 #### Added
+- Functional **Wallet → New → CLI** action for creating a standard payment-and-stake wallet with private whole-wallet staging, complete validation, and atomic no-clobber publication.
+- Responsive Gum creation summaries for the planned wallet artifacts and the resulting addresses and credential hashes.
+- Independent signing-to-verification key-pair checks before a new wallet can be published.
 - Functional Wallet List and Show actions using the existing CNTools wallet directory layout.
 - Local cnode and Dingo balance, UTxO, native asset, reward, registration, and delegation queries through the deployed Cardano CLI.
 - Koios-backed wallet and stake account queries in light mode.
@@ -20,6 +23,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Lossless shared number formatting and input normalization with optional canonical US thousands separators.
 
 #### Changed
+- CLI wallet creation now produces only the standard payment and stake key pairs and their derived public artifacts; governance, committee, and multisignature material belongs to its dedicated future actions.
+- The atomic wallet rename is the creation commit point; later revalidation or result-rendering problems are reported as committed-wallet warnings instead of false creation failures.
 - Startup validates the modular menu catalog in one multi-file JSON pass and
   keeps parsed definitions, routes, and display rows in memory for the session.
 - Node health is refreshed only when the root menu is drawn; submenus neither
@@ -38,6 +43,9 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Root health and Wallet numeric displays use comma thousands separators without changing raw query or calculation values.
 
 #### Fixed
+- Failed, interrupted, duplicate, or colliding CLI wallet creation cannot overwrite an existing wallet or publish a partially generated one.
+- Internal wallet-creation staging directories are excluded from wallet discovery.
+- Wallet creation accepts executable Cardano CLI paths resolved through standard symlink-based alternatives and version managers.
 - Wallet Show accepts existing raw hexadecimal credential files whether or not they end with a newline.
 - Gum 2.0.0 static tables no longer apply the Koios accent to their first data row; the section heading carries the visual accent while table foreground and background colors remain neutral.
 - Wallet Show revalidates a selected wallet before reading it, fails clearly on inaccessible folders, and rejects symbolic-link replacement after discovery.

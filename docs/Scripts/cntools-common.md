@@ -4,9 +4,36 @@ The step-by-step wallet and pool workflows documented for CNTools 13 do not
 apply to the rewritten CNTools 14 framework.
 
 !!! info "Current functional actions"
-    Version 14.1.0 provides Wallet List and Wallet Show. These inspection
-    actions may cache missing public wallet artifacts; all other operational
-    entries remain placeholders.
+    Version 14.1.0 provides Wallet New → CLI, Wallet List, and Wallet Show.
+    List and Show may cache missing public wallet artifacts; all other
+    operational entries remain placeholders.
+
+## Create a CLI wallet
+
+Open **Wallet → New → CLI**, enter a wallet name, review the planned location
+and contents, and confirm creation. A wallet name must begin with a letter or
+number, may contain letters, numbers, periods, underscores, and hyphens, and
+may be at most 64 characters long. An existing file, directory, or symbolic
+link with the same name is never replaced. The confirmation defaults to
+**No** because the new signing keys must be backed up securely.
+
+CNTools generates one standard payment key pair and one stake key pair, then
+derives the payment, reward, and combined base addresses and their raw
+hexadecimal credential hashes. It intentionally does not generate governance,
+committee, or multisignature keys; those belong to separate future actions.
+Because a CLI wallet has no `derivation.path`, Wallet List and Show identify it
+as **CLI**.
+
+The action works in local, light, and offline modes when Cardano CLI and the
+selected Cardano network are configured. It performs no node or Koios query.
+All artifacts are first generated and validated inside a private hidden
+staging directory. CNTools publishes the whole wallet in one no-overwrite
+operation only after every expected artifact is valid and each verification
+key has independently been proven to match its signing key. A handled failure
+or interruption cannot leave a partially created wallet in the catalog.
+An uncatchable process kill or power loss may leave a hidden
+`.cntools-wallet-new.*` staging directory containing private key material;
+CNTools excludes and logs it rather than treating it as a wallet.
 
 ## List wallets
 

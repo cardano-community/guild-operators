@@ -211,6 +211,25 @@ while IFS=$'\t' read -r \
     bash -n "${action_file}" ||
       fail "action entrypoint has invalid Bash syntax: ${module_id}"
     case "${module_id}" in
+      wallet/new/cli)
+        jq -e '.libs == [
+          "wallet.sh",
+          "wallet-material.sh",
+          "wallet-key.sh",
+          "wallet-address.sh",
+          "wallet-id.sh",
+          "wallet-create.sh",
+          "wallet-create-ui.sh"
+        ]' \
+          "${metadata}" >/dev/null ||
+          fail "Wallet New CLI has unexpected library declarations"
+        grep -F 'cntools_wallet_create_cleanup' "${action_file}" >/dev/null ||
+          fail "Wallet New CLI does not clean private staging directories"
+        grep -F 'cntools_wallet_cleanup_material' "${action_file}" >/dev/null ||
+          fail "Wallet New CLI does not clean artifact staging files"
+        grep -F 'cntools_wallet_action_new_cli' "${action_file}" >/dev/null ||
+          fail "Wallet New CLI does not call its functional entrypoint"
+        ;;
       wallet/list)
         jq -e '.libs == [
           "number.sh",
@@ -425,14 +444,14 @@ for mode in local light offline; do
   done < "${MENU_FIXTURE}"
 done
 
-# Every operational action not implemented by Phase 7 remains a runnable
+# Every operational action not implemented through Phase 8 remains a runnable
 # placeholder. Advanced Theme is framework functionality covered separately.
 CNTOOLS_MODE="local"
 while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    wallet/list|wallet/show|advanced/theme) continue ;;
+    wallet/new/cli|wallet/list|wallet/show|advanced/theme) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then

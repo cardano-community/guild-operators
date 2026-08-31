@@ -6,8 +6,9 @@ but replaces the former monolithic implementation with a modular framework and
 a Charm Gum interface.
 
 !!! warning "Version 14 implementation status"
-    Wallet List and Show are functional in version 14.1.0. They may cache
-    missing public wallet artifacts, but do not change private keys or submit
+    Wallet New → CLI, List, and Show are functional in version 14.1.0. List
+    and Show may cache missing public wallet artifacts; New → CLI creates new
+    private keys only after explicit confirmation. None of these actions submit
     transactions. Advanced **Theme** is also functional; other wallet actions
     and all pool, transaction, governance, backup, block, and operational
     advanced actions remain placeholders.
@@ -88,8 +89,9 @@ cleanly on narrower terminals.
 CNTools validates all modular menu metadata in one multi-file JSON pass at
 startup and keeps the resulting catalog in memory. Gum provides filtering and
 keyboard navigation, while action code and its focused libraries are checked
-and loaded only when selected. Wallet List and Show load their wallet libraries
-on demand; remaining operational actions display a not-implemented notice.
+and loaded only when selected. Functional Wallet actions load their focused
+libraries on demand; remaining operational actions display a not-implemented
+notice.
 
 Start CNTools with `-a` to open **Advanced → Theme**. Theme colors are defined
 centrally by semantic purpose so headers, numbers, identifiers, and statuses
@@ -150,6 +152,34 @@ is available. Unsafe symbolic links and malformed existing artifacts are
 reported and recorded in the CNTools log instead of being replaced. Koios
 tokens are kept out of logged commands, process arguments, and child
 environments.
+
+**Wallet → New → CLI** creates a standard wallet from newly generated Cardano
+CLI payment and stake key pairs. Key generation and derivation are local and
+available in local, light, and offline modes when Cardano CLI and the selected
+network are configured; they do not require a running node or Koios. Wallet
+names must begin with a letter or number and may contain only letters, numbers,
+periods, underscores, and hyphens, up to 64 characters. CNTools shows the
+planned location and artifacts, defaults the final confirmation to **No**, and
+runs the confirmed operation beneath a Gum spinner.
+
+Creation takes place in a private hidden staging directory beneath the wallet
+root. CNTools independently derives each verification key from its signing key,
+then validates the exact expected wallet shape, file modes, matching key pairs,
+addresses, and credentials before atomically publishing the complete wallet
+without replacing any existing path. A handled failure or interruption removes
+only the tracked staging directory and never exposes a partial wallet. The result
+contains payment and stake signing and verification keys, payment, reward, and
+base addresses, and raw hexadecimal payment and stake credential files. It
+does not create governance, committee, or multisignature material; those belong
+to their dedicated future actions. The absence of `derivation.path` identifies
+the result as a CLI wallet rather than a mnemonic-derived wallet.
+
+The atomic rename is the creation commit point. A problem displaying or
+revalidating the already committed result is reported as a warning with its
+final path, not as a failed creation. An uncatchable process kill or host power
+loss can leave a hidden `.cntools-wallet-new.*` directory containing private
+staging material. Wallet discovery excludes and logs such directories; inspect
+and remove a confirmed stale one securely before reusing its space.
 
 The Update menu can check again, show changelog entries newer than the running
 version, or invoke Guild Deploy. Updates replace the complete managed CNTools

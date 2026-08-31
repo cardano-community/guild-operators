@@ -1,7 +1,7 @@
 {
   "kind": "action",
   "label": "CLI",
-  "description": "Create a wallet using cardano-cli keys",
+  "description": "Create a standard payment-and-stake wallet",
   "shortcut": "c",
   "order": 20,
   "modes": [
@@ -10,6 +10,12 @@
     "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "wallet-create.sh",
+    "wallet-create-ui.sh"
   ]
 }

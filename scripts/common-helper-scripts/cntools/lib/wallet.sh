@@ -495,13 +495,24 @@ cntools_wallet_catalog_build() {
   )
   for candidate in "${candidates[@]}"; do
     [[ -e "${candidate}" || -L "${candidate}" ]] || continue
+    name="$(basename "${candidate}")"
+    if [[ "${name}" == .cntools-wallet-new.* ]]; then
+      if [[ -d "${candidate}" && ! -L "${candidate}" &&
+            -O "${candidate}" ]]; then
+        cntools_wallet_log WARN \
+          "Skipped internal wallet staging directory (active or interrupted; may contain private key material): ${name}"
+      else
+        cntools_wallet_log ERROR \
+          "Skipped unsafe reserved wallet staging entry: ${name}"
+      fi
+      continue
+    fi
     if [[ -L "${candidate}" ]]; then
       cntools_wallet_log ERROR \
         "Skipped symbolic-link wallet entry: $(basename "${candidate}")"
       continue
     fi
     [[ -d "${candidate}" ]] || continue
-    name="$(basename "${candidate}")"
     if [[ -z "${name}" || "${name}" == "." || "${name}" == ".." ||
           "${name}" == *[[:cntrl:]]* ]]; then
       cntools_wallet_log ERROR "Skipped wallet with an unsafe directory name"

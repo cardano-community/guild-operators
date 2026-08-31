@@ -60,6 +60,8 @@ cntools/
 │   ├── wallet-key.sh
 │   ├── wallet-address.sh
 │   ├── wallet-id.sh
+│   ├── wallet-create.sh
+│   ├── wallet-create-ui.sh
 │   ├── wallet-query.sh
 │   └── ...
 └── modules/
@@ -92,9 +94,9 @@ change on disk. No combined catalog file is generated or deployed.
 The Phase 4 framework mirrors the current CNTools menu hierarchy. It initially
 gave every operational leaf an inert `action.sh` with a consistent
 not-implemented message. Functional phases replace those placeholders in
-small vertical slices; Phase 7 activates Wallet List and Show. The existing
-phase-0 menu inventory remains an implementation checklist, not a generated
-runtime manifest.
+small vertical slices; Phase 7 activates Wallet List and Show, and Phase 8
+activates Wallet New → CLI. The existing phase-0 menu inventory remains an
+implementation checklist, not a generated runtime manifest.
 
 ## Runtime modes
 
@@ -610,6 +612,40 @@ private temporary files and, together with request bodies, remain outside the
 log. Gum v2.0.0 static tables use neutral foreground and background colors
 because its print renderer misapplies header styling to the first data row; the
 section label above each table carries the Koios accent instead.
+
+## Phase 8 CLI wallet creation slice
+
+Phase 8 activates **Wallet → New → CLI**. The action creates a deliberately
+small standard wallet: payment and stake signing keys, their verification keys,
+payment, reward, and base addresses, and raw hexadecimal payment and stake
+credential hashes. Governance, committee, and multisignature material is left
+to its dedicated future actions. No `derivation.path` is written, preserving
+the existing CLI-versus-mnemonic classification contract.
+
+The Gum flow validates the wallet name without silently changing it, shows the
+target and exact artifact plan, and requires a default-No confirmation before
+generating keys. Confirmed work runs beneath the shared spinner. Success shows
+responsive address and credential tables plus one clear private-key backup
+warning.
+
+Creation is a node-independent local operation in local, light, and offline
+modes. It requires the configured Cardano CLI and network identity but no node
+socket, node health, Koios request, or query library. Commands and failures use
+the standard redacting logger; private key contents and generated command
+output are not logged.
+
+All artifacts are built with private modes in a uniquely tracked hidden
+directory beneath the configured wallet root. Each verification key is
+independently re-derived from its signing key. The completed shape and every
+matching key pair, address, credential, filename, and mode are validated before
+one atomic GNU `mv` no-clobber publication. Existing files, directories, and
+symbolic links are never replaced. Handled failure, cancellation, interruption,
+or a concurrent target collision removes only the tracked staging directory and
+cannot expose a partial wallet. The rename is the commit point, so later display
+or revalidation problems produce a committed-wallet warning rather than a false
+creation failure. An uncatchable kill or power loss can leave a private hidden
+stage; internal staging names are excluded from wallet discovery and logged so
+a confirmed stale directory can be removed securely.
 
 ## Explicit non-goals
 

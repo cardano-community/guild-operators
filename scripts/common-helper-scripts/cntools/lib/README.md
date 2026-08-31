@@ -58,3 +58,14 @@ size bound, asks before fetching live values, shows progress through the shared
 Gum spinner, and suppresses complete totals whenever a structurally required
 funding or reward result is unknown. Other domain libraries are added only with
 their functional action phases.
+
+Wallet New → CLI reuses the focused key, address, credential, and
+material helpers above, then adds two focused libraries:
+
+- `wallet-create.sh` owns validation, private staging, exact wallet-shape
+  checks, cleanup, and atomic no-clobber publication; and
+- `wallet-create-ui.sh` owns the Gum name prompt, default-No confirmation,
+  spinner, planned-artifact summary, and result tables.
+
+Creation deliberately does not load `wallet-query.sh`: it is local work in all
+runtime modes and neither contacts a node nor calls Koios.
