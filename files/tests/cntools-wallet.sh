@@ -34,6 +34,10 @@ HTTP_ARGV_TRACE="${TEST_ROOT}/http-argv.log"
 HTTP_ENV_TRACE="${TEST_ROOT}/http-env.log"
 HTTP_AUTH_TRACE="${TEST_ROOT}/http-auth.log"
 HTTP_CAPTURE_DIR="${TEST_ROOT}/http-captures"
+KOIOS_MINTING_721_FIXTURE="${REPO_ROOT}/files/tests/fixtures/koios-asset-info-minting-721.json"
+KOIOS_CIP68_FIXTURE="${REPO_ROOT}/files/tests/fixtures/koios-asset-info-cip68-preview.json"
+GREST_SETUP="${REPO_ROOT}/scripts/grest-helper-scripts/setup-grest.sh"
+TESTED_KOIOS_GREST_VERSION="v1.4.2"
 
 # Checksum-valid fixtures are from the official Koios OpenAPI examples. Testnet
 # address headers cannot distinguish Preview from Preprod, but they can and must
@@ -59,6 +63,19 @@ TEST_ASSET_ID="${TEST_POLICY_ID}.${TEST_ASSET_NAME}"
 TEST_BASE_ASSET_ID="${TEST_BASE_POLICY_ID}.${TEST_BASE_ASSET_NAME}"
 TEST_PAYMENT_ASSET_ID="${TEST_PAYMENT_POLICY_ID}.${TEST_PAYMENT_ASSET_NAME}"
 TEST_ASSET_FINGERPRINT="asset1ua6pz3yd5mdka946z8jw2fld3f8d0mmxt75gv9"
+PREVIEW_METADATA_POLICY_ID="87264e48adc75c4472c4e52e80acd36051ca153f42ee339fb04f5a28"
+PREVIEW_METADATA_ASSET_NAME="a9d40b421f0d831dd192484eb0281886540fbd383af4d8b70c26c92ef5bd07af"
+PREVIEW_METADATA_ASSET_ID="${PREVIEW_METADATA_POLICY_ID}.${PREVIEW_METADATA_ASSET_NAME}"
+PREVIEW_METADATA_FINGERPRINT="asset1724xnhvs4y8v7rymfwtjgwxxtrkg08fn0vm2ug"
+CIP68_NFT_POLICY_ID="001d9b0e2de84d871f8398a3bc3fcd9fdb478d77737d544c3dd59731"
+CIP68_NFT_ASSET_NAME="000de140"
+CIP68_NFT_ASSET_ID="${CIP68_NFT_POLICY_ID}.${CIP68_NFT_ASSET_NAME}"
+CIP68_FT_POLICY_ID="00669b9908fad2e664ffa99710eabaf6708eb44e2d405488dcaae19e"
+CIP68_FT_ASSET_NAME="0014df1053696c766572"
+CIP68_FT_ASSET_ID="${CIP68_FT_POLICY_ID}.${CIP68_FT_ASSET_NAME}"
+CIP68_RFT_POLICY_ID="01475b574bdaad45e12e3bc619631bc55552ef79d60e33fd0a7fcd1a"
+CIP68_RFT_ASSET_NAME="001bc280476f6c642042617273"
+CIP68_RFT_ASSET_ID="${CIP68_RFT_POLICY_ID}.${CIP68_RFT_ASSET_NAME}"
 TEST_LOCAL_ASSET_HASH="b1bd6b1772d9d055e72f9e6c04d00ba855b023d1"
 TEST_LOCAL_ASSET_FINGERPRINT="asset1kx7kk9mjm8g9tee0nekqf5qt4p2mqg73h4fxr8"
 
@@ -133,10 +150,20 @@ for required_file in \
   "${NUMBER_LIBRARY}" "${WALLET_LIBRARY}" \
   "${MATERIAL_LIBRARY}" "${KEY_LIBRARY}" \
   "${ADDRESS_LIBRARY}" "${ID_LIBRARY}" "${QUERY_LIBRARY}" \
-  "${STARTUP_LIBRARY}"; do
+  "${STARTUP_LIBRARY}" "${GREST_SETUP}" \
+  "${KOIOS_MINTING_721_FIXTURE}" "${KOIOS_CIP68_FIXTURE}"; do
   [[ -f "${required_file}" && ! -L "${required_file}" ]] ||
     fail "required CNTools source is missing or unsafe: ${required_file}"
 done
+jq -e . "${KOIOS_MINTING_721_FIXTURE}" >/dev/null ||
+  fail "Koios minting-metadata fixture is invalid"
+jq -e . "${KOIOS_CIP68_FIXTURE}" >/dev/null ||
+  fail "Koios CIP-68 metadata fixture is invalid"
+tested_koios_version="$(
+  awk -F= '$1 == "SGVERSION" {print $2; exit}' "${GREST_SETUP}"
+)"
+assert_eq "${tested_koios_version}" "${TESTED_KOIOS_GREST_VERSION}" \
+  "Koios fixture contract version; review fixtures when the deployment pin changes"
 bash -n \
   "${NUMBER_LIBRARY}" "${WALLET_LIBRARY}" \
   "${MATERIAL_LIBRARY}" "${KEY_LIBRARY}" \
@@ -1145,7 +1172,7 @@ cntools_wallet_asset_add "${TEST_ASSET_ID}" 1234567890 ||
   fail "could not prepare paged native asset"
 cntools_wallet_asset_sort_ids || fail "could not sort paged native assets"
 CNTOOLS_WALLET_ASSET_COUNT="${#CNTOOLS_WALLET_ASSET_IDS[@]}"
-CNTOOLS_WALLET_ASSET_REGISTRY_NAMES["${TEST_ASSET_ID}"]="Fixture Token"
+CNTOOLS_WALLET_ASSET_METADATA_NAMES["${TEST_ASSET_ID}"]="Fixture Token"
 CNTOOLS_WALLET_ASSET_TICKERS["${TEST_ASSET_ID}"]="FIX"
 CNTOOLS_WALLET_ASSET_METADATA_DECIMALS["${TEST_ASSET_ID}"]=0
 CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES["${TEST_ASSET_ID}"]=9876543210
@@ -1171,13 +1198,13 @@ assert_contains "${formatted_details}" \
 CNTOOLS_WALLET_ASSET_METADATA_DECIMALS["${TEST_ASSET_ID}"]=0
 unset formatted_details
 printf -v oversized_metadata '%050000d' 0
-CNTOOLS_WALLET_ASSET_REGISTRY_NAMES["${TEST_ASSET_ID}"]="${oversized_metadata}"
+CNTOOLS_WALLET_ASSET_METADATA_NAMES["${TEST_ASSET_ID}"]="${oversized_metadata}"
 CNTOOLS_WALLET_ASSET_TICKERS["${TEST_ASSET_ID}"]="${oversized_metadata}"
 oversized_details="$(cntools_wallet_asset_details_rows)" ||
   fail "oversized metadata could not be rendered safely"
 (( ${#oversized_details} < 3000 )) ||
   fail "oversized metadata was not bounded before table wrapping"
-CNTOOLS_WALLET_ASSET_REGISTRY_NAMES["${TEST_ASSET_ID}"]="Fixture Token"
+CNTOOLS_WALLET_ASSET_METADATA_NAMES["${TEST_ASSET_ID}"]="Fixture Token"
 CNTOOLS_WALLET_ASSET_TICKERS["${TEST_ASSET_ID}"]="FIX"
 unset oversized_metadata oversized_details
 CNTOOLS_UI_INTERACTIVE="Y"
@@ -1986,6 +2013,26 @@ cntools_http_request() {
                  | select($requested | index($row.address)) | $row]
             ' > "${output_file}"
           ;;
+        minting-721)
+          jq -cn --argjson requested "${requested}" \
+            --arg base "${TEST_BASE_ADDRESS}" \
+            --arg payment "${TEST_PAYMENT_ADDRESS}" \
+            --arg policy "${PREVIEW_METADATA_POLICY_ID}" \
+            --arg asset "${PREVIEW_METADATA_ASSET_NAME}" \
+            --arg fingerprint "${PREVIEW_METADATA_FINGERPRINT}" '
+              [
+                {address:$base,balance:"1100000",utxo_set:[{asset_list:[]}]},
+                {address:$payment,balance:"2200000",utxo_set:[{asset_list:[
+                  {
+                    policy_id:$policy,asset_name:$asset,quantity:"5000000",
+                    fingerprint:$fingerprint
+                  }
+                ]}]}
+              ]
+              | [.[] as $row
+                 | select($requested | index($row.address)) | $row]
+            ' > "${output_file}"
+          ;;
         *)
           jq -cn --argjson requested "${requested}" \
             --arg base "${TEST_BASE_ADDRESS}" \
@@ -2070,10 +2117,12 @@ cntools_http_request() {
                 policy_id:$policy,asset_name:$asset,
                 asset_name_ascii:"token",fingerprint:$fingerprint,
                 total_supply:"9000000",
-                metadata_name:"Fixture\u202eToken\u0085",
-                metadata_ticker:"F\u2066IX",metadata_decimals:"6",
-                metadata_description:("Safe\u202d " + ("x" * 1000)),
-                metadata_url:null
+                token_registry_metadata:{
+                  name:"Fixture\u202eToken\u0085",
+                  ticker:"F\u2066IX",decimals:6,
+                  description:("Safe\u202d " + ("x" * 1000)),url:null
+                },
+                metadata_721:null,cip68_metadata:null
               }]
             ' > "${output_file}"
           ;;
@@ -2084,9 +2133,12 @@ cntools_http_request() {
               [{
                 policy_id:$policy,asset_name:$asset,
                 asset_name_ascii:"token",fingerprint:"not-a-fingerprint",
-                total_supply:"9000000",metadata_name:"Fixture Token",
-                metadata_ticker:"FIX",metadata_decimals:"999",
-                metadata_description:"Fixture metadata",metadata_url:null
+                total_supply:"9000000",
+                token_registry_metadata:{
+                  name:"Fixture Token",ticker:"FIX",decimals:999,
+                  description:"Fixture metadata",url:null
+                },
+                metadata_721:null,cip68_metadata:null
               }]
             ' > "${output_file}"
           ;;
@@ -2098,9 +2150,12 @@ cntools_http_request() {
               [{
                 policy_id:$policy,asset_name:$asset,
                 asset_name_ascii:"token",fingerprint:$fingerprint,
-                total_supply:"9000000",metadata_name:"Fixture Token",
-                metadata_ticker:"FIX",metadata_decimals:"6",
-                metadata_description:null,metadata_url:null
+                total_supply:"9000000",
+                token_registry_metadata:{
+                  name:"Fixture Token",ticker:"FIX",decimals:6,
+                  description:null,url:null
+                },
+                metadata_721:null,cip68_metadata:null
               }] | . + .
             ' > "${output_file}"
           ;;
@@ -2115,18 +2170,191 @@ cntools_http_request() {
                 {
                   policy_id:$policy,asset_name:$asset,
                   asset_name_ascii:"token",fingerprint:$fingerprint,
-                  total_supply:"9000000",metadata_name:"Fixture Token",
-                  metadata_ticker:"FIX",metadata_decimals:"6",
-                  metadata_description:null,metadata_url:null
+                  total_supply:"9000000",
+                  token_registry_metadata:{
+                    name:"Fixture Token",ticker:"FIX",decimals:6,
+                    description:null,url:null
+                  },
+                  metadata_721:null,cip68_metadata:null
                 },
                 {
                   policy_id:$extra_policy,asset_name:$extra_asset,
                   asset_name_ascii:"base",fingerprint:$fingerprint,
-                  total_supply:"1",metadata_name:null,
-                  metadata_ticker:null,metadata_decimals:null,
-                  metadata_description:null,metadata_url:null
+                  total_supply:"1",token_registry_metadata:null,
+                  metadata_721:null,cip68_metadata:null
                 }
               ]
+            ' > "${output_file}"
+          ;;
+        minting-721)
+          jq '[.[] | {
+                policy_id,asset_name,asset_name_ascii,fingerprint,total_supply,
+                token_registry_metadata,
+                metadata_721:.minting_tx_metadata["721"],
+                cip68_metadata
+              }]' \
+            "${KOIOS_MINTING_721_FIXTURE}" > "${output_file}"
+          ;;
+        minting-721-mismatch)
+          jq --arg wrong_policy "${TEST_POLICY_ID}" '[.[] | . as $row | {
+                policy_id,asset_name,asset_name_ascii,fingerprint,total_supply,
+                token_registry_metadata,
+                metadata_721:{
+                  ($wrong_policy):
+                    $row.minting_tx_metadata["721"][$row.policy_id]
+                },
+                cip68_metadata
+              }]' \
+            "${KOIOS_MINTING_721_FIXTURE}" > "${output_file}"
+          ;;
+        minting-721-sibling)
+          jq '[.[] | . as $row | {
+                policy_id,asset_name,asset_name_ascii:null,
+                fingerprint,total_supply,token_registry_metadata,
+                metadata_721:{
+                  ($row.policy_id): {
+                    "": $row.minting_tx_metadata["721"][$row.policy_id]
+                         [$row.asset_name]
+                  }
+                },
+                cip68_metadata
+              }]' \
+            "${KOIOS_MINTING_721_FIXTURE}" > "${output_file}"
+          ;;
+        cip68-preview)
+          jq '[.[] | . as $row | {
+                policy_id,asset_name,asset_name_ascii,fingerprint,total_supply,
+                token_registry_metadata:{
+                  name:"Registry lower priority",ticker:null,decimals:9,
+                  description:"Registry lower-priority description",
+                  url:"https://registry.example.test"
+                },
+                metadata_20:
+                  (if ($row.asset_name | startswith("0014df10")) then {
+                    ($row.policy_id): {($row.asset_name): {
+                      name:"Label 20 lower priority",ticker:"L20",decimals:"4",
+                      description:"Label 20 lower-priority description",
+                      website:"https://label20.example.test"
+                    }}
+                  } else null end),
+                metadata_721:
+                  (if ($row.asset_name | startswith("000de140")) then {
+                    ($row.policy_id): {($row.asset_name): {
+                      name:"CIP-25 lower priority",
+                      description:"CIP-25 lower-priority description"
+                    }}
+                  } else null end),
+                cip68_metadata
+              }]' \
+            "${KOIOS_CIP68_FIXTURE}" > "${output_file}"
+          ;;
+        ft-20-fallback)
+          jq '[.[]
+                | select(.asset_name | startswith("0014df10"))
+                | . as $row
+                | {
+                    policy_id,asset_name,asset_name_ascii,
+                    fingerprint,total_supply,
+                    token_registry_metadata:{
+                      name:"Registry FT",ticker:"REG",decimals:8,
+                      description:"Registry FT description",
+                      url:"https://registry.example.test/ft"
+                    },
+                    metadata_20:{
+                      ($row.policy_id): {($row.asset_name): {
+                        name:"Label 20 FT",ticker:"L20",decimals:"4",
+                        desc:"Label 20 description",
+                        website:"https://label20.example.test/ft"
+                      }}
+                    },
+                    metadata_721:null,cip68_metadata:null
+                  }]' \
+            "${KOIOS_CIP68_FIXTURE}" > "${output_file}"
+          ;;
+        nft-721-fallback)
+          jq '[.[]
+                | select(.asset_name | startswith("000de140"))
+                | . as $row
+                | {
+                    policy_id,asset_name,asset_name_ascii,
+                    fingerprint,total_supply,
+                    token_registry_metadata:{
+                      name:"Ignored NFT registry",ticker:"IREG",decimals:8
+                    },
+                    metadata_20:null,
+                    metadata_721:{
+                      ($row.policy_id): {($row.asset_name): {
+                        name:"CIP-25 NFT fallback",
+                        description:"Exact 721 NFT metadata"
+                      }}
+                    },
+                    cip68_metadata:null
+                  }]' \
+            "${KOIOS_CIP68_FIXTURE}" > "${output_file}"
+          ;;
+        ft-registry-fallback)
+          jq '[.[]
+                | select(.asset_name | startswith("0014df10"))
+                | {
+                    policy_id,asset_name,asset_name_ascii,
+                    fingerprint,total_supply,
+                    token_registry_metadata:{
+                      name:"Registry FT fallback",ticker:"RFT",decimals:5,
+                      description:"Registry FT metadata",
+                      url:"https://registry.example.test/ft-fallback"
+                    },
+                    metadata_20:null,metadata_721:null,cip68_metadata:null
+                  }]' \
+            "${KOIOS_CIP68_FIXTURE}" > "${output_file}"
+          ;;
+        rft-registry-fallback)
+          jq '[.[]
+                | select(.asset_name | startswith("001bc280"))
+                | {
+                    policy_id,asset_name,asset_name_ascii,
+                    fingerprint,total_supply,
+                    token_registry_metadata:{
+                      name:"Registry RFT fallback",ticker:"RRFT",decimals:7,
+                      description:"Registry RFT metadata"
+                    },
+                    metadata_20:null,metadata_721:null,cip68_metadata:null
+                  }]' \
+            "${KOIOS_CIP68_FIXTURE}" > "${output_file}"
+          ;;
+        cip68-nested)
+          jq -cn \
+            --arg policy "${CIP68_FT_POLICY_ID}" \
+            --arg asset "${CIP68_FT_ASSET_NAME}" \
+            --arg fingerprint "asset12s3agjc4tj4ewc35ztvzll9qadsp57e4d80s98" '
+              ({map:[
+                {k:{bytes:"53696c766572"},v:{map:[
+                  {k:{bytes:"6e616d65"},
+                   v:{bytes:"4e65737465642053696c766572"}},
+                  {k:{bytes:"7469636b6572"},v:{bytes:"4e5356"}},
+                  {k:{bytes:"646563696d616c73"},v:{int:2}},
+                  {k:{bytes:"6465736372697074696f6e"},
+                   v:{bytes:"4369703638207634206e6573746564206d6170"}}
+                ]}},
+                {k:{bytes:"4f74686572"},v:{map:[
+                  {k:{bytes:"6e616d65"},
+                   v:{bytes:"57726f6e67207369626c696e67"}}
+                ]}}
+              ]}) as $asset_map
+              | ({map:[{k:{bytes:$policy},v:$asset_map}]}) as $policy_map
+              | ({map:[{k:{bytes:"373231"},v:$policy_map}]}) as $top_map
+              |
+              [{
+                policy_id:$policy,asset_name:$asset,
+                asset_name_ascii:"Silver",fingerprint:$fingerprint,
+                total_supply:"100000",token_registry_metadata:null,
+                metadata_20:null,metadata_721:null,
+                cip68_metadata:{
+                  "333":{
+                    constructor:0,
+                    fields:[$top_map,{int:4}]
+                  }
+                }
+              }]
             ' > "${output_file}"
           ;;
         *)
@@ -2142,22 +2370,44 @@ cntools_http_request() {
                 fingerprint:$fingerprint,
                 total_supply:
                   (if $identity == [$policy,$asset] then "9000000" else "1" end),
-                metadata_name:
-                  (if $identity == [$policy,$asset] then "Fixture Token" else null end),
-                metadata_ticker:
-                  (if $identity == [$policy,$asset] then "FIX" else null end),
-                metadata_decimals:
-                  (if $identity == [$policy,$asset] then "6" else null end),
-                metadata_description:
-                  (if $identity == [$policy,$asset]
-                   then "Fixture token metadata" else null end),
-                metadata_url:
-                  (if $identity == [$policy,$asset]
-                   then "https://example.test/token" else null end)
+                token_registry_metadata:
+                  (if $identity == [$policy,$asset] then {
+                    name:"Fixture Token",ticker:"FIX",decimals:6,
+                    description:"Fixture token metadata",
+                    url:"https://example.test/token"
+                  } else null end),
+                metadata_721:
+                  (if $identity == [$policy,$asset] then {
+                    ($policy): {($asset): {
+                      name:"Mint fallback",ticker:"MINT",decimals:2,
+                      description:"Lower-priority mint metadata"
+                    }}
+                  } else null end),
+                cip68_metadata:null
               })
             ' > "${output_file}"
           ;;
       esac
+      jq 'map(. + {
+            metadata_name:
+              (.metadata_name // .token_registry_metadata.name? // null),
+            metadata_ticker:
+              (.metadata_ticker // .token_registry_metadata.ticker? // null),
+            metadata_decimals:
+              ((.metadata_decimals //
+                .token_registry_metadata.decimals? // null) |
+               if . == null then null else tostring end),
+            metadata_description:
+              (.metadata_description //
+               .token_registry_metadata.description? // null),
+            metadata_url:
+              (.metadata_url // .token_registry_metadata.url? // null),
+            metadata_20: (.metadata_20 // null),
+            metadata_721: (.metadata_721 // null),
+            cip68_metadata: (.cip68_metadata // null)
+          }) | map(del(.token_registry_metadata))' \
+        "${output_file}" > "${output_file}.normalized" || return 1
+      mv -f -- "${output_file}.normalized" "${output_file}" || return 1
       ;;
     *) return 22 ;;
   esac
@@ -2226,8 +2476,8 @@ assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_ASSET_ID}]}" "5" \
   "Koios native asset quantity"
 assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "available" \
   "Koios asset metadata status"
-assert_eq "${CNTOOLS_WALLET_ASSET_REGISTRY_NAMES[${TEST_ASSET_ID}]}" \
-  "Fixture Token" "Koios registry name"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${TEST_ASSET_ID}]}" \
+  "Fixture Token" "Koios metadata name"
 assert_eq "${CNTOOLS_WALLET_ASSET_TICKERS[${TEST_ASSET_ID}]}" "FIX" \
   "Koios registry ticker"
 assert_eq "${CNTOOLS_WALLET_ASSET_DECIMALS[${TEST_ASSET_ID}]}" "6" \
@@ -2274,7 +2524,7 @@ fi
 
 : > "${UI_TRACE}"
 cntools_wallet_render_query
-grep -F $'DATA_ROW\t01 · Fixture Token\tAmount\t0.000005 FIX' \
+grep -F $'DATA_ROW\t01 · FIX\tAmount\t0.000005 FIX' \
   "${UI_TRACE}" >/dev/null ||
   fail "Koios native-assets table omitted the token holding"
 grep -F $'DATA_ROW\t\tFingerprint\t'"${TEST_ASSET_FINGERPRINT}" \
@@ -2289,6 +2539,341 @@ grep -F $'DATA_ROW\t\tDescription\tFixture token metadata' \
 cntools_wallet_query_cleanup
 [[ -z "$(find "${CNTOOLS_TMP_DIR}" -type f -print)" ]] ||
   fail "Koios query left credential or response temporary files"
+
+# Local mode remains authoritative for wallet state while Koios enriches only
+# native-asset metadata. A Koios failure must never invalidate local holdings.
+reset_query_traces
+: > "${LOG_TRACE}"
+CNTOOLS_MODE="local"
+CNTOOLS_BACKEND="cnode"
+CNTOOLS_IMPLEMENTATION="cnode"
+CNTOOLS_IMPLEMENTATION_NAME="Cardano Node"
+CNTOOLS_LOCAL_CLI_CAPABLE="true"
+FAKE_SOCKET_READY="Y"
+FAKE_CLI_SCENARIO="full"
+export FAKE_CLI_SCENARIO
+KOIOS_SCENARIO="full"
+KOIOS_METADATA_SCENARIO="full"
+cntools_wallet_query_details \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
+assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "available" \
+  "local query with Koios metadata status"
+assert_eq "${CNTOOLS_WALLET_QUERY_MESSAGE}" "Live data from Cardano Node." \
+  "local holdings source after Koios enrichment"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "available" \
+  "local-mode Koios metadata status"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${TEST_ASSET_ID}]}" \
+  "Fixture Token" "local-mode Koios metadata name"
+assert_eq "$(grep -c '/asset_info' "${HTTP_TRACE}")" "1" \
+  "local-mode Koios metadata request count"
+[[ "$(grep -c '/address_info\|/account_info' "${HTTP_TRACE}" || true)" == "0" ]] ||
+  fail "local mode used Koios for wallet state instead of metadata only"
+grep -F 'requesting metadata from Koios API' "${LOG_TRACE}" >/dev/null ||
+  fail "local-mode Koios enrichment was not logged"
+: > "${UI_TRACE}"
+cntools_wallet_render_query || fail "local enriched query could not be rendered"
+grep -F $'STATUS\tsuccess\tLive data from Cardano Node.' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "local wallet-state source was not identified"
+grep -F $'STATUS\tinfo\tToken metadata from Koios API.' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "local token-metadata source was not identified"
+cntools_wallet_query_cleanup
+
+reset_query_traces
+KOIOS_METADATA_SCENARIO="fail"
+cntools_wallet_query_details \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
+assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "available" \
+  "Koios metadata failure changed local wallet status"
+assert_eq "${CNTOOLS_WALLET_TOTAL_LOVELACE}" "3500000" \
+  "Koios metadata failure erased local balance"
+assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_ASSET_ID}]}" "6" \
+  "Koios metadata failure erased local native assets"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "unavailable" \
+  "local-mode failed Koios metadata status"
+: > "${UI_TRACE}"
+cntools_wallet_render_query ||
+  fail "local query with unavailable Koios metadata could not be rendered"
+grep -F $'STATUS\twarn\tKoios token metadata is unavailable; holdings remain complete.' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "local Koios metadata failure was not explained"
+cntools_wallet_query_cleanup
+
+# An explicit Koios disable setting must prevent all optional metadata traffic
+# without changing the locally sourced wallet state.
+reset_query_traces
+CNTOOLS_KOIOS_ENABLED="N"
+KOIOS_METADATA_SCENARIO="full"
+cntools_wallet_query_details \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
+assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "available" \
+  "disabled Koios changed local wallet status"
+assert_eq "${CNTOOLS_WALLET_TOTAL_LOVELACE}" "3500000" \
+  "disabled Koios changed local wallet balance"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "not-requested" \
+  "disabled Koios metadata status"
+assert_eq "$(line_count "${HTTP_TRACE}")" "0" \
+  "disabled Koios made a metadata request"
+cntools_wallet_query_cleanup
+CNTOOLS_KOIOS_ENABLED="Y"
+
+# Koios enrichment must not replace a deterministic fingerprint already held
+# by the local query layer, even if the API returns another valid fingerprint.
+reset_query_traces
+: > "${LOG_TRACE}"
+cntools_wallet_query_reset
+cntools_wallet_asset_add \
+  "${TEST_ASSET_ID}" 6 "${TEST_LOCAL_ASSET_FINGERPRINT}" ||
+  fail "could not prepare authoritative local fingerprint"
+cntools_wallet_asset_sort_ids ||
+  fail "could not sort authoritative local fingerprint fixture"
+CNTOOLS_WALLET_ASSET_COUNT=1
+KOIOS_METADATA_SCENARIO="full"
+cntools_wallet_query_koios_asset_metadata ||
+  fail "valid metadata with a mismatched fingerprint was rejected"
+assert_eq "${CNTOOLS_WALLET_ASSET_FINGERPRINTS[${TEST_ASSET_ID}]}" \
+  "${TEST_LOCAL_ASSET_FINGERPRINT}" \
+  "Koios replaced the authoritative local fingerprint"
+grep -F 'Ignoring mismatched Koios fingerprint' "${LOG_TRACE}" >/dev/null ||
+  fail "mismatched Koios fingerprint was not logged"
+cntools_wallet_query_cleanup
+KOIOS_METADATA_SCENARIO="full"
+CNTOOLS_MODE="light"
+CNTOOLS_BACKEND="koios"
+
+# This captured Preview response has no Token Registry entry. Its useful
+# fungible-token fields live under the exact CIP-25 721 policy/asset path, and
+# its Koios ASCII representation contains binary octal/control fragments.
+reset_query_traces
+KOIOS_SCENARIO="minting-721"
+KOIOS_METADATA_SCENARIO="minting-721"
+cntools_wallet_query \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" ""
+assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "available" \
+  "Koios 721 fallback query status"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "available" \
+  "Koios 721 fallback metadata status"
+assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${PREVIEW_METADATA_ASSET_ID}]}" \
+  "5000000" "Koios 721 asset quantity"
+assert_eq "${CNTOOLS_WALLET_ASSET_FINGERPRINTS[${PREVIEW_METADATA_ASSET_ID}]}" \
+  "${PREVIEW_METADATA_FINGERPRINT}" "Koios 721 asset fingerprint"
+assert_eq "${CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES[${PREVIEW_METADATA_ASSET_ID}]}" \
+  "5000000" "Koios 721 total supply"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${PREVIEW_METADATA_ASSET_ID}]}" \
+  "Governance ADA - deadbeef000000000000000000000000000000000000..." \
+  "Koios 721 metadata name"
+assert_eq "${CNTOOLS_WALLET_ASSET_TICKERS[${PREVIEW_METADATA_ASSET_ID}]}" \
+  "gADA" "Koios 721 ticker"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${PREVIEW_METADATA_ASSET_ID}]}" \
+  "6" "Koios 721 numeric decimals"
+assert_empty "${CNTOOLS_WALLET_ASSET_ASCII_NAMES[${PREVIEW_METADATA_ASSET_ID}]:-}" \
+  "binary Koios ASCII name was accepted as display text"
+assert_eq "$(cntools_wallet_asset_label "${PREVIEW_METADATA_ASSET_ID}" 1)" \
+  "gADA" "ticker-first native-asset label"
+grep -F 'metadata_721%3Aminting_tx_metadata-%3E%22721%22' \
+  "${HTTP_TRACE}" >/dev/null ||
+  fail "Koios asset_info did not project the quoted 721 metadata key"
+: > "${UI_TRACE}"
+cntools_wallet_render_query
+grep -F $'DATA_ROW\t01 · gADA\tAmount\t5.000000 gADA' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Koios 721 amount was not scaled and labelled from metadata"
+grep -F $'DATA_ROW\t\tMetadata name\tGovernance ADA - deadbeef' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Koios 721 metadata name was not rendered"
+grep -F $'DATA_ROW\t\tTicker\tgADA' "${UI_TRACE}" >/dev/null ||
+  fail "Koios 721 ticker was not rendered"
+grep -F $'DATA_ROW\t\tDecimals\t6' "${UI_TRACE}" >/dev/null ||
+  fail "Koios 721 decimals were not rendered"
+if grep -F '\251\324' "${UI_TRACE}" >/dev/null; then
+  fail "binary Koios ASCII escape fragments reached the rendered label"
+fi
+cntools_wallet_query_cleanup
+
+reset_query_traces
+KOIOS_METADATA_SCENARIO="minting-721-mismatch"
+cntools_wallet_query \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" ""
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "available" \
+  "mismatched Koios 721 metadata response status"
+assert_empty "${CNTOOLS_WALLET_ASSET_TICKERS[${PREVIEW_METADATA_ASSET_ID}]:-}" \
+  "metadata from a different policy leaked into the held asset"
+assert_empty "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${PREVIEW_METADATA_ASSET_ID}]:-}" \
+  "metadata name from a different policy leaked into the held asset"
+assert_eq "$(cntools_wallet_asset_label "${PREVIEW_METADATA_ASSET_ID}" 1)" \
+  "Asset 01" "binary asset fallback label"
+cntools_wallet_query_cleanup
+
+reset_query_traces
+KOIOS_METADATA_SCENARIO="minting-721-sibling"
+cntools_wallet_query \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" ""
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "available" \
+  "same-policy sibling 721 metadata response status"
+assert_empty "${CNTOOLS_WALLET_ASSET_TICKERS[${PREVIEW_METADATA_ASSET_ID}]:-}" \
+  "same-policy sibling ticker leaked into the held asset"
+assert_empty "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${PREVIEW_METADATA_ASSET_ID}]:-}" \
+  "same-policy sibling name leaked into the held asset"
+cntools_wallet_query_cleanup
+
+# These are captured Preview assets using each of CIP-68's user-token labels.
+# The mock adds conflicting lower-priority sources so this verifies both the
+# pinned Koios Plutus datum shape and the type-aware source order.
+reset_query_traces
+cntools_wallet_query_reset
+cntools_wallet_asset_add "${CIP68_NFT_ASSET_ID}" 1 ||
+  fail "could not prepare Preview CIP-68 NFT"
+cntools_wallet_asset_add "${CIP68_FT_ASSET_ID}" 12345 ||
+  fail "could not prepare Preview CIP-68 FT"
+cntools_wallet_asset_add "${CIP68_RFT_ASSET_ID}" 1020020202000000 ||
+  fail "could not prepare Preview CIP-68 RFT"
+cntools_wallet_asset_sort_ids || fail "could not sort Preview CIP-68 assets"
+CNTOOLS_WALLET_ASSET_COUNT="${#CNTOOLS_WALLET_ASSET_IDS[@]}"
+KOIOS_METADATA_SCENARIO="cip68-preview"
+cntools_wallet_query_koios_asset_metadata ||
+  fail "captured Preview CIP-68 metadata was rejected"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "available" \
+  "Preview CIP-68 metadata status"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${CIP68_NFT_ASSET_ID}]}" \
+  "Creator of ASCA #1758196641690" "CIP-68 222 name"
+assert_eq "${CNTOOLS_WALLET_ASSET_DESCRIPTIONS[${CIP68_NFT_ASSET_ID}]}" \
+  "Optional group description." "CIP-68 222 description"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${CIP68_FT_ASSET_ID}]}" \
+  "Silver" "CIP-68 333 name"
+assert_eq "${CNTOOLS_WALLET_ASSET_TICKERS[${CIP68_FT_ASSET_ID}]}" \
+  "SVR" "CIP-68 333 ticker"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${CIP68_FT_ASSET_ID}]}" \
+  "3" "CIP-68 333 decimals"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${CIP68_RFT_ASSET_ID}]}" \
+  "Gold Bars" "CIP-68 444 name"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${CIP68_RFT_ASSET_ID}]}" \
+  "6" "CIP-68 444 decimals"
+assert_eq "$(cntools_wallet_asset_label "${CIP68_FT_ASSET_ID}" 2)" \
+  "SVR" "CIP-68 ticker-first label"
+grep -F 'metadata_20%3Aminting_tx_metadata-%3E%2220%22' \
+  "${HTTP_TRACE}" >/dev/null ||
+  fail "Koios asset_info did not project the quoted label-20 metadata key"
+: > "${UI_TRACE}"
+cntools_wallet_render_asset_details_table ||
+  fail "Preview CIP-68 metadata table could not be rendered"
+grep -F $'STATUS\tinfo\tToken metadata from Koios API.' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Koios was not identified as the token-metadata source"
+grep -F $'DATA_ROW\t02 · SVR\tAmount\t12.345 SVR' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "CIP-68 FT amount did not use decoded metadata"
+if grep -F 'lower priority' "${UI_TRACE}" >/dev/null; then
+  fail "lower-priority metadata replaced a Preview CIP-68 value"
+fi
+cntools_wallet_query_cleanup
+
+# Without CIP-68 data, a 333 FT uses transaction metadata label 20 before
+# falling back to the Token Registry.
+reset_query_traces
+cntools_wallet_query_reset
+cntools_wallet_asset_add "${CIP68_FT_ASSET_ID}" 123456 ||
+  fail "could not prepare label-20 fallback FT"
+cntools_wallet_asset_sort_ids || fail "could not sort label-20 fallback FT"
+CNTOOLS_WALLET_ASSET_COUNT=1
+KOIOS_METADATA_SCENARIO="ft-20-fallback"
+cntools_wallet_query_koios_asset_metadata ||
+  fail "valid label-20 FT metadata was rejected"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${CIP68_FT_ASSET_ID}]}" \
+  "Label 20 FT" "label-20 FT name priority"
+assert_eq "${CNTOOLS_WALLET_ASSET_TICKERS[${CIP68_FT_ASSET_ID}]}" \
+  "L20" "label-20 FT ticker priority"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${CIP68_FT_ASSET_ID}]}" \
+  "4" "label-20 FT decimals priority"
+assert_eq "${CNTOOLS_WALLET_ASSET_DESCRIPTIONS[${CIP68_FT_ASSET_ID}]}" \
+  "Label 20 description" "label-20 desc alias"
+assert_eq "${CNTOOLS_WALLET_ASSET_URLS[${CIP68_FT_ASSET_ID}]}" \
+  "https://label20.example.test/ft" "label-20 website alias"
+cntools_wallet_query_cleanup
+
+# A CIP-68 NFT without reference-token metadata falls back to the exact
+# CIP-25 policy/asset entry. Token Registry data is not valid for this type.
+reset_query_traces
+cntools_wallet_query_reset
+cntools_wallet_asset_add "${CIP68_NFT_ASSET_ID}" 1 ||
+  fail "could not prepare CIP-25 NFT fallback"
+cntools_wallet_asset_sort_ids || fail "could not sort CIP-25 NFT fallback"
+CNTOOLS_WALLET_ASSET_COUNT=1
+KOIOS_METADATA_SCENARIO="nft-721-fallback"
+cntools_wallet_query_koios_asset_metadata ||
+  fail "valid CIP-25 NFT fallback metadata was rejected"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${CIP68_NFT_ASSET_ID}]}" \
+  "CIP-25 NFT fallback" "CIP-68 NFT CIP-25 fallback name"
+assert_eq "${CNTOOLS_WALLET_ASSET_DESCRIPTIONS[${CIP68_NFT_ASSET_ID}]}" \
+  "Exact 721 NFT metadata" "CIP-68 NFT CIP-25 fallback description"
+assert_empty "${CNTOOLS_WALLET_ASSET_TICKERS[${CIP68_NFT_ASSET_ID}]:-}" \
+  "CIP-68 NFT incorrectly used Token Registry metadata"
+cntools_wallet_query_cleanup
+
+# Fungible and reference fungible tokens fall back to Token Registry data
+# after their type-specific higher-priority sources are absent.
+reset_query_traces
+cntools_wallet_query_reset
+cntools_wallet_asset_add "${CIP68_FT_ASSET_ID}" 123456 ||
+  fail "could not prepare FT registry fallback"
+cntools_wallet_asset_sort_ids || fail "could not sort FT registry fallback"
+CNTOOLS_WALLET_ASSET_COUNT=1
+KOIOS_METADATA_SCENARIO="ft-registry-fallback"
+cntools_wallet_query_koios_asset_metadata ||
+  fail "valid FT Token Registry fallback metadata was rejected"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${CIP68_FT_ASSET_ID}]}" \
+  "Registry FT fallback" "CIP-68 FT Token Registry fallback name"
+assert_eq "${CNTOOLS_WALLET_ASSET_TICKERS[${CIP68_FT_ASSET_ID}]}" \
+  "RFT" "CIP-68 FT Token Registry fallback ticker"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${CIP68_FT_ASSET_ID}]}" \
+  "5" "CIP-68 FT Token Registry fallback decimals"
+assert_eq "${CNTOOLS_WALLET_ASSET_URLS[${CIP68_FT_ASSET_ID}]}" \
+  "https://registry.example.test/ft-fallback" \
+  "CIP-68 FT Token Registry fallback URL"
+cntools_wallet_query_cleanup
+
+reset_query_traces
+cntools_wallet_query_reset
+cntools_wallet_asset_add "${CIP68_RFT_ASSET_ID}" 1020020202000000 ||
+  fail "could not prepare RFT registry fallback"
+cntools_wallet_asset_sort_ids || fail "could not sort RFT registry fallback"
+CNTOOLS_WALLET_ASSET_COUNT=1
+KOIOS_METADATA_SCENARIO="rft-registry-fallback"
+cntools_wallet_query_koios_asset_metadata ||
+  fail "valid RFT Token Registry fallback metadata was rejected"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${CIP68_RFT_ASSET_ID}]}" \
+  "Registry RFT fallback" "CIP-68 RFT Token Registry fallback name"
+assert_eq "${CNTOOLS_WALLET_ASSET_TICKERS[${CIP68_RFT_ASSET_ID}]}" \
+  "RRFT" "CIP-68 RFT Token Registry fallback ticker"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${CIP68_RFT_ASSET_ID}]}" \
+  "7" "CIP-68 RFT Token Registry fallback decimals"
+cntools_wallet_query_cleanup
+
+# CIP-68 version 4 may nest metadata below a 721 map, policy ID, and the
+# label-stripped asset name. Exact matching must ignore a sibling asset entry.
+reset_query_traces
+cntools_wallet_query_reset
+cntools_wallet_asset_add "${CIP68_FT_ASSET_ID}" 12345 ||
+  fail "could not prepare nested CIP-68 FT"
+cntools_wallet_asset_sort_ids || fail "could not sort nested CIP-68 FT"
+CNTOOLS_WALLET_ASSET_COUNT=1
+KOIOS_METADATA_SCENARIO="cip68-nested"
+cntools_wallet_query_koios_asset_metadata ||
+  fail "valid nested CIP-68 metadata was rejected"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${CIP68_FT_ASSET_ID}]}" \
+  "Nested Silver" "nested CIP-68 exact asset name"
+assert_eq "${CNTOOLS_WALLET_ASSET_TICKERS[${CIP68_FT_ASSET_ID}]}" \
+  "NSV" "nested CIP-68 ticker"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${CIP68_FT_ASSET_ID}]}" \
+  "2" "nested CIP-68 decimals"
+assert_eq "${CNTOOLS_WALLET_ASSET_DESCRIPTIONS[${CIP68_FT_ASSET_ID}]}" \
+  "Cip68 v4 nested map" "nested CIP-68 description"
+[[ "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${CIP68_FT_ASSET_ID}]}" != \
+   "Wrong sibling" ]] ||
+  fail "nested CIP-68 sibling metadata replaced the exact asset"
+cntools_wallet_query_cleanup
+KOIOS_SCENARIO="full"
+KOIOS_METADATA_SCENARIO="full"
 
 # Metadata lookup must stay bulk and split only at the shared public Koios
 # payload ceiling. This also proves that every held identity survives batching.
@@ -2339,8 +2924,8 @@ for metadata_scenario in fail missing duplicate extra malformed; do
     "${metadata_scenario} metadata erased the native asset quantity"
   assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "unavailable" \
     "${metadata_scenario} metadata status"
-  assert_empty "${CNTOOLS_WALLET_ASSET_REGISTRY_NAMES[${TEST_ASSET_ID}]:-}" \
-    "${metadata_scenario} metadata committed an invalid registry name"
+  assert_empty "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${TEST_ASSET_ID}]:-}" \
+    "${metadata_scenario} metadata committed an invalid name"
   assert_eq "$(line_count "${HTTP_TRACE}")" "2" \
     "${metadata_scenario} metadata request count"
 done
@@ -2362,17 +2947,17 @@ cntools_wallet_query \
   "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" ""
 assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_STATUS}" "available" \
   "sanitized Koios metadata status"
-assert_eq "${CNTOOLS_WALLET_ASSET_REGISTRY_NAMES[${TEST_ASSET_ID}]}" \
-  "Fixture Token " "Koios metadata bidi and C1 sanitization"
+assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${TEST_ASSET_ID}]}" \
+  "Fixture Token" "Koios metadata bidi and C1 sanitization"
 assert_eq "${CNTOOLS_WALLET_ASSET_TICKERS[${TEST_ASSET_ID}]}" \
   "F IX" "Koios metadata isolate sanitization"
 assert_eq "${#CNTOOLS_WALLET_ASSET_DESCRIPTIONS[${TEST_ASSET_ID}]}" \
   "160" "Koios metadata description bound"
 [[ "${CNTOOLS_WALLET_ASSET_DESCRIPTIONS[${TEST_ASSET_ID}]}" == *… ]] ||
   fail "truncated Koios metadata description omitted its ellipsis"
-hostile_registry_name="${CNTOOLS_WALLET_ASSET_REGISTRY_NAMES[${TEST_ASSET_ID}]}"
-if [[ "${hostile_registry_name}" == *$'\u202e'* ||
-      "${hostile_registry_name}" == *$'\u0085'* ]]; then
+hostile_metadata_name="${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${TEST_ASSET_ID}]}"
+if [[ "${hostile_metadata_name}" == *$'\u202e'* ||
+      "${hostile_metadata_name}" == *$'\u0085'* ]]; then
   fail "hostile Koios metadata retained terminal control characters"
 fi
 KOIOS_METADATA_SCENARIO="full"

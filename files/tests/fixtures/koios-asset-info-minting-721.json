@@ -1,0 +1,33 @@
+[
+  {
+    "policy_id": "87264e48adc75c4472c4e52e80acd36051ca153f42ee339fb04f5a28",
+    "asset_name": "a9d40b421f0d831dd192484eb0281886540fbd383af4d8b70c26c92ef5bd07af",
+    "asset_name_ascii": "\\251\\324\u000bB\u001f\r\\203\u001d\\321\\222HN\\260(\u0018\\206T\u000f\\2758:\\364\\330\\267\f&\\311.\\365\\275\u0007\\257",
+    "fingerprint": "asset1724xnhvs4y8v7rymfwtjgwxxtrkg08fn0vm2ug",
+    "total_supply": "5000000",
+    "minting_tx_metadata": {
+      "721": {
+        "87264e48adc75c4472c4e52e80acd36051ca153f42ee339fb04f5a28": {
+          "a9d40b421f0d831dd192484eb0281886540fbd383af4d8b70c26c92ef5bd07af": {
+            "name": "Governance ADA - deadbeef000000000000000000000000000000000000...",
+            "image": [
+              "data:image/svg+xml;base64,",
+              "ignored-by-cntools"
+            ],
+            "ticker": "gADA",
+            "decimals": 6,
+            "lovelace": 5000000,
+            "description": "gADA: 5 ADA for deadbeef000000000000000000000000000000000000...",
+            "proposal_url": [
+              "https://cosponsor.app/proposal/deadbeef0000000000000000000",
+              "00000000000000000000000000063f7"
+            ],
+            "governance_action": "NicePoll"
+          }
+        }
+      }
+    },
+    "token_registry_metadata": null,
+    "cip68_metadata": null
+  }
+]

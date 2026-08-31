@@ -1,0 +1,283 @@
+[
+  {
+    "policy_id": "001d9b0e2de84d871f8398a3bc3fcd9fdb478d77737d544c3dd59731",
+    "asset_name": "000de140",
+    "asset_name_ascii": "",
+    "fingerprint": "asset1ls6wffc0mwluvlzxe578z3v28pm7t2x5z9nws5",
+    "total_supply": "1",
+    "token_registry_metadata": null,
+    "minting_tx_metadata": {
+      "674": {
+        "msg": [
+          "Init ASCA #1758196641690"
+        ]
+      },
+      "721": {
+        "694b3a691aa6943fe556ee57890abf179627693b39aedf3a5cdc8650": {
+          "be77dc2fbc119341e8f3330ad0665faca9619f5d16b33e6611304a2e3744cd44": {
+            "v": "1",
+            "name": "ASCA #1758196641690",
+            "image": "ipfs://QmdwYTn5m1Gu8XjctiHFLivihBKvsHrvS3uKrgVJW6U7Q8",
+            "entryFee": "10000000",
+            "group_type": "ASCA",
+            "lockPeriod": "7",
+            "description": "Optional group description.",
+            "daysPerRound": "1",
+            "maxNumberOfParticipants": "4",
+            "contributionAmountPerRound": "100000000",
+            "memberMayLeaveIfNotStartedAfter": "0"
+          }
+        }
+      }
+    },
+    "cip68_metadata": {
+      "222": {
+        "fields": [
+          {
+            "map": [
+              {
+                "k": {
+                  "bytes": "6465736372697074696f6e"
+                },
+                "v": {
+                  "bytes": "4f7074696f6e616c2067726f7570206465736372697074696f6e2e"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "67726f75705f6964"
+                },
+                "v": {
+                  "bytes": "3639346233613639316161363934336665353536656535373839306162663137393632373639336233396165646633613563646338363530"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "67726f75705f6e616d65"
+                },
+                "v": {
+                  "bytes": "41534341202331373538313936363431363930"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "67726f75705f74797065"
+                },
+                "v": {
+                  "bytes": "41534341"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "696d616765"
+                },
+                "v": {
+                  "bytes": "697066733a2f2f516d647759546e356d31477538586a63746948464c69766968424b76734872765333754b7267564a573655375138"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "6e616d65"
+                },
+                "v": {
+                  "bytes": "43726561746f72206f662041534341202331373538313936363431363930"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "737461747573"
+                },
+                "v": {
+                  "bytes": "416374697665"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "76"
+                },
+                "v": {
+                  "bytes": "31"
+                }
+              }
+            ]
+          },
+          {
+            "int": 1
+          },
+          {
+            "list": []
+          }
+        ],
+        "constructor": 0
+      }
+    }
+  },
+  {
+    "policy_id": "00669b9908fad2e664ffa99710eabaf6708eb44e2d405488dcaae19e",
+    "asset_name": "0014df1053696c766572",
+    "asset_name_ascii": "Silver",
+    "fingerprint": "asset12s3agjc4tj4ewc35ztvzll9qadsp57e4d80s98",
+    "total_supply": "100000",
+    "token_registry_metadata": null,
+    "minting_tx_metadata": null,
+    "cip68_metadata": {
+      "333": {
+        "fields": [
+          {
+            "map": [
+              {
+                "k": {
+                  "bytes": "6e616d65"
+                },
+                "v": {
+                  "bytes": "53696c766572"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "696d616765"
+                },
+                "v": {
+                  "bytes": "68747470733a2f2f726f626f686173682e6f72672f302e343735333838383734303836333336382e706e67"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "6465736372697074696f6e"
+                },
+                "v": {
+                  "bytes": "73696d696c617220746f20676f6c6420627574206c6573732076616c7561626c65"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "6164646974696f6e616c44617461"
+                },
+                "v": {
+                  "map": [
+                    {
+                      "k": {
+                        "bytes": "64617465"
+                      },
+                      "v": {
+                        "bytes": "372f32352f32303234"
+                      }
+                    },
+                    {
+                      "k": {
+                        "bytes": "74696d65"
+                      },
+                      "v": {
+                        "bytes": "31323a33313a323320504d"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "k": {
+                  "bytes": "646563696d616c73"
+                },
+                "v": {
+                  "int": 3
+                }
+              },
+              {
+                "k": {
+                  "bytes": "7469636b6572"
+                },
+                "v": {
+                  "bytes": "535652"
+                }
+              }
+            ]
+          },
+          {
+            "int": 2
+          }
+        ],
+        "constructor": 0
+      }
+    }
+  },
+  {
+    "policy_id": "01475b574bdaad45e12e3bc619631bc55552ef79d60e33fd0a7fcd1a",
+    "asset_name": "001bc280476f6c642042617273",
+    "asset_name_ascii": "Gold Bars",
+    "fingerprint": "asset1r9zfwnrsm045uezn8wl7245qh9kr59kdtz6xmg",
+    "total_supply": "1020020202000000",
+    "token_registry_metadata": null,
+    "minting_tx_metadata": null,
+    "cip68_metadata": {
+      "444": {
+        "fields": [
+          {
+            "map": [
+              {
+                "k": {
+                  "bytes": "6e616d65"
+                },
+                "v": {
+                  "bytes": "476f6c642042617273"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "696d616765"
+                },
+                "v": {
+                  "bytes": "68747470733a2f2f75706c6f61642e77696b696d656469612e6f72672f77696b6970656469612f636f6d6d6f6e732f7468756d622f642f64372f476f6c642d6372797374616c732e6a70672f3132383070782d476f6c642d6372797374616c732e6a7067"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "6465736372697074696f6e"
+                },
+                "v": {
+                  "bytes": "417520626162792c204175"
+                }
+              },
+              {
+                "k": {
+                  "bytes": "6164646974696f6e616c44617461"
+                },
+                "v": {
+                  "map": [
+                    {
+                      "k": {
+                        "bytes": "64617465"
+                      },
+                      "v": {
+                        "bytes": "382f32382f32303234"
+                      }
+                    },
+                    {
+                      "k": {
+                        "bytes": "74696d65"
+                      },
+                      "v": {
+                        "bytes": "313a30363a313520504d"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "k": {
+                  "bytes": "646563696d616c73"
+                },
+                "v": {
+                  "int": 6
+                }
+              }
+            ]
+          },
+          {
+            "int": 2
+          }
+        ],
+        "constructor": 0
+      }
+    }
+  }
+]

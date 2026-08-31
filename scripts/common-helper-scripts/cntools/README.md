@@ -104,7 +104,7 @@ Mode and node implementation are separate values:
 
 | Mode | Blockchain backend | Network access |
 | --- | --- | --- |
-| `local` | The deployed cnode, Dingo, or Amaru implementation | Local implementation interfaces only |
+| `local` | The deployed cnode, Dingo, or Amaru implementation | Local implementation interfaces; optional Koios metadata enrichment |
 | `light` | Koios | Koios query and submission endpoints |
 | `offline` | None | Prohibited |
 
@@ -577,12 +577,21 @@ balances, stake-pool delegation, DRep delegation, and exact native-asset
 quantities as Gum tables. Stake registration is part of wallet identity, while
 a mnemonic wallet also shows its validated `derivation.path`. One native-asset
 detail table contains raw quantity, policy ID, asset-name hex, and the
-deterministic CIP-14 fingerprint. Light mode enriches the same table through
-Koios `asset_info` bulk requests bounded to 1 KiB publicly or 5 KiB with an API
-token, with request pacing below the documented rate ceiling. Compact Token
-Registry metadata excludes large logo and minting-metadata objects. Metadata
-failure does not hide validated on-chain holdings, and oversized details use
-one Gum pager.
+deterministic CIP-14 fingerprint. Both local and light Wallet Show sessions
+enrich that table through Koios `asset_info` bulk requests bounded to 1 KiB
+publicly or 5 KiB with an API token, with request pacing below the documented
+rate ceiling. Local enrichment runs only when `ENABLE_KOIOS=Y`. Local holdings
+remain sourced from the deployed Cardano CLI; Koios is identified separately
+as the metadata source and enrichment failure does not invalidate local
+results.
+
+Metadata precedence is applied per display field. CIP-68 `222` NFTs resolve
+CIP-68 before exact CIP-25 label `721`; `333` FTs resolve CIP-68, transaction
+metadata label `20`, then Token Registry; and `444` RFTs resolve CIP-68 then
+Token Registry. Legacy unlabelled assets retain label `20`, Token Registry, and
+exact label `721` fallbacks. Registry fields are projected individually;
+Koios' mint and CIP-68 branches are decoded defensively, and only bounded text
+fields are retained for display. Oversized details use one Gum pager.
 
 All numeric Wallet values use lossless US display formatting with comma
 thousands separators and a period decimal separator. The shared number library
