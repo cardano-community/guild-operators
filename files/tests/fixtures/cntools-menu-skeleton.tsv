@@ -67,3 +67,4 @@ advanced/multisig	menu	s	30	-	-	MultiSig
 advanced/multisig/create	action	c	10	local,light,offline	-	Create
 advanced/multisig/derive-keys	action	d	20	local,light,offline	-	Derive Keys
 advanced/delete-private-keys	action	x	40	local,light,offline	-	Delete Private Keys
+advanced/theme	action	t	50	local,light,offline	-	Theme

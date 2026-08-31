@@ -30,9 +30,11 @@ for source_file in \
   "${CNTOOLS_SOURCE}/core/log.sh" \
   "${CNTOOLS_SOURCE}/core/gum.sh" \
   "${CNTOOLS_SOURCE}/core/health.sh" \
+  "${CNTOOLS_SOURCE}/core/theme.sh" \
   "${CNTOOLS_SOURCE}/core/menu.sh" \
   "${CNTOOLS_SOURCE}/core/action.sh" \
-  "${CNTOOLS_SOURCE}/core/update.sh"; do
+  "${CNTOOLS_SOURCE}/core/update.sh" \
+  "${CNTOOLS_SOURCE}/lib/number.sh"; do
   [[ -f "${source_file}" && ! -L "${source_file}" ]] ||
     fail "missing or unsafe Phase 3 source: ${source_file}"
   bash -n "${source_file}" ||
@@ -691,7 +693,7 @@ run_session_matrix_tests() {
         fail "${implementation} ${mode} did not normalize a UTF-8 locale"
       assert_trace_value posix "N"
       grep -F \
-        "start ui=gum mode=${mode} backend=${expected_backend} implementation=${implementation}" \
+        "start ui=gum theme=default mode=${mode} backend=${expected_backend} implementation=${implementation}" \
         "${NODE_ROOT}/runtime/logs/cntools.log" >/dev/null ||
         fail "${implementation} ${mode} session start was not logged"
     done

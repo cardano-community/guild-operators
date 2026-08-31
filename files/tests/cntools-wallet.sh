@@ -11,6 +11,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
+NUMBER_LIBRARY="${CNTOOLS_ROOT}/lib/number.sh"
 WALLET_LIBRARY="${CNTOOLS_ROOT}/lib/wallet.sh"
 MATERIAL_LIBRARY="${CNTOOLS_ROOT}/lib/wallet-material.sh"
 KEY_LIBRARY="${CNTOOLS_ROOT}/lib/wallet-key.sh"
@@ -129,14 +130,16 @@ for required_command in \
 done
 
 for required_file in \
-  "${WALLET_LIBRARY}" "${MATERIAL_LIBRARY}" "${KEY_LIBRARY}" \
+  "${NUMBER_LIBRARY}" "${WALLET_LIBRARY}" \
+  "${MATERIAL_LIBRARY}" "${KEY_LIBRARY}" \
   "${ADDRESS_LIBRARY}" "${ID_LIBRARY}" "${QUERY_LIBRARY}" \
   "${STARTUP_LIBRARY}"; do
   [[ -f "${required_file}" && ! -L "${required_file}" ]] ||
     fail "required CNTools source is missing or unsafe: ${required_file}"
 done
 bash -n \
-  "${WALLET_LIBRARY}" "${MATERIAL_LIBRARY}" "${KEY_LIBRARY}" \
+  "${NUMBER_LIBRARY}" "${WALLET_LIBRARY}" \
+  "${MATERIAL_LIBRARY}" "${KEY_LIBRARY}" \
   "${ADDRESS_LIBRARY}" "${ID_LIBRARY}" "${QUERY_LIBRARY}" ||
   fail "wallet libraries have invalid Bash syntax"
 
@@ -154,6 +157,8 @@ fi
 . "${CNTOOLS_ROOT}/core/menu.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/action.sh"
+# shellcheck source=/dev/null
+. "${NUMBER_LIBRARY}"
 # shellcheck source=/dev/null
 . "${WALLET_LIBRARY}"
 # shellcheck source=/dev/null
@@ -567,10 +572,29 @@ assert_eq "$(cntools_wallet_format_token_amount 5000000 6)" \
   "5.000000" "token display amount"
 assert_eq "$(cntools_wallet_format_token_amount 5 6)" \
   "0.000005" "small token display amount"
+assert_eq "$(cntools_wallet_format_token_amount 5000000000 6)" \
+  "5,000.000000" "grouped token display amount"
+assert_eq "$(cntools_wallet_format_token_amount 5000000 '')" \
+  "5,000,000" "grouped raw token display amount"
 assert_eq "$(cntools_wallet_format_lovelace 9223372036854775809)" \
-  "9223372036854.775809 ADA" "large exact ADA display amount"
+  "9,223,372,036,854.775809 ADA" "large exact ADA display amount"
 assert_eq "$(cntools_wallet_format_lovelace_compact 9223372036854775809)" \
-  "9223.372B" "large compact ADA display amount"
+  "9,223.372B" "large compact ADA display amount"
+test_grouped_balance_count() (
+  local rows=""
+
+  CNTOOLS_WALLET_BASE_LOVELACE=1000000
+  CNTOOLS_WALLET_PAYMENT_LOVELACE=0
+  CNTOOLS_WALLET_TOTAL_LOVELACE=1000000
+  CNTOOLS_WALLET_REWARD_LOVELACE=0
+  CNTOOLS_WALLET_UTXO_COUNT=1234
+  CNTOOLS_UI_COLUMNS=98
+  rows="$(cntools_wallet_balance_rows Y N N)" ||
+    fail "grouped balance rows could not be rendered"
+  assert_contains "${rows}" $'UTxO count\t1,234' \
+    "grouped UTxO count"
+)
+test_grouped_balance_count
 cntools_wallet_query_reset
 cntools_wallet_asset_add "${TEST_ASSET_ID}" \
   "999999999999999999999999" || fail "large asset quantity was rejected"
@@ -616,7 +640,7 @@ test_multiline_wallet_catalog() (
         ;;
       PaymentOnly)
         CNTOOLS_WALLET_LIST_PAYMENT_UTXO_LOVELACE[index]="3000000"
-        CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]="2"
+        CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]="1234"
         CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[index]="3000000"
         ;;
       StakeOnly)
@@ -645,7 +669,7 @@ test_multiline_wallet_catalog() (
     "payment-only primary address"
   assert_contains "${rows}" $'\tPayment UTxO\t3.000000 ADA' \
     "payment-only balance"
-  assert_contains "${rows}" $'\tNative assets\t2' \
+  assert_contains "${rows}" $'\tNative assets\t1,234' \
     "non-empty native asset count"
   assert_contains "${rows}" $'StakeOnly\tType\tCLI' \
     "stake-only CLI type"
@@ -665,6 +689,14 @@ test_multiline_wallet_catalog() (
   fi
   assert_eq "$(grep -c $'^BaseWallet\t' <<< "${rows}")" "1" \
     "wallet name should identify one multiline group"
+
+  CNTOOLS_UI_COLUMNS=180
+  rows="$(cntools_wallet_catalog_rows)" ||
+    fail "wide multiline List rows could not be rendered"
+  assert_contains "${rows}" $'\tBase address\t'"${TEST_BASE_ADDRESS}" \
+    "wide List should keep a base address on one row"
+  assert_contains "${rows}" $'\tScript base address\t'"${TEST_BASE_ADDRESS}" \
+    "wide List should keep a script base address on one row"
 )
 test_multiline_wallet_catalog
 
@@ -958,6 +990,8 @@ had_ui_columns="${CNTOOLS_UI_COLUMNS+x}"
 CNTOOLS_UI_COLUMNS=60
 wrapped_pair="$(cntools_wallet_table_wrapped_pair \
   "Base" "${TEST_BASE_ADDRESS}" 15)"
+[[ "${wrapped_pair}" == *$'\n'* ]] ||
+  fail "narrow two-column table did not wrap a base address"
 reassembled_value=""
 while IFS= read -r wrapped_line; do
   wrapped_label="${wrapped_line%%$'\t'*}"
@@ -974,6 +1008,8 @@ assert_eq "${reassembled_value}" "${TEST_BASE_ADDRESS}" \
   "responsive address wrapping"
 wrapped_triple="$(cntools_wallet_table_wrapped_triple \
   "01 · token" "Policy ID" "${TEST_POLICY_ID}" 22 20)"
+[[ "${wrapped_triple}" == *$'\n'* ]] ||
+  fail "narrow three-column table did not wrap a policy ID"
 reassembled_value=""
 while IFS= read -r wrapped_line; do
   wrapped_asset="${wrapped_line%%$'\t'*}"
@@ -1008,26 +1044,132 @@ while IFS= read -r wrapped_line; do
 done <<< "${wrapped_pair}"
 assert_eq "${reassembled_value}" "${unicode_value}" \
   "responsive Unicode metadata wrapping"
+
+test_semantic_wallet_value_roles() (
+  local row=""
+
+  CNTOOLS_UI_COLUMNS=180
+  cntools_theme_style_value_into() {
+    printf -v "$1" '<%s>%s</%s>' "$2" "$3" "$2"
+  }
+  row="$(cntools_wallet_table_wrapped_pair \
+    Base "${TEST_BASE_ADDRESS}" 15 address)" ||
+    fail "semantic address row could not be rendered"
+  assert_eq "${row}" \
+    $'Base\t<address>'"${TEST_BASE_ADDRESS}"'</address>' \
+    "semantic address role"
+  row="$(cntools_wallet_table_wrapped_triple \
+    Wallet Type CLI 20 22 '' identifier accent)" ||
+    fail "semantic wallet identity row could not be rendered"
+  assert_eq "${row}" \
+    $'<identifier>Wallet</identifier>\tType\t<accent>CLI</accent>' \
+    "semantic wallet identity roles"
+)
+test_semantic_wallet_value_roles
+
+CNTOOLS_UI_COLUMNS=180
+wrapped_pair="$(cntools_wallet_table_wrapped_pair \
+  "Base" "${TEST_BASE_ADDRESS}" 15)"
+assert_eq "${wrapped_pair}" $'Base\t'"${TEST_BASE_ADDRESS}" \
+  "wide Wallet Show address row"
+wrapped_pair="$(cntools_wallet_table_wrapped_pair \
+  "MultiSig payment" \
+  "11111111111111111111111111111111111111111111111111111111" 20)"
+assert_eq "${wrapped_pair}" \
+  $'MultiSig payment\t11111111111111111111111111111111111111111111111111111111' \
+  "wide Wallet Show credential row"
+wrapped_triple="$(cntools_wallet_table_wrapped_triple \
+  "01 · token" "Policy ID" "${TEST_POLICY_ID}" 22 20)"
+assert_eq "${wrapped_triple}" \
+  $'01 · token\tPolicy ID\t'"${TEST_POLICY_ID}" \
+  "wide native-asset policy row"
+
+test_live_wallet_table_width() (
+  local test_terminal_columns=162
+
+  CNTOOLS_UI_INTERACTIVE="Y"
+  cntools_gum_width() { printf '98\n'; }
+  tput() {
+    [[ "${1:-}" == "cols" ]] || return 1
+    printf '%s\n' "${test_terminal_columns}"
+  }
+
+  assert_eq "$(cntools_wallet_table_width)" "160" \
+    "live Wallet table terminal width"
+  test_terminal_columns=240
+  assert_eq "$(cntools_wallet_table_width)" "180" \
+    "Wallet table readable width cap"
+)
+test_live_wallet_table_width
+
+test_wallet_table_width_snapshot() (
+  local rows_file=""
+  local test_terminal_columns=162
+  local width_trace="${TEST_ROOT}/wallet-width.trace"
+
+  CNTOOLS_UI_INTERACTIVE="Y"
+  : > "${width_trace}"
+  tput() {
+    [[ "${1:-}" == "cols" ]] || return 1
+    printf 'cols\n' >> "${width_trace}"
+    printf '%s\n' "${test_terminal_columns}"
+  }
+
+  cntools_wallet_write_rows_file rows_file cntools_wallet_address_rows \
+    "${TEST_BASE_ADDRESS}" "Not available" "Not available" ||
+    fail "wide responsive table snapshot failed"
+  assert_eq "$(line_count "${width_trace}")" "1" \
+    "one terminal-width query per table"
+  assert_eq "$(line_count "${rows_file}")" "2" \
+    "wide address table row count"
+
+  test_terminal_columns=62
+  cntools_wallet_write_rows_file rows_file cntools_wallet_address_rows \
+    "${TEST_BASE_ADDRESS}" "Not available" "Not available" ||
+    fail "resized responsive table snapshot failed"
+  assert_eq "$(line_count "${width_trace}")" "2" \
+    "fresh terminal-width query for next table"
+  (( $(line_count "${rows_file}") > 2 )) ||
+    fail "resized address table did not use the new narrow width"
+  cntools_wallet_query_cleanup
+)
+test_wallet_table_width_snapshot
+
 CNTOOLS_UI_COLUMNS=98
 cntools_gum_width() { printf '52\n'; }
 assert_eq "$(cntools_wallet_table_width)" "52" \
   "Wallet Show render-time terminal resize"
 unset -f cntools_gum_width
 cntools_wallet_query_reset
-cntools_wallet_asset_add "${TEST_ASSET_ID}" 1 ||
+cntools_wallet_asset_add "${TEST_ASSET_ID}" 1234567890 ||
   fail "could not prepare paged native asset"
 cntools_wallet_asset_sort_ids || fail "could not sort paged native assets"
 CNTOOLS_WALLET_ASSET_COUNT="${#CNTOOLS_WALLET_ASSET_IDS[@]}"
 CNTOOLS_WALLET_ASSET_REGISTRY_NAMES["${TEST_ASSET_ID}"]="Fixture Token"
 CNTOOLS_WALLET_ASSET_TICKERS["${TEST_ASSET_ID}"]="FIX"
 CNTOOLS_WALLET_ASSET_METADATA_DECIMALS["${TEST_ASSET_ID}"]=0
-CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES["${TEST_ASSET_ID}"]=1
+CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES["${TEST_ASSET_ID}"]=9876543210
 printf -v long_description '%0240d' 0
 CNTOOLS_WALLET_ASSET_DESCRIPTIONS["${TEST_ASSET_ID}"]="${long_description}"
 CNTOOLS_WALLET_ASSET_URLS["${TEST_ASSET_ID}"]="https://example.invalid/${long_description}"
 CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE["${TEST_ASSET_ID}"]=1
 CNTOOLS_WALLET_ASSET_METADATA_STATUS="available"
 CNTOOLS_MODE="light"
+formatted_details="$(cntools_wallet_asset_details_rows)" ||
+  fail "formatted native-asset details could not be rendered"
+assert_contains "${formatted_details}" \
+  $'\tRaw quantity\t1,234,567,890' "grouped raw asset quantity"
+assert_contains "${formatted_details}" \
+  $'\tRaw total supply\t9,876,543,210' "grouped raw total supply"
+unset "CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${TEST_ASSET_ID}]"
+unset "CNTOOLS_WALLET_ASSET_DECIMALS[${TEST_ASSET_ID}]"
+formatted_details="$(cntools_wallet_asset_details_rows)" ||
+  fail "ticker-only native-asset details could not be rendered"
+assert_contains "${formatted_details}" \
+  $'\tAmount\t1,234,567,890 FIX' \
+  "grouped ticker-only asset amount"
+CNTOOLS_WALLET_ASSET_METADATA_DECIMALS["${TEST_ASSET_ID}"]=0
+unset formatted_details
 printf -v oversized_metadata '%050000d' 0
 CNTOOLS_WALLET_ASSET_REGISTRY_NAMES["${TEST_ASSET_ID}"]="${oversized_metadata}"
 CNTOOLS_WALLET_ASSET_TICKERS["${TEST_ASSET_ID}"]="${oversized_metadata}"
@@ -1408,7 +1550,7 @@ assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_ASSET_ID}]}" \
   "9223372036854775809" "lossless local native-asset aggregation"
 : > "${UI_TRACE}"
 cntools_wallet_render_balance_table
-grep -F $'DATA_ROW\tTotal UTxO\t9223372036854.775809 ADA' \
+grep -F $'DATA_ROW\tTotal UTxO\t9,223,372,036,854.775809 ADA' \
   "${UI_TRACE}" >/dev/null ||
   fail "large local UTxO was corrupted in Wallet Show"
 reset_query_traces
@@ -1421,7 +1563,7 @@ assert_eq "${CNTOOLS_WALLET_REWARD_LOVELACE}" "9007199254740993" \
   "lossless local reward balance"
 : > "${UI_TRACE}"
 cntools_wallet_render_balance_table
-grep -F $'DATA_ROW\tTotal incl. rewards\t9007199255.740993 ADA' \
+grep -F $'DATA_ROW\tTotal incl. rewards\t9,007,199,255.740993 ADA' \
   "${UI_TRACE}" >/dev/null ||
   fail "large reward was rounded in the inclusive wallet total"
 FAKE_CLI_SCENARIO="full"

@@ -26,8 +26,22 @@ CNTOOLS_ENV_SOURCED="N"
 export CNTOOLS_ROOT CNTOOLS_ENTRYPOINT CNTOOLS_CORE_DIR CNTOOLS_LIB_DIR
 export CNTOOLS_MODULE_ROOT CNTOOLS_VERSION_FILE CNTOOLS_ENV_FILE
 
+CNTOOLS_NUMBER_LIBRARY="${CNTOOLS_LIB_DIR}/number.sh"
+if [[ ! -f "${CNTOOLS_NUMBER_LIBRARY}" ||
+      -L "${CNTOOLS_NUMBER_LIBRARY}" ||
+      ! -s "${CNTOOLS_NUMBER_LIBRARY}" ]]; then
+  printf 'CNTools: shared library is missing or unsafe: %s\n' \
+    "${CNTOOLS_NUMBER_LIBRARY}" >&2
+  exit 1
+fi
+# Number formatting is also used by the always-visible health header. Actions
+# continue to declare this library explicitly so their dependencies remain
+# complete and independently testable.
+# shellcheck source=/dev/null
+. "${CNTOOLS_NUMBER_LIBRARY}" || exit 1
+
 for CNTOOLS_CORE_FILE in \
-  startup.sh log.sh update.sh menu.sh action.sh gum.sh health.sh; do
+  startup.sh log.sh update.sh menu.sh action.sh theme.sh gum.sh health.sh; do
   if [[ ! -f "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ||
         -L "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ||
         ! -s "${CNTOOLS_CORE_DIR}/${CNTOOLS_CORE_FILE}" ]]; then
@@ -53,6 +67,7 @@ cntools_entrypoint_cleanup() {
   if declare -F cntools_wallet_query_cleanup >/dev/null 2>&1; then
     cntools_wallet_query_cleanup || true
   fi
+  cntools_theme_cleanup || true
   cntools_update_cleanup || true
   cntools_log_close || true
   exit "${status}"
@@ -93,10 +108,11 @@ cntools_main() {
   cntools_startup_load_env || return 1
   cntools_startup_normalize_session || return 1
   cntools_log_init || return 1
+  cntools_theme_init || return 1
   CNTOOLS_SESSION_ENDED="N"
   cntools_entrypoint_install_traps
   cntools_log SESSION \
-    "start ui=gum mode=${CNTOOLS_MODE} backend=${CNTOOLS_BACKEND} implementation=${CNTOOLS_IMPLEMENTATION} network=${CNTOOLS_NETWORK} socket=${CNTOOLS_SOCKET:-none} account=${CNTOOLS_ACCOUNT} branch=${CNTOOLS_BRANCH}" ||
+    "start ui=gum theme=${CNTOOLS_THEME_ID} mode=${CNTOOLS_MODE} backend=${CNTOOLS_BACKEND} implementation=${CNTOOLS_IMPLEMENTATION} network=${CNTOOLS_NETWORK} socket=${CNTOOLS_SOCKET:-none} account=${CNTOOLS_ACCOUNT} branch=${CNTOOLS_BRANCH}" ||
     return 1
 
   # Branch redeployment remains available without Gum so a missing UI

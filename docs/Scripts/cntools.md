@@ -8,8 +8,9 @@ a Charm Gum interface.
 !!! warning "Version 14 implementation status"
     Wallet List and Show are functional in version 14.1.0. They may cache
     missing public wallet artifacts, but do not change private keys or submit
-    transactions. Other wallet actions and all pool, transaction, governance,
-    backup, block, and advanced actions remain placeholders.
+    transactions. Advanced **Theme** is also functional; other wallet actions
+    and all pool, transaction, governance, backup, block, and operational
+    advanced actions remain placeholders.
 
 ## Installation and migration
 
@@ -76,6 +77,12 @@ natural root-menu draws and uses the existing short cache between draws.
 Submenus do not show or request health data, and an unavailable node does not
 prevent the menu from opening.
 
+Numeric display values use commas as thousands separators and a period as the
+decimal separator. Future numeric inputs can use either canonical separators
+or no separators. Tables use the live terminal width up to a readable maximum,
+so full addresses and identifiers stay on one line when space allows and wrap
+cleanly on narrower terminals.
+
 ## Interface and updates
 
 CNTools validates all modular menu metadata in one multi-file JSON pass at
@@ -83,6 +90,13 @@ startup and keeps the resulting catalog in memory. Gum provides filtering and
 keyboard navigation, while action code and its focused libraries are checked
 and loaded only when selected. Wallet List and Show load their wallet libraries
 on demand; remaining operational actions display a not-implemented notice.
+
+Start CNTools with `-a` to open **Advanced → Theme**. Theme colors are defined
+centrally by semantic purpose so headers, numbers, identifiers, and statuses
+remain consistent. The selected theme is stored privately in
+`${NODE_HOME}/.cntools/theme` and restored at startup. Only the Koios-inspired
+**Default** theme is available in this release; the selector is in place for
+future themes. Set `NO_COLOR` to a non-empty value to disable color output.
 
 Wallet List reads direct subdirectories beneath the configured `WALLET_FOLDER`
 and renders a compact multi-line entry for each wallet. An entry contains only

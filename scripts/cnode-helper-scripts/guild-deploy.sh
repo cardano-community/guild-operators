@@ -711,7 +711,9 @@ dispatcher_validate_cntools_tree() {
     core/log.sh
     core/menu.sh
     core/startup.sh
+    core/theme.sh
     core/update.sh
+    lib/number.sh
     modules/root/module.json
   )
   retired_files=(

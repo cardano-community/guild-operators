@@ -47,7 +47,7 @@ for required_command in bash chmod grep jq ln mktemp mv rm sleep stat tr wc; do
     fail "required command is unavailable: ${required_command}"
 done
 
-for core_file in log menu action gum; do
+for core_file in log menu action theme gum; do
   [[ -f "${CNTOOLS_ROOT}/core/${core_file}.sh" ]] ||
     fail "missing Phase 3 core file: core/${core_file}.sh"
   # shellcheck source=/dev/null
@@ -1080,6 +1080,7 @@ case "$1" in
     . "$2/core/log.sh"
     . "$2/core/menu.sh"
     . "$2/core/action.sh"
+    . "$2/core/theme.sh"
     . "$2/core/gum.sh"
     CNTOOLS_MODULE_ROOT="$3/root"
     CNTOOLS_LIB_DIR="$3/lib"

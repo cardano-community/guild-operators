@@ -50,8 +50,10 @@ cntools/
 │   ├── log.sh
 │   ├── menu.sh
 │   ├── startup.sh
+│   ├── theme.sh      # Semantic colors and persisted selection
 │   └── update.sh     # Phase 5
 ├── lib/
+│   ├── number.sh
 │   ├── placeholder.sh
 │   ├── wallet.sh
 │   ├── wallet-material.sh
@@ -70,7 +72,9 @@ The public sibling `../cntools.sh` resolves this tree from its own physical
 location and uses `exec` to start `cntools_main.sh`. The internal entrypoint
 loads the small `core/` layer and uses Charm Gum for its terminal interface.
 Domain libraries beneath `lib/` and action files beneath `modules/` are not
-loaded during startup.
+loaded during startup. The small dependency-free `number.sh` utility is the
+exception because the root health header also uses its display formatting;
+Wallet actions still declare it explicitly as part of their focused stack.
 
 `VERSION` contains exactly one numeric `MAJOR.MINOR.PATCH` application release
 number, without a `v` prefix. It is used by the entrypoint, the UI, and the
@@ -492,6 +496,13 @@ availability from the new block-history implementation instead of importing
 the legacy `BLOCKLOG_DB` visibility check. Quit, Back, and Home remain
 framework controls rather than metadata modules. Update remains Phase 5.
 
+The later Advanced **Theme** action is framework functionality rather than a
+legacy operational workflow. It selects from the central semantic theme
+registry and stores the choice in `${NODE_HOME}/.cntools/theme`. The initial
+registry intentionally contains only the Koios-inspired Default theme, while
+the selector and persistence contract are ready for additional themes. A
+non-empty `NO_COLOR` value disables both Gum and semantic value colors.
+
 ## Phase 5 update experience
 
 Phase 5 adds one small filesystem-backed Update submenu and three actions. The
@@ -545,10 +556,13 @@ available signing key or multisignature script and cache it in the existing
 wallet layout. Existing artifacts are never overwritten, unsafe paths are
 rejected, and protected signing keys are not decrypted implicitly.
 
-List renders one responsive multi-line Gum entry per wallet. It selects the
-combined base address for a payment-and-stake wallet, the enterprise address
-for a payment-only wallet, the reward address plus a missing-payment note for a
-stake-only wallet, and the script address for a multisignature wallet. Live
+List renders one responsive multi-line Gum entry per wallet. Wallet tables
+snapshot the live terminal width once per table, use the available space up to
+a readable maximum, and wrap long identifiers only when the terminal requires
+it. It selects the combined base address for a payment-and-stake wallet, the
+enterprise address for a payment-only wallet, the reward address plus a
+missing-payment note for a stake-only wallet, and the script address for a
+multisignature wallet. Live
 rows are structural rather than fixed: base UTxO, payment UTxO, rewards, the
 inclusive total, and a non-zero native-asset count appear only when they apply
 and are known. List asks before running either live backend. A decline renders
@@ -567,6 +581,13 @@ token, with request pacing below the documented rate ceiling. Compact Token
 Registry metadata excludes large logo and minting-metadata objects. Metadata
 failure does not hide validated on-chain holdings, and oversized details use
 one Gum pager.
+
+All numeric Wallet values use lossless US display formatting with comma
+thousands separators and a period decimal separator. The shared number library
+also validates and normalizes either grouped or ungrouped input for later
+transactional action phases. Semantic value colors are applied only after
+wrapping: identifiers use one restrained cool accent, numbers one warm-neutral
+accent, and statuses the existing success, warning, danger, or muted roles.
 
 Local cnode and Dingo sessions use the deployment-selected Cardano CLI and
 explicit node socket with bounded execution. Light List sessions deduplicate

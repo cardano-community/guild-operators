@@ -34,21 +34,6 @@ CNTOOLS_GUM_STATUS_ROWS=4
 CNTOOLS_GUM_UPDATE_SUMMARY_ROWS=5
 CNTOOLS_GUM_FILTER_CHROME_ROWS=4
 
-# Koios visual language: near-black surfaces, restrained grey text and the
-# Koios green for focus and primary actions.
-CNTOOLS_GUM_COLOR_CANVAS="#1B1B1F"
-CNTOOLS_GUM_COLOR_DEEP="#161618"
-CNTOOLS_GUM_COLOR_SURFACE="#202127"
-CNTOOLS_GUM_COLOR_DIVIDER="#2E2E32"
-CNTOOLS_GUM_COLOR_TEXT="#DFDFD6"
-CNTOOLS_GUM_COLOR_MUTED="#98989F"
-CNTOOLS_GUM_COLOR_QUIET="#6A6A71"
-CNTOOLS_GUM_COLOR_BRAND="#4FBC85"
-CNTOOLS_GUM_COLOR_BRAND_DARK="#2D8A56"
-CNTOOLS_GUM_COLOR_WARNING="#F9B44E"
-CNTOOLS_GUM_COLOR_DANGER="#F66F81"
-CNTOOLS_GUM_COLOR_SUCCESS="#3DD68C"
-
 cntools_gum_usage() {
   cat <<EOF
 Usage: cntools.sh [-n|-l|-o] [-a] [-u] [-b BRANCH] [-v] [-h]
@@ -517,7 +502,7 @@ cntools_gum() {
 # the fragments that will immediately be rendered back to the user's terminal.
 cntools_gum_capture() {
   if [[ -n "${NO_COLOR:-}" ]]; then
-    cntools_gum "$@"
+    NO_COLOR=1 CLICOLOR_FORCE='' cntools_gum "$@"
   else
     CLICOLOR_FORCE=1 cntools_gum "$@"
   fi
@@ -533,6 +518,36 @@ cntools_gum_width() {
   (( width >= 44 )) || width=44
   (( width <= 100 )) || width=100
   printf '%s\n' "$((width - 2))"
+}
+
+# Content views may need more horizontal room than the deliberately compact
+# menu/header frame. Resolve the live terminal width once at the start of a
+# render, keep two columns clear of the terminal edge, and retain a readable
+# upper bound. Table producers can then wrap against one stable snapshot.
+cntools_ui_content_width() {
+  local maximum="${1:-180}"
+  local minimum="${2:-42}"
+  local terminal_columns=""
+  local width=""
+
+  [[ "${maximum}" =~ ^[1-9][0-9]*$ &&
+     "${minimum}" =~ ^[1-9][0-9]*$ &&
+     ${maximum} -ge ${minimum} ]] || return 2
+  if [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == "Y" || -t 1 ]]; then
+    terminal_columns="$(tput cols 2>/dev/null || true)"
+    if [[ "${terminal_columns}" =~ ^[0-9]+$ &&
+          ${terminal_columns} -gt 2 ]]; then
+      width="$((terminal_columns - 2))"
+    fi
+  fi
+  [[ -n "${width}" ]] || width="${CNTOOLS_UI_COLUMNS:-}"
+  if [[ ! "${width}" =~ ^[0-9]+$ ]]; then
+    width="$(cntools_gum_width 2>/dev/null || true)"
+  fi
+  [[ "${width}" =~ ^[0-9]+$ ]] || width=80
+  (( width >= minimum )) || width="${minimum}"
+  (( width <= maximum )) || width="${maximum}"
+  printf '%s\n' "${width}"
 }
 
 cntools_gum_terminal_lines() {
@@ -1040,19 +1055,30 @@ cntools_ui_page_file() {
 }
 
 cntools_ui_table() {
+  local -a table_arguments=(
+    table --print --border rounded --no-show-help
+    --border.foreground "${CNTOOLS_GUM_COLOR_DIVIDER}"
+    --header.foreground "${CNTOOLS_GUM_COLOR_TEXT}"
+    --header.background "${CNTOOLS_GUM_COLOR_CANVAS}"
+    --cell.foreground "${CNTOOLS_GUM_COLOR_TEXT}"
+    --cell.background "${CNTOOLS_GUM_COLOR_CANVAS}"
+    --selected.foreground "${CNTOOLS_GUM_COLOR_TEXT}"
+    --selected.background "${CNTOOLS_GUM_COLOR_CANVAS}"
+  )
+
   # Gum v2.0.0's static table renderer applies its header style to the first
   # data row instead of Lip Gloss's header row. Keep every Gum-owned row color
   # neutral and use the section label above the table for the brand accent.
   # Selected colors are also pinned because a static table must never imply
-  # that its first data row is an active choice.
-  cntools_gum table --print --border rounded --no-show-help \
-    --border.foreground "${CNTOOLS_GUM_COLOR_DIVIDER}" \
-    --header.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
-    --header.background "${CNTOOLS_GUM_COLOR_CANVAS}" \
-    --cell.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
-    --cell.background "${CNTOOLS_GUM_COLOR_CANVAS}" \
-    --selected.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
-    --selected.background "${CNTOOLS_GUM_COLOR_CANVAS}" "$@"
+  # that its first data row is an active choice. Gum otherwise strips ANSI
+  # styles from piped table input even when its output is a terminal, so force
+  # color parsing for trusted, pre-sanitized CNTools rows. Respect NO_COLOR.
+  if [[ -n "${NO_COLOR:-}" ]]; then
+    NO_COLOR=1 CLICOLOR_FORCE='' \
+      cntools_gum "${table_arguments[@]}" "$@"
+  else
+    CLICOLOR_FORCE=1 cntools_gum "${table_arguments[@]}" "$@"
+  fi
 }
 
 cntools_ui_spin() {
@@ -1412,6 +1438,15 @@ cntools_gum_menu_run() {
       cntools_gum_log SESSION \
         "Guild Deploy completed with status ${action_status}; closing the current CNTools process"
       return "${action_status}"
+    fi
+    # Actions run in an isolated shell. Only the Theme action can change the
+    # persisted selection, so avoid filesystem work after every other action.
+    if [[ "${CNTOOLS_MENU_IDS[selected_index]}" == "advanced/theme" ]] &&
+       declare -F cntools_theme_reload >/dev/null 2>&1 &&
+       ! cntools_theme_reload; then
+      cntools_gum_log ERROR \
+        "Could not activate the saved CNTools theme in the parent session"
+      (( action_status != 0 )) || action_status=1
     fi
     if (( action_status != 0 )); then
       status_level="error"

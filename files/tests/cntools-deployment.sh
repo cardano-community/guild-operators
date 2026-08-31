@@ -285,6 +285,18 @@ assert_rejected "missing CNTools health core" \
   dispatcher_validate_cntools_tree "${SOURCE_TREE}" N
 restore_file "${saved_file}" "${SOURCE_TREE}/core/health.sh"
 
+saved_file="${TEST_ROOT}/theme.sh.saved"
+mv -- "${SOURCE_TREE}/core/theme.sh" "${saved_file}"
+assert_rejected "missing CNTools theme core" \
+  dispatcher_validate_cntools_tree "${SOURCE_TREE}" N
+restore_file "${saved_file}" "${SOURCE_TREE}/core/theme.sh"
+
+saved_file="${TEST_ROOT}/number.sh.saved"
+mv -- "${SOURCE_TREE}/lib/number.sh" "${saved_file}"
+assert_rejected "missing shared CNTools number library" \
+  dispatcher_validate_cntools_tree "${SOURCE_TREE}" N
+restore_file "${saved_file}" "${SOURCE_TREE}/lib/number.sh"
+
 saved_file="${TEST_ROOT}/update.sh.saved"
 mv -- "${SOURCE_TREE}/core/update.sh" "${saved_file}"
 assert_rejected "missing required CNTools update core" \

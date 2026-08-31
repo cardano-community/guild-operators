@@ -1931,6 +1931,7 @@ cntools_wallet_format_lovelace_compact() {
   local amount="${1:-}"
   local whole=""
   local fraction=""
+  local formatted=""
   local scaled_whole=""
   local scaled_fraction=""
   local divisor_digits=0
@@ -1950,7 +1951,11 @@ cntools_wallet_format_lovelace_compact() {
   whole="${amount:0:split_at}"
   fraction="${amount:split_at}"
   if (( ${#whole} < 9 )); then
-    printf '%s.%s\n' "${whole}" "${fraction}"
+    formatted="${whole}.${fraction}"
+    if declare -F cntools_number_format_into >/dev/null 2>&1; then
+      cntools_number_format_into formatted "${formatted}" || return 1
+    fi
+    printf '%s\n' "${formatted}"
     return 0
   fi
   if (( ${#whole} >= 10 )); then
@@ -1963,14 +1968,18 @@ cntools_wallet_format_lovelace_compact() {
   split_at=$((${#whole} - divisor_digits))
   scaled_whole="${whole:0:split_at}"
   scaled_fraction="${whole:split_at:3}"
-  printf '%s.%s%s\n' \
-    "${scaled_whole}" "${scaled_fraction}" "${suffix}"
+  formatted="${scaled_whole}.${scaled_fraction}"
+  if declare -F cntools_number_format_into >/dev/null 2>&1; then
+    cntools_number_format_into formatted "${formatted}" || return 1
+  fi
+  printf '%s%s\n' "${formatted}" "${suffix}"
 }
 
 cntools_wallet_format_lovelace() {
   local amount="${1:-}"
   local whole=""
   local fraction=""
+  local formatted=""
   local split_at=0
 
   [[ "${amount}" =~ ^[0-9]+$ ]] || {
@@ -1985,7 +1994,11 @@ cntools_wallet_format_lovelace() {
   split_at=$((${#amount} - 6))
   whole="${amount:0:split_at}"
   fraction="${amount:split_at}"
-  printf '%s.%s ADA\n' "${whole}" "${fraction}"
+  formatted="${whole}.${fraction}"
+  if declare -F cntools_number_format_into >/dev/null 2>&1; then
+    cntools_number_format_into formatted "${formatted}" || return 1
+  fi
+  printf '%s ADA\n' "${formatted}"
 }
 
 cntools_wallet_display_address() {
@@ -2122,6 +2135,7 @@ cntools_wallet_write_rows_file() {
   local _cntools_producer="${2:-}"
   local _cntools_rows_file=""
   local _cntools_status=0
+  local CNTOOLS_WALLET_RENDER_WIDTH=""
 
   shift 2 || return 2
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
@@ -2131,6 +2145,7 @@ cntools_wallet_write_rows_file() {
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   cntools_wallet_query_temp_file _cntools_rows_file || return 1
+  CNTOOLS_WALLET_RENDER_WIDTH="$(cntools_wallet_table_width)" || return 1
   if "${_cntools_producer}" "$@" > "${_cntools_rows_file}"; then
     _cntools_status=0
   else
@@ -2152,15 +2167,94 @@ cntools_wallet_render_rows_table() {
 
 cntools_wallet_table_width() {
   local width=""
+  local terminal_columns=""
 
-  if declare -F cntools_gum_width >/dev/null 2>&1; then
+  if [[ "${CNTOOLS_WALLET_RENDER_WIDTH:-}" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "${CNTOOLS_WALLET_RENDER_WIDTH}"
+    return 0
+  fi
+
+  if declare -F cntools_ui_content_width >/dev/null 2>&1; then
+    cntools_ui_content_width 180 42
+    return $?
+  fi
+
+  # The general menu frame intentionally stays compact, but Wallet List and
+  # Show often contain full Cardano addresses and credential hashes. Read the
+  # live terminal width for these tables so a wider terminal is actually used
+  # after a resize. Keep two columns clear to avoid right-edge autowrapping and
+  # cap exceptionally wide tables at a readable size.
+  if [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == "Y" || -t 1 ]]; then
+    terminal_columns="$(tput cols 2>/dev/null || true)"
+    if [[ "${terminal_columns}" =~ ^[0-9]+$ &&
+          ${terminal_columns} -gt 2 ]]; then
+      width="$((terminal_columns - 2))"
+    fi
+  fi
+  if [[ -z "${width}" ]] &&
+     declare -F cntools_gum_width >/dev/null 2>&1; then
     width="$(COLUMNS='' cntools_gum_width 2>/dev/null || true)"
   fi
   [[ -n "${width}" ]] || width="${CNTOOLS_UI_COLUMNS:-${COLUMNS:-98}}"
   [[ "${width}" =~ ^[0-9]+$ ]] || width=98
   (( width >= 42 )) || width=42
-  (( width <= 98 )) || width=98
+  (( width <= 180 )) || width=180
   printf '%s\n' "${width}"
+}
+
+cntools_wallet_style_value_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_role="${2:-value}"
+  local _cntools_value="${3:-}"
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref="${_cntools_value}"
+  [[ -n "${_cntools_value}" ]] || return 0
+  if declare -F cntools_theme_style_value_into >/dev/null 2>&1; then
+    cntools_theme_style_value_into \
+      "${_cntools_output_name}" "${_cntools_role}" "${_cntools_value}"
+  fi
+}
+
+cntools_wallet_format_number_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_value="${2:-}"
+  local _cntools_formatted=""
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref="${_cntools_value}"
+  [[ "${_cntools_value}" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 0
+  if declare -F cntools_number_format_into >/dev/null 2>&1; then
+    cntools_number_format_into \
+      _cntools_formatted "${_cntools_value}" || return 1
+    _cntools_output_ref="${_cntools_formatted}"
+  fi
+}
+
+cntools_wallet_status_role() {
+  local value="${1:-}"
+
+  case "${value,,}" in
+    *invalid*|*failed*|*error*) printf 'danger\n' ;;
+    registered|delegated|protected|encrypted|yes|ready|available)
+      printf 'success\n'
+      ;;
+    open|unprotected|*not\ registered*|*not\ delegated*|*missing*)
+      printf 'warning\n'
+      ;;
+    unavailable|unknown|none|no|offline|—) printf 'muted\n' ;;
+    *) printf 'value\n' ;;
+  esac
+}
+
+cntools_wallet_number_role() {
+  if [[ "${1:-}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    printf 'number\n'
+  else
+    printf 'muted\n'
+  fi
 }
 
 cntools_wallet_text_width() {
@@ -2220,10 +2314,12 @@ cntools_wallet_table_wrapped_pair() {
   local label="${1:-}"
   local value="${2:-—}"
   local label_width="${3:-20}"
+  local value_role="${4:-value}"
   local table_width=""
   local value_width=0
   local label_chunk=""
   local value_chunk=""
+  local styled_value_chunk=""
 
   [[ "${label_width}" =~ ^[1-9][0-9]*$ ]] || return 2
   table_width="$(cntools_wallet_table_width)" || return 1
@@ -2241,8 +2337,10 @@ cntools_wallet_table_wrapped_pair() {
       "${label}" "${label_width}" label_chunk label || return 1
     cntools_wallet_display_chunk \
       "${value}" "${value_width}" value_chunk value || return 1
+    cntools_wallet_style_value_into \
+      styled_value_chunk "${value_role}" "${value_chunk}" || return 1
     cntools_wallet_table_row_prepared \
-      "${label_chunk}" "${value_chunk}" || return 1
+      "${label_chunk}" "${styled_value_chunk}" || return 1
   done
 }
 
@@ -2253,10 +2351,14 @@ cntools_wallet_table_wrapped_triple() {
   local first_width="${4:-22}"
   local second_width="${5:-20}"
   local table_width="${6:-}"
+  local first_role="${7:-value}"
+  local third_role="${8:-value}"
   local third_width=0
   local first_chunk=""
   local second_chunk=""
   local third_chunk=""
+  local styled_first_chunk=""
+  local styled_third_chunk=""
 
   [[ "${first_width}" =~ ^[1-9][0-9]*$ &&
      "${second_width}" =~ ^[1-9][0-9]*$ ]] || return 2
@@ -2285,8 +2387,13 @@ cntools_wallet_table_wrapped_triple() {
       "${second}" "${second_width}" second_chunk second || return 1
     cntools_wallet_display_chunk \
       "${third}" "${third_width}" third_chunk third || return 1
+    cntools_wallet_style_value_into \
+      styled_first_chunk "${first_role}" "${first_chunk}" || return 1
+    cntools_wallet_style_value_into \
+      styled_third_chunk "${third_role}" "${third_chunk}" || return 1
     cntools_wallet_table_row_prepared \
-      "${first_chunk}" "${second_chunk}" "${third_chunk}" || return 1
+      "${styled_first_chunk}" "${second_chunk}" \
+      "${styled_third_chunk}" || return 1
   done
 }
 
@@ -2296,19 +2403,28 @@ cntools_wallet_identity_rows() {
   local key_protection="${3:-Unavailable}"
   local stake_registration="${4:-}"
   local derivation_path="${5:-}"
+  local protection_role=""
+  local registration_role=""
+
+  protection_role="$(cntools_wallet_status_role "${key_protection}")" || return 1
 
   cntools_wallet_table_row "Wallet detail" "Value" || return 1
-  cntools_wallet_table_wrapped_pair "Name" "${wallet_name}" 16 || return 1
-  cntools_wallet_table_wrapped_pair "Type" "${wallet_type}" 16 || return 1
   cntools_wallet_table_wrapped_pair \
-    "Key protection" "${key_protection}" 16 || return 1
+    "Name" "${wallet_name}" 16 identifier || return 1
+  cntools_wallet_table_wrapped_pair \
+    "Type" "${wallet_type}" 16 accent || return 1
+  cntools_wallet_table_wrapped_pair \
+    "Key protection" "${key_protection}" 16 "${protection_role}" || return 1
   if [[ -n "${stake_registration}" ]]; then
+    registration_role="$(cntools_wallet_status_role \
+      "${stake_registration}")" || return 1
     cntools_wallet_table_wrapped_pair \
-      "Stake registration" "${stake_registration}" 20 || return 1
+      "Stake registration" "${stake_registration}" 20 \
+      "${registration_role}" || return 1
   fi
   if [[ -n "${derivation_path}" ]]; then
     cntools_wallet_table_wrapped_pair \
-      "Derivation path" "${derivation_path}" 20 || return 1
+      "Derivation path" "${derivation_path}" 20 identifier || return 1
   fi
 }
 
@@ -2324,20 +2440,22 @@ cntools_wallet_address_rows() {
 
   cntools_wallet_table_row "Address type" "Address" || return 1
   if [[ "${base_address}" != "Not available" ]]; then
-    cntools_wallet_table_wrapped_pair "Base" "${base_address}" 15 || return 1
+    cntools_wallet_table_wrapped_pair \
+      "Base" "${base_address}" 15 address || return 1
   fi
   if [[ "${payment_address}" != "Not available" ]]; then
     cntools_wallet_table_wrapped_pair \
-      "Payment" "${payment_address}" 15 || return 1
+      "Payment" "${payment_address}" 15 address || return 1
   fi
   if [[ "${reward_address}" != "Not available" ]]; then
     cntools_wallet_table_wrapped_pair \
-      "Stake / reward" "${reward_address}" 15 || return 1
+      "Stake / reward" "${reward_address}" 15 address || return 1
   fi
   if [[ "${base_address}" == "Not available" &&
         "${payment_address}" == "Not available" &&
         "${reward_address}" == "Not available" ]]; then
-    cntools_wallet_table_wrapped_pair "Available" "None" 15 || return 1
+    cntools_wallet_table_wrapped_pair \
+      "Available" "None" 15 muted || return 1
   fi
 }
 
@@ -2391,8 +2509,12 @@ cntools_wallet_credential_rows() {
   (( ${#labels[@]} > 0 )) || return 0
   cntools_wallet_table_row "Credential" "Hash (hex)" || return 1
   for (( count = 0; count < ${#labels[@]}; count++ )); do
+    local credential_role="credential"
+    [[ "${values[count]}" != "Invalid credential file" ]] ||
+      credential_role="danger"
     cntools_wallet_table_wrapped_pair \
-      "${labels[count]}" "${values[count]}" 20 || return 1
+      "${labels[count]}" "${values[count]}" 20 \
+      "${credential_role}" || return 1
   done
 }
 
@@ -2414,6 +2536,7 @@ cntools_wallet_balance_rows() {
   local has_reward="${3:-Y}"
   local inclusive_total=""
   local utxo_count="Unavailable"
+  local formatted_count="Unavailable"
 
   if [[ "${CNTOOLS_WALLET_TOTAL_LOVELACE}" =~ ^[0-9]+$ &&
         "${CNTOOLS_WALLET_REWARD_LOVELACE}" =~ ^[0-9]+$ ]]; then
@@ -2423,34 +2546,51 @@ cntools_wallet_balance_rows() {
   fi
   [[ ! "${CNTOOLS_WALLET_UTXO_COUNT}" =~ ^[0-9]+$ ]] ||
     utxo_count="${CNTOOLS_WALLET_UTXO_COUNT}"
+  if [[ "${utxo_count}" =~ ^[0-9]+$ ]] &&
+     declare -F cntools_number_format_into >/dev/null 2>&1; then
+    cntools_number_format_into formatted_count "${utxo_count}" || return 1
+  else
+    formatted_count="${utxo_count}"
+  fi
   cntools_wallet_table_row "Balance" "Value" || return 1
   if [[ "${has_base}" == "Y" ]]; then
     cntools_wallet_table_wrapped_pair "Base UTxO" \
-      "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_BASE_LOVELACE}")" 22 ||
+      "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_BASE_LOVELACE}")" \
+      22 "$(cntools_wallet_number_role \
+        "${CNTOOLS_WALLET_BASE_LOVELACE}")" ||
       return 1
   fi
   if [[ "${has_payment}" == "Y" ]]; then
     cntools_wallet_table_wrapped_pair "Payment UTxO" \
-      "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_PAYMENT_LOVELACE}")" 22 ||
+      "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_PAYMENT_LOVELACE}")" \
+      22 "$(cntools_wallet_number_role \
+        "${CNTOOLS_WALLET_PAYMENT_LOVELACE}")" ||
       return 1
   fi
   if [[ "${has_base}" == "Y" || "${has_payment}" == "Y" ]]; then
     cntools_wallet_table_wrapped_pair "Total UTxO" \
-      "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_TOTAL_LOVELACE}")" 22 ||
+      "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_TOTAL_LOVELACE}")" \
+      22 "$(cntools_wallet_number_role \
+        "${CNTOOLS_WALLET_TOTAL_LOVELACE}")" ||
       return 1
   fi
   if [[ "${has_reward}" == "Y" ]]; then
     cntools_wallet_table_wrapped_pair "Rewards" \
-      "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REWARD_LOVELACE}")" 22 ||
+      "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REWARD_LOVELACE}")" \
+      22 "$(cntools_wallet_number_role \
+        "${CNTOOLS_WALLET_REWARD_LOVELACE}")" ||
       return 1
   fi
   if [[ "${has_reward}" == "Y" &&
         ( "${has_base}" == "Y" || "${has_payment}" == "Y" ) ]]; then
     cntools_wallet_table_wrapped_pair "Total incl. rewards" \
-      "$(cntools_wallet_format_lovelace "${inclusive_total}")" 22 || return 1
+      "$(cntools_wallet_format_lovelace "${inclusive_total}")" \
+      22 "$(cntools_wallet_number_role "${inclusive_total}")" || return 1
   fi
   if [[ "${has_base}" == "Y" || "${has_payment}" == "Y" ]]; then
-    cntools_wallet_table_wrapped_pair "UTxO count" "${utxo_count}" 22 ||
+    cntools_wallet_table_wrapped_pair \
+      "UTxO count" "${formatted_count}" 22 \
+      "$(cntools_wallet_number_role "${utxo_count}")" ||
       return 1
   fi
 }
@@ -2475,6 +2615,8 @@ cntools_wallet_delegation_rows() {
   local pool_target="—"
   local drep_status="Unavailable"
   local drep_target="—"
+  local pool_role="muted"
+  local drep_role="muted"
 
   if [[ "${CNTOOLS_WALLET_REGISTERED:-unknown}" != "unknown" ]]; then
     if [[ -n "${CNTOOLS_WALLET_POOL_DELEGATION:-}" ]]; then
@@ -2493,18 +2635,23 @@ cntools_wallet_delegation_rows() {
   fi
   cntools_wallet_table_row "Delegation" "Status / target" || return 1
   if [[ "${pool_status}" == "Delegated" ]]; then
+    pool_role="success"
     cntools_wallet_table_wrapped_pair \
-      "Stake pool delegation" "Delegated · ${pool_target}" 24 || return 1
+      "Stake pool delegation" "Delegated · ${pool_target}" 24 \
+      "${pool_role}" || return 1
   else
+    pool_role="$(cntools_wallet_status_role "${pool_status}")" || return 1
     cntools_wallet_table_wrapped_pair \
-      "Stake pool delegation" "${pool_status}" 24 || return 1
+      "Stake pool delegation" "${pool_status}" 24 "${pool_role}" || return 1
   fi
   if [[ "${drep_status}" == "Delegated" ]]; then
+    drep_role="success"
     cntools_wallet_table_wrapped_pair \
-      "DRep delegation" "Delegated · ${drep_target}" 24
+      "DRep delegation" "Delegated · ${drep_target}" 24 "${drep_role}"
   else
+    drep_role="$(cntools_wallet_status_role "${drep_status}")" || return 1
     cntools_wallet_table_wrapped_pair \
-      "DRep delegation" "${drep_status}" 24
+      "DRep delegation" "${drep_status}" 24 "${drep_role}"
   fi
 }
 
@@ -2570,6 +2717,7 @@ cntools_wallet_format_token_amount_into() {
   local _cntools_integer_part=""
   local _cntools_fractional_part=""
   local _cntools_split_at=0
+  local _cntools_formatted=""
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
      "${_cntools_quantity}" =~ ^[0-9]+$ ]] || return 2
@@ -2577,14 +2725,26 @@ cntools_wallet_format_token_amount_into() {
   [[ "${_cntools_quantity}" =~ ^0*([1-9][0-9]*|0)$ ]] || return 2
   _cntools_quantity="${BASH_REMATCH[1]}"
   if [[ -z "${_cntools_decimals}" ]]; then
-    _cntools_output_ref="${_cntools_quantity}"
+    if declare -F cntools_number_format_into >/dev/null 2>&1; then
+      cntools_number_format_into \
+        _cntools_formatted "${_cntools_quantity}" || return 1
+      _cntools_output_ref="${_cntools_formatted}"
+    else
+      _cntools_output_ref="${_cntools_quantity}"
+    fi
     return 0
   fi
   [[ "${_cntools_decimals}" =~ ^[0-9]+$ ]] || return 2
   (( 10#${_cntools_decimals} <= 255 )) || return 2
   _cntools_decimals="$((10#${_cntools_decimals}))"
   if (( _cntools_decimals == 0 )); then
-    _cntools_output_ref="${_cntools_quantity}"
+    if declare -F cntools_number_format_into >/dev/null 2>&1; then
+      cntools_number_format_into \
+        _cntools_formatted "${_cntools_quantity}" || return 1
+      _cntools_output_ref="${_cntools_formatted}"
+    else
+      _cntools_output_ref="${_cntools_quantity}"
+    fi
     return 0
   fi
   while (( ${#_cntools_quantity} <= _cntools_decimals )); do
@@ -2593,7 +2753,12 @@ cntools_wallet_format_token_amount_into() {
   _cntools_split_at=$((${#_cntools_quantity} - _cntools_decimals))
   _cntools_integer_part="${_cntools_quantity:0:_cntools_split_at}"
   _cntools_fractional_part="${_cntools_quantity:_cntools_split_at}"
-  _cntools_output_ref="${_cntools_integer_part}.${_cntools_fractional_part}"
+  _cntools_formatted="${_cntools_integer_part}.${_cntools_fractional_part}"
+  if declare -F cntools_number_format_into >/dev/null 2>&1; then
+    cntools_number_format_into \
+      _cntools_formatted "${_cntools_formatted}" || return 1
+  fi
+  _cntools_output_ref="${_cntools_formatted}"
 }
 
 cntools_wallet_format_token_amount() {
@@ -2625,14 +2790,17 @@ cntools_wallet_asset_details_rows() {
   local policy_id=""
   local asset_name=""
   local quantity=""
+  local display_quantity=""
   local fingerprint=""
   local display_amount=""
   local display_decimals=""
+  local formatted_decimals=""
   local display_ticker=""
   local registry_name=""
   local ticker=""
   local decimals=""
   local total_supply=""
+  local display_total_supply=""
   local description=""
   local url=""
   local table_width=""
@@ -2648,12 +2816,13 @@ cntools_wallet_asset_details_rows() {
     policy_id="${asset_id%%.*}"
     asset_name="${asset_id#*.}"
     quantity="${CNTOOLS_WALLET_ASSET_QUANTITIES[${asset_id}]:-Unavailable}"
+    cntools_wallet_format_number_into display_quantity "${quantity}" || return 1
     fingerprint="${CNTOOLS_WALLET_ASSET_FINGERPRINTS[${asset_id}]:-Unavailable}"
     display_decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${asset_id}]:-${CNTOOLS_WALLET_ASSET_DECIMALS[${asset_id}]:-}}"
     display_ticker="${CNTOOLS_WALLET_ASSET_TICKERS[${asset_id}]:-}"
     (( ${#display_ticker} <= 32 )) ||
       display_ticker="${display_ticker:0:31}…"
-    display_amount="${quantity}"
+    display_amount="${display_quantity}"
     if [[ "${quantity}" =~ ^[0-9]+$ &&
           "${display_decimals}" =~ ^[0-9]+$ ]]; then
       cntools_wallet_format_token_amount_into \
@@ -2665,38 +2834,45 @@ cntools_wallet_asset_details_rows() {
     if [[ -n "${display_decimals}" || -n "${display_ticker}" ]]; then
       cntools_wallet_table_wrapped_triple \
         "${display_label}" "Amount" "${display_amount}" \
-        22 20 "${table_width}" || return 1
+        22 20 "${table_width}" identifier number || return 1
       display_label=""
     fi
     cntools_wallet_table_wrapped_triple \
-      "${display_label}" "Raw quantity" "${quantity}" 22 20 "${table_width}" ||
+      "${display_label}" "Raw quantity" "${display_quantity}" \
+      22 20 "${table_width}" identifier number ||
       return 1
     cntools_wallet_table_wrapped_triple \
-      "" "Policy ID" "${policy_id}" 22 20 "${table_width}" || return 1
+      "" "Policy ID" "${policy_id}" 22 20 "${table_width}" \
+      value identifier || return 1
     cntools_wallet_table_wrapped_triple \
-      "" "Asset name (hex)" "${asset_name:-(empty)}" 22 20 "${table_width}" ||
+      "" "Asset name (hex)" "${asset_name:-(empty)}" \
+      22 20 "${table_width}" value identifier ||
       return 1
     cntools_wallet_table_wrapped_triple \
-      "" "Fingerprint" "${fingerprint}" 22 20 "${table_width}" || return 1
+      "" "Fingerprint" "${fingerprint}" 22 20 "${table_width}" \
+      value identifier || return 1
     if [[ "${CNTOOLS_MODE:-}" != "light" ]]; then
       continue
     fi
     if [[ -z "${CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE[${asset_id}]+x}" ]]; then
       cntools_wallet_table_wrapped_triple \
-        "" "Token metadata" "Unavailable" 22 20 "${table_width}" || return 1
+        "" "Token metadata" "Unavailable" 22 20 "${table_width}" \
+        value muted || return 1
       continue
     fi
     registry_name="${CNTOOLS_WALLET_ASSET_REGISTRY_NAMES[${asset_id}]:-Not provided}"
     ticker="${CNTOOLS_WALLET_ASSET_TICKERS[${asset_id}]:-Not provided}"
     decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${asset_id}]:-Not provided}"
     total_supply="${CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES[${asset_id}]:-Unavailable}"
+    cntools_wallet_format_number_into \
+      formatted_decimals "${decimals}" || return 1
+    cntools_wallet_format_number_into \
+      display_total_supply "${total_supply}" || return 1
     description="${CNTOOLS_WALLET_ASSET_DESCRIPTIONS[${asset_id}]:-}"
     url="${CNTOOLS_WALLET_ASSET_URLS[${asset_id}]:-}"
     (( ${#registry_name} <= 80 )) ||
       registry_name="${registry_name:0:79}…"
     (( ${#ticker} <= 32 )) || ticker="${ticker:0:31}…"
-    (( ${#total_supply} <= 80 )) ||
-      total_supply="${total_supply:0:79}…"
     (( ${#description} <= 160 )) ||
       description="${description:0:159}…"
     (( ${#url} <= 160 )) || url="${url:0:159}…"
@@ -2706,9 +2882,12 @@ cntools_wallet_asset_details_rows() {
     cntools_wallet_table_wrapped_triple \
       "" "Ticker" "${ticker}" 22 20 "${table_width}" || return 1
     cntools_wallet_table_wrapped_triple \
-      "" "Decimals" "${decimals}" 22 20 "${table_width}" || return 1
+      "" "Decimals" "${formatted_decimals}" 22 20 "${table_width}" \
+      value "$(cntools_wallet_number_role "${decimals}")" || return 1
     cntools_wallet_table_wrapped_triple \
-      "" "Raw total supply" "${total_supply}" 22 20 "${table_width}" ||
+      "" "Raw total supply" "${display_total_supply}" \
+      22 20 "${table_width}" value \
+      "$(cntools_wallet_number_role "${total_supply}")" ||
       return 1
     if [[ -n "${description}" ]]; then
       cntools_wallet_table_wrapped_triple \
@@ -2716,7 +2895,8 @@ cntools_wallet_asset_details_rows() {
     fi
     if [[ -n "${url}" ]]; then
       cntools_wallet_table_wrapped_triple \
-        "" "URL" "${url}" 22 20 "${table_width}" || return 1
+        "" "URL" "${url}" 22 20 "${table_width}" \
+        value identifier || return 1
     fi
   done
 }
@@ -2724,9 +2904,13 @@ cntools_wallet_asset_details_rows() {
 cntools_wallet_render_asset_details_content() {
   local rows_file="${1:-}"
   local title="Native assets"
+  local display_count=""
 
-  [[ ! "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[0-9]+$ ]] ||
-    title="Native assets (${CNTOOLS_WALLET_ASSET_COUNT})"
+  if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[0-9]+$ ]]; then
+    cntools_wallet_format_number_into \
+      display_count "${CNTOOLS_WALLET_ASSET_COUNT}" || return 1
+    title="Native assets (${display_count})"
+  fi
   cntools_wallet_render_table_file "${title}" "${rows_file}"
 }
 

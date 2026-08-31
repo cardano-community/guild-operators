@@ -25,6 +25,11 @@ wallet rather than printing misleading zero or unavailable values. The native
 asset row is also omitted for an ADA-only wallet; otherwise it shows the number
 of distinct non-ADA assets.
 
+Tables expand with the terminal up to a readable maximum. Addresses and hashes
+therefore remain unbroken when sufficient width is available and wrap only on
+narrower terminals. Balances, counts, token quantities, and other numeric
+values use comma thousands separators and a period decimal separator.
+
 Live data follows the selected startup mode. Local cnode and Dingo sessions
 use the deployed Cardano CLI and node socket. Light mode deduplicates addresses
 across the complete wallet catalog and sends size-bounded bulk Koios requests.

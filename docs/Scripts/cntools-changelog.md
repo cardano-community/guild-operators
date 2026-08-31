@@ -16,6 +16,8 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Offline wallet inspection and capability-aware local fallback for implementations without local CLI queries.
 - Focused wallet discovery, public-artifact generation, address, credential, identifier, and query libraries with logged commands, API requests, selections, and failures.
 - Lazy generation and caching of missing public verification keys, addresses, credentials, and applicable identifiers from existing signing keys or multisignature scripts.
+- Central semantic theme registry with a persisted Advanced theme selector; the initial release includes the Koios-inspired Default theme.
+- Lossless shared number formatting and input normalization with optional canonical US thousands separators.
 
 #### Changed
 - Startup validates the modular menu catalog in one multi-file JSON pass and
@@ -31,6 +33,9 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - CLI and mnemonic-derived wallets are identified separately while hardware and multisignature types retain precedence.
 - Node health colors now use fixed slot-gap ranges: through 120 green, through 600 amber, and above 600 red.
 - Wallet selection uses the available terminal height and preserves normal Gum cancellation behavior.
+- Wallet List and Show tables use the available terminal width up to a readable maximum, avoiding unnecessary address and identifier wrapping while retaining narrow-terminal wrapping.
+- Wallet values use restrained semantic colors for identifiers, numbers, and statuses, sourced from the active theme.
+- Root health and Wallet numeric displays use comma thousands separators without changing raw query or calculation values.
 
 #### Fixed
 - Gum 2.0.0 static tables no longer apply the Koios accent to their first data row; the section heading carries the visual accent while table foreground and background colors remain neutral.

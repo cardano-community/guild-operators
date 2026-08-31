@@ -55,6 +55,7 @@ for required_command in \
 done
 
 for source_file in \
+  "${CNTOOLS_ROOT}/core/theme.sh" \
   "${CNTOOLS_ROOT}/core/gum.sh" \
   "${CNTOOLS_ROOT}/core/update.sh" \
   "${CNTOOLS_ROOT}/lib/update.sh" \
@@ -107,6 +108,8 @@ trap cleanup_test EXIT
 . "${CNTOOLS_ROOT}/core/menu.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/action.sh"
+# shellcheck source=/dev/null
+. "${CNTOOLS_ROOT}/core/theme.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/gum.sh"
 # shellcheck source=/dev/null

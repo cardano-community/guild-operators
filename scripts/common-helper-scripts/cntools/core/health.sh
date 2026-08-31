@@ -269,16 +269,29 @@ cntools_health_set_online() {
   local epoch="${1:-}"
   local block="${2:-}"
   local gap="${3:-}"
+  local display_epoch=""
+  local display_block=""
+  local display_gap=""
   local suffix="slots"
 
   [[ "${epoch}" =~ ^[0-9]+$ && "${block}" =~ ^[0-9]+$ ]] || return 2
+  display_epoch="${epoch}"
+  display_block="${block}"
+  if declare -F cntools_number_format_into >/dev/null 2>&1; then
+    cntools_number_format_into display_epoch "${epoch}" || return 1
+    cntools_number_format_into display_block "${block}" || return 1
+  fi
   if [[ "${gap}" =~ ^[0-9]+$ ]]; then
     (( gap != 1 )) || suffix="slot"
-    CNTOOLS_HEALTH_TEXT="Epoch ${epoch}  ·  Tip #${block}  ·  Gap ${gap} ${suffix}"
+    display_gap="${gap}"
+    if declare -F cntools_number_format_into >/dev/null 2>&1; then
+      cntools_number_format_into display_gap "${gap}" || return 1
+    fi
+    CNTOOLS_HEALTH_TEXT="Epoch ${display_epoch}  ·  Tip #${display_block}  ·  Gap ${display_gap} ${suffix}"
     CNTOOLS_HEALTH_TONE="$(cntools_health_tone_for_gap "${gap}")" ||
       CNTOOLS_HEALTH_TONE="warning"
   else
-    CNTOOLS_HEALTH_TEXT="Epoch ${epoch}  ·  Tip #${block}  ·  Gap unavailable"
+    CNTOOLS_HEALTH_TEXT="Epoch ${display_epoch}  ·  Tip #${display_block}  ·  Gap unavailable"
     CNTOOLS_HEALTH_TONE="warning"
   fi
 }

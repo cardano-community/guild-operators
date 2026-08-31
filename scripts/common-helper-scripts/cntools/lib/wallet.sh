@@ -606,8 +606,10 @@ cntools_wallet_catalog_rows() {
   local base_balance=""
   local payment_balance=""
   local tokens=""
+  local display_tokens=""
   local rewards=""
   local total=""
+  local protection_role=""
 
   cntools_wallet_table_row "Wallet" "Property" "Value" || return 1
   for (( index = 0; index < ${#CNTOOLS_WALLET_NAMES[@]}; index++ )); do
@@ -620,13 +622,18 @@ cntools_wallet_catalog_rows() {
       primary_value+=" · ${primary_note}"
 
     cntools_wallet_table_wrapped_triple \
-      "${wallet_name}" "Type" "${CNTOOLS_WALLET_TYPES[index]}" 20 22 ||
+      "${wallet_name}" "Type" "${CNTOOLS_WALLET_TYPES[index]}" \
+      20 22 "" identifier accent ||
+      return 1
+    protection_role="$(cntools_wallet_status_role \
+      "${CNTOOLS_WALLET_PROTECTIONS[index]}")" || return 1
+    cntools_wallet_table_wrapped_triple \
+      "" "Key protection" "${CNTOOLS_WALLET_PROTECTIONS[index]}" \
+      20 22 "" value "${protection_role}" ||
       return 1
     cntools_wallet_table_wrapped_triple \
-      "" "Key protection" "${CNTOOLS_WALLET_PROTECTIONS[index]}" 20 22 ||
-      return 1
-    cntools_wallet_table_wrapped_triple \
-      "" "${primary_label}" "${primary_value}" 20 22 || return 1
+      "" "${primary_label}" "${primary_value}" \
+      20 22 "" value address || return 1
 
     base_balance="${CNTOOLS_WALLET_LIST_BASE_UTXO_LOVELACE[index]:-}"
     payment_balance="${CNTOOLS_WALLET_LIST_PAYMENT_UTXO_LOVELACE[index]:-}"
@@ -636,27 +643,33 @@ cntools_wallet_catalog_rows() {
     if [[ "${base_balance}" =~ ^[1-9][0-9]*$ ]]; then
       cntools_wallet_table_wrapped_triple \
         "" "Base UTxO" \
-        "$(cntools_wallet_format_lovelace "${base_balance}")" 20 22 ||
+        "$(cntools_wallet_format_lovelace "${base_balance}")" \
+        20 22 "" value number ||
         return 1
     fi
     if [[ "${payment_balance}" =~ ^[1-9][0-9]*$ ]]; then
       cntools_wallet_table_wrapped_triple \
         "" "Payment UTxO" \
-        "$(cntools_wallet_format_lovelace "${payment_balance}")" 20 22 ||
+        "$(cntools_wallet_format_lovelace "${payment_balance}")" \
+        20 22 "" value number ||
         return 1
     fi
     if [[ "${rewards}" =~ ^[1-9][0-9]*$ ]]; then
       cntools_wallet_table_wrapped_triple \
         "" "Rewards" \
-        "$(cntools_wallet_format_lovelace "${rewards}")" 20 22 || return 1
+        "$(cntools_wallet_format_lovelace "${rewards}")" \
+        20 22 "" value number || return 1
     fi
     if [[ "${tokens}" =~ ^[1-9][0-9]*$ ]]; then
+      cntools_wallet_format_number_into display_tokens "${tokens}" || return 1
       cntools_wallet_table_wrapped_triple \
-        "" "Native assets" "${tokens}" 20 22 || return 1
+        "" "Native assets" "${display_tokens}" \
+        20 22 "" value number || return 1
     fi
     if [[ "${total}" =~ ^[1-9][0-9]*$ ]]; then
       cntools_wallet_table_wrapped_triple \
-        "" "Total" "$(cntools_wallet_format_lovelace "${total}")" 20 22 ||
+        "" "Total" "$(cntools_wallet_format_lovelace "${total}")" \
+        20 22 "" value number ||
         return 1
     fi
   done

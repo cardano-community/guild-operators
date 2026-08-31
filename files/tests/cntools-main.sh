@@ -14,6 +14,8 @@ CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 MAIN_ENTRYPOINT="${CNTOOLS_ROOT}/cntools_main.sh"
 GUM_CORE="${CNTOOLS_ROOT}/core/gum.sh"
 HEALTH_CORE="${CNTOOLS_ROOT}/core/health.sh"
+THEME_CORE="${CNTOOLS_ROOT}/core/theme.sh"
+NUMBER_LIBRARY="${CNTOOLS_ROOT}/lib/number.sh"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-main.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 
@@ -74,7 +76,12 @@ done
   fail "Gum UI core is missing or unsafe"
 [[ -f "${HEALTH_CORE}" && ! -L "${HEALTH_CORE}" ]] ||
   fail "Gum health core is missing or unsafe"
-bash -n "${MAIN_ENTRYPOINT}" "${GUM_CORE}" "${HEALTH_CORE}" ||
+[[ -f "${THEME_CORE}" && ! -L "${THEME_CORE}" ]] ||
+  fail "CNTools theme core is missing or unsafe"
+[[ -f "${NUMBER_LIBRARY}" && ! -L "${NUMBER_LIBRARY}" ]] ||
+  fail "CNTools number library is missing or unsafe"
+bash -n "${MAIN_ENTRYPOINT}" "${GUM_CORE}" "${HEALTH_CORE}" \
+  "${THEME_CORE}" "${NUMBER_LIBRARY}" ||
   fail "the CNTools main entrypoint or Gum-owned core has invalid Bash syntax"
 for retired_path in \
   "${CNTOOLS_ROOT}/cntools.sh" \
@@ -98,8 +105,9 @@ for required_function in \
   cntools_gum_filter_height \
   cntools_gum_capture cntools_gum_header_rows cntools_gum_breadcrumb \
   cntools_gum_menu_run cntools_ui_choose cntools_ui_static_table \
-  cntools_ui_spin_function \
-  cntools_health_refresh; do
+  cntools_ui_spin_function cntools_ui_content_width \
+  cntools_health_refresh cntools_theme_init cntools_theme_save \
+  cntools_number_format_into; do
   declare -F "${required_function}" >/dev/null 2>&1 ||
     fail "Gum interface function is missing: ${required_function}"
 done
@@ -490,6 +498,10 @@ run_status_spacing_test() (
 run_static_table_style_test() (
   local argument_log="${TEST_ROOT}/static-table-style-arguments"
   local detail_log="${TEST_ROOT}/static-table-detail-arguments"
+  local color_force_log="${TEST_ROOT}/static-table-color-force"
+
+  unset CLICOLOR_FORCE NO_COLOR
+  : > "${color_force_log}"
 
   cntools_gum() {
     local command_name="${1:-}"
@@ -497,6 +509,9 @@ run_static_table_style_test() (
 
     case "${command_name}" in
       table)
+        printf '%s:%s\n' \
+          "${CLICOLOR_FORCE-unset}" "${NO_COLOR-unset}" \
+          >> "${color_force_log}"
         printf '%s\n' "${command_name}" "$@" > "${argument_log}"
         while IFS= read -r _; do :; done
         ;;
@@ -535,6 +550,14 @@ run_static_table_style_test() (
     fail "the table section heading did not retain the Koios accent"
   grep -Fx -- '--bold' "${detail_log}" >/dev/null ||
     fail "the table section heading is not visually distinct"
+
+  CLICOLOR_FORCE=1
+  NO_COLOR=1
+  printf 'Property\tValue\nName\tFixture\n' | cntools_ui_table \
+    --separator $'\t' >/dev/null ||
+    fail "the NO_COLOR static Gum table wrapper failed"
+  assert_eq "$(< "${color_force_log}")" $'1:unset\n:1' \
+    "static Gum table ANSI preservation"
 )
 
 run_menu_mapping_test() (
@@ -548,6 +571,7 @@ run_menu_mapping_test() (
   local clear_calls=0
   local health_root_calls=0
   local health_submenu_calls=0
+  local theme_reload_calls=0
   local action_calls=""
   local status_log=""
   local first_duplicate=""
@@ -573,7 +597,7 @@ run_menu_mapping_test() (
         "${fake_submenu}" "${fake_root}/action-a"
         "${fake_root}/action-b" "${fake_root}/disabled"
       )
-      CNTOOLS_MENU_IDS=("tools" "action-a" "action-b" "disabled")
+      CNTOOLS_MENU_IDS=("tools" "action-a" "advanced/theme" "disabled")
       CNTOOLS_MENU_KINDS=("menu" "action" "action" "action")
       CNTOOLS_MENU_LABELS=("Tools" "Run" "Run" "Unavailable")
       CNTOOLS_MENU_DESCRIPTIONS=(
@@ -651,6 +675,7 @@ run_menu_mapping_test() (
   cntools_update_state_load() { return 0; }
   cntools_update_render_summary() { return 0; }
   cntools_startup_deployment_was_started() { return 1; }
+  cntools_theme_reload() { theme_reload_calls=$((theme_reload_calls + 1)); }
   cntools_ui_render_status() {
     status_log+="${1}:${2}"$'\n'
   }
@@ -684,6 +709,8 @@ run_menu_mapping_test() (
     "root-only health refresh"
   assert_eq "${health_submenu_calls}" "0" \
     "submenu health refresh"
+  assert_eq "${theme_reload_calls}" "1" \
+    "Theme action parent-session reload"
 )
 
 run_menu_filter_status_test() {
@@ -859,24 +886,26 @@ run_color_capture_preference_test() (
   local capture_state=""
 
   cntools_gum() {
-    printf '%s\n' "${CLICOLOR_FORCE-unset}"
+    printf '%s:%s\n' \
+      "${CLICOLOR_FORCE-unset}" "${NO_COLOR-unset}"
   }
   unset CLICOLOR_FORCE NO_COLOR
   capture_state="$(cntools_gum_capture style leaf)" ||
     fail "forced-color Gum capture failed"
-  assert_eq "${capture_state}" "1" \
+  assert_eq "${capture_state}" "1:unset" \
     "Gum composed-color capture"
 
   NO_COLOR=""
   capture_state="$(cntools_gum_capture style leaf)" ||
     fail "empty NO_COLOR Gum capture failed"
-  assert_eq "${capture_state}" "1" \
+  assert_eq "${capture_state}" "1:" \
     "Gum empty NO_COLOR capture preference"
 
   NO_COLOR=1
+  CLICOLOR_FORCE=1
   capture_state="$(cntools_gum_capture style leaf)" ||
     fail "NO_COLOR Gum capture failed"
-  assert_eq "${capture_state}" "unset" \
+  assert_eq "${capture_state}" ":1" \
     "Gum NO_COLOR capture preference"
 )
 
@@ -935,6 +964,17 @@ run_health_test() (
   assert_eq "${CNTOOLS_HEALTH_TONE}" "quiet" "offline health tone"
   [[ ! -e "${request_marker}" ]] ||
     fail "offline mode attempted a health request"
+
+  cntools_health_set_online 1403 4611829 1234 ||
+    fail "grouped health snapshot could not be prepared"
+  assert_eq "${CNTOOLS_HEALTH_TEXT}" \
+    "Epoch 1,403  ·  Tip #4,611,829  ·  Gap 1,234 slots" \
+    "grouped health snapshot"
+  cntools_health_set_online 1403 4611829 1 ||
+    fail "singular health snapshot could not be prepared"
+  assert_eq "${CNTOOLS_HEALTH_TEXT}" \
+    "Epoch 1,403  ·  Tip #4,611,829  ·  Gap 1 slot" \
+    "singular grouped health snapshot"
 
   CNTOOLS_MODE="local"
   CNTOOLS_NETWORK="preprod"
@@ -1052,6 +1092,27 @@ run_health_test() (
     fail "leading-zero health cache values bypassed the cache"
 )
 
+run_content_width_test() (
+  local test_terminal_columns=162
+
+  CNTOOLS_UI_INTERACTIVE="Y"
+  tput() {
+    [[ "${1:-}" == "cols" ]] || return 1
+    printf '%s\n' "${test_terminal_columns}"
+  }
+  assert_eq "$(cntools_ui_content_width)" "160" \
+    "wide content terminal width"
+  test_terminal_columns=240
+  assert_eq "$(cntools_ui_content_width)" "180" \
+    "content readable width cap"
+  CNTOOLS_UI_INTERACTIVE="N"
+  CNTOOLS_UI_COLUMNS=72
+  assert_eq "$(cntools_ui_content_width)" "72" \
+    "non-interactive content width"
+  assert_fails "invalid content width bounds were accepted" \
+    cntools_ui_content_width 40 42
+)
+
 run_early_option_tests() (
   local case_root="${TEST_ROOT}/early-options"
   local marker="${case_root}/gum-invoked"
@@ -1100,6 +1161,7 @@ run_header_test
 run_color_capture_preference_test
 run_wait_and_placeholder_test
 run_health_test
+run_content_width_test
 run_early_option_tests
 
 printf 'CNTools main tests passed\n'

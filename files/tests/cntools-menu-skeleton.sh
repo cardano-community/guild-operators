@@ -137,19 +137,19 @@ write_legacy_inventory | LC_ALL=C sort > "${actual_inventory}"
 diff -u "${expected_inventory}" "${actual_inventory}" ||
   fail "CNTools legacy menu hierarchy differs from the Phase 4 inventory"
 
-assert_eq "$(wc -l < "${MENU_FIXTURE}" | trim_count)" "69" \
+assert_eq "$(wc -l < "${MENU_FIXTURE}" | trim_count)" "70" \
   "module inventory count"
 assert_eq "$(grep -c $'\tmenu\t' "${MENU_FIXTURE}" | trim_count)" "15" \
   "menu inventory count"
-assert_eq "$(grep -c $'\taction\t' "${MENU_FIXTURE}" | trim_count)" "54" \
+assert_eq "$(grep -c $'\taction\t' "${MENU_FIXTURE}" | trim_count)" "55" \
   "action inventory count"
-assert_eq "$(find "${MODULE_ROOT}" -type d -print | wc -l | trim_count)" "73" \
+assert_eq "$(find "${MODULE_ROOT}" -type d -print | wc -l | trim_count)" "74" \
   "Phase 5 module directory count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -name module.json -print | wc -l | trim_count)" "73" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -name module.json -print | wc -l | trim_count)" "74" \
   "Phase 5 module metadata count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -name action.sh -print | wc -l | trim_count)" "57" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -name action.sh -print | wc -l | trim_count)" "58" \
   "Phase 5 action entrypoint count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -print | wc -l | trim_count)" "130" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -print | wc -l | trim_count)" "132" \
   "Phase 7 module payload file count"
 [[ -z "$(find "${MODULE_ROOT}" -type l -print)" ]] ||
   fail "CNTools menu skeleton contains a symbolic link"
@@ -213,6 +213,7 @@ while IFS=$'\t' read -r \
     case "${module_id}" in
       wallet/list)
         jq -e '.libs == [
+          "number.sh",
           "wallet.sh",
           "wallet-material.sh",
           "wallet-key.sh",
@@ -229,6 +230,7 @@ while IFS=$'\t' read -r \
         ;;
       wallet/show)
         jq -e '.libs == [
+          "number.sh",
           "wallet.sh",
           "wallet-material.sh",
           "wallet-key.sh",
@@ -242,6 +244,13 @@ while IFS=$'\t' read -r \
           fail "Wallet Show does not clean artifact staging files"
         grep -F 'cntools_wallet_action_show' "${action_file}" >/dev/null ||
           fail "Wallet Show does not call its functional entrypoint"
+        ;;
+      advanced/theme)
+        jq -e '((has("libs") | not) or .libs == [])' \
+          "${metadata}" >/dev/null ||
+          fail "Theme has unexpected library declarations"
+        grep -F 'cntools_theme_save' "${action_file}" >/dev/null ||
+          fail "Theme does not persist the selected theme"
         ;;
       *)
         jq -e '.libs == ["placeholder.sh"]' "${metadata}" >/dev/null ||
@@ -271,7 +280,7 @@ while IFS=$'\t' read -r \
 done < "${MENU_FIXTURE}"
 
 assert_eq "${connected_only}" "20" "local/light-only action count"
-assert_eq "${offline_capable}" "34" "offline-capable action count"
+assert_eq "${offline_capable}" "35" "offline-capable action count"
 [[ -f "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    ! -L "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    -s "${CNTOOLS_ROOT}/lib/placeholder.sh" ]] ||
@@ -297,6 +306,8 @@ fi
 . "${CNTOOLS_ROOT}/core/action.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/update.sh"
+# shellcheck source=/dev/null
+. "${CNTOOLS_ROOT}/core/theme.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/core/gum.sh"
 
@@ -414,12 +425,15 @@ for mode in local light offline; do
   done < "${MENU_FIXTURE}"
 done
 
-# Every action not implemented by Phase 7 remains a runnable placeholder.
+# Every operational action not implemented by Phase 7 remains a runnable
+# placeholder. Advanced Theme is framework functionality covered separately.
 CNTOOLS_MODE="local"
 while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
-  case "${module_id}" in wallet/list|wallet/show) continue ;; esac
+  case "${module_id}" in
+    wallet/list|wallet/show|advanced/theme) continue ;;
+  esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then
     status=0
