@@ -54,6 +54,10 @@ cntools/
 ├── lib/
 │   ├── placeholder.sh
 │   ├── wallet.sh
+│   ├── wallet-material.sh
+│   ├── wallet-key.sh
+│   ├── wallet-address.sh
+│   ├── wallet-id.sh
 │   ├── wallet-query.sh
 │   └── ...
 └── modules/
@@ -529,44 +533,62 @@ self-updater cannot perform the layout transition.
 This phase changed the public entrypoint and deployment boundary only. Its
 operational menu entries remained placeholders until later functional phases.
 
-## Phase 7 read-only wallet slice
+## Phase 7 wallet inspection slice
 
 Phase 7 activates Wallet List and Show without copying legacy implementation
-code or changing existing wallet data. `lib/wallet.sh` discovers direct wallet
-directories, rejects symbolic-link traversal, reads the configured legacy
-address filenames, and classifies CLI, hardware, multisignature, protected,
-and incomplete wallets. It never generates a missing address or rewrites a
-wallet file.
+code. `lib/wallet.sh` discovers direct wallet directories, rejects symbolic-link
+traversal, uses the configured legacy filenames, and classifies CLI, mnemonic,
+hardware, multisignature, protected, and incomplete wallets. Focused generation
+helpers are loaded only with these actions. They can derive a missing public
+verification key, address, credential, or applicable identifier from an
+available signing key or multisignature script and cache it in the existing
+wallet layout. Existing artifacts are never overwritten, unsafe paths are
+rejected, and protected signing keys are not decrypted implicitly.
 
-`lib/wallet-query.sh` loads only for List and Show. Local cnode and Dingo
-sessions use the deployment-selected Cardano CLI and explicit node socket with
-bounded execution. List shows distinct non-ADA token count, rewards, UTxO
-balance, and a total that includes both UTxO and rewards. Light List sessions
-deduplicate the complete wallet catalog into size-bounded Koios `address_info`
-and `account_info` bulk requests; Show uses the same contracts for one wallet.
-Show renders wallet identity, addresses, balances, stake pool and DRep
-delegation, and exact native-asset quantities as Gum tables. Light mode adds
-Koios `asset_info` bulk requests bounded to 1 KiB publicly or 5 KiB with an
-API token, with request pacing below the documented rate ceiling. Funding and
-reward projections keep lovelace values as decimal strings so `jq` never
-rounds them. Compact Token Registry metadata excludes large logo and
-minting-metadata objects. Metadata failure does not hide validated on-chain
-holdings, and oversized native-asset overviews and details share one Gum pager.
-List asks before running either live backend. A decline renders the catalog
-with unavailable live columns and zero backend calls; acceptance runs the
-same-shell query beneath a Gum spinner so its prepared arrays remain available
-for rendering. Offline
-sessions perform no command or HTTP query and do not show this confirmation.
-Amaru remains a first-class local deployment: its wallet files are shown,
-while live chain values are clearly marked unavailable because its deployment
-manifest declares no local CLI capability.
+List renders one responsive multi-line Gum entry per wallet. It selects the
+combined base address for a payment-and-stake wallet, the enterprise address
+for a payment-only wallet, the reward address plus a missing-payment note for a
+stake-only wallet, and the script address for a multisignature wallet. Live
+rows are structural rather than fixed: base UTxO, payment UTxO, rewards, the
+inclusive total, and a non-zero native-asset count appear only when they apply
+and are known. List asks before running either live backend. A decline renders
+the filesystem details with no balance rows and zero backend calls; acceptance
+runs the same-shell query beneath a Gum spinner so its prepared arrays remain
+available for rendering.
+
+Show renders identity, relevant addresses and hexadecimal credentials,
+balances, stake-pool delegation, DRep delegation, and exact native-asset
+quantities as Gum tables. Stake registration is part of wallet identity, while
+a mnemonic wallet also shows its validated `derivation.path`. One native-asset
+detail table contains raw quantity, policy ID, asset-name hex, and the
+deterministic CIP-14 fingerprint. Light mode enriches the same table through
+Koios `asset_info` bulk requests bounded to 1 KiB publicly or 5 KiB with an API
+token, with request pacing below the documented rate ceiling. Compact Token
+Registry metadata excludes large logo and minting-metadata objects. Metadata
+failure does not hide validated on-chain holdings, and oversized details use
+one Gum pager.
+
+Local cnode and Dingo sessions use the deployment-selected Cardano CLI and
+explicit node socket with bounded execution. Light List sessions deduplicate
+the complete wallet catalog into size-bounded Koios `address_info` and
+`account_info` bulk requests; Show uses the same contracts for one wallet.
+Funding and reward projections keep lovelace values as decimal strings so
+`jq` never rounds them. Offline sessions perform no blockchain or HTTP query
+and do not show the live-balance confirmation. Deterministic public-artifact
+generation is local and can still use Cardano CLI without a node. Amaru remains
+a first-class local deployment: its wallet files are shown, while live chain
+values are clearly marked unavailable when its deployment manifest declares no
+local CLI capability.
 
 Backend failures are non-destructive and do not prevent filesystem wallet
 details from being shown. Complete aggregates are shown only when every
-distinct funding-address query succeeds. External commands, API endpoints and
-status codes, wallet selections, validation failures, and backend errors use
-the CNTools logger. Authorization headers are passed through private temporary
-files and, together with request bodies, remain outside the log.
+structurally relevant funding and reward query succeeds. External commands,
+API endpoints and status codes, wallet selections, validation failures, and
+backend errors use the CNTools logger. Authorization headers are passed through
+private temporary files and, together with request bodies, remain outside the
+log. Gum v2.0.0 static tables use neutral foreground and background colors
+because its print renderer misapplies header styling to the first data row; the
+section label above each table carries the Koios accent instead.
 
 ## Explicit non-goals
 

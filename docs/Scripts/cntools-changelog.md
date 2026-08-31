@@ -8,29 +8,32 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [14.1.0] - Unreleased
 #### Added
-- Functional, read-only Wallet List and Show actions using the existing CNTools wallet directory layout.
+- Functional Wallet List and Show actions using the existing CNTools wallet directory layout.
 - Local cnode and Dingo balance, UTxO, native asset, reward, registration, and delegation queries through the deployed Cardano CLI.
 - Koios-backed wallet and stake account queries in light mode.
-- Gum table views for Wallet Show identity, addresses, balances, stake pool and DRep delegation, and native assets.
+- Gum table views for Wallet Show identity, addresses, credentials, balances, stake pool and DRep delegation, and native assets.
 - Exact native-asset quantities with Koios Token Registry metadata in size-bounded light-mode bulk requests.
 - Offline wallet inspection and capability-aware local fallback for implementations without local CLI queries.
-- Focused wallet discovery and query libraries with logged commands, API requests, selections, and failures.
+- Focused wallet discovery, public-artifact generation, address, credential, identifier, and query libraries with logged commands, API requests, selections, and failures.
+- Lazy generation and caching of missing public verification keys, addresses, credentials, and applicable identifiers from existing signing keys or multisignature scripts.
 
 #### Changed
 - Startup validates the modular menu catalog in one multi-file JSON pass and
   keeps parsed definitions, routes, and display rows in memory for the session.
 - Node health is refreshed only when the root menu is drawn; submenus neither
   display nor request health data.
-- Wallet folders and checksum-valid, network-appropriate Bech32 address files are validated without regenerating or modifying existing wallet data.
-- Wallet List uses a compact Gum table or card layout based on terminal width, asks before fetching live values, shows a Gum spinner during the query, and displays non-ADA tokens, rewards, UTxO balance, and an inclusive total.
-- Wallet Show labels stake pool and DRep delegation separately and keeps on-chain native-asset holdings visible when optional Koios metadata is unavailable.
-- Native-asset overview and detail tables share one Koios-themed Gum scroll view when they exceed the available terminal height.
+- Wallet folders and checksum-valid, network-appropriate Bech32 address files are validated before use; missing public artifacts are cached without overwriting existing files or decrypting protected keys.
+- Wallet List uses a multi-line Gum table for each wallet, asks before fetching live values, shows a Gum spinner during the query, and displays the primary address with separate relevant base, payment, reward, native-asset-count, and total rows.
+- Wallet Show moves stake registration into wallet details, shows mnemonic derivation paths, adds relevant hexadecimal credential hashes, labels stake pool and DRep delegation separately, and keeps on-chain native-asset holdings visible when optional Koios metadata is unavailable.
+- Wallet Show uses one native-asset detail table with policy ID, asset-name hex, quantity, and asset fingerprint; light mode adds available Koios metadata to the same table.
+- Oversized native-asset details use one Koios-themed Gum scroll view.
 - Interactive startup normalizes a UTF-8 locale before rendering multibyte UI and metadata.
 - CLI and mnemonic-derived wallets are identified separately while hardware and multisignature types retain precedence.
 - Node health colors now use fixed slot-gap ranges: through 120 green, through 600 amber, and above 600 red.
 - Wallet selection uses the available terminal height and preserves normal Gum cancellation behavior.
 
 #### Fixed
+- Gum 2.0.0 static tables no longer apply the Koios accent to their first data row; the section heading carries the visual accent while table foreground and background colors remain neutral.
 - Wallet Show revalidates a selected wallet before reading it, fails clearly on inaccessible folders, and rejects symbolic-link replacement after discovery.
 - Duplicate funding addresses are queried once, while incomplete backend results can no longer be presented as a complete wallet total, UTxO count, or asset count.
 - Koios light mode batches funding addresses into one `address_info` request and keeps stake information in one `account_info` request.

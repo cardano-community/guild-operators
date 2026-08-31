@@ -11,6 +11,10 @@
   ],
   "libs": [
     "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
     "wallet-query.sh"
   ]
 }

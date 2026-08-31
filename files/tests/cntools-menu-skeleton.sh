@@ -212,16 +212,34 @@ while IFS=$'\t' read -r \
       fail "action entrypoint has invalid Bash syntax: ${module_id}"
     case "${module_id}" in
       wallet/list)
-        jq -e '.libs == ["wallet.sh", "wallet-query.sh"]' \
+        jq -e '.libs == [
+          "wallet.sh",
+          "wallet-material.sh",
+          "wallet-key.sh",
+          "wallet-address.sh",
+          "wallet-id.sh",
+          "wallet-query.sh"
+        ]' \
           "${metadata}" >/dev/null ||
           fail "Wallet List has unexpected library declarations"
+        grep -F 'cntools_wallet_cleanup_material' "${action_file}" >/dev/null ||
+          fail "Wallet List does not clean artifact staging files"
         grep -F 'cntools_wallet_action_list' "${action_file}" >/dev/null ||
           fail "Wallet List does not call its functional entrypoint"
         ;;
       wallet/show)
-        jq -e '.libs == ["wallet.sh", "wallet-query.sh"]' \
+        jq -e '.libs == [
+          "wallet.sh",
+          "wallet-material.sh",
+          "wallet-key.sh",
+          "wallet-address.sh",
+          "wallet-id.sh",
+          "wallet-query.sh"
+        ]' \
           "${metadata}" >/dev/null ||
           fail "Wallet Show has unexpected library declarations"
+        grep -F 'cntools_wallet_cleanup_material' "${action_file}" >/dev/null ||
+          fail "Wallet Show does not clean artifact staging files"
         grep -F 'cntools_wallet_action_show' "${action_file}" >/dev/null ||
           fail "Wallet Show does not call its functional entrypoint"
         ;;

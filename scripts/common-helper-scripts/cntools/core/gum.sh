@@ -917,8 +917,8 @@ cntools_ui_render_field() {
 }
 
 cntools_ui_render_detail() {
-  cntools_gum style --margin "0 2" \
-    --foreground "${CNTOOLS_GUM_COLOR_MUTED}" "${1:-}"
+  cntools_gum style --margin "0 2" --bold \
+    --foreground "${CNTOOLS_GUM_COLOR_BRAND}" "${1:-}"
 }
 
 cntools_ui_render_empty() {
@@ -1040,13 +1040,19 @@ cntools_ui_page_file() {
 }
 
 cntools_ui_table() {
+  # Gum v2.0.0's static table renderer applies its header style to the first
+  # data row instead of Lip Gloss's header row. Keep every Gum-owned row color
+  # neutral and use the section label above the table for the brand accent.
+  # Selected colors are also pinned because a static table must never imply
+  # that its first data row is an active choice.
   cntools_gum table --print --border rounded --no-show-help \
     --border.foreground "${CNTOOLS_GUM_COLOR_DIVIDER}" \
-    --header.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
-    --header.background "${CNTOOLS_GUM_COLOR_SURFACE}" \
-    --header.bold \
+    --header.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
+    --header.background "${CNTOOLS_GUM_COLOR_CANVAS}" \
     --cell.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
-    --cell.background "${CNTOOLS_GUM_COLOR_CANVAS}" "$@"
+    --cell.background "${CNTOOLS_GUM_COLOR_CANVAS}" \
+    --selected.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
+    --selected.background "${CNTOOLS_GUM_COLOR_CANVAS}" "$@"
 }
 
 cntools_ui_spin() {

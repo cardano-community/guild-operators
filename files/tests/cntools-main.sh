@@ -487,6 +487,56 @@ run_status_spacing_test() (
     "Gum Update summary row accounting"
 )
 
+run_static_table_style_test() (
+  local argument_log="${TEST_ROOT}/static-table-style-arguments"
+  local detail_log="${TEST_ROOT}/static-table-detail-arguments"
+
+  cntools_gum() {
+    local command_name="${1:-}"
+    shift || true
+
+    case "${command_name}" in
+      table)
+        printf '%s\n' "${command_name}" "$@" > "${argument_log}"
+        while IFS= read -r _; do :; done
+        ;;
+      style)
+        printf '%s\n' "${command_name}" "$@" > "${detail_log}"
+        ;;
+      *) return 2 ;;
+    esac
+  }
+
+  : > "${argument_log}"
+  : > "${detail_log}"
+  printf 'Property\tValue\nName\tFixture\n' | cntools_ui_table \
+    --separator $'\t' >/dev/null ||
+    fail "the static Gum table wrapper failed"
+  for expected in \
+    table --print --no-show-help \
+    --header.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
+    --header.background "${CNTOOLS_GUM_COLOR_CANVAS}" \
+    --cell.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
+    --cell.background "${CNTOOLS_GUM_COLOR_CANVAS}" \
+    --selected.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
+    --selected.background "${CNTOOLS_GUM_COLOR_CANVAS}"; do
+    grep -Fx -- "${expected}" "${argument_log}" >/dev/null ||
+      fail "static Gum table omitted its neutral style: ${expected}"
+  done
+  if grep -Fx -- "${CNTOOLS_GUM_COLOR_BRAND}" "${argument_log}" >/dev/null ||
+     grep -Fx -- "${CNTOOLS_GUM_COLOR_SURFACE}" "${argument_log}" >/dev/null ||
+     grep -Fx -- '--header.bold' "${argument_log}" >/dev/null; then
+    fail "static Gum table can still apply brand color to its first data row"
+  fi
+
+  cntools_ui_render_detail "Wallet" >/dev/null ||
+    fail "the Gum detail heading failed"
+  grep -Fx -- "${CNTOOLS_GUM_COLOR_BRAND}" "${detail_log}" >/dev/null ||
+    fail "the table section heading did not retain the Koios accent"
+  grep -Fx -- '--bold' "${detail_log}" >/dev/null ||
+    fail "the table section heading is not visually distinct"
+)
+
 run_menu_mapping_test() (
   local fake_root="/fixture/root"
   local fake_submenu="/fixture/root/tools"
@@ -1042,6 +1092,7 @@ run_filter_presentation_test
 run_action_choice_helper_test
 run_filter_layout_test
 run_status_spacing_test
+run_static_table_style_test
 run_menu_mapping_test
 run_menu_filter_status_test 130 130 "MENU:abort (filter interrupted)"
 run_menu_filter_status_test 2 2 "ERROR:Gum filter failed with status 2"

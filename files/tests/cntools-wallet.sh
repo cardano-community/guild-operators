@@ -12,6 +12,10 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 WALLET_LIBRARY="${CNTOOLS_ROOT}/lib/wallet.sh"
+MATERIAL_LIBRARY="${CNTOOLS_ROOT}/lib/wallet-material.sh"
+KEY_LIBRARY="${CNTOOLS_ROOT}/lib/wallet-key.sh"
+ADDRESS_LIBRARY="${CNTOOLS_ROOT}/lib/wallet-address.sh"
+ID_LIBRARY="${CNTOOLS_ROOT}/lib/wallet-id.sh"
 QUERY_LIBRARY="${CNTOOLS_ROOT}/lib/wallet-query.sh"
 STARTUP_LIBRARY="${CNTOOLS_ROOT}/core/startup.sh"
 SHOW_ACTION="${CNTOOLS_ROOT}/modules/root/wallet/show"
@@ -33,11 +37,11 @@ HTTP_CAPTURE_DIR="${TEST_ROOT}/http-captures"
 # Checksum-valid fixtures are from the official Koios OpenAPI examples. Testnet
 # address headers cannot distinguish Preview from Preprod, but they can and must
 # be distinguished from mainnet by their network tag and HRP.
-TEST_BASE_ADDRESS="addr_test1vpfwv0ezc5g8a4mkku8hhy3y3vp92t7s3ul8g778g5yegsgalc6gc"
-TEST_PAYMENT_ADDRESS="addr_test1vqneq3v0dqh3x3muv6ee3lt8e5729xymnxuavx6tndcjc2cv24ef9"
-TEST_REWARD_ADDRESS="stake_test1urqntq4wexjylnrdnp97qq79qkxxvrsa9lcnwr7ckjd6w0cr04y4p"
+TEST_BASE_ADDRESS="addr_test1qpfepft9zs3y8ejcv84tq6tkp00wdm46fr6h3am02leunk8dc55q34v2ggxw9hea4rr3rry933a2zdh60v43h237s8ks7t2dja"
+TEST_PAYMENT_ADDRESS="addr_test1vpfepft9zs3y8ejcv84tq6tkp00wdm46fr6h3am02leunkqtddwf6"
+TEST_REWARD_ADDRESS="stake_test1urku22qg6k9yyr8zmu7633c33jzcc74pxma8k2cm4glgrmgrmu5lc"
 MAIN_BASE_ADDRESS="addr1qy2jt0qpqz2z2z9zx5w4xemekkce7yderz53kjue53lpqv90lkfa9sgrfjuz6uvt4uqtrqhl2kj0a9lnr9ndzutx32gqleeckv"
-MAIN_PAYMENT_ADDRESS="addr1q9xvgr4ehvu5k5tmaly7ugpnvekpqvnxj8xy50pa7kyetlnhel389pa4rnq6fmkzwsaynmw0mnldhlmchn2sfd589fgsz9dd0y"
+MAIN_PAYMENT_ADDRESS="addr1vy2jt0qpqz2z2z9zx5w4xemekkce7yderz53kjue53lpqvqmw5nzn"
 MAIN_REWARD_ADDRESS="stake1uyrx65wjqjgeeksd8hptmcgl5jfyrqkfq0xe8xlp367kphsckq250"
 BAD_ALPHABET_ADDRESS="${TEST_BASE_ADDRESS:0:20}b${TEST_BASE_ADDRESS:21}"
 BAD_CHECKSUM_ADDRESS="${TEST_BASE_ADDRESS::-1}q"
@@ -54,6 +58,8 @@ TEST_ASSET_ID="${TEST_POLICY_ID}.${TEST_ASSET_NAME}"
 TEST_BASE_ASSET_ID="${TEST_BASE_POLICY_ID}.${TEST_BASE_ASSET_NAME}"
 TEST_PAYMENT_ASSET_ID="${TEST_PAYMENT_POLICY_ID}.${TEST_PAYMENT_ASSET_NAME}"
 TEST_ASSET_FINGERPRINT="asset1ua6pz3yd5mdka946z8jw2fld3f8d0mmxt75gv9"
+TEST_LOCAL_ASSET_HASH="b1bd6b1772d9d055e72f9e6c04d00ba855b023d1"
+TEST_LOCAL_ASSET_FINGERPRINT="asset1kx7kk9mjm8g9tee0nekqf5qt4p2mqg73h4fxr8"
 
 cleanup_test() {
   chmod -R u+rwx -- "${TEST_ROOT}" 2>/dev/null || true
@@ -117,17 +123,21 @@ line_count() {
 }
 
 for required_command in \
-  awk bash chmod env find grep jq ln mktemp mkdir mv rm sed sort stat tr wc; do
+  awk bash chmod cut env find grep jq ln mktemp mkdir mv od rm sed sort stat tr wc; do
   command -v "${required_command}" >/dev/null 2>&1 ||
     fail "required command is unavailable: ${required_command}"
 done
 
 for required_file in \
-  "${WALLET_LIBRARY}" "${QUERY_LIBRARY}" "${STARTUP_LIBRARY}"; do
+  "${WALLET_LIBRARY}" "${MATERIAL_LIBRARY}" "${KEY_LIBRARY}" \
+  "${ADDRESS_LIBRARY}" "${ID_LIBRARY}" "${QUERY_LIBRARY}" \
+  "${STARTUP_LIBRARY}"; do
   [[ -f "${required_file}" && ! -L "${required_file}" ]] ||
     fail "required CNTools source is missing or unsafe: ${required_file}"
 done
-bash -n "${WALLET_LIBRARY}" "${QUERY_LIBRARY}" ||
+bash -n \
+  "${WALLET_LIBRARY}" "${MATERIAL_LIBRARY}" "${KEY_LIBRARY}" \
+  "${ADDRESS_LIBRARY}" "${ID_LIBRARY}" "${QUERY_LIBRARY}" ||
   fail "wallet libraries have invalid Bash syntax"
 
 # A token available as a regular shell variable can be used to construct a
@@ -147,6 +157,14 @@ fi
 # shellcheck source=/dev/null
 . "${WALLET_LIBRARY}"
 # shellcheck source=/dev/null
+. "${MATERIAL_LIBRARY}"
+# shellcheck source=/dev/null
+. "${KEY_LIBRARY}"
+# shellcheck source=/dev/null
+. "${ADDRESS_LIBRARY}"
+# shellcheck source=/dev/null
+. "${ID_LIBRARY}"
+# shellcheck source=/dev/null
 . "${QUERY_LIBRARY}"
 
 CNTOOLS_WALLET_DIR="${WALLET_ROOT}"
@@ -155,12 +173,16 @@ CNTOOLS_WALLET_PAY_SKEY_FILENAME="payment.skey"
 CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME="payment.hwsfile"
 CNTOOLS_WALLET_PAY_ADDR_FILENAME="payment.addr"
 CNTOOLS_WALLET_PAY_SCRIPT_FILENAME="payment.script"
+CNTOOLS_WALLET_PAY_CRED_FILENAME="payment.cred"
+CNTOOLS_WALLET_PAY_SCRIPT_CRED_FILENAME="payment.script.cred"
 CNTOOLS_WALLET_BASE_ADDR_FILENAME="base.addr"
 CNTOOLS_WALLET_STAKE_VKEY_FILENAME="stake.vkey"
 CNTOOLS_WALLET_STAKE_SKEY_FILENAME="stake.skey"
 CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME="stake.hwsfile"
 CNTOOLS_WALLET_STAKE_ADDR_FILENAME="reward.addr"
 CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME="stake.script"
+CNTOOLS_WALLET_STAKE_CRED_FILENAME="stake.cred"
+CNTOOLS_WALLET_STAKE_SCRIPT_CRED_FILENAME="stake.script.cred"
 CNTOOLS_WALLET_DERIVATION_PATH_FILENAME="derivation.path"
 CNTOOLS_WALLET_MULTISIG_PREFIX="ms_"
 CNTOOLS_LOG="${LOG_TRACE}"
@@ -216,9 +238,13 @@ write_cli_wallet() {
   local reward_address="${4:-}"
 
   write_wallet_file "${wallet}" payment.vkey \
-    '{"type":"PaymentVerificationKeyShelley_ed25519","description":"Payment Verification Key"}'
+    '{"type":"PaymentVerificationKeyShelley_ed25519","description":"Payment Verification Key","cborHex":"00"}'
   write_wallet_file "${wallet}" stake.vkey \
-    '{"type":"StakeVerificationKeyShelley_ed25519","description":"Stake Verification Key"}'
+    '{"type":"StakeVerificationKeyShelley_ed25519","description":"Stake Verification Key","cborHex":"00"}'
+  write_wallet_file "${wallet}" payment.cred \
+    '11111111111111111111111111111111111111111111111111111111'
+  write_wallet_file "${wallet}" stake.cred \
+    '22222222222222222222222222222222222222222222222222222222'
   [[ -z "${base_address}" ]] ||
     write_wallet_file "${wallet}" base.addr "${base_address}"
   [[ -z "${payment_address}" ]] ||
@@ -243,6 +269,36 @@ assert_no_funding_aggregate() {
   assert_empty "${CNTOOLS_WALLET_UTXO_COUNT}" "${context} UTxO count"
   assert_empty "${CNTOOLS_WALLET_ASSET_COUNT}" "${context} asset count"
 }
+
+test_component_aware_list_totals() (
+  CNTOOLS_MODE="local"
+  CNTOOLS_LOCAL_CLI_CAPABLE="true"
+  CNTOOLS_WALLET_NAMES=(PaymentOnly StakeOnly Empty)
+  cntools_wallet_list_query_reset
+
+  CNTOOLS_WALLET_LIST_PAYMENT_ADDRESSES[0]="${TEST_PAYMENT_ADDRESS}"
+  CNTOOLS_WALLET_LIST_PAYMENT_UTXO_LOVELACE[0]="3000000"
+  CNTOOLS_WALLET_LIST_REWARD_ADDRESSES[1]="${TEST_REWARD_ADDRESS}"
+  CNTOOLS_WALLET_LIST_REWARD_LOVELACE[1]="400000"
+  cntools_wallet_list_finalize_results ||
+    fail "component-aware List totals could not be finalized"
+
+  assert_eq "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[0]}" "3000000" \
+    "payment-only List funding total"
+  assert_eq "${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[0]}" "3000000" \
+    "payment-only List inclusive total"
+  assert_eq "${CNTOOLS_WALLET_LIST_QUERY_STATUSES[0]}" "available" \
+    "payment-only List status"
+  assert_empty "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[1]}" \
+    "stake-only wallet gained a funding total"
+  assert_eq "${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[1]}" "400000" \
+    "stake-only List total"
+  assert_eq "${CNTOOLS_WALLET_LIST_QUERY_STATUSES[1]}" "available" \
+    "stake-only List status"
+  assert_eq "${CNTOOLS_WALLET_LIST_QUERY_STATUSES[2]}" "unavailable" \
+    "address-less List status"
+)
+test_component_aware_list_totals
 
 # ---------------------------------------------------------------------------
 # Wallet discovery, address validation, and output-variable contracts
@@ -277,8 +333,11 @@ grep -F 'Skipped symbolic-link wallet entry: Linked' "${LOG_TRACE}" >/dev/null |
 write_cli_wallet Mnemonic
 write_wallet_file Mnemonic payment.skey \
   '{"type":"PaymentExtendedSigningKeyShelley_ed25519_bip32"}'
+assert_eq "$(cntools_wallet_type "${WALLET_ROOT}/Mnemonic")" "CLI" \
+  "extended signing key without derivation metadata changed wallet type"
+write_wallet_file Mnemonic derivation.path '1852H/1815H/0H/x/0'
 assert_eq "$(cntools_wallet_type "${WALLET_ROOT}/Mnemonic")" "Mnemonic" \
-  "extended-key-only mnemonic wallet type"
+  "valid derivation metadata did not identify mnemonic wallet type"
 
 write_cli_wallet WrongExtended
 write_wallet_file WrongExtended payment.skey \
@@ -375,6 +434,12 @@ assert_status 2 "bad Bech32 alphabet accepted" \
 write_wallet_file Alice base.addr "${BAD_CHECKSUM_ADDRESS}"
 assert_status 2 "bad Bech32 checksum accepted" \
   cntools_wallet_read_address "${WALLET_ROOT}/Alice" base address_output
+write_wallet_file Alice base.addr "${TEST_PAYMENT_ADDRESS}"
+assert_status 2 "enterprise payment address accepted as a base address" \
+  cntools_wallet_read_address "${WALLET_ROOT}/Alice" base address_output
+write_wallet_file Alice payment.addr "${TEST_BASE_ADDRESS}"
+assert_status 2 "base address accepted as an enterprise payment address" \
+  cntools_wallet_read_address "${WALLET_ROOT}/Alice" payment address_output
 write_wallet_file Alice base.addr "${MAIN_BASE_ADDRESS}"
 assert_status 2 "mainnet address accepted for Preview" \
   cntools_wallet_read_address "${WALLET_ROOT}/Alice" base address_output
@@ -514,6 +579,380 @@ cntools_wallet_asset_add "${TEST_ASSET_ID}" 1 ||
 assert_eq "${CNTOOLS_WALLET_ASSET_QUANTITIES[${TEST_ASSET_ID}]}" \
   "1000000000000000000000000" "aggregated large asset quantity"
 cntools_wallet_query_reset
+
+test_multiline_wallet_catalog() (
+  local index=0
+  local rows=""
+
+  reset_wallet_root
+  write_cli_wallet BaseWallet \
+    "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
+  write_wallet_file PaymentOnly payment.vkey \
+    '{"type":"PaymentVerificationKeyShelley_ed25519","cborHex":"00"}'
+  write_wallet_file PaymentOnly payment.addr "${TEST_PAYMENT_ADDRESS}"
+  write_wallet_file StakeOnly stake.vkey \
+    '{"type":"StakeVerificationKeyShelley_ed25519","cborHex":"00"}'
+  write_wallet_file StakeOnly reward.addr "${TEST_REWARD_ADDRESS}"
+  write_wallet_file MultiSig payment.script \
+    '{"type":"sig","keyHash":"11111111111111111111111111111111111111111111111111111111"}'
+  write_wallet_file MultiSig stake.script \
+    '{"type":"sig","keyHash":"22222222222222222222222222222222222222222222222222222222"}'
+  write_wallet_file MultiSig base.addr "${TEST_BASE_ADDRESS}"
+  write_wallet_file MultiSig payment.addr "${TEST_PAYMENT_ADDRESS}"
+  write_wallet_file MultiSig reward.addr "${TEST_REWARD_ADDRESS}"
+
+  cntools_wallet_catalog_build || fail "multiline List catalog build failed"
+  cntools_wallet_list_query_reset
+  cntools_wallet_list_collect_addresses ||
+    fail "multiline List addresses could not be collected"
+  for (( index = 0; index < ${#CNTOOLS_WALLET_NAMES[@]}; index++ )); do
+    case "${CNTOOLS_WALLET_NAMES[index]}" in
+      BaseWallet)
+        CNTOOLS_WALLET_LIST_BASE_UTXO_LOVELACE[index]="1000000"
+        CNTOOLS_WALLET_LIST_PAYMENT_UTXO_LOVELACE[index]="0"
+        CNTOOLS_WALLET_LIST_REWARD_LOVELACE[index]="200000"
+        CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]="0"
+        CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[index]="1200000"
+        ;;
+      PaymentOnly)
+        CNTOOLS_WALLET_LIST_PAYMENT_UTXO_LOVELACE[index]="3000000"
+        CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]="2"
+        CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[index]="3000000"
+        ;;
+      StakeOnly)
+        CNTOOLS_WALLET_LIST_REWARD_LOVELACE[index]="400000"
+        CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[index]="400000"
+        ;;
+    esac
+  done
+  CNTOOLS_UI_COLUMNS=98
+  rows="$(cntools_wallet_catalog_rows)" ||
+    fail "multiline List rows could not be rendered"
+
+  assert_contains "${rows}" $'BaseWallet\tType\tCLI' \
+    "base wallet List identity"
+  assert_contains "${rows}" $'\tBase address\t'"${TEST_BASE_ADDRESS:0:32}" \
+    "combined base primary address"
+  assert_contains "${rows}" $'\tBase UTxO\t1.000000 ADA' \
+    "base wallet split balance"
+  assert_contains "${rows}" $'\tRewards\t0.200000 ADA' \
+    "base wallet reward balance"
+  assert_contains "${rows}" $'\tTotal\t1.200000 ADA' \
+    "base wallet total"
+  assert_contains "${rows}" $'PaymentOnly\tType\tCLI' \
+    "payment-only CLI type"
+  assert_contains "${rows}" $'\tPayment address\t'"${TEST_PAYMENT_ADDRESS:0:32}" \
+    "payment-only primary address"
+  assert_contains "${rows}" $'\tPayment UTxO\t3.000000 ADA' \
+    "payment-only balance"
+  assert_contains "${rows}" $'\tNative assets\t2' \
+    "non-empty native asset count"
+  assert_contains "${rows}" $'StakeOnly\tType\tCLI' \
+    "stake-only CLI type"
+  assert_contains "${rows}" $'\tStake address\t'"${TEST_REWARD_ADDRESS:0:32}" \
+    "stake-only primary address"
+  assert_contains "${rows}" "Payment key is missing." \
+    "stake-only payment-key note"
+  assert_contains "${rows}" $'MultiSig\tType\tMultiSig' \
+    "MultiSig List type"
+  assert_contains "${rows}" $'\tScript base address\t'"${TEST_BASE_ADDRESS:0:32}" \
+    "MultiSig base primary address"
+  if [[ "${rows}" == *$'\tBase UTxO\t0.000000 ADA'* ||
+        "${rows}" == *$'\tPayment UTxO\t0.000000 ADA'* ||
+        "${rows}" == *$'\tRewards\t0.000000 ADA'* ||
+        "${rows}" == *$'\tNative assets\t0'* ]]; then
+    fail "multiline List rendered an empty balance or native-asset row"
+  fi
+  assert_eq "$(grep -c $'^BaseWallet\t' <<< "${rows}")" "1" \
+    "wallet name should identify one multiline group"
+)
+test_multiline_wallet_catalog
+
+test_missing_only_wallet_materialization() (
+  local fake_cli="${TEST_ROOT}/material-cardano-cli"
+  local material_trace="${TEST_ROOT}/material-cli.log"
+  local wallet=""
+  local generated_file=""
+  local first_call_count=""
+  local derivation_path=""
+  local generated_address=""
+  local generated_credential=""
+  local primary_address=""
+  local primary_label=""
+  local primary_note=""
+
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'set -euo pipefail' \
+    'printf "%s\n" "$*" >> "${MATERIAL_TRACE}"' \
+    'arguments=("$@")' \
+    'output=""' \
+    'signing=""' \
+    'extended=""' \
+    'while (( $# > 0 )); do' \
+    '  case "$1" in' \
+    '    --verification-key-file|--out-file) output="$2"; shift 2 ;;' \
+    '    --signing-key-file) signing="$2"; shift 2 ;;' \
+    '    --extended-verification-key-file) extended="$2"; shift 2 ;;' \
+    '    *) shift ;;' \
+    '  esac' \
+    'done' \
+    'command_line="${arguments[*]}"' \
+    'if [[ "${arguments[0]} ${arguments[1]:-}" == "key verification-key" ]]; then' \
+    '  role="Payment"' \
+    '  [[ "${signing##*/}" != *stake* ]] || role="Stake"' \
+    '  if grep -F ExtendedSigningKey "${signing}" >/dev/null; then' \
+    '    type="${role}ExtendedVerificationKeyShelley_ed25519_bip32"' \
+    '  else' \
+    '    type="${role}VerificationKeyShelley_ed25519"' \
+    '  fi' \
+    '  printf "{\"type\":\"%s\",\"cborHex\":\"00\"}\n" "${type}" > "${output}"' \
+    'elif [[ "${arguments[0]} ${arguments[1]:-}" == "key non-extended-key" ]]; then' \
+    '  role="Payment"' \
+    '  [[ "${extended##*/}" != *stake* ]] || role="Stake"' \
+    '  printf "{\"type\":\"%sVerificationKeyShelley_ed25519\",\"cborHex\":\"00\"}\n" "${role}" > "${output}"' \
+    'elif [[ "${arguments[0]} ${arguments[1]:-}" == "address build" ]]; then' \
+    '  if [[ "${command_line}" == *"--stake-verification-key-file"* || "${command_line}" == *"--stake-script-file"* ]]; then' \
+    '    printf "%s\n" "${MATERIAL_BASE_ADDRESS}" > "${output}"' \
+    '  else' \
+    '    printf "%s\n" "${MATERIAL_PAYMENT_ADDRESS}" > "${output}"' \
+    '  fi' \
+    'elif [[ "${arguments[0]} ${arguments[1]:-}" == "stake-address build" ]]; then' \
+    '  printf "%s\n" "${MATERIAL_REWARD_ADDRESS}" > "${output}"' \
+    'elif [[ "${arguments[0]} ${arguments[1]:-}" == "address key-hash" ]]; then' \
+    '  printf "%s\n" "${MATERIAL_PAYMENT_CREDENTIAL}" > "${output}"' \
+    'elif [[ "${arguments[0]} ${arguments[1]:-}" == "stake-address key-hash" ]]; then' \
+    '  printf "%s\n" "${MATERIAL_STAKE_CREDENTIAL}" > "${output}"' \
+    'elif [[ "${arguments[0]} ${arguments[1]:-}" == "hash script" ]]; then' \
+    '  printf "%s\n" "${MATERIAL_SCRIPT_CREDENTIAL}" > "${output}"' \
+    'else' \
+    '  exit 91' \
+    'fi' > "${fake_cli}"
+  chmod 0700 "${fake_cli}"
+  : > "${material_trace}"
+  export MATERIAL_TRACE="${material_trace}"
+  export MATERIAL_BASE_ADDRESS="${TEST_BASE_ADDRESS}"
+  export MATERIAL_PAYMENT_ADDRESS="${TEST_PAYMENT_ADDRESS}"
+  export MATERIAL_REWARD_ADDRESS="${TEST_REWARD_ADDRESS}"
+  export MATERIAL_PAYMENT_CREDENTIAL="11111111111111111111111111111111111111111111111111111111"
+  export MATERIAL_STAKE_CREDENTIAL="22222222222222222222222222222222222222222222222222222222"
+  export MATERIAL_SCRIPT_CREDENTIAL="33333333333333333333333333333333333333333333333333333333"
+  CNTOOLS_CLI="${fake_cli}"
+  CNTOOLS_CLI_TIMEOUT="2"
+
+  reset_wallet_root
+  wallet="${WALLET_ROOT}/Derived"
+  write_wallet_file Derived payment.skey \
+    '{"type":"PaymentSigningKeyShelley_ed25519","cborHex":"aa"}'
+  write_wallet_file Derived stake.skey \
+    '{"type":"StakeExtendedSigningKeyShelley_ed25519_bip32","cborHex":"bb"}'
+  write_wallet_file Derived ms_payment.skey \
+    '{"type":"PaymentSigningKeyShelley_ed25519","cborHex":"cc"}'
+  write_wallet_file Derived ms_stake.skey \
+    '{"type":"StakeSigningKeyShelley_ed25519","cborHex":"dd"}'
+  write_wallet_file Derived derivation.path '1852H/1815H/7H/x/0'
+
+  cntools_wallet_materialize_wallet "${wallet}" ||
+    fail "signing-key-only wallet materialization failed"
+  for generated_file in \
+    payment.vkey stake.vkey ms_payment.vkey ms_stake.vkey \
+    payment.addr base.addr reward.addr \
+    payment.cred stake.cred ms_payment.cred ms_stake.cred; do
+    [[ -f "${wallet}/${generated_file}" && ! -L "${wallet}/${generated_file}" ]] ||
+      fail "wallet materialization omitted ${generated_file}"
+    find "${wallet}/${generated_file}" -prune -perm 0600 -print | grep -q . ||
+      fail "generated wallet artifact is not mode 0600: ${generated_file}"
+  done
+  assert_eq "$(cntools_wallet_type "${wallet}")" "Mnemonic" \
+    "generated mnemonic wallet type"
+  cntools_wallet_read_derivation_path "${wallet}" derivation_path ||
+    fail "generated wallet derivation path could not be read"
+  assert_eq "${derivation_path}" "1852H/1815H/7H/x/0" \
+    "saved mnemonic derivation path"
+  cntools_wallet_read_address "${wallet}" base generated_address ||
+    fail "generated base address was invalid"
+  assert_eq "${generated_address}" "${TEST_BASE_ADDRESS}" \
+    "generated base address"
+  cntools_wallet_id_read_credential "${wallet}" ms-payment generated_credential ||
+    fail "generated MultiSig payment credential was invalid"
+  assert_eq "${generated_credential}" "${MATERIAL_PAYMENT_CREDENTIAL}" \
+    "generated MultiSig payment credential"
+  first_call_count="$(line_count "${material_trace}")"
+  assert_eq "${first_call_count}" "12" \
+    "initial wallet artifact CLI call count"
+  cntools_wallet_materialize_wallet "${wallet}" ||
+    fail "cached wallet material was rejected"
+  assert_eq "$(line_count "${material_trace}")" "${first_call_count}" \
+    "cached wallet artifacts were regenerated"
+  if find "${wallet}" -maxdepth 1 -name '.cntools-*' -print -quit | grep -q .; then
+    fail "wallet materialization retained a staging file"
+  fi
+  if grep -F '"cborHex":"aa"' "${LOG_TRACE}" >/dev/null; then
+    fail "wallet materialization logged private key contents"
+  fi
+
+  wallet="${WALLET_ROOT}/Scripts"
+  write_wallet_file Scripts payment.script \
+    '{"type":"sig","keyHash":"11111111111111111111111111111111111111111111111111111111"}'
+  write_wallet_file Scripts stake.script \
+    '{"type":"sig","keyHash":"22222222222222222222222222222222222222222222222222222222"}'
+  cntools_wallet_materialize_wallet "${wallet}" ||
+    fail "script wallet materialization failed"
+  for generated_file in \
+    payment.addr base.addr reward.addr payment.script.cred stake.script.cred; do
+    [[ -f "${wallet}/${generated_file}" && ! -L "${wallet}/${generated_file}" ]] ||
+      fail "script wallet materialization omitted ${generated_file}"
+  done
+  assert_eq "$(cntools_wallet_type "${wallet}")" "MultiSig" \
+    "script wallet type"
+  cntools_wallet_address_primary_into \
+    "${wallet}" primary_address primary_label primary_note ||
+    fail "script wallet primary address could not be selected"
+  assert_eq "${primary_address}" "${TEST_BASE_ADDRESS}" \
+    "script wallet primary address"
+  assert_eq "${primary_label}" "Script base address" \
+    "script wallet primary label"
+  assert_empty "${primary_note}" "complete script wallet primary note"
+
+  wallet="${WALLET_ROOT}/MixedScript"
+  write_wallet_file MixedScript payment.script \
+    '{"type":"sig","keyHash":"11111111111111111111111111111111111111111111111111111111"}'
+  write_wallet_file MixedScript stake.skey \
+    '{"type":"StakeSigningKeyShelley_ed25519","cborHex":"aa"}'
+  cntools_wallet_materialize_wallet "${wallet}" ||
+    fail "mixed script/key wallet materialization failed"
+  for generated_file in \
+    stake.vkey payment.addr base.addr reward.addr \
+    payment.script.cred stake.cred; do
+    [[ -f "${wallet}/${generated_file}" && ! -L "${wallet}/${generated_file}" ]] ||
+      fail "mixed script/key wallet materialization omitted ${generated_file}"
+  done
+  assert_eq "$(cntools_wallet_type "${wallet}")" "MultiSig" \
+    "mixed script/key wallet type"
+  cntools_wallet_address_primary_into \
+    "${wallet}" primary_address primary_label primary_note ||
+    fail "mixed script/key primary address could not be selected"
+  assert_eq "${primary_address}" "${TEST_BASE_ADDRESS}" \
+    "mixed script/key primary address"
+  assert_eq "${primary_label}" "Script base address" \
+    "mixed script/key primary label"
+  assert_empty "${primary_note}" "complete mixed script/key primary note"
+
+  write_wallet_file Retain payment.skey \
+    '{"type":"PaymentSigningKeyShelley_ed25519","cborHex":"ee"}'
+  write_wallet_file Retain payment.vkey 'do-not-replace'
+  first_call_count="$(line_count "${material_trace}")"
+  assert_status 2 "invalid existing verification key was accepted" \
+    cntools_wallet_key_materialize_role \
+      "${WALLET_ROOT}/Retain" payment payment.skey payment.vkey payment.hwsfile
+  assert_eq "$(< "${WALLET_ROOT}/Retain/payment.vkey")" "do-not-replace" \
+    "invalid existing verification key was replaced"
+  assert_eq "$(line_count "${material_trace}")" "${first_call_count}" \
+    "invalid existing target triggered a derivation command"
+
+  write_wallet_file SymlinkTarget external.vkey 'do-not-replace-link-target'
+  mkdir -p "${WALLET_ROOT}/LinkedTarget"
+  ln -s -- "${WALLET_ROOT}/SymlinkTarget/external.vkey" \
+    "${WALLET_ROOT}/LinkedTarget/payment.vkey"
+  write_wallet_file LinkedTarget payment.skey \
+    '{"type":"PaymentSigningKeyShelley_ed25519","cborHex":"ff"}'
+  assert_status 2 "symbolic-link verification key was accepted" \
+    cntools_wallet_key_materialize_role \
+      "${WALLET_ROOT}/LinkedTarget" payment \
+      payment.skey payment.vkey payment.hwsfile
+  [[ -L "${WALLET_ROOT}/LinkedTarget/payment.vkey" ]] ||
+    fail "symbolic-link verification key was replaced"
+  assert_eq "$(< "${WALLET_ROOT}/SymlinkTarget/external.vkey")" \
+    "do-not-replace-link-target" "symbolic-link target was changed"
+
+  write_wallet_file Protected payment.skey.gpg 'encrypted-private-key'
+  first_call_count="$(line_count "${material_trace}")"
+  cntools_wallet_key_materialize_role \
+    "${WALLET_ROOT}/Protected" payment \
+    payment.skey payment.vkey payment.hwsfile ||
+    fail "encrypted payment key was not skipped"
+  assert_eq "$(line_count "${material_trace}")" "${first_call_count}" \
+    "encrypted payment key triggered derivation"
+
+  write_wallet_file Hardware payment.hwsfile 'hardware-wallet-description'
+  write_wallet_file Hardware payment.skey \
+    '{"type":"PaymentSigningKeyShelley_ed25519","cborHex":"aa"}'
+  first_call_count="$(line_count "${material_trace}")"
+  cntools_wallet_key_materialize_role \
+    "${WALLET_ROOT}/Hardware" payment \
+    payment.skey payment.vkey payment.hwsfile ||
+    fail "hardware payment key was not skipped"
+  assert_eq "$(line_count "${material_trace}")" "${first_call_count}" \
+    "hardware payment key triggered private-key derivation"
+  cntools_wallet_material_cleanup
+)
+test_missing_only_wallet_materialization
+
+test_local_asset_fingerprint() (
+  local fingerprint_bin="${TEST_ROOT}/fingerprint-bin"
+  local fingerprint_trace="${TEST_ROOT}/fingerprint.log"
+  local fingerprint=""
+  local rows=""
+
+  mkdir -p "${fingerprint_bin}"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'set -euo pipefail' \
+    '[[ "$#" == "4" && "$1" == "-l" && "$2" == "160" && "$3" == "-b" ]] || exit 80' \
+    'hex="$(od -An -tx1 -v "$4" | tr -d "[:space:]")"' \
+    '[[ "${hex}" == "${CIP14_INPUT_HEX}" ]] || exit 81' \
+    'printf "b2sum\n" >> "${CIP14_TRACE}"' \
+    'printf "%s  %s\n" "${CIP14_HASH}" "$4"' \
+    > "${fingerprint_bin}/b2sum"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'set -euo pipefail' \
+    '[[ "$#" == "1" && "$1" == "asset" ]] || exit 82' \
+    'IFS= read -r hash' \
+    '[[ "${hash}" == "${CIP14_HASH}" ]] || exit 83' \
+    'printf "bech32\n" >> "${CIP14_TRACE}"' \
+    'printf "%s\n" "${CIP14_FINGERPRINT}"' \
+    > "${fingerprint_bin}/bech32"
+  chmod 0700 "${fingerprint_bin}/b2sum" "${fingerprint_bin}/bech32"
+  : > "${fingerprint_trace}"
+  export CIP14_INPUT_HEX="${TEST_POLICY_ID}${TEST_ASSET_NAME}"
+  export CIP14_HASH="${TEST_LOCAL_ASSET_HASH}"
+  export CIP14_FINGERPRINT="${TEST_LOCAL_ASSET_FINGERPRINT}"
+  export CIP14_TRACE="${fingerprint_trace}"
+  PATH="${fingerprint_bin}:${PATH}"
+
+  cntools_wallet_asset_fingerprint_into \
+    fingerprint "${TEST_POLICY_ID}" "${TEST_ASSET_NAME}" ||
+    fail "local CIP-14 fingerprint generation failed"
+  assert_eq "${fingerprint}" "${TEST_LOCAL_ASSET_FINGERPRINT}" \
+    "local CIP-14 fingerprint"
+  assert_eq "$(line_count "${fingerprint_trace}")" "2" \
+    "local CIP-14 tool call count"
+
+  : > "${fingerprint_trace}"
+  cntools_wallet_query_reset
+  cntools_wallet_asset_add "${TEST_ASSET_ID}" 6 ||
+    fail "could not prepare local fingerprint holding"
+  cntools_wallet_asset_fill_fingerprints ||
+    fail "local holding fingerprints could not be filled"
+  assert_eq "${CNTOOLS_WALLET_ASSET_FINGERPRINTS[${TEST_ASSET_ID}]}" \
+    "${TEST_LOCAL_ASSET_FINGERPRINT}" "local holding fingerprint"
+  CNTOOLS_MODE="local"
+  CNTOOLS_UI_COLUMNS=98
+  rows="$(cntools_wallet_asset_details_rows)" ||
+    fail "local fingerprint details could not be rendered"
+  assert_contains "${rows}" $'\tFingerprint\t'"${TEST_LOCAL_ASSET_FINGERPRINT}" \
+    "local fingerprint detail row"
+  assert_status 2 "invalid policy ID was accepted for CIP-14" \
+    cntools_wallet_asset_fingerprint_into fingerprint invalid "${TEST_ASSET_NAME}"
+  if find "${CNTOOLS_TMP_DIR}" -maxdepth 1 -name '.cntools-cip14-*' \
+      -print -quit | grep -q .; then
+    fail "local fingerprint generation retained a temporary file"
+  fi
+  cntools_wallet_material_cleanup
+)
+test_local_asset_fingerprint
+
 saved_ui_columns="${CNTOOLS_UI_COLUMNS-}"
 had_ui_columns="${CNTOOLS_UI_COLUMNS+x}"
 CNTOOLS_UI_COLUMNS=60
@@ -592,26 +1031,26 @@ CNTOOLS_MODE="light"
 printf -v oversized_metadata '%050000d' 0
 CNTOOLS_WALLET_ASSET_REGISTRY_NAMES["${TEST_ASSET_ID}"]="${oversized_metadata}"
 CNTOOLS_WALLET_ASSET_TICKERS["${TEST_ASSET_ID}"]="${oversized_metadata}"
-oversized_overview="$(cntools_wallet_asset_overview_rows)" ||
+oversized_details="$(cntools_wallet_asset_details_rows)" ||
   fail "oversized metadata could not be rendered safely"
-(( ${#oversized_overview} < 1000 )) ||
+(( ${#oversized_details} < 3000 )) ||
   fail "oversized metadata was not bounded before table wrapping"
 CNTOOLS_WALLET_ASSET_REGISTRY_NAMES["${TEST_ASSET_ID}"]="Fixture Token"
 CNTOOLS_WALLET_ASSET_TICKERS["${TEST_ASSET_ID}"]="FIX"
-unset oversized_metadata oversized_overview
+unset oversized_metadata oversized_details
 CNTOOLS_UI_INTERACTIVE="Y"
 CNTOOLS_UI_COLUMNS=50
 cntools_gum_terminal_lines() { printf '24\n'; }
 : > "${UI_TRACE}"
 : > "${PAGER_TRACE}"
-cntools_wallet_render_asset_tables ||
-  fail "scrollable native-asset tables failed"
+cntools_wallet_render_asset_details_table ||
+  fail "scrollable native-asset details failed"
 grep -F $'PAGER_ARGS\t--soft-wrap' "${PAGER_TRACE}" >/dev/null ||
   fail "long native-asset tables did not use one Gum pager"
 grep -F $'DETAIL\tNative assets (1)' "${UI_TRACE}" >/dev/null ||
-  fail "the paged native-asset overview was omitted"
-grep -F $'DETAIL\tNative asset details' "${UI_TRACE}" >/dev/null ||
   fail "the paged native-asset details were omitted"
+[[ "$(grep -c $'DETAIL\tNative assets (1)' "${UI_TRACE}")" == "1" ]] ||
+  fail "Wallet Show rendered more than one native-assets table"
 cntools_wallet_query_cleanup
 unset -f cntools_gum_terminal_lines
 unset CNTOOLS_UI_INTERACTIVE
@@ -670,12 +1109,37 @@ if find "${CNTOOLS_TMP_DIR}" -maxdepth 1 -type f \
 fi
 grep -F $'ACTION\twallet/show\tselected' "${LOG_TRACE}" >/dev/null ||
   fail "loader-level Wallet Show selection was not logged"
-grep -F $'DATA_ROW\tBase\t'"${TEST_BASE_ADDRESS}" "${UI_TRACE}" >/dev/null ||
+grep -F $'DATA_ROW\tBase\t'"${TEST_BASE_ADDRESS:0:40}" "${UI_TRACE}" >/dev/null ||
   fail "loader-level Wallet Show did not render the base address"
 grep -F $'DATA_ROW\tPayment\t'"${TEST_PAYMENT_ADDRESS}" "${UI_TRACE}" >/dev/null ||
   fail "loader-level Wallet Show did not render the payment address"
 grep -F $'DATA_ROW\tStake / reward\t'"${TEST_REWARD_ADDRESS}" "${UI_TRACE}" >/dev/null ||
   fail "loader-level Wallet Show did not render the reward address"
+grep -F $'DATA_ROW\tStake registration\tUnavailable' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Wallet Show did not move stake registration into wallet detail"
+assert_eq "$(grep -c $'DATA_ROW\tStake registration\t' "${UI_TRACE}")" "1" \
+  "Wallet Show stake-registration row count"
+grep -F $'DETAIL\tCredentials' "${UI_TRACE}" >/dev/null ||
+  fail "Wallet Show did not render the credentials section"
+grep -F $'DATA_ROW\tPayment\t11111111111111111111111111111111111111111111111111111111' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Wallet Show omitted the payment credential"
+grep -F $'DATA_ROW\tStake\t22222222222222222222222222222222222222222222222222222222' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Wallet Show omitted the stake credential"
+registration_line="$(grep -n -m1 $'DATA_ROW\tStake registration\t' \
+  "${UI_TRACE}" | cut -d: -f1)"
+address_section_line="$(grep -n -m1 $'DETAIL\tAddresses' \
+  "${UI_TRACE}" | cut -d: -f1)"
+credential_section_line="$(grep -n -m1 $'DETAIL\tCredentials' \
+  "${UI_TRACE}" | cut -d: -f1)"
+[[ "${registration_line}" =~ ^[0-9]+$ &&
+   "${address_section_line}" =~ ^[0-9]+$ &&
+   "${credential_section_line}" =~ ^[0-9]+$ &&
+   ${registration_line} -lt ${address_section_line} &&
+   ${address_section_line} -lt ${credential_section_line} ]] ||
+  fail "Wallet Show top detail, address, and credential sections are out of order"
 grep -F $'DATA_ROW\tStake pool delegation\tUnavailable' \
   "${UI_TRACE}" >/dev/null ||
   fail "Wallet Show did not label stake pool delegation clearly"
@@ -696,10 +1160,14 @@ if find "${CNTOOLS_TMP_DIR}" -maxdepth 1 -type f \
 fi
 grep -F $'ACTION\twallet/list\tselected' "${LOG_TRACE}" >/dev/null ||
   fail "loader-level Wallet List selection was not logged"
-grep -F $'TABLE\tWallet          Type / Keys' "${UI_TRACE}" >/dev/null ||
-  fail "loader-level Wallet List did not render its balance table"
-grep -F 'Incomplete/Protec…' "${UI_TRACE}" >/dev/null ||
-  fail "Wallet List did not constrain a long Type / Keys value"
+grep -F $'DETAIL\tWallets' "${UI_TRACE}" >/dev/null ||
+  fail "loader-level Wallet List did not render its wallet table"
+grep -F $'DATA_TABLE\tWallet\tProperty\tValue' "${UI_TRACE}" >/dev/null ||
+  fail "Wallet List did not use the multiline table layout"
+grep -F $'DATA_ROW\tLongType\tType\tCLI' "${UI_TRACE}" >/dev/null ||
+  fail "Wallet List did not render the partial CLI wallet type"
+grep -F $'DATA_ROW\t\tKey protection\tProtected' "${UI_TRACE}" >/dev/null ||
+  fail "Wallet List did not render key protection separately"
 [[ "$(grep -Ec '^(CONFIRM|SPIN)' "${UI_TRACE}" || true)" == "0" ]] ||
   fail "offline Wallet List prompted for or fetched live balances"
 
@@ -964,7 +1432,7 @@ cntools_wallet_query \
 
 : > "${UI_TRACE}"
 cntools_wallet_render_query
-grep -F $'DATA_ROW\t01 · token\t6\t—' \
+grep -F $'DATA_ROW\t01 · token\tRaw quantity\t6' \
   "${UI_TRACE}" >/dev/null ||
   fail "local native-assets table omitted the aggregated token holding"
 grep -F $'DATA_ROW\tStake pool delegation\tDelegated · pool1fixture' \
@@ -1015,8 +1483,9 @@ grep -F $'DATA_ROW\tBase UTxO\t1.000000 ADA' \
   fail "partial local balance table promoted a subtotal to Total UTxO"
 grep -F $'DATA_ROW\tTotal UTxO\tUnavailable' "${UI_TRACE}" >/dev/null ||
   fail "partial local subtotal was rendered as Total UTxO"
-grep -F $'DATA_ROW\tUnavailable\t—\t—' "${UI_TRACE}" >/dev/null ||
+if grep -F $'DETAIL\tNative assets' "${UI_TRACE}" >/dev/null; then
   fail "partial local native assets were rendered as a real zero"
+fi
 
 reset_query_traces
 FAKE_CLI_SCENARIO="full"
@@ -1113,6 +1582,10 @@ cntools_wallet_list_query_catalog || fail "local Wallet List query failed"
 assert_eq "$(line_count "${CLI_TRACE}")" "6" \
   "local multi-wallet List CLI call count"
 for wallet_index in 0 1; do
+  assert_eq "${CNTOOLS_WALLET_LIST_BASE_UTXO_LOVELACE[wallet_index]}" \
+    "1000000" "local List wallet ${wallet_index} base UTxO balance"
+  assert_eq "${CNTOOLS_WALLET_LIST_PAYMENT_UTXO_LOVELACE[wallet_index]}" \
+    "2500000" "local List wallet ${wallet_index} payment UTxO balance"
   assert_eq "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[wallet_index]}" "3500000" \
     "local List wallet ${wallet_index} UTxO balance"
   assert_eq "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[wallet_index]}" "750000" \
@@ -1177,6 +1650,11 @@ FAKE_CLI_SCENARIO="partial-payment"
 export FAKE_CLI_SCENARIO
 cntools_wallet_list_query_catalog || fail "partial local Wallet List query failed"
 for wallet_index in 0 1; do
+  assert_eq "${CNTOOLS_WALLET_LIST_BASE_UTXO_LOVELACE[wallet_index]}" \
+    "1000000" "partial local List base balance"
+  assert_empty \
+    "${CNTOOLS_WALLET_LIST_PAYMENT_UTXO_LOVELACE[wallet_index]}" \
+    "partial local List payment balance"
   assert_empty "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[wallet_index]}" \
     "partial local List UTxO aggregate"
   assert_eq "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[wallet_index]}" "750000" \
@@ -1650,9 +2128,12 @@ fi
 
 : > "${UI_TRACE}"
 cntools_wallet_render_query
-grep -F $'DATA_ROW\t01 · Fixture Token\t0.000005\tFIX' \
+grep -F $'DATA_ROW\t01 · Fixture Token\tAmount\t0.000005 FIX' \
   "${UI_TRACE}" >/dev/null ||
   fail "Koios native-assets table omitted the token holding"
+grep -F $'DATA_ROW\t\tFingerprint\t'"${TEST_ASSET_FINGERPRINT}" \
+  "${UI_TRACE}" >/dev/null ||
+  fail "Koios native-assets table omitted the asset fingerprint"
 grep -F $'DATA_ROW\t\tTicker\tFIX' \
   "${UI_TRACE}" >/dev/null ||
   fail "Koios token metadata table omitted the ticker"
@@ -1720,7 +2201,7 @@ done
 
 : > "${UI_TRACE}"
 cntools_wallet_render_query
-grep -F $'DATA_ROW\t01 · token\t0.000005\tUnavailable' \
+grep -F $'\tRaw quantity\t5' \
   "${UI_TRACE}" >/dev/null ||
   fail "metadata failure hid a valid Koios native asset holding"
 grep -F $'STATUS\twarn\tKoios token metadata is unavailable; holdings remain complete.' \
@@ -1789,8 +2270,9 @@ grep -F $'DATA_ROW\tBase UTxO\t1.100000 ADA' \
   fail "partial Koios balance table promoted a subtotal to Total UTxO"
 grep -F $'DATA_ROW\tTotal UTxO\tUnavailable' "${UI_TRACE}" >/dev/null ||
   fail "partial Koios subtotal was rendered as Total UTxO"
-grep -F $'DATA_ROW\tUnavailable\t—\t—' "${UI_TRACE}" >/dev/null ||
+if grep -F $'DETAIL\tNative assets' "${UI_TRACE}" >/dev/null; then
   fail "partial Koios native assets were rendered as a real zero"
+fi
 
 reset_query_traces
 KOIOS_SCENARIO="oversized-quantity"
@@ -1832,6 +2314,10 @@ jq -e --arg base "${TEST_BASE_ADDRESS}" \
   ' "${HTTP_CAPTURE_DIR}/address_info.json" >/dev/null ||
   fail "Koios List did not globally deduplicate funding addresses"
 for wallet_index in 0 1; do
+  assert_eq "${CNTOOLS_WALLET_LIST_BASE_UTXO_LOVELACE[wallet_index]}" \
+    "1100000" "Koios List wallet ${wallet_index} base UTxO balance"
+  assert_eq "${CNTOOLS_WALLET_LIST_PAYMENT_UTXO_LOVELACE[wallet_index]}" \
+    "2200000" "Koios List wallet ${wallet_index} payment UTxO balance"
   assert_eq "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[wallet_index]}" "3300000" \
     "Koios List wallet ${wallet_index} UTxO balance"
   assert_eq "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[wallet_index]}" "880000" \
@@ -1866,6 +2352,11 @@ reset_query_traces
 KOIOS_SCENARIO="partial-missing"
 cntools_wallet_list_query_catalog || fail "partial Koios Wallet List failed"
 for wallet_index in 0 1; do
+  assert_eq "${CNTOOLS_WALLET_LIST_BASE_UTXO_LOVELACE[wallet_index]}" \
+    "1100000" "partial Koios List base balance"
+  assert_empty \
+    "${CNTOOLS_WALLET_LIST_PAYMENT_UTXO_LOVELACE[wallet_index]}" \
+    "partial Koios List payment balance"
   assert_empty "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[wallet_index]}" \
     "partial Koios List UTxO aggregate"
   assert_eq "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[wallet_index]}" "880000" \
