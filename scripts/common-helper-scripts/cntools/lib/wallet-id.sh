@@ -58,7 +58,11 @@ cntools_wallet_id_read_credential() {
   _cntools_file="${_cntools_wallet_directory}/${_cntools_filename}"
   [[ -e "${_cntools_file}" || -L "${_cntools_file}" ]] || return 1
   cntools_wallet_id_validate "${_cntools_file}" || return 2
-  IFS= read -r _cntools_value < "${_cntools_file}" || return 2
+  # cardano-cli and legacy CNTools credential files may contain exactly the
+  # raw hash without a trailing newline. `read` still returns that value but
+  # reports EOF, so accept EOF only when the validated value was populated.
+  IFS= read -r _cntools_value < "${_cntools_file}" ||
+    [[ -n "${_cntools_value}" ]] || return 2
   _cntools_output_ref="${_cntools_value}"
 }
 

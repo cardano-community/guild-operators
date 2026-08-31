@@ -1233,6 +1233,10 @@ cntools_ui_mark_resize() { return 0; }
 reset_wallet_root
 write_cli_wallet Alice \
   "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
+# Legacy/cardano-cli credential files commonly contain only the raw hash and
+# no trailing newline. Keep this fixture byte-for-byte equivalent.
+printf '%s' '5390a565142243e65861eab069760bdee6eeba48f578f76f57f3c9d8' \
+  > "${WALLET_ROOT}/Alice/payment.cred"
 write_wallet_file LongType payment.vkey \
   '{"type":"PaymentVerificationKeyShelley_ed25519"}'
 write_wallet_file LongType payment.skey.gpg protected
@@ -1264,7 +1268,7 @@ assert_eq "$(grep -c $'DATA_ROW\tStake registration\t' "${UI_TRACE}")" "1" \
   "Wallet Show stake-registration row count"
 grep -F $'DETAIL\tCredentials' "${UI_TRACE}" >/dev/null ||
   fail "Wallet Show did not render the credentials section"
-grep -F $'DATA_ROW\tPayment\t11111111111111111111111111111111111111111111111111111111' \
+grep -F $'DATA_ROW\tPayment\t5390a565142243e65861eab069760bdee6eeba48f578f76f57f3c9d8' \
   "${UI_TRACE}" >/dev/null ||
   fail "Wallet Show omitted the payment credential"
 grep -F $'DATA_ROW\tStake\t22222222222222222222222222222222222222222222222222222222' \

@@ -38,6 +38,7 @@ and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Root health and Wallet numeric displays use comma thousands separators without changing raw query or calculation values.
 
 #### Fixed
+- Wallet Show accepts existing raw hexadecimal credential files whether or not they end with a newline.
 - Gum 2.0.0 static tables no longer apply the Koios accent to their first data row; the section heading carries the visual accent while table foreground and background colors remain neutral.
 - Wallet Show revalidates a selected wallet before reading it, fails clearly on inaccessible folders, and rejects symbolic-link replacement after discovery.
 - Duplicate funding addresses are queried once, while incomplete backend results can no longer be presented as a complete wallet total, UTxO count, or asset count.
