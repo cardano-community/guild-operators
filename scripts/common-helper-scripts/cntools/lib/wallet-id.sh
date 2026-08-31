@@ -84,7 +84,7 @@ cntools_wallet_id_generate_key_credential() {
         "${verification_file}")
       ;;
     stake)
-      arguments=(stake-address key-hash --stake-verification-key-file \
+      arguments=(latest stake-address key-hash --stake-verification-key-file \
         "${verification_file}")
       ;;
     *) return 2 ;;

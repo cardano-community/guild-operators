@@ -151,7 +151,7 @@ cntools_wallet_reward_address_generate() {
   local error_file=""
   local status=0
   local -a stake_source=()
-  local -a arguments=(stake-address build)
+  local -a arguments=(latest stake-address build)
 
   cntools_wallet_directory_safe "${wallet_directory}" || return 1
   if cntools_wallet_material_entry_exists "${target_file}"; then

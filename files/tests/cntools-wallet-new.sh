@@ -24,6 +24,10 @@ TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-wallet-new.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 FAKE_CLI="${TEST_ROOT}/cardano-cli"
 
+# Keep command fixtures tied to the exact CLI deployed by Guild Deploy. A pin
+# change must deliberately update this compatibility target and its fake CLI.
+TESTED_CARDANO_CLI_VERSION="11.0.0.0"
+
 TEST_BASE_ADDRESS="addr_test1qpfepft9zs3y8ejcv84tq6tkp00wdm46fr6h3am02leunk8dc55q34v2ggxw9hea4rr3rry933a2zdh60v43h237s8ks7t2dja"
 TEST_PAYMENT_ADDRESS="addr_test1vpfepft9zs3y8ejcv84tq6tkp00wdm46fr6h3am02leunkqtddwf6"
 TEST_REWARD_ADDRESS="stake_test1urku22qg6k9yyr8zmu7633c33jzcc74pxma8k2cm4glgrmgrmu5lc"
@@ -61,6 +65,21 @@ fail() {
   exit 1
 }
 
+assert_pinned_cardano_cli_versions() {
+  local implementation=""
+  local manifest=""
+  local pinned_version=""
+
+  for implementation in cnode dingo; do
+    manifest="${REPO_ROOT}/files/node-implementations/${implementation}/release.json"
+    pinned_version="$(
+      jq -er '.companions["cardano-cli"].version' "${manifest}"
+    )" || fail "${implementation} does not declare a pinned cardano-cli version"
+    [[ "${pinned_version}" == "${TESTED_CARDANO_CLI_VERSION}" ]] ||
+      fail "${implementation} pins cardano-cli ${pinned_version}; review the wallet command fixtures tested against ${TESTED_CARDANO_CLI_VERSION}"
+  done
+}
+
 assert_eq() {
   local actual="$1"
   local expected="$2"
@@ -78,6 +97,8 @@ assert_contains() {
   [[ "${actual}" == *"${expected}"* ]] ||
     fail "${context}: '${expected}' was not found"
 }
+
+assert_pinned_cardano_cli_versions
 
 assert_file_contains() {
   local file="$1"
@@ -329,6 +350,9 @@ printf '%s\n' \
   'printf "%s\n" "$*" >> "${FAKE_CLI_TRACE}"' \
   'arguments=("$@")' \
   'command_pair="${arguments[0]:-} ${arguments[1]:-}"' \
+  'if [[ "${arguments[0]:-}" == "latest" ]]; then' \
+  '  command_pair="${arguments[0]:-} ${arguments[1]:-} ${arguments[2]:-}"' \
+  'fi' \
   'verification_file=""' \
   'signing_file=""' \
   'output_file=""' \
@@ -357,7 +381,7 @@ printf '%s\n' \
   '    printf "{\"type\":\"PaymentVerificationKeyShelley_ed25519\",\"description\":\"Payment Verification Key\",\"cborHex\":\"%s\"}\n" "${payment_verification_cbor}" > "${verification_file}"' \
   '    printf "{\"type\":\"PaymentSigningKeyShelley_ed25519\",\"description\":\"Payment Signing Key\",\"cborHex\":\"%s\"}\n" "${FAKE_PAYMENT_SIGNING_CBOR}" > "${signing_file}"' \
   '    ;;' \
-  '  "stake-address key-gen")' \
+  '  "latest stake-address key-gen")' \
   '    if [[ "${FAKE_CLI_SCENARIO}" == "stake-fail" ]]; then' \
   '      printf "%s\n" "fixture stake key generation failed" >&2' \
   '      exit 42' \
@@ -395,13 +419,13 @@ printf '%s\n' \
   '      printf "%s\n" "${FAKE_PAYMENT_ADDRESS}" > "${output_file}"' \
   '    fi' \
   '    ;;' \
-  '  "stake-address build")' \
+  '  "latest stake-address build")' \
   '    printf "%s\n" "${FAKE_REWARD_ADDRESS}" > "${output_file}"' \
   '    ;;' \
   '  "address key-hash")' \
   '    printf "%s\n" "${FAKE_PAYMENT_CREDENTIAL}" > "${output_file}"' \
   '    ;;' \
-  '  "stake-address key-hash")' \
+  '  "latest stake-address key-hash")' \
   '    printf "%s\n" "${FAKE_STAKE_CREDENTIAL}" > "${output_file}"' \
   '    if [[ "${FAKE_CLI_SCENARIO}" == "publish-collision" ]]; then' \
   '      mkdir -- "${FAKE_COLLISION_TARGET:?}"' \
@@ -625,9 +649,14 @@ assert_successful_case() {
   assert_file_contains "${CLI_TRACE}" \
     "address key-gen" "payment key-generation command"
   assert_file_contains "${CLI_TRACE}" \
-    "stake-address key-gen" "stake key-generation command"
-  assert_file_not_contains "${CLI_TRACE}" \
-    "latest stake-address key-gen" "legacy era-prefixed key generation"
+    "latest stake-address key-gen" "stake key-generation command"
+  assert_file_contains "${CLI_TRACE}" \
+    "latest stake-address build" "reward-address build command"
+  assert_file_contains "${CLI_TRACE}" \
+    "latest stake-address key-hash" "stake credential command"
+  if grep -Eq '^stake-address (key-gen|build|key-hash)( |$)' "${CLI_TRACE}"; then
+    fail "${mode}/${network} used an obsolete top-level stake command"
+  fi
   assert_eq "$(grep -c -- 'key verification-key' "${CLI_TRACE}")" "2" \
     "${mode}/${network} signing-key pair checks"
   assert_eq "$(grep -c -- "${expected_network_arguments}" "${CLI_TRACE}")" "3" \
@@ -884,6 +913,7 @@ assert_keygen_failure() {
   local wallet_name="$2"
   local expected_calls="$3"
   local diagnostic="$4"
+  local visible_error="${5:-}"
 
   reset_case "failure-${scenario}" offline preview
   set_single_input "${wallet_name}"
@@ -894,7 +924,7 @@ assert_keygen_failure() {
     fail "${scenario} wallet creation unexpectedly succeeded"
   assert_eq "$(line_count "${CLI_TRACE}")" "${expected_calls}" \
     "${scenario} CLI call count"
-  if grep -Eq '^(address build|stake-address build|address key-hash|stake-address key-hash)( |$)' \
+  if grep -Eq '^(address build|latest stake-address build|address key-hash|latest stake-address key-hash)( |$)' \
       "${CLI_TRACE}"; then
     fail "${scenario} derived wallet artifacts after a key-pair failure"
   fi
@@ -904,14 +934,20 @@ assert_keygen_failure() {
     "${scenario} diagnostic log"
   assert_file_contains "${UI_TRACE}" $'STATUS\terror\t' \
     "${scenario} visible failure"
+  if [[ -n "${visible_error}" ]]; then
+    assert_file_contains "${UI_TRACE}" "${visible_error}" \
+      "${scenario} specific visible failure"
+  fi
   assert_no_creation_debris "${scenario} failure"
   assert_log_secrecy "${scenario} failure"
 }
 
 assert_keygen_failure \
-  payment-fail PaymentFailure 1 'fixture payment key generation failed'
+  payment-fail PaymentFailure 1 'fixture payment key generation failed' \
+  'Cardano CLI could not create the payment wallet keys.'
 assert_keygen_failure \
-  stake-fail StakeFailure 3 'fixture stake key generation failed'
+  stake-fail StakeFailure 3 'fixture stake key generation failed' \
+  'Cardano CLI could not create the stake wallet keys.'
 
 assert_keygen_failure \
   payment-key-invalid InvalidPaymentKey 1 \

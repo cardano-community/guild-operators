@@ -4,7 +4,7 @@ The step-by-step wallet and pool workflows documented for CNTools 13 do not
 apply to the rewritten CNTools 14 framework.
 
 !!! info "Current functional actions"
-    Version 14.1.0 provides Wallet New → CLI, Wallet List, and Wallet Show.
+    Version 14.0.0 provides Wallet New → CLI, Wallet List, and Wallet Show.
     List and Show may cache missing public wallet artifacts; all other
     operational entries remain placeholders.
 

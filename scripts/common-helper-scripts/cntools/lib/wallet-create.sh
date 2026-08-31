@@ -300,7 +300,7 @@ cntools_wallet_create_key_pair() {
     stake)
       signing_file="${stage}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"
       verification_file="${stage}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}"
-      command=("${CNTOOLS_CLI}" stake-address key-gen)
+      command=("${CNTOOLS_CLI}" latest stake-address key-gen)
       ;;
     *) return 2 ;;
   esac
@@ -320,6 +320,7 @@ cntools_wallet_create_key_pair() {
   if (( status != 0 )); then
     cntools_wallet_material_log_cli_failure \
       "Could not create ${role} wallet keys" "${status}" "${error_file}"
+    CNTOOLS_WALLET_CREATE_ERROR="Cardano CLI could not create the ${role} wallet keys."
     cntools_wallet_material_remove_temp "${error_file}" || true
     return 1
   fi

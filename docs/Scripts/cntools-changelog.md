@@ -6,74 +6,18 @@ All notable changes to this tool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [14.1.0] - Unreleased
+## [14.0.0] - Unreleased
 #### Added
-- Functional **Wallet → New → CLI** action for creating a standard payment-and-stake wallet with private whole-wallet staging, complete validation, and atomic no-clobber publication.
-- Responsive Gum creation summaries for the planned wallet artifacts and the resulting addresses and credential hashes.
-- Independent signing-to-verification key-pair checks before a new wallet can be published.
-- Functional Wallet List and Show actions using the existing CNTools wallet directory layout.
-- Local cnode and Dingo balance, UTxO, native asset, reward, registration, and delegation queries through the deployed Cardano CLI.
-- Koios-backed wallet and stake account queries in light mode.
-- Gum table views for Wallet Show identity, addresses, credentials, balances, stake pool and DRep delegation, and native assets.
-- Exact native-asset quantities with Koios Token Registry metadata in size-bounded light-mode bulk requests.
-- Offline wallet inspection and capability-aware local fallback for implementations without local CLI queries.
-- Focused wallet discovery, public-artifact generation, address, credential, identifier, and query libraries with logged commands, API requests, selections, and failures.
-- Lazy generation and caching of missing public verification keys, addresses, credentials, and applicable identifiers from existing signing keys or multisignature scripts.
-- Central semantic theme registry with a persisted Advanced theme selector; the initial release includes the Koios-inspired Default theme.
-- Lossless shared number formatting and input normalization with optional canonical US thousands separators.
+- Complete modular Bash architecture with metadata-driven menus, focused shared libraries, and action code loaded only when needed.
+- Modern responsive terminal interface built with Charm Gum, including filter-based navigation, consistent interactions, semantic themes, and a Koios-inspired default design.
+- First-class local, light, and offline operation for cnode, Dingo, Amaru, and Koios-backed workflows.
+- Structured, privacy-aware logging of navigation, user choices, external commands, API requests, and errors.
+- Rebuilt wallet foundation with safe wallet creation and rich inspection of balances, credentials, delegations, and native assets.
+- Snapshot-based transactional deployment and an integrated CNTools update experience through Guild Deploy.
 
 #### Changed
-- CLI wallet creation now produces only the standard payment and stake key pairs and their derived public artifacts; governance, committee, and multisignature material belongs to its dedicated future actions.
-- The atomic wallet rename is the creation commit point; later revalidation or result-rendering problems are reported as committed-wallet warnings instead of false creation failures.
-- Startup validates the modular menu catalog in one multi-file JSON pass and
-  keeps parsed definitions, routes, and display rows in memory for the session.
-- Node health is refreshed only when the root menu is drawn; submenus neither
-  display nor request health data.
-- Wallet folders and checksum-valid, network-appropriate Bech32 address files are validated before use; missing public artifacts are cached without overwriting existing files or decrypting protected keys.
-- Wallet List uses a multi-line Gum table for each wallet, asks before fetching live values, shows a Gum spinner during the query, and displays the primary address with separate relevant base, payment, reward, native-asset-count, and total rows.
-- Wallet Show moves stake registration into wallet details, shows mnemonic derivation paths, adds relevant hexadecimal credential hashes, labels stake pool and DRep delegation separately, and keeps on-chain native-asset holdings visible when optional Koios metadata is unavailable.
-- Wallet Show uses one native-asset detail table with policy ID, asset-name hex, quantity, and asset fingerprint; light mode adds available Koios metadata to the same table.
-- Oversized native-asset details use one Koios-themed Gum scroll view.
-- Interactive startup normalizes a UTF-8 locale before rendering multibyte UI and metadata.
-- CLI and mnemonic-derived wallets are identified separately while hardware and multisignature types retain precedence.
-- Node health colors now use fixed slot-gap ranges: through 120 green, through 600 amber, and above 600 red.
-- Wallet selection uses the available terminal height and preserves normal Gum cancellation behavior.
-- Wallet List and Show tables use the available terminal width up to a readable maximum, avoiding unnecessary address and identifier wrapping while retaining narrow-terminal wrapping.
-- Wallet values use restrained semantic colors for identifiers, numbers, and statuses, sourced from the active theme.
-- Root health and Wallet numeric displays use comma thousands separators without changing raw query or calculation values.
-
-#### Fixed
-- Failed, interrupted, duplicate, or colliding CLI wallet creation cannot overwrite an existing wallet or publish a partially generated one.
-- Internal wallet-creation staging directories are excluded from wallet discovery.
-- Wallet creation accepts executable Cardano CLI paths resolved through standard symlink-based alternatives and version managers.
-- Wallet Show accepts existing raw hexadecimal credential files whether or not they end with a newline.
-- Gum 2.0.0 static tables no longer apply the Koios accent to their first data row; the section heading carries the visual accent while table foreground and background colors remain neutral.
-- Wallet Show revalidates a selected wallet before reading it, fails clearly on inaccessible folders, and rejects symbolic-link replacement after discovery.
-- Duplicate funding addresses are queried once, while incomplete backend results can no longer be presented as a complete wallet total, UTxO count, or asset count.
-- Koios light mode batches funding addresses into one `address_info` request and keeps stake information in one `account_info` request.
-- Wallet List deduplicates the complete catalog into size-bounded Koios bulk requests, validates batches atomically, and never commits malformed balances or token identities.
-- Local UTxO queries explicitly request machine-readable JSON, and malformed or mismatched stake-query rows are rejected instead of being shown as real wallet state.
-- Local CLI calls use the explicit normalized socket, log useful multi-line failures, and are time-bounded with a catalog timeout circuit breaker.
-- CNTools seeds the deployment home before loading legacy env overrides and ignores stale socket aliases inherited from previously sourced environments, so local queries use the current deployment socket.
-- The styled header background now covers the separator between the CNTools name and version.
-- Koios credentials are kept out of child environments, command arguments, and logs.
-- Large on-chain quantities remain exact through aggregation and display without Bash integer overflow.
-- Wallet action temporary files are removed on normal return and interrupted action exit without replacing the main CNTools cleanup trap.
-
-## [14.0.0] - 2026-08-28
-#### Added
-- New modular Bash framework with filesystem-backed menus and lazy action library loading.
-- Shared terminal UI, structured logging, and redacted command and HTTP wrappers.
-- First-class local, light, and offline runtime modes for cnode, Dingo, Amaru, and Koios-backed operation.
-- Snapshot-based, transactional deployment of the complete new CNTools source tree through Guild Deploy.
-- Bounded, non-fatal update availability checks with a clear main-menu notice.
-- Update menu for rechecking, viewing the existing CNTools changelog, and installing through Guild Deploy.
-- Stable `scripts/cntools.sh` launcher for the modular Gum interface on cnode, Dingo, and Amaru.
-
-#### Changed
-- CNTools is being completely rewritten while retaining the existing product name and continuing its release history at version 14.
-- The complete current menu hierarchy is available as an inert implementation skeleton. Operational actions will be implemented in subsequent development phases.
-- The legacy monolithic entrypoint and `cntools.library` are retired. Existing 13.x installations must migrate with the current Guild Deploy snapshot rather than the legacy in-application updater.
+- CNTools has been completely rewritten while retaining its established name, version history, wallet layout, and familiar operational scope.
+- The legacy monolithic entrypoint and library have been replaced by a stable launcher and modular source tree maintained independently from the legacy implementation.
 
 ## [13.5.7] - 2026-06-28
 #### Fixed

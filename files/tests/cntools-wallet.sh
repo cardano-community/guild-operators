@@ -749,11 +749,11 @@ test_missing_only_wallet_materialization() (
     '  else' \
     '    printf "%s\n" "${MATERIAL_PAYMENT_ADDRESS}" > "${output}"' \
     '  fi' \
-    'elif [[ "${arguments[0]} ${arguments[1]:-}" == "stake-address build" ]]; then' \
+    'elif [[ "${arguments[0]} ${arguments[1]:-} ${arguments[2]:-}" == "latest stake-address build" ]]; then' \
     '  printf "%s\n" "${MATERIAL_REWARD_ADDRESS}" > "${output}"' \
     'elif [[ "${arguments[0]} ${arguments[1]:-}" == "address key-hash" ]]; then' \
     '  printf "%s\n" "${MATERIAL_PAYMENT_CREDENTIAL}" > "${output}"' \
-    'elif [[ "${arguments[0]} ${arguments[1]:-}" == "stake-address key-hash" ]]; then' \
+    'elif [[ "${arguments[0]} ${arguments[1]:-} ${arguments[2]:-}" == "latest stake-address key-hash" ]]; then' \
     '  printf "%s\n" "${MATERIAL_STAKE_CREDENTIAL}" > "${output}"' \
     'elif [[ "${arguments[0]} ${arguments[1]:-}" == "hash script" ]]; then' \
     '  printf "%s\n" "${MATERIAL_SCRIPT_CREDENTIAL}" > "${output}"' \

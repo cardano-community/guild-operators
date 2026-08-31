@@ -6,7 +6,7 @@ but replaces the former monolithic implementation with a modular framework and
 a Charm Gum interface.
 
 !!! warning "Version 14 implementation status"
-    Wallet New → CLI, List, and Show are functional in version 14.1.0. List
+    Wallet New → CLI, List, and Show are functional in version 14.0.0. List
     and Show may cache missing public wallet artifacts; New → CLI creates new
     private keys only after explicit confirmation. None of these actions submit
     transactions. Advanced **Theme** is also functional; other wallet actions
