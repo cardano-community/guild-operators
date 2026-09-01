@@ -422,9 +422,12 @@ changelog content is size-bounded, treated only as data, and never sourced.
 Install Update refreshes scripts and configuration from the configured Guild
 branch without requesting OS packages or node binaries. It passes the account
 explicitly and requires the requested ref to exist, so the update path cannot
-silently fall back to `master`. Selecting arbitrary historical versions is not
-part of this phase: it requires a repository release-tag and rollback policy
-before it can be offered safely.
+silently fall back to `master`. When the installed and selected branch versions
+match, the action shows that equality and offers a default-No confirmation to
+force deployment of the same version. Declining returns without invoking Guild
+Deploy. Selecting arbitrary historical versions is not part of this phase: it
+requires a repository release-tag and rollback policy before it can be offered
+safely.
 
 ## Phase 2 deployment foundation
 
@@ -526,6 +529,9 @@ An update is installed exclusively through the complete Guild Deploy source
 snapshot. CNTools closes after Guild Deploy starts regardless of its result,
 because even a later deployment failure may occur after the running CNTools
 tree changed. The exact dispatcher status becomes the CNTools process status.
+An installed version equal to the selected branch may be force-deployed after
+an explicit default-No confirmation; this reuses the same guarded full-snapshot
+path rather than introducing a separate updater.
 The update is blocked if the configured log lives inside the replaceable
 CNTools source tree, ensuring that both this lifecycle decision and its audit
 records survive the replacement. Its canonical parent must also be owned by
@@ -616,12 +622,15 @@ explicit node socket with bounded execution. Light List sessions deduplicate
 the complete wallet catalog into size-bounded Koios `address_info` and
 `account_info` bulk requests; Show uses the same contracts for one wallet.
 Funding and reward projections keep lovelace values as decimal strings so
-`jq` never rounds them. Offline sessions perform no blockchain or HTTP query
-and do not show the live-balance confirmation. Deterministic public-artifact
-generation is local and can still use Cardano CLI without a node. Amaru remains
-a first-class local deployment: its wallet files are shown, while live chain
-values are clearly marked unavailable when its deployment manifest declares no
-local CLI capability.
+`jq` never rounds them. A successful empty Koios funding response means every
+address in that request is unused and is committed as a known zero balance,
+zero UTxO count, and zero native-asset count. A non-empty response that omits a
+requested address remains partial. Offline sessions perform no blockchain or
+HTTP query and do not show the live-balance confirmation. Deterministic
+public-artifact generation is local and can still use Cardano CLI without a
+node. Amaru remains a first-class local deployment: its wallet files are shown,
+while live chain values are clearly marked unavailable when its deployment
+manifest declares no local CLI capability.
 
 Backend failures are non-destructive and do not prevent filesystem wallet
 details from being shown. Complete aggregates are shown only when every

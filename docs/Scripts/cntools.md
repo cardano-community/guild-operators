@@ -146,8 +146,10 @@ stake-account request, and enriches native assets through size-bounded Koios
 `asset_info` bulk requests. Metadata name, ticker, decimals, description, URL,
 custom nested fields, and total supply are shown when relevant and available.
 Native-asset details remain inline even when long. Metadata failure
-never removes validated on-chain holdings. Partial balance responses remain
-visibly partial and are never promoted to a complete wallet total.
+never removes validated on-chain holdings. A valid empty Koios funding response
+represents unused addresses and produces complete zero balances and counts.
+Non-empty responses that omit a requested address remain visibly partial and
+are never promoted to a complete wallet total.
 
 Metadata precedence selects one complete document by standard label. CIP-67
 label `222` uses CIP-68 before exact CIP-25 label `721`; label `333` uses
@@ -199,7 +201,9 @@ and remove a confirmed stale one securely before reusing its space.
 The Update menu can check again, show changelog entries newer than the running
 version, or invoke Guild Deploy. Updates replace the complete managed CNTools
 tree from one repository snapshot; CNTools exits after starting that process
-and should be launched again through `scripts/cntools.sh`.
+and should be launched again through `scripts/cntools.sh`. If the installed and
+selected branch versions match, Install Update offers an explicit default-No
+confirmation to force deployment of the same snapshot.
 
 Session events, selections, external commands, API requests, and errors use the
 new redacting logger. API records include a copyable `curl` request with its

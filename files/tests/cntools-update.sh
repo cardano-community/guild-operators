@@ -762,11 +762,14 @@ run_install_case() (
   local name="$1"
   local dispatcher_status="$2"
   local expected_status="$3"
+  local remote_version="${4:-14.2.0}"
+  local update_status="${5:-available}"
   local output=""
   local status=0
   local expected_trace=""
   local dispatch_trace=""
   local sequence_trace=""
+  local confirmation_trace=""
 
   setup_update_context "install-${name}"
   CNTOOLS_NODE_HOME="${CASE_ROOT}/node"
@@ -775,6 +778,7 @@ run_install_case() (
   mkdir -p "${CNTOOLS_NODE_HOME}/scripts"
   dispatch_trace="${CASE_ROOT}/dispatcher.trace"
   sequence_trace="${CASE_ROOT}/sequence.trace"
+  confirmation_trace="${CASE_ROOT}/confirmation.trace"
   CNTOOLS_TEST_DISPATCH_TRACE="${dispatch_trace}"
   CNTOOLS_TEST_SEQUENCE_TRACE="${sequence_trace}"
   CNTOOLS_TEST_DISPATCH_STATUS="${dispatcher_status}"
@@ -782,12 +786,15 @@ run_install_case() (
   export CNTOOLS_TEST_DISPATCH_STATUS
   prepare_dispatcher "${CNTOOLS_NODE_HOME}/scripts/guild-deploy.sh"
   cntools_update_init
-  cntools_update_set_state available 14.2.0
+  cntools_update_set_state "${update_status}" "${remote_version}"
 
   cntools_ui_restore_terminal() {
     printf '%s\n' restore >> "${sequence_trace}"
   }
-  cntools_ui_confirm() { return 0; }
+  cntools_ui_confirm() {
+    printf '%s\n' "$1" > "${confirmation_trace}"
+    return 0
+  }
   if output="$(cntools_update_action_install 2>&1)"; then
     status=0
   else
@@ -795,8 +802,24 @@ run_install_case() (
   fi
   assert_eq "${status}" "${expected_status}" \
     "${name} dispatcher status propagation"
-  assert_contains "${output}" 'CNTools          : v14.0.0 -> v14.2.0' \
+  assert_contains "${output}" \
+    "CNTools          : v14.0.0 -> v${remote_version}" \
     "${name} explicit version transition"
+  if [[ "${update_status}" == "current" ]]; then
+    assert_contains "${output}" \
+      "installed and selected versions are both v${remote_version}" \
+      "${name} matching-version explanation"
+    assert_eq "$(< "${confirmation_trace}")" \
+      "Force deploy this version anyway?" \
+      "${name} force-deployment confirmation"
+    grep -F \
+      "force deployment confirmed version=${remote_version}" \
+      "${CNTOOLS_LOG}" >/dev/null ||
+      fail "${name} force deployment was not logged"
+  else
+    assert_eq "$(< "${confirmation_trace}")" \
+      "Install this update now?" "${name} update confirmation"
+  fi
   [[ -s "${dispatch_trace}" ]] || fail "${name} did not invoke Guild Deploy"
   expected_trace=$'G_ACCOUNT=fixture-account\nS_ARGS=\nGUILD_DEPLOY_SNAPSHOT_STAGE=bootstrap\nGUILD_DEPLOY_STRICT_REF=Y\narg=-g\narg=fixture-account\narg=-i\narg=dingo\narg=-n\narg=preview\narg=-p\narg='"${CASE_ROOT}"$'\narg=-t\narg=node\narg=-b\narg=feature/update\narg=-s\narg='
   assert_eq "$(< "${dispatch_trace}")" "${expected_trace}" \
@@ -824,6 +847,8 @@ run_install_guard_tests() (
   local dispatch_trace=""
   local dispatcher=""
   local real_dispatcher=""
+  local confirmation_trace=""
+  local output=""
   local output_file=""
   local error_file=""
   local status=0
@@ -834,6 +859,7 @@ run_install_guard_tests() (
   CNTOOLS_IMPLEMENTATION_NAME="Cardano Node"
   mkdir -p "${CNTOOLS_NODE_HOME}/scripts"
   dispatch_trace="${CASE_ROOT}/dispatcher.trace"
+  confirmation_trace="${CASE_ROOT}/confirmation.trace"
   CNTOOLS_TEST_DISPATCH_TRACE="${dispatch_trace}"
   CNTOOLS_TEST_SEQUENCE_TRACE="${CASE_ROOT}/sequence.trace"
   CNTOOLS_TEST_DISPATCH_STATUS=0
@@ -844,7 +870,10 @@ run_install_guard_tests() (
   cntools_update_init
   cntools_update_set_state available 14.2.0
 
-  cntools_ui_confirm() { return 1; }
+  cntools_ui_confirm() {
+    printf '%s\n' "$1" > "${confirmation_trace}"
+    return 1
+  }
   cntools_update_action_install >/dev/null ||
     fail "cancelled update action failed"
   [[ ! -e "${dispatch_trace}" ]] || fail "cancelled update invoked Guild Deploy"
@@ -852,9 +881,39 @@ run_install_guard_tests() (
     fail "cancelled update created a deployment-started marker"
 
   cntools_update_set_state current 14.0.0
-  cntools_update_action_install >/dev/null ||
-    fail "no-update install action failed"
-  [[ ! -e "${dispatch_trace}" ]] || fail "no-update install invoked Guild Deploy"
+  : > "${confirmation_trace}"
+  output="$(cntools_update_action_install)" ||
+    fail "cancelled force-deployment action failed"
+  assert_contains "${output}" \
+    'installed and selected versions are both v14.0.0' \
+    "matching-version force-deployment message"
+  assert_contains "${output}" 'Force deployment cancelled' \
+    "cancelled force-deployment result"
+  assert_eq "$(< "${confirmation_trace}")" \
+    "Force deploy this version anyway?" \
+    "matching-version force-deployment confirmation"
+  [[ ! -e "${dispatch_trace}" ]] ||
+    fail "cancelled force deployment invoked Guild Deploy"
+  ! cntools_startup_deployment_was_started ||
+    fail "cancelled force deployment created a deployment-started marker"
+  grep -F 'force deployment cancelled version=14.0.0' \
+    "${CNTOOLS_LOG}" >/dev/null ||
+    fail "cancelled force deployment was not logged"
+
+  cntools_update_set_state current 14.1.0
+  : > "${confirmation_trace}"
+  if output="$(cntools_update_action_install)"; then
+    status=0
+  else
+    status=$?
+  fi
+  assert_eq "${status}" "1" "inconsistent current-version state status"
+  assert_contains "${output}" 'Update state is inconsistent' \
+    "inconsistent current-version state message"
+  [[ ! -s "${confirmation_trace}" ]] ||
+    fail "inconsistent current-version state requested confirmation"
+  [[ ! -e "${dispatch_trace}" ]] ||
+    fail "inconsistent current-version state invoked Guild Deploy"
 
   cntools_update_set_state available 14.2.0
   rm -f -- "${CNTOOLS_NODE_HOME}/scripts/guild-deploy.sh"
@@ -1024,6 +1083,7 @@ run_changelog_tests
 run_update_action_tests
 run_install_case success 0 0
 run_install_case failure 37 37
+run_install_case force 0 0 14.0.0 current
 run_install_guard_tests
 run_replacement_boundary_test
 run_unprotected_state_parent_test

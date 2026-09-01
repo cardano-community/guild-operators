@@ -2062,6 +2062,7 @@ cntools_http_request() {
       requested="$(jq -c '._addresses // []' <<< "${payload}")"
       case "${KOIOS_SCENARIO}" in
         address-fail) return 22 ;;
+        empty-wallet) printf '[]\n' > "${output_file}" ;;
         partial-missing)
           jq -cn --argjson requested "${requested}" \
             --arg base "${TEST_BASE_ADDRESS}" '
@@ -2174,7 +2175,9 @@ cntools_http_request() {
       printf '%s\n' "${payload}" > "${HTTP_CAPTURE_DIR}/account_info.json"
       [[ "${KOIOS_SCENARIO}" != "stake-fail" ]] || return 22
       requested="$(jq -c '._stake_addresses // []' <<< "${payload}")"
-      if [[ "${KOIOS_SCENARIO}" == "stake-number" ]]; then
+      if [[ "${KOIOS_SCENARIO}" == "empty-wallet" ]]; then
+        printf '[]\n' > "${output_file}"
+      elif [[ "${KOIOS_SCENARIO}" == "stake-number" ]]; then
         jq -cn --argjson requested "${requested}" \
           --arg reward "${TEST_REWARD_ADDRESS}" '
             [{stake_address:$reward,status:"registered",rewards_available:1e20}]
@@ -3552,6 +3555,53 @@ assert_empty "${CNTOOLS_WALLET_DREP_DELEGATION}" \
   "malformed Koios DRep delegation was accepted"
 
 reset_query_traces
+KOIOS_SCENARIO="empty-wallet"
+: > "${LOG_TRACE}"
+cntools_wallet_query \
+  "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
+assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "available" \
+  "empty Koios wallet query status"
+assert_eq "${CNTOOLS_WALLET_QUERY_MESSAGE}" "Live data from Koios." \
+  "empty Koios wallet query message"
+assert_eq "${CNTOOLS_WALLET_BASE_LOVELACE}" "0" \
+  "empty Koios wallet base balance"
+assert_eq "${CNTOOLS_WALLET_PAYMENT_LOVELACE}" "0" \
+  "empty Koios wallet payment balance"
+assert_eq "${CNTOOLS_WALLET_TOTAL_LOVELACE}" "0" \
+  "empty Koios wallet total balance"
+assert_eq "${CNTOOLS_WALLET_REWARD_LOVELACE}" "0" \
+  "empty Koios wallet rewards"
+assert_eq "${CNTOOLS_WALLET_UTXO_COUNT}" "0" \
+  "empty Koios wallet UTxO count"
+assert_eq "${CNTOOLS_WALLET_ASSET_COUNT}" "0" \
+  "empty Koios wallet native-asset count"
+assert_eq "${CNTOOLS_WALLET_REGISTERED}" "no" \
+  "empty Koios wallet stake registration"
+assert_empty "${CNTOOLS_WALLET_POOL_DELEGATION}" \
+  "empty Koios wallet pool delegation"
+assert_empty "${CNTOOLS_WALLET_DREP_DELEGATION}" \
+  "empty Koios wallet DRep delegation"
+if grep -F $'ERROR\t' "${LOG_TRACE}" >/dev/null; then
+  fail "empty successful Koios wallet response was logged as an error"
+fi
+: > "${UI_TRACE}"
+cntools_wallet_render_query
+grep -F $'STATUS\tsuccess\tLive data from Koios.' \
+  "${UI_TRACE}" >/dev/null ||
+  fail "empty Koios wallet did not render a successful live-data status"
+for empty_row in \
+  $'Base UTxO\t0.000000 ADA' \
+  $'Payment UTxO\t0.000000 ADA' \
+  $'Total UTxO\t0.000000 ADA' \
+  $'Rewards\t0.000000 ADA' \
+  $'Total incl. rewards\t0.000000 ADA' \
+  $'UTxO count\t0' \
+  $'Native assets\t0'; do
+  grep -F "${empty_row}" "${UI_TRACE}" >/dev/null ||
+    fail "empty Koios wallet omitted zero row: ${empty_row}"
+done
+
+reset_query_traces
 KOIOS_SCENARIO="partial-missing"
 cntools_wallet_query \
   "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" ""
@@ -3646,6 +3696,28 @@ assert_eq "$(line_count "${HTTP_TRACE}")" "0" \
   "declined Koios List request count"
 [[ "$(grep -c '^SPIN' "${UI_TRACE}" || true)" == "0" ]] ||
   fail "declined Koios List started the balance spinner"
+
+reset_query_traces
+KOIOS_SCENARIO="empty-wallet"
+cntools_wallet_list_query_catalog || fail "empty Koios Wallet List failed"
+for wallet_index in 0 1; do
+  assert_eq "${CNTOOLS_WALLET_LIST_BASE_UTXO_LOVELACE[wallet_index]}" \
+    "0" "empty Koios List base balance"
+  assert_eq "${CNTOOLS_WALLET_LIST_PAYMENT_UTXO_LOVELACE[wallet_index]}" \
+    "0" "empty Koios List payment balance"
+  assert_eq "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[wallet_index]}" \
+    "0" "empty Koios List UTxO aggregate"
+  assert_eq "${CNTOOLS_WALLET_LIST_REWARD_LOVELACE[wallet_index]}" \
+    "0" "empty Koios List rewards"
+  assert_eq "${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[wallet_index]}" \
+    "0" "empty Koios List total"
+  assert_eq "${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[wallet_index]}" \
+    "0" "empty Koios List token count"
+  assert_eq "${CNTOOLS_WALLET_LIST_QUERY_STATUSES[wallet_index]}" \
+    "available" "empty Koios List status"
+done
+assert_empty "${CNTOOLS_WALLET_LIST_QUERY_SUMMARY}" \
+  "empty Koios List summary"
 
 reset_query_traces
 KOIOS_SCENARIO="partial-missing"

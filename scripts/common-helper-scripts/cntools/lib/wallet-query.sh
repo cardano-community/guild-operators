@@ -989,6 +989,16 @@ cntools_wallet_query_koios_addresses() {
     cntools_wallet_log ERROR "Koios address_info returned invalid JSON"
     return 1
   }
+  if [[ "$(jq -r 'length' "${response_file}")" == "0" ]]; then
+    [[ -z "${base_address}" ]] || CNTOOLS_WALLET_BASE_LOVELACE="0"
+    [[ -z "${payment_address}" ]] || CNTOOLS_WALLET_PAYMENT_LOVELACE="0"
+    CNTOOLS_WALLET_FUNDING_SUCCEEDED="${expected_count}"
+    CNTOOLS_WALLET_UTXO_COUNT="0"
+    CNTOOLS_WALLET_ASSET_COUNT="0"
+    cntools_wallet_log WALLET \
+      "Koios address_info returned no rows; unused funding addresses have zero balances"
+    return 0
+  fi
   if [[ -n "${base_address}" ]]; then
     if balance="$(jq -er --arg address "${base_address}" '
         ([.[] | select(.address == $address)][0].balance // empty) | tostring
@@ -2050,6 +2060,18 @@ cntools_wallet_list_query_koios_address_batch() {
     cntools_wallet_log ERROR "Koios address_info batch returned invalid JSON"
     return 1
   }
+  # A successful empty response means none of the requested addresses has
+  # appeared on-chain. Treat the complete batch as known zero rather than as
+  # missing data. A non-empty response that omits a requested row remains
+  # partial so an unexpectedly incomplete response cannot create a false zero.
+  if [[ "$(jq -r 'length' "${response_file}")" == "0" ]]; then
+    for address in "$@"; do
+      batch_balances["${address}"]=0
+      batch_assets["${address}"]=""
+    done
+    cntools_wallet_log WALLET \
+      "Koios address_info batch returned no rows; unused funding addresses have zero balances"
+  fi
   balance_rows="$(jq -r \
     '.[] | [.address, .balance] | @tsv' "${response_file}")" || return 1
   while IFS=$'\t' read -r address balance; do

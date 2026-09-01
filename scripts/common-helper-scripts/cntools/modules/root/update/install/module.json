@@ -1,7 +1,7 @@
 {
   "kind": "action",
   "label": "Install Update",
-  "description": "Refresh the deployment snapshot through Guild Deploy",
+  "description": "Install an update or refresh the current deployment snapshot",
   "shortcut": "i",
   "order": 30,
   "modes": ["local", "light"],

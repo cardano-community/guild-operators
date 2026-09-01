@@ -221,6 +221,8 @@ cntools_update_action_view_changes() {
 
 cntools_update_action_install() {
   local deploy_status=0
+  local force_deploy="N"
+  local confirmation_prompt="Install this update now?"
 
   cntools_ui_action_begin "Install Update" "/ Update / Install"
   if ! cntools_update_state_load; then
@@ -237,12 +239,26 @@ cntools_update_action_install() {
     cntools_ui_wait
     return 0
   fi
-  if [[ "${CNTOOLS_UPDATE_STATUS:-}" != "available" ]]; then
-    printf 'No newer version is currently known. Run Check Again first.\n'
-    cntools_log UPDATE "installation skipped: no available version" || true
-    cntools_ui_wait
-    return 0
-  fi
+  case "${CNTOOLS_UPDATE_STATUS:-}" in
+    available) ;;
+    current)
+      if [[ "${CNTOOLS_UPDATE_REMOTE_VERSION}" != "${CNTOOLS_VERSION}" ]]; then
+        printf 'Update state is inconsistent. Run Check Again.\n'
+        cntools_log ERROR \
+          "force deployment blocked: installed=${CNTOOLS_VERSION} remote=${CNTOOLS_UPDATE_REMOTE_VERSION}" || true
+        cntools_ui_wait
+        return 1
+      fi
+      force_deploy="Y"
+      confirmation_prompt="Force deploy this version anyway?"
+      ;;
+    *)
+      printf 'No deployable version is currently known. Run Check Again first.\n'
+      cntools_log UPDATE "installation skipped: no deployable version" || true
+      cntools_ui_wait
+      return 0
+      ;;
+  esac
 
   printf 'CNTools          : v%s -> v%s\n' \
     "${CNTOOLS_VERSION}" "${CNTOOLS_UPDATE_REMOTE_VERSION}"
@@ -250,18 +266,34 @@ cntools_update_action_install() {
   printf 'Branch           : %s\n' "${CNTOOLS_BRANCH}"
   printf 'Deployment       : %s (%s)\n\n' \
     "${CNTOOLS_IMPLEMENTATION_NAME}" "${CNTOOLS_NETWORK}"
+  if [[ "${force_deploy}" == "Y" ]]; then
+    printf '%sThe installed and selected versions are both v%s.%s\n\n' \
+      "${CNTOOLS_UI_YELLOW:-}" "${CNTOOLS_UPDATE_REMOTE_VERSION}" \
+      "${CNTOOLS_UI_RESET:-}"
+  fi
   printf '%sGuild Deploy refreshes the complete managed script and configuration snapshot,%s\n' \
     "${CNTOOLS_UI_YELLOW:-}" "${CNTOOLS_UI_RESET:-}"
   printf 'not only CNTools. No node binaries or OS packages will be installed.\n\n'
-  if ! cntools_ui_confirm "Install this update now?"; then
-    printf '\nUpdate cancelled.\n'
-    cntools_log UPDATE \
-      "installation cancelled remote=${CNTOOLS_UPDATE_REMOTE_VERSION}" || true
+  if ! cntools_ui_confirm "${confirmation_prompt}"; then
+    if [[ "${force_deploy}" == "Y" ]]; then
+      printf '\nForce deployment cancelled.\n'
+      cntools_log UPDATE \
+        "force deployment cancelled version=${CNTOOLS_UPDATE_REMOTE_VERSION}" || true
+    else
+      printf '\nUpdate cancelled.\n'
+      cntools_log UPDATE \
+        "installation cancelled remote=${CNTOOLS_UPDATE_REMOTE_VERSION}" || true
+    fi
     cntools_ui_wait
     return 0
   fi
-  cntools_log UPDATE \
-    "installation confirmed remote=${CNTOOLS_UPDATE_REMOTE_VERSION} source=${CNTOOLS_ACCOUNT}/guild-operators@${CNTOOLS_BRANCH}" || true
+  if [[ "${force_deploy}" == "Y" ]]; then
+    cntools_log UPDATE \
+      "force deployment confirmed version=${CNTOOLS_UPDATE_REMOTE_VERSION} source=${CNTOOLS_ACCOUNT}/guild-operators@${CNTOOLS_BRANCH}" || true
+  else
+    cntools_log UPDATE \
+      "installation confirmed remote=${CNTOOLS_UPDATE_REMOTE_VERSION} source=${CNTOOLS_ACCOUNT}/guild-operators@${CNTOOLS_BRANCH}" || true
+  fi
   printf '\nStarting Guild Deploy. CNTools will close when it finishes.\n\n'
   if cntools_startup_deploy_branch "${CNTOOLS_BRANCH}"; then
     deploy_status=0

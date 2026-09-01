@@ -89,6 +89,12 @@ depends on the startup mode:
   token metadata for all held native assets in bounded bulk requests;
 - offline mode performs no blockchain query or network request.
 
+A successful empty Koios funding response means the requested addresses have
+not appeared on-chain. CNTools presents that as an available wallet with zero
+balances, UTxOs, rewards, and native assets rather than as a backend failure.
+Malformed responses and non-empty responses that unexpectedly omit a requested
+funding address remain incomplete and do not produce a false complete total.
+
 Native-asset quantities are aggregated exactly across the wallet's funding
 addresses, and the Balances table includes the number of distinct assets. The
 rest of Wallet Show is rendered before the user chooses `Simple`, `Detailed`,
