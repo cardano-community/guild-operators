@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Focused Wallet -> New/Import -> Mnemonic acceptance tests.
-# shellcheck disable=SC1090,SC2016,SC2034,SC2154
+# shellcheck disable=SC1090,SC2016,SC2034,SC2154,SC2329
 
 if (( BASH_VERSINFO[0] < 4 ||
       (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
@@ -395,6 +395,27 @@ jq -e '.libs == [
   "wallet-mnemonic-ui.sh"
 ]' "${CNTOOLS_ROOT}/modules/root/wallet/import/mnemonic/module.json" >/dev/null ||
   fail "Wallet Import Mnemonic metadata is not wired to the focused stack"
+
+render_plan_fallback_fixture() (
+  cntools_ui_content_width() { printf '160\n'; }
+  cntools_ui_render_detail() { return 0; }
+  cntools_ui_table() {
+    while IFS= read -r _cntools_discarded; do :; done
+    return 19
+  }
+  cntools_ui_render_status() { printf 'NOTICE\t%s\n' "${2:-}"; }
+  cntools_wallet_mnemonic_render_plan "Fallback" 0 0 new
+)
+fallback_output="$(render_plan_fallback_fixture)" ||
+  fail "failed Gum mnemonic plan did not use its compact fallback"
+assert_contains "${fallback_output}" \
+  "The table view is unavailable; showing the compact wallet plan." \
+  "mnemonic plan fallback notice"
+assert_contains "${fallback_output}" "Payment path       1852H/1815H/0H/0/0" \
+  "mnemonic plan fallback payment path"
+assert_contains "$(< "${LOG_TRACE}")" \
+  "Gum mnemonic plan table failed status=19" \
+  "mnemonic plan Gum failure diagnostics"
 
 DEFAULT_PLACEHOLDER=""
 cntools_wallet_mnemonic_screen_begin() { return 0; }

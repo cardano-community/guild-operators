@@ -154,33 +154,118 @@ cntools_wallet_mnemonic_collect_settings() {
   _cntools_key_ref="${_cntools_key_index}"
 }
 
+cntools_wallet_mnemonic_plan_rows() {
+  local name="${1:-}"
+  local account="${2:-0}"
+  local key_index="${3:-0}"
+  local origin="${4:-new}"
+  local target="${5:-}"
+  local source_label="New 24-word recovery phrase"
+
+  case "${origin}" in
+    new) ;;
+    import) source_label="Existing recovery phrase" ;;
+    *) return 2 ;;
+  esac
+  [[ -n "${target}" ]] || return 2
+  printf 'Setting\tValue\n' &&
+    cntools_wallet_create_styled_row "Name" "${name}" identifier &&
+    cntools_wallet_create_styled_row "Type" "Mnemonic" accent &&
+    cntools_wallet_create_styled_row "Source" "${source_label}" value &&
+    cntools_wallet_create_styled_row \
+      "Network" "${CNTOOLS_NETWORK:-Unavailable}" accent &&
+    cntools_wallet_create_styled_row \
+      "Wallet directory" "${target}" identifier &&
+    cntools_wallet_create_styled_row \
+      "Payment path" "1852H/1815H/${account}H/0/${key_index}" identifier &&
+    cntools_wallet_create_styled_row \
+      "Stake path" "1852H/1815H/${account}H/2/${key_index}" identifier
+}
+
+cntools_wallet_mnemonic_render_plan_fallback() {
+  local name="${1:-}"
+  local account="${2:-0}"
+  local key_index="${3:-0}"
+  local origin="${4:-new}"
+  local target="${5:-}"
+  local source_label="New 24-word recovery phrase"
+
+  [[ "${origin}" == "new" ]] || source_label="Existing recovery phrase"
+  printf '  %-18s %s\n' \
+    "Name" "${name}" \
+    "Type" "Mnemonic" \
+    "Source" "${source_label}" \
+    "Network" "${CNTOOLS_NETWORK:-Unavailable}" \
+    "Wallet directory" "${target}" \
+    "Payment path" "1852H/1815H/${account}H/0/${key_index}" \
+    "Stake path" "1852H/1815H/${account}H/2/${key_index}"
+  printf '\n'
+}
+
 cntools_wallet_mnemonic_render_plan() {
   local name="${1:-}"
   local account="${2:-0}"
   local key_index="${3:-0}"
   local origin="${4:-new}"
-  local source_label="New 24-word recovery phrase"
   local target=""
   local widths=""
+  local rows=""
+  local status=0
 
-  [[ "${origin}" == "new" ]] || source_label="Existing recovery phrase"
-  cntools_wallet_create_target_into target "${name}" || return 1
-  cntools_wallet_create_table_widths_into widths 18 || return 1
-  cntools_ui_render_detail "Mnemonic wallet" || return 1
-  {
-    printf 'Setting\tValue\n'
-    cntools_wallet_create_styled_row "Name" "${name}" identifier
-    cntools_wallet_create_styled_row "Type" "Mnemonic" accent
-    cntools_wallet_create_styled_row "Source" "${source_label}" value
-    cntools_wallet_create_styled_row \
-      "Network" "${CNTOOLS_NETWORK:-Unavailable}" accent
-    cntools_wallet_create_styled_row "Wallet directory" "${target}" identifier
-    cntools_wallet_create_styled_row \
-      "Payment path" "1852H/1815H/${account}H/0/${key_index}" identifier
-    cntools_wallet_create_styled_row \
-      "Stake path" "1852H/1815H/${account}H/2/${key_index}" identifier
-  } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
+  if cntools_wallet_create_target_into target "${name}"; then
+    :
+  else
+    status=$?
+    cntools_wallet_mnemonic_log ERROR \
+      "Mnemonic plan target resolution failed status=${status} wallet=${name} wallet_root=${CNTOOLS_WALLET_DIR:-unset}"
+    return 1
+  fi
+  if cntools_ui_render_detail "Mnemonic wallet"; then
+    :
+  else
+    status=$?
+    cntools_wallet_mnemonic_log WARN \
+      "Gum mnemonic plan heading failed status=${status}; using plain heading"
+    printf 'Mnemonic wallet\n\n'
+  fi
+  if cntools_wallet_create_table_widths_into widths 18; then
+    :
+  else
+    status=$?
+    cntools_wallet_mnemonic_log WARN \
+      "Mnemonic plan table width calculation failed status=${status} columns=${CNTOOLS_UI_COLUMNS:-unknown}; using compact fallback"
+    cntools_ui_render_status warn \
+      "The table view is unavailable; showing the compact wallet plan." || true
+    cntools_wallet_mnemonic_render_plan_fallback \
+      "${name}" "${account}" "${key_index}" "${origin}" "${target}"
+    return $?
+  fi
+  if rows="$(cntools_wallet_mnemonic_plan_rows \
+      "${name}" "${account}" "${key_index}" "${origin}" "${target}")"; then
+    :
+  else
+    status=$?
+    cntools_wallet_mnemonic_log WARN \
+      "Mnemonic plan row preparation failed status=${status}; using compact fallback"
+    cntools_ui_render_status warn \
+      "The table view is unavailable; showing the compact wallet plan." || true
+    cntools_wallet_mnemonic_render_plan_fallback \
+      "${name}" "${account}" "${key_index}" "${origin}" "${target}"
+    return $?
+  fi
+  if printf '%s\n' "${rows}" |
+      cntools_ui_table --separator $'\t' --widths "${widths}"; then
+    printf '\n'
+    return 0
+  else
+    status=$?
+  fi
+  cntools_wallet_mnemonic_log WARN \
+    "Gum mnemonic plan table failed status=${status} widths=${widths}; using compact fallback"
+  cntools_ui_render_status warn \
+    "The table view is unavailable; showing the compact wallet plan." || true
+  cntools_wallet_mnemonic_render_plan_fallback \
+    "${name}" "${account}" "${key_index}" "${origin}" "${target}"
 }
 
 cntools_wallet_mnemonic_word_columns() {
