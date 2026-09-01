@@ -30,7 +30,7 @@ cntools_wallet_mnemonic_prompt_name_into() {
   local _cntools_output_name="${1:-}"
   local _cntools_title="${2:-Mnemonic}"
   local _cntools_breadcrumb="${3:-/ Wallet / Mnemonic}"
-  local _cntools_name=""
+  local _cntools_prompt_candidate_name=""
   local _cntools_feedback=""
   local _cntools_status=0
 
@@ -44,27 +44,29 @@ cntools_wallet_mnemonic_prompt_name_into() {
       "Create a recoverable payment-and-stake wallet using Cardano CLI."
     [[ -z "${_cntools_feedback}" ]] ||
       cntools_ui_render_status warn "${_cntools_feedback}"
-    if cntools_ui_input _cntools_name "Wallet name"; then
+    if cntools_ui_input _cntools_prompt_candidate_name "Wallet name"; then
       _cntools_status=0
     else
       _cntools_status=$?
     fi
     (( _cntools_status == 0 )) || return "${_cntools_status}"
-    if ! cntools_wallet_create_name_valid "${_cntools_name}"; then
+    if ! cntools_wallet_create_name_valid \
+        "${_cntools_prompt_candidate_name}"; then
       _cntools_feedback="Use 1–64 letters, numbers, dots, underscores, or hyphens; start with a letter or number."
       cntools_wallet_mnemonic_log CHOICE \
         "invalid mnemonic wallet name rejected"
       continue
     fi
-    if ! cntools_wallet_create_target_available "${_cntools_name}"; then
-      _cntools_feedback="A wallet or filesystem entry named ${_cntools_name} already exists. Choose another name."
+    if ! cntools_wallet_create_target_available \
+        "${_cntools_prompt_candidate_name}"; then
+      _cntools_feedback="A wallet or filesystem entry named ${_cntools_prompt_candidate_name} already exists. Choose another name."
       cntools_wallet_mnemonic_log CHOICE \
-        "duplicate mnemonic wallet name rejected wallet=${_cntools_name}"
+        "duplicate mnemonic wallet name rejected wallet=${_cntools_prompt_candidate_name}"
       continue
     fi
-    _cntools_output_ref="${_cntools_name}"
+    _cntools_output_ref="${_cntools_prompt_candidate_name}"
     cntools_wallet_mnemonic_log CHOICE \
-      "mnemonic wallet name selected wallet=${_cntools_name}"
+      "mnemonic wallet name selected wallet=${_cntools_prompt_candidate_name}"
     return 0
   done
 }
@@ -398,8 +400,8 @@ cntools_wallet_mnemonic_verify_backup() {
 
 cntools_wallet_mnemonic_collect_pasted_into() {
   local _cntools_output_name="${1:-}"
-  local _cntools_phrase=""
-  local _cntools_normalized=""
+  local _cntools_pasted_secret=""
+  local _cntools_pasted_normalized=""
   local _cntools_feedback=""
   local _cntools_status=0
   local -a _cntools_words=()
@@ -414,26 +416,26 @@ cntools_wallet_mnemonic_collect_pasted_into() {
       "Paste all recovery words separated by spaces. Leading and trailing whitespace is ignored."
     [[ -z "${_cntools_feedback}" ]] ||
       cntools_ui_render_status warn "${_cntools_feedback}"
-    if cntools_ui_password _cntools_phrase "Recovery phrase"; then
+    if cntools_ui_password _cntools_pasted_secret "Recovery phrase"; then
       _cntools_status=0
     else
       _cntools_status=$?
     fi
     (( _cntools_status == 0 )) || return "${_cntools_status}"
     if cntools_wallet_mnemonic_words_into \
-         _cntools_words "${_cntools_phrase}" &&
+         _cntools_words "${_cntools_pasted_secret}" &&
        cntools_wallet_mnemonic_phrase_into \
-         _cntools_normalized _cntools_words; then
-      _cntools_output_ref="${_cntools_normalized}"
+         _cntools_pasted_normalized _cntools_words; then
+      _cntools_output_ref="${_cntools_pasted_normalized}"
       cntools_wallet_mnemonic_log CHOICE \
         "pasted recovery phrase accepted words=${#_cntools_words[@]}"
-      unset _cntools_phrase _cntools_normalized _cntools_words
+      unset _cntools_pasted_secret _cntools_pasted_normalized _cntools_words
       return 0
     fi
     _cntools_feedback="Enter exactly 12, 15, 18, 21, or 24 alphabetic recovery words."
     cntools_wallet_mnemonic_log CHOICE \
       "pasted recovery phrase rejected by local shape validation"
-    unset _cntools_phrase _cntools_normalized _cntools_words
+    unset _cntools_pasted_secret _cntools_pasted_normalized _cntools_words
   done
 }
 
@@ -444,7 +446,7 @@ cntools_wallet_mnemonic_collect_interactive_into() {
   local _cntools_index=0
   local _cntools_input=""
   local _cntools_word=""
-  local _cntools_phrase=""
+  local _cntools_interactive_phrase=""
   local _cntools_feedback=""
   local _cntools_status=0
   local -a _cntools_words=()
@@ -490,17 +492,18 @@ cntools_wallet_mnemonic_collect_interactive_into() {
     done
     unset _cntools_input _cntools_word
   done
-  cntools_wallet_mnemonic_phrase_into _cntools_phrase _cntools_words || return 1
-  _cntools_output_ref="${_cntools_phrase}"
+  cntools_wallet_mnemonic_phrase_into \
+    _cntools_interactive_phrase _cntools_words || return 1
+  _cntools_output_ref="${_cntools_interactive_phrase}"
   cntools_wallet_mnemonic_log CHOICE \
     "interactive recovery phrase accepted words=${_cntools_count}"
-  unset _cntools_phrase _cntools_words
+  unset _cntools_interactive_phrase _cntools_words
 }
 
 cntools_wallet_mnemonic_collect_import_into() {
   local _cntools_output_name="${1:-}"
   local _cntools_method=""
-  local _cntools_phrase=""
+  local _cntools_collected_phrase=""
   local _cntools_status=0
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
@@ -518,7 +521,8 @@ cntools_wallet_mnemonic_collect_import_into() {
   fi
   case "${_cntools_method}" in
     "Paste complete phrase")
-      if cntools_wallet_mnemonic_collect_pasted_into _cntools_phrase; then
+      if cntools_wallet_mnemonic_collect_pasted_into \
+          _cntools_collected_phrase; then
         :
       else
         _cntools_status=$?
@@ -526,7 +530,8 @@ cntools_wallet_mnemonic_collect_import_into() {
       fi
       ;;
     "Enter one word at a time")
-      if cntools_wallet_mnemonic_collect_interactive_into _cntools_phrase; then
+      if cntools_wallet_mnemonic_collect_interactive_into \
+          _cntools_collected_phrase; then
         :
       else
         _cntools_status=$?
@@ -535,8 +540,8 @@ cntools_wallet_mnemonic_collect_import_into() {
       ;;
     *) return 2 ;;
   esac
-  _cntools_output_ref="${_cntools_phrase}"
-  unset _cntools_phrase
+  _cntools_output_ref="${_cntools_collected_phrase}"
+  unset _cntools_collected_phrase
   cntools_gum_clear
 }
 

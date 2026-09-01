@@ -417,19 +417,72 @@ assert_contains "$(< "${LOG_TRACE}")" \
   "Gum mnemonic plan table failed status=19" \
   "mnemonic plan Gum failure diagnostics"
 
-DEFAULT_PLACEHOLDER=""
+collect_import_fixture() (
+  local method="${1:-}"
+  local collected_phrase=""
+  local fixture_input_index=0
+  local -a fixture_words=()
+
+  read -r -a fixture_words <<< "${MNEMONIC_12}"
+  cntools_wallet_mnemonic_screen_begin() { return 0; }
+  cntools_ui_render_status() { return 0; }
+  cntools_gum_clear() { return 0; }
+  cntools_ui_choose() {
+    case "${2:-}" in
+      "Mnemonic input method…") printf -v "$1" '%s' "${method}" ;;
+      "Recovery phrase length…") printf -v "$1" '%s' "12 words" ;;
+      *) return 8 ;;
+    esac
+  }
+  cntools_ui_password() {
+    printf -v "$1" '%s' "  ${MNEMONIC_12}  "
+  }
+  cntools_ui_input() {
+    (( fixture_input_index < ${#fixture_words[@]} )) || return 9
+    printf -v "$1" '%s' "${fixture_words[fixture_input_index]}"
+    fixture_input_index=$((fixture_input_index + 1))
+  }
+
+  cntools_wallet_mnemonic_collect_import_into collected_phrase || return
+  printf '%s\n' "${collected_phrase}"
+)
+
+pasted_import="$(collect_import_fixture "Paste complete phrase")" ||
+  fail "pasted mnemonic UI collection failed"
+assert_eq "${pasted_import}" "${MNEMONIC_12}" \
+  "pasted mnemonic prompt-boundary preservation"
+interactive_import="$(collect_import_fixture "Enter one word at a time")" ||
+  fail "interactive mnemonic UI collection failed"
+assert_eq "${interactive_import}" "${MNEMONIC_12}" \
+  "interactive mnemonic prompt-boundary preservation"
+
+DEFAULT_PLACEHOLDER_COUNT=0
 cntools_wallet_mnemonic_screen_begin() { return 0; }
 cntools_ui_render_status() { return 0; }
 cntools_ui_input() {
-  DEFAULT_PLACEHOLDER="${3:-}"
-  printf -v "$1" '%s' ""
+  case "${2:-}" in
+    "Wallet name") printf -v "$1" '%s' "SettingsWallet" ;;
+    "Account number"|"Address key index")
+      [[ "${3:-}" == "0" ]] || return 9
+      DEFAULT_PLACEHOLDER_COUNT=$((DEFAULT_PLACEHOLDER_COUNT + 1))
+      printf -v "$1" '%s' ""
+      ;;
+    *) return 8 ;;
+  esac
 }
-default_index=""
-cntools_wallet_mnemonic_prompt_index_into \
-  default_index "Account number" "Mnemonic" "/ Wallet / New / Mnemonic" ||
-  fail "blank mnemonic derivation index did not select its default"
-assert_eq "${default_index}" "0" "blank mnemonic derivation default"
-assert_eq "${DEFAULT_PLACEHOLDER}" "0" "mnemonic derivation placeholder"
+collected_name=""
+collected_account=""
+collected_key_index=""
+cntools_wallet_mnemonic_collect_settings \
+  collected_name collected_account collected_key_index \
+  "Mnemonic" "/ Wallet / New / Mnemonic" ||
+  fail "mnemonic settings collection failed"
+assert_eq "${collected_name}" "SettingsWallet" \
+  "mnemonic settings wallet name preservation"
+assert_eq "${collected_account}" "0" "blank mnemonic account default"
+assert_eq "${collected_key_index}" "0" "blank mnemonic key-index default"
+assert_eq "${DEFAULT_PLACEHOLDER_COUNT}" "2" \
+  "mnemonic derivation placeholders"
 
 unset generated_phrase normalized_phrase MNEMONIC_24 MNEMONIC_12
 printf 'CNTools mnemonic wallet tests passed\n'
