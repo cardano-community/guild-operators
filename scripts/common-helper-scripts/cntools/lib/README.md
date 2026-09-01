@@ -43,8 +43,8 @@ Wallet List and Show declare this focused stack in dependency order:
 - `wallet-id.sh` derives missing key and script credential hashes and computes
   local CIP-14 asset fingerprints; and
 - `wallet-query.sh` adds bounded local and bulk Koios queries for live Wallet
-  List and Show values, classifies CIP-68 assets, selects one source-aware
-  metadata document, and builds bounded Simple/Detailed native-asset views.
+  List and Show values, classifies assets from total supply, selects one
+  source-aware metadata document, and builds bounded inline native-asset views.
 
 Generated artifacts are validated before they are cached under the configured
 legacy filename. An existing regular file, malformed artifact, or symbolic

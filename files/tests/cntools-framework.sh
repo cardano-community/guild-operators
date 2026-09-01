@@ -58,6 +58,7 @@ done
 for required_function in \
   cntools_log_init cntools_log cntools_log_close \
   cntools_run_command cntools_run_command_timeout cntools_http_request \
+  cntools_api_log_replay cntools_api_request \
   cntools_ui_suspend_for_job_control cntools_ui_mark_resize \
   cntools_menu_validate_metadata cntools_menu_open cntools_menu_cache_build \
   cntools_menu_cache_open \

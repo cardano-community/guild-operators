@@ -231,6 +231,84 @@ cntools_log_render_argument() {
   printf '%s' "${rendered}"
 }
 
+cntools_http_secret_file_tracked() {
+  local requested_file="${1:-}"
+  local secret_file=""
+
+  [[ -n "${requested_file}" ]] || return 2
+  for secret_file in "${CNTOOLS_HTTP_SECRET_FILES[@]}"; do
+    [[ "${secret_file}" == "${requested_file}" ]] && return 0
+  done
+  return 1
+}
+
+cntools_api_log_replay() {
+  local method="${1:-}"
+  local url="${2:-}"
+  local argument=""
+  local rendered=""
+  local replay=""
+  local replay_auth_header=""
+  local secret_file=""
+  local index=0
+  local -a arguments=()
+  shift 2 2>/dev/null || return 2
+  arguments=("$@")
+
+  [[ "${method}" =~ ^(GET|POST|PUT|PATCH|DELETE|HEAD)$ ]] || return 2
+  [[ "${url}" =~ ^https://[^[:space:]]+$ ]] || return 2
+
+  # Preserve this expansion for the operator's replay shell; do not resolve it
+  # inside CNTools or put the real token in the session log.
+  # shellcheck disable=SC2016
+  replay_auth_header='"Authorization: Bearer ${KOIOS_API_TOKEN:?set KOIOS_API_TOKEN before replaying this request}"'
+  replay="curl --silent --show-error"
+  replay+=" --max-time $(cntools_log_render_argument \
+    "${CNTOOLS_CURL_TIMEOUT:-10}")"
+  replay+=" --request $(cntools_log_render_argument "${method}")"
+  while (( index < ${#arguments[@]} )); do
+    argument="${arguments[index]}"
+    if [[ "${argument}" == "--header" ]] &&
+       (( index + 1 < ${#arguments[@]} )); then
+      secret_file="${arguments[index + 1]#@}"
+      if [[ "${arguments[index + 1]}" == @* ]] &&
+         cntools_http_secret_file_tracked "${secret_file}"; then
+        replay+=" --header"
+        replay+=" ${replay_auth_header}"
+        index=$((index + 2))
+        continue
+      fi
+    elif [[ "${argument}" == --header=@* ]]; then
+      secret_file="${argument#--header=@}"
+      if cntools_http_secret_file_tracked "${secret_file}"; then
+        replay+=" --header"
+        replay+=" ${replay_auth_header}"
+        index=$((index + 1))
+        continue
+      fi
+    fi
+    rendered="$(cntools_log_render_argument "${argument}")"
+    replay+=" ${rendered}"
+    index=$((index + 1))
+  done
+  replay+=" $(cntools_log_render_argument "${url}")"
+  cntools_log API "Replay: ${replay}" || true
+}
+
+cntools_api_request() {
+  local method="${1:-}"
+  local url="${2:-}"
+  local output_file="${3:-}"
+  shift 3 2>/dev/null || return 2
+
+  if [[ "${CNTOOLS_MODE:-}" == "offline" ]]; then
+    cntools_http_request "${method}" "${url}" "${output_file}" "$@"
+    return $?
+  fi
+  cntools_api_log_replay "${method}" "${url}" "$@" || true
+  cntools_http_request "${method}" "${url}" "${output_file}" "$@"
+}
+
 cntools_run_command() {
   local mask="${1:-}"
   local rendered=""

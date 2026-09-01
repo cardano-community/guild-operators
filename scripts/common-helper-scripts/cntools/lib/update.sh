@@ -184,7 +184,7 @@ cntools_update_action_view_changes() {
 
   printf 'Loading changes from %s/guild-operators @ %s...\n\n' \
     "${CNTOOLS_ACCOUNT}" "${CNTOOLS_BRANCH}"
-  if cntools_http_request GET "${changelog_url}" "${response_file}" \
+  if cntools_api_request GET "${changelog_url}" "${response_file}" \
     --connect-timeout 3 --max-filesize 262144 --no-show-error; then
     request_status=0
   else

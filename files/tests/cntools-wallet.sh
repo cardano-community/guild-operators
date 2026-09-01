@@ -437,6 +437,7 @@ cntools_ui_choose() {
   printf -v "${output_variable}" '%s' ""
   if [[ "${placeholder}" == "Select native-asset view…" ]]; then
     ASSET_VIEW_SELECTOR_CALLS=$((ASSET_VIEW_SELECTOR_CALLS + 1))
+    printf 'ASSET_CHOICE\n' >> "${UI_TRACE}"
     case "${ASSET_VIEW_SELECTOR_MODE}" in
       cancel) return 1 ;;
       fail) return 2 ;;
@@ -445,6 +446,7 @@ cntools_ui_choose() {
         return 0
         ;;
       detailed) candidate="${2:-}" ;;
+      skip) candidate="${3:-}" ;;
       simple) candidate="${1:-}" ;;
       *) return 2 ;;
     esac
@@ -485,6 +487,10 @@ test_asset_view_selector() {
   cntools_wallet_choose_asset_view selected ||
     fail "native-asset selector rejected Detailed"
   assert_eq "${selected}" "detailed" "Detailed native-asset selector value"
+  ASSET_VIEW_SELECTOR_MODE="skip"
+  cntools_wallet_choose_asset_view selected ||
+    fail "native-asset selector rejected Skip"
+  assert_eq "${selected}" "skip" "Skip native-asset selector value"
   ASSET_VIEW_SELECTOR_MODE="cancel"
   assert_status 1 "native-asset selector cancellation status" \
     cntools_wallet_choose_asset_view selected
@@ -661,11 +667,14 @@ test_grouped_balance_count() (
   CNTOOLS_WALLET_TOTAL_LOVELACE=1000000
   CNTOOLS_WALLET_REWARD_LOVELACE=0
   CNTOOLS_WALLET_UTXO_COUNT=1234
+  CNTOOLS_WALLET_ASSET_COUNT=5678
   CNTOOLS_UI_COLUMNS=98
   rows="$(cntools_wallet_balance_rows Y N N)" ||
     fail "grouped balance rows could not be rendered"
   assert_contains "${rows}" $'UTxO count\t1,234' \
     "grouped UTxO count"
+  assert_contains "${rows}" $'Native assets\t5,678' \
+    "grouped native-asset count"
 )
 test_grouped_balance_count
 cntools_wallet_query_reset
@@ -1242,7 +1251,7 @@ assert_contains "${formatted_details}" \
 assert_contains "${formatted_details}" \
   $'\tTotal supply\t9,876,543,210' "grouped total supply"
 assert_contains "${formatted_details}" \
-  $'\tType\tLegacy' "native-asset type"
+  $'\tType\tFT' "native-asset type"
 assert_contains "${formatted_details}" \
   $'\tMetadata source\tToken Registry · Koios API' \
   "native-asset metadata source"
@@ -1314,19 +1323,17 @@ CNTOOLS_WALLET_ASSET_METADATA_JSON["${TEST_ASSET_ID}"]="$(jq -cn '
 ')" || fail "could not prepare paged metadata tree"
 CNTOOLS_UI_INTERACTIVE="Y"
 CNTOOLS_UI_COLUMNS=50
-cntools_gum_terminal_lines() { printf '24\n'; }
 : > "${UI_TRACE}"
 : > "${PAGER_TRACE}"
 cntools_wallet_render_asset_details_table detailed ||
-  fail "scrollable native-asset details failed"
-grep -F $'PAGER_ARGS\t--soft-wrap' "${PAGER_TRACE}" >/dev/null ||
-  fail "long native-asset tables did not use one Gum pager"
+  fail "inline native-asset details failed"
+[[ ! -s "${PAGER_TRACE}" ]] ||
+  fail "native-asset details unexpectedly opened a Gum pager"
 grep -F $'DETAIL\tNative assets (1) · Detailed' "${UI_TRACE}" >/dev/null ||
-  fail "the paged native-asset details were omitted"
+  fail "the inline native-asset details were omitted"
 [[ "$(grep -c $'DETAIL\tNative assets (1) · Detailed' "${UI_TRACE}")" == "1" ]] ||
   fail "Wallet Show rendered more than one native-assets table"
 cntools_wallet_query_cleanup
-unset -f cntools_gum_terminal_lines
 unset CNTOOLS_UI_INTERACTIVE
 if [[ -n "${had_ui_columns}" ]]; then
   CNTOOLS_UI_COLUMNS="${saved_ui_columns}"
@@ -2710,6 +2717,7 @@ assert_eq "$(line_count "${HTTP_TRACE}")" "1" \
 
 reset_query_traces
 KOIOS_SCENARIO="full"
+: > "${LOG_TRACE}"
 cntools_wallet_query \
   "${TEST_BASE_ADDRESS}" "${TEST_PAYMENT_ADDRESS}" "${TEST_REWARD_ADDRESS}"
 assert_eq "${CNTOOLS_WALLET_QUERY_STATUS}" "available" "Koios query status"
@@ -2736,7 +2744,7 @@ assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${TEST_ASSET_ID}]}" "6" \
 assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE[${TEST_ASSET_ID}]}" "1" \
   "Koios per-asset metadata availability"
 assert_eq "${CNTOOLS_WALLET_ASSET_CLASSES[${TEST_ASSET_ID}]}" \
-  "Legacy" "unlabelled native-asset type"
+  "FT" "multi-supply native-asset type"
 assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_SOURCES[${TEST_ASSET_ID}]}" \
   "Token Registry" "Koios Token Registry source"
 jq -e '
@@ -2778,6 +2786,29 @@ grep -F "/account_info${CNTOOLS_WALLET_KOIOS_ACCOUNT_SELECT}" \
 grep -F 'registry_metadata%3Atoken_registry_metadata' \
   "${HTTP_TRACE}" >/dev/null ||
   fail "Koios asset_info did not request the complete Token Registry document"
+[[ "$(grep -c 'Replay: curl ' "${LOG_TRACE}")" == "3" ]] ||
+  fail "Koios requests did not each record one replay command"
+grep -F 'address_info' "${LOG_TRACE}" | grep -F '_addresses' >/dev/null ||
+  fail "Koios address_info replay omitted its URL or JSON payload"
+grep -F 'account_info' "${LOG_TRACE}" | grep -F '_stake_addresses' >/dev/null ||
+  fail "Koios account_info replay omitted its URL or JSON payload"
+grep -F 'asset_info' "${LOG_TRACE}" | grep -F '_asset_list' >/dev/null ||
+  fail "Koios asset_info replay omitted its URL or JSON payload"
+grep -F 'balance%3A%3Atext%2Cutxo_set' "${LOG_TRACE}" >/dev/null ||
+  fail "Koios replay omitted the full address_info query"
+grep -F 'registry_metadata%3Atoken_registry_metadata' \
+  "${LOG_TRACE}" >/dev/null ||
+  fail "Koios replay omitted the full asset_info query"
+grep -F "${TEST_BASE_ADDRESS}" "${LOG_TRACE}" >/dev/null ||
+  fail "Koios replay omitted an exact funding-address payload value"
+grep -F "${TEST_POLICY_ID}" "${LOG_TRACE}" >/dev/null ||
+  fail "Koios replay omitted an exact native-asset payload value"
+grep -F 'Authorization: Bearer ${KOIOS_API_TOKEN:?set KOIOS_API_TOKEN before replaying this request}' \
+  "${LOG_TRACE}" >/dev/null ||
+  fail "authenticated Koios replay did not use the protected token variable"
+if grep -F '.cntools-http-auth.' "${LOG_TRACE}" >/dev/null; then
+  fail "Koios replay exposed its private authorization-header file"
+fi
 if grep -F "${TEST_KOIOS_TOKEN}" \
     "${HTTP_ARGV_TRACE}" "${HTTP_ENV_TRACE}" "${LOG_TRACE}" >/dev/null; then
   fail "Koios token leaked into argv, child environment, or logs"
@@ -2852,6 +2883,7 @@ SELECTOR_MODE="first"
 ASSET_VIEW_SELECTOR_MODE="detailed"
 ASSET_VIEW_SELECTOR_CALLS=0
 : > "${UI_TRACE}"
+: > "${PAGER_TRACE}"
 cntools_wallet_action_show || fail "Detailed Wallet Show action failed"
 assert_eq "${ASSET_VIEW_SELECTOR_CALLS}" "1" \
   "Wallet Show native-asset view prompt count"
@@ -2860,6 +2892,28 @@ grep -F $'DETAIL\tNative assets (3) · Detailed' "${UI_TRACE}" >/dev/null ||
 grep -F $'DATA_ROW\t\tMetadata source\tToken Registry · Koios API' \
   "${UI_TRACE}" >/dev/null ||
   fail "local Detailed Wallet Show omitted Koios metadata"
+awk '
+  $0 == "DETAIL\tBalances" { balance = NR }
+  $0 == "ASSET_CHOICE" && choice == 0 { choice = NR }
+  END { exit !(balance > 0 && choice > balance) }
+' "${UI_TRACE}" ||
+  fail "native-asset choice was not shown after wallet balances"
+[[ ! -s "${PAGER_TRACE}" ]] ||
+  fail "Detailed Wallet Show opened a separate pager"
+
+ASSET_VIEW_SELECTOR_MODE="skip"
+: > "${UI_TRACE}"
+: > "${LOG_TRACE}"
+cntools_wallet_action_show || fail "Skip Wallet Show action failed"
+grep -F $'DETAIL\tBalances' "${UI_TRACE}" >/dev/null ||
+  fail "Skip Wallet Show omitted the balance table"
+if grep -F $'DETAIL\tNative assets' "${UI_TRACE}" >/dev/null; then
+  fail "Skip Wallet Show rendered a native-asset table"
+fi
+grep -Fx 'WAIT' "${UI_TRACE}" >/dev/null ||
+  fail "Skip Wallet Show did not show the normal return prompt"
+grep -F 'native-asset view selected view=skip' "${LOG_TRACE}" >/dev/null ||
+  fail "Skip Wallet Show choice was not logged"
 
 ASSET_VIEW_SELECTOR_MODE="cancel"
 : > "${UI_TRACE}"
@@ -2974,6 +3028,8 @@ assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${PREVIEW_METADATA_ASSET_ID}
   "6" "Koios 721 numeric decimals"
 assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_SOURCES[${PREVIEW_METADATA_ASSET_ID}]}" \
   "CIP-25 (721)" "Koios 721 metadata source"
+assert_eq "${CNTOOLS_WALLET_ASSET_CLASSES[${PREVIEW_METADATA_ASSET_ID}]}" \
+  "FT" "multi-supply CIP-25 asset type"
 jq -e '
   any(.[]; (.property | contains("Lovelace")) and .value == "5000000") and
   any(.[]; (.property | contains("Proposal url")) and
@@ -3091,7 +3147,7 @@ assert_eq "${CNTOOLS_WALLET_ASSET_CLASSES[${CIP68_NFT_ASSET_ID}]}" \
 assert_eq "${CNTOOLS_WALLET_ASSET_CLASSES[${CIP68_FT_ASSET_ID}]}" \
   "FT" "CIP-68 333 asset type"
 assert_eq "${CNTOOLS_WALLET_ASSET_CLASSES[${CIP68_RFT_ASSET_ID}]}" \
-  "RFT" "CIP-68 444 asset type"
+  "FT" "multi-supply CIP-68 444 asset type"
 assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_SOURCES[${CIP68_NFT_ASSET_ID}]}" \
   "CIP-68 (222)" "CIP-68 222 metadata source"
 assert_eq "${CNTOOLS_WALLET_ASSET_METADATA_SOURCES[${CIP68_FT_ASSET_ID}]}" \
@@ -3143,14 +3199,15 @@ nft_details="$(cntools_wallet_asset_details_rows detailed | awk -F '\t' '
   !done { print }
 ')" || fail "CIP-68 NFT details could not be isolated"
 assert_contains "${nft_details}" $'\tType\tNFT' "CIP-68 NFT type row"
-assert_contains "${nft_details}" $'\tAmount\t1' "CIP-68 NFT amount"
 assert_contains "${nft_details}" \
   $'\tMetadata source\tCIP-68 (222) · Koios API' \
   "CIP-68 NFT source row"
-if [[ "${nft_details}" == *$'\tTicker\t'* ||
+if [[ "${nft_details}" == *$'\tAmount\t'* ||
+      "${nft_details}" == *$'\tTotal supply\t'* ||
+      "${nft_details}" == *$'\tTicker\t'* ||
       "${nft_details}" == *$'\tDecimals\t'* ||
       "${nft_details}" == *" BAD"* ]]; then
-  fail "CIP-68 NFT details rendered ticker or decimal metadata"
+  fail "CIP-68 NFT details rendered redundant balance or unit metadata"
 fi
 grep -F 'metadata_20%3Aminting_tx_metadata-%3E%2220%22' \
   "${HTTP_TRACE}" >/dev/null ||
@@ -3213,6 +3270,8 @@ cntools_wallet_asset_sort_ids || fail "could not sort wide Registry metadata"
 KOIOS_METADATA_SCENARIO="wide-registry"
 cntools_wallet_query_koios_asset_metadata ||
   fail "wide Registry response was rejected"
+assert_eq "${CNTOOLS_WALLET_ASSET_CLASSES[${TEST_ASSET_ID}]}" \
+  "NFT" "single-supply unlabelled asset type"
 jq -e '
   any(.[]; .value == "collision one") and
   any(.[]; .value == "collision two") and

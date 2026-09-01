@@ -90,25 +90,23 @@ depends on the startup mode:
 - offline mode performs no blockchain query or network request.
 
 Native-asset quantities are aggregated exactly across the wallet's funding
-addresses. When a wallet contains native assets, Wallet Show asks whether to
-use a Simple or Detailed view. Simple shows each asset's type (`NFT`, `FT`,
-`RFT`, or `Legacy`), wallet amount,
-total network supply when available, policy ID, asset-name hex, deterministic
-CIP-14 fingerprint, and metadata source. Amount and total supply are distinct:
-the former is held by the wallet and the latter is minted across the network.
-Detailed adds the selected metadata document's retained fields as a compact
-tree, without CIP label, policy, asset-name, or Plutus transport wrappers.
-Missing fields are omitted, while safety limits use explicit omission markers
-instead of silently dropping content. NFTs never show ticker or decimals, and
-amounts never repeat a ticker suffix. Tall tables open in one Gum scroll view.
+addresses, and the Balances table includes the number of distinct assets. The
+rest of Wallet Show is rendered before the user chooses `Simple`, `Detailed`,
+or `Skip` for native-asset output. An asset is classified as `NFT` when its
+current total supply is exactly one and as `FT` otherwise. NFT rows omit wallet
+amount, total supply, ticker, and decimals. Simple shows the remaining relevant
+identity and holding fields; Detailed appends the selected metadata document's
+retained fields as an inline compact tree. Missing fields are omitted, while
+safety limits use explicit omission markers instead of silently dropping
+content.
 
-One complete metadata document is selected by asset class. A CIP-68 `222` NFT
-prefers CIP-68 and then exact CIP-25 label `721`; a `333` FT prefers CIP-68,
-transaction metadata label `20`, and then the Token Registry; and a `444` RFT
-prefers CIP-68 and then the Token Registry. Legacy unlabelled assets retain
-label `20`, Token Registry, and exact label `721` fallback coverage. The table
-identifies both the selected standard and Koios API as its source. A metadata
-failure leaves validated holdings visible.
+Metadata precedence remains driven by the applicable standard label. CIP-67
+label `222` prefers CIP-68 and then exact CIP-25 label `721`; label `333`
+prefers CIP-68, transaction metadata label `20`, and then the Token Registry;
+and label `444` prefers CIP-68 and then the Token Registry. Unlabelled assets
+retain label `20`, Token Registry, and exact label `721` fallback coverage. The
+table identifies both the selected standard and Koios API as its source. A
+metadata failure leaves validated holdings visible.
 
 Before rendering, CNTools can fill a missing public artifact cache from an
 available clear signing key or multisignature script. It creates only the

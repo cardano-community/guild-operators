@@ -70,10 +70,10 @@ done
 
 [[ -f "${CHANGELOG_FIXTURE}" && ! -L "${CHANGELOG_FIXTURE}" ]] ||
   fail "update changelog fixture is missing or unsafe"
-grep -F 'cntools_http_request GET' "${CNTOOLS_ROOT}/core/update.sh" >/dev/null ||
-  fail "automatic update checking bypasses the core HTTP wrapper"
-grep -F 'cntools_http_request GET' "${CNTOOLS_ROOT}/lib/update.sh" >/dev/null ||
-  fail "changelog retrieval bypasses the core HTTP wrapper"
+grep -F 'cntools_api_request GET' "${CNTOOLS_ROOT}/core/update.sh" >/dev/null ||
+  fail "automatic update checking bypasses the core API wrapper"
+grep -F 'cntools_api_request GET' "${CNTOOLS_ROOT}/lib/update.sh" >/dev/null ||
+  fail "changelog retrieval bypasses the core API wrapper"
 if grep -F 'cntools.library' \
   "${CNTOOLS_ROOT}/core/update.sh" \
   "${CNTOOLS_ROOT}/lib/update.sh" \

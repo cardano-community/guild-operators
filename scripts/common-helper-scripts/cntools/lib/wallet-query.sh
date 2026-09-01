@@ -179,21 +179,18 @@ cntools_wallet_asset_add() {
     fi
   fi
   asset_name="${asset_id#*.}"
+  CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="FT"
   case "${asset_name}" in
     000de140*)
-      CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="NFT"
       CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]="222"
       ;;
     0014df10*)
-      CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="FT"
       CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]="333"
       ;;
     001bc280*)
-      CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="RFT"
       CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]="444"
       ;;
     *)
-      CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="Legacy"
       CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]=""
       ;;
   esac
@@ -914,7 +911,7 @@ cntools_wallet_query_http() {
     fi
     arguments+=(--header "@${auth_header_file}")
   fi
-  if cntools_http_request POST "${endpoint}" "${output_file}" \
+  if cntools_api_request POST "${endpoint}" "${output_file}" \
       "${arguments[@]}"; then
     request_status=0
   else
@@ -1416,12 +1413,8 @@ cntools_wallet_query_koios_asset_metadata_batch() {
         elif ($asset_name | startswith("001bc280")) then "444"
         else ""
         end;
-    def asset_class($label):
-      if $label == "222" then "NFT"
-      elif $label == "333" then "FT"
-      elif $label == "444" then "RFT"
-      else "Legacy"
-      end;
+    def asset_class($total_supply):
+      if $total_supply == "1" then "NFT" else "FT" end;
     def meaningful:
       if . == null then false
       elif type == "string" then length > 0
@@ -1587,12 +1580,12 @@ cntools_wallet_query_koios_asset_metadata_batch() {
     | metadata_sources($label; $registry; $cip68; $mint20; $mint721) as $sources
     | selected_metadata($sources) as $selected
     | ($selected.document
-       | safe_document(0; ""; ($label == "222"))) as $display_document
+       | safe_document(0; ""; ($row.total_supply == "1"))) as $display_document
     | (ci_get($display_document; "name") | text_value | clean(80)) as $name
-    | (if $label == "222" then ""
+    | (if $row.total_supply == "1" then ""
        else (ci_get($display_document; "ticker") | text_value | clean(32))
        end) as $ticker
-    | (if $label == "222" then ""
+    | (if $row.total_supply == "1" then ""
        else (ci_get($display_document; "decimals") | decimal_value) // ""
        end) as $decimals
     | ((ci_get($display_document; "description") //
@@ -1613,7 +1606,7 @@ cntools_wallet_query_koios_asset_metadata_batch() {
       ($row.asset_name_ascii | human_ascii),
       $row.fingerprint,
       $row.total_supply,
-      asset_class($label),
+      asset_class($row.total_supply),
       $label,
       $selected.source,
       $name,
@@ -3048,6 +3041,8 @@ cntools_wallet_balance_rows() {
   local inclusive_total=""
   local utxo_count="Unavailable"
   local formatted_count="Unavailable"
+  local token_count="Unavailable"
+  local formatted_token_count="Unavailable"
 
   if [[ "${CNTOOLS_WALLET_TOTAL_LOVELACE}" =~ ^[0-9]+$ &&
         "${CNTOOLS_WALLET_REWARD_LOVELACE}" =~ ^[0-9]+$ ]]; then
@@ -3062,6 +3057,15 @@ cntools_wallet_balance_rows() {
     cntools_number_format_into formatted_count "${utxo_count}" || return 1
   else
     formatted_count="${utxo_count}"
+  fi
+  [[ ! "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[0-9]+$ ]] ||
+    token_count="${CNTOOLS_WALLET_ASSET_COUNT}"
+  if [[ "${token_count}" =~ ^[0-9]+$ ]] &&
+     declare -F cntools_number_format_into >/dev/null 2>&1; then
+    cntools_number_format_into \
+      formatted_token_count "${token_count}" || return 1
+  else
+    formatted_token_count="${token_count}"
   fi
   cntools_wallet_table_row "Balance" "Value" || return 1
   if [[ "${has_base}" == "Y" ]]; then
@@ -3102,6 +3106,10 @@ cntools_wallet_balance_rows() {
     cntools_wallet_table_wrapped_pair \
       "UTxO count" "${formatted_count}" 22 \
       "$(cntools_wallet_number_role "${utxo_count}")" ||
+      return 1
+    cntools_wallet_table_wrapped_pair \
+      "Native assets" "${formatted_token_count}" 22 \
+      "$(cntools_wallet_number_role "${token_count}")" ||
       return 1
   fi
 }
@@ -3285,20 +3293,6 @@ cntools_wallet_format_token_amount() {
   printf '%s\n' "${amount}"
 }
 
-cntools_wallet_asset_details_should_page() {
-  local table_rows="${1:-}"
-  local terminal_lines=""
-
-  [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == "Y" &&
-     "${table_rows}" =~ ^[1-9][0-9]*$ ]] || return 1
-  declare -F cntools_ui_pager >/dev/null 2>&1 || return 1
-  declare -F cntools_gum_terminal_lines >/dev/null 2>&1 || return 1
-  terminal_lines="$(cntools_gum_terminal_lines 2>/dev/null || true)"
-  [[ "${terminal_lines}" =~ ^[0-9]+$ ]] || return 1
-  (( terminal_lines >= 12 )) || terminal_lines=12
-  (( table_rows + 5 > terminal_lines - 4 ))
-}
-
 cntools_wallet_asset_metadata_source_into() {
   local _cntools_output_name="${1:-}"
   local _cntools_asset_id="${2:-}"
@@ -3390,7 +3384,7 @@ cntools_wallet_asset_details_rows() {
     quantity="${CNTOOLS_WALLET_ASSET_QUANTITIES[${asset_id}]:-Unavailable}"
     cntools_wallet_format_number_into display_quantity "${quantity}" || return 1
     fingerprint="${CNTOOLS_WALLET_ASSET_FINGERPRINTS[${asset_id}]:-Unavailable}"
-    asset_class="${CNTOOLS_WALLET_ASSET_CLASSES[${asset_id}]:-Legacy}"
+    asset_class="${CNTOOLS_WALLET_ASSET_CLASSES[${asset_id}]:-FT}"
     if [[ "${asset_class}" == "NFT" ]]; then
       display_decimals=""
     else
@@ -3405,21 +3399,23 @@ cntools_wallet_asset_details_rows() {
     cntools_wallet_table_wrapped_triple \
       "${display_label}" "Type" "${asset_class}" \
       22 20 "${table_width}" identifier value || return 1
-    cntools_wallet_table_wrapped_triple \
-      "" "Amount" "${display_amount}" \
-      22 20 "${table_width}" value number || return 1
-    total_supply="${CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES[${asset_id}]:-}"
-    if [[ "${total_supply}" =~ ^[0-9]+$ ]]; then
-      display_total_supply=""
-      cntools_wallet_format_token_amount_into \
-        display_total_supply "${total_supply}" "${display_decimals}" || return 1
+    if [[ "${asset_class}" != "NFT" ]]; then
       cntools_wallet_table_wrapped_triple \
-        "" "Total supply" "${display_total_supply}" \
+        "" "Amount" "${display_amount}" \
         22 20 "${table_width}" value number || return 1
-    else
-      cntools_wallet_table_wrapped_triple \
-        "" "Total supply" "Unavailable" \
-        22 20 "${table_width}" value muted || return 1
+      total_supply="${CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES[${asset_id}]:-}"
+      if [[ "${total_supply}" =~ ^[0-9]+$ ]]; then
+        display_total_supply=""
+        cntools_wallet_format_token_amount_into \
+          display_total_supply "${total_supply}" "${display_decimals}" || return 1
+        cntools_wallet_table_wrapped_triple \
+          "" "Total supply" "${display_total_supply}" \
+          22 20 "${table_width}" value number || return 1
+      else
+        cntools_wallet_table_wrapped_triple \
+          "" "Total supply" "Unavailable" \
+          22 20 "${table_width}" value muted || return 1
+      fi
     fi
     cntools_wallet_table_wrapped_triple \
       "" "Policy ID" "${policy_id}" 22 20 "${table_width}" \
@@ -3495,32 +3491,13 @@ cntools_wallet_render_asset_metadata_status() {
 cntools_wallet_render_asset_details_table() {
   local view="${1:-detailed}"
   local rows_file=""
-  local table_rows=""
-  local -a pipeline_status=()
 
   [[ "${view}" == "simple" || "${view}" == "detailed" ]] || return 2
   [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[1-9][0-9]*$ ]] || return 0
   cntools_wallet_render_asset_metadata_status || return 1
   cntools_wallet_write_rows_file \
     rows_file cntools_wallet_asset_details_rows "${view}" || return 1
-  cntools_wallet_file_row_count_into table_rows "${rows_file}" || return 1
-  [[ "${table_rows}" =~ ^[1-9][0-9]*$ ]] || return 1
-  if ! cntools_wallet_asset_details_should_page "${table_rows}"; then
-    cntools_wallet_render_asset_details_content "${rows_file}" "${view}"
-    return $?
-  fi
-
-  if [[ -n "${NO_COLOR:-}" ]]; then
-    cntools_wallet_render_asset_details_content "${rows_file}" "${view}" |
-      cntools_ui_pager --soft-wrap
-  else
-    (
-      export CLICOLOR_FORCE=1
-      cntools_wallet_render_asset_details_content "${rows_file}" "${view}"
-    ) | cntools_ui_pager --soft-wrap
-  fi
-  pipeline_status=("${PIPESTATUS[@]}")
-  (( pipeline_status[0] == 0 && pipeline_status[1] == 0 ))
+  cntools_wallet_render_asset_details_content "${rows_file}" "${view}"
 }
 
 cntools_wallet_render_query() {
@@ -3530,6 +3507,9 @@ cntools_wallet_render_query() {
   local asset_view="${4:-detailed}"
   local level="info"
 
+  [[ "${asset_view}" == "simple" ||
+     "${asset_view}" == "detailed" ||
+     "${asset_view}" == "skip" ]] || return 2
   case "${CNTOOLS_WALLET_QUERY_STATUS}" in
     available) level="success" ;;
     partial) level="warn" ;;
@@ -3545,7 +3525,8 @@ cntools_wallet_render_query() {
   if [[ "${has_reward}" == "Y" ]]; then
     cntools_wallet_render_delegation_table || return 1
   fi
-  if [[ "${has_base}" == "Y" || "${has_payment}" == "Y" ]]; then
+  if [[ "${asset_view}" != "skip" &&
+        ( "${has_base}" == "Y" || "${has_payment}" == "Y" ) ]]; then
     cntools_wallet_render_asset_details_table "${asset_view}" || return 1
   fi
 }
@@ -3558,8 +3539,9 @@ cntools_wallet_choose_asset_view() {
   local -a _cntools_rows=(
     "Simple    · Essential holdings and identifiers"
     "Detailed  · All available token metadata"
+    "Skip      · Do not print native-asset details"
   )
-  local -a _cntools_ids=(simple detailed)
+  local -a _cntools_ids=(simple detailed skip)
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
@@ -3685,24 +3667,6 @@ cntools_wallet_action_show_impl() {
       "${query_base}" "${query_payment}" "${query_reward}"
   fi
 
-  if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[1-9][0-9]*$ ]]; then
-    cntools_ui_action_begin "Show" "/ Wallet / Show"
-    if cntools_wallet_choose_asset_view asset_view; then
-      asset_selector_status=0
-    else
-      asset_selector_status=$?
-    fi
-    if (( asset_selector_status == 1 )); then
-      cntools_wallet_log CHOICE "native-asset view selection cancelled"
-      cntools_gum_clear
-      return 0
-    elif (( asset_selector_status != 0 )); then
-      cntools_wallet_log ERROR \
-        "native-asset view selection failed status=${asset_selector_status}"
-      return "${asset_selector_status}"
-    fi
-  fi
-
   if [[ "${has_reward}" == "Y" ]]; then
     case "${CNTOOLS_WALLET_REGISTERED:-unknown}" in
       yes) registration="Registered" ;;
@@ -3720,7 +3684,26 @@ cntools_wallet_action_show_impl() {
     "${base_address}" "${payment_address}" "${reward_address}" || return 1
   cntools_wallet_render_credential_table "${wallet_directory}" || return 1
   cntools_wallet_render_query \
-    "${has_base}" "${has_payment}" "${has_reward}" "${asset_view}" || return 1
+    "${has_base}" "${has_payment}" "${has_reward}" skip || return 1
+  if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[1-9][0-9]*$ ]]; then
+    if cntools_wallet_choose_asset_view asset_view; then
+      asset_selector_status=0
+    else
+      asset_selector_status=$?
+    fi
+    if (( asset_selector_status == 1 )); then
+      cntools_wallet_log CHOICE "native-asset view selection cancelled"
+      cntools_gum_clear
+      return 0
+    elif (( asset_selector_status != 0 )); then
+      cntools_wallet_log ERROR \
+        "native-asset view selection failed status=${asset_selector_status}"
+      return "${asset_selector_status}"
+    fi
+    if [[ "${asset_view}" != "skip" ]]; then
+      cntools_wallet_render_asset_details_table "${asset_view}" || return 1
+    fi
+  fi
   cntools_ui_wait
 }
 

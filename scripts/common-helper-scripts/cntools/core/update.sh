@@ -277,7 +277,7 @@ cntools_update_check() {
     return 1
   }
 
-  if ( cntools_http_request GET "${version_url}" "${response_file}" \
+  if ( cntools_api_request GET "${version_url}" "${response_file}" \
     --connect-timeout 2 --max-time 3 --max-filesize 64 --no-show-error ); then
     request_status=0
   else

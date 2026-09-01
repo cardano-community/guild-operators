@@ -339,6 +339,7 @@ Log records are human-readable single lines:
 ```text
 2026-08-26T12:34:56+0200 [ACTION] [wallet/list] selected
 2026-08-26T12:34:57+0200 [CMD] [wallet/show] cardano-cli query ... -> 0
+2026-08-26T12:34:58+0200 [API] [wallet/show] Replay: curl ...
 2026-08-26T12:34:58+0200 [API] [wallet/show] POST /address_info -> 200
 ```
 
@@ -347,24 +348,27 @@ Core wrappers log:
 - session start/end, mode, backend, network, account, and branch;
 - menu and action selections, cancellations, and non-secret answers;
 - operational external commands, safely rendered argument by argument;
+- shell-safe API replay commands with the full URL and non-sensitive payload;
 - API method, sanitized endpoint, response status, and duration; and
 - validation failures, command failures, API failures, and unexpected errors.
 
 Actions must use the core command wrapper for operational external tools and
-the core HTTP wrapper for every API request. Rendering and metadata-parsing
+the core API wrapper for every API request. Rendering and metadata-parsing
 utilities are excluded from operational command logging. The command wrapper
 accepts a redaction mask so an action can mark sensitive argument positions;
 the execution arguments remain unchanged while those log values become
-`<redacted>`. The HTTP wrapper enforces the offline network boundary as well as
-logging and header/token redaction.
+`<redacted>`. The API wrapper records a copyable `curl` request before using the
+lower-level HTTP wrapper, which enforces the offline network boundary and logs
+the sanitized result. Authenticated replay commands refer to
+`KOIOS_API_TOKEN`; they never embed its value or the private header-file path.
 
 The logger refuses symlinks and non-regular log targets before opening the file.
-Secret input values, stdin, environment dumps, HTTP authorization headers or
-bodies, signing-key contents, passwords, passphrases, PINs, mnemonics, seed
-phrases, and API tokens are never logged. Command stdout is not logged by
-default; on failure, a bounded and sanitized stderr/error summary may be
-recorded. Sensitive prompts record only that input was accepted or cancelled.
-New CNTools code never enables shell tracing with `set -x`.
+Secret input values, stdin, environment dumps, HTTP authorization values,
+sensitive request fields, signing-key contents, passwords, passphrases, PINs,
+mnemonics, seed phrases, and API tokens are never logged. Command stdout is not
+logged by default; on failure, a bounded and sanitized stderr/error summary may
+be recorded. Sensitive prompts record only that input was accepted or
+cancelled. New CNTools code never enables shell tracing with `set -x`.
 
 ## Deployment and updates
 
@@ -575,15 +579,15 @@ available for rendering.
 Show renders identity, relevant addresses and hexadecimal credentials,
 balances, stake-pool delegation, DRep delegation, and exact native-asset
 quantities as Gum tables. Stake registration is part of wallet identity, while
-a mnemonic wallet also shows its validated `derivation.path`. A wallet with
-native assets gets a Simple/Detailed selector. Simple shows type (`NFT`, `FT`,
-`RFT`, or `Legacy`), wallet amount, total network supply, policy ID,
-asset-name hex, CIP-14 fingerprint,
-and metadata source. Detailed appends the selected metadata document as a
-bounded tree of real fields, with standard and Plutus transport wrappers
-removed, missing fields omitted, and safety-limit omissions explicitly marked.
-NFTs omit ticker and decimals; amount and
-total-supply values use decimals when applicable but never append a ticker.
+a mnemonic wallet also shows its validated `derivation.path`. Balances include
+the distinct native-asset count. After the other wallet tables are printed, a
+wallet with native assets gets `Simple`, `Detailed`, and `Skip` choices. Assets
+with current total supply exactly one are `NFT`; every other case is `FT`.
+NFT rows omit amount, total supply, ticker, and decimals. Simple shows the
+remaining relevant identifiers and holding values. Detailed prints the
+selected metadata document inline as a bounded tree of real fields, with
+standard and Plutus transport wrappers removed, missing fields omitted, and
+safety-limit omissions explicitly marked.
 Both local and light Wallet Show sessions enrich the table through Koios
 `asset_info` bulk requests bounded to 1 KiB
 publicly or 5 KiB with an API token, with request pacing below the documented
@@ -592,13 +596,13 @@ remain sourced from the deployed Cardano CLI; Koios is identified separately
 as the metadata source and enrichment failure does not invalidate local
 results.
 
-Metadata precedence selects one complete document. CIP-68 `222` NFTs resolve
-CIP-68 before exact CIP-25 label `721`; `333` FTs resolve CIP-68, transaction
-metadata label `20`, then Token Registry; and `444` RFTs resolve CIP-68 then
-Token Registry. Legacy unlabelled assets retain label `20`, Token Registry, and
-exact label `721` fallbacks. Complete Registry documents and exact mint and
-CIP-68 branches are decoded defensively into bounded display trees. Oversized
-details use one Gum pager.
+Metadata precedence selects one complete document by standard label. CIP-67
+label `222` resolves CIP-68 before exact CIP-25 label `721`; label `333`
+resolves CIP-68, transaction metadata label `20`, then Token Registry; and
+label `444` resolves CIP-68 then Token Registry. Unlabelled assets retain label
+`20`, Token Registry, and exact label `721` fallbacks. Complete Registry
+documents and exact mint and CIP-68 branches are decoded defensively into
+bounded inline display trees.
 
 All numeric Wallet values use lossless US display formatting with comma
 thousands separators and a period decimal separator. The shared number library
@@ -624,10 +628,12 @@ details from being shown. Complete aggregates are shown only when every
 structurally relevant funding and reward query succeeds. External commands,
 API endpoints and status codes, wallet selections, validation failures, and
 backend errors use the CNTools logger. Authorization headers are passed through
-private temporary files and, together with request bodies, remain outside the
-log. Gum v2.0.0 static tables use neutral foreground and background colors
-because its print renderer misapplies header styling to the first data row; the
-section label above each table carries the Koios accent instead.
+private temporary files. Replayable Koios requests include their non-secret
+JSON payload, while the token is represented by a `KOIOS_API_TOKEN`
+shell-variable reference. Gum v2.0.0 static tables use neutral foreground and
+background colors because its print renderer misapplies header styling to the
+first data row; the section label above each table carries the Koios accent
+instead.
 
 ## Phase 8 CLI wallet creation slice
 

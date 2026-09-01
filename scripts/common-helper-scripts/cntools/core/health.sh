@@ -247,7 +247,7 @@ cntools_health_fetch_koios() {
     fi
     request_arguments+=(--header "@${auth_header_file}")
   fi
-  if cntools_http_request GET "${endpoint}" "${response_file}" \
+  if cntools_api_request GET "${endpoint}" "${response_file}" \
       "${request_arguments[@]}"; then
     request_status=0
   else
