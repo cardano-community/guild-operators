@@ -316,6 +316,25 @@ assert_eq "$(cntools_wallet_protection "${WALLET_ROOT}/Standard")" \
   "Open" "decrypted wallet protection state"
 assert_no_transaction_files "${WALLET_ROOT}/Standard"
 
+# Legacy CNTools used the caller's umask when creating wallet directories.
+# Normalize a writable migrated directory without requiring a manual chmod.
+create_wallet LegacyDirectoryMode payment
+chmod 0775 "${WALLET_ROOT}/LegacyDirectoryMode"
+CNTOOLS_ACTION_ID="wallet/encrypt"
+cntools_wallet_protection_encrypt \
+  "${WALLET_ROOT}/LegacyDirectoryMode" "${LONG_PASSPHRASE}" ||
+  fail "legacy wallet directory mode was rejected: ${CNTOOLS_WALLET_PROTECTION_ERROR}"
+assert_eq "$(file_mode "${WALLET_ROOT}/LegacyDirectoryMode")" \
+  "755" "normalized legacy wallet-directory mode"
+assert_contains "$(< "${LOG_TRACE}")" \
+  "secured legacy wallet directory wallet=LegacyDirectoryMode mode=775->755" \
+  "legacy wallet-directory normalization log"
+CNTOOLS_ACTION_ID="wallet/decrypt"
+cntools_wallet_protection_decrypt \
+  "${WALLET_ROOT}/LegacyDirectoryMode" "${LONG_PASSPHRASE}" ||
+  fail "normalized legacy wallet could not be decrypted"
+assert_no_transaction_files "${WALLET_ROOT}/LegacyDirectoryMode"
+
 # Legacy passphrases do not inherit the 12-character creation policy.
 create_wallet Legacy payment
 fake_legacy_encrypt "${WALLET_ROOT}/Legacy/payment.skey" \

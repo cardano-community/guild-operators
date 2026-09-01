@@ -205,7 +205,9 @@ New passphrases must contain at least 12 characters and are entered twice.
 CNTools stages every encrypted key, decrypts it again, validates the restored
 Cardano key envelope, and compares it with the original before publishing any
 encrypted result or removing plaintext keys. A staging failure leaves the open
-wallet unchanged.
+wallet unchanged. When an owned, writable wallet migrated from an older CNTools
+release still has group/public write permission on its directory, the action
+removes those write bits and records the normalization in the log.
 
 **Wallet → Decrypt** accepts existing CNTools `.skey.gpg` wallets. It deliberately
 does not apply the new 12-character policy: any non-empty legacy passphrase

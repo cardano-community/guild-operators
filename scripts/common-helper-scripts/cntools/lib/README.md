@@ -76,7 +76,8 @@ query or creation libraries:
 
 - `wallet-protection.sh` owns GnuPG discovery, staged encryption/decryption,
   Cardano signing-key validation, no-clobber publication, rollback cleanup,
-  owner-only modes, and optional immutable locking; and
+  legacy directory-mode normalization, owner-only file modes, and optional
+  immutable locking; and
 - `wallet-protection-ui.sh` owns eligible-wallet filtering, default-No
   confirmations, hidden passphrase entry, progress, and result tables.
 

@@ -701,7 +701,9 @@ keys before publishing any of them. Wrong passwords, cancellation, invalid
 keys, symbolic links, mixed clear/encrypted state, and staging failures fail
 closed without overwriting an existing path. The actions are local filesystem
 work and remain available in local, light, and offline modes; Wallet List and
-Show never unlock protected keys implicitly.
+Show never unlock protected keys implicitly. An owned, writable legacy wallet
+directory with group/public write bits is normalized before key material is
+changed; ownership and access failures remain hard errors with specific logs.
 
 Every protected non-address file receives mode `0400`; an open wallet uses mode
 `0600`. With normalized `ENABLE_CHATTR=true`, CNTools tests immutable-flag

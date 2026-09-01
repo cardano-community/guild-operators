@@ -85,20 +85,68 @@ cntools_wallet_protection_directory_mutable() {
   local wallet_directory="${1:-}"
   local mode=""
   local mode_value=0
+  local secured_mode=""
 
-  cntools_wallet_directory_safe "${wallet_directory}" &&
-    [[ -O "${wallet_directory}" && -w "${wallet_directory}" &&
-       -x "${wallet_directory}" ]] || return 1
+  cntools_wallet_directory_safe "${wallet_directory}" || {
+    cntools_wallet_protection_set_error \
+      "The selected wallet directory is unavailable or unsafe."
+    return 1
+  }
+  [[ -O "${wallet_directory}" ]] || {
+    cntools_wallet_protection_set_error \
+      "The selected wallet directory is not owned by the current user."
+    return 1
+  }
+  [[ -w "${wallet_directory}" && -x "${wallet_directory}" ]] || {
+    cntools_wallet_protection_set_error \
+      "The selected wallet directory is not writable and accessible by the current user."
+    return 1
+  }
   if mode="$(stat -c '%a' -- "${wallet_directory}" 2>/dev/null)"; then
     :
   elif mode="$(stat -f '%Lp' "${wallet_directory}" 2>/dev/null)"; then
     :
   else
+    cntools_wallet_protection_set_error \
+      "The selected wallet directory permissions could not be read."
     return 1
   fi
-  [[ "${mode}" =~ ^[0-7]{3,4}$ ]] || return 1
+  [[ "${mode}" =~ ^[0-7]{3,4}$ ]] || {
+    cntools_wallet_protection_set_error \
+      "The selected wallet directory has an unsupported permission mode."
+    return 1
+  }
   mode_value=$((8#${mode}))
-  (( (mode_value & 0022) == 0 ))
+  if (( (mode_value & 0022) != 0 )); then
+    printf -v secured_mode '%03o' "$((mode_value & 0755))"
+    if ! cntools_run_command 0000 -- \
+        chmod "${secured_mode}" -- "${wallet_directory}" >/dev/null 2>&1; then
+      cntools_wallet_protection_set_error \
+        "The selected wallet directory is group/public writable and could not be secured (mode ${mode})."
+      return 1
+    fi
+    cntools_wallet_protection_log WALLET \
+      "secured legacy wallet directory wallet=${wallet_directory##*/} mode=${mode}->${secured_mode}"
+    if mode="$(stat -c '%a' -- "${wallet_directory}" 2>/dev/null)"; then
+      :
+    elif mode="$(stat -f '%Lp' "${wallet_directory}" 2>/dev/null)"; then
+      :
+    else
+      mode=""
+    fi
+    if [[ ! "${mode}" =~ ^[0-7]{3,4}$ ]] ||
+       (( (8#${mode} & 0022) != 0 )); then
+      cntools_wallet_protection_set_error \
+        "The selected wallet directory remained group/public writable after its permissions were secured."
+      return 1
+    fi
+  fi
+  [[ -O "${wallet_directory}" && -w "${wallet_directory}" &&
+     -x "${wallet_directory}" ]] || {
+    cntools_wallet_protection_set_error \
+      "The selected wallet directory is not safely writable after its permissions were checked."
+    return 1
+  }
 }
 
 cntools_wallet_protection_material_tracked() {
@@ -116,11 +164,7 @@ cntools_wallet_protection_entries_safe() {
   local entry=""
   local -a entries=()
 
-  cntools_wallet_protection_directory_mutable "${wallet_directory}" || {
-    cntools_wallet_protection_set_error \
-      "The wallet directory must be owned, writable, and protected from group or public writes."
-    return 1
-  }
+  cntools_wallet_protection_directory_mutable "${wallet_directory}" || return 1
   entries=(
     "${wallet_directory}"/*
     "${wallet_directory}"/.[!.]*
