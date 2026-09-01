@@ -703,6 +703,10 @@ and reuse the private staging and atomic publication boundary from CLI wallet
 creation. Every derived extended signing key is checked against an independently
 derived normalized verification key before publication.
 
+Both derivation prompts show `0` as their default and accept an empty response
+as zero. Each preparation and validation stage records a focused error so the
+interface does not fall through with only a generic action status.
+
 Recovery words are provided to Cardano CLI only over standard input. They are
 not persisted or included in command arguments, child environments, or logs,
 and every handled failure removes the tracked private stage. Arbitrary-purpose

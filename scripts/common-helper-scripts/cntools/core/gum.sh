@@ -970,11 +970,20 @@ cntools_ui_read_key() {
 cntools_ui_input() {
   local _cntools_output_name="${1:-}"
   local _cntools_prompt="${2:-Value}"
+  local _cntools_placeholder="${3:-}"
   local _cntools_value=""
+  local -a _cntools_placeholder_arguments=()
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
+  if [[ -n "${_cntools_placeholder}" ]]; then
+    _cntools_placeholder_arguments=(
+      --placeholder "${_cntools_placeholder}"
+      --placeholder.foreground "${CNTOOLS_GUM_COLOR_MUTED}"
+    )
+  fi
   _cntools_value="$(cntools_gum input --prompt "${_cntools_prompt}: " \
+    "${_cntools_placeholder_arguments[@]}" \
     --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
     --cursor.foreground "${CNTOOLS_GUM_COLOR_BRAND}")" || return $?
   _cntools_output_ref="${_cntools_value}"

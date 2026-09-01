@@ -303,7 +303,7 @@ cntools_wallet_mnemonic_generate_into generated_phrase ||
 assert_eq "${generated_phrase}" "${MNEMONIC_24}" "generated mnemonic phrase"
 
 cntools_wallet_mnemonic_create \
-  "Generated" 7 9 "${generated_phrase}" new ||
+  "Generated" 0 0 "${generated_phrase}" new ||
   fail "generated mnemonic wallet failed: ${CNTOOLS_WALLET_MNEMONIC_ERROR}"
 generated_wallet="${WALLET_ROOT}/Generated"
 [[ -d "${generated_wallet}" && ! -L "${generated_wallet}" ]] ||
@@ -311,7 +311,7 @@ generated_wallet="${WALLET_ROOT}/Generated"
 assert_eq "$(file_mode "${generated_wallet}")" "700" \
   "generated mnemonic wallet directory mode"
 assert_eq "$(< "${generated_wallet}/derivation.path")" \
-  "1852H/1815H/7H/x/9" "generated mnemonic derivation marker"
+  "1852H/1815H/0H/x/0" "generated mnemonic derivation marker"
 assert_eq "$(cntools_wallet_type "${generated_wallet}")" "Mnemonic" \
   "generated mnemonic wallet type"
 assert_eq "$(find "${generated_wallet}" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d '[:space:]')" \
@@ -327,10 +327,10 @@ cntools_wallet_key_extended_envelope_valid \
   "${generated_wallet}/stake.skey" stake signing ||
   fail "generated stake extended signing key is invalid"
 assert_contains "$(< "${CLI_TRACE}")" \
-  "latest key derive-from-mnemonic --key-output-text-envelope --payment-key-with-number 9 --account-number 7 --mnemonic-from-interactive-prompt" \
+  "latest key derive-from-mnemonic --key-output-text-envelope --payment-key-with-number 0 --account-number 0 --mnemonic-from-interactive-prompt" \
   "payment derivation command"
 assert_contains "$(< "${CLI_TRACE}")" \
-  "latest key derive-from-mnemonic --key-output-text-envelope --stake-key-with-number 9 --account-number 7 --mnemonic-from-interactive-prompt" \
+  "latest key derive-from-mnemonic --key-output-text-envelope --stake-key-with-number 0 --account-number 0 --mnemonic-from-interactive-prompt" \
   "stake derivation command"
 if grep -F -- "${MNEMONIC_24}" "${LOG_TRACE}" >/dev/null ||
    grep -F -- "${MNEMONIC_12}" "${LOG_TRACE}" >/dev/null ||
@@ -340,12 +340,12 @@ fi
 
 CNTOOLS_ACTION_ID="wallet/import/mnemonic"
 cntools_wallet_mnemonic_create \
-  "Imported" 0 0 "   ${MNEMONIC_12}   " import ||
+  "Imported" 7 9 "   ${MNEMONIC_12}   " import ||
   fail "12-word mnemonic import failed: ${CNTOOLS_WALLET_MNEMONIC_ERROR}"
 assert_eq "$(cntools_wallet_type "${WALLET_ROOT}/Imported")" "Mnemonic" \
   "imported mnemonic wallet type"
 assert_eq "$(< "${WALLET_ROOT}/Imported/derivation.path")" \
-  "1852H/1815H/0H/x/0" "imported mnemonic derivation marker"
+  "1852H/1815H/7H/x/9" "imported mnemonic derivation marker"
 
 FAKE_CLI_SCENARIO="derive-fail"
 export FAKE_CLI_SCENARIO
@@ -357,6 +357,18 @@ fi
   fail "failed mnemonic derivation published a wallet"
 FAKE_CLI_SCENARIO="success"
 export FAKE_CLI_SCENARIO
+assert_no_debris
+
+cntools_wallet_materialize_wallet() { return 1; }
+if cntools_wallet_mnemonic_create \
+    "ArtifactFailure" 0 0 "${MNEMONIC_24}" new; then
+  fail "injected mnemonic artifact failure unexpectedly succeeded"
+fi
+assert_contains "${CNTOOLS_WALLET_MNEMONIC_ERROR}" \
+  "public keys, addresses, or credentials" \
+  "focused mnemonic artifact failure"
+[[ ! -e "${WALLET_ROOT}/ArtifactFailure" ]] ||
+  fail "failed mnemonic artifact derivation published a wallet"
 assert_no_debris
 
 jq -e '.libs == [
@@ -383,6 +395,20 @@ jq -e '.libs == [
   "wallet-mnemonic-ui.sh"
 ]' "${CNTOOLS_ROOT}/modules/root/wallet/import/mnemonic/module.json" >/dev/null ||
   fail "Wallet Import Mnemonic metadata is not wired to the focused stack"
+
+DEFAULT_PLACEHOLDER=""
+cntools_wallet_mnemonic_screen_begin() { return 0; }
+cntools_ui_render_status() { return 0; }
+cntools_ui_input() {
+  DEFAULT_PLACEHOLDER="${3:-}"
+  printf -v "$1" '%s' ""
+}
+default_index=""
+cntools_wallet_mnemonic_prompt_index_into \
+  default_index "Account number" "Mnemonic" "/ Wallet / New / Mnemonic" ||
+  fail "blank mnemonic derivation index did not select its default"
+assert_eq "${default_index}" "0" "blank mnemonic derivation default"
+assert_eq "${DEFAULT_PLACEHOLDER}" "0" "mnemonic derivation placeholder"
 
 unset generated_phrase normalized_phrase MNEMONIC_24 MNEMONIC_12
 printf 'CNTools mnemonic wallet tests passed\n'

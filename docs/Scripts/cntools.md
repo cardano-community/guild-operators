@@ -221,6 +221,9 @@ purpose paths, including CIP-1854 multisignature derivation, are intentionally
 reserved for the later multisignature implementation where `cardano-address`
 can be loaded only when it is actually required.
 
+Account number and address key index both default to `0`; their prompts show
+that default and pressing Enter without input selects it.
+
 **Wallet → Encrypt** protects the configured payment and stake signing keys
 using GnuPG symmetric AES-256 encryption and the existing `.skey.gpg` format.
 New passphrases must contain at least 12 characters and are entered twice.

@@ -458,6 +458,7 @@ cntools_wallet_mnemonic_create() {
   local normalized_phrase=""
   local target=""
   local stage=""
+  local complete="N"
   local -a words=()
 
   cntools_wallet_mnemonic_reset_result
@@ -499,16 +500,27 @@ cntools_wallet_mnemonic_create() {
   cntools_wallet_mnemonic_log WALLET \
     "creating wallet=${name} type=Mnemonic source=${origin} network=${CNTOOLS_NETWORK} account=${account} key_index=${key_index} words=${#words[@]}"
   if ! cntools_wallet_mnemonic_derive_role \
-       "${stage}" payment "${account}" "${key_index}" "${normalized_phrase}" ||
-     ! cntools_wallet_mnemonic_derive_role \
-       "${stage}" stake "${account}" "${key_index}" "${normalized_phrase}" ||
-     ! cntools_wallet_mnemonic_path_write \
-       "${stage}" "${account}" "${key_index}" ||
-     ! cntools_wallet_materialize_wallet "${stage}" ||
-     ! cntools_wallet_mnemonic_required_entries_valid "${stage}"; then
+      "${stage}" payment "${account}" "${key_index}" "${normalized_phrase}"; then
+    : # The command helper already recorded a focused error.
+  elif ! cntools_wallet_mnemonic_derive_role \
+      "${stage}" stake "${account}" "${key_index}" "${normalized_phrase}"; then
+    : # The command helper already recorded a focused error.
+  elif ! cntools_wallet_mnemonic_path_write \
+      "${stage}" "${account}" "${key_index}"; then
+    cntools_wallet_mnemonic_set_error \
+      "The mnemonic derivation path could not be recorded safely."
+  elif ! cntools_wallet_materialize_wallet "${stage}"; then
+    cntools_wallet_mnemonic_set_error \
+      "The public keys, addresses, or credentials could not be derived from the mnemonic signing keys."
+  elif ! cntools_wallet_mnemonic_required_entries_valid "${stage}"; then
+    cntools_wallet_mnemonic_set_error \
+      "The derived mnemonic wallet did not pass complete artifact validation."
+  else
+    complete="Y"
+  fi
+  if [[ "${complete}" != "Y" ]]; then
     [[ -n "${CNTOOLS_WALLET_MNEMONIC_ERROR}" ]] ||
-      cntools_wallet_mnemonic_set_error \
-        "The derived mnemonic wallet did not pass complete artifact validation."
+      cntools_wallet_mnemonic_set_error "Mnemonic wallet creation failed."
     cntools_wallet_material_cleanup
     cntools_wallet_create_remove_stage "${stage}" || true
     [[ -z "${CNTOOLS_WALLET_CREATE_CLEANUP_WARNING}" ]] ||

@@ -14,6 +14,18 @@ cntools_wallet_mnemonic_ui_cancelled() {
   return 0
 }
 
+cntools_wallet_mnemonic_ui_failure() {
+  local message="${1:-The mnemonic action could not continue.}"
+  local breadcrumb="${2:-/ Wallet / Mnemonic}"
+
+  cntools_wallet_mnemonic_log ERROR "${message}"
+  cntools_wallet_mnemonic_screen_begin "Mnemonic" "${breadcrumb}" || true
+  cntools_ui_render_status error \
+    "${message} See ${CNTOOLS_LOG} for details." || true
+  cntools_ui_wait || true
+  return 1
+}
+
 cntools_wallet_mnemonic_prompt_name_into() {
   local _cntools_output_name="${1:-}"
   local _cntools_title="${2:-Mnemonic}"
@@ -77,7 +89,7 @@ cntools_wallet_mnemonic_prompt_index_into() {
       "Leave blank for 0. Supported values are 0 through 2,147,483,647."
     [[ -z "${_cntools_feedback}" ]] ||
       cntools_ui_render_status warn "${_cntools_feedback}"
-    if cntools_ui_input _cntools_input "${_cntools_prompt}"; then
+    if cntools_ui_input _cntools_input "${_cntools_prompt}" "0"; then
       _cntools_status=0
     else
       _cntools_status=$?
@@ -525,12 +537,20 @@ cntools_wallet_action_new_mnemonic() {
         "new mnemonic wallet cancelled during settings"
       return 0
     }
-    return "${status}"
+    cntools_wallet_mnemonic_ui_failure \
+      "The mnemonic wallet settings could not be collected (status ${status})." \
+      "/ Wallet / New / Mnemonic"
+    return 1
   fi
   cntools_wallet_mnemonic_screen_begin \
     "Mnemonic" "/ Wallet / New / Mnemonic"
-  cntools_wallet_mnemonic_render_plan \
-    "${name}" "${account}" "${key_index}" new || return 1
+  if ! cntools_wallet_mnemonic_render_plan \
+      "${name}" "${account}" "${key_index}" new; then
+    cntools_wallet_mnemonic_ui_failure \
+      "The mnemonic wallet plan could not be displayed." \
+      "/ Wallet / New / Mnemonic"
+    return 1
+  fi
   cntools_ui_render_status warn \
     "CNTools will display the recovery phrase once and then verify your backup."
   if cntools_ui_confirm "Generate this wallet's recovery phrase now?"; then
@@ -542,7 +562,10 @@ cntools_wallet_action_new_mnemonic() {
         "new mnemonic wallet generation declined wallet=${name}"
       return 0
     }
-    return "${status}"
+    cntools_wallet_mnemonic_ui_failure \
+      "The mnemonic generation confirmation failed (status ${status})." \
+      "/ Wallet / New / Mnemonic"
+    return 1
   fi
   cntools_wallet_mnemonic_screen_begin \
     "Mnemonic" "/ Wallet / New / Mnemonic"
@@ -555,15 +578,30 @@ cntools_wallet_action_new_mnemonic() {
     unset phrase
     return 1
   fi
-  cntools_wallet_mnemonic_words_into words "${phrase}" 24 || {
+  if ! cntools_wallet_mnemonic_words_into words "${phrase}" 24; then
     unset phrase words
+    cntools_wallet_mnemonic_ui_failure \
+      "Cardano CLI returned a recovery phrase that CNTools could not validate." \
+      "/ Wallet / New / Mnemonic"
     return 1
-  }
+  fi
   cntools_wallet_mnemonic_screen_begin \
     "Mnemonic" "/ Wallet / New / Mnemonic"
-  cntools_wallet_mnemonic_render_plan \
-    "${name}" "${account}" "${key_index}" new || return 1
-  cntools_wallet_mnemonic_render_phrase words || return 1
+  if ! cntools_wallet_mnemonic_render_plan \
+      "${name}" "${account}" "${key_index}" new; then
+    unset phrase words
+    cntools_wallet_mnemonic_ui_failure \
+      "The mnemonic backup plan could not be displayed." \
+      "/ Wallet / New / Mnemonic"
+    return 1
+  fi
+  if ! cntools_wallet_mnemonic_render_phrase words; then
+    unset phrase words
+    cntools_wallet_mnemonic_ui_failure \
+      "The recovery phrase could not be displayed safely." \
+      "/ Wallet / New / Mnemonic"
+    return 1
+  fi
   if cntools_wallet_mnemonic_verify_backup \
       words "${name}" "${account}" "${key_index}"; then
     status=0
@@ -648,7 +686,10 @@ cntools_wallet_action_import_mnemonic() {
         "mnemonic import cancelled during settings"
       return 0
     }
-    return "${status}"
+    cntools_wallet_mnemonic_ui_failure \
+      "The mnemonic import settings could not be collected (status ${status})." \
+      "/ Wallet / Import / Mnemonic"
+    return 1
   fi
   if cntools_wallet_mnemonic_collect_import_into phrase; then
     :
@@ -661,18 +702,30 @@ cntools_wallet_action_import_mnemonic() {
       return 0
     }
     unset phrase
-    return "${status}"
-  fi
-  cntools_wallet_mnemonic_words_into words "${phrase}" || {
-    unset phrase words
+    cntools_wallet_mnemonic_ui_failure \
+      "The recovery phrase input failed (status ${status})." \
+      "/ Wallet / Import / Mnemonic"
     return 1
-  }
+  fi
+  if ! cntools_wallet_mnemonic_words_into words "${phrase}"; then
+    unset phrase words
+    cntools_wallet_mnemonic_ui_failure \
+      "The imported recovery phrase could not be normalized safely." \
+      "/ Wallet / Import / Mnemonic"
+    return 1
+  fi
   word_count="${#words[@]}"
   unset words
   cntools_wallet_mnemonic_screen_begin \
     "Mnemonic" "/ Wallet / Import / Mnemonic"
-  cntools_wallet_mnemonic_render_plan \
-    "${name}" "${account}" "${key_index}" import || return 1
+  if ! cntools_wallet_mnemonic_render_plan \
+      "${name}" "${account}" "${key_index}" import; then
+    unset phrase
+    cntools_wallet_mnemonic_ui_failure \
+      "The mnemonic import plan could not be displayed." \
+      "/ Wallet / Import / Mnemonic"
+    return 1
+  fi
   cntools_ui_render_status info \
     "Recovery phrase accepted locally: ${word_count} words. Cardano CLI will validate it during derivation."
   cntools_ui_render_status warn \
@@ -687,7 +740,10 @@ cntools_wallet_action_import_mnemonic() {
         "mnemonic wallet import declined wallet=${name}"
       return 0
     }
-    return "${status}"
+    cntools_wallet_mnemonic_ui_failure \
+      "The mnemonic import confirmation failed (status ${status})." \
+      "/ Wallet / Import / Mnemonic"
+    return 1
   fi
   cntools_wallet_mnemonic_screen_begin \
     "Mnemonic" "/ Wallet / Import / Mnemonic"
