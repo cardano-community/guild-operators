@@ -1,7 +1,7 @@
 {
   "kind": "action",
   "label": "Decrypt",
-  "description": "Decrypt protected wallet keys",
+  "description": "Decrypt protected wallet signing keys",
   "shortcut": "d",
   "order": 80,
   "modes": [
@@ -10,6 +10,10 @@
     "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-protection.sh",
+    "wallet-protection-ui.sh"
   ]
 }

@@ -297,6 +297,11 @@ cntools_startup_normalize_session() {
   CNTOOLS_DBSYNC_QUERY_DIR="${DBSYNC_QUERY_FOLDER:-${CNTOOLS_NODE_HOME}/files/dbsync/queries}"
   CNTOOLS_UPDATE_CHECK="${CNTOOLS_UPDATE_CHECK_OVERRIDE:-${UPDATE_CHECK:-Y}}"
   CNTOOLS_KOIOS_ENABLED="${ENABLE_KOIOS:-Y}"
+  if [[ "${OSTYPE:-}" == darwin* ]]; then
+    CNTOOLS_ENABLE_CHATTR="false"
+  else
+    CNTOOLS_ENABLE_CHATTR="${ENABLE_CHATTR:-true}"
+  fi
   CNTOOLS_KOIOS_API="${KOIOS_API:-}"
   CNTOOLS_CURL_TIMEOUT="${CURL_TIMEOUT:-10}"
   CNTOOLS_CLI_TIMEOUT="${CLI_TIMEOUT:-${CNTOOLS_CURL_TIMEOUT}}"
@@ -387,6 +392,10 @@ cntools_startup_normalize_session() {
   esac
   case "${CNTOOLS_KOIOS_ENABLED}" in Y|N) ;; *)
     cntools_startup_error "ENABLE_KOIOS must be Y or N."
+    return 1
+  esac
+  case "${CNTOOLS_ENABLE_CHATTR}" in true|false) ;; *)
+    cntools_startup_error "ENABLE_CHATTR must be true or false."
     return 1
   esac
   [[ "${CNTOOLS_CURL_TIMEOUT}" =~ ^[1-9][0-9]*$ ]] || {
@@ -489,6 +498,7 @@ cntools_startup_normalize_session() {
   export CNTOOLS_LOG_DIR CNTOOLS_LOG
   export CNTOOLS_TMP_DIR CNTOOLS_WALLET_DIR CNTOOLS_POOL_DIR CNTOOLS_ASSET_DIR
   export CNTOOLS_DBSYNC_QUERY_DIR CNTOOLS_UPDATE_CHECK CNTOOLS_KOIOS_ENABLED
+  export CNTOOLS_ENABLE_CHATTR
   export CNTOOLS_KOIOS_API CNTOOLS_CURL_TIMEOUT CNTOOLS_CLI_TIMEOUT
   export CNTOOLS_TIMEOUT_BIN
   export CNTOOLS_WALLET_PAY_VKEY_FILENAME CNTOOLS_WALLET_PAY_SKEY_FILENAME

@@ -46,6 +46,8 @@ jobs:
       run: bash files/tests/cntools-wallet.sh
     - name: Test CNTools wallet creation
       run: bash files/tests/cntools-wallet-new.sh
+    - name: Test CNTools wallet protection
+      run: bash files/tests/cntools-wallet-protection.sh
     - name: Test alternate deployments
       run: bash files/tests/alternate-deployments.sh
     - name: Test deployment layout

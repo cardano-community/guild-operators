@@ -1,7 +1,7 @@
 {
   "kind": "action",
   "label": "Encrypt",
-  "description": "Encrypt wallet keys",
+  "description": "Encrypt wallet signing keys with GPG",
   "shortcut": "e",
   "order": 90,
   "modes": [
@@ -10,6 +10,10 @@
     "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-protection.sh",
+    "wallet-protection-ui.sh"
   ]
 }

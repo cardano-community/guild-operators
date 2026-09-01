@@ -264,6 +264,26 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_wallet_action_show' "${action_file}" >/dev/null ||
           fail "Wallet Show does not call its functional entrypoint"
         ;;
+      wallet/encrypt|wallet/decrypt)
+        jq -e '.libs == [
+          "wallet.sh",
+          "wallet-material.sh",
+          "wallet-key.sh",
+          "wallet-protection.sh",
+          "wallet-protection-ui.sh"
+        ]' \
+          "${metadata}" >/dev/null ||
+          fail "Wallet protection has unexpected library declarations: ${module_id}"
+        grep -F 'cntools_wallet_protection_cleanup' "${action_file}" >/dev/null ||
+          fail "Wallet protection does not clean private staging files: ${module_id}"
+        if [[ "${module_id}" == "wallet/encrypt" ]]; then
+          grep -F 'cntools_wallet_action_encrypt' "${action_file}" >/dev/null ||
+            fail "Wallet Encrypt does not call its functional entrypoint"
+        else
+          grep -F 'cntools_wallet_action_decrypt' "${action_file}" >/dev/null ||
+            fail "Wallet Decrypt does not call its functional entrypoint"
+        fi
+        ;;
       advanced/theme)
         jq -e '((has("libs") | not) or .libs == [])' \
           "${metadata}" >/dev/null ||
@@ -444,14 +464,15 @@ for mode in local light offline; do
   done < "${MENU_FIXTURE}"
 done
 
-# Every operational action not implemented through Phase 8 remains a runnable
+# Every operational action not implemented through this wallet-protection
+# slice remains a runnable
 # placeholder. Advanced Theme is framework functionality covered separately.
 CNTOOLS_MODE="local"
 while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    wallet/new/cli|wallet/list|wallet/show|advanced/theme) continue ;;
+    wallet/new/cli|wallet/list|wallet/show|wallet/encrypt|wallet/decrypt|advanced/theme) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then

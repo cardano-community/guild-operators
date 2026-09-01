@@ -103,20 +103,20 @@ amaru_deploy_install_dependencies() {
     dispatcher_run_package_command "Amaru prerequisite package installation" \
       amaru_deploy_privileged env DEBIAN_FRONTEND=noninteractive apt-get \
       -o Dpkg::Use-Pty=0 -o APT::Color=0 install -y \
-      bc ca-certificates coreutils curl diffutils findutils gawk git grep gzip iproute2 jq \
+      bc ca-certificates coreutils curl diffutils findutils gawk git gnupg grep gzip iproute2 jq \
       ncurses-bin procps sed tar || return 1
   elif command -v dnf >/dev/null 2>&1; then
     dispatcher_run_package_command "Amaru prerequisite package installation" \
       amaru_deploy_privileged dnf install -y \
-      bc ca-certificates coreutils curl diffutils findutils gawk git grep gzip iproute jq \
+      bc ca-certificates coreutils curl diffutils findutils gawk git gnupg2 grep gzip iproute jq \
       ncurses procps-ng sed tar || return 1
   elif command -v yum >/dev/null 2>&1; then
     dispatcher_run_package_command "Amaru prerequisite package installation" \
       amaru_deploy_privileged yum install -y \
-      bc ca-certificates coreutils curl diffutils findutils gawk git grep gzip iproute jq \
+      bc ca-certificates coreutils curl diffutils findutils gawk git gnupg2 grep gzip iproute jq \
       ncurses procps-ng sed tar || return 1
   else
-    amaru_deploy_fail "Unsupported package manager; install bc, coreutils, curl, findutils, git, grep, gzip, iproute, jq, ncurses, procps, sed, and tar"
+    amaru_deploy_fail "Unsupported package manager; install bc, coreutils, curl, findutils, git, gpg, grep, gzip, iproute, jq, ncurses, procps, sed, and tar"
     return 1
   fi
   amaru_deploy_ok "Amaru runtime prerequisites"

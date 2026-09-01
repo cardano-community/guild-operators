@@ -70,3 +70,17 @@ material helpers above, then adds two focused libraries:
 
 Creation deliberately does not load `wallet-query.sh`: it is local work in all
 runtime modes and neither contacts a node nor calls Koios.
+
+Wallet Encrypt and Decrypt load the smaller protection stack instead of the
+query or creation libraries:
+
+- `wallet-protection.sh` owns GnuPG discovery, staged encryption/decryption,
+  Cardano signing-key validation, no-clobber publication, rollback cleanup,
+  owner-only modes, and optional immutable locking; and
+- `wallet-protection-ui.sh` owns eligible-wallet filtering, default-No
+  confirmations, hidden passphrase entry, progress, and result tables.
+
+New encryption requires 12 characters. Decryption intentionally accepts any
+non-empty legacy passphrase without a line break. Passphrases travel only over
+an inherited file descriptor and are unset after the operation; neither the
+secret nor private key content enters command arguments or logs.

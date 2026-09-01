@@ -36,6 +36,9 @@ The entrypoint dependencies are Bash 4.4 or newer, exactly Charm Gum `2.0.0`,
 `mktemp`, `mkdir`, `chmod`, `mv`, `rm`, `stat`, and `wc`. Git is a Guild Deploy
 dependency rather than a CNTools runtime dependency. No additional scripting
 language is required.
+Wallet Encrypt and Decrypt resolve GnuPG only when selected. Linux `chattr` and
+`lsattr` are optional defense-in-depth tools; read-only permissions remain the
+portable protection baseline.
 
 ## Target source layout
 
@@ -62,6 +65,8 @@ cntools/
 │   ├── wallet-id.sh
 │   ├── wallet-create.sh
 │   ├── wallet-create-ui.sh
+│   ├── wallet-protection.sh
+│   ├── wallet-protection-ui.sh
 │   ├── wallet-query.sh
 │   └── ...
 └── modules/
@@ -95,8 +100,9 @@ The Phase 4 framework mirrors the current CNTools menu hierarchy. It initially
 gave every operational leaf an inert `action.sh` with a consistent
 not-implemented message. Functional phases replace those placeholders in
 small vertical slices; Phase 7 activates Wallet List and Show, and Phase 8
-activates Wallet New → CLI. The existing phase-0 menu inventory remains an
-implementation checklist, not a generated runtime manifest.
+activates Wallet New → CLI. The next wallet slice activates Encrypt and Decrypt
+without changing the existing `.gpg` format. The phase-0 menu inventory remains
+an implementation checklist, not a generated runtime manifest.
 
 ## Runtime modes
 
@@ -677,6 +683,33 @@ or revalidation problems produce a committed-wallet warning rather than a false
 creation failure. An uncatchable kill or power loss can leave a private hidden
 stage; internal staging names are excluded from wallet discovery and logged so
 a confirmed stale directory can be removed securely.
+
+## Wallet protection slice
+
+Wallet Encrypt and Decrypt keep the established GnuPG symmetric `.skey.gpg`
+format so wallets protected by CNTools 13 remain usable. Encryption requires a
+new passphrase of at least 12 characters plus confirmation. Decryption accepts
+any non-empty passphrase without line breaks because existing wallets may use
+shorter legacy values. The passphrase is sent to GnuPG through an inherited
+file descriptor with loopback pinentry and symmetric-key caching disabled; it
+never appears in the command arguments, environment, temporary files, or log.
+
+Encryption stages every AES-256 output, round-trip decrypts it, validates the
+Cardano signing-key envelope, and compares the restored JSON with its source
+before publishing any `.gpg` file. Decryption stages and validates all clear
+keys before publishing any of them. Wrong passwords, cancellation, invalid
+keys, symbolic links, mixed clear/encrypted state, and staging failures fail
+closed without overwriting an existing path. The actions are local filesystem
+work and remain available in local, light, and offline modes; Wallet List and
+Show never unlock protected keys implicitly.
+
+Every protected non-address file receives mode `0400`; an open wallet uses mode
+`0600`. With normalized `ENABLE_CHATTR=true`, CNTools tests immutable-flag
+support on the wallet filesystem and tries direct access followed by an
+existing non-interactive sudo policy. Unsupported filesystems, missing tools,
+or denied permission produce a visible logged warning and retain the read-only
+baseline instead of aborting otherwise valid encryption. Decryption removes
+an existing immutable flag when needed even if the current setting is disabled.
 
 ## Explicit non-goals
 

@@ -304,6 +304,7 @@ cntools_action_main() {
     printf "%s\n" "dbsync=${CNTOOLS_DBSYNC_QUERY_DIR}"
     printf "%s\n" "update=${CNTOOLS_UPDATE_CHECK}"
     printf "%s\n" "koios_enabled=${CNTOOLS_KOIOS_ENABLED}"
+    printf "%s\n" "chattr_enabled=${CNTOOLS_ENABLE_CHATTR}"
     printf "%s\n" "koios_api=${CNTOOLS_KOIOS_API}"
     printf "%s\n" "curl_timeout=${CNTOOLS_CURL_TIMEOUT}"
     if [[ "${CNTOOLS_KOIOS_TOKEN:-}" == "fixture-token" ]]; then
@@ -560,7 +561,10 @@ run_session_matrix_tests() {
   local expected_koios=""
   local expected_update=""
   local expected_advanced=""
+  local expected_chattr="true"
   local -a arguments=()
+
+  [[ "${OSTYPE:-}" != darwin* ]] || expected_chattr="false"
 
   for implementation in cnode dingo amaru; do
     case "${implementation}" in
@@ -646,6 +650,7 @@ run_session_matrix_tests() {
       assert_trace_value mode "${mode}"
       assert_trace_value backend "${expected_backend}"
       assert_trace_value advanced "${expected_advanced}"
+      assert_trace_value chattr_enabled "${expected_chattr}"
       assert_trace_value root "${APP_ROOT}"
       assert_trace_value entrypoint "${APP_ROOT}/cntools_main.sh"
       assert_trace_value node_home "${NODE_ROOT}"

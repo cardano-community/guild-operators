@@ -104,7 +104,7 @@ for required_function in \
   cntools_gum_archive_member cntools_gum_filter \
   cntools_gum_filter_height \
   cntools_gum_capture cntools_gum_header_rows cntools_gum_breadcrumb \
-  cntools_gum_menu_run cntools_ui_choose cntools_ui_static_table \
+  cntools_gum_menu_run cntools_ui_choose cntools_ui_password cntools_ui_static_table \
   cntools_ui_spin_function cntools_ui_content_width \
   cntools_health_refresh cntools_theme_init cntools_theme_save \
   cntools_number_format_into; do

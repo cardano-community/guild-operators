@@ -980,6 +980,23 @@ cntools_ui_input() {
   _cntools_output_ref="${_cntools_value}"
 }
 
+# Capture a secret without echoing it. Callers own validation and must unset
+# the returned value as soon as the operation completes.
+cntools_ui_password() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_prompt="${2:-Passphrase}"
+  local _cntools_value=""
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  _cntools_value="$(cntools_gum input --password \
+    --prompt "${_cntools_prompt}: " \
+    --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+    --cursor.foreground "${CNTOOLS_GUM_COLOR_BRAND}")" || return $?
+  _cntools_output_ref="${_cntools_value}"
+}
+
 cntools_ui_choose() {
   local _cntools_output_name="${1:-}"
   local _cntools_placeholder="${2:-Select…}"

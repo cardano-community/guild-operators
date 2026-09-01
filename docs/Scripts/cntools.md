@@ -6,12 +6,13 @@ but replaces the former monolithic implementation with a modular framework and
 a Charm Gum interface.
 
 !!! warning "Version 14 implementation status"
-    Wallet New → CLI, List, and Show are functional in version 14.0.0. List
-    and Show may cache missing public wallet artifacts; New → CLI creates new
-    private keys only after explicit confirmation. None of these actions submit
-    transactions. Advanced **Theme** is also functional; other wallet actions
-    and all pool, transaction, governance, backup, block, and operational
-    advanced actions remain placeholders.
+    Wallet New → CLI, List, Show, Encrypt, and Decrypt are functional in version
+    14.0.0. List and Show may cache missing public wallet artifacts; New → CLI
+    creates new private keys only after explicit confirmation. Encrypt and
+    Decrypt are local file operations and never contact a node or API. None of
+    these actions submit transactions. Advanced **Theme** is also functional;
+    other wallet actions and all pool, transaction, governance, backup, block,
+    and operational advanced actions remain placeholders.
 
 ## Installation and migration
 
@@ -197,6 +198,31 @@ final path, not as a failed creation. An uncatchable process kill or host power
 loss can leave a hidden `.cntools-wallet-new.*` directory containing private
 staging material. Wallet discovery excludes and logs such directories; inspect
 and remove a confirmed stale one securely before reusing its space.
+
+**Wallet → Encrypt** protects the configured payment and stake signing keys
+using GnuPG symmetric AES-256 encryption and the existing `.skey.gpg` format.
+New passphrases must contain at least 12 characters and are entered twice.
+CNTools stages every encrypted key, decrypts it again, validates the restored
+Cardano key envelope, and compares it with the original before publishing any
+encrypted result or removing plaintext keys. A staging failure leaves the open
+wallet unchanged.
+
+**Wallet → Decrypt** accepts existing CNTools `.skey.gpg` wallets. It deliberately
+does not apply the new 12-character policy: any non-empty legacy passphrase
+without a line break is accepted. Every plaintext key is staged and validated
+before publication, so cancellation, a wrong passphrase, or a corrupt file
+leaves the protected wallet unchanged. List and Show never decrypt keys
+implicitly. Both actions work in local, light, and offline modes and load GnuPG
+only when selected.
+
+Protected non-address files always receive owner-read-only mode `0400`; restored
+files receive owner-only mode `0600`. When `ENABLE_CHATTR=true`, CNTools also
+tests and applies the Linux immutable flag directly or through an existing
+non-interactive sudo policy. If `chattr`, filesystem support, or permission is
+unavailable during encryption, CNTools logs and displays a warning while
+retaining the read-only protection. Decryption detects and removes an existing
+immutable flag even when the current setting is disabled. Passphrases and key
+contents are never included in command arguments or logs.
 
 The Update menu can check again, show changelog entries newer than the running
 version, or invoke Guild Deploy. Updates replace the complete managed CNTools
