@@ -46,6 +46,9 @@ portable protection baseline.
 cntools/
 ├── VERSION
 ├── cntools_main.sh
+├── data/
+│   ├── README.md
+│   └── bip39-english.txt  # Vendored canonical English recovery words
 ├── core/
 │   ├── action.sh
 │   ├── gum.sh
@@ -692,8 +695,11 @@ Wallet New → Mnemonic generates exactly 24 words with the deployed, pinned
 Cardano CLI. The phrase is shown as one copyable line and a responsive numbered
 table using six columns when the terminal permits, then cleared before four
 random word positions are verified. Wallet Import → Mnemonic supports hidden
-paste of a complete phrase and hidden one-word-at-a-time input. Input whitespace
-is normalized and standard 12, 15, 18, 21, and 24-word phrases are accepted.
+paste of a complete phrase and filter-assisted one-word-at-a-time input. The
+interactive selector uses the vendored canonical BIP39 English list, shows at
+most five prefix matches, and selects a word automatically when only one match
+remains. Input whitespace is normalized and standard 12, 15, 18, 21, and
+24-word phrases are accepted.
 
 Both actions expose the account number and payment/stake key index supported by
 `cardano-cli latest key derive-from-mnemonic`. They derive standard CIP-1852

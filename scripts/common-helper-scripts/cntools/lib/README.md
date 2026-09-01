@@ -78,8 +78,10 @@ focused libraries:
   and standard CIP-1852 derivation, extended-key validation, derivation markers,
   secret-safe standard-input handling, and the mnemonic wallet inventory; and
 - `wallet-mnemonic-ui.sh` owns generation backup presentation, responsive
-  numbered word tables, four-word verification, paste or interactive import,
-  account/key-index prompts, progress, and result tables.
+  numbered word tables, four-word verification, paste import, BIP39
+  filter-assisted interactive import, account/key-index prompts, progress, and
+  result tables. Its offline selector reads the canonical English list from
+  `../data/bip39-english.txt` once per action and keeps it in memory.
 
 The recovery phrase never enters an argument, environment, persistent file, or
 log. The generic creation publisher accepts a focused inventory validator so

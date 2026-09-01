@@ -3,6 +3,11 @@
 # Loaded after wallet-mnemonic.sh.
 # shellcheck disable=SC2034,SC2178
 
+CNTOOLS_WALLET_MNEMONIC_WORDLIST_FILE="${CNTOOLS_ROOT}/data/bip39-english.txt"
+CNTOOLS_WALLET_MNEMONIC_WORDLIST_READY="N"
+declare -ag CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
+declare -Ag CNTOOLS_WALLET_MNEMONIC_WORDSET=()
+
 cntools_wallet_mnemonic_screen_begin() {
   cntools_gum_clear
   cntools_ui_action_begin "${1:-Mnemonic}" "${2:-/ Wallet / Mnemonic}"
@@ -24,6 +29,102 @@ cntools_wallet_mnemonic_ui_failure() {
     "${message} See ${CNTOOLS_LOG} for details." || true
   cntools_ui_wait || true
   return 1
+}
+
+cntools_wallet_mnemonic_wordlist_load() {
+  local _cntools_wordlist_file="${CNTOOLS_WALLET_MNEMONIC_WORDLIST_FILE:-}"
+  local _cntools_wordlist_word=""
+
+  [[ "${CNTOOLS_WALLET_MNEMONIC_WORDLIST_READY:-N}" != "Y" ]] || return 0
+  CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
+  CNTOOLS_WALLET_MNEMONIC_WORDSET=()
+  if [[ -z "${_cntools_wordlist_file}" ||
+        "${_cntools_wordlist_file}" != /* ||
+        ! -f "${_cntools_wordlist_file}" ||
+        -L "${_cntools_wordlist_file}" ||
+        ! -r "${_cntools_wordlist_file}" ]]; then
+    cntools_wallet_mnemonic_log ERROR \
+      "BIP39 English word list is missing or unsafe: ${_cntools_wordlist_file:-unset}"
+    return 2
+  fi
+  mapfile -t CNTOOLS_WALLET_MNEMONIC_WORDLIST \
+    < "${_cntools_wordlist_file}" || {
+    CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
+    cntools_wallet_mnemonic_log ERROR \
+      "BIP39 English word list could not be read"
+    return 2
+  }
+  if (( ${#CNTOOLS_WALLET_MNEMONIC_WORDLIST[@]} != 2048 )) ||
+     [[ "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[0]:-}" != "abandon" ||
+        "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[2047]:-}" != "zoo" ]]; then
+    CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
+    cntools_wallet_mnemonic_log ERROR \
+      "BIP39 English word list failed inventory validation"
+    return 2
+  fi
+  for _cntools_wordlist_word in \
+      "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[@]}"; do
+    if [[ ! "${_cntools_wordlist_word}" =~ ^[a-z]+$ ||
+          -n "${CNTOOLS_WALLET_MNEMONIC_WORDSET[${_cntools_wordlist_word}]+x}" ]]; then
+      CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
+      CNTOOLS_WALLET_MNEMONIC_WORDSET=()
+      cntools_wallet_mnemonic_log ERROR \
+        "BIP39 English word list failed content validation"
+      return 2
+    fi
+    CNTOOLS_WALLET_MNEMONIC_WORDSET["${_cntools_wordlist_word}"]=1
+  done
+  CNTOOLS_WALLET_MNEMONIC_WORDLIST_READY="Y"
+  cntools_wallet_mnemonic_log INFO \
+    "BIP39 English word list loaded words=2048"
+}
+
+cntools_wallet_mnemonic_select_word_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_position="${2:-}"
+  local _cntools_total="${3:-}"
+  local _cntools_selected_word=""
+  local _cntools_width=""
+  local _cntools_height=$((5 + ${CNTOOLS_GUM_FILTER_CHROME_ROWS:-4}))
+  local _cntools_status=0
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
+     "${_cntools_position}" =~ ^[1-9][0-9]*$ &&
+     "${_cntools_total}" =~ ^[1-9][0-9]*$ &&
+     ${_cntools_position} -le ${_cntools_total} ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  cntools_wallet_mnemonic_wordlist_load || return 2
+  _cntools_width="$(cntools_gum_width)" || return 2
+  if _cntools_selected_word="$(
+      printf '%s\n' "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[@]}" |
+        cntools_gum filter --limit 1 --height "${_cntools_height}" \
+          --width "${_cntools_width}" --padding "0 2 1 2" \
+          --no-show-help --no-fuzzy --strict --select-if-one \
+          --placeholder "Type to filter BIP39 words…" \
+          --placeholder.foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
+          --prompt "Word ${_cntools_position}/${_cntools_total} › " \
+          --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+          --indicator "▸ " \
+          --indicator.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
+          --match.foreground "${CNTOOLS_GUM_COLOR_SUCCESS}" \
+          --text.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
+          --text.background "${CNTOOLS_GUM_COLOR_CANVAS}" \
+          --cursor-text.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
+          --cursor-text.background "${CNTOOLS_GUM_COLOR_SURFACE}"
+    )"; then
+    _cntools_status=0
+  else
+    _cntools_status=$?
+  fi
+  (( _cntools_status == 0 )) || return "${_cntools_status}"
+  if [[ -z "${_cntools_selected_word}" ||
+        -z "${CNTOOLS_WALLET_MNEMONIC_WORDSET[${_cntools_selected_word}]+x}" ]]; then
+    cntools_wallet_mnemonic_log ERROR \
+      "Gum returned an invalid BIP39 recovery-word selection"
+    return 2
+  fi
+  _cntools_output_ref="${_cntools_selected_word}"
 }
 
 cntools_wallet_mnemonic_prompt_name_into() {
@@ -444,10 +545,8 @@ cntools_wallet_mnemonic_collect_interactive_into() {
   local _cntools_count_choice=""
   local _cntools_count=0
   local _cntools_index=0
-  local _cntools_input=""
   local _cntools_word=""
   local _cntools_interactive_phrase=""
-  local _cntools_feedback=""
   local _cntools_status=0
   local -a _cntools_words=()
 
@@ -464,33 +563,25 @@ cntools_wallet_mnemonic_collect_interactive_into() {
   fi
   _cntools_count="${_cntools_count_choice%% *}"
   cntools_wallet_mnemonic_word_count_valid "${_cntools_count}" || return 2
+  cntools_wallet_mnemonic_wordlist_load || return 2
   for ((_cntools_index = 1;
        _cntools_index <= _cntools_count;
        _cntools_index++)); do
-    _cntools_feedback=""
-    while true; do
-      cntools_wallet_mnemonic_screen_begin \
-        "Mnemonic" "/ Wallet / Import / Mnemonic"
-      cntools_ui_render_status info \
-        "Enter recovery word ${_cntools_index} of ${_cntools_count}. Previous words are cleared as you continue."
-      [[ -z "${_cntools_feedback}" ]] ||
-        cntools_ui_render_status warn "${_cntools_feedback}"
-      if cntools_ui_input _cntools_input "Word ${_cntools_index}"; then
-        _cntools_status=0
-      else
-        _cntools_status=$?
-      fi
-      (( _cntools_status == 0 )) || return "${_cntools_status}"
-      if cntools_wallet_mnemonic_word_into \
-          _cntools_word "${_cntools_input}"; then
-        _cntools_words+=("${_cntools_word}")
-        break
-      fi
-      _cntools_feedback="Enter one alphabetic recovery word."
-      cntools_wallet_mnemonic_log CHOICE \
-        "invalid interactive recovery word rejected position=${_cntools_index}"
-    done
-    unset _cntools_input _cntools_word
+    cntools_wallet_mnemonic_screen_begin \
+      "Mnemonic" "/ Wallet / Import / Mnemonic"
+    cntools_ui_render_status info \
+      "Choose recovery word ${_cntools_index} of ${_cntools_count}. Type to filter; previous words are cleared as you continue."
+    if cntools_wallet_mnemonic_select_word_into \
+        _cntools_word "${_cntools_index}" "${_cntools_count}"; then
+      _cntools_status=0
+    else
+      _cntools_status=$?
+    fi
+    (( _cntools_status == 0 )) || return "${_cntools_status}"
+    _cntools_words+=("${_cntools_word}")
+    cntools_wallet_mnemonic_log CHOICE \
+      "interactive recovery word selected position=${_cntools_index}"
+    unset _cntools_word
   done
   cntools_wallet_mnemonic_phrase_into \
     _cntools_interactive_phrase _cntools_words || return 1

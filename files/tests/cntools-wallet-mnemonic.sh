@@ -285,6 +285,57 @@ assert_eq "$(cntools_wallet_mnemonic_word_columns 60)" "3" \
   "narrow mnemonic table columns"
 assert_eq "$(cntools_wallet_mnemonic_word_columns 40)" "2" \
   "small mnemonic table columns"
+cntools_wallet_mnemonic_wordlist_load ||
+  fail "vendored BIP39 English word list failed validation"
+assert_eq "${#CNTOOLS_WALLET_MNEMONIC_WORDLIST[@]}" "2048" \
+  "BIP39 English word count"
+assert_eq "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[0]}" "abandon" \
+  "first BIP39 English word"
+assert_eq "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[2047]}" "zoo" \
+  "last BIP39 English word"
+
+select_word_fixture() (
+  local selected_word=""
+
+  CNTOOLS_GUM_FILTER_CHROME_ROWS=4
+  CNTOOLS_GUM_COLOR_MUTED="muted"
+  CNTOOLS_GUM_COLOR_BRAND="brand"
+  CNTOOLS_GUM_COLOR_SUCCESS="success"
+  CNTOOLS_GUM_COLOR_TEXT="text"
+  CNTOOLS_GUM_COLOR_CANVAS="canvas"
+  CNTOOLS_GUM_COLOR_SURFACE="surface"
+  cntools_gum_width() { printf '120\n'; }
+  cntools_gum() {
+    local gum_arguments=" $* "
+    local -a candidates=()
+
+    assert_eq "${1:-}" "filter" "mnemonic word selector Gum command"
+    assert_contains "${gum_arguments}" " --height 9 " \
+      "five-row mnemonic word selector height"
+    assert_contains "${gum_arguments}" " --no-fuzzy " \
+      "mnemonic prefix matching"
+    assert_contains "${gum_arguments}" " --strict " \
+      "strict mnemonic word selection"
+    assert_contains "${gum_arguments}" " --select-if-one " \
+      "unique mnemonic match selection"
+    mapfile -t candidates
+    assert_eq "${#candidates[@]}" "2048" \
+      "Gum mnemonic candidate count"
+    assert_eq "${candidates[0]}" "abandon" \
+      "Gum first mnemonic candidate"
+    assert_eq "${candidates[2047]}" "zoo" \
+      "Gum last mnemonic candidate"
+    printf 'abandon\n'
+  }
+
+  cntools_wallet_mnemonic_select_word_into selected_word 1 12 || return
+  printf '%s\n' "${selected_word}"
+)
+selected_word="$(select_word_fixture)" ||
+  fail "Gum BIP39 word selection failed"
+assert_eq "${selected_word}" "abandon" \
+  "selected BIP39 word output"
+
 declare -a challenge_indices=()
 cntools_wallet_mnemonic_challenge_indices_into challenge_indices 24 4 ||
   fail "mnemonic challenge positions could not be selected"
@@ -437,7 +488,7 @@ collect_import_fixture() (
   cntools_ui_password() {
     printf -v "$1" '%s' "  ${MNEMONIC_12}  "
   }
-  cntools_ui_input() {
+  cntools_wallet_mnemonic_select_word_into() {
     (( fixture_input_index < ${#fixture_words[@]} )) || return 9
     printf -v "$1" '%s' "${fixture_words[fixture_input_index]}"
     fixture_input_index=$((fixture_input_index + 1))
