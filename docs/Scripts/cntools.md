@@ -116,10 +116,16 @@ derivation path for mnemonic wallets, and keeps stake-pool and DRep delegation
 in a separate delegation table. Address and credential tables show only the
 payment, stake, multisignature, and script fields relevant to the selected
 wallet. Credentials are the hexadecimal key or script hashes without Cardano
-address header bits. Native assets use one detail table containing quantity,
-policy ID, asset-name hex, and the CIP-14 asset fingerprint. Local and light
-Wallet Show sessions add available Koios metadata to that same table and label
-Koios as its source. Local cnode and Dingo sessions still use the deployed
+address header bits. For wallets with native assets, the user selects a Simple
+or Detailed table. Simple contains type (`NFT`, `FT`, `RFT`, or `Legacy`),
+wallet amount, total network supply
+when available, policy ID, asset-name hex, CIP-14 fingerprint, and metadata
+source. Detailed adds a compact, bounded tree of the selected metadata
+document while removing standard transport wrappers and omitting absent
+fields. Explicit markers identify safety-limit omissions. NFT ticker and
+decimal fields are suppressed, and amount values never
+repeat the ticker. Local and light Wallet Show sessions identify Koios as the
+metadata source. Local cnode and Dingo sessions still use the deployed
 Cardano CLI for wallet state; when `ENABLE_KOIOS=Y`, the Koios request only
 enriches token metadata and cannot invalidate local holdings. Light mode uses
 Koios for both roles, offline mode never contacts a blockchain backend, and
@@ -139,16 +145,17 @@ and divides them into bounded Koios bulk requests. Wallet Show sends the
 selected wallet's distinct funding addresses together, uses one separate
 stake-account request, and enriches native assets through size-bounded Koios
 `asset_info` bulk requests. Metadata name, ticker, decimals, description, URL,
-and total supply are shown when Koios provides them.
+custom nested fields, and total supply are shown when Koios provides them.
 Oversized native-asset details use a Gum scroll view. Metadata failure
 never removes validated on-chain holdings. Partial balance responses remain
 visibly partial and are never promoted to a complete wallet total.
 
-Metadata precedence is applied per display field. CIP-68 `222` NFTs use
+Metadata precedence selects one complete document. CIP-68 `222` NFTs use
 CIP-68 before exact CIP-25 label `721`; `333` FTs use CIP-68, transaction
 metadata label `20`, then the Token Registry; and `444` RFTs use CIP-68 then
 the Token Registry. Legacy unlabelled assets retain label `20`, Token Registry,
-and exact label `721` fallback coverage.
+and exact label `721` fallback coverage. CIP-25 policy/asset nesting and CIP-68
+datum wrappers are removed before the Detailed tree is built.
 
 List and Show load focused wallet-generation helpers only when selected. When
 a safe wallet contains a usable signing key or multisignature script, CNTools

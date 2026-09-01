@@ -16,6 +16,11 @@ declare -Ag CNTOOLS_WALLET_ASSET_URLS=()
 declare -Ag CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES=()
 declare -Ag CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE=()
 declare -Ag CNTOOLS_WALLET_ASSET_METADATA_DECIMALS=()
+declare -Ag CNTOOLS_WALLET_ASSET_CLASSES=()
+declare -Ag CNTOOLS_WALLET_ASSET_CIP67_LABELS=()
+declare -Ag CNTOOLS_WALLET_ASSET_METADATA_SOURCES=()
+declare -Ag CNTOOLS_WALLET_ASSET_METADATA_JSON=()
+declare -Ag CNTOOLS_WALLET_ASSET_METADATA_QUERIED=()
 declare -ag CNTOOLS_WALLET_LIST_BASE_ADDRESSES=()
 declare -ag CNTOOLS_WALLET_LIST_PAYMENT_ADDRESSES=()
 declare -ag CNTOOLS_WALLET_LIST_REWARD_ADDRESSES=()
@@ -36,7 +41,7 @@ CNTOOLS_WALLET_KOIOS_RATE_BATCHES=90
 CNTOOLS_WALLET_KOIOS_RATE_PAUSE_SECONDS=10
 CNTOOLS_WALLET_KOIOS_ADDRESS_SELECT='?select=address%2Cbalance%3A%3Atext%2Cutxo_set'
 CNTOOLS_WALLET_KOIOS_ACCOUNT_SELECT='?select=stake_address%2Cstatus%2Cdelegated_pool%2Cdelegated_drep%2Crewards_available%3A%3Atext'
-CNTOOLS_WALLET_KOIOS_ASSET_SELECT='?select=policy_id%2Casset_name%2Casset_name_ascii%2Cfingerprint%2Ctotal_supply%2Cmetadata_name%3Atoken_registry_metadata-%3E%3Ename%2Cmetadata_ticker%3Atoken_registry_metadata-%3E%3Eticker%2Cmetadata_decimals%3Atoken_registry_metadata-%3E%3Edecimals%2Cmetadata_description%3Atoken_registry_metadata-%3E%3Edescription%2Cmetadata_url%3Atoken_registry_metadata-%3E%3Eurl%2Cmetadata_20%3Aminting_tx_metadata-%3E%2220%22%2Cmetadata_721%3Aminting_tx_metadata-%3E%22721%22%2Ccip68_metadata'
+CNTOOLS_WALLET_KOIOS_ASSET_SELECT='?select=policy_id%2Casset_name%2Casset_name_ascii%2Cfingerprint%2Ctotal_supply%2Cregistry_metadata%3Atoken_registry_metadata%2Cmetadata_20%3Aminting_tx_metadata-%3E%2220%22%2Cmetadata_721%3Aminting_tx_metadata-%3E%22721%22%2Ccip68_metadata'
 CNTOOLS_WALLET_LIST_QUERY_LEVEL=""
 CNTOOLS_WALLET_LIST_QUERY_SUMMARY=""
 CNTOOLS_WALLET_QUERY_SYSTEMIC_FAILURE=""
@@ -66,6 +71,11 @@ cntools_wallet_query_reset() {
   CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES=()
   CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE=()
   CNTOOLS_WALLET_ASSET_METADATA_DECIMALS=()
+  CNTOOLS_WALLET_ASSET_METADATA_SOURCES=()
+  CNTOOLS_WALLET_ASSET_METADATA_JSON=()
+  CNTOOLS_WALLET_ASSET_METADATA_QUERIED=()
+  CNTOOLS_WALLET_ASSET_CLASSES=()
+  CNTOOLS_WALLET_ASSET_CIP67_LABELS=()
   CNTOOLS_WALLET_FUNDING_EXPECTED=0
   CNTOOLS_WALLET_FUNDING_SUCCEEDED=0
   CNTOOLS_WALLET_QUERY_SYSTEMIC_FAILURE=""
@@ -141,6 +151,7 @@ cntools_wallet_asset_add() {
   local quantity="${2:-}"
   local fingerprint="${3:-}"
   local decimals="${4:-}"
+  local asset_name=""
   local current=""
   local normalized_quantity=""
 
@@ -167,6 +178,25 @@ cntools_wallet_asset_add() {
       CNTOOLS_WALLET_ASSET_DECIMALS["${asset_id}"]="$((10#${decimals}))"
     fi
   fi
+  asset_name="${asset_id#*.}"
+  case "${asset_name}" in
+    000de140*)
+      CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="NFT"
+      CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]="222"
+      ;;
+    0014df10*)
+      CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="FT"
+      CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]="333"
+      ;;
+    001bc280*)
+      CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="RFT"
+      CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]="444"
+      ;;
+    *)
+      CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="Legacy"
+      CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]=""
+      ;;
+  esac
   CNTOOLS_WALLET_ASSET_COUNT="${#CNTOOLS_WALLET_ASSET_IDS[@]}"
 }
 
@@ -1083,6 +1113,10 @@ cntools_wallet_query_koios_asset_metadata_batch() {
   local decimals=""
   local description=""
   local url=""
+  local asset_class=""
+  local cip67_label=""
+  local metadata_source=""
+  local metadata_json=""
 
   (( $# > 0 )) || return 2
   cntools_wallet_query_temp_file response_file || return 1
@@ -1119,11 +1153,7 @@ cntools_wallet_query_koios_asset_metadata_batch() {
       (.fingerprint | type == "string" and
         test("^asset1[023456789acdefghjklmnpqrstuvwxyz]{38}$")) and
       (.total_supply | uint) and
-      (.metadata_name | optional_text) and
-      (.metadata_ticker | optional_text) and
-      (.metadata_decimals | optional_text) and
-      (.metadata_description | optional_text) and
-      (.metadata_url | optional_text) and
+      (.registry_metadata | optional_object) and
       (.metadata_20 | optional_object) and
       (.metadata_721 | optional_object) and
       (.cip68_metadata | optional_object)) and
@@ -1152,10 +1182,7 @@ cntools_wallet_query_koios_asset_metadata_batch() {
         | if test("^[ -~]+$") then . else "" end
       end;
     def text_value:
-      if type == "string" then .
-      elif type == "array" and all(.[]; type == "string") then join("")
-      else null
-      end;
+      if type == "string" then . else null end;
     def decimal_value:
       if type == "number" and floor == . and . >= 0 and . <= 255
       then tostring
@@ -1170,10 +1197,9 @@ cntools_wallet_query_koios_asset_metadata_batch() {
     def hex_bytes:
       ascii_downcase as $hex
       | if ($hex | type) != "string" or
-           ($hex | length) == 0 or
            ($hex | length) > 8192 or
            (($hex | length) % 2) != 0 or
-           ($hex | test("^[0-9a-f]+$") | not)
+           ($hex | test("^[0-9a-f]*$") | not)
         then null
         else [range(0; ($hex | length); 2) as $index
           | (($hex[$index:$index + 1] | hex_nibble) * 16) +
@@ -1247,7 +1273,8 @@ cntools_wallet_query_koios_asset_metadata_batch() {
       | asset_text(($row.asset_name // "")) as $asset_text
       | (ci_get($policy; ($row.asset_name // "")) //
          (if $asset_text == null then null
-          else ci_get($policy; $asset_text)
+          elif ($policy | type) == "object" then $policy[$asset_text]
+          else null
           end)) as $metadata
       | if ($metadata | type) == "object" then $metadata else {} end;
     def plutus_map_value($map; $key):
@@ -1260,23 +1287,95 @@ cntools_wallet_query_koios_asset_metadata_batch() {
         | .v]
         | if length == 1 then .[0] else null end
       end;
-    def plutus_text:
+    def plutus_key:
       if type != "object" then null
-      elif (.bytes | type) == "string" then (.bytes | hex_text)
-      elif (.list | type) == "array" then
-        [.list[]
-          | if type == "object" and (.bytes | type) == "string"
-            then (.bytes | hex_text)
-            else null
-            end] as $parts
-        | if all($parts[]; . != null) then ($parts | join("")) else null end
+      elif (.bytes | type) == "string" then
+        (.bytes | ascii_downcase) as $hex
+        | if ($hex | length) == 0 then null
+          elif ($hex | length) > 128 then "[byte key omitted]"
+          else ($hex | hex_text) as $decoded
+            | if $decoded == null or $decoded == "" then
+                if ($hex | test("^([0-9a-f]{2})+$"))
+                then "0x" + $hex
+                else "[byte key omitted]"
+                end
+              elif ($decoded | length) > 64
+              then $decoded[0:63] + "…"
+              else $decoded
+              end
+          end
+      elif (.int | type) == "number" then
+        (.int | tostring) as $integer
+        | if ($integer | length) > 64
+          then "[integer key omitted]"
+          else $integer
+          end
       else null
       end;
-    def plutus_decimal:
-      if type == "object" and
-         (.int | type) == "number" and
-         (.int | floor) == .int and .int >= 0 and .int <= 255
-      then (.int | tostring)
+    def unique_key($object; $base; $suffix):
+      ($base +
+        (if $suffix == 0 then ""
+         else " [" + (($suffix + 1) | tostring) + "]"
+         end)) as $candidate
+      | if ($object | has($candidate))
+        then unique_key($object; $base; $suffix + 1)
+        else $candidate
+        end;
+    def plutus_value($depth):
+      if type != "object" then null
+      elif (.bytes | type) == "string" then
+        (.bytes | ascii_downcase) as $hex
+        | if ($hex | length) > 640 then "[byte string omitted]"
+          else ($hex | hex_text) as $decoded
+            | if $decoded == null then
+                if ($hex | test("^([0-9a-f]{2})+$"))
+                then "0x" + $hex
+                else "[byte string omitted]"
+                end
+              else $decoded
+              end
+          end
+      elif (.int | type) == "number" then
+        (.int | tostring) as $integer
+        | if ($integer | length) > 320
+          then "[number omitted]"
+          else .int
+          end
+      elif $depth >= 6 then "[nested data omitted]"
+      elif (.list | type) == "array" then
+        .list as $items
+        | (if ($items | length) > 32 then 31 else 32 end) as $limit
+        | ([$items[0:$limit][] | plutus_value($depth + 1)] +
+           (if ($items | length) > 32 then
+              ["[" + ((($items | length) - $limit) | tostring) +
+               " items omitted]"]
+            else [] end))
+      elif (.map | type) == "array" then
+        .map as $items
+        | (if ($items | length) > 48 then 47 else 48 end) as $limit
+        | (reduce $items[0:$limit][] as $entry ({};
+          ($entry.k | plutus_key) as $key
+          | if $key == null or ($key | length) == 0 then .
+            else unique_key(.; $key; 0) as $unique
+              | .[$unique] = ($entry.v | plutus_value($depth + 1))
+            end)) as $decoded
+        | if ($items | length) > 48 then
+            unique_key($decoded; "[More metadata]"; 0) as $marker
+            | $decoded + {
+                ($marker):
+                  (((($items | length) - $limit) | tostring) +
+                   " fields omitted")
+              }
+          else $decoded
+          end
+      elif (.fields | type) == "array" then
+        .fields as $items
+        | (if ($items | length) > 32 then 31 else 32 end) as $limit
+        | ([$items[0:$limit][] | plutus_value($depth + 1)] +
+           (if ($items | length) > 32 then
+              ["[" + ((($items | length) - $limit) | tostring) +
+               " fields omitted]"]
+            else [] end))
       else null
       end;
     def cip68_map($row; $label):
@@ -1289,38 +1388,26 @@ cntools_wallet_query_koios_asset_metadata_batch() {
         then null
         else $datum.fields[0] as $direct
           | plutus_map_value($direct; "373231") as $nested
-          | if $nested == null then $direct
-            else plutus_map_value($nested; $row.policy_id) as $policy
-              | plutus_map_value($policy;
-                  (($row.asset_name // "")[8:])) as $metadata
-              | if ($metadata.map | type) == "array" then $metadata else null end
+          | if ($nested.map | type) != "array" then $direct
+            else ([$nested.map[]
+                    | select((.k.bytes | type) == "string" and
+                             (.k.bytes | test("^[0-9a-fA-F]{56}$")) and
+                             (.v.map | type) == "array")]
+                  | length > 0) as $wrapper_shaped
+              | if ($wrapper_shaped | not) then $direct
+                else plutus_map_value($nested; $row.policy_id) as $policy
+                  | plutus_map_value($policy;
+                      (($row.asset_name // "")[8:])) as $metadata
+                  | if ($metadata.map | type) == "array"
+                    then $metadata
+                    else null
+                    end
+                end
             end
         end;
     def cip68_metadata($row; $label):
       cip68_map($row; $label) as $metadata
-      | if $metadata == null then {}
-        else {
-          name: (plutus_map_value($metadata; "6e616d65") | plutus_text),
-          ticker: (plutus_map_value($metadata; "7469636b6572") | plutus_text),
-          decimals:
-            (plutus_map_value($metadata; "646563696d616c73") |
-             plutus_decimal),
-          description:
-            (plutus_map_value($metadata; "6465736372697074696f6e") |
-             plutus_text),
-          url: (plutus_map_value($metadata; "75726c") | plutus_text)
-        }
-        end;
-    def normalize_metadata($metadata):
-      if ($metadata | type) != "object" then {}
-      else {
-        name: $metadata.name,
-        ticker: $metadata.ticker,
-        decimals: $metadata.decimals,
-        description: ($metadata.description // $metadata.desc),
-        url: ($metadata.url // $metadata.website)
-      }
-      end;
+      | if $metadata == null then {} else ($metadata | plutus_value(0)) end;
     # CIP-67 prefixes for CIP-68 user-token labels 222, 333, and 444.
     def cip67_label($row):
       ($row.asset_name // "" | ascii_downcase) as $asset_name
@@ -1329,59 +1416,223 @@ cntools_wallet_query_koios_asset_metadata_batch() {
         elif ($asset_name | startswith("001bc280")) then "444"
         else ""
         end;
+    def asset_class($label):
+      if $label == "222" then "NFT"
+      elif $label == "333" then "FT"
+      elif $label == "444" then "RFT"
+      else "Legacy"
+      end;
+    def meaningful:
+      if . == null then false
+      elif type == "string" then length > 0
+      elif type == "array" or type == "object" then length > 0
+      else true
+      end;
+    def document_has_value:
+      [.. | select(
+        (type == "string" and length > 0) or
+        type == "number" or type == "boolean")]
+      | length > 0;
     def metadata_sources($label; $registry; $cip68; $mint20; $mint721):
       if $label == "222" then
-          [$cip68, $mint721]
+          [
+            {source:"CIP-68 (222)", document:$cip68},
+            {source:"CIP-25 (721)", document:$mint721}
+          ]
         elif $label == "333" then
-          [$cip68, $mint20, $registry]
+          [
+            {source:"CIP-68 (333)", document:$cip68},
+            {source:"CIP-X (label 20)", document:$mint20},
+            {source:"Token Registry", document:$registry}
+          ]
         elif $label == "444" then
-          [$cip68, $registry]
+          [
+            {source:"CIP-68 (444)", document:$cip68},
+            {source:"Token Registry", document:$registry}
+          ]
         else
-          [$mint20, $registry, $mint721]
+          [
+            {source:"CIP-X (label 20)", document:$mint20},
+            {source:"Token Registry", document:$registry},
+            {source:"CIP-25 (721)", document:$mint721}
+          ]
         end;
-    def first_text($sources; $key; $maximum):
-      [$sources[] | (.[$key] | text_value | clean($maximum))]
-      | map(select(length > 0))
-      | .[0] // "";
-    def first_decimals($sources):
-      [$sources[] | (.decimals | decimal_value)]
-      | map(select(. != null))
-      | .[0] // "";
+    def selected_metadata($sources):
+      [$sources[]
+        | select((.document | type) == "object" and
+                 (.document | document_has_value))][0] //
+      {source:"", document:{}};
+    def safe_string($maximum):
+      tostring
+      | gsub("[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]"; " ")
+      | gsub("^[ ]+|[ ]+$"; "")
+      | if startswith("data:") and length > 160
+        then .[0:96] + "… [embedded data truncated]"
+        elif length > $maximum
+        then .[0:($maximum - 1)] + "…"
+        else .
+        end;
+    def safe_key:
+      tostring | safe_string(64);
+    def chunk_field($key):
+      ($key | ascii_downcase) as $normalized
+      | $normalized == "image" or
+        $normalized == "src" or
+        $normalized == "description" or
+        $normalized == "url" or
+        $normalized == "website" or
+        $normalized == "proposal_url";
+    def safe_document($depth; $parent_key; $strip_nft_units):
+      if . == null then null
+      elif type == "string" then safe_string(320)
+      elif type == "number" then
+        (tostring) as $number
+        | if ($number | length) > 320
+          then "[number omitted]"
+          else .
+          end
+      elif type == "boolean" then .
+      elif $depth >= 6 then "[nested data omitted]"
+      elif type == "array" then
+        . as $items
+        | if ($items | length) <= 32 and
+             chunk_field($parent_key) and
+             all($items[]; type == "string")
+          then ($items | join("") | safe_string(320))
+          else
+            (if ($items | length) > 32 then 31 else 32 end) as $limit
+            | ([$items[0:$limit][] |
+                safe_document($depth + 1; ""; $strip_nft_units)]
+             | map(select(meaningful))) +
+            (if ($items | length) > 32 then
+               ["[" + ((($items | length) - $limit) | tostring) +
+                " items omitted]"]
+             else [] end)
+          end
+      elif type == "object" then
+        . as $object
+        | (if ($object | length) > 48 then 47 else 48 end) as $limit
+        | (reduce ($object | to_entries[0:$limit][]) as $entry ({};
+            ($entry.key | safe_key) as $base
+            | ($entry.key | ascii_downcase) as $normalized_key
+            | ($entry.value |
+               safe_document($depth + 1; $entry.key; $strip_nft_units)) as $value
+            | if ($strip_nft_units and
+                  ($normalized_key == "ticker" or
+                   $normalized_key == "decimals")) or
+                 ($base | length) == 0 or ($value | meaningful | not)
+              then .
+              else unique_key(.; $base; 0) as $key
+                | .[$key] = $value
+              end)) as $safe
+        | if ($object | length) > 48 then
+            unique_key($safe; "[More metadata]"; 0) as $marker
+            | $safe + {
+                ($marker):
+                  (((($object | length) - $limit) | tostring) +
+                   " fields omitted")
+              }
+          else $safe
+          end
+      else null
+      end;
+    def pretty_key:
+      gsub("_"; " ")
+      | if length == 0 then "Field"
+        else (.[0:1] | ascii_upcase) + .[1:]
+        end;
+    def tree_rows($value; $prefix; $depth):
+      if $depth >= 6 then
+        [{property:($prefix + "└─ More"), value:"[nested data omitted]"}]
+      elif ($value | type) == "object" then
+        ($value | to_entries) as $items
+        | [range(0; ($items | length)) as $index
+          | $items[$index] as $item
+          | ($index == (($items | length) - 1)) as $last
+          | ($prefix + (if $last then "└─ " else "├─ " end) +
+             ($item.key | pretty_key)) as $property
+          | ($prefix + (if $last then "   " else "│  " end)) as $next
+          | if ($item.value | type) == "object" or
+               (($item.value | type) == "array")
+            then [{property:$property,value:""}] +
+                 tree_rows($item.value; $next; $depth + 1)
+            else [{property:$property,value:($item.value | tostring)}]
+            end] | add // []
+      elif ($value | type) == "array" then
+        [range(0; ($value | length)) as $index
+          | ($index == (($value | length) - 1)) as $last
+          | ($prefix + (if $last then "└─ " else "├─ " end) +
+             "Item " + (($index + 1) | tostring)) as $property
+          | ($prefix + (if $last then "   " else "│  " end)) as $next
+          | if ($value[$index] | type) == "object" or
+               (($value[$index] | type) == "array")
+            then [{property:$property,value:""}] +
+                 tree_rows($value[$index]; $next; $depth + 1)
+            else [{property:$property,value:($value[$index] | tostring)}]
+            end] | add // []
+      else []
+      end;
     .[] as $row
-    | {
-        name: $row.metadata_name,
-        ticker: $row.metadata_ticker,
-        decimals: $row.metadata_decimals,
-        description: $row.metadata_description,
-        url: $row.metadata_url
-      } as $registry
+    | (($row.registry_metadata // $row.token_registry_metadata // {
+        name:$row.metadata_name,
+        ticker:$row.metadata_ticker,
+        decimals:$row.metadata_decimals,
+        description:$row.metadata_description,
+        url:$row.metadata_url
+      }) | if type == "object" then . else {} end) as $registry
     | cip67_label($row) as $label
     | cip68_metadata($row; $label) as $cip68
-    | (mint_metadata($row; $row.metadata_20) |
-       normalize_metadata(.)) as $mint20
-    | (mint_metadata($row; $row.metadata_721) |
-       normalize_metadata(.)) as $mint721
+    | mint_metadata($row; $row.metadata_20) as $mint20
+    | mint_metadata($row; $row.metadata_721) as $mint721
     | metadata_sources($label; $registry; $cip68; $mint20; $mint721) as $sources
+    | selected_metadata($sources) as $selected
+    | ($selected.document
+       | safe_document(0; ""; ($label == "222"))) as $display_document
+    | (ci_get($display_document; "name") | text_value | clean(80)) as $name
+    | (if $label == "222" then ""
+       else (ci_get($display_document; "ticker") | text_value | clean(32))
+       end) as $ticker
+    | (if $label == "222" then ""
+       else (ci_get($display_document; "decimals") | decimal_value) // ""
+       end) as $decimals
+    | ((ci_get($display_document; "description") //
+        ci_get($display_document; "desc")) | text_value | clean(160)) as $description
+    | ((ci_get($display_document; "url") //
+        ci_get($display_document; "website")) | text_value | clean(160)) as $url
+    | tree_rows($display_document; ""; 0) as $all_details
+    | (if ($all_details | length) > 96 then
+         ($all_details[0:95] + [{
+           property:"└─ More metadata",
+           value:(((($all_details | length) - 95) | tostring) +
+                  " rows omitted")
+         }])
+       else $all_details end | tojson) as $details
     | [
       $row.policy_id,
       ($row.asset_name // ""),
       ($row.asset_name_ascii | human_ascii),
       $row.fingerprint,
       $row.total_supply,
-      first_text($sources; "name"; 80),
-      first_text($sources; "ticker"; 32),
-      first_decimals($sources),
-      first_text($sources; "description"; 160),
-      first_text($sources; "url"; 160)
+      asset_class($label),
+      $label,
+      $selected.source,
+      $name,
+      $ticker,
+      $decimals,
+      $description,
+      $url,
+      $details
     ] | join("\u001f")
   ' "${response_file}" 2>/dev/null)" || return 1
   while IFS=$'\037' read -r \
       policy_id asset_name ascii_name fingerprint total_supply \
-      metadata_name ticker decimals description url; do
+      asset_class cip67_label metadata_source metadata_name ticker \
+      decimals description url metadata_json; do
     [[ -n "${policy_id}" ]] || continue
     asset_id="${policy_id,,}.${asset_name,,}"
     [[ -n "${CNTOOLS_WALLET_ASSET_QUANTITIES[${asset_id}]+x}" ]] ||
       return 1
+    CNTOOLS_WALLET_ASSET_METADATA_QUERIED["${asset_id}"]=1
     CNTOOLS_WALLET_ASSET_ASCII_NAMES["${asset_id}"]="${ascii_name}"
     if [[ "${CNTOOLS_MODE:-}" != "local" &&
           -z "${CNTOOLS_WALLET_ASSET_FINGERPRINTS[${asset_id}]:-}" ]]; then
@@ -1392,11 +1643,17 @@ cntools_wallet_query_koios_asset_metadata_batch() {
         "Ignoring mismatched Koios fingerprint for asset=${asset_id}"
     fi
     CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES["${asset_id}"]="${total_supply}"
+    CNTOOLS_WALLET_ASSET_CLASSES["${asset_id}"]="${asset_class}"
+    CNTOOLS_WALLET_ASSET_CIP67_LABELS["${asset_id}"]="${cip67_label}"
+    CNTOOLS_WALLET_ASSET_METADATA_SOURCES["${asset_id}"]="${metadata_source}"
+    CNTOOLS_WALLET_ASSET_METADATA_JSON["${asset_id}"]="${metadata_json}"
     CNTOOLS_WALLET_ASSET_METADATA_NAMES["${asset_id}"]="${metadata_name}"
     CNTOOLS_WALLET_ASSET_TICKERS["${asset_id}"]="${ticker}"
     CNTOOLS_WALLET_ASSET_DESCRIPTIONS["${asset_id}"]="${description}"
     CNTOOLS_WALLET_ASSET_URLS["${asset_id}"]="${url}"
-    CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE["${asset_id}"]=1
+    if [[ -n "${metadata_source}" ]]; then
+      CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE["${asset_id}"]=1
+    fi
     if [[ "${decimals}" =~ ^[0-9]+$ ]]; then
       if (( 10#${decimals} <= 255 )); then
         CNTOOLS_WALLET_ASSET_METADATA_DECIMALS["${asset_id}"]="$((10#${decimals}))"
@@ -1414,6 +1671,17 @@ cntools_wallet_query_koios_asset_metadata() {
   local -a batch=()
   local -a candidate=()
 
+  CNTOOLS_WALLET_ASSET_ASCII_NAMES=()
+  CNTOOLS_WALLET_ASSET_METADATA_NAMES=()
+  CNTOOLS_WALLET_ASSET_TICKERS=()
+  CNTOOLS_WALLET_ASSET_DESCRIPTIONS=()
+  CNTOOLS_WALLET_ASSET_URLS=()
+  CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES=()
+  CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE=()
+  CNTOOLS_WALLET_ASSET_METADATA_DECIMALS=()
+  CNTOOLS_WALLET_ASSET_METADATA_SOURCES=()
+  CNTOOLS_WALLET_ASSET_METADATA_JSON=()
+  CNTOOLS_WALLET_ASSET_METADATA_QUERIED=()
   if [[ "${CNTOOLS_KOIOS_ENABLED:-Y}" != "Y" ]]; then
     CNTOOLS_WALLET_ASSET_METADATA_STATUS="not-requested"
     cntools_wallet_log WALLET \
@@ -1425,14 +1693,6 @@ cntools_wallet_query_koios_asset_metadata() {
     return 0
   fi
   CNTOOLS_WALLET_ASSET_METADATA_STATUS="unavailable"
-  CNTOOLS_WALLET_ASSET_ASCII_NAMES=()
-  CNTOOLS_WALLET_ASSET_METADATA_NAMES=()
-  CNTOOLS_WALLET_ASSET_TICKERS=()
-  CNTOOLS_WALLET_ASSET_DESCRIPTIONS=()
-  CNTOOLS_WALLET_ASSET_URLS=()
-  CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES=()
-  CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE=()
-  CNTOOLS_WALLET_ASSET_METADATA_DECIMALS=()
   payload_limit="$(cntools_wallet_query_koios_asset_payload_limit)" || return 1
   [[ "${payload_limit}" =~ ^[1-9][0-9]*$ ]] || return 1
   for asset_id in "${CNTOOLS_WALLET_ASSET_IDS[@]}"; do
@@ -2926,6 +3186,9 @@ cntools_wallet_asset_label_into() {
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
 
+  if [[ "${CNTOOLS_WALLET_ASSET_CLASSES[${_cntools_asset_id}]:-}" == "NFT" ]]; then
+    _cntools_label=""
+  fi
   [[ -n "${_cntools_label}" ]] ||
     _cntools_label="${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${_cntools_asset_id}]:-}"
   [[ -n "${_cntools_label}" ]] ||
@@ -3036,7 +3299,67 @@ cntools_wallet_asset_details_should_page() {
   (( table_rows + 5 > terminal_lines - 4 ))
 }
 
+cntools_wallet_asset_metadata_source_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_asset_id="${2:-}"
+  local _cntools_source=""
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_source="${CNTOOLS_WALLET_ASSET_METADATA_SOURCES[${_cntools_asset_id}]:-}"
+  if [[ -n "${_cntools_source}" ]]; then
+    _cntools_output_ref="${_cntools_source} · Koios API"
+    return 0
+  fi
+  if [[ -n "${CNTOOLS_WALLET_ASSET_METADATA_QUERIED[${_cntools_asset_id}]+x}" ]]; then
+    _cntools_output_ref="None found · Koios API"
+    return 0
+  fi
+  case "${CNTOOLS_WALLET_ASSET_METADATA_STATUS:-not-requested}" in
+    available|partial|unavailable)
+      _cntools_output_ref="Unavailable · Koios API"
+      ;;
+    *) _cntools_output_ref="Not requested" ;;
+  esac
+}
+
+cntools_wallet_asset_metadata_detail_rows() {
+  local asset_id="${1:-}"
+  local table_width="${2:-}"
+  local metadata_json="${CNTOOLS_WALLET_ASSET_METADATA_JSON[${asset_id}]:-[]}"
+  local rows=""
+  local property=""
+  local value=""
+  local value_role="value"
+
+  [[ "${table_width}" =~ ^[1-9][0-9]*$ ]] || return 2
+  jq -e '
+    type == "array" and length <= 96 and
+    all(.[];
+      type == "object" and
+      (.property | type == "string" and length <= 96) and
+      (.value | type == "string" and length <= 384))
+  ' <<< "${metadata_json}" >/dev/null 2>&1 || return 1
+  rows="$(jq -r '
+    .[] | [.property, .value] | join("\u001f")
+  ' <<< "${metadata_json}" 2>/dev/null)" || return 1
+  while IFS=$'\037' read -r property value; do
+    [[ -n "${property}" ]] || continue
+    if [[ "${value}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+      value_role="number"
+    elif [[ "${value}" =~ ^(https|ipfs|ar):// ]]; then
+      value_role="identifier"
+    else
+      value_role="value"
+    fi
+    cntools_wallet_table_wrapped_triple \
+      "" "${property}" "${value}" 22 20 "${table_width}" \
+      value "${value_role}" || return 1
+  done <<< "${rows}"
+}
+
 cntools_wallet_asset_details_rows() {
+  local view="${1:-detailed}"
   local asset_id=""
   local label=""
   local display_label=""
@@ -3047,18 +3370,14 @@ cntools_wallet_asset_details_rows() {
   local fingerprint=""
   local display_amount=""
   local display_decimals=""
-  local formatted_decimals=""
-  local display_ticker=""
-  local metadata_name=""
-  local ticker=""
-  local decimals=""
+  local asset_class=""
   local total_supply=""
   local display_total_supply=""
-  local description=""
-  local url=""
+  local metadata_source=""
   local table_width=""
   local index=0
 
+  [[ "${view}" == "simple" || "${view}" == "detailed" ]] || return 2
   [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[1-9][0-9]*$ ]] || return 0
   table_width="$(cntools_wallet_table_width)" || return 1
   cntools_wallet_table_row "Asset" "Property" "Value" || return 1
@@ -3071,29 +3390,37 @@ cntools_wallet_asset_details_rows() {
     quantity="${CNTOOLS_WALLET_ASSET_QUANTITIES[${asset_id}]:-Unavailable}"
     cntools_wallet_format_number_into display_quantity "${quantity}" || return 1
     fingerprint="${CNTOOLS_WALLET_ASSET_FINGERPRINTS[${asset_id}]:-Unavailable}"
-    display_decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${asset_id}]:-${CNTOOLS_WALLET_ASSET_DECIMALS[${asset_id}]:-}}"
-    display_ticker="${CNTOOLS_WALLET_ASSET_TICKERS[${asset_id}]:-}"
-    (( ${#display_ticker} <= 32 )) ||
-      display_ticker="${display_ticker:0:31}…"
+    asset_class="${CNTOOLS_WALLET_ASSET_CLASSES[${asset_id}]:-Legacy}"
+    if [[ "${asset_class}" == "NFT" ]]; then
+      display_decimals=""
+    else
+      display_decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${asset_id}]:-${CNTOOLS_WALLET_ASSET_DECIMALS[${asset_id}]:-}}"
+    fi
     display_amount="${display_quantity}"
     if [[ "${quantity}" =~ ^[0-9]+$ &&
           "${display_decimals}" =~ ^[0-9]+$ ]]; then
       cntools_wallet_format_token_amount_into \
         display_amount "${quantity}" "${display_decimals}" || return 1
     fi
-    if [[ -n "${display_ticker}" ]]; then
-      display_amount+=" ${display_ticker}"
-    fi
-    if [[ -n "${display_decimals}" || -n "${display_ticker}" ]]; then
-      cntools_wallet_table_wrapped_triple \
-        "${display_label}" "Amount" "${display_amount}" \
-        22 20 "${table_width}" identifier number || return 1
-      display_label=""
-    fi
     cntools_wallet_table_wrapped_triple \
-      "${display_label}" "Raw quantity" "${display_quantity}" \
-      22 20 "${table_width}" identifier number ||
-      return 1
+      "${display_label}" "Type" "${asset_class}" \
+      22 20 "${table_width}" identifier value || return 1
+    cntools_wallet_table_wrapped_triple \
+      "" "Amount" "${display_amount}" \
+      22 20 "${table_width}" value number || return 1
+    total_supply="${CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES[${asset_id}]:-}"
+    if [[ "${total_supply}" =~ ^[0-9]+$ ]]; then
+      display_total_supply=""
+      cntools_wallet_format_token_amount_into \
+        display_total_supply "${total_supply}" "${display_decimals}" || return 1
+      cntools_wallet_table_wrapped_triple \
+        "" "Total supply" "${display_total_supply}" \
+        22 20 "${table_width}" value number || return 1
+    else
+      cntools_wallet_table_wrapped_triple \
+        "" "Total supply" "Unavailable" \
+        22 20 "${table_width}" value muted || return 1
+    fi
     cntools_wallet_table_wrapped_triple \
       "" "Policy ID" "${policy_id}" 22 20 "${table_width}" \
       value identifier || return 1
@@ -3104,65 +3431,35 @@ cntools_wallet_asset_details_rows() {
     cntools_wallet_table_wrapped_triple \
       "" "Fingerprint" "${fingerprint}" 22 20 "${table_width}" \
       value identifier || return 1
-    if [[ "${CNTOOLS_MODE:-}" != "light" ]]; then
-      continue
-    fi
-    if [[ -z "${CNTOOLS_WALLET_ASSET_METADATA_AVAILABLE[${asset_id}]+x}" ]]; then
-      cntools_wallet_table_wrapped_triple \
-        "" "Token metadata" "Unavailable" 22 20 "${table_width}" \
-        value muted || return 1
-      continue
-    fi
-    metadata_name="${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${asset_id}]:-Not provided}"
-    ticker="${CNTOOLS_WALLET_ASSET_TICKERS[${asset_id}]:-Not provided}"
-    decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${asset_id}]:-Not provided}"
-    total_supply="${CNTOOLS_WALLET_ASSET_TOTAL_SUPPLIES[${asset_id}]:-Unavailable}"
-    cntools_wallet_format_number_into \
-      formatted_decimals "${decimals}" || return 1
-    cntools_wallet_format_number_into \
-      display_total_supply "${total_supply}" || return 1
-    description="${CNTOOLS_WALLET_ASSET_DESCRIPTIONS[${asset_id}]:-}"
-    url="${CNTOOLS_WALLET_ASSET_URLS[${asset_id}]:-}"
-    (( ${#metadata_name} <= 80 )) ||
-      metadata_name="${metadata_name:0:79}…"
-    (( ${#ticker} <= 32 )) || ticker="${ticker:0:31}…"
-    (( ${#description} <= 160 )) ||
-      description="${description:0:159}…"
-    (( ${#url} <= 160 )) || url="${url:0:159}…"
+    cntools_wallet_asset_metadata_source_into \
+      metadata_source "${asset_id}" || return 1
     cntools_wallet_table_wrapped_triple \
-      "" "Metadata name" "${metadata_name}" 22 20 "${table_width}" ||
-      return 1
-    cntools_wallet_table_wrapped_triple \
-      "" "Ticker" "${ticker}" 22 20 "${table_width}" || return 1
-    cntools_wallet_table_wrapped_triple \
-      "" "Decimals" "${formatted_decimals}" 22 20 "${table_width}" \
-      value "$(cntools_wallet_number_role "${decimals}")" || return 1
-    cntools_wallet_table_wrapped_triple \
-      "" "Raw total supply" "${display_total_supply}" \
-      22 20 "${table_width}" value \
-      "$(cntools_wallet_number_role "${total_supply}")" ||
-      return 1
-    if [[ -n "${description}" ]]; then
-      cntools_wallet_table_wrapped_triple \
-        "" "Description" "${description}" 22 20 "${table_width}" || return 1
-    fi
-    if [[ -n "${url}" ]]; then
-      cntools_wallet_table_wrapped_triple \
-        "" "URL" "${url}" 22 20 "${table_width}" \
-        value identifier || return 1
+      "" "Metadata source" "${metadata_source}" 22 20 "${table_width}" \
+      value muted || return 1
+    if [[ "${view}" == "detailed" &&
+          -n "${CNTOOLS_WALLET_ASSET_METADATA_SOURCES[${asset_id}]:-}" ]]; then
+      cntools_wallet_asset_metadata_detail_rows \
+        "${asset_id}" "${table_width}" || return 1
     fi
   done
 }
 
 cntools_wallet_render_asset_details_content() {
   local rows_file="${1:-}"
+  local view="${2:-detailed}"
   local title="Native assets"
   local display_count=""
+
+  [[ "${view}" == "simple" || "${view}" == "detailed" ]] || return 2
 
   if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[0-9]+$ ]]; then
     cntools_wallet_format_number_into \
       display_count "${CNTOOLS_WALLET_ASSET_COUNT}" || return 1
-    title="Native assets (${display_count})"
+    if [[ "${view}" == "simple" ]]; then
+      title="Native assets (${display_count}) · Simple"
+    else
+      title="Native assets (${display_count}) · Detailed"
+    fi
   fi
   cntools_wallet_render_table_file "${title}" "${rows_file}"
 }
@@ -3184,9 +3481,6 @@ cntools_wallet_file_row_count_into() {
 
 cntools_wallet_render_asset_metadata_status() {
   case "${CNTOOLS_WALLET_ASSET_METADATA_STATUS:-not-requested}" in
-    available)
-      cntools_ui_render_status info "Token metadata from Koios API."
-      ;;
     partial)
       cntools_ui_render_status warn \
         "Some Koios token metadata is unavailable; holdings remain complete."
@@ -3199,28 +3493,30 @@ cntools_wallet_render_asset_metadata_status() {
 }
 
 cntools_wallet_render_asset_details_table() {
+  local view="${1:-detailed}"
   local rows_file=""
   local table_rows=""
   local -a pipeline_status=()
 
+  [[ "${view}" == "simple" || "${view}" == "detailed" ]] || return 2
   [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[1-9][0-9]*$ ]] || return 0
   cntools_wallet_render_asset_metadata_status || return 1
   cntools_wallet_write_rows_file \
-    rows_file cntools_wallet_asset_details_rows || return 1
+    rows_file cntools_wallet_asset_details_rows "${view}" || return 1
   cntools_wallet_file_row_count_into table_rows "${rows_file}" || return 1
   [[ "${table_rows}" =~ ^[1-9][0-9]*$ ]] || return 1
   if ! cntools_wallet_asset_details_should_page "${table_rows}"; then
-    cntools_wallet_render_asset_details_content "${rows_file}"
+    cntools_wallet_render_asset_details_content "${rows_file}" "${view}"
     return $?
   fi
 
   if [[ -n "${NO_COLOR:-}" ]]; then
-    cntools_wallet_render_asset_details_content "${rows_file}" |
+    cntools_wallet_render_asset_details_content "${rows_file}" "${view}" |
       cntools_ui_pager --soft-wrap
   else
     (
       export CLICOLOR_FORCE=1
-      cntools_wallet_render_asset_details_content "${rows_file}"
+      cntools_wallet_render_asset_details_content "${rows_file}" "${view}"
     ) | cntools_ui_pager --soft-wrap
   fi
   pipeline_status=("${PIPESTATUS[@]}")
@@ -3231,6 +3527,7 @@ cntools_wallet_render_query() {
   local has_base="${1:-Y}"
   local has_payment="${2:-Y}"
   local has_reward="${3:-Y}"
+  local asset_view="${4:-detailed}"
   local level="info"
 
   case "${CNTOOLS_WALLET_QUERY_STATUS}" in
@@ -3249,13 +3546,50 @@ cntools_wallet_render_query() {
     cntools_wallet_render_delegation_table || return 1
   fi
   if [[ "${has_base}" == "Y" || "${has_payment}" == "Y" ]]; then
-    cntools_wallet_render_asset_details_table || return 1
+    cntools_wallet_render_asset_details_table "${asset_view}" || return 1
   fi
+}
+
+cntools_wallet_choose_asset_view() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_selected=""
+  local _cntools_status=0
+  local _cntools_index=0
+  local -a _cntools_rows=(
+    "Simple    · Essential holdings and identifiers"
+    "Detailed  · All available token metadata"
+  )
+  local -a _cntools_ids=(simple detailed)
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  if cntools_ui_choose _cntools_selected \
+      "Select native-asset view…" "${_cntools_rows[@]}"; then
+    _cntools_status=0
+  else
+    _cntools_status=$?
+  fi
+  (( _cntools_status == 0 )) || return "${_cntools_status}"
+  for (( _cntools_index = 0;
+         _cntools_index < ${#_cntools_rows[@]};
+         _cntools_index++ )); do
+    if [[ "${_cntools_selected}" == "${_cntools_rows[_cntools_index]}" ]]; then
+      _cntools_output_ref="${_cntools_ids[_cntools_index]}"
+      cntools_wallet_log CHOICE \
+        "native-asset view selected view=${_cntools_output_ref}"
+      return 0
+    fi
+  done
+  cntools_wallet_log ERROR "Native-asset view selector returned an unknown row"
+  return 2
 }
 
 cntools_wallet_action_show_impl() {
   local selected_index=""
   local selector_status=0
+  local asset_selector_status=0
+  local asset_view="simple"
   local wallet_directory=""
   local wallet_type=""
   local wallet_protection=""
@@ -3351,6 +3685,24 @@ cntools_wallet_action_show_impl() {
       "${query_base}" "${query_payment}" "${query_reward}"
   fi
 
+  if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[1-9][0-9]*$ ]]; then
+    cntools_ui_action_begin "Show" "/ Wallet / Show"
+    if cntools_wallet_choose_asset_view asset_view; then
+      asset_selector_status=0
+    else
+      asset_selector_status=$?
+    fi
+    if (( asset_selector_status == 1 )); then
+      cntools_wallet_log CHOICE "native-asset view selection cancelled"
+      cntools_gum_clear
+      return 0
+    elif (( asset_selector_status != 0 )); then
+      cntools_wallet_log ERROR \
+        "native-asset view selection failed status=${asset_selector_status}"
+      return "${asset_selector_status}"
+    fi
+  fi
+
   if [[ "${has_reward}" == "Y" ]]; then
     case "${CNTOOLS_WALLET_REGISTERED:-unknown}" in
       yes) registration="Registered" ;;
@@ -3368,7 +3720,7 @@ cntools_wallet_action_show_impl() {
     "${base_address}" "${payment_address}" "${reward_address}" || return 1
   cntools_wallet_render_credential_table "${wallet_directory}" || return 1
   cntools_wallet_render_query \
-    "${has_base}" "${has_payment}" "${has_reward}" || return 1
+    "${has_base}" "${has_payment}" "${has_reward}" "${asset_view}" || return 1
   cntools_ui_wait
 }
 
