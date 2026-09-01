@@ -230,6 +230,34 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_wallet_action_new_cli' "${action_file}" >/dev/null ||
           fail "Wallet New CLI does not call its functional entrypoint"
         ;;
+      wallet/new/mnemonic|wallet/import/mnemonic)
+        jq -e '.libs == [
+          "wallet.sh",
+          "wallet-material.sh",
+          "wallet-key.sh",
+          "wallet-address.sh",
+          "wallet-id.sh",
+          "wallet-create.sh",
+          "wallet-create-ui.sh",
+          "wallet-mnemonic.sh",
+          "wallet-mnemonic-ui.sh"
+        ]' \
+          "${metadata}" >/dev/null ||
+          fail "Wallet Mnemonic has unexpected library declarations: ${module_id}"
+        grep -F 'cntools_wallet_create_cleanup' "${action_file}" >/dev/null ||
+          fail "Wallet Mnemonic does not clean private staging directories: ${module_id}"
+        grep -F 'cntools_wallet_mnemonic_cleanup' "${action_file}" >/dev/null ||
+          fail "Wallet Mnemonic does not clean mnemonic temporary files: ${module_id}"
+        grep -F 'cntools_wallet_cleanup_material' "${action_file}" >/dev/null ||
+          fail "Wallet Mnemonic does not clean artifact staging files: ${module_id}"
+        if [[ "${module_id}" == "wallet/new/mnemonic" ]]; then
+          grep -F 'cntools_wallet_action_new_mnemonic' "${action_file}" >/dev/null ||
+            fail "Wallet New Mnemonic does not call its functional entrypoint"
+        else
+          grep -F 'cntools_wallet_action_import_mnemonic' "${action_file}" >/dev/null ||
+            fail "Wallet Import Mnemonic does not call its functional entrypoint"
+        fi
+        ;;
       wallet/list)
         jq -e '.libs == [
           "number.sh",
@@ -464,15 +492,15 @@ for mode in local light offline; do
   done < "${MENU_FIXTURE}"
 done
 
-# Every operational action not implemented through this wallet-protection
-# slice remains a runnable
-# placeholder. Advanced Theme is framework functionality covered separately.
+# Every operational action outside the implemented wallet slices remains a
+# runnable placeholder. Advanced Theme is framework functionality covered
+# separately.
 CNTOOLS_MODE="local"
 while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    wallet/new/cli|wallet/list|wallet/show|wallet/encrypt|wallet/decrypt|advanced/theme) continue ;;
+    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/list|wallet/show|wallet/encrypt|wallet/decrypt|advanced/theme) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then
@@ -484,10 +512,6 @@ while IFS=$'\t' read -r \
   [[ "${output}" == *"${label}"* &&
      "${output}" == *"Not implemented yet"* ]] ||
     fail "placeholder notice is incomplete for ${module_id}"
-  if [[ "${module_id}" == "wallet/new/mnemonic" ]]; then
-    [[ "${output}" == *"/ Wallet / New / Mnemonic"* ]] ||
-      fail "placeholder breadcrumb does not preserve the full action path"
-  fi
   grep -F $'ACTION\t'"${module_id}"$'\tnot implemented yet' \
     "${CNTOOLS_TEST_LOG_TRACE}" >/dev/null ||
     fail "placeholder selection was not logged for ${module_id}"

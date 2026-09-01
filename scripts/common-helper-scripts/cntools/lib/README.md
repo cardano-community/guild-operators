@@ -71,6 +71,21 @@ material helpers above, then adds two focused libraries:
 Creation deliberately does not load `wallet-query.sh`: it is local work in all
 runtime modes and neither contacts a node nor calls Koios.
 
+Wallet New → Mnemonic and Import → Mnemonic extend that creation stack with two
+focused libraries:
+
+- `wallet-mnemonic.sh` owns phrase normalization, pinned Cardano CLI generation
+  and standard CIP-1852 derivation, extended-key validation, derivation markers,
+  secret-safe standard-input handling, and the mnemonic wallet inventory; and
+- `wallet-mnemonic-ui.sh` owns generation backup presentation, responsive
+  numbered word tables, four-word verification, paste or interactive import,
+  account/key-index prompts, progress, and result tables.
+
+The recovery phrase never enters an argument, environment, persistent file, or
+log. The generic creation publisher accepts a focused inventory validator so
+CLI and mnemonic wallets can share one atomic commit boundary without weakening
+their different artifact contracts.
+
 Wallet Encrypt and Decrypt load the smaller protection stack instead of the
 query or creation libraries:
 

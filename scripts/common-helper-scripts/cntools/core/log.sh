@@ -380,7 +380,11 @@ cntools_run_command_timeout() {
       status=$?
     fi
   else
-    "$@" &
+    # Bash redirects stdin from /dev/null for asynchronous commands when job
+    # control is disabled unless the caller's descriptor is made explicit.
+    # Preserve it so the portable timeout path behaves like GNU timeout for
+    # commands that intentionally consume private input from stdin.
+    "$@" <&0 &
     command_pid=$!
     deadline=$((SECONDS + timeout_seconds))
     while (( SECONDS < deadline )) && kill -0 "${command_pid}" 2>/dev/null; do

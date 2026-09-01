@@ -675,6 +675,13 @@ exit 23'
   grep -E -- 'sleep 5 -> 124$' "${log_file}" >/dev/null ||
     fail "bounded command timeout was not logged"
 
+  output="$(cntools_run_command_timeout 2 "010" -- \
+    /bin/sh -c 'IFS= read -r value; printf "%s" "$value"' \
+    <<< "stdin preserved")" ||
+      fail "bounded command wrapper did not preserve standard input"
+  assert_eq "${output}" "stdin preserved" \
+    "bounded command standard input"
+
   write_file "${TEST_ROOT}/must-not-run.sh" "#!/usr/bin/env bash
 printf invoked > '${invocation_trace}'"
   chmod 0700 "${TEST_ROOT}/must-not-run.sh"

@@ -65,6 +65,8 @@ cntools/
 │   ├── wallet-id.sh
 │   ├── wallet-create.sh
 │   ├── wallet-create-ui.sh
+│   ├── wallet-mnemonic.sh
+│   ├── wallet-mnemonic-ui.sh
 │   ├── wallet-protection.sh
 │   ├── wallet-protection-ui.sh
 │   ├── wallet-query.sh
@@ -99,10 +101,10 @@ change on disk. No combined catalog file is generated or deployed.
 The Phase 4 framework mirrors the current CNTools menu hierarchy. It initially
 gave every operational leaf an inert `action.sh` with a consistent
 not-implemented message. Functional phases replace those placeholders in
-small vertical slices; Phase 7 activates Wallet List and Show, and Phase 8
-activates Wallet New → CLI. The next wallet slice activates Encrypt and Decrypt
-without changing the existing `.gpg` format. The phase-0 menu inventory remains
-an implementation checklist, not a generated runtime manifest.
+small vertical slices; Phase 7 activates Wallet List and Show, Phase 8 activates
+Wallet New → CLI, and later slices activate wallet protection and standard
+mnemonic creation/import. The phase-0 menu inventory remains an implementation
+checklist, not a generated runtime manifest.
 
 ## Runtime modes
 
@@ -683,6 +685,30 @@ or revalidation problems produce a committed-wallet warning rather than a false
 creation failure. An uncatchable kill or power loss can leave a private hidden
 stage; internal staging names are excluded from wallet discovery and logged so
 a confirmed stale directory can be removed securely.
+
+## Mnemonic wallet creation and import slice
+
+Wallet New → Mnemonic generates exactly 24 words with the deployed, pinned
+Cardano CLI. The phrase is shown as one copyable line and a responsive numbered
+table using six columns when the terminal permits, then cleared before four
+random word positions are verified. Wallet Import → Mnemonic supports hidden
+paste of a complete phrase and hidden one-word-at-a-time input. Input whitespace
+is normalized and standard 12, 15, 18, 21, and 24-word phrases are accepted.
+
+Both actions expose the account number and payment/stake key index supported by
+`cardano-cli latest key derive-from-mnemonic`. They derive standard CIP-1852
+extended signing keys, record the generic path marker
+`1852H/1815H/<account>H/x/<index>`, generate the focused public artifact set,
+and reuse the private staging and atomic publication boundary from CLI wallet
+creation. Every derived extended signing key is checked against an independently
+derived normalized verification key before publication.
+
+Recovery words are provided to Cardano CLI only over standard input. They are
+not persisted or included in command arguments, child environments, or logs,
+and every handled failure removes the tracked private stage. Arbitrary-purpose
+and CIP-1854 derivation remain outside this slice because the pinned Cardano CLI
+does not expose a custom purpose/path argument; the future multisignature action
+can use `cardano-address` as a focused dependency only for those paths.
 
 ## Wallet protection slice
 

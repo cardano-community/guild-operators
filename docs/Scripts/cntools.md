@@ -6,9 +6,10 @@ but replaces the former monolithic implementation with a modular framework and
 a Charm Gum interface.
 
 !!! warning "Version 14 implementation status"
-    Wallet New → CLI, List, Show, Encrypt, and Decrypt are functional in version
-    14.0.0. List and Show may cache missing public wallet artifacts; New → CLI
-    creates new private keys only after explicit confirmation. Encrypt and
+    Wallet New → CLI, New → Mnemonic, Import → Mnemonic, List, Show, Encrypt,
+    and Decrypt are functional in version 14.0.0. List and Show may cache
+    missing public wallet artifacts; wallet creation and import publish keys
+    only after explicit confirmation and complete validation. Encrypt and
     Decrypt are local file operations and never contact a node or API. None of
     these actions submit transactions. Advanced **Theme** is also functional;
     other wallet actions and all pool, transaction, governance, backup, block,
@@ -198,6 +199,27 @@ final path, not as a failed creation. An uncatchable process kill or host power
 loss can leave a hidden `.cntools-wallet-new.*` directory containing private
 staging material. Wallet discovery excludes and logs such directories; inspect
 and remove a confirmed stale one securely before reusing its space.
+
+**Wallet → New → Mnemonic** creates a 24-word recovery phrase with the pinned
+Cardano CLI. CNTools presents both one copyable line and a responsive numbered
+table with up to six columns. After the user confirms the backup is recorded,
+the phrase is cleared from the terminal and four randomly selected words must
+be entered correctly before any wallet is created.
+
+**Wallet → Import → Mnemonic** accepts either a pasted space-separated phrase
+or one word at a time. Leading, trailing, and repeated whitespace is normalized;
+12, 15, 18, 21, and 24-word phrases are accepted. Phrase input is hidden and
+neither generated nor imported words are written to command arguments, files,
+environments, or logs. The phrase is passed to Cardano CLI only through standard
+input and is discarded after derivation.
+
+Both mnemonic actions derive standard CIP-1852 payment and stake keys with a
+user-selected account number and address key index. The generated wallet stores
+extended signing keys plus the same validated public artifacts as a CLI wallet,
+and records `1852H/1815H/<account>H/x/<index>` in `derivation.path`. Arbitrary
+purpose paths, including CIP-1854 multisignature derivation, are intentionally
+reserved for the later multisignature implementation where `cardano-address`
+can be loaded only when it is actually required.
 
 **Wallet → Encrypt** protects the configured payment and stake signing keys
 using GnuPG symmetric AES-256 encryption and the existing `.skey.gpg` format.

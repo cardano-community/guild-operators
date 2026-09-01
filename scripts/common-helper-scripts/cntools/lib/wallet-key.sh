@@ -111,6 +111,45 @@ cntools_wallet_key_normal_envelope_valid() {
   ' "${key_file}" >/dev/null 2>&1
 }
 
+# Mnemonic derivation produces BIP32 extended signing keys. Keep their strict
+# creation-time shape separate from the tolerant legacy readers, just as for
+# newly generated non-extended CLI keys above.
+cntools_wallet_key_extended_envelope_valid() {
+  local key_file="${1:-}"
+  local role="${2:-}"
+  local kind="${3:-}"
+  local expected_type=""
+  local expected_cbor=""
+
+  case "${role}:${kind}" in
+    payment:signing)
+      expected_type="PaymentExtendedSigningKeyShelley_ed25519_bip32"
+      expected_cbor='^5880[0-9a-fA-F]{256}$'
+      ;;
+    payment:verification)
+      expected_type="PaymentExtendedVerificationKeyShelley_ed25519_bip32"
+      expected_cbor='^5840[0-9a-fA-F]{128}$'
+      ;;
+    stake:signing)
+      expected_type="StakeExtendedSigningKeyShelley_ed25519_bip32"
+      expected_cbor='^5880[0-9a-fA-F]{256}$'
+      ;;
+    stake:verification)
+      expected_type="StakeExtendedVerificationKeyShelley_ed25519_bip32"
+      expected_cbor='^5840[0-9a-fA-F]{128}$'
+      ;;
+    *) return 2 ;;
+  esac
+  cntools_wallet_safe_regular_file "${key_file}" 65536 || return 1
+  jq -ers --arg expected_type "${expected_type}" \
+    --arg expected_cbor "${expected_cbor}" '
+      length == 1 and
+      (.[0] | type == "object") and
+      (.[0].type == $expected_type) and
+      (.[0].cborHex | type == "string" and test($expected_cbor))
+    ' "${key_file}" >/dev/null 2>&1
+}
+
 # Verification keys are public, so returning a canonical comparison value does
 # not expose private signing-key material to the shell or logger.
 cntools_wallet_key_normal_verification_into() {
@@ -202,6 +241,90 @@ cntools_wallet_key_normal_pair_matches() {
     return 1
   fi
   return 0
+}
+
+cntools_wallet_key_extended_pair_matches() {
+  local wallet_directory="${1:-}"
+  local role="${2:-}"
+  local signing_file="${3:-}"
+  local verification_file="${4:-}"
+  local extended_file=""
+  local normalized_file=""
+  local error_file=""
+  local verification_value=""
+  local derived_value=""
+  local status=0
+
+  case "${role}" in payment|stake) ;; *) return 2 ;; esac
+  cntools_wallet_directory_safe "${wallet_directory}" || return 1
+  cntools_wallet_key_extended_envelope_valid \
+    "${signing_file}" "${role}" signing || return 1
+  cntools_wallet_key_normal_verification_into \
+    verification_value "${verification_file}" "${role}" || return 1
+  cntools_wallet_material_temp_file \
+    extended_file "${wallet_directory}" \
+    "${role}-extended-pair-verification-key" || return 1
+  cntools_wallet_material_temp_file \
+    error_file "${wallet_directory}" \
+    "${role}-extended-pair-verification-error" || {
+      cntools_wallet_material_remove_temp "${extended_file}" || true
+      return 1
+    }
+  if cntools_wallet_material_run_cli "${error_file}" -- \
+      "${CNTOOLS_CLI}" key verification-key \
+      --signing-key-file "${signing_file}" \
+      --verification-key-file "${extended_file}"; then
+    status=0
+  else
+    status=$?
+  fi
+  cntools_wallet_material_remove_temp "${error_file}" || true
+  if (( status != 0 )) ||
+     ! cntools_wallet_key_extended_envelope_valid \
+       "${extended_file}" "${role}" verification; then
+    cntools_wallet_material_log ERROR \
+      "Could not verify the extended ${role} signing-key pair"
+    cntools_wallet_material_remove_temp "${extended_file}" || true
+    return 1
+  fi
+
+  cntools_wallet_material_temp_file \
+    normalized_file "${wallet_directory}" \
+    "${role}-extended-pair-normalized-key" || {
+      cntools_wallet_material_remove_temp "${extended_file}" || true
+      return 1
+    }
+  cntools_wallet_material_temp_file \
+    error_file "${wallet_directory}" \
+    "${role}-extended-pair-normalize-error" || {
+      cntools_wallet_material_remove_temp "${extended_file}" || true
+      cntools_wallet_material_remove_temp "${normalized_file}" || true
+      return 1
+    }
+  if cntools_wallet_material_run_cli "${error_file}" -- \
+      "${CNTOOLS_CLI}" key non-extended-key \
+      --extended-verification-key-file "${extended_file}" \
+      --verification-key-file "${normalized_file}"; then
+    status=0
+  else
+    status=$?
+  fi
+  cntools_wallet_material_remove_temp "${extended_file}" || true
+  cntools_wallet_material_remove_temp "${error_file}" || true
+  if (( status != 0 )) ||
+     ! cntools_wallet_key_normal_verification_into \
+       derived_value "${normalized_file}" "${role}"; then
+    cntools_wallet_material_log ERROR \
+      "Could not normalize the derived extended ${role} verification key"
+    cntools_wallet_material_remove_temp "${normalized_file}" || true
+    return 1
+  fi
+  cntools_wallet_material_remove_temp "${normalized_file}" || true
+  if [[ "${derived_value}" != "${verification_value}" ]]; then
+    cntools_wallet_material_log ERROR \
+      "Derived extended ${role} signing and verification keys do not match"
+    return 1
+  fi
 }
 
 cntools_wallet_key_materialize_role() {

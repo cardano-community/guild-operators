@@ -429,8 +429,12 @@ cntools_wallet_create_required_entries_valid() {
 cntools_wallet_create_publish() {
   local stage="${1:-}"
   local target="${2:-}"
+  local validator="${3:-cntools_wallet_create_required_entries_valid}"
   local status=0
 
+  [[ "${validator}" =~ ^cntools_wallet_[A-Za-z0-9_]+_required_entries_valid$ ]] ||
+    return 2
+  declare -F "${validator}" >/dev/null 2>&1 || return 2
   cntools_wallet_create_stage_safe "${stage}" || return 1
   [[ "${target%/*}" == "${CNTOOLS_WALLET_DIR%/}" &&
      ! -e "${target}" && ! -L "${target}" ]] || return 1
@@ -454,7 +458,7 @@ cntools_wallet_create_publish() {
   fi
   cntools_wallet_create_untrack_stage "${stage}"
   if ! cntools_wallet_directory_safe "${target}" ||
-     ! cntools_wallet_create_required_entries_valid "${target}"; then
+     ! "${validator}" "${target}"; then
     CNTOOLS_WALLET_CREATE_WARNING="The wallet was created at ${target}, but post-publication validation could not be repeated. Inspect and back it up before use."
     cntools_wallet_create_log ERROR "${CNTOOLS_WALLET_CREATE_WARNING}"
   fi
