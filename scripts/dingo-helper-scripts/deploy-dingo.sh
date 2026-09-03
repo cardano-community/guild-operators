@@ -2,6 +2,9 @@
 # Source-only Dingo deployment profile for the common guild-deploy dispatcher.
 # shellcheck disable=SC2034,SC2154
 
+DINGO_DEPLOY_OPENSSL_ERROR=""
+DINGO_DEPLOY_OPENSSL_BIN=""
+
 dingo_deploy_info() {
   if declare -F log_info >/dev/null 2>&1; then log_info "$1"; else printf 'INFO: %s\n' "$1"; fi
 }
@@ -77,26 +80,73 @@ dingo_deploy_validate_context() {
 dingo_deploy_parse_flags() {
   DINGO_DEPLOY_INSTALL_DEPS="N"
   DINGO_DEPLOY_INSTALL_BINARY="N"
+  DINGO_DEPLOY_INSTALL_HWCLI="N"
   DINGO_DEPLOY_FORCE_CONFIG="N"
   DINGO_DEPLOY_FORCE_SCRIPTS="N"
 
   local unsupported="${S_ARGS:-}"
-  unsupported="${unsupported//[pdfs]/}"
+  unsupported="${unsupported//[pdfsw]/}"
   [[ -z "${unsupported}" ]] || {
-    dingo_deploy_fail "Unsupported Dingo -s flag(s): '${unsupported}'. Allowed: p,d,f,s; cnode-only b,l,m,c,o,w,x,r are rejected."
+    dingo_deploy_fail "Unsupported Dingo -s flag(s): '${unsupported}'. Allowed: p,d,f,s,w; cnode-only b,l,m,c,o,x,r are rejected."
     return 1
   }
 
   [[ "${S_ARGS:-}" == *p* ]] && DINGO_DEPLOY_INSTALL_DEPS="Y"
   [[ "${S_ARGS:-}" == *d* ]] && DINGO_DEPLOY_INSTALL_BINARY="Y"
+  if [[ "${S_ARGS:-}" == *w* ]]; then
+    DINGO_DEPLOY_INSTALL_DEPS="Y"
+    DINGO_DEPLOY_INSTALL_HWCLI="Y"
+  fi
   [[ "${S_ARGS:-}" == *f* ]] && DINGO_DEPLOY_FORCE_CONFIG="Y"
   [[ "${S_ARGS:-}" == *s* ]] && DINGO_DEPLOY_FORCE_SCRIPTS="Y"
   return 0
 }
 
+dingo_deploy_validate_openssl3() {
+  local candidate=""
+  local openssl_path=""
+  local openssl_version=""
+  local openssl_major=""
+  local observed=""
+
+  DINGO_DEPLOY_OPENSSL_ERROR=""
+  DINGO_DEPLOY_OPENSSL_BIN=""
+  for candidate in openssl openssl3; do
+    openssl_path="$(type -P "${candidate}" 2>/dev/null || true)"
+    [[ "${openssl_path}" = /* && -x "${openssl_path}" &&
+       ! -d "${openssl_path}" ]] || continue
+    if ! openssl_version="$(LC_ALL=C "${openssl_path}" version 2>/dev/null)"; then
+      [[ -z "${observed}" ]] || observed+="; "
+      observed+="'${openssl_path}' could not report its version"
+      continue
+    fi
+    if [[ "${openssl_version}" =~ ^OpenSSL[[:space:]]+([0-9]+)\. ]]; then
+      openssl_major="${BASH_REMATCH[1]}"
+      if (( openssl_major >= 3 )); then
+        DINGO_DEPLOY_OPENSSL_BIN="${openssl_path}"
+        return 0
+      fi
+    fi
+    [[ -z "${observed}" ]] || observed+="; "
+    observed+="'${openssl_path}' reported '${openssl_version:-no version}'"
+  done
+
+  if [[ -n "${observed}" ]]; then
+    DINGO_DEPLOY_OPENSSL_ERROR="OpenSSL 3 or newer is required for CNTools transaction witness validation. Checked ${observed}. Install OpenSSL 3 so either 'openssl' or 'openssl3' resolves to it, then rerun guild-deploy.sh. On Rocky/RHEL 8, enable EPEL and install its 'openssl3' package."
+  else
+    DINGO_DEPLOY_OPENSSL_ERROR="OpenSSL 3 or newer is required for CNTools transaction witness validation. Neither 'openssl' nor 'openssl3' was found on PATH. Install OpenSSL 3 under either name, then rerun guild-deploy.sh. On Rocky/RHEL 8, enable EPEL and install its 'openssl3' package."
+  fi
+  return 1
+}
+
 dingo_deploy_install_dependencies() {
+  local -a hardware_packages
+
   dingo_deploy_progress "Installing Dingo runtime prerequisites"
   if command -v apt-get >/dev/null 2>&1; then
+    hardware_packages=()
+    [[ "${DINGO_DEPLOY_INSTALL_HWCLI:-N}" == "Y" ]] &&
+      hardware_packages=(libusb-1.0-0-dev libudev-dev udev)
     dispatcher_run_package_command "Dingo package metadata update" \
       dingo_deploy_privileged apt-get \
       -o Dpkg::Use-Pty=0 -o APT::Color=0 update || return 1
@@ -104,22 +154,28 @@ dingo_deploy_install_dependencies() {
       dingo_deploy_privileged env DEBIAN_FRONTEND=noninteractive apt-get \
       -o Dpkg::Use-Pty=0 -o APT::Color=0 install -y \
       bc bsdmainutils ca-certificates coreutils curl diffutils e2fsprogs findutils \
-      gawk git gnupg grep gzip iproute2 jq less ncurses-bin procps sed sqlite3 tar \
-      unzip xxd || return 1
+      gawk git gnupg grep gzip iproute2 jq less ncurses-bin openssl procps sed sqlite3 tar \
+      unzip xxd "${hardware_packages[@]}" || return 1
   elif command -v dnf >/dev/null 2>&1; then
+    hardware_packages=()
+    [[ "${DINGO_DEPLOY_INSTALL_HWCLI:-N}" == "Y" ]] &&
+      hardware_packages=(libusbx udev)
     dispatcher_run_package_command "Dingo prerequisite package installation" \
       dingo_deploy_privileged dnf install -y \
       bc ca-certificates coreutils curl diffutils e2fsprogs findutils gawk git gnupg2 \
-      grep gzip iproute jq less ncurses procps-ng sed sqlite tar unzip util-linux \
-      vim-common || return 1
+      grep gzip iproute jq less ncurses openssl procps-ng sed sqlite tar unzip util-linux \
+      vim-common "${hardware_packages[@]}" || return 1
   elif command -v yum >/dev/null 2>&1; then
+    hardware_packages=()
+    [[ "${DINGO_DEPLOY_INSTALL_HWCLI:-N}" == "Y" ]] &&
+      hardware_packages=(libusbx udev)
     dispatcher_run_package_command "Dingo prerequisite package installation" \
       dingo_deploy_privileged yum install -y \
       bc ca-certificates coreutils curl diffutils e2fsprogs findutils gawk git gnupg2 \
-      grep gzip iproute jq less ncurses procps-ng sed sqlite tar unzip util-linux \
-      vim-common || return 1
+      grep gzip iproute jq less ncurses openssl procps-ng sed sqlite tar unzip util-linux \
+      vim-common "${hardware_packages[@]}" || return 1
   else
-    dingo_deploy_fail "Unsupported package manager; install bc, chattr, column, coreutils, curl, findutils, gawk, git, gpg, grep, gzip, iproute, jq, less, ncurses, procps, sed, sqlite3, tar, unzip, and xxd"
+    dingo_deploy_fail "Unsupported package manager; install bc, chattr, column, coreutils, curl, findutils, gawk, git, gpg, grep, gzip, iproute, jq, less, ncurses, OpenSSL 3 or newer, procps, sed, sqlite3, tar, unzip, and xxd"
     return 1
   fi
   dingo_deploy_ok "Dingo runtime prerequisites"
@@ -127,12 +183,19 @@ dingo_deploy_install_dependencies() {
 
 dingo_deploy_require_commands() {
   local command_name
-  for command_name in awk cmp cp curl find git grep head install jq mktemp mv sed sha256sum tar; do
+  for command_name in awk cmp cp curl find git grep head install jq mktemp mv sed sha256sum tar xxd; do
     command -v "${command_name}" >/dev/null 2>&1 || {
       dingo_deploy_fail "Required command '${command_name}' is missing; re-run with -s p"
       return 1
     }
   done
+  dingo_deploy_validate_openssl3 || {
+    dingo_deploy_fail "${DINGO_DEPLOY_OPENSSL_ERROR}"
+    return 1
+  }
+  [[ "${DINGO_DEPLOY_OPENSSL_BIN##*/}" != "openssl3" ]] ||
+    dingo_deploy_info \
+      "Using OpenSSL 3 compatibility executable: ${DINGO_DEPLOY_OPENSSL_BIN}"
 }
 
 dingo_deploy_fetch() {
@@ -633,6 +696,13 @@ deploy_dingo_profile() {
   dingo_deploy_install_payloads || return 1
   if [[ "${DINGO_DEPLOY_INSTALL_BINARY}" == "Y" ]]; then
     dingo_deploy_install_binary || return 1
+  fi
+  if [[ "${DINGO_DEPLOY_INSTALL_HWCLI}" == "Y" ]]; then
+    declare -F dispatcher_install_cardano_hw_cli >/dev/null 2>&1 || {
+      dingo_deploy_fail "Common cardano-hw-cli installer is unavailable; refresh guild-deploy.sh"
+      return 1
+    }
+    dispatcher_install_cardano_hw_cli || return 1
   fi
 
   if [[ ! -x "${HOME}/.local/bin/dingo" ]]; then

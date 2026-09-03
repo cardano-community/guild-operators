@@ -38,7 +38,16 @@ dependency rather than a CNTools runtime dependency. No additional scripting
 language is required.
 Wallet Encrypt and Decrypt resolve GnuPG only when selected. Linux `chattr` and
 `lsattr` are optional defense-in-depth tools; read-only permissions remain the
-portable protection baseline.
+portable protection baseline. Koios transaction submission resolves `xxd` only
+when selected. Transaction signing and package validation resolve OpenSSL 3 or
+newer plus `xxd` only when witnesses are present; every detached Ed25519
+signature is checked against the transaction-body ID before it is trusted.
+Guild Deploy includes these tools in implementation prerequisites and verifies
+OpenSSL at deployment time. It prefers a compatible executable named `openssl`
+and falls back to `openssl3`. On Rocky/RHEL 8, where the system package remains
+on OpenSSL 1.1.1, the cnode prerequisite flow installs EPEL's coexisting
+`openssl3` package. Dingo and Amaru accept that executable when already
+available but do not bootstrap an additional package repository.
 
 ## Target source layout
 
@@ -61,6 +70,11 @@ cntools/
 ├── lib/
 │   ├── number.sh
 │   ├── placeholder.sh
+│   ├── transaction.sh
+│   ├── transaction-build.sh
+│   ├── transaction-sign.sh
+│   ├── transaction-submit.sh
+│   ├── transaction-ui.sh
 │   ├── wallet.sh
 │   ├── wallet-material.sh
 │   ├── wallet-key.sh
@@ -70,9 +84,13 @@ cntools/
 │   ├── wallet-create-ui.sh
 │   ├── wallet-mnemonic.sh
 │   ├── wallet-mnemonic-ui.sh
+│   ├── wallet-hardware.sh
+│   ├── wallet-hardware-ui.sh
 │   ├── wallet-protection.sh
 │   ├── wallet-protection-ui.sh
 │   ├── wallet-query.sh
+│   ├── wallet-remove.sh
+│   ├── wallet-remove-ui.sh
 │   └── ...
 └── modules/
     └── root/
@@ -106,8 +124,10 @@ gave every operational leaf an inert `action.sh` with a consistent
 not-implemented message. Functional phases replace those placeholders in
 small vertical slices; Phase 7 activates Wallet List and Show, Phase 8 activates
 Wallet New → CLI, and later slices activate wallet protection and standard
-mnemonic creation/import. The phase-0 menu inventory remains an implementation
-checklist, not a generated runtime manifest.
+mnemonic creation/import, followed by standard hardware-wallet import and
+guarded wallet removal. Transaction Sign and Submit are also functional. The
+phase-0 menu inventory remains an implementation checklist, not a generated
+runtime manifest.
 
 ## Runtime modes
 
@@ -639,9 +659,10 @@ zero UTxO count, and zero native-asset count. A non-empty response that omits a
 requested address remains partial. Offline sessions perform no blockchain or
 HTTP query and do not show the live-balance confirmation. Deterministic
 public-artifact generation is local and can still use Cardano CLI without a
-node. Amaru remains a first-class local deployment: its wallet files are shown,
-while live chain values are clearly marked unavailable when its deployment
-manifest declares no local CLI capability.
+node. Amaru's isolated `cardano-cli-amaru` companion supports those key and
+transaction operations, while its deployment still declares no local query or
+submission capability; live chain data and submission therefore use Koios when
+enabled.
 
 Backend failures are non-destructive and do not prevent filesystem wallet
 details from being shown. Complete aggregates are shown only when every
@@ -720,6 +741,35 @@ and CIP-1854 derivation remain outside this slice because the pinned Cardano CLI
 does not expose a custom purpose/path argument; the future multisignature action
 can use `cardano-address` as a focused dependency only for those paths.
 
+## Hardware wallet import slice
+
+Wallet Import → HW Wallet imports one standard CIP-1852 payment key and one
+stake key through `cardano-hw-cli`. Account number and address key index both
+default to `0`; the resulting paths are
+`1852H/1815H/<account>H/0/<index>` and
+`1852H/1815H/<account>H/2/<index>`. Multisignature and governance derivation
+remain in their dedicated future actions rather than expanding this flow.
+
+The hardware dependency is resolved and checked only when this action is
+opened, so it does not affect CNTools startup or non-hardware actions. The
+interface shows the exact paths and target before a default-No confirmation,
+then guides the operator to connect and unlock the device. Device detection and
+the public-key export use bounded commands and the shared progress display.
+Every command and failure is logged without private material. Every node
+implementation can install the pinned `cardano-hw-cli` `1.19.1` dependency
+with Guild Deploy `-s w`.
+Address and credential generation also requires the deployment's configured
+Cardano CLI, but neither executable needs a running node for this action.
+
+Both keys are requested in one hardware CLI operation. CNTools validates each
+hardware signing-file type, exact requested path, and extended public key, then
+proves that its first public-key component matches the corresponding Cardano
+verification key. Addresses and credential hashes are generated through the
+existing focused libraries. The exact ten-file wallet shape, owner-only modes,
+and absence of ordinary private signing keys are checked before atomic
+no-clobber publication. The action works in local, light, and offline modes
+because importing public material does not require a node or Koios.
+
 ## Wallet protection slice
 
 Wallet Encrypt and Decrypt keep the established GnuPG symmetric `.skey.gpg`
@@ -749,6 +799,61 @@ or denied permission produce a visible logged warning and retain the read-only
 baseline instead of aborting otherwise valid encryption. Decryption removes
 an existing immutable flag when needed even if the current setting is disabled.
 
+## Shared transaction foundation and Sign/Submit slice
+
+Transaction work is split across five lazy libraries: `transaction.sh`,
+`transaction-build.sh`, `transaction-sign.sh`, `transaction-submit.sh`, and
+`transaction-ui.sh`. They are loaded only by actions that need them. The shared
+foundation owns the signer plan, guarded body construction, package validation,
+signing, submission, and the operator review flow. Future transaction-producing
+actions must use its plan → build → package APIs instead of assembling an
+unverified body beside the framework.
+
+The finalized signer plan deduplicates witnesses by distinct public key, not by
+wallet, label, role, or signing-file path. Its portable CNTools transaction
+package contains only public material: the transaction body, network and
+validity contract, public signer identities, native-script requirements,
+detached witnesses, and the completed signed envelope when available. Private
+keys and hardware signing files remain runtime sources. Package intent and
+summary fields provide context, while the Cardano CLI-decoded transaction shown
+immediately before confirmation is the authoritative review.
+
+Native-script plans record the selected `all`, `any`, or `atLeast` branch, its
+required signers, and compatible `before`/`after` validity bounds. Embedded
+scripts receive exact assurance only when the body has no reference inputs.
+Every transaction containing a reference input retains manual assurance because
+the referenced on-chain output cannot be proved from the portable body alone.
+A declared native reference script is bound to an exact
+`transaction-id#output-index`; the review displays that input together with the
+declared script, hash, purpose, and selected keys.
+
+Transaction Sign accepts a CNTools package, never an arbitrary unsigned body,
+because the latter has no verifiable signer plan. It can add CLI and hardware
+witnesses incrementally, including offline, and publishes another validated
+package until every distinct public-key witness is present. Hardware session
+groups are atomic: every still-missing signer and every planned change reference
+in a selected group is supplied in one hardware operation. Change HWS files are
+passed separately, create no witness, and are limited to standard CIP-1852
+payment roles `0`/`1` or stake role `2`. General signing sources accept supported
+non-Byron Cardano HWS types and paths; CNTools does not override
+`--derivation-type`, so `cardano-hw-cli` currently uses its Trezor-only default,
+`ICARUS_TREZOR`.
+
+Transaction Submit accepts either a complete, validated CNTools package or an
+external Cardano transaction envelope. It rejects incomplete packages and
+standalone transaction-body files. CNTools can prove package completeness. For
+an external envelope it authenticates supported Shelley VKey witnesses that
+are present, but explicitly marks completeness unverified and delegates final
+ledger validation to the chosen backend; external Byron/bootstrap witnesses
+are not supported. A ready local node is preferred; otherwise an enabled Koios
+backend is used. Submission is prohibited in offline mode. These contracts are
+tested against the pinned Cardano CLI `11.0.0.0` in the cnode, Dingo, and Amaru
+companion manifests, and hardware signing requires the exact tested
+`cardano-hw-cli` release `1.19.1`. Transaction package, signer-source,
+hardware-change, output, review, and submission selections are audit logged.
+CNTools validates the exact Cardano CLI version lazily when the first
+transaction operation needs it.
+
 ## Explicit non-goals
 
 The new implementation does not use:
@@ -759,7 +864,8 @@ The new implementation does not use:
 - versioned names, stable library IDs, or content hashes;
 - library manifests or dependency graphs;
 - generated menu catalogs or compiled registries;
-- immutable generations, receipts, signatures, or package schemas; or
+- immutable deployment generations, receipts, framework signatures, or a
+  general package/plugin schema; or
 - a context/result serialization protocol between the menu and actions.
 
 ## Historical Phase 1 acceptance

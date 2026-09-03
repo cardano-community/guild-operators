@@ -18,7 +18,7 @@ branch, implementation, network, target path, service name, node port, download
 timeouts, and selective flags. `deploy-cnode.sh` is an internal source-only
 profile; it has no editable user-variable section and must not be run directly.
 
-The common flags `p`, `d`, `f`, and `s` have the same meaning for every
+The common flags `p`, `d`, `f`, `s`, and `w` have the same meaning for every
 implementation:
 
 | Flag | Common action |
@@ -27,6 +27,7 @@ implementation:
 | `d` | Download and verify the selected implementation binaries |
 | `f` | Force replacement of cnode network files; topology, node, and db-sync configs are backed up |
 | `s` | Force helper-script replacement, including every script and common `env` user-variable section |
+| `w` | Install the pinned Cardano Hardware CLI and host device rules |
 
 cnode additionally supports:
 
@@ -37,7 +38,6 @@ cnode additionally supports:
 | `m` | Install Mithril signer and client |
 | `c` | Install CNCLI |
 | `o` | Install Ogmios |
-| `w` | Install Cardano Hardware CLI |
 | `x` | Install Cardano Signer |
 | `r` | Install openBlockPerf |
 
@@ -49,10 +49,12 @@ The cnode-only `CNODE_SKIP_DBSYNC_DOWNLOAD=Y` dispatcher setting lets controlled
 container builds omit the optional db-sync binary from `-s d`. The historical
 `SKIP_DBSYNC_DOWNLOAD` name is accepted temporarily during migration.
 
-The cnode-only `CNODE_SKIP_HARDWARE_WALLET_RULES=Y` setting lets controlled
+The common `GUILD_SKIP_HARDWARE_WALLET_RULES=Y` setting lets controlled
 container builds install Cardano Hardware CLI with `-s w` without attempting
 to install or reload udev rules inside the container. Hardware-device
-permissions must instead be configured on the container host.
+permissions must instead be configured on the container host. The former
+`CNODE_SKIP_HARDWARE_WALLET_RULES` name is accepted temporarily during the
+move to the common installer.
 
 ## Release metadata
 
@@ -74,10 +76,13 @@ released cnode software is grouped by how the deployment consumes it:
 | --- | --- | --- |
 | Primary entry | cardano-node, cardano-submit-api, bech32 archive | Concrete `version` and architecture-keyed `artifacts` |
 | `companions` | cardano-cli, cardano-address, cardano-db-sync | Concrete `version` and architecture-keyed `artifacts` |
-| `tools` | CNCLI, Cardano Hardware CLI, Ogmios, Cardano Signer, Mithril, Catalyst Toolbox, GHCup | Concrete artifacts or a `latest` GitHub selector |
+| `tools` | CNCLI, Ogmios, Cardano Signer, Mithril, Catalyst Toolbox, GHCup | Concrete artifacts or a `latest` GitHub selector |
 | `managedInstallers` | openBlockPerf package and installer | Latest or concrete package version; concrete installer |
-| `supportArtifacts` | Ledger and Trezor udev rules | Concrete URL and SHA-256 digest |
 | `build` | GHC, Cabal, libsodium, secp256k1, BLST | Toolchain version strings and immutable source commits |
+
+Cardano Hardware CLI and the Ledger/Trezor rules are node-independent CNTools
+dependencies and therefore live in the shared
+`files/node-implementations/common/release.json` manifest.
 
 ### Concrete and latest versions
 
@@ -125,10 +130,10 @@ The `minimumVersion` field may remain on a pinned tool. Pinned tools replace
 
 The currently tracked tools are:
 
-| Tool | Channel | Architectures | Audited minimum |
+| Tool | Channel | Architectures | Audited version/floor |
 | --- | --- | --- | --- |
 | CNCLI | Stable | x86_64 | 6.5.1 |
-| Cardano Hardware CLI | Any | x86_64, aarch64 | 1.17.0 |
+| Cardano Hardware CLI | Pinned | x86_64, aarch64 | 1.19.1 (exact) |
 | Ogmios | Any | x86_64, aarch64 | — |
 | Cardano Signer | Stable | x86_64, aarch64 | 1.24.0 |
 | Mithril | Stable | x86_64, aarch64 | — |

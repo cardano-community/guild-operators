@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# CNTools placeholder action. Functions only.
+# CNTools transaction-package signing action. Functions only.
 
 cntools_action_main() {
-  cntools_action_placeholder
+  cntools_transaction_action_sign
+}
+
+cntools_action_cleanup() {
+  cntools_transaction_cleanup
+  cntools_transaction_package_reset_loaded
 }

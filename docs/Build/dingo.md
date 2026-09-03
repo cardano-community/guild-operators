@@ -24,8 +24,9 @@ The supported selective-install flags are:
 | `d` | Resolve and verify the newest Dingo binary, and install Dingo's independently pinned cardano-cli companion |
 | `f` | Replace an existing Dingo configuration, retaining a backup |
 | `s` | Force helper-script replacement; this replaces common `env` user-variable settings |
+| `w` | Install the pinned Cardano Hardware CLI and host device rules |
 
-The cnode-specific flags `b`, `l`, `m`, `c`, `o`, `w`, `x`, and `r` are
+The cnode-specific flags `b`, `l`, `m`, `c`, `o`, `x`, and `r` are
 rejected instead of silently installing incompatible components. With no
 `-s` value, the profile refreshes scripts, common libraries, the release
 manifest, and missing configuration while preserving existing Dingo config.
@@ -271,8 +272,9 @@ The Dingo adapter exposes `cardano-cli-dingo` and
 a reviewed custom CLI instead, uncomment `CCLI` in `scripts/env`; an explicit
 value is never replaced by the adapter. The current menu actions remain
 placeholders. cnode-only integrations such as CNCLI block logs, Catalyst's
-pinned cnode companion policy, hardware-wallet deployment flags, and
-leader-log tooling are not implied by installing CNTools.
+pinned cnode companion policy, and leader-log tooling are not implied by
+installing CNTools. Hardware-wallet support is node-independent and can be
+installed with Guild Deploy `-s w`.
 
 Ogmios, db-sync, and standalone Mithril helper scripts remain outside this
 experimental profile. Dingo contains its own Mithril bootstrap client, which

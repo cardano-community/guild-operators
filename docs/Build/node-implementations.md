@@ -22,7 +22,9 @@ Alternate implementations require an explicit network on their initial
 deployment. A later run against an existing, valid `.deployment.json` may omit
 `-n`; the dispatcher restores and validates the recorded network. Alternate
 profiles are deliberately restricted to testnets and reject cnode-only
-selective-install flags. Dingo can select relay or block-producer mode; Amaru
+selective-install flags. The shared `w` flag installs the pinned
+`cardano-hw-cli` and host device rules for any implementation. Dingo can select
+relay or block-producer mode; Amaru
 remains relay-only. All three profiles install the CNTools 14 launcher and
 modular interface skeleton.
 
@@ -82,6 +84,12 @@ contract, derive their action state from `-s`, and contain only
 implementation-specific deployment logic. cnode's optional db-sync omission
 for controlled container builds is exposed as a clearly cnode-specific
 dispatcher setting rather than a hidden profile variable.
+Hardware-wallet deployment is common rather than node-specific. The `-s w`
+flow reads `files/node-implementations/common/release.json`, verifies the
+selected architecture archive and its reported version, installs
+`cardano-hw-cli` in `$HOME/.local/bin`, and applies the pinned Ledger and Trezor
+udev rules. Set `GUILD_SKIP_HARDWARE_WALLET_RULES=Y` only when the host manages
+device permissions itself, such as for a containerized deployment.
 
 The dispatcher also gives every implementation the same package-manager
 experience. `PACKAGE_MANAGER_OUTPUT=compact` is the default: successful
@@ -94,10 +102,10 @@ troubleshooting.
 
 When binary installation is selected with `-s d`, all implementations use
 `$HOME/.local/bin`. Node binary names are distinct (`cardano-node`, `dingo`,
-and `amaru`), so they can coexist. Dingo installs its standard Cardano CLI as
-`cardano-cli-dingo`, independently of cnode's `cardano-cli`. Amaru additionally
-installs the pinned `otelcol-contrib` executable used by its local metrics
-bridge. Every
+and `amaru`), so they can coexist. Dingo and Amaru install their standard
+Cardano CLI companions as `cardano-cli-dingo` and `cardano-cli-amaru`,
+independently of cnode's `cardano-cli`. Amaru also installs the pinned
+`otelcol-contrib` executable used by its local metrics bridge. Every
 implementation has reviewed release metadata under
 `files/node-implementations/<implementation>/release.json`. The profiles
 select Linux architecture artifacts from that metadata and verify SHA-256
@@ -105,8 +113,8 @@ digests before extraction. cnode uses reviewed, concrete node artifacts;
 Dingo and Amaru resolve their newest published non-draft GitHub release,
 including prereleases, and require the selected asset's GitHub-published
 digest. cardano-cli is represented as a separately owned companion entry in
-both the cnode and Dingo manifests because it is released independently. The
-two explicit versions may diverge without overwriting each other's binaries.
+the cnode, Dingo, and Amaru manifests because it is released independently.
+The explicit versions may diverge without overwriting each other's binaries.
 Amaru's OpenTelemetry Collector also remains independently pinned.
 
 Network templates follow the same implementation namespace:

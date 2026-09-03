@@ -67,7 +67,7 @@ RUN set -x \
       "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${GUILD_DEPLOY_BRANCH}/scripts/cnode-helper-scripts/guild-deploy.sh" \
     && chmod 0755 /guild-deploy.sh \
     && export CNODE_SKIP_DBSYNC_DOWNLOAD=Y \
-      CNODE_SKIP_HARDWARE_WALLET_RULES=Y \
+      GUILD_SKIP_HARDWARE_WALLET_RULES=Y \
       G_ACCOUNT="${G_ACCOUNT}" \
     && /guild-deploy.sh \
       -i "${IMAGE_NODE_IMPLEMENTATION}" \

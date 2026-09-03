@@ -125,8 +125,10 @@ The current common User Variables section is:
 
 Leave `CCLI` commented to use the selected adapter's default. cnode resolves
 `cardano-cli`; Dingo selects the independently installed
-`$HOME/.local/bin/cardano-cli-dingo`. Uncommenting `CCLI` is an explicit
-operator override and is preserved by both adapters.
+`$HOME/.local/bin/cardano-cli-dingo`; and Amaru selects
+`$HOME/.local/bin/cardano-cli-amaru` for key and transaction operations that do
+not require a node socket. Uncommenting `CCLI` is an explicit operator override
+and is preserved by the adapters.
 
 The longer wallet, pool, and asset filename-convention list formerly shown on
 this page is still initialized by the cnode-compatible runtime, but is no

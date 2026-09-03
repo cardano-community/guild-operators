@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Transactional creation of a standard cardano-cli payment-and-stake wallet.
+# Transactional publication shared by standard CNTools wallet types.
 # Loaded after wallet.sh, wallet-material.sh, wallet-key.sh,
 # wallet-address.sh, and wallet-id.sh.
 # shellcheck disable=SC2034
@@ -144,7 +144,7 @@ cntools_wallet_create_environment_ready() {
      -f "${CNTOOLS_CLI}" &&
      -x "${CNTOOLS_CLI}" ]] || {
     cntools_wallet_create_set_error \
-      "Cardano CLI is required to create a CLI wallet but is not available."
+      "Cardano CLI is required to create or import this wallet but is not available."
     return 1
   }
   cntools_wallet_address_network_arguments || {

@@ -20,6 +20,85 @@ cntools_log_path_components_safe() {
   done
 }
 
+cntools_log_mode_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_path="${2:-}"
+  local _cntools_mode=""
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  if _cntools_mode="$(stat -c '%a' -- "${_cntools_path}" 2>/dev/null)"; then
+    :
+  elif _cntools_mode="$(stat -f '%Lp' "${_cntools_path}" 2>/dev/null)"; then
+    :
+  else
+    return 1
+  fi
+  [[ "${_cntools_mode}" =~ ^[0-7]{3,4}$ ]] || return 1
+  _cntools_output_ref="${_cntools_mode}"
+}
+
+cntools_log_uid_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_path="${2:-}"
+  local _cntools_uid=""
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  if _cntools_uid="$(stat -c '%u' -- "${_cntools_path}" 2>/dev/null)"; then
+    :
+  elif _cntools_uid="$(stat -f '%u' "${_cntools_path}" 2>/dev/null)"; then
+    :
+  else
+    return 1
+  fi
+  [[ "${_cntools_uid}" =~ ^[0-9]+$ ]] || return 1
+  _cntools_output_ref="${_cntools_uid}"
+}
+
+cntools_log_directory_ancestry_safe() {
+  local directory="${1:-}"
+  local current="/"
+  local component=""
+  local mode=""
+  local uid=""
+  local permissions=0
+  local -a components=()
+
+  cntools_log_path_components_safe "${directory}" || return 1
+  IFS='/' read -r -a components <<< "${directory}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" ]] || continue
+    current="${current%/}/${component}"
+    [[ -d "${current}" && ! -L "${current}" ]] || return 1
+    cntools_log_uid_into uid "${current}" || return 1
+    [[ "${uid}" == "${EUID}" || "${uid}" == "0" ]] || return 1
+    cntools_log_mode_into mode "${current}" || return 1
+    permissions=$((8#${mode}))
+    if (( (permissions & 0022) != 0 &&
+          (permissions & 01000) == 0 )); then
+      return 1
+    fi
+  done
+}
+
+cntools_log_private_directory_safe() {
+  local directory="${1:-}"
+  local mode=""
+  local permissions=0
+
+  [[ -n "${directory}" && "${directory}" = /* &&
+     -d "${directory}" && ! -L "${directory}" &&
+     -O "${directory}" && -w "${directory}" &&
+     -x "${directory}" ]] || return 1
+  cntools_log_directory_ancestry_safe "${directory}" || return 1
+  cntools_log_mode_into mode "${directory}" || return 1
+  permissions=$((8#${mode}))
+  (( (permissions & 0022) == 0 ))
+}
+
 cntools_log_init() {
   local log_file="${CNTOOLS_LOG:-}"
   local log_parent=""
@@ -133,12 +212,8 @@ cntools_http_secret_file_create() {
   [[ -n "${_cntools_token}" ]] || return 2
   export -n CNTOOLS_KOIOS_TOKEN KOIOS_API_TOKEN 2>/dev/null || return 1
   unset KOIOS_API_TOKEN 2>/dev/null || return 1
-  [[ -n "${_cntools_temporary_directory}" &&
-     "${_cntools_temporary_directory}" = /* &&
-     -d "${_cntools_temporary_directory}" &&
-     ! -L "${_cntools_temporary_directory}" &&
-     -O "${_cntools_temporary_directory}" &&
-     -w "${_cntools_temporary_directory}" ]] || return 1
+  cntools_log_private_directory_safe \
+    "${_cntools_temporary_directory}" || return 1
 
   _cntools_previous_umask="$(umask)"
   umask 077

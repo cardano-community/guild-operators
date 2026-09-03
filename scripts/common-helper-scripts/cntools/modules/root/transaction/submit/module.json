@@ -1,7 +1,7 @@
 {
   "kind": "action",
   "label": "Submit",
-  "description": "Submit a signed transaction",
+  "description": "Review and submit a transaction artifact",
   "shortcut": "t",
   "order": 20,
   "modes": [
@@ -9,6 +9,8 @@
     "light"
   ],
   "libs": [
-    "placeholder.sh"
+    "transaction.sh",
+    "transaction-submit.sh",
+    "transaction-ui.sh"
   ]
 }

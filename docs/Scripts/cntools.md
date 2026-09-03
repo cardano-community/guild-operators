@@ -6,14 +6,14 @@ but replaces the former monolithic implementation with a modular framework and
 a Charm Gum interface.
 
 !!! warning "Version 14 implementation status"
-    Wallet New → CLI, New → Mnemonic, Import → Mnemonic, List, Show, Encrypt,
-    and Decrypt are functional in version 14.0.0. List and Show may cache
-    missing public wallet artifacts; wallet creation and import publish keys
-    only after explicit confirmation and complete validation. Encrypt and
-    Decrypt are local file operations and never contact a node or API. None of
-    these actions submit transactions. Advanced **Theme** is also functional;
-    other wallet actions and all pool, transaction, governance, backup, block,
-    and operational advanced actions remain placeholders.
+    Wallet New → CLI, New → Mnemonic, Import → Mnemonic, Import → HW
+    Wallet, List, Show, Remove, Encrypt, and Decrypt are functional in version
+    14.0.0. Transaction Sign and Submit are also functional. List and Show may
+    cache missing public wallet artifacts; wallet creation and import publish
+    keys only after explicit confirmation and complete validation. Advanced
+    **Theme** is also functional; remaining wallet and transaction actions and
+    all pool, governance, backup, block, and operational advanced actions remain
+    placeholders.
 
 ## Installation and migration
 
@@ -91,9 +91,9 @@ cleanly on narrower terminals.
 CNTools validates all modular menu metadata in one multi-file JSON pass at
 startup and keeps the resulting catalog in memory. Gum provides filtering and
 keyboard navigation, while action code and its focused libraries are checked
-and loaded only when selected. Functional Wallet actions load their focused
-libraries on demand; remaining operational actions display a not-implemented
-notice.
+and loaded only when selected. Functional Wallet and Transaction actions load
+their focused libraries on demand; remaining operational actions display a
+not-implemented notice.
 
 Start CNTools with `-a` to open **Advanced → Theme**. Theme colors are defined
 centrally by semantic purpose so headers, numbers, identifiers, and statuses
@@ -250,6 +250,70 @@ unavailable during encryption, CNTools logs and displays a warning while
 retaining the read-only protection. Decryption detects and removes an existing
 immutable flag even when the current setting is disabled. Passphrases and key
 contents are never included in command arguments or logs.
+
+## Transaction signing and submission
+
+CNTools transaction packages are portable, public-only signing envelopes. They
+carry the transaction body, network and validity contract, public signer plan,
+native-script requirements, collected witnesses, and the signed transaction
+when complete. They do not contain private signing keys or hardware signing
+files. Required witnesses are deduplicated by distinct public key, even when a
+key appears under several wallet labels or roles. Future transaction-producing
+actions use the same plan → build → package APIs so Sign can verify what was
+planned; **Transaction → Sign** does not accept an arbitrary unsigned body.
+
+Sign first shows package context and then an authoritative Cardano CLI-decoded
+review of the transaction body. It can add CLI and hardware witnesses over
+multiple runs, including in offline mode, and writes a new validated package
+for transfer to another signing system. Every collected or imported witness is
+cryptographically verified against the transaction-body ID before CNTools
+accepts the package. Witness-bearing operations require OpenSSL 3 or newer and
+`xxd`; packages without witnesses do not load either prerequisite.
+Native-script plans include the selected branch and validity bounds. Embedded
+scripts can be checked exactly when the body has no reference inputs. Every
+transaction containing a reference input requires clearly displayed manual
+assurance because the referenced on-chain output cannot be proved from the
+portable body alone. Declared native reference scripts are also bound to an
+exact `transaction-id#output-index`; before confirmation, the review shows the
+reference input, declared script and hash, purpose, and selected signer keys.
+
+Hardware groups are completed atomically in one device session: every remaining
+group signer and every planned group change reference must be selected together.
+Change HWS files are supplied separately, do not add witnesses, and are limited
+to standard CIP-1852 payment roles `0`/`1` and stake role `2`. General signing
+supports non-Byron Cardano HWS sources. CNTools does not set
+`--derivation-type`; its current `cardano-hw-cli` default is `ICARUS_TREZOR`,
+which applies only to Trezor devices.
+
+**Transaction → Submit** accepts either a complete validated CNTools package
+or an external Cardano transaction envelope and presents the decoded
+transaction as the authoritative final review. Package completeness is proven
+from its signer plan. For an external envelope, CNTools authenticates supported
+Shelley VKey witnesses that are present but cannot infer every required
+witness; the screen marks completeness unverified and the chosen backend
+performs final ledger validation. External Byron/bootstrap witness sets are not
+supported. Submission prefers an available local node and otherwise falls back
+to configured Koios access; Koios submission also requires the Guild Deploy
+prerequisite `xxd`. Guild Deploy installs both `xxd`
+and OpenSSL as runtime prerequisites; OpenSSL older than 3 cannot perform the
+required Ed25519 witness verification. Deployment therefore verifies that the
+preferred `openssl` executable, or the fallback `openssl3`, reports major
+version 3 or newer. On Rocky/RHEL 8 the cnode prerequisite flow uses the EPEL
+`openssl3` compatibility package because the system `openssl` remains on
+version 1.1.1. Dingo and Amaru accept an existing `openssl3`; operators using
+those experimental profiles on Rocky/RHEL 8 must enable EPEL and install that
+package first. Incomplete packages, standalone transaction-body files, and all
+offline submission attempts are rejected. Transaction
+support is contracted to Cardano CLI `11.0.0.0`; Amaru deployments receive it
+as the isolated `cardano-cli-amaru` companion while retaining Koios for query
+and submission because Amaru has no node-to-client socket. Hardware signing
+requires the exact tested `cardano-hw-cli` release `1.19.1`. Every node
+implementation can install its reviewed x86_64 or aarch64 artifact with Guild
+Deploy `-s w`. Package, signer-source,
+hardware-change, output, review, and submission selections are recorded in the
+normal CNTools audit log without recording private key content. CNTools checks
+the exact Cardano CLI version lazily when the first transaction operation needs
+it.
 
 The Update menu can check again, show changelog entries newer than the running
 version, or invoke Guild Deploy. Updates replace the complete managed CNTools

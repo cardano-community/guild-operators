@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scope": "guild-tools",
+  "tools": {
+    "cardano-hw-cli": {
+      "version": "1.19.1",
+      "artifacts": {
+        "linux-x86_64": {
+          "url": "https://github.com/vacuumlabs/cardano-hw-cli/releases/download/v1.19.1/cardano-hw-cli-1.19.1_linux-x64.tar.gz",
+          "sha256": "089349ebcfe2a465e301faaf077fa094f6db859e92aab56f256f325295b76474"
+        },
+        "linux-aarch64": {
+          "url": "https://github.com/vacuumlabs/cardano-hw-cli/releases/download/v1.19.1/cardano-hw-cli-1.19.1_linux-arm64.tar.gz",
+          "sha256": "b980200f7c96c2c950ea6f0a79ed81280afd1c037ee3d71c4b8855a4ffad686b"
+        }
+      }
+    }
+  },
+  "supportArtifacts": {
+    "hardwareWalletRules": {
+      "ledger": {
+        "url": "https://raw.githubusercontent.com/LedgerHQ/udev-rules/6d9b02572ce3ba3cddcbabdb6f625a8cf333e592/add_udev_rules.sh",
+        "sha256": "d8c241028d4078ce21ed0734d3ae692e79036317effd876c26fdee74f1e5a97e"
+      },
+      "trezor": {
+        "url": "https://data.trezor.io/udev/51-trezor.rules",
+        "sha256": "f3b39b4537da6260a7b63af07710aedfab1fe87d8eeff0975d176b9b908b9d6e"
+      }
+    }
+  }
+}

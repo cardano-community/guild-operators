@@ -2,6 +2,9 @@
 # Source-only Amaru deployment profile for the common guild-deploy dispatcher.
 # shellcheck disable=SC2034,SC2154
 
+AMARU_DEPLOY_OPENSSL_ERROR=""
+AMARU_DEPLOY_OPENSSL_BIN=""
+
 amaru_deploy_info() {
   if declare -F log_info >/dev/null 2>&1; then log_info "$1"; else printf 'INFO: %s\n' "$1"; fi
 }
@@ -77,26 +80,73 @@ amaru_deploy_validate_context() {
 amaru_deploy_parse_flags() {
   AMARU_DEPLOY_INSTALL_DEPS="N"
   AMARU_DEPLOY_INSTALL_BINARY="N"
+  AMARU_DEPLOY_INSTALL_HWCLI="N"
   AMARU_DEPLOY_FORCE_CONFIG="N"
   AMARU_DEPLOY_FORCE_SCRIPTS="N"
 
   local unsupported="${S_ARGS:-}"
-  unsupported="${unsupported//[pdfs]/}"
+  unsupported="${unsupported//[pdfsw]/}"
   [[ -z "${unsupported}" ]] || {
-    amaru_deploy_fail "Unsupported Amaru -s flag(s): '${unsupported}'. Allowed: p,d,f,s; cnode-only b,l,m,c,o,w,x,r are rejected."
+    amaru_deploy_fail "Unsupported Amaru -s flag(s): '${unsupported}'. Allowed: p,d,f,s,w; cnode-only b,l,m,c,o,x,r are rejected."
     return 1
   }
 
   [[ "${S_ARGS:-}" == *p* ]] && AMARU_DEPLOY_INSTALL_DEPS="Y"
   [[ "${S_ARGS:-}" == *d* ]] && AMARU_DEPLOY_INSTALL_BINARY="Y"
+  if [[ "${S_ARGS:-}" == *w* ]]; then
+    AMARU_DEPLOY_INSTALL_DEPS="Y"
+    AMARU_DEPLOY_INSTALL_HWCLI="Y"
+  fi
   [[ "${S_ARGS:-}" == *f* ]] && AMARU_DEPLOY_FORCE_CONFIG="Y"
   [[ "${S_ARGS:-}" == *s* ]] && AMARU_DEPLOY_FORCE_SCRIPTS="Y"
   return 0
 }
 
+amaru_deploy_validate_openssl3() {
+  local candidate=""
+  local openssl_path=""
+  local openssl_version=""
+  local openssl_major=""
+  local observed=""
+
+  AMARU_DEPLOY_OPENSSL_ERROR=""
+  AMARU_DEPLOY_OPENSSL_BIN=""
+  for candidate in openssl openssl3; do
+    openssl_path="$(type -P "${candidate}" 2>/dev/null || true)"
+    [[ "${openssl_path}" = /* && -x "${openssl_path}" &&
+       ! -d "${openssl_path}" ]] || continue
+    if ! openssl_version="$(LC_ALL=C "${openssl_path}" version 2>/dev/null)"; then
+      [[ -z "${observed}" ]] || observed+="; "
+      observed+="'${openssl_path}' could not report its version"
+      continue
+    fi
+    if [[ "${openssl_version}" =~ ^OpenSSL[[:space:]]+([0-9]+)\. ]]; then
+      openssl_major="${BASH_REMATCH[1]}"
+      if (( openssl_major >= 3 )); then
+        AMARU_DEPLOY_OPENSSL_BIN="${openssl_path}"
+        return 0
+      fi
+    fi
+    [[ -z "${observed}" ]] || observed+="; "
+    observed+="'${openssl_path}' reported '${openssl_version:-no version}'"
+  done
+
+  if [[ -n "${observed}" ]]; then
+    AMARU_DEPLOY_OPENSSL_ERROR="OpenSSL 3 or newer is required for CNTools transaction witness validation. Checked ${observed}. Install OpenSSL 3 so either 'openssl' or 'openssl3' resolves to it, then rerun guild-deploy.sh. On Rocky/RHEL 8, enable EPEL and install its 'openssl3' package."
+  else
+    AMARU_DEPLOY_OPENSSL_ERROR="OpenSSL 3 or newer is required for CNTools transaction witness validation. Neither 'openssl' nor 'openssl3' was found on PATH. Install OpenSSL 3 under either name, then rerun guild-deploy.sh. On Rocky/RHEL 8, enable EPEL and install its 'openssl3' package."
+  fi
+  return 1
+}
+
 amaru_deploy_install_dependencies() {
+  local -a hardware_packages
+
   amaru_deploy_progress "Installing Amaru runtime prerequisites"
   if command -v apt-get >/dev/null 2>&1; then
+    hardware_packages=()
+    [[ "${AMARU_DEPLOY_INSTALL_HWCLI:-N}" == "Y" ]] &&
+      hardware_packages=(libusb-1.0-0-dev libudev-dev udev)
     dispatcher_run_package_command "Amaru package metadata update" \
       amaru_deploy_privileged apt-get \
       -o Dpkg::Use-Pty=0 -o APT::Color=0 update || return 1
@@ -104,19 +154,25 @@ amaru_deploy_install_dependencies() {
       amaru_deploy_privileged env DEBIAN_FRONTEND=noninteractive apt-get \
       -o Dpkg::Use-Pty=0 -o APT::Color=0 install -y \
       bc ca-certificates coreutils curl diffutils findutils gawk git gnupg grep gzip iproute2 jq \
-      ncurses-bin procps sed tar || return 1
+      ncurses-bin openssl procps sed tar xxd "${hardware_packages[@]}" || return 1
   elif command -v dnf >/dev/null 2>&1; then
+    hardware_packages=()
+    [[ "${AMARU_DEPLOY_INSTALL_HWCLI:-N}" == "Y" ]] &&
+      hardware_packages=(libusbx udev)
     dispatcher_run_package_command "Amaru prerequisite package installation" \
       amaru_deploy_privileged dnf install -y \
       bc ca-certificates coreutils curl diffutils findutils gawk git gnupg2 grep gzip iproute jq \
-      ncurses procps-ng sed tar || return 1
+      ncurses openssl procps-ng sed tar vim-common "${hardware_packages[@]}" || return 1
   elif command -v yum >/dev/null 2>&1; then
+    hardware_packages=()
+    [[ "${AMARU_DEPLOY_INSTALL_HWCLI:-N}" == "Y" ]] &&
+      hardware_packages=(libusbx udev)
     dispatcher_run_package_command "Amaru prerequisite package installation" \
       amaru_deploy_privileged yum install -y \
       bc ca-certificates coreutils curl diffutils findutils gawk git gnupg2 grep gzip iproute jq \
-      ncurses procps-ng sed tar || return 1
+      ncurses openssl procps-ng sed tar vim-common "${hardware_packages[@]}" || return 1
   else
-    amaru_deploy_fail "Unsupported package manager; install bc, coreutils, curl, findutils, git, gpg, grep, gzip, iproute, jq, ncurses, procps, sed, and tar"
+    amaru_deploy_fail "Unsupported package manager; install bc, coreutils, curl, findutils, git, gpg, grep, gzip, iproute, jq, ncurses, OpenSSL 3 or newer, procps, sed, tar, and xxd"
     return 1
   fi
   amaru_deploy_ok "Amaru runtime prerequisites"
@@ -124,12 +180,19 @@ amaru_deploy_install_dependencies() {
 
 amaru_deploy_require_commands() {
   local command_name
-  for command_name in awk cmp cp curl find git grep head install jq mktemp mv sed sha256sum tar; do
+  for command_name in awk cmp cp curl find git grep head install jq mktemp mv sed sha256sum tar xxd; do
     command -v "${command_name}" >/dev/null 2>&1 || {
       amaru_deploy_fail "Required command '${command_name}' is missing; re-run with -s p"
       return 1
     }
   done
+  amaru_deploy_validate_openssl3 || {
+    amaru_deploy_fail "${AMARU_DEPLOY_OPENSSL_ERROR}"
+    return 1
+  }
+  [[ "${AMARU_DEPLOY_OPENSSL_BIN##*/}" != "openssl3" ]] ||
+    amaru_deploy_info \
+      "Using OpenSSL 3 compatibility executable: ${AMARU_DEPLOY_OPENSSL_BIN}"
 }
 
 amaru_deploy_fetch() {
@@ -366,9 +429,18 @@ amaru_deploy_validate_release_metadata() {
         (.url | https_url) and
         (.sha256 | type == "string" and test("\\A[0-9a-f]{64}\\z"));
       type == "object" and
-      keys == ["assets", "github", "implementation", "otelcol", "schemaVersion", "version"] and
+      keys == ["assets", "companions", "github", "implementation", "otelcol", "schemaVersion", "version"] and
       .schemaVersion == 1 and
       .implementation == $implementation and
+      (.companions | type == "object" and keys == ["cardano-cli"]) and
+      (.companions["cardano-cli"] | type == "object" and
+        keys == ["artifacts", "version"] and
+        (.version |
+          type == "string" and
+          test("\\A[0-9]+([.][0-9]+){2,3}\\z")) and
+        (.artifacts | type == "object" and
+          keys == ["linux-aarch64", "linux-x86_64"]) and
+        all(.artifacts[]; artifact)) and
       (.otelcol | type == "object" and
         keys == ["artifacts", "version"] and
         (.version |
@@ -476,12 +548,36 @@ amaru_deploy_resolve_binary() {
   AMARU_RESOLVED_PRERELEASE="${DISPATCHER_RELEASE_PRERELEASE}"
 }
 
+amaru_deploy_resolve_cardano_cli() {
+  local manifest="$1"
+  local architecture="$2"
+
+  jq -er --arg arch "${architecture}" '
+    .companions["cardano-cli"] as $cli |
+    [
+      $cli.version,
+      $cli.artifacts[$arch].url,
+      $cli.artifacts[$arch].sha256
+    ] | @tsv
+  ' "${manifest}"
+}
+
+amaru_deploy_verify_cardano_cli_version() {
+  local binary="$1"
+  local expected_version="$2"
+  local version_output
+
+  version_output="$("${binary}" version 2>/dev/null)" || return 1
+  grep -F "${expected_version}" <<< "${version_output}" >/dev/null
+}
+
 amaru_deploy_install_binary() (
   set -e
   amaru_deploy_require_commands
 
   local manifest="${NODE_HOME}/files/amaru-release.json"
   local architecture version url expected_sha
+  local cli_version cli_url cli_expected_sha
   local collector_version collector_url collector_sha
   if ! amaru_deploy_validate_release_metadata "${manifest}"; then
     amaru_deploy_fail "Invalid installed Amaru release manifest"
@@ -495,14 +591,19 @@ amaru_deploy_install_binary() (
   version="${AMARU_RESOLVED_VERSION}"
   url="${AMARU_RESOLVED_URL}"
   expected_sha="${AMARU_RESOLVED_SHA256}"
+  IFS=$'\t' read -r cli_version cli_url cli_expected_sha <<< "$(
+    amaru_deploy_resolve_cardano_cli "${manifest}" "${architecture}"
+  )"
   collector_version="$(jq -er '.otelcol.version' "${manifest}")"
   collector_url="$(jq -er --arg arch "${architecture}" '.otelcol.artifacts[$arch].url' "${manifest}")"
   collector_sha="$(jq -er --arg arch "${architecture}" '.otelcol.artifacts[$arch].sha256' "${manifest}")"
 
-  local temporary_dir archive binary collector_archive collector_binary
+  local temporary_dir archive binary cli_archive cli_binary cli_member
+  local collector_archive collector_binary archive_stamp
   temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/amaru-install.XXXXXX")"
   trap '[[ -z "${temporary_dir:-}" ]] || rm -rf -- "${temporary_dir}"' EXIT
   archive="${temporary_dir}/release.tar.gz"
+  cli_archive="${temporary_dir}/cardano-cli.tar.gz"
 
   amaru_deploy_progress "Downloading Amaru ${version}" "${architecture}"
   curl --fail --silent --show-error --location \
@@ -515,6 +616,17 @@ amaru_deploy_install_binary() (
     exit 1
   fi
 
+  amaru_deploy_progress "Downloading cardano-cli for Amaru" "${cli_version}"
+  curl --fail --silent --show-error --location \
+    --connect-timeout "${CURL_TIMEOUT:-20}" \
+    --max-time "${DOWNLOAD_TIMEOUT:-600}" \
+    "${cli_url}" --output "${cli_archive}"
+  if ! printf '%s  %s\n' "${cli_expected_sha}" "${cli_archive}" |
+    sha256sum --check --status; then
+    amaru_deploy_fail "cardano-cli ${cli_version} archive failed SHA-256 verification"
+    exit 1
+  fi
+
   mkdir "${temporary_dir}/extract"
   tar -xzf "${archive}" -C "${temporary_dir}/extract"
   binary="$(find "${temporary_dir}/extract" -type f -path '*/bin/amaru' -print -quit)"
@@ -524,15 +636,13 @@ amaru_deploy_install_binary() (
     amaru_deploy_fail "Verified Amaru archive does not contain bin/amaru"
     exit 1
   }
-
-  mkdir -p "${HOME}/.local/bin" "${HOME}/.local/bin/archive"
-  if [[ -f "${HOME}/.local/bin/amaru" ]]; then
-    cp -p -- "${HOME}/.local/bin/amaru" \
-      "${HOME}/.local/bin/archive/amaru.$(date -u +%Y%m%dT%H%M%SZ)"
-  fi
-  install -m 0755 "${binary}" "${HOME}/.local/bin/amaru"
-  "${HOME}/.local/bin/amaru" --version | grep -F "${version}" >/dev/null
-  amaru_deploy_ok "Installed verified Amaru" "${version}"
+  cli_member="cardano-cli-${architecture#linux-}-linux"
+  tar -xzf "${cli_archive}" -C "${temporary_dir}/extract" "${cli_member}"
+  cli_binary="${temporary_dir}/extract/${cli_member}"
+  [[ -f "${cli_binary}" && ! -L "${cli_binary}" ]] || {
+    amaru_deploy_fail "Verified cardano-cli archive does not contain ${cli_member}"
+    exit 1
+  }
 
   collector_archive="${temporary_dir}/otelcol-contrib.tar.gz"
   amaru_deploy_progress \
@@ -559,13 +669,44 @@ amaru_deploy_install_binary() (
       "Verified OpenTelemetry Collector archive does not contain otelcol-contrib"
     exit 1
   }
+
+  chmod 0755 "${binary}" "${cli_binary}" "${collector_binary}"
+  "${binary}" --version | grep -F "${version}" >/dev/null || {
+    amaru_deploy_fail "Staged Amaru binary does not report resolved version ${version}"
+    exit 1
+  }
+  amaru_deploy_verify_cardano_cli_version \
+    "${cli_binary}" "${cli_version}" || {
+    amaru_deploy_fail "Staged cardano-cli does not report manifest version ${cli_version}"
+    exit 1
+  }
+  "${collector_binary}" --version | grep -F "${collector_version}" >/dev/null || {
+    amaru_deploy_fail \
+      "Staged OpenTelemetry Collector does not report manifest version ${collector_version}"
+    exit 1
+  }
+
+  mkdir -p "${HOME}/.local/bin" "${HOME}/.local/bin/archive"
+  archive_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  if [[ -f "${HOME}/.local/bin/amaru" ]]; then
+    cp -p -- "${HOME}/.local/bin/amaru" \
+      "${HOME}/.local/bin/archive/amaru.${archive_stamp}"
+  fi
+  if [[ -f "${HOME}/.local/bin/cardano-cli-amaru" ]]; then
+    cp -p -- "${HOME}/.local/bin/cardano-cli-amaru" \
+      "${HOME}/.local/bin/archive/cardano-cli-amaru.${archive_stamp}"
+  fi
   if [[ -f "${HOME}/.local/bin/otelcol-contrib" ]]; then
     cp -p -- "${HOME}/.local/bin/otelcol-contrib" \
-      "${HOME}/.local/bin/archive/otelcol-contrib.$(date -u +%Y%m%dT%H%M%SZ)"
+      "${HOME}/.local/bin/archive/otelcol-contrib.${archive_stamp}"
   fi
+  install -m 0755 "${binary}" "${HOME}/.local/bin/amaru"
+  install -m 0755 "${cli_binary}" "${HOME}/.local/bin/cardano-cli-amaru"
   install -m 0755 "${collector_binary}" "${HOME}/.local/bin/otelcol-contrib"
-  "${HOME}/.local/bin/otelcol-contrib" --version |
-    grep -F "${collector_version}" >/dev/null
+  amaru_deploy_ok "Installed verified Amaru" "${version}"
+  amaru_deploy_ok \
+    "Installed Amaru cardano-cli companion" \
+    "${cli_version} as cardano-cli-amaru"
   amaru_deploy_ok \
     "Installed verified OpenTelemetry Collector" "${collector_version}"
 )
@@ -600,6 +741,13 @@ deploy_amaru_profile() {
   if [[ "${AMARU_DEPLOY_INSTALL_BINARY}" == "Y" ]]; then
     amaru_deploy_install_binary || return 1
   fi
+  if [[ "${AMARU_DEPLOY_INSTALL_HWCLI}" == "Y" ]]; then
+    declare -F dispatcher_install_cardano_hw_cli >/dev/null 2>&1 || {
+      amaru_deploy_fail "Common cardano-hw-cli installer is unavailable; refresh guild-deploy.sh"
+      return 1
+    }
+    dispatcher_install_cardano_hw_cli || return 1
+  fi
 
   if [[ ! -x "${HOME}/.local/bin/amaru" ]]; then
     amaru_deploy_warn "Amaru binary is not installed; re-run with -s d."
@@ -607,6 +755,10 @@ deploy_amaru_profile() {
   if [[ ! -x "${HOME}/.local/bin/otelcol-contrib" ]]; then
     amaru_deploy_warn \
       "OpenTelemetry Collector is not installed; re-run with -s d before using gLiveView."
+  fi
+  if [[ ! -x "${HOME}/.local/bin/cardano-cli-amaru" ]]; then
+    amaru_deploy_warn \
+      "Amaru cardano-cli companion is not installed; re-run with -s d before using CNTools transaction or wallet operations."
   fi
   amaru_deploy_show_next_steps
 }

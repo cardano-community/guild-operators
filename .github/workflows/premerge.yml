@@ -48,8 +48,30 @@ jobs:
       run: bash files/tests/cntools-wallet-new.sh
     - name: Test CNTools mnemonic wallets
       run: bash files/tests/cntools-wallet-mnemonic.sh
+    - name: Test CNTools hardware wallets
+      run: bash files/tests/cntools-wallet-hardware.sh
+    - name: Test CNTools wallet removal
+      run: bash files/tests/cntools-wallet-remove.sh
     - name: Test CNTools wallet protection
       run: bash files/tests/cntools-wallet-protection.sh
+    - name: Test CNTools transaction foundation
+      run: bash files/tests/cntools-transaction-foundation.sh
+    - name: Test CNTools transaction signing and submission
+      run: bash files/tests/cntools-transaction-sign-submit.sh
+    - name: Test CNTools transaction UI orchestration
+      run: bash files/tests/cntools-transaction-ui.sh
+    - name: Cache pinned CNTools transaction tools
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/cntools-pinned-cache
+        key: cntools-transaction-pinned-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('files/node-implementations/cnode/release.json', 'files/node-implementations/common/release.json') }}
+        restore-keys: |
+          cntools-transaction-pinned-${{ runner.os }}-${{ runner.arch }}-
+    - name: Test CNTools pinned transaction binaries
+      timeout-minutes: 10
+      env:
+        CNTOOLS_PINNED_TEST_CACHE: ${{ runner.temp }}/cntools-pinned-cache
+      run: bash files/tests/cntools-transaction-pinned.sh
     - name: Test alternate deployments
       run: bash files/tests/alternate-deployments.sh
     - name: Test deployment layout

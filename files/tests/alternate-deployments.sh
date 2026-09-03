@@ -96,6 +96,85 @@ assert_otelcol_yaml() {
   ' "${config_file}"
 }
 
+assert_openssl3_deployment_contract() (
+  local implementation="$1"
+  local profile=""
+  local validator=""
+  local gate_function=""
+  local error_variable=""
+  local resolved_variable=""
+  local test_root=""
+  local original_path="${PATH}"
+
+  case "${implementation}" in
+    cnode)
+      profile="${REPO_ROOT}/scripts/cnode-helper-scripts/deploy-cnode.sh"
+      validator="cnode_deploy_validate_openssl3"
+      gate_function="cnode_deploy_main_flow"
+      error_variable="CNODE_DEPLOY_OPENSSL_ERROR"
+      resolved_variable="CNODE_DEPLOY_OPENSSL_BIN"
+      ;;
+    dingo)
+      profile="${REPO_ROOT}/scripts/dingo-helper-scripts/deploy-dingo.sh"
+      validator="dingo_deploy_validate_openssl3"
+      gate_function="dingo_deploy_require_commands"
+      error_variable="DINGO_DEPLOY_OPENSSL_ERROR"
+      resolved_variable="DINGO_DEPLOY_OPENSSL_BIN"
+      ;;
+    amaru)
+      profile="${REPO_ROOT}/scripts/amaru-helper-scripts/deploy-amaru.sh"
+      validator="amaru_deploy_validate_openssl3"
+      gate_function="amaru_deploy_require_commands"
+      error_variable="AMARU_DEPLOY_OPENSSL_ERROR"
+      resolved_variable="AMARU_DEPLOY_OPENSSL_BIN"
+      ;;
+    *) fail "unknown OpenSSL deployment profile: ${implementation}" ;;
+  esac
+
+  test_root="$(mktemp -d "${TMPDIR:-/tmp}/guild-${implementation}-openssl.XXXXXX")"
+  trap 'rm -rf -- "${test_root}"' EXIT
+  # shellcheck source=/dev/null
+  . "${profile}"
+  declare -f "${gate_function}" | grep -Fq "${validator}" ||
+    fail "${implementation} does not invoke its OpenSSL 3 deployment gate"
+  if [[ "${implementation}" == "cnode" ]]; then
+    declare -f os_dependencies | grep -Fq \
+      'pkg_list="${pkg_list} openssl3"' ||
+      fail "cnode does not install the EPEL OpenSSL 3 compatibility package on EL8"
+  fi
+
+  write_fake_executable \
+    "${test_root}/bin/openssl" "OpenSSL 1.1.1w  11 Sep 2023"
+  write_fake_executable \
+    "${test_root}/bin/openssl3" "OpenSSL 1.1.1w  11 Sep 2023"
+  PATH="${test_root}/bin:${original_path}"
+  hash -r
+  if "${validator}"; then
+    fail "${implementation} accepted OpenSSL 1.1.1 as a transaction prerequisite"
+  fi
+  [[ "${!error_variable}" == *"OpenSSL 1.1.1w"* &&
+     "${!error_variable}" == *"Install OpenSSL 3"* ]] ||
+    fail "${implementation} did not provide an actionable old-OpenSSL diagnostic"
+
+  write_fake_executable \
+    "${test_root}/bin/openssl3" "OpenSSL 3.0.0 7 sep 2021"
+  hash -r
+  "${validator}" ||
+    fail "${implementation} rejected the OpenSSL 3 compatibility executable"
+  [[ "${!resolved_variable}" == "${test_root}/bin/openssl3" ]] ||
+    fail "${implementation} did not retain the resolved openssl3 path"
+  [[ -z "${!error_variable}" ]] ||
+    fail "${implementation} retained a stale OpenSSL prerequisite error"
+
+  write_fake_executable \
+    "${test_root}/bin/openssl" "OpenSSL 3.1.0 14 Mar 2023"
+  hash -r
+  "${validator}" ||
+    fail "${implementation} rejected the primary OpenSSL 3 executable"
+  [[ "${!resolved_variable}" == "${test_root}/bin/openssl" ]] ||
+    fail "${implementation} did not prefer the compatible openssl executable"
+)
+
 run_alternate_profile_test() (
   local implementation="$1"
   local network="$2"
@@ -272,6 +351,23 @@ run_alternate_profile_test() (
   assert_release_manifest_rejected \
     "a non-string rolling asset selector" \
     '.assets["linux-x86_64"] = {"pattern": "archive"}'
+  assert_release_manifest_rejected \
+    "a missing cardano-cli companion" 'del(.companions)'
+  assert_release_manifest_rejected \
+    "an unsafe cardano-cli version" \
+    '.companions["cardano-cli"].version = "../wrong-version"'
+  assert_release_manifest_rejected \
+    "one cardano-cli architecture missing" \
+    'del(.companions["cardano-cli"].artifacts["linux-aarch64"])'
+  assert_release_manifest_rejected \
+    "unexpected cardano-cli metadata" \
+    '.companions["cardano-cli"].artifacts["linux-x86_64"].filename = "cardano-cli"'
+  assert_release_manifest_rejected \
+    "an insecure cardano-cli URL" \
+    '.companions["cardano-cli"].artifacts["linux-x86_64"].url = "http://example.invalid/cardano-cli.tar.gz"'
+  assert_release_manifest_rejected \
+    "an invalid cardano-cli checksum" \
+    '.companions["cardano-cli"].artifacts["linux-x86_64"].sha256 = "not-a-sha256"'
   if [[ "${implementation}" == "amaru" ]]; then
     assert_release_manifest_rejected \
       "a missing OpenTelemetry Collector companion" 'del(.otelcol)'
@@ -290,24 +386,6 @@ run_alternate_profile_test() (
     assert_release_manifest_rejected \
       "an invalid OpenTelemetry Collector checksum" \
       '.otelcol.artifacts["linux-x86_64"].sha256 = "not-a-sha256"'
-  else
-    assert_release_manifest_rejected \
-      "a missing cardano-cli companion" 'del(.companions)'
-    assert_release_manifest_rejected \
-      "an unsafe cardano-cli version" \
-      '.companions["cardano-cli"].version = "../wrong-version"'
-    assert_release_manifest_rejected \
-      "one cardano-cli architecture missing" \
-      'del(.companions["cardano-cli"].artifacts["linux-aarch64"])'
-    assert_release_manifest_rejected \
-      "unexpected cardano-cli metadata" \
-      '.companions["cardano-cli"].artifacts["linux-x86_64"].filename = "cardano-cli"'
-    assert_release_manifest_rejected \
-      "an insecure cardano-cli URL" \
-      '.companions["cardano-cli"].artifacts["linux-x86_64"].url = "http://example.invalid/cardano-cli.tar.gz"'
-    assert_release_manifest_rejected \
-      "an invalid cardano-cli checksum" \
-      '.companions["cardano-cli"].artifacts["linux-x86_64"].sha256 = "not-a-sha256"'
   fi
 
   NETWORK="mainnet"
@@ -316,10 +394,25 @@ run_alternate_profile_test() (
   fi
   NETWORK="${network}"
 
-  S_ARGS="blmcowxr"
+  S_ARGS="blmcoxr"
   if "${parse_function}" >/dev/null 2>&1; then
     fail "${implementation} accepted cnode-only selective-install flags"
   fi
+  S_ARGS="w"
+  "${parse_function}" ||
+    fail "${implementation} rejected the common hardware-wallet flag"
+  case "${implementation}" in
+    dingo)
+      [[ "${DINGO_DEPLOY_INSTALL_DEPS}" == "Y" &&
+         "${DINGO_DEPLOY_INSTALL_HWCLI}" == "Y" ]] ||
+        fail "Dingo did not enable hardware-wallet dependencies and installation"
+      ;;
+    amaru)
+      [[ "${AMARU_DEPLOY_INSTALL_DEPS}" == "Y" &&
+         "${AMARU_DEPLOY_INSTALL_HWCLI}" == "Y" ]] ||
+        fail "Amaru did not enable hardware-wallet dependencies and installation"
+      ;;
+  esac
   S_ARGS=""
 
   missing_preflight_target="${NODE_PARENT}/${implementation}-missing-preflight"
@@ -557,9 +650,13 @@ run_alternate_profile_test() (
        .version == $version and
        .github == "pragma-org/amaru" and
        (.assets | keys == ["linux-aarch64", "linux-x86_64"]) and
+       (.companions | keys == ["cardano-cli"]) and
+       (.companions["cardano-cli"].version | type == "string" and length > 0) and
+       (.companions["cardano-cli"].artifacts |
+         keys == ["linux-aarch64", "linux-x86_64"]) and
        (.otelcol.version | type == "string" and length > 0) and
        (.otelcol.artifacts | keys == ["linux-aarch64", "linux-x86_64"]) and
-       (keys == ["assets", "github", "implementation", "otelcol", "schemaVersion", "version"])' \
+       (keys == ["assets", "companions", "github", "implementation", "otelcol", "schemaVersion", "version"])' \
       "${NODE_HOME}/files/${implementation}-release.json" >/dev/null
   else
     jq -e \
@@ -839,6 +936,11 @@ run_alternate_profile_test() (
     local archive_root="${test_root}/amaru-archive"
     local archive_file="${test_root}/amaru-test.tar.gz"
     local archive_sha
+    local cli_root="${test_root}/cardano-cli-archive"
+    local cli_file="${test_root}/cardano-cli-test.tar.gz"
+    local cli_sha
+    local cli_version
+    local cli_test_url="https://not-used.invalid/cardano-cli-amaru.tar.gz"
     local collector_root="${test_root}/otelcol-archive"
     local collector_file="${test_root}/otelcol-test.tar.gz"
     local collector_sha
@@ -848,7 +950,7 @@ run_alternate_profile_test() (
     local release_tmp="${test_root}/amaru-release.tmp.json"
     local binary_status
 
-    mkdir -p "${archive_root}/amaru-test/bin"
+    mkdir -p "${archive_root}/amaru-test/bin" "${cli_root}"
     printf '%s\n' \
       '#!/usr/bin/env bash' \
       "printf 'amaru %s\\n' '${resolver_version}'" \
@@ -856,6 +958,16 @@ run_alternate_profile_test() (
     chmod 0644 "${archive_root}/amaru-test/bin/amaru"
     tar -czf "${archive_file}" -C "${archive_root}" amaru-test
     archive_sha="$(sha256sum "${archive_file}" | awk '{print $1}')"
+    cli_version="$(jq -er '.companions["cardano-cli"].version' "${release_path}")"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'case "${1:-}" in' \
+      "  version) printf 'cardano-cli %s - linux-x86_64\\n' '${cli_version}' ;;" \
+      'esac' \
+      > "${cli_root}/cardano-cli-x86_64-linux"
+    chmod 0644 "${cli_root}/cardano-cli-x86_64-linux"
+    tar -czf "${cli_file}" -C "${cli_root}" cardano-cli-x86_64-linux
+    cli_sha="$(sha256sum "${cli_file}" | awk '{print $1}')"
     collector_version="$(jq -er '.otelcol.version' "${release_path}")"
     mkdir -p "${collector_root}"
     printf '%s\n' \
@@ -871,12 +983,18 @@ run_alternate_profile_test() (
     cp -- "${release_path}" "${release_backup}"
 
     jq \
+      --arg cli_url "${cli_test_url}" \
+      --arg cli_sha "${cli_sha}" \
       --arg collector_url "${collector_test_url}" \
       --arg collector_sha "${collector_sha}" \
-      '.otelcol.artifacts["linux-x86_64"] = {
-        url: $collector_url,
-        sha256: $collector_sha
-      }' \
+      '.companions["cardano-cli"].artifacts["linux-x86_64"] = {
+         url: $cli_url,
+         sha256: $cli_sha
+       } |
+       .otelcol.artifacts["linux-x86_64"] = {
+         url: $collector_url,
+         sha256: $collector_sha
+       }' \
       "${release_path}" > "${release_tmp}"
     command mv -f -- "${release_tmp}" "${release_path}"
 
@@ -900,6 +1018,7 @@ run_alternate_profile_test() (
       }]
     ' > "${resolver_fixture}"
     AMARU_TEST_ARCHIVE="${archive_file}"
+    AMARU_TEST_CLI_ARCHIVE="${cli_file}"
     AMARU_TEST_COLLECTOR_ARCHIVE="${collector_file}"
     curl() {
       local output=""
@@ -924,6 +1043,9 @@ run_alternate_profile_test() (
           ;;
         "${resolver_url}")
           cp -- "${AMARU_TEST_ARCHIVE}" "${output}"
+          ;;
+        "${cli_test_url}")
+          cp -- "${AMARU_TEST_CLI_ARCHIVE}" "${output}"
           ;;
         "${collector_test_url}")
           cp -- "${AMARU_TEST_COLLECTOR_ARCHIVE}" "${output}"
@@ -956,18 +1078,41 @@ run_alternate_profile_test() (
     [[ "${binary_status}" -ne 0 ]] ||
       fail "Amaru binary install ignored a checksum mismatch"
     assert_not_exists "${HOME}/.local/bin/amaru"
+    assert_not_exists "${HOME}/.local/bin/cardano-cli-amaru"
     assert_not_exists "${HOME}/.local/bin/otelcol-contrib"
 
     jq --arg digest "sha256:${archive_sha}" \
       '.[0].assets[0].digest = $digest' \
       "${resolver_fixture}" > "${resolver_fixture}.valid"
     command mv -f -- "${resolver_fixture}.valid" "${resolver_fixture}"
+
+    jq '.companions["cardano-cli"].artifacts["linux-x86_64"].sha256 = ("0" * 64)' \
+      "${release_path}" > "${release_tmp}"
+    command mv -f -- "${release_tmp}" "${release_path}"
+    set +e
+    amaru_deploy_install_binary >/dev/null 2>&1
+    binary_status=$?
+    set -e
+    [[ "${binary_status}" -ne 0 ]] ||
+      fail "Amaru binary install ignored a cardano-cli checksum mismatch"
+    assert_not_exists "${HOME}/.local/bin/amaru"
+    assert_not_exists "${HOME}/.local/bin/cardano-cli-amaru"
+    assert_not_exists "${HOME}/.local/bin/otelcol-contrib"
+    jq --arg sha "${cli_sha}" \
+      '.companions["cardano-cli"].artifacts["linux-x86_64"].sha256 = $sha' \
+      "${release_path}" > "${release_tmp}"
+    command mv -f -- "${release_tmp}" "${release_path}"
+
     amaru_deploy_install_binary >/dev/null
     [[ -x "${HOME}/.local/bin/amaru" ]] ||
       fail "Amaru installer did not make the mode-0644 archive member executable"
+    [[ -x "${HOME}/.local/bin/cardano-cli-amaru" ]] ||
+      fail "Amaru installer did not install its isolated cardano-cli companion"
     [[ -x "${HOME}/.local/bin/otelcol-contrib" ]] ||
       fail "Amaru installer did not install its OpenTelemetry Collector companion"
     "${HOME}/.local/bin/amaru" --version | grep -F "${resolver_version}" >/dev/null
+    "${HOME}/.local/bin/cardano-cli-amaru" version |
+      grep -F "${cli_version}" >/dev/null
     "${HOME}/.local/bin/otelcol-contrib" --version |
       grep -F "${collector_version}" >/dev/null
     command mv -f -- "${release_backup}" "${release_path}"
@@ -1157,6 +1302,34 @@ run_alternate_profile_test() (
       . "${NODE_HOME}/scripts/env" offline
       [[ "${CCLI}" == "${custom_cli}" ]] ||
         fail "Dingo env replaced an explicit CCLI override"
+    )
+  elif [[ "${implementation}" == "amaru" ]]; then
+    (
+      unset CCLI CNODE_HOME GUILD_ENV_ENTRY_DIR
+      USESYSVARS="N"
+      set +u
+      # CNTools intentionally loads only adapter definitions. The installed
+      # CLI is a transaction companion, not an Amaru node-to-client backend.
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" definitions
+      [[ "${CCLI}" == "${HOME}/.local/bin/cardano-cli-amaru" ]] ||
+        fail "Amaru env did not select its isolated cardano-cli by default"
+      if node_has local_query || node_has local_submit; then
+        fail "Amaru env incorrectly exposed local node CLI capabilities"
+      fi
+    )
+
+    local custom_cli="${test_root}/bin/custom-cardano-cli"
+    write_fake_executable "${custom_cli}" "cardano-cli 11.0.0.0"
+    (
+      unset CNODE_HOME GUILD_ENV_ENTRY_DIR
+      CCLI="${custom_cli}"
+      USESYSVARS="N"
+      set +u
+      # shellcheck source=/dev/null
+      . "${NODE_HOME}/scripts/env" definitions
+      [[ "${CCLI}" == "${custom_cli}" ]] ||
+        fail "Amaru env replaced an explicit CCLI override"
     )
   fi
 
@@ -1518,6 +1691,9 @@ run_alternate_profile_test() (
   fi
 )
 
+assert_openssl3_deployment_contract cnode
+assert_openssl3_deployment_contract dingo
+assert_openssl3_deployment_contract amaru
 run_alternate_profile_test dingo preview 3001
 run_alternate_profile_test amaru preprod 3000
 

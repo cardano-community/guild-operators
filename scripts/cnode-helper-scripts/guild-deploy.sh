@@ -17,10 +17,10 @@
 #DOWNLOAD_TIMEOUT=600                # Large binary download timeout in seconds
 #SUDO="Y"                            # Set to N in containers already running as root
 #PACKAGE_MANAGER_OUTPUT="compact"    # compact | verbose
+#GUILD_SKIP_HARDWARE_WALLET_RULES="N" # Skip host udev rules when using -s w
 #
 # cnode-specific variables
 #CNODE_SKIP_DBSYNC_DOWNLOAD="N"      # Skip cardano-db-sync when using cnode -s d
-#CNODE_SKIP_HARDWARE_WALLET_RULES="N" # Skip host udev rules when using cnode -s w
 ######################################
 # Do NOT modify code below           #
 ######################################
@@ -446,7 +446,8 @@ dispatcher_usage() {
 	        d  selected node implementation binaries
 	        f  force configuration overwrite
 	        s  force helper-script overwrite
-	      cnode also supports b,l,m,c,o,w,x,r; alternate profiles reject them.
+	        w  cardano-hw-cli and host device rules
+	      cnode also supports b,l,m,c,o,x,r; alternate profiles reject them.
 	      Unsupported flags fail explicitly.
 	-h    Show this help
 
@@ -657,6 +658,253 @@ dispatcher_preflight_json_payloads() {
     }
   done
 }
+
+dispatcher_common_tools_manifest() {
+  dispatcher_source_path "files/node-implementations/common/release.json"
+}
+
+dispatcher_validate_common_tools_manifest() {
+  local manifest="${1:-}"
+
+  [[ -f "${manifest}" && ! -L "${manifest}" && -s "${manifest}" ]] ||
+    return 1
+  jq -e '
+    def strict_https:
+      type == "string" and test("\\Ahttps://[^[:space:]]+\\z");
+    def concrete_version:
+      type == "string" and test("\\A[0-9]+([.][0-9]+){1,3}\\z");
+    def sha256:
+      type == "string" and test("\\A[0-9a-f]{64}\\z");
+    def artifact:
+      keys == ["sha256", "url"] and
+      (.url | strict_https) and
+      (.sha256 | sha256);
+    def artifact_map:
+      keys == ["linux-aarch64", "linux-x86_64"] and
+      all(.[]; artifact);
+    def hardware_wallet_rules:
+      keys == ["ledger", "trezor"] and
+      (.ledger | artifact) and
+      (.trezor | artifact) and
+      (.ledger.url |
+        test("\\Ahttps://raw\\.githubusercontent\\.com/LedgerHQ/udev-rules/[0-9a-f]{40}/add_udev_rules\\.sh\\z")) and
+      .trezor.url == "https://data.trezor.io/udev/51-trezor.rules";
+    keys == ["schemaVersion", "scope", "supportArtifacts", "tools"] and
+    .schemaVersion == 1 and
+    .scope == "guild-tools" and
+    (.tools | keys == ["cardano-hw-cli"]) and
+    (.tools["cardano-hw-cli"] |
+      keys == ["artifacts", "version"] and
+      (.version | concrete_version) and
+      (.artifacts | artifact_map)) and
+    (.supportArtifacts | keys == ["hardwareWalletRules"]) and
+    (.supportArtifacts.hardwareWalletRules | hardware_wallet_rules)
+  ' "${manifest}" >/dev/null
+}
+
+dispatcher_common_architecture() {
+  case "$(uname -m)" in
+    x86_64|amd64) printf 'linux-x86_64\n' ;;
+    aarch64|arm64) printf 'linux-aarch64\n' ;;
+    *) return 1 ;;
+  esac
+}
+
+dispatcher_privileged() {
+  if [[ -n "${sudo:-}" ]]; then
+    ${sudo} "$@"
+  elif [[ "${SUDO:-Y}" == "Y" ]]; then
+    sudo "$@"
+  else
+    "$@"
+  fi
+}
+
+dispatcher_install_hardware_wallet_rules() (
+  local manifest="${1:-}"
+  local release_data=""
+  local ledger_url="" ledger_sha="" trezor_url="" trezor_sha=""
+  local staging_dir="" ledger_file="" trezor_file="" actual_sha=""
+  local rule_owner="" changed="N"
+
+  if [[ "${GUILD_SKIP_HARDWARE_WALLET_RULES:-N}" == "Y" ]]; then
+    log_info "Skipped hardware-wallet udev rules; device permissions are managed by the host."
+    return 0
+  fi
+  if [[ -L "/etc/udev/rules.d/20-hw1.rules" ||
+        -L "/etc/udev/rules.d/51-trezor.rules" ]]; then
+    log_warn "Hardware-wallet udev rule targets must not be symbolic links."
+    return 1
+  fi
+  [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ||
+     ! -f "/etc/udev/rules.d/51-trezor.rules" ]] || return 0
+  dispatcher_validate_common_tools_manifest "${manifest}" || {
+    log_warn "Invalid common Guild tool metadata: ${manifest:-missing}"
+    return 1
+  }
+  command -v udevadm >/dev/null 2>&1 || {
+    log_warn "udevadm is required to install hardware-wallet device rules; re-run with -s p."
+    return 1
+  }
+  rule_owner="$(id -un 2>/dev/null)" || {
+    log_warn "Could not resolve the hardware-wallet rule owner."
+    return 1
+  }
+  [[ "${rule_owner}" =~ ^[A-Za-z0-9._-]+$ ]] || {
+    log_warn "The hardware-wallet rule owner is unsafe: ${rule_owner}"
+    return 1
+  }
+  release_data="$(
+    jq -er '
+      .supportArtifacts.hardwareWalletRules |
+      [.ledger.url, .ledger.sha256, .trezor.url, .trezor.sha256] | @tsv
+    ' "${manifest}"
+  )" || return 1
+  IFS=$'\t' read -r ledger_url ledger_sha trezor_url trezor_sha \
+    <<< "${release_data}"
+
+  staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/guild-hardware-rules.XXXXXX")" ||
+    return 1
+  trap 'rm -rf -- "${staging_dir}"' EXIT
+  ledger_file="${staging_dir}/add_udev_rules.sh"
+  trezor_file="${staging_dir}/51-trezor.rules"
+
+  if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
+    curl --fail --silent --show-error --location \
+      --connect-timeout "${CURL_TIMEOUT:-20}" \
+      --max-time "${DOWNLOAD_TIMEOUT:-600}" \
+      "${ledger_url}" --output "${ledger_file}" || return 1
+    actual_sha="$(sha256sum "${ledger_file}" | awk '{print $1}')" || return 1
+    [[ "${actual_sha}" == "${ledger_sha}" ]] || {
+      log_warn "Ledger udev installer failed SHA-256 verification."
+      return 1
+    }
+    bash -n "${ledger_file}" >/dev/null 2>&1 || {
+      log_warn "Ledger udev installer failed shell validation."
+      return 1
+    }
+    dispatcher_privileged bash "${ledger_file}" >/dev/null 2>&1 || return 1
+    dispatcher_privileged sed \
+      -e "s@TAG+=\"uaccess\"@OWNER=\"${rule_owner}\", TAG+=\"uaccess\"@g" \
+      -i /etc/udev/rules.d/20-hw1.rules || return 1
+    log_info "Installed checksum-verified Ledger udev rules."
+    changed="Y"
+  fi
+
+  if [[ ! -f "/etc/udev/rules.d/51-trezor.rules" ]]; then
+    curl --fail --silent --show-error --location \
+      --connect-timeout "${CURL_TIMEOUT:-20}" \
+      --max-time "${DOWNLOAD_TIMEOUT:-600}" \
+      "${trezor_url}" --output "${trezor_file}" || return 1
+    actual_sha="$(sha256sum "${trezor_file}" | awk '{print $1}')" || return 1
+    [[ "${actual_sha}" == "${trezor_sha}" ]] || {
+      log_warn "Trezor udev rules failed SHA-256 verification."
+      return 1
+    }
+    dispatcher_privileged install -m 0644 "${trezor_file}" \
+      /etc/udev/rules.d/51-trezor.rules || return 1
+    dispatcher_privileged sed \
+      -e "s@TAG+=\"uaccess\"@OWNER=\"${rule_owner}\", TAG+=\"uaccess\"@g" \
+      -i /etc/udev/rules.d/51-trezor.rules || return 1
+    log_info "Installed checksum-verified Trezor udev rules."
+    changed="Y"
+  fi
+
+  if [[ "${changed}" == "Y" ]]; then
+    dispatcher_privileged udevadm control --reload-rules >/dev/null 2>&1 || return 1
+    dispatcher_privileged udevadm trigger >/dev/null 2>&1 || return 1
+  fi
+)
+
+dispatcher_install_cardano_hw_cli() (
+  set -e
+  local manifest="" architecture="" release_data=""
+  local version="" url="" expected_sha="" actual_sha=""
+  local staging_dir="" archive="" extract_dir="" payload_root=""
+  local payload="" payload_name="" version_output="" installed_version=""
+  local install_stage=""
+  local -a payload_names
+
+  for required_command in \
+    awk bash curl find head id install jq mkdir mktemp mv rm rmdir sed \
+    sha256sum tar tr uname wc; do
+    command -v "${required_command}" >/dev/null 2>&1 ||
+      err_exit "Required command '${required_command}' is missing; re-run with -s p."
+  done
+  manifest="$(dispatcher_common_tools_manifest)" ||
+    err_exit "Common Guild tool metadata is missing from the source snapshot."
+  dispatcher_validate_common_tools_manifest "${manifest}" ||
+    err_exit "Invalid common Guild tool metadata: ${manifest}"
+  architecture="$(dispatcher_common_architecture)" ||
+    err_exit "Unsupported cardano-hw-cli architecture: $(uname -m)"
+  release_data="$(
+    jq -er --arg arch "${architecture}" '
+      .tools["cardano-hw-cli"] as $tool |
+      [$tool.version, $tool.artifacts[$arch].url,
+       $tool.artifacts[$arch].sha256] | @tsv
+    ' "${manifest}"
+  )" || err_exit "Could not resolve cardano-hw-cli for ${architecture}."
+  IFS=$'\t' read -r version url expected_sha <<< "${release_data}"
+
+  log_progress "Downloading cardano-hw-cli" "${version}"
+  staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/guild-cardano-hw-cli.XXXXXX")" ||
+    err_exit "Could not create a private cardano-hw-cli staging directory."
+  trap '[[ -z "${install_stage}" ]] || rm -rf -- "${install_stage}"; rm -rf -- "${staging_dir}"' EXIT
+  archive="${staging_dir}/cardano-hw-cli.tar.gz"
+  extract_dir="${staging_dir}/extract"
+  mkdir "${extract_dir}"
+  curl --fail --silent --show-error --location \
+    --connect-timeout "${CURL_TIMEOUT:-20}" \
+    --max-time "${DOWNLOAD_TIMEOUT:-600}" \
+    "${url}" --output "${archive}" ||
+    err_exit "Could not download cardano-hw-cli ${version}."
+  actual_sha="$(sha256sum "${archive}" | awk '{print $1}')" ||
+    err_exit "Could not calculate the cardano-hw-cli archive checksum."
+  [[ "${actual_sha}" == "${expected_sha}" ]] ||
+    err_exit "cardano-hw-cli ${version} failed SHA-256 verification."
+  tar -xzf "${archive}" -C "${extract_dir}" ||
+    err_exit "Could not extract cardano-hw-cli ${version}."
+  payload_root="${extract_dir}/cardano-hw-cli"
+  payload_names=(HID_hidraw.node HID.node cardano-hw-cli)
+  [[ -z "$(find "${extract_dir}" -type l -print -quit)" &&
+     -z "$(find "${payload_root}" -mindepth 1 -maxdepth 1 ! -type f -print -quit)" &&
+     "$(find "${payload_root}" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d '[:space:]')" == "3" ]] ||
+    err_exit "The verified cardano-hw-cli archive contains unsafe payload entries."
+  for payload_name in "${payload_names[@]}"; do
+    [[ -f "${payload_root}/${payload_name}" &&
+       ! -L "${payload_root}/${payload_name}" ]] ||
+      err_exit "The verified cardano-hw-cli archive has an unexpected layout."
+  done
+  version_output="$("${payload_root}/cardano-hw-cli" version 2>&1)" ||
+    err_exit "The staged cardano-hw-cli executable could not be started."
+  installed_version="$(
+    sed -nE 's/^Cardano HW CLI Tool version v?([^[:space:]]+).*$/\1/p' \
+      <<< "${version_output}" | head -n 1
+  )"
+  [[ "${installed_version}" == "${version}" ]] ||
+    err_exit "Staged cardano-hw-cli reported '${installed_version:-unknown}', expected ${version}."
+
+  mkdir -p "${HOME}/.local/bin" ||
+    err_exit "Could not prepare ${HOME}/.local/bin."
+  install_stage="$(mktemp -d "${HOME}/.local/bin/.cardano-hw-cli.install.XXXXXX")" ||
+    err_exit "Could not stage cardano-hw-cli in ${HOME}/.local/bin."
+  for payload_name in "${payload_names[@]}"; do
+    payload="${payload_root}/${payload_name}"
+    install -m 0755 "${payload}" "${install_stage}/${payload_name}" ||
+      err_exit "Could not stage ${payload_name}."
+  done
+  for payload_name in "${payload_names[@]}"; do
+    mv -f -- "${install_stage}/${payload_name}" \
+      "${HOME}/.local/bin/${payload_name}" ||
+      err_exit "Could not install ${payload_name}."
+  done
+  rmdir "${install_stage}"
+  install_stage=""
+
+  dispatcher_install_hardware_wallet_rules "${manifest}" ||
+    err_exit "Could not install hardware-wallet device rules."
+  log_ok "Deployed cardano-hw-cli" "${version}"
+)
 
 dispatcher_validate_cntools_tree() {
   local tree="${1:-}"
@@ -1938,12 +2186,17 @@ dispatcher_set_defaults() {
   esac
   unset SKIP_DBSYNC_DOWNLOAD
 
-  [[ -z "${CNODE_SKIP_HARDWARE_WALLET_RULES:-}" ]] &&
-    CNODE_SKIP_HARDWARE_WALLET_RULES="N"
-  case "${CNODE_SKIP_HARDWARE_WALLET_RULES}" in
+  if [[ -z "${GUILD_SKIP_HARDWARE_WALLET_RULES:-}" &&
+        -n "${CNODE_SKIP_HARDWARE_WALLET_RULES:-}" ]]; then
+    GUILD_SKIP_HARDWARE_WALLET_RULES="${CNODE_SKIP_HARDWARE_WALLET_RULES}"
+  fi
+  [[ -z "${GUILD_SKIP_HARDWARE_WALLET_RULES:-}" ]] &&
+    GUILD_SKIP_HARDWARE_WALLET_RULES="N"
+  case "${GUILD_SKIP_HARDWARE_WALLET_RULES}" in
     Y|N) ;;
-    *) err_exit "CNODE_SKIP_HARDWARE_WALLET_RULES must be Y or N." ;;
+    *) err_exit "GUILD_SKIP_HARDWARE_WALLET_RULES must be Y or N." ;;
   esac
+  unset CNODE_SKIP_HARDWARE_WALLET_RULES
 
   [[ -z "${NODE_PARENT:-}" ]] && NODE_PARENT="${CNODE_PATH:-/opt/cardano}"
   validate_deployment_path "${NODE_PARENT}" ||
@@ -2128,12 +2381,13 @@ dispatcher_set_defaults() {
   export G_ACCOUNT GUILD_DEPLOY_STRICT_REF
   export CURL_TIMEOUT DOWNLOAD_TIMEOUT SUDO sudo
   export PACKAGE_MANAGER_OUTPUT
+  export GUILD_SKIP_HARDWARE_WALLET_RULES
   export NODE_IMPLEMENTATION NODE_PARENT NODE_NAME NODE_HOME NODE_SERVICE
   export NODE_PORT NETWORK BRANCH REPO_RAW URL_RAW S_ARGS
   if [[ "${NODE_IMPLEMENTATION}" = "cnode" ]]; then
-    export CNODE_SKIP_DBSYNC_DOWNLOAD CNODE_SKIP_HARDWARE_WALLET_RULES
+    export CNODE_SKIP_DBSYNC_DOWNLOAD
   else
-    unset CNODE_SKIP_DBSYNC_DOWNLOAD CNODE_SKIP_HARDWARE_WALLET_RULES
+    unset CNODE_SKIP_DBSYNC_DOWNLOAD
   fi
 
   # Compatibility aliases used by the current cnode implementation profile.

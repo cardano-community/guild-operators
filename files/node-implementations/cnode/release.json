@@ -84,16 +84,6 @@
         "linux-x86_64": "^cncli-[^/]+-ubuntu22-x86_64-unknown-linux-musl\\.tar\\.gz$"
       }
     },
-    "cardano-hw-cli": {
-      "version": "latest",
-      "github": "vacuumlabs/cardano-hw-cli",
-      "channel": "any",
-      "minimumVersion": "1.17.0",
-      "assets": {
-        "linux-x86_64": "^cardano-hw-cli-[^/]+_linux-x64\\.tar\\.gz$",
-        "linux-aarch64": "^cardano-hw-cli-[^/]+_linux-arm64\\.tar\\.gz$"
-      }
-    },
     "ogmios": {
       "version": "latest",
       "github": "CardanoSolutions/ogmios",
@@ -127,18 +117,6 @@
       "installer": {
         "url": "https://raw.githubusercontent.com/cardano-foundation/openblockperf/a12820f5dbf591939b6e36eb2e1aca5383522189/blockperf-install.sh",
         "sha256": "28c649fee50483f10e3c6dd56861560d0f4e0a352434ade3ccab6a9e629603d9"
-      }
-    }
-  },
-  "supportArtifacts": {
-    "hardwareWalletRules": {
-      "ledger": {
-        "url": "https://raw.githubusercontent.com/LedgerHQ/udev-rules/6d9b02572ce3ba3cddcbabdb6f625a8cf333e592/add_udev_rules.sh",
-        "sha256": "d8c241028d4078ce21ed0734d3ae692e79036317effd876c26fdee74f1e5a97e"
-      },
-      "trezor": {
-        "url": "https://data.trezor.io/udev/51-trezor.rules",
-        "sha256": "f3b39b4537da6260a7b63af07710aedfab1fe87d8eeff0975d176b9b908b9d6e"
       }
     }
   },

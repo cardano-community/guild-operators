@@ -210,13 +210,26 @@ cntools_startup_default_koios_api() {
 
 cntools_startup_resolve_command() {
   local candidate="${1:-}"
+  local managed_candidate=""
   local parent=""
 
   [[ -n "${candidate}" &&
      "${candidate}" != *$'\n'* &&
      "${candidate}" != *$'\r'* ]] || return 1
   if [[ "${candidate}" != */* ]]; then
-    candidate="$(type -P "${candidate}" 2>/dev/null || true)"
+    # Guild Deploy installs user-scoped companion tools in ~/.local/bin. Use
+    # that managed copy even when the current shell has not reloaded PATH yet,
+    # then retain PATH lookup for system or explicitly user-installed tools.
+    if [[ "${HOME:-}" = /* ]]; then
+      managed_candidate="${HOME}/.local/bin/${candidate}"
+    fi
+    if [[ -n "${managed_candidate}" &&
+          -x "${managed_candidate}" &&
+          ! -d "${managed_candidate}" ]]; then
+      candidate="${managed_candidate}"
+    else
+      candidate="$(type -P "${candidate}" 2>/dev/null || true)"
+    fi
   elif [[ "${candidate}" != /* ]]; then
     parent="$(cd -- "$(dirname "${candidate}")" 2>/dev/null && pwd -P)" ||
       return 1
@@ -352,6 +365,13 @@ cntools_startup_normalize_session() {
   CNTOOLS_WALLET_STAKE_SCRIPT_CRED_FILENAME="${WALLET_STAKE_SCRIPT_CRED_FILENAME:-stake.script.cred}"
   CNTOOLS_WALLET_DERIVATION_PATH_FILENAME="${WALLET_DERIVATION_PATH_FILENAME:-derivation.path}"
   CNTOOLS_WALLET_MULTISIG_PREFIX="${WALLET_MULTISIG_PREFIX:-ms_}"
+  CNTOOLS_WALLET_DREP_VKEY_FILENAME="${WALLET_GOV_DREP_VK_FILENAME:-drep.vkey}"
+  CNTOOLS_WALLET_DREP_SKEY_FILENAME="${WALLET_GOV_DREP_SK_FILENAME:-drep.skey}"
+  CNTOOLS_WALLET_HW_DREP_SKEY_FILENAME="${WALLET_GOV_HW_DREP_SK_FILENAME:-drep.hwsfile}"
+  CNTOOLS_WALLET_DREP_ID_FILENAME="${WALLET_GOV_DREP_ID_FILENAME:-drep.id}"
+  CNTOOLS_WALLET_DREP_SCRIPT_FILENAME="${WALLET_GOV_DREP_SCRIPT_FILENAME:-drep.script}"
+  CNTOOLS_WALLET_DREP_REGISTER_CERT_FILENAME="${WALLET_GOV_DREP_REGISTER_CERT_FILENAME:-drep-reg.cert}"
+  CNTOOLS_WALLET_DREP_RETIRE_CERT_FILENAME="${WALLET_GOV_DREP_RETIRE_CERT_FILENAME:-drep-ret.cert}"
 
   [[ -n "${CNTOOLS_SERVICE}" &&
      "${CNTOOLS_SERVICE}" != *$'\n'* &&
@@ -440,7 +460,14 @@ cntools_startup_normalize_session() {
     "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}" \
     "${CNTOOLS_WALLET_STAKE_CRED_FILENAME}" \
     "${CNTOOLS_WALLET_STAKE_SCRIPT_CRED_FILENAME}" \
-    "${CNTOOLS_WALLET_DERIVATION_PATH_FILENAME}"; do
+    "${CNTOOLS_WALLET_DERIVATION_PATH_FILENAME}" \
+    "${CNTOOLS_WALLET_DREP_VKEY_FILENAME}" \
+    "${CNTOOLS_WALLET_DREP_SKEY_FILENAME}" \
+    "${CNTOOLS_WALLET_HW_DREP_SKEY_FILENAME}" \
+    "${CNTOOLS_WALLET_DREP_ID_FILENAME}" \
+    "${CNTOOLS_WALLET_DREP_SCRIPT_FILENAME}" \
+    "${CNTOOLS_WALLET_DREP_REGISTER_CERT_FILENAME}" \
+    "${CNTOOLS_WALLET_DREP_RETIRE_CERT_FILENAME}"; do
     cntools_startup_wallet_filename_valid "${filename_value}" || {
       cntools_startup_error \
         "CNTools received an unsafe wallet filename: ${filename_value:-unset}"
@@ -513,6 +540,11 @@ cntools_startup_normalize_session() {
   export CNTOOLS_WALLET_STAKE_CRED_FILENAME
   export CNTOOLS_WALLET_STAKE_SCRIPT_CRED_FILENAME
   export CNTOOLS_WALLET_DERIVATION_PATH_FILENAME CNTOOLS_WALLET_MULTISIG_PREFIX
+  export CNTOOLS_WALLET_DREP_VKEY_FILENAME CNTOOLS_WALLET_DREP_SKEY_FILENAME
+  export CNTOOLS_WALLET_HW_DREP_SKEY_FILENAME CNTOOLS_WALLET_DREP_ID_FILENAME
+  export CNTOOLS_WALLET_DREP_SCRIPT_FILENAME
+  export CNTOOLS_WALLET_DREP_REGISTER_CERT_FILENAME
+  export CNTOOLS_WALLET_DREP_RETIRE_CERT_FILENAME
   export CNTOOLS_MODE CNTOOLS_BACKEND
   export CNTOOLS_ADVANCED CNTOOLS_SESSION_ID
 }

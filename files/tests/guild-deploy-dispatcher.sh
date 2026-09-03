@@ -20,6 +20,8 @@ if dispatcher_usage | grep -Eq '(^|[[:space:]])-u([[:space:]]|$)'; then
 fi
 dispatcher_usage | grep -Eq '(^|[[:space:]])-g([[:space:]]|$)' ||
   fail "dispatcher usage does not advertise the repository account option"
+dispatcher_usage | grep -Eq '^[[:space:]]+w[[:space:]]+cardano-hw-cli' ||
+  fail "dispatcher usage does not advertise hardware wallets as a common option"
 
 missing_git_error=""
 if missing_git_error="$(
@@ -48,7 +50,7 @@ run_defaults_case() (
   unset PACKAGE_MANAGER_OUTPUT
   unset GUILD_DEPLOY_STRICT_REF
   unset CNODE_SKIP_DBSYNC_DOWNLOAD SKIP_DBSYNC_DOWNLOAD
-  unset CNODE_SKIP_HARDWARE_WALLET_RULES
+  unset GUILD_SKIP_HARDWARE_WALLET_RULES
   NODE_IMPLEMENTATION="$1"
   NODE_PARENT="/tmp/guild-dispatcher-test"
   [[ "${NODE_IMPLEMENTATION}" == "cnode" ]] || NETWORK="preprod"
@@ -62,11 +64,11 @@ run_defaults_case() (
   assert_eq "${DOWNLOAD_TIMEOUT}" "600"
   assert_eq "${PACKAGE_MANAGER_OUTPUT}" "compact"
   assert_eq "${GUILD_DEPLOY_STRICT_REF}" "N"
+  assert_eq "${GUILD_SKIP_HARDWARE_WALLET_RULES}" "N"
   case "${NODE_IMPLEMENTATION}" in
     cnode)
       assert_eq "${NODE_PORT}" "6000"
       assert_eq "${CNODE_SKIP_DBSYNC_DOWNLOAD}" "N"
-      assert_eq "${CNODE_SKIP_HARDWARE_WALLET_RULES}" "N"
       ;;
     dingo) assert_eq "${NODE_PORT}" "3001" ;;
     amaru) assert_eq "${NODE_PORT}" "3000" ;;
@@ -80,7 +82,7 @@ run_defaults_case amaru
 (
   unset CNODE_NAME CNODE_PATH NODE_NAME NETWORK BRANCH
   unset CNODE_SKIP_DBSYNC_DOWNLOAD
-  unset CNODE_SKIP_HARDWARE_WALLET_RULES
+  unset GUILD_SKIP_HARDWARE_WALLET_RULES
   NODE_IMPLEMENTATION="cnode"
   NODE_PARENT="/tmp/guild-dispatcher-test"
   NODE_PORT="03001"
@@ -95,7 +97,9 @@ run_defaults_case amaru
   assert_eq "${NODE_PORT}" "3001"
   assert_eq "${DOWNLOAD_TIMEOUT}" "600"
   assert_eq "${CNODE_SKIP_DBSYNC_DOWNLOAD}" "Y"
-  assert_eq "${CNODE_SKIP_HARDWARE_WALLET_RULES}" "Y"
+  assert_eq "${GUILD_SKIP_HARDWARE_WALLET_RULES}" "Y"
+  [[ -z "${CNODE_SKIP_HARDWARE_WALLET_RULES+x}" ]] ||
+    fail "legacy cnode hardware-rule input leaked into the selected profile"
   [[ -z "${SKIP_DBSYNC_DOWNLOAD+x}" ]] ||
     fail "legacy db-sync skip input leaked into the cnode profile"
 )
@@ -107,14 +111,14 @@ for invalid_input in port timeout dbsync hardware_rules package_output strict_re
     unset PACKAGE_MANAGER_OUTPUT
     unset GUILD_DEPLOY_STRICT_REF
     unset CNODE_SKIP_DBSYNC_DOWNLOAD SKIP_DBSYNC_DOWNLOAD
-    unset CNODE_SKIP_HARDWARE_WALLET_RULES
+    unset GUILD_SKIP_HARDWARE_WALLET_RULES
     NODE_IMPLEMENTATION="cnode"
     NODE_PARENT="/tmp/guild-dispatcher-test"
     case "${invalid_input}" in
       port) NODE_PORT=70000 ;;
       timeout) DOWNLOAD_TIMEOUT=0 ;;
       dbsync) CNODE_SKIP_DBSYNC_DOWNLOAD="yes" ;;
-      hardware_rules) CNODE_SKIP_HARDWARE_WALLET_RULES="yes" ;;
+      hardware_rules) GUILD_SKIP_HARDWARE_WALLET_RULES="yes" ;;
       package_output) PACKAGE_MANAGER_OUTPUT="quiet-ish" ;;
       strict_ref) GUILD_DEPLOY_STRICT_REF="yes" ;;
     esac
@@ -134,7 +138,7 @@ done
   NODE_PARENT="/tmp/guild-dispatcher-test"
   NETWORK="preprod"
   CNODE_SKIP_DBSYNC_DOWNLOAD="Y"
-  CNODE_SKIP_HARDWARE_WALLET_RULES="Y"
+  GUILD_SKIP_HARDWARE_WALLET_RULES="Y"
   NETWORK_EXPLICIT="Y"
   BRANCH_EXPLICIT="N"
   BRANCH_PRESET="N"
@@ -142,9 +146,40 @@ done
   dispatcher_set_defaults
   [[ -z "${CNODE_SKIP_DBSYNC_DOWNLOAD+x}" ]] ||
     fail "cnode-only db-sync input was exported to an alternate profile"
+  assert_eq "${GUILD_SKIP_HARDWARE_WALLET_RULES}" "Y"
   [[ -z "${CNODE_SKIP_HARDWARE_WALLET_RULES+x}" ]] ||
-    fail "cnode-only hardware-rule input was exported to an alternate profile"
+    fail "legacy cnode hardware-rule input was exported to an alternate profile"
 )
+
+COMMON_TOOLS_MANIFEST="${REPO_ROOT}/files/node-implementations/common/release.json"
+dispatcher_validate_common_tools_manifest "${COMMON_TOOLS_MANIFEST}" ||
+  fail "dispatcher rejected the common Guild tool manifest"
+for common_manifest_corruption in version checksum mutable_ledger extra_tool; do
+  invalid_manifest="${TMPDIR:-/tmp}/guild-common-tools-invalid.$$.json"
+  case "${common_manifest_corruption}" in
+    version)
+      jq '.tools["cardano-hw-cli"].version = "latest"' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+    checksum)
+      jq '.tools["cardano-hw-cli"].artifacts["linux-x86_64"].sha256 = "invalid"' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+    mutable_ledger)
+      jq '.supportArtifacts.hardwareWalletRules.ledger.url |= sub("[0-9a-f]{40}"; "main")' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+    extra_tool)
+      jq '.tools.unreviewed = .tools["cardano-hw-cli"]' \
+        "${COMMON_TOOLS_MANIFEST}" > "${invalid_manifest}"
+      ;;
+  esac
+  if dispatcher_validate_common_tools_manifest "${invalid_manifest}"; then
+    rm -f -- "${invalid_manifest}"
+    fail "dispatcher accepted corrupt common tool metadata: ${common_manifest_corruption}"
+  fi
+  rm -f -- "${invalid_manifest}"
+done
 
 (
   unset CNODE_NAME CNODE_PATH NETWORK BRANCH

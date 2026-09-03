@@ -66,8 +66,11 @@ resource-usage trade-offs from the established Haskell node. The current Guild
 profile bootstraps from Amaru snapshots, runs as a relay, and does not provide
 a cardano-node-compatible local socket. The profile enables Amaru's
 OpenTelemetry integration and deploys a loopback-only, minimal form of Amaru's
-reference Prometheus bridge for gLiveView. Choose Amaru when you specifically
-want to evaluate the Rust implementation on a supported testnet.
+reference Prometheus bridge for gLiveView. It also installs an isolated,
+pinned `cardano-cli-amaru` companion for CNTools key and transaction work;
+queries and submissions still use Koios because that CLI cannot provide Amaru
+with a local socket. Choose Amaru when you specifically want to evaluate the
+Rust implementation on a supported testnet.
 
 !!! tip "Which implementation should I choose?"
     - Choose **cnode** for mainnet, block production, an existing stake pool,

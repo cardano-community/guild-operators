@@ -10,6 +10,14 @@
     "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "wallet-create.sh",
+    "wallet-create-ui.sh",
+    "wallet-hardware.sh",
+    "wallet-hardware-ui.sh"
   ]
 }

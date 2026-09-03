@@ -258,6 +258,27 @@ while IFS=$'\t' read -r \
             fail "Wallet Import Mnemonic does not call its functional entrypoint"
         fi
         ;;
+      wallet/import/hardware)
+        jq -e '.libs == [
+          "wallet.sh",
+          "wallet-material.sh",
+          "wallet-key.sh",
+          "wallet-address.sh",
+          "wallet-id.sh",
+          "wallet-create.sh",
+          "wallet-create-ui.sh",
+          "wallet-hardware.sh",
+          "wallet-hardware-ui.sh"
+        ]' \
+          "${metadata}" >/dev/null ||
+          fail "HW Wallet has unexpected library declarations"
+        grep -F 'cntools_wallet_create_cleanup' "${action_file}" >/dev/null ||
+          fail "HW Wallet does not clean private staging directories"
+        grep -F 'cntools_wallet_cleanup_material' "${action_file}" >/dev/null ||
+          fail "HW Wallet does not clean artifact staging files"
+        grep -F 'cntools_wallet_action_import_hardware' "${action_file}" >/dev/null ||
+          fail "HW Wallet does not call its functional entrypoint"
+        ;;
       wallet/list)
         jq -e '.libs == [
           "number.sh",
@@ -292,6 +313,27 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_wallet_action_show' "${action_file}" >/dev/null ||
           fail "Wallet Show does not call its functional entrypoint"
         ;;
+      wallet/remove)
+        jq -e '.libs == [
+          "number.sh",
+          "wallet.sh",
+          "wallet-material.sh",
+          "wallet-key.sh",
+          "wallet-address.sh",
+          "wallet-id.sh",
+          "wallet-query.sh",
+          "wallet-remove.sh",
+          "wallet-remove-ui.sh"
+        ]' \
+          "${metadata}" >/dev/null ||
+          fail "Wallet Remove has unexpected library declarations"
+        grep -F 'cntools_wallet_query_cleanup' "${action_file}" >/dev/null ||
+          fail "Wallet Remove does not clean query temporary files"
+        grep -F 'cntools_wallet_cleanup_material' "${action_file}" >/dev/null ||
+          fail "Wallet Remove does not clean artifact staging files"
+        grep -F 'cntools_wallet_action_remove' "${action_file}" >/dev/null ||
+          fail "Wallet Remove does not call its functional entrypoint"
+        ;;
       wallet/encrypt|wallet/decrypt)
         jq -e '.libs == [
           "wallet.sh",
@@ -311,6 +353,32 @@ while IFS=$'\t' read -r \
           grep -F 'cntools_wallet_action_decrypt' "${action_file}" >/dev/null ||
             fail "Wallet Decrypt does not call its functional entrypoint"
         fi
+        ;;
+      transaction/sign)
+        jq -e '.libs == [
+          "transaction.sh",
+          "transaction-sign.sh",
+          "transaction-ui.sh"
+        ]' \
+          "${metadata}" >/dev/null ||
+          fail "Transaction Sign has unexpected library declarations"
+        grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null ||
+          fail "Transaction Sign does not clean transaction staging files"
+        grep -F 'cntools_transaction_action_sign' "${action_file}" >/dev/null ||
+          fail "Transaction Sign does not call its functional entrypoint"
+        ;;
+      transaction/submit)
+        jq -e '.libs == [
+          "transaction.sh",
+          "transaction-submit.sh",
+          "transaction-ui.sh"
+        ]' \
+          "${metadata}" >/dev/null ||
+          fail "Transaction Submit has unexpected library declarations"
+        grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null ||
+          fail "Transaction Submit does not clean transaction staging files"
+        grep -F 'cntools_transaction_action_submit' "${action_file}" >/dev/null ||
+          fail "Transaction Submit does not call its functional entrypoint"
         ;;
       advanced/theme)
         jq -e '((has("libs") | not) or .libs == [])' \
@@ -500,7 +568,7 @@ while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/list|wallet/show|wallet/encrypt|wallet/decrypt|advanced/theme) continue ;;
+    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/remove|wallet/encrypt|wallet/decrypt|transaction/sign|transaction/submit|advanced/theme) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then
@@ -532,32 +600,5 @@ while IFS=$'\t' read -r \
   assert_eq "${status}" "3" \
     "unsupported offline action status for ${module_id}"
 done < "${MENU_FIXTURE}"
-
-grep -F $'ACTION\twallet/remove\tselected' \
-  "${CNTOOLS_TEST_LOG_TRACE}" >/dev/null ||
-  fail "action selection was not logged with the action identity"
-
-# A non-interactive placeholder must not consume redirected input.
-CNTOOLS_MODE="local"
-CNTOOLS_UI_INTERACTIVE="N"
-exec 9<<< 'noninteractive-input'
-cntools_action_run "${MODULE_ROOT}/wallet/remove" <&9 >/dev/null ||
-  fail "non-interactive placeholder invocation failed"
-IFS= read -r remaining_input <&9 ||
-  fail "non-interactive placeholder consumed its input"
-exec 9<&-
-assert_eq "${remaining_input}" "noninteractive-input" \
-  "non-interactive placeholder input preservation"
-
-# An interactive placeholder invokes the Gum wait boundary exactly once. The
-# boundary is stubbed above because Gum input behavior has its own UI tests.
-waits_before="$(ui_trace_count WAIT)"
-CNTOOLS_UI_INTERACTIVE="Y"
-cntools_action_run "${MODULE_ROOT}/wallet/remove" </dev/null >/dev/null ||
-  fail "interactive placeholder invocation failed"
-waits_after="$(ui_trace_count WAIT)"
-assert_eq "$((waits_after - waits_before))" "1" \
-  "interactive placeholder wait boundary"
-CNTOOLS_UI_INTERACTIVE="N"
 
 printf 'CNTools menu skeleton tests passed\n'

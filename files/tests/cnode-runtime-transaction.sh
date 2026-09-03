@@ -288,15 +288,6 @@ run_release_manifest_validation_tests() (
     '.managedInstallers.openblockperf.installer.sha256 = "invalid"' \
     "invalid openBlockPerf installer checksum"
   assert_manifest_rejected \
-    '.supportArtifacts.hardwareWalletRules.ledger.snapshotId = "unexpected"' \
-    "unexpected Ledger udev metadata"
-  assert_manifest_rejected \
-    '.supportArtifacts.hardwareWalletRules.ledger.url |= sub("[0-9a-f]{40}"; "main")' \
-    "mutable Ledger udev URL"
-  assert_manifest_rejected \
-    '.supportArtifacts.hardwareWalletRules.trezor.sha256 = "invalid"' \
-    "invalid Trezor udev checksum"
-  assert_manifest_rejected \
     '.build.toolchain.ghc = {"version": "9.6.7"}' \
     "non-string GHC toolchain version"
   assert_manifest_rejected \
@@ -670,36 +661,60 @@ run_binary_staging_test() (
   done
 )
 
-run_hardware_wallet_rules_skip_test() (
-  local node_root="${TEST_ROOT}/hardware-wallet-rules-skip"
-  local message=""
+run_common_hardware_wallet_install_test() (
+  local node_root="${TEST_ROOT}/common-hardware-wallet"
+  local message_log="${node_root}/messages.log"
+  local common_manifest="${REPO_ROOT}/files/node-implementations/common/release.json"
+  local expected_sha=""
 
   HOME="${node_root}/home"
   TMPDIR="${node_root}/tmp"
   mkdir -p "${HOME}/.local/bin" "${TMPDIR}"
-  CNODE_SKIP_HARDWARE_WALLET_RULES="Y"
-  jq() { fail "hardware-rule skip attempted to read release metadata"; }
-  curl() { fail "hardware-rule skip attempted a download"; }
-  log_info() { message="$1"; }
+  GUILD_SKIP_HARDWARE_WALLET_RULES="Y"
+  expected_sha="$(
+    jq -er '.tools["cardano-hw-cli"].artifacts["linux-x86_64"].sha256' \
+      "${common_manifest}"
+  )"
+  dispatcher_common_tools_manifest() { printf '%s\n' "${common_manifest}"; }
+  dispatcher_common_architecture() { printf 'linux-x86_64\n'; }
+  curl() {
+    local output=""
+    while (( $# > 0 )); do
+      if [[ "$1" == "--output" ]]; then
+        output="$2"
+        break
+      fi
+      shift
+    done
+    [[ -n "${output}" ]] || fail "hardware CLI download omitted its output path"
+    printf 'fixture archive\n' > "${output}"
+  }
+  sha256sum() { printf '%s  %s\n' "${expected_sha}" "$1"; }
+  log_info() { printf '%s\n' "$1" >> "${message_log}"; }
   log_progress() { :; }
   log_ok() { :; }
-  cnode_deploy_load_release_metadata() { :; }
-  cnode_deploy_architecture() { printf 'linux-x86_64\n'; }
-  cnode_deploy_resolve_tool() { CNODE_RESOLVED_VERSION="fixture-hw-cli"; }
-  cnode_deploy_download_resolved_artifact() {
-    printf 'fixture archive\n' > "$1"
-  }
   tar() {
-    [[ "$1" == "zxf" && "$2" == "cardano-hw-cli.tar.gz" ]] ||
+    local extract_dir=""
+    [[ "$1" == "-xzf" && "$3" == "-C" ]] ||
       fail "unexpected hardware-wallet archive extraction: $*"
-    mkdir -p cardano-hw-cli
-    printf 'fixture hardware cli\n' > cardano-hw-cli/cardano-hw-cli
+    extract_dir="$4"
+    mkdir -p "${extract_dir}/cardano-hw-cli"
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'printf "Cardano HW CLI Tool version 1.19.1\n"' \
+      > "${extract_dir}/cardano-hw-cli/cardano-hw-cli"
+    printf 'fixture hidraw\n' > "${extract_dir}/cardano-hw-cli/HID_hidraw.node"
+    printf 'fixture hid\n' > "${extract_dir}/cardano-hw-cli/HID.node"
+    chmod 0755 "${extract_dir}/cardano-hw-cli/cardano-hw-cli"
   }
 
-  download_cardanohwcli
-  grep -q '^fixture hardware cli$' "${HOME}/.local/bin/cardano-hw-cli" ||
-    fail "hardware-rule skip also skipped the Cardano Hardware CLI binary"
-  [[ "${message}" == *"managed by the host"* ]] ||
+  dispatcher_install_cardano_hw_cli
+  grep -q '^#!/usr/bin/env bash$' "${HOME}/.local/bin/cardano-hw-cli" ||
+    fail "common hardware-wallet installer did not install Cardano Hardware CLI"
+  [[ -f "${HOME}/.local/bin/HID.node" &&
+     -f "${HOME}/.local/bin/HID_hidraw.node" ]] ||
+    fail "common hardware-wallet installer omitted runtime companions"
+  grep -q 'managed by the host' "${message_log}" ||
     fail "hardware-rule skip did not explain that device permissions are host-managed"
 )
 
@@ -1173,7 +1188,7 @@ run_release_metadata_test
 run_release_manifest_validation_tests
 run_release_resolver_tests
 run_binary_staging_test
-run_hardware_wallet_rules_skip_test
+run_common_hardware_wallet_install_test
 run_managed_installer_policy_test
 run_source_checkout_test
 run_transaction_tests

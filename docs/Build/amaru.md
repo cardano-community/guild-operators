@@ -20,19 +20,22 @@ The supported selective-install flags are:
 | Flag | Amaru action |
 | --- | --- |
 | `p` | Install runtime packages needed by the deployment and verifier |
-| `d` | Resolve and verify the newest Amaru binary, plus the pinned OpenTelemetry Collector |
+| `d` | Resolve and verify the newest Amaru binary plus its pinned CLI and metrics companions |
 | `f` | Replace an existing Amaru environment config, retaining a backup |
 | `s` | Force helper-script replacement; this replaces common `env` user-variable settings |
+| `w` | Install the pinned Cardano Hardware CLI and host device rules |
 
-The cnode-specific flags `b`, `l`, `m`, `c`, `o`, `w`, `x`, and `r` are
+The cnode-specific flags `b`, `l`, `m`, `c`, `o`, `x`, and `r` are
 rejected. With no `-s` value, the profile refreshes scripts, common libraries,
 the release manifest, and missing configuration while preserving an existing
 Amaru environment file. Select `-s f` when the managed environment template
 should replace that file; the current file is archived first.
 
-The executables are installed as `~/.local/bin/amaru` and
-`~/.local/bin/otelcol-contrib`. Existing binaries are copied to
-`~/.local/bin/archive/` first. Both `linux-x86_64` and `linux-aarch64` release
+The executables are installed as `~/.local/bin/amaru`,
+`~/.local/bin/cardano-cli-amaru`, and `~/.local/bin/otelcol-contrib`. Existing
+binaries are copied to `~/.local/bin/archive/` first. The isolated Cardano CLI
+lets CNTools build, inspect, and sign transactions without implying that Amaru
+has a node-to-client socket. Both `linux-x86_64` and `linux-aarch64` release
 artifacts are supported.
 
 ### Release contract
@@ -40,9 +43,9 @@ artifacts are supported.
 `files/node-implementations/amaru/release.json` is the single Amaru release
 contract. It intentionally contains only the schema and implementation
 identity, the official Amaru GitHub repository and Linux asset selectors, and
-the independently pinned collector version and artifacts. Amaru uses
-`version: "latest"`; its entry contains no release tag, URL, or checksum that
-needs updating for every upstream build.
+the independently pinned Cardano CLI and collector versions and artifacts.
+Amaru uses `version: "latest"`; the node entry contains no release tag, URL, or
+checksum that needs updating for every upstream build.
 
 When `-s d` is selected, deployment chooses the most recently published
 non-draft Amaru GitHub release, including prereleases. The architecture
@@ -51,9 +54,9 @@ GitHub-published SHA-256 digest. Repository, tag, filename, URL, size, and
 digest must agree. Resolution fails rather than selecting an older release if
 the API or newest release metadata cannot satisfy that contract.
 
-The Amaru and collector archives use fixed private staging filenames. Both are
-checksum-verified before extraction, and their expected binary layouts and
-reported versions are checked before deployment succeeds.
+The Amaru, Cardano CLI, and collector archives use fixed private staging
+filenames. All are checksum-verified before extraction, and their expected
+binary layouts and reported versions are checked before deployment succeeds.
 
 ## Layout and configuration
 

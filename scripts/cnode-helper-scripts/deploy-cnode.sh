@@ -44,6 +44,8 @@ ACTIVE_FLAG=""
 CNODE_DEPLOY_NO_SELECTIVE_FLAGS="N"
 CNODE_DEPLOY_ADDED_LOCAL_BIN_PATH="N"
 CNODE_DEPLOY_FRESH_TARGET="N"
+CNODE_DEPLOY_OPENSSL_ERROR=""
+CNODE_DEPLOY_OPENSSL_BIN=""
 
 log_header() {
   printf "\n%sGuild Operators deployment%s\n" "${STYLE_BOLD}" "${STYLE_RESET}"
@@ -214,8 +216,8 @@ cnode_deploy_init_context() {
     err_exit "cnode profile did not receive the Guild source snapshot helper."
   [[ "${CNODE_SKIP_DBSYNC_DOWNLOAD:-}" =~ ^[YN]$ ]] ||
     err_exit "CNODE_SKIP_DBSYNC_DOWNLOAD must be Y or N."
-  [[ "${CNODE_SKIP_HARDWARE_WALLET_RULES:-}" =~ ^[YN]$ ]] ||
-    err_exit "CNODE_SKIP_HARDWARE_WALLET_RULES must be Y or N."
+  [[ "${GUILD_SKIP_HARDWARE_WALLET_RULES:-}" =~ ^[YN]$ ]] ||
+    err_exit "GUILD_SKIP_HARDWARE_WALLET_RULES must be Y or N."
   sudo="${sudo:-}"
 
   dirs -c # clear dir stack
@@ -498,6 +500,43 @@ add_epel_repository() {
   log_ok "EPEL repository ready"
 }
 
+cnode_deploy_validate_openssl3() {
+  local candidate=""
+  local openssl_path=""
+  local openssl_version=""
+  local openssl_major=""
+  local observed=""
+
+  CNODE_DEPLOY_OPENSSL_ERROR=""
+  CNODE_DEPLOY_OPENSSL_BIN=""
+  for candidate in openssl openssl3; do
+    openssl_path="$(type -P "${candidate}" 2>/dev/null || true)"
+    [[ "${openssl_path}" = /* && -x "${openssl_path}" &&
+       ! -d "${openssl_path}" ]] || continue
+    if ! openssl_version="$(LC_ALL=C "${openssl_path}" version 2>/dev/null)"; then
+      [[ -z "${observed}" ]] || observed+="; "
+      observed+="'${openssl_path}' could not report its version"
+      continue
+    fi
+    if [[ "${openssl_version}" =~ ^OpenSSL[[:space:]]+([0-9]+)\. ]]; then
+      openssl_major="${BASH_REMATCH[1]}"
+      if (( openssl_major >= 3 )); then
+        CNODE_DEPLOY_OPENSSL_BIN="${openssl_path}"
+        return 0
+      fi
+    fi
+    [[ -z "${observed}" ]] || observed+="; "
+    observed+="'${openssl_path}' reported '${openssl_version:-no version}'"
+  done
+
+  if [[ -n "${observed}" ]]; then
+    CNODE_DEPLOY_OPENSSL_ERROR="OpenSSL 3 or newer is required for CNTools transaction witness validation. Checked ${observed}. Install OpenSSL 3 so either 'openssl' or 'openssl3' resolves to it, then rerun guild-deploy.sh."
+  else
+    CNODE_DEPLOY_OPENSSL_ERROR="OpenSSL 3 or newer is required for CNTools transaction witness validation. Neither 'openssl' nor 'openssl3' was found on PATH. Install OpenSSL 3 under either name, then rerun guild-deploy.sh."
+  fi
+  return 1
+}
+
 # OS Dependencies
 os_dependencies() {
   pkg_opts="-y"
@@ -506,7 +545,7 @@ os_dependencies() {
     #Debian/Ubuntu
     pkgmgrcmd="env NEEDRESTART_MODE=a env DEBIAN_FRONTEND=noninteractive env DEBIAN_PRIORITY=critical apt-get"
     pkg_opts="${pkg_opts} -o Dpkg::Use-Pty=0 -o APT::Color=0"
-    pkg_list="python3 pkg-config systemd tmux git jq libtool bc gnupg libtool iproute2 tcptraceroute sqlite3 bsdmainutils unzip procps xxd"
+    pkg_list="python3 pkg-config systemd tmux git jq libtool bc gnupg libtool iproute2 tcptraceroute sqlite3 bsdmainutils unzip procps openssl xxd"
     if [[ "${CNODE_DEPLOY_INSTALL_LIBSODIUM}" == "Y" ]] ||
        [[ "${CNODE_DEPLOY_BUILD_DEPS}" == "Y" ]]; then
       pkg_list="${pkg_list} build-essential make g++ autoconf automake"
@@ -523,7 +562,8 @@ os_dependencies() {
   elif [[ "${OS_ID}" =~ rhel ]] || [[ "${OS_ID}" =~ fedora ]] || [[ "${DISTRO}" =~ Fedora ]]; then
     #CentOS/RHEL/Fedora/RockyLinux
     pkgmgrcmd="dnf"
-    pkg_list="python3 coreutils systemd tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz unzip procps-ng udev vim-common"
+    pkg_list="python3 coreutils systemd tmux git jq gnupg2 libtool iproute bc traceroute sqlite util-linux xz unzip procps-ng udev openssl vim-common"
+    [[ "${VERSION_ID%%.*}" == "8" ]] && pkg_list="${pkg_list} openssl3"
     if [[ "${VERSION_ID}" =~ "8" ]] || [[ "${VERSION_ID}" =~ "9" ]]; then
       #RHEL/CentOS/RockyLinux 8/9
       if ${pkgmgrcmd} install -h  | grep -q "\ --allowerasing"; then pkg_opts="${pkg_opts} --allowerasing"; fi
@@ -907,13 +947,6 @@ cnode_deploy_validate_release_metadata() {
       (.installer.url |
         type == "string" and
         test("\\Ahttps://raw\\.githubusercontent\\.com/cardano-foundation/openblockperf/[0-9a-f]{40}/blockperf-install\\.sh\\z"));
-    def hardware_wallet_rules:
-      keys == ["ledger", "trezor"] and
-      (.ledger | artifact) and
-      (.trezor | artifact) and
-      (.ledger.url |
-        test("\\Ahttps://raw\\.githubusercontent\\.com/LedgerHQ/udev-rules/[0-9a-f]{40}/add_udev_rules\\.sh\\z")) and
-      .trezor.url == "https://data.trezor.io/udev/51-trezor.rules";
     def source_dependency:
       keys == ["ref", "repository", "version"] and
       (.repository | strict_https) and
@@ -926,7 +959,6 @@ cnode_deploy_validate_release_metadata() {
       "implementation",
       "managedInstallers",
       "schemaVersion",
-      "supportArtifacts",
       "tools",
       "version"
     ] and
@@ -945,7 +977,6 @@ cnode_deploy_validate_release_metadata() {
       (.artifacts | keys == ["linux-aarch64", "linux-x86_64"])
     ) and
     (.tools | keys == [
-      "cardano-hw-cli",
       "cardano-signer",
       "catalyst-toolbox",
       "cncli",
@@ -955,12 +986,9 @@ cnode_deploy_validate_release_metadata() {
     ]) and
     all(.tools[]; tool) and
     (.tools.cncli.minimumVersion | concrete_version) and
-    (.tools["cardano-hw-cli"].minimumVersion | concrete_version) and
     (.tools["cardano-signer"].minimumVersion | concrete_version) and
     (.managedInstallers | keys == ["openblockperf"]) and
     (.managedInstallers.openblockperf | managed_installer) and
-    (.supportArtifacts | keys == ["hardwareWalletRules"]) and
-    (.supportArtifacts.hardwareWalletRules | hardware_wallet_rules) and
     (.build | keys == ["sourceDependencies", "toolchain"]) and
     (.build.toolchain | keys == ["cabal", "ghc"]) and
     all(.build.toolchain[]; concrete_version) and
@@ -1416,117 +1444,6 @@ download_cncli() {
   rm -rf -- "${staging_dir}"
   rm -f "${HOME}"/.cargo/bin/cncli # Remove duplicate file in $PATH (old convention)
   log_ok "Deployed CNCLI" "${cncli_version}"
-}
-
-cnode_deploy_install_hardware_wallet_rules() {
-  local manifest=""
-  local release_data ledger_url ledger_sha trezor_url trezor_sha
-  local staging_dir ledger_file trezor_file actual_sha
-
-  if [[ "${CNODE_SKIP_HARDWARE_WALLET_RULES:-N}" == "Y" ]]; then
-    log_info "Skipped hardware-wallet udev rules; device permissions are managed by the host."
-    return 0
-  fi
-
-  manifest="${CNODE_RELEASE_MANIFEST:-${NODE_HOME}/files/cnode-release.json}"
-
-  [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ||
-     ! -f "/etc/udev/rules.d/51-trezor.rules" ]] ||
-    return 0
-  release_data="$(
-    jq -er '
-      .supportArtifacts.hardwareWalletRules |
-      [
-        .ledger.url,
-        .ledger.sha256,
-        .trezor.url,
-        .trezor.sha256
-      ] | @tsv
-    ' "${manifest}"
-  )" || err_exit "Could not read hardware-wallet rules policy."
-  IFS=$'\t' read -r ledger_url ledger_sha trezor_url trezor_sha \
-    <<< "${release_data}"
-
-  staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/guild-hardware-rules.XXXXXX")" ||
-    err_exit "Could not create a private hardware-wallet rules staging directory."
-  ledger_file="${staging_dir}/add_udev_rules.sh"
-  trezor_file="${staging_dir}/51-trezor.rules"
-
-  if [[ ! -f "/etc/udev/rules.d/20-hw1.rules" ]]; then
-    curl -sSfL -m "${DOWNLOAD_TIMEOUT}" \
-      "${ledger_url}" -o "${ledger_file}" ||
-      err_exit "Could not download the pinned Ledger udev installer."
-    actual_sha="$(sha256sum "${ledger_file}" | awk '{print $1}')" ||
-      err_exit "Could not calculate the Ledger udev installer checksum."
-    if [[ "${actual_sha}" != "${ledger_sha}" ]] ||
-       ! bash -n "${ledger_file}" >/dev/null 2>&1; then
-      err_exit "Ledger udev installer failed checksum or syntax validation."
-    fi
-    $sudo bash "${ledger_file}" >/dev/null 2>&1 ||
-      err_exit "Could not install Ledger udev rules."
-    $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" \
-      -i /etc/udev/rules.d/20-hw1.rules ||
-      err_exit "Could not set the Ledger udev rule owner."
-    log_info "Installed checksum-verified Ledger udev rules."
-  fi
-
-  if [[ ! -f "/etc/udev/rules.d/51-trezor.rules" ]]; then
-    curl -sSfL -m "${DOWNLOAD_TIMEOUT}" \
-      "${trezor_url}" -o "${trezor_file}" ||
-      err_exit "Could not download the pinned Trezor udev rules."
-    actual_sha="$(sha256sum "${trezor_file}" | awk '{print $1}')" ||
-      err_exit "Could not calculate the Trezor udev rules checksum."
-    [[ "${actual_sha}" == "${trezor_sha}" ]] ||
-      err_exit "Trezor udev rules failed checksum validation."
-    $sudo install -m 0644 "${trezor_file}" \
-      /etc/udev/rules.d/51-trezor.rules ||
-      err_exit "Could not install Trezor udev rules."
-    $sudo sed -e "s@TAG+=\"uaccess\"@OWNER=\"$USER\", TAG+=\"uaccess\"@g" \
-      -i /etc/udev/rules.d/51-trezor.rules ||
-      err_exit "Could not set the Trezor udev rule owner."
-    log_info "Installed checksum-verified Trezor udev rules."
-  fi
-
-  rm -rf -- "${staging_dir}"
-  $sudo udevadm control --reload-rules >/dev/null 2>&1 ||
-    err_exit "Could not reload udev rules."
-  $sudo udevadm trigger >/dev/null 2>&1 ||
-    err_exit "Could not trigger updated udev rules."
-}
-
-# Download pre-build cardano-hw-cli binary and it's dependencies
-download_cardanohwcli() {
-  local architecture hwcli_version staging_dir
-
-  cnode_deploy_load_release_metadata
-  architecture="$(cnode_deploy_architecture)" ||
-    err_exit "Unsupported cardano-hw-cli architecture: $(uname -m)"
-  log_progress "Resolving cardano-hw-cli release"
-  cnode_deploy_resolve_tool "cardano-hw-cli" "${architecture}"
-  hwcli_version="${CNODE_RESOLVED_VERSION}"
-  log_progress "Downloading cardano-hw-cli" "${hwcli_version}"
-  staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/guild-cardano-hw-cli.XXXXXX")" ||
-    err_exit "Could not create a private cardano-hw-cli staging directory."
-  pushd "${staging_dir}" >/dev/null ||
-    err_exit "Could not enter temporary cardano-hw-cli directory."
-  cnode_deploy_download_resolved_artifact "cardano-hw-cli.tar.gz"
-  tar zxf cardano-hw-cli.tar.gz &>/dev/null ||
-    err_exit "Could not extract the resolved cardano-hw-cli release."
-  rm -f cardano-hw-cli.tar.gz
-  [[ -f cardano-hw-cli/cardano-hw-cli &&
-     ! -L cardano-hw-cli/cardano-hw-cli ]] ||
-    err_exit "cardano-hw-cli downloaded but binary not found after extracting package!"
-  mkdir -p "${HOME}"/.local/bin ||
-    err_exit "Could not create ${HOME}/.local/bin."
-  rm -rf "${HOME}"/bin/cardano-hw-cli # Remove duplicate file in $PATH (old convention)
-  rm -rf "${HOME}"/.local/bin/cardano-hw-cli
-  mv -f cardano-hw-cli/* "${HOME}"/.local/bin/ ||
-    err_exit "Could not install the validated cardano-hw-cli release."
-  popd >/dev/null || true
-  rm -rf -- "${staging_dir}"
-
-  cnode_deploy_install_hardware_wallet_rules
-  log_ok "Deployed cardano-hw-cli" "${hwcli_version}"
 }
 
 # Download pre-built ogmios binary
@@ -1987,6 +1904,10 @@ cnode_deploy_main_flow() {
   [[ "${CNODE_DEPLOY_ADDED_LOCAL_BIN_PATH}" == "Y" ]] && log_info "Added ${HOME}/.local/bin to PATH in ${HOME}/.bashrc."
   [[ "${CNODE_DEPLOY_FRESH_TARGET}" == "Y" ]] && log_info "Fresh target detected; OS dependency check enabled."
   [[ "${CNODE_DEPLOY_INSTALL_OS_DEPS}" == "Y" ]] && run_step "OS dependencies" "auto/-s p/b/l/w" os_dependencies
+  cnode_deploy_validate_openssl3 ||
+    err_exit "${CNODE_DEPLOY_OPENSSL_ERROR}"
+  [[ "${CNODE_DEPLOY_OPENSSL_BIN##*/}" != "openssl3" ]] ||
+    log_info "Using OpenSSL 3 compatibility executable: ${CNODE_DEPLOY_OPENSSL_BIN}"
   [[ "${CNODE_DEPLOY_REFRESH_PAYLOAD}" == "Y" ]] && run_step "Guild source preflight" "snapshot" cnode_deploy_preflight_snapshot
   [[ "${CNODE_DEPLOY_REFRESH_PAYLOAD}" == "Y" ]] && run_step "Scripts and configuration" "default/-s f/s" populate_cnode
   [[ "${CNODE_DEPLOY_BUILD_DEPS}" == "Y" ]] && run_step "Haskell build toolchain" "-s b" build_dependencies
@@ -1995,7 +1916,11 @@ cnode_deploy_main_flow() {
   [[ "${CNODE_DEPLOY_INSTALL_BINARY}" == "Y" ]] && run_step "Cardano node binaries" "-s d" download_cnodebins
   [[ "${CNODE_DEPLOY_INSTALL_CNCLI}" == "Y" ]] && run_step "CNCLI" "-s c" download_cncli
   [[ "${CNODE_DEPLOY_INSTALL_OGMIOS}" == "Y" ]] && run_step "Ogmios" "-s o" download_ogmios
-  [[ "${CNODE_DEPLOY_INSTALL_HWCLI}" == "Y" ]] && run_step "Cardano hardware CLI" "-s w" download_cardanohwcli
+  if [[ "${CNODE_DEPLOY_INSTALL_HWCLI}" == "Y" ]]; then
+    declare -F dispatcher_install_cardano_hw_cli >/dev/null 2>&1 ||
+      err_exit "Common cardano-hw-cli installer is unavailable."
+    run_step "Cardano hardware CLI" "-s w" dispatcher_install_cardano_hw_cli
+  fi
   [[ "${CNODE_DEPLOY_INSTALL_SIGNER}" == "Y" ]] && run_step "Cardano Signer" "-s x" download_cardanosigner
   [[ "${CNODE_DEPLOY_INSTALL_BLOCKPERF}" == "Y" ]] && run_step "openBlockPerf" "-s r" download_blockperf
 }

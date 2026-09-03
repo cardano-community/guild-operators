@@ -66,13 +66,40 @@ for profile in \
   "${ROOT_DIR}/scripts/amaru-helper-scripts/deploy-amaru.sh"; do
   grep -q 'dispatcher_run_package_command' "${profile}" ||
     fail "$(basename "${profile}") bypasses compact package-manager output"
+  grep -q 'dispatcher_install_cardano_hw_cli' "${profile}" ||
+    fail "$(basename "${profile}") does not expose the common hardware-wallet installer"
 done
 
 grep -q '^# User Variables' \
   "${ROOT_DIR}/scripts/cnode-helper-scripts/guild-deploy.sh" ||
   fail "guild-deploy.sh does not own the common user-variable block"
 
+COMMON_RELEASE="${ROOT_DIR}/files/node-implementations/common/release.json"
 CNODE_RELEASE="${ROOT_DIR}/files/node-implementations/cnode/release.json"
+jq -e '
+  .schemaVersion == 1 and
+  .scope == "guild-tools" and
+  .tools["cardano-hw-cli"] == {
+    version: "1.19.1",
+    artifacts: {
+      "linux-x86_64": {
+        url: "https://github.com/vacuumlabs/cardano-hw-cli/releases/download/v1.19.1/cardano-hw-cli-1.19.1_linux-x64.tar.gz",
+        sha256: "089349ebcfe2a465e301faaf077fa094f6db859e92aab56f256f325295b76474"
+      },
+      "linux-aarch64": {
+        url: "https://github.com/vacuumlabs/cardano-hw-cli/releases/download/v1.19.1/cardano-hw-cli-1.19.1_linux-arm64.tar.gz",
+        sha256: "b980200f7c96c2c950ea6f0a79ed81280afd1c037ee3d71c4b8855a4ffad686b"
+      }
+    }
+  } and
+  (.supportArtifacts.hardwareWalletRules.ledger |
+    (.url | test("^https://raw[.]githubusercontent[.]com/LedgerHQ/udev-rules/[0-9a-f]{40}/add_udev_rules[.]sh$")) and
+    (.sha256 | test("^[0-9a-f]{64}$"))) and
+  (.supportArtifacts.hardwareWalletRules.trezor |
+    .url == "https://data.trezor.io/udev/51-trezor.rules" and
+    (.sha256 | test("^[0-9a-f]{64}$")))
+' "${COMMON_RELEASE}" >/dev/null ||
+  fail "Cardano Hardware CLI is not pinned to its reviewed release artifacts"
 jq -e '
   (
     [
