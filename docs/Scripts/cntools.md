@@ -7,12 +7,14 @@ a Charm Gum interface.
 
 !!! warning "Version 14 implementation status"
     Wallet New → CLI, New → Mnemonic, Import → Mnemonic, Import → HW
-    Wallet, List, Show, Remove, Encrypt, and Decrypt are functional in version
-    14.0.0. Transaction Sign and Submit are also functional. List and Show may
-    cache missing public wallet artifacts; wallet creation and import publish
-    keys only after explicit confirmation and complete validation. Advanced
-    **Theme** is also functional; remaining wallet and transaction actions and
-    all pool, governance, backup, block, and operational advanced actions remain
+    Wallet, List, Show, Register, De-Register, Remove, Encrypt, and Decrypt are
+    functional in version 14.0.0. Transaction Sign and Submit are also
+    functional. List and
+    Show may cache missing public wallet artifacts; wallet creation and import
+    publish keys only after explicit confirmation and complete validation.
+    **Settings → Theme** and **Settings → Transaction Defaults** are also
+    functional; remaining wallet and transaction actions and all pool,
+    governance, backup, block, and operational advanced actions remain
     placeholders.
 
 ## Installation and migration
@@ -95,12 +97,32 @@ and loaded only when selected. Functional Wallet and Transaction actions load
 their focused libraries on demand; remaining operational actions display a
 not-implemented notice.
 
-Start CNTools with `-a` to open **Advanced → Theme**. Theme colors are defined
+Start CNTools with `-a`, then open **Settings → Theme** to select the interface theme. Theme colors are defined
 centrally by semantic purpose so headers, numbers, identifiers, and statuses
 remain consistent. The selected theme is stored privately in
 `${NODE_HOME}/.cntools/theme` and restored at startup. Only the Koios-inspired
 **Default** theme is available in this release; the selector is in place for
 future themes. Set `NO_COLOR` to a non-empty value to disable color output.
+
+**Settings → Transaction Defaults** stores one reusable transaction policy in
+`${NODE_HOME}/.cntools/transaction-settings.json`. It controls deterministic
+coin selection, optional native-token fragmentation, and optional ADA-only
+change management. The default `Balanced` selector prefers simple ADA-only
+outputs, avoids native assets and outputs carrying datums or reference scripts,
+and preserves a suitable collateral candidate when that policy is active.
+`Fewest inputs` instead prioritizes a smaller transaction even when it has to
+touch native assets. Every transaction review shows both the configured policy
+and what it actually did; actions never ask for the same settings again.
+
+Token fragmentation can limit the number of distinct assets placed in each
+explicit change output. ADA-only management first maintains one 5 ADA
+collateral candidate when needed, then creates only the missing number of
+useful outputs from the configured percentage ladder. Percentages use one
+frozen post-token, post-collateral change amount, and a standard residual change
+output is always retained. Existing eligible outputs and outputs already
+planned by the transaction count toward the target. These policies never add
+inputs merely for wallet housekeeping; a future **Funds → Collect UTxOs**
+action will remain a separate, explicit operation.
 
 Wallet List reads direct subdirectories beneath the configured `WALLET_FOLDER`
 and renders a compact multi-line entry for each wallet. An entry contains only
@@ -250,6 +272,55 @@ unavailable during encryption, CNTools logs and displays a warning while
 retaining the read-only protection. Decryption detects and removes an existing
 immutable flag even when the current setting is disabled. Passphrases and key
 contents are never included in command arguments or logs.
+
+**Wallet → Register** creates the wallet stake-address registration
+transaction for a complete CLI, mnemonic, or hardware wallet. It first confirms
+that the stake credential is not registered, obtains the current protocol
+parameters, and selects sufficient UTxOs from the wallet's base and enterprise
+payment addresses. The review shows available versus selected inputs and
+balances, the conservative fee margin, every active transaction policy, and
+the applied change plan. Remaining ADA and native assets return to the wallet's
+base address. The public signer plan requires exactly the payment key and stake
+key and is embedded in the portable CNTools transaction package.
+
+With a ready local node, registration queries, balancing, and submission use
+that node. Light mode uses Koios, and a local session may use configured Koios
+as a fallback when its local construction queries are unavailable. Both wallet
+addresses are queried together through one bulk `address_utxos` request;
+registration state and Cardano CLI-compatible protocol parameters use focused
+Koios requests. The interface identifies the actual data source, preserves
+exact UTxO and native-asset quantities, and stops safely when the wallet is
+already registered, has no inputs, or cannot cover the deposit, conservative
+fee margin, minimum output values, and valid change.
+
+The final choice can create an unsigned package, create and sign it, or create,
+sign, and submit it. If local signing keys are encrypted or unavailable, only
+the unsigned choice is offered. An unsigned package can be signed through
+**Transaction → Sign** in offline mode and later submitted through
+**Transaction → Submit** online. Hardware wallets collect the payment and stake
+witnesses in one device session and include the payment HWS change reference.
+CNTools never places signing keys or HWS contents in the package, never
+overwrites an existing artifact, and retains the unsigned and signed files for
+audit and recovery.
+
+**Wallet → De-Register** uses the same reviewed transaction flow to retire a
+registered stake credential and return its recorded stake deposit. Before any
+transaction is built, CNTools confirms from the selected backend that the
+credential is registered and that its claimable reward balance is exactly
+zero. A non-zero balance is a hard stop and must be withdrawn first. The final
+review also warns that lingering rewards earned but not yet credited or paid
+out will be forfeited by de-registration, even when the visible reward balance
+is zero. Stake-pool and DRep delegations end with the credential.
+
+De-registration uses the same deterministic selector for its fee and returns
+the deposit, remaining ADA, and every touched native asset to the base address.
+It supports the same unsigned offline package, local signing, direct
+submission, and hardware-wallet paths as Register. The locally queried or
+Koios-reported credential deposit is used for the refund certificate, while
+current protocol parameters are retained for balancing. The package records
+selected input references, the configured and applied transaction policy, and
+planned explicit change outputs, and distinguishes the refunded deposit from
+the deposit charged by registration.
 
 ## Transaction signing and submission
 

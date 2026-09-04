@@ -31,6 +31,7 @@ for source_file in \
   "${CNTOOLS_SOURCE}/core/gum.sh" \
   "${CNTOOLS_SOURCE}/core/health.sh" \
   "${CNTOOLS_SOURCE}/core/theme.sh" \
+  "${CNTOOLS_SOURCE}/core/settings.sh" \
   "${CNTOOLS_SOURCE}/core/menu.sh" \
   "${CNTOOLS_SOURCE}/core/action.sh" \
   "${CNTOOLS_SOURCE}/core/update.sh" \
@@ -719,7 +720,7 @@ run_session_matrix_tests() {
         fail "${implementation} ${mode} did not normalize a UTF-8 locale"
       assert_trace_value posix "N"
       grep -F \
-        "start ui=gum theme=default mode=${mode} backend=${expected_backend} implementation=${implementation}" \
+        "start ui=gum theme=default selection=balanced token_fragmentation=N utxo_management=N mode=${mode} backend=${expected_backend} implementation=${implementation}" \
         "${NODE_ROOT}/runtime/logs/cntools.log" >/dev/null ||
         fail "${implementation} ${mode} session start was not logged"
     done

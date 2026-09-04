@@ -64,12 +64,16 @@ cntools/
 │   ├── health.sh     # Best-effort Gum header snapshot
 │   ├── log.sh
 │   ├── menu.sh
+│   ├── settings.sh   # Persistent transaction defaults
 │   ├── startup.sh
 │   ├── theme.sh      # Semantic colors and persisted selection
 │   └── update.sh     # Phase 5
 ├── lib/
 │   ├── number.sh
 │   ├── placeholder.sh
+│   ├── utxo.sh
+│   ├── coin-selection.sh
+│   ├── change-plan.sh
 │   ├── transaction.sh
 │   ├── transaction-build.sh
 │   ├── transaction-sign.sh
@@ -91,6 +95,8 @@ cntools/
 │   ├── wallet-query.sh
 │   ├── wallet-remove.sh
 │   ├── wallet-remove-ui.sh
+│   ├── wallet-register.sh
+│   ├── wallet-register-ui.sh
 │   └── ...
 └── modules/
     └── root/
@@ -125,9 +131,11 @@ not-implemented message. Functional phases replace those placeholders in
 small vertical slices; Phase 7 activates Wallet List and Show, Phase 8 activates
 Wallet New → CLI, and later slices activate wallet protection and standard
 mnemonic creation/import, followed by standard hardware-wallet import and
-guarded wallet removal. Transaction Sign and Submit are also functional. The
-phase-0 menu inventory remains an implementation checklist, not a generated
-runtime manifest.
+guarded wallet removal. Wallet Register and De-Register are the first
+transaction-producing wallet actions; Transaction Sign and Submit are also
+functional. The phase-0
+menu inventory remains an implementation checklist, not a generated runtime
+manifest.
 
 ## Runtime modes
 
@@ -536,8 +544,9 @@ availability from the new block-history implementation instead of importing
 the legacy `BLOCKLOG_DB` visibility check. Quit, Back, and Home remain
 framework controls rather than metadata modules. Update remains Phase 5.
 
-The later Advanced **Theme** action is framework functionality rather than a
-legacy operational workflow. It selects from the central semantic theme
+The later **Settings → Theme** action is advanced framework functionality,
+shown when CNTools starts with `-a`, rather than a legacy operational workflow.
+It selects from the central semantic theme
 registry and stores the choice in `${NODE_HOME}/.cntools/theme`. The initial
 registry intentionally contains only the Koios-inspired Default theme, while
 the selector and persistence contract are ready for additional themes. A
@@ -853,6 +862,69 @@ companion manifests, and hardware signing requires the exact tested
 hardware-change, output, review, and submission selections are audit logged.
 CNTools validates the exact Cardano CLI version lazily when the first
 transaction operation needs it.
+
+## Wallet stake lifecycle slice
+
+Wallet Register and De-Register are the first actions built on the shared
+transaction foundation. They support complete CLI, mnemonic, and standard
+hardware wallets in local and light sessions. Register verifies that the stake
+credential is not already registered; De-Register requires it to be registered
+and its exact claimable reward balance to be zero. Register loads the current
+protocol stake deposit, while De-Register uses the deposit recorded for that
+credential by the local ledger query or Koios. Both build a lossless per-output
+inventory for the wallet's base and enterprise payment addresses, then use the
+shared deterministic selector. Cardano CLI returns remaining ADA and every
+touched native asset to the base address and the signer plan requires exactly
+the payment key for spending and the stake key for the certificate.
+
+A ready local node supplies stake state, UTxOs, protocol parameters, balancing,
+and submission. When the local backend cannot supply the construction data,
+CNTools may fall back to enabled Koios access. Light mode uses one bulk
+`address_utxos` request for both funding addresses, plus focused
+`account_info` and `cli_protocol_params` requests, then uses the pinned Cardano
+CLI `build-estimate` path. UTxO quantities remain decimal strings while CNTools
+selects and aggregates them, including native assets, so large values are not
+converted through floating point. The exact external commands and replayable
+Koios calls are recorded by the normal audit logger.
+
+Transaction defaults live under the root **Settings** menu rather than in each
+action. `Balanced` selection ranks simple ADA-only outputs first, followed by
+more complex ADA, a protected collateral candidate, token-bearing outputs, and
+finally token-bearing outputs with datums or reference scripts. Within those
+constraints it chooses a smallest sufficient output or a deterministic
+largest-first combination. `Fewest inputs` is available when minimizing
+transaction size matters more than avoiding tokens. Both stop at a bounded
+input count and use a conservative protocol-derived fee margin plus current
+minimum-output requirements.
+
+Optional token fragmentation creates deterministic asset bundles with a
+configured maximum asset count and obtains the minimum ADA for every bundle
+from the pinned Cardano CLI. Optional ADA-only management creates only the
+deficit relative to existing eligible outputs: first a 5 ADA collateral
+candidate when missing, then useful percentage-based outputs calculated from
+one frozen remaining-change amount. Neither policy selects extra inputs only
+to improve wallet shape. The standard residual change remains with the wallet;
+UTxO collection is intentionally reserved for a future explicit Funds action.
+The transaction review and portable package record both the configured policy
+and its applied selection/change result.
+
+The operator can keep an unsigned portable package, sign it immediately, or
+sign and submit it. Encrypted or otherwise unavailable local signing keys
+restrict the action to package creation; that package can be moved to offline
+Transaction Sign sessions and returned to an online Transaction Submit session.
+The package never contains signing-key or HWS contents. Hardware payment and
+stake witnesses are grouped into one device session and the payment HWS file is
+also declared as the change-address reference. Every path preserves the
+unsigned package, uses new no-overwrite filenames, and shows the authoritative
+Cardano CLI transaction view before signing and again before irreversible
+submission.
+
+De-Register uses the pinned `stake-address deregistration-certificate` command
+and marks the current deposit as refunded in its package intent. A non-zero
+claimable reward balance stops construction and directs the operator to
+withdraw first. Its confirmation also warns that lingering rewards which have
+not yet been credited or paid out will be forfeited and that stake-pool and DRep
+delegations end when the credential is removed.
 
 ## Explicit non-goals
 

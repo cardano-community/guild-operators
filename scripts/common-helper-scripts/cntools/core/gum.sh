@@ -1465,15 +1465,26 @@ cntools_gum_menu_run() {
         "Guild Deploy completed with status ${action_status}; closing the current CNTools process"
       return "${action_status}"
     fi
-    # Actions run in an isolated shell. Only the Theme action can change the
-    # persisted selection, so avoid filesystem work after every other action.
-    if [[ "${CNTOOLS_MENU_IDS[selected_index]}" == "advanced/theme" ]] &&
-       declare -F cntools_theme_reload >/dev/null 2>&1 &&
-       ! cntools_theme_reload; then
-      cntools_gum_log ERROR \
-        "Could not activate the saved CNTools theme in the parent session"
-      (( action_status != 0 )) || action_status=1
-    fi
+    # Settings actions run in an isolated shell. Reload only the state that a
+    # selected Settings action can have changed in the parent menu process.
+    case "${CNTOOLS_MENU_IDS[selected_index]}" in
+      settings/theme)
+        if declare -F cntools_theme_reload >/dev/null 2>&1 &&
+           ! cntools_theme_reload; then
+          cntools_gum_log ERROR \
+            "Could not activate the saved CNTools theme in the parent session"
+          (( action_status != 0 )) || action_status=1
+        fi
+        ;;
+      settings/transaction-defaults)
+        if declare -F cntools_settings_reload >/dev/null 2>&1 &&
+           ! cntools_settings_reload; then
+          cntools_gum_log ERROR \
+            "Could not activate the saved transaction settings in the parent session"
+          (( action_status != 0 )) || action_status=1
+        fi
+        ;;
+    esac
     if (( action_status != 0 )); then
       status_level="error"
       status_message="${CNTOOLS_MENU_LABELS[selected_index]} failed (status ${action_status})."

@@ -40,7 +40,7 @@ CNTOOLS_WALLET_KOIOS_AUTH_PAYLOAD_MAX_BYTES=5120
 CNTOOLS_WALLET_KOIOS_RATE_BATCHES=90
 CNTOOLS_WALLET_KOIOS_RATE_PAUSE_SECONDS=10
 CNTOOLS_WALLET_KOIOS_ADDRESS_SELECT='?select=address%2Cbalance%3A%3Atext%2Cutxo_set'
-CNTOOLS_WALLET_KOIOS_ACCOUNT_SELECT='?select=stake_address%2Cstatus%2Cdelegated_pool%2Cdelegated_drep%2Crewards_available%3A%3Atext'
+CNTOOLS_WALLET_KOIOS_ACCOUNT_SELECT='?select=stake_address%2Cstatus%2Cdelegated_pool%2Cdelegated_drep%2Crewards_available%3A%3Atext%2Cdeposit%3A%3Atext'
 CNTOOLS_WALLET_KOIOS_ASSET_SELECT='?select=policy_id%2Casset_name%2Casset_name_ascii%2Cfingerprint%2Ctotal_supply%2Cregistry_metadata%3Atoken_registry_metadata%2Cmetadata_20%3Aminting_tx_metadata-%3E%2220%22%2Cmetadata_721%3Aminting_tx_metadata-%3E%22721%22%2Ccip68_metadata'
 CNTOOLS_WALLET_LIST_QUERY_LEVEL=""
 CNTOOLS_WALLET_LIST_QUERY_SUMMARY=""
@@ -53,6 +53,7 @@ cntools_wallet_query_reset() {
   CNTOOLS_WALLET_PAYMENT_LOVELACE=""
   CNTOOLS_WALLET_TOTAL_LOVELACE=""
   CNTOOLS_WALLET_REWARD_LOVELACE=""
+  CNTOOLS_WALLET_STAKE_DEPOSIT=""
   CNTOOLS_WALLET_REGISTERED="unknown"
   CNTOOLS_WALLET_POOL_DELEGATION=""
   CNTOOLS_WALLET_DREP_DELEGATION=""
@@ -419,7 +420,7 @@ cntools_wallet_query_local_utxo_rows() {
           depth++
           path_key[depth] = object_key
           if (depth == 2 && object_key != "") {
-            print "U"
+            print "U" separator object_key
           }
           expect_value = 0
           continue
@@ -748,6 +749,7 @@ cntools_wallet_query_local_stake() {
   if [[ "$(jq -r 'length' "${output_file}")" == "0" ]]; then
     CNTOOLS_WALLET_REGISTERED="no"
     CNTOOLS_WALLET_REWARD_LOVELACE="0"
+    CNTOOLS_WALLET_STAKE_DEPOSIT=""
     return 0
   fi
   record="$(jq -er '
@@ -794,6 +796,18 @@ cntools_wallet_query_local_stake() {
         "Local stake address query could not preserve the exact reward balance"
       return 1
     }
+  if jq -e '.[0].stakeRegistrationDeposit | type == "number"' \
+      "${output_file}" >/dev/null 2>&1; then
+    cntools_wallet_query_json_uint_field \
+      CNTOOLS_WALLET_STAKE_DEPOSIT "${output_file}" \
+      stakeRegistrationDeposit || {
+        cntools_wallet_log ERROR \
+          "Local stake address query could not preserve the exact registration deposit"
+        return 1
+      }
+  else
+    CNTOOLS_WALLET_STAKE_DEPOSIT=""
+  fi
   IFS=$'\037' read -r \
     CNTOOLS_WALLET_POOL_DELEGATION \
     CNTOOLS_WALLET_DREP_DELEGATION \
@@ -1766,6 +1780,9 @@ cntools_wallet_query_koios_stake() {
       (.status == "registered" or .status == "not registered") and
       (.rewards_available | type == "string" and length <= 80 and
         test("^[0-9]+$")) and
+      ((.deposit == null) or
+        (.deposit | type == "string" and length <= 80 and
+          test("^[0-9]+$"))) and
       ((.delegated_pool == null) or (.delegated_pool | pool_id)) and
       ((.delegated_drep == null) or (.delegated_drep | drep_id))
     )
@@ -1776,6 +1793,7 @@ cntools_wallet_query_koios_stake() {
   if [[ "$(jq -r 'length' "${response_file}")" == "0" ]]; then
     CNTOOLS_WALLET_REGISTERED="no"
     CNTOOLS_WALLET_REWARD_LOVELACE="0"
+    CNTOOLS_WALLET_STAKE_DEPOSIT=""
     return 0
   fi
   record="$(jq -er '
@@ -1783,15 +1801,19 @@ cntools_wallet_query_koios_stake() {
       (if .[0].status == "registered" then "yes" else "no" end),
       (.[0].rewards_available // "0"),
       (.[0].delegated_pool // ""),
-      (.[0].delegated_drep // "")
+      (.[0].delegated_drep // ""),
+      (.[0].deposit // "")
     ] | map(tostring) | join("\u001f")
   ' "${response_file}" 2>/dev/null)" || return 1
   IFS=$'\037' read -r \
     CNTOOLS_WALLET_REGISTERED \
     CNTOOLS_WALLET_REWARD_LOVELACE \
     CNTOOLS_WALLET_POOL_DELEGATION \
-    CNTOOLS_WALLET_DREP_DELEGATION <<< "${record}"
-  [[ "${CNTOOLS_WALLET_REWARD_LOVELACE}" =~ ^[0-9]+$ ]] || return 1
+    CNTOOLS_WALLET_DREP_DELEGATION \
+    CNTOOLS_WALLET_STAKE_DEPOSIT <<< "${record}"
+  [[ "${CNTOOLS_WALLET_REWARD_LOVELACE}" =~ ^[0-9]+$ &&
+     ( -z "${CNTOOLS_WALLET_STAKE_DEPOSIT}" ||
+       "${CNTOOLS_WALLET_STAKE_DEPOSIT}" =~ ^[0-9]+$ ) ]] || return 1
 }
 
 cntools_wallet_query_koios() {

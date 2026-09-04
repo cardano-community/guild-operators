@@ -15,6 +15,7 @@ MAIN_ENTRYPOINT="${CNTOOLS_ROOT}/cntools_main.sh"
 GUM_CORE="${CNTOOLS_ROOT}/core/gum.sh"
 HEALTH_CORE="${CNTOOLS_ROOT}/core/health.sh"
 THEME_CORE="${CNTOOLS_ROOT}/core/theme.sh"
+SETTINGS_CORE="${CNTOOLS_ROOT}/core/settings.sh"
 NUMBER_LIBRARY="${CNTOOLS_ROOT}/lib/number.sh"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-main.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
@@ -78,10 +79,12 @@ done
   fail "Gum health core is missing or unsafe"
 [[ -f "${THEME_CORE}" && ! -L "${THEME_CORE}" ]] ||
   fail "CNTools theme core is missing or unsafe"
+[[ -f "${SETTINGS_CORE}" && ! -L "${SETTINGS_CORE}" ]] ||
+  fail "CNTools settings core is missing or unsafe"
 [[ -f "${NUMBER_LIBRARY}" && ! -L "${NUMBER_LIBRARY}" ]] ||
   fail "CNTools number library is missing or unsafe"
 bash -n "${MAIN_ENTRYPOINT}" "${GUM_CORE}" "${HEALTH_CORE}" \
-  "${THEME_CORE}" "${NUMBER_LIBRARY}" ||
+  "${THEME_CORE}" "${SETTINGS_CORE}" "${NUMBER_LIBRARY}" ||
   fail "the CNTools main entrypoint or Gum-owned core has invalid Bash syntax"
 for retired_path in \
   "${CNTOOLS_ROOT}/cntools.sh" \
@@ -564,7 +567,7 @@ run_menu_mapping_test() (
   local fake_root="/fixture/root"
   local fake_submenu="/fixture/root/tools"
   local -a filter_responses=(
-    "item:2" "item:3" "item:0" "cancel" "unknown" "cancel" "quit"
+    "item:2" "item:1" "item:3" "item:0" "cancel" "unknown" "cancel" "quit"
   )
   local filter_index=0
   local cache_build_calls=0
@@ -572,6 +575,7 @@ run_menu_mapping_test() (
   local health_root_calls=0
   local health_submenu_calls=0
   local theme_reload_calls=0
+  local settings_reload_calls=0
   local action_calls=""
   local status_log=""
   local first_duplicate=""
@@ -597,7 +601,7 @@ run_menu_mapping_test() (
         "${fake_submenu}" "${fake_root}/action-a"
         "${fake_root}/action-b" "${fake_root}/disabled"
       )
-      CNTOOLS_MENU_IDS=("tools" "action-a" "advanced/theme" "disabled")
+      CNTOOLS_MENU_IDS=("tools" "settings/transaction-defaults" "settings/theme" "disabled")
       CNTOOLS_MENU_KINDS=("menu" "action" "action" "action")
       CNTOOLS_MENU_LABELS=("Tools" "Run" "Run" "Unavailable")
       CNTOOLS_MENU_DESCRIPTIONS=(
@@ -676,6 +680,9 @@ run_menu_mapping_test() (
   cntools_update_render_summary() { return 0; }
   cntools_startup_deployment_was_started() { return 1; }
   cntools_theme_reload() { theme_reload_calls=$((theme_reload_calls + 1)); }
+  cntools_settings_reload() {
+    settings_reload_calls=$((settings_reload_calls + 1))
+  }
   cntools_ui_render_status() {
     status_log+="${1}:${2}"$'\n'
   }
@@ -691,7 +698,8 @@ run_menu_mapping_test() (
     fail "Gum rows do not carry their unique menu ordinal"
 
   cntools_gum_menu_run || fail "scripted Gum menu navigation failed"
-  assert_eq "${action_calls}" "${fake_root}/action-b"$'\n' \
+  assert_eq "${action_calls}" \
+    "${fake_root}/action-b"$'\n'"${fake_root}/action-a"$'\n' \
     "Gum menu action dispatch"
   assert_eq "${cache_build_calls}" "0" \
     "Gum menu cache rebuild count"
@@ -701,16 +709,18 @@ run_menu_mapping_test() (
     "unknown Gum filter result feedback"
   assert_not_contains "${status_log}" "Returned from" \
     "successful Gum action return status"
-  assert_eq "${filter_index}" "7" \
+  assert_eq "${filter_index}" "8" \
     "submenu and root Escape cancellation sequence"
   assert_eq "${clear_calls}" "2" \
     "transient Gum cancellation cleanup"
-  assert_eq "${health_root_calls}" "6" \
+  assert_eq "${health_root_calls}" "7" \
     "root-only health refresh"
   assert_eq "${health_submenu_calls}" "0" \
     "submenu health refresh"
   assert_eq "${theme_reload_calls}" "1" \
     "Theme action parent-session reload"
+  assert_eq "${settings_reload_calls}" "1" \
+    "Transaction Defaults parent-session reload"
 )
 
 run_menu_filter_status_test() {

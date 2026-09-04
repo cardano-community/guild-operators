@@ -147,11 +147,12 @@ cntools_menu_validate_metadata() {
           type == "object" and
           has("kind") and has("label") and has("description") and
           has("shortcut") and has("order") and has("modes") and
-          ((keys - ["description", "kind", "label", "libs", "modes", "order", "shortcut"]) | length == 0) and
+          ((keys - ["advanced", "description", "kind", "label", "libs", "modes", "order", "shortcut"]) | length == 0) and
           .kind == "action" and (.label | line) and (.description | line) and
           (.shortcut | type == "string" and test("^[a-z0-9]$")) and
           (.order | type == "number" and floor == . and
             . >= 0 and . <= 2147483647) and
+          ((has("advanced") | not) or (.advanced | type == "boolean")) and
           (.modes | type == "array" and length > 0 and
             length == (unique | length) and
             all(. == "local" or . == "light" or . == "offline")) and
@@ -363,11 +364,11 @@ cntools_menu_open() {
     id="${child#"${root_directory}"/}"
     enabled="Y"
     reason=""
-    if [[ "${kind}" == "menu" ]]; then
-      if [[ "${advanced}" == "true" && "${CNTOOLS_ADVANCED:-N}" != "Y" ]]; then
-        continue
-      fi
-    elif [[ ",${modes}," != *",${CNTOOLS_MODE:-local},"* ]]; then
+    if [[ "${advanced}" == "true" && "${CNTOOLS_ADVANCED:-N}" != "Y" ]]; then
+      continue
+    fi
+    if [[ "${kind}" == "action" &&
+          ",${modes}," != *",${CNTOOLS_MODE:-local},"* ]]; then
       enabled="N"
       reason="Not available in ${CNTOOLS_MODE:-current} mode"
     fi
@@ -480,11 +481,12 @@ cntools_menu_catalog_parse() {
         type == "object" and
         has("kind") and has("label") and has("description") and
         has("shortcut") and has("order") and has("modes") and
-        ((keys - ["description", "kind", "label", "libs", "modes", "order", "shortcut"]) | length == 0) and
+        ((keys - ["advanced", "description", "kind", "label", "libs", "modes", "order", "shortcut"]) | length == 0) and
         .kind == "action" and (.label | line) and (.description | line) and
         (.shortcut | type == "string" and test("^[a-z0-9]$")) and
         (.order | type == "number" and floor == . and
           . >= 0 and . <= 2147483647) and
+        ((has("advanced") | not) or (.advanced | type == "boolean")) and
         (.modes | type == "array" and length > 0 and
           length == (unique | length) and
           all(. == "local" or . == "light" or . == "offline")) and
@@ -614,11 +616,11 @@ cntools_menu_catalog_open() {
     modes="${CNTOOLS_MENU_CATALOG_MODES[child_index]}"
     enabled="Y"
     reason=""
-    if [[ "${kind}" == "menu" ]]; then
-      if [[ "${advanced}" == "true" && "${CNTOOLS_ADVANCED:-N}" != "Y" ]]; then
-        continue
-      fi
-    elif [[ ",${modes}," != *",${CNTOOLS_MODE:-local},"* ]]; then
+    if [[ "${advanced}" == "true" && "${CNTOOLS_ADVANCED:-N}" != "Y" ]]; then
+      continue
+    fi
+    if [[ "${kind}" == "action" &&
+          ",${modes}," != *",${CNTOOLS_MODE:-local},"* ]]; then
       enabled="N"
       reason="Not available in ${CNTOOLS_MODE:-current} mode"
     fi

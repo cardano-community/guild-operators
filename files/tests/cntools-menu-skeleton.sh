@@ -137,19 +137,19 @@ write_legacy_inventory | LC_ALL=C sort > "${actual_inventory}"
 diff -u "${expected_inventory}" "${actual_inventory}" ||
   fail "CNTools legacy menu hierarchy differs from the Phase 4 inventory"
 
-assert_eq "$(wc -l < "${MENU_FIXTURE}" | trim_count)" "70" \
+assert_eq "$(wc -l < "${MENU_FIXTURE}" | trim_count)" "72" \
   "module inventory count"
-assert_eq "$(grep -c $'\tmenu\t' "${MENU_FIXTURE}" | trim_count)" "15" \
+assert_eq "$(grep -c $'\tmenu\t' "${MENU_FIXTURE}" | trim_count)" "16" \
   "menu inventory count"
-assert_eq "$(grep -c $'\taction\t' "${MENU_FIXTURE}" | trim_count)" "55" \
+assert_eq "$(grep -c $'\taction\t' "${MENU_FIXTURE}" | trim_count)" "56" \
   "action inventory count"
-assert_eq "$(find "${MODULE_ROOT}" -type d -print | wc -l | trim_count)" "74" \
+assert_eq "$(find "${MODULE_ROOT}" -type d -print | wc -l | trim_count)" "76" \
   "Phase 5 module directory count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -name module.json -print | wc -l | trim_count)" "74" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -name module.json -print | wc -l | trim_count)" "76" \
   "Phase 5 module metadata count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -name action.sh -print | wc -l | trim_count)" "58" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -name action.sh -print | wc -l | trim_count)" "59" \
   "Phase 5 action entrypoint count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -print | wc -l | trim_count)" "132" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -print | wc -l | trim_count)" "135" \
   "Phase 7 module payload file count"
 [[ -z "$(find "${MODULE_ROOT}" -type l -print)" ]] ||
   fail "CNTools menu skeleton contains a symbolic link"
@@ -354,6 +354,40 @@ while IFS=$'\t' read -r \
             fail "Wallet Decrypt does not call its functional entrypoint"
         fi
         ;;
+      wallet/register|wallet/deregister)
+        jq -e '.libs == [
+          "number.sh",
+          "wallet.sh",
+          "wallet-material.sh",
+          "wallet-key.sh",
+          "wallet-address.sh",
+          "wallet-id.sh",
+          "wallet-query.sh",
+          "utxo.sh",
+          "transaction.sh",
+          "transaction-build.sh",
+          "transaction-sign.sh",
+          "transaction-submit.sh",
+          "transaction-ui.sh",
+          "coin-selection.sh",
+          "change-plan.sh",
+          "wallet-register.sh",
+          "wallet-register-ui.sh"
+        ]' \
+          "${metadata}" >/dev/null ||
+          fail "Wallet stake lifecycle action has unexpected library declarations: ${module_id}"
+        grep -F 'cntools_wallet_query_cleanup' "${action_file}" >/dev/null ||
+          fail "Wallet stake lifecycle action does not clean query temporary files: ${module_id}"
+        grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null ||
+          fail "Wallet stake lifecycle action does not clean transaction staging files: ${module_id}"
+        if [[ "${module_id}" == "wallet/register" ]]; then
+          grep -F 'cntools_wallet_action_register' "${action_file}" >/dev/null ||
+            fail "Wallet Register does not call its functional entrypoint"
+        else
+          grep -F 'cntools_wallet_action_deregister' "${action_file}" >/dev/null ||
+            fail "Wallet De-Register does not call its functional entrypoint"
+        fi
+        ;;
       transaction/sign)
         jq -e '.libs == [
           "transaction.sh",
@@ -380,12 +414,19 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_transaction_action_submit' "${action_file}" >/dev/null ||
           fail "Transaction Submit does not call its functional entrypoint"
         ;;
-      advanced/theme)
+      settings/theme)
         jq -e '((has("libs") | not) or .libs == [])' \
           "${metadata}" >/dev/null ||
           fail "Theme has unexpected library declarations"
         grep -F 'cntools_theme_save' "${action_file}" >/dev/null ||
           fail "Theme does not persist the selected theme"
+        ;;
+      settings/transaction-defaults)
+        jq -e '((has("libs") | not) or .libs == [])' \
+          "${metadata}" >/dev/null ||
+          fail "Transaction Defaults has unexpected library declarations"
+        grep -F 'cntools_settings_save' "${action_file}" >/dev/null ||
+          fail "Transaction Defaults does not persist the selected policy"
         ;;
       *)
         jq -e '.libs == ["placeholder.sh"]' "${metadata}" >/dev/null ||
@@ -415,7 +456,7 @@ while IFS=$'\t' read -r \
 done < "${MENU_FIXTURE}"
 
 assert_eq "${connected_only}" "20" "local/light-only action count"
-assert_eq "${offline_capable}" "35" "offline-capable action count"
+assert_eq "${offline_capable}" "36" "offline-capable action count"
 [[ -f "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    ! -L "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    -s "${CNTOOLS_ROOT}/lib/placeholder.sh" ]] ||
@@ -505,15 +546,25 @@ CNTOOLS_ADVANCED="N"
 cntools_menu_open "${MODULE_ROOT}" ||
   fail "root menu could not be opened without advanced mode"
 assert_eq "${CNTOOLS_MENU_IDS[*]}" \
-  "wallet funds pool transaction vote blocks backup update" \
+  "wallet funds pool transaction vote blocks backup settings update" \
   "root menu without advanced features"
+cntools_menu_open "${MODULE_ROOT}/settings" ||
+  fail "settings menu could not be opened without advanced mode"
+assert_eq "${CNTOOLS_MENU_IDS[*]}" \
+  "settings/transaction-defaults" \
+  "settings menu without advanced features"
 
 CNTOOLS_ADVANCED="Y"
 cntools_menu_open "${MODULE_ROOT}" ||
   fail "root menu could not be opened with advanced mode"
 assert_eq "${CNTOOLS_MENU_IDS[*]}" \
-  "wallet funds pool transaction vote blocks backup advanced update" \
+  "wallet funds pool transaction vote blocks backup settings advanced update" \
   "root menu with advanced features"
+cntools_menu_open "${MODULE_ROOT}/settings" ||
+  fail "settings menu could not be opened with advanced mode"
+assert_eq "${CNTOOLS_MENU_IDS[*]}" \
+  "settings/transaction-defaults settings/theme" \
+  "settings menu with advanced features"
 
 while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
@@ -561,14 +612,14 @@ for mode in local light offline; do
 done
 
 # Every operational action outside the implemented wallet slices remains a
-# runnable placeholder. Advanced Theme is framework functionality covered
+# runnable placeholder. Settings actions are framework functionality covered
 # separately.
 CNTOOLS_MODE="local"
 while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/remove|wallet/encrypt|wallet/decrypt|transaction/sign|transaction/submit|advanced/theme) continue ;;
+    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then

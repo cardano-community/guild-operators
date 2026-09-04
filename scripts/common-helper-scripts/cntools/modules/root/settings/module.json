@@ -1,0 +1,7 @@
+{
+  "kind": "menu",
+  "label": "Settings",
+  "description": "Configure transaction defaults and the CNTools interface",
+  "shortcut": "s",
+  "order": 75
+}

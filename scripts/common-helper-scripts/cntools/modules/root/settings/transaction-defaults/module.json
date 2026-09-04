@@ -1,0 +1,12 @@
+{
+  "kind": "action",
+  "label": "Transaction Defaults",
+  "description": "Configure coin selection and change management",
+  "shortcut": "d",
+  "order": 10,
+  "modes": [
+    "local",
+    "light",
+    "offline"
+  ]
+}

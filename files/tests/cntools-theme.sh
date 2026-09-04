@@ -12,8 +12,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 THEME_CORE="${CNTOOLS_ROOT}/core/theme.sh"
-THEME_ACTION="${CNTOOLS_ROOT}/modules/root/advanced/theme/action.sh"
-THEME_METADATA="${CNTOOLS_ROOT}/modules/root/advanced/theme/module.json"
+THEME_ACTION="${CNTOOLS_ROOT}/modules/root/settings/theme/action.sh"
+THEME_METADATA="${CNTOOLS_ROOT}/modules/root/settings/theme/module.json"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-theme.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 CNTOOLS_NODE_HOME="${TEST_ROOT}/node"
@@ -79,7 +79,7 @@ for required_file in "${THEME_CORE}" "${THEME_ACTION}" "${THEME_METADATA}"; do
 done
 jq -e '
   .kind == "action" and .label == "Theme" and .shortcut == "t" and
-  .order == 50 and .modes == ["local", "light", "offline"] and
+  .order == 20 and .modes == ["local", "light", "offline"] and
   ((has("libs") | not) or .libs == [])
 ' "${THEME_METADATA}" >/dev/null || fail "Theme metadata is invalid"
 

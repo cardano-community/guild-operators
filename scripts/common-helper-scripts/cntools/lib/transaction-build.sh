@@ -240,3 +240,60 @@ cntools_transaction_calculate_min_fee_into() {
   cntools_transaction_log TRANSACTION \
     "minimum fee=${CNTOOLS_TRANSACTION_MIN_FEE} witnesses=${_cntools_witness_count}"
 }
+
+cntools_transaction_calculate_min_utxo_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_protocol_file="${2:-}"
+  local _cntools_tx_out="${3:-}"
+  local _cntools_output_file=""
+  local _cntools_error_file=""
+  local _cntools_result=""
+  local _cntools_status=0
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
+     -n "${_cntools_tx_out}" && ${#_cntools_tx_out} -le 65536 &&
+     "${_cntools_tx_out}" != *$'\n'* &&
+     "${_cntools_tx_out}" != *$'\r'* ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  cntools_transaction_require_cli || return 1
+  cntools_transaction_file_safe "${_cntools_protocol_file}" 4194304 || {
+    cntools_transaction_set_error \
+      "The protocol-parameters file is missing or unsafe."
+    return 1
+  }
+  jq -e 'type == "object"' "${_cntools_protocol_file}" >/dev/null 2>&1 || {
+    cntools_transaction_set_error \
+      "The protocol-parameters file is not a JSON object."
+    return 1
+  }
+  cntools_transaction_temp_file _cntools_output_file min-utxo-output || return 1
+  cntools_transaction_temp_file _cntools_error_file min-utxo-error || return 1
+  if cntools_transaction_run_cli \
+      "${_cntools_output_file}" "${_cntools_error_file}" -- \
+      "${CNTOOLS_CLI}" latest transaction calculate-min-required-utxo \
+      --protocol-params-file "${_cntools_protocol_file}" \
+      --tx-out "${_cntools_tx_out}"; then
+    _cntools_status=0
+  else
+    _cntools_status=$?
+  fi
+  if (( _cntools_status != 0 )); then
+    cntools_transaction_log_cli_failure \
+      "Minimum-UTxO calculation failed" "${_cntools_status}" \
+      "${_cntools_error_file}" "${_cntools_output_file}"
+    return 1
+  fi
+  _cntools_result="$(< "${_cntools_output_file}")"
+  if [[ "${_cntools_result}" =~ ^[[:space:]]*(Lovelace|Coin)[[:space:]]+([0-9]+)[[:space:]]*$ ]]; then
+    _cntools_output_ref="${BASH_REMATCH[2]}"
+  elif [[ "${_cntools_result}" =~ ^[[:space:]]*([0-9]+)[[:space:]]+(Lovelace|Coin)[[:space:]]*$ ]]; then
+    _cntools_output_ref="${BASH_REMATCH[1]}"
+  else
+    cntools_transaction_set_error \
+      "Cardano CLI returned an invalid minimum-UTxO result."
+    return 1
+  fi
+  cntools_transaction_log TRANSACTION \
+    "minimum utxo=${_cntools_output_ref} output_bytes=${#_cntools_tx_out}"
+}

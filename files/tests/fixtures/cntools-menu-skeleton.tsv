@@ -52,6 +52,9 @@ blocks/epoch	action	e	20	local,light,offline	-	Epoch
 backup	menu	z	70	-	-	Backup & Restore
 backup/create	action	b	10	local,light,offline	-	Backup
 backup/restore	action	r	20	local,light,offline	-	Restore
+settings	menu	s	75	-	-	Settings
+settings/transaction-defaults	action	d	10	local,light,offline	-	Transaction Defaults
+settings/theme	action	t	20	local,light,offline	true	Theme
 advanced	menu	a	80	-	true	Advanced
 advanced/metadata	action	m	10	local,light	-	Metadata
 advanced/asset	menu	a	20	-	-	Asset
@@ -67,4 +70,3 @@ advanced/multisig	menu	s	30	-	-	MultiSig
 advanced/multisig/create	action	c	10	local,light,offline	-	Create
 advanced/multisig/derive-keys	action	d	20	local,light,offline	-	Derive Keys
 advanced/delete-private-keys	action	x	40	local,light,offline	-	Delete Private Keys
-advanced/theme	action	t	50	local,light,offline	-	Theme

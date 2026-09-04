@@ -42,6 +42,8 @@ jobs:
       run: bash files/tests/cntools-number.sh
     - name: Test CNTools themes
       run: bash files/tests/cntools-theme.sh
+    - name: Test CNTools settings
+      run: bash files/tests/cntools-settings.sh
     - name: Test CNTools wallet actions
       run: bash files/tests/cntools-wallet.sh
     - name: Test CNTools wallet creation
@@ -54,6 +56,10 @@ jobs:
       run: bash files/tests/cntools-wallet-remove.sh
     - name: Test CNTools wallet protection
       run: bash files/tests/cntools-wallet-protection.sh
+    - name: Test CNTools wallet stake lifecycle
+      run: bash files/tests/cntools-wallet-register.sh
+    - name: Test CNTools coin selection and change planning
+      run: bash files/tests/cntools-coin-selection.sh
     - name: Test CNTools transaction foundation
       run: bash files/tests/cntools-transaction-foundation.sh
     - name: Test CNTools transaction signing and submission

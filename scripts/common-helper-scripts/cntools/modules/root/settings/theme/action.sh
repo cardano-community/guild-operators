@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Advanced theme selector. Theme state is owned by core/theme.sh.
+# Theme selector. Theme state is owned by core/theme.sh.
 
 cntools_action_cleanup() {
   cntools_theme_cleanup || true
@@ -16,7 +16,7 @@ cntools_action_main() {
   local -a rows=()
   local -a row_ids=()
 
-  cntools_ui_action_begin "Theme" "/ Advanced / Theme"
+  cntools_ui_action_begin "Theme" "/ Settings / Theme"
   for theme_id in "${CNTOOLS_THEME_IDS[@]}"; do
     theme_name="$(cntools_theme_display_name "${theme_id}")" || return 1
     current_suffix=""
@@ -51,7 +51,7 @@ cntools_action_main() {
     cntools_theme_apply "${theme_id}" || return 1
     cntools_theme_invalidate_ui_cache
     cntools_log CHOICE "selected theme=${theme_id}" || true
-    cntools_ui_action_begin "Theme" "/ Advanced / Theme"
+    cntools_ui_action_begin "Theme" "/ Settings / Theme"
     cntools_ui_render_status success \
       "$(cntools_theme_display_name "${theme_id}") is now the active CNTools theme."
     cntools_ui_wait

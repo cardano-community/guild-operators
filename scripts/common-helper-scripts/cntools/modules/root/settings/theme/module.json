@@ -3,7 +3,8 @@
   "label": "Theme",
   "description": "Select and persist the CNTools color theme",
   "shortcut": "t",
-  "order": 50,
+  "order": 20,
+  "advanced": true,
   "modes": [
     "local",
     "light",

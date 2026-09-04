@@ -166,6 +166,11 @@ CLI_VERSION_OUTPUT="$("${CLI}" version 2>&1)" ||
 CLI_VERSION_PATTERN="^cardano-cli[[:space:]]+${CLI_VERSION//./\\.}([[:space:]]|$)"
 [[ "${CLI_VERSION_OUTPUT}" =~ ${CLI_VERSION_PATTERN} ]] ||
   fail "cardano-cli output does not report pinned version ${CLI_VERSION}"
+"${CLI}" latest transaction calculate-min-required-utxo --help \
+  >/dev/null 2>&1 ||
+  fail "pinned cardano-cli does not expose minimum-UTxO calculation"
+"${CLI}" latest transaction build-estimate --help >/dev/null 2>&1 ||
+  fail "pinned cardano-cli does not expose the node-free transaction builder"
 
 HWCLI_VERSION_OUTPUT="$("${HWCLI}" version 2>&1)" ||
   fail "pinned cardano-hw-cli could not be started"
@@ -176,6 +181,10 @@ HWCLI_VERSION_PATTERN="Cardano[[:space:]]+HW[[:space:]]+CLI[[:space:]]+Tool[[:sp
 GENERATED_SKEY="${TEST_ROOT}/generated.skey"
 GENERATED_VKEY="${TEST_ROOT}/generated.vkey"
 GENERATED_DERIVED_VKEY="${TEST_ROOT}/generated-derived.vkey"
+GENERATED_STAKE_SKEY="${TEST_ROOT}/generated-stake.skey"
+GENERATED_STAKE_VKEY="${TEST_ROOT}/generated-stake.vkey"
+REGISTRATION_CERTIFICATE="${TEST_ROOT}/stake-registration.cert"
+DEREGISTRATION_CERTIFICATE="${TEST_ROOT}/stake-deregistration.cert"
 "${CLI}" address key-gen \
   --verification-key-file "${GENERATED_VKEY}" \
   --signing-key-file "${GENERATED_SKEY}" ||
@@ -198,6 +207,33 @@ assert_eq \
   "$(jq -er '.cborHex' "${GENERATED_DERIVED_VKEY}")" \
   "$(jq -er '.cborHex' "${GENERATED_VKEY}")" \
   "generated payment key pair"
+
+"${CLI}" latest stake-address key-gen \
+  --verification-key-file "${GENERATED_STAKE_VKEY}" \
+  --signing-key-file "${GENERATED_STAKE_SKEY}" ||
+  fail "pinned cardano-cli stake key generation failed"
+"${CLI}" latest stake-address registration-certificate \
+  --stake-verification-key-file "${GENERATED_STAKE_VKEY}" \
+  --key-reg-deposit-amt 2000000 \
+  --out-file "${REGISTRATION_CERTIFICATE}" ||
+  fail "pinned cardano-cli stake registration certificate failed"
+jq -e '
+  (.type | type == "string" and length > 0) and
+  (.description | type == "string") and
+  (.cborHex | type == "string" and test("^([0-9a-fA-F]{2})+$"))
+' "${REGISTRATION_CERTIFICATE}" >/dev/null ||
+  fail "stake registration certificate has an unexpected envelope"
+"${CLI}" latest stake-address deregistration-certificate \
+  --stake-verification-key-file "${GENERATED_STAKE_VKEY}" \
+  --key-reg-deposit-amt 2000000 \
+  --out-file "${DEREGISTRATION_CERTIFICATE}" ||
+  fail "pinned cardano-cli stake de-registration certificate failed"
+jq -e '
+  (.type | type == "string" and length > 0) and
+  (.description | type == "string") and
+  (.cborHex | type == "string" and test("^([0-9a-fA-F]{2})+$"))
+' "${DEREGISTRATION_CERTIFICATE}" >/dev/null ||
+  fail "stake de-registration certificate has an unexpected envelope"
 
 # A fixed, publicly known test seed makes the transaction body reproducible.
 # It must never be used with real funds.
