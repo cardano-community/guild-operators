@@ -388,6 +388,12 @@ while IFS=$'\t' read -r \
             fail "Wallet De-Register does not call its functional entrypoint"
         fi
         ;;
+      funds/send)
+        jq -e '.libs | index("funds-send.sh") != null and index("funds-send-ui.sh") != null and index("recipient.sh") != null and index("placeholder.sh") == null' \
+          "${metadata}" >/dev/null || fail "Send has incorrect libraries"
+        grep -F 'cntools_funds_action_send' "${action_file}" >/dev/null || fail "Send entrypoint missing"
+        grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "Send cleanup missing"
+        ;;
       transaction/sign)
         jq -e '.libs == [
           "transaction.sh",
@@ -619,7 +625,7 @@ while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults) continue ;;
+    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then

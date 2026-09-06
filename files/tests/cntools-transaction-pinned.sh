@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Exercise the CNTools transaction contracts with the pinned release binaries.
 # This is intentionally node-free and needs no hardware wallet.
+# shellcheck disable=SC2034 # Action state consumed by sourced CNTools libraries.
 set -euo pipefail
 
 fail() {
@@ -28,7 +29,7 @@ fi
   fail "Bash 4 or newer is required"
 
 for required_command in \
-  awk chmod cmp curl dirname jq mkdir mktemp mv rm sha256sum tar tr uname; do
+  awk chmod cmp curl dirname jq mkdir mktemp mv rm sha256sum tar timeout tr uname; do
   command -v "${required_command}" >/dev/null 2>&1 ||
     fail "required command is unavailable: ${required_command}"
 done
@@ -441,6 +442,109 @@ HW_MALFORMED_STATUS=$?
 set -e
 assert_eq "${HW_MALFORMED_STATUS}" 1 \
   "malformed hardware transaction validation status"
+
+# Node-free Send integration using the actual deployment-pinned CLI. Synthetic
+# protocol parameters intentionally omit Plutus cost models: Send executes none.
+(
+  CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
+  for library in number utxo coin-selection change-plan transaction transaction-build transaction-metadata message-crypto funds-send; do
+    # shellcheck source=/dev/null
+    . "${CNTOOLS_ROOT}/lib/${library}.sh"
+  done
+  cntools_log() { printf '%s %s\n' "$1" "$2" >&2; }
+  cntools_run_command_timeout() {
+    local seconds="$1"
+    shift 3
+    timeout "${seconds}" "$@"
+  }
+  CNTOOLS_TMP_DIR="${TEST_ROOT}"
+  CNTOOLS_CLI="${CLI}"
+  CNTOOLS_NETWORK=preview
+  CNTOOLS_TX_SELECTION_STRATEGY=balanced
+  CNTOOLS_TX_TOKEN_FRAGMENTATION=N
+  CNTOOLS_TX_UTXO_MANAGEMENT=N
+  CNTOOLS_SEND_WALLET="pinned-send"
+  CNTOOLS_SEND_TYPE=CLI
+  CNTOOLS_SEND_VKEY="${VERIFICATION_KEY}"
+  CNTOOLS_SEND_SOURCE="${SIGNING_KEY}"
+  CNTOOLS_SEND_CREDENTIAL="${PAYMENT_KEY_HASH}"
+  CNTOOLS_SEND_ADDRESS="$(< "${ADDRESS_FILE}")"
+  CNTOOLS_SEND_PAYMENT="${CNTOOLS_SEND_ADDRESS}"
+  CNTOOLS_SEND_EXPIRY=10000
+  CNTOOLS_FUNDING_PROTOCOL="${REPO_ROOT}/files/tests/fixtures/transaction-protocol-conway.json"
+  CNTOOLS_FUNDING_BACKEND=koios
+  CNTOOLS_FUNDING_TOTAL=20000000
+  declare -a CNTOOLS_FUNDING_ASSET_IDS=("${POLICY_ID}.01")
+  declare -A CNTOOLS_FUNDING_ASSETS=(["${POLICY_ID}.01"]=10)
+  cntools_utxo_reset
+  cntools_utxo_add "$(printf 'cc%.0s' {1..32})#0" "${CNTOOLS_SEND_ADDRESS}" 20000000
+  cntools_utxo_add_asset 0 "${POLICY_ID}.01" 10
+  CNTOOLS_SEND_ADDRESSES=("${CNTOOLS_SEND_ADDRESS}")
+  CNTOOLS_SEND_AMOUNTS=(3000000)
+  CNTOOLS_SEND_ASSETS["0|${POLICY_ID}.01"]=4
+  send_package=""; send_view=""
+  for send_mode in exact max sweep; do
+    CNTOOLS_SEND_MODE="${send_mode}"
+    cntools_metadata_reset
+    # Exercise plain plus custom metadata, encrypted metadata, and the unchanged
+    # no-metadata sweep. Exact integers must survive without jq reserialization.
+    if [[ "${send_mode}" == exact ]]; then
+      cntools_transaction_temp_file CNTOOLS_METADATA_CUSTOM custom-metadata
+      printf '%s' '{"123":{"int":9007199254740993}}' > "${CNTOOLS_METADATA_CUSTOM}"
+      CNTOOLS_METADATA_SCHEMA=detailed
+      cntools_transaction_temp_file CNTOOLS_METADATA_MESSAGE message
+      printf '%s' '{"msg":["Pinned metadata round trip"]}' > "${CNTOOLS_METADATA_MESSAGE}"
+      CNTOOLS_METADATA_MODE=plain
+    elif [[ "${send_mode}" == max ]]; then
+      message_plain='["Pinned encrypted message"]'; message_pass=cardano; message_cipher=""
+      cntools_message_encrypt_into message_cipher message_plain message_pass || fail 'pinned metadata encryption'
+      cntools_transaction_temp_file CNTOOLS_METADATA_MESSAGE message
+      printf '%s' "${message_cipher}" | jq -Rsc '{enc:"basic",msg:[scan(".{1,64}")]}' > "${CNTOOLS_METADATA_MESSAGE}"
+      unset message_plain message_pass message_cipher
+      CNTOOLS_METADATA_MODE=basic-public
+    fi
+    cntools_send_build_into send_package || fail "pinned Send ${send_mode}: ${CNTOOLS_TRANSACTION_ERROR}"
+    cntools_transaction_package_load "${send_package}" || fail 'pinned Send package reload'
+    assert_eq "${CNTOOLS_TRANSACTION_REQUIRED_COUNT}" 1 'Send payment witness count'
+    cntools_transaction_view_into send_view "${CNTOOLS_TRANSACTION_BODY_FILE}" || fail 'pinned Send decode'
+    if [[ "${send_mode}" != sweep ]]; then
+      jq -e '.metadata."674" != null' <<< "${send_view}" >/dev/null || fail 'package dropped message metadata'
+      if [[ "${send_mode}" == exact ]]; then
+        # Search the original CLI JSON, not a rounded jq numeric rendering.
+        [[ "${send_view}" == *9007199254740993* ]] || fail 'custom integer changed'
+      fi
+      "${HWCLI}" transaction transform --tx-file "${CNTOOLS_TRANSACTION_BODY_FILE}" \
+        --out-file "${TEST_ROOT}/send-${send_mode}.hw" || fail 'hardware metadata transform'
+      "${CLI}" debug transaction view --output-json --tx-body-file "${TEST_ROOT}/send-${send_mode}.hw" \
+        > "${TEST_ROOT}/send-${send_mode}.hw-view" || fail 'hardware metadata decode'
+      cmp -s <(jq -Sc '.metadata' <<< "${send_view}") \
+        <(jq -Sc '.metadata' "${TEST_ROOT}/send-${send_mode}.hw-view") || fail 'hardware preparation changed metadata'
+      if [[ "${send_mode}" == exact ]]; then
+        grep -q '9007199254740993' "${TEST_ROOT}/send-${send_mode}.hw-view" || fail 'hardware preparation rounded metadata'
+      fi
+    fi
+    [[ "${CNTOOLS_SEND_FEE}" =~ ^[1-9][0-9]+$ ]] || fail 'pinned Send fee'
+    # Sign the exact generated body and prove that its real serialized size is
+    # funded by the fee. This catches CLI witness-size/fee API drift.
+    "${CLI}" latest transaction sign --tx-body-file "${CNTOOLS_TRANSACTION_BODY_FILE}" \
+      --signing-key-file "${SIGNING_KEY}" --testnet-magic 2 \
+      --out-file "${TEST_ROOT}/send-${send_mode}.signed" || fail 'pinned Send sign'
+    signed_size="$(jq -er '.cborHex | length / 2' "${TEST_ROOT}/send-${send_mode}.signed")"
+    "${CLI}" debug transaction view --output-json --tx-file "${TEST_ROOT}/send-${send_mode}.signed" \
+      > "${TEST_ROOT}/send-${send_mode}.signed-view" || fail 'signed metadata decode'
+    cmp -s <(jq -Sc '.metadata' <<< "${send_view}") \
+      <(jq -Sc '.metadata' "${TEST_ROOT}/send-${send_mode}.signed-view") || fail 'signing changed metadata'
+    if [[ "${send_mode}" == exact ]]; then
+      grep -q '9007199254740993' "${TEST_ROOT}/send-${send_mode}.signed-view" || fail 'signing rounded metadata'
+    fi
+    (( CNTOOLS_SEND_FEE >= 155381 + 44 * signed_size )) || fail 'Send underfunded actual signed size'
+    if [[ "${send_mode}" == sweep ]]; then
+      (( CNTOOLS_SEND_AMOUNTS[0] + CNTOOLS_SEND_FEE == 20000000 )) || fail 'pinned sweep conservation'
+      assert_eq "${#CNTOOLS_CHANGE_OUTPUTS[@]}" 0 'pinned sweep change'
+    fi
+  done
+  cntools_transaction_cleanup
+)
 
 printf 'CNTools pinned transaction binary tests passed (cardano-cli %s, cardano-hw-cli %s).\n' \
   "${CLI_VERSION}" "${HWCLI_VERSION}"

@@ -111,9 +111,9 @@ cntools_utxo_load_local() {
   local datum=""
   local reference_script=""
   local lovelace_rows=0
-  local -Ag addresses=()
-  local -Ag datums=()
-  local -Ag scripts=()
+  local -A addresses=()
+  local -A datums=()
+  local -A scripts=()
 
   cntools_utxo_reset
   [[ -f "${source_file}" && ! -L "${source_file}" ]] || return 2

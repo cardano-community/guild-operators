@@ -60,6 +60,12 @@ jobs:
       run: bash files/tests/cntools-wallet-register.sh
     - name: Test CNTools coin selection and change planning
       run: bash files/tests/cntools-coin-selection.sh
+    - name: Test CNTools funds transfers
+      run: bash files/tests/cntools-funds-send.sh
+    - name: Test CNTools Send metadata and encryption
+      run: bash files/tests/cntools-send-metadata.sh
+    - name: Test CNTools Handle resolution
+      run: bash files/tests/cntools-handle.sh
     - name: Test CNTools transaction foundation
       run: bash files/tests/cntools-transaction-foundation.sh
     - name: Test CNTools transaction signing and submission

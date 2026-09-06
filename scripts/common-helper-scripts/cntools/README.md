@@ -5,6 +5,10 @@ application is still named **CNTools**: generation markers such as `V2` must
 not become part of the product name, runtime paths, source APIs, or library
 names. Normal application release numbers remain supported as data.
 
+Funds → Send is described in [the Send implementation plan](SEND-PLAN.md),
+including direct-address/Koios Handle recipients, optional CIP-20 messages,
+CIP-83 encryption, custom metadata, and the remaining implementation boundaries.
+
 This document fixes the small set of conventions needed before implementation
 starts. It is deliberately not a package format or plugin system.
 

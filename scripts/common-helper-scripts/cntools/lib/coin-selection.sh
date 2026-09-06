@@ -378,3 +378,57 @@ cntools_coin_select_lovelace() {
     "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${required}" || return 1
   CNTOOLS_COIN_SELECTION_REASON="Selected ${#CNTOOLS_COIN_SELECTED_INDICES[@]} of ${#CNTOOLS_UTXO_REFS[@]} UTxOs; ${CNTOOLS_COIN_SELECTED_ASSET_COUNT} native assets touched; conservative balance margin ${remaining} lovelace."
 }
+
+# Cover an exact asset demand first, then ADA. The demand is an associative
+# array keyed by policy.hex-name with integer-string quantities.
+cntools_coin_select_value() {
+  local required="${1:-}" demand_name="${2:-}" strategy="${3:-balanced}"
+  local asset="" needed="" held="" candidate="" class=0 best_class=99
+  local index=0 compare=0
+  [[ "${demand_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n demand_ref="${demand_name}"
+  case "${strategy}" in balanced|fewest-inputs) ;; *) return 2 ;; esac
+  if (( ${#demand_ref[@]} == 0 )); then
+    cntools_coin_select_lovelace "${required}" "${strategy}"
+    return $?
+  fi
+  cntools_coin_reset
+  cntools_uint_normalize_into CNTOOLS_COIN_REQUIRED_LOVELACE "${required}" || return 2
+  cntools_coin_find_collateral_candidate || return 1
+  local sorted=""
+  sorted="$(printf '%s\n' "${!demand_ref[@]}" | LC_ALL=C sort)" || return 1
+  while IFS= read -r asset; do
+    [[ "${asset}" =~ ^[0-9a-f]{56}\.([0-9a-f]{2}){0,32}$ ]] || return 2
+    cntools_uint_normalize_into needed "${demand_ref[${asset}]}" || return 2
+    while ! cntools_uint_greater_equal "${CNTOOLS_COIN_SELECTED_ASSETS[${asset}]:-0}" "${needed}"; do
+      candidate=""; best_class=99
+      for index in "${!CNTOOLS_UTXO_REFS[@]}"; do
+        [[ -z "${CNTOOLS_COIN_SELECTED_MAP[${index}]+x}" ]] || continue
+        held="${CNTOOLS_UTXO_ASSET_QUANTITIES[${index}|${asset}]:-0}"
+        [[ "${held}" != 0 ]] || continue
+        cntools_coin_candidate_class_into class "${index}" || return 1
+        if [[ -z "${candidate}" ]]; then
+          candidate="${index}"; best_class="${class}"; continue
+        fi
+        cntools_uint_compare_into compare "${held}" \
+          "${CNTOOLS_UTXO_ASSET_QUANTITIES[${candidate}|${asset}]}" || return 1
+        if { [[ "${strategy}" == balanced ]] && (( class < best_class )); } ||
+           { { [[ "${strategy}" == fewest-inputs ]] || (( class == best_class )); } &&
+             { (( compare > 0 )) || { (( compare == 0 )) &&
+               [[ "${CNTOOLS_UTXO_REFS[index]}" < "${CNTOOLS_UTXO_REFS[candidate]}" ]]; }; }; }; then
+          candidate="${index}"; best_class="${class}"
+        fi
+      done
+      [[ -n "${candidate}" ]] || { cntools_coin_fail "Insufficient quantity of ${asset}."; return 1; }
+      (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} < 100 )) || return 1
+      cntools_coin_add_index "${candidate}" || return 1
+    done
+  done <<< "${sorted}"
+  while ! cntools_uint_greater_equal "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${required}"; do
+    cntools_coin_next_largest_into candidate "${strategy}" 4 || return 1
+    [[ -n "${candidate}" ]] || { cntools_coin_fail "Insufficient ADA for outputs, fees and change."; return 1; }
+    (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} < 100 )) || return 1
+    cntools_coin_add_index "${candidate}" || return 1
+  done
+  CNTOOLS_COIN_SELECTION_REASON="Selected ${#CNTOOLS_COIN_SELECTED_INDICES[@]} of ${#CNTOOLS_UTXO_REFS[@]} UTxOs to cover ADA and requested native assets."
+}

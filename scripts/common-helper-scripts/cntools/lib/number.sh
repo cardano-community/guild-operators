@@ -60,6 +60,26 @@ cntools_number_normalize_into() {
   _cntools_number_output_ref="${_cntools_number_result_value}"
 }
 
+# Convert a human decimal to exact smallest units (ADA uses scale 6).
+cntools_number_units_into() {
+  local _cntools_units_output="${1:-}" _cntools_units_input="${2:-}" _cntools_units_scale="${3:-0}"
+  local _cntools_units_normalized="" _cntools_units_integer="" _cntools_units_fraction=""
+  [[ "${_cntools_units_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
+     "${_cntools_units_scale}" =~ ^(0|[1-9][0-9]?)$ ]] || return 2
+  (( _cntools_units_scale <= 20 )) || return 2
+  local -n _cntools_units_ref="${_cntools_units_output}"
+  # shellcheck disable=SC2034 # Written through the caller's nameref.
+  _cntools_units_ref=""
+  cntools_number_normalize_into _cntools_units_normalized "${_cntools_units_input}" || return 1
+  [[ "${_cntools_units_normalized}" != -* ]] || return 1
+  _cntools_units_normalized="${_cntools_units_normalized#+}"
+  _cntools_units_integer="${_cntools_units_normalized%%.*}"
+  [[ "${_cntools_units_normalized}" != *.* ]] || _cntools_units_fraction="${_cntools_units_normalized#*.}"
+  (( ${#_cntools_units_fraction} <= _cntools_units_scale )) || return 1
+  while (( ${#_cntools_units_fraction} < _cntools_units_scale )); do _cntools_units_fraction+="0"; done
+  cntools_uint_normalize_into _cntools_units_ref "${_cntools_units_integer}${_cntools_units_fraction}"
+}
+
 cntools_number_normalize() {
   (( $# == 1 )) || return 2
   local _cntools_number_result=""

@@ -85,7 +85,10 @@ cntools_transaction_ui_render_json() {
   local formatted=""
   local width=""
 
-  formatted="$(jq -S . <<< "${value}" 2>/dev/null)" || return 1
+  # The CLI already formats its authoritative view. Re-encoding it with jq can
+  # round metadata integers beyond 2^53 on deployed jq versions.
+  jq -e 'type == "object" or type == "array"' <<< "${value}" >/dev/null 2>&1 || return 1
+  formatted="${value}"
   [[ -n "${formatted}" ]] || return 1
   width="$(cntools_ui_content_width 220 54)" || return 1
   cntools_ui_render_detail "${heading}" || return 1

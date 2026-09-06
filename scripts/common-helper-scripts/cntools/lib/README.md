@@ -12,6 +12,8 @@ integers and fixed-point decimal values of any practical length:
   canonical, ungrouped value to OUTPUT;
 - `cntools_number_format_into OUTPUT INPUT` validates INPUT and writes its
   US-formatted value with comma thousands separators to OUTPUT;
+- `cntools_number_units_into OUTPUT INPUT SCALE` converts a non-negative human
+  decimal to exact smallest units, rejecting excess precision (ADA uses scale 6);
 - `cntools_number_normalize INPUT` and `cntools_number_format INPUT` print the
   corresponding value; and
 - `cntools_number_is_valid INPUT` performs validation without producing output.
@@ -138,6 +140,55 @@ wallet root. Symbolic links, nested directories, special files, and entries
 owned by another user are rejected. Immutable flags created by wallet
 protection are removed when possible, files are unlinked without recursive
 deletion, and the now-empty wallet directory is removed last.
+
+Funds → Send adds focused lazy helpers to the wallet/transaction stack:
+
+- `recipient.sh` validates receiving addresses and proves that a local native-script
+  recipient matches its script. Handle resolution and external script destinations
+  needing datum support are not implicitly accepted;
+- `transaction-funding.sh` collects current protocol parameters, tip and exact
+  inventories from a local node or bulk extended Koios queries;
+- `funds-send.sh` prepares payment signers, native-asset demands, residual change,
+  minimum ADA, bounded fee convergence and portable packages; and
+- `funds-send-ui.sh` provides recipient editing, exact/max/sweep choices, review,
+  output publication, signing and submission confirmations with stale-input checks;
+- `transaction-metadata.sh` freezes custom JSON without rewriting integer literals,
+  rejects duplicate keys, builds UTF-8-safe CIP-20 messages and attaches metadata;
+- `message-crypto.sh` uses OpenSSL for compatible CIP-83 basic encryption and a
+  local decryption check, with passphrases on private descriptors;
+- `send-metadata-ui.sh` supplies optional message protection/import controls and
+  lossless, escaped metadata-path table previews; and
+- `handle.sh` resolves classic/CIP-68 root, NFT and virtual subhandles through Koios using
+  the authenticated on-chain policy registry. It checks tip freshness, policy
+  windows, supply and current UTxOs. `handle-virtual.sh` decodes the label-000
+  inline datum, validates its ADA destination and records its public/private lease
+  and millisecond expiry. It never falls back to a parent or contract address.
+  `recipient.sh` converts address bytes to Bech32 in Bash and validates the result
+  without adding a binary dependency. Virtual lease changes require renewed review.
+
+Send's Message / metadata entry is optional. Custom imports require advanced mode
+and accept one Simple or Detailed JSON file (64 KiB maximum, canonical decimal
+labels, integer literals, 32 nesting levels/4096 values). Ledger/schema validation
+is performed by the pinned CLI when building. Label 674 conflicts are rejected.
+Encryption affects only the message; the public `cardano` passphrase provides no
+confidentiality. Custom passphrases are not wallet passwords and must be shared
+separately. CBC has no authentication tag. Only ciphertext is packaged; no message
+password is needed for offline signing. OpenSSL must support PBKDF2 and the CIP-83
+8-byte salt format. Logs never contain custom message passwords or encrypted-mode
+plaintext. The JSON schema and final metadata are included in fee/size handling.
+
+Handle resolution is an explicit recipient choice, never an interpretation of
+arbitrary external-address text. Local and light modes both use the configured
+Koios service; offline lookup is rejected. Mainnet/preview/preprod have reviewed
+bootstrap identities, but lookup still requires a valid live registry on that
+network. Candidate and supply lookups are bulk calls per recipient. Evidence is
+stored in the package intent, while the transaction itself pins the actual address.
+Live rechecks stop on changed destinations; existing packages are never redirected.
+
+`cntools_coin_select_value LOVELACE DEMAND_ARRAY STRATEGY` extends the shared
+selector with an associative policy/name-to-quantity demand. Change planning sees
+only the unsent asset quantities. ADA arithmetic and asset quantities stay exact
+integer strings throughout. Send never implicitly withdraws rewards or deposits.
 
 Transaction actions use five lazy libraries:
 
