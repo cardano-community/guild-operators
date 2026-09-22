@@ -62,6 +62,8 @@ jobs:
       run: bash files/tests/cntools-coin-selection.sh
     - name: Test CNTools funds transfers
       run: bash files/tests/cntools-funds-send.sh
+    - name: CNTools Send UI
+      run: bash files/tests/cntools-send-ui.sh
     - name: Test CNTools Send metadata and encryption
       run: bash files/tests/cntools-send-metadata.sh
     - name: Test CNTools Handle resolution

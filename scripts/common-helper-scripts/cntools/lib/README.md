@@ -152,6 +152,10 @@ Funds → Send adds focused lazy helpers to the wallet/transaction stack:
   minimum ADA, bounded fee convergence and portable packages; and
 - `funds-send-ui.sh` provides recipient editing, exact/max/sweep choices, review,
   output publication, signing and submission confirmations with stale-input checks;
+- `funds-send-view.sh` keeps source/asset/review/result tables consistent with the
+  shared theme, while `funds-send-files.sh` separates tracked intermediate files
+  from uniquely named persistent transaction exports. Recipient drafts roll back
+  on cancellation; decoded transactions and signer details are opt-in review views;
 - `transaction-metadata.sh` freezes custom JSON without rewriting integer literals,
   rejects duplicate keys, builds UTF-8-safe CIP-20 messages and attaches metadata;
 - `message-crypto.sh` uses OpenSSL for compatible CIP-83 basic encryption and a

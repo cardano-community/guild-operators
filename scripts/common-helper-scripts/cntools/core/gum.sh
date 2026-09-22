@@ -942,8 +942,10 @@ cntools_ui_render_empty() {
 
 cntools_ui_confirm() {
   local prompt="${1:-Continue?}"
+  local default="${2:-false}"
+  [[ "${default}" == true || "${default}" == false ]] || return 2
 
-  cntools_gum confirm --default=false \
+  cntools_gum confirm --default="${default}" \
     --prompt.foreground "${CNTOOLS_GUM_COLOR_TEXT}" \
     --selected.background "${CNTOOLS_GUM_COLOR_BRAND_DARK}" \
     --selected.foreground "${CNTOOLS_GUM_COLOR_TEXT}" "${prompt}"

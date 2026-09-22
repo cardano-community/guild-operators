@@ -32,6 +32,8 @@
     "message-crypto.sh",
     "send-metadata-ui.sh",
     "funds-send.sh",
+    "funds-send-view.sh",
+    "funds-send-files.sh",
     "funds-send-ui.sh"
   ]
 }

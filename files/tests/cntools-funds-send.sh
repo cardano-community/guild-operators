@@ -10,7 +10,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-send.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
-for lib in number wallet utxo coin-selection change-plan recipient handle-virtual transaction-funding transaction-metadata message-crypto send-metadata-ui funds-send funds-send-ui; do
+for lib in number wallet utxo coin-selection change-plan recipient handle-virtual transaction-funding transaction-metadata message-crypto send-metadata-ui funds-send funds-send-view funds-send-files funds-send-ui; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
@@ -68,6 +68,7 @@ eq "${value}" "${ADDRESS}"
   cntools_ui_choose() { printf -v "$1" '%s' "${RECIPIENT_CHOICE}"; }
   cntools_ui_input() { printf -v "$1" '%s' " ${ADDRESS} "; }
   cntools_ui_render_field() { :; }
+  cntools_send_render_recipient() { :; }
   cntools_ui_render_status() { :; }
   cntools_wallet_choose() { printf -v "$1" '%s' 0; }
   cntools_wallet_prepare_selected_material() { return 0; }
@@ -315,41 +316,70 @@ for workflow in 'Create unsigned package' 'Create and sign' 'Create, sign and su
     cntools_funding_collect() { return 0; }
     cntools_send_edit_recipients() { return 0; }
     cntools_send_render_recipients() { return 0; }
+    cntools_send_render_information() { return 0; }
+    cntools_send_render_result() { printf 'result %s %s\n' "$1" "$2" >> "${trace}"; }
     cntools_wallet_format_lovelace() { printf '%s ADA' "$1"; }
     cntools_ui_choose() {
       case "$2" in
-        Workflow) printf -v "$1" '%s' "${workflow}" ;;
+        Workflow) [[ "$3" == 'Create, sign and submit' ]] || fail 'workflow order'; printf -v "$1" '%s' "${workflow}" ;;
         'Transaction expiry') printf -v "$1" '%s' '30 minutes' ;;
-        'Review transfer'*) printf -v "$1" '%s' 'Keep reviewed transaction' ;;
+        'Review transfer'*)
+          if [[ "${DECLINE:-N}" == Y ]]; then printf -v "$1" '%s' Cancel
+          elif [[ "${DETAILS:-N}" == Y && "${DETAIL_STEP:-0}" == 0 ]]; then DETAIL_STEP=1; printf -v "$1" '%s' 'Show decoded transaction'
+          elif [[ "${DETAILS:-N}" == Y && "${DETAIL_STEP}" == 1 ]]; then DETAIL_STEP=2; printf -v "$1" '%s' 'Show required signers'
+          else printf -v "$1" '%s' "$3"; fi ;;
         *) fail "unexpected prompt $2" ;;
       esac
     }
-    cntools_send_refresh_build_into() { printf -v "$1" '%s' /staged.json; }
-    cntools_transaction_ui_render_package_review() { return 0; }
-    cntools_send_prompt_output() { printf -v "$1" '%s' "$2"; }
-    cntools_transaction_publish() { printf 'publish\n' >> "${trace}"; }
-    cntools_transaction_default_output_into() { printf -v "$1" '%s' /signed.json; }
-    cntools_ui_confirm() { printf 'confirm %s\n' "$1" >> "${trace}"; return 0; }
+    printf '{"intent":{"summary":{}}}' > "${TEST_ROOT}/review.json"
+    cntools_send_refresh_build_into() { printf 'build\n' >> "${trace}"; printf -v "$1" '%s' "${TEST_ROOT}/review.json"; }
+    cntools_transaction_ui_render_package_review() { fail 'verbose package review'; }
+    cntools_transaction_view_into() { printf -v "$1" '%s' '{}'; }
+    cntools_transaction_ui_render_json() { [[ "${DETAILS:-N}" == Y ]] || fail 'unsolicited decode dump'; printf 'decoded\n' >> "${trace}"; }
+    cntools_transaction_ui_render_signer_progress() { [[ "${DETAILS:-N}" == Y ]] || fail 'unsolicited signers'; printf 'signers\n' >> "${trace}"; }
+    cntools_ui_wait() { :; }
+    cntools_send_save_into() { printf 'save %s\n' "$3" >> "${trace}"; printf -v "$1" '%s' /saved.json; }
+    cntools_send_signed_path_into() { printf -v "$1" '%s' /signed.json; }
+    cntools_ui_confirm() { printf 'confirm %s default=%s\n' "$1" "$2" >> "${trace}"; return 0; }
     cntools_send_recheck() { printf 'recheck\n' >> "${trace}"; }
     cntools_transaction_sign_registered() { printf 'sign\n' >> "${trace}"; }
-    cntools_transaction_package_load() { CNTOOLS_TRANSACTION_COMPLETE=Y; }
-    cntools_transaction_submit_input_prepare() { CNTOOLS_TRANSACTION_SIGNED_FILE=/signed; CNTOOLS_TRANSACTION_SUBMIT_ID=abc; }
-    cntools_transaction_ui_submission_backend_into() { printf -v "$1" '%s' koios; }
-    cntools_transaction_ui_render_submit_review() { return 0; }
-    cntools_transaction_ui_submit_selected() { printf 'submit\n' >> "${trace}"; CNTOOLS_TRANSACTION_SUBMIT_MESSAGE=accepted; }
+    cntools_transaction_package_load() { CNTOOLS_TRANSACTION_COMPLETE=Y; CNTOOLS_TRANSACTION_ID=abc; CNTOOLS_TRANSACTION_BODY_FILE=/body; }
+    cntools_transaction_submit_input_prepare() { [[ "$1" == /saved.json ]] || fail 'submission did not reopen published package'; CNTOOLS_TRANSACTION_SIGNED_FILE=/signed; CNTOOLS_TRANSACTION_SUBMIT_ID=abc; }
+    cntools_transaction_ui_submission_backend_into() { printf -v "$1" '%s' local; }
+    cntools_transaction_ui_render_submit_review() { fail 'verbose post-signing review'; }
+    cntools_transaction_ui_submit_selected() { printf 'submit\n' >> "${trace}"; CNTOOLS_TRANSACTION_SUBMIT_MESSAGE=accepted; return "${SUBMIT_STATUS:-0}"; }
     cntools_send_workflow || fail 'Send UI workflow failed'
-    grep -qx publish "${trace}" || fail 'unsigned not kept'
     if [[ "${workflow}" == 'Create unsigned package' ]]; then
+      grep -qx 'save unsigned' "${trace}" || fail 'unsigned not kept'
       if grep -qx sign "${trace}"; then fail 'unsigned flow signed'; fi
     else
       grep -qx sign "${trace}" || fail 'sign flow did not sign'
-      grep -q '^confirm Sign' "${trace}" || fail 'missing signing confirmation'
+      grep -qx 'save signed' "${trace}" || fail 'signed not kept'
     fi
     if [[ "${workflow}" == 'Create, sign and submit' ]]; then
       grep -qx submit "${trace}" || fail 'submit flow did not submit'
       grep -q '^confirm Submit' "${trace}" || fail 'missing submission confirmation'
+      grep -q 'default=true' "${trace}" || fail 'submission default not yes'
+      grep -q 'using local node?' "${trace}" || fail 'local node wording'
+      : > "${trace}"
+      DETAILS=Y; DETAIL_STEP=0
+      cntools_send_workflow || fail 'optional details flow'
+      [[ "$(grep -c '^build$' "${trace}")" == 1 ]] || fail 'inspection rebuilt transaction'
+      grep -qx decoded "${trace}" || fail 'decoded option missing'
+      grep -qx signers "${trace}" || fail 'signers option missing'
+      SUBMIT_STATUS=1; CNTOOLS_TRANSACTION_ERROR='Submission rejected'
+      : > "${trace}"
+      status=0; cntools_send_workflow || status=$?
+      [[ "${status}" == 2 ]] || fail 'submission failure hidden'
+      grep -q 'result danger Submission rejected' "${trace}" || fail 'submission failure not tabulated'
+      SUBMIT_STATUS=0
+      cntools_ui_confirm() { return 1; }
+      : > "${trace}"
+      cntools_send_workflow || fail 'submission decline should retain signed package'
+      grep -q 'result warning Not submitted' "${trace}" || fail 'decline result missing'
+      if grep -qx submit "${trace}"; then fail 'submitted after decline'; fi
     elif grep -qx submit "${trace}"; then fail 'unexpected submission'; fi
-    cntools_ui_confirm() { return 1; }
+    DECLINE=Y
     : > "${trace}"
     if [[ "${workflow}" != 'Create unsigned package' ]]; then
       status=0

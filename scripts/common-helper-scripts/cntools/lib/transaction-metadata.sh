@@ -100,11 +100,12 @@ cntools_metadata_leaf() {
   local md_display_path="${1:-}" md_display_value="${2:-}"
   cntools_wallet_sanitize_display_into md_display_path "${md_display_path}" || return 1
   cntools_wallet_sanitize_display_into md_display_value "${md_display_value}" || return 1
-  cntools_transaction_ui_styled_row "${md_display_path}" "${md_display_value}" text
+  "${md_leaf_renderer:-cntools_transaction_ui_styled_row}" "${md_display_path}" "${md_display_value}" text
 }
 
 cntools_metadata_validate_json() {
   local file="${1:-}" md_render="${2:-N}" md_text="" md_pos=0 md_nodes=0 md_token="" md_has_message=N LC_ALL=C
+  local md_leaf_renderer="${3:-cntools_transaction_ui_styled_row}"
   jq -e -s 'length == 1 and (.[0] | type == "object")' "${file}" >/dev/null 2>&1 ||
     { cntools_metadata_fail 'Metadata must be one JSON object.'; return 1; }
   md_text="$(< "${file}")"

@@ -693,6 +693,7 @@ cntools_wallet_render_catalog() {
 
 cntools_wallet_choose() {
   local _cntools_output_name="${1:-}"
+  local _cntools_cancel="${2:-}"
   local _cntools_index=0
   local _cntools_selected=""
   local _cntools_row=""
@@ -714,6 +715,7 @@ cntools_wallet_choose() {
       "${CNTOOLS_WALLET_PROTECTIONS[_cntools_index]}"
     _cntools_rows+=("${_cntools_row}")
   done
+  [[ -z "${_cntools_cancel}" ]] || _cntools_rows+=("${_cntools_cancel}")
   if cntools_ui_choose \
       _cntools_selected "Filter wallets…" "${_cntools_rows[@]}"; then
     _cntools_status=0
@@ -723,6 +725,7 @@ cntools_wallet_choose() {
   if (( _cntools_status != 0 )); then
     return "${_cntools_status}"
   fi
+  [[ -z "${_cntools_cancel}" || "${_cntools_selected}" != "${_cntools_cancel}" ]] || return 1
   for (( _cntools_index = 0;
          _cntools_index < ${#_cntools_rows[@]};
          _cntools_index++ )); do

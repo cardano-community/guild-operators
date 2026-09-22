@@ -1,25 +1,48 @@
 #!/usr/bin/env bash
 # Optional Send metadata controls. Only ciphertext survives encrypted entry.
+# shellcheck disable=SC2034
 
 cntools_send_metadata_render() {
-  local line="" widths=""
+  local line="" width="" index=0 kind="CIP-20 message" label=674 previous_label=""
   [[ -n "${CNTOOLS_METADATA_MESSAGE}" || -n "${CNTOOLS_METADATA_CUSTOM}" ]] || return 0
-  cntools_transaction_ui_table_widths_into widths 20 || return 1
+  width="$(cntools_ui_content_width 220 72)" || return 1
+  cntools_ui_render_detail 'Metadata' || return 1
   {
-    printf 'Metadata\tContent\n'
+    printf 'Type\tLabel\tLine / path\tContent\n'
     if [[ "${CNTOOLS_METADATA_MODE}" == basic* ]]; then
-      cntools_transaction_ui_styled_row Message "Encrypted (CIP-83) · ${CNTOOLS_METADATA_MODE#basic-}" identifier
+      cntools_send_metadata_row 'CIP-83 message' 674 '—' "Encrypted · ${CNTOOLS_METADATA_MODE#basic-}" identifier
     elif [[ -n "${CNTOOLS_METADATA_MESSAGE}" ]]; then
       while IFS= read -r line; do
+        index=$((index+1))
         cntools_wallet_sanitize_display_into line "${line}" || return 1
-        cntools_transaction_ui_styled_row Message "${line}" text
+        cntools_send_metadata_row "${kind}" "${label}" "${index}" "${line}" text
+        kind=""; label=""
       done < <(jq -r '.msg[]' "${CNTOOLS_METADATA_MESSAGE}")
     fi
     if [[ -n "${CNTOOLS_METADATA_CUSTOM}" ]]; then
-      cntools_transaction_ui_styled_row Import "${CNTOOLS_METADATA_SCHEMA} JSON · exact values" identifier
-      cntools_metadata_validate_json "${CNTOOLS_METADATA_CUSTOM}" Y || return 1
+      cntools_metadata_validate_json "${CNTOOLS_METADATA_CUSTOM}" Y cntools_send_metadata_custom_row || return 1
     fi
-  } | cntools_ui_table --separator $'\t' --widths "${widths}"
+  } | cntools_ui_table --separator $'\t' --widths "16,8,14,$((width-51))"
+}
+
+cntools_send_metadata_row() {
+  local type="$1" label="$2" path="$3" content="$4" styled="" styled_type=""
+  cntools_theme_style_value_into styled_type accent "${type}" || return 1
+  cntools_theme_style_value_into styled "${5:-text}" "${content}" || return 1
+  printf '%s\t%s\t%s\t%s\n' "${styled_type}" "${label}" "${path}" "${styled}"
+}
+
+# Called by the lossless lexical metadata walker, never by jq reserialization.
+cntools_send_metadata_custom_row() {
+  local path="$1" content="$2" label="—" kind="Custom JSON" key=""
+  if [[ "${path}" == '$['* ]]; then
+    key="${path#*\[}"; key="${key%%\]*}"
+    label="$(jq -r '.' <<< "${key}")" || return 1
+    path="${path#*\]}"; path="${path:-$}"
+  fi
+  if [[ "${previous_label:-}" == "${label}" ]]; then kind=""; label=""
+  else previous_label="${label}"; fi
+  cntools_send_metadata_row "${kind}" "${label}" "${path}" "${content}" text
 }
 
 cntools_send_metadata_message() {
@@ -80,6 +103,8 @@ cntools_send_metadata_edit_inner() {
   local -a options=()
   while true; do
     CNTOOLS_METADATA_ERROR=""
+    cntools_send_begin
+    cntools_send_render_recipients || return 2
     cntools_send_metadata_render || return 2
     options=('Done' 'Add / replace message' 'Remove message')
     [[ "${CNTOOLS_ADVANCED:-N}" != Y ]] || options+=('Import custom metadata')
@@ -101,6 +126,7 @@ cntools_send_metadata_edit_inner() {
     # Failed edits leave the previous frozen draft in place.
     if (( status != 0 )); then
       cntools_ui_render_status warn "${CNTOOLS_METADATA_ERROR:-Metadata edit cancelled; previous draft retained.}"
+      cntools_ui_wait
     fi
   done
 }

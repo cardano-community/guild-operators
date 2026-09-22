@@ -44,6 +44,42 @@ boundary and remaining options distinguished here.
 
 ## Initial implementation boundary
 
+### Send presentation and package storage
+
+- Source-wallet, recipient, metadata, transaction-information and result tables
+  share the Wallet display theme. The source summary shows spendable ADA and
+  distinct native-asset count. Asset selection highlights nonzero available
+  quantities in the number color and selected quantities in the success color;
+  zeros remain muted. Menus are separated from data by a blank line.
+- Recipient add/edit is transactional: Cancel (including input cancellation)
+  returns to the recipients menu with the previous addresses, amounts, asset
+  choices, Handle evidence and amount mode unchanged. Text inputs use Esc/Ctrl+C;
+  selection menus also have an explicit cancel entry. The testnet warning appears
+  only for pasted external addresses.
+- Metadata editing redraws the current draft. One message is grouped under its
+  CIP type and label 674 with numbered lines; custom JSON uses label/path/content
+  rows with exact integer lexemes. Encrypted messages show their protection type,
+  never a plaintext preview after encryption.
+- Live sign-and-submit is the first available workflow. Final review shows
+  recipients, metadata and one focused transaction-information table (fee, returned
+  change, input selection, active change policies and expiry). Decoded transaction
+  and required signers are explicit menu choices; inspection does not rebuild the
+  transaction. The Continue choice authorizes signing; submission has a separate
+  confirmation, defaulting to Yes, and uses "local node" or "Koios" wording.
+- Package validation, authoritative decoding, input/Handle/expiry rechecks and
+  signer verification remain mandatory. Intent-summary JSON is logged rather
+  than displayed in Send. No decoded transaction is dumped after signing.
+- Intermediate packages use the existing private, cleanup-tracked action
+  workspace. Exported packages are automatically saved under
+  `<node home>/transactions/send-<timestamp>.<unique>/unsigned.json` or
+  `signed.json` without overwriting existing files. Final paths are shown for
+  offline/sign-only workflows. Live flows also retain the final signed package
+  before submission for recovery, showing its path if submission is declined or
+  fails. Submission results use a table with the transaction ID/status; acceptance
+  is explicitly distinguished from confirmed inclusion.
+
+### Transfer behavior
+
 - CNTools-wallet or external-address recipients, with add/edit/remove review
   and a maximum of 20 recipients. Local native-script wallets can receive;
   external script destinations, script spending, and Byron addresses are deferred.

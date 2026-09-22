@@ -6,7 +6,8 @@ cntools_send_begin() { cntools_ui_action_begin "Send" "/ Funds / Send"; }
 
 cntools_send_confirm() {
   local status=0
-  cntools_ui_confirm "$1" || status=$?
+  printf '\n'
+  cntools_ui_confirm "$1" "${2:-false}" || status=$?
   cntools_transaction_log CHOICE "Send confirmation=${1} status=${status}"
   return "${status}"
 }
@@ -14,10 +15,13 @@ cntools_send_confirm() {
 cntools_send_choose() {
   local output_name="${1:-}" prompt="${2:-}" status=0
   shift 2
+  [[ -z "${CNTOOLS_SEND_EDIT_CANCEL:-}" ]] || set -- "$@" "${CNTOOLS_SEND_EDIT_CANCEL}"
+  printf '\n'
   cntools_ui_choose "${output_name}" "${prompt}" "$@" || status=$?
   if (( status == 0 )); then
     local -n chosen_ref="${output_name}"
     cntools_transaction_log CHOICE "Send ${prompt} selected=${chosen_ref}"
+    [[ -z "${CNTOOLS_SEND_EDIT_CANCEL:-}" || "${chosen_ref}" != "${CNTOOLS_SEND_EDIT_CANCEL}" ]] || return 1
   fi
   return "${status}"
 }
@@ -48,7 +52,8 @@ cntools_send_prompt_recipient() {
   local directory="" entered="" handle_name="" resolution=""
   cntools_send_choose choice "Recipient type" "CNTools wallet" "External address" "ADA Handle" || return $?
   if [[ "${choice}" == "CNTools wallet" ]]; then
-    cntools_wallet_choose selected || return $?
+    printf '\n'
+    cntools_wallet_choose selected "${CNTOOLS_SEND_EDIT_CANCEL:-Cancel}" || return $?
     directory="${CNTOOLS_WALLET_PATHS[selected]}"
     cntools_wallet_prepare_selected_material "${directory}" || {
       cntools_ui_render_status warn "The recipient's public artifacts could not be prepared safely. Check the log."; return 2;
@@ -87,11 +92,10 @@ cntools_send_prompt_recipient() {
   if [[ "${address}" == "${CNTOOLS_SEND_ADDRESS}" || "${address}" == "${CNTOOLS_SEND_PAYMENT}" ]]; then
     cntools_send_confirm "This is the source wallet. Send back to this wallet?" || return $?
   fi
-  cntools_ui_render_field "Recipient" "${label}"
-  cntools_ui_render_field "Address" "${address}"
+  cntools_send_render_recipient "${label}" "${address}" || return 2
   [[ -z "${resolution}" ]] || cntools_send_review_virtual "${resolution}" || return $?
-  if [[ "${CNTOOLS_NETWORK}" != mainnet ]]; then
-    cntools_ui_render_status info "Testnet addresses do not distinguish preview, preprod and guild. Confirm the recipient uses ${CNTOOLS_NETWORK}."
+  if [[ "${choice}" == 'External address' && "${CNTOOLS_NETWORK}" != mainnet ]]; then
+    cntools_ui_render_status info "Testnet addresses do not distinguish testnet networks. Confirm the recipient uses ${CNTOOLS_NETWORK}."
   fi
   CNTOOLS_SEND_ADDRESSES[index]="${address}"
   CNTOOLS_SEND_LABELS[index]="${label}"
@@ -125,12 +129,18 @@ cntools_send_prompt_amounts() {
   else
     CNTOOLS_SEND_AMOUNTS[index]=0
   fi
-  for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do unset 'CNTOOLS_SEND_ASSETS['"${index}|${asset}"']'; done
-  [[ "${CNTOOLS_SEND_MODE}" != sweep ]] || return 0
+  if [[ "${CNTOOLS_SEND_MODE}" == sweep ]]; then
+    for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do unset 'CNTOOLS_SEND_ASSETS['"${index}|${asset}"']'; done
+    return 0
+  fi
   while (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} > 0 )); do
+    cntools_send_begin
+    cntools_send_render_recipient "${CNTOOLS_SEND_LABELS[index]}" "${CNTOOLS_SEND_ADDRESSES[index]}" || return 2
+    cntools_send_render_assets "${index}" || return 2
     options=("Done selecting assets")
+    i=0
     for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
-      options+=("${asset} · available $(cntools_number_format "${CNTOOLS_FUNDING_ASSETS[${asset}]}") · selected $(cntools_number_format "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}")")
+      i=$((i+1)); options+=("${i} · ${asset}")
     done
     cntools_send_choose option "Native assets (quantities in smallest units)" "${options[@]}" || return $?
     [[ "${option}" != "${options[0]}" ]] || break
@@ -155,6 +165,10 @@ cntools_send_prompt_amounts() {
 
 cntools_send_render_recipients() {
   local widths="" index=0 asset="" amount=""
+  if (( ${#CNTOOLS_SEND_ADDRESSES[@]} == 0 )); then
+    cntools_ui_render_status info 'No recipients yet. Choose Add to start a transfer.'
+    return 0
+  fi
   cntools_transaction_ui_table_widths_into widths 22 || return 1
   {
     printf 'Recipient / property\tValue\n'
@@ -202,14 +216,16 @@ cntools_send_edit_recipients() {
       if [[ "${command}" == Add ]]; then index="${#CNTOOLS_SEND_ADDRESSES[@]}"; fi
       (( index < 20 )) || { cntools_ui_render_status warn "At most 20 recipients per transfer."; command=Review; continue; }
       status=0
-      cntools_send_prompt_recipient "${index}" || status=$?
-      (( status != 1 )) || return 1
-      if (( status != 0 )); then command=Review; continue; fi
-      cntools_send_prompt_amounts "${index}" || return $?
+      cntools_send_edit_one "${index}" "${command}" || status=$?
+      if (( status != 0 && status != 1 && status != 130 )); then
+        cntools_ui_render_status warn 'Recipient changes were not saved.'
+        cntools_ui_wait
+      fi
     elif [[ "${command}" == Remove ]]; then
       cntools_send_remove_recipient "${index}" || return 2
     fi
     cntools_send_begin
+    cntools_send_render_source || return 2
     cntools_send_render_recipients || return 2
     cntools_ui_render_status info "Amounts use exact smallest units; minimum ADA adjustments and the final fee will be shown after building. Rewards and deposits are not included."
     cntools_send_metadata_render || return 2
@@ -228,27 +244,39 @@ cntools_send_edit_recipients() {
       Edit|Remove)
         options=()
         for index in "${!CNTOOLS_SEND_ADDRESSES[@]}"; do options+=("$((index+1)) · ${CNTOOLS_SEND_LABELS[index]}"); done
-        cntools_send_choose selected "Select recipient" "${options[@]}" || return $?
+        status=0
+        cntools_send_choose selected "Select recipient" "${options[@]}" 'Back to recipients' || status=$?
+        if (( status != 0 )) || [[ "${selected}" == 'Back to recipients' ]]; then command=Review; continue; fi
         for index in "${!options[@]}"; do [[ "${selected}" != "${options[index]}" ]] || break; done
         ;;
     esac
   done
 }
 
-cntools_send_prompt_output() {
-  local output_name="${1:-}" default="${2:-}" entered="" normalized=""
-  local -n path_ref="${output_name}"
-  while true; do
-    cntools_ui_input entered "New transaction package path" "${default}" || return $?
-    [[ -n "${entered}" ]] || entered="${default}"
-    if cntools_transaction_ui_normalize_path_into normalized "${entered}" &&
-       cntools_transaction_output_path_safe "${normalized}"; then
-      path_ref="${normalized}"
-      cntools_transaction_ui_log_path "Send output selected" "${normalized}"
-      return 0
-    fi
-    cntools_ui_render_status warn "Choose a new file in an owned writable directory protected from group/public writes. Existing files are never overwritten."
-  done
+# Treat a recipient edit as a draft: every cancellation/error restores all state,
+# including amount mode and Handle evidence, not merely the receiving address.
+cntools_send_edit_one() {
+  local index="$1" operation="$2" status=0 key="" previous_mode="${CNTOOLS_SEND_MODE}"
+  local CNTOOLS_SEND_EDIT_CANCEL='Cancel edit'
+  local -a saved_addresses=("${CNTOOLS_SEND_ADDRESSES[@]}") saved_labels=("${CNTOOLS_SEND_LABELS[@]}")
+  local -a saved_amounts=("${CNTOOLS_SEND_AMOUNTS[@]}") saved_handles=("${CNTOOLS_SEND_HANDLES[@]}") saved_resolutions=("${CNTOOLS_SEND_RESOLUTIONS[@]}")
+  local -A saved_assets=()
+  for key in "${!CNTOOLS_SEND_ASSETS[@]}"; do saved_assets["${key}"]="${CNTOOLS_SEND_ASSETS[${key}]}"; done
+  [[ "${operation}" != Add ]] || CNTOOLS_SEND_EDIT_CANCEL='Cancel adding recipient'
+  cntools_send_begin
+  cntools_send_render_source || return 2
+  cntools_ui_render_status info "${CNTOOLS_SEND_EDIT_CANCEL} returns without saving changes. Press Esc or Ctrl+C to cancel text input."
+  cntools_send_prompt_recipient "${index}" || status=$?
+  if (( status == 0 )); then cntools_send_prompt_amounts "${index}" || status=$?; fi
+  if (( status != 0 )); then
+    CNTOOLS_SEND_ADDRESSES=("${saved_addresses[@]}"); CNTOOLS_SEND_LABELS=("${saved_labels[@]}")
+    CNTOOLS_SEND_AMOUNTS=("${saved_amounts[@]}"); CNTOOLS_SEND_HANDLES=("${saved_handles[@]}")
+    CNTOOLS_SEND_RESOLUTIONS=("${saved_resolutions[@]}"); CNTOOLS_SEND_MODE="${previous_mode}"
+    CNTOOLS_SEND_ASSETS=()
+    for key in "${!saved_assets[@]}"; do CNTOOLS_SEND_ASSETS["${key}"]="${saved_assets[${key}]}"; done
+    cntools_transaction_log CHOICE "Send recipient draft discarded operation=${operation} status=${status}"
+  fi
+  return "${status}"
 }
 
 cntools_send_recheck() {
@@ -296,8 +324,10 @@ cntools_send_refresh_build_into() {
 }
 
 cntools_send_workflow() {
-  local selected="" choice="" staged="" unsigned="" signed="" default="" expiry=""
-  local backend="" signed_body="" txid="" status=0 lifetime=1800
+  local selected="" choice="" staged="" signed="" saved="" expiry="" proceed=""
+  local backend="" backend_label="" signed_body="" txid="" summary="" status=0 lifetime=1800
+  CNTOOLS_SEND_RESULT_SHOWN=N
+  CNTOOLS_SEND_SAVED_PACKAGE=""
   cntools_send_begin
   cntools_metadata_reset
   cntools_transaction_require_cli || return 2
@@ -308,11 +338,9 @@ cntools_send_workflow() {
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
   cntools_ui_spin_function "Fetching spendable funds and protocol parameters…" \
     cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" || return 2
-  cntools_ui_render_field "Spendable ADA" "$(cntools_wallet_format_lovelace "${CNTOOLS_FUNDING_TOTAL}")"
-  cntools_ui_render_field "Chain data" "${CNTOOLS_FUNDING_BACKEND}"
   cntools_send_edit_recipients || return $?
   local -a workflows=("Create unsigned package")
-  [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || workflows+=("Create and sign" "Create, sign and submit")
+  [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || workflows=("Create, sign and submit" "Create and sign" "Create unsigned package")
   cntools_send_choose choice "Workflow" "${workflows[@]}" || return $?
   cntools_send_choose expiry "Transaction expiry" "30 minutes" "2 hours" "24 hours (offline signing)" || return $?
   case "${expiry}" in
@@ -320,53 +348,81 @@ cntools_send_workflow() {
     "2 hours") lifetime=7200 ;;
     *) lifetime=86400 ;;
   esac
+  case "${choice}" in
+    "Create, sign and submit") proceed='Continue to sign & submit' ;;
+    "Create and sign") proceed='Continue to sign' ;;
+    *) proceed='Save unsigned package' ;;
+  esac
   while true; do
-    if ! cntools_ui_spin_function "Refreshing funds and balancing the transfer…" cntools_send_refresh_build_into staged "${lifetime}"; then return 2; fi
-    cntools_send_begin
-    cntools_send_render_recipients || return 2
-    cntools_send_metadata_render || return 2
-    cntools_ui_render_field "Fee" "$(cntools_wallet_format_lovelace "${CNTOOLS_SEND_FEE}")"
-    if [[ "${CNTOOLS_SEND_MODE}" == exact ]]; then
-      cntools_ui_render_field "Selection" "${CNTOOLS_TX_SELECTION_STRATEGY} · ${#CNTOOLS_COIN_SELECTED_REFS[@]} inputs"
-    else
-      cntools_ui_render_field "Selection" "All spendable inputs for ${CNTOOLS_SEND_MODE} · configured ${CNTOOLS_TX_SELECTION_STRATEGY} selection bypassed"
-    fi
-    cntools_ui_render_field "Token fragmentation" "${CNTOOLS_CHANGE_TOKEN_STATUS}"
-    cntools_ui_render_field "ADA-only management" "${CNTOOLS_CHANGE_UTXO_STATUS}"
-    cntools_ui_render_field "Collateral candidate" "${CNTOOLS_CHANGE_COLLATERAL_STATUS}"
-    cntools_transaction_ui_render_package_review "${staged}" || return 2
-    cntools_send_choose selected "Review transfer (including minimum ADA adjustments)" "Keep reviewed transaction" "Edit recipients" "Cancel" || return $?
-    [[ "${selected}" != Cancel ]] || return 1
-    [[ "${selected}" != "Keep reviewed transaction" ]] || break
-    cntools_send_edit_recipients || return $?
+    cntools_ui_spin_function "Refreshing funds and balancing the transfer…" cntools_send_refresh_build_into staged "${lifetime}" || return 2
+    # Keep the authoritative decode/validation, but show it only on request.
+    cntools_transaction_package_load "${staged}" || return 2
+    cntools_transaction_view_into CNTOOLS_TRANSACTION_UI_VIEW "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 2
+    summary="$(jq -c '.intent.summary' "${staged}")" || return 2
+    cntools_transaction_log REVIEW "Send intent summary=${summary}"
+    while true; do
+      cntools_send_begin
+      cntools_send_render_recipients || return 2
+      cntools_send_metadata_render || return 2
+      cntools_send_render_information || return 2
+      cntools_send_choose selected 'Review transfer (including minimum ADA adjustments)' \
+        "${proceed}" 'Show decoded transaction' 'Show required signers' 'Edit recipients' 'Cancel' || return $?
+      case "${selected}" in
+        "${proceed}") break ;;
+        'Show decoded transaction')
+          cntools_send_begin
+          cntools_transaction_ui_render_json 'Decoded transaction · authoritative' "${CNTOOLS_TRANSACTION_UI_VIEW}" || return 2
+          cntools_ui_wait ;;
+        'Show required signers')
+          cntools_send_begin
+          cntools_transaction_ui_render_signer_progress "${staged}" || return 2
+          cntools_ui_wait ;;
+        'Edit recipients') cntools_send_edit_recipients || return $?; break ;;
+        Cancel) return 1 ;;
+        *) return 2 ;;
+      esac
+    done
+    [[ "${selected}" != "${proceed}" ]] || break
   done
-  default="${PWD%/}/${CNTOOLS_SEND_WALLET}.send.json"
-  cntools_send_prompt_output unsigned "${default}" || return $?
-  cntools_transaction_publish "${staged}" "${unsigned}" || return 2
-  cntools_ui_render_field "Unsigned package saved" "${unsigned}"
-  if [[ "${choice}" == "Create unsigned package" ]]; then
-    cntools_ui_render_status success "Ready for Transaction → Sign, then Transaction → Submit. The package contains no private keys."
-    return 0
+  if [[ "${choice}" == 'Create unsigned package' ]]; then
+    cntools_send_save_into saved "${staged}" unsigned || return 2
+    cntools_send_begin
+    cntools_send_render_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    return $?
   fi
-  cntools_transaction_default_output_into default "${unsigned}" signed || return 2
-  cntools_send_prompt_output signed "${default}" || return $?
-  cntools_send_confirm "Sign the reviewed transfer with this wallet's payment key?" || return $?
+  cntools_send_signed_path_into signed || return 2
   cntools_ui_spin_function "Rechecking selected inputs…" cntools_send_recheck || return 2
-  cntools_ui_spin_function "Signing transfer…" cntools_transaction_sign_registered "${unsigned}" "${signed}" || return 2
+  cntools_ui_spin_function "Signing transfer…" cntools_transaction_sign_registered "${staged}" "${signed}" || return 2
   cntools_transaction_package_load "${signed}" || return 2
-  [[ "${CNTOOLS_TRANSACTION_COMPLETE}" == Y ]] || { cntools_send_fail "The saved package still needs witnesses."; return 2; }
-  cntools_ui_render_field "Signed package saved" "${signed}"
-  [[ "${choice}" == "Create, sign and submit" ]] || return 0
-  cntools_transaction_submit_input_prepare "${signed}" || return 2
+  [[ "${CNTOOLS_TRANSACTION_COMPLETE}" == Y ]] || { cntools_send_fail 'The package still needs witnesses.'; return 2; }
+  # Retain the final signed package before submission, including ambiguous
+  # network failures/cancellation. Intermediate work remains cleanup-tracked.
+  cntools_send_save_into saved "${signed}" signed || return 2
+  if [[ "${choice}" == 'Create and sign' ]]; then
+    cntools_send_begin
+    cntools_send_render_result success 'Signed · ready for Transaction → Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    return $?
+  fi
+  cntools_transaction_submit_input_prepare "${saved}" || return 2
   signed_body="${CNTOOLS_TRANSACTION_SIGNED_FILE}"; txid="${CNTOOLS_TRANSACTION_SUBMIT_ID}"
   cntools_transaction_ui_submission_backend_into backend || return 2
-  cntools_transaction_ui_render_submit_review "${backend}" "package" "${txid}" "${signed_body}" || return 2
-  cntools_send_confirm "Submit this signed transfer using ${backend}?" || return $?
-  cntools_ui_spin_function "Rechecking selected inputs…" cntools_send_recheck || return 2
-  cntools_ui_spin_function "Submitting transfer…" cntools_transaction_ui_submit_selected "${backend}" "${signed_body}" "${txid}" || status=$?
-  (( status == 0 )) || return 2
-  cntools_ui_render_status success "${CNTOOLS_TRANSACTION_SUBMIT_MESSAGE} Submission is not confirmation of inclusion."
-  cntools_ui_render_field "Transaction ID" "${txid}"
+  case "${backend}" in local) backend_label='local node' ;; koios) backend_label='Koios' ;; *) return 2 ;; esac
+  if ! cntools_send_confirm "Submit this signed transfer using ${backend_label}?" true; then
+    cntools_send_begin
+    cntools_send_render_result warning 'Not submitted · signed package retained' "${txid}" "${saved}"
+    return $?
+  fi
+  status=0
+  cntools_ui_spin_function "Rechecking selected inputs…" cntools_send_recheck || status=$?
+  if (( status == 0 )); then
+    cntools_ui_spin_function "Submitting transfer…" cntools_transaction_ui_submit_selected "${backend}" "${signed_body}" "${txid}" || status=$?
+  fi
+  cntools_send_begin
+  if (( status != 0 )); then
+    cntools_send_render_result danger "${CNTOOLS_TRANSACTION_ERROR:-Submission could not be confirmed. Check the log and chain before retrying.}" "${txid}" "${saved}" || return 2
+    return 2
+  fi
+  cntools_send_render_result success "${CNTOOLS_TRANSACTION_SUBMIT_MESSAGE} Submission is not confirmation of inclusion." "${txid}" || return 2
 }
 
 cntools_funds_action_send() {
@@ -378,7 +434,9 @@ cntools_funds_action_send() {
     cntools_ui_render_status info "Cancelled. Any packages already saved remain available."
   elif (( status != 0 )); then
     cntools_send_fail "${CNTOOLS_TRANSACTION_ERROR:-Send failed. See ${CNTOOLS_LOG} for details.}" || true
-    cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR}"
+    if [[ "${CNTOOLS_SEND_RESULT_SHOWN:-N}" != Y ]]; then
+      cntools_send_render_result danger "${CNTOOLS_TRANSACTION_ERROR}" "" "${CNTOOLS_SEND_SAVED_PACKAGE:-}"
+    fi
   fi
   cntools_ui_wait
   (( status <= 1 ))
