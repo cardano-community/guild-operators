@@ -11,6 +11,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
+. "${CNTOOLS_ROOT}/lib/asset.sh"
+. "${CNTOOLS_ROOT}/lib/asset-cache.sh"
+CNTOOLS_ASSET_CACHE_ENABLED=N
 NUMBER_LIBRARY="${CNTOOLS_ROOT}/lib/number.sh"
 WALLET_LIBRARY="${CNTOOLS_ROOT}/lib/wallet.sh"
 MATERIAL_LIBRARY="${CNTOOLS_ROOT}/lib/wallet-material.sh"

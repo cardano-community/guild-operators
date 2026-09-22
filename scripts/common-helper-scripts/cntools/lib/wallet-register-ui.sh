@@ -147,7 +147,6 @@ cntools_wallet_register_render_plan() {
     cntools_wallet_register_styled_row \
       "Chain data" "${CNTOOLS_WALLET_REGISTER_SOURCE}" accent
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 
   cntools_ui_render_detail "Transaction policy" || return 1
   {
@@ -186,7 +185,6 @@ cntools_wallet_register_render_plan() {
           "${output_value}" number
       done
     } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-    printf '\n'
   fi
 
   cntools_ui_render_detail "Required witnesses" || return 1
@@ -195,7 +193,6 @@ cntools_wallet_register_render_plan() {
     cntools_wallet_register_styled_row "Payment key" "${payment_method}" accent
     cntools_wallet_register_styled_row "Stake key" "${stake_method}" accent
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "deregister" ]]; then
     cntools_ui_render_status warn \
       "De-registering ends stake-pool and DRep delegation. Lingering rewards earned but not yet credited or paid out will be forfeited."
@@ -321,7 +318,6 @@ cntools_wallet_register_render_outputs() {
         "Signed package" "${signed_file}" identifier
     fi
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 }
 
 cntools_wallet_register_render_collect_error() {
@@ -708,6 +704,7 @@ cntools_wallet_action_stake_lifecycle() {
   cntools_ui_render_field \
     "Backend" "${CNTOOLS_TRANSACTION_SUBMIT_BACKEND}"
   cntools_wallet_register_render_outputs "${unsigned_file}" "${signed_file}"
+  cntools_transaction_ui_offer_monitor "${CNTOOLS_TRANSACTION_SUBMIT_ID}"
   cntools_ui_wait
 }
 

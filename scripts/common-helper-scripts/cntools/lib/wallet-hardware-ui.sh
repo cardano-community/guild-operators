@@ -155,7 +155,6 @@ cntools_wallet_hardware_render_plan() {
     cntools_wallet_create_styled_row \
       "Wallet directory" "${target}" identifier
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 }
 
 cntools_wallet_hardware_render_result() {
@@ -191,7 +190,6 @@ cntools_wallet_hardware_render_result() {
     cntools_wallet_create_styled_row \
       "Stake registration" "Not registered" warning
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 
   cntools_ui_render_detail "Addresses" || return 1
   {
@@ -201,7 +199,6 @@ cntools_wallet_hardware_render_result() {
     cntools_wallet_create_styled_row \
       "Stake / reward" "${reward_address}" address
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 
   cntools_ui_render_detail "Credentials" || return 1
   {
@@ -211,7 +208,6 @@ cntools_wallet_hardware_render_result() {
     cntools_wallet_create_styled_row \
       "Stake" "${stake_credential}" credential
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 }
 
 cntools_wallet_action_import_hardware() {

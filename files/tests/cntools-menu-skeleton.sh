@@ -137,19 +137,19 @@ write_legacy_inventory | LC_ALL=C sort > "${actual_inventory}"
 diff -u "${expected_inventory}" "${actual_inventory}" ||
   fail "CNTools legacy menu hierarchy differs from the Phase 4 inventory"
 
-assert_eq "$(wc -l < "${MENU_FIXTURE}" | trim_count)" "72" \
+assert_eq "$(wc -l < "${MENU_FIXTURE}" | trim_count)" "73" \
   "module inventory count"
 assert_eq "$(grep -c $'\tmenu\t' "${MENU_FIXTURE}" | trim_count)" "16" \
   "menu inventory count"
-assert_eq "$(grep -c $'\taction\t' "${MENU_FIXTURE}" | trim_count)" "56" \
+assert_eq "$(grep -c $'\taction\t' "${MENU_FIXTURE}" | trim_count)" "57" \
   "action inventory count"
-assert_eq "$(find "${MODULE_ROOT}" -type d -print | wc -l | trim_count)" "76" \
+assert_eq "$(find "${MODULE_ROOT}" -type d -print | wc -l | trim_count)" "77" \
   "Phase 5 module directory count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -name module.json -print | wc -l | trim_count)" "76" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -name module.json -print | wc -l | trim_count)" "77" \
   "Phase 5 module metadata count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -name action.sh -print | wc -l | trim_count)" "59" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -name action.sh -print | wc -l | trim_count)" "60" \
   "Phase 5 action entrypoint count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -print | wc -l | trim_count)" "135" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -print | wc -l | trim_count)" "137" \
   "Phase 7 module payload file count"
 [[ -z "$(find "${MODULE_ROOT}" -type l -print)" ]] ||
   fail "CNTools menu skeleton contains a symbolic link"
@@ -287,6 +287,8 @@ while IFS=$'\t' read -r \
           "wallet-key.sh",
           "wallet-address.sh",
           "wallet-id.sh",
+          "asset.sh",
+          "asset-cache.sh",
           "wallet-query.sh"
         ]' \
           "${metadata}" >/dev/null ||
@@ -304,6 +306,8 @@ while IFS=$'\t' read -r \
           "wallet-key.sh",
           "wallet-address.sh",
           "wallet-id.sh",
+          "asset.sh",
+          "asset-cache.sh",
           "wallet-query.sh"
         ]' \
           "${metadata}" >/dev/null ||
@@ -321,6 +325,8 @@ while IFS=$'\t' read -r \
           "wallet-key.sh",
           "wallet-address.sh",
           "wallet-id.sh",
+          "asset.sh",
+          "asset-cache.sh",
           "wallet-query.sh",
           "wallet-remove.sh",
           "wallet-remove-ui.sh"
@@ -362,12 +368,15 @@ while IFS=$'\t' read -r \
           "wallet-key.sh",
           "wallet-address.sh",
           "wallet-id.sh",
+          "asset.sh",
+          "asset-cache.sh",
           "wallet-query.sh",
           "utxo.sh",
           "transaction.sh",
           "transaction-build.sh",
           "transaction-sign.sh",
           "transaction-submit.sh",
+          "transaction-monitor.sh",
           "transaction-ui.sh",
           "coin-selection.sh",
           "change-plan.sh",
@@ -409,8 +418,10 @@ while IFS=$'\t' read -r \
         ;;
       transaction/submit)
         jq -e '.libs == [
+          "number.sh",
           "transaction.sh",
           "transaction-submit.sh",
+          "transaction-monitor.sh",
           "transaction-ui.sh"
         ]' \
           "${metadata}" >/dev/null ||
@@ -419,6 +430,12 @@ while IFS=$'\t' read -r \
           fail "Transaction Submit does not clean transaction staging files"
         grep -F 'cntools_transaction_action_submit' "${action_file}" >/dev/null ||
           fail "Transaction Submit does not call its functional entrypoint"
+        ;;
+      advanced/clear-asset-cache)
+        jq -e '.libs == ["asset-cache.sh"]' "${metadata}" >/dev/null ||
+          fail "Asset cache has unexpected library declarations"
+        grep -F 'cntools_asset_cache_clear' "${action_file}" >/dev/null ||
+          fail "Cache action does not clear metadata"
         ;;
       settings/theme)
         jq -e '((has("libs") | not) or .libs == [])' \
@@ -462,7 +479,7 @@ while IFS=$'\t' read -r \
 done < "${MENU_FIXTURE}"
 
 assert_eq "${connected_only}" "20" "local/light-only action count"
-assert_eq "${offline_capable}" "36" "offline-capable action count"
+assert_eq "${offline_capable}" "37" "offline-capable action count"
 [[ -f "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    ! -L "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    -s "${CNTOOLS_ROOT}/lib/placeholder.sh" ]] ||
@@ -625,7 +642,7 @@ while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults) continue ;;
+    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then

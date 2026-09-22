@@ -8,6 +8,9 @@ fi
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
+. "${CNTOOLS_ROOT}/lib/asset.sh"
+. "${CNTOOLS_ROOT}/lib/asset-cache.sh"
+CNTOOLS_ASSET_CACHE_ENABLED=N
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-send.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
 for lib in number wallet utxo coin-selection change-plan recipient handle-virtual transaction-funding transaction-metadata message-crypto send-metadata-ui funds-send funds-send-view funds-send-files funds-send-ui; do
@@ -338,6 +341,7 @@ for workflow in 'Create unsigned package' 'Create and sign' 'Create, sign and su
     cntools_transaction_ui_render_json() { [[ "${DETAILS:-N}" == Y ]] || fail 'unsolicited decode dump'; printf 'decoded\n' >> "${trace}"; }
     cntools_transaction_ui_render_signer_progress() { [[ "${DETAILS:-N}" == Y ]] || fail 'unsolicited signers'; printf 'signers\n' >> "${trace}"; }
     cntools_ui_wait() { :; }
+    cntools_transaction_ui_offer_monitor() { printf 'monitor %s\n' "$1" >> "${trace}"; }
     cntools_send_save_into() { printf 'save %s\n' "$3" >> "${trace}"; printf -v "$1" '%s' /saved.json; }
     cntools_send_signed_path_into() { printf -v "$1" '%s' /signed.json; }
     cntools_ui_confirm() { printf 'confirm %s default=%s\n' "$1" "$2" >> "${trace}"; return 0; }
@@ -372,12 +376,14 @@ for workflow in 'Create unsigned package' 'Create and sign' 'Create, sign and su
       status=0; cntools_send_workflow || status=$?
       [[ "${status}" == 2 ]] || fail 'submission failure hidden'
       grep -q 'result danger Submission rejected' "${trace}" || fail 'submission failure not tabulated'
+      if grep -q '^monitor ' "${trace}"; then fail 'monitor offered after failed submission'; fi
       SUBMIT_STATUS=0
       cntools_ui_confirm() { return 1; }
       : > "${trace}"
       cntools_send_workflow || fail 'submission decline should retain signed package'
       grep -q 'result warning Not submitted' "${trace}" || fail 'decline result missing'
       if grep -qx submit "${trace}"; then fail 'submitted after decline'; fi
+      if grep -q '^monitor ' "${trace}"; then fail 'monitor offered after declining submission'; fi
     elif grep -qx submit "${trace}"; then fail 'unexpected submission'; fi
     DECLINE=Y
     : > "${trace}"

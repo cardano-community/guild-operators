@@ -135,7 +135,6 @@ cntools_transaction_ui_render_package_overview() {
       "Hardware prepared" "${CNTOOLS_TRANSACTION_PACKAGE_HARDWARE_PREPARED}" \
       "$([[ "${CNTOOLS_TRANSACTION_PACKAGE_HARDWARE_PREPARED}" == "Y" ]] && printf success || printf muted)"
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 
   summary="$(jq -c '.intent.summary' "${package_file}")" || return 1
   if [[ "${summary}" != "{}" ]]; then
@@ -190,7 +189,6 @@ cntools_transaction_ui_render_signer_progress() {
         then "Signed" else "Missing" end)] | join("\u001f")
     ' "${package_file}")
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 }
 
 cntools_transaction_ui_render_change_plan() {
@@ -222,7 +220,6 @@ cntools_transaction_ui_render_change_plan() {
       [(.labels | join(", ")), .hardwareGroup, .keyId] | join("\u001f")' \
       "${package_file}")
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 }
 
 cntools_transaction_ui_render_native_scripts() {
@@ -281,7 +278,6 @@ cntools_transaction_ui_render_native_scripts() {
       [.label, .purpose, .source, .scriptHash, (.referenceInput // "")] |
       join("\u001f")' "${package_file}")
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 
   while IFS=$'\037' read -r label declared_script; do
     cntools_transaction_ui_render_json \
@@ -665,7 +661,6 @@ cntools_transaction_ui_render_selected_sources() {
         "${source}" identifier
     done
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 }
 
 cntools_transaction_action_sign() {
@@ -921,7 +916,6 @@ cntools_transaction_action_sign() {
     cntools_transaction_ui_styled_row \
       "Output package" "${output_file}" identifier
   } | cntools_ui_table --separator $'\t' || return 1
-  printf '\n'
   if cntools_ui_confirm "Sign the reviewed transaction with the selected sources?"; then
     status=0
   else
@@ -1092,7 +1086,6 @@ cntools_transaction_ui_render_submit_review() {
     cntools_transaction_ui_styled_row \
       "Transaction ID" "${transaction_id}" identifier
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
   if [[ "${input_kind}" == "package" ]]; then
     cntools_transaction_ui_render_package_overview \
       "${CNTOOLS_TRANSACTION_PACKAGE_FILE}" || return 1
@@ -1125,6 +1118,40 @@ cntools_transaction_ui_submit_selected() {
       ;;
     *) return 2 ;;
   esac
+}
+
+# Monitoring is a separate, optional observation after successful submission.
+# All outcomes return success: cancellation/indexer failure cannot undo a submit.
+cntools_transaction_ui_offer_monitor() {
+  local transaction_id="${1:-}" widths="" message="" role=warning
+  [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == Y ]] || return 0
+  cntools_transaction_monitor_available || return 0
+  [[ "${transaction_id}" =~ ^[0-9a-f]{64}$ ]] || return 0
+  if ! cntools_ui_confirm 'Monitor block inclusion through Koios?' true; then
+    cntools_transaction_log CHOICE "Koios transaction monitoring declined id=${transaction_id}"
+    return 0
+  fi
+  cntools_transaction_log CHOICE "Koios transaction monitoring accepted id=${transaction_id}"
+  cntools_ui_render_status info 'Checking Koios every 5 seconds for up to 3 minutes. Press q between requests to stop. Koios indexing may lag; inclusion is not finality.' || true
+  cntools_transaction_monitor_run "${transaction_id}"
+  case "${CNTOOLS_TRANSACTION_MONITOR_STATE}" in
+    included) message='Included in a block · observed by Koios'; role=success ;;
+    cancelled) message='Monitoring stopped · submission remains accepted' ;;
+    timeout) message='Not yet observed by Koios · submission remains accepted' ;;
+    *) message='Koios monitoring unavailable · submission remains accepted' ;;
+  esac
+  cntools_transaction_log TX "Monitoring finished id=${transaction_id} state=${CNTOOLS_TRANSACTION_MONITOR_STATE}"
+  if cntools_transaction_ui_table_widths_into widths 22; then
+    {
+      printf 'Confirmation detail\tValue\n'
+      cntools_transaction_ui_styled_row Status "${message}" "${role}"
+      cntools_transaction_ui_styled_row 'Transaction ID' "${transaction_id}" identifier
+      if [[ "${CNTOOLS_TRANSACTION_MONITOR_STATE}" == included ]]; then
+        cntools_transaction_ui_styled_row 'Blocks since inclusion' "$(cntools_number_format "${CNTOOLS_TRANSACTION_MONITOR_CONFIRMATIONS}")" number
+      fi
+    } | cntools_ui_table --separator $'\t' --widths "${widths}" || true
+  fi
+  return 0
 }
 
 cntools_transaction_action_submit() {
@@ -1199,5 +1226,6 @@ cntools_transaction_action_submit() {
     "${CNTOOLS_TRANSACTION_SUBMIT_MESSAGE:-Transaction accepted.}"
   cntools_ui_render_field "Transaction ID" "${CNTOOLS_TRANSACTION_SUBMIT_ID}"
   cntools_ui_render_field "Backend" "${CNTOOLS_TRANSACTION_SUBMIT_BACKEND}"
+  cntools_transaction_ui_offer_monitor "${transaction_id}"
   cntools_ui_wait
 }

@@ -16,6 +16,8 @@
     "wallet-key.sh",
     "wallet-address.sh",
     "wallet-id.sh",
+    "asset.sh",
+    "asset-cache.sh",
     "wallet-query.sh",
     "wallet-remove.sh",
     "wallet-remove-ui.sh"

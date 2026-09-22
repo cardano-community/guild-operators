@@ -12,6 +12,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
+. "${CNTOOLS_ROOT}/lib/asset.sh"
+. "${CNTOOLS_ROOT}/lib/asset-cache.sh"
+CNTOOLS_ASSET_CACHE_ENABLED=N
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-register.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 CNTOOLS_TMP_DIR="${TEST_ROOT}/tmp"
@@ -590,8 +593,9 @@ test_deregistration_package
 
 jq -e '.libs == [
   "number.sh", "wallet.sh", "wallet-material.sh", "wallet-key.sh",
-  "wallet-address.sh", "wallet-id.sh", "wallet-query.sh", "utxo.sh", "transaction.sh",
-  "transaction-build.sh", "transaction-sign.sh", "transaction-submit.sh",
+  "wallet-address.sh", "wallet-id.sh", "asset.sh", "asset-cache.sh",
+  "wallet-query.sh", "utxo.sh", "transaction.sh",
+  "transaction-build.sh", "transaction-sign.sh", "transaction-submit.sh", "transaction-monitor.sh",
   "transaction-ui.sh", "coin-selection.sh", "change-plan.sh",
   "wallet-register.sh", "wallet-register-ui.sh"
 ]' "${CNTOOLS_ROOT}/modules/root/wallet/register/module.json" >/dev/null ||

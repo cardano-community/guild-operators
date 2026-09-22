@@ -76,6 +76,20 @@ cntools_health_reference_slot() {
   fi
 }
 
+# Transaction validity is in the Shelley (one-second slot) era on all supported
+# networks. Invert the same network clock used by health, avoiding a second set
+# of genesis/transition constants. The reference instant is after all transitions.
+cntools_slot_datetime_into() {
+  local output_name="${1:-}" slot="${2:-}" reference="" timestamp=0
+  local -x TZ="${CNTOOLS_TIMEZONE:-UTC}"
+  [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
+     "${slot}" =~ ^(0|[1-9][0-9]{0,12})$ ]] || return 2
+  local -n date_output="${output_name}"
+  reference="$(cntools_health_reference_slot "${CNTOOLS_NETWORK:-}" 1700000000)" || return 1
+  timestamp=$((1700000000 + slot - reference))
+  printf -v date_output '%(%Y-%m-%d %H:%M:%S %Z (%z))T' "${timestamp}"
+}
+
 cntools_health_tone_for_gap() {
   local gap="${1:-}"
 

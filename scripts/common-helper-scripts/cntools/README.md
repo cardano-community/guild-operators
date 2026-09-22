@@ -646,6 +646,39 @@ remain sourced from the deployed Cardano CLI; Koios is identified separately
 as the metadata source and enrichment failure does not invalidate local
 results.
 
+Wallet Show and Send share the same token-name selection (ticker for FTs,
+then metadata name, safe asset-name text, and a neutral fallback). Send keeps
+the full `policy.name` identity alongside the label. Public asset details are
+cached for 24 hours under `<node-home>/.cntools/asset-cache`, scoped to network
+and Koios endpoint. Only cache misses are requested, still in bulk. Invalid
+or expired entries are refetched; cache failure never blocks a transfer.
+This cache is only for display metadata, including supply, not wallet balances,
+spendable UTxOs, or Handle destinations. With advanced mode enabled, use
+**Advanced → Clear asset cache** to discard these disposable cached details
+across this deployment's networks. The next lookup fetches them again.
+
+Two-column property/value tables omit redundant column headings. Content
+blocks supply one trailing blank line; menus do not add a second one. Send's
+transaction information displays expiry as a date with timezone and UTC offset,
+using `BLOCKLOG_TZ` from the unchanged common `env`, or UTC when unset.
+
+After successful Send, stake registration/de-registration, or Transaction →
+Submit, an interactive session with Koios enabled offers to monitor block
+inclusion. This works after local-node submission as well as Koios submission.
+The shared monitor makes logged `POST /tx_status` requests for that transaction
+ID, with a five-second pause between checks, for at most three minutes. Press
+`q` between requests to stop. Three consecutive request/schema errors also stop
+monitoring. API authentication uses the same protected, redacted logging as
+other Koios calls. Nothing is queried until the operator accepts the offer.
+
+As defined by [Koios's pinned tx_status implementation](https://github.com/cardano-community/koios-artifacts/blob/v1.4.2/files/grest/rpc/transactions/tx_status.sql),
+`num_confirmations: null` (or an empty successful response) means inclusion has
+not yet been observed; any valid non-null count, including `0`, means the
+transaction is in an indexed block. This is an observation, not finality.
+Cancellation, timeout, and unavailable/lagging Koios data never turn an accepted
+submission into a reported failure, trigger a resubmission, or modify the saved
+transaction. Offline and Koios-disabled sessions do not offer monitoring.
+
 Metadata precedence selects one complete document by standard label. CIP-67
 label `222` resolves CIP-68 before exact CIP-25 label `721`; label `333`
 resolves CIP-68, transaction metadata label `20`, then Token Registry; and

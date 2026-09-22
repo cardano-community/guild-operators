@@ -146,7 +146,6 @@ cntools_wallet_remove_render_review() {
     fi
     cntools_wallet_remove_styled_row "Safety result" "${result}" "${result_role}"
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
-  printf '\n'
 }
 
 cntools_wallet_remove_render_warnings() {
@@ -183,7 +182,6 @@ cntools_wallet_remove_render_result() {
       "Files deleted" "${CNTOOLS_WALLET_REMOVE_FILE_COUNT}" number
     cntools_wallet_remove_styled_row "Status" "Removed permanently" success
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
-  printf '\n'
 }
 
 cntools_wallet_action_remove() {

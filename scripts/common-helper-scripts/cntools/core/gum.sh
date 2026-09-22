@@ -1083,6 +1083,19 @@ cntools_ui_page_file() {
 }
 
 cntools_ui_table() {
+  local header="" remaining="" rendered="" line="" fields="" separator=$'\t'
+  local keep_header=N row=0 argument=""
+  local -a arguments=()
+  # Two-column tables are property/value views. Recovery-word grids explicitly
+  # retain their headers, even when the terminal only fits two columns.
+  for argument in "$@"; do
+    if [[ "${argument}" == --keep-header ]]; then keep_header=Y
+    else arguments+=("${argument}"); fi
+  done
+  IFS= read -r header || return 1
+  remaining="$(cat)" || return 1
+  fields="${header#*"${separator}"}"
+  [[ "${header}" == *"${separator}"* && "${fields}" != *"${separator}"* ]] || keep_header=Y
   local -a table_arguments=(
     table --print --border rounded --no-show-help
     --border.foreground "${CNTOOLS_GUM_COLOR_DIVIDER}"
@@ -1102,11 +1115,21 @@ cntools_ui_table() {
   # styles from piped table input even when its output is a terminal, so force
   # color parsing for trusted, pre-sanitized CNTools rows. Respect NO_COLOR.
   if [[ -n "${NO_COLOR:-}" ]]; then
-    NO_COLOR=1 CLICOLOR_FORCE='' \
-      cntools_gum "${table_arguments[@]}" "$@"
+    rendered="$(printf '%s\n%s\n' "${header}" "${remaining}" | NO_COLOR=1 CLICOLOR_FORCE='' \
+      cntools_gum "${table_arguments[@]}" "${arguments[@]}")" || return $?
   else
-    CLICOLOR_FORCE=1 cntools_gum "${table_arguments[@]}" "$@"
+    rendered="$(printf '%s\n%s\n' "${header}" "${remaining}" | CLICOLOR_FORCE=1 \
+      cntools_gum "${table_arguments[@]}" "${arguments[@]}")" || return $?
   fi
+  # Gum 2.0.0 has no headerless static-table option. Drop only its single
+  # header line and header divider, never a data row or its ANSI styling.
+  while IFS= read -r line; do
+    row=$((row + 1))
+    [[ "${keep_header}" != N || ( ${row} != 2 && ${row} != 3 ) ]] || continue
+    printf '%s\n' "${line}"
+  done <<< "${rendered}"
+  # Content blocks own their trailing gap; menus must not add another one.
+  printf '\n'
 }
 
 cntools_ui_spin() {

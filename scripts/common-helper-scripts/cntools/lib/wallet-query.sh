@@ -1145,41 +1145,11 @@ cntools_wallet_query_koios_asset_metadata_batch() {
   requested="$(jq -c '
     [._asset_list[] | ((.[0] + "." + .[1]) | ascii_downcase)]
   ' <<< "${payload}")" || return 1
-  if ! cntools_wallet_query_http \
-      "${CNTOOLS_KOIOS_API%/}/asset_info${CNTOOLS_WALLET_KOIOS_ASSET_SELECT}" \
-      "${payload}" "${response_file}"; then
+  if ! cntools_asset_details_fetch "${response_file}" "$@"; then
     cntools_wallet_log ERROR "Koios asset_info request failed"
     return 1
   fi
-  jq -e --argjson requested "${requested}" '
-    def uint:
-      type == "string" and length <= 80 and test("^[0-9]+$");
-    def optional_text:
-      type == "null" or type == "string";
-    def optional_object:
-      type == "null" or type == "object";
-    def identity:
-      ((.policy_id | ascii_downcase) + "." +
-        ((.asset_name // "") | ascii_downcase));
-    type == "array" and
-    length == ($requested | length) and
-    all(.[];
-      (.policy_id | type == "string" and
-        test("^[0-9a-fA-F]{56}$")) and
-      ((.asset_name == null) or
-        (.asset_name | type == "string" and
-          test("^([0-9a-fA-F]{2}){0,32}$"))) and
-      (identity as $id | ($requested | index($id)) != null) and
-      (.asset_name_ascii | optional_text) and
-      (.fingerprint | type == "string" and
-        test("^asset1[023456789acdefghjklmnpqrstuvwxyz]{38}$")) and
-      (.total_supply | uint) and
-      (.registry_metadata | optional_object) and
-      (.metadata_20 | optional_object) and
-      (.metadata_721 | optional_object) and
-      (.cip68_metadata | optional_object)) and
-    ([.[] | identity] | unique | length) == length
-  ' "${response_file}" >/dev/null 2>&1 || {
+  cntools_asset_response_valid "${response_file}" "${requested}" || {
     cntools_wallet_log ERROR "Koios asset_info returned invalid JSON"
     return 1
   }
@@ -2665,7 +2635,6 @@ cntools_wallet_render_table() {
 
   cntools_ui_render_detail "${title}" || return 1
   cntools_ui_table --separator $'\t' || return 1
-  printf '\n'
 }
 
 cntools_wallet_render_table_file() {
@@ -2675,7 +2644,6 @@ cntools_wallet_render_table_file() {
   [[ -f "${source_file}" && ! -L "${source_file}" ]] || return 2
   cntools_ui_render_detail "${title}" || return 1
   cntools_ui_table --separator $'\t' < "${source_file}" || return 1
-  printf '\n'
 }
 
 cntools_wallet_write_rows_file() {
@@ -3224,51 +3192,7 @@ cntools_wallet_render_delegation_table() {
 }
 
 cntools_wallet_asset_label_into() {
-  local _cntools_output_name="${1:-}"
-  local _cntools_asset_id="${2:-}"
-  local _cntools_ordinal="${3:-0}"
-  local _cntools_asset_name="${_cntools_asset_id#*.}"
-  local _cntools_label="${CNTOOLS_WALLET_ASSET_TICKERS[${_cntools_asset_id}]:-}"
-  local _cntools_byte=""
-  local _cntools_character=""
-  local _cntools_decoded=""
-  local _cntools_index=0
-  local _cntools_byte_value=0
-
-  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n _cntools_output_ref="${_cntools_output_name}"
-
-  if [[ "${CNTOOLS_WALLET_ASSET_CLASSES[${_cntools_asset_id}]:-}" == "NFT" ]]; then
-    _cntools_label=""
-  fi
-  [[ -n "${_cntools_label}" ]] ||
-    _cntools_label="${CNTOOLS_WALLET_ASSET_METADATA_NAMES[${_cntools_asset_id}]:-}"
-  [[ -n "${_cntools_label}" ]] ||
-    _cntools_label="${CNTOOLS_WALLET_ASSET_ASCII_NAMES[${_cntools_asset_id}]:-}"
-  if [[ -z "${_cntools_label}" && -z "${_cntools_asset_name}" ]]; then
-    _cntools_label="(unnamed)"
-  elif [[ -z "${_cntools_label}" &&
-          "${_cntools_asset_name}" =~ ^([0-9a-f]{2})+$ ]]; then
-    for (( _cntools_index = 0;
-           _cntools_index < ${#_cntools_asset_name};
-           _cntools_index += 2 )); do
-      _cntools_byte="${_cntools_asset_name:_cntools_index:2}"
-      _cntools_byte_value=$((16#${_cntools_byte}))
-      if (( _cntools_byte_value < 32 || _cntools_byte_value > 126 )); then
-        _cntools_decoded=""
-        break
-      fi
-      printf -v _cntools_character '%b' "\\x${_cntools_byte}"
-      _cntools_decoded+="${_cntools_character}"
-    done
-    _cntools_label="${_cntools_decoded}"
-  fi
-  [[ -n "${_cntools_label}" ]] ||
-    printf -v _cntools_label 'Asset %02d' "${_cntools_ordinal}"
-  if (( ${#_cntools_label} > 28 )); then
-    _cntools_label="${_cntools_label:0:27}…"
-  fi
-  _cntools_output_ref="${_cntools_label}"
+  cntools_asset_label_into "$@"
 }
 
 cntools_wallet_asset_label() {

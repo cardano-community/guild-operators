@@ -1,0 +1,9 @@
+{
+  "kind": "action",
+  "label": "Clear asset cache",
+  "description": "Refresh cached Koios token names and metadata on the next lookup",
+  "shortcut": "c",
+  "order": 50,
+  "modes": ["local", "light", "offline"],
+  "libs": ["asset-cache.sh"]
+}

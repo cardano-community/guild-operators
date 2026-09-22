@@ -12,6 +12,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
+. "${CNTOOLS_ROOT}/lib/asset.sh"
+. "${CNTOOLS_ROOT}/lib/asset-cache.sh"
+CNTOOLS_ASSET_CACHE_ENABLED=N
 REMOVE_MODULE="${CNTOOLS_ROOT}/modules/root/wallet/remove"
 CNODE_RELEASE="${REPO_ROOT}/files/node-implementations/cnode/release.json"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-wallet-remove.XXXXXX")"
@@ -88,6 +91,8 @@ jq -e '.kind == "action" and .label == "Remove" and
     "wallet-key.sh",
     "wallet-address.sh",
     "wallet-id.sh",
+    "asset.sh",
+    "asset-cache.sh",
     "wallet-query.sh",
     "wallet-remove.sh",
     "wallet-remove-ui.sh"

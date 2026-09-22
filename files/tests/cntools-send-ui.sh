@@ -5,6 +5,9 @@ set -euo pipefail
 (( BASH_VERSINFO[0] >= 4 )) || { printf 'SKIP: Bash 4.4+ required\n'; exit 0; }
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
+. "${CNTOOLS_ROOT}/lib/asset.sh"
+. "${CNTOOLS_ROOT}/lib/asset-cache.sh"
+CNTOOLS_ASSET_CACHE_ENABLED=N
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-send-ui.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
@@ -40,6 +43,27 @@ cntools_send_render_assets 0 > "${TEST_ROOT}/assets"
 grep -q '<number>9,007,199,254,740,993</number>' "${TEST_ROOT}/assets" || fail 'lossless available color'
 grep -q '<success>2</success>' "${TEST_ROOT}/assets" || fail 'selected color'
 grep -q '<muted>0</muted>' "${TEST_ROOT}/assets" || fail 'zero muted'
+
+(
+  # Equal friendly names must still map to their distinct policy.name identity.
+  CNTOOLS_WALLET_ASSET_TICKERS=([policy.01]=TOKEN [policy.02]=TOKEN)
+  CNTOOLS_FUNDING_ASSETS[policy.02]=7
+  CNTOOLS_SEND_MODE=max
+  CNTOOLS_SEND_LABELS[1]='Second recipient'
+  CNTOOLS_SEND_ADDRESSES[1]='second-address'
+  visits=0
+  cntools_ui_choose() {
+    [[ "${*: -1}" == '2 · TOKEN · policy.02' ]] || fail 'name / identity menu label'
+    visits=$((visits+1))
+    if (( visits == 1 )); then printf -v "$1" '%s' '2 · TOKEN · policy.02'
+    else printf -v "$1" '%s' 'Done selecting assets'; fi
+  }
+  cntools_ui_input() { printf -v "$1" '%s' 3; }
+  cntools_send_prompt_amounts 1 > "${TEST_ROOT}/asset-menu" || fail 'named asset selection'
+  [[ "${CNTOOLS_SEND_ASSETS[1|policy.02]:-}" == 3 &&
+     -z "${CNTOOLS_SEND_ASSETS[1|policy.01]:-}" ]] || fail 'duplicate labels select wrong asset'
+  grep -q '2 · TOKEN' "${TEST_ROOT}/asset-menu" || fail 'asset table lacks friendly name'
+)
 
 for operation in Add Edit; do
   for stage in recipient amounts; do

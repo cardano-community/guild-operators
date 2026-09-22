@@ -25,7 +25,7 @@ cntools_send_render_recipient() {
 }
 
 cntools_send_render_assets() {
-  local index="$1" asset="" available="" selected="" width="" role="" n=0
+  local index="$1" asset="" asset_label="" available="" selected="" width="" role="" n=0
   width="$(cntools_ui_content_width 220 72)" || return 1
   cntools_ui_render_detail 'Native assets · smallest units' || return 1
   {
@@ -37,7 +37,9 @@ cntools_send_render_assets() {
       role=muted
       [[ "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}" == 0 ]] || role=success
       cntools_theme_style_value_into selected "${role}" "$(cntools_number_format "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}")" || return 1
-      printf '%s · %s\t%s\t%s\n' "${n}" "${asset}" "${available}" "${selected}"
+      cntools_asset_label_into asset_label "${asset}" "${n}" || return 1
+      cntools_wallet_table_row_prepared "${n} · ${asset_label}" "${available}" "${selected}"
+      cntools_wallet_table_row_prepared "${asset}" '' ''
     done
   } | cntools_ui_table --separator $'\t' --widths "$((width-57)),23,24"
 }
@@ -49,7 +51,7 @@ cntools_send_render_information() {
   done
   cntools_transaction_ui_table_widths_into widths 22 || return 1
   [[ "${CNTOOLS_SEND_MODE}" == exact ]] || selection='All spendable inputs'
-  expiry_label="$(cntools_number_format "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}")"
+  cntools_slot_datetime_into expiry_label "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}" || expiry_label='Date unavailable'
   cntools_ui_render_detail 'Transaction information' || return 1
   {
     printf 'Transaction detail\tValue\n'
@@ -59,7 +61,7 @@ cntools_send_render_information() {
     cntools_transaction_ui_styled_row 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
     cntools_transaction_ui_styled_row 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
     cntools_transaction_ui_styled_row 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" value
-    cntools_transaction_ui_styled_row 'Expiry slot' "${expiry_label}" number
+    cntools_transaction_ui_styled_row 'Expires' "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
 }
 

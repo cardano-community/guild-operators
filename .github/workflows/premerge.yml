@@ -64,6 +64,12 @@ jobs:
       run: bash files/tests/cntools-funds-send.sh
     - name: CNTools Send UI
       run: bash files/tests/cntools-send-ui.sh
+    - name: Test CNTools asset metadata cache and dates
+      run: bash files/tests/cntools-asset-cache.sh
+    - name: Test CNTools table presentation
+      run: bash files/tests/cntools-presentation.sh
+    - name: Test CNTools optional transaction monitoring
+      run: bash files/tests/cntools-transaction-monitor.sh
     - name: Test CNTools Send metadata and encryption
       run: bash files/tests/cntools-send-metadata.sh
     - name: Test CNTools Handle resolution

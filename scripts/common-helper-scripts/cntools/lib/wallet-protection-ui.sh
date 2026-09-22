@@ -158,7 +158,6 @@ cntools_wallet_protection_render_plan() {
     cntools_wallet_protection_styled_row "Result" "${result}" accent
     cntools_wallet_protection_styled_row "File protection" "${file_lock}" value
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
-  printf '\n'
 }
 
 cntools_wallet_protection_render_result() {
@@ -187,7 +186,6 @@ cntools_wallet_protection_render_result() {
     cntools_wallet_protection_styled_row "File access" \
       "${lock_value}" value
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
-  printf '\n'
 }
 
 cntools_wallet_protection_password_valid() {

@@ -358,7 +358,6 @@ cntools_wallet_mnemonic_render_plan() {
   fi
   if printf '%s\n' "${rows}" |
       cntools_ui_table --separator $'\t' --widths "${widths}"; then
-    printf '\n'
     return 0
   else
     status=$?
@@ -432,8 +431,7 @@ cntools_wallet_mnemonic_render_phrase() {
       done
       printf '\n'
     done
-  } | cntools_ui_table --separator $'\t' || return 1
-  printf '\n'
+  } | cntools_ui_table --keep-header --separator $'\t' || return 1
 }
 
 cntools_wallet_mnemonic_verify_backup() {
@@ -671,7 +669,6 @@ cntools_wallet_mnemonic_render_result() {
     cntools_wallet_create_styled_row \
       "Stake path" "1852H/1815H/${account}H/2/${key_index}" identifier
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
   cntools_ui_render_detail "Addresses" || return 1
   {
     printf 'Address type\tAddress\n'
@@ -680,7 +677,6 @@ cntools_wallet_mnemonic_render_result() {
     cntools_wallet_create_styled_row \
       "Stake / reward" "${reward_address}" address
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
   cntools_ui_render_detail "Credentials" || return 1
   {
     printf 'Credential type\tCredential\n'
@@ -689,7 +685,6 @@ cntools_wallet_mnemonic_render_result() {
     cntools_wallet_create_styled_row \
       "Stake" "${stake_credential}" credential
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-  printf '\n'
 }
 
 cntools_wallet_action_new_mnemonic() {

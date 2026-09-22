@@ -6,7 +6,6 @@ cntools_send_begin() { cntools_ui_action_begin "Send" "/ Funds / Send"; }
 
 cntools_send_confirm() {
   local status=0
-  printf '\n'
   cntools_ui_confirm "$1" "${2:-false}" || status=$?
   cntools_transaction_log CHOICE "Send confirmation=${1} status=${status}"
   return "${status}"
@@ -16,7 +15,6 @@ cntools_send_choose() {
   local output_name="${1:-}" prompt="${2:-}" status=0
   shift 2
   [[ -z "${CNTOOLS_SEND_EDIT_CANCEL:-}" ]] || set -- "$@" "${CNTOOLS_SEND_EDIT_CANCEL}"
-  printf '\n'
   cntools_ui_choose "${output_name}" "${prompt}" "$@" || status=$?
   if (( status == 0 )); then
     local -n chosen_ref="${output_name}"
@@ -52,7 +50,6 @@ cntools_send_prompt_recipient() {
   local directory="" entered="" handle_name="" resolution=""
   cntools_send_choose choice "Recipient type" "CNTools wallet" "External address" "ADA Handle" || return $?
   if [[ "${choice}" == "CNTools wallet" ]]; then
-    printf '\n'
     cntools_wallet_choose selected "${CNTOOLS_SEND_EDIT_CANCEL:-Cancel}" || return $?
     directory="${CNTOOLS_WALLET_PATHS[selected]}"
     cntools_wallet_prepare_selected_material "${directory}" || {
@@ -105,7 +102,7 @@ cntools_send_prompt_recipient() {
 }
 
 cntools_send_prompt_amounts() {
-  local index="${1:-}" choice="" entered="" units="" asset="" option="" i=0
+  local index="${1:-}" choice="" entered="" units="" asset="" option="" asset_label="" i=0
   local -a options=()
   if (( index == 0 && ${#CNTOOLS_SEND_ADDRESSES[@]} == 1 )); then
     cntools_send_choose choice "Amount mode" "Exact amounts" "Max ADA" "Send everything" || return $?
@@ -140,7 +137,9 @@ cntools_send_prompt_amounts() {
     options=("Done selecting assets")
     i=0
     for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
-      i=$((i+1)); options+=("${i} · ${asset}")
+      i=$((i+1))
+      cntools_asset_label_into asset_label "${asset}" "${i}" || return 2
+      options+=("${i} · ${asset_label} · ${asset}")
     done
     cntools_send_choose option "Native assets (quantities in smallest units)" "${options[@]}" || return $?
     [[ "${option}" != "${options[0]}" ]] || break
@@ -338,6 +337,11 @@ cntools_send_workflow() {
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
   cntools_ui_spin_function "Fetching spendable funds and protocol parameters…" \
     cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" || return 2
+  if (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} > 0 )); then
+    cntools_ui_spin_function 'Loading asset names from Koios / one-day cache…' \
+      cntools_asset_details_for_ids "${CNTOOLS_FUNDING_ASSET_IDS[@]}" ||
+      cntools_transaction_log WARN 'Some asset metadata is unavailable; using on-chain name / identity fallback'
+  fi
   cntools_send_edit_recipients || return $?
   local -a workflows=("Create unsigned package")
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || workflows=("Create, sign and submit" "Create and sign" "Create unsigned package")
@@ -423,6 +427,7 @@ cntools_send_workflow() {
     return 2
   fi
   cntools_send_render_result success "${CNTOOLS_TRANSACTION_SUBMIT_MESSAGE} Submission is not confirmation of inclusion." "${txid}" || return 2
+  cntools_transaction_ui_offer_monitor "${txid}"
 }
 
 cntools_funds_action_send() {

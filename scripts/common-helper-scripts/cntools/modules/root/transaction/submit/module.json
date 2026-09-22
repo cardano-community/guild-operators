@@ -9,8 +9,10 @@
     "light"
   ],
   "libs": [
+    "number.sh",
     "transaction.sh",
     "transaction-submit.sh",
+    "transaction-monitor.sh",
     "transaction-ui.sh"
   ]
 }
