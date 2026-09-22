@@ -209,8 +209,8 @@ set_defaults() {
   [[ -z "${BRANCH}" ]] && BRANCH="master"
   [[ "${SUDO}" = 'Y' ]] && sudo="sudo" || sudo=""
   [[ "${SUDO}" = 'Y' && $(id -u) -eq 0 ]] && err_exit "Please run as non-root user."
-  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "10.6.2")"
-  [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "10.15.0.1")"
+  [[ -z "${CARDANO_NODE_VERSION}" ]] && CARDANO_NODE_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-node-latest.txt" || echo "11.1.2")"
+  [[ -z "${CARDANO_CLI_VERSION}" ]] && CARDANO_CLI_VERSION="$(curl -sfk "https://raw.githubusercontent.com/${G_ACCOUNT}/guild-operators/${BRANCH}/files/docker/node/release-versions/cardano-cli-latest.txt" || echo "11.2.3.1")"
   [[ -z "${DBSYNC_VERSION}" ]] && DBSYNC_VERSION="13.7.2.1"
   [[ -z "${CADDR_VERSION}" ]] && CADDR_VERSION="4.0.7"
   CNODE_HOME="${CNODE_PATH}/${CNODE_NAME}"
@@ -554,6 +554,8 @@ download_cnodebins() {
   rm -f cardano-node cardano-address
   [[ -z ${ARCH##*aarch64*} ]] && node_arch="arm64" || node_arch="amd64"
   curl -m 200 -sfL "https://github.com/intersectmbo/cardano-node/releases/download/${CARDANO_NODE_VERSION}/cardano-node-${CARDANO_NODE_VERSION}-linux-${node_arch}.tar.gz" -o cnode.tar.gz || err_exit "Could not download cardano-node release ${CARDANO_NODE_VERSION} from GitHub."
+  # Keep Mithril signer/client managed together by download_mithril; the node bundle
+  # can contain an older signer. Install cardano-cli separately at CARDANO_CLI_VERSION.
   tar zxf cnode.tar.gz --strip-components 2 ./bin/cardano-node ./bin/cardano-submit-api ./bin/bech32 ./bin/snapshot-converter &>/dev/null
   rm -f cnode.tar.gz
   [[ -f cardano-node ]] || err_exit "cardano-node archive downloaded, but binary 'cardano-node' was not found after extraction."
