@@ -25,7 +25,7 @@ cntools_send_render_recipient() {
 }
 
 cntools_send_render_assets() {
-  local index="$1" asset="" asset_label="" available="" selected="" width="" role="" n=0
+  local index="$1" asset="" asset_label="" asset_identifier="" available="" selected="" width="" role="" n=0
   width="$(cntools_ui_content_width 220 72)" || return 1
   cntools_ui_render_detail 'Native assets · smallest units' || return 1
   {
@@ -38,8 +38,9 @@ cntools_send_render_assets() {
       [[ "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}" == 0 ]] || role=success
       cntools_theme_style_value_into selected "${role}" "$(cntools_number_format "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}")" || return 1
       cntools_asset_label_into asset_label "${asset}" "${n}" || return 1
+      cntools_theme_style_value_into asset_identifier muted "${asset}" || return 1
       cntools_wallet_table_row_prepared "${n} · ${asset_label}" "${available}" "${selected}"
-      cntools_wallet_table_row_prepared "${asset}" '' ''
+      cntools_wallet_table_row_prepared "${asset_identifier}" '' ''
     done
   } | cntools_ui_table --separator $'\t' --widths "$((width-57)),23,24"
 }

@@ -43,6 +43,8 @@ cntools_send_render_assets 0 > "${TEST_ROOT}/assets"
 grep -q '<number>9,007,199,254,740,993</number>' "${TEST_ROOT}/assets" || fail 'lossless available color'
 grep -q '<success>2</success>' "${TEST_ROOT}/assets" || fail 'selected color'
 grep -q '<muted>0</muted>' "${TEST_ROOT}/assets" || fail 'zero muted'
+grep -q '<muted>policy.01</muted>' "${TEST_ROOT}/assets" || fail 'asset identifier not muted'
+grep -q '<muted>policy.02</muted>' "${TEST_ROOT}/assets" || fail 'zero-balance asset identifier not muted'
 
 (
   # Equal friendly names must still map to their distinct policy.name identity.
