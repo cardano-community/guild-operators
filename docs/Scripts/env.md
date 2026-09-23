@@ -130,6 +130,11 @@ Leave `CCLI` commented to use the selected adapter's default. cnode resolves
 not require a node socket. Uncommenting `CCLI` is an explicit operator override
 and is preserved by the adapters.
 
+For cnode, `STRICT_VERSION_CHECK=Y` requires the minimum node and CLI versions
+recorded in `${NODE_HOME}/files/cnode-release.json`. The comparison uses
+major.minor.patch and ignores additional version components. Set it to `N`
+only to run unsupported versions.
+
 The longer wallet, pool, and asset filename-convention list formerly shown on
 this page is still initialized by the cnode-compatible runtime, but is no
 longer part of the editable common `env` header.
