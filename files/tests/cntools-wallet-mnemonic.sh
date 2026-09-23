@@ -19,7 +19,7 @@ CNTOOLS_TMP_DIR="${TEST_ROOT}/tmp"
 FAKE_CLI="${TEST_ROOT}/cardano-cli"
 LOG_TRACE="${TEST_ROOT}/cntools.log"
 CLI_TRACE="${TEST_ROOT}/cli.log"
-TESTED_CARDANO_CLI_VERSION="11.0.0.0"
+TESTED_CARDANO_CLI_VERSION="11.2.3.1"
 
 MNEMONIC_24="abandon ability able about above absent absorb abstract absurd abuse access accident account accuse achieve acid acoustic acquire across act action actor actress actual"
 MNEMONIC_12="abandon ability able about above absent absorb abstract absurd abuse access accident"
@@ -81,9 +81,11 @@ assert_no_debris() {
 }
 
 for implementation in cnode dingo; do
+  expected_version=11.0.0.0
+  [[ "${implementation}" != cnode ]] || expected_version="${TESTED_CARDANO_CLI_VERSION}"
   pinned_version="$(jq -er '.companions["cardano-cli"].version' \
     "${REPO_ROOT}/files/node-implementations/${implementation}/release.json")"
-  assert_eq "${pinned_version}" "${TESTED_CARDANO_CLI_VERSION}" \
+  assert_eq "${pinned_version}" "${expected_version}" \
     "${implementation} cardano-cli compatibility pin"
 done
 

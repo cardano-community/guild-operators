@@ -69,7 +69,7 @@ done
 
 assert_eq \
   "$(jq -er '.companions["cardano-cli"].version' "${CNODE_RELEASE}")" \
-  "11.0.0.0" \
+  "11.2.3.1" \
   "pinned Cardano CLI contract; review DRep commands when the deployment pin changes"
 
 for required_command in bash chmod jq mkdir mktemp rm rmdir; do

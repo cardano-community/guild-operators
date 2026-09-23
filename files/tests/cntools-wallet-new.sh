@@ -26,7 +26,7 @@ FAKE_CLI="${TEST_ROOT}/cardano-cli"
 
 # Keep command fixtures tied to the exact CLI deployed by Guild Deploy. A pin
 # change must deliberately update this compatibility target and its fake CLI.
-TESTED_CARDANO_CLI_VERSION="11.0.0.0"
+TESTED_CARDANO_CLI_VERSION="11.2.3.1"
 
 TEST_BASE_ADDRESS="addr_test1qpfepft9zs3y8ejcv84tq6tkp00wdm46fr6h3am02leunk8dc55q34v2ggxw9hea4rr3rry933a2zdh60v43h237s8ks7t2dja"
 TEST_PAYMENT_ADDRESS="addr_test1vpfepft9zs3y8ejcv84tq6tkp00wdm46fr6h3am02leunkqtddwf6"
@@ -75,7 +75,9 @@ assert_pinned_cardano_cli_versions() {
     pinned_version="$(
       jq -er '.companions["cardano-cli"].version' "${manifest}"
     )" || fail "${implementation} does not declare a pinned cardano-cli version"
-    [[ "${pinned_version}" == "${TESTED_CARDANO_CLI_VERSION}" ]] ||
+    local expected_version=11.0.0.0
+    [[ "${implementation}" != cnode ]] || expected_version="${TESTED_CARDANO_CLI_VERSION}"
+    [[ "${pinned_version}" == "${expected_version}" ]] ||
       fail "${implementation} pins cardano-cli ${pinned_version}; review the wallet command fixtures tested against ${TESTED_CARDANO_CLI_VERSION}"
   done
 }

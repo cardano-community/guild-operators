@@ -9,6 +9,28 @@
     "light"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "asset.sh",
+    "asset-cache.sh",
+    "wallet-query.sh",
+    "utxo.sh",
+    "transaction.sh",
+    "transaction-build.sh",
+    "transaction-sign.sh",
+    "transaction-submit.sh",
+    "transaction-monitor.sh",
+    "transaction-ui.sh",
+    "transaction-files.sh",
+    "coin-selection.sh",
+    "change-plan.sh",
+    "wallet-stake.sh",
+    "transaction-funding.sh",
+    "funds-withdraw.sh",
+    "funds-withdraw-ui.sh"
   ]
 }

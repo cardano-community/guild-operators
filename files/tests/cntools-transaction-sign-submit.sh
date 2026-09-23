@@ -27,7 +27,7 @@ HWCLI_TRACE="${TEST_ROOT}/cardano-hw-cli.trace"
 API_TRACE="${TEST_ROOT}/koios.trace"
 LOG_TRACE="${TEST_ROOT}/cntools.log"
 
-TESTED_CARDANO_CLI_VERSION="11.0.0.0"
+TESTED_CARDANO_CLI_VERSION="11.2.3.1"
 TESTED_HWCLI_VERSION="1.19.1"
 TESTED_HWCLI_X64_URL="https://github.com/vacuumlabs/cardano-hw-cli/releases/download/v1.19.1/cardano-hw-cli-1.19.1_linux-x64.tar.gz"
 TESTED_HWCLI_X64_SHA256="089349ebcfe2a465e301faaf077fa094f6db859e92aab56f256f325295b76474"
@@ -224,10 +224,12 @@ done
 bash -n "${TRANSACTION_LIBRARY}" "${SIGN_LIBRARY}" "${SUBMIT_LIBRARY}" ||
   fail "transaction sign/submit sources have invalid Bash syntax"
 for implementation in cnode dingo; do
+  expected_version=11.0.0.0
+  [[ "${implementation}" != cnode ]] || expected_version="${TESTED_CARDANO_CLI_VERSION}"
   assert_eq \
     "$(jq -er '.companions["cardano-cli"].version' \
       "${REPO_ROOT}/files/node-implementations/${implementation}/release.json")" \
-    "${TESTED_CARDANO_CLI_VERSION}" \
+    "${expected_version}" \
     "${implementation} Cardano CLI pin; review transaction command fixtures"
 done
 jq -e '.tools["cardano-hw-cli"] |
@@ -278,7 +280,7 @@ command_path="${1:-}/${2:-}/${3:-}"
 case "${command_path}" in
   version//)
     printf 'cardano-cli %s - linux-x86_64\n' \
-      "${FAKE_CLI_VERSION:-11.0.0.0}"
+      "${FAKE_CLI_VERSION:-11.2.3.1}"
     ;;
   key/verification-key/*)
     signing_file="$(arg_value --signing-key-file "$@")"

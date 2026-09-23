@@ -62,6 +62,8 @@ jobs:
       run: bash files/tests/cntools-coin-selection.sh
     - name: Test CNTools funds transfers
       run: bash files/tests/cntools-funds-send.sh
+    - name: Test CNTools reward withdrawal
+      run: bash files/tests/cntools-funds-withdraw.sh
     - name: CNTools Send UI
       run: bash files/tests/cntools-send-ui.sh
     - name: Test CNTools asset metadata cache and dates
@@ -80,6 +82,8 @@ jobs:
       run: bash files/tests/cntools-transaction-sign-submit.sh
     - name: Test CNTools transaction UI orchestration
       run: bash files/tests/cntools-transaction-ui.sh
+    - name: Test shared transaction review flows
+      run: bash files/tests/cntools-transaction-flow.sh
     - name: Cache pinned CNTools transaction tools
       uses: actions/cache@v4
       with:

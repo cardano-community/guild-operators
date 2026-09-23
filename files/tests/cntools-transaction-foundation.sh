@@ -22,7 +22,7 @@ FAKE_CLI="${TEST_ROOT}/cardano-cli"
 CLI_TRACE="${TEST_ROOT}/cardano-cli.trace"
 LOG_TRACE="${TEST_ROOT}/cntools.log"
 
-TESTED_CARDANO_CLI_VERSION="11.0.0.0"
+TESTED_CARDANO_CLI_VERSION="11.2.3.1"
 KEY_A="$(printf '11%.0s' {1..32})"
 KEY_B="$(printf '22%.0s' {1..32})"
 KEY_C="$(printf '33%.0s' {1..32})"
@@ -103,7 +103,9 @@ assert_pinned_cardano_cli_versions() {
     pinned_version="$(
       jq -er '.companions["cardano-cli"].version' "${manifest}"
     )" || fail "${implementation} does not pin its cardano-cli companion"
-    [[ "${pinned_version}" == "${TESTED_CARDANO_CLI_VERSION}" ]] ||
+    local expected_version=11.0.0.0
+    [[ "${implementation}" != cnode ]] || expected_version="${TESTED_CARDANO_CLI_VERSION}"
+    [[ "${pinned_version}" == "${expected_version}" ]] ||
       fail "${implementation} pins cardano-cli ${pinned_version}; review the transaction fixtures tested against ${TESTED_CARDANO_CLI_VERSION}"
   done
 }
@@ -296,7 +298,7 @@ command_path="${1:-}/${2:-}/${3:-}"
 case "${command_path}" in
   version//)
     printf 'cardano-cli %s - linux-x86_64\n' \
-      "${FAKE_CLI_VERSION:-11.0.0.0}"
+      "${FAKE_CLI_VERSION:-11.2.3.1}"
     ;;
   key/verification-key/*)
     signing_file="$(arg_value --signing-key-file "$@")"

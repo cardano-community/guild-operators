@@ -847,9 +847,10 @@ an existing immutable flag when needed even if the current setting is disabled.
 
 ## Shared transaction foundation and Sign/Submit slice
 
-Transaction work is split across five lazy libraries: `transaction.sh`,
+Transaction work uses focused lazy libraries: `transaction.sh`,
 `transaction-build.sh`, `transaction-sign.sh`, `transaction-submit.sh`, and
-`transaction-ui.sh`. They are loaded only by actions that need them. The shared
+`transaction-ui.sh`, plus shared file-export and monitoring helpers. They are
+loaded only by actions that need them. The shared
 foundation owns the signer plan, guarded body construction, package validation,
 signing, submission, and the operator review flow. Future transaction-producing
 actions must use its plan → build → package APIs instead of assembling an
@@ -861,8 +862,9 @@ package contains only public material: the transaction body, network and
 validity contract, public signer identities, native-script requirements,
 detached witnesses, and the completed signed envelope when available. Private
 keys and hardware signing files remain runtime sources. Package intent and
-summary fields provide context, while the Cardano CLI-decoded transaction shown
-immediately before confirmation is the authoritative review.
+summary fields provide context; the Cardano CLI-decoded transaction is the
+authoritative review, available through **Show decoded transaction**. Decoding
+and validation still happen before review, even when that option is not opened.
 
 Native-script plans record the selected `all`, `any`, or `atLeast` branch, its
 required signers, and compatible `before`/`after` validity bounds. Embedded
@@ -870,8 +872,9 @@ scripts receive exact assurance only when the body has no reference inputs.
 Every transaction containing a reference input retains manual assurance because
 the referenced on-chain output cannot be proved from the portable body alone.
 A declared native reference script is bound to an exact
-`transaction-id#output-index`; the review displays that input together with the
-declared script, hash, purpose, and selected keys.
+`transaction-id#output-index`; **Show transaction details** displays that input
+together with the declared script, hash, purpose, and selected keys. The compact
+review retains the warning when reference-script verification is required.
 
 Transaction Sign accepts a CNTools package, never an arbitrary unsigned body,
 because the latter has no verifiable signer plan. It can add CLI and hardware
@@ -893,12 +896,106 @@ are present, but explicitly marks completeness unverified and delegates final
 ledger validation to the chosen backend; external Byron/bootstrap witnesses
 are not supported. A ready local node is preferred; otherwise an enabled Koios
 backend is used. Submission is prohibited in offline mode. These contracts are
-tested against the pinned Cardano CLI `11.0.0.0` in the cnode, Dingo, and Amaru
-companion manifests, and hardware signing requires the exact tested
+tested against the pinned Cardano CLI `11.2.3.1` for cnode and `11.0.0.0` for
+Dingo and Amaru, and hardware signing requires the exact tested
 `cardano-hw-cli` release `1.19.1`. Transaction package, signer-source,
 hardware-change, output, review, and submission selections are audit logged.
 CNTools validates the exact Cardano CLI version lazily when the first
 transaction operation needs it.
+
+### Transaction UI contract — required for every new action
+
+Use the shared helpers in `transaction-ui.sh` and `transaction-files.sh` rather
+than copying a workflow from an individual action. This contract applies to
+Send, Withdraw Rewards, Register, De-Register and standalone Sign/Submit:
+
+- Show action-specific essentials (recipients, metadata, rewards or deposit)
+  and a compact **Transaction information** table with the actual fee, applicable
+  input/change policies and human-readable expiry. Two-column property/value
+  tables have no redundant header. Keep safety warnings visible, including
+  forfeited pending rewards, fees exceeding rewards and manual script assurance.
+- Offer workflows in this order: **Create, sign and submit**, **Create and sign**,
+  **Create unsigned package**, then **Cancel**. If local signing sources are
+  unavailable, offer only unsigned export and cancellation. Construction still
+  needs chain data; offline signing is a separate step.
+- Use `cntools_transaction_ui_review_into`: the primary continue/save choice
+  comes first, followed by **Show decoded transaction**, **Show required signers**,
+  **Show transaction details**, applicable change/edit options, and **Cancel**.
+  Inspection does not rebuild or sign anything. Changed recipients require a
+  fresh build and another review. A workflow change alone does not change the body.
+- Keep intent JSON, witness identifiers, fee reserves, input references and full
+  decode out of the normal screen. Log the technical review and expose details
+  on demand. Imported packages show effects from the authoritative decode, not
+  untrusted intent text; unusually large decoded numeric literals are explicitly
+  referred to the exact decode instead of risking rounded display values.
+- Keep intermediate artifacts in the private, cleanup-tracked temporary area.
+  Do not ask for output paths. Publish validated final unsigned, partially signed
+  or signed packages without overwrite under `${NODE_HOME}/transactions/`, and
+  report the saved path for offline/sign-only outcomes, declined submission and
+  failures. Retain signed packages before attempting submission.
+- Do not dump the transaction again after signing. Confirm submission with the
+  shared yes-default prompt, naming **local node** or **Koios**. Never silently
+  switch backends after confirmation. Render status, transaction ID and any
+  relevant saved path in one **Transaction result** table; failures use the same
+  structure. Offer the shared optional Koios monitor only after accepted submission.
+- Preserve all package, network, witness, hardware and action-specific safety
+  checks regardless of how much detail is visible. Hardware-prepared bodies are
+  validated and reviewed again before signing. Add cancellation/no-side-effect
+  and optional-review tests when introducing another action.
+
+`cntools-transaction-flow.sh` exercises this common contract for both stake
+lifecycle operations; the Send, withdrawal and Sign/Submit suites cover their
+respective orchestration. No workflow test submits a real transaction.
+
+## Funds reward withdrawal slice
+
+**Funds → Withdraw Rewards** withdraws the full, exact claimable reward balance
+to the same wallet's base address. It leaves stake registration, the deposit,
+pool delegation, and voting delegation unchanged. Complete CLI, mnemonic, and
+standard hardware wallets are supported; multisig and stake-only wallets are
+outside this slice. Selected inputs carrying reference scripts are rejected;
+use ordinary funding UTxOs rather than consume a stored script without pricing
+its additional fee. Cached payment, base, and reward addresses are checked
+against the public keys before constructing a stake transaction.
+
+Local mode queries the local node when available; light mode uses Koios. The
+action requires fresh rewards, protocol parameters, a current slot, and at least
+one eligible spending UTxO. Empty/unregistered reward accounts, unavailable
+chain data, and zero rewards stop construction with an explanation. Conway
+protocol versions 10 and 11 require an existing voting delegation, including
+Always Abstain or Always No Confidence; this action never adds one implicitly.
+
+The shared selector reserves fees and minimum change ADA, then explicit
+`build-raw` balancing converges using Cardano CLI's minimum-fee calculation.
+This avoids the withdrawal-credit discrepancy found in the pinned CLI's
+`build-estimate` path. Rewards are counted exactly once, every selected native
+asset returns to the wallet, and configured token fragmentation and ADA-only
+management apply to the returned funds. The final body is checked after any
+hardware normalization for fee, size, reward account, amount, and destination.
+Payment and stake witnesses are required, with the stake signer marked for
+withdrawal; hardware witnesses and change references share one device session.
+
+The compact review shows rewards, fee, net benefit (or extra fee paid from the
+wallet), return address, active input/change policies, and expiry. Decoded
+transaction and signer details are available on request. Choose live signing
+and submission, signing without submission, or an unsigned package for offline
+signing. Missing/encrypted local signing keys allow only unsigned export.
+Building needs chain access even when the package will be signed offline.
+
+Live signing and submission recheck rewards, selected inputs, and expiry;
+changed rewards require a new reviewed transaction. Offline packages may also
+become stale across an epoch or another withdrawal: rebuild if their exact
+reward balance changes. The ledger remains authoritative at submission.
+Final packages are saved privately under
+`${NODE_HOME}/transactions/withdraw-rewards-<timestamp>.<suffix>/` and survive
+action cleanup, including cancellation or ambiguous submission failures.
+Successful submission offers the existing optional Koios inclusion monitor.
+
+`cntools-funds-withdraw.sh` tests guard conditions and workflow choices.
+`cntools-withdraw-pinned.sh` constructs and signs synthetic, node-free withdrawals
+with verified deployment-pinned CLI binaries and tests ADA/token conservation,
+small rewards, change management, and durable package publication. CI invokes
+it from the existing pinned-binary suite. No test submits a transaction.
 
 ## Wallet stake lifecycle slice
 
@@ -951,10 +1048,12 @@ restrict the action to package creation; that package can be moved to offline
 Transaction Sign sessions and returned to an online Transaction Submit session.
 The package never contains signing-key or HWS contents. Hardware payment and
 stake witnesses are grouped into one device session and the payment HWS file is
-also declared as the change-address reference. Every path preserves the
-unsigned package, uses new no-overwrite filenames, and shows the authoritative
-Cardano CLI transaction view before signing and again before irreversible
-submission.
+also declared as the change-address reference. The compact shared review shows
+the stake address, deposit/refund, actual fee and active policies. Signer and
+decoded-transaction details are menu options. Unsigned export and signed results
+use automatic no-overwrite filenames under `${NODE_HOME}/transactions/`; signed
+packages are retained before any submission attempt. Intermediate unsigned
+artifacts remain private and are cleaned up when no longer needed.
 
 De-Register uses the pinned `stake-address deregistration-certificate` command
 and marks the current deposit as refunded in its package intent. A non-zero

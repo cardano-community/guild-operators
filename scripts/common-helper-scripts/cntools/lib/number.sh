@@ -138,6 +138,18 @@ cntools_number_format() {
   printf '%s\n' "${_cntools_number_result}"
 }
 
+# Display an unsigned ledger quantity without floating-point conversion.
+cntools_number_format_units() {
+  local amount="" scale="${2:-0}"
+  [[ "${scale}" =~ ^([0-9]|1[0-8])$ ]] || return 2
+  cntools_uint_normalize_into amount "$1" || return 2
+  if (( scale > 0 )); then
+    while (( ${#amount} <= scale )); do amount="0${amount}"; done
+    amount="${amount:0:${#amount}-scale}.${amount: -scale}"
+  fi
+  cntools_number_format "${amount}"
+}
+
 cntools_number_is_valid() {
   (( $# == 1 )) || return 2
   local _cntools_number_result=""

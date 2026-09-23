@@ -80,8 +80,23 @@ CNTOOLS_KOIOS_TOKEN=""
   cntools_transaction_monitor_wait 0 || fail 'zero wait failed'
 }
 
-cntools_ui_spin_function() { shift; "$@"; }
-cntools_transaction_monitor_wait() { return "${STOP_WAIT:-0}"; }
+SPIN_COUNT=0 SPIN_ACTIVE=N WAIT_COUNT=0
+cntools_ui_spin_function() {
+  [[ "${SPIN_ACTIVE}" == N ]] || fail 'nested monitoring spinner'
+  [[ "$1" == 'Waiting for block inclusion through Koios…' ]] || fail 'unexpected spinner title'
+  SPIN_COUNT=$((SPIN_COUNT + 1))
+  [[ "${SPIN_STATUS:-0}" == 0 ]] || return "${SPIN_STATUS}"
+  SPIN_ACTIVE=Y
+  shift
+  "$@"
+  SPIN_ACTIVE=N
+}
+cntools_transaction_monitor_wait() {
+  [[ "${SPIN_ACTIVE}" == Y ]] || fail 'spinner disappeared between requests'
+  [[ "$1" == 5 ]] || fail 'polling interval changed'
+  WAIT_COUNT=$((WAIT_COUNT + 1))
+  return "${STOP_WAIT:-0}"
+}
 cntools_ui_confirm() { printf 'prompt\n' >> "${TEST_ROOT}/ui"; return "${DECLINE:-0}"; }
 cntools_ui_render_status() { printf '%s\n' "$2" >> "${TEST_ROOT}/ui"; }
 cntools_ui_content_width() { printf 120; }
@@ -91,6 +106,7 @@ cntools_theme_style_value_into() { printf -v "$1" '%s' "$3"; }
 QUERY_COUNT=0 AUTOINCLUDE=Y
 cntools_transaction_ui_offer_monitor "${TX}" || fail 'monitor changed submission result'
 [[ "${CNTOOLS_TRANSACTION_MONITOR_STATE}" == included && ${QUERY_COUNT} == 3 ]] || fail 'pending -> included polling'
+[[ ${SPIN_COUNT} == 1 && ${WAIT_COUNT} == 2 && "${SPIN_ACTIVE}" == N ]] || fail 'monitor did not use one continuous spinner'
 grep -q 'Included in a block' "${TEST_ROOT}/ui" || fail 'inclusion not displayed'
 grep -q 'Blocks since inclusion.*0' "${TEST_ROOT}/ui" || fail 'zero block count not displayed'
 [[ "${CNTOOLS_TRANSACTION_ERROR}" == unchanged ]] || fail 'monitor changed submit error state'
@@ -104,6 +120,13 @@ cntools_transaction_ui_offer_monitor "${TX}" || fail 'API failure changed submis
 HTTP_STATUS=0 QUERY_COUNT=0
 cntools_transaction_ui_offer_monitor "${TX}" || fail 'timeout changed submission result'
 [[ "${CNTOOLS_TRANSACTION_MONITOR_STATE}" == timeout && ${QUERY_COUNT} == 36 ]] || fail 'pending checks not bounded'
+for SPIN_STATUS in 1 130; do
+  QUERY_COUNT=0
+  cntools_transaction_ui_offer_monitor "${TX}" || fail 'spinner failure changed submission result'
+  expected=unavailable; (( SPIN_STATUS != 130 )) || expected=cancelled
+  [[ "${CNTOOLS_TRANSACTION_MONITOR_STATE}" == "${expected}" && ${QUERY_COUNT} == 0 ]] || fail 'spinner failure not handled'
+done
+SPIN_STATUS=0
 DECLINE=1 QUERY_COUNT=0
 cntools_transaction_ui_offer_monitor "${TX}" || fail 'decline failed'
 [[ ${QUERY_COUNT} == 0 ]] || fail 'request before consent'

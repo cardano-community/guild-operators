@@ -378,8 +378,10 @@ while IFS=$'\t' read -r \
           "transaction-submit.sh",
           "transaction-monitor.sh",
           "transaction-ui.sh",
+          "transaction-files.sh",
           "coin-selection.sh",
           "change-plan.sh",
+          "wallet-stake.sh",
           "wallet-register.sh",
           "wallet-register-ui.sh"
         ]' \
@@ -397,6 +399,10 @@ while IFS=$'\t' read -r \
             fail "Wallet De-Register does not call its functional entrypoint"
         fi
         ;;
+      funds/withdraw)
+        jq -e '.libs | index("funds-withdraw.sh") != null and index("funds-withdraw-ui.sh") != null and index("wallet-stake.sh") != null and index("placeholder.sh") == null' \
+          "${metadata}" >/dev/null || fail "withdrawal libraries missing"
+        ;;
       funds/send)
         jq -e '.libs | index("funds-send.sh") != null and index("funds-send-ui.sh") != null and index("recipient.sh") != null and index("placeholder.sh") == null' \
           "${metadata}" >/dev/null || fail "Send has incorrect libraries"
@@ -405,9 +411,11 @@ while IFS=$'\t' read -r \
         ;;
       transaction/sign)
         jq -e '.libs == [
+          "number.sh",
           "transaction.sh",
           "transaction-sign.sh",
-          "transaction-ui.sh"
+          "transaction-ui.sh",
+          "transaction-files.sh"
         ]' \
           "${metadata}" >/dev/null ||
           fail "Transaction Sign has unexpected library declarations"
@@ -642,7 +650,7 @@ while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
+    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|funds/withdraw|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then

@@ -7,7 +7,7 @@ CNTOOLS_TRANSACTION_SCHEMA_VERSION=1
 CNTOOLS_TRANSACTION_MAX_BODY_BYTES=4194304
 CNTOOLS_TRANSACTION_MAX_WITNESS_BYTES=524288
 CNTOOLS_TRANSACTION_MAX_PACKAGE_BYTES=16777216
-CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION="11.0.0.0"
+CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION="11.2.3.1"
 CNTOOLS_TRANSACTION_TIMEOUT="${CNTOOLS_TRANSACTION_TIMEOUT:-60}"
 [[ "${CNTOOLS_TRANSACTION_TIMEOUT}" =~ ^[1-9][0-9]*$ ]] ||
   CNTOOLS_TRANSACTION_TIMEOUT=60
@@ -561,6 +561,11 @@ cntools_transaction_first_diagnostic_into() {
   return 1
 }
 
+cntools_transaction_cli_version_supported() {
+  # Exact pins currently deployed for cnode and dingo/amaru respectively.
+  [[ "${1:-}" == "${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}" || "${1:-}" == 11.0.0.0 ]]
+}
+
 cntools_transaction_require_cli() {
   local version_output=""
   local error_output=""
@@ -576,9 +581,8 @@ cntools_transaction_require_cli() {
       "Cardano CLI is required for transaction building, inspection, signing, and assembly."
     return 1
   fi
-  if [[ "${CNTOOLS_TRANSACTION_VALIDATED_CLI_PATH}" == "${CNTOOLS_CLI}" &&
-        "${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION}" == \
-          "${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}" ]]; then
+  if [[ "${CNTOOLS_TRANSACTION_VALIDATED_CLI_PATH}" == "${CNTOOLS_CLI}" ]] &&
+     cntools_transaction_cli_version_supported "${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION}"; then
     return 0
   fi
 
@@ -613,12 +617,11 @@ cntools_transaction_require_cli() {
   fi
   cntools_transaction_temp_remove "${version_output}" || true
   cntools_transaction_temp_remove "${error_output}" || true
-  if [[ "${reported_version}" != \
-        "${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}" ]]; then
+  if ! cntools_transaction_cli_version_supported "${reported_version}"; then
     CNTOOLS_TRANSACTION_VALIDATED_CLI_PATH=""
     CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION=""
     cntools_transaction_set_error \
-      "CNTools transaction support requires Cardano CLI ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}; the selected executable reports ${reported_version:-an unsupported version}. Refresh the pinned deployment before continuing."
+      "CNTools transaction support requires Cardano CLI ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION} or 11.0.0.0; the selected executable reports ${reported_version:-an unsupported version}. Refresh the pinned deployment before continuing."
     return 1
   fi
   CNTOOLS_TRANSACTION_VALIDATED_CLI_PATH="${CNTOOLS_CLI}"

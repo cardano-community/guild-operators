@@ -58,24 +58,16 @@ cntools_send_render_information() {
     printf 'Transaction detail\tValue\n'
     cntools_transaction_ui_styled_row Fee "$(cntools_wallet_format_lovelace "${CNTOOLS_SEND_FEE}")" number
     cntools_transaction_ui_styled_row 'Returned change' "$(cntools_wallet_format_lovelace "${change_total}") · $(cntools_number_format "${#CNTOOLS_CHANGE_OUTPUTS[@]}") outputs" number
-    cntools_transaction_ui_styled_row 'Input selection' "${selection} · $(cntools_number_format "${#CNTOOLS_COIN_SELECTED_REFS[@]}") inputs" value
-    cntools_transaction_ui_styled_row 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
-    cntools_transaction_ui_styled_row 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
-    cntools_transaction_ui_styled_row 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" value
+    cntools_transaction_ui_render_policy_rows "${selection}" "${#CNTOOLS_COIN_SELECTED_REFS[@]}"
     cntools_transaction_ui_styled_row 'Expires' "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
 }
 
 cntools_send_render_result() {
-  local state="$1" message="$2" txid="${3:-}" saved="${4:-}" widths="" safe_message=""
-  cntools_wallet_sanitize_display_into safe_message "${message}" || return 1
-  cntools_transaction_ui_table_widths_into widths 22 || return 1
-  cntools_ui_render_detail 'Transfer result' || return 1
-  {
-    printf 'Result\tValue\n'
-    cntools_transaction_ui_styled_row Status "${safe_message}" "${state}"
-    [[ -z "${txid}" ]] || cntools_transaction_ui_styled_row 'Transaction ID' "${txid}" identifier
-    [[ -z "${saved}" ]] || cntools_transaction_ui_styled_row 'Saved package' "${saved}" identifier
-  } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
+  cntools_transaction_ui_render_result "$@" || return 1
   CNTOOLS_SEND_RESULT_SHOWN=Y
+}
+
+cntools_send_render_review() {
+  cntools_send_render_recipients && cntools_send_metadata_render && cntools_send_render_information
 }

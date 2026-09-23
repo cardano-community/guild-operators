@@ -11,7 +11,7 @@ CNTOOLS_ASSET_CACHE_ENABLED=N
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-send-ui.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
-for lib in number wallet wallet-query transaction transaction-ui utxo transaction-funding funds-send funds-send-view funds-send-files funds-send-ui transaction-metadata send-metadata-ui; do
+for lib in number wallet wallet-query transaction transaction-ui utxo transaction-funding funds-send funds-send-view transaction-files funds-send-files funds-send-ui transaction-metadata send-metadata-ui; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }

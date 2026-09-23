@@ -25,8 +25,10 @@
     "transaction-submit.sh",
     "transaction-monitor.sh",
     "transaction-ui.sh",
+    "transaction-files.sh",
     "coin-selection.sh",
     "change-plan.sh",
+    "wallet-stake.sh",
     "wallet-register.sh",
     "wallet-register-ui.sh"
   ]

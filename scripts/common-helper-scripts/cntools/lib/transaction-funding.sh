@@ -29,7 +29,7 @@ cntools_funding_collect() {
   CNTOOLS_FUNDING_ASSET_IDS=(); CNTOOLS_FUNDING_ASSETS=()
   CNTOOLS_FUNDING_SLOT=""; CNTOOLS_FUNDING_BACKEND=""
   [[ "${CNTOOLS_MODE:-}" != offline ]] || {
-    cntools_transaction_set_error "Send needs current chain data. Build online, then move the unsigned package to the offline signing system."
+    cntools_transaction_set_error "Transaction building needs current chain data. Build online, then move the unsigned package to the offline signing system."
     return 1
   }
   cntools_transaction_temp_file CNTOOLS_FUNDING_PROTOCOL send-protocol || return 1
@@ -54,7 +54,7 @@ cntools_funding_collect() {
         --socket-path "${CNTOOLS_SOCKET}" || status=$?
     fi
     if (( status != 0 )); then
-      cntools_transaction_log_cli_failure "Send chain query failed" "${status}" "${errors}" "${response}"
+      cntools_transaction_log_cli_failure "Transaction funding query failed" "${status}" "${errors}" "${response}"
       return 1
     fi
     cntools_utxo_load_local "${response}" "${primary}" "${payment}" || {
@@ -75,7 +75,7 @@ cntools_funding_collect() {
     cntools_funding_get "${CNTOOLS_KOIOS_API%/}/tip" "${tip}" || return 1
     CNTOOLS_FUNDING_SLOT="$(jq -er 'if type == "array" and length == 1 then .[0].abs_slot else empty end | select(type == "number" and . >= 0 and floor == .) | tostring' "${tip}")" || return 1
   else
-    cntools_transaction_set_error "No current chain-data source is available for Send."
+    cntools_transaction_set_error "No current chain-data source is available for transaction building."
     return 1
   fi
   cntools_transaction_slot_value_valid "${CNTOOLS_FUNDING_SLOT}" || return 1
@@ -88,5 +88,5 @@ cntools_funding_collect() {
   (( ${#CNTOOLS_UTXO_REFS[@]} > 0 )) || {
     cntools_transaction_set_error "This wallet has no spendable UTxOs."; return 1;
   }
-  cntools_transaction_log TRANSACTION "Send inventory backend=${CNTOOLS_FUNDING_BACKEND} inputs=${#CNTOOLS_UTXO_REFS[@]} lovelace=${CNTOOLS_FUNDING_TOTAL} slot=${CNTOOLS_FUNDING_SLOT}"
+  cntools_transaction_log TRANSACTION "Transaction funding inventory backend=${CNTOOLS_FUNDING_BACKEND} inputs=${#CNTOOLS_UTXO_REFS[@]} lovelace=${CNTOOLS_FUNDING_TOTAL} slot=${CNTOOLS_FUNDING_SLOT}"
 }

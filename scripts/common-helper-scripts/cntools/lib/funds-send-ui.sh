@@ -31,13 +31,14 @@ cntools_send_review_virtual() {
   expires="$(jq -r '.virtual.expiresTimeMs' <<< "${resolution}")"
   public="$(jq -r '.virtual.publicMint' <<< "${resolution}")"
   printf -v expires_label '%(%Y-%m-%d %H:%M:%S UTC)T' "$((expires/1000))"
-  if [[ "${public}" == true ]]; then
-    cntools_ui_render_field 'Virtual lease' "Public · ${lease}"
-  else
-    cntools_ui_render_field 'Virtual lease' "Private · ${lease}"
+  {
+    printf 'Handle detail\tValue\n'
+    cntools_transaction_ui_styled_row 'Virtual lease' "$([[ "${public}" == true ]] && printf Public || printf Private) · ${lease}" value
+    cntools_transaction_ui_styled_row 'Lease expiry' "${expires_label}" number
+  } | cntools_ui_table --separator $'\t' || return 1
+  if [[ "${public}" != true ]]; then
     cntools_ui_render_status warn 'The parent Handle owner can revoke or reassign this private subhandle at any time.'
   fi
-  cntools_ui_render_field 'Lease expiry' "${expires_label}"
   if [[ "${lease}" == expired ]]; then
     cntools_ui_render_status warn 'The lease has expired. The current datum still resolves, but the subhandle may be revoked or reassigned. Expiry does not redirect to its parent.'
   fi
@@ -324,7 +325,7 @@ cntools_send_refresh_build_into() {
 
 cntools_send_workflow() {
   local selected="" choice="" staged="" signed="" saved="" expiry="" proceed=""
-  local backend="" backend_label="" signed_body="" txid="" summary="" status=0 lifetime=1800
+  local backend="" signed_body="" txid="" status=0 lifetime=1800
   CNTOOLS_SEND_RESULT_SHOWN=N
   CNTOOLS_SEND_SAVED_PACKAGE=""
   cntools_send_begin
@@ -343,46 +344,26 @@ cntools_send_workflow() {
       cntools_transaction_log WARN 'Some asset metadata is unavailable; using on-chain name / identity fallback'
   fi
   cntools_send_edit_recipients || return $?
-  local -a workflows=("Create unsigned package")
-  [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || workflows=("Create, sign and submit" "Create and sign" "Create unsigned package")
-  cntools_send_choose choice "Workflow" "${workflows[@]}" || return $?
+  local can_sign=N
+  [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
+  cntools_transaction_ui_workflow_into choice "${can_sign}" || return $?
   cntools_send_choose expiry "Transaction expiry" "30 minutes" "2 hours" "24 hours (offline signing)" || return $?
   case "${expiry}" in
     "30 minutes") lifetime=1800 ;;
     "2 hours") lifetime=7200 ;;
     *) lifetime=86400 ;;
   esac
-  case "${choice}" in
-    "Create, sign and submit") proceed='Continue to sign & submit' ;;
-    "Create and sign") proceed='Continue to sign' ;;
-    *) proceed='Save unsigned package' ;;
-  esac
+  cntools_transaction_ui_proceed_into proceed "${choice}" || return 2
   while true; do
     cntools_ui_spin_function "Refreshing funds and balancing the transfer…" cntools_send_refresh_build_into staged "${lifetime}" || return 2
-    # Keep the authoritative decode/validation, but show it only on request.
-    cntools_transaction_package_load "${staged}" || return 2
-    cntools_transaction_view_into CNTOOLS_TRANSACTION_UI_VIEW "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 2
-    summary="$(jq -c '.intent.summary' "${staged}")" || return 2
-    cntools_transaction_log REVIEW "Send intent summary=${summary}"
     while true; do
-      cntools_send_begin
-      cntools_send_render_recipients || return 2
-      cntools_send_metadata_render || return 2
-      cntools_send_render_information || return 2
-      cntools_send_choose selected 'Review transfer (including minimum ADA adjustments)' \
-        "${proceed}" 'Show decoded transaction' 'Show required signers' 'Edit recipients' 'Cancel' || return $?
+      cntools_transaction_ui_proceed_into proceed "${choice}" || return 2
+      cntools_transaction_ui_review_into selected "${staged}" "${proceed}" \
+        cntools_send_begin cntools_send_render_review 'Edit recipients' 'Change workflow' || return $?
       case "${selected}" in
         "${proceed}") break ;;
-        'Show decoded transaction')
-          cntools_send_begin
-          cntools_transaction_ui_render_json 'Decoded transaction · authoritative' "${CNTOOLS_TRANSACTION_UI_VIEW}" || return 2
-          cntools_ui_wait ;;
-        'Show required signers')
-          cntools_send_begin
-          cntools_transaction_ui_render_signer_progress "${staged}" || return 2
-          cntools_ui_wait ;;
         'Edit recipients') cntools_send_edit_recipients || return $?; break ;;
-        Cancel) return 1 ;;
+        'Change workflow') cntools_transaction_ui_workflow_into choice "${can_sign}" || return $? ;;
         *) return 2 ;;
       esac
     done
@@ -410,8 +391,7 @@ cntools_send_workflow() {
   cntools_transaction_submit_input_prepare "${saved}" || return 2
   signed_body="${CNTOOLS_TRANSACTION_SIGNED_FILE}"; txid="${CNTOOLS_TRANSACTION_SUBMIT_ID}"
   cntools_transaction_ui_submission_backend_into backend || return 2
-  case "${backend}" in local) backend_label='local node' ;; koios) backend_label='Koios' ;; *) return 2 ;; esac
-  if ! cntools_send_confirm "Submit this signed transfer using ${backend_label}?" true; then
+  if ! cntools_transaction_ui_confirm_submit "${backend}"; then
     cntools_send_begin
     cntools_send_render_result warning 'Not submitted · signed package retained' "${txid}" "${saved}"
     return $?

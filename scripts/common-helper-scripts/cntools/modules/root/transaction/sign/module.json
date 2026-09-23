@@ -10,8 +10,10 @@
     "offline"
   ],
   "libs": [
+    "number.sh",
     "transaction.sh",
     "transaction-sign.sh",
-    "transaction-ui.sh"
+    "transaction-ui.sh",
+    "transaction-files.sh"
   ]
 }

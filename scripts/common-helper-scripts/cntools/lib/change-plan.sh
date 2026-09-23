@@ -314,7 +314,7 @@ cntools_change_plan_stake() {
     }
   cntools_change_plan_tokens "${protocol_file}" "${address}" || return 1
   token_min="${CNTOOLS_CHANGE_TOKEN_MIN_TOTAL:-0}"
-  if [[ "${token_min}" != "0" ||
+  if [[ "${operation}" == withdraw || "${token_min}" != "0" ||
         "${CNTOOLS_TX_UTXO_MANAGEMENT:-N}" == "Y" ]]; then
     residual_min="${CNTOOLS_CHANGE_EFFECTIVE_MIN_LOVELACE}"
   fi
@@ -338,7 +338,7 @@ cntools_change_plan_stake() {
         "${available}" "${balance_cost}" ||
         return 1
       ;;
-    deregister)
+    deregister|withdraw)
       cntools_uint_add_into after_ledger "${available}" "${deposit}" || return 1
       cntools_uint_add_into balance_cost "${fee_reserve}" "${token_min}" ||
         return 1

@@ -180,6 +180,7 @@ jq -n '{
 chmod 0600 "${SIGNED_INPUT}"
 
 # shellcheck source=/dev/null
+. "${CNTOOLS_ROOT}/lib/number.sh"
 . "${UI_LIBRARY}"
 
 CNTOOLS_LOG="${LOG_TRACE}"
@@ -292,6 +293,20 @@ cntools_ui_confirm() {
   return "${result}"
 }
 
+cntools_ui_choose() {
+  local output_name="$1" answer="$3" result=0
+  trace_event "choose:${answer}"
+  if [[ "${answer}" != 'Continue to submit' ]]; then
+    result="${CONFIRM_RESULTS[CONFIRM_INDEX]:-1}"
+    CONFIRM_INDEX=$((CONFIRM_INDEX + 1))
+    (( result == 0 )) || answer=Cancel
+  fi
+  printf -v "${output_name}" '%s' "${answer}"
+}
+
+cntools_transaction_signed_path_into() { printf -v "$1" '%s' "${SIGN_OUTPUT}"; }
+cntools_transaction_save_into() { trace_event "save:$2"; printf -v "$1" '%s' "${SIGN_OUTPUT}"; }
+
 cntools_ui_input() {
   local -n output_ref="$1"
   local result=2
@@ -347,13 +362,14 @@ cntools_transaction_package_load() {
   CNTOOLS_TRANSACTION_WITNESS_COUNT="$(jq -r '.signing.witnesses | length' \
     "${package_file}")"
   CNTOOLS_TRANSACTION_COMPLETE="N"
+  [[ "${package_file}" != "${SIGN_OUTPUT}" ]] || CNTOOLS_TRANSACTION_COMPLETE="${SIGNED_COMPLETE:-Y}"
 }
 
 cntools_transaction_view_into() {
   local -n output_ref="$1"
 
   trace_event "decode:$2"
-  output_ref='{"decoded":true,"authoritative":"cardano-cli"}'
+  output_ref='{"fee":"180000 Lovelace","outputs":[{"address":"addr_test1fixture","amount":{"lovelace":1000000}}],"certificates":null}'
 }
 
 cntools_transaction_sign_selection_reset() {
@@ -405,7 +421,7 @@ cntools_transaction_package_prepare_hardware_into() {
 cntools_transaction_sign_package() {
   SIGN_CALLS=$((SIGN_CALLS + 1))
   trace_event "sign:execute:$1:$2"
-  printf '{}\n' > "$2"
+  cp -- "$1" "$2"
 }
 
 cntools_transaction_submit_reset() {
@@ -495,7 +511,7 @@ reset_scenario() {
 test_sign_cancel_after_initial_review() {
   local status=0
   local decode="decode:${SIGN_INPUT}.body"
-  local confirm="confirm:Continue and select signing sources for this transaction?"
+  local confirm="choose:Continue to select signing sources"
 
   reset_scenario
   INPUT_VALUES=("${SIGN_INPUT}")
@@ -571,7 +587,7 @@ test_sign_hardware_final_decline() {
   local initial_decode="decode:${SIGN_INPUT}.body"
   local prepared_decode="decode:${PREPARED_INPUT}.body"
   local source_prompt="ui:input:Signing key / HWS path"
-  local final_confirm="confirm:Sign the reviewed transaction with the selected sources?"
+  local final_confirm="choose:Sign with selected sources"
 
   reset_scenario
   INPUT_VALUES=("${SIGN_INPUT}" "${HW_SOURCE}" "${SIGN_OUTPUT}")
@@ -585,7 +601,7 @@ test_sign_hardware_final_decline() {
     "hardware preparation did not precede the final review"
   assert_trace_before "${prepared_decode}" "${final_confirm}" \
     "the hardware-prepared transaction was not reviewed before confirmation"
-  assert_trace_contains "ui:detail:Decoded transaction · authoritative" \
+  assert_trace_contains "ui:detail:Transaction effects" \
     "authoritative transaction heading was not rendered"
   assert_trace_contains \
     "log:CHOICE:transaction signing review accepted id=${TX_ID}" \
@@ -593,9 +609,7 @@ test_sign_hardware_final_decline() {
   assert_trace_contains \
     "log:CHOICE:signing source selected id=${KEY_ID} kind=hardware path=${HW_SOURCE}" \
     "selected hardware signing source was not logged"
-  assert_trace_contains \
-    "log:CHOICE:transaction output selected path=${SIGN_OUTPUT}" \
-    "selected transaction output was not logged"
+  assert_trace_absent 'ui:input:Output package' 'temporary output requested from user'
   assert_trace_contains "log:CHOICE:transaction signing declined id=${TX_ID}" \
     "final signing decline was not logged"
   assert_eq "${SIGN_CALLS}" 0 "declined signing call count"
@@ -623,9 +637,33 @@ test_submit_offline_rejected() {
     "offline submission call count"
 }
 
+test_sign_success_compact_result() {
+  local complete=""
+  for complete in Y N; do
+    reset_scenario
+    SIGNED_COMPLETE="${complete}"
+    INPUT_VALUES=("${SIGN_INPUT}" "${HW_SOURCE}")
+    INPUT_STATUSES=(0 0)
+    CONFIRM_RESULTS=(0 0)
+    cntools_transaction_action_sign || fail 'standalone signing failed'
+    assert_eq "${SIGN_CALLS}" 1 'single signing operation'
+    assert_trace_contains "save:${SIGN_OUTPUT}" 'signed package was not retained'
+    assert_table_contains "${SIGN_OUTPUT}" 'saved path not displayed'
+    assert_trace_absent 'ui:input:Output package' 'temporary output path prompted'
+    assert_trace_absent 'ui:detail:Decoded transaction · authoritative' 'unsolicited decoded dump'
+    assert_trace_absent 'ui:detail:Required signers' 'unsolicited signer table'
+    assert_trace_contains 'ui:detail:Transaction result' 'missing result table'
+    if [[ "${complete}" == Y ]]; then
+      assert_table_contains 'Signed · ready' 'complete result missing'
+    else
+      assert_table_contains 'Partially signed' 'partial result missing'
+    fi
+  done
+}
+
 test_submit_decline_after_review() {
   local status=0
-  local confirm="confirm:Submit transaction ${TX_ID:0:16}… using koios?"
+  local confirm="confirm:Submit this signed transaction using Koios?"
 
   reset_scenario
   INPUT_VALUES=("${SIGNED_INPUT}")
@@ -637,7 +675,7 @@ test_submit_decline_after_review() {
   assert_trace_before "decode:${SIGNED_INPUT}" "${confirm}" \
     "signed transaction was not decoded before confirmation"
   assert_trace_before \
-    "ui:detail:Decoded transaction · authoritative" "${confirm}" \
+    "ui:detail:Transaction effects" "${confirm}" \
     "authoritative transaction review was not rendered before confirmation"
   assert_trace_contains \
     "log:CHOICE:transaction artifact selected id=${TX_ID} kind=external-envelope path=${SIGNED_INPUT}" \
@@ -678,7 +716,7 @@ test_reference_script_review_identifies_input() {
 
 test_submit_backend_pinned_and_failure_visible() {
   local status=0
-  local confirm="confirm:Submit transaction ${TX_ID:0:16}… using koios?"
+  local confirm="confirm:Submit this signed transaction using Koios?"
 
   reset_scenario
   INPUT_VALUES=("${SIGNED_INPUT}")
@@ -699,8 +737,7 @@ test_submit_backend_pinned_and_failure_visible() {
   assert_eq "${KOIOS_SUBMIT_CALLS}" 1 "confirmed Koios submission call count"
   assert_trace_contains "log:ERROR:Koios fixture submission failed." \
     "submission failure was not logged"
-  assert_trace_contains "ui:status:error:Koios fixture submission failed." \
-    "submission failure was not shown"
+  assert_table_contains "Koios fixture submission failed." "submission failure was not tabulated"
 }
 
 test_validation_interrupts_propagate() {
@@ -739,6 +776,7 @@ test_hardware_group_defer_is_explicit
 test_active_hardware_group_cannot_partially_defer
 test_sign_hardware_final_decline
 test_submit_offline_rejected
+test_sign_success_compact_result
 test_submit_decline_after_review
 test_submit_backend_pinned_and_failure_visible
 test_validation_interrupts_propagate

@@ -49,7 +49,7 @@ cntools_transaction_monitor_query() {
   cntools_transaction_log TX "Koios tx_status id=${transaction_id} confirmations=${parsed}"
 }
 
-# Only read keys after Gum's request spinner has relinquished the terminal.
+# The polling callback owns keyboard input while Gum displays the spinner.
 # Other keys do not accelerate polling. Closing stdin also stops monitoring.
 cntools_transaction_monitor_wait() {
   local key="" status=0 deadline=$((SECONDS + $1)) remaining=0
@@ -63,12 +63,26 @@ cntools_transaction_monitor_wait() {
 }
 
 cntools_transaction_monitor_run() {
+  local status=0
+  CNTOOLS_TRANSACTION_MONITOR_STATE=pending
+  CNTOOLS_TRANSACTION_MONITOR_CONFIRMATIONS=""
+  cntools_ui_spin_function 'Waiting for block inclusion through Koios…' \
+    cntools_transaction_monitor_poll "$1" || status=$?
+  if (( status != 0 )); then
+    if (( status == 130 )); then
+      CNTOOLS_TRANSACTION_MONITOR_STATE=cancelled
+    else
+      CNTOOLS_TRANSACTION_MONITOR_STATE=unavailable
+    fi
+  fi
+  return 0
+}
+
+cntools_transaction_monitor_poll() {
   local transaction_id="$1" response_file="" attempt=0 failures=0 status=0
   local deadline=$((SECONDS + 180)) remaining=0 pause=0
   local CNTOOLS_CURL_TIMEOUT=10
   local CNTOOLS_TRANSACTION_ERROR="${CNTOOLS_TRANSACTION_ERROR:-}"
-  CNTOOLS_TRANSACTION_MONITOR_STATE=pending
-  CNTOOLS_TRANSACTION_MONITOR_CONFIRMATIONS=""
   if ! cntools_transaction_temp_file response_file monitor-response; then
     CNTOOLS_TRANSACTION_MONITOR_STATE=unavailable
     return 0
@@ -79,8 +93,7 @@ cntools_transaction_monitor_run() {
     CNTOOLS_CURL_TIMEOUT=10
     (( remaining >= 10 )) || CNTOOLS_CURL_TIMEOUT="${remaining}"
     status=0
-    cntools_ui_spin_function 'Checking block inclusion through Koios…' \
-      cntools_transaction_monitor_query "${transaction_id}" "${response_file}" || status=$?
+    cntools_transaction_monitor_query "${transaction_id}" "${response_file}" || status=$?
     if (( status == 130 )); then
       CNTOOLS_TRANSACTION_MONITOR_STATE=cancelled
       return 0

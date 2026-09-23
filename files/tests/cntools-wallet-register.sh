@@ -69,7 +69,9 @@ assert_pinned_cardano_cli_versions() {
     manifest="${REPO_ROOT}/files/node-implementations/${implementation}/release.json"
     version="$(jq -er '.companions["cardano-cli"].version' "${manifest}")" ||
       fail "${implementation} does not pin a Cardano CLI companion"
-    assert_eq "${version}" "11.0.0.0" \
+    local expected_version=11.0.0.0
+    [[ "${implementation}" != cnode ]] || expected_version=11.2.3.1
+    assert_eq "${version}" "${expected_version}" \
       "${implementation} Cardano CLI registration-test contract"
   done
 }
@@ -121,7 +123,7 @@ jq -cn --args '$ARGS.positional' -- "$@" >> "${FAKE_CLI_TRACE}"
 path="${1:-}/${2:-}/${3:-}"
 case "${path}" in
   version//)
-    printf 'cardano-cli 11.0.0.0 - linux-x86_64\n'
+    printf 'cardano-cli 11.2.3.1 - linux-x86_64\n'
     ;;
   latest/stake-address/key-hash)
     key="$(arg_value --stake-verification-key "$@")"
@@ -215,6 +217,7 @@ export FAKE_CLI_TRACE="${CLI_TRACE}"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/lib/change-plan.sh"
 # shellcheck source=/dev/null
+. "${CNTOOLS_ROOT}/lib/wallet-stake.sh"
 . "${CNTOOLS_ROOT}/lib/wallet-register.sh"
 
 cntools_log() {
@@ -596,8 +599,8 @@ jq -e '.libs == [
   "wallet-address.sh", "wallet-id.sh", "asset.sh", "asset-cache.sh",
   "wallet-query.sh", "utxo.sh", "transaction.sh",
   "transaction-build.sh", "transaction-sign.sh", "transaction-submit.sh", "transaction-monitor.sh",
-  "transaction-ui.sh", "coin-selection.sh", "change-plan.sh",
-  "wallet-register.sh", "wallet-register-ui.sh"
+  "transaction-ui.sh", "transaction-files.sh", "coin-selection.sh", "change-plan.sh",
+  "wallet-stake.sh", "wallet-register.sh", "wallet-register-ui.sh"
 ]' "${CNTOOLS_ROOT}/modules/root/wallet/register/module.json" >/dev/null ||
   fail "Wallet Register module library order is incorrect"
 grep -F 'cntools_wallet_action_register' \
@@ -614,7 +617,7 @@ grep -F 'cntools_wallet_action_deregister' \
 grep -F 'Create unsigned package' \
   "${CNTOOLS_ROOT}/lib/wallet-register-ui.sh" >/dev/null ||
   fail "Wallet stake operations do not expose offline package creation"
-grep -F 'Create, sign, and submit' \
+grep -F 'cntools_transaction_ui_workflow_into' \
   "${CNTOOLS_ROOT}/lib/wallet-register-ui.sh" >/dev/null ||
   fail "Wallet stake operations do not expose direct live submission"
 

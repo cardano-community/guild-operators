@@ -546,5 +546,7 @@ assert_eq "${HW_MALFORMED_STATUS}" 1 \
   cntools_transaction_cleanup
 )
 
+bash "${SCRIPT_DIR}/cntools-withdraw-pinned.sh" "${CLI}" "${HWCLI}"
+
 printf 'CNTools pinned transaction binary tests passed (cardano-cli %s, cardano-hw-cli %s).\n' \
   "${CLI_VERSION}" "${HWCLI_VERSION}"

@@ -13,7 +13,7 @@ CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 CNTOOLS_ASSET_CACHE_ENABLED=N
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-send.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
-for lib in number wallet utxo coin-selection change-plan recipient handle-virtual transaction-funding transaction-metadata message-crypto send-metadata-ui funds-send funds-send-view funds-send-files funds-send-ui; do
+for lib in number wallet utxo coin-selection change-plan recipient handle-virtual transaction-funding transaction-metadata message-crypto send-metadata-ui funds-send funds-send-view transaction-files funds-send-files funds-send-ui; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
@@ -44,7 +44,9 @@ BASE='addr_test1qqvka8gw9kj2xytkveja3mgn79lpung854wz7jma5szac34wpry3dkfhz6jmf3v9
 STAKE='stake_test1uzhq3jgkmym3dfd5ckzsxvhluxnagr2mqjct2mheqrj60eqk9wq3c'
 
 for impl in cnode dingo amaru; do
-  eq "$(jq -r '.companions["cardano-cli"].version' "${REPO_ROOT}/files/node-implementations/${impl}/release.json")" 11.0.0.0 'pinned CLI contract'
+  expected_version=11.0.0.0
+  [[ "${impl}" != cnode ]] || expected_version=11.2.3.1
+  eq "$(jq -r '.companions["cardano-cli"].version' "${REPO_ROOT}/files/node-implementations/${impl}/release.json")" "${expected_version}" 'pinned CLI contract'
 done
 for network in mainnet preprod preview guild; do
   eq "$(jq -r '.slotLength' "${REPO_ROOT}/files/configs/cnode/${network}/shelley-genesis.json")" 1 'Send expiry seconds-to-slots contract'
@@ -304,6 +306,7 @@ if cntools_funding_collect "${BASE}" "${ADDRESS}"; then fail 'offline collection
 # submission and signing have distinct confirmation gates.
 for workflow in 'Create unsigned package' 'Create and sign' 'Create, sign and submit'; do
   (
+    . "${CNTOOLS_ROOT}/lib/transaction-ui.sh"
     . "${CNTOOLS_ROOT}/lib/funds-send-ui.sh"
     trace="${TEST_ROOT}/workflow-${workflow// /-}"
     : > "${trace}"
@@ -326,7 +329,7 @@ for workflow in 'Create unsigned package' 'Create and sign' 'Create, sign and su
       case "$2" in
         Workflow) [[ "$3" == 'Create, sign and submit' ]] || fail 'workflow order'; printf -v "$1" '%s' "${workflow}" ;;
         'Transaction expiry') printf -v "$1" '%s' '30 minutes' ;;
-        'Review transfer'*)
+        'Review transaction')
           if [[ "${DECLINE:-N}" == Y ]]; then printf -v "$1" '%s' Cancel
           elif [[ "${DETAILS:-N}" == Y && "${DETAIL_STEP:-0}" == 0 ]]; then DETAIL_STEP=1; printf -v "$1" '%s' 'Show decoded transaction'
           elif [[ "${DETAILS:-N}" == Y && "${DETAIL_STEP}" == 1 ]]; then DETAIL_STEP=2; printf -v "$1" '%s' 'Show required signers'
@@ -347,7 +350,7 @@ for workflow in 'Create unsigned package' 'Create and sign' 'Create, sign and su
     cntools_ui_confirm() { printf 'confirm %s default=%s\n' "$1" "$2" >> "${trace}"; return 0; }
     cntools_send_recheck() { printf 'recheck\n' >> "${trace}"; }
     cntools_transaction_sign_registered() { printf 'sign\n' >> "${trace}"; }
-    cntools_transaction_package_load() { CNTOOLS_TRANSACTION_COMPLETE=Y; CNTOOLS_TRANSACTION_ID=abc; CNTOOLS_TRANSACTION_BODY_FILE=/body; }
+    cntools_transaction_package_load() { CNTOOLS_TRANSACTION_COMPLETE=Y; CNTOOLS_TRANSACTION_ID=abc; CNTOOLS_TRANSACTION_BODY_FILE=/body; CNTOOLS_TRANSACTION_PACKAGE_FILE="$1"; }
     cntools_transaction_submit_input_prepare() { [[ "$1" == /saved.json ]] || fail 'submission did not reopen published package'; CNTOOLS_TRANSACTION_SIGNED_FILE=/signed; CNTOOLS_TRANSACTION_SUBMIT_ID=abc; }
     cntools_transaction_ui_submission_backend_into() { printf -v "$1" '%s' local; }
     cntools_transaction_ui_render_submit_review() { fail 'verbose post-signing review'; }
@@ -419,6 +422,8 @@ done
     eq "${CNTOOLS_SEND_RESOLUTIONS[0]}" "${original}" 'unreviewed evidence not saved'
   done
   cntools_ui_render_field() { printf '%s: %s\n' "$1" "$2"; }
+  cntools_transaction_ui_styled_row() { printf '%s\t%s\n' "$1" "$2"; }
+  cntools_ui_table() { cat; }
   cntools_ui_render_status() { printf '%s: %s\n' "$1" "$2"; }
   cntools_send_confirm() { return 1; }
   if cntools_send_review_virtual "${original}" > "${TEST_ROOT}/virtual-review"; then fail 'virtual confirmation cancellation ignored'; fi
