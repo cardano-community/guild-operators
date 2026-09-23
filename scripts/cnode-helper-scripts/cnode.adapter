@@ -158,7 +158,7 @@ node_adapter_init() {
   IFS=$'\t' read -r minimum_node_version minimum_cli_version <<< "${minimum_versions}"
   if ! versionCheckNode "${minimum_node_version}" "${node_version}" ||
      ! versionCheckNode "${minimum_cli_version}" "${cli_version}"; then
-    printf "\nKoios scripts require at least cardano-node %s ('%s' found) and cardano-cli %s ('%s' found).\n" \
+    printf "\nGuild scripts require at least cardano-node %s ('%s' found) and cardano-cli %s ('%s' found), comparing major.minor.patch.\n" \
       "${minimum_node_version}" "${node_version}" \
       "${minimum_cli_version}" "${cli_version}" >&2
     printf "Refer to https://cardano-community.github.io/guild-operators/upgrade/ for upgrade assistance.\n\n" >&2

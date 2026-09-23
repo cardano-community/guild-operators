@@ -1,28 +1,28 @@
 {
   "schemaVersion": 1,
   "implementation": "cnode",
-  "version": "11.0.1",
+  "version": "11.1.2",
   "artifacts": {
     "linux-x86_64": {
-      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.0.1/cardano-node-11.0.1-linux-amd64.tar.gz",
-      "sha256": "40e88a543564251338c4888ef79fde51d2306c18b48ac308c9eab3220e3a13f0"
+      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.1.2/cardano-node-11.1.2-linux-amd64.tar.gz",
+      "sha256": "fd872fbeb9cc663e67088ca47ed01aa01d18a77d7dbee694e2444bb23d833759"
     },
     "linux-aarch64": {
-      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.0.1/cardano-node-11.0.1-linux-arm64.tar.gz",
-      "sha256": "c66ca441048630051de1d1c0c2f3b988c5fc97eab80052202f052517c4c6e428"
+      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.1.2/cardano-node-11.1.2-linux-arm64.tar.gz",
+      "sha256": "24565d796441111b509a8ddd8be2ebf7d5d6ff363bb9fc447af1f4e9e71a3246"
     }
   },
   "companions": {
     "cardano-cli": {
-      "version": "11.0.0.0",
+      "version": "11.2.3.1",
       "artifacts": {
         "linux-x86_64": {
-          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.0.0.0/cardano-cli-11.0.0.0-x86_64-linux.tar.gz",
-          "sha256": "c37b26be04106ecd2ba88841e64d3b7ecdc80d838055102323691b087f7255b1"
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.2.3.1/cardano-cli-11.2.3.1-x86_64-linux.tar.gz",
+          "sha256": "7ee5fc7698fc00344422e0d2e80d1a8dfc0683f772f4d9fb264f7705d5e35168"
         },
         "linux-aarch64": {
-          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.0.0.0/cardano-cli-11.0.0.0-aarch64-linux.tar.gz",
-          "sha256": "5e1db5459ee6b58433e2ce2db2ba53dd9fd4dd43bae0c14aefc25677bba88ae7"
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.2.3.1/cardano-cli-11.2.3.1-aarch64-linux.tar.gz",
+          "sha256": "582f894fe9d21d7e8b20d2b6853ad7a2c04f20f5ce033f5e7884afa96be5d4f9"
         }
       }
     },
