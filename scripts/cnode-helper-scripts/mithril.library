@@ -796,14 +796,14 @@ deploy_systemd() {
 		KillMode=mixed
 
 		[Install]
-		WantedBy=multi-user.target
+		WantedBy=${CNODE_VNAME}.service
 	EOF
   systemd_install_unit \
     "${unit_name}" "${unit_content}" \
     "${CNODE_HOME}/scripts/mithril-signer.sh" \
     "Description=Cardano Mithril signer service" &&
     systemd_daemon_reload &&
-    systemd_enable_units "${unit_name}" &&
+    systemd_control reenable "${unit_name}" &&
     echo "${unit_name} deployed successfully!!"
 }
 
