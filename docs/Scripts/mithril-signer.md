@@ -62,5 +62,9 @@ systemd orchestrator:
 
 Installation generates or validates the Mithril environment, checks that the
 selected Mithril release supports the installed cnode version, and enables the
-unit. It does not start the service immediately. Use `-D` to run the signer
-interactively as a daemon process.
+unit for `${CNODE_VNAME}.service`. The signer starts with the node and stops
+when the node stops. Installation refreshes the enablement links with
+`systemctl reenable`; it does not start the service immediately. To start the
+signer while the node is already running, use
+`sudo systemctl start ${CNODE_VNAME}-mithril-signer.service` with your node's
+service prefix. Use `-D` to run the signer interactively as a daemon process.
