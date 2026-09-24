@@ -655,7 +655,7 @@ deploy_systemd() {
 
 	[Install]
 	WantedBy=multi-user.target
-  WantedBy=${CNODE_VNAME}.service
+	WantedBy=${CNODE_VNAME}.service
 	EOF" && echo "${CNODE_VNAME}-$(basename "${0::-3}").service deployed successfully!!" && ${sudo} systemctl daemon-reload && ${sudo} systemctl enable ${CNODE_VNAME}-"$(basename "${0::-3}")".service
 }
 
