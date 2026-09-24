@@ -635,7 +635,7 @@ deploy_systemd() {
 	StartLimitIntervalSec=0
 	Wants=network-online.target
 	After=network-online.target
-	BindsTo=${CNODE_VNAME}.service
+	Wants=${CNODE_VNAME}.service
 	After=${CNODE_VNAME}.service
 
 	[Service]
