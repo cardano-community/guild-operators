@@ -1121,18 +1121,21 @@ if ! command -v "jq" &>/dev/null; then
 fi
 
 read -ra CONFIG_CONTENTS <<<"$(jq -r '[ .AlonzoGenesisFile //"null", .ByronGenesisFile //"null", .ShelleyGenesisFile //"null", .Protocol //"Cardano",
-.ConwayGenesisFile //"null"]| @tsv' "${CONFIG}" 2>/dev/null)"
+.ConwayGenesisFile //"null", .DijkstraGenesisFile //"null"]| @tsv' "${CONFIG}" 2>/dev/null)"
 
+DIJKSTRA_GENESIS_JSON="${CONFIG_CONTENTS[5]}"
 CONWAY_GENESIS_JSON="${CONFIG_CONTENTS[4]}"
 ALONZO_GENESIS_JSON="${CONFIG_CONTENTS[0]}"
 BYRON_GENESIS_JSON="${CONFIG_CONTENTS[1]}"
 GENESIS_JSON="${CONFIG_CONTENTS[2]}"
 # if relative path is used, assume same parent dir as config
+[[ ${DIJKSTRA_GENESIS_JSON} != "null" && ! ${DIJKSTRA_GENESIS_JSON} =~ ^/ ]] && DIJKSTRA_GENESIS_JSON="$(dirname "${CONFIG}")/${DIJKSTRA_GENESIS_JSON}"
 [[ ! ${CONWAY_GENESIS_JSON} =~ ^/ ]] && CONWAY_GENESIS_JSON="$(dirname "${CONFIG}")/${CONWAY_GENESIS_JSON}"
 [[ ! ${ALONZO_GENESIS_JSON} =~ ^/ ]] && ALONZO_GENESIS_JSON="$(dirname "${CONFIG}")/${ALONZO_GENESIS_JSON}"
 [[ ! ${BYRON_GENESIS_JSON} =~ ^/ ]] && BYRON_GENESIS_JSON="$(dirname "${CONFIG}")/${BYRON_GENESIS_JSON}"
 [[ ! ${GENESIS_JSON} =~ ^/ ]] && GENESIS_JSON="$(dirname "${CONFIG}")/${GENESIS_JSON}"
 # if genesis files not found, exit with rc 1
+[[ ${DIJKSTRA_GENESIS_JSON} != "null" && ! -f "${DIJKSTRA_GENESIS_JSON}" ]] && echo "Dijkstra genesis file not found: ${DIJKSTRA_GENESIS_JSON}" && return 1
 [[ ! -f "${CONWAY_GENESIS_JSON}" ]] && echo "Conway genesis file not found: ${CONWAY_GENESIS_JSON}" && return 1
 [[ ! -f "${ALONZO_GENESIS_JSON}" ]] && echo "Alonzo genesis file not found: ${ALONZO_GENESIS_JSON}" && return 1
 [[ ! -f "${BYRON_GENESIS_JSON}" ]] && echo "Byron genesis file not found: ${BYRON_GENESIS_JSON}" && return 1
@@ -1194,6 +1197,9 @@ case ${NWMAGIC} in
     [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Preview"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
     [[ -z ${KOIOS_API} ]] && KOIOS_API="https://preview.koios.rest/api/v1";;
+  164)
+    [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Musashi"
+    [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0;;
   *)
     [[ -z ${NETWORK_NAME} ]] && NETWORK_NAME="Custom"
     [[ -z ${SHELLEY_TRANS_EPOCH} ]] && SHELLEY_TRANS_EPOCH=0
