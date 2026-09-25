@@ -200,10 +200,10 @@ cntools_withdraw_validate_output() {
 
 cntools_withdraw_refresh_build_into() {
   local result_name="$1" lifetime="$2"
-  [[ "${lifetime}" =~ ^(1800|7200|86400)$ ]] || return 2
+  [[ "${lifetime}" =~ ^(0|1800|7200|86400)$ ]] || return 2
   cntools_withdraw_collect || return 1
   # All supported deployment networks use one-second Shelley slots.
-  CNTOOLS_WITHDRAW_EXPIRY=$((CNTOOLS_FUNDING_SLOT+lifetime))
+  cntools_transaction_expiry_into CNTOOLS_WITHDRAW_EXPIRY "${CNTOOLS_FUNDING_SLOT}" "${lifetime}" || return 1
   cntools_withdraw_build_into "${result_name}"
 }
 
@@ -215,7 +215,7 @@ cntools_withdraw_recheck() {
   [[ "${CNTOOLS_WALLET_REWARD_LOVELACE}" == "${expected}" ]] || {
     cntools_withdraw_fail 'The reward balance changed. Rebuild and review the withdrawal; no amount was changed silently.'; return 1;
   }
-  (( CNTOOLS_FUNDING_SLOT < CNTOOLS_WITHDRAW_EXPIRY )) || {
+  [[ -z "${CNTOOLS_WITHDRAW_EXPIRY}" ]] || (( CNTOOLS_FUNDING_SLOT < CNTOOLS_WITHDRAW_EXPIRY )) || {
     cntools_withdraw_fail 'The withdrawal expired. Build and review a new transaction.'; return 1;
   }
   for input in "${CNTOOLS_WITHDRAW_INPUTS[@]}"; do

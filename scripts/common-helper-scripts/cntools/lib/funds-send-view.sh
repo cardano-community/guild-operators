@@ -52,7 +52,7 @@ cntools_send_render_information() {
   done
   cntools_transaction_ui_table_widths_into widths 22 || return 1
   [[ "${CNTOOLS_SEND_MODE}" == exact ]] || selection='All spendable inputs'
-  cntools_slot_datetime_into expiry_label "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}" || expiry_label='Date unavailable'
+  cntools_transaction_ui_expiry_label_into expiry_label "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}"
   cntools_ui_render_detail 'Transaction information' || return 1
   {
     printf 'Transaction detail\tValue\n'

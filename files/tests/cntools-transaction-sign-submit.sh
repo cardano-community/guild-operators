@@ -965,6 +965,9 @@ test_submission_backends_and_integrity() {
     fail "local package submission failed: ${CNTOOLS_TRANSACTION_ERROR}"
   assert_eq "${CNTOOLS_TRANSACTION_SUBMIT_BACKEND}" local \
     "local submission backend"
+  assert_eq "${CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID}" "${TX_ID}" 'local acceptance timer identity'
+  [[ "${CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS}" =~ ^[0-9]+$ ]] || fail 'local acceptance time missing'
+  (( SECONDS >= CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS )) || fail 'local acceptance time is in the future'
   assert_eq "${CNTOOLS_TRANSACTION_SUBMIT_ID}" "${TX_ID}" \
     "local submitted transaction ID"
   jq -e --arg socket "${CNTOOLS_SOCKET}" '
@@ -983,6 +986,7 @@ test_submission_backends_and_integrity() {
   if cntools_transaction_submit "${complete}"; then
     fail "failed local submission was reported as accepted"
   fi
+  [[ -z "${CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS}" && -z "${CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID}" ]] || fail 'failed local submission kept an acceptance timer'
   assert_contains "${CNTOOLS_TRANSACTION_ERROR}" "outcome may be unknown" \
     "ambiguous local submission diagnostic"
   assert_contains "${CNTOOLS_TRANSACTION_ERROR}" "${TX_ID}" \
@@ -998,6 +1002,9 @@ test_submission_backends_and_integrity() {
     fail "Koios HTTP 202 submission failed: ${CNTOOLS_TRANSACTION_ERROR}"
   assert_eq "${CNTOOLS_TRANSACTION_SUBMIT_BACKEND}" koios \
     "Koios submission backend"
+  assert_eq "${CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID}" "${TX_ID}" 'Koios acceptance timer identity'
+  [[ "${CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS}" =~ ^[0-9]+$ ]] || fail 'Koios acceptance time missing'
+  (( SECONDS >= CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS )) || fail 'Koios acceptance time is in the future'
   assert_eq "${CNTOOLS_TRANSACTION_SUBMIT_HTTP_STATUS}" 202 \
     "Koios HTTP status"
   api_trace="$(tail -n 1 "${API_TRACE}")"

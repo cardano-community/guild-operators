@@ -97,6 +97,7 @@ cntools_wallet_register_workflow() {
   wallet_name="${CNTOOLS_WALLET_NAMES[selected_index]}"
   cntools_wallet_register_prepare_wallet "${wallet_directory}" "${wallet_name}" || return 2
   cntools_transaction_ui_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || return $?
+  cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
   cntools_ui_spin_function 'Checking stake state, rewards and spendable funds…' cntools_wallet_register_collect || status=$?
   if (( status != 0 )); then
     cntools_wallet_register_begin

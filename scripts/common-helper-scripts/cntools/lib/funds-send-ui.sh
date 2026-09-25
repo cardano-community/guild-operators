@@ -283,7 +283,7 @@ cntools_send_recheck() {
   local reference=""
   local -a selected_refs=("${CNTOOLS_COIN_SELECTED_REFS[@]}")
   cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" || return 1
-  (( CNTOOLS_FUNDING_SLOT < CNTOOLS_SEND_EXPIRY )) || { cntools_send_fail "The transfer expired. Build and review a new transaction."; return 1; }
+  [[ -z "${CNTOOLS_SEND_EXPIRY}" ]] || (( CNTOOLS_FUNDING_SLOT < CNTOOLS_SEND_EXPIRY )) || { cntools_send_fail "The transfer expired. Build and review a new transaction."; return 1; }
   for reference in "${selected_refs[@]}"; do
     [[ -n "${CNTOOLS_UTXO_INDEX_BY_REF[${reference}]+x}" ]] || {
       cntools_send_fail "A selected input is no longer available. Build and review a new transaction."; return 1;
@@ -318,13 +318,13 @@ cntools_send_recheck_handles() {
 cntools_send_refresh_build_into() {
   local result_name="${1:-}" lifetime="${2:-1800}"
   cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" || return 1
-  CNTOOLS_SEND_EXPIRY=$((CNTOOLS_FUNDING_SLOT+lifetime))
+  cntools_transaction_expiry_into CNTOOLS_SEND_EXPIRY "${CNTOOLS_FUNDING_SLOT}" "${lifetime}" || return 1
   cntools_send_recheck_handles || return 1
   cntools_send_build_into "${result_name}"
 }
 
 cntools_send_workflow() {
-  local selected="" choice="" staged="" signed="" saved="" expiry="" proceed=""
+  local selected="" choice="" staged="" signed="" saved="" proceed=""
   local backend="" signed_body="" txid="" status=0 lifetime=1800
   CNTOOLS_SEND_RESULT_SHOWN=N
   CNTOOLS_SEND_SAVED_PACKAGE=""
@@ -347,12 +347,7 @@ cntools_send_workflow() {
   local can_sign=N
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
   cntools_transaction_ui_workflow_into choice "${can_sign}" || return $?
-  cntools_send_choose expiry "Transaction expiry" "30 minutes" "2 hours" "24 hours (offline signing)" || return $?
-  case "${expiry}" in
-    "30 minutes") lifetime=1800 ;;
-    "2 hours") lifetime=7200 ;;
-    *) lifetime=86400 ;;
-  esac
+  cntools_transaction_ui_expiry_into lifetime || return $?
   cntools_transaction_ui_proceed_into proceed "${choice}" || return 2
   while true; do
     cntools_ui_spin_function "Refreshing funds and balancing the transfer…" cntools_send_refresh_build_into staged "${lifetime}" || return 2

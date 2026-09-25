@@ -10,11 +10,15 @@ CNTOOLS_TRANSACTION_SUBMIT_VKEY_WITNESS_COUNT=0
 CNTOOLS_TRANSACTION_SUBMIT_SOURCE_FILE=""
 CNTOOLS_TRANSACTION_SUBMIT_HTTP_STATUS=""
 CNTOOLS_TRANSACTION_SUBMIT_MESSAGE=""
+CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID=""
+CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS=""
 CNTOOLS_TRANSACTION_SUBMIT_XXD=""
 CNTOOLS_TRANSACTION_SUBMIT_CBOR_SHA256=""
 CNTOOLS_TRANSACTION_SUBMIT_CBOR_BYTES=""
 
 cntools_transaction_submit_reset() {
+  CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID=""
+  CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS=""
   CNTOOLS_TRANSACTION_SUBMIT_BACKEND=""
   CNTOOLS_TRANSACTION_SUBMIT_ID=""
   CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND=""
@@ -150,6 +154,8 @@ cntools_transaction_submit_input_prepare() {
 }
 
 cntools_transaction_submit_local() {
+  CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID=""
+  CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS=""
   local signed_file="${1:-}"
   local transaction_id="${2:-}"
   local envelope_kind=""
@@ -201,6 +207,8 @@ cntools_transaction_submit_local() {
 
   CNTOOLS_TRANSACTION_SUBMIT_BACKEND="local"
   CNTOOLS_TRANSACTION_SUBMIT_MESSAGE="Transaction accepted by the local node."
+  CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID="${transaction_id}"
+  CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS="${SECONDS}"
   cntools_transaction_log TRANSACTION \
     "submitted id=${transaction_id} backend=local network=${CNTOOLS_NETWORK}"
 }
@@ -447,6 +455,8 @@ cntools_transaction_submit_log_koios_replay() {
 }
 
 cntools_transaction_submit_koios() {
+  CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID=""
+  CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS=""
   local signed_file="${1:-}"
   local transaction_id="${2:-}"
   local endpoint=""
@@ -545,6 +555,8 @@ cntools_transaction_submit_koios() {
 
   CNTOOLS_TRANSACTION_SUBMIT_BACKEND="koios"
   CNTOOLS_TRANSACTION_SUBMIT_MESSAGE="Transaction accepted by Koios."
+  CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID="${transaction_id}"
+  CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS="${SECONDS}"
   cntools_transaction_log TRANSACTION \
     "submitted id=${transaction_id} backend=koios network=${CNTOOLS_NETWORK} http=202"
 }

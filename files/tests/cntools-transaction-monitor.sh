@@ -104,11 +104,20 @@ cntools_ui_table() { cat >> "${TEST_ROOT}/ui"; }
 cntools_theme_style_value_into() { printf -v "$1" '%s' "$3"; }
 
 QUERY_COUNT=0 AUTOINCLUDE=Y
+SECONDS=100
+CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS=40
+CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID="${TX}"
 cntools_transaction_ui_offer_monitor "${TX}" || fail 'monitor changed submission result'
 [[ "${CNTOOLS_TRANSACTION_MONITOR_STATE}" == included && ${QUERY_COUNT} == 3 ]] || fail 'pending -> included polling'
 [[ ${SPIN_COUNT} == 1 && ${WAIT_COUNT} == 2 && "${SPIN_ACTIVE}" == N ]] || fail 'monitor did not use one continuous spinner'
 grep -q 'Included in a block' "${TEST_ROOT}/ui" || fail 'inclusion not displayed'
-grep -q 'Blocks since inclusion.*0' "${TEST_ROOT}/ui" || fail 'zero block count not displayed'
+grep -q "Time to inclusion.*${CNTOOLS_TRANSACTION_MONITOR_ELAPSED} seconds" "${TEST_ROOT}/ui" || fail 'elapsed time not displayed'
+if grep -q 'Blocks since inclusion' "${TEST_ROOT}/ui"; then fail 'obsolete confirmation count shown'; fi
+(( CNTOOLS_TRANSACTION_MONITOR_ELAPSED >= 60 && CNTOOLS_TRANSACTION_MONITOR_ELAPSED < 90 )) || fail 'elapsed time did not start at submission acceptance'
+CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID=other
+cntools_transaction_ui_offer_monitor "${TX}" || fail 'missing timestamp changed result'
+[[ -z "${CNTOOLS_TRANSACTION_MONITOR_ELAPSED}" ]] || fail 'stale acceptance time reused'
+CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID="${TX}"
 [[ "${CNTOOLS_TRANSACTION_ERROR}" == unchanged ]] || fail 'monitor changed submit error state'
 
 AUTOINCLUDE=N STOP_WAIT=1 QUERY_COUNT=0

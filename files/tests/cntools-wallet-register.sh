@@ -125,6 +125,7 @@ case "${path}" in
   version//)
     printf 'cardano-cli 11.2.3.1 - linux-x86_64\n'
     ;;
+  latest/query/tip) printf '{"slot":1000}\n' ;;
   latest/stake-address/key-hash)
     key="$(arg_value --stake-verification-key "$@")"
     printf '%s\n' "${key:0:56}"
@@ -162,13 +163,14 @@ case "${path}" in
       required="$(jq -c --arg value "${arguments[index + 1]}" \
         '. + [$value]' <<< "${required}")"
     done
-    jq -n --argjson required "${required}" '
+    expiry="$(arg_value --invalid-hereafter "$@" || printf null)"
+    jq -n --argjson required "${required}" --argjson expiry "${expiry}" '
       {
         type: "Tx ConwayEra",
         description: "Fake registration transaction",
         cborHex: "aa00",
         fakeView: {
-          "validity range": {"lower bound": null, "upper bound": null},
+          "validity range": {"lower bound": null, "upper bound": $expiry},
           "required signers (payment key hashes needed for scripts)": $required,
           "reference inputs": [],
           scripts: [],
@@ -208,6 +210,7 @@ export FAKE_CLI_TRACE="${CLI_TRACE}"
 . "${CNTOOLS_ROOT}/lib/transaction.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/lib/transaction-build.sh"
+. "${CNTOOLS_ROOT}/lib/transaction-funding.sh"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/lib/transaction-sign.sh"
 # shellcheck source=/dev/null
@@ -219,6 +222,11 @@ export FAKE_CLI_TRACE="${CLI_TRACE}"
 # shellcheck source=/dev/null
 . "${CNTOOLS_ROOT}/lib/wallet-stake.sh"
 . "${CNTOOLS_ROOT}/lib/wallet-register.sh"
+
+cntools_funding_get() {
+  [[ "$1" == */tip ]] || fail 'unexpected endpoint'
+  printf '[{"abs_slot":1000}]' > "$2"
+}
 
 cntools_log() {
   printf '%s\t%s\n' "${1:-INFO}" "${2:-}" >> "${LOG_TRACE}"
@@ -435,6 +443,11 @@ test_registration_package() {
     fail "registration transaction package could not be built: ${CNTOOLS_WALLET_REGISTER_ERROR}"
   cntools_transaction_package_load "${package}" ||
     fail "generated registration package could not be reopened"
+  if [[ "${CNTOOLS_WALLET_REGISTER_LIFETIME}" == 0 ]]; then
+    [[ -z "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}" ]] || fail 'unbounded registration gained an expiry'
+  else
+    assert_eq "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}" "$((1000+CNTOOLS_WALLET_REGISTER_LIFETIME))" 'registration expiry'
+  fi
   jq -e --arg payment "${PAYMENT_CREDENTIAL}" \
     --arg stake "${STAKE_CREDENTIAL}" '
       .intent.kind == "Wallet stake registration" and
@@ -495,6 +508,11 @@ test_deregistration_package() {
     fail "de-registration transaction package could not be built: ${CNTOOLS_WALLET_REGISTER_ERROR}"
   cntools_transaction_package_load "${package}" ||
     fail "generated de-registration package could not be reopened"
+  if [[ "${CNTOOLS_WALLET_REGISTER_LIFETIME}" == 0 ]]; then
+    [[ -z "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}" ]] || fail 'unbounded de-registration gained an expiry'
+  else
+    assert_eq "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}" "$((1000+CNTOOLS_WALLET_REGISTER_LIFETIME))" 'de-registration expiry'
+  fi
   jq -e --arg payment "${PAYMENT_CREDENTIAL}" \
     --arg stake "${STAKE_CREDENTIAL}" '
       .intent.kind == "Wallet stake de-registration" and
@@ -593,13 +611,16 @@ test_stake_coin_selection
 test_registration_package
 test_deregistration_guards
 test_deregistration_package
+CNTOOLS_WALLET_REGISTER_LIFETIME=0
+test_registration_package
+test_deregistration_package
 
 jq -e '.libs == [
   "number.sh", "wallet.sh", "wallet-material.sh", "wallet-key.sh",
   "wallet-address.sh", "wallet-id.sh", "asset.sh", "asset-cache.sh",
   "wallet-query.sh", "utxo.sh", "transaction.sh",
   "transaction-build.sh", "transaction-sign.sh", "transaction-submit.sh", "transaction-monitor.sh",
-  "transaction-ui.sh", "transaction-files.sh", "coin-selection.sh", "change-plan.sh",
+  "transaction-ui.sh", "transaction-files.sh", "transaction-funding.sh", "coin-selection.sh", "change-plan.sh",
   "wallet-stake.sh", "wallet-register.sh", "wallet-register-ui.sh"
 ]' "${CNTOOLS_ROOT}/modules/root/wallet/register/module.json" >/dev/null ||
   fail "Wallet Register module library order is incorrect"

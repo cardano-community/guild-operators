@@ -28,6 +28,8 @@ CNTOOLS_WALLET_REGISTER_AVAILABLE_INPUT_COUNT=0
 CNTOOLS_WALLET_REGISTER_TOTAL_VALUE=""
 CNTOOLS_WALLET_REGISTER_ASSET_COUNT=0
 CNTOOLS_WALLET_REGISTER_FEE_RESERVE="0"
+CNTOOLS_WALLET_REGISTER_LIFETIME=1800
+CNTOOLS_WALLET_REGISTER_EXPIRY=""
 CNTOOLS_WALLET_REGISTER_SELECTION_REASON=""
 CNTOOLS_WALLET_REGISTER_POLICY_JSON="{}"
 CNTOOLS_WALLET_REGISTER_CAN_SIGN="N"
@@ -669,6 +671,7 @@ cntools_wallet_register_plan_create() {
     "${CNTOOLS_WALLET_REGISTER_INTENT}" \
     "${intent_description}" \
     exact || return 1
+  cntools_transaction_plan_set_validity "" "${CNTOOLS_WALLET_REGISTER_EXPIRY}" || return 1
   if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == "Hardware" ]]; then
     payment_group="wallet-stake"
     stake_group="wallet-stake"
@@ -768,6 +771,7 @@ cntools_wallet_register_build_package_into() {
   local input=""
   local output=""
   local output_index=0
+  local current_slot=""
   local planned_asset_count=0
   local -a arguments=()
 
@@ -787,6 +791,14 @@ cntools_wallet_register_build_package_into() {
       "The applied change plan does not preserve every selected native asset."
     return 1
   fi
+  CNTOOLS_WALLET_REGISTER_EXPIRY=""
+  if [[ "${CNTOOLS_WALLET_REGISTER_LIFETIME}" != 0 ]]; then
+    cntools_funding_tip_into current_slot "${CNTOOLS_WALLET_REGISTER_BACKEND}" || {
+      cntools_wallet_register_set_error 'Could not get the current chain slot for transaction expiry.'
+      return 1
+    }
+  fi
+  cntools_transaction_expiry_into CNTOOLS_WALLET_REGISTER_EXPIRY "${current_slot}" "${CNTOOLS_WALLET_REGISTER_LIFETIME}" || return 1
   cntools_wallet_register_certificate_create || return 1
   cntools_wallet_register_plan_create || {
     CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_TRANSACTION_ERROR:-The signer plan could not be created.}"

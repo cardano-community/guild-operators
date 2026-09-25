@@ -84,6 +84,8 @@ jobs:
       run: bash files/tests/cntools-transaction-ui.sh
     - name: Test shared transaction review flows
       run: bash files/tests/cntools-transaction-flow.sh
+    - name: Test shared transaction expiry
+      run: bash files/tests/cntools-transaction-validity.sh
     - name: Cache pinned CNTools transaction tools
       uses: actions/cache@v4
       with:

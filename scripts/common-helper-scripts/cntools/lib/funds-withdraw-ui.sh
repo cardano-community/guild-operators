@@ -4,21 +4,10 @@
 
 cntools_withdraw_begin() { cntools_ui_action_begin 'Withdraw Rewards' '/ Funds / Withdraw Rewards'; }
 
-cntools_withdraw_choose() {
-  local output_name="$1" prompt="$2" status=0
-  shift 2
-  cntools_ui_choose "${output_name}" "${prompt}" "$@" || status=$?
-  if (( status == 0 )); then
-    local -n choice_ref="${output_name}"
-    cntools_transaction_log CHOICE "Withdrawal ${prompt} selected=${choice_ref}"
-  fi
-  return "${status}"
-}
-
 cntools_withdraw_render() {
   local widths="" expiry_label="" net="" effect='Net rewards after fee'
   cntools_transaction_ui_table_widths_into widths 22 || return 1
-  cntools_slot_datetime_into expiry_label "${CNTOOLS_WITHDRAW_EXPIRY}" || expiry_label='Date unavailable'
+  cntools_transaction_ui_expiry_label_into expiry_label "${CNTOOLS_WITHDRAW_EXPIRY}"
   if cntools_uint_greater_equal "${CNTOOLS_WITHDRAW_REWARDS}" "${CNTOOLS_WITHDRAW_FEE}"; then
     cntools_uint_subtract_into net "${CNTOOLS_WITHDRAW_REWARDS}" "${CNTOOLS_WITHDRAW_FEE}" || return 1
   else
@@ -49,7 +38,7 @@ cntools_withdraw_result() {
 }
 
 cntools_withdraw_workflow() {
-  local selected="" workflow="" expiry="" staged="" signed="" saved="" proceed=""
+  local selected="" workflow="" staged="" signed="" saved="" proceed=""
   local backend="" signed_body="" txid="" lifetime=1800 status=0
   CNTOOLS_WITHDRAW_RESULT_SHOWN=N; CNTOOLS_WITHDRAW_SAVED_PACKAGE=""
   cntools_withdraw_begin
@@ -59,8 +48,7 @@ cntools_withdraw_workflow() {
   cntools_wallet_choose selected || return $?
   cntools_stake_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" "${CNTOOLS_WALLET_NAMES[selected]}" || return 2
   cntools_transaction_ui_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || return $?
-  cntools_withdraw_choose expiry 'Transaction expiry' '30 minutes' '2 hours' '24 hours (offline signing)' || return $?
-  case "${expiry}" in '30 minutes') lifetime=1800 ;; '2 hours') lifetime=7200 ;; *) lifetime=86400 ;; esac
+  cntools_transaction_ui_expiry_into lifetime || return $?
   cntools_ui_spin_function 'Checking rewards and building the withdrawal…' \
     cntools_withdraw_refresh_build_into staged "${lifetime}" || return 2
   while true; do

@@ -670,6 +670,10 @@ ID, with a five-second pause between checks, for at most three minutes. Press
 `q` between requests to stop. Three consecutive request/schema errors also stop
 monitoring. API authentication uses the same protected, redacted logging as
 other Koios calls. Nothing is queried until the operator accepts the offer.
+After inclusion is observed, **Time to inclusion** shows elapsed seconds from
+successful local-node or Koios submission acceptance, including any delay before
+accepting monitoring. It includes polling and indexer delays, not just mempool
+residence time. Confirmation counts remain in debug logs, not the result table.
 
 As defined by [Koios's pinned tx_status implementation](https://github.com/cardano-community/koios-artifacts/blob/v1.4.2/files/grest/rpc/transactions/tx_status.sql),
 `num_confirmations: null` (or an empty successful response) means inclusion has
@@ -872,7 +876,7 @@ scripts receive exact assurance only when the body has no reference inputs.
 Every transaction containing a reference input retains manual assurance because
 the referenced on-chain output cannot be proved from the portable body alone.
 A declared native reference script is bound to an exact
-`transaction-id#output-index`; **Show transaction details** displays that input
+`transaction-id#output-index`; debug logs record that input
 together with the declared script, hash, purpose, and selected keys. The compact
 review retains the warning when reference-script verification is required.
 
@@ -918,9 +922,16 @@ Send, Withdraw Rewards, Register, De-Register and standalone Sign/Submit:
   **Create unsigned package**, then **Cancel**. If local signing sources are
   unavailable, offer only unsigned export and cancellation. Construction still
   needs chain data; offline signing is a separate step.
+- Every transaction-creating action uses the shared expiry choice: **30 minutes**,
+  **2 hours**, **24 hours (offline signing)**, or **No expiry**, plus cancellation.
+  Bounded choices use the current chain slot; No expiry omits the upper validity
+  bound entirely (it is not slot zero). This does not bypass input, reward or
+  other state checks. Standalone Sign/Submit preserve the existing body and its
+  validity bounds; changing expiry requires rebuilding and signing again.
 - Use `cntools_transaction_ui_review_into`: the primary continue/save choice
   comes first, followed by **Show decoded transaction**, **Show required signers**,
-  **Show transaction details**, applicable change/edit options, and **Cancel**.
+  applicable change/edit options, and **Cancel**. Raw package/intent JSON is
+  logged for debugging only; there is no package-details dump option.
   Inspection does not rebuild or sign anything. Changed recipients require a
   fresh build and another review. A workflow change alone does not change the body.
 - Keep intent JSON, witness identifiers, fee reserves, input references and full

@@ -72,12 +72,15 @@ cntools_ui_choose() {
     else eq "$3" 'Create unsigned package' 'unsigned only'; fi
     eq "${*: -1}" Cancel 'cancellation available'
     answer="${WORKFLOW}"
+  elif [[ "$2" == 'Transaction expiry' ]]; then
+    [[ "$*" == *'No expiry'* ]] || fail 'No expiry option missing'
+    answer='30 minutes'
   else
+    [[ "$*" != *'Show transaction details'* ]] || fail 'raw details option retained'
     eq "$2" 'Review transaction' 'shared review title'
     case "${SCENARIO}:${STEP}" in
       details:0) answer='Show decoded transaction' ;;
       details:1) answer='Show required signers' ;;
-      details:2) answer='Show transaction details' ;;
       switch:0) answer='Change workflow'; WORKFLOW='Create unsigned package' ;;
       cancel:*) answer=Cancel ;;
     esac
@@ -139,7 +142,7 @@ for operation in register deregister; do
           fi ;;
       esac
       if [[ "${scenario}" == details ]]; then
-        for event in decoded signers scripts changes; do grep -qx "${event}" "${TRACE}" || fail "missing ${event} option"; done
+        for event in decoded signers; do grep -qx "${event}" "${TRACE}" || fail "missing ${event} option"; done
         eq "$(grep -c '^build$' "${TRACE}")" 1 'inspection rebuilt transaction'
       fi
       grep -q 'technicalFixture' "${LOG}" || fail 'technical intent not logged'

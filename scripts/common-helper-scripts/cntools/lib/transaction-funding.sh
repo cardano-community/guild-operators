@@ -21,8 +21,34 @@ cntools_funding_get() {
   return "${status}"
 }
 
+cntools_funding_tip_into() {
+  local tip_output="$1" tip_backend="$2" tip_response="" tip_errors="" tip_slot="" tip_status=0
+  local -a tip_network=()
+  cntools_transaction_temp_file tip_response transaction-tip || return 1
+  case "${tip_backend}" in
+    local)
+      cntools_transaction_temp_file tip_errors transaction-tip-errors || return 1
+      cntools_transaction_network_arguments_into tip_network "${CNTOOLS_NETWORK}" || return 1
+      cntools_transaction_run_cli "${tip_response}" "${tip_errors}" -- \
+        "${CNTOOLS_CLI}" latest query tip "${tip_network[@]}" \
+        --socket-path "${CNTOOLS_SOCKET}" || tip_status=$?
+      if (( tip_status != 0 )); then
+        cntools_transaction_log_cli_failure 'Transaction tip query failed' "${tip_status}" "${tip_errors}" "${tip_response}"
+        return 1
+      fi
+      tip_slot="$(jq -er '.slot | select(type == "number" and . >= 0 and floor == .) | tostring' "${tip_response}")" || return 1 ;;
+    koios)
+      [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_KOIOS_API:-}" =~ ^https://[^[:space:]]+$ ]] || return 1
+      cntools_funding_get "${CNTOOLS_KOIOS_API%/}/tip" "${tip_response}" || return 1
+      tip_slot="$(jq -er 'if type == "array" and length == 1 then .[0].abs_slot else empty end | select(type == "number" and . >= 0 and floor == .) | tostring' "${tip_response}")" || return 1 ;;
+    *) return 2 ;;
+  esac
+  [[ -n "${tip_slot}" ]] && cntools_transaction_slot_value_valid "${tip_slot}" || return 1
+  printf -v "${tip_output}" '%s' "${tip_slot}"
+}
+
 cntools_funding_collect() {
-  local primary="${1:-}" payment="${2:-${1:-}}" response="" errors="" tip=""
+  local primary="${1:-}" payment="${2:-${1:-}}" response="" errors=""
   local payload="" status=0 index=0 reserve=""
   local -a network=() address_arguments=(--address "${primary}")
   CNTOOLS_FUNDING_TOTAL=0
@@ -35,7 +61,6 @@ cntools_funding_collect() {
   cntools_transaction_temp_file CNTOOLS_FUNDING_PROTOCOL send-protocol || return 1
   cntools_transaction_temp_file response send-utxos || return 1
   cntools_transaction_temp_file errors send-query-errors || return 1
-  cntools_transaction_temp_file tip send-tip || return 1
   if cntools_transaction_local_backend_ready; then
     CNTOOLS_FUNDING_BACKEND=local
     cntools_transaction_network_arguments_into network "${CNTOOLS_NETWORK}" || return 1
@@ -49,9 +74,7 @@ cntools_funding_collect() {
         --socket-path "${CNTOOLS_SOCKET}" --output-json || status=$?
     fi
     if (( status == 0 )); then
-      cntools_transaction_run_cli "${tip}" "${errors}" -- \
-        "${CNTOOLS_CLI}" latest query tip "${network[@]}" \
-        --socket-path "${CNTOOLS_SOCKET}" || status=$?
+      cntools_funding_tip_into CNTOOLS_FUNDING_SLOT local || status=$?
     fi
     if (( status != 0 )); then
       cntools_transaction_log_cli_failure "Transaction funding query failed" "${status}" "${errors}" "${response}"
@@ -60,7 +83,6 @@ cntools_funding_collect() {
     cntools_utxo_load_local "${response}" "${primary}" "${payment}" || {
       cntools_transaction_set_error "${CNTOOLS_UTXO_ERROR}"; return 1;
     }
-    CNTOOLS_FUNDING_SLOT="$(jq -er '.slot | select(type == "number" and . >= 0 and floor == .) | tostring' "${tip}")" || return 1
   elif [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_KOIOS_API:-}" == https://* ]]; then
     CNTOOLS_FUNDING_BACKEND=koios
     cntools_funding_get "${CNTOOLS_KOIOS_API%/}/cli_protocol_params" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
@@ -72,8 +94,7 @@ cntools_funding_collect() {
     cntools_utxo_load_koios "${response}" "${primary}" "${payment}" || {
       cntools_transaction_set_error "${CNTOOLS_UTXO_ERROR}"; return 1;
     }
-    cntools_funding_get "${CNTOOLS_KOIOS_API%/}/tip" "${tip}" || return 1
-    CNTOOLS_FUNDING_SLOT="$(jq -er 'if type == "array" and length == 1 then .[0].abs_slot else empty end | select(type == "number" and . >= 0 and floor == .) | tostring' "${tip}")" || return 1
+    cntools_funding_tip_into CNTOOLS_FUNDING_SLOT koios || return 1
   else
     cntools_transaction_set_error "No current chain-data source is available for transaction building."
     return 1

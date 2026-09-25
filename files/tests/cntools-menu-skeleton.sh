@@ -379,6 +379,7 @@ while IFS=$'\t' read -r \
           "transaction-monitor.sh",
           "transaction-ui.sh",
           "transaction-files.sh",
+          "transaction-funding.sh",
           "coin-selection.sh",
           "change-plan.sh",
           "wallet-stake.sh",

@@ -32,6 +32,31 @@ cntools_transaction_ui_proceed_into() {
   esac
 }
 
+cntools_transaction_ui_expiry_into() {
+  local expiry_choice="" expiry_seconds="" status=0
+  cntools_ui_choose expiry_choice 'Transaction expiry' '30 minutes' '2 hours' \
+    '24 hours (offline signing)' 'No expiry' Cancel || status=$?
+  (( status == 0 )) || return "${status}"
+  case "${expiry_choice}" in
+    '30 minutes') expiry_seconds=1800 ;;
+    '2 hours') expiry_seconds=7200 ;;
+    '24 hours (offline signing)') expiry_seconds=86400 ;;
+    'No expiry') expiry_seconds=0 ;;
+    Cancel) return 1 ;;
+    *) return 2 ;;
+  esac
+  printf -v "$1" '%s' "${expiry_seconds}"
+  cntools_transaction_log CHOICE "Transaction expiry selected=${expiry_choice}"
+}
+
+cntools_transaction_ui_expiry_label_into() {
+  if [[ -z "${2:-}" ]]; then
+    printf -v "$1" '%s' 'No expiry'
+  else
+    cntools_slot_datetime_into "$1" "$2" || printf -v "$1" '%s' 'Date unavailable'
+  fi
+}
+
 cntools_transaction_ui_fee_into() {
   local fee_value=""
   fee_value="$(jq -er '.fee | tostring | split(" ")[0] | select(test("^[0-9]+$"))' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}")" || return 1
@@ -50,13 +75,14 @@ cntools_transaction_ui_review_into() {
     cntools_transaction_view_into CNTOOLS_TRANSACTION_UI_VIEW "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 2
     summary="$(jq -c '.intent.summary' "${package}")" || return 2
     cntools_transaction_log REVIEW "Transaction intent summary=${summary}"
+    cntools_transaction_log REVIEW "Transaction package details=$(jq -c '{network, intent, validity, signing: {assurance: .signing.assurance, nativeScripts: .signing.nativeScripts}}' "${package}")"
   fi
   cntools_transaction_log REVIEW "Decoded transaction=${CNTOOLS_TRANSACTION_UI_VIEW}"
   while true; do
     "${begin}" || return 2
     "${render}" || return 2
     local -a options=("${proceed}" 'Show decoded transaction')
-    [[ -z "${package}" ]] || options+=('Show required signers' 'Show transaction details')
+    [[ -z "${package}" ]] || options+=('Show required signers')
     cntools_ui_choose review_selection 'Review transaction' "${options[@]}" "$@" Cancel || { status=$?; return "${status}"; }
     cntools_transaction_log CHOICE "Transaction review selected=${review_selection}"
     case "${review_selection}" in
@@ -67,12 +93,6 @@ cntools_transaction_ui_review_into() {
       'Show required signers')
         "${begin}" || return 2
         cntools_transaction_ui_render_signer_progress "${package}" || return 2
-        cntools_ui_wait ;;
-      'Show transaction details')
-        "${begin}" || return 2
-        cntools_transaction_ui_render_native_scripts "${package}" || return 2
-        cntools_transaction_ui_render_change_plan "${package}" || return 2
-        cntools_transaction_ui_render_json 'Package details' "$(jq -c '{network, intent, validity, signing: {assurance: .signing.assurance}}' "${package}")" || return 2
         cntools_ui_wait ;;
       Cancel) return 1 ;;
       *)
@@ -223,7 +243,7 @@ cntools_transaction_ui_render_package_overview() {
     cntools_transaction_ui_styled_row Expires "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
   if [[ "${CNTOOLS_TRANSACTION_PACKAGE_ASSURANCE}" == manual ]]; then
-    cntools_ui_render_status warn 'Reference script contents need independent verification. Use Show transaction details before signing.'
+    cntools_ui_render_status warn 'Reference script contents need independent verification against the original script and reference input before signing.'
   fi
 }
 
@@ -1096,7 +1116,13 @@ cntools_transaction_ui_prompt_submit_input_into() {
 }
 
 cntools_transaction_ui_render_submit_review() {
-  local widths="" fee="" expiry_label=""
+  local widths="" fee="" expiry_label="" expiry_slot=""
+  if [[ "${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}" == package ]]; then
+    expiry_slot="${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER:-}"
+  else
+    expiry_slot="$(jq -r '.["validity range"]["upper bound"] // empty' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}")" || return 1
+  fi
+  cntools_transaction_ui_expiry_label_into expiry_label "${expiry_slot}"
   cntools_transaction_ui_table_widths_into widths 22 || return 1
   cntools_ui_render_detail 'Transaction information' || return 1
   {
@@ -1106,10 +1132,7 @@ cntools_transaction_ui_render_submit_review() {
     if cntools_transaction_ui_fee_into fee; then
       cntools_transaction_ui_styled_row Fee "$(cntools_number_format_units "${fee}" 6) ADA" number
     fi
-    if [[ "${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}" == package && -n "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER:-}" ]]; then
-      cntools_slot_datetime_into expiry_label "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}" || expiry_label='Date unavailable'
-      cntools_transaction_ui_styled_row Expires "${expiry_label}" number
-    fi
+    cntools_transaction_ui_styled_row Expires "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
   if [[ "${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}" != package ]]; then
     cntools_ui_render_status warn 'External-envelope completeness cannot be inferred. The submission backend must perform final ledger validation.'
@@ -1141,7 +1164,7 @@ cntools_transaction_ui_submit_selected() {
 # Monitoring is a separate, optional observation after successful submission.
 # All outcomes return success: cancellation/indexer failure cannot undo a submit.
 cntools_transaction_ui_offer_monitor() {
-  local transaction_id="${1:-}" widths="" message="" role=warning
+  local transaction_id="${1:-}" widths="" message="" role=warning elapsed_label="Unavailable"
   [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == Y ]] || return 0
   cntools_transaction_monitor_available || return 0
   [[ "${transaction_id}" =~ ^[0-9a-f]{64}$ ]] || return 0
@@ -1150,7 +1173,7 @@ cntools_transaction_ui_offer_monitor() {
     return 0
   fi
   cntools_transaction_log CHOICE "Koios transaction monitoring accepted id=${transaction_id}"
-  cntools_ui_render_status info 'Checking Koios every 5 seconds for up to 3 minutes. Press q between requests to stop. Koios indexing may lag; inclusion is not finality.' || true
+  cntools_ui_render_status info 'Checking Koios every 5 seconds for up to 3 minutes. Press q between requests to stop. Time is measured from submission acceptance and includes polling/indexing delays; inclusion is not finality.' || true
   cntools_transaction_monitor_run "${transaction_id}"
   case "${CNTOOLS_TRANSACTION_MONITOR_STATE}" in
     included) message='Included in a block · observed by Koios'; role=success ;;
@@ -1165,7 +1188,10 @@ cntools_transaction_ui_offer_monitor() {
       cntools_transaction_ui_styled_row Status "${message}" "${role}"
       cntools_transaction_ui_styled_row 'Transaction ID' "${transaction_id}" identifier
       if [[ "${CNTOOLS_TRANSACTION_MONITOR_STATE}" == included ]]; then
-        cntools_transaction_ui_styled_row 'Blocks since inclusion' "$(cntools_number_format "${CNTOOLS_TRANSACTION_MONITOR_CONFIRMATIONS}")" number
+        if [[ "${CNTOOLS_TRANSACTION_MONITOR_ELAPSED}" =~ ^[0-9]+$ ]]; then
+          elapsed_label="$(cntools_number_format "${CNTOOLS_TRANSACTION_MONITOR_ELAPSED}") seconds"
+        fi
+        cntools_transaction_ui_styled_row 'Time to inclusion' "${elapsed_label}" number
       fi
     } | cntools_ui_table --separator $'\t' --widths "${widths}" || true
   fi

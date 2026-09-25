@@ -51,9 +51,11 @@ CNTOOLS_STAKE_REWARD_ADDRESS="$("${CNTOOLS_CLI}" latest stake-address build --st
 policy="$(printf 'ab%.0s' {1..28})"
 reference="$(printf 'cd%.0s' {1..32})#0"
 package=""; signed=""; saved=""
-read -r -a scenarios <<< "${CNTOOLS_WITHDRAW_TEST_CASES:-ada tokens fragmented small-reward offline}"
+read -r -a scenarios <<< "${CNTOOLS_WITHDRAW_TEST_CASES:-ada tokens fragmented small-reward offline no-expiry}"
 for scenario in "${scenarios[@]}"; do
-  case "${scenario}" in ada|tokens|fragmented|small-reward|offline) ;; *) fail 'unknown scenario' ;; esac
+  case "${scenario}" in ada|tokens|fragmented|small-reward|offline|no-expiry) ;; *) fail 'unknown scenario' ;; esac
+  CNTOOLS_WITHDRAW_EXPIRY=10000
+  [[ "${scenario}" != no-expiry ]] || CNTOOLS_WITHDRAW_EXPIRY=""
   cntools_utxo_reset
   cntools_utxo_add "${reference}" "${CNTOOLS_STAKE_BASE_ADDRESS}" 20000000
   CNTOOLS_WITHDRAW_REWARDS=10000000
@@ -92,6 +94,10 @@ for scenario in "${scenarios[@]}"; do
     cmp -s <(jq -Sc . <<< "${CNTOOLS_TRANSACTION_UI_VIEW}") <(jq -Sc . "${TEST_ROOT}/${scenario}.hw-view") || fail 'hardware transform changed withdrawal semantics'
   fi
   sum="$(jq '[.outputs[].amount.lovelace] | add' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}")"
+  if [[ "${scenario}" == no-expiry ]]; then
+    jq -e '.validity.invalidHereafter == null' "${package}" >/dev/null || fail 'No expiry package has an upper bound'
+    jq -e '.["validity range"]["upper bound"] == null' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}" >/dev/null || fail 'No expiry body has an upper bound'
+  fi
   (( sum + CNTOOLS_WITHDRAW_FEE == 20000000 + CNTOOLS_WITHDRAW_REWARDS )) || {
     printf '%s\n' "${CNTOOLS_TRANSACTION_UI_VIEW}" >&2
     tail -25 "${TEST_ROOT}/test.log" >&2

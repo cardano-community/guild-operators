@@ -4,6 +4,7 @@
 
 CNTOOLS_TRANSACTION_MONITOR_STATE=""
 CNTOOLS_TRANSACTION_MONITOR_CONFIRMATIONS=""
+CNTOOLS_TRANSACTION_MONITOR_ELAPSED=""
 
 cntools_transaction_monitor_available() {
   [[ "${CNTOOLS_MODE:-offline}" != offline &&
@@ -66,6 +67,7 @@ cntools_transaction_monitor_run() {
   local status=0
   CNTOOLS_TRANSACTION_MONITOR_STATE=pending
   CNTOOLS_TRANSACTION_MONITOR_CONFIRMATIONS=""
+  CNTOOLS_TRANSACTION_MONITOR_ELAPSED=""
   cntools_ui_spin_function 'Waiting for block inclusion through Koios…' \
     cntools_transaction_monitor_poll "$1" || status=$?
   if (( status != 0 )); then
@@ -108,6 +110,12 @@ cntools_transaction_monitor_poll() {
       failures=0
       if [[ -n "${CNTOOLS_TRANSACTION_MONITOR_CONFIRMATIONS}" ]]; then
         CNTOOLS_TRANSACTION_MONITOR_STATE=included
+        if [[ "${CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_ID:-}" == "${transaction_id}" &&
+              "${CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS:-}" =~ ^[0-9]+$ ]] &&
+           (( SECONDS >= CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS )); then
+          CNTOOLS_TRANSACTION_MONITOR_ELAPSED=$((SECONDS - CNTOOLS_TRANSACTION_SUBMIT_ACCEPTED_SECONDS))
+          cntools_transaction_log TX "Koios inclusion observed id=${transaction_id} elapsed_seconds=${CNTOOLS_TRANSACTION_MONITOR_ELAPSED} since_submission_acceptance"
+        fi
         return 0
       fi
     fi

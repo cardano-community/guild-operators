@@ -566,6 +566,19 @@ cntools_transaction_cli_version_supported() {
   [[ "${1:-}" == "${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}" || "${1:-}" == 11.0.0.0 ]]
 }
 
+# Shelley slots on supported deployment networks are one second. A lifetime
+# of zero means no upper bound, represented by an empty value, never slot zero.
+cntools_transaction_expiry_into() {
+  local validity_slot="${2:-}" validity_lifetime="${3:-}" validity_end=""
+  [[ "${validity_lifetime}" =~ ^(0|1800|7200|86400)$ ]] || return 2
+  if [[ "${validity_lifetime}" != 0 ]]; then
+    [[ -n "${validity_slot}" ]] && cntools_transaction_slot_value_valid "${validity_slot}" || return 2
+    validity_end=$((validity_slot + validity_lifetime))
+    cntools_transaction_slot_value_valid "${validity_end}" || return 2
+  fi
+  printf -v "$1" '%s' "${validity_end}"
+}
+
 cntools_transaction_require_cli() {
   local version_output=""
   local error_output=""
