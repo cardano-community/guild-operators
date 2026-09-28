@@ -42,6 +42,7 @@ CNTOOLS_MENU_VALIDATED_ORDER=""
 CNTOOLS_MENU_VALIDATED_ADVANCED="false"
 CNTOOLS_MENU_VALIDATED_MODES=""
 CNTOOLS_MENU_VALIDATED_LIBS=""
+CNTOOLS_MENU_VALIDATED_KOIOS="false"
 
 # Temporary arrays used only while building a staged catalog. The committed
 # cache remains untouched until collection, parsing, and staging all succeed.
@@ -57,6 +58,7 @@ declare -ag CNTOOLS_MENU_CATALOG_ORDERS=()
 declare -ag CNTOOLS_MENU_CATALOG_ADVANCED=()
 declare -ag CNTOOLS_MENU_CATALOG_MODES=()
 declare -ag CNTOOLS_MENU_CATALOG_LIBS=()
+declare -ag CNTOOLS_MENU_CATALOG_KOIOS=()
 declare -ag CNTOOLS_MENU_CATALOG_HAS_CHILD_DIR=()
 declare -ag CNTOOLS_MENU_CATALOG_HAS_CHILD_LINK=()
 declare -Ag CNTOOLS_MENU_CATALOG_INDEX_BY_DIR=()
@@ -94,7 +96,7 @@ cntools_menu_validate_metadata() {
   local metadata="${module_directory}/module.json"
   local record=""
   local kind="" label="" description="" shortcut="" order=""
-  local advanced="false" modes="" libs="" sentinel=""
+  local advanced="false" modes="" libs="" koios="false" sentinel=""
   local module_name=""
   local child=""
   local bash_bin="${CNTOOLS_VALIDATION_BASH:-bash}"
@@ -109,6 +111,7 @@ cntools_menu_validate_metadata() {
   CNTOOLS_MENU_VALIDATED_ADVANCED="false"
   CNTOOLS_MENU_VALIDATED_MODES=""
   CNTOOLS_MENU_VALIDATED_LIBS=""
+  CNTOOLS_MENU_VALIDATED_KOIOS="false"
   [[ "${context}" == "root" || "${context}" == "child" ]] ||
     cntools_menu_fail "Unknown metadata validation context: ${context}" || return 1
   [[ -d "${module_directory}" && ! -L "${module_directory}" ]] ||
@@ -147,7 +150,8 @@ cntools_menu_validate_metadata() {
           type == "object" and
           has("kind") and has("label") and has("description") and
           has("shortcut") and has("order") and has("modes") and
-          ((keys - ["advanced", "description", "kind", "label", "libs", "modes", "order", "shortcut"]) | length == 0) and
+          ((keys - ["advanced", "description", "kind", "label", "libs", "modes", "order", "requiresKoios", "shortcut"]) | length == 0) and
+          ((has("requiresKoios") | not) or (.requiresKoios | type == "boolean")) and
           .kind == "action" and (.label | line) and (.description | line) and
           (.shortcut | type == "string" and test("^[a-z0-9]$")) and
           (.order | type == "number" and floor == . and
@@ -170,6 +174,7 @@ cntools_menu_validate_metadata() {
             ((.advanced // false) | tostring),
             ((.modes // []) | join(",")),
             ((.libs // []) | join(",")),
+            ((.requiresKoios // false) | tostring),
             "."
           ] | join("\u001f")
         else
@@ -186,7 +191,7 @@ cntools_menu_validate_metadata() {
   [[ -n "${record}" ]] ||
     cntools_menu_fail "Module metadata is invalid: ${metadata}" || return 1
   IFS=$'\037' read -r kind label description shortcut order advanced modes libs \
-    sentinel <<< "${record}"
+    koios sentinel <<< "${record}"
   [[ "${sentinel}" == "." ]] ||
     cntools_menu_fail "Module metadata record is invalid: ${metadata}" || return 1
 
@@ -222,6 +227,7 @@ cntools_menu_validate_metadata() {
   CNTOOLS_MENU_VALIDATED_ADVANCED="${advanced}"
   CNTOOLS_MENU_VALIDATED_MODES="${modes}"
   CNTOOLS_MENU_VALIDATED_LIBS="${libs}"
+  CNTOOLS_MENU_VALIDATED_KOIOS="${koios}"
 }
 
 cntools_menu_library_path() {
@@ -372,10 +378,21 @@ cntools_menu_open() {
       enabled="N"
       reason="Not available in ${CNTOOLS_MODE:-current} mode"
     fi
+    if [[ "${CNTOOLS_MENU_VALIDATED_KOIOS}" == "true" ]] &&
+       ! cntools_menu_koios_available; then
+      enabled="N"
+      reason="Koios unavailable"
+    fi
     cntools_menu_insert_item \
       "${child}" "${id}" "${name}" "${kind}" "${label}" \
       "${description}" "${shortcut}" "${order}" "${enabled}" "${reason}"
   done
+}
+
+cntools_menu_koios_available() {
+  [[ "${CNTOOLS_MODE:-offline}" != "offline" &&
+     "${CNTOOLS_KOIOS_ENABLED:-Y}" == "Y" &&
+     "${CNTOOLS_KOIOS_API:-}" == https://* ]]
 }
 
 cntools_menu_catalog_reset() {
@@ -391,6 +408,7 @@ cntools_menu_catalog_reset() {
   CNTOOLS_MENU_CATALOG_ADVANCED=()
   CNTOOLS_MENU_CATALOG_MODES=()
   CNTOOLS_MENU_CATALOG_LIBS=()
+  CNTOOLS_MENU_CATALOG_KOIOS=()
   CNTOOLS_MENU_CATALOG_HAS_CHILD_DIR=()
   CNTOOLS_MENU_CATALOG_HAS_CHILD_LINK=()
   CNTOOLS_MENU_CATALOG_INDEX_BY_DIR=()
@@ -451,7 +469,7 @@ cntools_menu_catalog_parse() {
   local output=""
   local record=""
   local index="" source="" kind="" label="" description="" shortcut=""
-  local order="" advanced="" modes="" libs="" sentinel=""
+  local order="" advanced="" modes="" libs="" koios="" sentinel=""
   local expected=0 count="${#CNTOOLS_MENU_CATALOG_METADATA[@]}"
 
   (( count > 0 )) || cntools_menu_fail "No module metadata was collected" || return 1
@@ -481,7 +499,8 @@ cntools_menu_catalog_parse() {
         type == "object" and
         has("kind") and has("label") and has("description") and
         has("shortcut") and has("order") and has("modes") and
-        ((keys - ["advanced", "description", "kind", "label", "libs", "modes", "order", "shortcut"]) | length == 0) and
+        ((keys - ["advanced", "description", "kind", "label", "libs", "modes", "order", "requiresKoios", "shortcut"]) | length == 0) and
+        ((has("requiresKoios") | not) or (.requiresKoios | type == "boolean")) and
         .kind == "action" and (.label | line) and (.description | line) and
         (.shortcut | type == "string" and test("^[a-z0-9]$")) and
         (.order | type == "number" and floor == . and
@@ -510,6 +529,7 @@ cntools_menu_catalog_parse() {
           (($module.advanced // false) | tostring),
           (($module.modes // []) | join(",")),
           (($module.libs // []) | join(",")),
+          (($module.requiresKoios // false) | tostring),
           "."
         ] | join("\u001f")
       else
@@ -521,7 +541,7 @@ cntools_menu_catalog_parse() {
   while IFS= read -r record; do
     [[ -n "${record}" ]] || continue
     IFS=$'\037' read -r index source kind label description shortcut order \
-      advanced modes libs sentinel <<< "${record}"
+      advanced modes libs koios sentinel <<< "${record}"
     [[ "${index}" =~ ^[0-9]+$ && "${index}" -eq "${expected}" &&
        "${source}" == "${CNTOOLS_MENU_CATALOG_METADATA[expected]}" &&
        "${sentinel}" == "." ]] ||
@@ -534,6 +554,7 @@ cntools_menu_catalog_parse() {
     CNTOOLS_MENU_CATALOG_ADVANCED[index]="${advanced}"
     CNTOOLS_MENU_CATALOG_MODES[index]="${modes}"
     CNTOOLS_MENU_CATALOG_LIBS[index]="${libs}"
+    CNTOOLS_MENU_CATALOG_KOIOS[index]="${koios}"
     (( expected += 1 ))
   done <<< "${output}"
   (( expected == count )) ||
@@ -623,6 +644,11 @@ cntools_menu_catalog_open() {
           ",${modes}," != *",${CNTOOLS_MODE:-local},"* ]]; then
       enabled="N"
       reason="Not available in ${CNTOOLS_MODE:-current} mode"
+    fi
+    if [[ "${CNTOOLS_MENU_CATALOG_KOIOS[child_index]}" == "true" ]] &&
+       ! cntools_menu_koios_available; then
+      enabled="N"
+      reason="Koios unavailable"
     fi
     cntools_menu_insert_item \
       "${path}" "${id}" "${name}" "${kind}" "${label}" \

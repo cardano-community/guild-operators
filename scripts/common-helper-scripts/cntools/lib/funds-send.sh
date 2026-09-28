@@ -30,7 +30,7 @@ cntools_send_prepare_wallet() {
   cntools_wallet_prepare_selected_material "${directory}" || return 1
   CNTOOLS_SEND_TYPE="$(cntools_wallet_type "${directory}")" || return 1
   [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || {
-    cntools_send_fail "Multisig spending is not available in this Send slice."; return 1;
+    cntools_send_fail "Multisig spending is not yet supported for this action."; return 1;
   }
   CNTOOLS_SEND_ADDRESS=""; CNTOOLS_SEND_PAYMENT=""; CNTOOLS_SEND_SOURCE=""
   cntools_wallet_read_address "${directory}" payment CNTOOLS_SEND_PAYMENT || {
@@ -159,8 +159,8 @@ cntools_send_demands() {
 
 cntools_send_plan_signers() {
   local group="" stake_source=""
-  cntools_transaction_plan_reset "Send funds" \
-    "Transfer from ${CNTOOLS_SEND_WALLET}; rewards and deposits are not withdrawn." exact || return 1
+  cntools_transaction_plan_reset "${1:-Send funds}" \
+    "${2:-Transfer from ${CNTOOLS_SEND_WALLET}; rewards and deposits are not withdrawn.}" exact || return 1
   [[ "${CNTOOLS_SEND_TYPE}" != Hardware ]] || group=send-wallet
   cntools_transaction_plan_add_signer "${CNTOOLS_SEND_WALLET} payment" spending \
     "${CNTOOLS_SEND_VKEY}" "${CNTOOLS_SEND_SOURCE}" "${CNTOOLS_SEND_CREDENTIAL}" "${group}" || return 1

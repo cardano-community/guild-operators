@@ -147,7 +147,7 @@ Mode and node implementation are separate values:
 
 | Mode | Blockchain backend | Network access |
 | --- | --- | --- |
-| `local` | The deployed cnode, Dingo, or Amaru implementation | Local implementation interfaces; optional Koios metadata enrichment |
+| `local` | The deployed cnode, Dingo, or Amaru implementation | Local interfaces; Koios enrichment, history/UTxO browsing and optional inclusion monitoring |
 | `light` | Koios | Koios query and submission endpoints |
 | `offline` | None | Prohibited |
 
@@ -252,6 +252,8 @@ The complete metadata vocabulary is:
   `offline`.
 - `libs`: optional for actions and defaults to an empty list. Entries are
   relative `.sh` paths beneath `lib/` and are loaded in declaration order.
+- `requiresKoios`: optional boolean for actions, default `false`; disables the
+  action when Koios is disabled/unconfigured or CNTools is offline.
 - `advanced`: optional on menus only and defaults to `false`. When `true`, the
   visibility restriction is inherited by every descendant.
 
@@ -726,6 +728,59 @@ background colors because its print renderer misapplies header styling to the
 first data row; the section label above each table carries the Koios accent
 instead.
 
+## Wallet transaction and UTxO browsers
+
+**Wallet → Transaction List** and **Wallet → UTxO List** are read-only Koios
+views, available in local and light mode when Koios is enabled and configured.
+They do not require a reachable local node. Select a wallet and lookup scope, then choose 1–10
+items per page; pressing Enter uses the displayed default of **5**.
+
+Both views offer payment-credential or stake-address lookup when the wallet has
+both. Payment lookup uses the payment script credential for MultiSig wallets and
+covers base and enterprise addresses sharing that credential. Stake lookup covers
+all addresses linked to the stake address, including different payment keys, but
+not enterprise/payment-only addresses. The available scope is selected automatically
+for payment-only or stake-only wallets. No private key or stake registration is
+required if valid public lookup material exists; missing public artifacts are
+prepared using the existing wallet helpers. The overview identifies the scope.
+
+- Transactions: fetch `credential_txs` (POST) or `account_txs?_stake_address=…`
+  (GET) once, without filters or limits, preserving
+  its descending block order. Fetch `tx_info` only for the current page or an
+  explicit detail lookup, with all eight optional flags enabled. Previously
+  visited pages are cached for the visit. Summary amounts are **total transaction
+  outputs**, not wallet net balance changes.
+- UTxOs: fetch `credential_utxos?is_spent=eq.false` or
+  `account_utxos?is_spent=eq.false` once with `_extended: true`.
+  Show the returned count and counts by address; summarize each output with its
+  ADA, assets, creation date, and datum/script indicators. At most three assets
+  appear in an output summary; Details contains the complete list.
+- At exactly 1,000 matches, display the Koios limit warning. Counts describe the
+  returned snapshot, not a guarantee of complete wallet history. Reopen the
+  action to refresh; outputs can be spent after the snapshot was collected.
+- Next/Previous appear only where applicable. Details accepts the global item
+  number; transaction details also accept a direct transaction ID. Full API data
+  is layered into tables with nested field paths, including metadata, scripts,
+  collateral and governance. The separate viewer returns with **q**.
+- Asset names and decimal amounts are opt-in and reuse the shared one-day Koios
+  metadata cache. Raw identities and smallest-unit quantities remain visible.
+  Declining metadata does not make enrichment calls. Metadata is display-only.
+
+Requests use the existing authenticated, replayable API logging. Responses and
+rendered detail files use protected temporary files, removed on action cleanup.
+Transport/schema errors are not mistaken for empty wallets. Page responses must
+contain exactly the requested transaction IDs, and are reordered to match the
+inventory before numbering. API response size is bounded at 32 MiB.
+
+Human timestamp displays use `cntools_timestamp_datetime_into`; slot expiry and
+virtual Handle lease displays share this date path and the `BLOCKLOG_TZ` setting
+from `env` (`CNTOOLS_TIMEZONE`, default UTC). Machine timestamps in logs and
+transaction packages retain their existing formats.
+
+The optional boolean `requiresKoios` action metadata disables these entries when
+Koios is disabled/unconfigured or CNTools is offline. A request-time availability
+error still handles an unreachable service without preventing CNTools startup.
+
 ## Phase 8 CLI wallet creation slice
 
 Phase 8 activates **Wallet → New → CLI**. The action creates a deliberately
@@ -958,6 +1013,43 @@ Send, Withdraw Rewards, Register, De-Register and standalone Sign/Submit:
 lifecycle operations; the Send, withdrawal and Sign/Submit suites cover their
 respective orchestration. No workflow test submits a real transaction.
 
+## Funds UTxO collection
+
+**Funds → Collect UTxOs** consolidates a key wallet's base and payment UTxOs back
+to its verified base address (or payment address for a payment-only wallet).
+Choose **ADA-only UTxOs** or **ADA and native assets**. Datum-bearing and
+reference-script outputs are always excluded and their count is shown. Rewards,
+stake deposits, registration and delegation are unchanged. Multisig/script
+spending is not supported.
+
+Collection uses current local/Koios funding data, exact integer quantities, the
+shared payment/hardware signer plan, and explicit fee convergence. The selected
+inputs are rechecked before live signing and submission. Only the payment witness
+is required; base-address hardware change still carries both public derivation
+references. Encrypted/public-only wallets can export unsigned packages for
+**Transaction → Sign → Submit**. Transaction creation needs current chain data;
+offline signing does not.
+
+Saved token-fragmentation, percentage-based ADA management and collateral
+settings apply without asking for them again. The review shows selected funds,
+excluded inputs, resulting outputs, fee, expiry (including No expiry) and all
+applied policies. A warning explains when change settings create as many or more
+outputs than were selected. With shaping disabled, an already-consolidated
+single output is rejected as a no-op.
+Ordinary ADA-only collateral candidates are eligible inputs too; enable
+collateral management in Settings to recreate one when needed.
+
+Collection is one reviewed transaction, not an unattended series of batches.
+More than 1,000 eligible inputs, an oversized transaction/value or insufficient
+ADA fail safely without silently dropping inputs or assets. Try ADA-only scope
+or adjust fragmentation where appropriate. Submission uses the shared confirmation,
+retained signed package and optional Koios inclusion monitor.
+
+Tests cover selection exclusions, no-ops, state changes, cancellation, offline,
+sign-only and live workflow orchestration. The node-free pinned CLI tests cover
+ADA-only consolidation, exact large native-asset quantities, change shaping and
+durable unsigned exports; no test submits real funds.
+
 ## Funds reward withdrawal slice
 
 **Funds → Withdraw Rewards** withdraws the full, exact claimable reward balance
@@ -1008,6 +1100,67 @@ with verified deployment-pinned CLI binaries and tests ADA/token conservation,
 small rewards, change management, and durable package publication. CI invokes
 it from the existing pinned-binary suite. No test submits a transaction.
 
+## Funds stake pool delegation slice
+
+**Funds → Delegate** delegates or re-delegates a complete CLI, mnemonic or
+standard hardware wallet to a stake pool. Choose **Enter pool ID** (checksummed
+`pool1…` or 28-byte hexadecimal hash) or **Local pool**. Local selection derives
+the ID from the pool cold verification key, falling back to the stored pool ID
+when no public key is available; it never reads the pool signing key. Existing
+`POOL_COLDKEY_VK_FILENAME` and `POOL_ID_FILENAME` overrides are respected.
+
+The current stake pool and selected target are shown separately. Pool IDs do not
+encode a network: the target must exist in a successful query against the selected
+network. Local mode uses `latest query pool-state`; the Koios path uses a focused
+`pool_info` request, with optional name/ticker metadata clearly labeled. Metadata
+URLs are never fetched. Missing/retired pools, mismatched identities, duplicate
+results and malformed responses are rejected. A scheduled retirement is shown
+and needs explicit confirmation. Selecting the current pool does not create a
+redundant transaction.
+
+If the stake address is not registered, the operator must approve the current
+protocol deposit before CNTools constructs one registration-and-stake-delegation
+certificate. Already-registered wallets pay only the transaction fee. Reward
+balances and DRep delegation are not changed. The result screen reminds users
+that, under current Conway rules, reward withdrawal requires DRep voting
+delegation, including Abstain/No Confidence; ordinary transfers are unaffected.
+See [CIP-1694](https://cips.cardano.org/cip/cip-1694). No voting choice is made
+automatically by this action.
+
+The existing shared stake workflow supplies expiry (including No expiry), compact
+review, signer inspection, CLI/hardware signing, unsigned or signed portable
+packages, submission and optional Koios inclusion monitoring. The existing coin
+selection and change policies apply. Delegation explicitly balances outputs,
+deposit and fee using exact integer helpers plus the pinned CLI's minimum-output
+and minimum-fee checks; it does not use `build-estimate` for balancing. This avoids
+the double-counted registration deposit and empty-output balancing discrepancies
+reproduced against deployment pins 11.2.3.1 and 11.0.0.0. Standalone Register and
+De-Register share this balancing path, with pinned regression tests for ADA-only
+and token-bearing inputs, expiry/no-expiry, deposit/refund conservation and signing.
+De-Register refunds the recorded stake deposit, even when it differs from the
+current protocol deposit. No transaction is submitted by these tests.
+
+The target certificate, stake credential, deposit, change destination, fee and
+absence of voting/withdrawal changes are checked against the decoded body before
+signing, including after hardware normalization. Reference-script inputs are
+not supported by this slice. Before live signing and submission, selected inputs,
+expiry, registration/delegation state, any required registration deposit and the
+pool's retirement schedule are rechecked. A changed or unavailable state stops
+the flow without silently rebuilding; an already-saved signed package is retained.
+Offline signing uses the reviewed frozen body; the submission backend ultimately
+validates current ledger state.
+
+Focused tests: `cntools-funds-delegate.sh`, the shared transaction-flow suite, and
+`cntools-delegate-pinned.sh` (invoked by the pinned-binary CI suite). The latter
+builds/signs registered and unregistered cases with token change and checks deposit
+conservation and validity bounds. Hardware normalization runs when the pinned
+hardware tool is supplied; physical device approval and live inclusion remain
+manual acceptance checks.
+
+Pool response contracts were checked against
+[Koios v1.4.2 pool_info](https://github.com/cardano-community/koios-artifacts/blob/v1.4.2/files/grest/rpc/pool/pool_info.sql)
+and the [pinned CLI pool-state schema](https://github.com/IntersectMBO/cardano-cli/blob/cardano-cli-11.2.3.1/cardano-cli/src/Cardano/CLI/Type/Common.hs).
+
 ## Wallet stake lifecycle slice
 
 Wallet Register and De-Register are the first actions built on the shared
@@ -1022,12 +1175,18 @@ shared deterministic selector. Cardano CLI returns remaining ADA and every
 touched native asset to the base address and the signer plan requires exactly
 the payment key for spending and the stake key for the certificate.
 
-A ready local node supplies stake state, UTxOs, protocol parameters, balancing,
-and submission. When the local backend cannot supply the construction data,
+A ready local node supplies stake state, UTxOs, protocol parameters and
+submission. When the local backend cannot supply the construction data,
 CNTools may fall back to enabled Koios access. Light mode uses one bulk
 `address_utxos` request for both funding addresses, plus focused
-`account_info` and `cli_protocol_params` requests, then uses the pinned Cardano
-CLI `build-estimate` path. UTxO quantities remain decimal strings while CNTools
+`account_info` and `cli_protocol_params` requests. Register and De-Register use explicit
+`build-raw` balancing in both modes: the deposit is charged or refunded exactly once,
+all change outputs meet minimum ADA, and fees converge using the pinned CLI,
+including a check after hardware normalization. Reference-script inputs are
+rejected because their extra fees are not supported by this builder.
+De-Register checks that outputs plus fees equal selected inputs plus the recorded
+stake deposit refund; any remaining rewards must be withdrawn first.
+UTxO quantities remain decimal strings while CNTools
 selects and aggregates them, including native assets, so large values are not
 converted through floating point. The exact external commands and replayable
 Koios calls are recorded by the normal audit logger.
@@ -1049,7 +1208,8 @@ deficit relative to existing eligible outputs: first a 5 ADA collateral
 candidate when missing, then useful percentage-based outputs calculated from
 one frozen remaining-change amount. Neither policy selects extra inputs only
 to improve wallet shape. The standard residual change remains with the wallet;
-UTxO collection is intentionally reserved for a future explicit Funds action.
+**Funds → Collect UTxOs** is the explicit exception: it selects all eligible
+inputs in the chosen scope instead of selecting only enough to fund an action.
 The transaction review and portable package record both the configured policy
 and its applied selection/change result.
 

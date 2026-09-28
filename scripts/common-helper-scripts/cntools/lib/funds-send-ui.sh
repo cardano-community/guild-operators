@@ -25,12 +25,12 @@ cntools_send_choose() {
 }
 
 cntools_send_review_virtual() {
-  local resolution="$1" lease="" expires="" expires_label="" public="" TZ=UTC
+  local resolution="$1" lease="" expires="" expires_label="" public=""
   [[ "$(jq -r '.type' <<< "${resolution}")" == virtual-subhandle ]] || return 0
   lease="$(jq -r '.virtual.leaseStatus' <<< "${resolution}")"
   expires="$(jq -r '.virtual.expiresTimeMs' <<< "${resolution}")"
   public="$(jq -r '.virtual.publicMint' <<< "${resolution}")"
-  printf -v expires_label '%(%Y-%m-%d %H:%M:%S UTC)T' "$((expires/1000))"
+  cntools_timestamp_datetime_into expires_label "$((expires/1000))" || return 1
   {
     printf 'Handle detail\tValue\n'
     cntools_transaction_ui_styled_row 'Virtual lease' "$([[ "${public}" == true ]] && printf Public || printf Private) · ${lease}" value

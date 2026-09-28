@@ -179,23 +179,7 @@ cntools_withdraw_build_into() {
 }
 
 cntools_withdraw_validate_output() {
-  local output="$1" part="" value_bytes=12 maximum="" minimum="" amount=""
-  local -a parts=()
-  maximum="$(jq -er '.maxValueSize | select(type == "number" and . > 0 and . <= 100000)' "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
-  read -r -a parts <<< "${output}"
-  for part in "${parts[@]}"; do
-    if [[ "${part}" =~ ^[0-9a-f]{56}(\.([0-9a-f]{2}){0,32})?$ ]]; then
-      value_bytes=$((value_bytes + 52 + (${#part} - 56) / 2))
-    fi
-  done
-  (( value_bytes <= maximum )) || {
-    cntools_withdraw_fail 'A token change bundle exceeds the conservative value-size limit. Enable token fragmentation or lower its maximum assets per output.'; return 1;
-  }
-  cntools_transaction_calculate_min_utxo_into minimum "${CNTOOLS_FUNDING_PROTOCOL}" "${output}" || return 1
-  amount="${output#*+}"; amount="${amount%% *}"
-  cntools_uint_greater_equal "${amount}" "${minimum}" || {
-    cntools_withdraw_fail 'A withdrawal change output does not contain the minimum required ADA.'; return 1;
-  }
+  cntools_transaction_validate_change_output "$1" "${CNTOOLS_FUNDING_PROTOCOL}"
 }
 
 cntools_withdraw_refresh_build_into() {

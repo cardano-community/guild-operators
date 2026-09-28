@@ -1,0 +1,25 @@
+{
+  "kind": "action",
+  "label": "UTxO List",
+  "description": "Browse unspent wallet outputs through Koios",
+  "shortcut": "u",
+  "order": 110,
+  "modes": [
+    "local",
+    "light"
+  ],
+  "requiresKoios": true,
+  "libs": [
+    "number.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "asset.sh",
+    "asset-cache.sh",
+    "wallet-query.sh",
+    "wallet-history.sh",
+    "wallet-history-ui.sh"
+  ]
+}

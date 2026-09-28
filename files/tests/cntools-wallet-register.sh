@@ -146,30 +146,57 @@ case "${path}" in
     description="Stake registration"
     [[ "${path}" != *'/deregistration-certificate' ]] ||
       description="Stake de-registration"
-    jq -n --arg description "${description}" '
+    deposit="$(arg_value --key-reg-deposit-amt "$@")"
+    jq -n --arg description "${description}" --argjson deposit "${deposit}" '
       {type: "CertificateConway", description: $description,
+       fakeDeposit: $deposit,
        cborHex: "82008200581caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
     ' > "${output}"
     ;;
   latest/transaction/calculate-min-required-utxo)
     printf 'Lovelace 1000000\n'
     ;;
-  latest/transaction/build|latest/transaction/build-estimate)
+  latest/transaction/calculate-min-fee)
+    printf '180000 Lovelace\n'
+    ;;
+  latest/transaction/build|latest/transaction/build-estimate|latest/transaction/build-raw)
     output="$(arg_value --out-file "$@")"
     required='[]'
+    outputs='[]'
     arguments=("$@")
+    for (( index = 0; index < ${#arguments[@]}; index++ )); do
+      [[ "${arguments[index]}" == "--tx-out" ]] || continue
+      value="${arguments[index + 1]}"
+      address="${value%%+*}"
+      amount="${value#*+}"; amount="${amount%% *}"
+      outputs="$(jq -c --arg address "${address}" --argjson amount "${amount}" '. + [{address:$address,amount:{lovelace:$amount}}]' <<< "${outputs}")"
+    done
     for (( index = 0; index < ${#arguments[@]}; index++ )); do
       [[ "${arguments[index]}" == "--required-signer-hash" ]] || continue
       required="$(jq -c --arg value "${arguments[index + 1]}" \
         '. + [$value]' <<< "${required}")"
     done
     expiry="$(arg_value --invalid-hereafter "$@" || printf null)"
-    jq -n --argjson required "${required}" --argjson expiry "${expiry}" '
+    fee="$(arg_value --fee "$@" || printf 0)"
+    certificate="$(arg_value --certificate-file "$@")"
+    kind='Stake address registration'
+    deposit_field=deposit
+    [[ "$(jq -r '.description' "${certificate}")" != 'Stake de-registration' ]] || kind='Stake address deregistration'
+    [[ "${kind}" != 'Stake address deregistration' ]] || deposit_field=refund
+    deposit="$(jq -r '.fakeDeposit' "${certificate}")"
+    jq -n --argjson required "${required}" --argjson expiry "${expiry}" \
+      --arg kind "${kind}" --arg depositField "${deposit_field}" --argjson deposit "${deposit}" \
+      --argjson outputs "${outputs}" --arg fee "${fee} Lovelace" '
       {
         type: "Tx ConwayEra",
         description: "Fake registration transaction",
         cborHex: "aa00",
         fakeView: {
+          fee: $fee, outputs: $outputs,
+          certificates: [{($kind): {
+            ($depositField): $deposit,
+            "stake credential": {keyHash:"22222222222222222222222222222222222222222222222222222222"}
+          }}],
           "validity range": {"lower bound": null, "upper bound": $expiry},
           "required signers (payment key hashes needed for scripts)": $required,
           "reference inputs": [],
@@ -421,7 +448,7 @@ test_registration_package() {
   local build_trace=""
   local token_change="addr_test1_base+1000000 + 5 ${POLICY}.${ASSET_NAME}"
 
-  jq -n '{stakeAddressDeposit: 2000000}' > "${protocol}"
+  cp "${REPO_ROOT}/files/tests/fixtures/transaction-protocol-conway.json" "${protocol}"
   chmod 0600 "${protocol}"
   cntools_wallet_register_operation_set register
   cntools_wallet_register_reset_chain_state
@@ -429,16 +456,12 @@ test_registration_package() {
   CNTOOLS_WALLET_REGISTER_SOURCE="Koios API · https://preview.koios.rest/api/v1"
   CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE="${protocol}"
   CNTOOLS_WALLET_REGISTER_DEPOSIT="2000000"
-  CNTOOLS_WALLET_REGISTER_LOVELACE="7500000"
-  CNTOOLS_WALLET_REGISTER_INPUTS=("${TX_A}#0" "${TX_B}#1")
-  CNTOOLS_WALLET_REGISTER_ASSET_IDS=("${POLICY}.${ASSET_NAME}")
-  CNTOOLS_WALLET_REGISTER_ASSETS["${POLICY}.${ASSET_NAME}"]="5"
-  cntools_wallet_register_total_value_build
-  CNTOOLS_CHANGE_OUTPUTS=("${token_change}")
-  CNTOOLS_CHANGE_OUTPUT_TYPES=("Token change")
-  CNTOOLS_CHANGE_OUTPUT_LOVELACE=("1000000")
-  CNTOOLS_CHANGE_OUTPUT_ASSET_COUNTS=("1")
-  CNTOOLS_WALLET_REGISTER_POLICY_JSON="$(cntools_change_policy_json)"
+  cntools_utxo_add "${TX_A}#0" addr_test1_base 3000000 N N
+  cntools_utxo_add_asset 0 "${POLICY}.${ASSET_NAME}" 2
+  cntools_utxo_add "${TX_B}#1" addr_test1_payment 4500000 N N
+  cntools_utxo_add_asset 1 "${POLICY}.${ASSET_NAME}" 3
+  cntools_wallet_register_inventory_use_all
+  cntools_wallet_register_select_inputs
   cntools_wallet_register_build_package_into package ||
     fail "registration transaction package could not be built: ${CNTOOLS_WALLET_REGISTER_ERROR}"
   cntools_transaction_package_load "${package}" ||
@@ -460,20 +483,20 @@ test_registration_package() {
     ' "${CNTOOLS_TRANSACTION_PACKAGE_FILE}" >/dev/null ||
     fail "registration package metadata or signer plan is incorrect"
   build_trace="$(jq -c \
-    'select(.[0:3] == ["latest", "transaction", "build-estimate"])' \
+    'select(.[0:3] == ["latest", "transaction", "build-raw"])' \
     "${CLI_TRACE}" | tail -n 1)"
-  [[ -n "${build_trace}" ]] || fail "build-estimate was not invoked"
+  [[ -n "${build_trace}" ]] || fail "build-raw was not invoked"
   jq -e --arg first "${TX_A}#0" --arg second "${TX_B}#1" \
     --arg change "${token_change}" \
-    --arg total "7500000 + 5 ${POLICY}.${ASSET_NAME}" '
-      (index("--shelley-key-witnesses") != null) and
-      (index("2") != null) and
+    --arg residual "addr_test1_base+4320000" '
+      (index("--fee") != null) and (index("180000") != null) and
       (index($first) != null) and (index($second) != null) and
       (index($change) != null) and
-      (index($total) != null) and
+      (index($residual) != null) and
+      (index("--total-utxo-value") == null) and
       (index("--certificate-file") != null)
     ' <<< "${build_trace}" >/dev/null ||
-    fail "build-estimate did not receive the complete registration inputs"
+    fail "build-raw did not preserve inputs or deduct the deposit exactly once"
   assert_file_contains "${CLI_TRACE}" '"--key-reg-deposit-amt","2000000"' \
     "registration certificate deposit"
   cntools_transaction_cleanup
@@ -486,23 +509,22 @@ test_deregistration_package() {
   local build_trace=""
   local token_change="addr_test1_base+1000000 + 5 ${POLICY}.${ASSET_NAME}"
 
-  jq -n '{stakeAddressDeposit: 2000000}' > "${protocol}"
+  cp "${REPO_ROOT}/files/tests/fixtures/transaction-protocol-conway.json" "${protocol}"
   chmod 0600 "${protocol}"
   cntools_wallet_register_operation_set deregister
   cntools_wallet_register_reset_chain_state
   CNTOOLS_WALLET_REGISTER_BACKEND="koios"
+  [[ "${CNTOOLS_WALLET_REGISTER_LIFETIME}" != 0 ]] || CNTOOLS_WALLET_REGISTER_BACKEND=local
   CNTOOLS_WALLET_REGISTER_SOURCE="Koios API · https://preview.koios.rest/api/v1"
   CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE="${protocol}"
-  CNTOOLS_WALLET_REGISTER_DEPOSIT="2000000"
-  CNTOOLS_WALLET_REGISTER_LOVELACE="7500000"
-  CNTOOLS_WALLET_REGISTER_INPUTS=("${TX_A}#0" "${TX_B}#1")
-  CNTOOLS_WALLET_REGISTER_ASSET_IDS=("${POLICY}.${ASSET_NAME}")
-  CNTOOLS_WALLET_REGISTER_ASSETS["${POLICY}.${ASSET_NAME}"]="5"
-  cntools_wallet_register_total_value_build
-  CNTOOLS_CHANGE_OUTPUTS=("${token_change}")
-  CNTOOLS_CHANGE_OUTPUT_TYPES=("Token change")
-  CNTOOLS_CHANGE_OUTPUT_LOVELACE=("1000000")
-  CNTOOLS_CHANGE_OUTPUT_ASSET_COUNTS=("1")
+  CNTOOLS_WALLET_REGISTER_DEPOSIT="2345678"
+  cntools_utxo_add "${TX_A}#0" addr_test1_base 3000000 N N
+  cntools_utxo_add_asset 0 "${POLICY}.${ASSET_NAME}" 2
+  cntools_utxo_add "${TX_B}#1" addr_test1_payment 4500000 N N
+  cntools_utxo_add_asset 1 "${POLICY}.${ASSET_NAME}" 3
+  cntools_wallet_register_inventory_use_all
+  cntools_coin_select_lovelace 7500000 balanced
+  cntools_change_plan_stake deregister 2345678 180000 "${protocol}" addr_test1_base
   CNTOOLS_WALLET_REGISTER_POLICY_JSON="$(cntools_change_policy_json)"
   cntools_wallet_register_build_package_into package ||
     fail "de-registration transaction package could not be built: ${CNTOOLS_WALLET_REGISTER_ERROR}"
@@ -517,28 +539,30 @@ test_deregistration_package() {
     --arg stake "${STAKE_CREDENTIAL}" '
       .intent.kind == "Wallet stake de-registration" and
       .intent.summary.action == "stake-address-deregistration" and
-      .intent.summary.depositLovelace == "2000000" and
+      .intent.summary.depositLovelace == "2345678" and
       .intent.summary.depositEffect == "refunded" and
       .intent.summary.inputCount == "2" and
       ([.signing.required[].credential] | sort) == ([$payment, $stake] | sort)
     ' "${CNTOOLS_TRANSACTION_PACKAGE_FILE}" >/dev/null ||
     fail "de-registration package metadata or signer plan is incorrect"
   build_trace="$(jq -c \
-    'select(.[0:3] == ["latest", "transaction", "build-estimate"])' \
+    'select(.[0:3] == ["latest", "transaction", "build-raw"])' \
     "${CLI_TRACE}" | tail -n 1)"
   [[ -n "${build_trace}" ]] ||
-    fail "de-registration did not invoke build-estimate"
+    fail "de-registration did not invoke build-raw"
   jq -e --arg first "${TX_A}#0" --arg second "${TX_B}#1" \
     --arg change "${token_change}" \
-    --arg total "7500000 + 5 ${POLICY}.${ASSET_NAME}" '
-      (index("--shelley-key-witnesses") != null) and
-      (index("2") != null) and
+    --arg residual "addr_test1_base+8665678" '
+      (index("--fee") != null) and (index("180000") != null) and
       (index($first) != null) and (index($second) != null) and
       (index($change) != null) and
-      (index($total) != null) and
+      (index($residual) != null) and
+      (index("--total-utxo-value") == null) and
       (index("--certificate-file") != null)
     ' <<< "${build_trace}" >/dev/null ||
-    fail "de-registration build-estimate did not receive all inputs"
+    fail "de-registration did not return the historical deposit exactly once"
+  assert_file_contains "${CLI_TRACE}" '"--key-reg-deposit-amt","2345678"' \
+    "de-registration certificate historical refund"
   assert_file_contains "${CLI_TRACE}" \
     '"latest","stake-address","deregistration-certificate"' \
     "stake de-registration certificate command"

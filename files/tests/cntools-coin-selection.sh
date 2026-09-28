@@ -191,11 +191,47 @@ test_percentage_change_management() {
     "change management did not pull housekeeping inputs"
 }
 
+test_registration_residual_minimum() {
+  local status=0
+  set_defaults
+  CNTOOLS_TX_UTXO_MANAGEMENT=N
+  CNTOOLS_TX_UTXO_MIN_LOVELACE=1000000
+  cntools_utxo_reset
+  cntools_utxo_add "${TX_A}#0" addr_test1wallet 3200000 N N
+  cntools_coin_select_lovelace 1 balanced
+  cntools_change_plan_stake register 2000000 300000 \
+    /unused/protocol.json addr_test1wallet || status=$?
+  assert_eq "${status}" 3 "registration requires a valid residual output"
+  assert_eq "${CNTOOLS_CHANGE_REQUIRED_EXTRA}" 100000 "registration minimum-change shortfall"
+  cntools_change_plan_stake register 2000000 200000 \
+    /unused/protocol.json addr_test1wallet || fail "exact minimum change rejected"
+  assert_eq "${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}" 1000000 "registration exact minimum change"
+}
+
+test_deregistration_refund_change() {
+  local status=0
+  set_defaults
+  CNTOOLS_TX_UTXO_MANAGEMENT=N
+  CNTOOLS_TX_UTXO_MIN_LOVELACE=1000000
+  cntools_utxo_reset
+  cntools_utxo_add "${TX_A}#0" addr_test1wallet 100000 N N
+  cntools_coin_select_lovelace 1 balanced
+  cntools_change_plan_stake deregister 2345678 180000 \
+    /unused/protocol.json addr_test1wallet || fail "refund-funded fees rejected"
+  assert_eq "${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}" 2265678 "historical refund credited exactly once"
+  cntools_change_plan_stake deregister 2345678 2000000 \
+    /unused/protocol.json addr_test1wallet || status=$?
+  assert_eq "${status}" 3 "refund change must still meet minimum ADA"
+  assert_eq "${CNTOOLS_CHANGE_REQUIRED_EXTRA}" 554322 "refund change shortfall"
+}
+
 test_exact_integer_helpers
 test_fee_reserve
 test_balanced_selection
 test_fewest_input_selection
 test_token_fragmentation
 test_percentage_change_management
+test_registration_residual_minimum
+test_deregistration_refund_change
 
 printf 'CNTools coin-selection and change-planning tests passed\n'

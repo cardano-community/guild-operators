@@ -46,6 +46,8 @@ jobs:
       run: bash files/tests/cntools-settings.sh
     - name: Test CNTools wallet actions
       run: bash files/tests/cntools-wallet.sh
+    - name: Test CNTools Koios wallet browsers
+      run: bash files/tests/cntools-wallet-history.sh
     - name: Test CNTools wallet creation
       run: bash files/tests/cntools-wallet-new.sh
     - name: Test CNTools mnemonic wallets
@@ -86,6 +88,10 @@ jobs:
       run: bash files/tests/cntools-transaction-flow.sh
     - name: Test shared transaction expiry
       run: bash files/tests/cntools-transaction-validity.sh
+    - name: Test CNTools stake pool delegation
+      run: bash files/tests/cntools-funds-delegate.sh
+    - name: Test CNTools UTxO collection
+      run: bash files/tests/cntools-funds-collect.sh
     - name: Cache pinned CNTools transaction tools
       uses: actions/cache@v4
       with:

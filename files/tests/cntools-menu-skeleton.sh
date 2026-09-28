@@ -137,19 +137,19 @@ write_legacy_inventory | LC_ALL=C sort > "${actual_inventory}"
 diff -u "${expected_inventory}" "${actual_inventory}" ||
   fail "CNTools legacy menu hierarchy differs from the Phase 4 inventory"
 
-assert_eq "$(wc -l < "${MENU_FIXTURE}" | trim_count)" "73" \
+assert_eq "$(wc -l < "${MENU_FIXTURE}" | trim_count)" "76" \
   "module inventory count"
 assert_eq "$(grep -c $'\tmenu\t' "${MENU_FIXTURE}" | trim_count)" "16" \
   "menu inventory count"
-assert_eq "$(grep -c $'\taction\t' "${MENU_FIXTURE}" | trim_count)" "57" \
+assert_eq "$(grep -c $'\taction\t' "${MENU_FIXTURE}" | trim_count)" "60" \
   "action inventory count"
-assert_eq "$(find "${MODULE_ROOT}" -type d -print | wc -l | trim_count)" "77" \
+assert_eq "$(find "${MODULE_ROOT}" -type d -print | wc -l | trim_count)" "80" \
   "Phase 5 module directory count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -name module.json -print | wc -l | trim_count)" "77" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -name module.json -print | wc -l | trim_count)" "80" \
   "Phase 5 module metadata count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -name action.sh -print | wc -l | trim_count)" "60" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -name action.sh -print | wc -l | trim_count)" "63" \
   "Phase 5 action entrypoint count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -print | wc -l | trim_count)" "137" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -print | wc -l | trim_count)" "143" \
   "Phase 7 module payload file count"
 [[ -z "$(find "${MODULE_ROOT}" -type l -print)" ]] ||
   fail "CNTools menu skeleton contains a symbolic link"
@@ -317,6 +317,11 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_wallet_action_show' "${action_file}" >/dev/null ||
           fail "Wallet Show does not call its functional entrypoint"
         ;;
+      wallet/transactions|wallet/utxos)
+        jq -e '.requiresKoios == true and (.libs | index("wallet-history-ui.sh") != null)' "${metadata}" >/dev/null ||
+          fail "Wallet browser is missing its Koios requirement or shared UI"
+        grep -F 'cntools_history_action' "${action_file}" >/dev/null || fail "Wallet browser entrypoint missing"
+        ;;
       wallet/remove)
         jq -e '.libs == [
           "number.sh",
@@ -399,6 +404,17 @@ while IFS=$'\t' read -r \
           grep -F 'cntools_wallet_action_deregister' "${action_file}" >/dev/null ||
             fail "Wallet De-Register does not call its functional entrypoint"
         fi
+        ;;
+      funds/collect)
+        jq -e '.libs | index("funds-collect.sh") != null and index("funds-collect-ui.sh") != null and index("funds-send.sh") != null and index("placeholder.sh") == null' \
+          "${metadata}" >/dev/null || fail "collection libraries missing"
+        grep -F 'cntools_funds_action_collect' "${action_file}" >/dev/null || fail "collection entrypoint missing"
+        grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "collection cleanup missing"
+        ;;
+      funds/delegate)
+        jq -e '.libs | index("funds-delegate.sh") != null and index("funds-delegate-ui.sh") != null and index("pool-query.sh") != null and index("placeholder.sh") == null' \
+          "${metadata}" >/dev/null || fail "delegation libraries missing"
+        grep -F 'cntools_funds_action_delegate' "${action_file}" >/dev/null || fail "delegation entrypoint missing"
         ;;
       funds/withdraw)
         jq -e '.libs | index("funds-withdraw.sh") != null and index("funds-withdraw-ui.sh") != null and index("wallet-stake.sh") != null and index("placeholder.sh") == null' \
@@ -487,7 +503,7 @@ while IFS=$'\t' read -r \
   fi
 done < "${MENU_FIXTURE}"
 
-assert_eq "${connected_only}" "20" "local/light-only action count"
+assert_eq "${connected_only}" "23" "local/light-only action count"
 assert_eq "${offline_capable}" "37" "offline-capable action count"
 [[ -f "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    ! -L "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
@@ -525,6 +541,8 @@ CNTOOLS_VALIDATION_BASH="bash"
 CNTOOLS_MODE="local"
 CNTOOLS_BACKEND="cnode"
 CNTOOLS_NETWORK="preview"
+CNTOOLS_KOIOS_ENABLED="Y"
+CNTOOLS_KOIOS_API="https://preview.koios.rest/api/v1"
 CNTOOLS_ADVANCED="Y"
 CNTOOLS_VERSION="$(< "${CNTOOLS_ROOT}/VERSION")"
 CNTOOLS_UI_INTERACTIVE="N"
@@ -651,7 +669,7 @@ while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|funds/withdraw|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
+    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/transactions|wallet/utxos|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|funds/withdraw|funds/delegate|funds/collect|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then

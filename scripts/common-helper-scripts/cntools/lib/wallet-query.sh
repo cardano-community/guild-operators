@@ -907,15 +907,20 @@ cntools_wallet_query_http() {
   local endpoint="${1:-}"
   local payload="${2:-}"
   local output_file="${3:-}"
+  local maximum_bytes="${4:-2097152}"
+  local method="${5:-POST}"
   local auth_header_file=""
   local request_status=0
+  [[ "${maximum_bytes}" =~ ^[1-9][0-9]{0,7}$ ]] &&
+    (( maximum_bytes <= 33554432 )) || return 2
+  [[ "${method}" == POST || ( "${method}" == GET && -z "${payload}" ) ]] || return 2
   local -a arguments=(
     --connect-timeout 3
-    --max-filesize 2097152
+    --max-filesize "${maximum_bytes}"
     --header "accept: application/json"
     --header "content-type: application/json"
-    --data "${payload}"
   )
+  [[ "${method}" != POST ]] || arguments+=(--data "${payload}")
 
   if [[ -n "${CNTOOLS_KOIOS_TOKEN:-}" ]]; then
     if ! cntools_http_secret_file_create auth_header_file; then
@@ -925,7 +930,7 @@ cntools_wallet_query_http() {
     fi
     arguments+=(--header "@${auth_header_file}")
   fi
-  if cntools_api_request POST "${endpoint}" "${output_file}" \
+  if cntools_api_request "${method}" "${endpoint}" "${output_file}" \
       "${arguments[@]}"; then
     request_status=0
   else

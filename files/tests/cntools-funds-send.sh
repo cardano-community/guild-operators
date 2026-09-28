@@ -8,6 +8,7 @@ fi
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
+. "${CNTOOLS_ROOT}/core/health.sh"
 . "${CNTOOLS_ROOT}/lib/asset.sh"
 . "${CNTOOLS_ROOT}/lib/asset-cache.sh"
 CNTOOLS_ASSET_CACHE_ENABLED=N

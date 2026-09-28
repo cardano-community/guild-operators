@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# Stake pool delegation through the shared stake transaction workflow.
-
-cntools_action_main() {
-  cntools_funds_action_delegate
-}
-
+# Explicit self-collection; transaction packages use the shared lifecycle.
+cntools_action_main() { cntools_funds_action_collect; }
 cntools_action_cleanup() {
   cntools_wallet_query_cleanup
   cntools_wallet_cleanup_material

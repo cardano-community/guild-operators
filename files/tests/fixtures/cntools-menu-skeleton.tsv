@@ -13,10 +13,13 @@ wallet/show	action	s	60	local,light,offline	-	Show
 wallet/remove	action	x	70	local,light,offline	-	Remove
 wallet/decrypt	action	d	80	local,light,offline	-	Decrypt
 wallet/encrypt	action	e	90	local,light,offline	-	Encrypt
+wallet/transactions	action	t	100	local,light	-	Transaction List
+wallet/utxos	action	u	110	local,light	-	UTxO List
 funds	menu	f	20	-	-	Funds
 funds/send	action	s	10	local,light	-	Send
 funds/delegate	action	d	20	local,light	-	Delegate
 funds/withdraw	action	w	30	local,light	-	Withdraw Rewards
+funds/collect	action	c	40	local,light	-	Collect UTxOs
 pool	menu	p	30	-	-	Pool
 pool/new	action	n	10	local,light,offline	-	New
 pool/import	action	i	20	local,light,offline	-	Import
