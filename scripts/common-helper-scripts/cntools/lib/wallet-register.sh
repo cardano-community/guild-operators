@@ -52,6 +52,20 @@ declare -Ag CNTOOLS_WALLET_REGISTER_ASSETS=()
 
 cntools_wallet_register_operation_set() {
   case "${1:-}" in
+    vote-delegate)
+      CNTOOLS_WALLET_REGISTER_OPERATION=vote-delegate
+      CNTOOLS_WALLET_REGISTER_TITLE=Delegate
+      CNTOOLS_WALLET_REGISTER_PATH='/ Vote / Governance / Delegate'
+      CNTOOLS_WALLET_REGISTER_NOUN='voting delegation'
+      CNTOOLS_WALLET_REGISTER_VERB='delegate voting power'
+      CNTOOLS_WALLET_REGISTER_PAST=delegated
+      CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND=vote-delegation-certificate
+      CNTOOLS_WALLET_REGISTER_INTENT='Governance voting delegation'
+      CNTOOLS_WALLET_REGISTER_SUMMARY_ACTION=voting-delegation
+      CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT=charged
+      CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL='Stake deposit'
+      CNTOOLS_WALLET_REGISTER_FILE_SUFFIX=voting-delegation
+      ;;
     delegate)
       CNTOOLS_WALLET_REGISTER_OPERATION=delegate
       CNTOOLS_WALLET_REGISTER_TITLE=Delegate
@@ -427,6 +441,9 @@ cntools_wallet_register_chain_state_validate() {
   local rewards=""
 
   case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
+    vote-delegate)
+      cntools_vote_chain_state_validate || return $?
+      ;;
     delegate)
       cntools_delegate_chain_state_validate || return $?
       ;;
@@ -548,6 +565,8 @@ cntools_wallet_register_collect_local() {
   cntools_wallet_register_protocol_local || return 1
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "deregister" ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT="${CNTOOLS_WALLET_STAKE_DEPOSIT}"
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    CNTOOLS_WALLET_REGISTER_DEPOSIT=0
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate && "${CNTOOLS_DELEGATE_REGISTER}" == N ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT=0
   fi
@@ -576,6 +595,8 @@ cntools_wallet_register_collect_koios() {
   cntools_wallet_register_protocol_koios || return 1
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "deregister" ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT="${CNTOOLS_WALLET_STAKE_DEPOSIT}"
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    CNTOOLS_WALLET_REGISTER_DEPOSIT=0
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate && "${CNTOOLS_DELEGATE_REGISTER}" == N ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT=0
   fi
@@ -628,6 +649,9 @@ cntools_wallet_register_certificate_create() {
 
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
     cntools_delegate_certificate_create
+    return $?
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    cntools_vote_certificate_create
     return $?
   fi
 
@@ -694,6 +718,8 @@ cntools_wallet_register_plan_create() {
     intent_description="De-register ${CNTOOLS_WALLET_REGISTER_WALLET}'s stake credential, refund its stake deposit, and return all change to its base address."
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
     intent_description="Delegate ${CNTOOLS_WALLET_REGISTER_WALLET}'s stake to ${CNTOOLS_DELEGATE_POOL_ID}; voting delegation is unchanged."
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    intent_description="Delegate ${CNTOOLS_WALLET_REGISTER_WALLET}'s voting power to ${CNTOOLS_VOTE_TARGET}; pool delegation and stake registration are unchanged."
   else
     return 2
   fi
@@ -784,6 +810,9 @@ cntools_wallet_register_plan_create() {
       --arg poolHex "${CNTOOLS_DELEGATE_POOL_HEX}" --arg current "${CNTOOLS_DELEGATE_CURRENT_POOL}" \
       --arg registration "${CNTOOLS_DELEGATE_REGISTER}" \
       '. + {poolId:$pool, poolHex:$poolHex, previousPool:$current, registersStake:($registration == "Y")}' <<< "${summary}")" || return 1
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    summary="$(jq -c --arg target "${CNTOOLS_VOTE_TARGET}" --arg kind "${CNTOOLS_VOTE_KIND}" \
+      --arg previous "${CNTOOLS_VOTE_CURRENT}" '. + {drepId:$target, drepType:$kind, previousDrep:$previous}' <<< "${summary}")" || return 1
   fi
   cntools_transaction_plan_set_summary "${summary}"
 }
@@ -796,7 +825,7 @@ cntools_wallet_register_build_balanced_into() {
   local body="" package_path="" input="" output="" next_fee="" accounted="" value="" available=""
   local attempt=0 index=0 max_size=0 body_bytes=0 witnesses=0 output_count=0
   local -a arguments=()
-  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in register|deregister|delegate) ;; *) return 2 ;; esac
+  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in register|deregister|delegate|vote-delegate) ;; *) return 2 ;; esac
   for index in "${CNTOOLS_COIN_SELECTED_INDICES[@]}"; do
     [[ "${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[index]}" == N ]] || {
       cntools_wallet_register_set_error 'A selected input contains a reference script. This transaction does not support spending these inputs; use ordinary UTxOs.'; return 1;
@@ -850,6 +879,8 @@ cntools_wallet_register_build_balanced_into() {
     if cntools_uint_greater "${next_fee}" "${CNTOOLS_WALLET_REGISTER_FEE}"; then CNTOOLS_WALLET_REGISTER_FEE="${next_fee}"; continue; fi
     if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
       cntools_delegate_validate_body "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 1
+    elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+      cntools_vote_validate_body "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 1
     else
       cntools_wallet_register_validate_body "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 1
     fi

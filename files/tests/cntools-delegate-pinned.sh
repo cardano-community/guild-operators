@@ -10,7 +10,7 @@ TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-delegate-pinned.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
 fail() { tail -15 "${TEST_ROOT}/test.log" >&2; printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-for lib in number wallet wallet-query utxo coin-selection change-plan transaction transaction-build transaction-sign transaction-files wallet-register pool-id funds-delegate; do
+for lib in number wallet wallet-query utxo coin-selection change-plan transaction transaction-build transaction-sign transaction-files wallet-register pool-id funds-delegate drep-id governance-delegate; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 cntools_log() { printf '%s %s\n' "$1" "$2" >> "${TEST_ROOT}/test.log"; }
@@ -47,7 +47,7 @@ cntools_pool_id_into CNTOOLS_DELEGATE_POOL_ID CNTOOLS_DELEGATE_POOL_HEX "${pool}
 [[ "${CNTOOLS_DELEGATE_POOL_HEX}" == "${pool_hex}" ]] || fail 'pool hash conversion disagrees with CLI'
 policy="$(printf 'ab%.0s' {1..28})" reference="$(printf 'cd%.0s' {1..32})#0"
 package="" signed="" sum="" fee=""
-scenarios=(yes no register-ada register-token deregister-ada deregister-token)
+scenarios=(yes no register-ada register-token deregister-ada deregister-token vote-key vote-script vote-abstain vote-no-confidence)
 if (( $# > 2 )); then scenarios=("${@:3}"); fi
 for registered in "${scenarios[@]}"; do
   cntools_wallet_register_operation_set delegate
@@ -55,6 +55,7 @@ for registered in "${scenarios[@]}"; do
   CNTOOLS_WALLET_REGISTERED="${registered}"
   [[ "${registered}" != register-* ]] || CNTOOLS_WALLET_REGISTERED=no
   [[ "${registered}" != deregister-* ]] || CNTOOLS_WALLET_REGISTERED=yes
+  [[ "${registered}" != vote-* ]] || CNTOOLS_WALLET_REGISTERED=yes
   cntools_delegate_chain_state_validate
   CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED=Y
   CNTOOLS_WALLET_REGISTER_BACKEND=koios CNTOOLS_WALLET_REGISTER_SOURCE='Fixture'
@@ -76,6 +77,24 @@ for registered in "${scenarios[@]}"; do
     CNTOOLS_WALLET_REGISTER_DEPOSIT="${CNTOOLS_WALLET_STAKE_DEPOSIT}"
     [[ "${registered}" != deregister-token ]] || CNTOOLS_WALLET_REGISTER_LIFETIME=0
   fi
+  if [[ "${registered}" == vote-* ]]; then
+    cntools_wallet_register_operation_set vote-delegate
+    cntools_vote_chain_state_validate || fail 'voting stake state rejected'
+    target="drep_always_${registered#vote-}"
+    case "${registered}" in
+      vote-key)
+        target="$("${CNTOOLS_CLI}" latest governance drep id --drep-key-hash "${pool_hex}" --output-cip129)"
+        cntools_drep_bech32_into encoded "22${pool_hex}"
+        [[ "${encoded}" == "${target}" ]] || fail 'CIP129 encoding disagrees with pinned CLI'
+        legacy="$("${CNTOOLS_CLI}" latest governance drep id --drep-key-hash "${pool_hex}" --output-bech32)"
+        cntools_drep_id_into normalized kind hash "${legacy}"
+        [[ "${normalized}" == "${target}" && "${kind}" == key && "${hash}" == "${pool_hex}" ]] || fail 'legacy CLI ID normalization'
+        ;;
+      vote-script) cntools_drep_bech32_into target "23${pool_hex}" ;;
+      vote-no-confidence) target=drep_always_no_confidence; CNTOOLS_WALLET_REGISTER_LIFETIME=0 ;;
+    esac
+    cntools_drep_id_into CNTOOLS_VOTE_TARGET CNTOOLS_VOTE_KIND CNTOOLS_VOTE_HASH "${target}" || fail 'voting target ID'
+  fi
   cntools_utxo_add "${reference}" "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" 20000000
   if [[ "${registered}" != *-ada ]]; then cntools_utxo_add_asset 0 "${policy}.01" 5; fi
   cntools_wallet_register_inventory_use_all
@@ -84,6 +103,7 @@ for registered in "${scenarios[@]}"; do
   cntools_transaction_package_load "${package}" || fail 'package validation failed'
   validator=cntools_delegate_validate_body
   [[ "${registered}" != register-* && "${registered}" != deregister-* ]] || validator=cntools_wallet_register_validate_body
+  [[ "${registered}" != vote-* ]] || validator=cntools_vote_validate_body
   "${validator}" "${CNTOOLS_TRANSACTION_BODY_FILE}" || fail 'body check failed'
   cntools_transaction_view_into view "${CNTOOLS_TRANSACTION_BODY_FILE}"
   sum="$(jq '[.outputs[].amount.lovelace] | add' <<< "${view}")"

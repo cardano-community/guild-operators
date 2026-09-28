@@ -1027,6 +1027,46 @@ Send, Withdraw Rewards, Register, De-Register and standalone Sign/Submit:
 lifecycle operations; the Send, withdrawal and Sign/Submit suites cover their
 respective orchestration. No workflow test submits a real transaction.
 
+## Governance voting delegation
+
+**Vote → Governance → Delegate** changes voting delegation for an already
+registered CLI, mnemonic, public/watch-only or hardware key wallet. Select a
+specific DRep, **Always Abstain**, or **Always No Confidence**. There is no new
+deposit, reward withdrawal, DRep registration, or change to pool delegation.
+Unregistered stake addresses must use **Wallet → Register** first. Multisig
+stake credentials remain a separate implementation slice.
+
+The focused `drep-id.sh` helper validates Bech32 checksums, payload length,
+padding and credential type, normalizing legacy CIP-105 key/script identifiers
+to CIP-129. Bare hashes are rejected because they do not identify key versus
+script credentials. A script-based *target DRep* does not require that DRep's
+script or keys to delegate to it. The wallet supplies its own payment and stake
+witnesses through the existing signer plan.
+
+`drep-query.sh` verifies the exact target through the selected chain-data
+backend: local `query drep-state` or Koios `drep_info`. Retired/unregistered or
+unverifiable targets cannot proceed. Koios-reported inactive DReps require an
+explicit, default-No confirmation. Local state verifies registration only:
+raw expiry alone is not treated as proof of inactivity because dormant
+governance epochs affect expiry. Predefined options require no DRep lookup.
+Selecting the current delegation produces no transaction.
+
+The shared stake transaction UI, input/change settings, expiry choices and
+live/sign-only/unsigned workflows are reused. Before export/signing and again
+before live submission, recheck stake registration, current voting/pool
+delegation, selected inputs, expiry, target registration and any newly reported
+inactivity. A change requires a rebuild/review; no target or body is silently
+replaced. The CLI-decoded certificate must exactly match the reviewed stake
+credential and target, with no deposit, extra certificates, withdrawal or pool
+delegation. Signed/exported packages follow the common recovery workflow.
+
+Regression coverage includes identity/schema failures, cancellation, all three
+workflows, stale state, and node-free build/sign/package validation for all four
+target forms using the deployment-pinned CLI. Physical hardware and live preview
+submission still require operator acceptance testing. References:
+[CIP-129](https://cips.cardano.org/cip/CIP-0129) and
+[Koios DRep info](https://github.com/cardano-community/koios-artifacts/blob/v1.4.2/files/grest/rpc/governance/drep_info.sql).
+
 ## Funds UTxO collection
 
 **Funds → Collect UTxOs** consolidates a key wallet's base and payment UTxOs back

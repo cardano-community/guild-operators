@@ -34,6 +34,15 @@ cntools_wallet_register_prepare_wallet() {
 }
 cntools_wallet_register_collect() { printf 'collect\n' >> "${TRACE}"; return "${COLLECT_STATUS}"; }
 cntools_wallet_register_build_package_into() { printf 'build\n' >> "${TRACE}"; printf -v "$1" '%s' "${TEST_ROOT}/package.json"; }
+cntools_vote_choose_target() { printf 'target\n' >> "${TRACE}"; }
+cntools_vote_render_rows() { cntools_transaction_ui_styled_row 'Target voting delegation' 'Always Abstain' identifier; }
+cntools_vote_recheck() {
+  RECHECK_COUNT=$((RECHECK_COUNT+1))
+  printf 'recheck\n' >> "${TRACE}"
+  [[ "${SCENARIO}" != recheck-submit-failure || ${RECHECK_COUNT} -lt 2 ]] || return 1
+  return "${RECHECK_STATUS}"
+}
+cntools_transaction_set_error() { CNTOOLS_TRANSACTION_ERROR="$1"; }
 cntools_wallet_format_lovelace() { printf '%s ADA' "$(cntools_number_format_units "$1" 6)"; }
 cntools_transaction_package_load() {
   CNTOOLS_TRANSACTION_PACKAGE_FILE="$1"
@@ -88,12 +97,13 @@ cntools_ui_choose() {
   fi
   printf -v "$1" '%s' "${answer}"
 }
-for operation in register deregister; do
-  for scenario in live unsigned protected signed cancel decline sign-failure submit-failure details switch rewards; do
+for operation in register deregister vote-delegate; do
+  for scenario in live unsigned protected signed cancel decline sign-failure submit-failure details switch rewards recheck-failure recheck-submit-failure; do
+    [[ "${scenario}" != recheck-* || "${operation}" == vote-delegate ]] || continue
     (
       : > "${TRACE}"; : > "${TABLE}"; : > "${LOG}"
       SIGNABLE=Y WORKFLOW='Create, sign and submit' SCENARIO="${scenario}" STEP=0
-      COLLECT_STATUS=0 SIGN_STATUS=0 CONFIRM_STATUS=0 SUBMIT_STATUS=0
+      COLLECT_STATUS=0 SIGN_STATUS=0 CONFIRM_STATUS=0 SUBMIT_STATUS=0 RECHECK_STATUS=0 RECHECK_COUNT=0
       CNTOOLS_LOG="${LOG}" CNTOOLS_TRANSACTION_SUBMIT_MESSAGE=Accepted
       CNTOOLS_TRANSACTION_ERROR=''
       CNTOOLS_TX_SELECTION_STRATEGY=balanced
@@ -109,6 +119,7 @@ for operation in register deregister; do
         sign-failure) SIGN_STATUS=1 ;;
         submit-failure) SUBMIT_STATUS=1; CNTOOLS_TRANSACTION_ERROR='Rejected fixture' ;;
         rewards) COLLECT_STATUS=8 ;;
+        recheck-failure) RECHECK_STATUS=1 ;;
       esac
       status=0; cntools_wallet_register_workflow || status=$?
       if [[ "${scenario}" != details ]] && grep -Eq '^(decoded|signers|scripts|changes)$' "${TRACE}"; then fail 'technical details dumped'; fi
@@ -118,9 +129,27 @@ for operation in register deregister; do
         if grep -q build "${TRACE}"; then fail 'built despite guard'; fi
         exit 0
       fi
+      if [[ "${scenario}" == recheck-failure ]]; then
+        eq "${status}" 2 'recheck prevents signing and export'
+        if grep -Eq '^(sign|submit|save:)' "${TRACE}"; then fail 'failed recheck had side effect'; fi
+        exit 0
+      fi
+      if [[ "${scenario}" == recheck-submit-failure ]]; then
+        eq "${status}" 2 'late state change blocks submission'
+        grep -qx save:signed "${TRACE}" || fail 'signed package lost after state change'
+        if grep -Eq '^(submit|monitor)$' "${TRACE}"; then fail 'late recheck failure submitted'; fi
+        exit 0
+      fi
       grep -q 'Fee.*0.185081 ADA' "${TABLE}" || fail 'actual fee absent'
       grep -q 'Input selection.*balanced' "${TABLE}" || fail 'active policy absent'
       [[ "${operation}" != deregister ]] || grep -q 'will be forfeited' "${TABLE}" || fail 'forfeiture warning hidden'
+      if [[ "${operation}" == vote-delegate ]]; then
+        grep -q 'Always Abstain' "${TABLE}" || fail 'voting target absent'
+        if grep -q 'Stake deposit' "${TABLE}"; then fail 'voting delegation showed deposit'; fi
+        if [[ "${scenario}" != cancel ]]; then
+          grep -q '^recheck$' "${TRACE}" || fail 'missing voting state recheck'
+        fi
+      fi
       case "${scenario}" in
         unsigned|protected|switch)
           eq "${status}" 0 'unsigned success'; grep -qx save:unsigned "${TRACE}" || fail 'unsigned not saved'

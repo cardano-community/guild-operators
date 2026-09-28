@@ -57,6 +57,7 @@ cntools_wallet_query_reset() {
   CNTOOLS_WALLET_REGISTERED="unknown"
   CNTOOLS_WALLET_POOL_DELEGATION=""
   CNTOOLS_WALLET_DREP_DELEGATION=""
+  CNTOOLS_WALLET_DREP_DELEGATION_VALID=Y
   CNTOOLS_WALLET_UTXO_COUNT=""
   CNTOOLS_WALLET_ASSET_COUNT=""
   CNTOOLS_WALLET_ASSET_METADATA_STATUS="not-requested"
@@ -814,6 +815,7 @@ cntools_wallet_query_local_stake() {
     vote_status <<< "${record}"
   [[ "${CNTOOLS_WALLET_REWARD_LOVELACE}" =~ ^[0-9]+$ ]] || return 1
   if [[ -n "${vote_status}" ]]; then
+    CNTOOLS_WALLET_DREP_DELEGATION_VALID=N
     cntools_wallet_log WALLET \
       "Local vote delegation omitted representation=${vote_status}"
   fi

@@ -90,6 +90,8 @@ jobs:
       run: bash files/tests/cntools-transaction-validity.sh
     - name: Test CNTools stake pool delegation
       run: bash files/tests/cntools-funds-delegate.sh
+    - name: Test CNTools governance delegation
+      run: bash files/tests/cntools-governance-delegate.sh
     - name: Test CNTools UTxO collection
       run: bash files/tests/cntools-funds-collect.sh
     - name: Cache pinned CNTools transaction tools

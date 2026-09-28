@@ -9,6 +9,7 @@ cntools_wallet_register_begin() {
 cntools_wallet_register_render_plan() {
   local widths="" fee="" expiry_label="No expiry" action="Stake ${CNTOOLS_WALLET_REGISTER_NOUN}"
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != delegate ]] || action='Stake pool delegation'
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate ]] || action='Voting delegation'
   cntools_transaction_ui_table_widths_into widths 22 || return 1
   cntools_transaction_ui_fee_into fee || return 1
   if [[ -n "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER:-}" ]]; then
@@ -22,8 +23,11 @@ cntools_wallet_register_render_plan() {
     cntools_transaction_ui_styled_row 'Stake address' "${CNTOOLS_WALLET_REGISTER_REWARD_ADDRESS}" address
     if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
       cntools_delegate_render_pool_rows
+    elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+      cntools_vote_render_rows
     fi
-    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != delegate || "${CNTOOLS_DELEGATE_REGISTER}" == Y ]]; then
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate ]] &&
+       [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != delegate || "${CNTOOLS_DELEGATE_REGISTER}" == Y ]]; then
       cntools_transaction_ui_styled_row "${CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL}" "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
     fi
     cntools_transaction_ui_styled_row Fee "$(cntools_wallet_format_lovelace "${fee}")" number
@@ -45,7 +49,10 @@ cntools_wallet_register_render_collect_error() {
     6)
       message="The wallet balance must be greater than the current stake deposit so it can also pay the transaction fee."
       ;;
-    7) message="This wallet's stake address is not registered." ;;
+    7)
+      message="This wallet's stake address is not registered."
+      [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate ]] || message+=' Use Wallet → Register first.'
+      ;;
     8)
       message="This wallet has unclaimed rewards. Withdraw all rewards before de-registering its stake address."
       ;;
@@ -114,6 +121,8 @@ cntools_wallet_register_workflow() {
   fi
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
     cntools_delegate_choose_target || return $?
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    cntools_vote_choose_target || return $?
   fi
   cntools_ui_spin_function "Building stake ${CNTOOLS_WALLET_REGISTER_NOUN}…" \
     cntools_wallet_register_build_package_into staged || return 2
@@ -127,6 +136,9 @@ cntools_wallet_register_workflow() {
       *) return 2 ;;
     esac
   done
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    cntools_ui_spin_function 'Rechecking stake state, DRep and selected inputs…' cntools_vote_recheck || return 2
+  fi
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
     CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE="${saved}"
@@ -171,6 +183,11 @@ cntools_wallet_register_submit_checked() {
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
     cntools_delegate_recheck || {
       cntools_transaction_set_error "Not submitted: ${CNTOOLS_WALLET_REGISTER_ERROR:-Delegation state could not be rechecked.}"
+      return 1
+    }
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+    cntools_vote_recheck || {
+      cntools_transaction_set_error "Not submitted: ${CNTOOLS_WALLET_REGISTER_ERROR:-Voting delegation state could not be rechecked.}"
       return 1
     }
   fi
