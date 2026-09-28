@@ -87,7 +87,7 @@ cntools_history_overview_rows() {
 }
 
 cntools_history_summary_rows() {
-  local record="$1" key="" value="" asset="" ordinal=0
+  local record="$1" key="" value="" identity="" name="" names="" ordinal=0
   cntools_wallet_table_row Property Value
   while IFS=$'\037' read -r key value; do
     case "${key}" in
@@ -112,17 +112,13 @@ cntools_history_summary_rows() {
      end)[] | map(tostring | gsub("[\u0000-\u001f\u007f]";" ")) | join("\u001f")
   ' <<< "${record}")
   if [[ "${CNTOOLS_HISTORY_KIND}" == utxos ]]; then
-    while IFS= read -r asset; do
+    while IFS= read -r identity; do
       ordinal=$((ordinal + 1))
-      cntools_history_asset_display "${asset}" "Asset ${ordinal}" || return 1
-      cntools_history_pair "Asset ${ordinal} ID" "$(jq -r '.policy_id + "." + .asset_name' <<< "${asset}")" identifier
-      value="$(jq -r '.quantity | tostring' <<< "${asset}")"
-      cntools_history_number_pair "Raw quantity" "${value}" || return 1
-    done < <(jq -c '.asset_list[:3][]?' <<< "${record}")
-    value="$(jq '(.asset_list // []) | length' <<< "${record}")"
-    if (( value > 3 )); then
-      cntools_history_pair "Other assets" "$((value - 3)) · Show details for the full list" muted
-    fi
+      cntools_history_asset_title_into name "${identity}" "${ordinal}" || return 1
+      [[ -z "${names}" ]] || names+=", "
+      names+="${name}"
+    done < <(jq -r '.asset_list[]? | .policy_id + "." + .asset_name' <<< "${record}")
+    [[ -z "${names}" ]] || cntools_history_pair "Asset names" "${names}"
   fi
 }
 
@@ -182,7 +178,7 @@ cntools_history_tree_rows() {
         to_entries[] | .key as $key | .value | leaves($path + "[" + (($key+1)|tostring) + "]")
       else [$path,type,(if type == "string" then (if . == "" then "(empty string)" else . end) else tojson end)] end;
     (if $section == "Overview" then with_entries(select(.value | type != "array" and type != "object"))
-     elif $section == "Record" then del(.payment_addr,.payment_cred,.address,.asset_list)
+     elif $section == "Record" then del(.payment_addr,.payment_cred,.address,.asset_list,.is_spent)
      elif $section == "Asset" then
        if $decimals != "" then .decimals=($decimals|tonumber) else . end
      else .[$section] end) |
@@ -364,6 +360,9 @@ cntools_history_action() {
     cntools_ui_wait
     return 0
   }
+  if [[ "${kind}" == utxos ]]; then
+    cntools_ui_render_status info "Only unspent outputs are shown in the UTxO list."
+  fi
   cntools_wallet_query_reset
   CNTOOLS_HISTORY_METADATA=ask
   cntools_wallet_catalog_build || return 1

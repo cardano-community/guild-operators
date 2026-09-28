@@ -757,8 +757,10 @@ prepared using the existing wallet helpers. The overview identifies the scope.
 - UTxOs: fetch `credential_utxos?is_spent=eq.false` or
   `account_utxos?is_spent=eq.false` once with `_extended: true`.
   Show the returned count and counts by address; summarize each output with its
-  ADA, assets, creation date, and datum/script indicators. At most three assets
-  appear in an output summary; Details contains the complete list.
+  ADA, native-asset count, comma-separated asset names, creation date, and
+  datum/script indicators. Only unspent outputs are listed, as noted when
+  opening the action; the redundant `is_spent` field is hidden in Details.
+  Full asset identifiers, quantities and metadata belong in Details.
 - At exactly 1,000 matches, display the Koios limit warning. Counts describe the
   returned snapshot, not a guarantee of complete wallet history. Reopen the
   action to refresh; outputs can be spent after the snapshot was collected.

@@ -206,7 +206,20 @@ cntools_ui_page_file() { [[ -s "$1" ]] || fail 'empty pager'; pagers=$((pagers+1
 CNTOOLS_UI_CAPABLE=N CNTOOLS_HISTORY_METADATA=N
 output="$(cntools_history_summary_rows "$(jq -c '.[0]' "${CNTOOLS_HISTORY_PAGE_FILE}")")"
 [[ "${output}" == *'1.234567 ADA'* && "${output}" != *'ADA ADA'* ]] || fail 'ADA rendering'
-[[ "${output}" == *'9,007,199,254,740,993'* ]] || fail 'exact raw asset quantity'
+[[ "${output}" == *$'Asset names\037TEST\037value'* && "${output}" == *$'Native assets\0371\037number'* ]] || fail 'compact asset summary'
+[[ "${output}" != *'Raw quantity'* && "${output}" != *"${policy}"* ]] || fail 'asset details leaked into summary'
+(
+  record="$(jq -c '.[0] | .asset_list[0] as $asset | .asset_list +=
+    [$asset | .asset_name="5445535432", .asset_name="5445535433", .asset_name="ff"]' "${CNTOOLS_HISTORY_PAGE_FILE}")"
+  output="$(cntools_history_summary_rows "${record}")"
+  [[ "${output}" == *'TEST, TEST2, TEST3, Asset 04'* && "${output}" == *$'Native assets\0374\037number'* ]] || fail 'summary must list all asset names'
+  CNTOOLS_HISTORY_METADATA=Y
+  CNTOOLS_WALLET_ASSET_TICKERS["${policy}.54455354"]='Enriched token'
+  output="$(cntools_history_summary_rows "${record}")"
+  [[ "${output}" == *'Enriched token, TEST2, TEST3, Asset 04'* ]] || fail 'summary metadata label'
+  output="$(cntools_history_summary_rows "$(jq '.asset_list=[]' <<< "${record}")")"
+  [[ "${output}" == *$'Native assets\0370\037number'* && "${output}" != *'Asset names'* ]] || fail 'ADA-only summary'
+)
 output="$(cntools_history_overview_rows)"
 [[ "${output}" == *payment-address* && "${output}" == *base-address* ]] || fail 'per-address counts'
 cntools_history_detail_load 1
@@ -223,6 +236,7 @@ cntools_history_metadata_offer "${CNTOOLS_HISTORY_DETAIL}"
 eq "${metadata_calls}" 1
 output="$(cntools_history_detail_render "${CNTOOLS_HISTORY_DETAIL}")"
 [[ "${output}" == *TEST* && "${output}" == *'9,007,199,254.740993'* ]] || fail 'shared label/decimal formatting'
+[[ "${output}" == *'9,007,199,254,740,993'* && "${output}" != *is_spent* ]] || fail 'UTxO details must preserve raw quantity but hide spent status'
 [[ "${output}" == *$'\n  TEST\n'* && "${output}" != *'asset_list['* ]] || fail 'UTxO assets must have indented name-titled tables'
 (
   CNTOOLS_WALLET_ASSET_TICKERS["${policy}.54455354"]='Enriched token'
@@ -398,6 +412,8 @@ inventory_count=12 input_count=0
 cntools_wallet_type() { printf MultiSig; }
 cntools_wallet_id_read_credential() { eq "$2" script-payment; printf -v "$3" '%s' "${fixture_credential}"; }
 cntools_history_action utxos > "${TEST_ROOT}/multisig.txt"
+[[ "$(< "${TEST_ROOT}/multisig.txt")" == *'Only unspent outputs are shown in the UTxO list.'* ]] || fail 'missing unspent-only note'
+[[ "$(< "${TEST_ROOT}/workflow.txt")" != *'Only unspent outputs'* ]] || fail 'UTxO note leaked into transaction list'
 input_count=0
 before="${calls}"
 cntools_wallet_id_read_credential() { return 1; }
