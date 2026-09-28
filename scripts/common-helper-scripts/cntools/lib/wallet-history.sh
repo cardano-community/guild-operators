@@ -6,11 +6,14 @@ CNTOOLS_HISTORY_KIND=""
 CNTOOLS_HISTORY_LIST=""
 CNTOOLS_HISTORY_PAGE_FILE=""
 CNTOOLS_HISTORY_DETAIL=""
+CNTOOLS_HISTORY_DETAIL_NUMBER=""
 CNTOOLS_HISTORY_TOTAL=0
 CNTOOLS_HISTORY_SIZE=5
 CNTOOLS_HISTORY_PAGE=0
 CNTOOLS_HISTORY_WALLET=""
 CNTOOLS_HISTORY_LOOKUP="payment"
+CNTOOLS_HISTORY_PAYMENT=""
+CNTOOLS_HISTORY_STAKE=""
 CNTOOLS_HISTORY_ERROR=""
 declare -Ag CNTOOLS_HISTORY_PAGES=()
 
@@ -167,6 +170,7 @@ cntools_history_page_load() {
 cntools_history_detail_load() {
   local selection="${1:-}" hash="" output="" page=0 item=0 source="" hashes=""
   CNTOOLS_HISTORY_DETAIL=""
+  CNTOOLS_HISTORY_DETAIL_NUMBER=""
   CNTOOLS_HISTORY_ERROR="Enter a valid item number or transaction ID."
   selection="${selection#"${selection%%[![:space:]]*}"}"
   selection="${selection%"${selection##*[![:space:]]}"}"
@@ -174,6 +178,7 @@ cntools_history_detail_load() {
     cntools_number_normalize_into selection "${selection}" || return 2
   fi
   if [[ "${selection}" =~ ^[1-9][0-9]{0,3}$ ]] && (( selection <= CNTOOLS_HISTORY_TOTAL )); then
+    CNTOOLS_HISTORY_DETAIL_NUMBER="${selection}"
     item=$((selection - 1))
     if [[ "${CNTOOLS_HISTORY_KIND}" == utxos ]]; then
       cntools_wallet_query_temp_file output || return 1
@@ -211,4 +216,40 @@ cntools_history_asset_ids() {
     select((.policy_id | test("^[0-9a-f]{56}$")) and
       (.asset_name | test("^([0-9a-f]{2}){0,32}$"))) |
     .policy_id + "." + .asset_name] | unique[]' "$1"
+}
+
+# Tags describe observable ledger operations, never claims in user metadata.
+# Do not guess DApp brands or ownership from a change-output heuristic.
+cntools_history_transaction_tags() {
+  jq -r --arg payment "${CNTOOLS_HISTORY_PAYMENT}" --arg stake "${CNTOOLS_HISTORY_STAKE}" '
+    def nonempty: type == "string" and length > 0;
+    def text: if type == "string" then . else "" end;
+    def owner: ((try .payment_addr.cred catch null) // .payment_cred // "") | text;
+    def address: ((try .payment_addr.bech32 catch null) // .address // "") | text;
+    def ours: (($payment != "") and owner == $payment) or
+      (($stake != "") and (.stake_addr // .stake_address // "") == $stake);
+    def internal:
+      (.inputs | length > 0) and (.outputs | length > 0) and
+      ([.inputs[],.outputs[]] as $io |
+        ($io | all(ours)) or
+        ([$io[] | owner] | all(test("^[0-9a-f]{56}$")) and (unique|length) == 1) or
+        ([$io[] | address] | all(nonempty) and (unique|length) == 1));
+    {stake_registration:"Stake registration",stake_deregistration:"Stake de-registration",
+     stake_deregistraion:"Stake de-registration",delegation:"Stake delegation",
+     pool_delegation:"Stake delegation",vote_delegation:"DRep delegation",
+     drep_registration:"DRep registration",drep_update:"DRep update",drep_retire:"DRep retirement",
+     pool_update:"Pool registration/update",pool_retire:"Pool retirement",
+     committee_hot_auth:"Committee authorization",committee_resign:"Committee resignation",
+     param_proposal:"Protocol proposal",reserve_MIR:"Reserve MIR",treasury_MIR:"Treasury MIR",
+     pot_transfer:"Treasury/reserve transfer"} as $names |
+    ([if (.withdrawals // [] | length) > 0 then "Withdrawal" else empty end,
+      (.certificates[]? | $names[.type // ""] // "Certificate"),
+      if (.voting_procedures // [] | length) > 0 then "Governance vote" else empty end,
+      if (.proposal_procedures // [] | length) > 0 then "Governance proposal" else empty end,
+      if any(.assets_minted[]?; (.quantity|tostring|test("^[1-9][0-9]*$"))) then "Mint" else empty end,
+      if any(.assets_minted[]?; (.quantity|tostring|test("^-[1-9][0-9]*$"))) then "Burn" else empty end,
+      if (.plutus_contracts // [] | length) > 0 then "Script execution" else empty end] | unique) as $tags |
+    if ($tags|length) > 0 then $tags | join(" · ")
+    elif internal then "Internal transfer" else "Transfer" end
+  ' <<< "$1"
 }

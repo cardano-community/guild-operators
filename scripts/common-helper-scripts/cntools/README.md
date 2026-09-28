@@ -749,7 +749,11 @@ prepared using the existing wallet helpers. The overview identifies the scope.
   its descending block order. Fetch `tx_info` only for the current page or an
   explicit detail lookup, with all eight optional flags enabled. Previously
   visited pages are cached for the visit. Summary amounts are **total transaction
-  outputs**, not wallet net balance changes.
+  outputs**, not wallet net balance changes. Numbered headings describe observed
+  operations (withdrawals, certificates, governance, mint/burn, script execution).
+  Otherwise, `Internal transfer` requires every input and output to share an
+  address/payment credential or match the selected wallet's known credentials;
+  other transactions use `Transfer`. Metadata never determines these tags.
 - UTxOs: fetch `credential_utxos?is_spent=eq.false` or
   `account_utxos?is_spent=eq.false` once with `_extended: true`.
   Show the returned count and counts by address; summarize each output with its
@@ -759,9 +763,14 @@ prepared using the existing wallet helpers. The overview identifies the scope.
   returned snapshot, not a guarantee of complete wallet history. Reopen the
   action to refresh; outputs can be spent after the snapshot was collected.
 - Next/Previous appear only where applicable. Details accepts the global item
-  number; transaction details also accept a direct transaction ID. Full API data
-  is layered into tables with nested field paths, including metadata, scripts,
-  collateral and governance. The separate viewer returns with **q**.
+  number; transaction details also accept a direct transaction ID. Details use
+  an overview and separate Inputs/Outputs sections, with one address-titled table
+  per record. Empty optional sections and null fields are omitted. Tables size
+  their label/value columns from the content and available terminal width,
+  wrapping only when necessary. UTxO summaries/details use the same layout.
+  CIP-20 metadata shows its label/type and numbered message lines; other metadata
+  is pretty-printed JSON, preserving its nested content. Encrypted CIP-83 messages
+  are identified, not decoded. The separate viewer returns with **q**.
 - Asset names and decimal amounts are opt-in and reuse the shared one-day Koios
   metadata cache. Raw identities and smallest-unit quantities remain visible.
   Declining metadata does not make enrichment calls. Metadata is display-only.

@@ -4,7 +4,7 @@
 CNTOOLS_HISTORY_METADATA="ask"
 
 cntools_history_pair() {
-  cntools_wallet_table_wrapped_pair "$1" "$2" 24 "${3:-value}"
+  cntools_table_pair "$1" "$2" "${3:-value}"
 }
 
 cntools_history_number_pair() {
@@ -104,7 +104,7 @@ cntools_history_summary_rows() {
        ["Outputs",(.outputs|length)],
        ["Output assets",([.outputs[]?.asset_list[]? | [.policy_id,.asset_name]]|unique|length)]]
      else
-      [["UTxO",(.tx_hash+"#"+(.tx_index|tostring))],["Address",.address],
+      [["UTxO",(.tx_hash+"#"+(.tx_index|tostring))],
        ["ADA",.value],["Native assets",((.asset_list // [])|length)],
        ["Date",.block_time],["Block",.block_height]] +
       (if .datum_hash != null or .inline_datum != null then [["Datum","Present"]] else [] end) +
@@ -126,9 +126,8 @@ cntools_history_summary_rows() {
   fi
 }
 
-# Keep nested structure visible through field paths and one table per top-level
-# section. Unlike paths(scalars), this also preserves nulls and empty containers.
-# Additional API fields need no hand-maintained whitelist to appear in Details.
+# Input/output records are already isolated, so paths never repeat the I/O
+# ordinal or payment address. Optional nulls and empty structures stay hidden.
 cntools_history_tree_rows() {
   local file="$1" section="$2" path="" type="" value="" role="value" formatted=""
   cntools_wallet_table_row Field Value
@@ -138,14 +137,14 @@ cntools_history_tree_rows() {
       cntools_history_asset_display "${value}" "${path}" || return 1
       continue
     fi
-    if [[ "${section}" == Overview && "${path}" =~ ^(tx_timestamp|block_time)$ ]]; then
+    if [[ "${section}" =~ ^(Overview|Record)$ && "${path}" =~ ^(tx_timestamp|block_time)$ ]]; then
       cntools_timestamp_datetime_into formatted "${value}" && value="${formatted}"
     elif [[ "${section}" == Overview && "${path}" =~ ^(invalid_before|invalid_after)$ && "${type}" != null ]]; then
       cntools_slot_datetime_into formatted "${value}" && value="${formatted}"
     elif [[ "${type}" == string && "${value}" =~ ^-?[0-9]+$ ]] &&
          { [[ "${section}" == Overview &&
               "${path}" =~ ^(value|fee|deposit|treasury_donation|total_output)$ ]] ||
-           [[ "${section}" =~ ^(inputs|outputs|collateral_inputs|collateral_output|reference_inputs)$ &&
+           [[ "${section}" =~ ^(Record|inputs|outputs|collateral_inputs|collateral_output|reference_inputs)$ &&
               "${path}" =~ ^(\[[0-9]+\]\ /\ )?value$ ]]; }; then
       if [[ "${value}" == -* ]]; then
         value="-$(cntools_wallet_format_lovelace "${value#-}")"
@@ -164,31 +163,121 @@ cntools_history_tree_rows() {
   done < <(jq -r --arg section "${section}" '
     def clean: tostring | gsub("[\u0000-\u001f\u007f]";" ");
     def leaves($path):
-      if type == "object" and length > 0 then
+      if . == null or . == [] or . == {} then empty
+      elif type == "object" and length > 0 then
         (if (.policy_id? | type == "string") and (.asset_name? | type == "string")
           then [$path,"asset",tojson] else empty end),
         (to_entries[] | .key as $key | .value | leaves(if $path == "" then $key else $path + " / " + $key end))
       elif type == "array" and length > 0 then
         to_entries[] | .key as $key | .value | leaves($path + "[" + (($key+1)|tostring) + "]")
       else [$path,type,(if type == "string" then (if . == "" then "(empty string)" else . end) else tojson end)] end;
-    (if $section == "Overview" then with_entries(select(.value | type != "array" and type != "object")) else .[$section] end) |
+    (if $section == "Overview" then with_entries(select(.value | type != "array" and type != "object"))
+     elif $section == "Record" then del(.payment_addr,.payment_cred,.address) |
+       if .asset_list == "[]" then del(.asset_list) else . end
+     else .[$section] end) |
     leaves("") | map(clean) | join("\u001f")
   ' "${file}")
 }
 
+cntools_history_record_title() {
+  local record="$1" number="$2" address="" formatted=""
+  address="$(jq -r '((try .payment_addr.bech32 catch null) // .address) |
+    if type == "string" and length > 0 then . else "Address unavailable" end' <<< "${record}")" || return 1
+  cntools_wallet_sanitize_display_into address "${address}" || return 1
+  cntools_number_format_into formatted "${number}" || return 1
+  printf '%s · %s\n' "${formatted}" "${address}"
+}
+
+cntools_history_io_render() {
+  local file="$1" section="$2" title="$3" record="" heading="" index=0
+  local CNTOOLS_TABLE_TITLE_ROLE=identifier
+  cntools_table_heading "━━ ${title} ━━" accent || return 1
+  while IFS= read -r record; do
+    index=$((index + 1))
+    heading="$(cntools_history_record_title "${record}" "${index}")" || return 1
+    cntools_history_tree_rows <(printf '%s\n' "${record}") Record | cntools_table_render "${heading}" || return 1
+  done < <(jq -c --arg section "${section}" '.[$section] | if type == "array" then .[] else . end' "${file}")
+}
+
+cntools_history_metadata_render() {
+  local file="$1" entry="" label="" type="" line="" number=0 extra=""
+  if ! jq -e '.metadata | type == "object"' "${file}" >/dev/null; then
+    cntools_table_heading "Metadata" || return 1
+    while IFS= read -r line; do cntools_table_heading "${line}" value || return 1; done < <(jq '.metadata' "${file}")
+    printf '\n'
+    return 0
+  fi
+  while IFS= read -r entry; do
+    label="$(jq -r '.key' <<< "${entry}")" || return 1
+    type="Custom metadata"
+    case "${label}" in
+      674)
+        if jq -e '.value | type == "object" and .enc == "basic"' <<< "${entry}" >/dev/null; then
+          type="CIP-83 encrypted message"
+        elif jq -e '.value | type == "object" and (has("enc")|not) and
+            (.msg | type == "array" and length > 0 and all(type == "string"))' <<< "${entry}" >/dev/null; then
+          type="CIP-20 message"
+        fi ;;
+      721) type="CIP-25 asset metadata" ;;
+      20) type="Fungible token metadata" ;;
+    esac
+    cntools_table_heading "${label} · ${type}" accent || return 1
+    if [[ "${type}" == "CIP-20 message" ]]; then
+      number=0
+      while IFS= read -r line; do
+        number=$((number + 1))
+        # Each msg array item stays one numbered message line; controls are
+        # replaced, never interpreted as terminal escape sequences.
+        cntools_table_heading "${number} · ${line}" value || return 1
+      done < <(jq -r '.value.msg[] | gsub("[\u0000-\u001f\u007f]";" ")' <<< "${entry}")
+      extra="$(jq '.value | del(.msg) | select(length > 0)' <<< "${entry}")" || return 1
+      if [[ -n "${extra}" ]]; then
+        while IFS= read -r line; do cntools_table_heading "${line}" value || return 1; done <<< "${extra}"
+      fi
+    else
+      while IFS= read -r line; do cntools_table_heading "${line}" value || return 1; done < <(jq '.value' <<< "${entry}")
+    fi
+    printf '\n'
+  done < <(jq -c '.metadata | to_entries[]' "${file}")
+}
+
 cntools_history_detail_render() {
-  local file="$1" section="" title="" encoded=""
-  cntools_history_tree_rows "${file}" Overview | cntools_wallet_render_table "Overview · Koios API" || return 1
+  local file="$1" section="" title="" encoded="" record=""
+  if jq -e 'has("is_spent") and has("address")' "${file}" >/dev/null; then
+    record="$(jq -c . "${file}")" || return 1
+    title="$(cntools_history_record_title "${record}" "${CNTOOLS_HISTORY_DETAIL_NUMBER:-1}")" || return 1
+    cntools_table_heading '━━ Unspent output ━━' accent || return 1
+    local CNTOOLS_TABLE_TITLE_ROLE=identifier
+    cntools_history_tree_rows "${file}" Record | cntools_table_render "${title}"
+    return $?
+  fi
+  cntools_history_tree_rows "${file}" Overview | cntools_table_render "Overview · Koios API" || return 1
+  # Put ordinary inputs/outputs first; optional sections retain source order.
   while IFS= read -r encoded; do
     section="$(jq -r . <<< "${encoded}")" || return 1
-    cntools_wallet_sanitize_display_into title "${section//_/ }" || return 1
-    cntools_history_tree_rows "${file}" "${section}" | cntools_wallet_render_table "${title}" || return 1
-  done < <(jq -c 'to_entries[] | select(.value | type == "array" or type == "object") | .key' "${file}")
+    case "${section}" in
+      inputs) cntools_history_io_render "${file}" "${section}" Inputs ;;
+      outputs) cntools_history_io_render "${file}" "${section}" Outputs ;;
+      collateral_inputs) cntools_history_io_render "${file}" "${section}" 'Collateral inputs' ;;
+      collateral_output) cntools_history_io_render "${file}" "${section}" 'Collateral output' ;;
+      reference_inputs) cntools_history_io_render "${file}" "${section}" 'Reference inputs' ;;
+      metadata) cntools_history_metadata_render "${file}" ;;
+      *)
+        cntools_wallet_sanitize_display_into title "${section//_/ }" || return 1
+        cntools_history_tree_rows "${file}" "${section}" | cntools_table_render "${title}"
+        ;;
+    esac || return 1
+  done < <(jq -c '
+    . as $tx |
+    (["inputs","outputs"] + [keys_unsorted[] | select(. != "inputs" and . != "outputs")])[] as $key |
+    select($tx[$key] | (type == "array" or type == "object") and length > 0) | $key
+  ' "${file}")
 }
 
 cntools_history_detail_view() {
   local selection="" display="" prompt="Item number"
   local CNTOOLS_HISTORY_METADATA="${CNTOOLS_HISTORY_METADATA}"
+  local CNTOOLS_TABLE_MARGIN=4 # Space for Gum pager borders/padding.
   [[ "${CNTOOLS_HISTORY_KIND}" != transactions ]] || prompt="Transaction number or transaction ID"
   cntools_ui_input selection "${prompt}" "Number from the full list" || return 0
   if ! cntools_ui_spin_function "Fetching details from Koios…" cntools_history_detail_load "${selection}"; then
@@ -207,7 +296,7 @@ cntools_history_detail_view() {
 
 cntools_history_action() {
   local kind="$1" title="Transaction List" selected="" directory="" type="" credential=""
-  local size="" choice="" record="" number=0 target=0 stake="" lookup=payment
+  local size="" choice="" record="" number=0 target=0 stake="" lookup=payment summary_title=""
   local -a choices=()
   [[ "${kind}" != utxos ]] || title="UTxO List"
   cntools_ui_action_begin "${title}" "/ Wallet / ${title}"
@@ -232,6 +321,7 @@ cntools_history_action() {
   if [[ "${type}" == MultiSig ]]; then type=script-payment; else type=payment; fi
   cntools_wallet_id_read_credential "${directory}" "${type}" credential || credential=""
   cntools_wallet_read_address "${directory}" reward stake || stake=""
+  CNTOOLS_HISTORY_PAYMENT="${credential,,}" CNTOOLS_HISTORY_STAKE="${stake}"
   if [[ -n "${credential}" && -n "${stake}" ]]; then
     cntools_ui_choose choice "Look up by" \
       "Payment credential · matching base and payment-only addresses" \
@@ -271,14 +361,19 @@ cntools_history_action() {
       cntools_history_metadata_offer "${CNTOOLS_HISTORY_PAGE_FILE}" || return 1
     fi
     cntools_ui_action_begin "${title}" "/ Wallet / ${title}"
-    cntools_history_overview_rows | cntools_wallet_render_table "${title}" || return 1
+    cntools_history_overview_rows | cntools_table_render "${title}" || return 1
     if (( CNTOOLS_HISTORY_TOTAL == 1000 )); then
       cntools_ui_render_status warn "Koios returns at most 1,000 matches; only the last 1,000 matching ${kind} can be displayed."
     fi
     number=$((CNTOOLS_HISTORY_PAGE * CNTOOLS_HISTORY_SIZE))
     while IFS= read -r record; do
       number=$((number + 1))
-      cntools_history_summary_rows "${record}" | cntools_wallet_render_table "${number} · ${title% List}" || return 1
+      if [[ "${kind}" == transactions ]]; then
+        summary_title="${number} · $(cntools_history_transaction_tags "${record}")" || return 1
+      else
+        summary_title="$(cntools_history_record_title "${record}" "${number}")" || return 1
+      fi
+      cntools_history_summary_rows "${record}" | cntools_table_render "${summary_title}" || return 1
     done < <(jq -c '.[]' "${CNTOOLS_HISTORY_PAGE_FILE}")
     choices=()
     (( (CNTOOLS_HISTORY_PAGE + 1) * CNTOOLS_HISTORY_SIZE >= CNTOOLS_HISTORY_TOTAL )) || choices+=("Next page")

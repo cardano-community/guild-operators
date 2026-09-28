@@ -19,6 +19,7 @@
     "asset.sh",
     "asset-cache.sh",
     "wallet-query.sh",
+    "table.sh",
     "wallet-history.sh",
     "wallet-history-ui.sh"
   ]

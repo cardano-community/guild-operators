@@ -8,7 +8,7 @@ TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-history.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
 CNTOOLS_TMP_DIR="${TEST_ROOT}"
 for core in health menu theme; do . "${CNTOOLS_ROOT}/core/${core}.sh"; done
-for lib in number wallet wallet-query asset wallet-history wallet-history-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
+for lib in number wallet wallet-query asset table wallet-history wallet-history-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 eq() { [[ "$1" == "$2" ]] || fail "${3:-comparison}: $1 != $2"; }
 cntools_wallet_log() { printf '%s\n' "$*" >> "${TEST_ROOT}/log"; }
@@ -227,7 +227,7 @@ cntools_history_load transactions "${credential}"
 cntools_history_page_load 0
 cntools_history_detail_load 1
 output="$(cntools_history_detail_render "${CNTOOLS_HISTORY_DETAIL}")"
-for required in Overview 'plutus contracts' deadbeef 'voting procedures' Yes hello world null '[]' collateral; do
+for required in Overview 'plutus contracts' deadbeef 'voting procedures' Yes '1 · hello' '2 · world' null '[]' 'Collateral output'; do
   [[ "${output}" == *"${required}"* ]] || fail "missing detail field/section ${required}"
 done
 jq '.outputs[0].inline_datum={value:"123456789"}' "${CNTOOLS_HISTORY_DETAIL}" > "${TEST_ROOT}/datum.json"
@@ -236,6 +236,100 @@ output="$(cntools_history_detail_render "${TEST_ROOT}/datum.json")"
 jq '.metadata["evil\u001b[31m"]="\u001b]52;c;attack\u0007"' "${CNTOOLS_HISTORY_DETAIL}" > "${TEST_ROOT}/untrusted.json"
 output="$(cntools_history_detail_render "${TEST_ROOT}/untrusted.json")"
 [[ "${output}" != *$'\033'* && "${output}" != *$'\007'* ]] || fail 'terminal escape leakage'
+
+# Ledger-derived intent tags, including repeated certificates and mixed activity.
+for pair in 'stake_registration:Stake registration' 'stake_deregistration:Stake de-registration' \
+  'pool_delegation:Stake delegation' 'vote_delegation:DRep delegation' \
+  'drep_registration:DRep registration' 'drep_update:DRep update' 'drep_retire:DRep retirement'; do
+  tag="${pair#*:}"
+  record="$(jq -nc --arg type "${pair%%:*}" '{certificates:[{type:$type},{type:$type}]}')"
+  eq "$(cntools_history_transaction_tags "${record}")" "${tag}"
+done
+record='{"withdrawals":[{}],"voting_procedures":[{}],"proposal_procedures":[{}],"assets_minted":[{"quantity":"100"},{"quantity":"-1"}]}'
+eq "$(cntools_history_transaction_tags "${record}")" 'Burn · Governance proposal · Governance vote · Mint · Withdrawal'
+eq "$(cntools_history_transaction_tags '{"certificates":[{"type":"future"}]}')" Certificate
+eq "$(cntools_history_transaction_tags '{"plutus_contracts":[{}]}')" 'Script execution'
+record='{"inputs":[{"payment_addr":{"bech32":"same"}}],"outputs":[{"payment_addr":{"bech32":"same"}}]}'
+eq "$(cntools_history_transaction_tags "${record}")" 'Internal transfer'
+eq "$(cntools_history_transaction_tags "$(jq '.outputs[0].payment_addr.bech32="other"' <<< "${record}")")" Transfer
+record="$(jq --arg cred "${fixture_credential}" '.inputs[0].payment_addr.cred=$cred |
+  .outputs[0].payment_addr={cred:$cred,bech32:"other"}' <<< "${record}")"
+eq "$(cntools_history_transaction_tags "${record}")" 'Internal transfer' 'base and enterprise share payment key'
+CNTOOLS_HISTORY_PAYMENT="${fixture_credential}" CNTOOLS_HISTORY_STAKE="${fixture_stake}"
+record="$(jq --arg stake "${fixture_stake}" '.outputs[0]={stake_addr:$stake}' <<< "${record}")"
+eq "$(cntools_history_transaction_tags "${record}")" 'Internal transfer' 'selected wallet identities'
+for record in '{"inputs":[],"outputs":[]}' '{"inputs":[{}],"outputs":[{}]}' \
+  '{"inputs":[{"payment_addr":123}],"outputs":[{"payment_addr":false}]}' \
+  '{"metadata":{"intent":"Stake registration"}}'; do
+  eq "$(cntools_history_transaction_tags "${record}")" Transfer 'no speculative intent'
+done
+
+# Input/output sections and isolated, address-titled records; optional fields
+# stay hidden but arbitrary custom metadata preserves nulls and empty arrays.
+jq '.inputs=[.outputs[0]] | .outputs += [.outputs[0]] |
+  .outputs[1].payment_addr.bech32="second-address" |
+  .outputs[0].datum_hash=null | .collateral_inputs=[] | .reference_inputs=[] |
+  .collateral_output=null | .metadata={"674":{msg:["CNTools","CIP-20","test"]},"99":{empty:[],nothing:null}}' \
+  "${CNTOOLS_HISTORY_DETAIL}" > "${TEST_ROOT}/layout.json"
+output="$(cntools_history_detail_render "${TEST_ROOT}/layout.json")"
+for required in '━━ Inputs ━━' '━━ Outputs ━━' '1 · example' '2 · second-address' \
+  '674 · CIP-20 message' '1 · CNTools' '2 · CIP-20' '3 · test' '99 · Custom metadata' '"nothing": null' '"empty": []'; do
+  [[ "${output}" == *"${required}"* ]] || fail "missing detail layout: ${required}"
+done
+for hidden in payment_addr payment_cred datum_hash 'Collateral inputs' 'Collateral output' \
+  'Reference inputs' 'native scripts' 'proposal procedures' '[1] / value'; do
+  [[ "${output}" != *"${hidden}"* ]] || fail "redundant/empty detail: ${hidden}"
+done
+jq '.metadata={"674":{enc:"basic",msg:["ciphertext"]},"721":{"policy":{"asset":{"name":"NFT"}}}}' \
+  "${TEST_ROOT}/layout.json" > "${TEST_ROOT}/encrypted.json"
+output="$(cntools_history_detail_render "${TEST_ROOT}/encrypted.json")"
+[[ "${output}" == *'674 · CIP-83 encrypted message'* && "${output}" == *'"ciphertext"'* &&
+   "${output}" != *'1 · ciphertext'* && "${output}" == *'721 · CIP-25 asset metadata'* ]] || fail 'non-CIP20 metadata presentation'
+
+# Table sizing: both columns remain unwrapped if they fit, grow beyond the
+# compact menu width, and wrap only when the terminal runs out of space.
+(
+  unset COLUMNS
+  CNTOOLS_UI_COLUMNS=160
+  cntools_ui_table() { printf 'WIDTHS %s\n' "$*"; cat; }
+  long_label='A longer nested field label than the previous fixed limit'
+  long_value="$(printf 'a%.0s' {1..90})"
+  output="$(cntools_table_pair "${long_label}" "${long_value}" | cntools_table_render Test)"
+  [[ "${output}" == *"${long_label}"* && "${output}" == *"${long_value}"* ]] || fail 'unnecessary wide table wrapping'
+  CNTOOLS_UI_COLUMNS=80
+  output="$(cntools_table_pair "${long_label}" "${long_value}" | cntools_table_render Test)"
+  [[ "${output}" != *"${long_value}"* ]] || fail 'narrow table did not wrap'
+  CNTOOLS_UI_COLUMNS=240
+  long_value="$(printf 'a%.0s' {1..200})"
+  output="$(cntools_table_pair ID "${long_value}" | cntools_table_render Test)"
+  [[ "${output}" == *"${long_value}"* ]] || fail 'wide terminal still capped at 180'
+  CNTOOLS_TABLE_MARGIN=4
+  eq "$(cntools_table_content_width)" 236 'pager frame allowance'
+)
+
+# Optional real-renderer contract, pinned to the deployed Gum version. CI can
+# run the ordinary suite without installing Gum; local UI validation sets this.
+if [[ -n "${CNTOOLS_TEST_GUM:-}" ]]; then
+  (
+    # shellcheck disable=SC1091
+    . "${CNTOOLS_ROOT}/core/gum.sh"
+    CNTOOLS_GUM_BIN="${CNTOOLS_TEST_GUM}" NO_COLOR=1 CNTOOLS_UI_INTERACTIVE=N
+    [[ "$(cntools_gum --version)" == *'2.0.0'* ]] || fail 'UI tests require pinned Gum 2.0.0'
+    CNTOOLS_UI_COLUMNS=100
+    output="$(cntools_table_pair 'Transaction ID' "${hash1}" identifier | cntools_table_render '1 · Transfer')"
+    [[ "${output}" == *"${hash1}"* ]] || fail 'Gum wrapped a fitting transaction ID'
+    eq "$(printf '%s\n' "${output}" | wc -l | tr -d ' ')" 4 'no wrapped/visible table header'
+    output="$(cntools_table_pair N 100 number | cntools_table_render Tiny)"
+    [[ "${output}" == *'│ N │ 100 │'* ]] || fail 'short columns broke header removal'
+    CNTOOLS_UI_COLUMNS=48
+    output="$(cntools_table_pair 'Transaction ID' "${hash1}" identifier | cntools_table_render Test)"
+    [[ "${output}" != *"${hash1}"* ]] || fail 'Gum failed to wrap narrow table'
+    [[ "$(printf '%s\n' "${output}" | jq -Rs 'split("\n") | map(length) | max')" -le 48 ]] || fail 'table exceeded terminal width'
+    CNTOOLS_UI_COLUMNS=160 CNTOOLS_HISTORY_METADATA=N
+    output="$(cntools_history_detail_render "${TEST_ROOT}/layout.json")"
+    [[ "${output}" == *"${hash1}"* && "${output}" == *'2 · second-address'* ]] || fail 'real Gum detail rendering'
+  )
+fi
 
 # Workflow: first/last page controls, blank default, explicit details, q return.
 cntools_wallet_catalog_build() { CNTOOLS_WALLET_NAMES=(Test); CNTOOLS_WALLET_PATHS=(/test); }

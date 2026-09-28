@@ -1174,6 +1174,7 @@ test_live_wallet_table_width() (
 
   CNTOOLS_UI_INTERACTIVE="Y"
   cntools_gum_width() { printf '98\n'; }
+  stty() { return 1; } # Exercise terminfo fallback, independent of the test TTY.
   tput() {
     [[ "${1:-}" == "cols" ]] || return 1
     printf '%s\n' "${test_terminal_columns}"
@@ -1194,6 +1195,7 @@ test_wallet_table_width_snapshot() (
 
   CNTOOLS_UI_INTERACTIVE="Y"
   : > "${width_trace}"
+  stty() { return 1; }
   tput() {
     [[ "${1:-}" == "cols" ]] || return 1
     printf 'cols\n' >> "${width_trace}"

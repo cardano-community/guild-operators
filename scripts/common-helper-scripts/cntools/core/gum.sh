@@ -528,19 +528,28 @@ cntools_ui_content_width() {
   local maximum="${1:-180}"
   local minimum="${2:-42}"
   local terminal_columns=""
+  local terminal_size=""
   local width=""
 
   [[ "${maximum}" =~ ^[1-9][0-9]*$ &&
      "${minimum}" =~ ^[1-9][0-9]*$ &&
      ${maximum} -ge ${minimum} ]] || return 2
   if [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == "Y" || -t 1 ]]; then
-    terminal_columns="$(tput cols 2>/dev/null || true)"
+    # Table/pager rendering is often piped. Stderr normally retains the real
+    # terminal; otherwise ask the controlling terminal, not terminfo defaults.
+    terminal_size="$(stty size 0<&2 2>/dev/null || stty size 2>/dev/null < /dev/tty || true)"
+    terminal_columns="${terminal_size##* }"
+    [[ "${terminal_columns}" =~ ^[0-9]+$ ]] ||
+      terminal_columns="$(tput cols 2>/dev/null || true)"
     if [[ "${terminal_columns}" =~ ^[0-9]+$ &&
           ${terminal_columns} -gt 2 ]]; then
       width="$((terminal_columns - 2))"
     fi
   fi
   [[ -n "${width}" ]] || width="${CNTOOLS_UI_COLUMNS:-}"
+  if [[ ! "${width}" =~ ^[0-9]+$ && "${COLUMNS:-}" =~ ^[0-9]+$ ]] && (( COLUMNS > 2 )); then
+    width=$((COLUMNS - 2))
+  fi
   if [[ ! "${width}" =~ ^[0-9]+$ ]]; then
     width="$(cntools_gum_width 2>/dev/null || true)"
   fi
