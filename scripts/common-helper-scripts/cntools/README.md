@@ -768,6 +768,9 @@ prepared using the existing wallet helpers. The overview identifies the scope.
   per record. Empty optional sections and null fields are omitted. Tables size
   their label/value columns from the content and available terminal width,
   wrapping only when necessary. UTxO summaries/details use the same layout.
+  Each asset in an input/output or UTxO detail has its own name-titled table,
+  indented beneath its parent record. Asset identifiers and raw quantities remain
+  visible; optional metadata adds formatted amounts and names without extra calls.
   CIP-20 metadata shows its label/type and numbered message lines; other metadata
   is pretty-printed JSON, preserving its nested content. Encrypted CIP-83 messages
   are identified, not decoded. The separate viewer returns with **q**.

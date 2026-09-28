@@ -130,6 +130,7 @@ cntools_history_summary_rows() {
 # ordinal or payment address. Optional nulls and empty structures stay hidden.
 cntools_history_tree_rows() {
   local file="$1" section="$2" path="" type="" value="" role="value" formatted=""
+  local decimals="${3:-}"
   cntools_wallet_table_row Field Value
   while IFS=$'\037' read -r path type value; do
     role=value
@@ -159,24 +160,82 @@ cntools_history_tree_rows() {
     elif [[ "${path}" =~ (hash|fingerprint|address|bech32|cred|policy_id|asset_name)$ ]]; then
       role=identifier
     fi
+    if [[ "${section}" == Asset ]]; then
+      case "${path}" in
+        quantity) path="Raw quantity" ;;
+        policy_id) path="Policy ID" ;;
+        asset_name) path="Asset name (hex)" ;;
+        fingerprint) path=Fingerprint ;;
+        decimals) path=Decimals ;;
+      esac
+    fi
     cntools_history_pair "${path}" "${value}" "${role}" || return 1
-  done < <(jq -r --arg section "${section}" '
+  done < <(jq -r --arg section "${section}" --arg decimals "${decimals}" '
     def clean: tostring | gsub("[\u0000-\u001f\u007f]";" ");
     def leaves($path):
       if . == null or . == [] or . == {} then empty
       elif type == "object" and length > 0 then
-        (if (.policy_id? | type == "string") and (.asset_name? | type == "string")
+        (if $section != "Asset" and (.policy_id? | type == "string") and (.asset_name? | type == "string")
           then [$path,"asset",tojson] else empty end),
         (to_entries[] | .key as $key | .value | leaves(if $path == "" then $key else $path + " / " + $key end))
       elif type == "array" and length > 0 then
         to_entries[] | .key as $key | .value | leaves($path + "[" + (($key+1)|tostring) + "]")
       else [$path,type,(if type == "string" then (if . == "" then "(empty string)" else . end) else tojson end)] end;
     (if $section == "Overview" then with_entries(select(.value | type != "array" and type != "object"))
-     elif $section == "Record" then del(.payment_addr,.payment_cred,.address) |
-       if .asset_list == "[]" then del(.asset_list) else . end
+     elif $section == "Record" then del(.payment_addr,.payment_cred,.address,.asset_list)
+     elif $section == "Asset" then
+       if $decimals != "" then .decimals=($decimals|tonumber) else . end
      else .[$section] end) |
     leaves("") | map(clean) | join("\u001f")
   ' "${file}")
+}
+
+cntools_history_asset_title_into() {
+  # Declining enrichment still permits a locally decoded name, but never uses
+  # cached metadata from another view or triggers an API request.
+  if [[ "${CNTOOLS_HISTORY_METADATA}" != Y ]]; then
+    local -A CNTOOLS_WALLET_ASSET_TICKERS=() CNTOOLS_WALLET_ASSET_CLASSES=()
+    local -A CNTOOLS_WALLET_ASSET_METADATA_NAMES=() CNTOOLS_WALLET_ASSET_ASCII_NAMES=()
+  fi
+  cntools_asset_label_into "$1" "$2" "$3"
+}
+
+cntools_history_asset_rows() {
+  local asset="$1" identity="$2" decimals="" quantity="" formatted=""
+  if [[ "${CNTOOLS_HISTORY_METADATA}" == Y ]]; then
+    decimals="${CNTOOLS_WALLET_ASSET_METADATA_DECIMALS[${identity}]:-}"
+    quantity="$(jq -r '.quantity | tostring' <<< "${asset}")" || return 1
+    if [[ "${quantity}" =~ ^[0-9]+$ && "${decimals}" =~ ^[0-9]+$ ]]; then
+      cntools_wallet_format_token_amount_into formatted "${quantity}" "${decimals}" || return 1
+      cntools_history_pair Amount "${formatted}" number || return 1
+    else
+      decimals=""
+    fi
+  fi
+  cntools_history_tree_rows <(printf '%s\n' "${asset}") Asset "${decimals}"
+}
+
+cntools_history_assets_render() {
+  local record="$1" asset="" identity="" title="" rendered="" line="" index=0
+  local CNTOOLS_TABLE_MARGIN=$(( ${CNTOOLS_TABLE_MARGIN:-0} + 2 ))
+  local CNTOOLS_TABLE_TITLE_ROLE=accent
+  while IFS= read -r asset; do
+    index=$((index + 1))
+    identity="$(jq -r '.policy_id + "." + .asset_name' <<< "${asset}")" || return 1
+    cntools_history_asset_title_into title "${identity}" "${index}" || return 1
+    rendered="$(cntools_history_asset_rows "${asset}" "${identity}" |
+      cntools_table_render "${title}")" || return 1
+    while IFS= read -r line; do
+      printf '  %s\n' "${line}"
+    done <<< "${rendered}"
+    printf '\n'
+  done < <(jq -c '.asset_list | if type == "array" then .[] else empty end' <<< "${record}")
+}
+
+cntools_history_record_render() {
+  local record="$1" title="$2"
+  cntools_history_tree_rows <(printf '%s\n' "${record}") Record | cntools_table_render "${title}" || return 1
+  cntools_history_assets_render "${record}"
 }
 
 cntools_history_record_title() {
@@ -195,7 +254,7 @@ cntools_history_io_render() {
   while IFS= read -r record; do
     index=$((index + 1))
     heading="$(cntools_history_record_title "${record}" "${index}")" || return 1
-    cntools_history_tree_rows <(printf '%s\n' "${record}") Record | cntools_table_render "${heading}" || return 1
+    cntools_history_record_render "${record}" "${heading}" || return 1
   done < <(jq -c --arg section "${section}" '.[$section] | if type == "array" then .[] else . end' "${file}")
 }
 
@@ -248,7 +307,7 @@ cntools_history_detail_render() {
     title="$(cntools_history_record_title "${record}" "${CNTOOLS_HISTORY_DETAIL_NUMBER:-1}")" || return 1
     cntools_table_heading '━━ Unspent output ━━' accent || return 1
     local CNTOOLS_TABLE_TITLE_ROLE=identifier
-    cntools_history_tree_rows "${file}" Record | cntools_table_render "${title}"
+    cntools_history_record_render "${record}" "${title}"
     return $?
   fi
   cntools_history_tree_rows "${file}" Overview | cntools_table_render "Overview · Koios API" || return 1

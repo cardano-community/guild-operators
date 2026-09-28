@@ -223,6 +223,26 @@ cntools_history_metadata_offer "${CNTOOLS_HISTORY_DETAIL}"
 eq "${metadata_calls}" 1
 output="$(cntools_history_detail_render "${CNTOOLS_HISTORY_DETAIL}")"
 [[ "${output}" == *TEST* && "${output}" == *'9,007,199,254.740993'* ]] || fail 'shared label/decimal formatting'
+[[ "${output}" == *$'\n  TEST\n'* && "${output}" != *'asset_list['* ]] || fail 'UTxO assets must have indented name-titled tables'
+(
+  CNTOOLS_WALLET_ASSET_TICKERS["${policy}.54455354"]='Enriched token'
+  record="$(jq -c '.[0]' "${CNTOOLS_HISTORY_PAGE_FILE}")"
+  output="$(cntools_history_assets_render "${record}")"
+  [[ "${output}" == '  Enriched token'* && "${output}" == *'Amount'* && "${output}" == *'Raw quantity'* &&
+     "${output}" == *'Policy ID'* && "${output}" == *'Asset name (hex)'* && "${output}" == *'Fingerprint'* ]] || fail 'asset table fields/title'
+  rows="$(cntools_history_asset_rows "$(jq -c '.asset_list[0]' <<< "${record}")" "${policy}.54455354")"
+  [[ "${rows}" == *$'Decimals\0376\037number'* ]] || fail 'metadata amount and decimals must agree'
+  parent="$(cntools_history_tree_rows <(printf '%s\n' "${record}") Record)"
+  [[ "${parent}" != *asset_list* && "${parent}" != *"${policy}"* ]] || fail 'assets duplicated in parent table'
+  CNTOOLS_HISTORY_METADATA=N
+  output="$(cntools_history_assets_render "${record}")"
+  [[ "${output}" == '  TEST'* && "${output}" != *'Enriched token'* && "${output}" != *Amount* ]] || fail 'metadata opt-out used enrichment'
+  record="$(jq '.asset_list += [.asset_list[0] | .asset_name="ff" | .quantity="2"]' <<< "${record}")"
+  output="$(cntools_history_assets_render "${record}")"
+  [[ "${output}" == *$'\n  Asset 02\n'* ]] || fail 'binary-name asset needs safe fallback title'
+  eq "$(cntools_history_assets_render '{"asset_list":[]}')" '' 'empty asset list has no child table'
+  eq "$(cntools_history_assets_render '{}')" '' 'missing asset list has no child table'
+)
 cntools_history_load transactions "${credential}"
 cntools_history_page_load 0
 cntools_history_detail_load 1
@@ -277,9 +297,10 @@ for required in '━━ Inputs ━━' '━━ Outputs ━━' '1 · example' '2
   [[ "${output}" == *"${required}"* ]] || fail "missing detail layout: ${required}"
 done
 for hidden in payment_addr payment_cred datum_hash 'Collateral inputs' 'Collateral output' \
-  'Reference inputs' 'native scripts' 'proposal procedures' '[1] / value'; do
+  'Reference inputs' 'native scripts' 'proposal procedures' '[1] / value' asset_list; do
   [[ "${output}" != *"${hidden}"* ]] || fail "redundant/empty detail: ${hidden}"
 done
+eq "$(printf '%s\n' "${output}" | jq -Rs 'split("\n") | map(select(. == "  TEST")) | length')" 3 'same asset rendered under its input and both outputs'
 jq '.metadata={"674":{enc:"basic",msg:["ciphertext"]},"721":{"policy":{"asset":{"name":"NFT"}}}}' \
   "${TEST_ROOT}/layout.json" > "${TEST_ROOT}/encrypted.json"
 output="$(cntools_history_detail_render "${TEST_ROOT}/encrypted.json")"
@@ -328,6 +349,10 @@ if [[ -n "${CNTOOLS_TEST_GUM:-}" ]]; then
     CNTOOLS_UI_COLUMNS=160 CNTOOLS_HISTORY_METADATA=N
     output="$(cntools_history_detail_render "${TEST_ROOT}/layout.json")"
     [[ "${output}" == *"${hash1}"* && "${output}" == *'2 · second-address'* ]] || fail 'real Gum detail rendering'
+    [[ "${output}" == *$'\n  TEST\n  ╭'* && "${output}" == *"${policy}"* && "${output}" != *asset_list* ]] || fail 'real Gum asset nesting/wide policy ID'
+    CNTOOLS_UI_COLUMNS=48
+    output="$(cntools_history_assets_render "$(jq -c '.outputs[0]' "${TEST_ROOT}/layout.json")")"
+    [[ "$(printf '%s\n' "${output}" | jq -Rs 'split("\n") | map(length) | max')" -le 48 ]] || fail 'indented asset table exceeded terminal width'
   )
 fi
 
