@@ -654,8 +654,8 @@ deploy_systemd() {
 	KillMode=mixed
 
 	[Install]
-	WantedBy=multi-user.target
-	EOF" && echo "${CNODE_VNAME}-$(basename "${0::-3}").service deployed successfully!!" && ${sudo} systemctl daemon-reload && ${sudo} systemctl enable ${CNODE_VNAME}-"$(basename "${0::-3}")".service
+	WantedBy=${CNODE_VNAME}.service
+	EOF" && echo "${CNODE_VNAME}-$(basename "${0::-3}").service deployed successfully!!" && ${sudo} systemctl daemon-reload && ${sudo} systemctl reenable ${CNODE_VNAME}-"$(basename "${0::-3}")".service
 }
 
 get_metrics_endpoint() {
