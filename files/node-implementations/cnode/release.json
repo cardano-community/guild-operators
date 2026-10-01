@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "implementation": "cnode",
-  "version": "11.1.2",
+  "version": "11.1.3",
   "artifacts": {
     "linux-x86_64": {
-      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.1.2/cardano-node-11.1.2-linux-amd64.tar.gz",
-      "sha256": "fd872fbeb9cc663e67088ca47ed01aa01d18a77d7dbee694e2444bb23d833759"
+      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.1.3/cardano-node-11.1.3-linux-amd64.tar.gz",
+      "sha256": "530fb99986fbdccc46f9ee0dd86cabb1393b015feac9173cb731d89fa748365f"
     },
     "linux-aarch64": {
-      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.1.2/cardano-node-11.1.2-linux-arm64.tar.gz",
-      "sha256": "24565d796441111b509a8ddd8be2ebf7d5d6ff363bb9fc447af1f4e9e71a3246"
+      "url": "https://github.com/IntersectMBO/cardano-node/releases/download/11.1.3/cardano-node-11.1.3-linux-arm64.tar.gz",
+      "sha256": "3b638c87448bf08d3680f9116ca92e876579b865c0540f8f33b5c586a02ebf8a"
     }
   },
   "companions": {
