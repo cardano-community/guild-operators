@@ -253,7 +253,7 @@ Later deployments preserve the operator's existing `CNODE_PORT` setting unless
 the common environment is explicitly replaced with `-s s`.
 
 The current manifest was verified against the official
-[cardano-node 11.1.2 release](https://github.com/IntersectMBO/cardano-node/releases/tag/11.1.2)
+[cardano-node 11.1.3 release](https://github.com/IntersectMBO/cardano-node/releases/tag/11.1.3)
 and
 [cardano-cli 11.2.3.1 release](https://github.com/IntersectMBO/cardano-cli/releases/tag/cardano-cli-11.2.3.1),
 using their published GitHub release-asset digests.

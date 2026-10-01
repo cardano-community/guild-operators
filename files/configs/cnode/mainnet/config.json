@@ -14,7 +14,7 @@
   },
   "MaxKnownMajorProtocolVersion": 2,
   "MempoolCapacityBytesOverride": 67108864,
-  "MinNodeVersion": "11.1.2",
+  "MinNodeVersion": "11.1.3",
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresNoMagic",
   "ShelleyGenesisFile": "/opt/cardano/cnode/files/shelley-genesis.json",

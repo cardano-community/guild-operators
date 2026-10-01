@@ -12,7 +12,7 @@
     "QueryBatchSize": 10000,
     "SnapshotInterval": 432
   },
-  "MinNodeVersion": "11.1.2",
+  "MinNodeVersion": "11.1.3",
   "Protocol": "Cardano",
   "RequiresNetworkMagic": "RequiresMagic",
   "PBftSignatureThreshold": 1,
