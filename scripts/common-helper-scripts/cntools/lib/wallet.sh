@@ -151,7 +151,13 @@ cntools_wallet_type() {
      cntools_wallet_file_present "${wallet_directory}" \
        "${CNTOOLS_WALLET_PAY_SKEY_FILENAME}.gpg" ||
      cntools_wallet_file_present "${wallet_directory}" \
-       "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}.gpg"; then
+       "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}.gpg" ||
+     cntools_wallet_file_present "${wallet_directory}" \
+       "${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" ||
+     cntools_wallet_file_present "${wallet_directory}" \
+       "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" ||
+     cntools_wallet_file_present "${wallet_directory}" \
+       "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}.gpg"; then
     ordinary_key_material=1
   fi
   if (( ordinary_key_material == 1 )); then

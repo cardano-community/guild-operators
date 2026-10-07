@@ -12,6 +12,8 @@ cntools_wallet_protection_candidate() {
   local stake_clear="${wallet_directory}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"
   local payment_gpg="${payment_clear}.gpg"
   local stake_gpg="${stake_clear}.gpg"
+  local drep_clear="${wallet_directory}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}"
+  local drep_gpg="${drep_clear}.gpg"
 
   [[ "${wallet_type}" == "CLI" || "${wallet_type}" == "Mnemonic" ]] || return 1
   case "${operation}" in
@@ -19,15 +21,19 @@ cntools_wallet_protection_candidate() {
       [[ "${protection}" == "Open" &&
          ! -e "${payment_gpg}" && ! -L "${payment_gpg}" &&
          ! -e "${stake_gpg}" && ! -L "${stake_gpg}" &&
+         ! -e "${drep_gpg}" && ! -L "${drep_gpg}" &&
          ( ( -f "${payment_clear}" && ! -L "${payment_clear}" ) ||
-           ( -f "${stake_clear}" && ! -L "${stake_clear}" ) ) ]]
+           ( -f "${stake_clear}" && ! -L "${stake_clear}" ) ||
+           ( -f "${drep_clear}" && ! -L "${drep_clear}" ) ) ]]
       ;;
     decrypt)
       [[ "${protection}" == "Protected" &&
          ! -e "${payment_clear}" && ! -L "${payment_clear}" &&
          ! -e "${stake_clear}" && ! -L "${stake_clear}" &&
+         ! -e "${drep_clear}" && ! -L "${drep_clear}" &&
          ( ( -f "${payment_gpg}" && ! -L "${payment_gpg}" ) ||
-           ( -f "${stake_gpg}" && ! -L "${stake_gpg}" ) ) ]]
+           ( -f "${stake_gpg}" && ! -L "${stake_gpg}" ) ||
+           ( -f "${drep_gpg}" && ! -L "${drep_gpg}" ) ) ]]
       ;;
     *) return 2 ;;
   esac
@@ -93,7 +99,8 @@ cntools_wallet_protection_key_names() {
   [[ "${operation}" != "decrypt" ]] || suffix=".gpg"
   for filename in \
     "${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" \
-    "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"; do
+    "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" \
+    "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}"; do
     [[ -f "${wallet_directory}/${filename}${suffix}" &&
        ! -L "${wallet_directory}/${filename}${suffix}" ]] || continue
     [[ -z "${names}" ]] || names+=", "

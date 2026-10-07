@@ -231,7 +231,8 @@ cntools_wallet_protection_keys_into() {
       _cntools_allowed_gpg="${_cntools_candidate##*/}"
       case "${_cntools_allowed_gpg}" in
         "${CNTOOLS_WALLET_PAY_SKEY_FILENAME}.gpg"|\
-        "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}.gpg") ;;
+        "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}.gpg"|\
+        "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}.gpg") ;;
         *)
           cntools_wallet_protection_set_error \
             "The wallet contains an unsupported encrypted file: ${_cntools_allowed_gpg}"
@@ -241,12 +242,12 @@ cntools_wallet_protection_keys_into() {
     done
   fi
 
-  for _cntools_role in payment stake; do
-    if [[ "${_cntools_role}" == "payment" ]]; then
-      _cntools_filename="${CNTOOLS_WALLET_PAY_SKEY_FILENAME}"
-    else
-      _cntools_filename="${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"
-    fi
+  for _cntools_role in payment stake drep; do
+    case "${_cntools_role}" in
+      payment) _cntools_filename="${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" ;;
+      stake) _cntools_filename="${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" ;;
+      drep) _cntools_filename="${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" ;;
+    esac
     _cntools_clear_file="${_cntools_wallet_directory}/${_cntools_filename}"
     _cntools_encrypted_file="${_cntools_clear_file}.gpg"
     case "${_cntools_operation}" in
@@ -293,10 +294,10 @@ cntools_wallet_protection_keys_into() {
   if (( ${#_cntools_files_ref[@]} == 0 )); then
     if [[ "${_cntools_operation}" == "encrypt" ]]; then
       cntools_wallet_protection_set_error \
-        "This wallet has no clear payment or stake signing keys to encrypt."
+        "This wallet has no clear payment, stake or DRep signing keys to encrypt."
     else
       cntools_wallet_protection_set_error \
-        "This wallet has no encrypted payment or stake signing keys to decrypt."
+        "This wallet has no encrypted payment, stake or DRep signing keys to decrypt."
     fi
     return 1
   fi

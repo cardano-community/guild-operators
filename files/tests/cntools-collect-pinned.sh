@@ -10,7 +10,7 @@ TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-collect-pinned.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
 fail() { tail -15 "${TEST_ROOT}/test.log" >&2; printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-for lib in number wallet wallet-query utxo coin-selection change-plan transaction transaction-build transaction-sign transaction-files funds-send funds-collect; do
+for lib in number wallet wallet-query utxo coin-selection change-plan transaction transaction-build transaction-sign transaction-files wallet-payment funds-send funds-collect; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 cntools_log() { printf '%s %s\n' "$1" "$2" >> "${TEST_ROOT}/test.log"; }
@@ -22,12 +22,8 @@ CNTOOLS_SEND_VKEY="${TEST_ROOT}/payment.vkey" CNTOOLS_SEND_SOURCE="${TEST_ROOT}/
 CNTOOLS_FUNDING_PROTOCOL="${REPO_ROOT}/files/tests/fixtures/transaction-protocol-conway.json"
 CNTOOLS_COLLECT_BACKEND=koios
 version="$("${CNTOOLS_CLI}" version | head -1)"; version="${version#cardano-cli }"; version="${version%% *}"
-found=N
-for implementation in cnode dingo amaru; do
-  pin="$(jq -r '.companions["cardano-cli"].version' "${REPO_ROOT}/files/node-implementations/${implementation}/release.json")"
-  [[ "${version}" != "${pin}" ]] || found=Y
-done
-[[ "${found}" == Y ]] || fail 'CLI is not a deployment pin'
+pin="$(jq -er '.companions["cardano-cli"].version' "${REPO_ROOT}/files/node-implementations/cnode/release.json")"
+[[ "${version}" == "${pin}" ]] || fail 'CLI is not the cnode deployment pin'
 "${CNTOOLS_CLI}" address key-gen --verification-key-file "${CNTOOLS_SEND_VKEY}" --signing-key-file "${CNTOOLS_SEND_SOURCE}"
 chmod 0600 "${CNTOOLS_SEND_VKEY}" "${CNTOOLS_SEND_SOURCE}"
 CNTOOLS_SEND_CREDENTIAL="$("${CNTOOLS_CLI}" address key-hash --payment-verification-key-file "${CNTOOLS_SEND_VKEY}")"

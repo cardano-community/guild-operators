@@ -30,6 +30,7 @@
     "change-plan.sh",
     "transaction-funding.sh",
     "recipient.sh",
+    "wallet-payment.sh",
     "funds-send.sh",
     "funds-collect.sh",
     "funds-collect-ui.sh"

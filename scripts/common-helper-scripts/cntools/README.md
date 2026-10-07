@@ -969,8 +969,8 @@ are present, but explicitly marks completeness unverified and delegates final
 ledger validation to the chosen backend; external Byron/bootstrap witnesses
 are not supported. A ready local node is preferred; otherwise an enabled Koios
 backend is used. Submission is prohibited in offline mode. These contracts are
-tested against the pinned Cardano CLI `11.2.3.1` for cnode and `11.0.0.0` for
-Dingo and Amaru, and hardware signing requires the exact tested
+tested against the cnode deployment's pinned Cardano CLI `11.2.3.1` only.
+Amaru/Dingo-specific CLI coverage is outside this rebuild work. Hardware signing requires the exact tested
 `cardano-hw-cli` release `1.19.1`. Transaction package, signer-source,
 hardware-change, output, review, and submission selections are audit logged.
 CNTools validates the exact Cardano CLI version lazily when the first
@@ -980,7 +980,7 @@ transaction operation needs it.
 
 Use the shared helpers in `transaction-ui.sh` and `transaction-files.sh` rather
 than copying a workflow from an individual action. This contract applies to
-Send, Withdraw Rewards, Register, De-Register and standalone Sign/Submit:
+Send, Withdraw Rewards, Register, De-Register, delegation, DRep lifecycle and standalone Sign/Submit:
 
 - Show action-specific essentials (recipients, metadata, rewards or deposit)
   and a compact **Transaction information** table with the actual fee, applicable
@@ -1026,6 +1026,98 @@ Send, Withdraw Rewards, Register, De-Register and standalone Sign/Submit:
 `cntools-transaction-flow.sh` exercises this common contract for both stake
 lifecycle operations; the Send, withdrawal and Sign/Submit suites cover their
 respective orchestration. No workflow test submits a real transaction.
+
+## Governance keys and wallet status
+
+**Vote → Governance → Derive Keys** adds a DRep identity to an existing CLI or
+mnemonic wallet. Choose a fresh random CLI key pair or derive from a recovery
+phrase with the deployment-pinned Cardano CLI. Account defaults to zero; DRep
+derivation uses `1852H/1815H/<account>H/3/0` as supported by the CLI, following
+[CIP-105](https://cips.cardano.org/cip/CIP-0105). This slice does not support
+custom paths, hardware key derivation, multisig DReps or committee keys.
+
+The recovery phrase uses the existing masked paste or word-by-word controls.
+It is supplied to the CLI through standard input, never command arguments or
+logs, and is not saved. A DRep phrase/account may differ from the payment wallet:
+the review explicitly warns that those recovery details need their own backup.
+Random CLI DRep keys must be backed up as files, not recovered from a mnemonic.
+No registration, delegation or other transaction is performed by key setup.
+
+`drep-key.sh` reuses wallet staging, strict key-envelope validation, pair checks
+and public-key normalization. It publishes the private key, public key, CIP-129
+ID and, for mnemonic derivation, `drep.derivation.path` using no-overwrite links.
+Existing DRep keys, IDs, hardware references, scripts and certificate artifacts
+block creation. Partial publication rolls back only this operation's own links.
+The recorded DRep path does not change the payment/stake `derivation.path` file.
+
+Protected wallets must be decrypted explicitly before adding a DRep key. Wallet
+Encrypt/Decrypt now includes normal and extended DRep signing keys alongside
+payment/stake keys, with the same GPG format, password rules and file locking.
+
+**Info & Status** selects a wallet and displays its DRep identity, credential,
+key availability and recorded derivation path. Missing public keys/IDs can be
+regenerated from available keys; existing mismatches are reported, not replaced.
+Cached IDs remain inspectable without a CLI, labelled as checksum-only checks.
+Local mode prefers node DRep state, with explicit Koios fallback when enabled;
+light mode uses Koios. Offline mode performs no network calls. Failed queries
+show status unavailable, never falsely claim that the DRep is unregistered.
+Available deposit, activity, expiry epoch, delegated stake/delegator count and
+metadata URL/hash are displayed with their data source. Metadata references are
+shown without fetching arbitrary external URLs. Local raw expiry is not used to
+infer activity because governance dormancy affects that calculation.
+
+Tests use the cnode deployment CLI pin and cover missing-only recovery,
+no-overwrite and partial-publication handling, GPG round trips, invalid phrases,
+secret-free logs, cancellation and offline/API-failure behavior.
+
+## DRep registration, update and retirement
+
+**Vote → Governance → DRep Registration / Update** selects a wallet with verified
+DRep keys and a payment identity. A payment-only wallet is sufficient; its stake
+key need not exist or be registered. Unregistered DReps use the current protocol
+`dRepDeposit`. Registered DReps automatically use an update certificate, charging
+only the fee and renewing DRep activity, even if the metadata is unchanged.
+
+Registration offers optional metadata. Updates offer **Keep current metadata**,
+**Add / replace metadata** and **Remove metadata**. Supply a published HTTP(S) or
+IPFS URL (at most 128 bytes) with its Blake2b-256 hash, or hash the exact local JSON
+file using the pinned CLI. CNTools does not upload the document or validate the
+full [CIP-119 schema](https://cips.cardano.org/cip/CIP-0119). Confirm that the
+published bytes match the local file; anchors are certificate fields, not
+transaction-message metadata. Neither keeping an anchor nor entering a known
+hash fetches its external URL.
+
+**DRep Retire** requires a registered DRep and a default-No confirmation. It
+refunds the actual deposit recorded on-chain, not today's protocol deposit.
+Zero recorded deposits are supported. Retirement ends the DRep registration;
+delegators should choose another representative. It does not remove wallet keys.
+
+The compact shared transaction review, expiry (including No expiry), coin
+selection/change settings, CLI or available hardware signing sources,
+sign-only and unsigned/offline package workflows are reused. The funding wallet
+and DRep each provide a witness; a stake witness is not needed. Protected or
+public-only keys can produce an unsigned package for later signing. New hardware
+DRep key derivation and script-DRep registration remain separate slices.
+
+Current chain data comes from the local node or enabled Koios backend. Query
+failure or malformed state is never treated as an unregistered DRep. Before
+export/signing and again before live submission, recheck selected inputs,
+expiry, backend, registration, recorded deposit and anchor. Registration also
+rechecks the current protocol deposit. A change requires rebuilding and reviewing
+the transaction. CLI-decoded certificates must match the reviewed credential,
+deposit/refund and anchor, including after hardware transformation.
+Fee balancing uses the pinned CLI's `calculate-min-fee` with the exact built
+body, protocol parameters and deduplicated witness count. Fee and change are
+rebuilt until sufficient, then checked again after any hardware normalization.
+No extra fee budget is added. Signed-size regression checks use the ledger's
+fee-size definition, which excludes the serialized one-byte `IsValid` flag.
+
+Node-free tests use only the CLI version pinned by the cnode release metadata.
+They cover normal/extended DRep witnesses, payment-only funding, ADA and token
+change, recorded/zero refunds, anchors, expiry/no-expiry, unsigned packages and
+exact conservation. Deterministic tests cover API failures, state changes,
+cancellation and all three transaction workflows. These tests do not submit
+transactions or exercise a physical hardware device.
 
 ## Governance voting delegation
 
@@ -1188,7 +1280,7 @@ selection and change policies apply. Delegation explicitly balances outputs,
 deposit and fee using exact integer helpers plus the pinned CLI's minimum-output
 and minimum-fee checks; it does not use `build-estimate` for balancing. This avoids
 the double-counted registration deposit and empty-output balancing discrepancies
-reproduced against deployment pins 11.2.3.1 and 11.0.0.0. Standalone Register and
+reproduced with the cnode deployment-pinned CLI. Standalone Register and
 De-Register share this balancing path, with pinned regression tests for ADA-only
 and token-bearing inputs, expiry/no-expiry, deposit/refund conservation and signing.
 De-Register refunds the recorded stake deposit, even when it differs from the

@@ -38,10 +38,10 @@ cntools_wallet_key_signing_type() {
   output_ref=""
   cntools_wallet_key_envelope_type_into key_type "${key_file}" || return 1
   case "${role}:${key_type}" in
-    payment:PaymentSigningKeyShelley_ed25519)
+    payment:PaymentSigningKeyShelley_ed25519|drep:DRepSigningKey_ed25519)
       output_ref="normal"
       ;;
-    payment:PaymentExtendedSigningKeyShelley_ed25519_bip32)
+    payment:PaymentExtendedSigningKeyShelley_ed25519_bip32|drep:DRepExtendedSigningKey_ed25519_bip32)
       output_ref="extended"
       ;;
     stake:StakeSigningKeyShelley_ed25519)
@@ -52,6 +52,13 @@ cntools_wallet_key_signing_type() {
       ;;
     *) return 1 ;;
   esac
+  if [[ "${role}" == drep ]]; then
+    if [[ "${output_ref}" == extended ]]; then
+      cntools_wallet_key_extended_envelope_valid "${key_file}" drep signing || return 1
+    else
+      cntools_wallet_key_normal_envelope_valid "${key_file}" drep signing || return 1
+    fi
+  fi
 }
 
 cntools_wallet_key_validate() {
@@ -62,6 +69,10 @@ cntools_wallet_key_validate() {
 
   cntools_wallet_key_envelope_type_into key_type "${key_file}" || return 1
   case "${role}:${form}:${key_type}" in
+    drep:normal:DRepVerificationKey_ed25519|\
+    drep:extended:DRepExtendedVerificationKey_ed25519_bip32|\
+    drep:any:DRepVerificationKey_ed25519|\
+    drep:any:DRepExtendedVerificationKey_ed25519_bip32|\
     payment:normal:PaymentVerificationKeyShelley_ed25519|\
     payment:extended:PaymentExtendedVerificationKeyShelley_ed25519_bip32|\
     payment:any:PaymentVerificationKeyShelley_ed25519|\
@@ -87,6 +98,8 @@ cntools_wallet_key_normal_envelope_valid() {
   local expected_type=""
 
   case "${role}:${kind}" in
+    drep:signing) expected_type="DRepSigningKey_ed25519" ;;
+    drep:verification) expected_type="DRepVerificationKey_ed25519" ;;
     payment:signing)
       expected_type="PaymentSigningKeyShelley_ed25519"
       ;;
@@ -122,6 +135,14 @@ cntools_wallet_key_extended_envelope_valid() {
   local expected_cbor=""
 
   case "${role}:${kind}" in
+    drep:signing)
+      expected_type="DRepExtendedSigningKey_ed25519_bip32"
+      expected_cbor='^5880[0-9a-fA-F]{256}$'
+      ;;
+    drep:verification)
+      expected_type="DRepExtendedVerificationKey_ed25519_bip32"
+      expected_cbor='^5840[0-9a-fA-F]{128}$'
+      ;;
     payment:signing)
       expected_type="PaymentExtendedSigningKeyShelley_ed25519_bip32"
       expected_cbor='^5880[0-9a-fA-F]{256}$'
@@ -163,6 +184,7 @@ cntools_wallet_key_normal_verification_into() {
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   case "${_cntools_role}" in
+    drep) _cntools_expected_type="DRepVerificationKey_ed25519" ;;
     payment) _cntools_expected_type="PaymentVerificationKeyShelley_ed25519" ;;
     stake) _cntools_expected_type="StakeVerificationKeyShelley_ed25519" ;;
     *) return 2 ;;
@@ -195,7 +217,7 @@ cntools_wallet_key_normal_pair_matches() {
   local derived_value=""
   local status=0
 
-  case "${role}" in payment|stake) ;; *) return 2 ;; esac
+  case "${role}" in payment|stake|drep) ;; *) return 2 ;; esac
   cntools_wallet_directory_safe "${wallet_directory}" || return 1
   cntools_wallet_key_normal_envelope_valid \
     "${signing_file}" "${role}" signing || return 1
@@ -255,7 +277,7 @@ cntools_wallet_key_extended_pair_matches() {
   local derived_value=""
   local status=0
 
-  case "${role}" in payment|stake) ;; *) return 2 ;; esac
+  case "${role}" in payment|stake|drep) ;; *) return 2 ;; esac
   cntools_wallet_directory_safe "${wallet_directory}" || return 1
   cntools_wallet_key_extended_envelope_valid \
     "${signing_file}" "${role}" signing || return 1
@@ -342,7 +364,7 @@ cntools_wallet_key_materialize_role() {
   local signing_form=""
   local status=0
 
-  case "${role}" in payment|stake) ;; *) return 2 ;; esac
+  case "${role}" in payment|stake|drep) ;; *) return 2 ;; esac
   cntools_wallet_directory_safe "${wallet_directory}" || return 1
   if cntools_wallet_material_entry_exists "${verification_file}"; then
     cntools_wallet_material_existing_valid \

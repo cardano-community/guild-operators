@@ -510,7 +510,7 @@ cntools_wallet_mnemonic_collect_pasted_into() {
   _cntools_output_ref=""
   while true; do
     cntools_wallet_mnemonic_screen_begin \
-      "Mnemonic" "/ Wallet / Import / Mnemonic"
+      "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
     cntools_ui_render_status info \
       "Paste all recovery words separated by spaces. Leading and trailing whitespace is ignored."
     [[ -z "${_cntools_feedback}" ]] ||
@@ -552,7 +552,7 @@ cntools_wallet_mnemonic_collect_interactive_into() {
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   cntools_wallet_mnemonic_screen_begin \
-    "Mnemonic" "/ Wallet / Import / Mnemonic"
+    "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
   if cntools_ui_choose _cntools_count_choice "Recovery phrase length…" \
       "12 words" "15 words" "18 words" "21 words" "24 words"; then
     :
@@ -566,7 +566,7 @@ cntools_wallet_mnemonic_collect_interactive_into() {
        _cntools_index <= _cntools_count;
        _cntools_index++)); do
     cntools_wallet_mnemonic_screen_begin \
-      "Mnemonic" "/ Wallet / Import / Mnemonic"
+      "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
     cntools_ui_render_status info \
       "Choose recovery word ${_cntools_index} of ${_cntools_count}. Type to filter; previous words are cleared as you continue."
     if cntools_wallet_mnemonic_select_word_into \
@@ -599,7 +599,7 @@ cntools_wallet_mnemonic_collect_import_into() {
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   cntools_wallet_mnemonic_screen_begin \
-    "Mnemonic" "/ Wallet / Import / Mnemonic"
+    "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
   cntools_ui_render_status info \
     "Choose how to enter the existing recovery phrase."
   if cntools_ui_choose _cntools_method "Mnemonic input method…" \

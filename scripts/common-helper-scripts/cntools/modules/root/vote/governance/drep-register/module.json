@@ -9,6 +9,35 @@
     "light"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-mnemonic.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "asset.sh",
+    "asset-cache.sh",
+    "wallet-query.sh",
+    "utxo.sh",
+    "transaction.sh",
+    "transaction-build.sh",
+    "transaction-sign.sh",
+    "transaction-submit.sh",
+    "transaction-monitor.sh",
+    "transaction-ui.sh",
+    "transaction-files.sh",
+    "transaction-funding.sh",
+    "coin-selection.sh",
+    "change-plan.sh",
+    "recipient.sh",
+    "wallet-payment.sh",
+    "wallet-register.sh",
+    "wallet-register-ui.sh",
+    "drep-id.sh",
+    "drep-query.sh",
+    "drep-key.sh",
+    "governance-drep.sh",
+    "governance-drep-ui.sh"
   ]
 }

@@ -25,62 +25,12 @@ cntools_send_fail() {
 }
 
 cntools_send_prepare_wallet() {
-  local directory="${1:-}" kind="" identity="" role="" file=""
-  cntools_wallet_directory_safe "${directory}" || return 1
-  cntools_wallet_prepare_selected_material "${directory}" || return 1
-  CNTOOLS_SEND_TYPE="$(cntools_wallet_type "${directory}")" || return 1
-  [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || {
-    cntools_send_fail "Multisig spending is not yet supported for this action."; return 1;
-  }
-  CNTOOLS_SEND_ADDRESS=""; CNTOOLS_SEND_PAYMENT=""; CNTOOLS_SEND_SOURCE=""
-  cntools_wallet_read_address "${directory}" payment CNTOOLS_SEND_PAYMENT || {
-    cntools_send_fail "This source needs a valid payment address and public payment key."; return 1;
-  }
-  cntools_wallet_read_address "${directory}" base CNTOOLS_SEND_ADDRESS || CNTOOLS_SEND_ADDRESS="${CNTOOLS_SEND_PAYMENT}"
-  cntools_recipient_validate "${CNTOOLS_SEND_ADDRESS}" || return 1
-  CNTOOLS_SEND_VKEY="${directory}/${CNTOOLS_WALLET_PAY_VKEY_FILENAME}"
-  cntools_wallet_key_validate "${CNTOOLS_SEND_VKEY}" payment any || {
-    cntools_send_fail "The source wallet's payment verification key is invalid."; return 1;
-  }
-  cntools_wallet_id_read_credential "${directory}" payment CNTOOLS_SEND_CREDENTIAL || {
-    cntools_send_fail "The source wallet's payment credential is missing or invalid."; return 1;
-  }
-  file="${directory}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}"
-  [[ "${CNTOOLS_SEND_TYPE}" != Hardware ]] || file="${directory}/${CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME}"
-  if cntools_transaction_source_kind_into kind "${file}"; then
-    case "${CNTOOLS_SEND_TYPE}:${kind}" in
-      Hardware:hardware|CLI:cli|Mnemonic:cli) CNTOOLS_SEND_SOURCE="${file}" ;;
-    esac
-  fi
-  # Re-derive public addresses in private temporary files, never replace cached
-  # artifacts. A stale address must not redirect change away from this key.
-  for role in payment base; do
-    [[ "${role}" != base || "${CNTOOLS_SEND_ADDRESS}" != "${CNTOOLS_SEND_PAYMENT}" ]] || continue
-    cntools_transaction_temp_file file send-address || return 1
-    local errors=""
-    cntools_transaction_temp_file errors send-address-error || return 1
-    local -a args=(--payment-verification-key-file "${CNTOOLS_SEND_VKEY}") network=()
-    [[ "${role}" != base ]] || args+=(--stake-verification-key-file "${directory}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}")
-    cntools_transaction_network_arguments_into network "${CNTOOLS_NETWORK}" || return 1
-    local status=0
-    cntools_transaction_run_cli "${file}" "${errors}" -- "${CNTOOLS_CLI}" address build \
-      "${args[@]}" "${network[@]}" || status=$?
-    if (( status != 0 )); then
-      cntools_transaction_log_cli_failure "Could not verify source wallet addresses" "${status}" "${errors}" "${file}"
-      return 1
-    fi
-    identity="$(< "${file}")"
-    if [[ "${role}" == payment ]]; then
-      [[ "${identity}" == "${CNTOOLS_SEND_PAYMENT}" ]] || {
-        cntools_send_fail "The cached payment address does not match this wallet's key. Review its public artifacts."; return 1;
-      }
-    else
-      [[ "${identity}" == "${CNTOOLS_SEND_ADDRESS}" ]] || {
-        cntools_send_fail "The cached base address does not match this wallet's keys. Review its public artifacts."; return 1;
-      }
-    fi
+  local field="" source=""
+  cntools_payment_prepare_wallet "$@" || return 1
+  for field in TYPE ADDRESS PAYMENT VKEY SOURCE CREDENTIAL DIRECTORY WALLET; do
+    source="CNTOOLS_PAYMENT_${field}"
+    printf -v "CNTOOLS_SEND_${field}" '%s' "${!source}"
   done
-  CNTOOLS_SEND_DIRECTORY="${directory}"; CNTOOLS_SEND_WALLET="${directory##*/}"
   CNTOOLS_SEND_ADDRESSES=(); CNTOOLS_SEND_LABELS=(); CNTOOLS_SEND_AMOUNTS=(); CNTOOLS_SEND_ASSETS=()
   CNTOOLS_SEND_HANDLES=(); CNTOOLS_SEND_RESOLUTIONS=()
   CNTOOLS_SEND_MODE=exact

@@ -78,11 +78,11 @@ cntools_coin_required_for_stake_into() {
   cntools_uint_normalize_into deposit "${deposit}" || return 2
   cntools_uint_normalize_into fee_reserve "${fee_reserve}" || return 2
   case "${operation}" in
-    register|delegate|vote-delegate)
+    register|delegate|vote-delegate|drep-register|drep-update)
       cntools_uint_add_into _cntools_required \
         "${deposit}" "${fee_reserve}" || return 1
       ;;
-    deregister|withdraw)
+    deregister|withdraw|drep-retire)
       # The credit is the returned deposit or the full reward withdrawal.
       if cntools_uint_greater "${fee_reserve}" "${deposit}"; then
         cntools_uint_subtract_into _cntools_required \

@@ -307,6 +307,11 @@ cntools_wallet_mnemonic_derive_role() {
       signing_file="${stage}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"
       selector="--stake-key-with-number"
       ;;
+    drep)
+      [[ "${key_index}" == 0 ]] || return 2
+      signing_file="${stage}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}"
+      selector="--drep-key"
+      ;;
     *) return 2 ;;
   esac
   [[ ! -e "${signing_file}" && ! -L "${signing_file}" ]] || return 1
@@ -315,7 +320,10 @@ cntools_wallet_mnemonic_derive_role() {
   command=(
     "${CNTOOLS_CLI}" latest key derive-from-mnemonic
     --key-output-text-envelope
-    "${selector}" "${key_index}"
+    "${selector}"
+  )
+  [[ "${role}" == drep ]] || command+=("${key_index}")
+  command+=(
     --account-number "${account}"
     --mnemonic-from-interactive-prompt
     --signing-key-file "${signing_file}"
@@ -330,9 +338,14 @@ cntools_wallet_mnemonic_derive_role() {
     status=$?
   fi
   if (( status != 0 )); then
-    cntools_wallet_mnemonic_command_failure \
-      "Could not derive the ${role} mnemonic signing key" \
-      "${status}" "${error_file}"
+    if [[ "${role}" == drep ]]; then
+      # Derivation errors can echo recovery words; never log their raw output.
+      cntools_wallet_mnemonic_log ERROR "DRep mnemonic derivation failed status=${status}; secret-bearing output suppressed"
+    else
+      cntools_wallet_mnemonic_command_failure \
+        "Could not derive the ${role} mnemonic signing key" \
+        "${status}" "${error_file}"
+    fi
     cntools_wallet_material_remove_temp "${error_file}" || true
     cntools_wallet_mnemonic_set_error \
       "The recovery phrase or ${role} derivation settings were rejected by Cardano CLI."

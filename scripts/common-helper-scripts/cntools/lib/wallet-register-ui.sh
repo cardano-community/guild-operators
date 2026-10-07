@@ -10,6 +10,7 @@ cntools_wallet_register_render_plan() {
   local widths="" fee="" expiry_label="No expiry" action="Stake ${CNTOOLS_WALLET_REGISTER_NOUN}"
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != delegate ]] || action='Stake pool delegation'
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate ]] || action='Voting delegation'
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-* ]] || action="${CNTOOLS_WALLET_REGISTER_INTENT}"
   cntools_transaction_ui_table_widths_into widths 22 || return 1
   cntools_transaction_ui_fee_into fee || return 1
   if [[ -n "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER:-}" ]]; then
@@ -20,13 +21,17 @@ cntools_wallet_register_render_plan() {
     printf 'Transaction detail\tValue\n'
     cntools_transaction_ui_styled_row Wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" identifier
     cntools_transaction_ui_styled_row Action "${action}" accent
-    cntools_transaction_ui_styled_row 'Stake address' "${CNTOOLS_WALLET_REGISTER_REWARD_ADDRESS}" address
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+      cntools_drep_lifecycle_render_rows
+    else
+      cntools_transaction_ui_styled_row 'Stake address' "${CNTOOLS_WALLET_REGISTER_REWARD_ADDRESS}" address
+    fi
     if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
       cntools_delegate_render_pool_rows
     elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
       cntools_vote_render_rows
     fi
-    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate ]] &&
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-update ]] &&
        [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != delegate || "${CNTOOLS_DELEGATE_REGISTER}" == Y ]]; then
       cntools_transaction_ui_styled_row "${CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL}" "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
     fi
@@ -60,6 +65,9 @@ cntools_wallet_register_render_collect_error() {
       message="${CNTOOLS_WALLET_REGISTER_ERROR:-The wallet does not contain a safe set of UTxOs for this transaction.}"
       ;;
   esac
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* && -n "${CNTOOLS_WALLET_REGISTER_ERROR}" ]]; then
+    message="${CNTOOLS_WALLET_REGISTER_ERROR}"
+  fi
   if (( status == 4 || status == 7 )); then
     cntools_ui_render_status info "${message}"
   elif (( status == 8 )); then
@@ -83,7 +91,7 @@ cntools_wallet_register_sign() {
   }
   if [[ "${CNTOOLS_TRANSACTION_COMPLETE}" != "Y" ]]; then
     cntools_wallet_register_set_error \
-      "The selected local sources did not produce a complete stake ${CNTOOLS_WALLET_REGISTER_NOUN} package."
+      "The selected local sources did not produce a complete ${CNTOOLS_WALLET_REGISTER_NOUN} package."
     return 1
   fi
 }
@@ -95,7 +103,7 @@ cntools_wallet_register_result() {
 
 cntools_wallet_register_workflow() {
   local selected_index="" wallet_directory="" wallet_name="" workflow="" proceed="" choice=""
-  local staged="" signed="" saved="" backend="" signed_body="" txid="" status=0
+  local staged="" signed="" saved="" backend="" signed_body="" txid="" status=0 collecting='Checking stake state, rewards and spendable funds…' prefix='stake '
   CNTOOLS_WALLET_REGISTER_RESULT_SHOWN=N
   CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE=""
   cntools_wallet_register_begin
@@ -111,7 +119,11 @@ cntools_wallet_register_workflow() {
   cntools_wallet_register_prepare_wallet "${wallet_directory}" "${wallet_name}" || return 2
   cntools_transaction_ui_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || return $?
   cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
-  cntools_ui_spin_function 'Checking stake state, rewards and spendable funds…' cntools_wallet_register_collect || status=$?
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+    collecting='Checking DRep registration, deposit and spendable funds…'
+    prefix=''
+  fi
+  cntools_ui_spin_function "${collecting}" cntools_wallet_register_collect || status=$?
   if (( status != 0 )); then
     cntools_wallet_register_begin
     cntools_wallet_register_render_collect_error "${status}"
@@ -123,8 +135,10 @@ cntools_wallet_register_workflow() {
     cntools_delegate_choose_target || return $?
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
     cntools_vote_choose_target || return $?
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+    cntools_drep_lifecycle_choose_metadata || return $?
   fi
-  cntools_ui_spin_function "Building stake ${CNTOOLS_WALLET_REGISTER_NOUN}…" \
+  cntools_ui_spin_function "Building ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
     cntools_wallet_register_build_package_into staged || return 2
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
@@ -138,6 +152,8 @@ cntools_wallet_register_workflow() {
   done
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
     cntools_ui_spin_function 'Rechecking stake state, DRep and selected inputs…' cntools_vote_recheck || return 2
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+    cntools_ui_spin_function 'Rechecking DRep state, deposit and selected inputs…' cntools_drep_lifecycle_recheck || return 2
   fi
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
@@ -150,7 +166,7 @@ cntools_wallet_register_workflow() {
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
     cntools_ui_spin_function 'Rechecking stake state, pool and selected inputs…' cntools_delegate_recheck || return 2
   fi
-  cntools_ui_spin_function "Signing stake ${CNTOOLS_WALLET_REGISTER_NOUN}…" \
+  cntools_ui_spin_function "Signing ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
     cntools_wallet_register_sign "${staged}" "${signed}" || return 2
   cntools_transaction_save_into saved "${signed}" signed "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
   CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE="${saved}"
@@ -168,7 +184,7 @@ cntools_wallet_register_workflow() {
     cntools_wallet_register_result warning 'Not submitted · signed package retained' "${txid}" "${saved}"
     return $?
   fi
-  cntools_ui_spin_function "Submitting stake ${CNTOOLS_WALLET_REGISTER_NOUN}…" \
+  cntools_ui_spin_function "Submitting ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
     cntools_wallet_register_submit_checked "${backend}" "${signed_body}" "${txid}" || status=$?
   cntools_wallet_register_begin
   if (( status != 0 )); then
@@ -180,7 +196,12 @@ cntools_wallet_register_workflow() {
 }
 
 cntools_wallet_register_submit_checked() {
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+    cntools_drep_lifecycle_recheck || {
+      cntools_transaction_set_error "Not submitted: ${CNTOOLS_WALLET_REGISTER_ERROR:-DRep state could not be rechecked.}"
+      return 1
+    }
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
     cntools_delegate_recheck || {
       cntools_transaction_set_error "Not submitted: ${CNTOOLS_WALLET_REGISTER_ERROR:-Delegation state could not be rechecked.}"
       return 1
@@ -199,7 +220,7 @@ cntools_wallet_action_stake_lifecycle() {
   cntools_transaction_clear_error
   cntools_wallet_register_workflow || status=$?
   if (( status == 1 )); then
-    cntools_transaction_ui_cancel 'Stake transaction cancelled; saved packages retained'
+    cntools_transaction_ui_cancel 'Transaction cancelled; saved packages retained'
   elif (( status != 0 )) && [[ "${CNTOOLS_WALLET_REGISTER_RESULT_SHOWN:-N}" != Y ]]; then
     cntools_wallet_register_result danger "${CNTOOLS_WALLET_REGISTER_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-Transaction failed. See ${CNTOOLS_LOG}.}}" '' "${CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE:-}"
   fi

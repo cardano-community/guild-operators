@@ -447,7 +447,7 @@ assert_eq "${HW_MALFORMED_STATUS}" 1 \
 # protocol parameters intentionally omit Plutus cost models: Send executes none.
 (
   CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
-  for library in number utxo coin-selection change-plan transaction transaction-build transaction-metadata message-crypto funds-send; do
+  for library in number utxo coin-selection change-plan transaction transaction-build transaction-metadata message-crypto wallet-payment funds-send; do
     # shellcheck source=/dev/null
     . "${CNTOOLS_ROOT}/lib/${library}.sh"
   done
@@ -524,7 +524,7 @@ assert_eq "${HW_MALFORMED_STATUS}" 1 \
       fi
     fi
     [[ "${CNTOOLS_SEND_FEE}" =~ ^[1-9][0-9]+$ ]] || fail 'pinned Send fee'
-    # Sign the exact generated body and prove that its real serialized size is
+    # Sign the exact generated body and prove that its ledger fee size is
     # funded by the fee. This catches CLI witness-size/fee API drift.
     "${CLI}" latest transaction sign --tx-body-file "${CNTOOLS_TRANSACTION_BODY_FILE}" \
       --signing-key-file "${SIGNING_KEY}" --testnet-magic 2 \
@@ -537,7 +537,8 @@ assert_eq "${HW_MALFORMED_STATUS}" 1 \
     if [[ "${send_mode}" == exact ]]; then
       grep -q '9007199254740993' "${TEST_ROOT}/send-${send_mode}.signed-view" || fail 'signing rounded metadata'
     fi
-    (( CNTOOLS_SEND_FEE >= 155381 + 44 * signed_size )) || fail 'Send underfunded actual signed size'
+    # Conway's ledger fee size excludes the serialized one-byte IsValid flag.
+    (( CNTOOLS_SEND_FEE >= 155381 + 44 * (signed_size - 1) )) || fail 'Send underfunded signed ledger size'
     if [[ "${send_mode}" == sweep ]]; then
       (( CNTOOLS_SEND_AMOUNTS[0] + CNTOOLS_SEND_FEE == 20000000 )) || fail 'pinned sweep conservation'
       assert_eq "${#CNTOOLS_CHANGE_OUTPUTS[@]}" 0 'pinned sweep change'
@@ -549,6 +550,8 @@ assert_eq "${HW_MALFORMED_STATUS}" 1 \
 bash "${SCRIPT_DIR}/cntools-withdraw-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-delegate-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-collect-pinned.sh" "${CLI}" "${HWCLI}"
+bash "${SCRIPT_DIR}/cntools-governance-keys-pinned.sh" "${CLI}"
+bash "${SCRIPT_DIR}/cntools-drep-pinned.sh" "${CLI}" "${HWCLI}"
 
 printf 'CNTools pinned transaction binary tests passed (cardano-cli %s, cardano-hw-cli %s).\n' \
   "${CLI_VERSION}" "${HWCLI_VERSION}"

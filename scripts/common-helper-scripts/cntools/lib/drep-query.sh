@@ -4,33 +4,45 @@
 CNTOOLS_DREP_STATUS=""
 CNTOOLS_DREP_ACTIVE=""
 CNTOOLS_DREP_SOURCE=""
+CNTOOLS_DREP_DETAILS='{}'
 
 cntools_drep_parse_local() {
-  local file="$1" kind="$2" hash="$3" field=keyHash
+  local file="$1" kind="$2" hash="$3" field=keyHash deposit=""
   [[ "${kind}" != script ]] || field=scriptHash
   jq -se 'length == 1 and (.[0] | type == "array" and length <= 1)' "${file}" >/dev/null || return 1
-  [[ "$(jq length "${file}")" != 0 ]] || return 4
+  [[ "$(jq length "${file}")" != 0 ]] || { CNTOOLS_DREP_STATUS=not_registered; return 4; }
   jq -e --arg field "${field}" --arg hash "${hash}" '
     .[0] | type == "array" and length == 2 and
     .[0] == {($field):$hash} and (.[1] | type == "object" and
       (.expiry | type == "number" and . >= 0 and floor == .) and
       (.deposit | type == "number" and . >= 0 and floor == .))' "${file}" >/dev/null || return 1
+  # Deposits become transaction refunds: read their exact decimal lexeme before
+  # jq 1.6 can round integers above 2^53 into a different lovelace amount.
+  cntools_wallet_query_json_uint_field deposit "${file}" deposit || return 1
   CNTOOLS_DREP_STATUS=registered
   # Raw ledger expiry alone does not account for dormant governance epochs.
   CNTOOLS_DREP_ACTIVE=unknown
+  CNTOOLS_DREP_DETAILS="$(jq -c --arg deposit "${deposit}" '.[0][1] | {deposit:$deposit, expiry:.expiry,
+    meta_url:(.anchor.url // null), meta_hash:(.anchor.dataHash // null)}' "${file}")"
 }
 
 cntools_drep_parse_koios() {
-  local file="$1" id="$2" kind="$3" hash="$4"
+  local file="$1" id="$2" kind="$3" hash="$4" deposit=""
   jq -se 'length == 1 and (.[0] | type == "array" and length <= 1)' "${file}" >/dev/null || return 1
-  [[ "$(jq length "${file}")" != 0 ]] || return 4
+  [[ "$(jq length "${file}")" != 0 ]] || { CNTOOLS_DREP_STATUS=not_registered; return 4; }
   jq -e --arg id "${id}" --arg kind "${kind}" --arg hash "${hash}" '
     .[0] | .drep_id == $id and .hex == $hash and .has_script == ($kind == "script") and
     (.drep_status == "registered" or .drep_status == "deregistered" or .drep_status == "not_registered") and
     (.active | type == "boolean")' "${file}" >/dev/null || return 1
-  [[ "$(jq -r '.[0].drep_status' "${file}")" == registered ]] || return 4
-  CNTOOLS_DREP_STATUS=registered
+  CNTOOLS_DREP_STATUS="$(jq -r '.[0].drep_status' "${file}")"
+  [[ "${CNTOOLS_DREP_STATUS}" == registered ]] || return 4
   CNTOOLS_DREP_ACTIVE="$(jq -r '.[0].active' "${file}")"
+  CNTOOLS_DREP_DETAILS="$(jq -c '.[0] | {deposit,expiry:.expires_epoch_no,meta_url,meta_hash,
+    amount,live_delegator_count}' "${file}")"
+  if jq -e '.[0].deposit | type == "number"' "${file}" >/dev/null; then
+    cntools_wallet_query_json_uint_field deposit "${file}" deposit || return 1
+    CNTOOLS_DREP_DETAILS="$(jq -c --arg deposit "${deposit}" '.deposit=$deposit' <<< "${CNTOOLS_DREP_DETAILS}")" || return 1
+  fi
 }
 
 cntools_drep_query() {
@@ -38,6 +50,7 @@ cntools_drep_query() {
   local verified="" verified_kind="" verified_hash=""
   local -a network=()
   CNTOOLS_DREP_STATUS="" CNTOOLS_DREP_ACTIVE="" CNTOOLS_DREP_SOURCE=""
+  CNTOOLS_DREP_DETAILS='{}'
   cntools_drep_id_into verified verified_kind verified_hash "${id}" || return 2
   [[ "${verified}" == "${id}" && "${verified_kind}" == "${kind}" && "${verified_hash}" == "${hash}" ]] || return 2
   [[ "${backend}" == local || "${backend}" == koios ]] || return 2
@@ -55,14 +68,14 @@ cntools_drep_query() {
     if ((status != 0)); then
       cntools_transaction_log_cli_failure 'DRep state query failed' "${status}" "${errors}" "${output}"; return 1
     fi
-    cntools_drep_parse_local "${output}" "${kind}" "${hash}" || return $?
     CNTOOLS_DREP_SOURCE='Local node'
+    cntools_drep_parse_local "${output}" "${kind}" "${hash}" || return $?
   else
     [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_KOIOS_API:-}" =~ ^https://[^[:space:]]+$ ]] || return 1
     payload="$(jq -nc --arg id "${id}" '{_drep_ids:[$id]}')" || return 1
     cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/drep_info" "${payload}" "${output}" || return 1
-    cntools_drep_parse_koios "${output}" "${id}" "${kind}" "${hash}" || return $?
     CNTOOLS_DREP_SOURCE='Koios API'
+    cntools_drep_parse_koios "${output}" "${id}" "${kind}" "${hash}" || return $?
   fi
   cntools_transaction_log QUERY "DRep=${id} status=${CNTOOLS_DREP_STATUS} active=${CNTOOLS_DREP_ACTIVE} source=${CNTOOLS_DREP_SOURCE}"
 }

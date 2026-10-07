@@ -10,6 +10,20 @@
     "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-create.sh",
+    "wallet-mnemonic.sh",
+    "wallet-mnemonic-ui.sh",
+    "wallet-protection.sh",
+    "wallet-query.sh",
+    "transaction.sh",
+    "transaction-ui.sh",
+    "drep-id.sh",
+    "drep-query.sh",
+    "drep-key.sh",
+    "governance-wallet-ui.sh"
   ]
 }

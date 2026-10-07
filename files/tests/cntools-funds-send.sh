@@ -14,7 +14,7 @@ CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 CNTOOLS_ASSET_CACHE_ENABLED=N
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-send.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
-for lib in number wallet utxo coin-selection change-plan recipient handle-virtual transaction-funding transaction-metadata message-crypto send-metadata-ui funds-send funds-send-view transaction-files funds-send-files funds-send-ui; do
+for lib in number wallet utxo coin-selection change-plan recipient handle-virtual transaction-funding transaction-metadata message-crypto send-metadata-ui wallet-payment funds-send funds-send-view transaction-files funds-send-files funds-send-ui; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }

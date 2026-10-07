@@ -34,6 +34,7 @@
     "transaction-metadata.sh",
     "message-crypto.sh",
     "send-metadata-ui.sh",
+    "wallet-payment.sh",
     "funds-send.sh",
     "funds-send-view.sh",
     "transaction-files.sh",

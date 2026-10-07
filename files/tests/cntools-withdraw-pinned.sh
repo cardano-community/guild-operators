@@ -35,12 +35,8 @@ CNTOOLS_TX_UTXO_MANAGEMENT=N
 CNTOOLS_TX_COLLATERAL_MANAGEMENT=N
 version="$("${CNTOOLS_CLI}" version | head -1)"
 version="${version#cardano-cli }"; version="${version%% *}"
-found=N
-for implementation in cnode dingo amaru; do
-  pin="$(jq -r '.companions["cardano-cli"].version' "${REPO_ROOT}/files/node-implementations/${implementation}/release.json")"
-  [[ "${version}" != "${pin}" ]] || found=Y
-done
-[[ "${found}" == Y ]] || fail "binary version ${version} is not a deployment pin"
+pin="$(jq -er '.companions["cardano-cli"].version' "${REPO_ROOT}/files/node-implementations/cnode/release.json")"
+[[ "${version}" == "${pin}" ]] || fail 'CLI is not the cnode deployment pin'
 "${CNTOOLS_CLI}" address key-gen --verification-key-file "${CNTOOLS_STAKE_PAYMENT_VKEY}" --signing-key-file "${CNTOOLS_STAKE_PAYMENT_SOURCE}"
 "${CNTOOLS_CLI}" latest stake-address key-gen --verification-key-file "${CNTOOLS_STAKE_STAKE_VKEY}" --signing-key-file "${CNTOOLS_STAKE_STAKE_SOURCE}"
 chmod 0600 "${TEST_ROOT}"/*.vkey "${TEST_ROOT}"/*.skey
