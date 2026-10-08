@@ -317,6 +317,13 @@ cntools_http_secret_file_tracked() {
   return 1
 }
 
+cntools_http_url_allowed() {
+  [[ "$2" =~ ^https://[^[:space:]]+$ ]] && return 0
+  # The metadata helper explicitly scopes unauthenticated public HTTP reads.
+  [[ "${CNTOOLS_HTTP_PUBLIC_POOL_METADATA:-N}" == Y && "$1" == GET &&
+     "$2" =~ ^http://[^[:space:]]+$ && "$2" != *'@'* ]]
+}
+
 cntools_api_log_replay() {
   local method="${1:-}"
   local url="${2:-}"
@@ -331,7 +338,7 @@ cntools_api_log_replay() {
   arguments=("$@")
 
   [[ "${method}" =~ ^(GET|POST|PUT|PATCH|DELETE|HEAD)$ ]] || return 2
-  [[ "${url}" =~ ^https://[^[:space:]]+$ ]] || return 2
+  cntools_http_url_allowed "${method}" "${url}" || return 2
 
   # Preserve this expansion for the operator's replay shell; do not resolve it
   # inside CNTools or put the real token in the session log.
@@ -545,7 +552,7 @@ cntools_http_request() {
     return 2
   }
   [[ "${method}" =~ ^(GET|POST|PUT|PATCH|DELETE|HEAD)$ ]] || return 2
-  [[ "${url}" =~ ^https://[^[:space:]]+$ ]] || return 2
+  cntools_http_url_allowed "${method}" "${url}" || return 2
   [[ -n "${output_file}" && ! -L "${output_file}" &&
      ( ! -e "${output_file}" || -f "${output_file}" ) ]] || return 2
   command -v curl >/dev/null 2>&1 || return 127

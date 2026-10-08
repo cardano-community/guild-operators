@@ -23,6 +23,7 @@ cntools_pool_registration_operation_set() {
   CNTOOLS_WALLET_REGISTER_FILE_SUFFIX="$1"
   CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT=charged
   CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL='Pool deposit'
+  CNTOOLS_POOL_STAKE_PLAN='[]'; CNTOOLS_POOL_EXTRA_RECORDS='[]'; CNTOOLS_POOL_EXTRA_EXPECTED='[]'; CNTOOLS_POOL_EXTRA_CERTIFICATES=()
 }
 
 cntools_pool_registration_prepare_identity() {
@@ -165,6 +166,7 @@ cntools_pool_registration_collect() {
       cntools_pool_parameter_uint "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" || return 1
   fi
   CNTOOLS_POOL_REG_PROTOCOL_STATE="$(jq -cS . "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
+  CNTOOLS_POOL_REG_POOL_DEPOSIT="${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
   cntools_wallet_register_inventory_use_all || return 1
   cntools_transaction_log TRANSACTION "Pool operation=${CNTOOLS_WALLET_REGISTER_OPERATION} pool=${CNTOOLS_POOL_REG_ID} backend=${CNTOOLS_WALLET_REGISTER_BACKEND} deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT} state=${CNTOOLS_POOL_REG_STATE}"
 }
@@ -202,6 +204,7 @@ cntools_pool_registration_certificate_create() {
   if ((status != 0)); then cntools_transaction_log_cli_failure 'Pool certificate creation failed' "${status}" "${errors}" "${response}"; return 1; fi
   cntools_transaction_file_safe "${certificate}" 131072 || return 1
   CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE="${certificate}"
+  cntools_pool_stake_certificates_create
 }
 
 cntools_pool_registration_group_into() {
@@ -217,7 +220,7 @@ cntools_pool_registration_group_into() {
 }
 
 cntools_pool_registration_plan_create() {
-  local payment_group='' cold_group='' group='' owner='' label='' vkey='' source='' hash='' inputs='' params='' summary='' fallback=''
+  local payment_group='' cold_group='' group='' owner='' label='' signer_label='' vkey='' source='' hash='' inputs='' params='' summary='' fallback=''
   cntools_transaction_plan_reset "${CNTOOLS_WALLET_REGISTER_INTENT}" "${CNTOOLS_WALLET_REGISTER_INTENT} for ${CNTOOLS_POOL_REG_ID}; owners and cold identity witness the certificate." exact || return 1
   cntools_transaction_plan_set_validity '' "${CNTOOLS_WALLET_REGISTER_EXPIRY}" || return 1
   cntools_pool_registration_group_into payment_group "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" pool-funding || return 1
@@ -233,8 +236,10 @@ cntools_pool_registration_plan_create() {
     # mixed with spending/cold keys, even when all keys live on one device.
     fallback="owner-${hash}"
     cntools_pool_registration_group_into group "${source}" "${fallback}" || return 1
-    cntools_transaction_plan_add_signer "${label} owner stake" certificate "${vkey}" "${source}" "${hash}" "${group}" || return 1
-  done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_REG_OWNERS}")
+    signer_label="${label} reward registration"
+    if jq -e --arg hash "${hash}" 'any(.[]; .hash == $hash)' <<< "${CNTOOLS_POOL_REG_OWNERS}" >/dev/null; then signer_label="${label} owner stake"; fi
+    cntools_transaction_plan_add_signer "${signer_label}" certificate "${vkey}" "${source}" "${hash}" "${group}" || return 1
+  done < <(jq -cn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --argjson extra "${CNTOOLS_POOL_EXTRA_RECORDS:-[]}" '$owners+$extra | unique_by(.hash) | .[]')
   if [[ -n "${payment_group}" ]]; then
     cntools_transaction_plan_add_change_key "${CNTOOLS_WALLET_REGISTER_WALLET} payment change" "${CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY}" \
       "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" "${payment_group}" || return 1
@@ -250,8 +255,9 @@ cntools_pool_registration_plan_create() {
     --arg wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" --arg deposit "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" \
     --arg change "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" --argjson inputs "${inputs}" --argjson params "${params}" \
     --argjson policy "${CNTOOLS_WALLET_REGISTER_POLICY_JSON}" --argjson previous "${CNTOOLS_POOL_REG_STATE}" \
+    --argjson setup "${CNTOOLS_POOL_EXTRA_EXPECTED:-[]}" \
     '{action:$action,poolId:$pool,fundingWallet:$wallet,depositLovelace:$deposit,changeAddress:$change,selectedInputs:$inputs,
-      poolParameters:$params,transactionPolicy:$policy,previousPoolState:$previous}')" || return 1
+      poolParameters:$params,transactionPolicy:$policy,previousPoolState:$previous,stakeSetupCertificates:$setup}')" || return 1
   cntools_transaction_plan_set_summary "${summary}"
 }
 
@@ -261,8 +267,10 @@ cntools_pool_registration_validate_body() {
   expected="$(cntools_pool_parameters_json)" || return 1
   inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" | jq -Rsc 'split("\n")|map(select(length>0))|sort')"
   jq -e --argjson params "${expected}" --argjson inputs "${inputs}" --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
+    --argjson setup "${CNTOOLS_POOL_EXTRA_EXPECTED:-[]}" \
     --arg expiry "${CNTOOLS_WALLET_REGISTER_EXPIRY}" --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" '
-    (.certificates|type == "array" and length == 1) and (.certificates[0]|keys == ["Pool registration"]) and
+    (.certificates|type == "array" and length == (1+($setup|length))) and (.certificates[0]|keys == ["Pool registration"]) and
+    .certificates[1:] == $setup and
     (.certificates[0]["Pool registration"]["pool params"] | .owners |= sort) == $params and
     (.inputs|sort) == $inputs and .fee == $fee and
     (."validity range"["upper bound"]|if . == null then "" else tostring end) == $expiry and ."validity range"["lower bound"] == null and
@@ -300,4 +308,5 @@ cntools_pool_registration_recheck() {
   [[ "${state}" == "${CNTOOLS_POOL_REG_STATE}" ]] || {
     cntools_wallet_register_set_error 'Pool registration, parameters or retirement changed. Rebuild and review the transaction.'; return 1;
   }
+  cntools_pool_stake_recheck
 }

@@ -18,6 +18,16 @@ cntools_pool_registration_input() {
   return "${pr_input_status}"
 }
 
+cntools_pool_registration_input_default() {
+  local -n pid_result="$1"
+  local pid_default="$3"
+  cntools_pool_registration_input "$1" "$2${pid_default:+ · Enter keeps current}" "${pid_default}" || return $?
+  if [[ -z "${pid_result}" ]]; then
+    pid_result="${pid_default}"
+    cntools_transaction_log CHOICE "Pool input=$2 kept default=${pid_default}"
+  fi
+}
+
 cntools_pool_registration_begin() {
   cntools_ui_action_begin "${CNTOOLS_WALLET_REGISTER_TITLE}" "${CNTOOLS_WALLET_REGISTER_PATH}"
 }
@@ -36,7 +46,7 @@ cntools_pool_registration_rows() {
   cntools_table_pair 'Reward account' "${CNTOOLS_POOL_REG_REWARD_ADDRESS:-${CNTOOLS_POOL_REG_REWARD_HASH:-Not selected}}" identifier
   while IFS= read -r record; do
     index=$((index+1))
-    cntools_table_pair "Owner ${index}" "$(jq -r '.label + " · " + (if .address == "" then .hash else .address end)' <<< "${record}")" identifier
+    cntools_table_pair "Owner ${index}$([[ "${index}" != 1 ]] || printf ' · main')" "$(jq -r '.label + " · " + (if .address == "" then .hash else .address end)' <<< "${record}")" identifier
     [[ "$(jq -r .vkey <<< "${record}")" != '' ]] || cntools_table_pair 'Public key' 'Required · select this owner to supply its public key or remove it' warning
   done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_REG_OWNERS}")
   (( owner_count != 0 )) || cntools_table_pair Owners 'None selected' warning
@@ -50,7 +60,13 @@ cntools_pool_registration_rows() {
   else cntools_table_pair 'Metadata URL' "$(jq -r .url <<< "${CNTOOLS_POOL_REG_METADATA}")" identifier
     cntools_table_pair 'Metadata hash' "$(jq -r .hash <<< "${CNTOOLS_POOL_REG_METADATA}")" identifier
   fi
-  cntools_table_pair 'Pool deposit' "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
+  cntools_table_pair 'Pool deposit' "$(cntools_wallet_format_lovelace "${CNTOOLS_POOL_REG_POOL_DEPOSIT:-${CNTOOLS_WALLET_REGISTER_DEPOSIT}}")" number
+  if [[ "${CNTOOLS_POOL_STAKE_PLAN:-[]}" != '[]' ]]; then
+    while IFS= read -r record; do
+      cntools_table_pair 'Included stake setup' "$(jq -r '.label + " · " + .setup' <<< "${record}")" success
+    done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_STAKE_PLAN}")
+    cntools_table_pair 'Total deposits' "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
+  fi
 }
 
 cntools_pool_registration_render_plan() {
@@ -65,7 +81,7 @@ cntools_pool_registration_render_plan() {
     cntools_table_pair 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}"
     cntools_table_pair 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}"
   } | cntools_table_render 'Transaction information'
-  cntools_ui_render_status info 'Pledge is a commitment, not a transfer. Owners must register/delegate their stake and maintain the pledge separately. This transaction does not issue a KES certificate or start a node.'
+  cntools_ui_render_status info 'Pledge is a commitment, not a transfer. Only explicitly selected stake setup is included. Operational setup is handled separately; this transaction does not start a node.'
 }
 
 cntools_pool_registration_select_stake_into() {
@@ -109,9 +125,10 @@ cntools_pool_registration_edit_owners() {
       *)
         selected="${choice%% *}"; [[ "${selected}" =~ ^[0-9]+$ ]] || return 2
         index=$((selected-1)); expected="$(jq -r ".[${index}].hash" <<< "${CNTOOLS_POOL_REG_OWNERS}")"
-        cntools_pool_registration_choose choice 'Owner key' 'Supply public key' 'Remove owner' Back || return $?
+        cntools_pool_registration_choose choice 'Owner key' 'Supply public key' 'Make main owner' 'Remove owner' Back || return $?
         case "${choice}" in
           'Remove owner') CNTOOLS_POOL_REG_OWNERS="$(jq -c --argjson index "${index}" 'del(.[$index])' <<< "${CNTOOLS_POOL_REG_OWNERS}")" ;;
+          'Make main owner') CNTOOLS_POOL_REG_OWNERS="$(jq -c --argjson index "${index}" '[.[$index]] + del(.[$index])' <<< "${CNTOOLS_POOL_REG_OWNERS}")" ;;
           'Supply public key')
             status=0; cntools_pool_registration_select_stake_into record 'Matching owner stake key' || status=$?
             ((status != 1 && status != 3)) || continue; ((status == 0)) || return "${status}"
@@ -162,29 +179,13 @@ cntools_pool_registration_edit_relays() {
       srv) relay="$(jq -cn --arg dns "${dns}" '{type:"srv",dns:$dns}')" ;;
       ip) relay="$(jq -cn --arg ip4 "${ipv4}" --arg ip6 "${ipv6}" --argjson port "${port}" '{type:"ip",ipv4:$ip4,ipv6:$ip6,port:$port}')" ;;
     esac
-    if ! cntools_pool_relay_valid "${relay}" || ((count >= 20)); then cntools_ui_render_status warn 'Invalid relay, or the 20-relay limit was reached.'; cntools_ui_wait; continue; fi
+    if ! cntools_pool_relay_valid "${relay}"; then cntools_ui_render_status warn 'Invalid relay: check DNS/IP and port.'; cntools_ui_wait; continue; fi
     CNTOOLS_POOL_REG_RELAYS="$(jq -c --argjson relay "${relay}" '. + [$relay]' <<< "${CNTOOLS_POOL_REG_RELAYS}")"
   done
 }
 
 cntools_pool_registration_edit_metadata() {
-  local choice='' file='' url='' hash='' candidate='' status=0
-  cntools_pool_registration_choose choice 'Pool metadata' 'Keep current metadata' 'Local JSON file + published URL' 'URL + known hash' 'No metadata' Back || return $?
-  case "${choice}" in
-    Back|'Keep current metadata') return 0 ;;
-    'No metadata') CNTOOLS_POOL_REG_METADATA=null; return 0 ;;
-    'Local JSON file + published URL')
-      cntools_pool_registration_input file 'Pool metadata JSON file' 'At most 512 bytes' || return $?
-      cntools_transaction_input_path_into file "${file}" && cntools_pool_metadata_file_hash_into hash "${file}" || return 3 ;;
-    'URL + known hash') cntools_pool_registration_input hash 'Pool metadata hash' '64 hexadecimal characters' || return $?; hash="${hash,,}" ;;
-    *) return 2 ;;
-  esac
-  cntools_pool_registration_input url 'Published metadata URL' 'https://… (at most 128 bytes)' || return $?
-  candidate="$(jq -cn --arg url "${url}" --arg hash "${hash}" '{url:$url,hash:$hash}')"
-  cntools_pool_metadata_valid "${candidate}" || return 3
-  CNTOOLS_POOL_REG_METADATA="${candidate}"
-  cntools_ui_render_status info 'Publish the exact hashed file at this URL. CNTools does not upload or download pool metadata.'
-  cntools_ui_wait
+  cntools_pool_metadata_wizard
 }
 
 cntools_pool_registration_edit_settings() {
@@ -192,7 +193,7 @@ cntools_pool_registration_edit_settings() {
   while true; do
     cntools_pool_registration_begin
     cntools_pool_registration_rows | cntools_table_render 'Pool settings' || return 2
-    cntools_pool_registration_choose choice 'Pool settings' Done Pledge 'Fixed cost' Margin 'Reward account' Owners Relays Metadata 'Cancel transaction' || return $?
+    cntools_pool_registration_choose choice 'Pool settings' Done Pledge 'Fixed cost' Margin 'Reward account' Owners Relays Metadata 'Reuse saved settings' 'Cancel transaction' || return $?
     status=0
     case "${choice}" in
       Done)
@@ -216,6 +217,7 @@ cntools_pool_registration_edit_settings() {
         cntools_pool_reward_record_use "${record}" ;;
       Owners) cntools_pool_registration_edit_owners || status=$? ;;
       Relays) cntools_pool_registration_edit_relays || status=$? ;;
+      'Reuse saved settings') cntools_pool_wizard_saved_offer || status=$? ;;
       Metadata)
         cntools_pool_registration_edit_metadata || status=$?
         if ((status == 3)); then cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-Invalid pool metadata URL, hash or JSON file.}"; cntools_ui_wait; status=0; fi ;;
@@ -248,7 +250,7 @@ cntools_pool_registration_workflow() {
   cntools_pool_registration_begin
   cntools_transaction_require_cli && cntools_pool_catalog_build || return 2
   (( ${#CNTOOLS_POOL_NAMES[@]} > 0 )) || { cntools_wallet_register_set_error 'No pools are available. Use Pool → New or Import first.'; return 2; }
-  cntools_pool_choose_into selected || return $?
+  cntools_pool_registration_choose_eligible_into selected || return $?
   cntools_pool_registration_prepare_identity "${selected}" || return 2
   cntools_wallet_catalog_build || return 2
   (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || { cntools_wallet_register_set_error 'No funding wallets are available.'; return 2; }
@@ -260,7 +262,7 @@ cntools_pool_registration_workflow() {
     local record=''
     if cntools_pool_wallet_stake_record_into record "${wallet}"; then cntools_pool_owner_add "${record}"; cntools_pool_reward_record_use "${record}"; fi
   fi
-  cntools_ui_render_status info 'The reward stake account must be registered to receive rewards. Owner registration, delegation and pledge fulfillment are separate actions; they are not added automatically.'
+  cntools_pool_wizard_saved_offer || return $?
   if [[ "${CNTOOLS_POOL_CHAIN_STATUS[CNTOOLS_POOL_REG_INDEX]}" == 'Not indexed' ]]; then
     cntools_ui_render_status warn 'Koios has no record of this pool; this may be indexer lag, not proof that it is unregistered.'
     cntools_pool_registration_choose choice 'Registering a new or fully retired pool?' Cancel 'Yes, continue with registration' || return $?
@@ -269,6 +271,7 @@ cntools_pool_registration_workflow() {
   [[ "${CNTOOLS_POOL_CHAIN_STATUS[CNTOOLS_POOL_REG_INDEX]}" != Retiring ]] || cntools_ui_render_status warn 'Re-registering this retiring pool cancels its pending retirement.'
   cntools_ui_wait
   cntools_pool_registration_edit_settings || return $?
+  cntools_pool_wizard_prepare_stake || return $?
   cntools_pool_registration_can_sign_into can_sign
   cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
   cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
@@ -283,6 +286,7 @@ cntools_pool_registration_workflow() {
       "${proceed}") break ;;
       'Edit pool settings')
         cntools_pool_registration_edit_settings || return $?
+        cntools_pool_wizard_prepare_stake || return $?
         cntools_pool_registration_can_sign_into can_sign
         cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
         cntools_pool_registration_hardware_choice || return $? ;;
@@ -290,6 +294,7 @@ cntools_pool_registration_workflow() {
       *) return 2 ;;
     esac
   done
+  cntools_pool_opcert_offer "${workflow}" || return $?
   cntools_ui_spin_function 'Rechecking pool state and selected inputs…' cntools_pool_registration_recheck || return 2
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
@@ -338,6 +343,7 @@ cntools_pool_action_registration() {
   CNTOOLS_WALLET_REGISTER_ERROR=''
   cntools_pool_registration_operation_set "$1" || return 2
   cntools_pool_registration_workflow || status=$?
+  if ((status == 0)) && [[ "${CNTOOLS_POOL_REG_RESULT_SHOWN}" == Y ]]; then cntools_pool_wizard_followups || true; fi
   if ((status == 1)); then cntools_transaction_ui_cancel 'Pool transaction cancelled; saved packages retained'
   elif ((status != 0)) && [[ "${CNTOOLS_POOL_REG_RESULT_SHOWN}" != Y ]]; then
     cntools_transaction_ui_render_result danger "${CNTOOLS_WALLET_REGISTER_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-Pool transaction failed. See ${CNTOOLS_LOG}.}}" '' "${CNTOOLS_POOL_REG_SAVED}"

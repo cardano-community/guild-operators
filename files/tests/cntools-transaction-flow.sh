@@ -105,6 +105,10 @@ cntools_ui_choose() {
 }
 cntools_pool_catalog_build() { CNTOOLS_POOL_NAMES=(Pool); CNTOOLS_POOL_DIRECTORIES=(/pool); }
 cntools_pool_choose_into() { printf -v "$1" '%s' 0; }
+cntools_pool_registration_choose_eligible_into() { cntools_pool_choose_into "$1"; }
+cntools_pool_wizard_saved_offer() { :; }
+cntools_pool_wizard_prepare_stake() { :; }
+cntools_pool_opcert_offer() { :; }
 cntools_pool_registration_prepare_identity() { CNTOOLS_POOL_REG_ID=pool1fixture; CNTOOLS_POOL_REG_INDEX=0; CNTOOLS_POOL_CHAIN_STATUS=(Registered); }
 cntools_pool_registration_prepare_funding() { cntools_wallet_register_prepare_wallet "$1" Pool; CNTOOLS_WALLET_REGISTER_WALLET_TYPE=CLI; }
 cntools_pool_registration_collect() { CNTOOLS_POOL_REG_STATE='{"registered":true}'; cntools_wallet_register_collect; }

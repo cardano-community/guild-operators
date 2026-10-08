@@ -43,6 +43,11 @@
     "pool-parameters.sh",
     "pool-registration.sh",
     "pool-registration-keys.sh",
-    "pool-registration-ui.sh"
+    "pool-registration-ui.sh",
+    "pool-config.sh",
+    "pool-metadata.sh",
+    "pool-stake.sh",
+    "pool-opcert.sh",
+    "pool-wizard.sh"
   ]
 }

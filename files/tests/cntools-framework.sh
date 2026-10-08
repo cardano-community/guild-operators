@@ -791,6 +791,16 @@ exit 0'
     fail "sanitized curl transport detail was not logged"
   unset CNTOOLS_TEST_CURL_STATUS CNTOOLS_TEST_CURL_ERROR
 
+  assert_fails 'normal requests accepted plaintext HTTP' cntools_http_url_allowed GET 'http://example.test/pool.json'
+  CNTOOLS_HTTP_PUBLIC_POOL_METADATA=Y
+  cntools_api_request GET 'http://example.test/pool.json' "${response}" --header 'Accept: application/json' ||
+    fail 'explicit public metadata HTTP read rejected'
+  grep -F 'http://example.test/pool.json' "${log_file}" >/dev/null || fail 'public metadata HTTP replay missing'
+  assert_fails 'metadata HTTP opt-in allowed POST' cntools_http_url_allowed POST 'http://example.test/pool.json'
+  assert_fails 'metadata HTTP opt-in allowed credentials' cntools_http_url_allowed GET 'http://user:secret@example.test/pool.json'
+  unset CNTOOLS_HTTP_PUBLIC_POOL_METADATA
+  assert_fails 'metadata HTTP opt-in leaked outside scope' cntools_http_url_allowed GET 'http://example.test/pool.json'
+
   : > "${curl_trace}"
   rm -f -- "${response}"
   CNTOOLS_MODE="offline"

@@ -42,15 +42,19 @@ cntools_pool_target_into() {
 }
 
 cntools_pool_filenames_validate() {
-  local kind="" filename=""
+  local kind="" filename="" reserved=""
   local -A names=()
   # Reject filename collisions before generation or protection touches a key.
-  for kind in id cold-vkey cold-skey cold-hardware kes-vkey kes-skey vrf-vkey vrf-skey counter opcert config metadata; do
+  for kind in id cold-vkey cold-skey cold-hardware kes-vkey kes-skey vrf-vkey vrf-skey counter opcert kes-start config metadata; do
     cntools_pool_file_name_into filename "${kind}" || return 1
-    [[ -z "${names[${filename}]:-}" && -z "${names[${filename}.gpg]:-}" ]] || { cntools_pool_write_error 'Configured pool filenames overlap.'; return 1; }
-    names["${filename}"]=Y
-    names["${filename}.gpg"]=Y
-    if [[ "${kind}" == id ]]; then names["${filename}-bech32"]=Y; fi
+    for reserved in "${filename}" "${filename}.gpg" "${filename}.previous"; do
+      [[ -z "${names[${reserved}]:-}" ]] || { cntools_pool_write_error 'Configured pool filenames or backups overlap.'; return 1; }
+      names["${reserved}"]=Y
+    done
+    if [[ "${kind}" == id ]]; then
+      [[ -z "${names[${filename}-bech32]:-}" ]] || return 1
+      names["${filename}-bech32"]=Y
+    fi
   done
 }
 

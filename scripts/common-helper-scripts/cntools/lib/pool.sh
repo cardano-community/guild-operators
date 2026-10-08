@@ -17,6 +17,7 @@ cntools_pool_file_name_into() {
     vrf-skey) chosen="${CNTOOLS_POOL_VRF_SKEY_FILENAME:-vrf.skey}" ;;
     counter) chosen="${CNTOOLS_POOL_COUNTER_FILENAME:-cold.counter}" ;;
     opcert) chosen="${CNTOOLS_POOL_OPCERT_FILENAME:-op.cert}" ;;
+    kes-start) chosen="${CNTOOLS_POOL_KES_START_FILENAME:-kes.start}" ;;
     config) chosen="${CNTOOLS_POOL_CONFIG_FILENAME:-pool.config}" ;;
     metadata) chosen=poolmeta.json ;;
     *) return 2 ;;

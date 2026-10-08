@@ -1480,11 +1480,31 @@ Choose a verified local pool and a separate funding wallet, then review pledge,
 fixed cost, margin, reward account, owner stake keys, DNS/IP/SRV relays and
 optional metadata URL/hash. Pledge is a commitment, not a payment from the
 funding wallet. Fixed cost must meet the live protocol minimum. Amounts accept
-US thousands separators. For exact decoded-JSON validation, this slice limits
-pledge/cost to 9,007,199,254.740991 ADA and supports up to 20 owners/relays.
-An uploaded metadata file is not managed here: select a local JSON file to hash
-(at most 512 bytes), or supply an existing published URL and hash. CNTools
-does not upload or download arbitrary pool metadata URLs.
+US thousands separators. For exact decoded-JSON validation, pledge/cost are
+limited to 9,007,199,254.740991 ADA. There is no arbitrary 20-owner/relay cap;
+the protocol transaction-size limit still applies. New pools start with the
+legacy 50,000 ADA pledge and 7.5% margin defaults, with the live minimum cost.
+
+The metadata wizard creates name, ticker, description, homepage, optional
+extended URL and nonce, saving the exact JSON as `poolmeta.json`. Existing files
+are backed up as `.previous`. You can download published HTTP(S) metadata and
+explicitly reuse it unchanged or edit a copy, select a local JSON file, provide
+a URL/known hash, or omit metadata. Downloads are bounded, logged, and never
+carry Koios credentials. HTTP requires explicit confirmation, and redirects
+cannot downgrade HTTPS. Uploading remains the operator's responsibility.
+Standard metadata is limited to 512 bytes; legacy extended fields allow up to
+1024 bytes. The pinned CLI enforces 512 bytes in its pool-metadata parser, so
+larger validated extended files use its raw Blake2b-256 hashing command instead
+(tested against the standard metadata digest). Extended-file acceptance by
+third-party indexers is not guaranteed.
+
+Save/reuse choices are explicit. `pool.config` stores a public local draft,
+including owner/reward public keys and relay/metadata choices, never private
+keys, passwords or temporary/signing paths. Legacy ADA/percent/wallet-name
+configuration is supported and migrated when saved. Keys are resolved by
+verified credential; external public-only owners remain usable offline. A draft
+does not imply submission. Failed draft saving is reported without discarding
+the transaction. Pool Show understands both configuration formats.
 
 Register checks that the pool is unregistered and charges the current protocol
 pool deposit. Modify requires registration and charges **no new deposit**.
@@ -1496,7 +1516,8 @@ explicitly flagged for indexer lag, not treated as proof of immediate chain stat
 
 The funding payment key, pool cold key and **every owner stake key** witness the
 certificate, deduplicated by public key. The reward key does not need a witness
-unless it is also an owner. Owners/reward accounts may use known wallets or
+unless it is also an owner or an explicitly included stake-setup certificate
+requires it. Owners/reward accounts may use known wallets or
 external stake public keys. Unresolved existing owners remain visible until
 their public key is supplied or they are explicitly removed. Missing/encrypted
 signing keys select the unsigned route; no private key belongs in a portable
@@ -1515,12 +1536,60 @@ online action. An offline signer verifies the exported transaction, not current
 chain state. Advancing pool
 statistics are excluded from this comparison. A changed state requires rebuilding,
 not silently charging a different deposit. Native assets are preserved as change.
-Registering owner/reward stake accounts, delegating pledge, creating operational
-certificates and starting the node are separate actions.
+The wizard checks owner/reward registration and delegation. For initial CLI
+registration, you may atomically include main-owner registration (if needed)
+and delegation, and registration of a distinct unregistered reward account.
+Every additional certificate, witness and protocol stake deposit is included
+in the reviewed transaction and validated from its decoded body; stake state
+is rechecked before signing/export/submission. The first owner is the main
+owner, and the owner editor can explicitly change that choice. Hardware or
+public-only configurations keep stake setup separate with Wallet → Register /
+Funds → Delegate guidance; restricted hardware pool signing is not bypassed.
+
+Combined owner balances/rewards are shown with pledge shortfall and delegation
+warnings. Koios account checks are batched and count all stake-linked UTxOs;
+local checks cover known owner base addresses plus rewards and are labelled as
+partial coverage. Unknown/failed queries are never treated as zero or proof of
+unregistration. Maintain pledge after fees/deposits and at rewards snapshots.
+
+Initial live/sign-only registration can explicitly prepare a missing operational
+certificate using existing KES keys and the real cold issue counter, recording
+`kes.start` (or its env-configured filename). Existing certificates/start files
+are not overwritten, KES keys are not rotated, and counters are never reset.
+CLI and hardware cold sources are supported. KES period is derived from the
+chain tip and Shelley genesis, or explicitly supplied if unavailable. Issuing
+an opcert is a separate, confirmed side effect: the counter advances even if
+the pool transaction is later cancelled. Recovery copies are retained in the
+pool directory, and a lock prevents repeat issuance after interrupted/failed
+publication. The advanced counter is saved before exposing the certificate;
+inspect recovery files rather than rolling it back. Offline packages get
+instructions for returning opcert, KES start and the advanced counter from the
+offline signing system; private cold keys should never be moved to the node.
+Next steps explain `POOL_NAME`, node operational files, pledge maintenance and
+DRep delegation for reward withdrawals. The common env is never edited.
+
+### Legacy registration/modify wizard parity checklist
+
+Each identified missing wizard feature is implemented in the rebuild:
+
+- [x] Registration-aware pool selection (Register vs Modify).
+- [x] Legacy pledge/margin defaults and removal of arbitrary owner/relay caps.
+- [x] Saved owner/reward/relay/settings reuse, including legacy `pool.config`.
+- [x] Metadata authoring with generated JSON and publishing guidance.
+- [x] Published metadata download, validation, reuse or edit-a-copy choice.
+- [x] Legacy 1024-byte extended metadata support.
+- [x] Owner/reward registration checks and main-owner registration assistance.
+- [x] Explicit main-owner delegation in supported initial registration flows.
+- [x] Combined owner balance/reward pledge checks and shortfall guidance.
+- [x] Missing operational-certificate/KES-start preparation and offline guidance.
+- [x] Post-registration `POOL_NAME` and node/pledge setup reminders.
 
 `cntools-pool-registration.sh` covers state/defaults/UI contracts and optionally
 real certificates, exact deposits, native assets, no expiry, offline signing and
-multiple owners using only the cnode deployment CLI pin. Linux pinned CI also
+multiple owners and atomic owner/reward stake setup using only the cnode
+deployment CLI pin. Wizard tests cover metadata, config migration, eligibility,
+batched checks, failed-query semantics and missing-only opcert publication.
+Linux pinned CI also
 checks hardware transaction normalization. Live submission and physical device
 approval remain deployment acceptance tests.
 

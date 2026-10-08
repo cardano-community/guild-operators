@@ -79,7 +79,7 @@ cntools_pool_ipv6_into() {
 cntools_pool_relays_normalize_into() {
   local -n prn_result="$1"
   local prn_json="$2" prn_relay='' prn_ipv6='' prn_normalized='[]'
-  jq -e 'type == "array" and length <= 20' <<< "${prn_json}" >/dev/null || return 1
+  jq -e 'type == "array"' <<< "${prn_json}" >/dev/null || return 1
   while IFS= read -r prn_relay; do
     cntools_pool_relay_valid "${prn_relay}" || return 1
     if [[ "$(jq -r '.type' <<< "${prn_relay}")" == ip ]]; then
@@ -131,18 +131,30 @@ cntools_pool_metadata_valid() {
 
 cntools_pool_metadata_file_hash_into() {
   local output_name="$1" file="$2" snapshot='' response='' errors='' pmh_hash='' status=0
-  cntools_transaction_snapshot_into snapshot "${file}" 512 pool-metadata || return 1
+  cntools_transaction_snapshot_into snapshot "${file}" 1024 pool-metadata || return 1
   jq -se 'length == 1 and (.[0] | type == "object" and
     (.name|type == "string" and length > 0 and length <= 50) and
     (.description|type == "string" and length <= 255) and
     (.ticker|type == "string" and length >= 3 and length <= 5) and
     (.homepage|type == "string" and test("^https?://[^\\s]+$")))' "${snapshot}" >/dev/null || {
-    cntools_transaction_set_error 'Pool metadata must be a JSON object of at most 512 bytes with name, description, ticker and homepage.'; return 1;
+    cntools_transaction_set_error 'Pool metadata needs name (1–50), ticker (3–5), description (up to 255) and an HTTP(S) homepage.'; return 1;
   }
+  if (( $(wc -c < "${snapshot}") > 512 )) && ! jq -e '
+      any([.extended,.extDataUrl,.extSigUrl,.extVkey][]; type == "string" and length > 0)
+    ' "${snapshot}" >/dev/null; then
+    cntools_transaction_set_error 'Standard metadata is limited to 512 bytes; extended metadata may use up to 1024 bytes.'; return 1
+  fi
   cntools_transaction_temp_file response pool-metadata-hash || return 1
   cntools_transaction_temp_file errors pool-metadata-errors || return 1
-  cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-pool metadata-hash \
-    --pool-metadata-file "${snapshot}" || status=$?
+  if (( $(wc -c < "${snapshot}") > 512 )); then
+    # Legacy extended metadata uses the same raw Blake2b-256 digest. The pinned
+    # pool-metadata parser enforces 512 bytes even when extended fields exist.
+    cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" hash anchor-data \
+      --file-binary "${snapshot}" || status=$?
+  else
+    cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-pool metadata-hash \
+      --pool-metadata-file "${snapshot}" || status=$?
+  fi
   if ((status != 0)); then cntools_transaction_log_cli_failure 'Pool metadata hashing failed' "${status}" "${errors}" "${response}"; return 1; fi
   pmh_hash="$(< "${response}")"; [[ "${pmh_hash}" =~ ^[0-9a-f]{64}$ ]] || return 1
   printf -v "${output_name}" '%s' "${pmh_hash}"
@@ -160,12 +172,12 @@ cntools_pool_parameters_json() {
   cntools_pool_parameter_uint "${CNTOOLS_POOL_REG_PLEDGE}" && cntools_pool_parameter_uint "${CNTOOLS_POOL_REG_COST}" &&
     cntools_uint_greater_equal "${CNTOOLS_POOL_REG_COST}" "${CNTOOLS_POOL_REG_MIN_COST}" || return 1
   margin="$(cntools_pool_margin_number "${CNTOOLS_POOL_REG_MARGIN}")" || return 1
-  jq -e 'type == "array" and length > 0 and length <= 20 and
+  jq -e 'type == "array" and length > 0 and
     ((map(.hash)|unique|length) == length) and all(.[]; (.hash|type == "string" and test("^[0-9a-f]{56}$")) and (.vkey|type == "string" and length > 0))' \
     <<< "${CNTOOLS_POOL_REG_OWNERS}" >/dev/null || return 1
   [[ "${CNTOOLS_POOL_REG_REWARD_HASH}" =~ ^[0-9a-f]{56}$ && -n "${CNTOOLS_POOL_REG_REWARD_VKEY}" ]] || return 1
   cntools_pool_metadata_valid "${CNTOOLS_POOL_REG_METADATA}" || return 1
-  jq -e 'type == "array" and length <= 20' <<< "${CNTOOLS_POOL_REG_RELAYS}" >/dev/null || return 1
+  jq -e 'type == "array"' <<< "${CNTOOLS_POOL_REG_RELAYS}" >/dev/null || return 1
   while IFS= read -r relay; do cntools_pool_relay_valid "${relay}" || return 1; done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_REG_RELAYS}")
   owners="$(jq -c 'map(.hash)|sort' <<< "${CNTOOLS_POOL_REG_OWNERS}")"
   relays="$(cntools_pool_relays_ledger "${CNTOOLS_POOL_REG_RELAYS}")" || return 1

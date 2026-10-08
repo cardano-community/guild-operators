@@ -25,30 +25,33 @@ cntools_pool_stake_record_into() {
 }
 
 cntools_pool_wallet_stake_record_into() {
-  local output="$1" index="$2" directory="${CNTOOLS_WALLET_PATHS[$2]}" source='' kind=''
+  local output="$1" index="$2" directory="${CNTOOLS_WALLET_PATHS[$2]}" source='' kind='' wallet_record='' base=''
   cntools_wallet_directory_safe "${directory}" && cntools_wallet_prepare_selected_material "${directory}" || return 1
   [[ "$(cntools_wallet_type "${directory}")" != MultiSig ]] || return 1
   source="${directory}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"
   [[ ! -f "${directory}/${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}" ]] || source="${directory}/${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}"
   cntools_transaction_source_kind_into kind "${source}" || source=''
-  cntools_pool_stake_record_into "${output}" "${directory}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" "${source}" "${CNTOOLS_WALLET_NAMES[index]}"
+  cntools_pool_stake_record_into wallet_record "${directory}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" "${source}" "${CNTOOLS_WALLET_NAMES[index]}" || return 1
+  if cntools_pool_public_file_safe "${directory}/${CNTOOLS_WALLET_BASE_ADDR_FILENAME}" 1024; then
+    base="$(< "${directory}/${CNTOOLS_WALLET_BASE_ADDR_FILENAME}")"
+    cntools_wallet_bech32_valid "${base}" "$(cntools_wallet_address_hrp base)" base || base=''
+  fi
+  printf -v "${output}" '%s' "$(jq -c --arg base "${base}" '.+{baseAddress:$base}' <<< "${wallet_record}")"
 }
 
 cntools_pool_owner_add() {
-  local record="$1" hash='' count=0
+  local record="$1" hash=''
   hash="$(jq -er .hash <<< "${record}")" || return 1
-  count="$(jq length <<< "${CNTOOLS_POOL_REG_OWNERS}")"
-  if (( count >= 20 )) && ! jq -e --arg hash "${hash}" 'any(.[];.hash == $hash)' <<< "${CNTOOLS_POOL_REG_OWNERS}" >/dev/null; then
-    cntools_wallet_register_set_error 'At most 20 pool owners are supported in this flow.'; return 1
-  fi
-  CNTOOLS_POOL_REG_OWNERS="$(jq -c --argjson record "${record}" 'map(select(.hash != $record.hash)) + [$record]' <<< "${CNTOOLS_POOL_REG_OWNERS}")"
+  CNTOOLS_POOL_REG_OWNERS="$(jq -c --argjson record "${record}" 'if any(.[]; .hash == $record.hash)
+    then map(if .hash == $record.hash then $record else . end) else .+[$record] end' <<< "${CNTOOLS_POOL_REG_OWNERS}")"
 }
 
 cntools_pool_registration_defaults() {
   local current='{}' margin='' hash='' record='' index=0 owner=''
-  CNTOOLS_POOL_REG_PLEDGE=0; CNTOOLS_POOL_REG_COST="${CNTOOLS_POOL_REG_MIN_COST}"; CNTOOLS_POOL_REG_MARGIN=0
+  CNTOOLS_POOL_REG_PLEDGE=50000000000; CNTOOLS_POOL_REG_COST="${CNTOOLS_POOL_REG_MIN_COST}"; CNTOOLS_POOL_REG_MARGIN=7500000/100000000
+  CNTOOLS_POOL_REG_METADATA_URL=''
   CNTOOLS_POOL_REG_METADATA=null; CNTOOLS_POOL_REG_RELAYS='[]'; CNTOOLS_POOL_REG_OWNERS='[]'
-  CNTOOLS_POOL_REG_REWARD_VKEY=''; CNTOOLS_POOL_REG_REWARD_HASH=''; CNTOOLS_POOL_REG_REWARD_ADDRESS=''; CNTOOLS_POOL_REG_REWARD_LABEL=''
+  CNTOOLS_POOL_REG_REWARD_VKEY=''; CNTOOLS_POOL_REG_REWARD_HASH=''; CNTOOLS_POOL_REG_REWARD_ADDRESS=''; CNTOOLS_POOL_REG_REWARD_LABEL=''; CNTOOLS_POOL_REG_REWARD_SOURCE=''
   [[ "$(jq -r .registered <<< "${CNTOOLS_POOL_REG_STATE}")" == true ]] || return 0
   current="$(jq -c '.current' <<< "${CNTOOLS_POOL_REG_STATE}")"
   # Local pending parameters take precedence; changing only one field must not
@@ -86,6 +89,7 @@ cntools_pool_reward_record_use() {
   CNTOOLS_POOL_REG_REWARD_HASH="$(jq -r .hash <<< "$1")"
   CNTOOLS_POOL_REG_REWARD_ADDRESS="$(jq -r .address <<< "$1")"
   CNTOOLS_POOL_REG_REWARD_LABEL="$(jq -r .label <<< "$1")"
+  CNTOOLS_POOL_REG_REWARD_SOURCE="$(jq -r '.source // empty' <<< "$1")"
 }
 
 cntools_pool_registration_can_sign_into() {
@@ -95,6 +99,6 @@ cntools_pool_registration_can_sign_into() {
   [[ -n "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" && -n "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]] || return 0
   while IFS= read -r record; do
     source="$(jq -r .source <<< "${record}")"; [[ -n "${source}" ]] || return 0
-  done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_REG_OWNERS}")
+  done < <(jq -cn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --argjson extra "${CNTOOLS_POOL_EXTRA_RECORDS:-[]}" '$owners+$extra | unique_by(.hash) | .[]')
   pcs_result=Y
 }

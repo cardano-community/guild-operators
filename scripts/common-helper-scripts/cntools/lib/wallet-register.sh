@@ -899,6 +899,9 @@ cntools_wallet_register_build_balanced_into() {
       arguments+=(--vote-file "${CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE}")
     else
       arguments+=(--certificate-file "${CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE}")
+      if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-* ]]; then
+        for output in "${CNTOOLS_POOL_EXTRA_CERTIFICATES[@]}"; do arguments+=(--certificate-file "${output}"); done
+      fi
     fi
     arguments+=(--fee "${CNTOOLS_WALLET_REGISTER_FEE}")
     cntools_transaction_temp_file body stake-body || return 1

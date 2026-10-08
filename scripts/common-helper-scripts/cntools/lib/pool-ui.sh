@@ -62,6 +62,11 @@ cntools_pool_settings_rows() {
       row("Pool deposit"; .deposit; "lovelace"), row("Metadata URL"; .meta_url; "identifier"), row("Metadata hash"; .meta_hash; "identifier"),
       row("Active stake"; .active_stake; "lovelace"), row("Live stake"; .live_stake; "lovelace"), row("Live pledge"; .live_pledge; "lovelace"),
       row("Delegators"; .live_delegators; "number"), row("Saturation"; .live_saturation; "percent"), row("Blocks produced"; .block_count; "number")
+    elif .schema == 1 then
+      row("Pledge"; .pledgeLovelace; "lovelace"), row("Fixed cost"; .costLovelace; "lovelace"),
+      row("Margin"; (try (.margin | if test("^[0-9]+/[1-9][0-9]*$") then split("/") | (.[0]|tonumber)/(.[1]|tonumber)*100 else tonumber*100 end) catch empty); "percent"),
+      row("Reward wallet"; .reward.label; "identifier"), row("Main owner"; .owners[0].label; "identifier"),
+      row("Metadata URL"; .metadata.url; "identifier")
     else
       row("Pledge"; .pledgeADA; "ada"), row("Fixed cost"; .costADA; "ada"), row("Margin"; .margin; "percent"),
       row("Reward wallet"; .rewardWallet; "identifier"), row("Pledge wallet"; .pledgeWallet; "identifier"), row("Metadata URL"; .json_url; "identifier")
@@ -89,7 +94,7 @@ cntools_pool_members_rows() {
   records="$(jq -r --arg format "${format}" '
     def row($label; $value; $role): [$label, $value, $role] | map(tostring | gsub("[[:cntrl:]]"; " ")) | join("\u001f");
     (if $format == "local" then .spsOwners else .owners end | if type == "array" then . else [] end) | to_entries[] |
-      (if $format == "config" then .value | if type == "object" then .wallet_name else null end else .value end) as $owner |
+      (if $format == "config" then .value | if type == "object" then (.label // .wallet_name) else null end else .value end) as $owner |
       select($owner | type == "string") | row("Owner " + ((.key+1)|tostring); $owner; "identifier")
   ' <<< "${json}" 2>/dev/null)" || return 1
   while IFS=$'\037' read -r label value role; do [[ -z "${role}" ]] || cntools_table_pair "${label}" "${value}" "${role}"; done <<< "${records}"
