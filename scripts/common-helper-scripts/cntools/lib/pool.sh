@@ -141,18 +141,18 @@ cntools_pool_catalog_build() {
 }
 
 cntools_pool_choose_into() {
-  local output="$1" selected="" index=0 row=""
-  local -a rows=()
-  for index in "${!CNTOOLS_POOL_NAMES[@]}"; do
-    printf -v row '%02d  %s · %s' "$((index + 1))" "${CNTOOLS_POOL_NAMES[index]}" "${CNTOOLS_POOL_PROTECTIONS[index]}"
-    rows+=("${row}")
+  local _pool_output="$1" _pool_choice="" _pool_index=0 _pool_row=""
+  local -a _pool_rows=()
+  for _pool_index in "${!CNTOOLS_POOL_NAMES[@]}"; do
+    printf -v _pool_row '%02d  %s · %s' "$((_pool_index + 1))" "${CNTOOLS_POOL_NAMES[_pool_index]}" "${CNTOOLS_POOL_PROTECTIONS[_pool_index]}"
+    _pool_rows+=("${_pool_row}")
   done
-  cntools_ui_choose selected 'Filter pools…' "${rows[@]}" Cancel || return $?
-  [[ "${selected}" != Cancel ]] || return 1
-  for index in "${!rows[@]}"; do
-    if [[ "${selected}" == "${rows[index]}" ]]; then
-      printf -v "${output}" '%s' "${index}"
-      cntools_transaction_log CHOICE "Pool selected=${CNTOOLS_POOL_NAMES[index]}"
+  cntools_ui_choose _pool_choice 'Filter pools…' "${_pool_rows[@]}" Cancel || return $?
+  [[ "${_pool_choice}" != Cancel ]] || return 1
+  for _pool_index in "${!_pool_rows[@]}"; do
+    if [[ "${_pool_choice}" == "${_pool_rows[_pool_index]}" ]]; then
+      printf -v "${_pool_output}" '%s' "${_pool_index}"
+      cntools_transaction_log CHOICE "Pool selected=${CNTOOLS_POOL_NAMES[_pool_index]}"
       return 0
     fi
   done

@@ -98,6 +98,8 @@ jobs:
       run: bash files/tests/cntools-pool-registration.sh
     - name: Test CNTools pool metadata wizard
       run: bash files/tests/cntools-pool-wizard-ui.sh
+    - name: Test CNTools KES rotation interaction
+      run: bash files/tests/cntools-kes.sh
     - name: Test CNTools legacy parity additions
       run: bash files/tests/cntools-parity.sh
     - name: Test CNTools governance delegation

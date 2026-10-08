@@ -9,6 +9,13 @@ Cross-action parity helpers remain focused and lazy-loaded:
 `governance-voting-stats.sh` separates optional indexed voting-power statistics
 from authoritative proposal identity. Unknown optional data is never fabricated.
 
+KES rotation uses `pool-opcert-validation.sh` for bounded counter/certificate
+parsing and cold-signature verification, `pool-kes.sh` for private durable
+staging/offline issuance/counter-safe publication, and `pool-kes-ui.sh` for the
+shared Gum review, confirmations and recovery hand-off. Read-only KES health
+remains in `pool-health.sh`; the registration wizard's missing-only first
+certificate remains separate in `pool-opcert.sh`. They share the issuance lock.
+
 Libraries are sourced only by actions that declare their relative path.
 `placeholder.sh` provides the shared inert-action notice used by the Phase 4
 menu skeleton.

@@ -419,6 +419,11 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_pool_action_' "${action_file}" >/dev/null || fail "Pool management entrypoint missing"
         grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "Pool management cleanup missing"
         ;;
+      pool/rotate)
+        jq -e '.libs | index("pool-kes.sh") != null and index("pool-kes-ui.sh") != null and index("pool-opcert-validation.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail "KES rotation dependencies missing"
+        grep -F 'cntools_pool_action_rotate' "${action_file}" >/dev/null || fail "KES rotation entrypoint missing"
+        grep -F 'cntools_kes_cleanup' "${action_file}" >/dev/null || fail "KES rotation cleanup missing"
+        ;;
       pool/register|pool/modify)
         jq -e '.libs | index("pool-registration.sh") != null and index("pool-registration-ui.sh") != null and index("wallet-register.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail "Pool registration dependencies missing"
         grep -F 'cntools_pool_action_registration' "${action_file}" >/dev/null || fail "Pool registration handler missing"
@@ -708,7 +713,7 @@ while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    pool/list|pool/show|pool/new|pool/import|pool/encrypt|pool/decrypt|pool/register|pool/modify) continue ;;
+    pool/list|pool/show|pool/new|pool/import|pool/encrypt|pool/decrypt|pool/register|pool/modify|pool/rotate) continue ;;
     wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/transactions|wallet/utxos|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|funds/withdraw|funds/delegate|funds/collect|vote/governance/delegate|vote/governance/derive-keys|vote/governance/info|vote/governance/drep-register|vote/governance/drep-retire|vote/governance/proposals|vote/governance/cast|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"

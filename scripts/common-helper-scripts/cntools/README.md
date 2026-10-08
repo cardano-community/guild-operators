@@ -142,8 +142,8 @@ menu inventory remains an implementation checklist, not a generated runtime
 manifest.
 
 Pool List and Show are functional read-only browsers for existing pool
-directories. Pool New, Import, Encrypt, Decrypt, Register and Modify are also
-implemented. Retirement, KES rotation and Calidus remain separate slices.
+directories. Pool New, Import, Encrypt, Decrypt, Register, Modify and Rotate are
+also implemented. Retirement and Calidus remain separate slices.
 
 ## Runtime modes
 
@@ -1383,6 +1383,79 @@ local JSON, cancellation, and presentation. The node-free pinned cnode test
 generates real cold/KES/VRF keys and an operational certificate, compares
 identity with CLI output, and verifies existing artifacts remain unchanged.
 Live node/API behavior should additionally be checked on a test deployment.
+
+## Pool KES rotation
+
+**Pool → Rotate** prepares replacement KES keys and a matching operational
+certificate, or signs a public request on an offline cold-key system. It works
+in local, light and offline modes and supports CLI cold keys and supported
+hardware cold-key references. Encrypted cold keys need to be opened separately;
+public-only pools can prepare an offline hand-off. No registration transaction,
+fee, VRF replacement or node restart is performed.
+
+The pool cold identity and real issue counter must be valid. Online inspection
+prefers the local node and uses available Koios as a fallback. A known next
+counter must equal the ledger counter or its immediate successor and must be
+ahead of the existing disk certificate. CNTools never resets a counter to make
+it pass. If ledger information is unavailable, the operator must explicitly
+confirm independent verification. The current start period comes from the
+node/Koios tip and Shelley genesis; offline/unavailable-tip operation requires
+an explicitly confirmed, independently verified period. Offline verification
+is operator responsibility, not an automatic claim of chain validity.
+
+Generation is staged privately in a hidden directory under the pool root,
+alongside (not inside) the individual pool directories. Completed recovery
+archives therefore do not interfere with normal pool encryption/decryption.
+Existing operational
+files remain active until the user explicitly confirms that the block producer
+is stopped and approves installation. The stage retains original operational
+files, the replacement set and a phase record. Cold signing keys and VRF keys
+are not copied into the rotation backup or changed. Returned certificates are
+bound to the selected pool, new KES key, start period and exact counter, and
+their Ed25519 cold-key signature is verified using the already deployed
+OpenSSL/xxd witness-verification tools. The KES signing/public key pair is
+rechecked before installation.
+
+For air-gapped issuance:
+
+1. On the node, choose **Prepare replacement KES keys**, then **Prepare offline
+   hand-off**. Copy only the reported `request` directory; never the parent
+   recovery directory or its new KES private key.
+2. On the signing system, select the same pool, then **Sign an offline request**.
+   Its independently held cold key/reference and real counter must match the
+   request. CNTools will not replace that counter with the transferred copy.
+3. Copy only `op.cert` and `cold.counter` from the reported signed-response
+   directory back to the node.
+4. Reopen **Pool → Rotate**, import the response, stop the block producer and
+   approve installation. Restart the node yourself and verify its health.
+
+The shared `.cntools-opcert-lock` prevents a second issuance while rotation is
+pending. A busy marker also prevents concurrent continuations; normal action
+cleanup releases only that marker, not the recovery files or issuance lock.
+After a hard interruption, inspect the recovery/phase before clearing an
+abandoned busy marker. An interrupted signing-side operation requires manual
+recovery; node-side valid issued output and partial installation can be
+continued without issuing another certificate. Missing/invalid issuance output
+is never automatically retried. An outstanding offline request cannot switch
+back to local issuance.
+
+Counter advancement is committed before exposing the replacement certificate
+and is **never rolled back**, including after cancellation or installation
+failure. Files are individually replaced atomically in the existing pool
+directory, preserving owner read-only/immutable protection where present.
+Installation of the entire file set is not a single filesystem transaction:
+keep the node stopped after an interruption and continue the recorded operation.
+Original and replacement sets remain available in the private recovery directory
+after success. Do not restore an older counter together with an old key backup.
+Store backups securely, and copy matching operational files securely if another
+deployment hosts the actual block producer.
+
+`cntools-kes.sh` covers default-No confirmations, cancellation and UI contracts.
+`cntools-kes-pinned.sh` exercises real keys, signatures, offline round-trip,
+counter/replay guards, preserved files/permissions and interrupted publication
+using only the cnode deployment-pinned CLI. Hardware command dispatch is tested
+without a physical device; live-node acceptance/device approval remain operator
+tests. No test submits a transaction or restarts a node.
 
 ## Funds stake pool delegation slice
 

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# CNTools placeholder action. Functions only.
+# CNTools staged KES rotation and offline operational-certificate issuance.
 
 cntools_action_main() {
-  cntools_action_placeholder
+  cntools_pool_action_rotate
+}
+
+cntools_action_cleanup() {
+  cntools_kes_cleanup
 }
