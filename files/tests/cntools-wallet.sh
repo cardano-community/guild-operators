@@ -201,6 +201,7 @@ fi
 . "${ID_LIBRARY}"
 # shellcheck source=/dev/null
 . "${QUERY_LIBRARY}"
+for lib in pool-id drep-id table public-metadata wallet-delegation-info; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 
 CNTOOLS_WALLET_DIR="${WALLET_ROOT}"
 CNTOOLS_WALLET_PAY_VKEY_FILENAME="payment.vkey"

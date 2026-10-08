@@ -35,6 +35,7 @@
     "pool-id.sh",
     "pool-query.sh",
     "funds-delegate.sh",
-    "funds-delegate-ui.sh"
+    "funds-delegate-ui.sh",
+    "wallet-selection.sh"
   ]
 }

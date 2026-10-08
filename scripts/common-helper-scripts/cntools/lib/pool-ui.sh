@@ -32,6 +32,7 @@ cntools_pool_identity_rows() {
     done
   fi
   cntools_table_pair 'Pool registration' "${CNTOOLS_POOL_CHAIN_STATUS[index]}" "$(cntools_pool_status_role "${CNTOOLS_POOL_CHAIN_STATUS[index]}")"
+  cntools_pool_health_rows "${index}" "${detailed}"
   [[ -z "${CNTOOLS_POOL_RETIREMENT[index]}" ]] || cntools_table_pair 'Retirement epoch' "$(cntools_number_format "${CNTOOLS_POOL_RETIREMENT[index]}")" warning
   [[ -z "${CNTOOLS_POOL_CHAIN_SOURCE[index]}" ]] || cntools_table_pair 'Data source' "${CNTOOLS_POOL_CHAIN_SOURCE[index]}" muted
   if [[ "${detailed}" != Y && "${CNTOOLS_POOL_CURRENT[index]}" != '{}' ]]; then
@@ -151,7 +152,7 @@ cntools_pool_render_catalog() {
 }
 
 cntools_pool_action_list() {
-  local status=0
+  local status=0 index=0 query_node=N
   cntools_ui_action_begin List '/ Pool / List'
   if ! cntools_pool_catalog_build; then
     cntools_ui_render_status error "The pool directory could not be read safely. See ${CNTOOLS_LOG}."; cntools_ui_wait; return 1
@@ -164,11 +165,15 @@ cntools_pool_action_list() {
     if cntools_ui_confirm 'Fetch on-chain information for all pools now?' false; then
       cntools_transaction_log CHOICE 'Pool list chain information requested'
       cntools_ui_spin_function 'Fetching pool information…' cntools_pool_inspect_catalog || return 1
+      query_node=Y
     else
       status=$?; (( status == 1 )) || return "${status}"
       cntools_transaction_log CHOICE 'Pool list chain information skipped'
     fi
   fi
+  for index in "${!CNTOOLS_POOL_NAMES[@]}"; do
+    cntools_ui_spin_function 'Checking pool KES health…' cntools_pool_health_collect "${index}" "${query_node}" || return 1
+  done
   cntools_pool_render_catalog || return 1
   cntools_ui_wait
 }
@@ -193,7 +198,12 @@ cntools_pool_action_show() {
     cntools_ui_spin_function 'Fetching pool information…' cntools_pool_inspect_show "${selected}" || return 1
   fi
   cntools_ui_action_begin Show '/ Pool / Show'
+  cntools_ui_spin_function 'Checking pool KES health…' cntools_pool_health_collect "${selected}" || return 1
   cntools_pool_identity_rows "${selected}" Y | cntools_table_render Pool || return 1
+  local anchor_url='' anchor_hash=''
+  anchor_url="$(jq -r '.spsMetadata.url // .meta_url // ""' <<< "${CNTOOLS_POOL_CURRENT[selected]}")"
+  anchor_hash="$(jq -r '.spsMetadata.hash // .meta_hash // ""' <<< "${CNTOOLS_POOL_CURRENT[selected]}")"
+  cntools_public_metadata_offer "${anchor_url}" "${anchor_hash}" 1024 || return 1
   cntools_pool_render_settings 'Local configuration · not proof of registration' "${config}" config || return 1
   if [[ "${CNTOOLS_POOL_CHAIN_SOURCE[selected]}" == 'Local node' ]]; then
     format=local

@@ -3650,6 +3650,7 @@ cntools_wallet_action_show_impl() {
     esac
   fi
 
+  cntools_ui_spin_function 'Checking optional delegation information from Koios…' cntools_wallet_delegation_info_collect || true
   cntools_ui_action_begin "Show" "/ Wallet / Show"
   cntools_wallet_render_identity_table \
     "${CNTOOLS_WALLET_SELECTED_NAME}" \
@@ -3660,6 +3661,7 @@ cntools_wallet_action_show_impl() {
   cntools_wallet_render_credential_table "${wallet_directory}" || return 1
   cntools_wallet_render_query \
     "${has_base}" "${has_payment}" "${has_reward}" skip || return 1
+  cntools_wallet_delegation_info_render || return 1
   if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[1-9][0-9]*$ ]]; then
     if cntools_wallet_choose_asset_view asset_view; then
       asset_selector_status=0

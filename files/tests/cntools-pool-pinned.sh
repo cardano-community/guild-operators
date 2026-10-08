@@ -9,7 +9,8 @@ TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-pool-pinned.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
 fail() { tail -10 "${TEST_ROOT}/test.log" >&2; printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-for lib in number wallet wallet-query transaction pool-id table pool pool-inspect pool-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
+. "${CNTOOLS_ROOT}/core/health.sh"
+for lib in number wallet wallet-query transaction pool-id table pool pool-inspect pool-health pool-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 cntools_log() { printf '%s %s\n' "$1" "$2" >> "${TEST_ROOT}/test.log"; }
 cntools_run_command_timeout() { shift 3; printf '%q ' "$@" >> "${TEST_ROOT}/test.log"; printf '\n' >> "${TEST_ROOT}/test.log"; "$@"; }
 # macOS chmod does not accept the GNU option terminator used by runtime code.
@@ -38,6 +39,17 @@ cntools_pool_catalog_build || fail 'real inventory'
 [[ "${CNTOOLS_POOL_IDS[0]}" == "${expected}" && "${CNTOOLS_POOL_HEX_IDS[0]}" == "${hex}" ]] || fail 'real cold key identity'
 [[ "${CNTOOLS_POOL_IDENTITIES[0]}" == 'Verified cold public key' ]] || fail 'not verified'
 cntools_pool_inspect_catalog
+CNTOOLS_SLOTS_PER_KES_PERIOD=129600 CNTOOLS_TIMEZONE=UTC
+jq -n '{maxKESEvolutions:62,slotsPerKESPeriod:129600}' > "${TEST_ROOT}/genesis.json"
+CNTOOLS_SHELLEY_GENESIS="${TEST_ROOT}/genesis.json"
+cntools_health_reference_slot() { printf '%s\n' 129600; }
+cntools_pool_health_collect 0 || fail 'real KES certificate diagnostics'
+[[ "${CNTOOLS_POOL_CERT_DISK[0]}" == 0 && "${CNTOOLS_POOL_CERT_NEXT[0]}" == 1 &&
+   "${CNTOOLS_POOL_KES_STATUS[0]}" == Healthy && "${CNTOOLS_POOL_KES_REMAINING[0]}" == 61 &&
+   -n "${CNTOOLS_POOL_KES_EXPIRY[0]}" ]] || fail 'KES fields do not match pinned certificate'
+cntools_health_reference_slot() { printf '%s\n' 8035200; }
+cntools_pool_health_collect 0 || fail 'expired KES certificate diagnostics'
+[[ "${CNTOOLS_POOL_KES_STATUS[0]}" == Expired && "${CNTOOLS_POOL_KES_REMAINING[0]}" == 0 ]] || fail 'KES expiry boundary'
 cntools_pool_identity_rows 0 Y > "${TEST_ROOT}/rows"
 [[ "$(cksum "${directory}"/*)" == "${before}" ]] || fail 'read-only pool artifacts changed'
 [[ ! -e "${directory}/pool.id" && ! -e "${directory}/pool.id-bech32" ]] || fail 'inventory wrote identity files'

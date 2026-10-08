@@ -320,7 +320,7 @@ cntools_http_secret_file_tracked() {
 cntools_http_url_allowed() {
   [[ "$2" =~ ^https://[^[:space:]]+$ ]] && return 0
   # The metadata helper explicitly scopes unauthenticated public HTTP reads.
-  [[ "${CNTOOLS_HTTP_PUBLIC_POOL_METADATA:-N}" == Y && "$1" == GET &&
+  [[ ( "${CNTOOLS_HTTP_PUBLIC_POOL_METADATA:-N}" == Y || "${CNTOOLS_HTTP_PUBLIC_METADATA:-N}" == Y ) && "$1" == GET &&
      "$2" =~ ^http://[^[:space:]]+$ && "$2" != *'@'* ]]
 }
 

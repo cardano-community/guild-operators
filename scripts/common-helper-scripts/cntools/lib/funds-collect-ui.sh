@@ -41,7 +41,7 @@ cntools_collect_workflow() {
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
   (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || { cntools_collect_fail 'No wallets are available.'; return 2; }
-  cntools_wallet_choose selected || return $?
+  cntools_wallet_choose selected Cancel collect || return $?
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
   cntools_ui_choose scope 'Collect which UTxOs?' 'ADA-only UTxOs' 'ADA and native assets' 'Cancel' || return $?

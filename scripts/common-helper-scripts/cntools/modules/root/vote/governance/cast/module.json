@@ -42,6 +42,9 @@
     "governance-proposal.sh",
     "governance-proposal-ui.sh",
     "governance-vote.sh",
-    "governance-vote-ui.sh"
+    "governance-vote-ui.sh",
+    "public-metadata.sh",
+    "governance-voting-stats.sh",
+    "wallet-selection.sh"
   ]
 }

@@ -37,12 +37,13 @@ cntools_wallet_register_operation_set vote-delegate
 cntools_vote_chain_state_validate
 eq "${CNTOOLS_VOTE_CURRENT}" drep_always_abstain
 CNTOOLS_WALLET_REGISTERED=no
-status=0; cntools_vote_chain_state_validate || status=$?; eq "${status}" 7
+cntools_vote_chain_state_validate; eq "${CNTOOLS_VOTE_REGISTER}" Y
 CNTOOLS_WALLET_REGISTERED=unknown
 if cntools_vote_chain_state_validate; then fail 'unknown registration accepted'; fi
 CNTOOLS_WALLET_REGISTERED=yes CNTOOLS_WALLET_DREP_DELEGATION_VALID=N
 if cntools_vote_chain_state_validate; then fail 'ambiguous existing delegation accepted'; fi
 CNTOOLS_WALLET_DREP_DELEGATION_VALID=Y
+CNTOOLS_VOTE_REGISTER=N
 
 # Both collectors must zero the protocol stake deposit for voting-only actions.
 (
@@ -137,6 +138,26 @@ done
     decoded="$(jq "${mutate}" <<< "${original}")"
     if cntools_vote_validate_body fixture; then fail "body mutation accepted: ${mutate}"; fi
   done
+)
+
+# Combined registration is bound to the approved deposit and needs consent.
+(
+  CNTOOLS_VOTE_KIND=script CNTOOLS_VOTE_HASH="${hash}" CNTOOLS_WALLET_REGISTER_STAKE_CREDENTIAL="${hash}"
+  CNTOOLS_WALLET_REGISTER_FEE=1000 CNTOOLS_WALLET_REGISTER_BASE_ADDRESS=base
+  CNTOOLS_VOTE_TARGET="${script_id}" CNTOOLS_VOTE_CURRENT=''
+  CNTOOLS_VOTE_REGISTER=Y CNTOOLS_WALLET_REGISTER_DEPOSIT=2000000
+  combined="$(jq -nc --arg hash "${hash}" '{fee:"1000 Lovelace",outputs:[{address:"base"}],certificates:[{"Stake address registration and delegation":{
+    "stake credential":{keyHash:$hash},delegatee:{"delegatee type":"vote",DRep:("drep-scriptHash-"+$hash)},deposit:2000000}}]}')"
+  decoded="${combined}"
+  cntools_transaction_view_into() { printf -v "$1" '%s' "${decoded}"; }
+  cntools_vote_validate_body fixture || fail 'approved combined registration'
+  for mutate in '.certificates[0]["Stake address registration and delegation"].deposit=2000001' \
+    '.certificates[0]["Stake address registration and delegation"].unexpected=true'; do
+    decoded="$(jq "${mutate}" <<< "${combined}")"
+    if cntools_vote_validate_body fixture; then fail 'unreviewed combined certificate field'; fi
+  done
+  CNTOOLS_VOTE_REGISTRATION_CONFIRMED=N
+  if cntools_vote_certificate_create; then fail 'registration certificate without consent'; fi
 )
 
 # Recheck selected inputs and unchanged delegation, including inactivity that

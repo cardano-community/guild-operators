@@ -468,12 +468,12 @@ done
 CNTOOLS_KOIOS_ENABLED=N
 cntools_menu_open "${CNTOOLS_MODULE_ROOT}/wallet"
 for ((index=0; index<${#CNTOOLS_MENU_IDS[@]}; index++)); do
-  case "${CNTOOLS_MENU_IDS[index]}" in wallet/transactions|wallet/utxos) eq "${CNTOOLS_MENU_ENABLED[index]}" N ;; esac
+  case "${CNTOOLS_MENU_IDS[index]}" in wallet/transactions) eq "${CNTOOLS_MENU_ENABLED[index]}" N ;; wallet/utxos) eq "${CNTOOLS_MENU_ENABLED[index]}" Y ;; esac
 done
 cntools_menu_catalog_build
 cntools_menu_catalog_open "${CNTOOLS_MODULE_ROOT}/wallet"
 for ((index=0; index<${#CNTOOLS_MENU_IDS[@]}; index++)); do
-  case "${CNTOOLS_MENU_IDS[index]}" in wallet/transactions|wallet/utxos) eq "${CNTOOLS_MENU_ENABLED[index]}" N ;; esac
+  case "${CNTOOLS_MENU_IDS[index]}" in wallet/transactions) eq "${CNTOOLS_MENU_ENABLED[index]}" N ;; wallet/utxos) eq "${CNTOOLS_MENU_ENABLED[index]}" Y ;; esac
 done
 cntools_wallet_query_cleanup
 printf 'CNTools wallet history tests passed\n'

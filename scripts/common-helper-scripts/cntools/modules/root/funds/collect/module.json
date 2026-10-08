@@ -33,6 +33,7 @@
     "wallet-payment.sh",
     "funds-send.sh",
     "funds-collect.sh",
-    "funds-collect-ui.sh"
+    "funds-collect-ui.sh",
+    "wallet-selection.sh"
   ]
 }

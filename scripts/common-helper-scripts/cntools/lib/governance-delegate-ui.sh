@@ -22,6 +22,11 @@ cntools_vote_render_rows() {
 cntools_vote_choose_target() {
   local choice="" entered="" status=0 widths=""
   CNTOOLS_VOTE_TARGET="" CNTOOLS_VOTE_KIND="" CNTOOLS_VOTE_HASH="" CNTOOLS_VOTE_INACTIVE_CONFIRMED=N
+  if [[ "${CNTOOLS_VOTE_REGISTER}" == Y ]]; then
+    cntools_ui_confirm "This stake address is not registered. Register it and delegate in one transaction, paying $(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")?" false || return $?
+    CNTOOLS_VOTE_REGISTRATION_CONFIRMED=Y
+    cntools_transaction_log CHOICE "Combined stake registration approved deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
+  fi
   while true; do
     cntools_wallet_register_begin
     cntools_transaction_ui_table_widths_into widths 26 || return 2
@@ -30,11 +35,12 @@ cntools_vote_choose_target() {
       cntools_transaction_ui_styled_row Wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" identifier
       cntools_transaction_ui_styled_row 'Current voting delegation' "$(cntools_vote_label "${CNTOOLS_VOTE_CURRENT}")" identifier
     } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
-    cntools_ui_render_status info 'Voting delegation changes only your voting representative. Pool delegation, rewards and stake registration remain unchanged. No additional deposit is required.'
-    cntools_ui_choose choice 'Voting delegation' 'Specific DRep' 'Always Abstain' 'Always No Confidence' Cancel || return $?
+    cntools_ui_render_status info 'Voting delegation does not change your stake pool or withdraw rewards. Any first stake registration and deposit are shown in the transaction review.'
+    cntools_ui_choose choice 'Voting delegation' 'Specific DRep' 'Local DRep wallet' 'Always Abstain' 'Always No Confidence' Cancel || return $?
     cntools_transaction_log CHOICE "Voting delegation target choice=${choice}"
     case "${choice}" in
       'Specific DRep') cntools_ui_input entered 'DRep ID' 'drep1… (CIP-129 or legacy); legacy drep_script1… also supported' || return $? ;;
+      'Local DRep wallet') cntools_vote_choose_local_into entered || { status=$?; ((status == 1)) && continue; return "${status}"; } ;;
       'Always Abstain') entered=drep_always_abstain ;;
       'Always No Confidence') entered=drep_always_no_confidence ;;
       Cancel) return 1 ;;
@@ -64,6 +70,27 @@ cntools_vote_choose_target() {
     cntools_transaction_log CHOICE "Voting delegation target=${CNTOOLS_VOTE_TARGET} kind=${CNTOOLS_VOTE_KIND} previous=${CNTOOLS_VOTE_CURRENT}"
     return 0
   done
+}
+
+cntools_vote_choose_local_into() {
+  local destination="$1" directory="" entry="" selection="" index=0
+  local -a labels=() ids=()
+  for directory in "${CNTOOLS_WALLET_PATHS[@]}"; do
+    [[ -f "${directory}/${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" || -f "${directory}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" ]] || continue
+    if cntools_drep_key_inspect "${directory}" && [[ "${CNTOOLS_DREP_KEY_VERIFIED}" == Y ]]; then
+      index=$((index+1)); entry="${index} · ${directory##*/} · ${CNTOOLS_DREP_KEY_ID}"
+      labels+=("${entry}"); ids+=("${CNTOOLS_DREP_KEY_ID}")
+    fi
+  done
+  if (( ${#labels[@]} == 0 )); then
+    cntools_ui_render_status info 'No verified local DRep public keys are available.'; cntools_ui_wait; return 1
+  fi
+  cntools_ui_choose selection 'Local DRep wallet · registration checked next' "${labels[@]}" Cancel || return $?
+  [[ "${selection}" != Cancel ]] || return 1
+  for index in "${!labels[@]}"; do
+    [[ "${selection}" != "${labels[index]}" ]] || { printf -v "${destination}" '%s' "${ids[index]}"; return 0; }
+  done
+  return 2
 }
 
 cntools_governance_action_delegate() {

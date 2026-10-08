@@ -5,6 +5,7 @@ CNTOOLS_PROPOSALS='[]'
 CNTOOLS_PROPOSAL_EPOCH=0
 CNTOOLS_PROPOSAL_BACKEND=''
 CNTOOLS_PROPOSAL_SELECTED='{}'
+CNTOOLS_PROPOSAL_GOV_STATE=''
 
 # CIP-129 uses a one-byte action index. The ledger/CLI also accepts Word16:
 # retain hash#index for larger indices instead of truncating them to a CIP ID.
@@ -92,6 +93,7 @@ cntools_proposals_query_backend() {
       cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" latest query gov-state "${network[@]}" --socket-path "${CNTOOLS_SOCKET}" --output-json || status=$?
     fi
     if ((status != 0)); then cntools_transaction_log_cli_failure 'Governance state query failed' "${status}" "${errors}" "${output}"; return 1; fi
+    CNTOOLS_PROPOSAL_GOV_STATE="${output}"
     epoch="$(jq -er '.epoch | select(type == "number")' "${tip}")" || return 1
   elif [[ "${backend}" == koios && "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_KOIOS_API:-}" =~ ^https://[^[:space:]]+$ ]]; then
     cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/tip" '' "${tip}" 4194304 GET || return 1
@@ -120,6 +122,8 @@ cntools_proposals_query_backend() {
 }
 
 cntools_proposals_query() {
+  CNTOOLS_PROPOSAL_GOV_STATE='' CNTOOLS_VOTING_STATS=() CNTOOLS_VOTING_PARAMETERS_SOURCE=''
+  CNTOOLS_VOTING_PARAMETERS_CHECKED=N
   if cntools_transaction_local_backend_ready && cntools_proposals_query_backend local; then return 0; fi
   if [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y ]] && cntools_proposals_query_backend koios; then return 0; fi
   cntools_transaction_set_error 'Active governance proposals could not be collected. Check the local node or Koios and the log.'

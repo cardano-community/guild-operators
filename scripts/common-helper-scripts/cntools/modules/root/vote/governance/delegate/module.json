@@ -33,8 +33,10 @@
     "wallet-register.sh",
     "wallet-register-ui.sh",
     "drep-id.sh",
+    "drep-key.sh",
     "drep-query.sh",
     "governance-delegate.sh",
-    "governance-delegate-ui.sh"
+    "governance-delegate-ui.sh",
+    "wallet-selection.sh"
   ]
 }

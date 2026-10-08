@@ -1,14 +1,13 @@
 {
   "kind": "action",
   "label": "UTxO List",
-  "description": "Browse unspent wallet outputs through Koios",
+  "description": "Browse unspent outputs through Koios or a local node",
   "shortcut": "u",
   "order": 110,
   "modes": [
     "local",
     "light"
   ],
-  "requiresKoios": true,
   "libs": [
     "number.sh",
     "wallet.sh",
@@ -21,6 +20,8 @@
     "wallet-query.sh",
     "table.sh",
     "wallet-history.sh",
+    "utxo.sh",
+    "wallet-utxo-local.sh",
     "wallet-history-ui.sh"
   ]
 }

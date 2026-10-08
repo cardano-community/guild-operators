@@ -31,6 +31,7 @@
     "wallet-stake.sh",
     "transaction-funding.sh",
     "funds-withdraw.sh",
-    "funds-withdraw-ui.sh"
+    "funds-withdraw-ui.sh",
+    "wallet-selection.sh"
   ]
 }

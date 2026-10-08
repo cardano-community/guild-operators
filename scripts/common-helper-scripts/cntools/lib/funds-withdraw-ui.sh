@@ -45,7 +45,7 @@ cntools_withdraw_workflow() {
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
   (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || { cntools_withdraw_fail 'No wallets are available.'; return 2; }
-  cntools_wallet_choose selected || return $?
+  cntools_wallet_choose selected Cancel withdraw || return $?
   cntools_stake_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" "${CNTOOLS_WALLET_NAMES[selected]}" || return 2
   cntools_transaction_ui_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || return $?
   cntools_transaction_ui_expiry_into lifetime || return $?

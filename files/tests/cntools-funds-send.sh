@@ -189,6 +189,14 @@ assert_conservation() {
   done
 }
 assert_conservation
+CNTOOLS_SEND_CHANGE_ADDRESS="${ADDRESS}"
+cntools_send_build_into staged || fail 'payment-only change build'
+for output in "${CNTOOLS_CHANGE_OUTPUTS[@]}"; do
+  [[ "${output}" == "${ADDRESS}+"* ]] || fail 'change ignores reviewed payment address'
+done
+eq "${CNTOOLS_SEND_ADDRESS}" "${BASE}" 'change choice mutated primary funding scope'
+assert_conservation
+CNTOOLS_SEND_CHANGE_ADDRESS="${BASE}"
 CNTOOLS_SEND_ADDRESSES+=("${BASE}"); CNTOOLS_SEND_LABELS+=(second); CNTOOLS_SEND_AMOUNTS+=(2000000)
 CNTOOLS_SEND_ASSETS["1|${SECOND}"]=3
 cntools_send_build_into staged || fail 'multiple recipients'
@@ -215,6 +223,10 @@ CHANGE_KEYS=()
 cntools_send_plan_signers
 eq "${CHANGE_KEYS[*]}" 'Payment change Stake change' 'hardware base change uses both public paths'
 eq "${SIGNER_ROLE}" spending 'stake change is not a witness'
+CNTOOLS_SEND_CHANGE_ADDRESS="${ADDRESS}" CHANGE_KEYS=()
+cntools_send_plan_signers
+eq "${CHANGE_KEYS[*]}" 'Payment change' 'payment-only change does not need a stake hardware path'
+CNTOOLS_SEND_CHANGE_ADDRESS="${BASE}"
 CNTOOLS_TRANSACTION_PACKAGE_HARDWARE_PREPARED=N
 cntools_transaction_package_create_staged_into() {
   printf -v "$1" '%s' "$2"

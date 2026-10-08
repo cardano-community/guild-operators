@@ -6,6 +6,7 @@ CNTOOLS_SEND_WALLET=""
 CNTOOLS_SEND_DIRECTORY=""
 CNTOOLS_SEND_TYPE=""
 CNTOOLS_SEND_ADDRESS=""
+CNTOOLS_SEND_CHANGE_ADDRESS=""
 CNTOOLS_SEND_PAYMENT=""
 CNTOOLS_SEND_VKEY=""
 CNTOOLS_SEND_SOURCE=""
@@ -34,6 +35,7 @@ cntools_send_prepare_wallet() {
   CNTOOLS_SEND_ADDRESSES=(); CNTOOLS_SEND_LABELS=(); CNTOOLS_SEND_AMOUNTS=(); CNTOOLS_SEND_ASSETS=()
   CNTOOLS_SEND_HANDLES=(); CNTOOLS_SEND_RESOLUTIONS=()
   CNTOOLS_SEND_MODE=exact
+  CNTOOLS_SEND_CHANGE_ADDRESS="${CNTOOLS_SEND_ADDRESS}"
 }
 
 cntools_send_output_into() {
@@ -117,7 +119,7 @@ cntools_send_plan_signers() {
   if [[ "${CNTOOLS_SEND_TYPE}" == Hardware ]]; then
     cntools_transaction_plan_add_change_key "Payment change" "${CNTOOLS_SEND_VKEY}" \
       "${CNTOOLS_SEND_SOURCE}" "${group}" || return 1
-    if [[ "${CNTOOLS_SEND_ADDRESS}" != "${CNTOOLS_SEND_PAYMENT}" ]]; then
+    if [[ "${CNTOOLS_SEND_CHANGE_ADDRESS:-${CNTOOLS_SEND_ADDRESS}}" != "${CNTOOLS_SEND_PAYMENT}" ]]; then
       stake_source="${CNTOOLS_SEND_DIRECTORY}/${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}"
       cntools_transaction_plan_add_change_key "Stake change" \
         "${CNTOOLS_SEND_DIRECTORY}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" \
@@ -129,6 +131,10 @@ cntools_send_plan_signers() {
 
 cntools_send_change() {
   local outputs_total="${1:-}" asset="" remaining="" minimum="" available="" cost=""
+  local primary="${CNTOOLS_SEND_ADDRESS}"
+  local CNTOOLS_SEND_ADDRESS="${CNTOOLS_SEND_CHANGE_ADDRESS:-${CNTOOLS_SEND_ADDRESS}}"
+  [[ "${CNTOOLS_SEND_ADDRESS}" == "${primary}" ||
+     "${CNTOOLS_SEND_ADDRESS}" == "${CNTOOLS_SEND_PAYMENT}" ]] || return 1
   CNTOOLS_SEND_CHANGE_IDS=(); CNTOOLS_SEND_CHANGE_ASSETS=()
   for asset in "${CNTOOLS_COIN_SELECTED_ASSET_IDS[@]}"; do
     cntools_uint_subtract_into remaining "${CNTOOLS_COIN_SELECTED_ASSETS[${asset}]}" \

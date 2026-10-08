@@ -23,6 +23,7 @@ cntools_history_metadata_offer() {
   local file="$1" identities="" choice=""
   local -a assets=()
   [[ "${CNTOOLS_HISTORY_METADATA}" != N ]] || return 0
+  cntools_history_available || { CNTOOLS_HISTORY_METADATA=N; return 0; }
   identities="$(cntools_history_asset_ids "${file}")" || return 1
   [[ -n "${identities}" ]] || return 0
   mapfile -t assets <<< "${identities}"
@@ -64,10 +65,14 @@ cntools_history_overview_rows() {
   local address="" count="" first=0 last=0
   cntools_wallet_table_row Property Value
   cntools_history_pair Wallet "${CNTOOLS_HISTORY_WALLET}" identifier
-  cntools_history_pair Source "Koios API · ${CNTOOLS_NETWORK}"
-  if [[ "${CNTOOLS_HISTORY_LOOKUP}" == stake ]]; then
+  if [[ "${CNTOOLS_HISTORY_BACKEND}" == local ]]; then
+    cntools_history_pair Source "Local node · ${CNTOOLS_NETWORK}"
+    cntools_history_pair Lookup 'Saved wallet addresses only'
+  elif [[ "${CNTOOLS_HISTORY_LOOKUP}" == stake ]]; then
+    cntools_history_pair Source "Koios API · ${CNTOOLS_NETWORK}"
     cntools_history_pair Lookup "Stake address"
   else
+    cntools_history_pair Source "Koios API · ${CNTOOLS_NETWORK}"
     cntools_history_pair Lookup "Payment credential"
   fi
   cntools_history_number_pair "Matching ${CNTOOLS_HISTORY_KIND}" "${CNTOOLS_HISTORY_TOTAL}"
@@ -109,7 +114,7 @@ cntools_history_summary_rows() {
        ["Date",.block_time],["Block",.block_height]] +
       (if .datum_hash != null or .inline_datum != null then [["Datum","Present"]] else [] end) +
       (if .reference_script != null then [["Reference script","Present"]] else [] end)
-     end)[] | map(tostring | gsub("[\u0000-\u001f\u007f]";" ")) | join("\u001f")
+     end)[] | select(.[1] != null) | map(tostring | gsub("[\u0000-\u001f\u007f]";" ")) | join("\u001f")
   ' <<< "${record}")
   if [[ "${CNTOOLS_HISTORY_KIND}" == utxos ]]; then
     while IFS= read -r identity; do
@@ -335,7 +340,7 @@ cntools_history_detail_view() {
   local CNTOOLS_TABLE_MARGIN=4 # Space for Gum pager borders/padding.
   [[ "${CNTOOLS_HISTORY_KIND}" != transactions ]] || prompt="Transaction number or transaction ID"
   cntools_ui_input selection "${prompt}" "Number from the full list" || return 0
-  if ! cntools_ui_spin_function "Fetching details from Koios…" cntools_history_detail_load "${selection}"; then
+  if ! cntools_ui_spin_function "Loading item details…" cntools_history_detail_load "${selection}"; then
     cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR}"
     cntools_ui_wait
     return 0
@@ -355,11 +360,11 @@ cntools_history_action() {
   local -a choices=()
   [[ "${kind}" != utxos ]] || title="UTxO List"
   cntools_ui_action_begin "${title}" "/ Wallet / ${title}"
-  cntools_history_available || {
+  if ! cntools_history_available && ! { [[ "${kind}" == utxos ]] && cntools_history_local_available; }; then
     cntools_ui_render_status warn "Koios is unavailable. These views require an online Koios connection."
     cntools_ui_wait
     return 0
-  }
+  fi
   if [[ "${kind}" == utxos ]]; then
     cntools_ui_render_status info "Only unspent outputs are shown in the UTxO list."
   fi
@@ -380,7 +385,9 @@ cntools_history_action() {
   cntools_wallet_id_read_credential "${directory}" "${type}" credential || credential=""
   cntools_wallet_read_address "${directory}" reward stake || stake=""
   CNTOOLS_HISTORY_PAYMENT="${credential,,}" CNTOOLS_HISTORY_STAKE="${stake}"
-  if [[ -n "${credential}" && -n "${stake}" ]]; then
+  if [[ "${kind}" == utxos ]] && ! cntools_history_available; then
+    lookup=addresses
+  elif [[ -n "${credential}" && -n "${stake}" ]]; then
     cntools_ui_choose choice "Look up by" \
       "Payment credential · matching base and payment-only addresses" \
       "Stake address · all linked addresses (no payment-only addresses)" || return 0
@@ -403,13 +410,18 @@ cntools_history_action() {
     cntools_ui_render_status warn "Choose a whole number from 1 to 10."
   done
   cntools_wallet_log CHOICE "wallet history kind=${kind} wallet=${CNTOOLS_HISTORY_WALLET} lookup=${lookup} page_size=${CNTOOLS_HISTORY_SIZE}"
-  if ! cntools_ui_spin_function "Fetching wallet inventory from Koios…" cntools_history_load "${kind}" "${credential}" "${lookup}"; then
-    cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR}"
-    cntools_ui_wait
-    return 1
+  if ! cntools_history_available || ! cntools_ui_spin_function "Fetching wallet inventory from Koios…" cntools_history_load "${kind}" "${credential}" "${lookup}"; then
+    if [[ "${kind}" != utxos ]] || ! cntools_history_local_available; then
+      cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR:-Koios is unavailable.}"
+      cntools_ui_wait; return 1
+    fi
+    cntools_ui_render_status info 'Koios is unavailable. Using the local node for saved wallet addresses only; linked addresses and block dates cannot be discovered.'
+    cntools_ui_spin_function 'Fetching unspent outputs from the local node…' cntools_history_load_local "${directory}" || {
+      cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR}"; cntools_ui_wait; return 1;
+    }
   fi
   while :; do
-    if ! cntools_ui_spin_function "Loading page from Koios…" cntools_history_page_load "${target}"; then
+    if ! cntools_ui_spin_function "Loading wallet inventory page…" cntools_history_page_load "${target}"; then
       cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR}"
       cntools_ui_choose choice "Page unavailable" Retry Back || return 0
       [[ "${choice}" == Retry ]] && continue
@@ -420,7 +432,7 @@ cntools_history_action() {
     fi
     cntools_ui_action_begin "${title}" "/ Wallet / ${title}"
     cntools_history_overview_rows | cntools_table_render "${title}" || return 1
-    if (( CNTOOLS_HISTORY_TOTAL == 1000 )); then
+    if [[ "${CNTOOLS_HISTORY_BACKEND}" == koios ]] && (( CNTOOLS_HISTORY_TOTAL == 1000 )); then
       cntools_ui_render_status warn "Koios returns at most 1,000 matches; only the last 1,000 matching ${kind} can be displayed."
     fi
     number=$((CNTOOLS_HISTORY_PAGE * CNTOOLS_HISTORY_SIZE))

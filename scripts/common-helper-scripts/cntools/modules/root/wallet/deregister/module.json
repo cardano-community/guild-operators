@@ -31,6 +31,7 @@
     "change-plan.sh",
     "wallet-stake.sh",
     "wallet-register.sh",
-    "wallet-register-ui.sh"
+    "wallet-register-ui.sh",
+    "wallet-selection.sh"
   ]
 }

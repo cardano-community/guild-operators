@@ -18,6 +18,11 @@
     "wallet-id.sh",
     "asset.sh",
     "asset-cache.sh",
-    "wallet-query.sh"
+    "wallet-query.sh",
+    "table.sh",
+    "public-metadata.sh",
+    "wallet-delegation-info.sh",
+    "pool-id.sh",
+    "drep-id.sh"
   ]
 }

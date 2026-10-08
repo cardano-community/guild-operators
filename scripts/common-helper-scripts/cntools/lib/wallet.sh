@@ -704,23 +704,37 @@ cntools_wallet_choose() {
   local _cntools_selected=""
   local _cntools_row=""
   local _cntools_status=0
+  local _cntools_context="${3:-}" _cntools_annotation=''
   local -a _cntools_rows=()
+  local -a _cntools_indices=()
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || return 1
+  if [[ -n "${_cntools_context}" ]]; then
+    cntools_ui_spin_function 'Checking suitable wallets…' cntools_wallet_selection_collect "${_cntools_context}" || return 2
+  fi
   for (( _cntools_index = 0;
          _cntools_index < ${#CNTOOLS_WALLET_NAMES[@]};
          _cntools_index++ )); do
+    if [[ -n "${_cntools_context}" ]]; then
+      cntools_wallet_selection_candidate_into _cntools_annotation "${_cntools_index}" "${_cntools_context}" || continue
+    fi
     printf -v _cntools_row '%02d  %-24s  %s · %s' \
       "$((_cntools_index + 1))" \
       "$(cntools_wallet_truncate \
         "${CNTOOLS_WALLET_NAMES[_cntools_index]}" 24)" \
       "${CNTOOLS_WALLET_TYPES[_cntools_index]}" \
       "${CNTOOLS_WALLET_PROTECTIONS[_cntools_index]}"
+    [[ -z "${_cntools_annotation}" ]] || _cntools_row+=" · ${_cntools_annotation}"
     _cntools_rows+=("${_cntools_row}")
+    _cntools_indices+=("${_cntools_index}")
   done
+  if (( ${#_cntools_rows[@]} == 0 )); then
+    cntools_ui_render_status info 'No suitable wallets for this action. Protected/watch-only keys can still be used for offline signing when their public material is available.'
+    cntools_ui_wait; return 1
+  fi
   [[ -z "${_cntools_cancel}" ]] || _cntools_rows+=("${_cntools_cancel}")
   if cntools_ui_choose \
       _cntools_selected "Filter wallets…" "${_cntools_rows[@]}"; then
@@ -736,9 +750,9 @@ cntools_wallet_choose() {
          _cntools_index < ${#_cntools_rows[@]};
          _cntools_index++ )); do
     if [[ "${_cntools_selected}" == "${_cntools_rows[_cntools_index]}" ]]; then
-      _cntools_output_ref="${_cntools_index}"
+      _cntools_output_ref="${_cntools_indices[_cntools_index]}"
       cntools_wallet_log CHOICE \
-        "selected wallet=${CNTOOLS_WALLET_NAMES[_cntools_index]}"
+        "selected wallet=${CNTOOLS_WALLET_NAMES[_cntools_output_ref]} action=${_cntools_context:-inspect}"
       return 0
     fi
   done

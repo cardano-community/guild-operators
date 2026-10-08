@@ -38,6 +38,9 @@
     "drep-query.sh",
     "drep-key.sh",
     "governance-drep.sh",
-    "governance-drep-ui.sh"
+    "governance-drep-ui.sh",
+    "table.sh",
+    "public-metadata.sh",
+    "wallet-selection.sh"
   ]
 }

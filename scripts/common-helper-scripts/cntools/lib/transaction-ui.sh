@@ -34,10 +34,21 @@ cntools_transaction_ui_proceed_into() {
 
 cntools_transaction_ui_expiry_into() {
   local expiry_choice="" expiry_seconds="" status=0
-  cntools_ui_choose expiry_choice 'Transaction expiry' '30 minutes' '2 hours' \
-    '24 hours (offline signing)' 'No expiry' Cancel || status=$?
+  local default_label="Default · ${CNTOOLS_TX_DEFAULT_TTL:-1800} seconds"
+  [[ "${CNTOOLS_TX_DEFAULT_TTL:-1800}" != 0 ]] || default_label='Default · No expiry'
+  cntools_ui_choose expiry_choice 'Transaction expiry' "${default_label}" '30 minutes' '2 hours' \
+    '24 hours (offline signing)' 'Custom duration' 'No expiry' Cancel || status=$?
   (( status == 0 )) || return "${status}"
   case "${expiry_choice}" in
+    "${default_label}") expiry_seconds="${CNTOOLS_TX_DEFAULT_TTL:-1800}" ;;
+    'Custom duration')
+      while true; do
+        cntools_ui_input expiry_seconds 'Expiry in seconds (0 for no expiry)' "${CNTOOLS_TX_DEFAULT_TTL:-1800}" || return $?
+        expiry_seconds="${expiry_seconds:-${CNTOOLS_TX_DEFAULT_TTL:-1800}}"
+        cntools_number_normalize_into expiry_seconds "${expiry_seconds}" || expiry_seconds=invalid
+        [[ "${expiry_seconds}" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( expiry_seconds <= 31536000 )) && break
+        cntools_ui_render_status warn 'Enter a whole duration from 0 to 31,536,000 seconds.'
+      done ;;
     '30 minutes') expiry_seconds=1800 ;;
     '2 hours') expiry_seconds=7200 ;;
     '24 hours (offline signing)') expiry_seconds=86400 ;;
@@ -46,7 +57,7 @@ cntools_transaction_ui_expiry_into() {
     *) return 2 ;;
   esac
   printf -v "$1" '%s' "${expiry_seconds}"
-  cntools_transaction_log CHOICE "Transaction expiry selected=${expiry_choice}"
+  cntools_transaction_log CHOICE "Transaction expiry selected=${expiry_choice} seconds=${expiry_seconds}"
 }
 
 cntools_transaction_ui_expiry_label_into() {

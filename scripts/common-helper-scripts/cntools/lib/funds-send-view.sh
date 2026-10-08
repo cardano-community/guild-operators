@@ -57,6 +57,7 @@ cntools_send_render_information() {
   {
     printf 'Transaction detail\tValue\n'
     cntools_transaction_ui_styled_row Fee "$(cntools_wallet_format_lovelace "${CNTOOLS_SEND_FEE}")" number
+    cntools_transaction_ui_styled_row 'Change address' "${CNTOOLS_SEND_CHANGE_ADDRESS:-${CNTOOLS_SEND_ADDRESS}}" address
     cntools_transaction_ui_styled_row 'Returned change' "$(cntools_wallet_format_lovelace "${change_total}") · $(cntools_number_format "${#CNTOOLS_CHANGE_OUTPUTS[@]}") outputs" number
     cntools_transaction_ui_render_policy_rows "${selection}" "${#CNTOOLS_COIN_SELECTED_REFS[@]}"
     cntools_transaction_ui_styled_row 'Expires' "${expiry_label}" number

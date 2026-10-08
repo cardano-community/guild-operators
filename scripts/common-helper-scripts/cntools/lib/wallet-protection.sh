@@ -73,12 +73,41 @@ cntools_wallet_protection_environment_ready() {
       "The wallet directory is unavailable or unsafe: ${CNTOOLS_WALLET_DIR:-unset}"
     return 1
   }
+  [[ "${1:-}" != optional ]] || return 0
   cntools_wallet_protection_resolve_command_into \
     CNTOOLS_WALLET_PROTECTION_GPG gpg gpg2 || {
     cntools_wallet_protection_set_error \
       "GnuPG is required for wallet encryption and decryption but was not found."
     return 1
   }
+}
+
+# Lock-only never claims that a private key was encrypted. Unknown private-key
+# filenames block it, rather than silently leaving plaintext material behind.
+cntools_wallet_protection_lock_only() {
+  local directory="$1" candidate='' wallet_kind=''
+  cntools_wallet_directory_safe "${directory}" || return 1
+  for candidate in "${directory}"/*.skey "${directory}"/*.gpg; do
+    [[ ! -e "${candidate}" && ! -L "${candidate}" ]] || return 1
+  done
+  wallet_kind="$(cntools_wallet_type "${directory}")" || return 1
+  [[ "${wallet_kind}" != Unknown ]]
+}
+
+cntools_wallet_protection_lock_files() {
+  local directory="$1" operation="$2"
+  cntools_wallet_protection_reset_result
+  cntools_wallet_protection_lock_only "${directory}" &&
+    cntools_wallet_protection_directory_mutable "${directory}" &&
+    cntools_wallet_protection_entries_safe "${directory}" || return 1
+  case "${operation}" in
+    encrypt) cntools_wallet_protection_apply_locks "${directory}" ;;
+    decrypt)
+      cntools_wallet_protection_clear_immutable "${directory}" &&
+        cntools_wallet_protection_unlock_permissions "${directory}" ;;
+    *) return 2 ;;
+  esac || return 1
+  cntools_wallet_protection_log WALLET "wallet=${directory##*/} operation=${operation} lock-only files=${CNTOOLS_WALLET_PROTECTION_FILES}"
 }
 
 cntools_wallet_protection_directory_mutable() {

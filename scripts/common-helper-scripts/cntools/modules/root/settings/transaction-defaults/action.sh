@@ -15,6 +15,8 @@ cntools_settings_action_render() {
   {
     printf 'Setting\tValue\n'
     printf 'Coin selection\t%s\n' "$(cntools_settings_strategy_name)"
+    printf 'Send change-address choice\t%s\n' "$(cntools_settings_action_on_off "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}")"
+    printf 'Default expiry (seconds)\t%s\n' "${CNTOOLS_TX_DEFAULT_TTL:-1800}"
     printf 'Token fragmentation\t%s\n' \
       "$(cntools_settings_action_on_off "${CNTOOLS_TX_TOKEN_FRAGMENTATION}")"
     printf 'Assets per token output\t%s\n' \
@@ -62,7 +64,8 @@ cntools_settings_action_input_integer() {
       return 1
     fi
     [[ -n "${entered}" ]] || entered="${current}"
-    if [[ "${entered}" =~ ^[0-9]{1,3}$ ]] &&
+    cntools_number_normalize_into entered "${entered}" || entered=invalid
+    if [[ "${entered}" =~ ^[0-9]{1,8}$ ]] &&
        (( 10#${entered} >= minimum && 10#${entered} <= maximum )); then
       _cntools_output_ref="$((10#${entered}))"
       return 0
@@ -127,6 +130,8 @@ cntools_action_main() {
   local strategy=""
   local -a rows=(
     "Coin selection"
+    "Send change-address choice"
+    "Default transaction expiry"
     "Token fragmentation"
     "Maximum assets per token output"
     "ADA-only UTxO management"
@@ -154,6 +159,10 @@ cntools_action_main() {
       return "${status}"
     fi
     case "${selected}" in
+      'Send change-address choice')
+        cntools_settings_action_choose_toggle CNTOOLS_SEND_CHOOSE_CHANGE 'Choose Send change address' "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" || continue ;;
+      'Default transaction expiry')
+        cntools_settings_action_input_integer CNTOOLS_TX_DEFAULT_TTL 'Seconds (0 for no expiry)' "${CNTOOLS_TX_DEFAULT_TTL:-1800}" 0 31536000 || continue ;;
       "Coin selection")
         if cntools_ui_choose strategy "Coin selection…" \
             "Balanced" "Fewest inputs"; then

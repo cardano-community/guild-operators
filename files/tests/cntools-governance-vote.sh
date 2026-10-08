@@ -8,7 +8,7 @@ TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-governance.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 umask 077
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
-for lib in number wallet wallet-query transaction transaction-build utxo wallet-register governance-drep drep-id governance-proposal governance-proposal-ui governance-vote governance-vote-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
+for lib in number wallet wallet-query transaction transaction-build utxo wallet-register governance-drep drep-id table public-metadata governance-proposal governance-voting-stats governance-proposal-ui governance-vote governance-vote-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 fail() { printf 'FAIL: %s (%s / %s)\n' "$*" "${CNTOOLS_WALLET_REGISTER_ERROR:-}" "${CNTOOLS_TRANSACTION_ERROR:-}" >&2; exit 1; }
 eq() { [[ "$1" == "$2" ]] || fail "${3:-comparison}: $1 != $2"; }
 cntools_log() { :; }
@@ -210,6 +210,9 @@ CNTOOLS_WALLET_REGISTER_EXPIRY=''; cntools_gov_vote_recheck || fail 'No expiry r
   cntools_wallet_style_value_into() { printf -v "$1" '%s' "$3"; }
   cntools_ui_table() { cat; }
   cntools_ui_spin_function() { shift; "$@"; }
+  cntools_voting_parameters_collect() { CNTOOLS_VOTING_PARAMETERS_SOURCE=Fixture; }
+  cntools_voting_stats_collect() { return 0; }
+  cntools_public_metadata_offer() { return 0; }
   cntools_proposals_query() {
     QUERY_COUNT=$((QUERY_COUNT+1)); CNTOOLS_PROPOSAL_BACKEND=koios CNTOOLS_PROPOSAL_EPOCH=42
     if ((QUERY_COUNT == 1)); then CNTOOLS_PROPOSALS="${CATALOG}"; else CNTOOLS_PROPOSALS='[]'; fi

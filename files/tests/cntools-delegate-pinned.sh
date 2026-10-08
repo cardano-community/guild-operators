@@ -43,7 +43,7 @@ cntools_pool_id_into CNTOOLS_DELEGATE_POOL_ID CNTOOLS_DELEGATE_POOL_HEX "${pool}
 [[ "${CNTOOLS_DELEGATE_POOL_HEX}" == "${pool_hex}" ]] || fail 'pool hash conversion disagrees with CLI'
 policy="$(printf 'ab%.0s' {1..28})" reference="$(printf 'cd%.0s' {1..32})#0"
 package="" signed="" sum="" fee=""
-scenarios=(yes no register-ada register-token deregister-ada deregister-token vote-key vote-script vote-abstain vote-no-confidence)
+scenarios=(yes no register-ada register-token deregister-ada deregister-token vote-key vote-script vote-abstain vote-no-confidence vote-register-key vote-register-script vote-register-abstain vote-register-no-confidence)
 if (( $# > 2 )); then scenarios=("${@:3}"); fi
 for registered in "${scenarios[@]}"; do
   cntools_wallet_register_operation_set delegate
@@ -52,6 +52,7 @@ for registered in "${scenarios[@]}"; do
   [[ "${registered}" != register-* ]] || CNTOOLS_WALLET_REGISTERED=no
   [[ "${registered}" != deregister-* ]] || CNTOOLS_WALLET_REGISTERED=yes
   [[ "${registered}" != vote-* ]] || CNTOOLS_WALLET_REGISTERED=yes
+  [[ "${registered}" != vote-register-* ]] || CNTOOLS_WALLET_REGISTERED=no
   cntools_delegate_chain_state_validate
   CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED=Y
   CNTOOLS_WALLET_REGISTER_BACKEND=koios CNTOOLS_WALLET_REGISTER_SOURCE='Fixture'
@@ -76,9 +77,12 @@ for registered in "${scenarios[@]}"; do
   if [[ "${registered}" == vote-* ]]; then
     cntools_wallet_register_operation_set vote-delegate
     cntools_vote_chain_state_validate || fail 'voting stake state rejected'
+    if [[ "${CNTOOLS_VOTE_REGISTER}" == Y ]]; then
+      CNTOOLS_VOTE_REGISTRATION_CONFIRMED=Y CNTOOLS_WALLET_REGISTER_DEPOSIT=2000000
+    fi
     target="drep_always_${registered#vote-}"
     case "${registered}" in
-      vote-key)
+      vote-key|vote-register-key)
         target="$("${CNTOOLS_CLI}" latest governance drep id --drep-key-hash "${pool_hex}" --output-cip129)"
         cntools_drep_bech32_into encoded "22${pool_hex}"
         [[ "${encoded}" == "${target}" ]] || fail 'CIP129 encoding disagrees with pinned CLI'
@@ -86,8 +90,9 @@ for registered in "${scenarios[@]}"; do
         cntools_drep_id_into normalized kind hash "${legacy}"
         [[ "${normalized}" == "${target}" && "${kind}" == key && "${hash}" == "${pool_hex}" ]] || fail 'legacy CLI ID normalization'
         ;;
-      vote-script) cntools_drep_bech32_into target "23${pool_hex}" ;;
-      vote-no-confidence) target=drep_always_no_confidence; CNTOOLS_WALLET_REGISTER_LIFETIME=0 ;;
+      vote-script|vote-register-script) cntools_drep_bech32_into target "23${pool_hex}" ;;
+      vote-abstain|vote-register-abstain) target=drep_always_abstain ;;
+      vote-no-confidence|vote-register-no-confidence) target=drep_always_no_confidence; CNTOOLS_WALLET_REGISTER_LIFETIME=0 ;;
     esac
     cntools_drep_id_into CNTOOLS_VOTE_TARGET CNTOOLS_VOTE_KIND CNTOOLS_VOTE_HASH "${target}" || fail 'voting target ID'
   fi

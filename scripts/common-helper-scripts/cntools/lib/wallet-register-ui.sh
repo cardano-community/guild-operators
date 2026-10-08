@@ -34,8 +34,9 @@ cntools_wallet_register_render_plan() {
     elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
       cntools_vote_render_rows
     fi
-    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-update && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != gov-vote ]] &&
-       [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != delegate || "${CNTOOLS_DELEGATE_REGISTER}" == Y ]]; then
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-update && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != gov-vote ]] &&
+       [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != delegate || "${CNTOOLS_DELEGATE_REGISTER}" == Y ]] &&
+       [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate || "${CNTOOLS_VOTE_REGISTER:-N}" == Y ]]; then
       cntools_transaction_ui_styled_row "${CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL}" "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
     fi
     cntools_transaction_ui_styled_row Fee "$(cntools_wallet_format_lovelace "${fee}")" number
@@ -116,7 +117,7 @@ cntools_wallet_register_workflow() {
     cntools_wallet_register_set_error "No wallets are available to ${CNTOOLS_WALLET_REGISTER_VERB}."
     return 2
   fi
-  cntools_wallet_choose selected_index || return $?
+  cntools_wallet_choose selected_index Cancel "${CNTOOLS_WALLET_REGISTER_OPERATION}" || return $?
   wallet_directory="${CNTOOLS_WALLET_PATHS[selected_index]}"
   wallet_name="${CNTOOLS_WALLET_NAMES[selected_index]}"
   cntools_wallet_register_prepare_wallet "${wallet_directory}" "${wallet_name}" || return 2
@@ -202,6 +203,9 @@ cntools_wallet_register_workflow() {
     return 2
   fi
   cntools_wallet_register_result success "${CNTOOLS_TRANSACTION_SUBMIT_MESSAGE} Submission is not confirmation of inclusion." "${txid}" || return 2
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-register ]]; then
+    cntools_ui_render_status info "DRep registration does not delegate this wallet's voting power. Use Governance → Delegate to choose this DRep if you want to self-delegate."
+  fi
   cntools_transaction_ui_offer_monitor "${txid}"
 }
 

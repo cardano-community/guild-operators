@@ -299,7 +299,7 @@ while IFS=$'\t' read -r \
           fail "Wallet List does not call its functional entrypoint"
         ;;
       wallet/show)
-        jq -e '.libs == [
+        jq -e '(.libs - ["pool-id.sh", "drep-id.sh", "table.sh", "public-metadata.sh", "wallet-delegation-info.sh"]) == [
           "number.sh",
           "wallet.sh",
           "wallet-material.sh",
@@ -318,8 +318,9 @@ while IFS=$'\t' read -r \
           fail "Wallet Show does not call its functional entrypoint"
         ;;
       wallet/transactions|wallet/utxos)
-        jq -e '.requiresKoios == true and (.libs | index("wallet-history-ui.sh") != null)' "${metadata}" >/dev/null ||
-          fail "Wallet browser is missing its Koios requirement or shared UI"
+        jq -e --arg id "${module_id}" '(.requiresKoios == true or ($id == "wallet/utxos" and .requiresKoios != true and (.libs | index("wallet-utxo-local.sh") != null))) and
+          (.libs | index("wallet-history-ui.sh") != null)' "${metadata}" >/dev/null ||
+          fail "Wallet browser is missing its source requirement or shared UI"
         grep -F 'cntools_history_action' "${action_file}" >/dev/null || fail "Wallet browser entrypoint missing"
         ;;
       wallet/remove)
@@ -367,7 +368,7 @@ while IFS=$'\t' read -r \
         fi
         ;;
       wallet/register|wallet/deregister)
-        jq -e '.libs == [
+        jq -e '(.libs - ["wallet-selection.sh"]) == [
           "number.sh",
           "wallet.sh",
           "wallet-material.sh",
@@ -424,7 +425,7 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "Pool registration cleanup missing"
         ;;
       pool/list|pool/show)
-        jq -e '.libs == ["number.sh", "wallet.sh", "wallet-query.sh", "transaction.sh", "pool-id.sh", "table.sh", "pool.sh", "pool-inspect.sh", "pool-ui.sh"]' \
+        jq -e '(.libs - ["pool-health.sh", "public-metadata.sh"]) == ["number.sh", "wallet.sh", "wallet-query.sh", "transaction.sh", "pool-id.sh", "table.sh", "pool.sh", "pool-inspect.sh", "pool-ui.sh"]' \
           "${metadata}" >/dev/null || fail "Pool browser dependencies missing: ${module_id}"
         grep -F "cntools_pool_action_${module_id##*/}" "${action_file}" >/dev/null || fail "Pool browser entrypoint missing"
         grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "Pool browser cleanup missing"
@@ -508,7 +509,7 @@ while IFS=$'\t' read -r \
           fail "Theme does not persist the selected theme"
         ;;
       settings/transaction-defaults)
-        jq -e '((has("libs") | not) or .libs == [])' \
+        jq -e '.libs == ["number.sh"]' \
           "${metadata}" >/dev/null ||
           fail "Transaction Defaults has unexpected library declarations"
         grep -F 'cntools_settings_save' "${action_file}" >/dev/null ||

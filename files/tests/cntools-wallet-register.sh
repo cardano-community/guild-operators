@@ -645,7 +645,7 @@ jq -e '.libs == [
   "wallet-query.sh", "utxo.sh", "transaction.sh",
   "transaction-build.sh", "transaction-sign.sh", "transaction-submit.sh", "transaction-monitor.sh",
   "transaction-ui.sh", "transaction-files.sh", "transaction-funding.sh", "coin-selection.sh", "change-plan.sh",
-  "wallet-stake.sh", "wallet-register.sh", "wallet-register-ui.sh"
+  "wallet-stake.sh", "wallet-register.sh", "wallet-register-ui.sh", "wallet-selection.sh"
 ]' "${CNTOOLS_ROOT}/modules/root/wallet/register/module.json" >/dev/null ||
   fail "Wallet Register module library order is incorrect"
 grep -F 'cntools_wallet_action_register' \

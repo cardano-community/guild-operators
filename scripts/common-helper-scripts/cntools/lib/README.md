@@ -1,5 +1,14 @@
 # CNTools libraries
 
+Cross-action parity helpers remain focused and lazy-loaded:
+`wallet-selection.sh` supplies advisory role/registration/rewards candidates;
+`wallet-utxo-local.sh` supplies the saved-address-only browser fallback;
+`wallet-delegation-info.sh` enriches Wallet Show without replacing chain balances;
+`pool-health.sh` provides read-only KES/counter diagnostics;
+`public-metadata.sh` performs bounded unauthenticated byte-hash anchor checks;
+`governance-voting-stats.sh` separates optional indexed voting-power statistics
+from authoritative proposal identity. Unknown optional data is never fabricated.
+
 Libraries are sourced only by actions that declare their relative path.
 `placeholder.sh` provides the shared inert-action notice used by the Phase 4
 menu skeleton.

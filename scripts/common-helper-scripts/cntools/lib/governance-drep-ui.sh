@@ -51,9 +51,17 @@ cntools_drep_lifecycle_choose_metadata() {
       'No metadata'|'Remove metadata') url=""; hash="" ;;
       'Add / replace metadata')
         cntools_ui_input url 'Published metadata URL' 'https://… or ipfs://… (maximum 128 bytes)' || return $?
-        cntools_ui_choose method 'Metadata hash' 'Hash local JSON file' 'Enter known hash' Cancel || return $?
+        cntools_ui_choose method 'Metadata hash' 'Download published JSON' 'Hash local JSON file' 'Enter known hash' Cancel || return $?
         case "${method}" in
           Cancel) continue ;;
+          'Download published JSON')
+            if ! cntools_ui_spin_function 'Downloading and hashing published DRep metadata…' cntools_public_metadata_fetch "${url}"; then
+              cntools_ui_render_status warn "${CNTOOLS_PUBLIC_METADATA_ERROR}"; continue
+            fi
+            hash="${CNTOOLS_PUBLIC_METADATA_HASH}"
+            cntools_public_metadata_render "${CNTOOLS_PUBLIC_METADATA_FILE}" N || return 2
+            cntools_ui_confirm 'Use these published metadata bytes and hash?' false || continue
+            ;;
           'Hash local JSON file')
             cntools_ui_input file 'Metadata JSON file' 'Absolute path to the exact published JSON bytes' || return $?
             if ! cntools_ui_spin_function 'Hashing DRep metadata…' cntools_drep_lifecycle_hash_file_into hash "${file}"; then

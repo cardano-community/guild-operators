@@ -17,6 +17,8 @@
     "drep-id.sh",
     "table.sh",
     "governance-proposal.sh",
-    "governance-proposal-ui.sh"
+    "governance-proposal-ui.sh",
+    "public-metadata.sh",
+    "governance-voting-stats.sh"
   ]
 }

@@ -58,6 +58,7 @@ cntools_wallet_register_operation_set() {
       return $?
       ;;
     vote-delegate)
+      CNTOOLS_VOTE_REGISTER=N CNTOOLS_VOTE_REGISTRATION_CONFIRMED=N
       CNTOOLS_WALLET_REGISTER_OPERATION=vote-delegate
       CNTOOLS_WALLET_REGISTER_TITLE=Delegate
       CNTOOLS_WALLET_REGISTER_PATH='/ Vote / Governance / Delegate'
@@ -574,7 +575,7 @@ cntools_wallet_register_collect_local() {
   cntools_wallet_register_protocol_local || return 1
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "deregister" ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT="${CNTOOLS_WALLET_STAKE_DEPOSIT}"
-  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate && "${CNTOOLS_VOTE_REGISTER}" == N ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT=0
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate && "${CNTOOLS_DELEGATE_REGISTER}" == N ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT=0
@@ -604,7 +605,7 @@ cntools_wallet_register_collect_koios() {
   cntools_wallet_register_protocol_koios || return 1
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == "deregister" ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT="${CNTOOLS_WALLET_STAKE_DEPOSIT}"
-  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate && "${CNTOOLS_VOTE_REGISTER}" == N ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT=0
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate && "${CNTOOLS_DELEGATE_REGISTER}" == N ]]; then
     CNTOOLS_WALLET_REGISTER_DEPOSIT=0
@@ -751,7 +752,8 @@ cntools_wallet_register_plan_create() {
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
     intent_description="Delegate ${CNTOOLS_WALLET_REGISTER_WALLET}'s stake to ${CNTOOLS_DELEGATE_POOL_ID}; voting delegation is unchanged."
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
-    intent_description="Delegate ${CNTOOLS_WALLET_REGISTER_WALLET}'s voting power to ${CNTOOLS_VOTE_TARGET}; pool delegation and stake registration are unchanged."
+    intent_description="Delegate ${CNTOOLS_WALLET_REGISTER_WALLET}'s voting power to ${CNTOOLS_VOTE_TARGET}; pool delegation is unchanged."
+    [[ "${CNTOOLS_VOTE_REGISTER}" != Y ]] || intent_description+=' Includes approved first stake registration and its deposit.'
   else
     return 2
   fi

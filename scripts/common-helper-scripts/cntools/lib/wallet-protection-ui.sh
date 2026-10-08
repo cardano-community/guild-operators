@@ -15,6 +15,8 @@ cntools_wallet_protection_candidate() {
   local drep_clear="${wallet_directory}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}"
   local drep_gpg="${drep_clear}.gpg"
 
+  [[ "${operation}" == encrypt || "${operation}" == decrypt ]] || return 2
+  cntools_wallet_protection_lock_only "${wallet_directory}" && return 0
   [[ "${wallet_type}" == "CLI" || "${wallet_type}" == "Mnemonic" ]] || return 1
   case "${operation}" in
     encrypt)
@@ -109,6 +111,21 @@ cntools_wallet_protection_key_names() {
   printf '%s' "${names:-None}"
 }
 
+cntools_wallet_protection_lock_only_action() {
+  local directory="$1" operation="$2" verb=Lock status=0
+  [[ "${operation}" != decrypt ]] || verb=Unlock
+  cntools_ui_render_status info 'This wallet has no local private signing keys. Only local file permissions/immutable flags will change; no encryption or device operation is performed.'
+  cntools_ui_confirm "${verb} local wallet files?" false || return $?
+  cntools_ui_spin_function "${verb}ing local wallet files…" cntools_wallet_protection_lock_files "${directory}" "${operation}" || status=$?
+  if (( status == 0 )); then
+    cntools_ui_render_status success "Local wallet files ${verb,,}ed. No private keys were encrypted or decrypted."
+  else cntools_ui_render_status error "${CNTOOLS_WALLET_PROTECTION_ERROR:-Wallet file protection failed.}"; fi
+  [[ -z "${CNTOOLS_WALLET_PROTECTION_WARNING}" ]] || cntools_ui_render_status warn "${CNTOOLS_WALLET_PROTECTION_WARNING}"
+  cntools_wallet_protection_render_result "${operation}" "${directory}" || true
+  cntools_ui_wait
+  return "${status}"
+}
+
 cntools_wallet_protection_table_widths_into() {
   local _cntools_output_name="${1:-}"
   local _cntools_table_width=""
@@ -171,12 +188,17 @@ cntools_wallet_protection_render_result() {
   local operation="${1:-}"
   local wallet_directory="${2:-}"
   local protection="Open"
+  local lock_only=N
   local lock_value="Owner-only read/write permissions"
   local widths=""
 
   if [[ "${operation}" == "encrypt" ]]; then
     protection="Protected"
     lock_value="${CNTOOLS_WALLET_PROTECTION_LOCK_METHOD}"
+  fi
+  if cntools_wallet_protection_lock_only "${wallet_directory}"; then
+    lock_only=Y
+    [[ "${operation}" == encrypt ]] && protection='Locked · public files only' || protection='Unlocked · public files only'
   fi
   cntools_wallet_protection_table_widths_into widths || return 1
   cntools_ui_render_detail "Wallet" || return 1
@@ -186,8 +208,9 @@ cntools_wallet_protection_render_result() {
       "Name" "${wallet_directory##*/}" identifier
     cntools_wallet_protection_styled_row "Key protection" \
       "${protection}" "$([[ "${operation}" == "encrypt" ]] && printf success || printf warning)"
-    cntools_wallet_protection_styled_row "Signing keys" \
-      "${CNTOOLS_WALLET_PROTECTION_KEYS}" number
+    if [[ "${lock_only}" != Y ]]; then
+      cntools_wallet_protection_styled_row "Signing keys" "${CNTOOLS_WALLET_PROTECTION_KEYS}" number
+    fi
     cntools_wallet_protection_styled_row "Wallet files" \
       "${CNTOOLS_WALLET_PROTECTION_FILES}" number
     cntools_wallet_protection_styled_row "File access" \
@@ -214,7 +237,7 @@ cntools_wallet_action_encrypt() {
 
   cntools_wallet_protection_reset_result
   cntools_ui_action_begin "Encrypt" "/ Wallet / Encrypt"
-  if ! cntools_wallet_protection_environment_ready; then
+  if ! cntools_wallet_protection_environment_ready optional; then
     cntools_ui_render_status error "${CNTOOLS_WALLET_PROTECTION_ERROR}"
     cntools_ui_wait
     return 1
@@ -233,7 +256,7 @@ cntools_wallet_action_encrypt() {
       ;;
     4)
       cntools_ui_render_status warn \
-        "No open CLI or mnemonic wallet has signing keys available to encrypt."
+        "No wallet is available for encryption or public/hardware file locking."
       cntools_ui_wait
       return 0
       ;;
@@ -246,6 +269,9 @@ cntools_wallet_action_encrypt() {
   esac
 
   cntools_ui_action_begin "Encrypt" "/ Wallet / Encrypt"
+  if cntools_wallet_protection_lock_only "${wallet_directory}"; then
+    cntools_wallet_protection_lock_only_action "${wallet_directory}" encrypt; return $?
+  fi
   cntools_wallet_protection_render_plan encrypt "${wallet_directory}" || return 1
   cntools_ui_render_status warn \
     "Keep this passphrase safe. CNTools cannot recover encrypted signing keys without it."
@@ -347,7 +373,7 @@ cntools_wallet_action_decrypt() {
 
   cntools_wallet_protection_reset_result
   cntools_ui_action_begin "Decrypt" "/ Wallet / Decrypt"
-  if ! cntools_wallet_protection_environment_ready; then
+  if ! cntools_wallet_protection_environment_ready optional; then
     cntools_ui_render_status error "${CNTOOLS_WALLET_PROTECTION_ERROR}"
     cntools_ui_wait
     return 1
@@ -366,7 +392,7 @@ cntools_wallet_action_decrypt() {
       ;;
     4)
       cntools_ui_render_status warn \
-        "No protected CLI or mnemonic wallet is available to decrypt."
+        "No wallet is available for decryption or public/hardware file unlocking."
       cntools_ui_wait
       return 0
       ;;
@@ -379,6 +405,9 @@ cntools_wallet_action_decrypt() {
   esac
 
   cntools_ui_action_begin "Decrypt" "/ Wallet / Decrypt"
+  if cntools_wallet_protection_lock_only "${wallet_directory}"; then
+    cntools_wallet_protection_lock_only_action "${wallet_directory}" decrypt; return $?
+  fi
   cntools_wallet_protection_render_plan decrypt "${wallet_directory}" || return 1
   cntools_ui_render_status warn \
     "Decrypting restores local plaintext signing keys. Protect the wallet directory before using them."

@@ -9,6 +9,8 @@ CNTOOLS_SETTINGS_FILE=""
 CNTOOLS_SETTINGS_STAGE_FILE=""
 
 cntools_settings_defaults() {
+  CNTOOLS_SEND_CHOOSE_CHANGE=N
+  CNTOOLS_TX_DEFAULT_TTL=1800
   CNTOOLS_TX_SELECTION_STRATEGY="balanced"
   CNTOOLS_TX_TOKEN_FRAGMENTATION="N"
   CNTOOLS_TX_TOKEN_MAX_ASSETS=20
@@ -92,7 +94,11 @@ cntools_settings_file_valid() {
       type == "string" and length > 0 and length <= 20 and
       test("^(0|[1-9][0-9]*)$");
     type == "object" and
-    keys == ["coinSelection", "schemaVersion", "tokenFragmentation", "utxoManagement"] and
+    (keys - ["coinSelection", "interaction", "schemaVersion", "tokenFragmentation", "utxoManagement"] | length == 0) and
+    (if has("interaction") then (.interaction | type == "object" and
+      keys == ["chooseSendChange", "defaultTtlSeconds"] and
+      (.chooseSendChange | type == "boolean") and
+      (.defaultTtlSeconds | type == "number" and floor == . and . >= 0 and . <= 31536000)) else true end) and
     .schemaVersion == $schema and
     (.coinSelection | type == "object" and keys == ["strategy"] and
       (.strategy == "balanced" or .strategy == "fewest-inputs")) and
@@ -138,6 +144,8 @@ cntools_settings_apply_file() {
       (if .utxoManagement.collateral.enabled then "Y" else "N" end),
       (.utxoManagement.collateral.targetCount | tostring),
       .utxoManagement.collateral.lovelace,
+      (if .interaction.chooseSendChange == true then "Y" else "N" end),
+      ((.interaction.defaultTtlSeconds // 1800) | tostring),
       "."
     ] | join("\u001f")
   ' "${file}")" || return 1
@@ -153,6 +161,8 @@ cntools_settings_apply_file() {
     CNTOOLS_TX_COLLATERAL_MANAGEMENT \
     CNTOOLS_TX_COLLATERAL_TARGET_COUNT \
     CNTOOLS_TX_COLLATERAL_LOVELACE \
+    CNTOOLS_SEND_CHOOSE_CHANGE \
+    CNTOOLS_TX_DEFAULT_TTL \
     sentinel <<< "${record}"
   [[ "${sentinel}" == "." ]]
 }
@@ -162,6 +172,9 @@ cntools_settings_values_valid() {
   local previous=0
   local sum=0
   local -a percentages=()
+  [[ "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" =~ ^[YN]$ &&
+     "${CNTOOLS_TX_DEFAULT_TTL:-1800}" =~ ^(0|[1-9][0-9]{0,7})$ ]] || return 1
+  (( ${CNTOOLS_TX_DEFAULT_TTL:-1800} <= 31536000 )) || return 1
 
   case "${CNTOOLS_TX_SELECTION_STRATEGY:-}" in
     balanced|fewest-inputs) ;;
@@ -224,9 +237,12 @@ cntools_settings_json() {
     --arg minimumLovelace "${CNTOOLS_TX_UTXO_MIN_LOVELACE}" \
     --argjson collateralEnabled "${collateral_enabled}" \
     --argjson collateralTarget "${CNTOOLS_TX_COLLATERAL_TARGET_COUNT}" \
-    --arg collateralLovelace "${CNTOOLS_TX_COLLATERAL_LOVELACE}" '
+    --arg collateralLovelace "${CNTOOLS_TX_COLLATERAL_LOVELACE}" \
+    --arg chooseChange "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" \
+    --argjson ttl "${CNTOOLS_TX_DEFAULT_TTL:-1800}" '
       {
         schemaVersion: $schemaVersion,
+        interaction: {chooseSendChange: ($chooseChange == "Y"), defaultTtlSeconds: $ttl},
         coinSelection: {strategy: $strategy},
         tokenFragmentation: {
           enabled: $tokenEnabled,

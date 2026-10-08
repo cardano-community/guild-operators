@@ -11,7 +11,7 @@ eq() { [[ "$1" == "$2" ]] || fail "$3: $1 != $2"; }
 cntools_transaction_log() { :; }
 cntools_ui_choose() {
   eq "$2" 'Transaction expiry' 'shared choice'
-  eq "$*" "$1 Transaction expiry 30 minutes 2 hours 24 hours (offline signing) No expiry Cancel" 'expiry menu options'
+  eq "$*" "$1 Transaction expiry Default · 1800 seconds 30 minutes 2 hours 24 hours (offline signing) Custom duration No expiry Cancel" 'expiry menu options'
   printf -v "$1" '%s' "${CHOICE}"
 }
 for CHOICE in '30 minutes' '2 hours' '24 hours (offline signing)' 'No expiry'; do
@@ -28,9 +28,15 @@ for CHOICE in '30 minutes' '2 hours' '24 hours (offline signing)' 'No expiry'; d
 done
 CHOICE=Cancel
 if cntools_transaction_ui_expiry_into lifetime; then fail 'cancel accepted'; fi
-for bad in -1 01 abc 60; do
+for bad in -1 01 abc 31536001; do
   if cntools_transaction_expiry_into expiry 1000 "${bad}"; then fail 'invalid lifetime accepted'; fi
 done
+cntools_transaction_expiry_into expiry 1000 60
+eq "${expiry}" 1060 'custom lifetime'
+CHOICE='Custom duration'
+cntools_ui_input() { printf -v "$1" '%s' '3,600'; }
+cntools_transaction_ui_expiry_into lifetime
+eq "${lifetime}" 3600 'formatted custom duration'
 cntools_transaction_expiry_into expiry '' 0 || fail 'unbounded validity requires tip'
 eq "${expiry}" '' 'unbounded is not slot zero'
 cntools_transaction_ui_expiry_label_into label ''

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Voting delegation only: registered key stake credentials, no deposit or pool change.
+# Voting delegation, with explicitly approved first stake registration.
 # shellcheck disable=SC2034
 CNTOOLS_VOTE_TARGET=""
 CNTOOLS_VOTE_KIND=""
@@ -7,6 +7,8 @@ CNTOOLS_VOTE_HASH=""
 CNTOOLS_VOTE_CURRENT=""
 CNTOOLS_VOTE_CURRENT_POOL=""
 CNTOOLS_VOTE_INACTIVE_CONFIRMED=N
+CNTOOLS_VOTE_REGISTER=N
+CNTOOLS_VOTE_REGISTRATION_CONFIRMED=N
 
 cntools_vote_current_into() {
   local result="$1" current="" kind="" hash=""
@@ -22,7 +24,8 @@ cntools_vote_current_into() {
 }
 
 cntools_vote_chain_state_validate() {
-  case "${CNTOOLS_WALLET_REGISTERED}" in yes) ;; no) return 7 ;; *) return 1 ;; esac
+  CNTOOLS_VOTE_REGISTER=N
+  case "${CNTOOLS_WALLET_REGISTERED}" in yes) ;; no) CNTOOLS_VOTE_REGISTER=Y ;; *) return 1 ;; esac
   cntools_vote_current_into CNTOOLS_VOTE_CURRENT || return 1
   CNTOOLS_VOTE_CURRENT_POOL="${CNTOOLS_WALLET_POOL_DELEGATION:-}"
 }
@@ -42,14 +45,21 @@ cntools_vote_target_arguments_into() {
 }
 
 cntools_vote_certificate_create() {
-  local certificate="" output="" errors="" status=0
+  local certificate="" output="" errors="" status=0 command=vote-delegation-certificate
   local -a arguments=()
-  [[ "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" == 0 && "${CNTOOLS_VOTE_TARGET}" != "${CNTOOLS_VOTE_CURRENT}" ]] || return 1
+  [[ "${CNTOOLS_VOTE_TARGET}" != "${CNTOOLS_VOTE_CURRENT}" ]] || return 1
   cntools_vote_target_arguments_into arguments || return 1
+  if [[ "${CNTOOLS_VOTE_REGISTER}" == Y ]]; then
+    [[ "${CNTOOLS_VOTE_REGISTRATION_CONFIRMED}" == Y ]] || return 1
+    command=registration-and-vote-delegation-certificate
+    arguments+=(--key-reg-deposit-amt "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")
+  else
+    [[ "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" == 0 ]] || return 1
+  fi
   cntools_transaction_temp_file certificate voting-delegation-certificate || return 1
   cntools_transaction_temp_file output voting-delegation-output || return 1
   cntools_transaction_temp_file errors voting-delegation-errors || return 1
-  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-address vote-delegation-certificate \
+  cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-address "${command}" \
     --stake-verification-key-file "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}" \
     "${arguments[@]}" --out-file "${certificate}" || status=$?
   if ((status != 0)); then
@@ -62,7 +72,8 @@ cntools_vote_certificate_create() {
 }
 
 cntools_vote_validate_body() {
-  local view="" drep=""
+  local view="" drep="" kind='Stake address delegation'
+  [[ "${CNTOOLS_VOTE_REGISTER}" != Y ]] || kind='Stake address registration and delegation'
   case "${CNTOOLS_VOTE_KIND}" in
     key) drep="drep-keyHash-${CNTOOLS_VOTE_HASH}" ;;
     script) drep="drep-scriptHash-${CNTOOLS_VOTE_HASH}" ;;
@@ -72,9 +83,15 @@ cntools_vote_validate_body() {
   esac
   cntools_transaction_view_into view "$1" || return 1
   jq -e --arg drep "${drep}" --arg stake "${CNTOOLS_WALLET_REGISTER_STAKE_CREDENTIAL}" \
-    --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" '
-      .certificates == [{"Stake address delegation":{
-        "stake credential":{keyHash:$stake},delegatee:{"delegatee type":"vote",DRep:$drep}}}] and
+    --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" \
+    --arg kind "${kind}" --arg registration "${CNTOOLS_VOTE_REGISTER}" --arg deposit "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" '
+      (.certificates | type == "array" and length == 1) and
+      (.certificates[0] | keys == [$kind]) and
+      (.certificates[0][$kind] |
+        keys == (if $registration == "Y" then ["delegatee","deposit","stake credential"] else ["delegatee","stake credential"] end) and
+        .["stake credential"] == {keyHash:$stake} and
+        .delegatee == {"delegatee type":"vote",DRep:$drep} and
+        (if $registration == "Y" then (.deposit | tostring) == $deposit else (has("deposit") | not) end)) and
       .fee == $fee and (.withdrawals == null or .withdrawals == []) and .mint == null and .metadata == null and
       (.outputs | length > 0 and all(.[]; .address == $address)) and
       (.voters == null or .voters == {}) and
@@ -86,7 +103,8 @@ cntools_vote_validate_body() {
 }
 
 cntools_vote_recheck() {
-  local current_vote="" ref=""
+  local current_vote="" ref="" expected=yes deposit=""
+  [[ "${CNTOOLS_VOTE_REGISTER}" != Y ]] || expected=no
   cntools_funding_collect "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}" || return 1
   [[ "${CNTOOLS_FUNDING_BACKEND}" == "${CNTOOLS_WALLET_REGISTER_BACKEND}" ]] || {
     cntools_wallet_register_set_error 'The chain-data source changed. Rebuild and review the voting delegation.'; return 1;
@@ -99,6 +117,12 @@ cntools_vote_recheck() {
       cntools_wallet_register_set_error 'A selected input was spent. Rebuild and review the voting delegation.'; return 1;
     }
   done
+  if [[ "${CNTOOLS_VOTE_REGISTER}" == Y ]]; then
+    cntools_wallet_query_json_uint_field deposit "${CNTOOLS_FUNDING_PROTOCOL}" stakeAddressDeposit || return 1
+    [[ "${deposit}" == "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" ]] || {
+      cntools_wallet_register_set_error 'The stake deposit changed. Rebuild and review the delegation.'; return 1;
+    }
+  fi
   cntools_wallet_query_reset
   if [[ "${CNTOOLS_WALLET_REGISTER_BACKEND}" == local ]]; then
     cntools_wallet_query_network_arguments || return 1
@@ -107,7 +131,7 @@ cntools_vote_recheck() {
     cntools_wallet_query_koios_stake "${CNTOOLS_WALLET_REGISTER_REWARD_ADDRESS}" || return 1
   fi
   cntools_vote_current_into current_vote || return 1
-  [[ "${CNTOOLS_WALLET_REGISTERED}" == yes && "${current_vote}" == "${CNTOOLS_VOTE_CURRENT}" &&
+  [[ "${CNTOOLS_WALLET_REGISTERED}" == "${expected}" && "${current_vote}" == "${CNTOOLS_VOTE_CURRENT}" &&
      "${CNTOOLS_WALLET_POOL_DELEGATION:-}" == "${CNTOOLS_VOTE_CURRENT_POOL}" ]] || {
     cntools_wallet_register_set_error 'Stake registration or delegation changed. Rebuild and review the transaction.'; return 1;
   }

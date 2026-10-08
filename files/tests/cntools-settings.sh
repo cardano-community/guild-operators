@@ -68,6 +68,7 @@ CNTOOLS_TX_UTXO_MANAGEMENT="Y"
 CNTOOLS_TX_UTXO_TARGET_COUNT=6
 CNTOOLS_TX_UTXO_PERCENTAGES="5,15,25"
 CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS=3
+CNTOOLS_SEND_CHOOSE_CHANGE=Y CNTOOLS_TX_DEFAULT_TTL=3600
 cntools_settings_save || fail "valid transaction settings could not be saved"
 [[ -f "${CNTOOLS_SETTINGS_FILE}" && ! -L "${CNTOOLS_SETTINGS_FILE}" ]] ||
   fail "transaction settings were not saved as a regular file"
@@ -89,6 +90,13 @@ assert_eq "${CNTOOLS_TX_TOKEN_MAX_ASSETS}" 12 \
   "persisted fragmentation limit"
 assert_eq "${CNTOOLS_TX_UTXO_PERCENTAGES}" 5,15,25 \
   "persisted percentage ladder"
+assert_eq "${CNTOOLS_SEND_CHOOSE_CHANGE}" Y 'persisted Send change choice'
+assert_eq "${CNTOOLS_TX_DEFAULT_TTL}" 3600 'persisted custom default TTL'
+legacy_settings="$(jq 'del(.interaction)' "${CNTOOLS_SETTINGS_FILE}")"
+printf '%s\n' "${legacy_settings}" > "${CNTOOLS_SETTINGS_FILE}"
+cntools_settings_reload || fail 'existing settings migration failed'
+assert_eq "${CNTOOLS_SEND_CHOOSE_CHANGE}" N 'old settings keep automatic primary change'
+assert_eq "${CNTOOLS_TX_DEFAULT_TTL}" 1800 'old settings keep default TTL'
 
 saved_settings="$(< "${CNTOOLS_SETTINGS_FILE}")"
 CNTOOLS_TX_UTXO_TARGET_COUNT=99

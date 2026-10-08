@@ -160,5 +160,7 @@ cntools_governance_action_info() {
     [[ -z "${CNTOOLS_DREP_KEY_PATH}" ]] || cntools_transaction_ui_styled_row 'Derivation path' "${CNTOOLS_DREP_KEY_PATH}" identifier
     cntools_governance_status_rows
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
+  cntools_public_metadata_offer "$(jq -r '.meta_url // ""' <<< "${CNTOOLS_DREP_DETAILS}")" \
+    "$(jq -r '.meta_hash // ""' <<< "${CNTOOLS_DREP_DETAILS}")"
   cntools_ui_wait
 }

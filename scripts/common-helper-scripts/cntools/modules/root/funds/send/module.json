@@ -39,6 +39,7 @@
     "funds-send-view.sh",
     "transaction-files.sh",
     "funds-send-files.sh",
-    "funds-send-ui.sh"
+    "funds-send-ui.sh",
+    "wallet-selection.sh"
   ]
 }

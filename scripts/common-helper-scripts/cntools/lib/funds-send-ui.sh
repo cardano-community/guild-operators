@@ -4,6 +4,21 @@
 
 cntools_send_begin() { cntools_ui_action_begin "Send" "/ Funds / Send"; }
 
+cntools_send_choose_change() {
+  local choice=''
+  CNTOOLS_SEND_CHANGE_ADDRESS="${CNTOOLS_SEND_ADDRESS}"
+  [[ "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" == Y && "${CNTOOLS_SEND_ADDRESS}" != "${CNTOOLS_SEND_PAYMENT}" ]] || return 0
+  cntools_ui_render_status info 'Inputs are selected automatically from both addresses. This choice affects only returned change. Payment-only change does not participate in staking.'
+  cntools_ui_choose choice 'Return change to' 'Primary / base address (default)' 'Payment-only address' Cancel || return $?
+  case "${choice}" in
+    'Primary / base address (default)') ;;
+    'Payment-only address') CNTOOLS_SEND_CHANGE_ADDRESS="${CNTOOLS_SEND_PAYMENT}" ;;
+    Cancel) return 1 ;;
+    *) return 2 ;;
+  esac
+  cntools_transaction_log CHOICE "Send change address=${CNTOOLS_SEND_CHANGE_ADDRESS}"
+}
+
 cntools_send_confirm() {
   local status=0
   cntools_ui_confirm "$1" "${2:-false}" || status=$?
@@ -334,8 +349,9 @@ cntools_send_workflow() {
   cntools_wallet_catalog_build || return 2
   (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || { cntools_send_fail "No wallets are available."; return 2; }
   cntools_ui_render_detail "Source wallet"
-  cntools_wallet_choose selected || return $?
+  cntools_wallet_choose selected Cancel send || return $?
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
+  cntools_send_choose_change || return $?
   cntools_ui_spin_function "Fetching spendable funds and protocol parameters…" \
     cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" || return 2
   if (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} > 0 )); then

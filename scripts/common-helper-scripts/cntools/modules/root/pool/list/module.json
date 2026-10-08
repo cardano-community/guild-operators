@@ -18,6 +18,7 @@
     "table.sh",
     "pool.sh",
     "pool-inspect.sh",
-    "pool-ui.sh"
+    "pool-ui.sh",
+    "pool-health.sh"
   ]
 }

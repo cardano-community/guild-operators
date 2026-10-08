@@ -795,9 +795,14 @@ virtual Handle lease displays share this date path and the `BLOCKLOG_TZ` setting
 from `env` (`CNTOOLS_TIMEZONE`, default UTC). Machine timestamps in logs and
 transaction packages retain their existing formats.
 
-The optional boolean `requiresKoios` action metadata disables these entries when
-Koios is disabled/unconfigured or CNTools is offline. A request-time availability
-error still handles an unreachable service without preventing CNTools startup.
+Transaction history requires Koios. UTxO inspection prefers Koios regardless of
+the startup mode, but falls back to a configured local node if Koios is disabled,
+unreachable, or returns an invalid response. The local view queries both saved
+base and payment/script addresses, retains exact quantities, datums and reference
+scripts, and uses the same pagination/detail layout. It cannot discover other
+stake-linked addresses or provide creation dates/block heights. The overview
+identifies this narrower scope; a stake-only wallet needs Koios for discovery.
+Offline mode makes neither API nor local-node queries.
 
 ## Phase 8 CLI wallet creation slice
 
@@ -921,6 +926,12 @@ existing non-interactive sudo policy. Unsupported filesystems, missing tools,
 or denied permission produce a visible logged warning and retain the read-only
 baseline instead of aborting otherwise valid encryption. Decryption removes
 an existing immutable flag when needed even if the current setting is disabled.
+
+Hardware and public/watch-only wallets without local signing keys also appear
+in these actions. For them, Encrypt/Decrypt explicitly offer **Lock/Unlock local
+files**, with no password, GPG operation or hardware-device interaction. The
+result identifies permission protection rather than claiming encryption. An
+unknown `.skey` or `.gpg` entry prevents this lock-only path.
 
 ## Shared transaction foundation and Sign/Submit slice
 
@@ -1187,12 +1198,15 @@ transactions or exercise a physical hardware device.
 
 ## Governance voting delegation
 
-**Vote → Governance → Delegate** changes voting delegation for an already
-registered CLI, mnemonic, public/watch-only or hardware key wallet. Select a
-specific DRep, **Always Abstain**, or **Always No Confidence**. There is no new
-deposit, reward withdrawal, DRep registration, or change to pool delegation.
-Unregistered stake addresses must use **Wallet → Register** first. Multisig
-stake credentials remain a separate implementation slice.
+**Vote → Governance → Delegate** changes voting delegation for CLI, mnemonic,
+public/watch-only or hardware key wallets. Select an entered DRep ID, a verified
+local DRep wallet, **Always Abstain**, or **Always No Confidence**. For an
+unregistered stake address, an explicit default-No confirmation can include its
+first registration and the current stake deposit in the same transaction.
+Already registered stake addresses pay no new deposit. Neither path withdraws
+rewards, registers a DRep, or changes pool delegation. Multisig stake credentials
+remain a separate implementation slice. DRep registration itself does not
+self-delegate: the successful registration flow reminds the user to delegate.
 
 The focused `drep-id.sh` helper validates Bech32 checksums, payload length,
 padding and credential type, normalizing legacy CIP-105 key/script identifiers
@@ -1215,8 +1229,10 @@ before live submission, recheck stake registration, current voting/pool
 delegation, selected inputs, expiry, target registration and any newly reported
 inactivity. A change requires a rebuild/review; no target or body is silently
 replaced. The CLI-decoded certificate must exactly match the reviewed stake
-credential and target, with no deposit, extra certificates, withdrawal or pool
-delegation. Signed/exported packages follow the common recovery workflow.
+credential and target, including only the explicitly approved first-registration
+deposit when applicable, with no extra certificates, withdrawal or pool
+delegation. A fresh deposit/registration check is required before submission.
+Signed/exported packages follow the common recovery workflow.
 
 Regression coverage includes identity/schema failures, cancellation, all three
 workflows, stale state, and node-free build/sign/package validation for all four
@@ -1319,9 +1335,15 @@ headerless property tables as Wallet List/Show. List renders one compact table
 per directory, with public identity, cold-key material, registration status and,
 when requested, pledge/cost/margin. Show adds local KES/VRF key-material and
 operational-certificate presence, local configuration, owners, relays, metadata,
-and available on-chain settings. Presence is not a check that a KES key or
-operational certificate is current or usable; those checks belong to the KES
-management slice. Private-key contents are never read or displayed.
+and available on-chain settings. Read-only KES diagnostics add expiration in the
+configured timezone, periods/time remaining, and operational-certificate disk,
+ledger and next-issue counters. Local node diagnostics are preferred; otherwise
+certificate/genesis values and wall-clock estimates are explicitly identified.
+Declining the List chain lookup also skips local-node KES queries. Diagnostics
+never rotate keys, issue certificates or reset counters. Structural public-key
+matching is not a cryptographic certificate-signature verification or a guarantee
+that the node will accept the certificate. Private-key contents are never read
+or displayed.
 
 This slice does not create, repair, encrypt, or overwrite any existing pool
 artifact. A cold verification key is checked with the **cnode deployment-pinned
@@ -1583,6 +1605,46 @@ Each identified missing wizard feature is implemented in the rebuild:
 - [x] Combined owner balance/reward pledge checks and shortfall guidance.
 - [x] Missing operational-certificate/KES-start preparation and offline guidance.
 - [x] Post-registration `POOL_NAME` and node/pledge setup reminders.
+
+### Additional implemented-action parity checklist
+
+The cross-action audit gaps are addressed as follows; intentionally deferred
+actions remain outside this checklist:
+
+- [x] Hardware/watch-only lock/unlock without pretending public files are encrypted.
+- [x] First stake registration assistance when delegating to a DRep, with explicit
+  deposit approval and exact decoded-certificate/state checks.
+- [x] Verified local DRep-wallet selection alongside entered/predefined targets.
+- [x] Pool List/Show read-only KES expiry, remaining periods/time and counter diagnostics.
+- [x] Optional published JSON download/hash for DRep anchors and byte-hash
+  verification of published DRep, proposal and pool metadata. HTTP(S)/IPFS reads
+  are unauthenticated and bounded; mismatching bytes are not displayed. Hash
+  equality establishes byte integrity, not metadata truth or author identity.
+- [x] Proposal weighted voting power/percentages from Koios, cached for the visit,
+  with current protocol thresholds/committee quorum. These optional indexed
+  statistics are explicitly separate from local proposal identity and are not a
+  ledger ratification decision. Missing statistics remain unavailable, not zero.
+- [x] Wallet Show optional delegated-pool names and DRep activity/expiry,
+  voting power, delegators and metadata, with Koios provenance.
+- [x] Koios-first UTxO inspection and the narrower local-node fallback described above.
+- [x] Action-specific wallet suitability: available key roles plus cached, batched
+  stake registration/rewards hints. Local fallback checks at most ten unknown
+  wallets and stops if the node fails. Unknown state stays selectable; a fresh
+  authoritative check still gates transaction building/signing/submission.
+- [x] Shared custom TTL and persistent default under Settings → Transaction
+  Defaults, including No expiry. Durations accept grouped or ungrouped seconds,
+  from zero through 31,536,000; existing settings retain the 1,800-second default.
+- [x] Optional Send change-address choice, disabled by default. It is offered only
+  when both base and payment-only addresses exist, defaults to the primary/base
+  address, and warns that payment-only change does not stake. Send always gathers
+  the full UTxO inventory from both addresses; coin selection chooses the needed
+  inputs without asking the user for an address-specific source scope.
+
+`cntools-parity.sh` covers the new advisory/fallback boundaries; existing action,
+settings and transaction tests cover shared flows. Node-free tests using the
+cnode deployment pin validate real combined registration/delegation certificates,
+deposits, signatures and public KES certificate/counter parsing. Real node and
+hardware acceptance tests remain operator work; no test submits a transaction.
 
 `cntools-pool-registration.sh` covers state/defaults/UI contracts and optionally
 real certificates, exact deposits, native assets, no expiry, offline signing and

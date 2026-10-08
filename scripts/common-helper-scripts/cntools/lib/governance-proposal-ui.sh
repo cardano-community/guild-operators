@@ -20,6 +20,7 @@ cntools_proposal_render() {
       fi
     done
   } | cntools_table_render "${title}"
+  cntools_voting_stats_render "${record}"
 }
 
 cntools_proposal_tree() {
@@ -39,6 +40,8 @@ cntools_proposal_tree() {
 
 cntools_proposal_details() {
   local record="$1" url='' hash='' deposit='' returned='' metadata='' action=''
+  [[ -n "${CNTOOLS_VOTING_PARAMETERS_SOURCE}" ]] || cntools_ui_spin_function 'Checking voting thresholds…' cntools_voting_parameters_collect || true
+  cntools_ui_spin_function 'Checking indexed voting power…' cntools_voting_stats_collect "${record}" || true
   cntools_proposal_render "${record}" || return 1
   url="$(jq -r '.anchor.url // ""' <<< "${record}")"; hash="$(jq -r '.anchor.dataHash // ""' <<< "${record}")"
   deposit="$(jq -r '.deposit // ""' <<< "${record}")"; returned="$(jq -r '.returnAddress // "" | if type == "string" then . else tojson end' <<< "${record}")"
@@ -55,6 +58,7 @@ cntools_proposal_details() {
     cntools_ui_render_status info 'Proposal metadata is indexed by Koios. It is untrusted descriptive content, not independently hash-verified by CNTools.'
     cntools_proposal_tree "${metadata}" 'Metadata · Koios API' || return 1
   fi
+  cntools_public_metadata_offer "${url}" "${hash}"
 }
 
 cntools_governance_action_proposals() {
@@ -73,6 +77,7 @@ cntools_governance_action_proposals() {
     cntools_ui_render_status warn 'Enter a whole number from 1 to 10.'
   done
   while true; do
+    [[ "${CNTOOLS_VOTING_PARAMETERS_CHECKED}" == Y ]] || cntools_ui_spin_function 'Checking voting thresholds…' cntools_voting_parameters_collect || true
     cntools_ui_action_begin 'List Proposals' '/ Vote / Governance / List Proposals'
     total="$(jq length <<< "${CNTOOLS_PROPOSALS}")" || return 1
     first=$((page*size)); last=$((first+size)); ((last <= total)) || last="${total}"
@@ -85,6 +90,7 @@ cntools_governance_action_proposals() {
     } | cntools_table_render 'Governance'
     for ((index=first; index<last; index++)); do
       record="$(jq -c --argjson n "${index}" '.[$n]' <<< "${CNTOOLS_PROPOSALS}")" || return 1
+      cntools_ui_spin_function 'Checking indexed voting power…' cntools_voting_stats_collect "${record}" || true
       cntools_proposal_render "${record}" "$((index+1))" || return 1
     done
     choices=()
