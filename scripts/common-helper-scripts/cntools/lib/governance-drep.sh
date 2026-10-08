@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Key-DRep lifecycle. Reuse coin selection, change balancing and package signing.
+# Key/script DRep lifecycle. Reuse balancing, signer plans and package signing.
 # shellcheck disable=SC2034,SC2015 # Chained validation failures share one error.
 CNTOOLS_DREP_LIFECYCLE_ID=""
 CNTOOLS_DREP_LIFECYCLE_HASH=""
 CNTOOLS_DREP_LIFECYCLE_VKEY=""
 CNTOOLS_DREP_LIFECYCLE_SOURCE=""
+CNTOOLS_DREP_LIFECYCLE_KIND=key
 CNTOOLS_DREP_LIFECYCLE_STATE='{}'
 CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL=""
 CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH=""
@@ -34,21 +35,28 @@ cntools_drep_lifecycle_operation_set() {
 
 cntools_drep_lifecycle_prepare_wallet() {
   local directory="$1" source="" kind=""
-  cntools_payment_prepare_wallet "${directory}" || return 1
+  cntools_payment_prepare_wallet "${directory}" multisig || return 1
   cntools_drep_key_inspect "${directory}" || {
     cntools_wallet_register_set_error "${CNTOOLS_DREP_KEY_ERROR:-This wallet needs DRep keys. Use Vote → Governance → Derive Keys first.}"; return 1;
   }
-  [[ "${CNTOOLS_DREP_KEY_VERIFIED}" == Y && "${CNTOOLS_DREP_KEY_KIND}" == key ]] || {
-    cntools_wallet_register_set_error 'The DRep verification key must be available and verified. Script DReps are not supported by this action.'; return 1;
+  [[ "${CNTOOLS_DREP_KEY_VERIFIED}" == Y && "${CNTOOLS_DREP_KEY_KIND}" =~ ^(key|script)$ ]] || {
+    cntools_wallet_register_set_error 'The DRep identity must be verified against its public key or native script.'; return 1;
   }
   CNTOOLS_DREP_LIFECYCLE_ID="${CNTOOLS_DREP_KEY_ID}"
   CNTOOLS_DREP_LIFECYCLE_HASH="${CNTOOLS_DREP_KEY_HASH}"
+  CNTOOLS_DREP_LIFECYCLE_KIND="${CNTOOLS_DREP_KEY_KIND}"
   CNTOOLS_DREP_LIFECYCLE_VKEY="${directory}/${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}"
   CNTOOLS_DREP_LIFECYCLE_SOURCE=""
   source="${directory}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}"
   [[ ! -e "${directory}/${CNTOOLS_WALLET_HW_DREP_SKEY_FILENAME:-drep.hwsfile}" ]] || source="${directory}/${CNTOOLS_WALLET_HW_DREP_SKEY_FILENAME:-drep.hwsfile}"
-  if cntools_transaction_source_kind_into kind "${source}" && [[ "${kind}" == cli || "${kind}" == hardware ]]; then
+  if [[ "${CNTOOLS_DREP_LIFECYCLE_KIND}" == key ]] && cntools_transaction_source_kind_into kind "${source}" && [[ "${kind}" == cli || "${kind}" == hardware ]]; then
     CNTOOLS_DREP_LIFECYCLE_SOURCE="${source}"
+  fi
+  if [[ "${CNTOOLS_DREP_LIFECYCLE_KIND}" == script ]]; then
+    CNTOOLS_DREP_LIFECYCLE_VKEY=''
+    cntools_multisig_drep_prepare "${directory}" || {
+      cntools_wallet_register_set_error "${CNTOOLS_TRANSACTION_ERROR:-The DRep script could not be prepared safely.}"; return 1;
+    }
   fi
   CNTOOLS_WALLET_REGISTER_WALLET="${2:-${directory##*/}}"
   CNTOOLS_WALLET_REGISTER_DIRECTORY="${directory}"
@@ -91,7 +99,7 @@ cntools_drep_lifecycle_state_into() {
 
 cntools_drep_lifecycle_query_state_into() {
   local output="$1" status=0
-  cntools_drep_query "${CNTOOLS_DREP_LIFECYCLE_ID}" key "${CNTOOLS_DREP_LIFECYCLE_HASH}" \
+  cntools_drep_query "${CNTOOLS_DREP_LIFECYCLE_ID}" "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" "${CNTOOLS_DREP_LIFECYCLE_HASH}" \
     "${CNTOOLS_WALLET_REGISTER_BACKEND}" || status=$?
   if ((status != 0 && status != 4)); then
     cntools_wallet_register_set_error 'DRep registration could not be verified. A failed query is not evidence of an unregistered DRep.'; return 1
@@ -154,9 +162,16 @@ cntools_drep_lifecycle_hash_file_into() {
   printf -v "${target}" '%s' "${computed}"
 }
 
+cntools_drep_credential_arguments_into() {
+  local -n drep_arguments="$1"
+  if [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" == script ]]; then drep_arguments=(--drep-script-hash "${CNTOOLS_DREP_LIFECYCLE_HASH}")
+  else drep_arguments=(--drep-verification-key-file "${CNTOOLS_DREP_LIFECYCLE_VKEY}"); fi
+}
+
 cntools_drep_lifecycle_certificate_create() {
   local certificate="" output="" errors="" status=0
-  local -a arguments=(--drep-verification-key-file "${CNTOOLS_DREP_LIFECYCLE_VKEY}")
+  local -a arguments=()
+  cntools_drep_credential_arguments_into arguments || return 1
   cntools_drep_lifecycle_anchor_valid "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH}" || return 1
   case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
     drep-register) arguments+=(--key-reg-deposit-amt "${CNTOOLS_WALLET_REGISTER_DEPOSIT}") ;;
@@ -186,16 +201,27 @@ cntools_drep_lifecycle_plan_create() {
   cntools_transaction_plan_reset "${CNTOOLS_WALLET_REGISTER_INTENT}" \
     "${CNTOOLS_WALLET_REGISTER_INTENT} for ${CNTOOLS_DREP_LIFECYCLE_ID}; return change to the selected wallet." exact || return 1
   cntools_transaction_plan_set_validity '' "${CNTOOLS_WALLET_REGISTER_EXPIRY}" || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig || "${CNTOOLS_DREP_LIFECYCLE_KIND}" == script ]]; then
+    cntools_multisig_drep_validity CNTOOLS_WALLET_REGISTER_EXPIRY "${CNTOOLS_MULTISIG_STAKE_SLOT}" || return 1
+  fi
   [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" != Hardware ]] || payment_group=wallet-drep
   if [[ -n "${CNTOOLS_DREP_LIFECYCLE_SOURCE}" ]]; then
     cntools_transaction_source_kind_into kind "${CNTOOLS_DREP_LIFECYCLE_SOURCE}" || return 1
     [[ "${kind}" != hardware ]] || drep_group=wallet-drep
   fi
-  cntools_transaction_plan_add_signer "${CNTOOLS_WALLET_REGISTER_WALLET} payment key" spending \
-    "${CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" \
-    "${CNTOOLS_WALLET_REGISTER_PAYMENT_CREDENTIAL}" "${payment_group}" || return 1
-  cntools_transaction_plan_add_signer "${CNTOOLS_WALLET_REGISTER_WALLET} DRep key" "${1:-certificate}" \
-    "${CNTOOLS_DREP_LIFECYCLE_VKEY}" "${CNTOOLS_DREP_LIFECYCLE_SOURCE}" "${CNTOOLS_DREP_LIFECYCLE_HASH}" "${drep_group}" || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig ]]; then
+    cntools_multisig_drep_add_plan spend "${CNTOOLS_MULTISIG_SPEND_SCRIPT}" CNTOOLS_MULTISIG_SIGNER_IDS CNTOOLS_MULTISIG_SIGNER_HASHES CNTOOLS_MULTISIG_SIGNER_SOURCES CNTOOLS_MULTISIG_SIGNER_LABELS || return 1
+  else
+    cntools_transaction_plan_add_signer "${CNTOOLS_WALLET_REGISTER_WALLET} payment key" spending \
+      "${CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" \
+      "${CNTOOLS_WALLET_REGISTER_PAYMENT_CREDENTIAL}" "${payment_group}" || return 1
+  fi
+  if [[ "${CNTOOLS_DREP_LIFECYCLE_KIND}" == script ]]; then
+    cntools_multisig_drep_add_plan "${1:-certificate}" "${CNTOOLS_MULTISIG_DREP_SCRIPT}" CNTOOLS_MULTISIG_DREP_IDS CNTOOLS_MULTISIG_DREP_HASHES CNTOOLS_MULTISIG_DREP_SOURCES CNTOOLS_MULTISIG_DREP_LABELS || return 1
+  else
+    cntools_transaction_plan_add_signer "${CNTOOLS_WALLET_REGISTER_WALLET} DRep key" "${1:-certificate}" \
+      "${CNTOOLS_DREP_LIFECYCLE_VKEY}" "${CNTOOLS_DREP_LIFECYCLE_SOURCE}" "${CNTOOLS_DREP_LIFECYCLE_HASH}" "${drep_group}" || return 1
+  fi
   if [[ -n "${payment_group}" ]]; then
     cntools_transaction_plan_add_change_key "${CNTOOLS_WALLET_REGISTER_WALLET} payment key" \
       "${CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" "${payment_group}" || return 1
@@ -207,13 +233,13 @@ cntools_drep_lifecycle_plan_create() {
   fi
   inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')" || return 1
   summary="$(jq -cn --arg action "${CNTOOLS_WALLET_REGISTER_OPERATION}" --arg wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" \
-    --arg drepId "${CNTOOLS_DREP_LIFECYCLE_ID}" --arg drepHash "${CNTOOLS_DREP_LIFECYCLE_HASH}" \
+    --arg drepId "${CNTOOLS_DREP_LIFECYCLE_ID}" --arg drepHash "${CNTOOLS_DREP_LIFECYCLE_HASH}" --arg drepKind "${CNTOOLS_DREP_LIFECYCLE_KIND}" \
     --arg deposit "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" --arg effect "${CNTOOLS_WALLET_REGISTER_DEPOSIT_EFFECT}" \
     --arg url "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" --arg hash "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH}" \
     --arg changeAddress "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" --arg source "${CNTOOLS_WALLET_REGISTER_BACKEND}" \
     --arg fee "${CNTOOLS_WALLET_REGISTER_FEE}" --argjson inputs "${inputs}" --argjson policy "${policy}" \
     --argjson previous "${CNTOOLS_DREP_LIFECYCLE_STATE}" '
-    {action:$action,wallet:$wallet,drepId:$drepId,drepHash:$drepHash,depositLovelace:$deposit,depositEffect:$effect,
+    {action:$action,wallet:$wallet,drepId:$drepId,drepHash:$drepHash,drepType:$drepKind,depositLovelace:$deposit,depositEffect:$effect,
      metadataAnchor:(if $url == "" then null else {url:$url,dataHash:$hash} end),previousDrepState:$previous,
      changeAddress:$changeAddress,dataSource:$source,feeLovelace:$fee,selectedInputs:$inputs,transactionPolicy:$policy}')" || return 1
   cntools_transaction_plan_set_summary "${summary}"
@@ -222,7 +248,12 @@ cntools_drep_lifecycle_plan_create() {
 # These are the pinned CLI's authoritative decoded certificate fields (including
 # the trailing space in its update anchor key). Never rely on intent JSON alone.
 cntools_drep_lifecycle_validate_body() {
-  local view="" kind="" credential=certificate amount=deposit anchor=anchor expected="null" inputs="[]"
+  local view="" kind="" credential=certificate amount=deposit anchor=anchor expected="null" inputs="[]" credential_type=keyHash lower=''
+  [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" != script ]] || credential_type=scriptHash
+  if [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" == script || "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == MultiSig ]]; then
+    cntools_transaction_body_matches_plan "$1" || return 1
+    lower="${CNTOOLS_TRANSACTION_PLAN_INVALID_BEFORE}"
+  fi
   case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
     drep-register) kind='Drep registration certificate' ;;
     drep-update) kind='Drep certificate update'; credential='Drep credential'; amount=''; anchor='anchor ' ;;
@@ -234,24 +265,27 @@ cntools_drep_lifecycle_validate_body() {
   fi
   cntools_transaction_view_into view "$1" || return 1
   inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" | jq -Rsc 'split("\n") | map(select(length > 0)) | sort')" || return 1
-  jq -e --arg kind "${kind}" --arg credential "${credential}" --arg hash "${CNTOOLS_DREP_LIFECYCLE_HASH}" \
+  jq -e --arg kind "${kind}" --arg credential "${credential}" --arg hash "${CNTOOLS_DREP_LIFECYCLE_HASH}" --arg credentialType "${credential_type}" --arg lower "${lower}" \
     --arg amount "${amount}" --arg deposit "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" --arg anchor "${anchor}" --argjson expected "${expected}" \
     --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" \
     --argjson inputs "${inputs}" --arg expiry "${CNTOOLS_WALLET_REGISTER_EXPIRY}" '
     (.certificates | type == "array" and length == 1) and
     (.certificates[0] | keys == [$kind]) and
-    (.certificates[0][$kind] | .[$credential] == {keyHash:$hash} and
+    (.certificates[0][$kind] | .[$credential] == {($credentialType):$hash} and
       (if $amount == "" then true else (.[$amount]|tostring) == $deposit end) and
       (if $anchor == "" then true else .[$anchor] == $expected end)) and
     (.inputs | sort) == $inputs and
     (."validity range"["upper bound"] | if . == null then "" else tostring end) == $expiry and
-    ."validity range"["lower bound"] == null and
+    (."validity range"["lower bound"] | if . == null then "" else tostring end) == $lower and
     (."collateral inputs" == null or ."collateral inputs" == []) and
     (."reference inputs" == null or ."reference inputs" == []) and
     .fee == $fee and (.withdrawals == null or .withdrawals == []) and .mint == null and .metadata == null and
-    (.outputs | length > 0 and all(.[]; .address == $address)) and
+    (.outputs | length > 0 and all(.[]; .address == $address and .datum == null and ."reference script" == null)) and
     (.voters == null or .voters == {}) and (."governance actions" == null or ."governance actions" == []) and
-    (.treasuryDonation == null or .treasuryDonation == 0) and .currentTreasuryValue == null
+    (.treasuryDonation == null or .treasuryDonation == 0) and .currentTreasuryValue == null and
+    (."auxiliary scripts" == null or ."auxiliary scripts" == []) and
+    (.scripts == null or (.scripts | type == "array" and all(.[]; ."script data".type == "native"))) and
+    (.redeemers == null or .redeemers == [])
   ' <<< "${view}" >/dev/null || {
     cntools_wallet_register_set_error 'The built transaction does not match the reviewed DRep certificate, deposit, metadata or change address.'; return 1;
   }
@@ -265,6 +299,9 @@ cntools_drep_lifecycle_recheck() {
   }
   [[ -z "${CNTOOLS_WALLET_REGISTER_EXPIRY}" ]] || (( CNTOOLS_FUNDING_SLOT < CNTOOLS_WALLET_REGISTER_EXPIRY )) || {
     cntools_wallet_register_set_error 'The DRep transaction expired. Rebuild and review it.'; return 1;
+  }
+  [[ -z "${CNTOOLS_TRANSACTION_PLAN_INVALID_BEFORE:-}" ]] || (( CNTOOLS_FUNDING_SLOT >= CNTOOLS_TRANSACTION_PLAN_INVALID_BEFORE )) || {
+    cntools_wallet_register_set_error 'The payment or DRep script is not valid at the current chain tip. Rebuild and review it.'; return 1;
   }
   for reference in "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}"; do
     [[ -n "${CNTOOLS_UTXO_INDEX_BY_REF[${reference}]+x}" ]] || {

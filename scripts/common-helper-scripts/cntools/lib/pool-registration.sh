@@ -15,7 +15,7 @@ CNTOOLS_POOL_REG_PROTOCOL_STATE=''
 CNTOOLS_POOL_REG_COMBINE_HARDWARE=N
 
 cntools_pool_registration_operation_set() {
-  case "$1" in pool-register) CNTOOLS_WALLET_REGISTER_TITLE=Register ;; pool-modify) CNTOOLS_WALLET_REGISTER_TITLE=Modify ;; *) return 2 ;; esac
+  case "$1" in pool-register) CNTOOLS_WALLET_REGISTER_TITLE=Register ;; pool-modify) CNTOOLS_WALLET_REGISTER_TITLE=Modify ;; pool-retire) CNTOOLS_WALLET_REGISTER_TITLE=Retire ;; *) return 2 ;; esac
   CNTOOLS_WALLET_REGISTER_OPERATION="$1"
   CNTOOLS_WALLET_REGISTER_PATH="/ Pool / ${CNTOOLS_WALLET_REGISTER_TITLE}"
   CNTOOLS_WALLET_REGISTER_NOUN="pool ${CNTOOLS_WALLET_REGISTER_TITLE,,}"
@@ -36,12 +36,16 @@ cntools_pool_registration_prepare_identity() {
   CNTOOLS_POOL_REG_ID="${CNTOOLS_POOL_IDS[index]}"; CNTOOLS_POOL_REG_HEX="${CNTOOLS_POOL_HEX_IDS[index]}"
   cntools_pool_file_name_into cold cold-vkey; cntools_pool_file_name_into vrf vrf-vkey
   cntools_pool_file_name_into skey cold-skey; cntools_pool_file_name_into hws cold-hardware
-  cntools_pool_key_validate "${directory}/${cold}" cold verification &&
-    cntools_pool_key_validate "${directory}/${vrf}" vrf verification || {
-    cntools_wallet_register_set_error 'The pool requires valid cold and VRF public keys.'; return 1;
+  cntools_pool_key_validate "${directory}/${cold}" cold verification || {
+    cntools_wallet_register_set_error 'The pool requires a valid cold public key.'; return 1;
   }
   cntools_transaction_snapshot_into CNTOOLS_POOL_REG_COLD_VKEY "${directory}/${cold}" 65536 pool-cold-public || return 1
-  cntools_transaction_snapshot_into CNTOOLS_POOL_REG_VRF_VKEY "${directory}/${vrf}" 65536 pool-vrf-public || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]]; then
+    cntools_pool_key_validate "${directory}/${vrf}" vrf verification &&
+      cntools_transaction_snapshot_into CNTOOLS_POOL_REG_VRF_VKEY "${directory}/${vrf}" 65536 pool-vrf-public || {
+      cntools_wallet_register_set_error 'Registration and modification require a valid VRF public key.'; return 1;
+    }
+  fi
   CNTOOLS_POOL_REG_COLD_SOURCE=''
   if [[ -e "${directory}/${hws}" ]]; then
     [[ ! -e "${directory}/${skey}" && ! -e "${directory}/${skey}.gpg" ]] && cntools_pool_hardware_pair_validate "${directory}" || {
@@ -56,6 +60,7 @@ cntools_pool_registration_prepare_identity() {
     }
     CNTOOLS_POOL_REG_COLD_SOURCE="${directory}/${skey}"
   fi
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]] || return 0
   cntools_transaction_temp_file response pool-vrf-hash; cntools_transaction_temp_file errors pool-vrf-errors
   cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest node key-hash-VRF \
     --verification-key-file "${CNTOOLS_POOL_REG_VRF_VKEY}" || status=$?
@@ -67,6 +72,7 @@ cntools_pool_registration_prepare_identity() {
 # Only registration parameters/pending changes/retirement affect the review.
 # Exclude advancing stake totals, epoch and block statistics from rechecks.
 cntools_pool_registration_state_into() {
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then cntools_pool_retirement_state_into "$1"; return $?; fi
   local output="$1" index="${CNTOOLS_POOL_REG_INDEX}" format='' pool_state='' reward='' owners='[]' address='' hash=''
   case "${CNTOOLS_POOL_CHAIN_STATUS[index]}" in
     'Not registered'|'Not indexed'|Retired)
@@ -126,7 +132,8 @@ cntools_pool_registration_prepare_funding() {
   [[ "${CNTOOLS_PAYMENT_TYPE}" != Hardware || -n "${CNTOOLS_PAYMENT_SOURCE}" ]] || {
     cntools_wallet_register_set_error 'A hardware funding wallet needs its public signing reference to prepare change.'; return 1;
   }
-  # Pinned hw-cli operator mode requires a cold hardware reference and rejects
+  # Pinned hw-cli requires a cold hardware reference for Ledger retirement;
+  # registration operator mode additionally rejects
   # owner stake witnesses in that call. A hardware payer cannot fund a CLI cold
   # pool, even if the intended workflow is an unsigned package for later signing.
   if [[ "${CNTOOLS_PAYMENT_TYPE}" == Hardware ]]; then
@@ -145,6 +152,7 @@ cntools_pool_registration_collect() {
   cntools_pool_registration_query_state_into CNTOOLS_POOL_REG_STATE || {
     cntools_wallet_register_set_error "${CNTOOLS_WALLET_REGISTER_ERROR:-Pool registration could not be verified from the selected chain source.}"; return 1;
   }
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then cntools_pool_retirement_collect; return $?; fi
   registered="$(jq -r .registered <<< "${CNTOOLS_POOL_REG_STATE}")"
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-register && "${registered}" == true ]]; then
     cntools_wallet_register_set_error 'This pool is already registered. Use Pool → Modify.'; return 1
@@ -172,6 +180,7 @@ cntools_pool_registration_collect() {
 }
 
 cntools_pool_registration_certificate_create() {
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then cntools_pool_retirement_certificate_create; return $?; fi
   local certificate='' response='' errors='' owner='' relay='' type='' status=0
   local -a args=(--cold-verification-key-file "${CNTOOLS_POOL_REG_COLD_VKEY}" --vrf-verification-key-file "${CNTOOLS_POOL_REG_VRF_VKEY}"
     --pool-pledge "${CNTOOLS_POOL_REG_PLEDGE}" --pool-cost "${CNTOOLS_POOL_REG_COST}" --pool-margin "${CNTOOLS_POOL_REG_MARGIN}"
@@ -221,7 +230,7 @@ cntools_pool_registration_group_into() {
 
 cntools_pool_registration_plan_create() {
   local payment_group='' cold_group='' group='' owner='' label='' signer_label='' vkey='' source='' hash='' inputs='' params='' summary='' fallback=''
-  cntools_transaction_plan_reset "${CNTOOLS_WALLET_REGISTER_INTENT}" "${CNTOOLS_WALLET_REGISTER_INTENT} for ${CNTOOLS_POOL_REG_ID}; owners and cold identity witness the certificate." exact || return 1
+  cntools_transaction_plan_reset "${CNTOOLS_WALLET_REGISTER_INTENT}" "${CNTOOLS_WALLET_REGISTER_INTENT} for ${CNTOOLS_POOL_REG_ID}." exact || return 1
   cntools_transaction_plan_set_validity '' "${CNTOOLS_WALLET_REGISTER_EXPIRY}" || return 1
   cntools_pool_registration_group_into payment_group "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" pool-funding || return 1
   cntools_pool_registration_group_into cold_group "${CNTOOLS_POOL_REG_COLD_SOURCE}" pool-cold || return 1
@@ -229,17 +238,19 @@ cntools_pool_registration_plan_create() {
     "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_CREDENTIAL}" "${payment_group}" || return 1
   cntools_transaction_plan_add_signer "${CNTOOLS_POOL_REG_NAME} cold" certificate "${CNTOOLS_POOL_REG_COLD_VKEY}" \
     "${CNTOOLS_POOL_REG_COLD_SOURCE}" "${CNTOOLS_POOL_REG_HEX}" "${cold_group}" || return 1
-  while IFS= read -r owner; do
-    label="$(jq -r .label <<< "${owner}")"; vkey="$(jq -r .vkey <<< "${owner}")"
-    source="$(jq -r .source <<< "${owner}")"; hash="$(jq -r .hash <<< "${owner}")"
-    # Pinned hw-cli owner mode witnesses exactly one stake key and cannot be
-    # mixed with spending/cold keys, even when all keys live on one device.
-    fallback="owner-${hash}"
-    cntools_pool_registration_group_into group "${source}" "${fallback}" || return 1
-    signer_label="${label} reward registration"
-    if jq -e --arg hash "${hash}" 'any(.[]; .hash == $hash)' <<< "${CNTOOLS_POOL_REG_OWNERS}" >/dev/null; then signer_label="${label} owner stake"; fi
-    cntools_transaction_plan_add_signer "${signer_label}" certificate "${vkey}" "${source}" "${hash}" "${group}" || return 1
-  done < <(jq -cn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --argjson extra "${CNTOOLS_POOL_EXTRA_RECORDS:-[]}" '$owners+$extra | unique_by(.hash) | .[]')
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]]; then
+    while IFS= read -r owner; do
+      label="$(jq -r .label <<< "${owner}")"; vkey="$(jq -r .vkey <<< "${owner}")"
+      source="$(jq -r .source <<< "${owner}")"; hash="$(jq -r .hash <<< "${owner}")"
+      # Pinned hw-cli owner mode witnesses exactly one stake key and cannot be
+      # mixed with spending/cold keys, even when all keys live on one device.
+      fallback="owner-${hash}"
+      cntools_pool_registration_group_into group "${source}" "${fallback}" || return 1
+      signer_label="${label} reward registration"
+      if jq -e --arg hash "${hash}" 'any(.[]; .hash == $hash)' <<< "${CNTOOLS_POOL_REG_OWNERS}" >/dev/null; then signer_label="${label} owner stake"; fi
+      cntools_transaction_plan_add_signer "${signer_label}" certificate "${vkey}" "${source}" "${hash}" "${group}" || return 1
+    done < <(jq -cn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --argjson extra "${CNTOOLS_POOL_EXTRA_RECORDS:-[]}" '$owners+$extra | unique_by(.hash) | .[]')
+  fi
   if [[ -n "${payment_group}" ]]; then
     cntools_transaction_plan_add_change_key "${CNTOOLS_WALLET_REGISTER_WALLET} payment change" "${CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY}" \
       "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" "${payment_group}" || return 1
@@ -250,7 +261,9 @@ cntools_pool_registration_plan_create() {
     fi
   fi
   inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" | jq -Rsc 'split("\n")|map(select(length>0))')"
-  params="$(cntools_pool_parameters_json)" || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then
+    params="$(jq -cn --arg pool "${CNTOOLS_POOL_REG_HEX}" --argjson epoch "${CNTOOLS_POOL_RETIRE_EPOCH}" '{poolId:$pool,retirementEpoch:$epoch}')" || return 1
+  else params="$(cntools_pool_parameters_json)" || return 1; fi
   summary="$(jq -cn --arg action "${CNTOOLS_WALLET_REGISTER_OPERATION}" --arg pool "${CNTOOLS_POOL_REG_ID}" \
     --arg wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" --arg deposit "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" \
     --arg change "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" --argjson inputs "${inputs}" --argjson params "${params}" \
@@ -264,14 +277,21 @@ cntools_pool_registration_plan_create() {
 cntools_pool_registration_validate_body() {
   local view='' expected='' inputs=''
   cntools_transaction_view_into view "$1" || return 1
-  expected="$(cntools_pool_parameters_json)" || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then
+    cntools_pool_retirement_validate_certificate "${view}" || return 1
+    # Feed the already independently checked certificate into the common body
+    # guards below; no registration-only parameter or owner assumptions apply.
+    expected="$(jq -c '.certificates[0]["Pool retirement"]' <<< "${view}")" || return 1
+  else expected="$(cntools_pool_parameters_json)" || return 1; fi
   inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" | jq -Rsc 'split("\n")|map(select(length>0))|sort')"
   jq -e --argjson params "${expected}" --argjson inputs "${inputs}" --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
-    --argjson setup "${CNTOOLS_POOL_EXTRA_EXPECTED:-[]}" \
+    --argjson setup "${CNTOOLS_POOL_EXTRA_EXPECTED:-[]}" --arg operation "${CNTOOLS_WALLET_REGISTER_OPERATION}" \
     --arg expiry "${CNTOOLS_WALLET_REGISTER_EXPIRY}" --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" '
-    (.certificates|type == "array" and length == (1+($setup|length))) and (.certificates[0]|keys == ["Pool registration"]) and
+    (.certificates|type == "array" and length == (1+($setup|length))) and
+    (.certificates[0]|keys == [if $operation == "pool-retire" then "Pool retirement" else "Pool registration" end]) and
     .certificates[1:] == $setup and
-    (.certificates[0]["Pool registration"]["pool params"] | .owners |= sort) == $params and
+    (if $operation == "pool-retire" then .certificates[0]["Pool retirement"] else
+      (.certificates[0]["Pool registration"]["pool params"] | .owners |= sort) end) == $params and
     (.inputs|sort) == $inputs and .fee == $fee and
     (."validity range"["upper bound"]|if . == null then "" else tostring end) == $expiry and ."validity range"["lower bound"] == null and
     (.outputs|length > 0 and all(.[];.address == $address and .datum == null and ."reference script" == null)) and
@@ -284,6 +304,7 @@ cntools_pool_registration_validate_body() {
 
 cntools_pool_registration_build_into() {
   local output="$1" slot=''
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]] || cntools_pool_retirement_window_check || return 1
   cntools_wallet_register_select_inputs || return 1
   CNTOOLS_WALLET_REGISTER_EXPIRY=''
   [[ "${CNTOOLS_WALLET_REGISTER_LIFETIME}" == 0 ]] || cntools_funding_tip_into slot "${CNTOOLS_WALLET_REGISTER_BACKEND}" || return 1
@@ -308,5 +329,6 @@ cntools_pool_registration_recheck() {
   [[ "${state}" == "${CNTOOLS_POOL_REG_STATE}" ]] || {
     cntools_wallet_register_set_error 'Pool registration, parameters or retirement changed. Rebuild and review the transaction.'; return 1;
   }
-  cntools_pool_stake_recheck
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then cntools_pool_retirement_window_check
+  else cntools_pool_stake_recheck; fi
 }

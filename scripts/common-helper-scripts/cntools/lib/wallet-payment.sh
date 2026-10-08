@@ -11,9 +11,13 @@ cntools_payment_prepare_wallet() {
     cntools_transaction_set_error 'The funding wallet public keys, addresses or credentials could not be prepared safely.'; return 1;
   }
   CNTOOLS_PAYMENT_TYPE="$(cntools_wallet_type "${directory}")" || return 1
-  [[ "${CNTOOLS_PAYMENT_TYPE}" != MultiSig ]] || {
-    cntools_transaction_set_error "Multisig spending is not yet supported for this action."; return 1;
-  }
+  if [[ "${CNTOOLS_PAYMENT_TYPE}" == MultiSig ]]; then
+    if [[ "${2:-}" == multisig ]] && declare -F cntools_multisig_spend_prepare >/dev/null; then
+      cntools_multisig_spend_prepare "${directory}"
+      return $?
+    fi
+    cntools_transaction_set_error "Multisig spending is not yet supported for this action."; return 1
+  fi
   CNTOOLS_PAYMENT_ADDRESS=""; CNTOOLS_PAYMENT_PAYMENT=""; CNTOOLS_PAYMENT_SOURCE=""
   cntools_wallet_read_address "${directory}" payment CNTOOLS_PAYMENT_PAYMENT || {
     cntools_transaction_set_error "This source needs a valid payment address and public payment key."; return 1;

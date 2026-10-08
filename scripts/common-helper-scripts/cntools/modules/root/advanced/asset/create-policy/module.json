@@ -10,6 +10,14 @@
     "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "wallet-query.sh",
+    "wallet-key.sh",
+    "transaction.sh",
+    "table.sh",
+    "policy-files.sh",
+    "policy.sh",
+    "policy-ui.sh"
   ]
 }

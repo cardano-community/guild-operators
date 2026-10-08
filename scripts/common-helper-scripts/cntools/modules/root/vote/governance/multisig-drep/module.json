@@ -1,7 +1,7 @@
 {
   "kind": "action",
   "label": "MultiSig DRep",
-  "description": "Manage a multisignature DRep",
+  "description": "Create a multisignature DRep identity",
   "shortcut": "m",
   "order": 70,
   "modes": [
@@ -10,6 +10,24 @@
     "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-create.sh",
+    "wallet-mnemonic.sh",
+    "key-crypto.sh",
+    "wallet-protection.sh",
+    "wallet-query.sh",
+    "transaction.sh",
+    "transaction-ui.sh",
+    "drep-id.sh",
+    "drep-query.sh",
+    "drep-key.sh",
+    "drep-script.sh",
+    "multisig-wallet.sh",
+    "governance-wallet-ui.sh",
+    "drep-script-ui.sh",
+    "table.sh"
   ]
 }

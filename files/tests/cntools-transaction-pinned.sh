@@ -75,6 +75,9 @@ CLI_SHA256="$(jq -er '.companions["cardano-cli"].artifacts["linux-x86_64"].sha25
 HWCLI_VERSION="$(jq -er '.tools["cardano-hw-cli"].version' "${COMMON_RELEASE_FILE}")"
 HWCLI_URL="$(jq -er '.tools["cardano-hw-cli"].artifacts["linux-x86_64"].url' "${COMMON_RELEASE_FILE}")"
 HWCLI_SHA256="$(jq -er '.tools["cardano-hw-cli"].artifacts["linux-x86_64"].sha256' "${COMMON_RELEASE_FILE}")"
+ADDRESS_VERSION="$(jq -er '.companions["cardano-address"].version' "${RELEASE_FILE}")"
+ADDRESS_URL="$(jq -er '.companions["cardano-address"].artifacts["linux-x86_64"].url | select(startswith("https://"))' "${RELEASE_FILE}")"
+ADDRESS_SHA256="$(jq -er '.companions["cardano-address"].artifacts["linux-x86_64"].sha256 | select(test("^[0-9a-f]{64}$"))' "${RELEASE_FILE}")"
 
 [[ -n "${CACHE_ROOT}" && "${CACHE_ROOT}" != "/" && ! -L "${CACHE_ROOT}" ]] ||
   fail "pinned-tool cache path is unsafe"
@@ -142,25 +145,34 @@ fetch_pinned_archive() {
 
 CLI_ARCHIVE=""
 HWCLI_ARCHIVE=""
+ADDRESS_ARCHIVE=""
 fetch_pinned_archive CLI_ARCHIVE cardano-cli "${CLI_URL}" "${CLI_SHA256}"
 fetch_pinned_archive HWCLI_ARCHIVE cardano-hw-cli \
   "${HWCLI_URL}" "${HWCLI_SHA256}"
+fetch_pinned_archive ADDRESS_ARCHIVE cardano-address "${ADDRESS_URL}" "${ADDRESS_SHA256}"
 
 CLI_ROOT="${TEST_ROOT}/cardano-cli"
 HWCLI_ROOT="${TEST_ROOT}/cardano-hw-cli"
-mkdir -m 0700 -- "${CLI_ROOT}" "${HWCLI_ROOT}"
+ADDRESS_ROOT="${TEST_ROOT}/cardano-address"
+mkdir -m 0700 -- "${CLI_ROOT}" "${HWCLI_ROOT}" "${ADDRESS_ROOT}"
 tar -xzf "${CLI_ARCHIVE}" -C "${CLI_ROOT}" ||
   fail "could not extract pinned cardano-cli release"
 tar -xzf "${HWCLI_ARCHIVE}" -C "${HWCLI_ROOT}" ||
   fail "could not extract pinned cardano-hw-cli release"
+tar -xzf "${ADDRESS_ARCHIVE}" -C "${ADDRESS_ROOT}" \
+  --transform='s#.*\/##g' --wildcards cardano-address ||
+  fail "could not extract pinned cardano-address release"
 
 CLI="${CLI_ROOT}/cardano-cli-x86_64-linux"
 HWCLI="${HWCLI_ROOT}/cardano-hw-cli/cardano-hw-cli"
+ADDRESS="${ADDRESS_ROOT}/cardano-address"
 [[ -f "${CLI}" && ! -L "${CLI}" ]] ||
   fail "pinned cardano-cli archive has an unexpected layout"
 [[ -f "${HWCLI}" && ! -L "${HWCLI}" ]] ||
   fail "pinned cardano-hw-cli archive has an unexpected layout"
-chmod 0700 "${CLI}" "${HWCLI}"
+[[ -f "${ADDRESS}" && ! -L "${ADDRESS}" ]] || fail "pinned cardano-address archive has an unexpected layout"
+chmod 0700 "${CLI}" "${HWCLI}" "${ADDRESS}"
+[[ "$("${ADDRESS}" --version)" == "${ADDRESS_VERSION} "* ]] || fail "cardano-address does not report pinned version ${ADDRESS_VERSION}"
 
 CLI_VERSION_OUTPUT="$("${CLI}" version 2>&1)" ||
   fail "pinned cardano-cli could not be started"
@@ -551,12 +563,20 @@ bash "${SCRIPT_DIR}/cntools-withdraw-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-delegate-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-collect-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-governance-keys-pinned.sh" "${CLI}"
+bash "${SCRIPT_DIR}/cntools-drep-script-pinned.sh" "${CLI}"
 bash "${SCRIPT_DIR}/cntools-drep-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-governance-vote-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-pool-pinned.sh" "${CLI}"
 bash "${SCRIPT_DIR}/cntools-kes-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-pool-manage.sh" "${CLI}"
 bash "${SCRIPT_DIR}/cntools-pool-registration.sh" "${CLI}" "${HWCLI}"
+bash "${SCRIPT_DIR}/cntools-pool-retirement.sh" "${CLI}" "${HWCLI}"
+bash "${SCRIPT_DIR}/cntools-policy-create.sh" "${CLI}"
+bash "${SCRIPT_DIR}/cntools-asset-pinned.sh" "${CLI}"
+bash "${SCRIPT_DIR}/cntools-policy-protection.sh" "${CLI}"
+bash "${SCRIPT_DIR}/cntools-multisig-pinned.sh" "${CLI}" "${ADDRESS}"
+bash "${SCRIPT_DIR}/cntools-multisig-stake-pinned.sh" "${CLI}"
+bash "${SCRIPT_DIR}/cntools-multisig-drep-pinned.sh" "${CLI}"
 
 printf 'CNTools pinned transaction binary tests passed (cardano-cli %s, cardano-hw-cli %s).\n' \
   "${CLI_VERSION}" "${HWCLI_VERSION}"

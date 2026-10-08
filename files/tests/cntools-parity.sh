@@ -92,6 +92,21 @@ printf '%s' '{"type":"PaymentVerificationKeyShelley_ed25519"}' > "${CNTOOLS_WALL
   cntools_wallet_selection_collect register
   cntools_wallet_selection_candidate_into annotation 0 register || fail 'unknown state hidden'
   eq "${annotation}" 'Stake status checked after selection'
+  CNTOOLS_WALLET_TYPES=(MultiSig)
+  CNTOOLS_WALLET_PAY_SCRIPT_FILENAME=payment.script CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME=stake.script
+  printf '{}' > "${CNTOOLS_WALLET_DIR}/Public/payment.script"
+  printf '{}' > "${CNTOOLS_WALLET_DIR}/Public/stake.script"
+  for action in register deregister delegate vote-delegate withdraw send collect; do
+    cntools_wallet_selection_candidate_into annotation 0 "${action}" || fail "script wallet excluded from ${action}"
+  done
+  ! cntools_wallet_selection_candidate_into annotation 0 drep-register || fail 'multisig DRep lifecycle enabled'
+  CNTOOLS_SELECTION_REGISTERED[stake_fixture]=yes
+  ! cntools_wallet_selection_candidate_into annotation 0 register || fail 'registered script wallet offered'
+  CNTOOLS_SELECTION_REWARDS[stake_fixture]=0
+  ! cntools_wallet_selection_candidate_into annotation 0 withdraw || fail 'zero reward script wallet offered'
+  rm "${CNTOOLS_WALLET_DIR}/Public/stake.script"
+  ! cntools_wallet_selection_candidate_into annotation 0 delegate || fail 'payment-only script wallet offered for delegation'
+  cntools_wallet_selection_candidate_into annotation 0 send || fail 'payment-only script wallet excluded from send'
   CNTOOLS_MODE=offline
   cntools_wallet_selection_collect register
   eq "${#CNTOOLS_SELECTION_REGISTERED[@]}" 0 'online annotations retained offline'

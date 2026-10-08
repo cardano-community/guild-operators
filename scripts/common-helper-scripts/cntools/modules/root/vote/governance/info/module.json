@@ -25,6 +25,7 @@
     "drep-id.sh",
     "drep-query.sh",
     "drep-key.sh",
+    "drep-script.sh",
     "governance-wallet-ui.sh",
     "table.sh",
     "public-metadata.sh"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared payment/stake identity preparation for key-wallet transactions.
+# Shared payment/stake identity preparation, with an optional native-script adapter.
 # shellcheck disable=SC2034
 
 cntools_stake_source_if_valid_into() {
@@ -42,9 +42,10 @@ cntools_stake_prepare_wallet() {
   case "${wallet_type}" in
     CLI|Mnemonic|Hardware) ;;
     MultiSig)
-      cntools_transaction_set_error \
-        "Native-script stake operations will be added with the multisig wallet flow. Select a CLI, mnemonic, or hardware wallet for now."
-      return 1
+      if declare -F cntools_multisig_stake_prepare >/dev/null; then
+        cntools_multisig_stake_prepare "${wallet_directory}" "${wallet_name}"; return $?
+      fi
+      cntools_transaction_set_error 'Multisig stake operations are not enabled for this action.'; return 1
       ;;
     *)
       cntools_transaction_set_error \

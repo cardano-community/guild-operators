@@ -80,6 +80,8 @@ jobs:
       run: bash files/tests/cntools-handle.sh
     - name: Test CNTools transaction foundation
       run: bash files/tests/cntools-transaction-foundation.sh
+    - name: Test CNTools multisig paths, scripts and interaction
+      run: bash files/tests/cntools-multisig.sh
     - name: Test CNTools transaction signing and submission
       run: bash files/tests/cntools-transaction-sign-submit.sh
     - name: Test CNTools transaction UI orchestration
@@ -96,6 +98,24 @@ jobs:
       run: bash files/tests/cntools-pool-manage.sh
     - name: Test CNTools pool registration and modification
       run: bash files/tests/cntools-pool-registration.sh
+    - name: Test CNTools pool retirement
+      run: bash files/tests/cntools-pool-retirement.sh
+    - name: Test CNTools pool retirement interaction
+      run: bash files/tests/cntools-pool-retirement-ui.sh
+    - name: Test CNTools backup and restore safety
+      run: bash files/tests/cntools-backup.sh
+    - name: Test CNTools backup wizard
+      run: bash files/tests/cntools-backup-ui.sh
+    - name: Test CNTools read-only block history
+      run: bash files/tests/cntools-blocklog.sh
+    - name: Test CNTools native policy creation
+      run: bash files/tests/cntools-policy-create.sh
+    - name: Test CNTools asset management and registry interaction
+      run: bash files/tests/cntools-asset-management.sh
+    - name: Test CNTools asset transaction interaction
+      run: bash files/tests/cntools-asset-ui.sh
+    - name: Test CNTools policy encryption compatibility
+      run: bash files/tests/cntools-policy-protection.sh
     - name: Test CNTools pool metadata wizard
       run: bash files/tests/cntools-pool-wizard-ui.sh
     - name: Test CNTools KES rotation interaction
@@ -106,6 +126,10 @@ jobs:
       run: bash files/tests/cntools-governance-delegate.sh
     - name: Test CNTools governance wallet keys and status UI
       run: bash files/tests/cntools-governance-wallet.sh
+    - name: Test CNTools script DRep identity and interaction
+      run: bash files/tests/cntools-drep-script.sh
+    - name: Test CNTools multisig DRep transaction safety
+      run: bash files/tests/cntools-multisig-drep.sh
     - name: Test CNTools DRep lifecycle safety
       run: bash files/tests/cntools-drep.sh
     - name: Test CNTools governance proposals and voting safety

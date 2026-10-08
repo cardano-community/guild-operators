@@ -59,7 +59,6 @@ settings	menu	s	75	-	-	Settings
 settings/transaction-defaults	action	d	10	local,light,offline	-	Transaction Defaults
 settings/theme	action	t	20	local,light,offline	true	Theme
 advanced	menu	a	80	-	true	Advanced
-advanced/metadata	action	m	10	local,light	-	Metadata
 advanced/asset	menu	a	20	-	-	Asset
 advanced/asset/create-policy	action	c	10	local,light,offline	-	Create Policy
 advanced/asset/list	action	l	20	local,light,offline	-	List Assets

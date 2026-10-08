@@ -121,6 +121,13 @@ cntools_wallet_register_workflow() {
   wallet_directory="${CNTOOLS_WALLET_PATHS[selected_index]}"
   wallet_name="${CNTOOLS_WALLET_NAMES[selected_index]}"
   cntools_wallet_register_prepare_wallet "${wallet_directory}" "${wallet_name}" || return 2
+  if [[ ( "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* || "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ) &&
+    ( "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" == script || "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == MultiSig ) ]]; then
+    cntools_multisig_drep_choose_signers || return $?
+  elif [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == MultiSig ]]; then
+    cntools_multisig_stake_choose_signers cntools_wallet_register_begin || return $?
+    CNTOOLS_WALLET_REGISTER_CAN_SIGN="${CNTOOLS_STAKE_CAN_SIGN}"
+  fi
   cntools_transaction_ui_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || return $?
   cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then

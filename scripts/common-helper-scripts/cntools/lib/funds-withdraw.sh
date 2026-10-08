@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Full reward withdrawal to the same key wallet. No certificates or delegation changes.
+# Full reward withdrawal to the same wallet. No certificates or delegation changes.
 # shellcheck disable=SC2034
 
 CNTOOLS_WITHDRAW_REWARDS="0"
@@ -87,16 +87,20 @@ cntools_withdraw_plan() {
   local group="" summary="" policy=""
   cntools_transaction_plan_reset 'Withdraw rewards' \
     "Withdraw all claimable rewards for ${CNTOOLS_STAKE_WALLET} to its base address; registration and delegation remain unchanged." exact || return 1
-  [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != Hardware ]] || group=withdraw-wallet
-  cntools_transaction_plan_add_signer "${CNTOOLS_STAKE_WALLET} payment" spending \
-    "${CNTOOLS_STAKE_PAYMENT_VKEY}" "${CNTOOLS_STAKE_PAYMENT_SOURCE}" "${CNTOOLS_STAKE_PAYMENT_CREDENTIAL}" "${group}" || return 1
-  cntools_transaction_plan_add_signer "${CNTOOLS_STAKE_WALLET} stake" withdrawal \
-    "${CNTOOLS_STAKE_STAKE_VKEY}" "${CNTOOLS_STAKE_STAKE_SOURCE}" "${CNTOOLS_STAKE_STAKE_CREDENTIAL}" "${group}" || return 1
-  if [[ -n "${group}" ]]; then
-    cntools_transaction_plan_add_change_key 'Payment change' "${CNTOOLS_STAKE_PAYMENT_VKEY}" "${CNTOOLS_STAKE_PAYMENT_SOURCE}" "${group}" || return 1
-    cntools_transaction_plan_add_change_key 'Stake change' "${CNTOOLS_STAKE_STAKE_VKEY}" "${CNTOOLS_STAKE_STAKE_SOURCE}" "${group}" || return 1
+  if [[ "${CNTOOLS_STAKE_WALLET_TYPE}" == MultiSig ]]; then
+    cntools_multisig_stake_plan CNTOOLS_WITHDRAW_EXPIRY "${CNTOOLS_FUNDING_SLOT}" withdrawal || return 1
+  else
+    [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != Hardware ]] || group=withdraw-wallet
+    cntools_transaction_plan_add_signer "${CNTOOLS_STAKE_WALLET} payment" spending \
+      "${CNTOOLS_STAKE_PAYMENT_VKEY}" "${CNTOOLS_STAKE_PAYMENT_SOURCE}" "${CNTOOLS_STAKE_PAYMENT_CREDENTIAL}" "${group}" || return 1
+    cntools_transaction_plan_add_signer "${CNTOOLS_STAKE_WALLET} stake" withdrawal \
+      "${CNTOOLS_STAKE_STAKE_VKEY}" "${CNTOOLS_STAKE_STAKE_SOURCE}" "${CNTOOLS_STAKE_STAKE_CREDENTIAL}" "${group}" || return 1
+    if [[ -n "${group}" ]]; then
+      cntools_transaction_plan_add_change_key 'Payment change' "${CNTOOLS_STAKE_PAYMENT_VKEY}" "${CNTOOLS_STAKE_PAYMENT_SOURCE}" "${group}" || return 1
+      cntools_transaction_plan_add_change_key 'Stake change' "${CNTOOLS_STAKE_STAKE_VKEY}" "${CNTOOLS_STAKE_STAKE_SOURCE}" "${group}" || return 1
+    fi
+    cntools_transaction_plan_set_validity "" "${CNTOOLS_WITHDRAW_EXPIRY}" || return 1
   fi
-  cntools_transaction_plan_set_validity "" "${CNTOOLS_WITHDRAW_EXPIRY}" || return 1
   policy="$(cntools_change_policy_json)" || return 1
   summary="$(jq -cn --arg wallet "${CNTOOLS_STAKE_WALLET}" --arg rewards "${CNTOOLS_WITHDRAW_REWARDS}" \
     --arg address "${CNTOOLS_STAKE_REWARD_ADDRESS}" --arg destination "${CNTOOLS_STAKE_BASE_ADDRESS}" \
@@ -125,7 +129,10 @@ cntools_withdraw_build_into() {
     }
     cntools_withdraw_plan || return 1
     arguments=()
-    for input in "${CNTOOLS_WITHDRAW_INPUTS[@]}"; do arguments+=(--tx-in "${input}"); done
+    for input in "${CNTOOLS_WITHDRAW_INPUTS[@]}"; do
+      arguments+=(--tx-in "${input}")
+      [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != MultiSig ]] || arguments+=(--tx-in-script-file "${CNTOOLS_MULTISIG_SPEND_SCRIPT}")
+    done
     for output in "${CNTOOLS_CHANGE_OUTPUTS[@]}"; do
       cntools_withdraw_validate_output "${output}" || return 1
       arguments+=(--tx-out "${output}")
@@ -133,6 +140,7 @@ cntools_withdraw_build_into() {
     cntools_withdraw_validate_output "${CNTOOLS_STAKE_BASE_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}" || return 1
     arguments+=(--tx-out "${CNTOOLS_STAKE_BASE_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}"
       --withdrawal "${CNTOOLS_STAKE_REWARD_ADDRESS}+${CNTOOLS_WITHDRAW_REWARDS}")
+    [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != MultiSig ]] || arguments+=(--withdrawal-script-file "${CNTOOLS_MULTISIG_STAKE_SCRIPT}")
     output_count=$(("${#CNTOOLS_CHANGE_OUTPUTS[@]}"+1))
     cntools_transaction_temp_file body withdraw-body || return 1
     cntools_transaction_temp_remove "${body}" || return 1

@@ -42,8 +42,10 @@ cntools_collect_workflow() {
   cntools_wallet_catalog_build || return 2
   (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || { cntools_collect_fail 'No wallets are available.'; return 2; }
   cntools_wallet_choose selected Cancel collect || return $?
-  cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
+  cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" multisig || return 2
+  [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_spend_choose_signers cntools_collect_begin || return $?
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
+  [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || can_sign="${CNTOOLS_MULTISIG_CAN_SIGN}"
   cntools_ui_choose scope 'Collect which UTxOs?' 'ADA-only UTxOs' 'ADA and native assets' 'Cancel' || return $?
   case "${scope}" in
     'ADA-only UTxOs') CNTOOLS_COLLECT_SCOPE=ada ;;

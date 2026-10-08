@@ -10,6 +10,11 @@
     "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "wallet-query.sh",
+    "table.sh",
+    "blocklog.sh",
+    "blocklog-ui.sh"
   ]
 }

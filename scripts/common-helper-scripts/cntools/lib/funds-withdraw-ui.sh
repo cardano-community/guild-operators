@@ -47,6 +47,7 @@ cntools_withdraw_workflow() {
   (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || { cntools_withdraw_fail 'No wallets are available.'; return 2; }
   cntools_wallet_choose selected Cancel withdraw || return $?
   cntools_stake_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" "${CNTOOLS_WALLET_NAMES[selected]}" || return 2
+  [[ "${CNTOOLS_STAKE_WALLET_TYPE:-}" != MultiSig ]] || cntools_multisig_stake_choose_signers cntools_withdraw_begin || return $?
   cntools_transaction_ui_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || return $?
   cntools_transaction_ui_expiry_into lifetime || return $?
   cntools_ui_spin_function 'Checking rewards and building the withdrawal…' \

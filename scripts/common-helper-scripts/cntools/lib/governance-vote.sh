@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One verified key-DRep vote, funded by its wallet. Shared balancing/signing applies.
+# One verified key/script DRep vote. Shared balancing/signing applies.
 # shellcheck disable=SC2034
 CNTOOLS_GOV_VOTE_PROPOSAL='{}'
 CNTOOLS_GOV_VOTE_PREVIOUS='null'
@@ -50,7 +50,9 @@ cntools_gov_vote_eligible() {
 
 cntools_gov_vote_previous_into() {
   local -n gv_previous_result="$1"
-  local record="$2" output='' payload='' id='' key="keyHash-${CNTOOLS_DREP_LIFECYCLE_HASH}"
+  local record="$2" output='' payload='' id='' credential=keyHash script=false
+  [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" != script ]] || { credential=scriptHash; script=true; }
+  local key="${credential}-${CNTOOLS_DREP_LIFECYCLE_HASH}"
   if [[ "${CNTOOLS_PROPOSAL_BACKEND}" == local ]]; then
     gv_previous_result="$(jq -c --arg key "${key}" '.votes[$key] // null' <<< "${record}")" || return 1
   else
@@ -59,10 +61,10 @@ cntools_gov_vote_previous_into() {
     [[ "${id}" == gov_action1* ]] || return 1
     payload="$(jq -cn --arg id "${id}" '{_proposal_id:$id}')" || return 1
     cntools_transaction_temp_file output governance-prior-vote || return 1
-    cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/proposal_votes?voter_hex=eq.${CNTOOLS_DREP_LIFECYCLE_HASH}&voter_role=eq.DRep&voter_has_script=eq.false" "${payload}" "${output}" || return 1
-    gv_previous_result="$(jq -cs --arg hash "${CNTOOLS_DREP_LIFECYCLE_HASH}" '
+    cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/proposal_votes?voter_hex=eq.${CNTOOLS_DREP_LIFECYCLE_HASH}&voter_role=eq.DRep&voter_has_script=eq.${script}" "${payload}" "${output}" || return 1
+    gv_previous_result="$(jq -cs --arg hash "${CNTOOLS_DREP_LIFECYCLE_HASH}" --argjson script "${script}" '
       select(length == 1) | .[0] | select(type == "array" and length <= 1) |
-      if length == 0 then null else .[0] | select(.voter_hex == $hash and .voter_role == "DRep" and .voter_has_script == false) |
+      if length == 0 then null else .[0] | select(.voter_hex == $hash and .voter_role == "DRep" and .voter_has_script == $script) |
       .vote | if . == "Yes" then "VoteYes" elif . == "No" then "VoteNo"
         elif . == "Abstain" then "Abstain" else error("Unknown vote") end end' "${output}")" || return 1
   fi
@@ -79,7 +81,10 @@ cntools_gov_vote_file_create() {
   local verified_id=''
   cntools_proposal_id_into verified_id "${tx}" "${index}" || return 1
   [[ "${verified_id}" == "$(jq -r .id <<< "${CNTOOLS_GOV_VOTE_PROPOSAL}")" ]] || return 1
-  arguments+=(--governance-action-tx-id "${tx}" --governance-action-index "${index}" --drep-verification-key-file "${CNTOOLS_DREP_LIFECYCLE_VKEY}")
+  arguments+=(--governance-action-tx-id "${tx}" --governance-action-index "${index}")
+  local -a credential_args=()
+  cntools_drep_credential_arguments_into credential_args || return 1
+  arguments+=("${credential_args[@]}")
   if [[ -n "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" ]]; then
     arguments+=(--anchor-url "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" --anchor-data-hash "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH}")
   fi
@@ -104,7 +109,12 @@ cntools_gov_vote_plan_create() {
 }
 
 cntools_gov_vote_validate_body() {
-  local view='' identity='' decision="Vote${CNTOOLS_GOV_VOTE_DECISION}" anchor=null inputs='[]'
+  local view='' identity='' decision="Vote${CNTOOLS_GOV_VOTE_DECISION}" anchor=null inputs='[]' credential=keyHash lower='' scripted=false
+  [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" != script ]] || credential=scriptHash
+  if [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" == script || "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == MultiSig ]]; then
+    cntools_transaction_body_matches_plan "$1" || return 1
+    lower="${CNTOOLS_TRANSACTION_PLAN_INVALID_BEFORE}"; scripted=true
+  fi
   [[ "${CNTOOLS_GOV_VOTE_DECISION}" != Abstain ]] || decision=Abstain
   identity="$(jq -r '.tx+"#"+(.index|tostring)' <<< "${CNTOOLS_GOV_VOTE_PROPOSAL}")" || return 1
   if [[ -n "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" ]]; then
@@ -112,19 +122,20 @@ cntools_gov_vote_validate_body() {
   fi
   cntools_transaction_view_into view "$1" || return 1
   inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" | jq -Rsc 'split("\n")|map(select(length>0))|sort')" || return 1
-  jq -e --arg voter "drep-keyHash-${CNTOOLS_DREP_LIFECYCLE_HASH}" --arg identity "${identity}" --arg decision "${decision}" \
+  jq -e --arg voter "drep-${credential}-${CNTOOLS_DREP_LIFECYCLE_HASH}" --arg identity "${identity}" --arg decision "${decision}" --arg lower "${lower}" --argjson scripted "${scripted}" \
     --argjson anchor "${anchor}" --argjson inputs "${inputs}" --arg expiry "${CNTOOLS_WALLET_REGISTER_EXPIRY}" \
     --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" '
     .voters == {($voter):{($identity):{anchor:$anchor,decision:$decision}}} and
     (.certificates == null or .certificates == []) and (.inputs|sort) == $inputs and .fee == $fee and
     (."validity range"["upper bound"] | if . == null then "" else tostring end) == $expiry and
-    ."validity range"["lower bound"] == null and
+    (."validity range"["lower bound"] | if . == null then "" else tostring end) == $lower and
     (.outputs | length > 0 and all(.[]; .address == $address and .datum == null and ."reference script" == null)) and
     (.withdrawals == null or .withdrawals == []) and .mint == null and .metadata == null and
     (."governance actions" == null or ."governance actions" == []) and
     (."collateral inputs" == null or ."collateral inputs" == []) and (."reference inputs" == null or ."reference inputs" == []) and
     (.treasuryDonation == null or .treasuryDonation == 0) and .currentTreasuryValue == null and
-    (."auxiliary scripts" == null or ."auxiliary scripts" == []) and (.scripts == null or .scripts == []) and
+    (."auxiliary scripts" == null or ."auxiliary scripts" == []) and ($scripted or .scripts == null or .scripts == []) and
+    (.scripts == null or (.scripts | type == "array" and all(.[]; ."script data".type == "native"))) and
     (.redeemers == null or .redeemers == [])
   ' <<< "${view}" >/dev/null || {
     cntools_wallet_register_set_error 'The built transaction does not match the reviewed DRep, proposal, vote, rationale or wallet change.'; return 1;
@@ -136,6 +147,7 @@ cntools_gov_vote_recheck() {
   cntools_funding_collect "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}" || return 1
   [[ "${CNTOOLS_FUNDING_BACKEND}" == "${CNTOOLS_WALLET_REGISTER_BACKEND}" ]] || { cntools_wallet_register_set_error 'The chain-data source changed. Rebuild the vote.'; return 1; }
   [[ -z "${CNTOOLS_WALLET_REGISTER_EXPIRY}" ]] || ((CNTOOLS_FUNDING_SLOT < CNTOOLS_WALLET_REGISTER_EXPIRY)) || { cntools_wallet_register_set_error 'The vote transaction expired. Rebuild it.'; return 1; }
+  [[ -z "${CNTOOLS_TRANSACTION_PLAN_INVALID_BEFORE:-}" ]] || ((CNTOOLS_FUNDING_SLOT >= CNTOOLS_TRANSACTION_PLAN_INVALID_BEFORE)) || { cntools_wallet_register_set_error 'The payment or DRep script is not valid at the current chain tip. Rebuild the vote.'; return 1; }
   for reference in "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}"; do
     [[ -n "${CNTOOLS_UTXO_INDEX_BY_REF[${reference}]+x}" ]] || { cntools_wallet_register_set_error 'A selected input was spent. Rebuild the vote.'; return 1; }
   done

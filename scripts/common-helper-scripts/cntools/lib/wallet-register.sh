@@ -663,6 +663,7 @@ cntools_wallet_register_certificate_create() {
   local output_file=""
   local error_file=""
   local status=0
+  local -a stake_arguments=()
 
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then cntools_gov_vote_file_create; return $?; fi
 
@@ -694,10 +695,13 @@ cntools_wallet_register_certificate_create() {
     return 1
   cntools_transaction_temp_file error_file register-certificate-error ||
     return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig ]]; then
+    cntools_stake_credential_arguments_into stake_arguments || return 1
+  else stake_arguments=(--stake-verification-key-file "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}"); fi
   if cntools_transaction_run_cli "${output_file}" "${error_file}" -- \
       "${CNTOOLS_CLI}" latest stake-address \
       "${CNTOOLS_WALLET_REGISTER_CERTIFICATE_COMMAND}" \
-      --stake-verification-key-file "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}" \
+      "${stake_arguments[@]}" \
       --key-reg-deposit-amt "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" \
       --out-file "${certificate_file}"; then
     status=0
@@ -762,28 +766,32 @@ cntools_wallet_register_plan_create() {
     "${intent_description}" \
     exact || return 1
   cntools_transaction_plan_set_validity "" "${CNTOOLS_WALLET_REGISTER_EXPIRY}" || return 1
-  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == "Hardware" ]]; then
-    payment_group="wallet-stake"
-    stake_group="wallet-stake"
-  fi
-  cntools_transaction_plan_add_signer \
-    "${CNTOOLS_WALLET_REGISTER_WALLET} payment key" spending \
-    "${CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY}" \
-    "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" \
-    "${CNTOOLS_WALLET_REGISTER_PAYMENT_CREDENTIAL}" \
-    "${payment_group}" || return 1
-  cntools_transaction_plan_add_signer \
-    "${CNTOOLS_WALLET_REGISTER_WALLET} stake key" certificate \
-    "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}" \
-    "${CNTOOLS_WALLET_REGISTER_STAKE_SOURCE}" \
-    "${CNTOOLS_WALLET_REGISTER_STAKE_CREDENTIAL}" \
-    "${stake_group}" || return 1
-  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == "Hardware" ]]; then
-    cntools_transaction_plan_add_change_key \
-      "${CNTOOLS_WALLET_REGISTER_WALLET} base-address payment key" \
+  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig ]]; then
+    cntools_multisig_stake_plan CNTOOLS_WALLET_REGISTER_EXPIRY "${CNTOOLS_MULTISIG_STAKE_SLOT}" certificate || return 1
+  else
+    if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == "Hardware" ]]; then
+      payment_group="wallet-stake"
+      stake_group="wallet-stake"
+    fi
+    cntools_transaction_plan_add_signer \
+      "${CNTOOLS_WALLET_REGISTER_WALLET} payment key" spending \
       "${CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY}" \
       "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" \
-      wallet-stake || return 1
+      "${CNTOOLS_WALLET_REGISTER_PAYMENT_CREDENTIAL}" \
+      "${payment_group}" || return 1
+    cntools_transaction_plan_add_signer \
+      "${CNTOOLS_WALLET_REGISTER_WALLET} stake key" certificate \
+      "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}" \
+      "${CNTOOLS_WALLET_REGISTER_STAKE_SOURCE}" \
+      "${CNTOOLS_WALLET_REGISTER_STAKE_CREDENTIAL}" \
+      "${stake_group}" || return 1
+    if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == "Hardware" ]]; then
+      cntools_transaction_plan_add_change_key \
+        "${CNTOOLS_WALLET_REGISTER_WALLET} base-address payment key" \
+        "${CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY}" \
+        "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" \
+        wallet-stake || return 1
+    fi
   fi
   if (( ${#CNTOOLS_WALLET_REGISTER_INPUTS[@]} > 0 )); then
     selected_inputs="$(printf '%s\n' "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}" |
@@ -859,7 +867,7 @@ cntools_wallet_register_build_balanced_into() {
   local body="" package_path="" input="" output="" next_fee="" accounted="" value="" available=""
   local attempt=0 index=0 max_size=0 body_bytes=0 witnesses=0 output_count=0
   local -a arguments=()
-  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in register|deregister|delegate|vote-delegate|drep-register|drep-update|drep-retire|gov-vote|pool-register|pool-modify) ;; *) return 2 ;; esac
+  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in register|deregister|delegate|vote-delegate|drep-register|drep-update|drep-retire|gov-vote|pool-register|pool-modify|pool-retire) ;; *) return 2 ;; esac
   for index in "${CNTOOLS_COIN_SELECTED_INDICES[@]}"; do
     [[ "${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[index]}" == N ]] || {
       cntools_wallet_register_set_error 'A selected input contains a reference script. This transaction does not support spending these inputs; use ordinary UTxOs.'; return 1;
@@ -877,7 +885,10 @@ cntools_wallet_register_build_balanced_into() {
     CNTOOLS_WALLET_REGISTER_POLICY_JSON="$(cntools_change_policy_json)" || return 1
     cntools_wallet_register_plan_create || return 1
     arguments=()
-    for input in "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}"; do arguments+=(--tx-in "${input}"); done
+    for input in "${CNTOOLS_WALLET_REGISTER_INPUTS[@]}"; do
+      arguments+=(--tx-in "${input}")
+      [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" != MultiSig ]] || arguments+=(--tx-in-script-file "${CNTOOLS_MULTISIG_SPEND_SCRIPT}")
+    done
     # Charges belong on the output side; refunds belong on the input side.
     # Refund the recorded stake/DRep deposit, not today's protocol deposit.
     available="${CNTOOLS_WALLET_REGISTER_LOVELACE}"
@@ -899,8 +910,14 @@ cntools_wallet_register_build_balanced_into() {
     output_count=$(( ${#CNTOOLS_CHANGE_OUTPUTS[@]} + 1 ))
     if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
       arguments+=(--vote-file "${CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE}")
+      [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" != script ]] || arguments+=(--vote-script-file "${CNTOOLS_MULTISIG_DREP_SCRIPT}")
     else
       arguments+=(--certificate-file "${CNTOOLS_WALLET_REGISTER_CERTIFICATE_FILE}")
+      if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+        [[ "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" != script ]] || arguments+=(--certificate-script-file "${CNTOOLS_MULTISIG_DREP_SCRIPT}")
+      elif [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig ]]; then
+        arguments+=(--certificate-script-file "${CNTOOLS_MULTISIG_STAKE_SCRIPT}")
+      fi
       if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-* ]]; then
         for output in "${CNTOOLS_POOL_EXTRA_CERTIFICATES[@]}"; do arguments+=(--certificate-file "${output}"); done
       fi
@@ -949,6 +966,8 @@ cntools_wallet_register_build_balanced_into() {
 # hardware normalization. Intent metadata alone is not sufficient.
 cntools_wallet_register_validate_body() {
   local view="" kind="" deposit_field=""
+  local credential_kind=keyHash
+  [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" != MultiSig ]] || credential_kind=scriptHash
   case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
     register) kind='Stake address registration'; deposit_field=deposit ;;
     deregister) kind='Stake address deregistration'; deposit_field=refund ;;
@@ -959,11 +978,12 @@ cntools_wallet_register_validate_body() {
     --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
     --arg deposit "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" \
     --arg depositField "${deposit_field}" \
+    --arg credentialKind "${credential_kind}" \
     --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" '
       (.certificates | type == "array" and length == 1) and
       (.certificates[0] | keys == [$kind]) and
       (.certificates[0][$kind] |
-        .["stake credential"] == {keyHash:$stake} and
+        .["stake credential"] == {($credentialKind):$stake} and
         (.[$depositField] | tostring) == $deposit) and
       .fee == $fee and
       (.withdrawals == null or .withdrawals == []) and .mint == null and .metadata == null and
@@ -1003,6 +1023,15 @@ cntools_wallet_register_build_package_into() {
     }
   fi
   cntools_transaction_expiry_into CNTOOLS_WALLET_REGISTER_EXPIRY "${current_slot}" "${CNTOOLS_WALLET_REGISTER_LIFETIME}" || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == MultiSig ||
+    ( "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* || "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ) && "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" == script ]]; then
+    if [[ -z "${current_slot}" ]]; then
+      cntools_funding_tip_into current_slot "${CNTOOLS_WALLET_REGISTER_BACKEND}" || {
+        cntools_wallet_register_set_error 'Could not get the current chain slot to check multisig time locks.'; return 1;
+      }
+    fi
+    CNTOOLS_MULTISIG_STAKE_SLOT="${current_slot}"
+  fi
   cntools_wallet_register_certificate_create || return 1
   cntools_wallet_register_build_balanced_into "${_cntools_output_name}" || {
     [[ -n "${CNTOOLS_WALLET_REGISTER_ERROR}" ]] ||

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# CNTools placeholder action. Functions only.
+# Guided no-overwrite backup restore.
 
 cntools_action_main() {
-  cntools_action_placeholder
+  cntools_backup_action_restore
+}
+
+cntools_action_cleanup() {
+  cntools_backup_cleanup
 }

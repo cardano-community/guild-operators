@@ -137,20 +137,23 @@ write_legacy_inventory | LC_ALL=C sort > "${actual_inventory}"
 diff -u "${expected_inventory}" "${actual_inventory}" ||
   fail "CNTools legacy menu hierarchy differs from the Phase 4 inventory"
 
-assert_eq "$(wc -l < "${MENU_FIXTURE}" | trim_count)" "76" \
+assert_eq "$(wc -l < "${MENU_FIXTURE}" | trim_count)" "75" \
   "module inventory count"
 assert_eq "$(grep -c $'\tmenu\t' "${MENU_FIXTURE}" | trim_count)" "16" \
   "menu inventory count"
-assert_eq "$(grep -c $'\taction\t' "${MENU_FIXTURE}" | trim_count)" "60" \
+assert_eq "$(grep -c $'\taction\t' "${MENU_FIXTURE}" | trim_count)" "59" \
   "action inventory count"
-assert_eq "$(find "${MODULE_ROOT}" -type d -print | wc -l | trim_count)" "80" \
+assert_eq "$(find "${MODULE_ROOT}" -type d -print | wc -l | trim_count)" "79" \
   "Phase 5 module directory count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -name module.json -print | wc -l | trim_count)" "80" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -name module.json -print | wc -l | trim_count)" "79" \
   "Phase 5 module metadata count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -name action.sh -print | wc -l | trim_count)" "63" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -name action.sh -print | wc -l | trim_count)" "62" \
   "Phase 5 action entrypoint count"
-assert_eq "$(find "${MODULE_ROOT}" -type f -print | wc -l | trim_count)" "143" \
+assert_eq "$(find "${MODULE_ROOT}" -type f -print | wc -l | trim_count)" "141" \
   "Phase 7 module payload file count"
+[[ ! -e "${MODULE_ROOT}/advanced/metadata" &&
+   ! -L "${MODULE_ROOT}/advanced/metadata" ]] ||
+  fail 'Standalone Advanced Metadata must remain removed; use Funds Send metadata'
 [[ -z "$(find "${MODULE_ROOT}" -type l -print)" ]] ||
   fail "CNTools menu skeleton contains a symbolic link"
 
@@ -371,6 +374,7 @@ while IFS=$'\t' read -r \
         jq -e '(.libs - ["wallet-selection.sh"]) == [
           "number.sh",
           "wallet.sh",
+          "table.sh",
           "wallet-material.sh",
           "wallet-key.sh",
           "wallet-address.sh",
@@ -390,6 +394,8 @@ while IFS=$'\t' read -r \
           "coin-selection.sh",
           "change-plan.sh",
           "wallet-stake.sh",
+          "multisig-spend.sh",
+          "multisig-stake.sh",
           "wallet-register.sh",
           "wallet-register-ui.sh"
         ]' \
@@ -413,6 +419,20 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_funds_action_collect' "${action_file}" >/dev/null || fail "collection entrypoint missing"
         grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "collection cleanup missing"
         ;;
+      advanced/multisig/create|advanced/multisig/derive-keys)
+        jq -e '.libs | index("multisig-key.sh") != null and index("multisig-wallet.sh") != null and index("multisig-ui.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail 'Multisig action dependencies missing'
+        grep -F 'cntools_multisig_action_' "${action_file}" >/dev/null || fail 'Multisig action entrypoint missing'
+        grep -F 'cntools_wallet_create_cleanup' "${action_file}" >/dev/null || fail 'Multisig cleanup missing'
+        ;;
+      advanced/asset/list|advanced/asset/show|advanced/asset/encrypt-policy|advanced/asset/decrypt-policy|advanced/asset/mint|advanced/asset/burn|advanced/asset/register)
+        jq -e '.libs | index("policy-catalog.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail 'Asset action dependencies missing'
+        grep -F 'cntools_policy_files_cleanup' "${action_file}" >/dev/null || fail 'Asset action cleanup missing'
+        ;;
+      advanced/asset/create-policy)
+        jq -e '.libs | index("policy-files.sh") != null and index("policy.sh") != null and index("policy-ui.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail 'Policy creation dependencies missing'
+        grep -F 'cntools_policy_action_create' "${action_file}" >/dev/null || fail 'Policy creation entrypoint missing'
+        grep -F 'cntools_policy_files_cleanup' "${action_file}" >/dev/null || fail 'Policy creation cleanup missing'
+        ;;
       pool/new|pool/import|pool/encrypt|pool/decrypt)
         jq -e '.libs | index("pool-files.sh") != null and index("pool-key.sh") != null and index("pool-manage-ui.sh") != null and index("placeholder.sh") == null' \
           "${metadata}" >/dev/null || fail "Pool management dependencies missing: ${module_id}"
@@ -423,6 +443,10 @@ while IFS=$'\t' read -r \
         jq -e '.libs | index("pool-kes.sh") != null and index("pool-kes-ui.sh") != null and index("pool-opcert-validation.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail "KES rotation dependencies missing"
         grep -F 'cntools_pool_action_rotate' "${action_file}" >/dev/null || fail "KES rotation entrypoint missing"
         grep -F 'cntools_kes_cleanup' "${action_file}" >/dev/null || fail "KES rotation cleanup missing"
+        ;;
+      pool/retire)
+        jq -e '.libs | index("pool-retirement.sh") != null and index("pool-retirement-ui.sh") != null and index("pool-registration-ui.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail 'Pool retirement dependencies missing'
+        grep -F 'cntools_pool_action_retire' "${action_file}" >/dev/null || fail 'Pool retirement not wired'
         ;;
       pool/register|pool/modify)
         jq -e '.libs | index("pool-registration.sh") != null and index("pool-registration-ui.sh") != null and index("wallet-register.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail "Pool registration dependencies missing"
@@ -441,14 +465,23 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_funds_action_delegate' "${action_file}" >/dev/null || fail "delegation entrypoint missing"
         ;;
       vote/governance/proposals|vote/governance/cast)
+        if [[ "${module_id}" == vote/governance/cast ]]; then
+          jq -e '.libs | index("multisig-spend.sh") != null and index("multisig-drep.sh") != null and index("drep-script.sh") != null' "${metadata}" >/dev/null || fail 'DRep voting multisig dependencies missing'
+        fi
         jq -e '.libs | index("governance-proposal.sh") != null and index("governance-proposal-ui.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail "governance proposal dependencies missing"
         grep -F 'cntools_governance_action_' "${action_file}" >/dev/null || fail "governance entrypoint missing"
         grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "governance cleanup missing"
         ;;
       vote/governance/drep-register|vote/governance/drep-retire)
+        jq -e '.libs | index("multisig-spend.sh") != null and index("multisig-drep.sh") != null and index("drep-script.sh") != null' "${metadata}" >/dev/null || fail 'DRep multisig transaction dependencies missing'
         jq -e '.libs | index("governance-drep.sh") != null and index("governance-drep-ui.sh") != null and index("wallet-payment.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail "DRep lifecycle dependencies missing"
         grep -F 'cntools_governance_action_drep_' "${action_file}" >/dev/null || fail "DRep lifecycle entrypoint missing"
         grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "DRep lifecycle cleanup missing"
+        ;;
+      vote/governance/multisig-drep)
+        jq -e '.libs | index("drep-script.sh") != null and index("drep-script-ui.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail 'Script DRep dependencies missing'
+        grep -F 'cntools_drep_script_action_create' "${action_file}" >/dev/null || fail 'Script DRep entrypoint missing'
+        grep -F 'cntools_drep_script_publication_cleanup' "${action_file}" >/dev/null || fail 'Script DRep publication cleanup missing'
         ;;
       vote/governance/derive-keys|vote/governance/info)
         jq -e '.libs | index("drep-key.sh") != null and index("governance-wallet-ui.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail "governance wallet dependencies missing"
@@ -500,6 +533,16 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_transaction_action_submit' "${action_file}" >/dev/null ||
           fail "Transaction Submit does not call its functional entrypoint"
         ;;
+      backup/create|backup/restore)
+        jq -e '.libs == ["number.sh", "wallet.sh", "wallet-query.sh", "transaction.sh", "table.sh", "key-crypto.sh", "backup-files.sh", "backup.sh", "backup-ui.sh"] and .modes == ["local", "light", "offline"]' "${metadata}" >/dev/null || fail 'Backup dependencies/modes missing'
+        grep -F 'cntools_backup_action_' "${action_file}" >/dev/null || fail 'Backup entrypoint missing'
+        grep -F 'cntools_backup_cleanup' "${action_file}" >/dev/null || fail 'Backup cleanup missing'
+        ;;
+      blocks/summary|blocks/epoch)
+        jq -e '.libs == ["number.sh", "wallet.sh", "wallet-query.sh", "table.sh", "blocklog.sh", "blocklog-ui.sh"] and .modes == ["local", "light", "offline"]' "${metadata}" >/dev/null || fail 'Blocks dependencies/modes missing'
+        grep -F 'cntools_blocks_action' "${action_file}" >/dev/null || fail 'Blocks entrypoint missing'
+        grep -F 'cntools_blocklog_cleanup' "${action_file}" >/dev/null || fail 'Blocks cleanup missing'
+        ;;
       advanced/clear-asset-cache)
         jq -e '.libs == ["asset-cache.sh"]' "${metadata}" >/dev/null ||
           fail "Asset cache has unexpected library declarations"
@@ -547,7 +590,7 @@ while IFS=$'\t' read -r \
   fi
 done < "${MENU_FIXTURE}"
 
-assert_eq "${connected_only}" "23" "local/light-only action count"
+assert_eq "${connected_only}" "22" "local/light-only action count"
 assert_eq "${offline_capable}" "37" "offline-capable action count"
 [[ -f "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    ! -L "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
@@ -713,7 +756,12 @@ while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    pool/list|pool/show|pool/new|pool/import|pool/encrypt|pool/decrypt|pool/register|pool/modify|pool/rotate) continue ;;
+    advanced/asset/*) continue ;;
+    advanced/multisig/create|advanced/multisig/derive-keys) continue ;;
+    vote/governance/multisig-drep) continue ;;
+    backup/create|backup/restore) continue ;;
+    blocks/summary|blocks/epoch) continue ;;
+    pool/list|pool/show|pool/new|pool/import|pool/encrypt|pool/decrypt|pool/register|pool/modify|pool/rotate|pool/retire) continue ;;
     wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/transactions|wallet/utxos|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|funds/withdraw|funds/delegate|funds/collect|vote/governance/delegate|vote/governance/derive-keys|vote/governance/info|vote/governance/drep-register|vote/governance/drep-retire|vote/governance/proposals|vote/governance/cast|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"

@@ -11,6 +11,7 @@
   "libs": [
     "number.sh",
     "wallet.sh",
+    "table.sh",
     "wallet-material.sh",
     "wallet-key.sh",
     "wallet-address.sh",
@@ -29,6 +30,8 @@
     "coin-selection.sh",
     "change-plan.sh",
     "wallet-stake.sh",
+    "multisig-spend.sh",
+    "multisig-stake.sh",
     "transaction-funding.sh",
     "funds-withdraw.sh",
     "funds-withdraw-ui.sh",

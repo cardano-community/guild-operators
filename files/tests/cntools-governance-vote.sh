@@ -118,6 +118,9 @@ SPENT=N SOURCE=local; if cntools_gov_vote_recheck; then fail 'backend switch acc
 SOURCE=koios CURRENT="$(jq '.ratified=true' <<< "${koios_record}")"; if cntools_gov_vote_recheck; then fail 'closed proposal accepted'; fi
 CURRENT="${koios_record}" CNTOOLS_WALLET_REGISTER_EXPIRY=1000; if cntools_gov_vote_recheck; then fail 'expired transaction accepted'; fi
 CNTOOLS_WALLET_REGISTER_EXPIRY=''; cntools_gov_vote_recheck || fail 'No expiry recheck'
+CNTOOLS_TRANSACTION_PLAN_INVALID_BEFORE=1001
+if cntools_gov_vote_recheck; then fail 'not-yet-valid script accepted'; fi
+CNTOOLS_TRANSACTION_PLAN_INVALID_BEFORE=''
 
 # Real selection/confirmation controls never interpret cancellation as approval.
 (

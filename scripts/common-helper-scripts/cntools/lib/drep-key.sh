@@ -174,7 +174,10 @@ cntools_drep_key_inspect() {
     cntools_drep_key_error 'Conflicting DRep signing material. Existing files were retained.'; return 1
   fi
   if cntools_wallet_material_entry_exists "${directory}/${CNTOOLS_WALLET_DREP_SCRIPT_FILENAME:-drep.script}"; then
-    cntools_drep_key_error 'Script DRep wallet inspection belongs to the upcoming multisig slice.'; return 1
+    if declare -F cntools_drep_script_inspect >/dev/null; then
+      cntools_drep_script_inspect "${directory}"; return $?
+    fi
+    cntools_drep_key_error 'Script DRep inspection requires the DRep script library.'; return 1
   fi
   if [[ "${cli_available}" == Y ]]; then
     cntools_wallet_key_materialize_role "${directory}" drep "${names[0]}" "${names[1]}" \

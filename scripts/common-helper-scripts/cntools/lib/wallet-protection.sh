@@ -261,6 +261,8 @@ cntools_wallet_protection_keys_into() {
       case "${_cntools_allowed_gpg}" in
         "${CNTOOLS_WALLET_PAY_SKEY_FILENAME}.gpg"|\
         "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}.gpg"|\
+        "${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_PAY_SKEY_FILENAME}.gpg"|\
+        "${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}.gpg"|\
         "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}.gpg") ;;
         *)
           cntools_wallet_protection_set_error \
@@ -271,11 +273,13 @@ cntools_wallet_protection_keys_into() {
     done
   fi
 
-  for _cntools_role in payment stake drep; do
+  for _cntools_role in payment stake drep ms-payment ms-stake; do
     case "${_cntools_role}" in
       payment) _cntools_filename="${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" ;;
       stake) _cntools_filename="${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" ;;
       drep) _cntools_filename="${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" ;;
+      ms-payment) _cntools_filename="${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" ;;
+      ms-stake) _cntools_filename="${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" ;;
     esac
     _cntools_clear_file="${_cntools_wallet_directory}/${_cntools_filename}"
     _cntools_encrypted_file="${_cntools_clear_file}.gpg"
@@ -290,7 +294,7 @@ cntools_wallet_protection_keys_into() {
         if [[ ! -f "${_cntools_clear_file}" || -L "${_cntools_clear_file}" ||
               ! -O "${_cntools_clear_file}" ]] ||
            ! cntools_wallet_key_signing_type \
-             "${_cntools_role}" "${_cntools_clear_file}" _cntools_signing_form; then
+             "${_cntools_role#ms-}" "${_cntools_clear_file}" _cntools_signing_form; then
           cntools_wallet_protection_set_error \
             "The ${_cntools_role} signing key is unsafe or invalid."
           return 1
@@ -318,7 +322,7 @@ cntools_wallet_protection_keys_into() {
         ;;
       *) return 2 ;;
     esac
-    _cntools_roles_ref+=("${_cntools_role}")
+    _cntools_roles_ref+=("${_cntools_role#ms-}")
   done
   if (( ${#_cntools_files_ref[@]} == 0 )); then
     if [[ "${_cntools_operation}" == "encrypt" ]]; then

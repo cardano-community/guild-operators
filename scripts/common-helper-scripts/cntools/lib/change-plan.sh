@@ -319,7 +319,7 @@ cntools_change_plan_stake() {
     residual_min="${CNTOOLS_CHANGE_EFFECTIVE_MIN_LOVELACE}"
   fi
   case "${operation}" in
-    register|delegate|vote-delegate|collect|drep-register|drep-update|gov-vote|pool-register|pool-modify)
+    register|delegate|vote-delegate|collect|drep-register|drep-update|gov-vote|pool-register|pool-modify|pool-retire)
       cntools_uint_add_into balance_cost \
         "${deposit}" "${fee_reserve}" || return 1
       cntools_uint_add_into balance_cost \

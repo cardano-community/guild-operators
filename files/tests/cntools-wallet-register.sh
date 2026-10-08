@@ -640,12 +640,12 @@ test_registration_package
 test_deregistration_package
 
 jq -e '.libs == [
-  "number.sh", "wallet.sh", "wallet-material.sh", "wallet-key.sh",
+  "number.sh", "wallet.sh", "table.sh", "wallet-material.sh", "wallet-key.sh",
   "wallet-address.sh", "wallet-id.sh", "asset.sh", "asset-cache.sh",
   "wallet-query.sh", "utxo.sh", "transaction.sh",
   "transaction-build.sh", "transaction-sign.sh", "transaction-submit.sh", "transaction-monitor.sh",
   "transaction-ui.sh", "transaction-files.sh", "transaction-funding.sh", "coin-selection.sh", "change-plan.sh",
-  "wallet-stake.sh", "wallet-register.sh", "wallet-register-ui.sh", "wallet-selection.sh"
+  "wallet-stake.sh", "multisig-spend.sh", "multisig-stake.sh", "wallet-register.sh", "wallet-register-ui.sh", "wallet-selection.sh"
 ]' "${CNTOOLS_ROOT}/modules/root/wallet/register/module.json" >/dev/null ||
   fail "Wallet Register module library order is incorrect"
 grep -F 'cntools_wallet_action_register' \

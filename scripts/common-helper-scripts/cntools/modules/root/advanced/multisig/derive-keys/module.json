@@ -10,6 +10,20 @@
     "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "table.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "wallet-create.sh",
+    "wallet-mnemonic.sh",
+    "wallet-mnemonic-ui.sh",
+    "wallet-hardware.sh",
+    "transaction.sh",
+    "multisig-key.sh",
+    "multisig-wallet.sh",
+    "multisig-ui.sh"
   ]
 }

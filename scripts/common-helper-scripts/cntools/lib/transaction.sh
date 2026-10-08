@@ -1739,10 +1739,11 @@ cntools_transaction_native_script_valid() {
         keys == ["scripts", "type"] and
         (.scripts | type == "array" and length > 0 and all(.[]; valid_script))
       elif .type == "atLeast" then
+        .required as $required |
         keys == ["required", "scripts", "type"] and
         (.required | type == "number" and floor == . and . >= 0) and
         (.scripts | type == "array" and length > 0 and
-          .required <= length and all(.[]; valid_script))
+          $required <= length and all(.[]; valid_script))
       else false
       end;
     valid_script

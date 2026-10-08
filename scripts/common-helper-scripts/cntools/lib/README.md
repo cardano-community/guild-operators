@@ -16,7 +16,48 @@ shared Gum review, confirmations and recovery hand-off. Read-only KES health
 remains in `pool-health.sh`; the registration wizard's missing-only first
 certificate remains separate in `pool-opcert.sh`. They share the issuance lock.
 
+`pool-retirement.sh` validates current retirement bounds/state and the exact
+cold-key certificate. `pool-retirement-ui.sh` supplies the guided epoch choice
+and compact review. Registration, modification and retirement reuse the same
+pool transaction plan/body guards and export/sign/submit/result flow; retirement
+never applies an immediate pool deposit refund or requests owner stake witnesses.
+
+Backup uses `backup-files.sh` for private staging, filesystem checks, bounded
+archive inspection and no-overwrite publication; `backup.sh` for public/full
+snapshots, manifest verification, GPG and conservative legacy restore; and
+`backup-ui.sh` for the shared-table wizard, warnings and passphrase capture.
+They reuse transaction filesystem helpers without initializing a CLI or making
+chain queries. Restore validates tar paths/types before unpacking only into
+empty private staging, retains a complete recovery copy, never merges live
+folders, and does not activate pending KES recovery state. The shared
+`key-crypto.sh` supplies GPG transport with optional timeout/output bounds;
+its existing key-protection callers keep their original defaults.
+Passwords/private contents are not logged.
+
+`blocklog.sh` reads and aggregates CNCLI SQLite journals through bounded,
+read-only transactions without node/CLI queries or schema changes. It supports
+optional schedule statistics, avoids ambiguous multi-pool ideal/luck values,
+and owns only temporary query output. `blocklog-ui.sh` supplies the shared-table
+summary, paged epoch records/details, status guide and manual refresh. Dates use
+the core timezone formatter. Both actions work offline and clean staging on exit.
+
 Libraries are sourced only by actions that declare their relative path.
+Native policy creation uses `policy-files.sh` for private staging/no-overwrite
+publication, `policy.sh` for single-signer scripts and verified key/hash creation,
+and `policy-ui.sh` for the compact review. It shares strict wallet key-envelope
+validation and transaction command/filesystem helpers without querying a node.
+Expiry is reviewed once and never extended silently during generation.
+`policy-catalog.sh` reads legacy/current policies and asset records and freezes
+verified single-signer authority. `policy-manage-ui.sh` provides shared-table
+inspection and optional cached Koios enrichment. `policy-protection.sh` and
+`policy-lock.sh` use the common GPG transport for verified key replacement and
+owner-only/optional immutable protection, including short legacy passwords.
+`asset-transaction.sh` implements lossless native mint/burn, exact CLI fees,
+input/value guards and policy-bound validity on the common funding, selection,
+change and portable signing foundation. `asset-transaction-ui.sh` supplies its
+common review/export/submit workflow. `asset-registry.sh` isolates and validates
+token-metadata-creator exports, while `asset-registry-ui.sh` guides manual
+registry submissions without claiming on-chain or registry acceptance.
 `placeholder.sh` provides the shared inert-action notice used by the Phase 4
 menu skeleton.
 
@@ -122,7 +163,7 @@ references; ordinary `.skey` files are forbidden by its validator. Account and
 key index default to zero. The reusable path builder accepts numeric BIP32
 purpose, account, role, and index components, while this action deliberately
 permits only CIP-1852 payment role 0 and stake role 2. CIP-1854 multisignature
-and governance derivation remain separate future actions.
+derivation lives in Advanced → MultiSig; governance derivation remains separate.
 
 Wallet Encrypt and Decrypt load the smaller protection stack instead of the
 query or creation libraries:
@@ -290,8 +331,59 @@ unverified and leaves final ledger validation to the local node or Koios.
 External Byron/bootstrap witness sets are rejected. Submission prefers a ready
 local node and falls back to enabled Koios access; offline submission is
 prohibited. The transaction contracts use the pinned
-Cardano CLI `11.0.0.0`, and hardware signing requires the exact tested
+Cardano CLI `11.2.3.1` from the cnode deployment pin, and hardware signing requires the exact tested
 `cardano-hw-cli` release `1.19.1`. Package, signer-source, hardware-change,
 output, review, and submission selections are recorded in the normal CNTools
 audit log without logging key contents. The Cardano CLI version is validated
 lazily on the first transaction operation and then retained for the session.
+
+### Multisig adapters
+
+`multisig-key.sh` adds separate participant key pairs without replacing wallet
+keys; custom software recovery paths use the pinned `cardano-address` companion
+over stdin, and hardware paths use the existing device/export validation.
+`multisig-wallet.sh` creates deterministic threshold payment/stake scripts and
+publishes only the validated public wallet shape. `multisig-ui.sh` owns the
+guided participant/threshold/path/timelock review, not transaction construction.
+
+`multisig-spend.sh` adapts Send/Collect to frozen native scripts and an explicitly
+chosen signer subset. It verifies script/address binding, checks mandatory time
+bounds, registers public identities/runtime sources with the shared signer plan,
+and attaches the script to each selected input. The ordinary transaction
+foundation remains responsible for exact fees, witness verification, hardware
+preparation, offline collection and package completeness.
+
+`multisig-stake.sh` adapts registration, de-registration, pool/voting delegation
+and withdrawal without duplicating balancing or state checks. It verifies
+frozen payment/stake scripts against all wallet addresses, selects the two
+participant subsets independently, intersects their mandatory time bounds with
+the requested TTL, and registers each script's spend/certificate/withdrawal
+purpose. The shared signer plan merges a key used by both scripts into one
+witness with both roles. Builders attach the payment script per input and the
+stake script to its certificate or withdrawal; deposits/refunds, reward gates,
+rechecks and portable offline packages retain the ordinary action contract.
+Distinct-signature `atLeast` branches with optional mandatory time bounds are
+supported; arbitrary alternative branches and committee identities remain
+deferred. Pool operator identities retain their existing key-wallet guards;
+DRep transactions use the separate script authorization adapter below.
+
+`drep-script.sh` owns public-participant validation, deterministic threshold
+DRep creation, no-overwrite/inode-tracked publication and native-script identity
+inspection. It shares the native script writer, CLI script-hash verification
+and CIP-129 encoder rather than introducing a second signing implementation.
+`drep-script-ui.sh` owns cancellable participant/threshold review. No private
+participant keys are copied and no transaction is created. The key inspector
+routes script identities to this focused helper; Info & Status and local voting
+delegation targets reuse it. Cached-only offline inspection is explicitly
+unverified against the script.
+
+`multisig-drep.sh` adapts the existing DRep registration/update/retirement and
+vote builders to script credentials. Payment and DRep subsets have isolated
+selection state and independent thresholds; their mandatory time bounds are
+intersected with the requested expiry. Shared signer IDs merge into one witness
+with both purposes. The shared transaction plan binds each embedded script,
+selected signer set and interval to the body, while existing operation-specific
+validators still check exact certificates/votes, deposits, anchors and change.
+Key DReps may also use multisig funding. Source paths stay in runtime memory;
+portable public packages support independent offline participants. No parallel
+fee, signing or submission implementation is introduced.

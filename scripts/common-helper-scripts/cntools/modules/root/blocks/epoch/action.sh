@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# CNTools placeholder action. Functions only.
+# CNCLI epoch entrypoint. Functions only.
 
 cntools_action_main() {
-  cntools_action_placeholder
+  cntools_blocks_action Epoch
 }
+
+cntools_action_cleanup() { cntools_blocklog_cleanup; }

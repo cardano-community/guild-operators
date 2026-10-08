@@ -97,6 +97,7 @@ cntools_pool_registration_can_sign_into() {
   local source='' record=''
   pcs_result=N
   [[ -n "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" && -n "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]] || return 0
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then pcs_result=Y; return 0; fi
   while IFS= read -r record; do
     source="$(jq -r .source <<< "${record}")"; [[ -n "${source}" ]] || return 0
   done < <(jq -cn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --argjson extra "${CNTOOLS_POOL_EXTRA_RECORDS:-[]}" '$owners+$extra | unique_by(.hash) | .[]')

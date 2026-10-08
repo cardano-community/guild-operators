@@ -154,9 +154,17 @@ cntools_governance_action_info() {
     cntools_transaction_ui_styled_row Wallet "${directory##*/}" identifier
     cntools_transaction_ui_styled_row 'DRep ID' "${CNTOOLS_DREP_KEY_ID}" identifier
     cntools_transaction_ui_styled_row 'Credential (hex)' "${CNTOOLS_DREP_KEY_HASH}" identifier
-    cntools_transaction_ui_styled_row 'Verification key' "${verification}" value
-    cntools_transaction_ui_styled_row 'Identity check' "$([[ "${CNTOOLS_DREP_KEY_VERIFIED}" == Y ]] && printf 'Matches verification key' || printf 'Cached ID checksum only')" value
-    cntools_transaction_ui_styled_row 'Private key' "${protection}" "$([[ "${protection}" == 'Unencrypted signing key' ]] && printf warning || printf value)"
+    if [[ "${CNTOOLS_DREP_KEY_KIND}" == script ]]; then
+      cntools_transaction_ui_styled_row Type 'Native script DRep' accent
+      cntools_transaction_ui_styled_row Script "${CNTOOLS_WALLET_DREP_SCRIPT_FILENAME:-drep.script}" identifier
+      cntools_transaction_ui_styled_row Participants "${CNTOOLS_DREP_SCRIPT_PARTICIPANTS}" number
+      [[ -z "${CNTOOLS_DREP_SCRIPT_THRESHOLD}" ]] || cntools_transaction_ui_styled_row Threshold "${CNTOOLS_DREP_SCRIPT_THRESHOLD} of ${CNTOOLS_DREP_SCRIPT_PARTICIPANTS}" number
+      cntools_transaction_ui_styled_row 'Identity check' "$([[ "${CNTOOLS_DREP_KEY_VERIFIED}" == Y ]] && printf 'Matches native script' || printf 'Cached ID checksum only · script hash not verified')" value
+    else
+      cntools_transaction_ui_styled_row 'Verification key' "${verification}" value
+      cntools_transaction_ui_styled_row 'Identity check' "$([[ "${CNTOOLS_DREP_KEY_VERIFIED}" == Y ]] && printf 'Matches verification key' || printf 'Cached ID checksum only')" value
+      cntools_transaction_ui_styled_row 'Private key' "${protection}" "$([[ "${protection}" == 'Unencrypted signing key' ]] && printf warning || printf value)"
+    fi
     [[ -z "${CNTOOLS_DREP_KEY_PATH}" ]] || cntools_transaction_ui_styled_row 'Derivation path' "${CNTOOLS_DREP_KEY_PATH}" identifier
     cntools_governance_status_rows
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2

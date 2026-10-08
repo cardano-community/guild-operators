@@ -71,7 +71,9 @@ cntools_pool_registration_rows() {
 
 cntools_pool_registration_render_plan() {
   local fee='' expiry=''
-  cntools_pool_registration_rows | cntools_table_render 'Pool settings' || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then
+    cntools_pool_retirement_rows | cntools_table_render 'Pool retirement' || return 1
+  else cntools_pool_registration_rows | cntools_table_render 'Pool settings' || return 1; fi
   cntools_transaction_ui_fee_into fee || return 1
   cntools_transaction_ui_expiry_label_into expiry "${CNTOOLS_WALLET_REGISTER_EXPIRY}"
   { cntools_table_pair Fee "$(cntools_wallet_format_lovelace "${fee}")" number
@@ -81,7 +83,8 @@ cntools_pool_registration_render_plan() {
     cntools_table_pair 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}"
     cntools_table_pair 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}"
   } | cntools_table_render 'Transaction information'
-  cntools_ui_render_status info 'Pledge is a commitment, not a transfer. Only explicitly selected stake setup is included. Operational setup is handled separately; this transaction does not start a node.'
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then cntools_pool_retirement_notice
+  else cntools_ui_render_status info 'Pledge is a commitment, not a transfer. Only explicitly selected stake setup is included. Operational setup is handled separately; this transaction does not start a node.'; fi
 }
 
 cntools_pool_registration_select_stake_into() {
@@ -233,7 +236,9 @@ cntools_pool_registration_hardware_choice() {
   CNTOOLS_POOL_REG_COMBINE_HARDWARE=N
   [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == Hardware ]] || return 0
   cntools_transaction_source_kind_into kind "${CNTOOLS_POOL_REG_COLD_SOURCE}" && [[ "${kind}" == hardware ]] || return 2
-  cntools_ui_render_status info 'Pool operator signing needs the funding payment key and cold key on the same Ledger. Every hardware owner signs separately, including owners on that Ledger.'
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then
+    cntools_ui_render_status info 'Hardware-funded retirement needs the funding payment key and pool cold key together on the same Ledger. Use a CLI/mnemonic funding wallet if the cold key is on a different device.'
+  else cntools_ui_render_status info 'Pool operator signing needs the funding payment key and cold key on the same Ledger. Every hardware owner signs separately, including owners on that Ledger.'; fi
   cntools_pool_registration_choose choice 'Funding and cold keys on the same Ledger?' 'Yes, same Ledger device' 'No, use another funding wallet' Cancel || return $?
   case "${choice}" in
     'Yes, same Ledger device') CNTOOLS_POOL_REG_COMBINE_HARDWARE=Y ;;
@@ -241,11 +246,11 @@ cntools_pool_registration_hardware_choice() {
     Cancel) return 1 ;;
     *) return 2 ;;
   esac
-  cntools_transaction_log CHOICE "Pool operator hardware session selected=${choice}; owners remain separate"
+  cntools_transaction_log CHOICE "Pool hardware session operation=${CNTOOLS_WALLET_REGISTER_OPERATION} selected=${choice}; owners remain separate"
 }
 
 cntools_pool_registration_workflow() {
-  local selected='' wallet='' workflow='' can_sign=N choice='' proceed='' staged='' signed='' saved='' backend='' txid='' body='' status=0
+  local selected='' wallet='' workflow='' can_sign=N choice='' proceed='' staged=''
   CNTOOLS_POOL_REG_SAVED=''; CNTOOLS_POOL_REG_RESULT_SHOWN=N
   cntools_pool_registration_begin
   cntools_transaction_require_cli && cntools_pool_catalog_build || return 2
@@ -295,6 +300,12 @@ cntools_pool_registration_workflow() {
     esac
   done
   cntools_pool_opcert_offer "${workflow}" || return $?
+  cntools_pool_transaction_finish "${staged}" "${workflow}"
+}
+
+# Registration, modification and retirement share export/sign/submit/results.
+cntools_pool_transaction_finish() {
+  local staged="$1" workflow="$2" signed='' saved='' backend='' txid='' body='' status=0
   cntools_ui_spin_function 'Rechecking pool state and selected inputs…' cntools_pool_registration_recheck || return 2
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2

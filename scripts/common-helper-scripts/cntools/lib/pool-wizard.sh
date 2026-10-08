@@ -9,13 +9,13 @@ cntools_pool_registration_choose_eligible_into() {
     [[ "${CNTOOLS_POOL_IDENTITIES[index]}" == 'Verified cold public key' ]] || continue
     status="${CNTOOLS_POOL_CHAIN_STATUS[index]}"
     case "${CNTOOLS_WALLET_REGISTER_OPERATION}:${status}" in
-      pool-register:'Not registered'|pool-register:'Not indexed'|pool-register:Retired|pool-modify:Registered|pool-modify:Retiring) ;;
+      pool-register:'Not registered'|pool-register:'Not indexed'|pool-register:Retired|pool-modify:Registered|pool-modify:Retiring|pool-retire:Registered|pool-retire:Retiring) ;;
       *) continue ;;
     esac
     row="${CNTOOLS_POOL_NAMES[index]} · ${status}"; rows+=("${row}"); indices+=("${index}")
   done
   if (( ${#rows[@]} == 0 )); then
-    cntools_wallet_register_set_error 'No eligible pools with verified public keys and reachable registration state. Register needs an unregistered pool; Modify needs a registered pool.'; return 2
+    cntools_wallet_register_set_error 'No eligible pools with verified public keys and reachable registration state. Register needs an unregistered pool; Modify and Retire need a registered pool.'; return 2
   fi
   cntools_pool_registration_choose selected_choice 'Select pool' "${rows[@]}" Cancel || return $?
   [[ "${selected_choice}" != Cancel ]] || return 1

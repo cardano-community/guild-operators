@@ -88,7 +88,10 @@ cntools_collect_build_into() {
     }
     cntools_collect_plan || return 1
     arguments=()
-    for input in "${CNTOOLS_COLLECT_INPUTS[@]}"; do arguments+=(--tx-in "${input}"); done
+    for input in "${CNTOOLS_COLLECT_INPUTS[@]}"; do
+      arguments+=(--tx-in "${input}")
+      [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_input_arguments arguments || return 1
+    done
     accounted="${CNTOOLS_COLLECT_FEE}"
     for output in "${CNTOOLS_CHANGE_OUTPUTS[@]}" "${CNTOOLS_SEND_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}"; do
       cntools_transaction_validate_change_output "${output}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1

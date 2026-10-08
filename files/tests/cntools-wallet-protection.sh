@@ -428,6 +428,20 @@ fi
 
 # Neither passphrase nor private key descriptions may enter the operational
 # log, while the replayable GPG command and status remain visible.
+create_wallet MultisigParticipant
+cp "${WALLET_ROOT}/MultisigParticipant/payment.skey" "${WALLET_ROOT}/MultisigParticipant/ms_payment.skey"
+cp "${WALLET_ROOT}/MultisigParticipant/stake.skey" "${WALLET_ROOT}/MultisigParticipant/ms_stake.skey"
+cntools_wallet_protection_encrypt "${WALLET_ROOT}/MultisigParticipant" "${LONG_PASSPHRASE}" || fail 'multisig participant encryption'
+assert_eq "${CNTOOLS_WALLET_PROTECTION_KEYS}" 4 'all regular and participant keys encrypted'
+for key in payment stake ms_payment ms_stake; do
+  [[ -f "${WALLET_ROOT}/MultisigParticipant/${key}.skey.gpg" && ! -e "${WALLET_ROOT}/MultisigParticipant/${key}.skey" ]] || fail 'participant left clear'
+done
+cntools_wallet_protection_decrypt "${WALLET_ROOT}/MultisigParticipant" "${LONG_PASSPHRASE}" || fail 'multisig participant decryption'
+assert_eq "${CNTOOLS_WALLET_PROTECTION_KEYS}" 4 'all regular and participant keys decrypted'
+for key in payment stake ms_payment ms_stake; do
+  [[ -f "${WALLET_ROOT}/MultisigParticipant/${key}.skey" && ! -e "${WALLET_ROOT}/MultisigParticipant/${key}.skey.gpg" ]] || fail 'participant decryption incomplete'
+done
+
 if grep -F -- "${LONG_PASSPHRASE}" "${LOG_TRACE}" >/dev/null ||
    grep -F -- "${SHORT_LEGACY_PASSPHRASE}" "${LOG_TRACE}" >/dev/null ||
    grep -F -- "${PRIVATE_SENTINEL}" "${LOG_TRACE}" >/dev/null ||

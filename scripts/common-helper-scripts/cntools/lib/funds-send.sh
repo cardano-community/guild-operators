@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exact-value transfers with optional frozen metadata; no script spending.
+# Exact-value transfers with frozen metadata and verified key/native wallets.
 # shellcheck disable=SC2034
 
 CNTOOLS_SEND_WALLET=""
@@ -113,6 +113,10 @@ cntools_send_plan_signers() {
   local group="" stake_source=""
   cntools_transaction_plan_reset "${1:-Send funds}" \
     "${2:-Transfer from ${CNTOOLS_SEND_WALLET}; rewards and deposits are not withdrawn.}" exact || return 1
+  if [[ "${CNTOOLS_SEND_TYPE}" == MultiSig ]]; then
+    cntools_multisig_spend_plan
+    return $?
+  fi
   [[ "${CNTOOLS_SEND_TYPE}" != Hardware ]] || group=send-wallet
   cntools_transaction_plan_add_signer "${CNTOOLS_SEND_WALLET} payment" spending \
     "${CNTOOLS_SEND_VKEY}" "${CNTOOLS_SEND_SOURCE}" "${CNTOOLS_SEND_CREDENTIAL}" "${group}" || return 1
@@ -188,7 +192,7 @@ cntools_send_change() {
 
 cntools_send_build_into() {
   local output_name="${1:-}" total=0 required=0 extra=0 index=0 attempt=0 status=0
-  local body="" package="" next_fee="" minimum="" output="" asset="" policy="" summary=""
+  local body="" built_send_package="" next_fee="" minimum="" output="" asset="" policy="" summary=""
   local max_size=0 max_value=0 value_bytes=0 body_bytes=0 witnesses=0
   local -a arguments=() metadata_arguments=()
   local -n send_package_ref="${output_name}"
@@ -249,7 +253,10 @@ cntools_send_build_into() {
       (( value_bytes <= max_value )) || { cntools_send_fail "An output's asset bundle exceeds the conservative value-size limit. Split its assets between recipients."; return 1; }
       arguments+=(--tx-out "${output}")
     done
-    for index in "${CNTOOLS_COIN_SELECTED_INDICES[@]}"; do arguments+=(--tx-in "${CNTOOLS_UTXO_REFS[index]}"); done
+    for index in "${CNTOOLS_COIN_SELECTED_INDICES[@]}"; do
+      arguments+=(--tx-in "${CNTOOLS_UTXO_REFS[index]}")
+      [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_input_arguments arguments || return 1
+    done
     cntools_transaction_temp_file body send-body || return 1
     cntools_transaction_temp_remove "${body}" || return 1
     cntools_transaction_build_body build-raw "${body}" -- "${arguments[@]}" "${metadata_arguments[@]}" --fee "${CNTOOLS_SEND_FEE}" || return 1
@@ -274,8 +281,8 @@ cntools_send_build_into() {
       --argjson resolutions "$(printf '%s\n' "${CNTOOLS_SEND_RESOLUTIONS[@]}" | jq -sc '[.[] | select(type == "object")]')" \
       '{action:"send",wallet:$wallet,amountMode:$mode,feeLovelace:$fee,dataSource:$source,transactionPolicy:$transactionPolicy,messageMode:$metadata,handleResolutions:$resolutions}')" || return 1
     cntools_transaction_plan_set_summary "${summary}" || return 1
-    cntools_transaction_package_create_staged_into package "${body}" || return 1
-    if [[ "${CNTOOLS_SEND_TYPE}" == Hardware ]]; then
+    cntools_transaction_package_create_staged_into built_send_package "${body}" || return 1
+    if [[ "${CNTOOLS_SEND_TYPE}" == Hardware || "${CNTOOLS_TRANSACTION_PACKAGE_HARDWARE_PREPARED:-N}" == Y ]]; then
       # Packaging may normalize the body for the hardware CLI. Fund and size-check
       # that final representation too; never rely only on pre-transform bytes.
       cntools_transaction_calculate_min_fee_into next_fee "${CNTOOLS_TRANSACTION_BODY_FILE}" \
@@ -288,7 +295,7 @@ cntools_send_build_into() {
         CNTOOLS_SEND_FEE="${next_fee}"; continue
       fi
     fi
-    send_package_ref="${package}"
+    send_package_ref="${built_send_package}"
     cntools_transaction_log TRANSACTION "Send built mode=${CNTOOLS_SEND_MODE} inputs=${#CNTOOLS_COIN_SELECTED_INDICES[@]} outputs=${#CNTOOLS_SEND_OUTPUTS[@]} fee=${CNTOOLS_SEND_FEE} policy=${policy}"
     return 0
   done

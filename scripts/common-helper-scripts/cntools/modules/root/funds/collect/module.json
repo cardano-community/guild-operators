@@ -11,6 +11,7 @@
   "libs": [
     "number.sh",
     "wallet.sh",
+    "table.sh",
     "wallet-material.sh",
     "wallet-key.sh",
     "wallet-address.sh",
@@ -31,6 +32,7 @@
     "transaction-funding.sh",
     "recipient.sh",
     "wallet-payment.sh",
+    "multisig-spend.sh",
     "funds-send.sh",
     "funds-collect.sh",
     "funds-collect-ui.sh",

@@ -129,7 +129,7 @@ not rescan JSON or action files when the selection moves, a submenu opens, or
 an action returns. Restarting CNTools rebuilds the catalog after definitions
 change on disk. No combined catalog file is generated or deployed.
 
-The Phase 4 framework mirrors the current CNTools menu hierarchy. It initially
+The Phase 4 framework initially mirrored the legacy CNTools menu hierarchy. It
 gave every operational leaf an inert `action.sh` with a consistent
 not-implemented message. Functional phases replace those placeholders in
 small vertical slices; Phase 7 activates Wallet List and Show, Phase 8 activates
@@ -141,9 +141,20 @@ functional. The phase-0
 menu inventory remains an implementation checklist, not a generated runtime
 manifest.
 
+Standalone **Advanced → Metadata** is intentionally removed. Use **Funds →
+Send** to attach CIP-20 messages, CIP-83 encrypted messages or custom JSON
+metadata; a separate metadata action would duplicate that workflow.
+
 Pool List and Show are functional read-only browsers for existing pool
-directories. Pool New, Import, Encrypt, Decrypt, Register, Modify and Rotate are
-also implemented. Retirement and Calidus remain separate slices.
+directories. Pool New, Import, Encrypt, Decrypt, Register, Modify, Rotate and
+Retire are also implemented. Calidus remains a separate slice.
+
+**Advanced → MultiSig → Derive Keys / Create** are functional. Threshold script
+wallets support Funds Send/Collect and stake registration, de-registration,
+pool/voting delegation and reward withdrawal with explicit signer selection
+and the existing live/offline transaction packages. **Governance → MultiSig
+DRep** also creates public threshold DRep identities; their registration,
+update, retirement and voting remain a separate transaction slice.
 
 ## Runtime modes
 
@@ -549,9 +560,9 @@ the current implementation performs a live chain query despite lacking an
 early offline guard.
 
 Advanced and its descendants remain hidden unless `-a` is selected. Blocks is
-always visible in this inert skeleton; its future functional phase will decide
-availability from the new block-history implementation instead of importing
-the legacy `BLOCKLOG_DB` visibility check. Quit, Back, and Home remain
+always visible; the later read-only block-history implementation reports a
+missing database or SQLite dependency when selected rather than hiding the
+menu. Quit, Back, and Home remain
 framework controls rather than metadata modules. Update remains Phase 5.
 
 The later **Settings → Theme** action is advanced framework functionality,
@@ -866,8 +877,131 @@ Recovery words are provided to Cardano CLI only over standard input. They are
 not persisted or included in command arguments, child environments, or logs,
 and every handled failure removes the tracked private stage. Arbitrary-purpose
 and CIP-1854 derivation remain outside this slice because the pinned Cardano CLI
-does not expose a custom purpose/path argument; the future multisignature action
-can use `cardano-address` as a focused dependency only for those paths.
+does not expose a custom purpose/path argument; Advanced → MultiSig → Derive
+Keys uses `cardano-address` as a focused dependency for those paths.
+
+## Multisig participant keys and script wallets
+
+**Advanced → MultiSig → Derive Keys** adds a separate payment/stake participant
+pair to an existing wallet. Its original keys and addresses are never replaced.
+Choose an existing software recovery phrase, new independent CLI keys, or a
+connected hardware device. Standard paths are
+`1854H/1815H/<account>H/0/<index>` and
+`1854H/1815H/<account>H/2/<index>`, with account/index defaulting to zero.
+Custom paths are also accepted; hardware path support depends on the device.
+Never enter a hardware-wallet recovery phrase into CNTools.
+
+Software recovery derivation requires the deployed `cardano-address` companion,
+resolved only for this action; ordinary CLI wallets and standard mnemonic
+creation continue using Cardano CLI. Recovery words use standard input only,
+are never logged or persisted, and intermediate private root/child keys are
+removed on handled completion/failure. Public keys are independently checked
+against the generated signing keys. New files use the configured multisig
+prefix (normally `ms_`), including public credentials and `ms_derivation.json`.
+Publication refuses existing paths and rolls back only files created by this
+operation on failure. Decrypt/unlock the selected wallet first; adding clear
+keys to an encrypted/locked wallet is prohibited. Wallet Encrypt/Decrypt includes
+these participant signing keys; public-only backups include their public
+artifacts and paths, never private keys.
+
+**Advanced → MultiSig → Create** guides selection of up to 20 distinct local
+participants or external payment/stake hashes, a signature threshold, an
+optional threshold stake script, and optional spending start/end bounds by
+epoch or absolute slot. Existing regular wallet keys are valid participants too.
+Missing stake hashes produce a payment-only wallet. Scripts sort participants
+deterministically; the new directory contains only scripts, addresses and
+credentials, not participant private keys. It is privately staged, validated,
+and atomically published without overwriting an existing wallet. All derivation
+and creation work is node-independent and available offline.
+
+The final review warns that participants, threshold and time bounds cannot be
+changed for an existing address, and that an expiry permanently locks remaining
+funds. Spending time bounds apply to the payment script, not its stake script.
+
+**Funds → Send / Collect UTxOs** accepts these threshold wallets. Choose exactly
+which participants will sign before building, including public-only external
+verification keys for signing elsewhere. The transaction uses the selected,
+deduplicated witness count for Cardano CLI fee calculation; no fee padding is
+added. Frozen scripts must match the cached addresses. Not-yet-valid or expired
+scripts are rejected; script expiry constrains every TTL, including No expiry.
+CLI and hardware sources reuse the shared signing foundation. Without all
+selected local sources, export an unsigned package and collect signatures in
+separate offline runs through Transaction → Sign, then Submit when complete.
+No participant private keys are copied into the script wallet or package.
+
+**Wallet → Register / De-Register**, **Funds → Delegate / Withdraw Rewards**,
+and **Vote → Governance → Delegate** also accept complete payment/stake-script
+wallets. Choose the payment participants first, then the stake participants:
+the scripts can have different thresholds and keys. A shared key supplies one
+witness with both roles; fees use the exact deduplicated witness count. Both
+scripts are frozen and verified against the base/payment/reward addresses.
+Their mandatory validity intervals are intersected with the chosen TTL; No
+expiry cannot remove a script's time lock. Public-only participants use the
+same portable unsigned/partial/signed packages as Send.
+
+Stake-state checks are unchanged: first registration charges the current
+deposit, de-registration refunds the recorded historical deposit and requires
+zero claimable rewards, and withdrawal requires voting delegation where the
+protocol demands it. Pool/voting delegation can include an explicitly approved
+first registration. This does not register a multisig DRep or change unrelated
+delegation. This slice supports distinct-key `atLeast` scripts, optionally
+wrapped in mandatory `after`/`before` bounds. Arbitrary alternative native-script
+branches and committee identities remain deferred. Script DRep lifecycle and
+voting use the separate authorization flow described below.
+
+**Vote → Governance → MultiSig DRep** adds a separate threshold native-script
+DRep identity to an existing wallet. Choose up to 20 distinct participants from
+verified local DRep keys, external normal DRep verification-key files, or
+external 56-character signing-key credential hashes (not script hashes). The
+threshold defaults to all participants; it can be reduced before confirmation.
+Participants are sorted deterministically. This identity has no timelocks:
+its participants and threshold permanently determine who can act for it.
+
+Creation saves only the configured `drep.script` and `drep.id`, with private
+file permissions and no-overwrite publication. It works offline with the pinned
+CLI, never copies participant private keys, never changes payment/stake keys,
+and refuses any existing or incomplete DRep identity. Back up both public
+files and each participant signing key separately. Public-only backups include
+the script and ID. Interrupted publication rolls back only this invocation's
+links; a concurrent replacement is retained.
+
+**Governance → Info & Status** verifies the native script hash against its
+[CIP-129](https://cips.cardano.org/cip/CIP-0129) script DRep ID, displays its
+threshold/participant count, and queries local DRep state with Koios fallback
+when enabled. Missing IDs are generated and cached only when the CLI is
+available. Offline inspection without CLI can show a valid cached ID but
+explicitly does not claim to verify its binding to the script. Invalid,
+mismatched or mixed key/script identity files are retained and reported.
+Existing local script DReps can also be selected as voting-delegation targets
+once registered. Registration, update, retirement and voting accept these
+verified script identities as well as ordinary DRep keys.
+
+For script-backed transactions, select the DRep signing subset independently
+from the funding wallet's payment subset. Funding can use an ordinary or
+multisig wallet; a stake key or stake registration is not required. Each subset
+must satisfy its own threshold. Public-only participants permit unsigned
+packages, while available CLI, protected or hardware sources use the shared
+signing flow. A key selected for both roles produces only one witness. External
+threshold scripts may include mandatory time bounds; their intersection with
+payment bounds and the requested expiry must be valid even with **No expiry**.
+
+Portable packages include the scripts and selected public signer identities,
+never participant private keys or local wallet paths. Participants can sign
+independently offline; submission requires all selected witnesses. The same
+compact review, exact fees, historical deposit refunds and pre-submit state
+checks apply to key and script DReps.
+
+Tests cover script/UI contracts, cancellation, protection and public-backup
+boundaries. Node-free tests with the cnode deployment pin (`cardano-cli`
+11.2.3.1) exercise real creation, Send/Collect and script-stake transactions,
+exact signed fees, large token quantities, deposit/refund conservation, time
+bounds, incomplete signer sets and portable two-stage signing. Script-stake
+coverage includes shared payment/stake keys collected in separate offline
+sessions, checking both source-free exports and the exact deduplicated fee.
+The recovery-path tests additionally use the cnode-pinned `cardano-address`
+4.0.7 and compare custom CIP-1852 derivation with Cardano CLI's output. Physical
+hardware and live-network acceptance testing remain operator work; no tests
+submit transactions.
 
 ## Hardware wallet import slice
 
@@ -995,7 +1129,8 @@ transaction operation needs it.
 
 Use the shared helpers in `transaction-ui.sh` and `transaction-files.sh` rather
 than copying a workflow from an individual action. This contract applies to
-Send, Withdraw Rewards, Register, De-Register, delegation, DRep lifecycle and standalone Sign/Submit:
+Send, Withdraw Rewards, Register, De-Register, delegation, DRep lifecycle,
+Pool Register/Modify/Retire and standalone Sign/Submit:
 
 - Show action-specific essentials (recipients, metadata, rewards or deposit)
   and a compact **Transaction information** table with the actual fee, applicable
@@ -1049,7 +1184,8 @@ mnemonic wallet. Choose a fresh random CLI key pair or derive from a recovery
 phrase with the deployment-pinned Cardano CLI. Account defaults to zero; DRep
 derivation uses `1852H/1815H/<account>H/3/0` as supported by the CLI, following
 [CIP-105](https://cips.cardano.org/cip/CIP-0105). This slice does not support
-custom paths, hardware key derivation, multisig DReps or committee keys.
+custom paths, hardware key derivation or committee keys. Threshold DRep identity
+setup lives in Governance → MultiSig DRep, separately from individual key setup.
 
 The recovery phrase uses the existing masked paste or word-by-word controls.
 It is supplied to the CLI through standard input, never command arguments or
@@ -1102,8 +1238,8 @@ against its anchor hash; arbitrary metadata URLs are never fetched automatically
 Vote counts are counts of recorded decisions, not stake-weighted ratification
 thresholds or a prediction that the proposal will pass.
 
-**Cast vote** selects a wallet with verified payment and registered key-DRep
-identities, then an open proposal and **Yes**, **No** or **Abstain**. The proposal
+**Cast vote** selects a wallet with verified payment and registered key or script
+DRep identities, then an open proposal and **Yes**, **No** or **Abstain**. The proposal
 details and exact ID are shown before confirmation. An existing vote triggers
 an explicit default-No replacement confirmation. Query failure is not treated
 as no previous vote. Voting costs only the fee, not another DRep/stake deposit;
@@ -1122,8 +1258,8 @@ required-signers view, CLI/extended/protected and existing hardware sources,
 sign-only, unsigned/offline packages, durable exports and submission/Koios
 monitoring all apply. The payment and DRep witnesses are deduplicated; a stake
 witness is not needed. Hardware change references use the same safety checks as
-DRep registration. Committee, pool and script-DRep votes are not supported by
-this key-DRep action. Offline creation still requires an online build followed
+DRep registration. Committee and pool votes are not supported by
+this DRep action. Offline creation still requires an online build followed
 by transport of the unsigned package; signing itself needs no node or API.
 
 Before export/signing and again before live submission, CNTools rechecks the
@@ -1150,8 +1286,9 @@ Query schemas: [Koios proposal list](https://github.com/cardano-community/koios-
 ## DRep registration, update and retirement
 
 **Vote → Governance → DRep Registration / Update** selects a wallet with verified
-DRep keys and a payment identity. A payment-only wallet is sufficient; its stake
-key need not exist or be registered. Unregistered DReps use the current protocol
+DRep keys or a threshold DRep script and a payment identity. A payment-only
+wallet is sufficient; its stake key need not exist or be registered.
+Unregistered DReps use the current protocol
 `dRepDeposit`. Registered DReps automatically use an update certificate, charging
 only the fee and renewing DRep activity, even if the metadata is unchanged.
 
@@ -1172,9 +1309,10 @@ delegators should choose another representative. It does not remove wallet keys.
 The compact shared transaction review, expiry (including No expiry), coin
 selection/change settings, CLI or available hardware signing sources,
 sign-only and unsigned/offline package workflows are reused. The funding wallet
-and DRep each provide a witness; a stake witness is not needed. Protected or
-public-only keys can produce an unsigned package for later signing. New hardware
-DRep key derivation and script-DRep registration remain separate slices.
+and DRep each provide their required witnesses; a stake witness is not needed.
+Threshold payment/DRep subsets are chosen separately, with shared keys
+deduplicated. Protected or public-only keys can produce an unsigned package for
+later signing. New hardware DRep key derivation remains a separate slice.
 
 Current chain data comes from the local node or enabled Koios backend. Query
 failure or malformed state is never treated as an unregistered DRep. Before
@@ -1196,6 +1334,12 @@ exact conservation. Deterministic tests cover API failures, state changes,
 cancellation and all three transaction workflows. These tests do not submit
 transactions or exercise a physical hardware device.
 
+`cntools-multisig-drep.sh` checks signer-role isolation, cancellation, mandatory
+bounds and script-specific state/vote queries. `cntools-multisig-drep-pinned.sh`
+uses the cnode CLI pin for all four script-DRep operations, ordinary/multisig
+funding, shared-key witness deduplication and independent offline signatures,
+including exact signed fees and token conservation.
+
 ## Governance voting delegation
 
 **Vote → Governance → Delegate** changes voting delegation for CLI, mnemonic,
@@ -1204,8 +1348,8 @@ local DRep wallet, **Always Abstain**, or **Always No Confidence**. For an
 unregistered stake address, an explicit default-No confirmation can include its
 first registration and the current stake deposit in the same transaction.
 Already registered stake addresses pay no new deposit. Neither path withdraws
-rewards, registers a DRep, or changes pool delegation. Multisig stake credentials
-remain a separate implementation slice. DRep registration itself does not
+rewards, registers a DRep, or changes pool delegation. Threshold multisig stake
+credentials use explicit payment/stake participant selection. DRep registration itself does not
 self-delegate: the successful registration flow reminds the user to delegate.
 
 The focused `drep-id.sh` helper validates Bech32 checksums, payload length,
@@ -1243,17 +1387,18 @@ submission still require operator acceptance testing. References:
 
 ## Funds UTxO collection
 
-**Funds → Collect UTxOs** consolidates a key wallet's base and payment UTxOs back
+**Funds → Collect UTxOs** consolidates a key or supported threshold-script wallet's base and payment UTxOs back
 to its verified base address (or payment address for a payment-only wallet).
 Choose **ADA-only UTxOs** or **ADA and native assets**. Datum-bearing and
 reference-script outputs are always excluded and their count is shown. Rewards,
-stake deposits, registration and delegation are unchanged. Multisig/script
-spending is not supported.
+stake deposits, registration and delegation are unchanged. Threshold-script
+wallets use the explicit participant selection described above.
 
 Collection uses current local/Koios funding data, exact integer quantities, the
 shared payment/hardware signer plan, and explicit fee convergence. The selected
-inputs are rechecked before live signing and submission. Only the payment witness
-is required; base-address hardware change still carries both public derivation
+inputs are rechecked before live signing and submission. Key wallets need only
+their payment witness; script wallets need the selected threshold participants.
+Base-address key-wallet hardware change still carries both public derivation
 references. Encrypted/public-only wallets can export unsigned packages for
 **Transaction → Sign → Submit**. Transaction creation needs current chain data;
 offline signing does not.
@@ -1283,11 +1428,11 @@ durable unsigned exports; no test submits real funds.
 **Funds → Withdraw Rewards** withdraws the full, exact claimable reward balance
 to the same wallet's base address. It leaves stake registration, the deposit,
 pool delegation, and voting delegation unchanged. Complete CLI, mnemonic, and
-standard hardware wallets are supported; multisig and stake-only wallets are
-outside this slice. Selected inputs carrying reference scripts are rejected;
+standard hardware and threshold multisig payment/stake wallets are supported;
+stake-only wallets are outside this slice. Selected inputs carrying reference scripts are rejected;
 use ordinary funding UTxOs rather than consume a stored script without pricing
 its additional fee. Cached payment, base, and reward addresses are checked
-against the public keys before constructing a stake transaction.
+against the public keys or frozen native scripts before constructing a stake transaction.
 
 Local mode queries the local node when available; light mode uses Koios. The
 action requires fresh rewards, protocol parameters, a current slot, and at least
@@ -1563,6 +1708,59 @@ them against the cnode deployment's Cardano CLI version. Tests cover no-clobber
 publication, missing-key derivation, source preservation, invalid imports, GPG
 round trips, legacy short passwords and failure rollback.
 
+## Pool retirement
+
+**Pool → Retire** selects a registered pool (including one with a pending
+retirement), a funding wallet and a retirement epoch. Enter defaults to the
+next epoch. The allowed range is taken from the funding source's current tip
+and live `poolRetireMaxEpoch`: current epoch + 1 through current epoch + the
+protocol limit, inclusive. Unavailable, unindexed and already retired pools are
+not treated as eligible. A new retirement certificate replaces a previously
+scheduled retirement; both epochs are shown in the review.
+
+The themed, headerless pool/transaction tables and shared review menu support
+changing the epoch, workflow and TTL (including no expiry), reviewing signers,
+unsigned export for **Transaction → Sign**, sign-only export, and live
+sign/submission with optional Koios inclusion monitoring. Only the funding
+payment key and pool cold key witness the transaction; owner/reward stake keys,
+VRF keys and operational files are unnecessary. Public-only or encrypted cold
+material can be used to build a package for offline signing.
+
+Retirement **does not refund the pool deposit in this transaction**. Only the
+fee is spent, with all remaining selected ADA/assets returned by the shared
+coin-selection/change policy. The deposit is returned to the pool's registered
+reward account when retirement takes effect. The UI warns to keep that stake
+account registered, otherwise the deposit can be lost to the treasury. Pending
+local reward-account changes are shown as well. No rewards are withdrawn, keys
+deleted, counters advanced or node services stopped by this action.
+
+Pinned hardware CLI retirement handling requires the cold signing reference in
+each Ledger certificate-signing call. Hardware funding therefore requires the
+funding payment key and cold key on the same confirmed Ledger session. A
+CLI/mnemonic funding wallet can instead use a separately connected hardware
+cold key. Hardware normalization occurs before review; physical device support
+still depends on the device/app version. See the
+[pinned retirement certificate mapping](https://github.com/vacuumlabs/cardano-hw-cli/blob/v1.19.1/src/crypto-providers/ledgerCryptoProvider.ts).
+
+Before building, exporting/signing and submitting, the action rechecks the
+retirement window; it also rechecks pool state, protocol parameters and selected
+inputs before export/signing/submission. An epoch boundary making the chosen
+retirement invalid requires rebuilding. Fully offline systems sign the saved
+package rather than building from stale chain data. Saved-package submission
+does not recreate the originating action's chain-state checks; the ledger still
+enforces certificate eligibility and the chosen epoch. Decoded bodies are
+logged and checked against the exact pool hash/epoch, not trusted from intent
+metadata.
+
+The range matches the ledger's
+[POOL retirement rule](https://github.com/IntersectMBO/cardano-ledger/blob/master/eras/shelley/impl/src/Cardano/Ledger/Shelley/Rules/Pool.hs).
+`files/tests/cntools-pool-retirement.sh` covers boundary/recheck/UI contracts;
+its pinned-binary mode creates, signs and validates ADA-only, token-bearing,
+no-expiry and offline packages using the cnode deployment CLI version. It also
+checks exact signed fees, witness sets and unchanged cold artifacts. CI runs
+both modes; hardware-device interaction and live-chain acceptance remain
+operator acceptance tests.
+
 ## Pool registration and modification
 
 **Pool → Register / Modify** use the shared transaction review, exact CLI fee
@@ -1799,6 +1997,184 @@ claimable reward balance stops construction and directs the operator to
 withdraw first. Its confirmation also warns that lingering rewards which have
 not yet been credited or paid out will be forfeited and that stake-pool and DRep
 delegations end when the credential is removed.
+
+## Block production history
+
+**Blocks → Summary / Epoch** reads the existing CNCLI block journal in local,
+light or offline mode. It does not query the node, generate leader schedules,
+start monitoring, validate blocks, migrate the database or change its contents.
+CNCLI and/or logMonitor must maintain the journal separately. A missing journal
+or `sqlite3` dependency is explained on selection without preventing CNTools
+startup or unrelated actions.
+
+The database path is normalized once from `BLOCKLOG_DB`, otherwise
+`${BLOCKLOG_DIR}/blocklog.db`, defaulting to
+`${NODE_HOME}/guild-db/blocklog/blocklog.db`. The common `env` remains unchanged.
+SQLite must provide JSON functions. Connections are read-only, bounded by a
+timeout/output limit, bypass `.sqliterc`, and include committed WAL updates.
+Only a real CNCLI `blocklog` table with the expected columns is accepted.
+
+Summary defaults to the ten most recent **recorded** epochs (1–100), including
+epochs having schedule statistics but no blocks. Gaps in recorded history are
+not invented. It shows scheduled slots, ideal/luck where unambiguous, adopted
+including confirmed blocks, confirmed, pending validation and failed outcomes.
+An `epochdata` table is optional; when multiple pool records exist for an epoch,
+ideal/luck are omitted rather than selecting an arbitrary pool or duplicating
+counts. The journal itself has no per-block pool identifier.
+
+Epoch defaults to the latest recorded epoch, not an assumed current chain epoch.
+Both views paginate five entries per page and retain their snapshot until
+**Refresh** is selected. Epoch includes per-block details and a shared status
+guide. Dates use the common `BLOCKLOG_TZ` formatter, numbers use comma thousands
+separators, and statuses use semantic theme colors. Future scheduled slots and
+old unvalidated records remain pending, not falsely classified as missed.
+An empty journal/epoch is a normal empty view. Invalid-block diagnostics remain
+in CNCLI/node logs; encoded error payloads are not presented as block hashes.
+Database commands, failures and user choices use the normal CNTools log.
+
+## Backup and restore
+
+**Backup → Backup / Restore** is available in local, light and offline modes.
+It needs no node, Koios access, hardware device or Cardano CLI. It uses the
+deployed Linux tools (`tar`, `gzip`, GNU coreutils, `find`, `jq`) and GnuPG for
+encrypted archives.
+
+Create defaults to a **full, GPG-encrypted backup** of the configured wallet,
+pool and asset folders. Full backups include custom files, open or encrypted
+private keys, pool counters/operational files, and hidden KES recovery folders.
+They cannot recover a hardware device's seed, or mnemonic words that were never
+saved locally. Public-artifact-only backups use an allowlist of known public
+filenames; private keys, nested files and unknown custom files are omitted.
+They are not a substitute for a private-key recovery backup. Unencrypted full
+archives require an additional warning/confirmation.
+
+The default destination is `${NODE_HOME}/backups/`; a different existing,
+owned and writable destination can be supplied. Destinations must not allow
+group/public writes or sit inside the backed-up data. Newly encrypted backups
+require a confirmed passphrase of at least 12 characters. Decryption accepts
+older, shorter passphrases. Passwords are passed through a private file
+descriptor, not command arguments or logs. Encrypted output is decrypted and
+compared with the source archive before no-overwrite publication.
+
+Backups use deployment-independent `wallets/`, `pools/` and `assets/` paths,
+with a versioned manifest, network and per-file SHA-256 checksums. Source
+inventories are checked again before publication; detected changes or an active
+operational-certificate issuance/install stop creation. Pause other wallet/pool
+operations for the duration: this is a checked filesystem snapshot, not a
+transactional lock on every possible external writer. Scripts, `env`, node
+configuration/database, application settings, logs, caches and transaction
+packages are **not** included. Back those up separately if needed.
+
+Restore supports this format and legacy `.tar.gz[.gpg]` archives using configured
+source roots or the standard `priv/{wallet,pool,asset}` layout. The original
+archive is never decrypted in place or modified. Legacy archives have no
+CNTools checksum manifest; the preview makes that limitation explicit. Import
+only trusted backups: checksums detect corruption, not the authenticity of an
+unencrypted archive.
+
+Before changing live data, Restore checks archive paths, entry types, duplicate
+names, checksums and expansion limits (512 MiB / 20,000 entries). Links, devices,
+path traversal, control characters and unsupported names/layouts are rejected.
+Archive member names are restricted to ASCII letters, digits, `.`, `_`, `-` and
+`/`. The frozen, validated archive is unpacked once into empty owner-private
+staging with ownership/attribute restoration disabled, then its files are
+copied into normalized private folders. Tar never extracts into live folders.
+
+The preview identifies each new folder and conflict. After confirmation, a
+complete decrypted, owner-private recovery copy is retained under
+`${NODE_HOME}/backups/restored-…/`, then missing named folders are imported.
+Existing folders are **never merged or overwritten**. Hidden KES recovery
+folders and pools with issuance locks remain in the recovery copy only; their
+absolute-path recovery intents are not activated on another deployment. If
+import stops partway through, already imported folders and the full recovery
+copy remain available. Cancellation before confirmation imports nothing.
+
+Imported files have mode `0600`, directories `0700`; immutable flags are not
+restored. Existing `.gpg` keys stay encrypted. Reapply Encrypt/Lock as needed.
+Never start a pool node with restored old operational files or counters: verify
+the current issuance counter and perform a fresh KES rotation first. An older
+counter must not replace a newer counter, even when the restored keys match.
+
+## Native policy creation
+
+Advanced → Asset → Create Policy (visible with `-a`) creates a single-signature native policy,
+its CLI signing/verification keys, native script and policy ID. It works in
+local, light and offline modes without a node or Koios call.
+
+Choose a new policy name and an expiry duration in seconds; Enter or `0` means
+no expiry. Comma-separated whole numbers are accepted. The review shows the
+absolute expiry date using the configured timezone before a default-No
+confirmation. Expiry uses the selected network's slot clock and the host clock:
+make sure your system time is correct. The reviewed slot is never recalculated
+after confirmation; a policy that expires during preparation is not published.
+An expiry permanently prevents **both minting and burning** after that slot.
+Without expiry, the signing key remains authorized indefinitely. The policy
+itself is immutable; changing its script creates a different policy ID.
+
+Publication uses GNU `mv` with no-clobber/no-target-directory into `ASSET_FOLDER`
+(default `${NODE_HOME}/priv/asset`). Existing folders and links are never
+overwritten. New folders are `0700` and files `0600`. CNTools validates the key
+envelopes, derives and compares the public key from the signing key, and compares
+the CLI policy-ID/script-hash results before publication. Interrupted or failed
+preparation cleans only its own private staging. Back up the signing key securely;
+no tokens, transaction or fee are created by this action.
+
+The existing `ASSET_POLICY_{VK,SK,SCRIPT,ID}_FILENAME` overrides are respected.
+Filenames must be distinct simple names, and the script must end in `.script`.
+Public-only backups include only the configured public policy artifacts, never
+the signing key. Use Encrypt / Lock Policy to protect the new key.
+
+### Asset inspection, protection and transactions
+
+List Assets inventories policy folders and known local `.asset` records,
+including legacy records. Show Asset also accepts a text/hex name directly and
+optionally fetches supply and metadata through the shared one-day Koios cache.
+Offline inspection never calls Koios. Local records are advisory history, not
+proof of minting, inclusion or current total supply.
+
+Encrypt / Lock Policy round-trip verifies GPG encryption before retiring the
+plaintext signing key. Decrypt / Unlock Policy accepts legacy short passwords;
+only new encryption requires 12 characters. Files use owner-only read-only
+permissions while protected, with optional `ENABLE_CHATTR` immutable flags and
+a documented fallback when immutable locking is unavailable. Failed operations
+retain an original or verified replacement key; passwords/key bytes are not
+logged. Keep secure backups before changing protection.
+
+Mint Asset and Burn Asset use a policy plus a funding wallet, automatically
+select eligible inputs from both wallet addresses, and preserve unrelated
+tokens. Datum/reference-script UTxOs are excluded. Text names are limited to
+32 UTF-8 bytes; hex names and the empty name are supported. Quantities are exact
+integer smallest units (comma grouping accepted); Burn also offers `all`.
+The shared selection, token-fragmentation and ADA-only change settings apply.
+All change/new tokens return to the wallet's primary address. Optional CIP-20,
+CIP-83 and advanced custom transaction metadata use the shared metadata editor.
+
+The common review shows fees, quantities, policy settings and expiry before
+signing. Fees come from the pinned CLI's actual body and planned witnesses,
+without a fee padding workaround. Policy time bounds constrain every TTL,
+including No expiry; expired/not-yet-valid policies are rejected. Live,
+sign-only and portable unsigned/offline-signing exports use the common
+transaction flow, required-signer review and optional Koios inclusion monitor.
+The funding wallet can be CLI/mnemonic or hardware-backed. Encrypted/watch-only
+keys can build unsigned packages when public keys are available. Policies here
+are single-signer native `sig`/`all` with optional `before`/`after`; arbitrary
+multisignature/alternative branches require a separate signer-choice workflow.
+
+Register Asset is **off-chain**: it requires `token-metadata-creator` and an open
+policy signing key, then produces a signed, validated Token Registry JSON file
+under `${NODE_HOME}/asset-registry`. It never sends a transaction or publishes a
+pull request. Required name/description and optional ticker, HTTPS URL, decimals
+(including zero) and PNG logo are supported. For updates, provide the current
+registry JSON: the upstream tool preserves optional fields and increments only
+changed field sequence numbers. Blank optional fields preserve existing values.
+The final table identifies the saved file and the mainnet/testnet registry for
+manual submission and review. Registry metadata is distinct from CIP-25/CIP-68
+on-chain metadata; mint/burn transaction metadata can be supplied separately.
+
+Node-free mint/burn build/sign tests run against the cnode CLI deployment pin.
+GPG protection, cancellation, unsafe files, local inventory and registry command
+contracts are covered separately; hardware-device and live registry/node
+acceptance still need deployment testing.
 
 ## Explicit non-goals
 

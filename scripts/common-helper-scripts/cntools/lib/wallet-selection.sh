@@ -10,7 +10,7 @@ cntools_wallet_selection_material() {
   case "${role}" in
     payment) names=("${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" "${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" "${CNTOOLS_WALLET_PAY_SKEY_FILENAME}.gpg" "${CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME}") ;;
     stake) names=("${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}.gpg" "${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}") ;;
-    drep) names=("${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}.gpg") ;;
+    drep) names=("${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}.gpg" "${CNTOOLS_WALLET_HW_DREP_SKEY_FILENAME:-drep.hwsfile}" "${CNTOOLS_WALLET_DREP_SCRIPT_FILENAME:-drep.script}") ;;
     *) return 1 ;;
   esac
   for name in "${names[@]}"; do [[ ! -L "${directory}/${name}" && -f "${directory}/${name}" ]] && return 0; done
@@ -76,12 +76,24 @@ cntools_wallet_selection_collect() {
 cntools_wallet_selection_candidate_into() {
   local destination="$1" index="$2" context="$3" directory="${CNTOOLS_WALLET_PATHS[$2]}" address='' candidate_annotation='' registration=''
   [[ -n "${context}" ]] || { printf -v "${destination}" ''; return 0; }
-  [[ "${CNTOOLS_WALLET_TYPES[index]}" != MultiSig && "${CNTOOLS_WALLET_TYPES[index]}" != Unknown ]] || return 1
-  cntools_wallet_selection_material "${directory}" payment || return 1
-  case "${context}" in
-    register|deregister|delegate|vote-delegate|withdraw) cntools_wallet_selection_material "${directory}" stake || return 1 ;;
-    drep-register|drep-update|drep-retire|gov-vote) cntools_wallet_selection_material "${directory}" drep || return 1 ;;
-  esac
+  if [[ "${CNTOOLS_WALLET_TYPES[index]}" == MultiSig ]]; then
+    case "${context}" in
+      send|collect) ;;
+      drep-register|drep-update|drep-retire|gov-vote) cntools_wallet_selection_material "${directory}" drep || return 1 ;;
+      register|deregister|delegate|vote-delegate|withdraw)
+        cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}" || return 1 ;;
+      *) return 1 ;;
+    esac
+    cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_PAY_SCRIPT_FILENAME}" || return 1
+    candidate_annotation='Native script · participants selected after wallet'
+  else
+    [[ "${CNTOOLS_WALLET_TYPES[index]}" != Unknown ]] || return 1
+    cntools_wallet_selection_material "${directory}" payment || return 1
+    case "${context}" in
+      register|deregister|delegate|vote-delegate|withdraw) cntools_wallet_selection_material "${directory}" stake || return 1 ;;
+      drep-register|drep-update|drep-retire|gov-vote) cntools_wallet_selection_material "${directory}" drep || return 1 ;;
+    esac
+  fi
   if [[ "${context}" =~ ^(register|deregister|delegate|vote-delegate|withdraw)$ ]]; then
     candidate_annotation='Stake status checked after selection'
     if cntools_wallet_read_address "${directory}" reward address; then
@@ -94,6 +106,7 @@ cntools_wallet_selection_candidate_into() {
         [[ "${registration}" == yes ]] && candidate_annotation=Registered || candidate_annotation='Not registered · registration needed'
       fi
     fi
+    [[ "${CNTOOLS_WALLET_TYPES[index]}" != MultiSig ]] || candidate_annotation="Native script · ${candidate_annotation}"
   fi
   printf -v "${destination}" '%s' "${candidate_annotation}"
 }

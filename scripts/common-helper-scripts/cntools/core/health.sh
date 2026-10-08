@@ -98,6 +98,29 @@ cntools_slot_datetime_into() {
   cntools_timestamp_datetime_into "${output_name}" "${timestamp}"
 }
 
+# Supported deployment epoch boundaries, including Byron-to-Shelley offsets.
+# Multisig timelock input uses this instead of legacy env helper functions.
+cntools_epoch_start_slot_into() {
+  local _epoch_output="${1:-}" _epoch_number="${2:-}" _epoch_transition=0 _epoch_byron=0 _epoch_shelley=0 _epoch_configured=''
+  [[ "${_epoch_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _epoch_result="${_epoch_output}"
+  _epoch_result=''
+  [[ "${_epoch_number}" =~ ^(0|[1-9][0-9]{0,6})$ ]] || return 2
+  case "${CNTOOLS_NETWORK:-}" in
+    mainnet) _epoch_transition=208; _epoch_byron=21600; _epoch_shelley=432000 ;;
+    preprod) _epoch_transition=4; _epoch_byron=21600; _epoch_shelley=432000 ;;
+    preview) _epoch_transition=0; _epoch_byron=4320; _epoch_shelley=86400 ;;
+    guild) _epoch_transition=2; _epoch_byron=360; _epoch_shelley=3600 ;;
+    *) return 1 ;;
+  esac
+  if [[ -n "${CNTOOLS_SHELLEY_GENESIS:-}" && -f "${CNTOOLS_SHELLEY_GENESIS}" && ! -L "${CNTOOLS_SHELLEY_GENESIS}" ]]; then
+    _epoch_configured="$(jq -er '.epochLength|select(type=="number" and floor==. and .>0 and .<=10000000)' "${CNTOOLS_SHELLEY_GENESIS}")" || return 1
+    _epoch_shelley="${_epoch_configured}"
+  fi
+  if ((_epoch_number<_epoch_transition)); then _epoch_result=$((_epoch_number*_epoch_byron))
+  else _epoch_result=$((_epoch_transition*_epoch_byron+(_epoch_number-_epoch_transition)*_epoch_shelley)); fi
+}
+
 cntools_health_tone_for_gap() {
   local gap="${1:-}"
 

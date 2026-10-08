@@ -350,7 +350,8 @@ cntools_send_workflow() {
   (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || { cntools_send_fail "No wallets are available."; return 2; }
   cntools_ui_render_detail "Source wallet"
   cntools_wallet_choose selected Cancel send || return $?
-  cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
+  cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" multisig || return 2
+  [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_spend_choose_signers || return $?
   cntools_send_choose_change || return $?
   cntools_ui_spin_function "Fetching spendable funds and protocol parameters…" \
     cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" || return 2
@@ -362,6 +363,7 @@ cntools_send_workflow() {
   cntools_send_edit_recipients || return $?
   local can_sign=N
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
+  [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || can_sign="${CNTOOLS_MULTISIG_CAN_SIGN}"
   cntools_transaction_ui_workflow_into choice "${can_sign}" || return $?
   cntools_transaction_ui_expiry_into lifetime || return $?
   cntools_transaction_ui_proceed_into proceed "${choice}" || return 2

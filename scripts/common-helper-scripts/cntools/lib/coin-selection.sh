@@ -78,7 +78,7 @@ cntools_coin_required_for_stake_into() {
   cntools_uint_normalize_into deposit "${deposit}" || return 2
   cntools_uint_normalize_into fee_reserve "${fee_reserve}" || return 2
   case "${operation}" in
-    register|delegate|vote-delegate|drep-register|drep-update|gov-vote|pool-register|pool-modify)
+    register|delegate|vote-delegate|drep-register|drep-update|gov-vote|pool-register|pool-modify|pool-retire)
       cntools_uint_add_into _cntools_required \
         "${deposit}" "${fee_reserve}" || return 1
       ;;

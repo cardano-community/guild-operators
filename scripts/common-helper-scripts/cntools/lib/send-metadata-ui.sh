@@ -2,6 +2,12 @@
 # Optional Send metadata controls. Only ciphertext survives encrypted entry.
 # shellcheck disable=SC2034
 
+# Shared editor context: non-Send actions supply their own overview callbacks.
+cntools_send_metadata_context() {
+  "${CNTOOLS_METADATA_BEGIN_CALLBACK:-cntools_send_begin}" || return 1
+  "${CNTOOLS_METADATA_OVERVIEW_CALLBACK:-cntools_send_render_recipients}"
+}
+
 cntools_send_metadata_render() {
   local line="" width="" index=0 kind="CIP-20 message" label=674 previous_label=""
   [[ -n "${CNTOOLS_METADATA_MESSAGE}" || -n "${CNTOOLS_METADATA_CUSTOM}" ]] || return 0
@@ -78,7 +84,7 @@ cntools_send_metadata_message() {
     }
     unset passphrase confirmation
     # Clear the transient editor before the persistent ciphertext-only review.
-    cntools_send_begin
+    "${CNTOOLS_METADATA_BEGIN_CALLBACK:-cntools_send_begin}"
   fi
   cntools_transaction_temp_file frozen message || return 2
   if [[ "${protection}" == 'Encrypted (CIP-83)' ]]; then
@@ -103,8 +109,7 @@ cntools_send_metadata_edit_inner() {
   local -a options=()
   while true; do
     CNTOOLS_METADATA_ERROR=""
-    cntools_send_begin
-    cntools_send_render_recipients || return 2
+    cntools_send_metadata_context || return 2
     cntools_send_metadata_render || return 2
     options=('Done' 'Add / replace message' 'Remove message')
     [[ "${CNTOOLS_ADVANCED:-N}" != Y ]] || options+=('Import custom metadata')

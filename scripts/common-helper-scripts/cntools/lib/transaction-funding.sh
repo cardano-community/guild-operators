@@ -5,6 +5,7 @@
 CNTOOLS_FUNDING_PROTOCOL=""
 CNTOOLS_FUNDING_BACKEND=""
 CNTOOLS_FUNDING_SLOT=""
+CNTOOLS_FUNDING_EPOCH=""
 CNTOOLS_FUNDING_TOTAL="0"
 declare -ag CNTOOLS_FUNDING_ASSET_IDS=()
 declare -Ag CNTOOLS_FUNDING_ASSETS=()
@@ -24,6 +25,7 @@ cntools_funding_get() {
 cntools_funding_tip_into() {
   local tip_output="$1" tip_backend="$2" tip_response="" tip_errors="" tip_slot="" tip_status=0
   local -a tip_network=()
+  CNTOOLS_FUNDING_EPOCH=''
   cntools_transaction_temp_file tip_response transaction-tip || return 1
   case "${tip_backend}" in
     local)
@@ -36,11 +38,13 @@ cntools_funding_tip_into() {
         cntools_transaction_log_cli_failure 'Transaction tip query failed' "${tip_status}" "${tip_errors}" "${tip_response}"
         return 1
       fi
-      tip_slot="$(jq -er '.slot | select(type == "number" and . >= 0 and floor == .) | tostring' "${tip_response}")" || return 1 ;;
+      tip_slot="$(jq -er '.slot | select(type == "number" and . >= 0 and floor == .) | tostring' "${tip_response}")" || return 1
+      CNTOOLS_FUNDING_EPOCH="$(jq -r '.epoch // empty' "${tip_response}")" || return 1 ;;
     koios)
       [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_KOIOS_API:-}" =~ ^https://[^[:space:]]+$ ]] || return 1
       cntools_funding_get "${CNTOOLS_KOIOS_API%/}/tip" "${tip_response}" || return 1
-      tip_slot="$(jq -er 'if type == "array" and length == 1 then .[0].abs_slot else empty end | select(type == "number" and . >= 0 and floor == .) | tostring' "${tip_response}")" || return 1 ;;
+      tip_slot="$(jq -er 'if type == "array" and length == 1 then .[0].abs_slot else empty end | select(type == "number" and . >= 0 and floor == .) | tostring' "${tip_response}")" || return 1
+      CNTOOLS_FUNDING_EPOCH="$(jq -r '.[0].epoch_no // empty' "${tip_response}")" || return 1 ;;
     *) return 2 ;;
   esac
   [[ -n "${tip_slot}" ]] && cntools_transaction_slot_value_valid "${tip_slot}" || return 1

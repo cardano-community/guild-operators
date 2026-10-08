@@ -47,6 +47,7 @@ cntools_vote_target_arguments_into() {
 cntools_vote_certificate_create() {
   local certificate="" output="" errors="" status=0 command=vote-delegation-certificate
   local -a arguments=()
+  local -a stake_arguments=()
   [[ "${CNTOOLS_VOTE_TARGET}" != "${CNTOOLS_VOTE_CURRENT}" ]] || return 1
   cntools_vote_target_arguments_into arguments || return 1
   if [[ "${CNTOOLS_VOTE_REGISTER}" == Y ]]; then
@@ -59,8 +60,10 @@ cntools_vote_certificate_create() {
   cntools_transaction_temp_file certificate voting-delegation-certificate || return 1
   cntools_transaction_temp_file output voting-delegation-output || return 1
   cntools_transaction_temp_file errors voting-delegation-errors || return 1
+  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == MultiSig ]]; then cntools_stake_credential_arguments_into stake_arguments || return 1
+  else stake_arguments=(--stake-verification-key-file "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}"); fi
   cntools_transaction_run_cli "${output}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-address "${command}" \
-    --stake-verification-key-file "${CNTOOLS_WALLET_REGISTER_STAKE_VKEY}" \
+    "${stake_arguments[@]}" \
     "${arguments[@]}" --out-file "${certificate}" || status=$?
   if ((status != 0)); then
     cntools_transaction_log_cli_failure 'Voting delegation certificate creation failed' "${status}" "${errors}" "${output}"
@@ -73,6 +76,8 @@ cntools_vote_certificate_create() {
 
 cntools_vote_validate_body() {
   local view="" drep="" kind='Stake address delegation'
+  local credential_kind=keyHash
+  [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" != MultiSig ]] || credential_kind=scriptHash
   [[ "${CNTOOLS_VOTE_REGISTER}" != Y ]] || kind='Stake address registration and delegation'
   case "${CNTOOLS_VOTE_KIND}" in
     key) drep="drep-keyHash-${CNTOOLS_VOTE_HASH}" ;;
@@ -84,12 +89,13 @@ cntools_vote_validate_body() {
   cntools_transaction_view_into view "$1" || return 1
   jq -e --arg drep "${drep}" --arg stake "${CNTOOLS_WALLET_REGISTER_STAKE_CREDENTIAL}" \
     --arg address "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" --arg fee "${CNTOOLS_WALLET_REGISTER_FEE} Lovelace" \
+    --arg credentialKind "${credential_kind}" \
     --arg kind "${kind}" --arg registration "${CNTOOLS_VOTE_REGISTER}" --arg deposit "${CNTOOLS_WALLET_REGISTER_DEPOSIT}" '
       (.certificates | type == "array" and length == 1) and
       (.certificates[0] | keys == [$kind]) and
       (.certificates[0][$kind] |
         keys == (if $registration == "Y" then ["delegatee","deposit","stake credential"] else ["delegatee","stake credential"] end) and
-        .["stake credential"] == {keyHash:$stake} and
+        .["stake credential"] == {($credentialKind):$stake} and
         .delegatee == {"delegatee type":"vote",DRep:$drep} and
         (if $registration == "Y" then (.deposit | tostring) == $deposit else (has("deposit") | not) end)) and
       .fee == $fee and (.withdrawals == null or .withdrawals == []) and .mint == null and .metadata == null and
