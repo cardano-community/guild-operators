@@ -171,6 +171,7 @@ export PATH
 # shellcheck source=/dev/null
 . "${KEY_LIBRARY}"
 # shellcheck source=/dev/null
+. "${CNTOOLS_ROOT}/lib/key-crypto.sh"
 . "${PROTECTION_LIBRARY}"
 # shellcheck source=/dev/null
 . "${PROTECTION_UI_LIBRARY}"

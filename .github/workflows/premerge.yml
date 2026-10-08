@@ -90,6 +90,12 @@ jobs:
       run: bash files/tests/cntools-transaction-validity.sh
     - name: Test CNTools stake pool delegation
       run: bash files/tests/cntools-funds-delegate.sh
+    - name: Test CNTools pool inventory and views
+      run: bash files/tests/cntools-pool.sh
+    - name: Test CNTools pool creation, import and protection
+      run: bash files/tests/cntools-pool-manage.sh
+    - name: Test CNTools pool registration and modification
+      run: bash files/tests/cntools-pool-registration.sh
     - name: Test CNTools governance delegation
       run: bash files/tests/cntools-governance-delegate.sh
     - name: Test CNTools governance wallet keys and status UI

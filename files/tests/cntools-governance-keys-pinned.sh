@@ -7,12 +7,13 @@ CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 CNTOOLS_CLI="${1:?Pass the deployment-pinned CLI binary}"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-drep-pinned.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
+GPG_TEST_ROOT="$(mktemp -d /tmp/cntools-drep-gpg.XXXXXX)"
 cleanup() {
-  if [[ "${GNUPGHOME:-}" == "${TEST_ROOT}/gnupg" ]]; then
+  if [[ "${GNUPGHOME:-}" == "${GPG_TEST_ROOT}" ]]; then
     gpgconf --homedir "${GNUPGHOME}" --kill gpg-agent >/dev/null 2>&1 || true
   fi
   chmod -R u+rwX "${TEST_ROOT}"
-  rm -rf -- "${TEST_ROOT}"
+  rm -rf -- "${TEST_ROOT}" "${GPG_TEST_ROOT}"
 }
 trap cleanup EXIT
 umask 077
@@ -34,15 +35,15 @@ chmod() {
 }
 CNTOOLS_WALLET_DIR="${TEST_ROOT}/wallets"
 mkdir "${CNTOOLS_WALLET_DIR}"
-export GNUPGHOME="${TEST_ROOT}/gnupg"
-mkdir "${GNUPGHOME}"
+# Keep the agent's Unix socket path short on macOS as well as Linux.
+export GNUPGHOME="${GPG_TEST_ROOT}"
 CNTOOLS_ENABLE_CHATTR=false
 fail() { printf 'FAIL: %s (%s)\n' "$*" "${CNTOOLS_WALLET_PROTECTION_ERROR:-}" >&2; tail -8 "${TEST_ROOT}/test.log" >&2; exit 1; }
 cntools_log() { printf '%s %s\n' "$1" "$2" >> "${TEST_ROOT}/test.log"; }
 cntools_log_sanitize_line() { printf '%s' "${1//[[:cntrl:]]/ }"; }
 cntools_run_command_timeout() { shift 3; printf '%q ' "$@" >> "${TEST_ROOT}/test.log"; printf '\n' >> "${TEST_ROOT}/test.log"; "$@"; }
 cntools_run_command() { shift 2; "$@"; }
-for lib in number wallet wallet-material wallet-key wallet-create wallet-mnemonic wallet-protection wallet-protection-ui drep-id drep-key; do
+for lib in number wallet wallet-material wallet-key wallet-create wallet-mnemonic key-crypto wallet-protection wallet-protection-ui drep-id drep-key; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 for role in PAY STAKE; do

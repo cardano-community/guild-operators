@@ -17,6 +17,7 @@
     "wallet-create.sh",
     "wallet-mnemonic.sh",
     "wallet-mnemonic-ui.sh",
+    "key-crypto.sh",
     "wallet-protection.sh",
     "wallet-query.sh",
     "transaction.sh",

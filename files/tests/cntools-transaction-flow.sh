@@ -8,7 +8,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-tx-flow.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
-for lib in number transaction-ui wallet-register wallet-register-ui governance-drep governance-vote; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
+for lib in number transaction-ui wallet-register wallet-register-ui governance-drep governance-vote pool-registration pool-registration-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 eq() { [[ "$1" == "$2" ]] || fail "$3: $1 != $2"; }
 printf '{"intent":{"summary":{"technicalFixture":true}}}' > "${TEST_ROOT}/package.json"
@@ -103,9 +103,26 @@ cntools_ui_choose() {
   fi
   printf -v "$1" '%s' "${answer}"
 }
-for operation in register deregister vote-delegate drep-register drep-update drep-retire gov-vote; do
+cntools_pool_catalog_build() { CNTOOLS_POOL_NAMES=(Pool); CNTOOLS_POOL_DIRECTORIES=(/pool); }
+cntools_pool_choose_into() { printf -v "$1" '%s' 0; }
+cntools_pool_registration_prepare_identity() { CNTOOLS_POOL_REG_ID=pool1fixture; CNTOOLS_POOL_REG_INDEX=0; CNTOOLS_POOL_CHAIN_STATUS=(Registered); }
+cntools_pool_registration_prepare_funding() { cntools_wallet_register_prepare_wallet "$1" Pool; CNTOOLS_WALLET_REGISTER_WALLET_TYPE=CLI; }
+cntools_pool_registration_collect() { CNTOOLS_POOL_REG_STATE='{"registered":true}'; cntools_wallet_register_collect; }
+cntools_pool_registration_defaults() { :; }
+cntools_pool_registration_edit_settings() { :; }
+cntools_pool_registration_can_sign_into() { printf -v "$1" '%s' "${SIGNABLE}"; }
+cntools_pool_registration_build_into() { cntools_wallet_register_build_package_into "$1"; }
+cntools_pool_registration_recheck() { cntools_vote_recheck; }
+cntools_pool_registration_render_plan() {
+  local pool_test_fee=''
+  cntools_transaction_ui_fee_into pool_test_fee
+  { cntools_transaction_ui_styled_row Fee "$(cntools_wallet_format_lovelace "${pool_test_fee}")" number
+    cntools_transaction_ui_render_policy_rows "${CNTOOLS_TX_SELECTION_STRATEGY}" 1
+  } | cntools_ui_table
+}
+for operation in register deregister vote-delegate drep-register drep-update drep-retire gov-vote pool-register pool-modify; do
   for scenario in live unsigned protected signed cancel decline sign-failure submit-failure details switch rewards recheck-failure recheck-submit-failure; do
-    [[ "${scenario}" != recheck-* || "${operation}" == vote-delegate || "${operation}" == drep-* || "${operation}" == gov-vote ]] || continue
+    [[ "${scenario}" != recheck-* || "${operation}" == vote-delegate || "${operation}" == drep-* || "${operation}" == gov-vote || "${operation}" == pool-* ]] || continue
     (
       : > "${TRACE}"; : > "${TABLE}"; : > "${LOG}"
       SIGNABLE=Y WORKFLOW='Create, sign and submit' SCENARIO="${scenario}" STEP=0
@@ -115,7 +132,8 @@ for operation in register deregister vote-delegate drep-register drep-update dre
       CNTOOLS_TX_SELECTION_STRATEGY=balanced
       CNTOOLS_CHANGE_TOKEN_STATUS=Disabled CNTOOLS_CHANGE_UTXO_STATUS=Disabled CNTOOLS_CHANGE_COLLATERAL_STATUS=Disabled
       CNTOOLS_WALLET_REGISTER_INPUTS=(input)
-      cntools_wallet_register_operation_set "${operation}"
+      if [[ "${operation}" == pool-* ]]; then cntools_pool_registration_operation_set "${operation}"
+      else cntools_wallet_register_operation_set "${operation}"; fi
       CNTOOLS_WALLET_REGISTER_DEPOSIT=2000000
       case "${scenario}" in
         unsigned) WORKFLOW='Create unsigned package' ;;
@@ -127,7 +145,9 @@ for operation in register deregister vote-delegate drep-register drep-update dre
         rewards) COLLECT_STATUS=8 ;;
         recheck-failure) RECHECK_STATUS=1 ;;
       esac
-      status=0; cntools_wallet_register_workflow || status=$?
+      status=0
+      if [[ "${operation}" == pool-* ]]; then cntools_pool_registration_workflow || status=$?
+      else cntools_wallet_register_workflow || status=$?; fi
       if [[ "${scenario}" != details ]] && grep -Eq '^(decoded|signers|scripts|changes)$' "${TRACE}"; then fail 'technical details dumped'; fi
       if grep -Eq 'technicalFixture|Fee safety ceiling|Required witnesses|Chain data' "${TABLE}"; then fail 'technical clutter in compact view'; fi
       if [[ "${scenario}" == rewards ]]; then

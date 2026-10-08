@@ -10,6 +10,14 @@
     "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "wallet-query.sh",
+    "transaction.sh",
+    "pool-id.sh",
+    "table.sh",
+    "pool.sh",
+    "pool-inspect.sh",
+    "pool-ui.sh"
   ]
 }

@@ -553,6 +553,9 @@ bash "${SCRIPT_DIR}/cntools-collect-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-governance-keys-pinned.sh" "${CLI}"
 bash "${SCRIPT_DIR}/cntools-drep-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-governance-vote-pinned.sh" "${CLI}" "${HWCLI}"
+bash "${SCRIPT_DIR}/cntools-pool-pinned.sh" "${CLI}"
+bash "${SCRIPT_DIR}/cntools-pool-manage.sh" "${CLI}"
+bash "${SCRIPT_DIR}/cntools-pool-registration.sh" "${CLI}" "${HWCLI}"
 
 printf 'CNTools pinned transaction binary tests passed (cardano-cli %s, cardano-hw-cli %s).\n' \
   "${CLI_VERSION}" "${HWCLI_VERSION}"

@@ -13,6 +13,7 @@
     "wallet.sh",
     "wallet-material.sh",
     "wallet-key.sh",
+    "key-crypto.sh",
     "wallet-protection.sh",
     "wallet-protection-ui.sh"
   ]

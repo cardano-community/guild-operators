@@ -326,36 +326,9 @@ cntools_wallet_protection_gpg_run() {
   local output_file="${3:-}"
   local passphrase="${4:-}"
   local error_file="${5:-}"
-  local mask=""
   local status=0
-  local -a command=()
-
-  [[ -n "${CNTOOLS_WALLET_PROTECTION_GPG}" &&
-     -x "${CNTOOLS_WALLET_PROTECTION_GPG}" &&
-     -f "${source_file}" && ! -L "${source_file}" &&
-     -f "${output_file}" && ! -L "${output_file}" &&
-     -f "${error_file}" && ! -L "${error_file}" &&
-     "${passphrase}" != *$'\n'* && "${passphrase}" != *$'\r'* ]] || return 2
-  command=(
-    "${CNTOOLS_WALLET_PROTECTION_GPG}"
-    --no-options --quiet --batch --yes --no-tty
-    --pinentry-mode loopback --no-symkey-cache --passphrase-fd 3
-    --output "${output_file}"
-  )
-  case "${operation}" in
-    encrypt)
-      command+=(--symmetric --cipher-algo AES256 "${source_file}")
-      ;;
-    decrypt)
-      command+=(--decrypt "${source_file}")
-      ;;
-    *) return 2 ;;
-  esac
-  printf -v mask '%*s' "${#command[@]}" ''
-  mask="${mask// /0}"
-  if cntools_run_command_timeout 60 "${mask}" -- \
-      "${command[@]}" 3<<< "${passphrase}" \
-      >/dev/null 2> "${error_file}"; then
+  if cntools_key_crypto_run "${CNTOOLS_WALLET_PROTECTION_GPG}" "${operation}" \
+      "${source_file}" "${output_file}" "${passphrase}" "${error_file}"; then
     status=0
   else
     status=$?

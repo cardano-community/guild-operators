@@ -141,6 +141,10 @@ functional. The phase-0
 menu inventory remains an implementation checklist, not a generated runtime
 manifest.
 
+Pool List and Show are functional read-only browsers for existing pool
+directories. Pool New, Import, Encrypt, Decrypt, Register and Modify are also
+implemented. Retirement, KES rotation and Calidus remain separate slices.
+
 ## Runtime modes
 
 Mode and node implementation are separate values:
@@ -1308,6 +1312,56 @@ with verified deployment-pinned CLI binaries and tests ADA/token conservation,
 small rewards, change management, and durable package publication. CI invokes
 it from the existing pinned-binary suite. No test submits a transaction.
 
+## Pool inventory and detail browsers
+
+**Pool → List** and **Pool → Show** use the same responsive, themed,
+headerless property tables as Wallet List/Show. List renders one compact table
+per directory, with public identity, cold-key material, registration status and,
+when requested, pledge/cost/margin. Show adds local KES/VRF key-material and
+operational-certificate presence, local configuration, owners, relays, metadata,
+and available on-chain settings. Presence is not a check that a KES key or
+operational certificate is current or usable; those checks belong to the KES
+management slice. Private-key contents are never read or displayed.
+
+This slice does not create, repair, encrypt, or overwrite any existing pool
+artifact. A cold verification key is checked with the **cnode deployment-pinned
+CLI** to derive the pool ID in memory. Existing `pool.id` and
+`pool.id-bech32` must agree with it and each other. A stored ID can be used for
+read-only inspection when no cold public key exists; a conflicting or invalid
+identity is shown with a warning and excluded from live lookup. Incomplete
+directories remain visible. Symlinked directories/files and staging directories
+are excluded; configured filenames cannot escape the pool directory.
+
+List asks before fetching chain information and uses a Gum spinner. Show
+fetches only the selected pool. Offline mode makes no node/API requests, and
+missing, malformed, or unavailable data never prevents browsing local details.
+Local mode prefers the configured node's `latest query pool-state`, showing
+current settings and any pending next-epoch update separately. If a local query
+fails, available Koios is used as an explicitly labeled fallback. Light mode
+uses `pool_info`, batching up to 100 unique pool IDs per request without a
+response-side limit. Duplicate/unexpected identities or malformed responses
+are errors, not evidence of an unregistered pool. Empty node results mean
+**Not registered**; empty Koios results mean **Not indexed** (indexer lag is
+possible). Retired Koios records remain visible as historical registrations.
+
+Koios shows its latest indexed registration and effective epoch, not a claim
+that every latest parameter is already active. Metadata is clearly descriptive:
+only existing `poolmeta.json` or Koios-indexed metadata is displayed, never
+downloaded from an arbitrary pool URL. Local `pool.config` values are labeled
+as local configuration, not proof of registration. Public configuration and
+metadata fields are whitelisted and terminal-control characters sanitized.
+Local Show can also enrich descriptive metadata through Koios without replacing
+the local node's registration parameters or pending updates. Failure to obtain
+optional metadata does not fail the pool view.
+Every external CLI/API invocation uses the shared logged request wrappers.
+
+Tests cover offline isolation, safe discovery, conflicting IDs, new/retired
+pools, pending parameters, bulk Koios requests, malformed responses, optional
+local JSON, cancellation, and presentation. The node-free pinned cnode test
+generates real cold/KES/VRF keys and an operational certificate, compares
+identity with CLI output, and verifies existing artifacts remain unchanged.
+Live node/API behavior should additionally be checked on a test deployment.
+
 ## Funds stake pool delegation slice
 
 **Funds → Delegate** delegates or re-delegates a complete CLI, mnemonic or
@@ -1368,6 +1422,107 @@ manual acceptance checks.
 Pool response contracts were checked against
 [Koios v1.4.2 pool_info](https://github.com/cardano-community/koios-artifacts/blob/v1.4.2/files/grest/rpc/pool/pool_info.sql)
 and the [pinned CLI pool-state schema](https://github.com/IntersectMBO/cardano-cli/blob/cardano-cli-11.2.3.1/cardano-cli/src/Cardano/CLI/Type/Common.hs).
+
+## Pool creation, import and protection
+
+**Pool → New** prepares cold, KES and VRF key pairs, a new zero issue counter,
+and both pool-ID formats. It does not register the pool, issue an operational
+certificate or invent a KES start period. Keys are validated in a private staging
+directory before the complete directory is published without overwriting an
+existing pool. Creation and import require the deployed Cardano CLI but no node
+connection, and are available in local, light and offline sessions.
+
+**Pool → Import** copies an existing directory without modifying its source.
+Only bounded, regular top-level files are accepted; links and nested directories
+are rejected. Missing public keys can be derived from supported private keys in
+the destination. Existing public keys and cached IDs must match. Counters and
+certificates are preserved and structurally checked against their keys, not reset
+or regenerated. These checks do not verify certificate signatures or compare the
+issue counter with the live chain. Missing operational artifacts remain missing.
+
+Hardware import exports a cold public key and signing reference through the
+pinned hardware companion using [CIP-1853](https://cips.cardano.org/cip/CIP-1853),
+with cold index defaulting to zero. Its cold private key remains on the device.
+It prepares fresh KES/VRF keys and a zero counter, not an operational certificate.
+For an already registered hardware pool, recover its original VRF and correct
+counter before subsequent registration or certificate issuance. Physical device
+approval remains a manual acceptance check.
+
+**Pool → Encrypt / Decrypt** follows the legacy protection model: GnuPG protects
+only the cold signing key. KES and VRF keys stay readable for node operation.
+New encryption requires at least 12 password characters; decryption accepts
+shorter legacy passwords. Passwords are supplied through a private descriptor,
+never command arguments or logs. Encryption is round-trip verified, and decrypted
+keys must match any existing cold public key, before the original is retired.
+Failed operations retain the original key; cleanup never deletes the last copy.
+
+Encryption sets owner-only read permissions on pool files and uses immutable
+flags when `ENABLE_CHATTR` permits and the filesystem/permissions support them.
+Otherwise read-only permissions are the fallback. Decryption removes locks and
+restores owner read/write permissions. Hardware and watch-only pools can also
+lock/unlock their local files without a password. Keep independent offline
+backups: neither permissions nor encryption protects against password loss.
+
+Focused safety tests run in `cntools-pool-manage.sh`; the pinned suite also runs
+them against the cnode deployment's Cardano CLI version. Tests cover no-clobber
+publication, missing-key derivation, source preservation, invalid imports, GPG
+round trips, legacy short passwords and failure rollback.
+
+## Pool registration and modification
+
+**Pool → Register / Modify** use the shared transaction review, exact CLI fee
+calculation, configured coin selection/change policies and automatic package
+storage. Both offer live signing/submission, sign-only and an unsigned package
+for later **Transaction → Sign / Submit**. Building needs current chain data;
+offline systems can sign an exported package without node/API access.
+
+Choose a verified local pool and a separate funding wallet, then review pledge,
+fixed cost, margin, reward account, owner stake keys, DNS/IP/SRV relays and
+optional metadata URL/hash. Pledge is a commitment, not a payment from the
+funding wallet. Fixed cost must meet the live protocol minimum. Amounts accept
+US thousands separators. For exact decoded-JSON validation, this slice limits
+pledge/cost to 9,007,199,254.740991 ADA and supports up to 20 owners/relays.
+An uploaded metadata file is not managed here: select a local JSON file to hash
+(at most 512 bytes), or supply an existing published URL and hash. CNTools
+does not upload or download arbitrary pool metadata URLs.
+
+Register checks that the pool is unregistered and charges the current protocol
+pool deposit. Modify requires registration and charges **no new deposit**.
+Current settings are preserved; local pending next-epoch settings take precedence
+so editing one field does not undo a previous update. Changing a retiring pool
+cancels its retirement. A local VRF key conflicting with the registered identity
+is rejected. Koios returns its latest indexed registration; an absent result is
+explicitly flagged for indexer lag, not treated as proof of immediate chain state.
+
+The funding payment key, pool cold key and **every owner stake key** witness the
+certificate, deduplicated by public key. The reward key does not need a witness
+unless it is also an owner. Owners/reward accounts may use known wallets or
+external stake public keys. Unresolved existing owners remain visible until
+their public key is supplied or they are explicitly removed. Missing/encrypted
+signing keys select the unsigned route; no private key belongs in a portable
+package. Hardware cold/owner keys use the shared hardware sessions. With the
+[pinned hardware companion's pool-signing rules](https://github.com/vacuumlabs/cardano-hw-cli/blob/v1.19.1/docs/pool-registration.md),
+hardware funding requires a hardware cold key on the **same Ledger**, explicitly
+confirmed and witnessed together. Choose CLI/mnemonic funding for a CLI cold key.
+Every hardware owner signs separately, even on the operator's device; owners
+are never batched with payment/cold keys. Change-key references are preserved.
+
+The decoded certificate is verified against **every reviewed pool parameter**,
+input, expiry and change destination before export or signing. The chain source,
+protocol parameters, pool registration/pending/retirement state and unspent inputs
+are rechecked before signing/export and again before submission in the originating
+online action. An offline signer verifies the exported transaction, not current
+chain state. Advancing pool
+statistics are excluded from this comparison. A changed state requires rebuilding,
+not silently charging a different deposit. Native assets are preserved as change.
+Registering owner/reward stake accounts, delegating pledge, creating operational
+certificates and starting the node are separate actions.
+
+`cntools-pool-registration.sh` covers state/defaults/UI contracts and optionally
+real certificates, exact deposits, native assets, no expiry, offline signing and
+multiple owners using only the cnode deployment CLI pin. Linux pinned CI also
+checks hardware transaction normalization. Live submission and physical device
+approval remain deployment acceptance tests.
 
 ## Wallet stake lifecycle slice
 

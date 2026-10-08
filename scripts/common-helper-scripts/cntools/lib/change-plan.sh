@@ -314,12 +314,12 @@ cntools_change_plan_stake() {
     }
   cntools_change_plan_tokens "${protocol_file}" "${address}" || return 1
   token_min="${CNTOOLS_CHANGE_TOKEN_MIN_TOTAL:-0}"
-  if [[ "${operation}" == collect || "${operation}" == withdraw || "${operation}" == delegate || "${operation}" == vote-delegate || "${operation}" == gov-vote || "${operation}" == register || "${operation}" == deregister || "${operation}" == drep-* || "${token_min}" != "0" ||
+  if [[ "${operation}" == collect || "${operation}" == withdraw || "${operation}" == delegate || "${operation}" == vote-delegate || "${operation}" == gov-vote || "${operation}" == register || "${operation}" == deregister || "${operation}" == drep-* || "${operation}" == pool-* || "${token_min}" != "0" ||
         "${CNTOOLS_TX_UTXO_MANAGEMENT:-N}" == "Y" ]]; then
     residual_min="${CNTOOLS_CHANGE_EFFECTIVE_MIN_LOVELACE}"
   fi
   case "${operation}" in
-    register|delegate|vote-delegate|collect|drep-register|drep-update|gov-vote)
+    register|delegate|vote-delegate|collect|drep-register|drep-update|gov-vote|pool-register|pool-modify)
       cntools_uint_add_into balance_cost \
         "${deposit}" "${fee_reserve}" || return 1
       cntools_uint_add_into balance_cost \

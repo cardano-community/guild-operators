@@ -350,6 +350,7 @@ while IFS=$'\t' read -r \
           "wallet.sh",
           "wallet-material.sh",
           "wallet-key.sh",
+          "key-crypto.sh",
           "wallet-protection.sh",
           "wallet-protection-ui.sh"
         ]' \
@@ -410,6 +411,23 @@ while IFS=$'\t' read -r \
           "${metadata}" >/dev/null || fail "collection libraries missing"
         grep -F 'cntools_funds_action_collect' "${action_file}" >/dev/null || fail "collection entrypoint missing"
         grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "collection cleanup missing"
+        ;;
+      pool/new|pool/import|pool/encrypt|pool/decrypt)
+        jq -e '.libs | index("pool-files.sh") != null and index("pool-key.sh") != null and index("pool-manage-ui.sh") != null and index("placeholder.sh") == null' \
+          "${metadata}" >/dev/null || fail "Pool management dependencies missing: ${module_id}"
+        grep -F 'cntools_pool_action_' "${action_file}" >/dev/null || fail "Pool management entrypoint missing"
+        grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "Pool management cleanup missing"
+        ;;
+      pool/register|pool/modify)
+        jq -e '.libs | index("pool-registration.sh") != null and index("pool-registration-ui.sh") != null and index("wallet-register.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail "Pool registration dependencies missing"
+        grep -F 'cntools_pool_action_registration' "${action_file}" >/dev/null || fail "Pool registration handler missing"
+        grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "Pool registration cleanup missing"
+        ;;
+      pool/list|pool/show)
+        jq -e '.libs == ["number.sh", "wallet.sh", "wallet-query.sh", "transaction.sh", "pool-id.sh", "table.sh", "pool.sh", "pool-inspect.sh", "pool-ui.sh"]' \
+          "${metadata}" >/dev/null || fail "Pool browser dependencies missing: ${module_id}"
+        grep -F "cntools_pool_action_${module_id##*/}" "${action_file}" >/dev/null || fail "Pool browser entrypoint missing"
+        grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "Pool browser cleanup missing"
         ;;
       funds/delegate)
         jq -e '.libs | index("funds-delegate.sh") != null and index("funds-delegate-ui.sh") != null and index("pool-query.sh") != null and index("placeholder.sh") == null' \
@@ -689,6 +707,7 @@ while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
+    pool/list|pool/show|pool/new|pool/import|pool/encrypt|pool/decrypt|pool/register|pool/modify) continue ;;
     wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/transactions|wallet/utxos|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|funds/withdraw|funds/delegate|funds/collect|vote/governance/delegate|vote/governance/derive-keys|vote/governance/info|vote/governance/drep-register|vote/governance/drep-retire|vote/governance/proposals|vote/governance/cast|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"

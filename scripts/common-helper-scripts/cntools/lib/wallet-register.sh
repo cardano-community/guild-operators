@@ -734,6 +734,8 @@ cntools_wallet_register_plan_create() {
   local planned_outputs="[]"
   local index=0
 
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-* ]]; then cntools_pool_registration_plan_create; return $?; fi
+
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then cntools_gov_vote_plan_create; return $?; fi
 
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
@@ -855,7 +857,7 @@ cntools_wallet_register_build_balanced_into() {
   local body="" package_path="" input="" output="" next_fee="" accounted="" value="" available=""
   local attempt=0 index=0 max_size=0 body_bytes=0 witnesses=0 output_count=0
   local -a arguments=()
-  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in register|deregister|delegate|vote-delegate|drep-register|drep-update|drep-retire|gov-vote) ;; *) return 2 ;; esac
+  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in register|deregister|delegate|vote-delegate|drep-register|drep-update|drep-retire|gov-vote|pool-register|pool-modify) ;; *) return 2 ;; esac
   for index in "${CNTOOLS_COIN_SELECTED_INDICES[@]}"; do
     [[ "${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[index]}" == N ]] || {
       cntools_wallet_register_set_error 'A selected input contains a reference script. This transaction does not support spending these inputs; use ordinary UTxOs.'; return 1;
@@ -912,7 +914,9 @@ cntools_wallet_register_build_balanced_into() {
     cntools_transaction_calculate_min_fee_into next_fee "${CNTOOLS_TRANSACTION_BODY_FILE}" "${#CNTOOLS_WALLET_REGISTER_INPUTS[@]}" \
       "${output_count}" "${CNTOOLS_WALLET_REGISTER_PROTOCOL_FILE}" || return 1
     if cntools_uint_greater "${next_fee}" "${CNTOOLS_WALLET_REGISTER_FEE}"; then CNTOOLS_WALLET_REGISTER_FEE="${next_fee}"; continue; fi
-    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-* ]]; then
+      cntools_pool_registration_validate_body "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 1
+    elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
       cntools_gov_vote_validate_body "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 1
     elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
       cntools_drep_lifecycle_validate_body "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 1

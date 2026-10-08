@@ -1,7 +1,26 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034
+
+# Decode a validated key reward address into its raw credential, not its header.
+cntools_wallet_reward_credential_into() {
+  local -n wr_result="$1"
+  local wr_address="$2" wr_hrp=stake_test wr_data="" wr_hex="" wr_suffix="" wr_byte=""
+  local wr_charset=qpzry9x8gf2tvdw0s3jn54khce6mua7l wr_acc=0 wr_bits=0 wr_i=0 wr_n=0
+  [[ "${CNTOOLS_NETWORK:-}" != mainnet ]] || wr_hrp=stake
+  cntools_wallet_bech32_valid "${wr_address}" "${wr_hrp}" reward || return 1
+  wr_data="${wr_address#*1}"; wr_data="${wr_data:0:${#wr_data}-6}"
+  for ((wr_i=0; wr_i<${#wr_data}; wr_i++)); do
+    wr_suffix="${wr_charset#*"${wr_data:wr_i:1}"}"; wr_n=$((31-${#wr_suffix}))
+    wr_acc=$(((wr_acc << 5 | wr_n) & 4095)); wr_bits=$((wr_bits+5))
+    if ((wr_bits >= 8)); then
+      wr_bits=$((wr_bits-8)); printf -v wr_byte '%02x' "$((wr_acc >> wr_bits & 255))"; wr_hex+="${wr_byte}"
+    fi
+  done
+  [[ "${wr_hex}" =~ ^e[01][0-9a-f]{56}$ ]] || return 1
+  wr_result="${wr_hex:2}"
+}
 # Missing-only generation and selection of wallet payment, base, and reward
 # addresses from validated public keys or native scripts.
-# shellcheck disable=SC2034
 
 declare -ag CNTOOLS_WALLET_ADDRESS_NETWORK_ARGS=()
 

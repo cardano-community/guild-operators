@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# CNTools placeholder action. Functions only.
+# CNTools pool encrypt action. Functions only.
 
 cntools_action_main() {
-  cntools_action_placeholder
+  cntools_pool_action_protection encrypt
+}
+
+cntools_action_cleanup() {
+  cntools_pool_protection_cleanup
+  cntools_transaction_cleanup
 }
