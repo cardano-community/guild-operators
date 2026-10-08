@@ -96,6 +96,8 @@ jobs:
       run: bash files/tests/cntools-governance-wallet.sh
     - name: Test CNTools DRep lifecycle safety
       run: bash files/tests/cntools-drep.sh
+    - name: Test CNTools governance proposals and voting safety
+      run: bash files/tests/cntools-governance-vote.sh
     - name: Test CNTools UTxO collection
       run: bash files/tests/cntools-funds-collect.sh
     - name: Cache pinned CNTools transaction tools

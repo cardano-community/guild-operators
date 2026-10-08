@@ -8,8 +8,12 @@ cntools_drep_bech32_into() {
   local di_hex="${2,,}" di_hrp="${3:-drep}" di_text="" di_charset=qpzry9x8gf2tvdw0s3jn54khce6mua7l
   local di_i=0 di_j=0 di_n=0 di_acc=0 di_bits=0 di_check=1 di_top=0 LC_ALL=C
   local -a di_values=() di_generators=(0x3b6a57b2 0x26508e6d 0x1ea119fa 0x3d4233dd 0x2a1462b3)
-  [[ "${di_hrp}" == drep || "${di_hrp}" == drep_script ]] || return 2
-  [[ "${di_hex}" =~ ^[0-9a-f]{56}$ || ( "${di_hrp}" == drep && "${di_hex}" =~ ^2[23][0-9a-f]{56}$ ) ]] || return 2
+  case "${di_hrp}" in
+    drep|drep_script)
+      [[ "${di_hex}" =~ ^[0-9a-f]{56}$ || ( "${di_hrp}" == drep && "${di_hex}" =~ ^2[23][0-9a-f]{56}$ ) ]] || return 2 ;;
+    gov_action) [[ "${di_hex}" =~ ^[0-9a-f]{66}$ ]] || return 2 ;;
+    *) return 2 ;;
+  esac
   for ((di_i=0; di_i<${#di_hrp}; di_i++)); do
     printf -v di_n '%d' "'${di_hrp:di_i:1}"; di_values+=("$((di_n >> 5))")
   done

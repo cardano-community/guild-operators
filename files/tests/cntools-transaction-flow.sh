@@ -8,7 +8,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-tx-flow.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
-for lib in number transaction-ui wallet-register wallet-register-ui governance-drep; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
+for lib in number transaction-ui wallet-register wallet-register-ui governance-drep governance-vote; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 eq() { [[ "$1" == "$2" ]] || fail "$3: $1 != $2"; }
 printf '{"intent":{"summary":{"technicalFixture":true}}}' > "${TEST_ROOT}/package.json"
@@ -45,6 +45,9 @@ cntools_vote_recheck() {
 cntools_drep_lifecycle_choose_metadata() { printf 'metadata\n' >> "${TRACE}"; }
 cntools_drep_lifecycle_render_rows() { cntools_transaction_ui_styled_row 'DRep ID' drep1fixture identifier; }
 cntools_drep_lifecycle_recheck() { cntools_vote_recheck; }
+cntools_gov_vote_choose() { printf 'proposal-vote\n' >> "${TRACE}"; }
+cntools_gov_vote_render_rows() { cntools_transaction_ui_styled_row 'DRep ID' drep1fixture identifier; cntools_transaction_ui_styled_row Vote Yes accent; }
+cntools_gov_vote_recheck() { cntools_vote_recheck; }
 cntools_transaction_set_error() { CNTOOLS_TRANSACTION_ERROR="$1"; }
 cntools_wallet_format_lovelace() { printf '%s ADA' "$(cntools_number_format_units "$1" 6)"; }
 cntools_transaction_package_load() {
@@ -100,9 +103,9 @@ cntools_ui_choose() {
   fi
   printf -v "$1" '%s' "${answer}"
 }
-for operation in register deregister vote-delegate drep-register drep-update drep-retire; do
+for operation in register deregister vote-delegate drep-register drep-update drep-retire gov-vote; do
   for scenario in live unsigned protected signed cancel decline sign-failure submit-failure details switch rewards recheck-failure recheck-submit-failure; do
-    [[ "${scenario}" != recheck-* || "${operation}" == vote-delegate || "${operation}" == drep-* ]] || continue
+    [[ "${scenario}" != recheck-* || "${operation}" == vote-delegate || "${operation}" == drep-* || "${operation}" == gov-vote ]] || continue
     (
       : > "${TRACE}"; : > "${TABLE}"; : > "${LOG}"
       SIGNABLE=Y WORKFLOW='Create, sign and submit' SCENARIO="${scenario}" STEP=0
@@ -158,6 +161,11 @@ for operation in register deregister vote-delegate drep-register drep-update dre
         if grep -q 'Stake address' "${TABLE}"; then fail 'DRep showed stake identity'; fi
         if [[ "${operation}" == drep-update ]] && grep -q 'Deposit' "${TABLE}"; then fail 'update showed deposit'; fi
         if [[ "${scenario}" != cancel ]]; then grep -q '^recheck$' "${TRACE}" || fail 'missing DRep recheck'; fi
+      fi
+      if [[ "${operation}" == gov-vote ]]; then
+        grep -q 'Vote.*Yes' "${TABLE}" || fail 'governance decision absent'
+        if grep -q 'Deposit' "${TABLE}"; then fail 'governance vote showed deposit'; fi
+        if [[ "${scenario}" != cancel ]]; then grep -q '^recheck$' "${TRACE}" || fail 'missing governance vote recheck'; fi
       fi
       case "${scenario}" in
         unsigned|protected|switch)

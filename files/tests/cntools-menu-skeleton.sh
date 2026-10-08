@@ -416,6 +416,11 @@ while IFS=$'\t' read -r \
           "${metadata}" >/dev/null || fail "delegation libraries missing"
         grep -F 'cntools_funds_action_delegate' "${action_file}" >/dev/null || fail "delegation entrypoint missing"
         ;;
+      vote/governance/proposals|vote/governance/cast)
+        jq -e '.libs | index("governance-proposal.sh") != null and index("governance-proposal-ui.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail "governance proposal dependencies missing"
+        grep -F 'cntools_governance_action_' "${action_file}" >/dev/null || fail "governance entrypoint missing"
+        grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "governance cleanup missing"
+        ;;
       vote/governance/drep-register|vote/governance/drep-retire)
         jq -e '.libs | index("governance-drep.sh") != null and index("governance-drep-ui.sh") != null and index("wallet-payment.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail "DRep lifecycle dependencies missing"
         grep -F 'cntools_governance_action_drep_' "${action_file}" >/dev/null || fail "DRep lifecycle entrypoint missing"
@@ -684,7 +689,7 @@ while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
   case "${module_id}" in
-    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/transactions|wallet/utxos|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|funds/withdraw|funds/delegate|funds/collect|vote/governance/delegate|vote/governance/derive-keys|vote/governance/info|vote/governance/drep-register|vote/governance/drep-retire|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
+    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/transactions|wallet/utxos|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|funds/withdraw|funds/delegate|funds/collect|vote/governance/delegate|vote/governance/derive-keys|vote/governance/info|vote/governance/drep-register|vote/governance/drep-retire|vote/governance/proposals|vote/governance/cast|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"
   if output="$(cntools_action_run "${module_directory}" 2>&1)"; then

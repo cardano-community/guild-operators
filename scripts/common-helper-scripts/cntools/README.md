@@ -1070,6 +1070,68 @@ Tests use the cnode deployment CLI pin and cover missing-only recovery,
 no-overwrite and partial-publication handling, GPG round trips, invalid phrases,
 secret-free logs, cancellation and offline/API-failure behavior.
 
+## Active governance proposals and DRep votes
+
+**Vote → Governance → List Proposals** browses active proposals in pages of 1–10
+(Enter uses 5), with identifiers, action type, proposed/expiry epochs and local
+vote counts. Details show on-chain action fields, deposit/return information and
+metadata anchors. Local mode reads the full governance state, so proposals from
+the current epoch are included; `query proposals` would exclude them. Light mode
+uses Koios `proposal_list`, including indexed titles and descriptive metadata.
+Refresh, next/previous pages and lookup by list number, CIP-129 `gov_action1…` or
+`transaction-hash#index` are available. Koios requests are paginated below its row
+cap; an oversized/malformed catalog fails instead of silently losing proposals.
+The last voting epoch is inclusive. Removed, enacted and expired actions are not
+offered for voting. Indexed metadata is untrusted and not independently checked
+against its anchor hash; arbitrary metadata URLs are never fetched automatically.
+Vote counts are counts of recorded decisions, not stake-weighted ratification
+thresholds or a prediction that the proposal will pass.
+
+**Cast vote** selects a wallet with verified payment and registered key-DRep
+identities, then an open proposal and **Yes**, **No** or **Abstain**. The proposal
+details and exact ID are shown before confirmation. An existing vote triggers
+an explicit default-No replacement confirmation. Query failure is not treated
+as no previous vote. Voting costs only the fee, not another DRep/stake deposit;
+it does not renew DRep activity. Conway bootstrap protocol version 9 permits
+DRep votes only on informational actions. Ratified Koios proposals remain
+browsable but cannot be selected for a new vote.
+
+A rationale anchor is optional: supply a published HTTP(S)/IPFS URL of at most
+128 bytes and a Blake2b-256 hash, or hash the exact bytes of a local JSON document
+using the pinned CLI. Prepare/publish [CIP-100](https://cips.cardano.org/cip/CIP-0100)
+metadata separately; CNTools neither uploads it nor validates its complete schema.
+Rationale anchors belong to the vote, not CIP-20 transaction metadata.
+
+The shared compact review, expiry including **No expiry**, transaction defaults,
+required-signers view, CLI/extended/protected and existing hardware sources,
+sign-only, unsigned/offline packages, durable exports and submission/Koios
+monitoring all apply. The payment and DRep witnesses are deduplicated; a stake
+witness is not needed. Hardware change references use the same safety checks as
+DRep registration. Committee, pool and script-DRep votes are not supported by
+this key-DRep action. Offline creation still requires an online build followed
+by transport of the unsigned package; signing itself needs no node or API.
+
+Before export/signing and again before live submission, CNTools rechecks the
+funding source, selected inputs, transaction expiry, DRep registration, proposal
+identity/content/expiry and this DRep's previous vote. Other voters' changes do
+not invalidate the review. Decoded vote fields must match the reviewed DRep,
+proposal, decision and rationale with no extra votes/certificates/actions, even
+after hardware normalization. Fee calculation uses the exact CLI body and
+deduplicated witness count, without an additional fee budget. Saved packages
+remain available if a late state change prevents submission.
+
+`cntools-governance-vote.sh` covers local/Koios normalization, CIP-129 identity
+binding, expiry/bootstrap eligibility, failure handling, decoded vote validation
+and stale-state checks. Shared flow tests cover live, signed and unsigned paths,
+cancellation and pre-sign/pre-submit rechecks. `cntools-governance-vote-pinned.sh`
+uses only the cnode deployment CLI pin for real Yes/No/Abstain artifacts, normal
+and extended signatures, rationale hashing, token conservation, No expiry and
+offline packages, asserting exact equality with the signed ledger fee size.
+CI also checks transformation with the pinned hardware companion.
+
+Query schemas: [Koios proposal list](https://github.com/cardano-community/koios-artifacts/blob/v1.4.2/files/grest/rpc/governance/proposal_list.sql),
+[Koios proposal votes](https://github.com/cardano-community/koios-artifacts/blob/v1.4.2/files/grest/rpc/governance/proposal_votes.sql).
+
 ## DRep registration, update and retirement
 
 **Vote → Governance → DRep Registration / Update** selects a wallet with verified

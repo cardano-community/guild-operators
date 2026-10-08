@@ -11,6 +11,7 @@ cntools_wallet_register_render_plan() {
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != delegate ]] || action='Stake pool delegation'
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate ]] || action='Voting delegation'
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-* ]] || action="${CNTOOLS_WALLET_REGISTER_INTENT}"
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != gov-vote ]] || action='DRep governance vote'
   cntools_transaction_ui_table_widths_into widths 22 || return 1
   cntools_transaction_ui_fee_into fee || return 1
   if [[ -n "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER:-}" ]]; then
@@ -21,7 +22,9 @@ cntools_wallet_register_render_plan() {
     printf 'Transaction detail\tValue\n'
     cntools_transaction_ui_styled_row Wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" identifier
     cntools_transaction_ui_styled_row Action "${action}" accent
-    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+      cntools_gov_vote_render_rows
+    elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
       cntools_drep_lifecycle_render_rows
     else
       cntools_transaction_ui_styled_row 'Stake address' "${CNTOOLS_WALLET_REGISTER_REWARD_ADDRESS}" address
@@ -31,7 +34,7 @@ cntools_wallet_register_render_plan() {
     elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
       cntools_vote_render_rows
     fi
-    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-update ]] &&
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-update && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != gov-vote ]] &&
        [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != delegate || "${CNTOOLS_DELEGATE_REGISTER}" == Y ]]; then
       cntools_transaction_ui_styled_row "${CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL}" "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
     fi
@@ -65,7 +68,7 @@ cntools_wallet_register_render_collect_error() {
       message="${CNTOOLS_WALLET_REGISTER_ERROR:-The wallet does not contain a safe set of UTxOs for this transaction.}"
       ;;
   esac
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* && -n "${CNTOOLS_WALLET_REGISTER_ERROR}" ]]; then
+  if [[ ( "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* || "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ) && -n "${CNTOOLS_WALLET_REGISTER_ERROR}" ]]; then
     message="${CNTOOLS_WALLET_REGISTER_ERROR}"
   fi
   if (( status == 4 || status == 7 )); then
@@ -122,6 +125,9 @@ cntools_wallet_register_workflow() {
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
     collecting='Checking DRep registration, deposit and spendable funds…'
     prefix=''
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+    collecting='Checking DRep registration, active proposals and spendable funds…'
+    prefix=''
   fi
   cntools_ui_spin_function "${collecting}" cntools_wallet_register_collect || status=$?
   if (( status != 0 )); then
@@ -137,6 +143,8 @@ cntools_wallet_register_workflow() {
     cntools_vote_choose_target || return $?
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
     cntools_drep_lifecycle_choose_metadata || return $?
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+    cntools_gov_vote_choose || return $?
   fi
   cntools_ui_spin_function "Building ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
     cntools_wallet_register_build_package_into staged || return 2
@@ -154,6 +162,8 @@ cntools_wallet_register_workflow() {
     cntools_ui_spin_function 'Rechecking stake state, DRep and selected inputs…' cntools_vote_recheck || return 2
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
     cntools_ui_spin_function 'Rechecking DRep state, deposit and selected inputs…' cntools_drep_lifecycle_recheck || return 2
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+    cntools_ui_spin_function 'Rechecking DRep, proposal, previous vote and selected inputs…' cntools_gov_vote_recheck || return 2
   fi
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
@@ -196,7 +206,12 @@ cntools_wallet_register_workflow() {
 }
 
 cntools_wallet_register_submit_checked() {
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+    cntools_gov_vote_recheck || {
+      cntools_transaction_set_error "Not submitted: ${CNTOOLS_WALLET_REGISTER_ERROR:-Governance vote could not be rechecked.}"
+      return 1
+    }
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
     cntools_drep_lifecycle_recheck || {
       cntools_transaction_set_error "Not submitted: ${CNTOOLS_WALLET_REGISTER_ERROR:-DRep state could not be rechecked.}"
       return 1

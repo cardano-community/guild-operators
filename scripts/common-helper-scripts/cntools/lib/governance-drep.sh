@@ -194,7 +194,7 @@ cntools_drep_lifecycle_plan_create() {
   cntools_transaction_plan_add_signer "${CNTOOLS_WALLET_REGISTER_WALLET} payment key" spending \
     "${CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" \
     "${CNTOOLS_WALLET_REGISTER_PAYMENT_CREDENTIAL}" "${payment_group}" || return 1
-  cntools_transaction_plan_add_signer "${CNTOOLS_WALLET_REGISTER_WALLET} DRep key" certificate \
+  cntools_transaction_plan_add_signer "${CNTOOLS_WALLET_REGISTER_WALLET} DRep key" "${1:-certificate}" \
     "${CNTOOLS_DREP_LIFECYCLE_VKEY}" "${CNTOOLS_DREP_LIFECYCLE_SOURCE}" "${CNTOOLS_DREP_LIFECYCLE_HASH}" "${drep_group}" || return 1
   if [[ -n "${payment_group}" ]]; then
     cntools_transaction_plan_add_change_key "${CNTOOLS_WALLET_REGISTER_WALLET} payment key" \

@@ -9,6 +9,14 @@
     "light"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "wallet-query.sh",
+    "transaction.sh",
+    "transaction-build.sh",
+    "drep-id.sh",
+    "table.sh",
+    "governance-proposal.sh",
+    "governance-proposal-ui.sh"
   ]
 }
