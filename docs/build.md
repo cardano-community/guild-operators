@@ -75,7 +75,7 @@ against the selected upstream wallet release.
 
 ##### CNTools
 
-A swiss army knife for pool operators, primarily built by [Ola](https://github.com/scitz0), to simplify typical operations regarding wallet keys and pool management. It is deployed with `cnode` and, for testnet evaluation, Dingo. Dingo uses an independently pinned `cardano-cli-dingo` against its compatible node-to-client socket. You can read more about it [here](Scripts/cntools.md).
+A terminal tool for wallet, stake pool, transaction and governance management, primarily built by [Ola](https://github.com/scitz0). It is deployed with cnode, Dingo and Amaru. Local-node actions require a compatible configured backend; Koios light mode and offline signing are also available. See the [CNTools guide](Scripts/cntools.md).
 
 ##### gLiveView
 

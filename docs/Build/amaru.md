@@ -215,9 +215,10 @@ zero. This relay profile does not expose cnode block-production, KES,
 operational-certificate, CNCLI blocklog, Koios, Mithril signer, or interactive
 peer-analysis sections. Mithril helpers, db-sync, Ogmios, and other
 socket-dependent cnode tools remain undeployed. CNTools 14 is available through
-the stable `scripts/cntools.sh` launcher, but its operational actions remain
-placeholders. Installing the interface skeleton does not imply that Amaru
-provides a compatible local backend for future actions.
+the stable `scripts/cntools.sh` launcher. Use `cntools.sh -l` for Koios-backed
+online actions or `cntools.sh -o` for offline key and signing workflows; Amaru
+does not provide a compatible local query socket. See the
+[CNTools guide](../Scripts/cntools.md) for available actions and requirements.
 
 If the node is running but gLiveView reports that metrics are unavailable,
 check the bridge and its loopback output:

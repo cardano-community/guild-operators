@@ -229,17 +229,15 @@ shell-validated as one bundle. Replacement is atomic as a bundle: a failed
 download, validation, move, or catchable termination restores the complete
 preceding runtime rather than leaving mixed generations.
 
-The former cnode-specific source URLs for `env`, gLiveView, and CNTools are
-retired. Moving from CNTools 13.x to 14.x must be done with the current
-`guild-deploy.sh`; the legacy CNTools self-updater cannot perform this layout
-change. Guild Deploy replaces the monolith with the stable launcher, installs
-the complete modular tree, and retires `cntools.library`.
+Guild Deploy installs the stable `scripts/cntools.sh` launcher and complete
+CNTools application tree from the selected snapshot. Use Guild Deploy to
+install or refresh CNTools rather than downloading individual application files.
 
-Deploying a common runtime does not imply that every future CNTools operation
-is supported by every implementation. The current 14.x tree is an interface
-skeleton: its operational actions are placeholders on cnode, Dingo, and Amaru.
-Future actions must check adapter capabilities and fail closed when the
-selected backend cannot provide the required interface.
+CNTools offers wallet, funds, pool, governance, asset and backup workflows.
+Local-node support depends on the selected implementation's interfaces and
+companion tools; Koios light mode and offline signing provide separate paths.
+Amaru has no compatible local query socket. See the
+[CNTools guide](../Scripts/cntools.md) for modes, available actions and requirements.
 
 ### Common monitoring contract
 

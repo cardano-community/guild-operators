@@ -1,23 +1,24 @@
-All notable changes to this tool will be documented in this file.
+All notable CNTools release changes are documented here.
 
 !!! info ""
-    Whenever you're updating between versions where format/hash of keys have changed , or you're changing networks - it is recommended to Backup your Wallet and Pool folders before you proceed with launching cntools on a fresh network.
+    Back up wallet, pool and policy data before upgrading or changing networks.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [14.0.0] - Unreleased
-#### Added
-- Complete modular Bash architecture with metadata-driven menus, focused shared libraries, and action code loaded only when needed.
-- Modern responsive terminal interface built with Charm Gum, including filter-based navigation, consistent interactions, semantic themes, and a Koios-inspired default design.
-- First-class local, light, and offline operation for cnode, Dingo, Amaru, and Koios-backed workflows.
-- Structured, privacy-aware logging of navigation, user choices, external commands, API requests, and errors.
-- Rebuilt wallet foundation with safe wallet creation and rich inspection of balances, credentials, delegations, and native assets.
-- Snapshot-based transactional deployment and an integrated CNTools update experience through Guild Deploy.
-
 #### Changed
-- CNTools has been completely rewritten while retaining its established name, version history, wallet layout, and familiar operational scope.
-- The legacy monolithic entrypoint and library have been replaced by a stable launcher and modular source tree maintained independently from the legacy implementation.
+- Complete Bash rewrite with a stable launcher, modular menus and focused libraries loaded on demand, retaining the CNTools name and wallet layout.
+- Responsive Charm Gum interface with searchable navigation, consistent guided workflows, readable tables, persistent themes and transaction settings.
+- Local-node, Koios light and offline operation, with optional metadata enrichment and clear backend availability.
+- Wallet creation/import for CLI, mnemonic and hardware identities; balance, asset, transaction and UTxO inspection; stake registration and key protection/removal.
+- Shared transaction review, exact fee balancing, CLI/hardware/multisig signing, portable offline packages, submission and optional Koios block-inclusion monitoring.
+- Funds transfers with multiple recipients, ADA Handle/subhandle resolution, CIP-20/CIP-83 messages and custom metadata; delegation, withdrawal and UTxO collection.
+- Configurable coin selection, token fragmentation, ADA-only change management and send change-address selection.
+- Guided pool registration/modification, retirement, recoverable online/offline KES rotation and Calidus credential management.
+- DRep keys and multisig identities, registration/update/retirement, voting delegation, proposal browsing and voting; Catalyst registration, QR and snapshot verification.
+- Native asset policy creation/protection, minting/burning and Token Registry metadata preparation; verified backups, no-overwrite restoration and block-history views.
+- Privacy-aware command/API logging, snapshot-based deployment and integrated updates, including forced refresh of the current version.
 
 ## [13.5.7] - 2026-06-28
 #### Fixed
