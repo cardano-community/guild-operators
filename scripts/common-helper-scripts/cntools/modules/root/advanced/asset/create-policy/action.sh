@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CNTools placeholder action. Functions only.
+# Guided native-asset policy creation. Functions only.
 
 cntools_action_main() {
   cntools_policy_action_create

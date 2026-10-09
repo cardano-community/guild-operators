@@ -10,6 +10,7 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 WALLET_LIBRARY="${CNTOOLS_ROOT}/lib/wallet.sh"
 MATERIAL_LIBRARY="${CNTOOLS_ROOT}/lib/wallet-material.sh"

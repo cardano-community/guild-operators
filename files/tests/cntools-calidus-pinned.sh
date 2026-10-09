@@ -3,13 +3,15 @@
 # shellcheck disable=SC1090,SC2034,SC2154,SC2329,SC2015
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 CNTOOLS_CLI="${1:?Pass the cnode deployment-pinned CLI}"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-calidus.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'cntools_calidus_publication_cleanup; cntools_pool_files_cleanup; cntools_transaction_cleanup; rm -rf -- "${TEST_ROOT}"' EXIT
 umask 077
-for lib in number wallet wallet-key wallet-query transaction pool-id pool pool-files drep-id calidus-id pool-calidus backup; do
+for lib in number wallet wallet-key wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query transaction pool-id pool pool-files drep-id calidus-id pool-calidus backup; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 fail() { printf 'FAIL: %s\n' "$*" >&2; tail -10 "${TEST_ROOT}/log" >&2; exit 1; }
@@ -47,7 +49,7 @@ id="${CNTOOLS_CALIDUS_ID}"
 [[ "${CNTOOLS_CALIDUS_STATE}" == Open && "$(< "${directory}/calidus.id")" == "${id}" ]] || fail 'created identity summary'
 [[ "$(cksum "${directory}/cold.skey" "${directory}/hot.skey" "${directory}/vrf.skey")" == "${before}" ]] || fail 'node/cold keys changed'
 for file in calidus.skey calidus.vkey calidus.id; do
-  cntools_transaction_mode_into mode "${directory}/${file}"; [[ "${mode}" == 600 ]] || fail 'unsafe artifact permissions'
+  cntools_filesystem_mode_into mode "${directory}/${file}"; [[ "${mode}" == 600 ]] || fail 'unsafe artifact permissions'
 done
 if cntools_calidus_prepare "${directory}" create; then fail 'existing identity overwritten'; fi
 mkdir -m700 "${CNTOOLS_POOL_DIR}/Imported"

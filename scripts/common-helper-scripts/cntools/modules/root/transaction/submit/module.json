@@ -10,9 +10,13 @@
   ],
   "libs": [
     "number.sh",
+    "filesystem.sh",
+    "presentation.sh",
+    "table.sh",
     "transaction.sh",
     "transaction-submit.sh",
     "transaction-monitor.sh",
+    "json.sh",
     "transaction-ui.sh"
   ]
 }

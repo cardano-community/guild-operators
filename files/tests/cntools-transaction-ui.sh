@@ -11,6 +11,7 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 UI_LIBRARY="${CNTOOLS_ROOT}/lib/transaction-ui.sh"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-transaction-ui.XXXXXX")"
@@ -243,6 +244,10 @@ cntools_ui_render_field() {
 
 cntools_ui_render_detail() {
   trace_event "ui:detail:${1:-}"
+}
+
+cntools_table_heading() {
+  trace_event "ui:heading:${1:-}"
 }
 
 cntools_ui_wait() {
@@ -601,7 +606,7 @@ test_sign_hardware_final_decline() {
     "hardware preparation did not precede the final review"
   assert_trace_before "${prepared_decode}" "${final_confirm}" \
     "the hardware-prepared transaction was not reviewed before confirmation"
-  assert_trace_contains "ui:detail:Transaction effects" \
+  assert_trace_contains "ui:heading:Transaction effects" \
     "authoritative transaction heading was not rendered"
   assert_trace_contains \
     "log:CHOICE:transaction signing review accepted id=${TX_ID}" \
@@ -675,7 +680,7 @@ test_submit_decline_after_review() {
   assert_trace_before "decode:${SIGNED_INPUT}" "${confirm}" \
     "signed transaction was not decoded before confirmation"
   assert_trace_before \
-    "ui:detail:Transaction effects" "${confirm}" \
+    "ui:heading:Transaction effects" "${confirm}" \
     "authoritative transaction review was not rendered before confirmation"
   assert_trace_contains \
     "log:CHOICE:transaction artifact selected id=${TX_ID} kind=external-envelope path=${SIGNED_INPUT}" \
@@ -710,7 +715,7 @@ test_reference_script_review_identifies_input() {
   assert_table_contains "${KEY_ID}" \
     "selected native-script signer ID was not rendered"
   assert_trace_contains \
-    "ui:detail:Declared reference script · Reference policy" \
+    "ui:heading:Declared reference script · Reference policy" \
     "declared reference script was not rendered"
 }
 

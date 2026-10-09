@@ -4,6 +4,8 @@
 # shellcheck disable=SC1090,SC2034,SC2154
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 CNTOOLS_CLI="${1:?Pass the verified pinned Cardano CLI binary}"
 PINNED_HWCLI="${2:-}"
@@ -11,7 +13,7 @@ TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-withdraw-pinned.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-for lib in number wallet wallet-query utxo coin-selection change-plan transaction transaction-build transaction-sign transaction-files funds-withdraw; do
+for lib in number wallet wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query utxo coin-selection change-plan transaction transaction-build transaction-sign transaction-files funds-withdraw; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 cntools_log() { printf '%s %s\n' "$1" "$2" >> "${TEST_ROOT}/test.log"; }

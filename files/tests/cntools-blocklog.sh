@@ -3,6 +3,7 @@
 # shellcheck disable=SC1090,SC1091,SC2034,SC2317,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d)"; TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 CNTOOLS_TMP_DIR="${TEST_ROOT}"
@@ -110,7 +111,7 @@ if cntools_blocklog_summary 1; then fail 'exclusive lock unexpectedly read'; fi
 printf '%s\n' 'ROLLBACK;' '.quit' >& "${LOCK_WRITER[1]}"; wait "${writer_pid}"
 grep -F 'sqlite3 -readonly -batch -bail -init /dev/null' "${TEST_ROOT}/trace" >/dev/null || fail 'query not logged'
 grep -F 'database is locked' "${TEST_ROOT}/trace" >/dev/null || fail 'SQLite diagnostic not logged'
-mode=''; cntools_log_mode_into mode "${CNTOOLS_BLOCKLOG_WORK}/result"
+mode=''; cntools_filesystem_mode_into mode "${CNTOOLS_BLOCKLOG_WORK}/result"
 eq "${mode}" 600
 
 # Presentation is replaced only at the Gum boundary, retaining real data reads.

@@ -3,6 +3,8 @@
 # shellcheck disable=SC1090,SC2034,SC2154
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 CNTOOLS_CLI="${1:?Pass the verified pinned CLI binary}"
 PINNED_HWCLI="${2:-}"
@@ -10,7 +12,7 @@ TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-delegate-pinned.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
 fail() { tail -15 "${TEST_ROOT}/test.log" >&2; printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-for lib in number wallet wallet-query utxo coin-selection change-plan transaction transaction-build transaction-sign transaction-files wallet-register pool-id funds-delegate drep-id governance-delegate; do
+for lib in number wallet wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query utxo coin-selection change-plan transaction transaction-build transaction-sign transaction-files wallet-register pool-id funds-delegate drep-id governance-delegate; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 cntools_log() { printf '%s %s\n' "$1" "$2" >> "${TEST_ROOT}/test.log"; }
@@ -43,7 +45,7 @@ cntools_pool_id_into CNTOOLS_DELEGATE_POOL_ID CNTOOLS_DELEGATE_POOL_HEX "${pool}
 [[ "${CNTOOLS_DELEGATE_POOL_HEX}" == "${pool_hex}" ]] || fail 'pool hash conversion disagrees with CLI'
 policy="$(printf 'ab%.0s' {1..28})" reference="$(printf 'cd%.0s' {1..32})#0"
 package="" signed="" sum="" fee=""
-scenarios=(yes no register-ada register-token deregister-ada deregister-token vote-key vote-script vote-abstain vote-no-confidence vote-register-key vote-register-script vote-register-abstain vote-register-no-confidence)
+scenarios=(yes no register-ada register-token register-low-balance-ada register-reselect-ada deregister-ada deregister-token vote-key vote-script vote-abstain vote-no-confidence vote-register-key vote-register-script vote-register-abstain vote-register-no-confidence)
 if (( $# > 2 )); then scenarios=("${@:3}"); fi
 for registered in "${scenarios[@]}"; do
   cntools_wallet_register_operation_set delegate
@@ -96,11 +98,22 @@ for registered in "${scenarios[@]}"; do
     esac
     cntools_drep_id_into CNTOOLS_VOTE_TARGET CNTOOLS_VOTE_KIND CNTOOLS_VOTE_HASH "${target}" || fail 'voting target ID'
   fi
-  cntools_utxo_add "${reference}" "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" 20000000
+  funded=20000000
+  case "${registered}" in register-low-balance-ada) funded=4300000 ;; register-reselect-ada) funded=4360000 ;; esac
+  if [[ "${registered}" == register-reselect-ada ]]; then
+    cntools_utxo_add "${reference}" "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" 4160000
+    cntools_utxo_add "${reference%#0}#1" "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" 200000
+  else
+    cntools_utxo_add "${reference}" "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" "${funded}"
+  fi
   if [[ "${registered}" != *-ada ]]; then cntools_utxo_add_asset 0 "${policy}.01" 5; fi
   cntools_wallet_register_inventory_use_all
   cntools_wallet_register_select_inputs || fail 'selection failed'
   cntools_wallet_register_build_package_into package || fail "build: ${CNTOOLS_WALLET_REGISTER_ERROR} ${CNTOOLS_TRANSACTION_ERROR}"
+  case "${registered}" in
+    register-low-balance-ada) (( ${#CNTOOLS_WALLET_REGISTER_INPUTS[@]} == 1 )) || fail 'low-balance selection' ;;
+    register-reselect-ada) (( ${#CNTOOLS_WALLET_REGISTER_INPUTS[@]} == 2 )) || fail 'actual-fee reselection did not expand inputs' ;;
+  esac
   cntools_transaction_package_load "${package}" || fail 'package validation failed'
   validator=cntools_delegate_validate_body
   [[ "${registered}" != register-* && "${registered}" != deregister-* ]] || validator=cntools_wallet_register_validate_body
@@ -110,9 +123,9 @@ for registered in "${scenarios[@]}"; do
   sum="$(jq '[.outputs[].amount.lovelace] | add' <<< "${view}")"
   fee="$(jq -r '.fee | split(" ")[0]' <<< "${view}")"
   if [[ "${registered}" == deregister-* ]]; then
-    (( sum + fee == 20000000 + CNTOOLS_WALLET_REGISTER_DEPOSIT )) || fail "refund conservation: outputs=${sum} fee=${fee} refund=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
+    (( sum + fee == funded + CNTOOLS_WALLET_REGISTER_DEPOSIT )) || fail "refund conservation: outputs=${sum} fee=${fee} refund=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
   else
-    (( sum + fee + CNTOOLS_WALLET_REGISTER_DEPOSIT == 20000000 )) || fail "deposit/fee conservation: outputs=${sum} fee=${fee} deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
+    (( sum + fee + CNTOOLS_WALLET_REGISTER_DEPOSIT == funded )) || fail "deposit/fee conservation: outputs=${sum} fee=${fee} deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
   fi
   expected_tokens=5
   [[ "${registered}" != *-ada ]] || expected_tokens=0

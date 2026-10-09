@@ -3,6 +3,7 @@
 # shellcheck disable=SC1090,SC2034,SC2015,SC2317,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d)"; TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 GPG_TEST_ROOT="$(mktemp -d /tmp/cntools-backup-gpg.XXXXXXXX)"
@@ -78,6 +79,19 @@ printf 'certificate 8\n' > "${CNTOOLS_POOL_DIR}/Pool/op.cert"
 printf 'recovery hot key\n' > "${CNTOOLS_POOL_DIR}/.cntools-kes-rotate.recovery/hot.skey"
 printf 'policy private\n' > "${CNTOOLS_ASSET_DIR}/Asset/policy.skey"
 printf 'policy public\n' > "${CNTOOLS_ASSET_DIR}/Asset/policy.id"
+mkdir -m700 "${CNTOOLS_WALLET_DIR}/Watch" "${CNTOOLS_WALLET_DIR}/Hardware" "${CNTOOLS_POOL_DIR}/MissingCold"
+printf 'public only\n' > "${CNTOOLS_WALLET_DIR}/Watch/stake.vkey"
+printf 'hardware public\n' > "${CNTOOLS_WALLET_DIR}/Hardware/payment.vkey"
+printf 'hardware reference\n' > "${CNTOOLS_WALLET_DIR}/Hardware/payment.hwsfile"
+printf 'pool public\n' > "${CNTOOLS_POOL_DIR}/MissingCold/cold.vkey"
+cntools_backup_recovery_coverage || fail 'coverage preflight'
+coverage="$(printf '%s\n' "${CNTOOLS_BACKUP_COVERAGE_LABELS[@]}" "${CNTOOLS_BACKUP_COVERAGE_VALUES[@]}")"
+[[ "${coverage}" == *'wallets/Watch · stake.vkey'* && "${coverage}" == *'Missing stake.skey'* &&
+   "${coverage}" == *'pools/MissingCold · cold.vkey'* && "${coverage}" == *'Missing cold.skey'* &&
+   "${coverage}" == *'Hardware reference only'* && "${CNTOOLS_BACKUP_MISSING_KEYS}" == 2 ]] || fail 'missing keys/device coverage'
+[[ "${coverage}" != *'wallets/Watch · payment.vkey'* ]] || fail 'invented payment role for stake-only wallet'
+# Coverage-only fixtures must not alter the existing archive round-trip counts.
+rm -r -- "${CNTOOLS_WALLET_DIR}/Watch" "${CNTOOLS_WALLET_DIR}/Hardware" "${CNTOOLS_POOL_DIR}/MissingCold"
 cntools_backup_create "${TEST_ROOT}/out" full plain || fail "full backup: ${CNTOOLS_BACKUP_ERROR}"
 FULL_BACKUP="${CNTOOLS_BACKUP_RESULT}"
 cntools_backup_restore_prepare "${FULL_BACKUP}" || fail "prepare full: ${CNTOOLS_BACKUP_ERROR}"
@@ -109,8 +123,8 @@ eq "${CNTOOLS_BACKUP_IMPORTED}" 2; eq "${CNTOOLS_BACKUP_SKIPPED}" 2
 eq "$(< "${CNTOOLS_POOL_DIR}/Pool/cold.counter")" 'current counter 42'
 [[ ! -e "${CNTOOLS_POOL_DIR}/Pool/cold.skey" && ! -e "${CNTOOLS_POOL_DIR}/.cntools-kes-rotate.recovery" &&
    -f "${CNTOOLS_BACKUP_RESULT}/pools/.cntools-kes-rotate.recovery/hot.skey" ]] || fail 'KES/conflict recovery copy'
-cntools_transaction_mode_into mode "${CNTOOLS_WALLET_DIR}/Test"; eq "${mode}" 700
-cntools_transaction_mode_into mode "${CNTOOLS_WALLET_DIR}/Test/payment.skey"; eq "${mode}" 600
+cntools_filesystem_mode_into mode "${CNTOOLS_WALLET_DIR}/Test"; eq "${mode}" 700
+cntools_filesystem_mode_into mode "${CNTOOLS_WALLET_DIR}/Test/payment.skey"; eq "${mode}" 600
 cntools_backup_restore_prepare "${FULL_BACKUP}" && cntools_backup_restore_apply || fail 'repeat restore'
 eq "${CNTOOLS_BACKUP_IMPORTED}" 0; eq "${CNTOOLS_BACKUP_SKIPPED}" 4
 

@@ -2,6 +2,68 @@
 # Snapshot creation and conservative restore. Never merges existing objects.
 # shellcheck disable=SC2034,SC2015,SC2153
 
+# Coverage is filename-based advice, not proof that a key is valid or belongs
+# to its public artifact. Never read a signing key, password or mnemonic here.
+declare -ag CNTOOLS_BACKUP_COVERAGE_LABELS=() CNTOOLS_BACKUP_COVERAGE_VALUES=()
+CNTOOLS_BACKUP_MISSING_KEYS=0
+
+cntools_backup_recovery_coverage() {
+  local role='' root='' directory='' public='' secret='' hardware='' prefix='' label='' value=''
+  CNTOOLS_BACKUP_COVERAGE_LABELS=(); CNTOOLS_BACKUP_COVERAGE_VALUES=(); CNTOOLS_BACKUP_MISSING_KEYS=0
+  for role in wallets pools assets; do
+    cntools_backup_role_root_into root "${role}" || return 1
+    [[ -e "${root}" || -L "${root}" ]] || continue
+    cntools_backup_directory_safe "${root}" || return 1
+    for directory in "${root}"/*; do
+      [[ -d "${directory}" && ! -L "${directory}" && -O "${directory}" ]] || continue
+      local -a public_names=() secret_names=() hardware_names=()
+      case "${role}" in
+        wallets)
+          public_names=("${CNTOOLS_WALLET_PAY_VKEY_FILENAME:-payment.vkey}" "${CNTOOLS_WALLET_STAKE_VKEY_FILENAME:-stake.vkey}" "${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" "${CNTOOLS_WALLET_CATALYST_VKEY_FILENAME:-catalyst.vkey}" "${CNTOOLS_WALLET_CC_COLD_VKEY_FILENAME:-cc-cold.vkey}" "${CNTOOLS_WALLET_CC_HOT_VKEY_FILENAME:-cc-hot.vkey}")
+          secret_names=("${CNTOOLS_WALLET_PAY_SKEY_FILENAME:-payment.skey}" "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME:-stake.skey}" "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" "${CNTOOLS_WALLET_CATALYST_SKEY_FILENAME:-catalyst.skey}" "${CNTOOLS_WALLET_CC_COLD_SKEY_FILENAME:-cc-cold.skey}" "${CNTOOLS_WALLET_CC_HOT_SKEY_FILENAME:-cc-hot.skey}")
+          hardware_names=("${CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME:-payment.hwsfile}" "${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME:-stake.hwsfile}" "${CNTOOLS_WALLET_HW_DREP_SKEY_FILENAME:-drep.hwsfile}" '' '' '')
+          ;;
+        pools)
+          public_names=("${CNTOOLS_POOL_COLD_VKEY_FILENAME:-cold.vkey}" "${CNTOOLS_POOL_VRF_VKEY_FILENAME:-vrf.vkey}" "${CNTOOLS_POOL_KES_VKEY_FILENAME:-hot.vkey}" "${CNTOOLS_POOL_CALIDUS_VKEY_FILENAME:-calidus.vkey}")
+          secret_names=("${CNTOOLS_POOL_COLD_SKEY_FILENAME:-cold.skey}" "${CNTOOLS_POOL_VRF_SKEY_FILENAME:-vrf.skey}" "${CNTOOLS_POOL_KES_SKEY_FILENAME:-hot.skey}" "${CNTOOLS_POOL_CALIDUS_SKEY_FILENAME:-calidus.skey}")
+          hardware_names=("${CNTOOLS_POOL_COLD_HW_FILENAME:-cold.hwsfile}" '' '' '')
+          ;;
+        assets)
+          public_names=("${CNTOOLS_POLICY_VKEY_FILENAME:-policy.vkey}")
+          secret_names=("${CNTOOLS_POLICY_SKEY_FILENAME:-policy.skey}"); hardware_names=('') ;;
+      esac
+      local index=0 coverage_start="${#CNTOOLS_BACKUP_COVERAGE_LABELS[@]}"
+      local -a prefixes=('')
+      [[ "${role}" != wallets ]] || prefixes+=("${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}")
+      for prefix in "${prefixes[@]}"; do
+        for ((index=0; index<${#public_names[@]}; index++)); do
+          public="${prefix}${public_names[index]}"; secret="${prefix}${secret_names[index]}"
+          hardware="${hardware_names[index]}"; [[ -z "${hardware}" ]] || hardware="${prefix}${hardware}"
+          [[ -f "${directory}/${public}" || -f "${directory}/${secret}" || -f "${directory}/${secret}.gpg" ]] || continue
+          label="${role}/${directory##*/} · ${public}"
+          if [[ -f "${directory}/${secret}" && ! -L "${directory}/${secret}" ]] ||
+             [[ -f "${directory}/${secret}.gpg" && ! -L "${directory}/${secret}.gpg" ]]; then
+            value='Signing key present (plain or encrypted)'
+          elif [[ -n "${hardware}" && -f "${directory}/${hardware}" && ! -L "${directory}/${hardware}" ]]; then
+            value='Hardware reference only · original device/recovery seed required'
+          else
+            value="Missing ${secret} · watch-only/external signer; cannot recover this key from the backup"
+            CNTOOLS_BACKUP_MISSING_KEYS=$((CNTOOLS_BACKUP_MISSING_KEYS+1))
+            cntools_log WARN "Backup recovery coverage: ${label}: ${value}" || true
+          fi
+          CNTOOLS_BACKUP_COVERAGE_LABELS+=("${label}"); CNTOOLS_BACKUP_COVERAGE_VALUES+=("${value}")
+        done
+      done
+      if (( coverage_start == ${#CNTOOLS_BACKUP_COVERAGE_LABELS[@]} )); then
+        label="${role}/${directory##*/}"
+        value='No recognized local signing keys · external keys/recovery material may be required'
+        CNTOOLS_BACKUP_COVERAGE_LABELS+=("${label}"); CNTOOLS_BACKUP_COVERAGE_VALUES+=("${value}")
+        cntools_log WARN "Backup recovery coverage: ${label}: ${value}" || true
+      fi
+    done
+  done
+}
+
 cntools_backup_public_file() {
   local role="$1" name="${2##*/}" configured='' value=''
   # Allow known public artifacts only; an exclude list could leak a custom
@@ -69,7 +131,7 @@ cntools_backup_tree_inventory() {
       }
       count=$((count+1)); (( count <= CNTOOLS_BACKUP_MAX_ENTRIES )) || return 1
       if [[ -d "${path}" ]]; then
-        cntools_transaction_mode_into mode "${path}" && (( (8#${mode} & 0022) == 0 )) || {
+        cntools_filesystem_mode_into mode "${path}" && (( (8#${mode} & 0022) == 0 )) || {
           cntools_backup_error 'A source subdirectory permits group or public writes. Protect it before creating a backup.'; return 1;
         }
         kind=d; hash='-'; size=0
@@ -78,7 +140,7 @@ cntools_backup_tree_inventory() {
           cntools_backup_error 'Backup roots must contain named folders, not loose files. Move loose files into their wallet, pool or asset folder first.'; return 1;
         }
         kind=f
-        cntools_transaction_size_into size "${path}" && cntools_backup_hash_into hash "${path}" || return 1
+        cntools_filesystem_size_into size "${path}" && cntools_backup_hash_into hash "${path}" || return 1
         [[ ${#size} -le 9 ]] || return 1
         total=$((total+size)); (( total <= CNTOOLS_BACKUP_MAX_BYTES )) || return 1
       else
@@ -141,7 +203,7 @@ cntools_backup_create() {
     '[inputs | split("\t") | {path:.[0],sha256:.[1]}] as $files |
     {schema:"org.cardano-community.cntools.backup",version:1,network:$network,kind:$kind,created:$created,files:$files}' \
     < "${CNTOOLS_BACKUP_WORK}/records" > "${CNTOOLS_BACKUP_WORK}/snapshot/manifest.json" || return 1
-  cntools_transaction_size_into size "${CNTOOLS_BACKUP_WORK}/snapshot/manifest.json" && (( size <= 8388608 )) || return 1
+  cntools_filesystem_size_into size "${CNTOOLS_BACKUP_WORK}/snapshot/manifest.json" && (( size <= 8388608 )) || return 1
   local -a roots=(manifest.json)
   for role in wallets pools assets; do [[ ! -d "${CNTOOLS_BACKUP_WORK}/snapshot/${role}" ]] || roots+=("${role}"); done
   output="${CNTOOLS_BACKUP_WORK}/backup.tar.gz"

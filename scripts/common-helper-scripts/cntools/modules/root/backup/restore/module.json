@@ -10,7 +10,14 @@
     "offline"
   ],
   "libs": [
-    "number.sh", "wallet.sh", "wallet-query.sh", "transaction.sh", "table.sh",
-    "key-crypto.sh", "backup-files.sh", "backup.sh", "backup-ui.sh"
+    "number.sh",
+    "filesystem.sh",
+    "presentation.sh",
+    "transaction.sh",
+    "table.sh",
+    "key-crypto.sh",
+    "backup-files.sh",
+    "backup.sh",
+    "backup-ui.sh"
   ]
 }

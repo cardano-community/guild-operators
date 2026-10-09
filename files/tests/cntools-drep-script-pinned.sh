@@ -3,6 +3,8 @@
 # shellcheck disable=SC1090,SC2034,SC2154,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 CNTOOLS_CLI="${1:?Pass the cnode deployment-pinned CLI}"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-script-drep.XXXXXX")"
@@ -12,7 +14,7 @@ umask 077
 fail() { printf 'FAIL: %s\n' "$*" >&2; tail -15 "${TEST_ROOT}/log" >&2; exit 1; }
 cntools_log() { printf '%s %s\n' "$1" "$2" >> "${TEST_ROOT}/log"; }
 cntools_run_command_timeout() { shift 3; printf '%q ' "$@" >> "${TEST_ROOT}/log"; printf '\n' >> "${TEST_ROOT}/log"; "$@"; }
-for lib in number wallet wallet-material wallet-key wallet-create wallet-query key-crypto wallet-protection transaction drep-id drep-key drep-query drep-script multisig-wallet backup; do
+for lib in number wallet wallet-material wallet-key wallet-create wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query key-crypto wallet-protection transaction drep-id drep-key drep-query drep-script multisig-wallet backup; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 REAL_LN="$(type -P ln)"

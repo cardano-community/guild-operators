@@ -6,7 +6,7 @@ cntools_pool_retirement_rows() {
   cntools_table_pair Pool "${CNTOOLS_POOL_REG_NAME}" identifier
   cntools_table_pair 'Pool ID' "${CNTOOLS_POOL_REG_ID}" identifier
   cntools_table_pair 'Funding wallet' "${CNTOOLS_WALLET_REGISTER_WALLET}" identifier
-  cntools_table_pair 'Spendable ADA' "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE}")" number
+  cntools_table_pair 'Spendable ADA' "$(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE}")" number
   cntools_table_pair 'Current epoch' "$(cntools_number_format "${CNTOOLS_POOL_RETIRE_CURRENT}")" number
   [[ -z "${CNTOOLS_POOL_RETIRE_EPOCH}" ]] || cntools_table_pair 'Retirement epoch' "$(cntools_number_format "${CNTOOLS_POOL_RETIRE_EPOCH}")" number
   cntools_table_pair 'Allowed epochs' "$(cntools_number_format "${CNTOOLS_POOL_RETIRE_MIN}")–$(cntools_number_format "${CNTOOLS_POOL_RETIRE_MAX}")" number

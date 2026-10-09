@@ -411,7 +411,7 @@ cntools_transaction_submit_log_koios_replay() {
      -f "${raw_file}" && ! -L "${raw_file}" &&
      -n "${source_file}" && "${source_file}" = /* ]] || return 1
   cntools_transaction_submit_sha256_into digest "${raw_file}" || return 1
-  cntools_transaction_size_into byte_count "${raw_file}" || return 1
+  cntools_filesystem_size_into byte_count "${raw_file}" || return 1
   [[ "${byte_count}" =~ ^[1-9][0-9]*$ ]] || return 1
   case "${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND:-}" in
     package) jq_filter='.signedTransaction.cborHex' ;;

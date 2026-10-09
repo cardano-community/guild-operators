@@ -8,7 +8,7 @@ cntools_registry_cleanup() {
   local stage=''
   for stage in "${CNTOOLS_REGISTRY_STAGES[@]}"; do
     [[ "${stage##*/}" == .cntools-registry.* && -d "${stage}" && ! -L "${stage}" && -O "${stage}" ]] || continue
-    cntools_transaction_path_components_safe "${stage}" || continue
+    cntools_filesystem_path_components_safe "${stage}" || continue
     rm -rf -- "${stage}"
   done
   CNTOOLS_REGISTRY_STAGES=()

@@ -73,61 +73,46 @@ cntools_collect_validate_body() {
   }
 }
 
-cntools_collect_build_into() {
-  local -n collection_result="$1"
-  local body="" package_path="" input="" output="" next_fee="" accounted="" value=""
-  local attempt=0 max_size=0 body_bytes=0 witnesses=0
+cntools_collect_prepare_balanced_body() {
+  local body='' input='' output='' accounted='' value=''
   local -a arguments=()
-  collection_result=""
-  cntools_collect_select || return 1
-  max_size="$(jq -er '.maxTxSize | select(type=="number" and .>0 and .<=100000 and floor==.)' "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
-  CNTOOLS_COLLECT_FEE=0
-  for ((attempt=0; attempt<20; attempt++)); do
-    cntools_change_plan_stake collect 0 "${CNTOOLS_COLLECT_FEE}" "${CNTOOLS_FUNDING_PROTOCOL}" "${CNTOOLS_SEND_ADDRESS}" || {
-      cntools_collect_fail "${CNTOOLS_CHANGE_ERROR:-Insufficient ADA for fees and valid collection outputs.}"; return 1;
-    }
-    cntools_collect_plan || return 1
-    arguments=()
-    for input in "${CNTOOLS_COLLECT_INPUTS[@]}"; do
-      arguments+=(--tx-in "${input}")
-      [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_input_arguments arguments || return 1
-    done
-    accounted="${CNTOOLS_COLLECT_FEE}"
-    for output in "${CNTOOLS_CHANGE_OUTPUTS[@]}" "${CNTOOLS_SEND_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}"; do
-      cntools_transaction_validate_change_output "${output}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-      value="${output#*+}"; value="${value%% *}"
-      cntools_uint_add_into accounted "${accounted}" "${value}" || return 1
-      arguments+=(--tx-out "${output}")
-    done
-    [[ "${accounted}" == "${CNTOOLS_COIN_SELECTED_LOVELACE}" ]] || {
-      cntools_collect_fail 'Collection outputs and fee do not conserve the selected ADA.'; return 1;
-    }
-    CNTOOLS_COLLECT_OUTPUT_COUNT=$(( ${#CNTOOLS_CHANGE_OUTPUTS[@]} + 1 ))
-    cntools_transaction_temp_file body collect-body || return 1
-    cntools_transaction_temp_remove "${body}" || return 1
-    cntools_transaction_build_body build-raw "${body}" -- "${arguments[@]}" --fee "${CNTOOLS_COLLECT_FEE}" || return 1
-    CNTOOLS_TRANSACTION_TEMP_FILES+=("${body}")
-    cntools_transaction_calculate_min_fee_into next_fee "${body}" "${#CNTOOLS_COLLECT_INPUTS[@]}" \
-      "${CNTOOLS_COLLECT_OUTPUT_COUNT}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-    if cntools_uint_greater "${next_fee}" "${CNTOOLS_COLLECT_FEE}"; then CNTOOLS_COLLECT_FEE="${next_fee}"; continue; fi
-    cntools_transaction_package_create_staged_into package_path "${body}" || return 1
-    cntools_transaction_package_load "${package_path}" || return 1
-    cntools_transaction_calculate_min_fee_into next_fee "${CNTOOLS_TRANSACTION_BODY_FILE}" "${#CNTOOLS_COLLECT_INPUTS[@]}" \
-      "${CNTOOLS_COLLECT_OUTPUT_COUNT}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-    if cntools_uint_greater "${next_fee}" "${CNTOOLS_COLLECT_FEE}"; then CNTOOLS_COLLECT_FEE="${next_fee}"; continue; fi
-    cntools_collect_validate_body "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 1
-    body_bytes="$(jq -er '.cborHex | length / 2' "${CNTOOLS_TRANSACTION_BODY_FILE}")" || return 1
-    witnesses="$(cntools_transaction_plan_witness_count)" || return 1
-    (( body_bytes + witnesses * 112 + 32 <= max_size )) || {
-      cntools_collect_fail 'Collection exceeds the transaction size limit. Try ADA-only collection or reduce fragmentation in Settings. Nothing was signed and no partial batch was created.'; return 1;
-    }
-    collection_result="${package_path}"
-    cntools_transaction_log TRANSACTION "Collection built scope=${CNTOOLS_COLLECT_SCOPE} inputs=${#CNTOOLS_COLLECT_INPUTS[@]} outputs=${CNTOOLS_COLLECT_OUTPUT_COUNT} excluded=${CNTOOLS_COLLECT_SKIPPED} fee=${CNTOOLS_COLLECT_FEE}"
-    return 0
+  cntools_change_plan_stake collect 0 "${CNTOOLS_COLLECT_FEE}" "${CNTOOLS_FUNDING_PROTOCOL}" "${CNTOOLS_SEND_ADDRESS}" || {
+    cntools_collect_fail "${CNTOOLS_CHANGE_ERROR:-Insufficient ADA for fees and valid collection outputs.}"; return 1;
+  }
+  cntools_collect_plan || return 1
+  arguments=()
+  for input in "${CNTOOLS_COLLECT_INPUTS[@]}"; do
+    arguments+=(--tx-in "${input}")
+    [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_input_arguments arguments || return 1
   done
-  cntools_collect_fail 'Collection fees did not converge safely. Nothing was signed.'
+  accounted="${CNTOOLS_COLLECT_FEE}"
+  for output in "${CNTOOLS_CHANGE_OUTPUTS[@]}" "${CNTOOLS_SEND_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}"; do
+    cntools_transaction_validate_change_output "${output}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
+    value="${output#*+}"; value="${value%% *}"
+    cntools_uint_add_into accounted "${accounted}" "${value}" || return 1
+    arguments+=(--tx-out "${output}")
+  done
+  [[ "${accounted}" == "${CNTOOLS_COIN_SELECTED_LOVELACE}" ]] || {
+    cntools_collect_fail 'Collection outputs and fee do not conserve the selected ADA.'; return 1;
+  }
+  CNTOOLS_COLLECT_OUTPUT_COUNT=$(( ${#CNTOOLS_CHANGE_OUTPUTS[@]} + 1 ))
+  cntools_transaction_temp_file body collect-body || return 1
+  cntools_transaction_temp_remove "${body}" || return 1
+  cntools_transaction_build_body build-raw "${body}" -- "${arguments[@]}" --fee "${CNTOOLS_COLLECT_FEE}" || return 1
+  CNTOOLS_TRANSACTION_TEMP_FILES+=("${body}")
+  CNTOOLS_TRANSACTION_BALANCE_INPUT_COUNT="${#CNTOOLS_COLLECT_INPUTS[@]}"
+  CNTOOLS_TRANSACTION_BALANCE_OUTPUT_COUNT="${CNTOOLS_COLLECT_OUTPUT_COUNT}"
+  printf -v "$1" '%s' "${body}"
 }
 
+cntools_collect_build_into() {
+  local -n collection_result="$1"
+  collection_result=""
+  cntools_collect_select || return 1
+  CNTOOLS_COLLECT_FEE=0
+  cntools_transaction_balance_into "$1" CNTOOLS_COLLECT_FEE "${CNTOOLS_FUNDING_PROTOCOL}" \
+    cntools_collect_prepare_balanced_body "cntools_collect_validate_body" || return 1
+}
 cntools_collect_refresh_build_into() {
   local result_name="$1" lifetime="$2"
   [[ "${lifetime}" =~ ^(0|1800|7200|86400)$ ]] || return 2

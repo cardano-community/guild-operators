@@ -10,6 +10,9 @@
   ],
   "libs": [
     "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
     "wallet.sh",
     "transaction.sh",
     "table.sh",

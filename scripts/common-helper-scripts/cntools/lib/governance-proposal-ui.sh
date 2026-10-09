@@ -46,7 +46,7 @@ cntools_proposal_details() {
   url="$(jq -r '.anchor.url // ""' <<< "${record}")"; hash="$(jq -r '.anchor.dataHash // ""' <<< "${record}")"
   deposit="$(jq -r '.deposit // ""' <<< "${record}")"; returned="$(jq -r '.returnAddress // "" | if type == "string" then . else tojson end' <<< "${record}")"
   {
-    [[ ! "${deposit}" =~ ^[0-9]+$ ]] || cntools_table_pair 'Proposal deposit' "$(cntools_wallet_format_lovelace "${deposit}")" number
+    [[ ! "${deposit}" =~ ^[0-9]+$ ]] || cntools_table_pair 'Proposal deposit' "$(cntools_number_format_lovelace "${deposit}")" number
     [[ -z "${returned}" ]] || cntools_table_pair 'Deposit return address' "${returned}" address
     [[ -z "${url}" ]] || cntools_table_pair 'Metadata URL' "${url}" address
     [[ -z "${hash}" ]] || cntools_table_pair 'Metadata hash' "${hash}" identifier

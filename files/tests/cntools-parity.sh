@@ -3,6 +3,8 @@
 # shellcheck disable=SC1090,SC2030,SC2031,SC2034,SC2154,SC2317,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-parity.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
@@ -20,7 +22,7 @@ eq() { [[ "$1" == "$2" ]] || fail "${3:-comparison}: $1 != $2"; }
 cntools_log() { printf '%s %s\n' "$1" "$2" >> "${TEST_ROOT}/test.log"; }
 cntools_run_command() { shift 2; "$@"; }
 cntools_ui_spin_function() { shift; "$@"; }
-cntools_wallet_style_value_into() { printf -v "$1" '%s' "$3"; }
+cntools_text_style_into() { printf -v "$1" '%s' "$3"; }
 cntools_ui_table() { cat; }
 cntools_ui_render_status() { printf '%s: %s\n' "$1" "$2"; }
 cntools_ui_wait() { :; }

@@ -10,6 +10,7 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 THEME_CORE="${CNTOOLS_ROOT}/core/theme.sh"
 THEME_ACTION="${CNTOOLS_ROOT}/modules/root/settings/theme/action.sh"

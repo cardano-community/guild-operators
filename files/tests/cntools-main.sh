@@ -10,6 +10,7 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 MAIN_ENTRYPOINT="${CNTOOLS_ROOT}/cntools_main.sh"
 GUM_CORE="${CNTOOLS_ROOT}/core/gum.sh"
@@ -245,7 +246,7 @@ run_pinned_checksum_test() (
     esac
   }
   cntools_gum_log() { return 0; }
-  cntools_log_path_components_safe() { return 0; }
+  cntools_filesystem_path_components_safe() { return 0; }
 
   CNTOOLS_MODE="local"
   CNTOOLS_GUM_BIN=""
@@ -919,7 +920,7 @@ run_color_capture_preference_test() (
     "Gum NO_COLOR capture preference"
 )
 
-run_wait_and_placeholder_test() (
+run_wait_test() (
   local argument_log="${TEST_ROOT}/wait-arguments"
   local wait_output="${TEST_ROOT}/wait-output"
   local output=""
@@ -937,25 +938,7 @@ run_wait_and_placeholder_test() (
   grep -Fx -- 'Press Enter to return…' "${argument_log}" >/dev/null ||
     fail "Gum return prompt lost its concise instruction"
 
-  # shellcheck source=/dev/null
-  . "${CNTOOLS_ROOT}/lib/placeholder.sh"
-  CNTOOLS_ACTION_ID="wallet/new"
-  CNTOOLS_ACTION_LABEL="New"
-  CNTOOLS_MODULE_ROOT="${CNTOOLS_ROOT}/modules/root"
-  CNTOOLS_UI_INTERACTIVE="Y"
-  cntools_menu_breadcrumb() { printf '/ Wallet / New\n'; }
-  cntools_log() { return 0; }
-  cntools_ui_render_begin() { return 0; }
-  cntools_ui_render_status() { printf '%s\n' "$2"; }
-  cntools_ui_read_key() { printf -v "$1" '%s' enter; }
-  output="$(cntools_action_placeholder)" ||
-    fail "Gum placeholder action failed"
-  assert_contains "${output}" "Not implemented yet" \
-    "Gum placeholder content"
-  assert_not_contains "${output}" $'\nNew\n' \
-    "duplicate Gum leaf title"
-  assert_not_contains "${output}" "Press any key to return" \
-    "duplicate Gum return instruction"
+
 )
 
 run_health_test() (
@@ -1169,7 +1152,7 @@ run_menu_filter_status_test 130 130 "MENU:abort (filter interrupted)"
 run_menu_filter_status_test 2 2 "ERROR:Gum filter failed with status 2"
 run_header_test
 run_color_capture_preference_test
-run_wait_and_placeholder_test
+run_wait_test
 run_health_test
 run_content_width_test
 run_early_option_tests

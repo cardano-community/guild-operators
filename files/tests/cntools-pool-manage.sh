@@ -4,12 +4,14 @@
 set -euo pipefail
 (( BASH_VERSINFO[0] >= 4 )) || { printf 'SKIP: Bash 4.4+ required\n'; exit 0; }
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-pool-manage.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 GPG_TEST_ROOT="$(mktemp -d /tmp/cntools-gpg.XXXXXX)"
 trap 'gpgconf --homedir "${GPG_TEST_ROOT}" --kill gpg-agent >/dev/null 2>&1 || true; chmod -R u+rwX "${TEST_ROOT}" 2>/dev/null || true; rm -rf -- "${TEST_ROOT}" "${GPG_TEST_ROOT}"' EXIT
-for lib in number wallet wallet-query transaction pool-id table pool pool-files pool-key wallet-hardware pool-create key-crypto pool-lock pool-protection pool-manage-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
+for lib in number wallet wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query transaction pool-id table pool pool-files pool-key wallet-hardware pool-create key-crypto pool-lock pool-protection pool-manage-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 fail() { tail -8 "${TEST_ROOT}/log" >&2; printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 eq() { [[ "$1" == "$2" ]] || fail "${3:-comparison}: $1 != $2"; }
 CNTOOLS_POOL_DIR="${TEST_ROOT}/pools" CNTOOLS_TMP_DIR="${TEST_ROOT}" CNTOOLS_MODE=offline CNTOOLS_NETWORK=preview

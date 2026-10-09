@@ -4,6 +4,7 @@
 set -euo pipefail
 (( BASH_VERSINFO[0] >= 4 )) || { printf 'SKIP: Bash 4.4+ required\n'; exit 0; }
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 for lib in number transaction transaction-ui wallet-payment funds-send funds-send-ui funds-withdraw; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }

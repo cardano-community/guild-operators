@@ -37,9 +37,9 @@ cntools_wallet_register_render_plan() {
     if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-update && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != gov-vote ]] &&
        [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != delegate || "${CNTOOLS_DELEGATE_REGISTER}" == Y ]] &&
        [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate || "${CNTOOLS_VOTE_REGISTER:-N}" == Y ]]; then
-      cntools_transaction_ui_styled_row "${CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL}" "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
+      cntools_transaction_ui_styled_row "${CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL}" "$(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
     fi
-    cntools_transaction_ui_styled_row Fee "$(cntools_wallet_format_lovelace "${fee}")" number
+    cntools_transaction_ui_styled_row Fee "$(cntools_number_format_lovelace "${fee}")" number
     cntools_transaction_ui_render_policy_rows "${CNTOOLS_TX_SELECTION_STRATEGY}" "${#CNTOOLS_WALLET_REGISTER_INPUTS[@]}"
     cntools_transaction_ui_styled_row Expires "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1

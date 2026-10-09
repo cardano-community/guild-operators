@@ -11,8 +11,11 @@
   ],
   "libs": [
     "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
     "wallet.sh",
-    "wallet-query.sh",
+    "wallet-query-transport.sh",
     "transaction.sh",
     "pool-id.sh",
     "table.sh",

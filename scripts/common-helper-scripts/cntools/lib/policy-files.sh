@@ -54,7 +54,7 @@ cntools_policy_preflight() {
   cntools_policy_target_into target "$1" || { cntools_policy_error 'Use a valid policy name (1–64 letters, numbers, dots, underscores or hyphens, starting with a letter or number).'; return 1; }
   [[ ! -e "${target}" && ! -L "${target}" ]] || { cntools_policy_error 'A policy folder with this name already exists. Nothing was changed.'; return 1; }
   [[ "${root}" != */ && "${root##*/}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] &&
-    cntools_transaction_path_components_safe "${root}" || { cntools_policy_error 'The asset root is unset or unsafe.'; return 1; }
+    cntools_filesystem_path_components_safe "${root}" || { cntools_policy_error 'The asset root is unset or unsafe.'; return 1; }
   if [[ -e "${root}" ]]; then
     cntools_transaction_directory_safe "${root}" || { cntools_policy_error 'The asset root must be owned, writable and protected from group/public writes.'; return 1; }
   else
@@ -79,14 +79,14 @@ cntools_policy_files_cleanup() {
   local stage='' work=''
   for work in "${CNTOOLS_POLICY_WORK_FILES[@]}"; do
     [[ "${work##*/}" == .cntools-policy-work.* && -f "${work}" && ! -L "${work}" && -O "${work}" ]] || continue
-    cntools_transaction_path_components_safe "${work}" || continue
+    cntools_filesystem_path_components_safe "${work}" || continue
     rm -f -- "${work}" || cntools_transaction_log ERROR "Could not remove private policy work file=${work}"
   done
   CNTOOLS_POLICY_WORK_FILES=()
   for stage in "${CNTOOLS_POLICY_STAGES[@]}"; do
     [[ "${stage}" == "${CNTOOLS_ASSET_DIR%/}/.cntools-policy-new."* &&
        -d "${stage}" && ! -L "${stage}" && -O "${stage}" ]] || continue
-    cntools_transaction_path_components_safe "${stage}" || continue
+    cntools_filesystem_path_components_safe "${stage}" || continue
     rm -rf -- "${stage}" || cntools_transaction_log ERROR "Could not remove private policy staging directory=${stage}"
   done
   CNTOOLS_POLICY_STAGES=()

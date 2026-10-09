@@ -5,5 +5,7 @@
   "shortcut": "c",
   "order": 50,
   "modes": ["local", "light", "offline"],
-  "libs": ["asset-cache.sh"]
+  "libs": [
+    "asset-cache.sh"
+  ]
 }

@@ -8,9 +8,9 @@ CNTOOLS_POOL_PROTECTION_KEYS=0
 cntools_pool_protection_preflight() {
   local directory="$1" operation="$2" file="" mode="" cold="" hws="" calidus="" key=""
   cntools_pool_filenames_validate || return 1
-  [[ "${directory%/*}" == "${CNTOOLS_POOL_DIR%/}" ]] && cntools_transaction_path_components_safe "${directory}" &&
+  [[ "${directory%/*}" == "${CNTOOLS_POOL_DIR%/}" ]] && cntools_filesystem_path_components_safe "${directory}" &&
     [[ -d "${directory}" && ! -L "${directory}" && -O "${directory}" && -w "${directory}" ]] &&
-    cntools_transaction_directory_ancestry_safe "${directory%/*}" || return 1
+    cntools_filesystem_directory_ancestry_safe "${directory%/*}" || return 1
   for file in "${directory}"/* "${directory}"/.[!.]* "${directory}"/..?*; do
     [[ -e "${file}" || -L "${file}" ]] || continue
     [[ -f "${file}" && ! -L "${file}" && -O "${file}" && "${file##*/}" != .cntools-* ]] || {
@@ -37,7 +37,7 @@ cntools_pool_protection_preflight() {
   if [[ -e "${directory}/${cold}" ]]; then
     cntools_pool_key_validate "${directory}/${cold}" cold signing || { cntools_pool_write_error 'The cold signing key is invalid.'; return 1; }
   fi
-  cntools_transaction_mode_into mode "${directory}" || return 1
+  cntools_filesystem_mode_into mode "${directory}" || return 1
   if (( (8#${mode} & 0022) != 0 )); then
     cntools_run_command 000 -- chmod "$(printf '%03o' "$((8#${mode} & 0755))")" "${directory}" || return 1
   fi
@@ -126,7 +126,7 @@ cntools_pool_protect() {
     # Freeze and round-trip every key before unlocking or publishing any key.
     for index in "${!kinds[@]}"; do
       source="${CNTOOLS_POOL_PROTECTION_SOURCES[index]}"
-      cntools_pool_public_file_safe "${source}" 1048576 && cntools_transaction_mode_into mode "${source}" &&
+      cntools_pool_public_file_safe "${source}" 1048576 && cntools_filesystem_mode_into mode "${source}" &&
         cntools_pool_temp_into snapshot "${directory}" && cntools_pool_temp_into staged "${directory}" &&
         cntools_pool_temp_into errors "${directory}" && cntools_run_command 0000 -- cp -- "${source}" "${snapshot}" || return 1
       CNTOOLS_POOL_PROTECTION_STAGED+=("${staged}"); CNTOOLS_POOL_PROTECTION_SNAPSHOTS+=("${snapshot}"); CNTOOLS_POOL_PROTECTION_MODES+=("${mode}")

@@ -121,10 +121,38 @@ cntools_asset_tx_validate_body() {
   done
 }
 
+cntools_asset_tx_prepare_balanced_body() {
+  # The wrapper retains minimum funding, cumulative shortfall and metadata.
+  local body='' output='' input='' required=0 status=0 mint_quantity=''
+  local -a arguments=()
+  cntools_uint_add_into required "${minimum}" "${CNTOOLS_ASSET_TX_FEE}" && cntools_uint_add_into required "${required}" "${extra}" || return 1
+  cntools_coin_select_value "${required}" demands "${CNTOOLS_TX_SELECTION_STRATEGY:-balanced}" || { cntools_asset_tx_fail "${CNTOOLS_COIN_ERROR}"; return 1; }
+  CNTOOLS_ASSET_TX_INPUTS=("${CNTOOLS_COIN_SELECTED_REFS[@]}")
+  status=0; cntools_asset_tx_change || status=$?
+  if ((status == 3)); then cntools_uint_add_into extra "${extra}" "${CNTOOLS_CHANGE_REQUIRED_EXTRA}" || return 1; return 3; fi
+  ((status == 0)) || { cntools_asset_tx_fail "${CNTOOLS_CHANGE_ERROR:-Asset change could not be planned.}"; return 1; }
+  cntools_asset_tx_plan || return 1
+  arguments=(); mint_quantity="${CNTOOLS_ASSET_TX_QUANTITY}"
+  [[ "${CNTOOLS_ASSET_TX_OPERATION}" != burn ]] || mint_quantity="-${mint_quantity}"
+  for input in "${CNTOOLS_ASSET_TX_INPUTS[@]}"; do arguments+=(--tx-in "${input}"); done
+  for output in "${CNTOOLS_CHANGE_OUTPUTS[@]}" "${CNTOOLS_SEND_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}"; do
+    cntools_transaction_validate_change_output "${output}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
+    arguments+=(--tx-out "${output}")
+  done
+  CNTOOLS_ASSET_TX_OUTPUT_COUNT=$((${#CNTOOLS_CHANGE_OUTPUTS[@]}+1))
+  arguments+=(--mint "${mint_quantity} ${CNTOOLS_ASSET_TX_ID%.}" --mint-script-file "${CNTOOLS_POLICY_SELECTED_SCRIPT}" --fee "${CNTOOLS_ASSET_TX_FEE}")
+  cntools_transaction_temp_file body asset-body && cntools_transaction_temp_remove "${body}" || return 1
+  cntools_transaction_build_body build-raw "${body}" -- "${arguments[@]}" "${metadata_arguments[@]}" || return 1
+  CNTOOLS_TRANSACTION_TEMP_FILES+=("${body}")
+  CNTOOLS_TRANSACTION_BALANCE_INPUT_COUNT="${#CNTOOLS_ASSET_TX_INPUTS[@]}"
+  CNTOOLS_TRANSACTION_BALANCE_OUTPUT_COUNT="${CNTOOLS_ASSET_TX_OUTPUT_COUNT}"
+  printf -v "$1" '%s' "${body}"
+}
+
 cntools_asset_tx_build_into() {
   local -n asset_package="$1"
-  local body='' built_package='' output='' input='' required=0 extra=0 next_fee='' status=0 attempt=0 minimum='' mint_quantity='' max_size=0 bytes=0 witnesses=0
-  local -a arguments=() metadata_arguments=()
+  local extra=0 minimum=''
+  local -a metadata_arguments=()
   local -A demands=()
   asset_package=''; CNTOOLS_ASSET_TX_FEE=0
   [[ "${CNTOOLS_ASSET_TX_OPERATION}" == mint || "${CNTOOLS_ASSET_TX_OPERATION}" == burn ]] &&
@@ -132,42 +160,10 @@ cntools_asset_tx_build_into() {
     cntools_asset_tx_quantity_into CNTOOLS_ASSET_TX_QUANTITY "${CNTOOLS_ASSET_TX_QUANTITY}" || return 2
   [[ "${CNTOOLS_ASSET_TX_OPERATION}" != burn ]] || demands["${CNTOOLS_ASSET_TX_ID}"]="${CNTOOLS_ASSET_TX_QUANTITY}"
   cntools_metadata_arguments_into metadata_arguments || return 1
-  max_size="$(jq -er '.maxTxSize|select(type=="number" and .>0 and .<=100000 and floor==.)' "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
   cntools_change_plain_min_into minimum "${CNTOOLS_FUNDING_PROTOCOL}" "${CNTOOLS_SEND_ADDRESS}" || return 1
-  for ((attempt=0; attempt<20; attempt++)); do
-    cntools_uint_add_into required "${minimum}" "${CNTOOLS_ASSET_TX_FEE}" && cntools_uint_add_into required "${required}" "${extra}" || return 1
-    cntools_coin_select_value "${required}" demands "${CNTOOLS_TX_SELECTION_STRATEGY:-balanced}" || { cntools_asset_tx_fail "${CNTOOLS_COIN_ERROR}"; return 1; }
-    CNTOOLS_ASSET_TX_INPUTS=("${CNTOOLS_COIN_SELECTED_REFS[@]}")
-    status=0; cntools_asset_tx_change || status=$?
-    if ((status == 3)); then cntools_uint_add_into extra "${extra}" "${CNTOOLS_CHANGE_REQUIRED_EXTRA}" || return 1; continue; fi
-    ((status == 0)) || { cntools_asset_tx_fail "${CNTOOLS_CHANGE_ERROR:-Asset change could not be planned.}"; return 1; }
-    cntools_asset_tx_plan || return 1
-    arguments=(); mint_quantity="${CNTOOLS_ASSET_TX_QUANTITY}"
-    [[ "${CNTOOLS_ASSET_TX_OPERATION}" != burn ]] || mint_quantity="-${mint_quantity}"
-    for input in "${CNTOOLS_ASSET_TX_INPUTS[@]}"; do arguments+=(--tx-in "${input}"); done
-    for output in "${CNTOOLS_CHANGE_OUTPUTS[@]}" "${CNTOOLS_SEND_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}"; do
-      cntools_transaction_validate_change_output "${output}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-      arguments+=(--tx-out "${output}")
-    done
-    CNTOOLS_ASSET_TX_OUTPUT_COUNT=$((${#CNTOOLS_CHANGE_OUTPUTS[@]}+1))
-    arguments+=(--mint "${mint_quantity} ${CNTOOLS_ASSET_TX_ID%.}" --mint-script-file "${CNTOOLS_POLICY_SELECTED_SCRIPT}" --fee "${CNTOOLS_ASSET_TX_FEE}")
-    cntools_transaction_temp_file body asset-body && cntools_transaction_temp_remove "${body}" || return 1
-    cntools_transaction_build_body build-raw "${body}" -- "${arguments[@]}" "${metadata_arguments[@]}" || return 1
-    CNTOOLS_TRANSACTION_TEMP_FILES+=("${body}")
-    cntools_transaction_calculate_min_fee_into next_fee "${body}" "${#CNTOOLS_ASSET_TX_INPUTS[@]}" "${CNTOOLS_ASSET_TX_OUTPUT_COUNT}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-    if cntools_uint_greater "${next_fee}" "${CNTOOLS_ASSET_TX_FEE}"; then CNTOOLS_ASSET_TX_FEE="${next_fee}"; continue; fi
-    cntools_transaction_package_create_staged_into built_package "${body}" && cntools_transaction_package_load "${built_package}" || return 1
-    cntools_transaction_calculate_min_fee_into next_fee "${CNTOOLS_TRANSACTION_BODY_FILE}" "${#CNTOOLS_ASSET_TX_INPUTS[@]}" "${CNTOOLS_ASSET_TX_OUTPUT_COUNT}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-    if cntools_uint_greater "${next_fee}" "${CNTOOLS_ASSET_TX_FEE}"; then CNTOOLS_ASSET_TX_FEE="${next_fee}"; continue; fi
-    cntools_asset_tx_validate_body "${CNTOOLS_TRANSACTION_BODY_FILE}" || { cntools_asset_tx_fail 'Asset transaction failed exact input/output/value validation.'; return 1; }
-    bytes="$(jq -er '.cborHex|length/2' "${CNTOOLS_TRANSACTION_BODY_FILE}")"; witnesses="$(cntools_transaction_plan_witness_count)"
-    ((bytes + witnesses*112 + 32 <= max_size)) || { cntools_asset_tx_fail 'Asset transaction exceeds the signed-size limit. Reduce assets/change outputs.'; return 1; }
-    asset_package="${built_package}"
-    return 0
-  done
-  cntools_asset_tx_fail 'Asset transaction fee/change balancing did not converge safely.'
+  cntools_transaction_balance_into "$1" CNTOOLS_ASSET_TX_FEE "${CNTOOLS_FUNDING_PROTOCOL}" \
+    cntools_asset_tx_prepare_balanced_body "cntools_asset_tx_validate_body" || return 1
 }
-
 cntools_asset_tx_refresh_build_into() {
   local output="$1" lifetime="$2"
   cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" && cntools_asset_tx_eligible_inventory || return 1

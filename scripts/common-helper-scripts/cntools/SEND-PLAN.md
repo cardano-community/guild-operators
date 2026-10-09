@@ -511,5 +511,8 @@ alone cannot prove interoperability if both directions share the same mistake.
 
 ## Other deferred additions
 
-- **Multisig source spending, contract-specific outputs, and bulk file import:**
+- **Contract-specific outputs and bulk file import:**
   separate extensions of the same reviewed-recipient and transaction foundation.
+
+Multisig source spending is implemented through the shared native-script signer
+plan and Send workflow; it is not a deferred Send feature.

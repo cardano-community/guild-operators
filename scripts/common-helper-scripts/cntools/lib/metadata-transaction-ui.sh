@@ -9,8 +9,8 @@ cntools_metadata_transaction_render_review() {
   cntools_transaction_ui_expiry_label_into expiry "${CNTOOLS_SEND_EXPIRY}" || return 1
   {
     cntools_table_pair 'Funding wallet' "${CNTOOLS_SEND_WALLET}" identifier
-    cntools_table_pair Fee "$(cntools_wallet_format_lovelace "${CNTOOLS_SEND_FEE}")" number
-    cntools_table_pair 'Returned change' "$(cntools_wallet_format_lovelace "${total}")" number
+    cntools_table_pair Fee "$(cntools_number_format_lovelace "${CNTOOLS_SEND_FEE}")" number
+    cntools_table_pair 'Returned change' "$(cntools_number_format_lovelace "${total}")" number
     cntools_table_pair 'Input selection' "${CNTOOLS_TX_SELECTION_STRATEGY} · $(cntools_number_format "${#CNTOOLS_COIN_SELECTED_REFS[@]}") inputs" value
     cntools_table_pair 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
     cntools_table_pair 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value

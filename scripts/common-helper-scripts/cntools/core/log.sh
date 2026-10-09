@@ -4,86 +4,6 @@
 declare -ag CNTOOLS_HTTP_SECRET_FILES=()
 declare -ag CNTOOLS_HTTP_TEMP_FILES=()
 
-cntools_log_path_components_safe() {
-  local path="${1:-}"
-  local current="/"
-  local component=""
-  local -a components=()
-
-  [[ "${path}" = /* && "${path}" != *$'\n'* && "${path}" != *$'\r'* ]] ||
-    return 1
-  IFS='/' read -r -a components <<< "${path}"
-  for component in "${components[@]}"; do
-    [[ -n "${component}" ]] || continue
-    current="${current%/}/${component}"
-    [[ ! -L "${current}" ]] || return 1
-  done
-}
-
-cntools_log_mode_into() {
-  local _cntools_output_name="${1:-}"
-  local _cntools_path="${2:-}"
-  local _cntools_mode=""
-
-  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n _cntools_output_ref="${_cntools_output_name}"
-  _cntools_output_ref=""
-  if _cntools_mode="$(stat -c '%a' -- "${_cntools_path}" 2>/dev/null)"; then
-    :
-  elif _cntools_mode="$(stat -f '%Lp' "${_cntools_path}" 2>/dev/null)"; then
-    :
-  else
-    return 1
-  fi
-  [[ "${_cntools_mode}" =~ ^[0-7]{3,4}$ ]] || return 1
-  _cntools_output_ref="${_cntools_mode}"
-}
-
-cntools_log_uid_into() {
-  local _cntools_output_name="${1:-}"
-  local _cntools_path="${2:-}"
-  local _cntools_uid=""
-
-  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n _cntools_output_ref="${_cntools_output_name}"
-  _cntools_output_ref=""
-  if _cntools_uid="$(stat -c '%u' -- "${_cntools_path}" 2>/dev/null)"; then
-    :
-  elif _cntools_uid="$(stat -f '%u' "${_cntools_path}" 2>/dev/null)"; then
-    :
-  else
-    return 1
-  fi
-  [[ "${_cntools_uid}" =~ ^[0-9]+$ ]] || return 1
-  _cntools_output_ref="${_cntools_uid}"
-}
-
-cntools_log_directory_ancestry_safe() {
-  local directory="${1:-}"
-  local current="/"
-  local component=""
-  local mode=""
-  local uid=""
-  local permissions=0
-  local -a components=()
-
-  cntools_log_path_components_safe "${directory}" || return 1
-  IFS='/' read -r -a components <<< "${directory}"
-  for component in "${components[@]}"; do
-    [[ -n "${component}" ]] || continue
-    current="${current%/}/${component}"
-    [[ -d "${current}" && ! -L "${current}" ]] || return 1
-    cntools_log_uid_into uid "${current}" || return 1
-    [[ "${uid}" == "${EUID}" || "${uid}" == "0" ]] || return 1
-    cntools_log_mode_into mode "${current}" || return 1
-    permissions=$((8#${mode}))
-    if (( (permissions & 0022) != 0 &&
-          (permissions & 01000) == 0 )); then
-      return 1
-    fi
-  done
-}
-
 cntools_log_private_directory_safe() {
   local directory="${1:-}"
   local mode=""
@@ -93,8 +13,8 @@ cntools_log_private_directory_safe() {
      -d "${directory}" && ! -L "${directory}" &&
      -O "${directory}" && -w "${directory}" &&
      -x "${directory}" ]] || return 1
-  cntools_log_directory_ancestry_safe "${directory}" || return 1
-  cntools_log_mode_into mode "${directory}" || return 1
+  cntools_filesystem_directory_ancestry_safe "${directory}" || return 1
+  cntools_filesystem_mode_into mode "${directory}" || return 1
   permissions=$((8#${mode}))
   (( (permissions & 0022) == 0 ))
 }
@@ -110,7 +30,7 @@ cntools_log_init() {
     return 1
   }
   log_parent="$(dirname "${log_file}")" || return 1
-  cntools_log_path_components_safe "${log_parent}" || {
+  cntools_filesystem_path_components_safe "${log_parent}" || {
     printf 'CNTools: log directory contains an unsafe symbolic link: %s\n' \
       "${log_parent}" >&2
     return 1

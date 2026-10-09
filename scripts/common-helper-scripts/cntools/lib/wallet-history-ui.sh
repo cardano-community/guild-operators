@@ -63,7 +63,7 @@ cntools_history_asset_display() {
 
 cntools_history_overview_rows() {
   local address="" count="" first=0 last=0
-  cntools_wallet_table_row Property Value
+  cntools_table_row Property Value
   cntools_history_pair Wallet "${CNTOOLS_HISTORY_WALLET}" identifier
   if [[ "${CNTOOLS_HISTORY_BACKEND}" == local ]]; then
     cntools_history_pair Source "Local node · ${CNTOOLS_NETWORK}"
@@ -93,12 +93,12 @@ cntools_history_overview_rows() {
 
 cntools_history_summary_rows() {
   local record="$1" key="" value="" identity="" name="" names="" ordinal=0
-  cntools_wallet_table_row Property Value
+  cntools_table_row Property Value
   while IFS=$'\037' read -r key value; do
     case "${key}" in
       Date) cntools_history_date_pair "${key}" "${value}" ;;
       Fee|"Total outputs"|ADA)
-        cntools_history_pair "${key}" "$(cntools_wallet_format_lovelace "${value}")" number ;;
+        cntools_history_pair "${key}" "$(cntools_number_format_lovelace "${value}")" number ;;
       Block|Inputs|Outputs|"Native assets"|"Output assets") cntools_history_number_pair "${key}" "${value}" ;;
       *) cntools_history_pair "${key}" "${value}" identifier ;;
     esac || return 1
@@ -132,7 +132,7 @@ cntools_history_summary_rows() {
 cntools_history_tree_rows() {
   local file="$1" section="$2" path="" type="" value="" role="value" formatted=""
   local decimals="${3:-}"
-  cntools_wallet_table_row Field Value
+  cntools_table_row Field Value
   while IFS=$'\037' read -r path type value; do
     role=value
     if [[ "${type}" == asset ]]; then
@@ -149,9 +149,9 @@ cntools_history_tree_rows() {
            [[ "${section}" =~ ^(Record|inputs|outputs|collateral_inputs|collateral_output|reference_inputs)$ &&
               "${path}" =~ ^(\[[0-9]+\]\ /\ )?value$ ]]; }; then
       if [[ "${value}" == -* ]]; then
-        value="-$(cntools_wallet_format_lovelace "${value#-}")"
+        value="-$(cntools_number_format_lovelace "${value#-}")"
       else
-        value="$(cntools_wallet_format_lovelace "${value}")"
+        value="$(cntools_number_format_lovelace "${value}")"
       fi
       role=number
     elif [[ "${type}" == number || ( "${section}" != metadata &&
@@ -243,7 +243,7 @@ cntools_history_record_title() {
   local record="$1" number="$2" address="" formatted=""
   address="$(jq -r '((try .payment_addr.bech32 catch null) // .address) |
     if type == "string" and length > 0 then . else "Address unavailable" end' <<< "${record}")" || return 1
-  cntools_wallet_sanitize_display_into address "${address}" || return 1
+  cntools_text_sanitize_into address "${address}" || return 1
   cntools_number_format_into formatted "${number}" || return 1
   printf '%s · %s\n' "${formatted}" "${address}"
 }
@@ -323,7 +323,7 @@ cntools_history_detail_render() {
       reference_inputs) cntools_history_io_render "${file}" "${section}" 'Reference inputs' ;;
       metadata) cntools_history_metadata_render "${file}" ;;
       *)
-        cntools_wallet_sanitize_display_into title "${section//_/ }" || return 1
+        cntools_text_sanitize_into title "${section//_/ }" || return 1
         cntools_history_tree_rows "${file}" "${section}" | cntools_table_render "${title}"
         ;;
     esac || return 1

@@ -105,7 +105,7 @@ cntools_funding_collect() {
   fi
   cntools_transaction_slot_value_valid "${CNTOOLS_FUNDING_SLOT}" || return 1
   [[ -n "${CNTOOLS_FUNDING_SLOT}" ]] || return 1
-  cntools_coin_fee_reserve_into reserve "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
+  cntools_coin_initial_fee_into reserve "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
   for index in "${!CNTOOLS_UTXO_REFS[@]}"; do
     cntools_utxo_value_add_index "${index}" CNTOOLS_FUNDING_TOTAL \
       CNTOOLS_FUNDING_ASSET_IDS CNTOOLS_FUNDING_ASSETS || return 1

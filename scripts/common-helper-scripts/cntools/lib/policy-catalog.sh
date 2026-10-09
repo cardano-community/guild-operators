@@ -8,7 +8,7 @@ CNTOOLS_POLICY_SELECTED_CREDENTIAL='' CNTOOLS_POLICY_SELECTED_BEFORE='' CNTOOLS_
 
 cntools_policy_directory_safe() {
   [[ "${1%/*}" == "${CNTOOLS_ASSET_DIR%/}" && -d "$1" && ! -L "$1" && -r "$1" && -x "$1" ]] &&
-    cntools_transaction_path_components_safe "$1"
+    cntools_filesystem_path_components_safe "$1"
 }
 
 cntools_policy_public_file() { cntools_transaction_file_safe "$1" "${2:-65536}"; }
@@ -33,7 +33,7 @@ cntools_policy_catalog_build() {
   [[ -n "${CNTOOLS_ASSET_DIR:-}" && "${CNTOOLS_ASSET_DIR}" == /* && "${CNTOOLS_ASSET_DIR}" != / ]] || return 1
   [[ -e "${CNTOOLS_ASSET_DIR}" || -L "${CNTOOLS_ASSET_DIR}" ]] || return 0
   [[ -d "${CNTOOLS_ASSET_DIR}" && -r "${CNTOOLS_ASSET_DIR}" && ! -L "${CNTOOLS_ASSET_DIR}" ]] &&
-    cntools_transaction_path_components_safe "${CNTOOLS_ASSET_DIR}" || return 1
+    cntools_filesystem_path_components_safe "${CNTOOLS_ASSET_DIR}" || return 1
   cntools_policy_filenames_validate || return 1
   for directory in "${CNTOOLS_ASSET_DIR%/}"/*; do
     [[ -e "${directory}" || -L "${directory}" ]] || continue

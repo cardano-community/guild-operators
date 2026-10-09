@@ -34,15 +34,13 @@ cntools_coin_fail() {
   return 1
 }
 
-cntools_coin_fee_reserve_into() {
+cntools_coin_initial_fee_into() {
   local _cntools_output_name="${1:-}"
   local protocol_file="${2:-}"
   local record=""
   local fixed=""
   local per_byte=""
   local max_size=""
-  local variable=""
-  local total=""
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
      -f "${protocol_file}" && ! -L "${protocol_file}" ]] || return 2
@@ -60,10 +58,9 @@ cntools_coin_fee_reserve_into() {
     then $fee | map(tostring) | join("\u001f") else empty end
   ' "${protocol_file}")" || return 1
   IFS=$'\037' read -r fixed per_byte max_size <<< "${record}"
-  cntools_uint_multiply_small_into variable "${per_byte}" "${max_size}" ||
-    return 1
-  cntools_uint_add_into total "${fixed}" "${variable}" || return 1
-  _cntools_output_ref="${total}"
+  # The fixed fee is a protocol lower bound, not a maximum-size reserve. Actual
+  # body/witness pricing expands input selection during balancing if necessary.
+  _cntools_output_ref="${fixed}"
 }
 
 cntools_coin_required_for_stake_into() {

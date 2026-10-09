@@ -2,6 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 LAUNCHER_SOURCE="${REPO_ROOT}/scripts/common-helper-scripts/cntools.sh"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-launcher.XXXXXX")"
 INSTALL_ROOT="${TEST_ROOT}/installed node"

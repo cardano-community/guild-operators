@@ -101,7 +101,7 @@ cntools_wallet_selection_candidate_into() {
       [[ "${context}:${registration}" != register:yes && "${context}:${registration}" != deregister:no ]] || return 1
       [[ "${context}" != withdraw || "${CNTOOLS_SELECTION_REWARDS[${address}]:-unknown}" != 0 ]] || return 1
       if [[ "${context}" == withdraw && -n "${CNTOOLS_SELECTION_REWARDS[${address}]:-}" ]]; then
-        candidate_annotation="Rewards $(cntools_wallet_format_lovelace "${CNTOOLS_SELECTION_REWARDS[${address}]}")"
+        candidate_annotation="Rewards $(cntools_number_format_lovelace "${CNTOOLS_SELECTION_REWARDS[${address}]}")"
       elif [[ -n "${registration}" ]]; then
         [[ "${registration}" == yes ]] && candidate_annotation=Registered || candidate_annotation='Not registered · registration needed'
       fi

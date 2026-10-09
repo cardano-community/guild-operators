@@ -52,7 +52,7 @@ cntools_wallet_delegation_info_render() {
         role=number
         case "${key}" in
           expires_epoch_no) key='Expiry epoch'; [[ "${value}" =~ ^[0-9]+$ ]] || continue; value="$(cntools_number_format "${value}")" ;;
-          amount) key='Voting power (snapshot)'; [[ "${value}" =~ ^[0-9]+$ ]] || continue; value="$(cntools_wallet_format_lovelace "${value}")" ;;
+          amount) key='Voting power (snapshot)'; [[ "${value}" =~ ^[0-9]+$ ]] || continue; value="$(cntools_number_format_lovelace "${value}")" ;;
           live_delegator_count) key=Delegators; [[ "${value}" =~ ^[0-9]+$ ]] || continue; value="$(cntools_number_format "${value}")" ;;
           meta_url) key='Metadata URL'; role=identifier ;;
           meta_hash) key='Metadata hash'; role=identifier ;;

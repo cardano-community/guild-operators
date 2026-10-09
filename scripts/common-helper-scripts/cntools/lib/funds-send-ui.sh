@@ -190,7 +190,7 @@ cntools_send_render_recipients() {
     for index in "${!CNTOOLS_SEND_ADDRESSES[@]}"; do
       cntools_transaction_ui_styled_row "$((index+1)) · Recipient" "${CNTOOLS_SEND_LABELS[index]}" identifier
       cntools_transaction_ui_styled_row "Address" "${CNTOOLS_SEND_ADDRESSES[index]}" address
-      amount="$(cntools_wallet_format_lovelace "${CNTOOLS_SEND_AMOUNTS[index]}")"
+      amount="$(cntools_number_format_lovelace "${CNTOOLS_SEND_AMOUNTS[index]}")"
       cntools_transaction_ui_styled_row "ADA" "${amount}" number
       for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
         [[ "${CNTOOLS_SEND_ASSETS[${index}|${asset}]:-0}" != 0 ]] || continue

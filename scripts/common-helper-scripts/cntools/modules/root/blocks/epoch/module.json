@@ -11,8 +11,7 @@
   ],
   "libs": [
     "number.sh",
-    "wallet.sh",
-    "wallet-query.sh",
+    "presentation.sh",
     "table.sh",
     "blocklog.sh",
     "blocklog-ui.sh"

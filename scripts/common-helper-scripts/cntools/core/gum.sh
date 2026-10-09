@@ -278,8 +278,8 @@ cntools_gum_install() {
       "The Gum install directory must be an absolute, single-line path."
     return 1
   }
-  if declare -F cntools_log_path_components_safe >/dev/null 2>&1 &&
-     ! cntools_log_path_components_safe "${install_directory}"; then
+  if declare -F cntools_filesystem_path_components_safe >/dev/null 2>&1 &&
+     ! cntools_filesystem_path_components_safe "${install_directory}"; then
     cntools_gum_prerequisite_error \
       "The Gum install directory contains an unsafe symbolic link: ${install_directory}."
     return 1

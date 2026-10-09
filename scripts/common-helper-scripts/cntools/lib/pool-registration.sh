@@ -29,7 +29,7 @@ cntools_pool_registration_operation_set() {
 cntools_pool_registration_prepare_identity() {
   local index="$1" directory="${CNTOOLS_POOL_DIRECTORIES[$1]}" cold='' vrf='' hws='' skey='' response='' errors='' status=0 kind=''
   [[ "${CNTOOLS_POOL_IDENTITIES[index]}" == 'Verified cold public key' ]] &&
-    cntools_transaction_directory_ancestry_safe "${directory}" || {
+    cntools_filesystem_directory_ancestry_safe "${directory}" || {
     cntools_wallet_register_set_error 'A safe, verified cold public key is required. Import/repair the public pool artifacts first.'; return 1;
   }
   CNTOOLS_POOL_REG_INDEX="${index}"; CNTOOLS_POOL_REG_NAME="${CNTOOLS_POOL_NAMES[index]}"

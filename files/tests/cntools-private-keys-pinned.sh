@@ -3,6 +3,7 @@
 # shellcheck disable=SC1090,SC2034,SC2030,SC2031,SC2329,SC2154,SC2015
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 CNTOOLS_CLI="${1:?Pass the cnode deployment CLI pin}"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-private-keys.XXXXXX")"

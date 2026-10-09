@@ -11,6 +11,8 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 . "${CNTOOLS_ROOT}/lib/asset.sh"
 . "${CNTOOLS_ROOT}/lib/asset-cache.sh"
@@ -640,12 +642,42 @@ test_registration_package
 test_deregistration_package
 
 jq -e '.libs == [
-  "number.sh", "wallet.sh", "table.sh", "wallet-material.sh", "wallet-key.sh",
-  "wallet-address.sh", "wallet-id.sh", "asset.sh", "asset-cache.sh",
-  "wallet-query.sh", "utxo.sh", "transaction.sh",
-  "transaction-build.sh", "transaction-sign.sh", "transaction-submit.sh", "transaction-monitor.sh",
-  "transaction-ui.sh", "transaction-files.sh", "transaction-funding.sh", "coin-selection.sh", "change-plan.sh",
-  "wallet-stake.sh", "multisig-spend.sh", "multisig-stake.sh", "wallet-register.sh", "wallet-register-ui.sh", "wallet-selection.sh"
+  "number.sh",
+  "filesystem.sh",
+  "bech32.sh",
+  "presentation.sh",
+  "wallet.sh",
+  "table.sh",
+  "wallet-material.sh",
+  "wallet-key.sh",
+  "wallet-address.sh",
+  "wallet-id.sh",
+  "asset.sh",
+  "asset-cache.sh",
+  "wallet-query-transport.sh",
+  "wallet-query-local.sh",
+  "asset-metadata.sh",
+  "wallet-query-koios.sh",
+  "asset-view.sh",
+  "wallet-query.sh",
+  "utxo.sh",
+  "transaction.sh",
+  "transaction-balance.sh",
+  "transaction-build.sh",
+  "transaction-sign.sh",
+  "transaction-submit.sh",
+  "transaction-monitor.sh",
+  "json.sh", "transaction-ui.sh",
+  "transaction-files.sh",
+  "transaction-funding.sh",
+  "coin-selection.sh",
+  "change-plan.sh",
+  "wallet-stake.sh",
+  "multisig-spend.sh",
+  "multisig-stake.sh",
+  "wallet-register.sh",
+  "wallet-register-ui.sh",
+  "wallet-selection.sh"
 ]' "${CNTOOLS_ROOT}/modules/root/wallet/register/module.json" >/dev/null ||
   fail "Wallet Register module library order is incorrect"
 grep -F 'cntools_wallet_action_register' \

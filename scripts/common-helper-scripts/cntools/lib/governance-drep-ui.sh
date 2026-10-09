@@ -25,7 +25,7 @@ cntools_drep_lifecycle_choose_metadata() {
     cntools_transaction_ui_styled_row Action "${CNTOOLS_WALLET_REGISTER_INTENT}" accent
     cntools_transaction_ui_styled_row 'DRep ID' "${CNTOOLS_DREP_LIFECYCLE_ID}" identifier
     if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-update ]]; then
-      cntools_transaction_ui_styled_row "${CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL}" "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
+      cntools_transaction_ui_styled_row "${CNTOOLS_WALLET_REGISTER_DEPOSIT_LABEL}" "$(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
     fi
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-retire ]]; then

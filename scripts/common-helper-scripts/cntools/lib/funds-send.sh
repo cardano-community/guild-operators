@@ -197,14 +197,75 @@ cntools_send_change() {
     "${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}" 0
 }
 
+cntools_send_prepare_balanced_body() {
+  # The wrapper owns persistent shortfall and metadata/intent context.
+  local total=0 required=0 index=0 status=0 body='' minimum='' output='' policy='' summary=''
+  local -a arguments=()
+  total=0
+  if [[ "${CNTOOLS_SEND_MODE}" == exact || "${CNTOOLS_SEND_MODE}" == metadata ]]; then
+    for index in "${!CNTOOLS_SEND_AMOUNTS[@]}"; do
+      cntools_uint_add_into total "${total}" "${CNTOOLS_SEND_AMOUNTS[index]}" || return 1
+    done
+    cntools_uint_add_into required "${total}" "${CNTOOLS_SEND_FEE}" || return 1
+    cntools_uint_add_into required "${required}" "${extra}" || return 1
+    cntools_coin_select_value "${required}" CNTOOLS_SEND_DEMAND "${CNTOOLS_TX_SELECTION_STRATEGY}" || {
+      cntools_send_fail "${CNTOOLS_COIN_ERROR}"; return 1;
+    }
+  else
+    cntools_coin_reset
+    (( ${#CNTOOLS_UTXO_REFS[@]} <= 100 )) || { cntools_send_fail "Max/sweep exceeds the 100-input safety limit."; return 1; }
+    for index in "${!CNTOOLS_UTXO_REFS[@]}"; do cntools_coin_add_index "${index}" || return 1; done
+  fi
+  status=0
+  cntools_send_change "${total}" || status=$?
+  if (( status == 3 )) && [[ "${CNTOOLS_SEND_MODE}" == exact || "${CNTOOLS_SEND_MODE}" == metadata ]]; then
+    cntools_uint_add_into extra "${extra}" "${CNTOOLS_CHANGE_REQUIRED_EXTRA}" || return 1
+    return 3
+  fi
+  (( status == 0 )) || { cntools_send_fail "Insufficient ADA for recipient outputs, fees and token change."; return 1; }
+  CNTOOLS_SEND_OUTPUTS=(); arguments=()
+  for index in "${!CNTOOLS_SEND_ADDRESSES[@]}"; do
+    cntools_send_output_into output "${index}" "${CNTOOLS_SEND_AMOUNTS[index]}" || return 1
+    cntools_send_minimum_into minimum "${output}" || return 1
+    cntools_uint_greater_equal "${CNTOOLS_SEND_AMOUNTS[index]}" "${minimum}" || {
+      cntools_send_fail "The amount left to send is below the destination's minimum ADA."; return 1;
+    }
+    CNTOOLS_SEND_OUTPUTS+=("${output}")
+  done
+  CNTOOLS_SEND_OUTPUTS+=("${CNTOOLS_CHANGE_OUTPUTS[@]}")
+  for output in "${CNTOOLS_SEND_OUTPUTS[@]}"; do
+    cntools_transaction_validate_value_size "${output}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
+    arguments+=(--tx-out "${output}")
+  done
+  for index in "${CNTOOLS_COIN_SELECTED_INDICES[@]}"; do
+    arguments+=(--tx-in "${CNTOOLS_UTXO_REFS[index]}")
+    [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_input_arguments arguments || return 1
+  done
+  cntools_transaction_temp_file body send-body || return 1
+  cntools_transaction_temp_remove "${body}" || return 1
+  cntools_transaction_build_body build-raw "${body}" -- "${arguments[@]}" "${metadata_arguments[@]}" --fee "${CNTOOLS_SEND_FEE}" || return 1
+  CNTOOLS_TRANSACTION_TEMP_FILES+=("${body}")
+  policy="$(cntools_change_policy_json | jq -c --arg mode "${CNTOOLS_SEND_MODE}" \
+    '. + {selectionApplied: (if $mode == "exact" or $mode == "metadata" then .selection else "all-inputs" end)}')" || return 1
+  CNTOOLS_SEND_POLICY="${policy}"
+  summary="$(jq -cn --arg wallet "${CNTOOLS_SEND_WALLET}" --arg mode "${CNTOOLS_SEND_MODE}" \
+    --arg fee "${CNTOOLS_SEND_FEE}" --arg source "${CNTOOLS_FUNDING_BACKEND}" \
+    --argjson transactionPolicy "${policy}" --argjson context "${context}" \
+    --arg metadata "${CNTOOLS_METADATA_MODE:-none}" \
+    --argjson resolutions "$(printf '%s\n' "${CNTOOLS_SEND_RESOLUTIONS[@]}" | jq -sc '[.[] | select(type == "object")]')" \
+    '$context + {wallet:$wallet,amountMode:$mode,feeLovelace:$fee,dataSource:$source,transactionPolicy:$transactionPolicy,messageMode:$metadata,handleResolutions:$resolutions}')" || return 1
+  cntools_transaction_plan_set_summary "${summary}" || return 1
+  CNTOOLS_TRANSACTION_BALANCE_INPUT_COUNT="${#CNTOOLS_COIN_SELECTED_INDICES[@]}"
+  CNTOOLS_TRANSACTION_BALANCE_OUTPUT_COUNT="${#CNTOOLS_SEND_OUTPUTS[@]}"
+  printf -v "$1" '%s' "${body}"
+}
+
 cntools_send_build_into() {
-  local output_name="${1:-}" total=0 required=0 extra=0 index=0 attempt=0 status=0
-  local body="" built_send_package="" next_fee="" minimum="" output="" asset="" policy="" summary=""
-  local max_size=0 max_value=0 value_bytes=0 body_bytes=0 witnesses=0
+  local output_name="${1:-}" extra=0
   local intent="${2:-Send funds}" description="${3:-Transfer from ${CNTOOLS_SEND_WALLET}; rewards and deposits are not withdrawn.}"
   local context="${4:-}"; [[ -n "${context}" ]] || context='{"action":"send"}'
   jq -e 'type == "object"' <<< "${context}" >/dev/null || return 2
-  local -a arguments=() metadata_arguments=()
+  local -a metadata_arguments=()
   local -n send_package_ref="${output_name}"
   send_package_ref=""
   if declare -F cntools_metadata_arguments_into >/dev/null; then
@@ -215,99 +276,6 @@ cntools_send_build_into() {
   cntools_send_demands || return 1
   cntools_send_plan_signers "${intent}" "${description}" || return 1
   CNTOOLS_SEND_FEE=0
-  max_size="$(jq -er '.maxTxSize | select(type == "number" and . > 0 and . <= 100000) | floor' "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
-  max_value="$(jq -er '.maxValueSize | select(type == "number" and . > 0 and . <= 100000) | floor' "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
-  for (( attempt=0; attempt<20; attempt++ )); do
-    total=0
-    if [[ "${CNTOOLS_SEND_MODE}" == exact || "${CNTOOLS_SEND_MODE}" == metadata ]]; then
-      for index in "${!CNTOOLS_SEND_AMOUNTS[@]}"; do
-        cntools_uint_add_into total "${total}" "${CNTOOLS_SEND_AMOUNTS[index]}" || return 1
-      done
-      cntools_uint_add_into required "${total}" "${CNTOOLS_SEND_FEE}" || return 1
-      cntools_uint_add_into required "${required}" "${extra}" || return 1
-      cntools_coin_select_value "${required}" CNTOOLS_SEND_DEMAND "${CNTOOLS_TX_SELECTION_STRATEGY}" || {
-        cntools_send_fail "${CNTOOLS_COIN_ERROR}"; return 1;
-      }
-    else
-      cntools_coin_reset
-      (( ${#CNTOOLS_UTXO_REFS[@]} <= 100 )) || { cntools_send_fail "Max/sweep exceeds the 100-input safety limit."; return 1; }
-      for index in "${!CNTOOLS_UTXO_REFS[@]}"; do cntools_coin_add_index "${index}" || return 1; done
-    fi
-    status=0
-    cntools_send_change "${total}" || status=$?
-    if (( status == 3 )) && [[ "${CNTOOLS_SEND_MODE}" == exact || "${CNTOOLS_SEND_MODE}" == metadata ]]; then
-      cntools_uint_add_into extra "${extra}" "${CNTOOLS_CHANGE_REQUIRED_EXTRA}" || return 1
-      continue
-    fi
-    (( status == 0 )) || { cntools_send_fail "Insufficient ADA for recipient outputs, fees and token change."; return 1; }
-    CNTOOLS_SEND_OUTPUTS=(); arguments=()
-    for index in "${!CNTOOLS_SEND_ADDRESSES[@]}"; do
-      cntools_send_output_into output "${index}" "${CNTOOLS_SEND_AMOUNTS[index]}" || return 1
-      cntools_send_minimum_into minimum "${output}" || return 1
-      cntools_uint_greater_equal "${CNTOOLS_SEND_AMOUNTS[index]}" "${minimum}" || {
-        cntools_send_fail "The amount left to send is below the destination's minimum ADA."; return 1;
-      }
-      CNTOOLS_SEND_OUTPUTS+=("${output}")
-    done
-    CNTOOLS_SEND_OUTPUTS+=("${CNTOOLS_CHANGE_OUTPUTS[@]}")
-    for output in "${CNTOOLS_SEND_OUTPUTS[@]}"; do
-      # Conservative CBOR bound (no reliance on policy sharing); reject oversized
-      # bundles before building. Asset strings and quantities were validated.
-      value_bytes=12
-      local -a parts=()
-      read -r -a parts <<< "${output}"
-      for asset in "${parts[@]}"; do
-        [[ "${asset}" =~ ^[0-9a-f]{56}(\.[0-9a-f]*)?$ ]] || continue
-        value_bytes=$((value_bytes + 52 + (${#asset} - 56) / 2))
-      done
-      (( value_bytes <= max_value )) || { cntools_send_fail "An output's asset bundle exceeds the conservative value-size limit. Split its assets between recipients."; return 1; }
-      arguments+=(--tx-out "${output}")
-    done
-    for index in "${CNTOOLS_COIN_SELECTED_INDICES[@]}"; do
-      arguments+=(--tx-in "${CNTOOLS_UTXO_REFS[index]}")
-      [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_input_arguments arguments || return 1
-    done
-    cntools_transaction_temp_file body send-body || return 1
-    cntools_transaction_temp_remove "${body}" || return 1
-    cntools_transaction_build_body build-raw "${body}" -- "${arguments[@]}" "${metadata_arguments[@]}" --fee "${CNTOOLS_SEND_FEE}" || return 1
-    CNTOOLS_TRANSACTION_TEMP_FILES+=("${body}")
-    cntools_transaction_calculate_min_fee_into next_fee "${body}" "${#CNTOOLS_COIN_SELECTED_INDICES[@]}" \
-      "${#CNTOOLS_SEND_OUTPUTS[@]}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-    witnesses="$(cntools_transaction_plan_witness_count)" || return 1
-    body_bytes="$(jq -er '.cborHex | length / 2' "${body}")" || return 1
-    (( body_bytes + witnesses * 112 + 32 <= max_size )) || {
-      cntools_send_fail "The transaction exceeds the conservative signed-size limit. Send fewer assets/recipients."; return 1;
-    }
-    if cntools_uint_greater "${next_fee}" "${CNTOOLS_SEND_FEE}"; then
-      CNTOOLS_SEND_FEE="${next_fee}"; continue
-    fi
-    policy="$(cntools_change_policy_json | jq -c --arg mode "${CNTOOLS_SEND_MODE}" \
-      '. + {selectionApplied: (if $mode == "exact" or $mode == "metadata" then .selection else "all-inputs" end)}')" || return 1
-    CNTOOLS_SEND_POLICY="${policy}"
-    summary="$(jq -cn --arg wallet "${CNTOOLS_SEND_WALLET}" --arg mode "${CNTOOLS_SEND_MODE}" \
-      --arg fee "${CNTOOLS_SEND_FEE}" --arg source "${CNTOOLS_FUNDING_BACKEND}" \
-      --argjson transactionPolicy "${policy}" --argjson context "${context}" \
-      --arg metadata "${CNTOOLS_METADATA_MODE:-none}" \
-      --argjson resolutions "$(printf '%s\n' "${CNTOOLS_SEND_RESOLUTIONS[@]}" | jq -sc '[.[] | select(type == "object")]')" \
-      '$context + {wallet:$wallet,amountMode:$mode,feeLovelace:$fee,dataSource:$source,transactionPolicy:$transactionPolicy,messageMode:$metadata,handleResolutions:$resolutions}')" || return 1
-    cntools_transaction_plan_set_summary "${summary}" || return 1
-    cntools_transaction_package_create_staged_into built_send_package "${body}" || return 1
-    if [[ "${CNTOOLS_SEND_TYPE}" == Hardware || "${CNTOOLS_TRANSACTION_PACKAGE_HARDWARE_PREPARED:-N}" == Y ]]; then
-      # Packaging may normalize the body for the hardware CLI. Fund and size-check
-      # that final representation too; never rely only on pre-transform bytes.
-      cntools_transaction_calculate_min_fee_into next_fee "${CNTOOLS_TRANSACTION_BODY_FILE}" \
-        "${#CNTOOLS_COIN_SELECTED_INDICES[@]}" "${#CNTOOLS_SEND_OUTPUTS[@]}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-      body_bytes="$(jq -er '.cborHex | length / 2' "${CNTOOLS_TRANSACTION_BODY_FILE}")" || return 1
-      (( body_bytes + witnesses * 112 + 32 <= max_size )) || {
-        cntools_send_fail "The hardware-prepared transaction exceeds the signed-size limit."; return 1;
-      }
-      if cntools_uint_greater "${next_fee}" "${CNTOOLS_SEND_FEE}"; then
-        CNTOOLS_SEND_FEE="${next_fee}"; continue
-      fi
-    fi
-    send_package_ref="${built_send_package}"
-    cntools_transaction_log TRANSACTION "${intent} built mode=${CNTOOLS_SEND_MODE} inputs=${#CNTOOLS_COIN_SELECTED_INDICES[@]} outputs=${#CNTOOLS_SEND_OUTPUTS[@]} fee=${CNTOOLS_SEND_FEE} policy=${policy}"
-    return 0
-  done
-  cntools_send_fail "Fee and change balancing did not converge within the safety limit."
+  cntools_transaction_balance_into "${output_name}" CNTOOLS_SEND_FEE "${CNTOOLS_FUNDING_PROTOCOL}" \
+    cntools_send_prepare_balanced_body "" || return 1
 }

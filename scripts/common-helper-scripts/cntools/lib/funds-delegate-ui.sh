@@ -7,7 +7,7 @@ cntools_delegate_pool_local_into() {
   local cold="${CNTOOLS_POOL_COLD_VKEY_FILENAME:-cold.vkey}" id="${CNTOOLS_POOL_ID_FILENAME:-pool.id}"
   local -a labels=() directories=()
   [[ "${cold}" =~ ^[A-Za-z0-9_.-]+$ && "${id}" =~ ^[A-Za-z0-9_.-]+$ ]] || return 2
-  if [[ -n "${CNTOOLS_POOL_DIR:-}" ]] && cntools_transaction_path_components_safe "${CNTOOLS_POOL_DIR}" && [[ -d "${CNTOOLS_POOL_DIR}" ]]; then
+  if [[ -n "${CNTOOLS_POOL_DIR:-}" ]] && cntools_filesystem_path_components_safe "${CNTOOLS_POOL_DIR}" && [[ -d "${CNTOOLS_POOL_DIR}" ]]; then
     for directory in "${CNTOOLS_POOL_DIR}"/*; do
       [[ -d "${directory}" && ! -L "${directory}" ]] || continue
       name="${directory##*/}"
@@ -103,7 +103,7 @@ cntools_delegate_choose_target() {
     fi
     if [[ "${CNTOOLS_DELEGATE_REGISTER}" == Y ]]; then
       status=0
-      cntools_ui_confirm "Register this stake address in the same transaction? Deposit: $(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}") plus the transaction fee." false || status=$?
+      cntools_ui_confirm "Register this stake address in the same transaction? Deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}") plus the transaction fee." false || status=$?
       cntools_transaction_log CHOICE "Delegate registration confirmation status=${status} deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
       (( status == 0 )) || return "${status}"
       CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED=Y

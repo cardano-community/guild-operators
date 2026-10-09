@@ -54,7 +54,7 @@ cntools_backup_result() {
     [[ -n "${CNTOOLS_BACKUP_ERROR}" ]] || cntools_backup_error "Backup ${operation,,} failed (status ${status}). See ${CNTOOLS_LOG:-the CNTools log}."
     cntools_ui_render_status error "${CNTOOLS_BACKUP_ERROR}"
   else
-    cntools_ui_render_status success "$([[ "${operation}" == Create ]] && printf 'Backup created and verified.' || printf 'Restore completed; existing folders were preserved.')"
+    cntools_ui_render_status success "$([[ "${operation}" == Create ]] && printf 'Backup created; archive integrity verified.' || printf 'Restore completed; existing folders were preserved.')"
   fi
   if [[ -n "${CNTOOLS_BACKUP_RESULT}" ]]; then
     {
@@ -78,6 +78,18 @@ cntools_backup_create_wizard() {
   case "${include}" in 'Full backup (includes private keys)') include=full ;; 'Public artifacts only') include=public ;; *) return 0 ;; esac
   if [[ "${include}" == public ]]; then
     cntools_ui_render_status warn 'Only known public artifact filenames are included. Private keys, nested files and unknown custom files are omitted. This is not a recovery backup for signing keys.'
+  else
+    cntools_backup_recovery_coverage || { cntools_backup_error 'Could not inspect backup recovery coverage safely.'; cntools_backup_result Create 1; return 1; }
+    if (( ${#CNTOOLS_BACKUP_COVERAGE_LABELS[@]} > 0 )); then
+      local coverage_index=0
+      {
+        for ((coverage_index=0; coverage_index<${#CNTOOLS_BACKUP_COVERAGE_LABELS[@]}; coverage_index++)); do
+          cntools_table_pair "${CNTOOLS_BACKUP_COVERAGE_LABELS[coverage_index]}" "${CNTOOLS_BACKUP_COVERAGE_VALUES[coverage_index]}" \
+            "$([[ "${CNTOOLS_BACKUP_COVERAGE_VALUES[coverage_index]}" == 'Signing key present'* ]] && printf success || printf warning)"
+        done
+      } | cntools_table_render 'Signing-key recovery coverage'
+    fi
+    cntools_ui_render_status warn 'A full backup contains only files that are present. Missing/external keys, hardware devices and their recovery seeds are not recovered by archive verification. Keep encrypted-key passphrases separately.'
   fi
   cntools_backup_interact cntools_ui_choose encryption 'Backup protection' 'Encrypt with GPG (recommended)' 'Unencrypted archive' 'Cancel' || return $?
   cntools_log CHOICE "backup protection selection=${encryption}" || true

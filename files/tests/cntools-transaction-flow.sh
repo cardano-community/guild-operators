@@ -5,6 +5,7 @@
 set -euo pipefail
 (( BASH_VERSINFO[0] >= 4 )) || { printf 'SKIP: Bash 4.4+ required\n'; exit 0; }
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-tx-flow.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
@@ -49,7 +50,7 @@ cntools_gov_vote_choose() { printf 'proposal-vote\n' >> "${TRACE}"; }
 cntools_gov_vote_render_rows() { cntools_transaction_ui_styled_row 'DRep ID' drep1fixture identifier; cntools_transaction_ui_styled_row Vote Yes accent; }
 cntools_gov_vote_recheck() { cntools_vote_recheck; }
 cntools_transaction_set_error() { CNTOOLS_TRANSACTION_ERROR="$1"; }
-cntools_wallet_format_lovelace() { printf '%s ADA' "$(cntools_number_format_units "$1" 6)"; }
+cntools_number_format_lovelace() { printf '%s ADA' "$(cntools_number_format_units "$1" 6)"; }
 cntools_transaction_package_load() {
   CNTOOLS_TRANSACTION_PACKAGE_FILE="$1"
   CNTOOLS_TRANSACTION_BODY_FILE=/body
@@ -92,10 +93,10 @@ cntools_ui_choose() {
     answer='30 minutes'
   else
     [[ "$*" != *'Show transaction details'* ]] || fail 'raw details option retained'
+    [[ "$*" != *'Show decoded transaction'* ]] || fail 'raw decode option retained'
     eq "$2" 'Review transaction' 'shared review title'
     case "${SCENARIO}:${STEP}" in
-      details:0) answer='Show decoded transaction' ;;
-      details:1) answer='Show required signers' ;;
+      details:0) answer='Show required signers' ;;
       switch:0) answer='Change workflow'; WORKFLOW='Create unsigned package' ;;
       cancel:*) answer=Cancel ;;
     esac
@@ -120,7 +121,7 @@ cntools_pool_registration_recheck() { cntools_vote_recheck; }
 cntools_pool_registration_render_plan() {
   local pool_test_fee=''
   cntools_transaction_ui_fee_into pool_test_fee
-  { cntools_transaction_ui_styled_row Fee "$(cntools_wallet_format_lovelace "${pool_test_fee}")" number
+  { cntools_transaction_ui_styled_row Fee "$(cntools_number_format_lovelace "${pool_test_fee}")" number
     cntools_transaction_ui_render_policy_rows "${CNTOOLS_TX_SELECTION_STRATEGY}" 1
   } | cntools_ui_table
 }
@@ -212,7 +213,8 @@ for operation in register deregister vote-delegate drep-register drep-update dre
           fi ;;
       esac
       if [[ "${scenario}" == details ]]; then
-        for event in decoded signers; do grep -qx "${event}" "${TRACE}" || fail "missing ${event} option"; done
+        grep -qx signers "${TRACE}" || fail 'missing signer option'
+        ! grep -qx decoded "${TRACE}" || fail 'raw decode displayed'
         eq "$(grep -c '^build$' "${TRACE}")" 1 'inspection rebuilt transaction'
       fi
       grep -q 'technicalFixture' "${LOG}" || fail 'technical intent not logged'
@@ -220,4 +222,20 @@ for operation in register deregister vote-delegate drep-register drep-update dre
   done
 done
 eq "$(cntools_number_format_units 9007199254740993 6)" '9,007,199,254.740993' 'exact ADA formatting'
+# Actual 11.2.3.1 field names, nested metadata, exact integers, and unfamiliar
+# effects must remain visible in imported/offline review. No intent is trusted.
+: > "${TABLE}"
+CNTOOLS_TRANSACTION_UI_VIEW='{"era":"Conway","fee":"200000 Lovelace","outputs":[{"address":"addr_test1fixture","amount":{"lovelace":10000000},"datum":{"int":9007199254740993}}],"voters":{"drep-keyHash-fixture":{"proposal#0":{"decision":"VoteYes","anchor":{"url":"https://example.invalid/rationale","dataHash":"abcd"}}}},"treasuryDonation":20000000,"metadata":{"674":[["msg",["CNTools","CIP-20","test"]]],"999":9007199254740993},"future effect":{"enabled":true},"collateral inputs":[]}'
+cntools_transaction_ui_render_effects || fail 'complete imported effects review failed'
+for expected in VoteYes 'proposal#0' 'https://example.invalid/rationale' '20.000000 ADA' CNTools CIP-20 test '9,007,199,254,740,993' 'future effect'; do
+  grep -F "${expected}" "${TABLE}" >/dev/null || fail "imported review omitted ${expected}"
+done
+if grep -Eq 'Attached|Large integer|collateral inputs' "${TABLE}"; then fail 'incomplete or empty effects in review'; fi
+CNTOOLS_TRANSACTION_UI_VIEW='{"outputs":[],"treasuryDonation":0}'
+: > "${TABLE}"
+cntools_transaction_ui_render_effects || fail 'empty effects review failed'
+[[ ! -s "${TABLE}" ]] || fail 'zero donation rendered as an effect'
+CNTOOLS_TRANSACTION_UI_VIEW='{"outputs":[{"address":"addr_test1zero","amount":{"lovelace":2000000}}],"treasuryDonation":0}'
+cntools_transaction_ui_render_effects || fail 'zero donation suppressed other effects'
+grep -F 'addr_test1zero' "${TABLE}" >/dev/null || fail 'zero donation suppressed outputs'
 printf 'CNTools shared transaction flow tests passed.\n'

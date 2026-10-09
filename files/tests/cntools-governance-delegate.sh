@@ -4,10 +4,12 @@
 # shellcheck disable=SC1090,SC2030,SC2031,SC2034,SC2154,SC2317,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-vote.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
-for lib in number wallet-query transaction wallet-register drep-id drep-query governance-delegate governance-delegate-ui; do
+for lib in number wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query transaction wallet-register drep-id drep-query governance-delegate governance-delegate-ui; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }

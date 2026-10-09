@@ -30,7 +30,7 @@ cntools_pool_file_name_into() {
 }
 
 cntools_pool_public_file_safe() {
-  cntools_transaction_path_components_safe "$1" && cntools_wallet_safe_regular_file "$1" "${2:-65536}" && [[ -r "$1" ]]
+  cntools_filesystem_path_components_safe "$1" && cntools_wallet_safe_regular_file "$1" "${2:-65536}" && [[ -r "$1" ]]
 }
 
 cntools_pool_warning_add() {
@@ -116,7 +116,7 @@ cntools_pool_catalog_build() {
   local root="${CNTOOLS_POOL_DIR:-}" directory="" name="" index=0 kind="" filename="" key_state=""
   CNTOOLS_POOL_NAMES=(); CNTOOLS_POOL_DIRECTORIES=(); CNTOOLS_POOL_IDS=(); CNTOOLS_POOL_HEX_IDS=()
   CNTOOLS_POOL_IDENTITIES=(); CNTOOLS_POOL_PROTECTIONS=(); CNTOOLS_POOL_WARNINGS=()
-  [[ "${root}" == /* && "${root}" != / ]] && cntools_transaction_path_components_safe "${root}" || return 1
+  [[ "${root}" == /* && "${root}" != / ]] && cntools_filesystem_path_components_safe "${root}" || return 1
   [[ -e "${root}" ]] || return 0
   [[ -d "${root}" && -r "${root}" && -x "${root}" ]] || return 1
   # Globbing provides lexical order without an external sort or hidden staging dirs.
@@ -125,7 +125,7 @@ cntools_pool_catalog_build() {
     [[ -d "${directory}" ]] || continue
     name="${directory##*/}"
     if [[ -L "${directory}" || ! "${name}" =~ ^[A-Za-z0-9][A-Za-z0-9_.\ -]*$ ]] ||
-        ! cntools_transaction_path_components_safe "${directory}" || [[ ! -r "${directory}" || ! -x "${directory}" ]]; then
+        ! cntools_filesystem_path_components_safe "${directory}" || [[ ! -r "${directory}" || ! -x "${directory}" ]]; then
       cntools_transaction_log WARN "Skipping unsafe pool directory=${directory}"; continue
     fi
     index="${#CNTOOLS_POOL_NAMES[@]}"

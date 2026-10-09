@@ -11,6 +11,7 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-mnemonic.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
@@ -425,6 +426,7 @@ assert_contains "${CNTOOLS_WALLET_MNEMONIC_ERROR}" \
 assert_no_debris
 
 jq -e '.libs == [
+  "bech32.sh",
   "wallet.sh",
   "wallet-material.sh",
   "wallet-key.sh",
@@ -437,6 +439,7 @@ jq -e '.libs == [
 ]' "${CNTOOLS_ROOT}/modules/root/wallet/new/mnemonic/module.json" >/dev/null ||
   fail "Wallet New Mnemonic metadata is not wired to the focused stack"
 jq -e '.libs == [
+  "bech32.sh",
   "wallet.sh",
   "wallet-material.sh",
   "wallet-key.sh",

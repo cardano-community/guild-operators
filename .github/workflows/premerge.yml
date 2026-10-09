@@ -40,6 +40,8 @@ jobs:
       run: bash files/tests/cntools-menu-skeleton.sh
     - name: Test CNTools number helpers
       run: bash files/tests/cntools-number.sh
+    - name: Test CNTools shared-library boundaries
+      run: bash files/tests/cntools-shared-libraries.sh
     - name: Test CNTools themes
       run: bash files/tests/cntools-theme.sh
     - name: Test CNTools settings

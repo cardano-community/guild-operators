@@ -36,6 +36,7 @@ done
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 RELEASE_FILE="${REPO_ROOT}/files/node-implementations/cnode/release.json"
 COMMON_RELEASE_FILE="${REPO_ROOT}/files/node-implementations/common/release.json"
 CACHE_ROOT="${CNTOOLS_PINNED_TEST_CACHE:-${TMPDIR:-/tmp}/guild-operators-cntools-pinned-cache}"
@@ -580,6 +581,7 @@ assert_eq "${HW_MALFORMED_STATUS}" 1 \
   cntools_transaction_cleanup
 )
 
+bash "${SCRIPT_DIR}/cntools-balancing-pinned.sh" "${CLI}"
 bash "${SCRIPT_DIR}/cntools-withdraw-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-delegate-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-collect-pinned.sh" "${CLI}" "${HWCLI}"

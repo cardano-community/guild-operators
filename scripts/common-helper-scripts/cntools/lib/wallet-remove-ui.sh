@@ -32,7 +32,7 @@ cntools_wallet_remove_funding_value() {
   local value="${2:-}"
 
   case "${status}" in
-    empty|funded) cntools_wallet_format_lovelace "${value}" ;;
+    empty|funded) cntools_number_format_lovelace "${value}" ;;
     not-present) printf 'Not present\n' ;;
     *) printf 'Unavailable\n' ;;
   esac
@@ -82,7 +82,7 @@ cntools_wallet_remove_render_review() {
   case "${CNTOOLS_WALLET_REMOVE_UTXO_STATUS}" in
     empty|funded)
       if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[0-9]+$ ]]; then
-        cntools_wallet_format_number_into \
+        cntools_text_format_number_into \
           asset_value "${CNTOOLS_WALLET_ASSET_COUNT}" || return 1
       fi
       ;;
@@ -106,7 +106,7 @@ cntools_wallet_remove_render_review() {
     cntools_wallet_remove_styled_row \
       "Wallet" "${wallet_directory##*/}" identifier
     cntools_wallet_remove_styled_row "Type" "${wallet_type}" accent
-    role="$(cntools_wallet_status_role "${protection}")" || return 1
+    role="$(cntools_text_status_role "${protection}")" || return 1
     cntools_wallet_remove_styled_row "Key protection" "${protection}" "${role}"
     if [[ "${CNTOOLS_WALLET_REMOVE_UTXO_STATUS}" == "funded" ]]; then
       role="danger"

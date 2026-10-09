@@ -11,6 +11,7 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 HARDWARE_MODULE="${CNTOOLS_ROOT}/modules/root/wallet/import/hardware"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-hardware.XXXXXX")"
@@ -112,16 +113,17 @@ jq -e '.tools["cardano-hw-cli"] |
 
 jq -e '.kind == "action" and .label == "HW Wallet" and
   .modes == ["local", "light", "offline"] and .libs == [
-    "wallet.sh",
-    "wallet-material.sh",
-    "wallet-key.sh",
-    "wallet-address.sh",
-    "wallet-id.sh",
-    "wallet-create.sh",
-    "wallet-create-ui.sh",
-    "wallet-hardware.sh",
-    "wallet-hardware-ui.sh"
-  ]' "${HARDWARE_MODULE}/module.json" >/dev/null ||
+  "bech32.sh",
+  "wallet.sh",
+  "wallet-material.sh",
+  "wallet-key.sh",
+  "wallet-address.sh",
+  "wallet-id.sh",
+  "wallet-create.sh",
+  "wallet-create-ui.sh",
+  "wallet-hardware.sh",
+  "wallet-hardware-ui.sh"
+]' "${HARDWARE_MODULE}/module.json" >/dev/null ||
   fail "HW Wallet metadata does not declare the focused hardware stack"
 grep -F 'cntools_wallet_action_import_hardware' \
   "${HARDWARE_MODULE}/action.sh" >/dev/null ||

@@ -3,6 +3,7 @@
 # shellcheck disable=SC1090,SC2034,SC2317,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 . "${REPO_ROOT}/scripts/common-helper-scripts/cntools/lib/backup-ui.sh"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 eq() { [[ "$1" == "$2" ]] || fail "$1 != $2"; }
@@ -11,6 +12,7 @@ cntools_ui_action_begin() { :; }
 cntools_ui_render_status() { :; }
 cntools_ui_wait() { :; }
 cntools_backup_directory_safe() { return 0; }
+cntools_backup_recovery_coverage() { CNTOOLS_BACKUP_COVERAGE_LABELS=(); CNTOOLS_BACKUP_COVERAGE_VALUES=(); }
 cntools_ui_spin_function() { shift; "$@"; }
 cntools_table_pair() { printf '%s %s\n' "$1" "$2"; }
 cntools_table_render() { while IFS= read -r row; do : "${row}"; done; }

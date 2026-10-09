@@ -26,19 +26,21 @@ CNTOOLS_ENV_SOURCED="N"
 export CNTOOLS_ROOT CNTOOLS_ENTRYPOINT CNTOOLS_CORE_DIR CNTOOLS_LIB_DIR
 export CNTOOLS_MODULE_ROOT CNTOOLS_VERSION_FILE CNTOOLS_ENV_FILE
 
-CNTOOLS_NUMBER_LIBRARY="${CNTOOLS_LIB_DIR}/number.sh"
-if [[ ! -f "${CNTOOLS_NUMBER_LIBRARY}" ||
-      -L "${CNTOOLS_NUMBER_LIBRARY}" ||
-      ! -s "${CNTOOLS_NUMBER_LIBRARY}" ]]; then
-  printf 'CNTools: shared library is missing or unsafe: %s\n' \
-    "${CNTOOLS_NUMBER_LIBRARY}" >&2
-  exit 1
-fi
 # Number formatting is also used by the always-visible health header. Actions
 # continue to declare this library explicitly so their dependencies remain
 # complete and independently testable.
-# shellcheck source=/dev/null
-. "${CNTOOLS_NUMBER_LIBRARY}" || exit 1
+for CNTOOLS_SHARED_LIBRARY in number.sh filesystem.sh; do
+  if [[ ! -f "${CNTOOLS_LIB_DIR}/${CNTOOLS_SHARED_LIBRARY}" ||
+        -L "${CNTOOLS_LIB_DIR}/${CNTOOLS_SHARED_LIBRARY}" ||
+        ! -s "${CNTOOLS_LIB_DIR}/${CNTOOLS_SHARED_LIBRARY}" ]]; then
+    printf 'CNTools: shared library is missing or unsafe: %s\n' \
+      "${CNTOOLS_LIB_DIR}/${CNTOOLS_SHARED_LIBRARY}" >&2
+    exit 1
+  fi
+  # shellcheck source=/dev/null
+  . "${CNTOOLS_LIB_DIR}/${CNTOOLS_SHARED_LIBRARY}" || exit 1
+done
+unset CNTOOLS_SHARED_LIBRARY
 
 for CNTOOLS_CORE_FILE in \
   startup.sh log.sh update.sh menu.sh action.sh theme.sh settings.sh gum.sh health.sh; do

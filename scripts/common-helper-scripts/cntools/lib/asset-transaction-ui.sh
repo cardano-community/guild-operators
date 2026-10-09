@@ -13,9 +13,9 @@ cntools_asset_tx_render() {
     cntools_table_pair Policy "${CNTOOLS_ASSET_TX_DIRECTORY##*/}" identifier
     cntools_table_pair Asset "${label}" accent
     cntools_table_pair 'Policy.name (hex)' "${CNTOOLS_ASSET_TX_ID}" identifier
-    cntools_table_pair "${CNTOOLS_ASSET_TX_OPERATION^} quantity (smallest units)" "${CNTOOLS_ASSET_TX_QUANTITY}" number
+    cntools_table_pair "${CNTOOLS_ASSET_TX_OPERATION^} quantity (smallest units)" "$(cntools_number_format "${CNTOOLS_ASSET_TX_QUANTITY}")" number
     cntools_table_pair 'Return address' "${CNTOOLS_SEND_ADDRESS}" identifier
-    cntools_table_pair Fee "$(cntools_wallet_format_lovelace "${CNTOOLS_ASSET_TX_FEE}")" number
+    cntools_table_pair Fee "$(cntools_number_format_lovelace "${CNTOOLS_ASSET_TX_FEE}")" number
     cntools_table_pair Expires "${expiry}" value
     cntools_table_pair 'Input selection' "${CNTOOLS_TX_SELECTION_STRATEGY:-balanced} · ${#CNTOOLS_ASSET_TX_INPUTS[@]} inputs" value
     cntools_table_pair 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
@@ -35,7 +35,7 @@ cntools_asset_tx_quantity_prompt() {
   while true; do
     if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == burn ]]; then
       {
-        cntools_table_pair 'Available (smallest units)' "${available}" number
+        cntools_table_pair 'Available (smallest units)' "$(cntools_number_format "${available}")" number
       } | cntools_table_render 'Burn amount'
       cntools_ui_input entered 'Quantity to burn (or all)' all || return $?
       [[ "${entered,,}" != all ]] || entered="${available}"
@@ -95,7 +95,7 @@ cntools_asset_tx_workflow() {
   cntools_asset_tx_eligible_inventory || return 2
   {
     cntools_table_pair Wallet "${CNTOOLS_SEND_WALLET}" identifier
-    cntools_table_pair 'Spendable ADA' "$(cntools_wallet_format_lovelace "${CNTOOLS_FUNDING_TOTAL}")" number
+    cntools_table_pair 'Spendable ADA' "$(cntools_number_format_lovelace "${CNTOOLS_FUNDING_TOTAL}")" number
     cntools_table_pair 'Native assets' "${#CNTOOLS_FUNDING_ASSET_IDS[@]}" number
     cntools_table_pair Policy "${CNTOOLS_ASSET_TX_DIRECTORY##*/}" identifier
   } | cntools_table_render 'Source wallet' || return 2
@@ -166,7 +166,7 @@ cntools_asset_tx_metadata_overview() {
   { cntools_table_pair Wallet "${CNTOOLS_SEND_WALLET}" identifier
     cntools_table_pair Asset "${CNTOOLS_ASSET_TX_ID}" identifier
     cntools_table_pair Action "${CNTOOLS_ASSET_TX_OPERATION^}" value
-    cntools_table_pair 'Quantity (smallest units)' "${CNTOOLS_ASSET_TX_QUANTITY}" number
+    cntools_table_pair 'Quantity (smallest units)' "$(cntools_number_format "${CNTOOLS_ASSET_TX_QUANTITY}")" number
   } | cntools_table_render 'Asset transaction'
 }
 

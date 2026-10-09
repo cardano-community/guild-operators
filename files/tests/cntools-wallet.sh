@@ -10,6 +10,8 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 . "${CNTOOLS_ROOT}/lib/asset.sh"
 . "${CNTOOLS_ROOT}/lib/asset-cache.sh"
@@ -627,7 +629,7 @@ cntools_ui_pager() {
   done
 } >> "${PAGER_TRACE}"
 cntools_wallet_test_failure_rows() {
-  cntools_wallet_table_row "Partial" "row"
+  cntools_table_row "Partial" "row"
   return 47
 }
 : > "${UI_TRACE}"
@@ -640,16 +642,16 @@ if grep -F $'DETAIL\tMust not render' "${UI_TRACE}" >/dev/null; then
   fail "a partial table rendered after its row producer failed"
 fi
 unset -f cntools_wallet_test_failure_rows
-assert_eq "$(cntools_wallet_table_row 'Fixture "Token"' plain)" \
+assert_eq "$(cntools_table_row 'Fixture "Token"' plain)" \
   $'"Fixture ""Token"""\tplain' \
   "Gum table TSV quoting"
 assert_eq \
-  "$(cntools_wallet_sanitize_display $'pool1safe\aINJECT\u202e')" \
+  "$(cntools_text_sanitize $'pool1safe\aINJECT\u202e')" \
   "pool1safe INJECT " \
   "terminal control and bidirectional display sanitization"
-assert_eq "$(cntools_wallet_uint_add 999999999999999999999999 1)" \
+assert_eq "$(cntools_uint_add 999999999999999999999999 1)" \
   "1000000000000000000000000" "arbitrary-precision asset carry"
-assert_eq "$(cntools_wallet_uint_add 000000000000000009 0001)" \
+assert_eq "$(cntools_uint_add 000000000000000009 0001)" \
   "10" "arbitrary-precision leading zeros"
 assert_eq "$(cntools_wallet_format_token_amount 5000000 6)" \
   "5.000000" "token display amount"
@@ -659,9 +661,9 @@ assert_eq "$(cntools_wallet_format_token_amount 5000000000 6)" \
   "5,000.000000" "grouped token display amount"
 assert_eq "$(cntools_wallet_format_token_amount 5000000 '')" \
   "5,000,000" "grouped raw token display amount"
-assert_eq "$(cntools_wallet_format_lovelace 9223372036854775809)" \
+assert_eq "$(cntools_number_format_lovelace 9223372036854775809)" \
   "9,223,372,036,854.775809 ADA" "large exact ADA display amount"
-assert_eq "$(cntools_wallet_format_lovelace_compact 9223372036854775809)" \
+assert_eq "$(cntools_number_format_lovelace_compact 9223372036854775809)" \
   "9,223.372B" "large compact ADA display amount"
 test_grouped_balance_count() (
   local rows=""
@@ -1044,7 +1046,7 @@ test_local_asset_fingerprint() (
     fail "local CIP-14 fingerprint generation failed"
   assert_eq "${fingerprint}" "${TEST_LOCAL_ASSET_FINGERPRINT}" \
     "local CIP-14 fingerprint"
-  assert_eq "$(line_count "${fingerprint_trace}")" "2" \
+  assert_eq "$(line_count "${fingerprint_trace}")" "1" \
     "local CIP-14 tool call count"
 
   : > "${fingerprint_trace}"
@@ -1074,7 +1076,7 @@ test_local_asset_fingerprint
 saved_ui_columns="${CNTOOLS_UI_COLUMNS-}"
 had_ui_columns="${CNTOOLS_UI_COLUMNS+x}"
 CNTOOLS_UI_COLUMNS=60
-wrapped_pair="$(cntools_wallet_table_wrapped_pair \
+wrapped_pair="$(cntools_table_wrapped_pair \
   "Base" "${TEST_BASE_ADDRESS}" 15)"
 [[ "${wrapped_pair}" == *$'\n'* ]] ||
   fail "narrow two-column table did not wrap a base address"
@@ -1083,8 +1085,8 @@ while IFS= read -r wrapped_line; do
   wrapped_label="${wrapped_line%%$'\t'*}"
   wrapped_value="${wrapped_line#*$'\t'}"
   wrapped_width=$((
-    $(cntools_wallet_text_width "${wrapped_label}") +
-    $(cntools_wallet_text_width "${wrapped_value}") + 7
+    $(cntools_text_width "${wrapped_label}") +
+    $(cntools_text_width "${wrapped_value}") + 7
   ))
   (( wrapped_width <= CNTOOLS_UI_COLUMNS )) ||
     fail "responsive two-column table exceeded the terminal width"
@@ -1092,7 +1094,7 @@ while IFS= read -r wrapped_line; do
 done <<< "${wrapped_pair}"
 assert_eq "${reassembled_value}" "${TEST_BASE_ADDRESS}" \
   "responsive address wrapping"
-wrapped_triple="$(cntools_wallet_table_wrapped_triple \
+wrapped_triple="$(cntools_table_wrapped_triple \
   "01 · token" "Policy ID" "${TEST_POLICY_ID}" 22 20)"
 [[ "${wrapped_triple}" == *$'\n'* ]] ||
   fail "narrow three-column table did not wrap a policy ID"
@@ -1103,9 +1105,9 @@ while IFS= read -r wrapped_line; do
   wrapped_property="${wrapped_remainder%%$'\t'*}"
   wrapped_value="${wrapped_remainder#*$'\t'}"
   wrapped_width=$((
-    $(cntools_wallet_text_width "${wrapped_asset}") +
-    $(cntools_wallet_text_width "${wrapped_property}") +
-    $(cntools_wallet_text_width "${wrapped_value}") + 10
+    $(cntools_text_width "${wrapped_asset}") +
+    $(cntools_text_width "${wrapped_property}") +
+    $(cntools_text_width "${wrapped_value}") + 10
   ))
   (( wrapped_width <= CNTOOLS_UI_COLUMNS )) ||
     fail "responsive three-column table exceeded the terminal width"
@@ -1114,15 +1116,15 @@ done <<< "${wrapped_triple}"
 assert_eq "${reassembled_value}" "${TEST_POLICY_ID}" \
   "responsive native-asset wrapping"
 unicode_value='代币😀Koios代币😀Koios代币😀Koios'
-wrapped_pair="$(cntools_wallet_table_wrapped_pair \
+wrapped_pair="$(cntools_table_wrapped_pair \
   "Token metadata" "${unicode_value}" 15)"
 reassembled_value=""
 while IFS= read -r wrapped_line; do
   wrapped_label="${wrapped_line%%$'\t'*}"
   wrapped_value="${wrapped_line#*$'\t'}"
   wrapped_width=$((
-    $(cntools_wallet_text_width "${wrapped_label}") +
-    $(cntools_wallet_text_width "${wrapped_value}") + 7
+    $(cntools_text_width "${wrapped_label}") +
+    $(cntools_text_width "${wrapped_value}") + 7
   ))
   (( wrapped_width <= CNTOOLS_UI_COLUMNS )) ||
     fail "Unicode metadata exceeded the responsive table width"
@@ -1138,13 +1140,13 @@ test_semantic_wallet_value_roles() (
   cntools_theme_style_value_into() {
     printf -v "$1" '<%s>%s</%s>' "$2" "$3" "$2"
   }
-  row="$(cntools_wallet_table_wrapped_pair \
+  row="$(cntools_table_wrapped_pair \
     Base "${TEST_BASE_ADDRESS}" 15 address)" ||
     fail "semantic address row could not be rendered"
   assert_eq "${row}" \
     $'Base\t<address>'"${TEST_BASE_ADDRESS}"'</address>' \
     "semantic address role"
-  row="$(cntools_wallet_table_wrapped_triple \
+  row="$(cntools_table_wrapped_triple \
     Wallet Type CLI 20 22 '' identifier accent)" ||
     fail "semantic wallet identity row could not be rendered"
   assert_eq "${row}" \
@@ -1154,17 +1156,17 @@ test_semantic_wallet_value_roles() (
 test_semantic_wallet_value_roles
 
 CNTOOLS_UI_COLUMNS=180
-wrapped_pair="$(cntools_wallet_table_wrapped_pair \
+wrapped_pair="$(cntools_table_wrapped_pair \
   "Base" "${TEST_BASE_ADDRESS}" 15)"
 assert_eq "${wrapped_pair}" $'Base\t'"${TEST_BASE_ADDRESS}" \
   "wide Wallet Show address row"
-wrapped_pair="$(cntools_wallet_table_wrapped_pair \
+wrapped_pair="$(cntools_table_wrapped_pair \
   "MultiSig payment" \
   "11111111111111111111111111111111111111111111111111111111" 20)"
 assert_eq "${wrapped_pair}" \
   $'MultiSig payment\t11111111111111111111111111111111111111111111111111111111' \
   "wide Wallet Show credential row"
-wrapped_triple="$(cntools_wallet_table_wrapped_triple \
+wrapped_triple="$(cntools_table_wrapped_triple \
   "01 · token" "Policy ID" "${TEST_POLICY_ID}" 22 20)"
 assert_eq "${wrapped_triple}" \
   $'01 · token\tPolicy ID\t'"${TEST_POLICY_ID}" \
@@ -1181,10 +1183,10 @@ test_live_wallet_table_width() (
     printf '%s\n' "${test_terminal_columns}"
   }
 
-  assert_eq "$(cntools_wallet_table_width)" "160" \
+  assert_eq "$(cntools_table_width)" "160" \
     "live Wallet table terminal width"
   test_terminal_columns=240
-  assert_eq "$(cntools_wallet_table_width)" "180" \
+  assert_eq "$(cntools_table_width)" "180" \
     "Wallet table readable width cap"
 )
 test_live_wallet_table_width
@@ -1225,7 +1227,7 @@ test_wallet_table_width_snapshot
 
 CNTOOLS_UI_COLUMNS=98
 cntools_gum_width() { printf '52\n'; }
-assert_eq "$(cntools_wallet_table_width)" "52" \
+assert_eq "$(cntools_table_width)" "52" \
   "Wallet Show render-time terminal resize"
 unset -f cntools_gum_width
 cntools_wallet_query_reset

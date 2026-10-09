@@ -11,6 +11,7 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TX_A="$(printf 'aa%.0s' {1..32})"
 TX_B="$(printf 'bb%.0s' {1..32})"
@@ -96,13 +97,13 @@ test_fee_reserve() {
   printf '%s\n' \
     '{"txFeeFixed":2,"txFeePerByte":4,"maxTxSize":100000}' \
     > "${protocol_file}"
-  cntools_coin_fee_reserve_into reserve "${protocol_file}" ||
+  cntools_coin_initial_fee_into reserve "${protocol_file}" ||
     fail "valid protocol fee parameters were rejected"
-  assert_eq "${reserve}" 400002 "conservative fee reserve"
+  assert_eq "${reserve}" 2 "protocol initial fee lower bound"
   printf '%s\n' \
     '{"txFeeFixed":2,"txFeePerByte":4,"maxTxSize":100001}' \
     > "${protocol_file}"
-  if cntools_coin_fee_reserve_into reserve "${protocol_file}"; then
+  if cntools_coin_initial_fee_into reserve "${protocol_file}"; then
     fail "oversized protocol fee parameter was accepted"
   fi
   rm -f -- "${protocol_file}"

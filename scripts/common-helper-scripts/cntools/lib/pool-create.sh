@@ -30,7 +30,7 @@ cntools_pool_create() {
 cntools_pool_import_directory() {
   local name="$1" source="$2" stage="" entry="" base="" role="" hws="" cold="" vkey="" imported=0
   [[ "${source}" == /* && "${source}" != / && -d "${source}" && -r "${source}" && -x "${source}" ]] &&
-    cntools_transaction_path_components_safe "${source}" || { cntools_pool_write_error 'Choose a readable pool source directory without symbolic links.'; return 1; }
+    cntools_filesystem_path_components_safe "${source}" || { cntools_pool_write_error 'Choose a readable pool source directory without symbolic links.'; return 1; }
   cntools_pool_write_environment "${name}" || return 1
   cntools_pool_stage_into stage || return 1
   # Copy regular top-level files, including legacy metadata, without modifying

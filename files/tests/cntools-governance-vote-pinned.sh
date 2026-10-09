@@ -3,6 +3,8 @@
 # shellcheck disable=SC1090,SC2034,SC2154,SC2317,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 CNTOOLS_CLI="${1:?Pass the checksum-verified cnode CLI binary}"
 PINNED_HWCLI="${2:-}"
@@ -13,7 +15,7 @@ umask 077
 fail() { printf 'FAIL: %s (%s / %s)\n' "$*" "${CNTOOLS_WALLET_REGISTER_ERROR:-}" "${CNTOOLS_TRANSACTION_ERROR:-}" >&2; tail -15 "${TEST_ROOT}/test.log" >&2; exit 1; }
 version="$("${CNTOOLS_CLI}" version | head -1)"; version="${version#cardano-cli }"; version="${version%% *}"
 [[ "${version}" == "$(jq -er '.companions["cardano-cli"].version' "${REPO_ROOT}/files/node-implementations/cnode/release.json")" ]] || fail 'CLI is not the cnode deployment pin'
-for lib in number wallet wallet-material wallet-key wallet-mnemonic wallet-address wallet-id wallet-query utxo coin-selection change-plan recipient wallet-payment transaction transaction-build transaction-sign transaction-files wallet-register drep-id drep-query drep-key governance-drep governance-proposal governance-vote governance-vote-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
+for lib in number wallet wallet-material wallet-key wallet-mnemonic wallet-address wallet-id wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query utxo coin-selection change-plan recipient wallet-payment transaction transaction-build transaction-sign transaction-files wallet-register drep-id drep-query drep-key governance-drep governance-proposal governance-vote governance-vote-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 cntools_log() { printf '%s %s\n' "$1" "$2" >> "${TEST_ROOT}/test.log"; }
 cntools_log_sanitize_line() { printf '%s' "${1//[[:cntrl:]]/ }"; }
 cntools_run_command_timeout() { shift 3; "$@"; }

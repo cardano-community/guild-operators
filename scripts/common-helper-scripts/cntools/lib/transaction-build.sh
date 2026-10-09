@@ -7,26 +7,6 @@ CNTOOLS_TRANSACTION_MIN_FEE=""
 CNTOOLS_TRANSACTION_MAX_ARGUMENT_BYTES=65536
 CNTOOLS_TRANSACTION_MAX_COMMAND_BYTES=524288
 
-cntools_transaction_validate_change_output() {
-  local output="$1" protocol="$2" part="" value_bytes=12 maximum="" minimum="" amount=""
-  local -a parts=()
-  maximum="$(jq -er '.maxValueSize | select(type == "number" and . > 0 and . <= 100000)' "${protocol}")" || return 1
-  read -r -a parts <<< "${output}"
-  for part in "${parts[@]}"; do
-    if [[ "${part}" =~ ^[0-9a-f]{56}(\.([0-9a-f]{2}){0,32})?$ ]]; then
-      value_bytes=$((value_bytes + 52 + (${#part} - 56) / 2))
-    fi
-  done
-  (( value_bytes <= maximum )) || {
-    cntools_transaction_set_error 'A token change bundle exceeds the conservative value-size limit. Enable token fragmentation or lower its maximum assets per output.'; return 1;
-  }
-  cntools_transaction_calculate_min_utxo_into minimum "${protocol}" "${output}" || return 1
-  amount="${output#*+}"; amount="${amount%% *}"
-  cntools_uint_greater_equal "${amount}" "${minimum}" || {
-    cntools_transaction_set_error 'A change output does not contain the minimum required ADA.'; return 1;
-  }
-}
-
 cntools_transaction_build_arguments_safe() {
   local builder="${1:-}"
   local argument=""

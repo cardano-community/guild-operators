@@ -20,7 +20,7 @@ cntools_send_metadata_render() {
     elif [[ -n "${CNTOOLS_METADATA_MESSAGE}" ]]; then
       while IFS= read -r line; do
         index=$((index+1))
-        cntools_wallet_sanitize_display_into line "${line}" || return 1
+        cntools_text_sanitize_into line "${line}" || return 1
         cntools_send_metadata_row "${kind}" "${label}" "${index}" "${line}" text
         kind=""; label=""
       done < <(jq -r '.msg[]' "${CNTOOLS_METADATA_MESSAGE}")

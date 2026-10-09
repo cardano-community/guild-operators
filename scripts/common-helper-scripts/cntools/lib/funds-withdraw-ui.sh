@@ -20,9 +20,9 @@ cntools_withdraw_render() {
     cntools_transaction_ui_styled_row Wallet "${CNTOOLS_STAKE_WALLET}" identifier
     cntools_transaction_ui_styled_row 'Reward account' "${CNTOOLS_STAKE_REWARD_ADDRESS}" address
     cntools_transaction_ui_styled_row 'Return address' "${CNTOOLS_STAKE_BASE_ADDRESS}" address
-    cntools_transaction_ui_styled_row Rewards "$(cntools_wallet_format_lovelace "${CNTOOLS_WITHDRAW_REWARDS}")" number
-    cntools_transaction_ui_styled_row Fee "$(cntools_wallet_format_lovelace "${CNTOOLS_WITHDRAW_FEE}")" number
-    cntools_transaction_ui_styled_row "${effect}" "$(cntools_wallet_format_lovelace "${net}")" number
+    cntools_transaction_ui_styled_row Rewards "$(cntools_number_format_lovelace "${CNTOOLS_WITHDRAW_REWARDS}")" number
+    cntools_transaction_ui_styled_row Fee "$(cntools_number_format_lovelace "${CNTOOLS_WITHDRAW_FEE}")" number
+    cntools_transaction_ui_styled_row "${effect}" "$(cntools_number_format_lovelace "${net}")" number
     cntools_transaction_ui_render_policy_rows "${CNTOOLS_TX_SELECTION_STRATEGY}" "${#CNTOOLS_WITHDRAW_INPUTS[@]}"
     cntools_transaction_ui_styled_row Expires "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1

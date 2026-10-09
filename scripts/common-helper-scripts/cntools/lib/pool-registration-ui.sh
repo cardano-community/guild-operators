@@ -39,9 +39,9 @@ cntools_pool_registration_rows() {
   cntools_table_pair Pool "${CNTOOLS_POOL_REG_NAME}" identifier
   cntools_table_pair 'Pool ID' "${CNTOOLS_POOL_REG_ID}" identifier
   cntools_table_pair 'Funding wallet' "${CNTOOLS_WALLET_REGISTER_WALLET}" identifier
-  [[ -z "${CNTOOLS_FUNDING_TOTAL:-}" ]] || cntools_table_pair 'Spendable ADA' "$(cntools_wallet_format_lovelace "${CNTOOLS_FUNDING_TOTAL}")" number
-  cntools_table_pair Pledge "$(cntools_wallet_format_lovelace "${CNTOOLS_POOL_REG_PLEDGE}")" number
-  cntools_table_pair 'Fixed cost' "$(cntools_wallet_format_lovelace "${CNTOOLS_POOL_REG_COST}")" number
+  [[ -z "${CNTOOLS_FUNDING_TOTAL:-}" ]] || cntools_table_pair 'Spendable ADA' "$(cntools_number_format_lovelace "${CNTOOLS_FUNDING_TOTAL}")" number
+  cntools_table_pair Pledge "$(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_PLEDGE}")" number
+  cntools_table_pair 'Fixed cost' "$(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_COST}")" number
   cntools_table_pair Margin "${margin} %" number
   cntools_table_pair 'Reward account' "${CNTOOLS_POOL_REG_REWARD_ADDRESS:-${CNTOOLS_POOL_REG_REWARD_HASH:-Not selected}}" identifier
   while IFS= read -r record; do
@@ -60,12 +60,12 @@ cntools_pool_registration_rows() {
   else cntools_table_pair 'Metadata URL' "$(jq -r .url <<< "${CNTOOLS_POOL_REG_METADATA}")" identifier
     cntools_table_pair 'Metadata hash' "$(jq -r .hash <<< "${CNTOOLS_POOL_REG_METADATA}")" identifier
   fi
-  cntools_table_pair 'Pool deposit' "$(cntools_wallet_format_lovelace "${CNTOOLS_POOL_REG_POOL_DEPOSIT:-${CNTOOLS_WALLET_REGISTER_DEPOSIT}}")" number
+  cntools_table_pair 'Pool deposit' "$(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_POOL_DEPOSIT:-${CNTOOLS_WALLET_REGISTER_DEPOSIT}}")" number
   if [[ "${CNTOOLS_POOL_STAKE_PLAN:-[]}" != '[]' ]]; then
     while IFS= read -r record; do
       cntools_table_pair 'Included stake setup' "$(jq -r '.label + " · " + .setup' <<< "${record}")" success
     done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_STAKE_PLAN}")
-    cntools_table_pair 'Total deposits' "$(cntools_wallet_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
+    cntools_table_pair 'Total deposits' "$(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
   fi
 }
 
@@ -76,7 +76,7 @@ cntools_pool_registration_render_plan() {
   else cntools_pool_registration_rows | cntools_table_render 'Pool settings' || return 1; fi
   cntools_transaction_ui_fee_into fee || return 1
   cntools_transaction_ui_expiry_label_into expiry "${CNTOOLS_WALLET_REGISTER_EXPIRY}"
-  { cntools_table_pair Fee "$(cntools_wallet_format_lovelace "${fee}")" number
+  { cntools_table_pair Fee "$(cntools_number_format_lovelace "${fee}")" number
     cntools_table_pair Expires "${expiry}" number
     cntools_table_pair 'Input selection' "${CNTOOLS_TX_SELECTION_STRATEGY} · $(cntools_number_format "${#CNTOOLS_WALLET_REGISTER_INPUTS[@]}") inputs"
     cntools_table_pair 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}"
@@ -204,12 +204,12 @@ cntools_pool_registration_edit_settings() {
         cntools_ui_render_status warn 'Complete the reward public key and every owner public key, and use a cost at or above the protocol minimum. Review relays and metadata.'; cntools_ui_wait ;;
       Pledge|'Fixed cost')
         current="${CNTOOLS_POOL_REG_PLEDGE}"; [[ "${choice}" != 'Fixed cost' ]] || current="${CNTOOLS_POOL_REG_COST}"
-        cntools_pool_registration_input input "${choice} ADA (Enter keeps $(cntools_wallet_format_lovelace "${current}"))" 'Commas are accepted' || status=$?
+        cntools_pool_registration_input input "${choice} ADA (Enter keeps $(cntools_number_format_lovelace "${current}"))" 'Commas are accepted' || status=$?
         ((status != 1)) || continue; ((status == 0)) || return "${status}"; [[ -n "${input}" ]] || continue
         if ! cntools_number_units_into amount "${input}" 6 || ! cntools_pool_parameter_uint "${amount}"; then cntools_ui_render_status warn 'Use a nonnegative ADA amount with at most six decimal places.'; cntools_ui_wait; continue; fi
         if [[ "${choice}" == Pledge ]]; then CNTOOLS_POOL_REG_PLEDGE="${amount}"
         elif cntools_uint_greater_equal "${amount}" "${CNTOOLS_POOL_REG_MIN_COST}"; then CNTOOLS_POOL_REG_COST="${amount}"
-        else cntools_ui_render_status warn "Minimum fixed cost: $(cntools_wallet_format_lovelace "${CNTOOLS_POOL_REG_MIN_COST}")."; cntools_ui_wait; fi ;;
+        else cntools_ui_render_status warn "Minimum fixed cost: $(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_MIN_COST}")."; cntools_ui_wait; fi ;;
       Margin)
         cntools_pool_registration_input input 'Margin percent (Enter keeps current)' '0–100; up to six decimal places' || status=$?
         ((status != 1)) || continue; ((status == 0)) || return "${status}"; [[ -n "${input}" ]] || continue

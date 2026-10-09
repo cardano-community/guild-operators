@@ -5,6 +5,7 @@
 set -euo pipefail
 (( BASH_VERSINFO[0] >= 4 )) || { printf 'SKIP: Bash 4.4+ required\n'; exit 0; }
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-delegate.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
@@ -200,7 +201,7 @@ cntools_ui_table() { cat >/dev/null; }
 cntools_ui_render_status() { printf '%s\n' "$2" >> "${TEST_ROOT}/ui"; }
 cntools_ui_wait() { :; }
 cntools_ui_spin_function() { shift; "$@"; }
-cntools_wallet_format_lovelace() { printf '%s ADA' "$(cntools_number_format_units "$1" 6)"; }
+cntools_number_format_lovelace() { printf '%s ADA' "$(cntools_number_format_units "$1" 6)"; }
 cntools_ui_choose() { printf -v "$1" '%s' "${MENU}"; }
 cntools_ui_input() { printf -v "$1" '%s' "${pool}"; }
 cntools_ui_confirm() { printf '%s\n' "$1" >> "${TEST_ROOT}/questions"; return "${CONFIRM}"; }

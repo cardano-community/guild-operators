@@ -69,7 +69,7 @@ cntools_calidus_inspect() {
   CNTOOLS_CALIDUS_ID='' CNTOOLS_CALIDUS_PUBLIC='' CNTOOLS_CALIDUS_STATE=Missing
   CNTOOLS_POOL_WRITE_ERROR=''
   cntools_calidus_names_into names && [[ -d "${directory}" && ! -L "${directory}" && -O "${directory}" ]] &&
-    cntools_transaction_path_components_safe "${directory}" && cntools_transaction_directory_ancestry_safe "${directory}" ||
+    cntools_filesystem_path_components_safe "${directory}" && cntools_filesystem_directory_ancestry_safe "${directory}" ||
     { cntools_pool_write_error 'Unsafe pool directory or conflicting Calidus filenames.'; return 1; }
   if [[ -e "${directory}/${names[0]}.gpg" || -L "${directory}/${names[0]}.gpg" ]]; then
     [[ ! -e "${directory}/${names[0]}" && ! -L "${directory}/${names[0]}" ]] ||
@@ -156,7 +156,7 @@ cntools_calidus_publication_cleanup() {
   local index=0 source='' target='' status=0
   for index in "${!CNTOOLS_CALIDUS_LINK_SOURCES[@]}"; do
     source="${CNTOOLS_CALIDUS_LINK_SOURCES[index]}"; target="${CNTOOLS_CALIDUS_LINK_TARGETS[index]}"
-    cntools_transaction_path_components_safe "${source}" && cntools_transaction_path_components_safe "${target}" || { status=1; continue; }
+    cntools_filesystem_path_components_safe "${source}" && cntools_filesystem_path_components_safe "${target}" || { status=1; continue; }
     [[ -f "${source}" && ! -L "${source}" && -O "${source}" ]] || continue
     [[ -f "${target}" && ! -L "${target}" && -O "${target}" && "${target}" -ef "${source}" ]] || continue
     rm -f -- "${target}" || status=1

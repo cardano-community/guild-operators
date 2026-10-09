@@ -98,8 +98,8 @@ cntools_metadata_leaf() {
   # Values remain JSON-escaped strings or exact integer lexemes. No terminal
   # controls or floating-point reserialization are introduced in the preview.
   local md_display_path="${1:-}" md_display_value="${2:-}"
-  cntools_wallet_sanitize_display_into md_display_path "${md_display_path}" || return 1
-  cntools_wallet_sanitize_display_into md_display_value "${md_display_value}" || return 1
+  cntools_text_sanitize_into md_display_path "${md_display_path}" || return 1
+  cntools_text_sanitize_into md_display_value "${md_display_value}" || return 1
   "${md_leaf_renderer:-cntools_transaction_ui_styled_row}" "${md_display_path}" "${md_display_value}" text
 }
 

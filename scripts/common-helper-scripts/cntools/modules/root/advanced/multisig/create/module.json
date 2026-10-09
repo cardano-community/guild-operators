@@ -11,6 +11,9 @@
   ],
   "libs": [
     "number.sh",
+    "filesystem.sh",
+    "bech32.sh",
+    "presentation.sh",
     "wallet.sh",
     "table.sh",
     "wallet-material.sh",

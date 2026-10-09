@@ -3,13 +3,15 @@
 # shellcheck disable=SC1090,SC2034,SC2154,SC2317,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-policy-protection.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 GPG_TEST_ROOT="$(mktemp -d /tmp/cntools-gpg.XXXXXX)"
 export GNUPGHOME="${GPG_TEST_ROOT}"
 trap 'gpgconf --kill gpg-agent >/dev/null 2>&1 || true; rm -rf -- "${TEST_ROOT}" "${GPG_TEST_ROOT}"' EXIT
-for lib in number wallet wallet-key wallet-query transaction policy-files policy policy-catalog key-crypto policy-lock policy-protection; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
+for lib in number wallet wallet-key wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query transaction policy-files policy policy-catalog key-crypto policy-lock policy-protection; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 fail() { tail -10 "${TEST_ROOT}/log" >&2; printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 cntools_log() { printf '%s %s\n' "$1" "$2" >> "${TEST_ROOT}/log"; }
 FAULT=''

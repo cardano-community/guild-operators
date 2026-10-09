@@ -3,12 +3,14 @@
 # shellcheck disable=SC1090,SC1091,SC2034,SC2154,SC2317,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-governance.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 umask 077
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
-for lib in number wallet wallet-query transaction transaction-build utxo wallet-register governance-drep drep-id table public-metadata governance-proposal governance-voting-stats governance-proposal-ui governance-vote governance-vote-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
+for lib in number wallet wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query transaction transaction-build utxo wallet-register governance-drep drep-id table public-metadata governance-proposal governance-voting-stats governance-proposal-ui governance-vote governance-vote-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 fail() { printf 'FAIL: %s (%s / %s)\n' "$*" "${CNTOOLS_WALLET_REGISTER_ERROR:-}" "${CNTOOLS_TRANSACTION_ERROR:-}" >&2; exit 1; }
 eq() { [[ "$1" == "$2" ]] || fail "${3:-comparison}: $1 != $2"; }
 cntools_log() { :; }
@@ -210,7 +212,7 @@ CNTOOLS_TRANSACTION_PLAN_INVALID_BEFORE=''
   cntools_ui_action_begin() { :; }
   cntools_ui_wait() { :; }
   cntools_ui_render_status() { :; }
-  cntools_wallet_style_value_into() { printf -v "$1" '%s' "$3"; }
+  cntools_text_style_into() { printf -v "$1" '%s' "$3"; }
   cntools_ui_table() { cat; }
   cntools_ui_spin_function() { shift; "$@"; }
   cntools_voting_parameters_collect() { CNTOOLS_VOTING_PARAMETERS_SOURCE=Fixture; }

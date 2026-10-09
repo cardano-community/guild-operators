@@ -16,15 +16,15 @@ cntools_pool_write_error() {
 cntools_pool_directory_writable() {
   local directory="$1" mode=""
   [[ -d "${directory}" && ! -L "${directory}" && -O "${directory}" && -w "${directory}" && -x "${directory}" ]] &&
-    cntools_transaction_path_components_safe "${directory}" && cntools_transaction_directory_ancestry_safe "${directory}" &&
-    cntools_transaction_mode_into mode "${directory}" || return 1
+    cntools_filesystem_path_components_safe "${directory}" && cntools_filesystem_directory_ancestry_safe "${directory}" &&
+    cntools_filesystem_mode_into mode "${directory}" || return 1
   (( (8#${mode} & 0022) == 0 ))
 }
 
 cntools_pool_write_root_prepare() {
   local root="${CNTOOLS_POOL_DIR:-}" parent="" saved=""
   [[ "${root}" == /* && "${root}" != / && "${root##*/}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] &&
-    cntools_transaction_path_components_safe "${root}" || { cntools_pool_write_error 'The pool root is unset or unsafe.'; return 1; }
+    cntools_filesystem_path_components_safe "${root}" || { cntools_pool_write_error 'The pool root is unset or unsafe.'; return 1; }
   if [[ ! -e "${root}" ]]; then
     parent="${root%/*}"
     cntools_pool_directory_writable "${parent}" || { cntools_pool_write_error 'The pool parent must be owned, writable and protected from group/public writes.'; return 1; }
@@ -101,7 +101,7 @@ cntools_pool_files_cleanup() {
   CNTOOLS_POOL_TEMP_FILES=()
   for stage in "${CNTOOLS_POOL_STAGES[@]}"; do
     [[ "${stage}" == "${CNTOOLS_POOL_DIR%/}/.cntools-pool-new."* && -d "${stage}" && ! -L "${stage}" && -O "${stage}" ]] || continue
-    cntools_transaction_path_components_safe "${stage}" || continue
+    cntools_filesystem_path_components_safe "${stage}" || continue
     rm -rf -- "${stage}" || cntools_transaction_log ERROR "Could not remove private pool staging directory=${stage}"
   done
   CNTOOLS_POOL_STAGES=()

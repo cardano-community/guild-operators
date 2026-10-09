@@ -1,4 +1,87 @@
 #!/usr/bin/env bash
+# Lossless numeric parsing, grouping and ledger-quantity display.
+cntools_number_format_lovelace_compact() {
+  local amount="${1:-}"
+  local whole=""
+  local fraction=""
+  local formatted=""
+  local scaled_whole=""
+  local scaled_fraction=""
+  local divisor_digits=0
+  local split_at=0
+  local suffix=""
+
+  [[ "${amount}" =~ ^[0-9]+$ ]] || {
+    printf '—\n'
+    return 0
+  }
+  [[ "${amount}" =~ ^0*([1-9][0-9]*|0)$ ]] || return 1
+  amount="${BASH_REMATCH[1]}"
+  while (( ${#amount} <= 6 )); do
+    amount="0${amount}"
+  done
+  split_at=$((${#amount} - 6))
+  whole="${amount:0:split_at}"
+  fraction="${amount:split_at}"
+  if (( ${#whole} < 9 )); then
+    formatted="${whole}.${fraction}"
+    if declare -F cntools_number_format_into >/dev/null 2>&1; then
+      cntools_number_format_into formatted "${formatted}" || return 1
+    fi
+    printf '%s\n' "${formatted}"
+    return 0
+  fi
+  if (( ${#whole} >= 10 )); then
+    divisor_digits=9
+    suffix="B"
+  else
+    divisor_digits=6
+    suffix="M"
+  fi
+  split_at=$((${#whole} - divisor_digits))
+  scaled_whole="${whole:0:split_at}"
+  scaled_fraction="${whole:split_at:3}"
+  formatted="${scaled_whole}.${scaled_fraction}"
+  if declare -F cntools_number_format_into >/dev/null 2>&1; then
+    cntools_number_format_into formatted "${formatted}" || return 1
+  fi
+  printf '%s%s\n' "${formatted}" "${suffix}"
+}
+
+
+cntools_number_format_lovelace() {
+  local amount="${1:-}"
+  local whole=""
+  local fraction=""
+  local formatted=""
+  local split_at=0
+
+  [[ "${amount}" =~ ^[0-9]+$ ]] || {
+    printf 'Unavailable\n'
+    return 0
+  }
+  [[ "${amount}" =~ ^0*([1-9][0-9]*|0)$ ]] || return 1
+  amount="${BASH_REMATCH[1]}"
+  while (( ${#amount} <= 6 )); do
+    amount="0${amount}"
+  done
+  split_at=$((${#amount} - 6))
+  whole="${amount:0:split_at}"
+  fraction="${amount:split_at}"
+  formatted="${whole}.${fraction}"
+  if declare -F cntools_number_format_into >/dev/null 2>&1; then
+    cntools_number_format_into formatted "${formatted}" || return 1
+  fi
+  printf '%s ADA\n' "${formatted}"
+}
+
+
+cntools_uint_add() {
+  local sum_result=''
+  cntools_uint_add_into sum_result "$1" "$2" || return $?
+  printf '%s\n' "${sum_result}"
+}
+
 # Lossless formatting and normalization for human-readable decimal numbers.
 # All operations are string based so values are never constrained by Bash's
 # integer range or converted through floating-point arithmetic.
@@ -139,15 +222,27 @@ cntools_number_format() {
 }
 
 # Display an unsigned ledger quantity without floating-point conversion.
-cntools_number_format_units() {
-  local amount="" scale="${2:-0}"
-  [[ "${scale}" =~ ^([0-9]|1[0-8])$ ]] || return 2
-  cntools_uint_normalize_into amount "$1" || return 2
-  if (( scale > 0 )); then
-    while (( ${#amount} <= scale )); do amount="0${amount}"; done
-    amount="${amount:0:${#amount}-scale}.${amount: -scale}"
+# Metadata decimals are bounded independently from transaction input parsing.
+cntools_number_format_units_into() {
+  local _units_target="${1:-}" _units_amount='' _units_scale="${3:-0}"
+  [[ "${_units_target}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _units_result="${_units_target}"
+  _units_result=''
+  [[ "${_units_scale}" =~ ^[0-9]{1,3}$ ]] || return 2
+  _units_scale=$((10#${_units_scale}))
+  (( _units_scale <= 255 )) || return 2
+  cntools_uint_normalize_into _units_amount "${2:-}" || return 2
+  if (( _units_scale > 0 )); then
+    while (( ${#_units_amount} <= _units_scale )); do _units_amount="0${_units_amount}"; done
+    _units_amount="${_units_amount:0:${#_units_amount}-_units_scale}.${_units_amount: -_units_scale}"
   fi
-  cntools_number_format "${amount}"
+  cntools_number_format_into _units_result "${_units_amount}"
+}
+
+cntools_number_format_units() {
+  local _units_formatted=''
+  cntools_number_format_units_into _units_formatted "${1:-}" "${2:-0}" || return $?
+  printf '%s\n' "${_units_formatted}"
 }
 
 cntools_number_is_valid() {

@@ -10,6 +10,7 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/guild-cntools-framework.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
@@ -1089,12 +1090,14 @@ exit 7'
 set -e
 case "$1" in
   command)
+    . "$2/lib/filesystem.sh"
     . "$2/core/log.sh"
     CNTOOLS_LOG="$3"
     cntools_log_init
     cntools_run_command 0 -- "$4"
     ;;
   action)
+    . "$2/lib/filesystem.sh"
     . "$2/core/log.sh"
     . "$2/core/menu.sh"
     . "$2/core/action.sh"
@@ -1110,6 +1113,7 @@ case "$1" in
     cntools_action_run "$3/root/fail"
     ;;
   http)
+    . "$2/lib/filesystem.sh"
     . "$2/core/log.sh"
     CNTOOLS_LOG="$3"
     CNTOOLS_MODE="light"

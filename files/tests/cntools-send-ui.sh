@@ -4,6 +4,8 @@
 set -euo pipefail
 (( BASH_VERSINFO[0] >= 4 )) || { printf 'SKIP: Bash 4.4+ required\n'; exit 0; }
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 . "${CNTOOLS_ROOT}/lib/asset.sh"
 . "${CNTOOLS_ROOT}/lib/asset-cache.sh"
@@ -11,7 +13,7 @@ CNTOOLS_ASSET_CACHE_ENABLED=N
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-send-ui.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
-for lib in number wallet wallet-query transaction transaction-ui utxo transaction-funding wallet-payment funds-send funds-send-view transaction-files funds-send-files funds-send-ui transaction-metadata send-metadata-ui; do
+for lib in number wallet wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query transaction transaction-ui utxo transaction-funding wallet-payment funds-send funds-send-view transaction-files funds-send-files funds-send-ui transaction-metadata send-metadata-ui; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }

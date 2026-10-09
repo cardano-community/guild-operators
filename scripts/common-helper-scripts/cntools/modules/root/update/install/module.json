@@ -5,5 +5,7 @@
   "shortcut": "i",
   "order": 30,
   "modes": ["local", "light"],
-  "libs": ["update.sh"]
+  "libs": [
+    "update.sh"
+  ]
 }

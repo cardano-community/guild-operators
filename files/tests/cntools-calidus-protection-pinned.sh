@@ -3,6 +3,8 @@
 # shellcheck disable=SC1090,SC2034,SC2154,SC2329,SC2015
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 CNTOOLS_CLI="${1:?Pass the cnode deployment CLI pin}"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-calidus-protection.XXXXXX")"
@@ -13,7 +15,7 @@ GPG_TEST_ROOT="$(mktemp -d /tmp/cntools-gpg.XXXXXX)"
 export GNUPGHOME="${GPG_TEST_ROOT}"
 trap 'gpgconf --homedir "${GNUPGHOME}" --kill gpg-agent >/dev/null 2>&1 || true; chmod -R u+rwX "${TEST_ROOT}" 2>/dev/null || true; rm -rf -- "${TEST_ROOT}" "${GPG_TEST_ROOT}"' EXIT
 umask 077
-for lib in number wallet wallet-key wallet-query transaction pool-id pool pool-files pool-key drep-id calidus-id pool-calidus key-crypto pool-lock pool-protection pool-manage-ui; do
+for lib in number wallet wallet-key wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query transaction pool-id pool pool-files pool-key drep-id calidus-id pool-calidus key-crypto pool-lock pool-protection pool-manage-ui; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 fail() { printf 'FAIL: %s\n' "$*" >&2; tail -8 "${TEST_ROOT}/log" >&2; exit 1; }
@@ -68,7 +70,7 @@ cntools_pool_protection_cleanup; assert_clear
 cntools_pool_protect "${pool}" encrypt "${password}" || fail "two-key encryption: ${CNTOOLS_POOL_WRITE_ERROR}"
 [[ "${CNTOOLS_POOL_PROTECTION_KEYS}" == 2 && ! -e "${pool}/cold.skey" && ! -e "${pool}/calidus.skey" ]] || fail 'plaintext remains after encryption'
 for key in cold calidus; do
-  cntools_transaction_mode_into mode "${pool}/${key}.skey.gpg"
+  cntools_filesystem_mode_into mode "${pool}/${key}.skey.gpg"
   [[ "${mode}" == 400 ]] || fail 'ciphertext not locked read-only'
 done
 encrypted="$(cksum "${pool}/cold.skey.gpg" "${pool}/calidus.skey.gpg")"

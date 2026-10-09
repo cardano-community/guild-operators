@@ -3,7 +3,7 @@
 Catalyst uses `catalyst-key.sh` for separate voting identities and no-overwrite
 publication, `catalyst-metadata.sh` for exact CIP-36 payload/signature validation
 and CLI/hardware authorization, `catalyst-qr.sh` for secret-safe PIN-encrypted
-Toolbox transport, `catalyst-query.sh` for official fund-snapshot status, and
+Toolbox transport, `catalyst-query.sh` for official voter/delegator snapshot status, and
 `catalyst-ui.sh` for the shared-table actions. `metadata-transaction-ui.sh`
 provides the common fee-only metadata export/sign/submit review. These libraries
 are loaded only when their corresponding actions are selected. Public metadata
@@ -42,7 +42,7 @@ Backup uses `backup-files.sh` for private staging, filesystem checks, bounded
 archive inspection and no-overwrite publication; `backup.sh` for public/full
 snapshots, manifest verification, GPG and conservative legacy restore; and
 `backup-ui.sh` for the shared-table wizard, warnings and passphrase capture.
-They reuse transaction filesystem helpers without initializing a CLI or making
+They reuse `filesystem.sh` facts without initializing a CLI or making
 chain queries. Restore validates tar paths/types before unpacking only into
 empty private staging, retains a complete recovery copy, never merges live
 folders, and does not activate pending KES recovery state. The shared
@@ -74,8 +74,21 @@ change and portable signing foundation. `asset-transaction-ui.sh` supplies its
 common review/export/submit workflow. `asset-registry.sh` isolates and validates
 token-metadata-creator exports, while `asset-registry-ui.sh` guides manual
 registry submissions without claiming on-chain or registry acceptance.
-`placeholder.sh` provides the shared inert-action notice used by the Phase 4
-menu skeleton.
+All menu actions are functional; the former inert-action library is removed.
+
+Shared UI primitives live in `presentation.sh`/`table.sh`, independent of wallet
+queries. `filesystem.sh` owns portable stat/path/ancestry facts; callers retain
+their role-specific ownership and permission policies. `bech32.sh` implements a
+canonical byte-string codec; wallet/pool/governance wrappers enforce their own
+network, credential-kind and length rules.
+
+`transaction-balance.sh` owns action-neutral final-body fee convergence. Action
+callbacks prepare inputs, outputs and their own certificates; domain validators
+verify the final effects. Fees move both up and down to the exact CLI result,
+including after hardware normalization. Optional ADA change cannot regrow during
+a downward fee adjustment and cause a layout cycle. The cap lasts for one build
+only and never changes user settings. Value-size validation counts actual CBOR
+policy/name/quantity structure, sharing each policy key once.
 
 `number.sh` is dependency-free and safe to source from the framework or an
 individual action. It provides lossless, string-based handling of signed
@@ -87,6 +100,8 @@ integers and fixed-point decimal values of any practical length:
   US-formatted value with comma thousands separators to OUTPUT;
 - `cntools_number_units_into OUTPUT INPUT SCALE` converts a non-negative human
   decimal to exact smallest units, rejecting excess precision (ADA uses scale 6);
+- `cntools_number_format_units_into OUTPUT QUANTITY SCALE` displays exact
+  smallest units with grouped integer digits and bounded metadata decimals;
 - `cntools_number_normalize INPUT` and `cntools_number_format INPUT` print the
   corresponding value; and
 - `cntools_number_is_valid INPUT` performs validation without producing output.
@@ -117,9 +132,15 @@ Wallet List and Show declare this focused stack in dependency order:
   address;
 - `wallet-id.sh` derives missing key and script credential hashes and computes
   local CIP-14 asset fingerprints; and
-- `wallet-query.sh` adds bounded local and bulk Koios queries for live Wallet
-  List and Show values, classifies assets from total supply, selects one
-  source-aware metadata document, and builds bounded inline native-asset views.
+- `wallet-query-transport.sh` owns logged HTTP/CLI transport and temporary files;
+- `wallet-query-local.sh` and `wallet-query-koios.sh` parse backend results;
+- `asset-metadata.sh` owns asset inventory and source-aware metadata selection;
+- `wallet-query.sh` coordinates the selected backend and query status;
+- `wallet-list-query.sh` collects catalog-wide bulk results;
+- `asset-view.sh` and `wallet-view.sh` render asset and wallet views.
+
+Only List/Show load the complete catalog/view stack. Other actions declare the
+focused helpers they actually use, rather than pulling in a wallet UI library.
 
 Generated artifacts are validated before they are cached under the configured
 legacy filename. An existing regular file, malformed artifact, or symbolic
@@ -127,7 +148,7 @@ link is retained and reported rather than overwritten. Temporary files use
 mode `0600` and are removed after success or failure. Artifact derivation may
 run in local, light, or offline mode when Cardano CLI is available because it
 does not query a node. CIP-14 fingerprints are calculated from the policy ID
-and asset-name bytes with the deployed `b2sum` and `bech32` tools.
+and asset-name bytes with deployed `b2sum` and the shared Bash Bech32 codec.
 
 Wallet List deduplicates catalog-wide Koios inputs, splits payloads at a fixed
 size bound, asks before fetching live values, shows progress through the shared
@@ -228,7 +249,7 @@ Funds → Send adds focused lazy helpers to the wallet/transaction stack:
 - `funds-send-view.sh` keeps source/asset/review/result tables consistent with the
   shared theme, while `funds-send-files.sh` separates tracked intermediate files
   from uniquely named persistent transaction exports. Recipient drafts roll back
-  on cancellation; decoded transactions and signer details are opt-in review views;
+  on cancellation; signer details are opt-in, while raw decoded JSON is logged only;
 - `transaction-metadata.sh` freezes custom JSON without rewriting integer literals,
   rejects duplicate keys, builds UTF-8-safe CIP-20 messages and attaches metadata;
 - `message-crypto.sh` uses OpenSSL for compatible CIP-83 basic encryption and a

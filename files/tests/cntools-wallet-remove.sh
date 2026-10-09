@@ -11,6 +11,8 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 . "${CNTOOLS_ROOT}/lib/asset.sh"
 . "${CNTOOLS_ROOT}/lib/asset-cache.sh"
@@ -85,18 +87,25 @@ bash -n \
 
 jq -e '.kind == "action" and .label == "Remove" and
   .modes == ["local", "light", "offline"] and .libs == [
-    "number.sh",
-    "wallet.sh",
-    "wallet-material.sh",
-    "wallet-key.sh",
-    "wallet-address.sh",
-    "wallet-id.sh",
-    "asset.sh",
-    "asset-cache.sh",
-    "wallet-query.sh",
-    "wallet-remove.sh",
-    "wallet-remove-ui.sh"
-  ]' "${REMOVE_MODULE}/module.json" >/dev/null ||
+  "number.sh",
+  "bech32.sh",
+  "presentation.sh",
+  "wallet.sh",
+  "wallet-material.sh",
+  "wallet-key.sh",
+  "wallet-address.sh",
+  "wallet-id.sh",
+  "asset.sh",
+  "asset-cache.sh",
+  "wallet-query-transport.sh",
+  "wallet-query-local.sh",
+  "asset-metadata.sh",
+  "wallet-query-koios.sh",
+  "asset-view.sh",
+  "wallet-query.sh",
+  "wallet-remove.sh",
+  "wallet-remove-ui.sh"
+]' "${REMOVE_MODULE}/module.json" >/dev/null ||
   fail "Remove metadata does not declare the focused removal stack"
 grep -F 'cntools_wallet_action_remove' \
   "${REMOVE_MODULE}/action.sh" >/dev/null ||

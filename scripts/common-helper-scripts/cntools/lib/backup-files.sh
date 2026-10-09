@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Private backup staging and bounded, non-executing archive import.
-# Uses transaction.sh only for common filesystem checks, never its CLI runtime.
+# Uses filesystem.sh for common filesystem facts, never the CLI runtime.
 # shellcheck disable=SC2034,SC2015
 CNTOOLS_BACKUP_WORK=''
 CNTOOLS_BACKUP_ERROR=''
@@ -59,9 +59,9 @@ cntools_backup_directory_safe() {
   local directory="$1" mode='' physical=''
   [[ "${directory}" == /* && "${directory}" != / && -d "${directory}" &&
      ! -L "${directory}" && -O "${directory}" && -w "${directory}" && -x "${directory}" ]] &&
-    cntools_transaction_path_components_safe "${directory}" &&
-    cntools_transaction_directory_ancestry_safe "${directory}" &&
-    cntools_transaction_mode_into mode "${directory}" || return 1
+    cntools_filesystem_path_components_safe "${directory}" &&
+    cntools_filesystem_directory_ancestry_safe "${directory}" &&
+    cntools_filesystem_mode_into mode "${directory}" || return 1
   physical="$(cd -- "${directory}" && pwd -P)" || return 1
   [[ "${physical}" == "${directory%/}" ]] || return 1
   (( (8#${mode} & 0022) == 0 ))
@@ -91,7 +91,7 @@ cntools_backup_listing() {
   # Bound listing storage and memory before mapfile, including pathological
   # archives with millions of members or enormous PAX path strings.
   (set -o pipefail; cntools_backup_command tar "${operation}" "${archive}" 2> "${CNTOOLS_BACKUP_WORK}/errors" | head -c "$((limit+1))" > "${output}") || return 1
-  cntools_transaction_size_into size "${output}" && (( size <= limit ))
+  cntools_filesystem_size_into size "${output}" && (( size <= limit ))
 }
 
 cntools_backup_role_root_into() {
@@ -196,7 +196,7 @@ cntools_backup_payload() {
   else
     (umask 077; set -o noclobber; cntools_backup_command tar -xOzf "${archive}" -- "${member}" > "${target}") || return 1
   fi
-  cntools_transaction_size_into size "${target}" || return 1
+  cntools_filesystem_size_into size "${target}" || return 1
   [[ "${size}" == "${CNTOOLS_BACKUP_SIZES[${member}]}" ]]
 }
 

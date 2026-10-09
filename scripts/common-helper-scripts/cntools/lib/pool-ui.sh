@@ -80,7 +80,7 @@ cntools_pool_settings_rows() {
     case "${kind}" in
       lovelace)
         [[ "${value}" =~ ^[0-9]+$ ]] || continue
-        formatted="$(cntools_wallet_format_lovelace "${value}")" || return 1; kind=number ;;
+        formatted="$(cntools_number_format_lovelace "${value}")" || return 1; kind=number ;;
       ada|percent|number)
         cntools_number_format_into formatted "${value}" || continue
         [[ "${kind}" != ada ]] || formatted+=' ADA'

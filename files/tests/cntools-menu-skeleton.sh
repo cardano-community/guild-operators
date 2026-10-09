@@ -3,6 +3,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 MODULE_ROOT="${CNTOOLS_ROOT}/modules/root"
 MENU_FIXTURE="${REPO_ROOT}/files/tests/fixtures/cntools-menu-skeleton.tsv"
@@ -184,7 +186,9 @@ for update_specification in \
     --arg shortcut "${update_shortcut}" \
     --arg label "${update_label}" '
       .kind == "action" and .label == $label and .shortcut == $shortcut and
-      .modes == ["local", "light"] and .libs == ["update.sh"]
+      .modes == ["local", "light"] and .libs == [
+  "update.sh"
+]
     ' "${MODULE_ROOT}/update/${update_id}/module.json" >/dev/null ||
     fail "Update action metadata is invalid: ${update_id}"
 done
@@ -215,14 +219,15 @@ while IFS=$'\t' read -r \
     case "${module_id}" in
       wallet/new/cli)
         jq -e '.libs == [
-          "wallet.sh",
-          "wallet-material.sh",
-          "wallet-key.sh",
-          "wallet-address.sh",
-          "wallet-id.sh",
-          "wallet-create.sh",
-          "wallet-create-ui.sh"
-        ]' \
+  "bech32.sh",
+  "wallet.sh",
+  "wallet-material.sh",
+  "wallet-key.sh",
+  "wallet-address.sh",
+  "wallet-id.sh",
+  "wallet-create.sh",
+  "wallet-create-ui.sh"
+]' \
           "${metadata}" >/dev/null ||
           fail "Wallet New CLI has unexpected library declarations"
         grep -F 'cntools_wallet_create_cleanup' "${action_file}" >/dev/null ||
@@ -234,16 +239,17 @@ while IFS=$'\t' read -r \
         ;;
       wallet/new/mnemonic|wallet/import/mnemonic)
         jq -e '.libs == [
-          "wallet.sh",
-          "wallet-material.sh",
-          "wallet-key.sh",
-          "wallet-address.sh",
-          "wallet-id.sh",
-          "wallet-create.sh",
-          "wallet-create-ui.sh",
-          "wallet-mnemonic.sh",
-          "wallet-mnemonic-ui.sh"
-        ]' \
+  "bech32.sh",
+  "wallet.sh",
+  "wallet-material.sh",
+  "wallet-key.sh",
+  "wallet-address.sh",
+  "wallet-id.sh",
+  "wallet-create.sh",
+  "wallet-create-ui.sh",
+  "wallet-mnemonic.sh",
+  "wallet-mnemonic-ui.sh"
+]' \
           "${metadata}" >/dev/null ||
           fail "Wallet Mnemonic has unexpected library declarations: ${module_id}"
         grep -F 'cntools_wallet_create_cleanup' "${action_file}" >/dev/null ||
@@ -262,16 +268,17 @@ while IFS=$'\t' read -r \
         ;;
       wallet/import/hardware)
         jq -e '.libs == [
-          "wallet.sh",
-          "wallet-material.sh",
-          "wallet-key.sh",
-          "wallet-address.sh",
-          "wallet-id.sh",
-          "wallet-create.sh",
-          "wallet-create-ui.sh",
-          "wallet-hardware.sh",
-          "wallet-hardware-ui.sh"
-        ]' \
+  "bech32.sh",
+  "wallet.sh",
+  "wallet-material.sh",
+  "wallet-key.sh",
+  "wallet-address.sh",
+  "wallet-id.sh",
+  "wallet-create.sh",
+  "wallet-create-ui.sh",
+  "wallet-hardware.sh",
+  "wallet-hardware-ui.sh"
+]' \
           "${metadata}" >/dev/null ||
           fail "HW Wallet has unexpected library declarations"
         grep -F 'cntools_wallet_create_cleanup' "${action_file}" >/dev/null ||
@@ -283,16 +290,26 @@ while IFS=$'\t' read -r \
         ;;
       wallet/list)
         jq -e '.libs == [
-          "number.sh",
-          "wallet.sh",
-          "wallet-material.sh",
-          "wallet-key.sh",
-          "wallet-address.sh",
-          "wallet-id.sh",
-          "asset.sh",
-          "asset-cache.sh",
-          "wallet-query.sh"
-        ]' \
+  "number.sh",
+  "bech32.sh",
+  "presentation.sh",
+  "table.sh",
+  "wallet.sh",
+  "wallet-material.sh",
+  "wallet-key.sh",
+  "wallet-address.sh",
+  "wallet-id.sh",
+  "asset.sh",
+  "asset-cache.sh",
+  "wallet-query-transport.sh",
+  "wallet-query-local.sh",
+  "asset-metadata.sh",
+  "wallet-query-koios.sh",
+  "wallet-list-query.sh",
+  "asset-view.sh",
+  "wallet-view.sh",
+  "wallet-query.sh"
+]' \
           "${metadata}" >/dev/null ||
           fail "Wallet List has unexpected library declarations"
         grep -F 'cntools_wallet_cleanup_material' "${action_file}" >/dev/null ||
@@ -302,16 +319,25 @@ while IFS=$'\t' read -r \
         ;;
       wallet/show)
         jq -e '(.libs - ["pool-id.sh", "drep-id.sh", "table.sh", "public-metadata.sh", "wallet-delegation-info.sh"]) == [
-          "number.sh",
-          "wallet.sh",
-          "wallet-material.sh",
-          "wallet-key.sh",
-          "wallet-address.sh",
-          "wallet-id.sh",
-          "asset.sh",
-          "asset-cache.sh",
-          "wallet-query.sh"
-        ]' \
+  "number.sh",
+  "bech32.sh",
+  "presentation.sh",
+  "wallet.sh",
+  "wallet-material.sh",
+  "wallet-key.sh",
+  "wallet-address.sh",
+  "wallet-id.sh",
+  "asset.sh",
+  "asset-cache.sh",
+  "wallet-query-transport.sh",
+  "wallet-query-local.sh",
+  "asset-metadata.sh",
+  "wallet-query-koios.sh",
+  "wallet-list-query.sh",
+  "asset-view.sh",
+  "wallet-view.sh",
+  "wallet-query.sh"
+]' \
           "${metadata}" >/dev/null ||
           fail "Wallet Show has unexpected library declarations"
         grep -F 'cntools_wallet_cleanup_material' "${action_file}" >/dev/null ||
@@ -327,18 +353,25 @@ while IFS=$'\t' read -r \
         ;;
       wallet/remove)
         jq -e '.libs == [
-          "number.sh",
-          "wallet.sh",
-          "wallet-material.sh",
-          "wallet-key.sh",
-          "wallet-address.sh",
-          "wallet-id.sh",
-          "asset.sh",
-          "asset-cache.sh",
-          "wallet-query.sh",
-          "wallet-remove.sh",
-          "wallet-remove-ui.sh"
-        ]' \
+  "number.sh",
+  "bech32.sh",
+  "presentation.sh",
+  "wallet.sh",
+  "wallet-material.sh",
+  "wallet-key.sh",
+  "wallet-address.sh",
+  "wallet-id.sh",
+  "asset.sh",
+  "asset-cache.sh",
+  "wallet-query-transport.sh",
+  "wallet-query-local.sh",
+  "asset-metadata.sh",
+  "wallet-query-koios.sh",
+  "asset-view.sh",
+  "wallet-query.sh",
+  "wallet-remove.sh",
+  "wallet-remove-ui.sh"
+]' \
           "${metadata}" >/dev/null ||
           fail "Wallet Remove has unexpected library declarations"
         grep -F 'cntools_wallet_query_cleanup' "${action_file}" >/dev/null ||
@@ -350,13 +383,14 @@ while IFS=$'\t' read -r \
         ;;
       wallet/encrypt|wallet/decrypt)
         jq -e '.libs == [
-          "wallet.sh",
-          "wallet-material.sh",
-          "wallet-key.sh",
-          "key-crypto.sh",
-          "wallet-protection.sh",
-          "wallet-protection-ui.sh"
-        ]' \
+  "bech32.sh",
+  "wallet.sh",
+  "wallet-material.sh",
+  "wallet-key.sh",
+  "key-crypto.sh",
+  "wallet-protection.sh",
+  "wallet-protection-ui.sh"
+]' \
           "${metadata}" >/dev/null ||
           fail "Wallet protection has unexpected library declarations: ${module_id}"
         grep -F 'cntools_wallet_protection_cleanup' "${action_file}" >/dev/null ||
@@ -371,33 +405,43 @@ while IFS=$'\t' read -r \
         ;;
       wallet/register|wallet/deregister)
         jq -e '(.libs - ["wallet-selection.sh"]) == [
-          "number.sh",
-          "wallet.sh",
-          "table.sh",
-          "wallet-material.sh",
-          "wallet-key.sh",
-          "wallet-address.sh",
-          "wallet-id.sh",
-          "asset.sh",
-          "asset-cache.sh",
-          "wallet-query.sh",
-          "utxo.sh",
-          "transaction.sh",
-          "transaction-build.sh",
-          "transaction-sign.sh",
-          "transaction-submit.sh",
-          "transaction-monitor.sh",
-          "transaction-ui.sh",
-          "transaction-files.sh",
-          "transaction-funding.sh",
-          "coin-selection.sh",
-          "change-plan.sh",
-          "wallet-stake.sh",
-          "multisig-spend.sh",
-          "multisig-stake.sh",
-          "wallet-register.sh",
-          "wallet-register-ui.sh"
-        ]' \
+  "number.sh",
+  "filesystem.sh",
+  "bech32.sh",
+  "presentation.sh",
+  "wallet.sh",
+  "table.sh",
+  "wallet-material.sh",
+  "wallet-key.sh",
+  "wallet-address.sh",
+  "wallet-id.sh",
+  "asset.sh",
+  "asset-cache.sh",
+  "wallet-query-transport.sh",
+  "wallet-query-local.sh",
+  "asset-metadata.sh",
+  "wallet-query-koios.sh",
+  "asset-view.sh",
+  "wallet-query.sh",
+  "utxo.sh",
+  "transaction.sh",
+  "transaction-balance.sh",
+  "transaction-build.sh",
+  "transaction-sign.sh",
+  "transaction-submit.sh",
+  "transaction-monitor.sh",
+  "json.sh",
+  "transaction-ui.sh",
+  "transaction-files.sh",
+  "transaction-funding.sh",
+  "coin-selection.sh",
+  "change-plan.sh",
+  "wallet-stake.sh",
+  "multisig-spend.sh",
+  "multisig-stake.sh",
+  "wallet-register.sh",
+  "wallet-register-ui.sh"
+]' \
           "${metadata}" >/dev/null ||
           fail "Wallet stake lifecycle action has unexpected library declarations: ${module_id}"
         grep -F 'cntools_wallet_query_cleanup' "${action_file}" >/dev/null ||
@@ -458,7 +502,7 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "Pool registration cleanup missing"
         ;;
       pool/list|pool/show)
-        jq -e '(.libs - ["pool-health.sh", "public-metadata.sh"]) == ["number.sh", "wallet.sh", "wallet-query.sh", "transaction.sh", "pool-id.sh", "table.sh", "pool.sh", "pool-inspect.sh", "pool-ui.sh"]' \
+        jq -e '(.libs - ["pool-health.sh", "public-metadata.sh"]) == ["number.sh", "filesystem.sh", "bech32.sh", "presentation.sh", "wallet.sh", "wallet-query-transport.sh", "transaction.sh", "pool-id.sh", "table.sh", "pool.sh", "pool-inspect.sh", "pool-ui.sh"]' \
           "${metadata}" >/dev/null || fail "Pool browser dependencies missing: ${module_id}"
         grep -F "cntools_pool_action_${module_id##*/}" "${action_file}" >/dev/null || fail "Pool browser entrypoint missing"
         grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null || fail "Pool browser cleanup missing"
@@ -509,12 +553,15 @@ while IFS=$'\t' read -r \
         ;;
       transaction/sign)
         jq -e '.libs == [
-          "number.sh",
-          "transaction.sh",
-          "transaction-sign.sh",
-          "transaction-ui.sh",
-          "transaction-files.sh"
-        ]' \
+  "number.sh",
+  "filesystem.sh",
+  "presentation.sh",
+  "table.sh",
+  "transaction.sh",
+  "transaction-sign.sh",
+  "json.sh", "transaction-ui.sh",
+  "transaction-files.sh"
+]' \
           "${metadata}" >/dev/null ||
           fail "Transaction Sign has unexpected library declarations"
         grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null ||
@@ -524,12 +571,15 @@ while IFS=$'\t' read -r \
         ;;
       transaction/submit)
         jq -e '.libs == [
-          "number.sh",
-          "transaction.sh",
-          "transaction-submit.sh",
-          "transaction-monitor.sh",
-          "transaction-ui.sh"
-        ]' \
+  "number.sh",
+  "filesystem.sh",
+  "presentation.sh",
+  "table.sh",
+  "transaction.sh",
+  "transaction-submit.sh",
+  "transaction-monitor.sh",
+  "json.sh", "transaction-ui.sh"
+]' \
           "${metadata}" >/dev/null ||
           fail "Transaction Submit has unexpected library declarations"
         grep -F 'cntools_transaction_cleanup' "${action_file}" >/dev/null ||
@@ -538,17 +588,35 @@ while IFS=$'\t' read -r \
           fail "Transaction Submit does not call its functional entrypoint"
         ;;
       backup/create|backup/restore)
-        jq -e '.libs == ["number.sh", "wallet.sh", "wallet-query.sh", "transaction.sh", "table.sh", "key-crypto.sh", "backup-files.sh", "backup.sh", "backup-ui.sh"] and .modes == ["local", "light", "offline"]' "${metadata}" >/dev/null || fail 'Backup dependencies/modes missing'
+        jq -e '.libs == [
+  "number.sh",
+  "filesystem.sh",
+  "presentation.sh",
+  "transaction.sh",
+  "table.sh",
+  "key-crypto.sh",
+  "backup-files.sh",
+  "backup.sh",
+  "backup-ui.sh"
+] and .modes == ["local", "light", "offline"]' "${metadata}" >/dev/null || fail 'Backup dependencies/modes missing'
         grep -F 'cntools_backup_action_' "${action_file}" >/dev/null || fail 'Backup entrypoint missing'
         grep -F 'cntools_backup_cleanup' "${action_file}" >/dev/null || fail 'Backup cleanup missing'
         ;;
       blocks/summary|blocks/epoch)
-        jq -e '.libs == ["number.sh", "wallet.sh", "wallet-query.sh", "table.sh", "blocklog.sh", "blocklog-ui.sh"] and .modes == ["local", "light", "offline"]' "${metadata}" >/dev/null || fail 'Blocks dependencies/modes missing'
+        jq -e '.libs == [
+  "number.sh",
+  "presentation.sh",
+  "table.sh",
+  "blocklog.sh",
+  "blocklog-ui.sh"
+] and .modes == ["local", "light", "offline"]' "${metadata}" >/dev/null || fail 'Blocks dependencies/modes missing'
         grep -F 'cntools_blocks_action' "${action_file}" >/dev/null || fail 'Blocks entrypoint missing'
         grep -F 'cntools_blocklog_cleanup' "${action_file}" >/dev/null || fail 'Blocks cleanup missing'
         ;;
       advanced/clear-asset-cache)
-        jq -e '.libs == ["asset-cache.sh"]' "${metadata}" >/dev/null ||
+        jq -e '.libs == [
+  "asset-cache.sh"
+]' "${metadata}" >/dev/null ||
           fail "Asset cache has unexpected library declarations"
         grep -F 'cntools_asset_cache_clear' "${action_file}" >/dev/null ||
           fail "Cache action does not clear metadata"
@@ -561,7 +629,9 @@ while IFS=$'\t' read -r \
           fail "Theme does not persist the selected theme"
         ;;
       settings/transaction-defaults)
-        jq -e '.libs == ["number.sh"]' \
+        jq -e '.libs == [
+  "number.sh"
+]' \
           "${metadata}" >/dev/null ||
           fail "Transaction Defaults has unexpected library declarations"
         grep -F 'cntools_settings_save' "${action_file}" >/dev/null ||
@@ -595,12 +665,7 @@ done < "${MENU_FIXTURE}"
 
 assert_eq "${connected_only}" "20" "local/light-only action count"
 assert_eq "${offline_capable}" "39" "offline-capable action count"
-[[ -f "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
-   ! -L "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
-   -s "${CNTOOLS_ROOT}/lib/placeholder.sh" ]] ||
-  fail "shared placeholder library is missing or unsafe"
-bash -n "${CNTOOLS_ROOT}/lib/placeholder.sh" ||
-  fail "shared placeholder library has invalid Bash syntax"
+
 
 if (( BASH_VERSINFO[0] < 4 ||
       (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then

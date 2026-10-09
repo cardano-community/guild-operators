@@ -3,6 +3,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_SOURCE="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 ENTRYPOINT_SOURCE="${CNTOOLS_SOURCE}/cntools_main.sh"
 STARTUP_SOURCE="${CNTOOLS_SOURCE}/core/startup.sh"

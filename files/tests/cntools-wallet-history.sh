@@ -3,12 +3,14 @@
 # shellcheck disable=SC1090,SC2034,SC2154,SC2317,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-history.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
 CNTOOLS_TMP_DIR="${TEST_ROOT}"
 for core in health menu theme; do . "${CNTOOLS_ROOT}/core/${core}.sh"; done
-for lib in number wallet wallet-query asset table wallet-history wallet-history-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
+for lib in number wallet wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query asset table wallet-history wallet-history-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 eq() { [[ "$1" == "$2" ]] || fail "${3:-comparison}: $1 != $2"; }
 cntools_wallet_log() { printf '%s\n' "$*" >> "${TEST_ROOT}/log"; }

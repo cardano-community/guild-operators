@@ -3,6 +3,8 @@
 # shellcheck disable=SC1090,SC2030,SC2031,SC2034,SC2154,SC2317,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 CNTOOLS_CLI="${1:?Pass the verified pinned cnode CLI}"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-kes-pinned.XXXXXX")"
@@ -10,7 +12,7 @@ TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'chmod -R u+rwX "${TEST_ROOT}" 2>/dev/null || true; rm -rf -- "${TEST_ROOT}"' EXIT
 umask 077
 . "${CNTOOLS_ROOT}/core/health.sh"
-for lib in number wallet wallet-query transaction transaction-sign transaction-funding pool-id table pool pool-files pool-key pool-lock pool-protection pool-inspect pool-health pool-opcert-validation pool-kes pool-kes-ui; do
+for lib in number wallet wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query transaction transaction-sign transaction-funding pool-id table pool pool-files pool-key pool-lock pool-protection pool-inspect pool-health pool-opcert-validation pool-kes pool-kes-ui; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 fail() { tail -12 "${TEST_ROOT}/log" >&2; printf 'FAIL: %s\n' "$*" >&2; exit 1; }

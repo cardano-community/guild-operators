@@ -3,6 +3,7 @@
 # shellcheck disable=SC1090,SC2034,SC2030,SC2031,SC2329,SC2154,SC2015
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-catalyst.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
@@ -48,9 +49,27 @@ CNTOOLS_NETWORK=preview
 CNTOOLS_NETWORK=mainnet CNTOOLS_MODE=offline
 before="${calls}"; ! cntools_catalyst_lookup "${public}" || fail 'offline lookup accepted'
 [[ "${calls}" == "${before}" ]] || fail 'offline API request'
+# Per-delegator details retain aggregate status and match public files only.
+CNTOOLS_MODE=light
+cntools_api_request() {
+  [[ "$2" == "https://catalyst.invalid/api/v1/registration/delegations/0x${public}" ]] || fail 'delegator endpoint'
+  printf '%s\n' '{"reward_address":"addr1reward","reward_payable":true,"raw_power":"123456789"}' > "$3"
+  return "${api_status}"
+}
+details=''; aggregate="${CNTOOLS_CATALYST_STATUS}"
+cntools_catalyst_delegator_lookup_into details "0x${public}" || fail 'delegator details'
+[[ -f "${details}" && "${CNTOOLS_CATALYST_STATUS}" == "${aggregate}" ]] || fail 'changed aggregate status'
+api_status=1
+! cntools_catalyst_delegator_lookup_into details "0x${public}" || fail 'delegator HTTP error ignored'
+[[ -z "${details}" && "${CNTOOLS_CATALYST_STATUS}" == "${aggregate}" ]] || fail 'delegator failure changed aggregate'
+api_status=0
 # QR transport: only encrypted output is published, no existing QR overwrite.
 CNTOOLS_WALLET_DIR="${TEST_ROOT}/wallets"; mkdir -m700 "${CNTOOLS_WALLET_DIR}" "${CNTOOLS_WALLET_DIR}/Example"
 directory="${CNTOOLS_WALLET_DIR}/Example"
+CNTOOLS_WALLET_PATHS=("${directory}")
+jq -n --arg key "5820${public}" '{type:"StakeVerificationKeyShelley_ed25519",cborHex:$key}' > "${directory}/stake.vkey"
+matched=''; cntools_catalyst_delegator_wallet_into matched "0x${public}"
+[[ "${matched}" == Example ]] || fail 'local delegator public-key match'
 private="$(printf 'cd%.0s' {1..128})"
 jq -n --arg key "5880${private}" '{type:"CIP36VoteExtendedSigningKey_ed25519",cborHex:$key}' > "${directory}/catalyst.skey"
 jq -n --arg key "5820${public}" '{type:"CIP36VoteVerificationKey_ed25519",cborHex:$key}' > "${directory}/catalyst.vkey"

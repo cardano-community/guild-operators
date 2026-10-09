@@ -4,6 +4,7 @@
 set -euo pipefail
 (( BASH_VERSINFO[0] >= 4 )) || { printf 'SKIP: Bash 4+ required\n'; exit 0; }
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-metadata.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
 for lib in number transaction-metadata message-crypto; do
@@ -84,9 +85,9 @@ if grep -Eq 'private message from UI|not-a-wallet-password' "${TEST_ROOT}/log" "
   . "${REPO_ROOT}/scripts/common-helper-scripts/cntools/lib/transaction-ui.sh"
   cntools_ui_content_width() { printf 80; }
   cntools_ui_render_detail() { :; }
-  cntools_gum() { cat; }
+  cntools_ui_table() { cat; }
   CNTOOLS_GUM_COLOR_DIVIDER=gray; CNTOOLS_GUM_COLOR_TEXT=white
   rendered="$(cntools_transaction_ui_render_json test '{"metadata":{"123":9007199254740993}}')"
-  [[ "${rendered}" == '{"metadata":{"123":9007199254740993}}' ]] || fail 'offline review rounded metadata'
+  [[ "${rendered}" == *'metadata / 123'* && "${rendered}" == *'9,007,199,254,740,993'* ]] || fail 'offline review rounded metadata'
 )
 printf 'CNTools Send metadata tests passed.\n'

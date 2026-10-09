@@ -9,8 +9,20 @@ Funds → Send is described in [the Send implementation plan](SEND-PLAN.md),
 including direct-address/Koios Handle recipients, optional CIP-20 messages,
 CIP-83 encryption, custom metadata, and the remaining implementation boundaries.
 
-This document fixes the small set of conventions needed before implementation
-starts. It is deliberately not a package format or plugin system.
+This document records the small set of conventions used by the implementation.
+It is deliberately not a package format or plugin system.
+
+The phase sections below are a historical implementation record, not a list of
+missing actions. The former placeholder library and its smoke tests have been
+removed now that the menu actions are implemented.
+
+Shared presentation lives in `presentation.sh`/`table.sh`, lossless amounts in
+`number.sh`, filesystem facts in `filesystem.sh`, and canonical byte-string IDs
+in `bech32.sh`. Role-specific key, address, ownership and permission policies
+stay with their callers. Wallet query orchestration declares separate transport,
+local/Koios parsing, asset metadata, catalog-query and view libraries. Table-only
+actions such as Backup and Blocks do not load the wallet query stack. The root
+entrypoint still does not load wallet queries or functional action libraries.
 
 ## Scope and runtime boundary
 
@@ -74,12 +86,17 @@ cntools/
 │   └── update.sh     # Phase 5
 ├── lib/
 │   ├── number.sh
-│   ├── placeholder.sh
+│   ├── filesystem.sh
+│   ├── bech32.sh
+│   ├── presentation.sh
+│   ├── table.sh
 │   ├── utxo.sh
 │   ├── coin-selection.sh
 │   ├── change-plan.sh
 │   ├── transaction.sh
 │   ├── transaction-build.sh
+│   ├── transaction-balance.sh
+│   ├── json.sh
 │   ├── transaction-sign.sh
 │   ├── transaction-submit.sh
 │   ├── transaction-ui.sh
@@ -97,6 +114,13 @@ cntools/
 │   ├── wallet-protection.sh
 │   ├── wallet-protection-ui.sh
 │   ├── wallet-query.sh
+│   ├── wallet-query-transport.sh
+│   ├── wallet-query-local.sh
+│   ├── wallet-query-koios.sh
+│   ├── wallet-list-query.sh
+│   ├── wallet-view.sh
+│   ├── asset-metadata.sh
+│   ├── asset-view.sh
 │   ├── wallet-remove.sh
 │   ├── wallet-remove-ui.sh
 │   ├── wallet-register.sh
@@ -112,9 +136,9 @@ The public sibling `../cntools.sh` resolves this tree from its own physical
 location and uses `exec` to start `cntools_main.sh`. The internal entrypoint
 loads the small `core/` layer and uses Charm Gum for its terminal interface.
 Domain libraries beneath `lib/` and action files beneath `modules/` are not
-loaded during startup. The small dependency-free `number.sh` utility is the
-exception because the root health header also uses its display formatting;
-Wallet actions still declare it explicitly as part of their focused stack.
+loaded during startup. The small `number.sh` and `filesystem.sh` utilities are
+exceptions: the header needs numeric formatting and session logging needs safe
+filesystem facts. Actions still declare their own dependencies explicitly.
 
 `VERSION` contains exactly one numeric `MAJOR.MINOR.PATCH` application release
 number, without a `v` prefix. It is used by the entrypoint, the UI, and the
@@ -131,7 +155,7 @@ change on disk. No combined catalog file is generated or deployed.
 
 The Phase 4 framework initially mirrored the legacy CNTools menu hierarchy. It
 gave every operational leaf an inert `action.sh` with a consistent
-not-implemented message. Functional phases replace those placeholders in
+not-implemented message. Subsequent functional phases replaced those stubs in
 small vertical slices; Phase 7 activates Wallet List and Show, Phase 8 activates
 Wallet New → CLI, and later slices activate wallet protection and standard
 mnemonic creation/import, followed by standard hardware-wallet import and
@@ -193,6 +217,10 @@ Verify uses the official Catalyst API for mainnet fund-snapshot status and
 voting power, from a wallet's public voting key or an entered key. Snapshot
 eligibility is not proof of recent Cardano transaction inclusion. Network
 failures are reported as unavailable, not as an unregistered voting identity.
+Delegator details match configured wallets by public stake keys and show their
+stake addresses. An optional lookup adds reward addresses, payable status and
+individual voting power. A failed delegator request does not change the aggregate
+voter snapshot result; these are public snapshot details, not a live balance.
 Fund dates and eligibility rules remain external to CNTools.
 
 ### Explicit private-key removal
@@ -605,7 +633,7 @@ was subsequently retired in favor of the single Gum-based
 
 Phase 4 adds the complete current CNTools navigation tree as filesystem
 metadata: 15 menus including the root and 54 operational actions. Each action
-is deliberately inert, loads only `lib/placeholder.sh`, and presents a shared
+was deliberately inert, loaded a development-only placeholder library, and presented a shared
 "Not implemented yet" notice. No wallet, pool, transaction, query, submission,
 or governance implementation is copied from the legacy tool in this phase.
 
@@ -1144,8 +1172,9 @@ validity contract, public signer identities, native-script requirements,
 detached witnesses, and the completed signed envelope when available. Private
 keys and hardware signing files remain runtime sources. Package intent and
 summary fields provide context; the Cardano CLI-decoded transaction is the
-authoritative review, available through **Show decoded transaction**. Decoding
-and validation still happen before review, even when that option is not opened.
+authoritative review. Imported packages display its non-empty effects in readable
+tables, including votes, donations and metadata, with exact integer values.
+The complete decode is logged for debugging, not offered as a raw JSON screen.
 
 Native-script plans record the selected `all`, `any`, or `atLeast` branch, its
 required signers, and compatible `before`/`after` validity bounds. Embedded
@@ -1207,16 +1236,17 @@ Pool Register/Modify/Retire and standalone Sign/Submit:
   other state checks. Standalone Sign/Submit preserve the existing body and its
   validity bounds; changing expiry requires rebuilding and signing again.
 - Use `cntools_transaction_ui_review_into`: the primary continue/save choice
-  comes first, followed by **Show decoded transaction**, **Show required signers**,
+  comes first, followed by **Show required signers**,
   applicable change/edit options, and **Cancel**. Raw package/intent JSON is
   logged for debugging only; there is no package-details dump option.
   Inspection does not rebuild or sign anything. Changed recipients require a
   fresh build and another review. A workflow change alone does not change the body.
-- Keep intent JSON, witness identifiers, fee reserves, input references and full
-  decode out of the normal screen. Log the technical review and expose details
-  on demand. Imported packages show effects from the authoritative decode, not
-  untrusted intent text; unusually large decoded numeric literals are explicitly
-  referred to the exact decode instead of risking rounded display values.
+- Keep intent JSON, witness identifiers, funding estimates, input references and
+  full decode out of the normal screen. Log technical data for debugging; expose
+  required signers on demand, not a raw decoded-JSON menu. Imported packages show
+  effects from the authoritative decode, not
+  untrusted intent text. Decoded integers are preserved as decimal strings before
+  parsing, so values beyond jq's exact numeric range remain readable and exact.
 - Keep intermediate artifacts in the private, cleanup-tracked temporary area.
   Do not ask for output paths. Publish validated final unsigned, partially signed
   or signed packages without overwrite under `${NODE_HOME}/transactions/`, and
@@ -2148,8 +2178,18 @@ finally token-bearing outputs with datums or reference scripts. Within those
 constraints it chooses a smallest sufficient output or a deterministic
 largest-first combination. `Fewest inputs` is available when minimizing
 transaction size matters more than avoiding tokens. Both stop at a bounded
-input count and use a conservative protocol-derived fee margin plus current
-minimum-output requirements.
+input count. Initial selection uses the protocol's fixed-fee lower bound plus
+current minimum-output requirements, then expands only when the actual built
+transaction needs more funding. No maximum-sized fee reserve is charged or
+required up front.
+
+All builders use `transaction-balance.sh` for exact convergence against the
+pinned CLI's minimum-fee calculation, including the final hardware-normalized
+body. Fees may move up or down. If optional ADA change shrinks, its output count
+is capped for that build attempt to prevent it oscillating as a smaller fee
+frees a few lovelace. This does not change persistent policy settings or add a
+fee margin; a transaction that cannot converge exactly fails before signing.
+Ledger value sizing counts shared policy keys once using CBOR size rules.
 
 Optional token fragmentation creates deterministic asset bundles with a
 configured maximum asset count and obtains the minimum ADA for every bundle
@@ -2170,8 +2210,9 @@ Transaction Sign sessions and returned to an online Transaction Submit session.
 The package never contains signing-key or HWS contents. Hardware payment and
 stake witnesses are grouped into one device session and the payment HWS file is
 also declared as the change-address reference. The compact shared review shows
-the stake address, deposit/refund, actual fee and active policies. Signer and
-decoded-transaction details are menu options. Unsigned export and signed results
+the stake address, deposit/refund, actual fee and active policies. Required signers
+are available on demand; the full decoded body is logged, not dumped in a menu.
+Unsigned export and signed results
 use automatic no-overwrite filenames under `${NODE_HOME}/transactions/`; signed
 packages are retained before any submission attempt. Intermediate unsigned
 artifacts remain private and are cleaned up when no longer needed.
@@ -2227,7 +2268,11 @@ encrypted archives.
 Create defaults to a **full, GPG-encrypted backup** of the configured wallet,
 pool and asset folders. Full backups include custom files, open or encrypted
 private keys, pool counters/operational files, and hidden KES recovery folders.
-They cannot recover a hardware device's seed, or mnemonic words that were never
+Before confirming a full backup, a filename-based coverage preview identifies
+missing local signing keys, watch-only/external signers and hardware references.
+It never reads private-key contents and does not prove that a key matches its
+public artifacts. Archive integrity verification is not a key-recovery guarantee.
+Backups cannot recover a hardware device's seed, or mnemonic words that were never
 saved locally. Public-artifact-only backups use an allowlist of known public
 filenames; private keys, nested files and unknown custom files are omitted.
 They are not a substitute for a private-key recovery backup. Unencrypted full

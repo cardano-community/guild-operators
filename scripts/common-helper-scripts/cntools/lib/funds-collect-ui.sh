@@ -14,9 +14,9 @@ cntools_collect_render() {
     cntools_transaction_ui_styled_row Wallet "${CNTOOLS_SEND_WALLET}" identifier
     cntools_transaction_ui_styled_row Scope "${scope}" status
     cntools_transaction_ui_styled_row 'Return address' "${CNTOOLS_SEND_ADDRESS}" address
-    cntools_transaction_ui_styled_row 'Collected ADA' "$(cntools_wallet_format_lovelace "${CNTOOLS_COIN_SELECTED_LOVELACE}")" number
+    cntools_transaction_ui_styled_row 'Collected ADA' "$(cntools_number_format_lovelace "${CNTOOLS_COIN_SELECTED_LOVELACE}")" number
     cntools_transaction_ui_styled_row 'Native assets' "$(cntools_number_format "${CNTOOLS_COIN_SELECTED_ASSET_COUNT}")" number
-    cntools_transaction_ui_styled_row Fee "$(cntools_wallet_format_lovelace "${CNTOOLS_COLLECT_FEE}")" number
+    cntools_transaction_ui_styled_row Fee "$(cntools_number_format_lovelace "${CNTOOLS_COLLECT_FEE}")" number
     cntools_transaction_ui_styled_row 'Resulting outputs' "$(cntools_number_format "${CNTOOLS_COLLECT_OUTPUT_COUNT}")" number
     cntools_transaction_ui_styled_row 'Inputs left untouched' "$(cntools_number_format "${CNTOOLS_COLLECT_SKIPPED}")" number
     cntools_transaction_ui_render_policy_rows 'All eligible inputs' "${#CNTOOLS_COLLECT_INPUTS[@]}"

@@ -4,12 +4,14 @@
 set -euo pipefail
 (( BASH_VERSINFO[0] >= 4 )) || { printf 'SKIP: Bash 4.4+ required\n'; exit 0; }
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-pool-registration.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'chmod -R u+rwX "${TEST_ROOT}"; rm -rf -- "${TEST_ROOT}"' EXIT
 umask 077
-for lib in number wallet wallet-material wallet-key wallet-mnemonic wallet-address wallet-id wallet-query utxo transaction transaction-build transaction-sign transaction-files transaction-funding transaction-ui coin-selection change-plan recipient wallet-payment wallet-register pool-id table pool pool-files pool-key pool-inspect pool-ui pool-parameters pool-registration pool-registration-keys pool-registration-ui pool-config pool-metadata pool-stake pool-opcert pool-wizard; do
+for lib in number wallet wallet-material wallet-key wallet-mnemonic wallet-address wallet-id wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query utxo transaction transaction-build transaction-sign transaction-files transaction-funding transaction-ui coin-selection change-plan recipient wallet-payment wallet-register pool-id table pool pool-files pool-key pool-inspect pool-ui pool-parameters pool-registration pool-registration-keys pool-registration-ui pool-config pool-metadata pool-stake pool-opcert pool-wizard; do
   . "${CNTOOLS_ROOT}/lib/${lib}.sh"
 done
 fail() { printf 'FAIL: %s (%s / %s)\n' "$*" "${CNTOOLS_WALLET_REGISTER_ERROR:-}" "${CNTOOLS_TRANSACTION_ERROR:-}" >&2; tail -12 "${TEST_ROOT}/test.log" >&2; exit 1; }

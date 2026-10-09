@@ -10,6 +10,7 @@ fi
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 NUMBER_LIBRARY="${REPO_ROOT}/scripts/common-helper-scripts/cntools/lib/number.sh"
 
 fail() {

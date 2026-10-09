@@ -90,41 +90,6 @@ cntools_transaction_reference_input_valid() {
   (( 10#${output_index} <= 4294967295 ))
 }
 
-cntools_transaction_path_components_safe() {
-  local path="${1:-}"
-  local current="/"
-  local component=""
-  local -a components=()
-
-  [[ "${path}" = /* ]] || return 1
-  cntools_transaction_text_control_free "${path}" || return 1
-  IFS='/' read -r -a components <<< "${path}"
-  for component in "${components[@]}"; do
-    [[ -n "${component}" ]] || continue
-    current="${current%/}/${component}"
-    [[ ! -L "${current}" ]] || return 1
-  done
-}
-
-cntools_transaction_size_into() {
-  local _cntools_output_name="${1:-}"
-  local _cntools_path="${2:-}"
-  local _cntools_size=""
-
-  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n _cntools_output_ref="${_cntools_output_name}"
-  _cntools_output_ref=""
-  if _cntools_size="$(stat -c '%s' -- "${_cntools_path}" 2>/dev/null)"; then
-    :
-  elif _cntools_size="$(stat -f '%z' "${_cntools_path}" 2>/dev/null)"; then
-    :
-  else
-    return 1
-  fi
-  [[ "${_cntools_size}" =~ ^[0-9]+$ ]] || return 1
-  _cntools_output_ref="${_cntools_size}"
-}
-
 cntools_transaction_file_safe() {
   local file="${1:-}"
   local maximum_bytes="${2:-${CNTOOLS_TRANSACTION_MAX_PACKAGE_BYTES}}"
@@ -133,80 +98,15 @@ cntools_transaction_file_safe() {
   [[ -n "${file}" && "${file}" = /* &&
      "${maximum_bytes}" =~ ^[1-9][0-9]*$ &&
      -f "${file}" && ! -L "${file}" && -r "${file}" ]] || return 1
-  cntools_transaction_path_components_safe "${file}" || return 1
-  cntools_transaction_size_into size "${file}" || return 1
+  cntools_filesystem_path_components_safe "${file}" || return 1
+  cntools_filesystem_size_into size "${file}" || return 1
   [[ "${size}" =~ ^[1-9][0-9]*$ && ${size} -le ${maximum_bytes} ]]
-}
-
-cntools_transaction_mode_into() {
-  local _cntools_output_name="${1:-}"
-  local _cntools_path="${2:-}"
-  local _cntools_mode=""
-
-  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n _cntools_output_ref="${_cntools_output_name}"
-  _cntools_output_ref=""
-  if _cntools_mode="$(stat -c '%a' -- "${_cntools_path}" 2>/dev/null)"; then
-    :
-  elif _cntools_mode="$(stat -f '%Lp' "${_cntools_path}" 2>/dev/null)"; then
-    :
-  else
-    return 1
-  fi
-  [[ "${_cntools_mode}" =~ ^[0-7]{3,4}$ ]] || return 1
-  _cntools_output_ref="${_cntools_mode}"
-}
-
-cntools_transaction_uid_into() {
-  local _cntools_output_name="${1:-}"
-  local _cntools_path="${2:-}"
-  local _cntools_uid=""
-
-  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n _cntools_output_ref="${_cntools_output_name}"
-  _cntools_output_ref=""
-  if _cntools_uid="$(stat -c '%u' -- "${_cntools_path}" 2>/dev/null)"; then
-    :
-  elif _cntools_uid="$(stat -f '%u' "${_cntools_path}" 2>/dev/null)"; then
-    :
-  else
-    return 1
-  fi
-  [[ "${_cntools_uid}" =~ ^[0-9]+$ ]] || return 1
-  _cntools_output_ref="${_cntools_uid}"
 }
 
 # Files used by external signing tools must not sit below a directory another
 # user can replace. Root-owned and current-user-owned ancestors are trusted;
 # shared writable ancestors are only accepted when protected by the sticky bit
 # (for example /tmp with mode 1777).
-cntools_transaction_directory_ancestry_safe() {
-  local directory="${1:-}"
-  local current="/"
-  local component=""
-  local mode=""
-  local uid=""
-  local permissions=0
-  local -a components=()
-
-  [[ -n "${directory}" && "${directory}" = /* ]] || return 1
-  cntools_transaction_text_control_free "${directory}" || return 1
-  IFS='/' read -r -a components <<< "${directory}"
-  for component in "${components[@]}"; do
-    [[ -n "${component}" ]] || continue
-    current="${current%/}/${component}"
-    [[ -d "${current}" && ! -L "${current}" ]] || return 1
-    cntools_transaction_uid_into uid "${current}" || return 1
-    [[ "${uid}" == "${EUID}" || "${uid}" == "0" ]] || return 1
-    cntools_transaction_mode_into mode "${current}" || return 1
-    permissions=$((8#${mode}))
-    if (( (permissions & 0022) != 0 &&
-          (permissions & 01000) == 0 )); then
-      return 1
-    fi
-  done
-}
-
 cntools_transaction_directory_safe() {
   local directory="${1:-}"
   local mode=""
@@ -217,9 +117,9 @@ cntools_transaction_directory_safe() {
      -O "${directory}" && -w "${directory}" &&
      -x "${directory}" ]] || return 1
   cntools_transaction_text_control_free "${directory}" || return 1
-  cntools_transaction_path_components_safe "${directory}" || return 1
-  cntools_transaction_directory_ancestry_safe "${directory}" || return 1
-  cntools_transaction_mode_into mode "${directory}" || return 1
+  cntools_filesystem_path_components_safe "${directory}" || return 1
+  cntools_filesystem_directory_ancestry_safe "${directory}" || return 1
+  cntools_filesystem_mode_into mode "${directory}" || return 1
   permissions=$((8#${mode}))
   (( (permissions & 0022) == 0 ))
 }
@@ -235,7 +135,7 @@ cntools_transaction_temp_directory_ensure() {
       "${CNTOOLS_TRANSACTION_TEMP_BASE}" || return 1
     cntools_transaction_directory_safe \
       "${CNTOOLS_TRANSACTION_TEMP_DIR}" || return 1
-    cntools_transaction_mode_into \
+    cntools_filesystem_mode_into \
       mode "${CNTOOLS_TRANSACTION_TEMP_DIR}" || return 1
     [[ "${mode}" == "700" || "${mode}" == "0700" ]] || return 1
     return 0
@@ -257,7 +157,7 @@ cntools_transaction_temp_directory_ensure() {
   umask "${previous_umask}"
   if ! chmod 0700 -- "${directory}" ||
      ! cntools_transaction_directory_safe "${directory}" ||
-     ! cntools_transaction_mode_into mode "${directory}" ||
+     ! cntools_filesystem_mode_into mode "${directory}" ||
      [[ "${mode}" != "700" && "${mode}" != "0700" ]]; then
     rmdir -- "${directory}" 2>/dev/null || true
     cntools_transaction_set_error \
@@ -279,7 +179,7 @@ cntools_transaction_private_file_safe() {
   # directory would therefore still be vulnerable to a path-swap race.
   cntools_transaction_directory_safe "${file%/*}" || return 1
   [[ -O "${file}" ]] || return 1
-  cntools_transaction_mode_into mode "${file}" || return 1
+  cntools_filesystem_mode_into mode "${file}" || return 1
   permissions=$((8#${mode}))
   # Signing sources are private material. Refuse group/public access entirely,
   # not only writes, so a copied or accidentally relaxed key is never used.
@@ -617,7 +517,7 @@ cntools_transaction_require_cli() {
     return 1
   fi
   if ! cntools_transaction_file_safe "${version_output}" 65536 ||
-     ! cntools_transaction_size_into error_size "${error_output}" ||
+     ! cntools_filesystem_size_into error_size "${error_output}" ||
      [[ ! "${error_size}" =~ ^[0-9]+$ ]] || (( error_size > 65536 )); then
     cntools_transaction_set_error \
       "Cardano CLI returned an oversized or unsafe version response."

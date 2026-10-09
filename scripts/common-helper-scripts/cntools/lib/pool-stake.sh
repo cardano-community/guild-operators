@@ -95,8 +95,8 @@ cntools_pool_stake_guidance() {
       cntools_uint_add_into total "${total}" "${CNTOOLS_POOL_STAKE_BALANCE[${hash}]}" || return 2
     else unknown=Y; fi
   done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_REG_OWNERS}")
-  { cntools_table_pair 'Owner balances + rewards' "$(cntools_wallet_format_lovelace "${total}")" number
-    cntools_table_pair 'Declared pledge' "$(cntools_wallet_format_lovelace "${CNTOOLS_POOL_REG_PLEDGE}")" number
+  { cntools_table_pair 'Owner balances + rewards' "$(cntools_number_format_lovelace "${total}")" number
+    cntools_table_pair 'Declared pledge' "$(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_PLEDGE}")" number
     [[ "${CNTOOLS_WALLET_REGISTER_BACKEND}" != local ]] || cntools_table_pair Coverage 'Known base addresses + rewards only; other stake-linked addresses are not counted' muted
     [[ "${unknown}" != Y ]] || cntools_table_pair Coverage 'Partial · some owner balances unavailable' warning
   } | cntools_table_render 'Pledge check' || return 2
@@ -143,7 +143,7 @@ cntools_pool_stake_setup_choose() {
       [[ "${choice}" == 'Register if needed and delegate to this pool' ]] || continue
       kind=delegate
     elif [[ "${status}" == no ]]; then
-      cntools_pool_registration_choose choice "Register reward account? Deposit $(cntools_wallet_format_lovelace "${deposit}")" 'Include reward registration' 'Keep reward registration separate' || return $?
+      cntools_pool_registration_choose choice "Register reward account? Deposit $(cntools_number_format_lovelace "${deposit}")" 'Include reward registration' 'Keep reward registration separate' || return $?
       [[ "${choice}" == 'Include reward registration' ]] || continue
       kind=register
     else continue; fi

@@ -260,9 +260,7 @@ cntools_wallet_asset_fingerprint_into() {
   local _cntools_fingerprint=""
   local _cntools_binary_file=""
   local _cntools_hash_file=""
-  local _cntools_fingerprint_file=""
   local _cntools_b2sum=""
-  local _cntools_bech32=""
   local _cntools_mask=""
   local _cntools_index=0
   local _cntools_status=0
@@ -275,17 +273,10 @@ cntools_wallet_asset_fingerprint_into() {
   [[ "${_cntools_policy_id}" =~ ^[0-9a-f]{56}$ &&
      "${_cntools_asset_name}" =~ ^([0-9a-f]{2}){0,32}$ ]] || return 2
   _cntools_b2sum="$(command -v b2sum 2>/dev/null || true)"
-  _cntools_bech32="$(command -v bech32 2>/dev/null || true)"
-  [[ "${_cntools_b2sum}" = /* && -x "${_cntools_b2sum}" &&
-     "${_cntools_bech32}" = /* && -x "${_cntools_bech32}" ]] || return 1
+  [[ "${_cntools_b2sum}" = /* && -x "${_cntools_b2sum}" ]] || return 1
   cntools_wallet_id_temp_file _cntools_binary_file cip14-bytes || return 1
   cntools_wallet_id_temp_file _cntools_hash_file cip14-hash || {
     cntools_wallet_id_remove_temp "${_cntools_binary_file}"
-    return 1
-  }
-  cntools_wallet_id_temp_file _cntools_fingerprint_file cip14-fingerprint || {
-    cntools_wallet_id_remove_temp "${_cntools_binary_file}"
-    cntools_wallet_id_remove_temp "${_cntools_hash_file}"
     return 1
   }
 
@@ -298,7 +289,6 @@ cntools_wallet_asset_fingerprint_into() {
     printf '%b' "\\x${_cntools_byte}" >> "${_cntools_binary_file}" || {
       cntools_wallet_id_remove_temp "${_cntools_binary_file}"
       cntools_wallet_id_remove_temp "${_cntools_hash_file}"
-      cntools_wallet_id_remove_temp "${_cntools_fingerprint_file}"
       return 1
     }
   done
@@ -317,23 +307,10 @@ cntools_wallet_asset_fingerprint_into() {
     [[ "${_cntools_hash}" =~ ^[0-9a-fA-F]{40}$ ]] || _cntools_status=1
   fi
   if (( _cntools_status == 0 )); then
-    printf '%s\n' "${_cntools_hash}" > "${_cntools_hash_file}"
-    if cntools_run_command 00 -- "${_cntools_bech32}" asset \
-        < "${_cntools_hash_file}" > "${_cntools_fingerprint_file}"; then
-      _cntools_status=0
-    else
-      _cntools_status=$?
-    fi
-  fi
-  if (( _cntools_status == 0 )); then
-    IFS= read -r _cntools_fingerprint < "${_cntools_fingerprint_file}" ||
-      _cntools_status=1
-    [[ "${_cntools_fingerprint}" =~ ^asset1[023456789acdefghjklmnpqrstuvwxyz]{38}$ ]] ||
-      _cntools_status=1
+    cntools_bech32_encode_into _cntools_fingerprint "${_cntools_hash}" asset || _cntools_status=1
   fi
   cntools_wallet_id_remove_temp "${_cntools_binary_file}"
   cntools_wallet_id_remove_temp "${_cntools_hash_file}"
-  cntools_wallet_id_remove_temp "${_cntools_fingerprint_file}"
   (( _cntools_status == 0 )) || return 1
   _cntools_output_ref="${_cntools_fingerprint}"
 }

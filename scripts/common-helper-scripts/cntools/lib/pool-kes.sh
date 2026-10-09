@@ -12,7 +12,7 @@ cntools_kes_stage_safe() {
   local directory='' mode=''
   [[ "${CNTOOLS_KES_STAGE}" == "${CNTOOLS_POOL_DIR%/}/.cntools-kes-"* ]] || return 1
   for directory in "${CNTOOLS_KES_STAGE}" "${CNTOOLS_KES_STAGE}/original" "${CNTOOLS_KES_STAGE}/request" "${CNTOOLS_KES_STAGE}/replacement"; do
-    cntools_pool_directory_writable "${directory}" && cntools_transaction_mode_into mode "${directory}" &&
+    cntools_pool_directory_writable "${directory}" && cntools_filesystem_mode_into mode "${directory}" &&
       [[ "${mode}" == 700 || "${mode}" == 0700 ]] || return 1
   done
 }
@@ -228,7 +228,7 @@ cntools_kes_replace() {
   target="${CNTOOLS_KES_DIRECTORY}/${filename}"
   cntools_pool_public_file_safe "${source}" && [[ ! -L "${target}" && ! -d "${target}" ]] || return 1
   if [[ -e "${target}" ]]; then
-    cntools_pool_public_file_safe "${target}" && [[ -O "${target}" ]] && cntools_transaction_mode_into mode "${target}" || return 1
+    cntools_pool_public_file_safe "${target}" && [[ -O "${target}" ]] && cntools_filesystem_mode_into mode "${target}" || return 1
     # Never propagate public-write permissions to freshly generated private keys.
     (( (8#${mode} & 0022) == 0 )) || return 1
     mode="$(printf '%03o' "$((8#${mode} & 0600))")"
@@ -250,7 +250,7 @@ cntools_kes_replace() {
     printf '%s\n' "${immutable}" > "${protection}" && chmod 0600 "${protection}" || return 1
   fi
   if [[ -f "${CNTOOLS_KES_STAGE}/original/${kind}" ]]; then
-    cntools_transaction_mode_into mode "${CNTOOLS_KES_STAGE}/original/${kind}" || return 1
+    cntools_filesystem_mode_into mode "${CNTOOLS_KES_STAGE}/original/${kind}" || return 1
     mode="$(printf '%03o' "$((8#${mode} & 0600))")"
   fi
   # The publish temporary must be in the destination directory, even if the

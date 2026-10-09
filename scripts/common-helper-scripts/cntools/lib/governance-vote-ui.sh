@@ -66,7 +66,7 @@ cntools_gov_vote_choose() {
     ordinal=$((ordinal+1))
     if ! cntools_gov_vote_eligible "${record}"; then continue; fi
     title="$(jq -r '.title | if type == "string" and length > 0 then . else "Governance proposal" end' <<< "${record}")"
-    cntools_wallet_sanitize_display_into title "${title}" || return 2
+    cntools_text_sanitize_into title "${title}" || return 2
     id="$(jq -r '.tx[0:12]+"…#"+(.index|tostring)' <<< "${record}")" || return 2
     choices+=("${ordinal} · $(jq -r .type <<< "${record}") · ${title:0:70} · ${id}")
   done <<< "$(jq -c '.[]' <<< "${CNTOOLS_PROPOSALS}")"

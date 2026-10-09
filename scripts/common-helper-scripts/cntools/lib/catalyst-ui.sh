@@ -157,7 +157,7 @@ cntools_catalyst_verify_workflow() {
       cntools_table_pair 'API response' "$(jq -r '.error|tostring' "${CNTOOLS_CATALYST_STATUS_FILE}")" warning
     else
       value="$(jq -r '.voter_info.voting_power|tostring' "${CNTOOLS_CATALYST_STATUS_FILE}")"
-      cntools_table_pair 'Snapshot voting power' "$(cntools_wallet_format_lovelace "${value}")" number
+      cntools_table_pair 'Snapshot voting power' "$(cntools_number_format_lovelace "${value}")" number
       value="$(jq -r '.voter_info.delegations_count|tostring' "${CNTOOLS_CATALYST_STATUS_FILE}")"
       cntools_table_pair Delegations "$(cntools_number_format "${value}")" number
       cntools_table_pair Finalized "$(jq -r 'if (.final|type)=="boolean" then .final|tostring else "Unknown" end' "${CNTOOLS_CATALYST_STATUS_FILE}")" value
@@ -169,7 +169,30 @@ cntools_catalyst_verify_workflow() {
     fi
   } | cntools_table_render 'Catalyst snapshot'
   if jq -e '.voter_info.delegator_addresses|length>0' "${CNTOOLS_CATALYST_STATUS_FILE}" >/dev/null; then
-    { while IFS= read -r address; do cntools_table_pair Delegator "${address}" identifier; done < <(jq -r '.voter_info.delegator_addresses[]' "${CNTOOLS_CATALYST_STATUS_FILE}"); } | cntools_table_render Delegators
+    local details=N snapshot="${CNTOOLS_CATALYST_STATUS_FILE}" delegator_file='' local_wallet='' stake_address='' index=0
+    if cntools_ui_confirm 'Fetch individual delegator voting power and reward details?' false; then details=Y; fi
+    cntools_wallet_catalog_build || true
+    while IFS= read -r address; do
+      index=$((index+1)); delegator_file=''; local_wallet=''; stake_address=''
+      cntools_catalyst_delegator_wallet_into local_wallet "${address}" || true
+      cntools_catalyst_delegator_address_into stake_address "${address}" || true
+      if [[ "${details}" == Y ]]; then
+        cntools_ui_spin_function "Checking delegator ${index}…" cntools_catalyst_delegator_lookup_into delegator_file "${address}" || true
+      fi
+      {
+        [[ -z "${local_wallet}" ]] || cntools_table_pair Wallet "${local_wallet}" accent
+        cntools_table_pair 'Stake public key' "${address}" identifier
+        [[ -z "${stake_address}" ]] || cntools_table_pair 'Stake address' "${stake_address}" identifier
+        if [[ -n "${delegator_file}" ]]; then
+          cntools_table_pair 'Reward address' "$(jq -r '.reward_address' "${delegator_file}")" identifier
+          value="$(jq -r '.reward_payable|tostring' "${delegator_file}")"
+          cntools_table_pair 'Reward payable' "${value}" "$([[ "${value}" == true ]] && printf success || printf warning)"
+          cntools_table_pair 'Individual voting power' "$(cntools_number_format_lovelace "$(jq -r '.raw_power|tostring' "${delegator_file}")")" number
+        elif [[ "${details}" == Y ]]; then
+          cntools_table_pair 'Reward / power details' Unavailable warning
+        fi
+      } | cntools_table_render "${index} · Delegator"
+    done < <(jq -r '.voter_info.delegator_addresses[]' "${snapshot}")
   fi
   cntools_ui_render_status info 'Snapshot status is separate from current Cardano registration inclusion. Check the current fund rules and dates before voting.'
 }

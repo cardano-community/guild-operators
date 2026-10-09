@@ -12,8 +12,8 @@ cntools_calidus_registration_fail() { cntools_transaction_set_error "$1"; return
 
 cntools_calidus_registration_directory_safe() {
   [[ -d "${CNTOOLS_CALIDUS_REG_DIRECTORY}" && ! -L "${CNTOOLS_CALIDUS_REG_DIRECTORY}" && -O "${CNTOOLS_CALIDUS_REG_DIRECTORY}" ]] &&
-    cntools_transaction_path_components_safe "${CNTOOLS_CALIDUS_REG_DIRECTORY}" &&
-    cntools_transaction_directory_ancestry_safe "${CNTOOLS_CALIDUS_REG_DIRECTORY}" || {
+    cntools_filesystem_path_components_safe "${CNTOOLS_CALIDUS_REG_DIRECTORY}" &&
+    cntools_filesystem_directory_ancestry_safe "${CNTOOLS_CALIDUS_REG_DIRECTORY}" || {
     cntools_calidus_registration_fail 'The pool directory is unsafe. No authorization was prepared.'; return 1;
   }
 }

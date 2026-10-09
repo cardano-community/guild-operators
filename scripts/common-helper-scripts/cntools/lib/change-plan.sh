@@ -209,6 +209,8 @@ cntools_change_plan_ada() {
   local planned_residual=0
   local deficit=0
   local collateral_deficit=0
+  local optional_created=0
+  local optional_cap="${CNTOOLS_TRANSACTION_BALANCE_CHANGE_CAP:-100000}"
   local -a percentages=()
 
   cntools_uint_normalize_into available "${available}" || return 2
@@ -225,7 +227,7 @@ cntools_change_plan_ada() {
   ))
   (( collateral_deficit > 0 )) || collateral_deficit=0
   if [[ "${CNTOOLS_TX_COLLATERAL_MANAGEMENT:-Y}" == "Y" &&
-        ${collateral_deficit} -gt 0 ]]; then
+        ${collateral_deficit} -gt 0 && ${optional_cap} -gt 0 ]]; then
     if cntools_uint_greater_equal "${available}" \
         "${CNTOOLS_TX_COLLATERAL_LOVELACE}"; then
       cntools_uint_subtract_into remaining \
@@ -236,6 +238,7 @@ cntools_change_plan_ada() {
           "${address}+${CNTOOLS_TX_COLLATERAL_LOVELACE}" \
           "${CNTOOLS_TX_COLLATERAL_LOVELACE}" 0 || return 1
         available="${remaining}"
+        optional_created=$((optional_created + 1))
         CNTOOLS_CHANGE_COLLATERAL_STATUS="Applied · 5 ADA candidate created"
       else
         CNTOOLS_CHANGE_COLLATERAL_STATUS="Enabled · insufficient change"
@@ -243,6 +246,8 @@ cntools_change_plan_ada() {
     else
       CNTOOLS_CHANGE_COLLATERAL_STATUS="Enabled · insufficient change"
     fi
+  elif [[ "${CNTOOLS_TX_COLLATERAL_MANAGEMENT:-Y}" == "Y" && ${collateral_deficit} -gt 0 ]]; then
+    CNTOOLS_CHANGE_COLLATERAL_STATUS="Enabled · exact-fee layout preserved"
   elif [[ "${CNTOOLS_TX_COLLATERAL_MANAGEMENT:-Y}" == "Y" ]]; then
     CNTOOLS_CHANGE_COLLATERAL_STATUS="Enabled · existing candidate preserved"
   else
@@ -266,7 +271,7 @@ cntools_change_plan_ada() {
   IFS=',' read -r -a percentages <<< "${CNTOOLS_TX_UTXO_PERCENTAGES}"
   for percentage in "${percentages[@]}"; do
     (( created < deficit &&
-       created < CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS )) || break
+       created < CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS && optional_created < optional_cap )) || break
     cntools_uint_percent_into amount "${base}" "${percentage}" || return 1
     cntools_uint_greater_equal "${amount}" \
       "${CNTOOLS_CHANGE_EFFECTIVE_MIN_LOVELACE}" || continue
@@ -278,6 +283,7 @@ cntools_change_plan_ada() {
       "${address}+${amount}" "${amount}" 0 || return 1
     available="${remaining}"
     created=$((created + 1))
+    optional_created=$((optional_created + 1))
   done
   CNTOOLS_CHANGE_RESIDUAL_LOVELACE="${available}"
   if (( created > 0 )); then

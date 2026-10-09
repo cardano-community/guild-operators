@@ -7,6 +7,8 @@ if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) ))
 fi
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 . "${CNTOOLS_ROOT}/core/health.sh"
 . "${CNTOOLS_ROOT}/lib/asset.sh"
@@ -20,6 +22,7 @@ done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 eq() { [[ "$1" == "$2" ]] || fail "${3:-comparison}: '$1' != '$2'"; }
 cntools_transaction_log() { :; }
+cntools_transaction_package_load() { CNTOOLS_TRANSACTION_BODY_FILE="$1"; }
 cntools_transaction_set_error() { CNTOOLS_TRANSACTION_ERROR="$1"; }
 cntools_transaction_clear_error() { CNTOOLS_TRANSACTION_ERROR=""; }
 CNTOOLS_TRANSACTION_ERROR=""
@@ -337,15 +340,14 @@ for workflow in 'Create unsigned package' 'Create and sign' 'Create, sign and su
     cntools_send_render_recipients() { return 0; }
     cntools_send_render_information() { return 0; }
     cntools_send_render_result() { printf 'result %s %s\n' "$1" "$2" >> "${trace}"; }
-    cntools_wallet_format_lovelace() { printf '%s ADA' "$1"; }
+    cntools_number_format_lovelace() { printf '%s ADA' "$1"; }
     cntools_ui_choose() {
       case "$2" in
         Workflow) [[ "$3" == 'Create, sign and submit' ]] || fail 'workflow order'; printf -v "$1" '%s' "${workflow}" ;;
         'Transaction expiry') printf -v "$1" '%s' '30 minutes' ;;
         'Review transaction')
           if [[ "${DECLINE:-N}" == Y ]]; then printf -v "$1" '%s' Cancel
-          elif [[ "${DETAILS:-N}" == Y && "${DETAIL_STEP:-0}" == 0 ]]; then DETAIL_STEP=1; printf -v "$1" '%s' 'Show decoded transaction'
-          elif [[ "${DETAILS:-N}" == Y && "${DETAIL_STEP}" == 1 ]]; then DETAIL_STEP=2; printf -v "$1" '%s' 'Show required signers'
+          elif [[ "${DETAILS:-N}" == Y && "${DETAIL_STEP:-0}" == 0 ]]; then DETAIL_STEP=1; printf -v "$1" '%s' 'Show required signers'
           else printf -v "$1" '%s' "$3"; fi ;;
         *) fail "unexpected prompt $2" ;;
       esac
@@ -385,7 +387,7 @@ for workflow in 'Create unsigned package' 'Create and sign' 'Create, sign and su
       DETAILS=Y; DETAIL_STEP=0
       cntools_send_workflow || fail 'optional details flow'
       [[ "$(grep -c '^build$' "${trace}")" == 1 ]] || fail 'inspection rebuilt transaction'
-      grep -qx decoded "${trace}" || fail 'decoded option missing'
+      ! grep -qx decoded "${trace}" || fail 'raw decode option retained'
       grep -qx signers "${trace}" || fail 'signers option missing'
       SUBMIT_STATUS=1; CNTOOLS_TRANSACTION_ERROR='Submission rejected'
       : > "${trace}"

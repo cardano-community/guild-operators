@@ -226,93 +226,11 @@ cntools_wallet_address_hrp() {
 }
 
 cntools_wallet_bech32_valid() {
-  local address="${1:-}"
-  local expected_hrp="${2:-}"
-  local address_kind="${3:-}"
-  local charset="qpzry9x8gf2tvdw0s3jn54khce6mua7l"
-  local character=""
-  local suffix=""
-  local character_code=0
-  local value=0
-  local checksum=1
-  local top=0
-  local bit=0
-  local index=0
-  local data_index=0
-  local payload_group_count=0
-  local first_payload_value=-1
-  local second_payload_value=-1
-  local last_payload_value=-1
-  local padding_bits=0
-  local byte_count=0
-  local header_byte=0
-  local address_type=0
-  local network_id=0
-  local LC_ALL=C
-  local -a generators=(
-    0x3b6a57b2 0x26508e6d 0x1ea119fa 0x3d4233dd 0x2a1462b3
-  )
-  local -a values=()
-
-  [[ -n "${address}" && -n "${expected_hrp}" &&
-     "${address}" == "${expected_hrp}1"* &&
-     "${address}" != *$'\n'* &&
-     "${address}" != *$'\r'* ]] || return 1
-  (( ${#address} >= ${#expected_hrp} + 8 && ${#address} <= 256 )) ||
-    return 1
-  payload_group_count=$((${#address} - ${#expected_hrp} - 7))
-  (( payload_group_count >= 2 )) || return 1
-
-  for (( index = 0; index < ${#expected_hrp}; index++ )); do
-    character="${expected_hrp:index:1}"
-    printf -v character_code '%d' "'${character}"
-    values+=("$((character_code >> 5))")
-  done
-  values+=(0)
-  for (( index = 0; index < ${#expected_hrp}; index++ )); do
-    character="${expected_hrp:index:1}"
-    printf -v character_code '%d' "'${character}"
-    values+=("$((character_code & 31))")
-  done
-  for (( index = ${#expected_hrp} + 1; index < ${#address}; index++ )); do
-    character="${address:index:1}"
-    suffix="${charset#*"${character}"}"
-    [[ "${suffix}" != "${charset}" ]] || return 1
-    value=$((${#charset} - ${#suffix} - 1))
-    (( value >= 0 && value < 32 )) || return 1
-    if (( data_index < payload_group_count )); then
-      (( data_index != 0 )) || first_payload_value="${value}"
-      (( data_index != 1 )) || second_payload_value="${value}"
-      last_payload_value="${value}"
-    fi
-    values+=("${value}")
-    data_index=$((data_index + 1))
-  done
-
-  for value in "${values[@]}"; do
-    top=$((checksum >> 25))
-    checksum=$((((checksum & 0x1ffffff) << 5) ^ value))
-    for (( bit = 0; bit < 5; bit++ )); do
-      if (( (top >> bit) & 1 )); then
-        checksum=$((checksum ^ generators[bit]))
-      fi
-    done
-  done
-  (( checksum == 1 )) || return 1
-
-  # Cardano addresses are byte strings converted to five-bit Bech32 groups.
-  # Reject non-canonical padding before interpreting the one-byte address
-  # header, then verify both its credential type and network tag.
-  padding_bits=$(((payload_group_count * 5) % 8))
-  (( padding_bits <= 4 )) || return 1
-  if (( padding_bits > 0 )); then
-    (( (last_payload_value & ((1 << padding_bits) - 1)) == 0 )) || return 1
-  fi
-  byte_count=$(((payload_group_count * 5 - padding_bits) / 8))
-  header_byte=$(((first_payload_value << 3) | (second_payload_value >> 2)))
-  address_type=$((header_byte >> 4))
-  network_id=$((header_byte & 15))
-
+  local address="${1:-}" expected_hrp="${2:-}" address_kind="${3:-}" payload=''
+  local byte_count=0 header_byte=0 address_type=0 network_id=0
+  cntools_bech32_decode_into payload "${address}" "${expected_hrp}" || return 1
+  byte_count=$(("${#payload}" / 2)); header_byte=$((16#${payload:0:2}))
+  address_type=$((header_byte >> 4)); network_id=$((header_byte & 15))
   case "${expected_hrp}" in
     addr)
       (( network_id == 1 && address_type >= 0 && address_type <= 7 )) ||
@@ -628,7 +546,7 @@ cntools_wallet_catalog_rows() {
   local total=""
   local protection_role=""
 
-  cntools_wallet_table_row "Wallet" "Property" "Value" || return 1
+  cntools_table_row "Wallet" "Property" "Value" || return 1
   for (( index = 0; index < ${#CNTOOLS_WALLET_NAMES[@]}; index++ )); do
     wallet_name="${CNTOOLS_WALLET_NAMES[index]}"
     cntools_wallet_catalog_primary_into \
@@ -638,17 +556,17 @@ cntools_wallet_catalog_rows() {
     [[ -z "${primary_note}" ]] ||
       primary_value+=" · ${primary_note}"
 
-    cntools_wallet_table_wrapped_triple \
+    cntools_table_wrapped_triple \
       "${wallet_name}" "Type" "${CNTOOLS_WALLET_TYPES[index]}" \
       20 22 "" identifier accent ||
       return 1
-    protection_role="$(cntools_wallet_status_role \
+    protection_role="$(cntools_text_status_role \
       "${CNTOOLS_WALLET_PROTECTIONS[index]}")" || return 1
-    cntools_wallet_table_wrapped_triple \
+    cntools_table_wrapped_triple \
       "" "Key protection" "${CNTOOLS_WALLET_PROTECTIONS[index]}" \
       20 22 "" value "${protection_role}" ||
       return 1
-    cntools_wallet_table_wrapped_triple \
+    cntools_table_wrapped_triple \
       "" "${primary_label}" "${primary_value}" \
       20 22 "" value address || return 1
 
@@ -658,34 +576,34 @@ cntools_wallet_catalog_rows() {
     tokens="${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]:-}"
     total="${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[index]:-}"
     if [[ "${base_balance}" =~ ^[1-9][0-9]*$ ]]; then
-      cntools_wallet_table_wrapped_triple \
+      cntools_table_wrapped_triple \
         "" "Base UTxO" \
-        "$(cntools_wallet_format_lovelace "${base_balance}")" \
+        "$(cntools_number_format_lovelace "${base_balance}")" \
         20 22 "" value number ||
         return 1
     fi
     if [[ "${payment_balance}" =~ ^[1-9][0-9]*$ ]]; then
-      cntools_wallet_table_wrapped_triple \
+      cntools_table_wrapped_triple \
         "" "Payment UTxO" \
-        "$(cntools_wallet_format_lovelace "${payment_balance}")" \
+        "$(cntools_number_format_lovelace "${payment_balance}")" \
         20 22 "" value number ||
         return 1
     fi
     if [[ "${rewards}" =~ ^[1-9][0-9]*$ ]]; then
-      cntools_wallet_table_wrapped_triple \
+      cntools_table_wrapped_triple \
         "" "Rewards" \
-        "$(cntools_wallet_format_lovelace "${rewards}")" \
+        "$(cntools_number_format_lovelace "${rewards}")" \
         20 22 "" value number || return 1
     fi
     if [[ "${tokens}" =~ ^[1-9][0-9]*$ ]]; then
-      cntools_wallet_format_number_into display_tokens "${tokens}" || return 1
-      cntools_wallet_table_wrapped_triple \
+      cntools_text_format_number_into display_tokens "${tokens}" || return 1
+      cntools_table_wrapped_triple \
         "" "Native assets" "${display_tokens}" \
         20 22 "" value number || return 1
     fi
     if [[ "${total}" =~ ^[1-9][0-9]*$ ]]; then
-      cntools_wallet_table_wrapped_triple \
-        "" "Total" "$(cntools_wallet_format_lovelace "${total}")" \
+      cntools_table_wrapped_triple \
+        "" "Total" "$(cntools_number_format_lovelace "${total}")" \
         20 22 "" value number ||
         return 1
     fi

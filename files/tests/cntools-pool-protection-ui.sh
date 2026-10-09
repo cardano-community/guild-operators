@@ -3,6 +3,7 @@
 # shellcheck disable=SC1090,SC1091,SC2034,SC2154,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-pool-protection-ui.XXXXXX")"
 TEST_ROOT="$(cd "${TEST_ROOT}" && pwd -P)"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT

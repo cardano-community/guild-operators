@@ -11,8 +11,12 @@
   ],
   "libs": [
     "number.sh",
+    "filesystem.sh",
+    "presentation.sh",
+    "table.sh",
     "transaction.sh",
     "transaction-sign.sh",
+    "json.sh",
     "transaction-ui.sh",
     "transaction-files.sh"
   ]

@@ -29,51 +29,14 @@ cntools_recipient_trim_into() {
 # Bech32/header/network validator checks the result before it leaves this helper.
 cntools_recipient_from_hex_into() {
   local -n rh_result="$1"
-  local rh_hex="${2:-}" rh_hrp=addr_test rh_text="" rh_char=""
-  local rh_i=0 rh_j=0 rh_n=0 rh_acc=0 rh_bits=0 rh_check=1 rh_top=0
-  local rh_charset=qpzry9x8gf2tvdw0s3jn54khce6mua7l LC_ALL=C
-  local -a rh_values=() rh_generators=(0x3b6a57b2 0x26508e6d 0x1ea119fa 0x3d4233dd 0x2a1462b3)
-  rh_result=""
+  local rh_hex="${2:-}" rh_hrp=addr_test rh_text=''
+  rh_result=''
   [[ "${rh_hex}" =~ ^([0-9a-f]{2})+$ && ${#rh_hex} -le 256 ]] || return 1
   [[ "${CNTOOLS_NETWORK:-}" != mainnet ]] || rh_hrp=addr
-  for ((rh_i=0; rh_i<${#rh_hrp}; rh_i++)); do
-    printf -v rh_n '%d' "'${rh_hrp:rh_i:1}"
-    rh_values+=("$((rh_n >> 5))")
-  done
-  rh_values+=(0)
-  for ((rh_i=0; rh_i<${#rh_hrp}; rh_i++)); do
-    printf -v rh_n '%d' "'${rh_hrp:rh_i:1}"
-    rh_values+=("$((rh_n & 31))")
-  done
-  for ((rh_i=0; rh_i<${#rh_hex}; rh_i+=2)); do
-    rh_acc=$(((rh_acc << 8 | 16#${rh_hex:rh_i:2}) & 4095))
-    rh_bits=$((rh_bits+8))
-    while ((rh_bits >= 5)); do
-      rh_bits=$((rh_bits-5)); rh_n=$((rh_acc >> rh_bits & 31))
-      rh_values+=("${rh_n}"); rh_text+="${rh_charset:rh_n:1}"
-    done
-  done
-  if ((rh_bits > 0)); then
-    rh_n=$((rh_acc << (5-rh_bits) & 31))
-    rh_values+=("${rh_n}"); rh_text+="${rh_charset:rh_n:1}"
-  fi
-  rh_values+=(0 0 0 0 0 0)
-  for rh_n in "${rh_values[@]}"; do
-    rh_top=$((rh_check >> 25)); rh_check=$(((rh_check & 0x1ffffff) << 5 ^ rh_n))
-    for ((rh_j=0; rh_j<5; rh_j++)); do
-      if ((rh_top >> rh_j & 1)); then rh_check=$((rh_check ^ rh_generators[rh_j])); fi
-    done
-  done
-  rh_check=$((rh_check ^ 1))
-  for ((rh_i=5; rh_i>=0; rh_i--)); do
-    rh_n=$((rh_check >> (5*rh_i) & 31)); rh_char="${rh_charset:rh_n:1}"
-    rh_text+="${rh_char}"
-  done
-  rh_text="${rh_hrp}1${rh_text}"
+  cntools_bech32_encode_into rh_text "${rh_hex}" "${rh_hrp}" || return 1
   cntools_recipient_validate "${rh_text}" || return 1
   rh_result="${rh_text}"
 }
-
 # Prove that a cached script recipient is the address of the validated local
 # native script, rather than trusting the wallet type or file name alone.
 cntools_recipient_native_wallet_matches() {

@@ -92,15 +92,11 @@ cntools_transaction_ui_review_into() {
   while true; do
     "${begin}" || return 2
     "${render}" || return 2
-    local -a options=("${proceed}" 'Show decoded transaction')
+    local -a options=("${proceed}")
     [[ -z "${package}" ]] || options+=('Show required signers')
     cntools_ui_choose review_selection 'Review transaction' "${options[@]}" "$@" Cancel || { status=$?; return "${status}"; }
     cntools_transaction_log CHOICE "Transaction review selected=${review_selection}"
     case "${review_selection}" in
-      'Show decoded transaction')
-        "${begin}" || return 2
-        cntools_transaction_ui_render_json 'Decoded transaction · authoritative' "${CNTOOLS_TRANSACTION_UI_VIEW}" || return 2
-        cntools_ui_wait ;;
       'Show required signers')
         "${begin}" || return 2
         cntools_transaction_ui_render_signer_progress "${package}" || return 2
@@ -218,25 +214,16 @@ cntools_transaction_ui_styled_signer_row() {
 }
 
 cntools_transaction_ui_render_json() {
-  local heading="${1:-Decoded transaction}"
-  local value="${2:-}"
-  local formatted=""
-  local width=""
-
-  # The CLI already formats its authoritative view. Re-encoding it with jq can
-  # round metadata integers beyond 2^53 on deployed jq versions.
-  jq -e 'type == "object" or type == "array"' <<< "${value}" >/dev/null 2>&1 || return 1
-  formatted="${value}"
-  [[ -n "${formatted}" ]] || return 1
-  width="$(cntools_ui_content_width 220 54)" || return 1
-  cntools_ui_render_detail "${heading}" || return 1
-  printf '%s\n' "${formatted}" | cntools_gum style \
-    --margin "0 2 1 2" --padding "0 1" --border normal \
-    --width "${width}" \
-    --border-foreground "${CNTOOLS_GUM_COLOR_DIVIDER}" \
-    --foreground "${CNTOOLS_GUM_COLOR_TEXT}"
+  local heading="${1:-Declared script}" value="${2:-}" rows='' label='' cell='' role=''
+  rows="$(cntools_json_scalar_records <<< "${value}")" || return 1
+  {
+    while IFS=$'\037' read -r label cell; do
+      role=value
+      if [[ "${cell}" =~ ^-?[0-9]+$ ]]; then cell="$(cntools_number_format "${cell}")" || return 1; role=number; fi
+      cntools_table_pair "${label}" "${cell}" "${role}"
+    done <<< "${rows}"
+  } | cntools_table_render "${heading}"
 }
-
 cntools_transaction_ui_render_package_overview() {
   local widths="" expiry_label="No expiry" fee=""
   cntools_transaction_ui_table_widths_into widths 22 || return 1
@@ -407,44 +394,53 @@ cntools_transaction_ui_render_package_review() {
   cntools_transaction_ui_render_effects
 }
 
-# Imported transactions have no trusted action-local summary. Show ledger
-# effects from the authoritative decode, never from the package's intent JSON.
+# Protect integer literals before jq parses them, including metadata and token
+# quantities beyond its floating-point range. Strings and escapes stay intact.
+# Imported transactions have no trusted action-local summary. Display every
+# nonempty effect from the pinned CLI decode, retaining unknown future fields.
 cntools_transaction_ui_render_effects() {
-  local rows="" label="" value="" role="" widths=""
-  cntools_transaction_ui_table_widths_into widths 28 || return 1
+  local rows="" label="" value="" role="" exact_view=""
+  exact_view="$(cntools_json_exact_integer_strings <<< "${CNTOOLS_TRANSACTION_UI_VIEW}")" || return 1
   rows="$(jq -r '
-    {Outputs:(.outputs // [] | map({Address:.address, Amount:.amount} +
-       (if .datum != null or .["datum hash"] != null then {Datum:"Attached · see decoded transaction"} else {} end) +
-       (if .["reference script"] != null then {Script:"Attached · see decoded transaction"} else {} end))),
-     Withdrawals:.withdrawals, Certificates:.certificates,
-     Mint:.mint, Governance:.["governance actions"], Votes:.votes,
-     Donation:.["treasury donation"],
-     Metadata:(if .metadata != null then "Attached · see decoded transaction" else null end)}
-    | with_entries(select(.value != null and .value != [] and .value != {}))
+    def compact:
+      walk(if type == "object" then with_entries(select(.value != null and .value != [] and .value != {}))
+           elif type == "array" then map(select(. != null and . != [] and . != {})) else . end);
+    def metadata_content:
+      if type == "array" and length > 0 and all(.[]; type == "array" and length == 2 and (.[0]|type)=="string") and
+         (map(.[0]) | unique | length) == length
+      then map({key:.[0],value:(.[1]|metadata_content)}) | from_entries
+      elif type == "array" then map(metadata_content)
+      elif type == "object" then map_values(metadata_content) else . end;
+    . as $body |
+    (del(.era,.fee,.["validity range"],.["required signers"],.["network id"],
+         .inputs,.outputs,.withdrawals,.certificates,.mint,.["governance actions"],
+         .voters,.votes,.treasuryDonation,.["treasury donation"],.metadata) +
+     {Inputs:$body.inputs, Outputs:$body.outputs, Withdrawals:$body.withdrawals,
+      Certificates:$body.certificates, Mint:$body.mint, Governance:$body["governance actions"],
+      Votes:($body.voters // $body.votes),
+      "Treasury donation / ADA":(($body.treasuryDonation // $body["treasury donation"]) | if . == "0" then null else . end),
+      Metadata:($body.metadata | metadata_content)})
+    | compact
     | paths(scalars) as $p | getpath($p) as $v
     | [($p | map(if type == "number" then (. + 1 | tostring) else . end) | join(" / ")),
-       (if ($v|type) == "number" and ($v > 9007199254740991 or $v < -9007199254740991)
-        then "Large integer · see exact decoded transaction" else ($v|tostring) end)]
-    | @tsv' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}")" || return 1
+       ($v|tostring)] | @tsv' <<< "${exact_view}")" || return 1
   [[ -n "${rows}" ]] || return 0
-  cntools_ui_render_detail 'Transaction effects' || return 1
   {
-    printf 'Effect\tValue\n'
     while IFS=$'\t' read -r label value; do
       role=value
       case "${value}" in addr*|stake*) role=address ;; esac
-      if [[ "${value}" =~ ^[0-9]+$ ]]; then
-        if [[ "${label}" == *' / lovelace' ]]; then
-          label="${label% / lovelace} / ADA"
+      if [[ "${value}" =~ ^-?[0-9]+$ ]]; then
+        if [[ "${label}" == *' / lovelace' || "${label}" == 'Treasury donation / ADA' ]]; then
+          [[ "${label}" != *' / lovelace' ]] || label="${label% / lovelace} / ADA"
           value="$(cntools_number_format_units "${value}" 6) ADA" || return 1
         else
           value="$(cntools_number_format "${value}")" || return 1
         fi
         role=number
       fi
-      cntools_transaction_ui_styled_row "${label}" "${value}" "${role}"
+      cntools_table_pair "${label}" "${value}" "${role}"
     done <<< "${rows}"
-  } | cntools_ui_table --separator $'\t' --widths "${widths}"
+  } | cntools_table_render 'Transaction effects'
 }
 
 cntools_transaction_ui_sign_begin() { cntools_ui_action_begin Sign '/ Transaction / Sign'; }

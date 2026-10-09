@@ -59,7 +59,8 @@ cntools_withdraw_collect() {
 
 cntools_withdraw_select() {
   local reserve="" required="" status=0 attempt=0 index=0
-  cntools_coin_fee_reserve_into reserve "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
+  if [[ $# -gt 0 ]]; then cntools_uint_normalize_into reserve "$1" || return 2
+  else cntools_coin_initial_fee_into reserve "${CNTOOLS_FUNDING_PROTOCOL}" || return 1; fi
   cntools_coin_required_for_stake_into required withdraw "${CNTOOLS_WITHDRAW_REWARDS}" "${reserve}" || return 1
   for (( attempt=0; attempt<4; attempt++ )); do
     cntools_coin_select_lovelace "${required}" "${CNTOOLS_TX_SELECTION_STRATEGY}" || {
@@ -110,82 +111,72 @@ cntools_withdraw_plan() {
   cntools_transaction_log REVIEW "Withdrawal intent summary=${summary}"
 }
 
+cntools_withdraw_prepare_balanced_body() {
+  local body='' input='' output='' output_count=0 status=0
+  local -a arguments=()
+  status=0
+  cntools_change_plan_stake withdraw "${CNTOOLS_WITHDRAW_REWARDS}" "${CNTOOLS_WITHDRAW_FEE}" \
+    "${CNTOOLS_FUNDING_PROTOCOL}" "${CNTOOLS_STAKE_BASE_ADDRESS}" || status=$?
+  if (( status == 3 )); then
+    cntools_withdraw_select "${CNTOOLS_WITHDRAW_FEE}" || return 1
+    CNTOOLS_WITHDRAW_INPUTS=("${CNTOOLS_COIN_SELECTED_REFS[@]}")
+  elif (( status != 0 )); then
+    cntools_withdraw_fail "${CNTOOLS_CHANGE_ERROR:-Could not fund valid withdrawal change.}"; return 1;
+  fi
+  cntools_withdraw_plan || return 1
+  arguments=()
+  for input in "${CNTOOLS_WITHDRAW_INPUTS[@]}"; do
+    arguments+=(--tx-in "${input}")
+    [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != MultiSig ]] || arguments+=(--tx-in-script-file "${CNTOOLS_MULTISIG_SPEND_SCRIPT}")
+  done
+  for output in "${CNTOOLS_CHANGE_OUTPUTS[@]}"; do
+    cntools_withdraw_validate_output "${output}" || return 1
+    arguments+=(--tx-out "${output}")
+  done
+  cntools_withdraw_validate_output "${CNTOOLS_STAKE_BASE_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}" || return 1
+  arguments+=(--tx-out "${CNTOOLS_STAKE_BASE_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}"
+    --withdrawal "${CNTOOLS_STAKE_REWARD_ADDRESS}+${CNTOOLS_WITHDRAW_REWARDS}")
+  [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != MultiSig ]] || arguments+=(--withdrawal-script-file "${CNTOOLS_MULTISIG_STAKE_SCRIPT}")
+  output_count=$(("${#CNTOOLS_CHANGE_OUTPUTS[@]}"+1))
+  cntools_transaction_temp_file body withdraw-body || return 1
+  cntools_transaction_temp_remove "${body}" || return 1
+  cntools_transaction_build_body build-raw "${body}" -- "${arguments[@]}" --fee "${CNTOOLS_WITHDRAW_FEE}" || return 1
+  CNTOOLS_TRANSACTION_TEMP_FILES+=("${body}")
+  CNTOOLS_TRANSACTION_BALANCE_INPUT_COUNT="${#CNTOOLS_WITHDRAW_INPUTS[@]}"
+  CNTOOLS_TRANSACTION_BALANCE_OUTPUT_COUNT="${output_count}"
+  printf -v "$1" '%s' "${body}"
+}
+
+cntools_withdraw_validate_balanced_body() {
+  local view_fee=''
+  cntools_transaction_view_into CNTOOLS_TRANSACTION_UI_VIEW "$1" || return 1
+  view_fee="$(jq -er '.fee | capture("^(?<fee>[0-9]+) Lovelace$").fee' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}")" || return 1
+  [[ "${view_fee}" == "${CNTOOLS_WITHDRAW_FEE}" ]] || {
+    cntools_withdraw_fail 'The final fee does not match the withdrawal plan.'; return 1;
+  }
+  jq -e --arg stake "${CNTOOLS_STAKE_REWARD_ADDRESS}" --arg amount "${CNTOOLS_WITHDRAW_REWARDS} Lovelace" \
+    --arg destination "${CNTOOLS_STAKE_BASE_ADDRESS}" '
+    (.withdrawals | length == 1) and .withdrawals[0].address == $stake and
+    .withdrawals[0].amount == $amount and
+    (.certificates == null or .certificates == []) and
+    .mint == null and .metadata == null and
+    (.outputs | length > 0 and all(.[]; .address == $destination))
+  ' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}" >/dev/null || {
+    cntools_withdraw_fail 'The final transaction does not match the reward withdrawal plan.'; return 1;
+  }
+}
+
 cntools_withdraw_build_into() {
   local -n withdraw_result="$1"
-  local body="" withdraw_package_path="" input="" output="" next_fee="" view_fee=""
-  local output_count=0 max_size=0 body_bytes=0 witness_count=0 attempt=0
-  local -a arguments=()
   withdraw_result=""
   cntools_withdraw_select || return 1
   CNTOOLS_WITHDRAW_INPUTS=("${CNTOOLS_COIN_SELECTED_REFS[@]}")
   CNTOOLS_WITHDRAW_FEE=0
-  max_size="$(jq -er '.maxTxSize | select(type == "number" and . > 0 and . <= 100000)' "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
   # Explicit balancing avoids build-estimate's withdrawal-credit discrepancy.
-  # Select once with a conservative fee reserve, then converge the actual fee.
-  for (( attempt=0; attempt<20; attempt++ )); do
-    cntools_change_plan_stake withdraw "${CNTOOLS_WITHDRAW_REWARDS}" "${CNTOOLS_WITHDRAW_FEE}" \
-      "${CNTOOLS_FUNDING_PROTOCOL}" "${CNTOOLS_STAKE_BASE_ADDRESS}" || {
-      cntools_withdraw_fail "${CNTOOLS_CHANGE_ERROR:-Could not fund valid withdrawal change.}"; return 1;
-    }
-    cntools_withdraw_plan || return 1
-    arguments=()
-    for input in "${CNTOOLS_WITHDRAW_INPUTS[@]}"; do
-      arguments+=(--tx-in "${input}")
-      [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != MultiSig ]] || arguments+=(--tx-in-script-file "${CNTOOLS_MULTISIG_SPEND_SCRIPT}")
-    done
-    for output in "${CNTOOLS_CHANGE_OUTPUTS[@]}"; do
-      cntools_withdraw_validate_output "${output}" || return 1
-      arguments+=(--tx-out "${output}")
-    done
-    cntools_withdraw_validate_output "${CNTOOLS_STAKE_BASE_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}" || return 1
-    arguments+=(--tx-out "${CNTOOLS_STAKE_BASE_ADDRESS}+${CNTOOLS_CHANGE_RESIDUAL_LOVELACE}"
-      --withdrawal "${CNTOOLS_STAKE_REWARD_ADDRESS}+${CNTOOLS_WITHDRAW_REWARDS}")
-    [[ "${CNTOOLS_STAKE_WALLET_TYPE}" != MultiSig ]] || arguments+=(--withdrawal-script-file "${CNTOOLS_MULTISIG_STAKE_SCRIPT}")
-    output_count=$(("${#CNTOOLS_CHANGE_OUTPUTS[@]}"+1))
-    cntools_transaction_temp_file body withdraw-body || return 1
-    cntools_transaction_temp_remove "${body}" || return 1
-    cntools_transaction_build_body build-raw "${body}" -- "${arguments[@]}" --fee "${CNTOOLS_WITHDRAW_FEE}" || return 1
-    CNTOOLS_TRANSACTION_TEMP_FILES+=("${body}")
-    cntools_transaction_calculate_min_fee_into next_fee "${body}" "${#CNTOOLS_WITHDRAW_INPUTS[@]}" \
-      "${output_count}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-    if cntools_uint_greater "${next_fee}" "${CNTOOLS_WITHDRAW_FEE}"; then
-      CNTOOLS_WITHDRAW_FEE="${next_fee}"; continue
-    fi
-    cntools_transaction_package_create_staged_into withdraw_package_path "${body}" || return 1
-    cntools_transaction_package_load "${withdraw_package_path}" || return 1
-    # Hardware preparation can change encoding; recheck the final body's fee.
-    cntools_transaction_calculate_min_fee_into next_fee "${CNTOOLS_TRANSACTION_BODY_FILE}" \
-      "${#CNTOOLS_WITHDRAW_INPUTS[@]}" "${output_count}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-    if cntools_uint_greater "${next_fee}" "${CNTOOLS_WITHDRAW_FEE}"; then
-      CNTOOLS_WITHDRAW_FEE="${next_fee}"; continue
-    fi
-    cntools_transaction_view_into CNTOOLS_TRANSACTION_UI_VIEW "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 1
-    view_fee="$(jq -er '.fee | capture("^(?<fee>[0-9]+) Lovelace$").fee' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}")" || return 1
-    [[ "${view_fee}" == "${CNTOOLS_WITHDRAW_FEE}" ]] || {
-      cntools_withdraw_fail 'The final fee does not match the withdrawal plan.'; return 1;
-    }
-    jq -e --arg stake "${CNTOOLS_STAKE_REWARD_ADDRESS}" --arg amount "${CNTOOLS_WITHDRAW_REWARDS} Lovelace" \
-      --arg destination "${CNTOOLS_STAKE_BASE_ADDRESS}" '
-      (.withdrawals | length == 1) and .withdrawals[0].address == $stake and
-      .withdrawals[0].amount == $amount and
-      (.certificates == null or .certificates == []) and
-      .mint == null and .metadata == null and
-      (.outputs | length > 0 and all(.[]; .address == $destination))
-    ' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}" >/dev/null || {
-      cntools_withdraw_fail 'The final transaction does not match the reward withdrawal plan.'; return 1;
-    }
-    body_bytes="$(jq -er '.cborHex | length / 2' "${CNTOOLS_TRANSACTION_BODY_FILE}")" || return 1
-    witness_count="$(cntools_transaction_plan_witness_count)" || return 1
-    (( body_bytes + witness_count * 112 + 32 <= max_size )) || {
-      cntools_withdraw_fail 'The withdrawal would exceed the transaction size limit. Reduce input consolidation or change fragmentation.'; return 1;
-    }
-    withdraw_result="${withdraw_package_path}"
-    cntools_transaction_log TRANSACTION "Withdrawal built rewards=${CNTOOLS_WITHDRAW_REWARDS} fee=${CNTOOLS_WITHDRAW_FEE} inputs=${#CNTOOLS_WITHDRAW_INPUTS[@]} witnesses=${witness_count}"
-    return 0
-  done
-  cntools_withdraw_fail 'Withdrawal fees did not converge safely. Nothing was signed.'
+  # Refine the initial protocol lower bound using the actual body/witness fee.
+  cntools_transaction_balance_into "$1" CNTOOLS_WITHDRAW_FEE "${CNTOOLS_FUNDING_PROTOCOL}" \
+    cntools_withdraw_prepare_balanced_body "cntools_withdraw_validate_balanced_body" || return 1
 }
-
 cntools_withdraw_validate_output() {
   cntools_transaction_validate_change_output "$1" "${CNTOOLS_FUNDING_PROTOCOL}"
 }

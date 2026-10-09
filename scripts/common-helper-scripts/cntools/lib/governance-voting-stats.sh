@@ -118,7 +118,7 @@ cntools_voting_stats_render() {
           [[ -n "${power}" || "${vote}" != abstain ]] || power="$(jq -r --arg key "${prefix}_active_abstain_vote_power" '.[$key] // ""' <<< "${data}")"
           value=''
           [[ -z "${count}" ]] || value="$(cntools_number_format "${count}") votes"
-          [[ -z "${power}" ]] || value+=" · $(cntools_wallet_format_lovelace "${power}") voting power"
+          [[ -z "${power}" ]] || value+=" · $(cntools_number_format_lovelace "${power}") voting power"
           [[ -z "${percentage}" ]] || value+=" · $(cntools_number_format "${percentage}") %"
           [[ -z "${value}" ]] || cntools_table_pair "${role} · ${vote^}" "${value}" number
         done

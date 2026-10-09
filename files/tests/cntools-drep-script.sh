@@ -3,10 +3,12 @@
 # shellcheck disable=SC1090,SC2030,SC2031,SC2034,SC2154,SC2329
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-shared-libraries.sh"
+. "${REPO_ROOT}/files/tests/fixtures/cntools-wallet-libraries.sh"
 CNTOOLS_ROOT="${REPO_ROOT}/scripts/common-helper-scripts/cntools"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cntools-drep-script-ui.XXXXXX")"
 trap 'rm -rf -- "${TEST_ROOT}"' EXIT
-for lib in number wallet-query transaction drep-id drep-key drep-query drep-script governance-wallet-ui drep-script-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
+for lib in number wallet-query-transport wallet-query-local asset-metadata wallet-query-koios wallet-list-query asset-view wallet-view wallet-query transaction drep-id drep-key drep-query drep-script governance-wallet-ui drep-script-ui; do . "${CNTOOLS_ROOT}/lib/${lib}.sh"; done
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 cntools_log() { printf '%s %s\n' "$1" "$2" >> "${TEST_ROOT}/log"; }
 hash1="$(printf 'ab%.0s' {1..28})" hash2="$(printf 'cd%.0s' {1..28})"

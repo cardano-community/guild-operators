@@ -2,7 +2,9 @@
   "kind": "action",
   "label": "Transaction Defaults",
   "description": "Configure coin selection, change and transaction expiry",
-  "libs": ["number.sh"],
+  "libs": [
+    "number.sh"
+  ],
   "shortcut": "d",
   "order": 10,
   "modes": [
