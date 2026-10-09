@@ -387,3 +387,38 @@ validators still check exact certificates/votes, deposits, anchors and change.
 Key DReps may also use multisig funding. Source paths stay in runtime memory;
 portable public packages support independent offline participants. No parallel
 fee, signing or submission implementation is introduced.
+
+### Calidus identity setup
+
+`calidus-id.sh` combines the CLI's role-neutral Blake2b-224 public-key hashing
+with the existing checksum-tested Bech32 encoder (`a1`, HRP `calidus`).
+`pool-calidus.sh` validates normal/extended payment envelopes, stages imports
+and generation, verifies pairs/IDs and publishes only new files. Repair never
+replaces cached public artifacts. Inode-tracked cleanup precedes pool staging
+cleanup on interruption. No cold/node signing keys are read or modified and
+no network or transaction API is used by key setup. `pool-calidus-ui.sh` owns the
+pool chooser, cancellation, plaintext-key warning and compact local status.
+`pool-protection.sh` uses the shared GPG transport for cold and Calidus keys.
+It prepares/validates every key before publishing, publishes every counterpart
+before retirement, and tracks snapshots/inodes for partial-retirement recovery.
+`cntools_calidus_signing_matches` verifies staged normal/extended keys against
+optional public keys and cached IDs without publishing plaintext for inspection.
+KES/VRF keys and public identities are never encrypted. Hardware/watch-only
+cold identities may coexist with a protected Calidus key; lock-only needs no
+password when there are no local signing keys to transform.
+`calidus-registration.sh` freezes the public identities, verifies the complete
+CIP-151/CIP-88-v2 cold-key authorization using Cardano Signer, and queries the
+latest indexed Koios nonce (including revocation). `metadata-transaction.sh`
+adapts Send's existing selection/change/exact-fee engine with no recipients;
+it excludes datum/reference-script funding and compares the complete decoded
+metadata against the frozen authorization. Only funding witnesses enter the
+transaction plan. `pool-calidus-registration-ui.sh` provides public metadata
+export, compact shared review/expiry/workflow controls and live state rechecks.
+Registration and revocation share this pipeline with an explicitly bound
+operation. Revocation targets CIP-151's zero public key, requires only the pool
+cold identity, never inspects local Calidus files, and cannot import registration
+metadata. The UI confirms revocation with default No and skips transactions for
+already revoked/unindexed records. Both operations recheck the full reviewed
+indexed state before build/sign/submit and retain signed recovery packages.
+Offline authorization does not need chain access; online construction requires
+Koios for nonce lookup, while funding keeps the configured local/Koios preference.

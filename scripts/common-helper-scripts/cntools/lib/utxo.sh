@@ -32,6 +32,26 @@ cntools_utxo_fail() {
   return 1
 }
 
+# Payment-only metadata actions must not consume a datum/reference script and
+# return only its value as change. Preserve the complete eligible inventory.
+cntools_utxo_keep_simple_into() {
+  local -n us_skipped="$1"
+  local index=0 added=0 asset=''
+  local -a simple_refs=("${CNTOOLS_UTXO_REFS[@]}") simple_addresses=("${CNTOOLS_UTXO_ADDRESSES[@]}") simple_coins=("${CNTOOLS_UTXO_LOVELACE[@]}")
+  local -a simple_lists=("${CNTOOLS_UTXO_ASSET_LISTS[@]}") simple_datums=("${CNTOOLS_UTXO_HAS_DATUM[@]}") simple_scripts=("${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[@]}") simple_names=()
+  local -A amounts=()
+  for asset in "${!CNTOOLS_UTXO_ASSET_QUANTITIES[@]}"; do amounts["${asset}"]="${CNTOOLS_UTXO_ASSET_QUANTITIES[${asset}]}"; done
+  us_skipped=0
+  cntools_utxo_reset
+  for index in "${!simple_refs[@]}"; do
+    if [[ "${simple_datums[index]}" != N || "${simple_scripts[index]}" != N ]]; then us_skipped=$((us_skipped+1)); continue; fi
+    added="${#CNTOOLS_UTXO_REFS[@]}"
+    cntools_utxo_add "${simple_refs[index]}" "${simple_addresses[index]}" "${simple_coins[index]}" || return 1
+    read -r -a simple_names <<< "${simple_lists[index]}"
+    for asset in "${simple_names[@]}"; do cntools_utxo_add_asset "${added}" "${asset}" "${amounts[${index}|${asset}]}" || return 1; done
+  done
+}
+
 cntools_utxo_add() {
   local reference="${1:-}"
   local address="${2:-}"

@@ -146,15 +146,28 @@ fetch_pinned_archive() {
 CLI_ARCHIVE=""
 HWCLI_ARCHIVE=""
 ADDRESS_ARCHIVE=""
+SIGNER_ARCHIVE=""
+# Guild deploy currently resolves Signer from its latest release. Keep this
+# protocol/signature regression dependency fixed and checksum-verified in CI.
+SIGNER_VERSION=1.35.0
+SIGNER_URL="https://github.com/gitmachtl/cardano-signer/releases/download/v${SIGNER_VERSION}/cardano-signer-${SIGNER_VERSION}_linux-x64.tar.gz"
+SIGNER_SHA256=5240e69d43de0034b356593cb69a18029547cce4bfe28b0e9c39f87f85a7da07
 fetch_pinned_archive CLI_ARCHIVE cardano-cli "${CLI_URL}" "${CLI_SHA256}"
 fetch_pinned_archive HWCLI_ARCHIVE cardano-hw-cli \
   "${HWCLI_URL}" "${HWCLI_SHA256}"
 fetch_pinned_archive ADDRESS_ARCHIVE cardano-address "${ADDRESS_URL}" "${ADDRESS_SHA256}"
+fetch_pinned_archive SIGNER_ARCHIVE cardano-signer "${SIGNER_URL}" "${SIGNER_SHA256}"
 
 CLI_ROOT="${TEST_ROOT}/cardano-cli"
 HWCLI_ROOT="${TEST_ROOT}/cardano-hw-cli"
 ADDRESS_ROOT="${TEST_ROOT}/cardano-address"
-mkdir -m 0700 -- "${CLI_ROOT}" "${HWCLI_ROOT}" "${ADDRESS_ROOT}"
+SIGNER_ROOT="${TEST_ROOT}/cardano-signer"
+mkdir -m 0700 -- "${CLI_ROOT}" "${HWCLI_ROOT}" "${ADDRESS_ROOT}" "${SIGNER_ROOT}"
+tar -xzf "${SIGNER_ARCHIVE}" -C "${SIGNER_ROOT}" cardano-signer || fail 'could not extract pinned Cardano Signer'
+SIGNER="${SIGNER_ROOT}/cardano-signer"
+[[ -f "${SIGNER}" && ! -L "${SIGNER}" ]] || fail 'unexpected Cardano Signer archive layout'
+chmod 0700 "${SIGNER}"
+[[ "$("${SIGNER}" --version)" == "cardano-signer ${SIGNER_VERSION}" ]] || fail 'wrong Cardano Signer version'
 tar -xzf "${CLI_ARCHIVE}" -C "${CLI_ROOT}" ||
   fail "could not extract pinned cardano-cli release"
 tar -xzf "${HWCLI_ARCHIVE}" -C "${HWCLI_ROOT}" ||
@@ -569,6 +582,9 @@ bash "${SCRIPT_DIR}/cntools-governance-vote-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-pool-pinned.sh" "${CLI}"
 bash "${SCRIPT_DIR}/cntools-kes-pinned.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-pool-manage.sh" "${CLI}"
+bash "${SCRIPT_DIR}/cntools-calidus-pinned.sh" "${CLI}"
+bash "${SCRIPT_DIR}/cntools-calidus-protection-pinned.sh" "${CLI}"
+bash "${SCRIPT_DIR}/cntools-calidus-registration-pinned.sh" "${CLI}" "${SIGNER}"
 bash "${SCRIPT_DIR}/cntools-pool-registration.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-pool-retirement.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-policy-create.sh" "${CLI}"

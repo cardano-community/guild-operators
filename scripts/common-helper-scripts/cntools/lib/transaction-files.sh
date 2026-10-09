@@ -17,7 +17,7 @@ cntools_transaction_save_into() {
   local sf_directory="" sf_path="" sf_time="" sf_umask="" sf_log=""
   sf_result=""
   [[ "${sf_action}" =~ ^[a-z][a-z-]{0,30}$ ]] || return 2
-  [[ "${sf_kind}" == signed || "${sf_kind}" == unsigned ]] || return 2
+  [[ "${sf_kind}" == signed || "${sf_kind}" == unsigned || "${sf_kind}" == metadata ]] || return 2
   cntools_transaction_directory_safe "${CNTOOLS_NODE_HOME}" || return 1
   sf_umask="$(umask)"; umask 077
   if [[ ! -e "${sf_base}" && ! -L "${sf_base}" ]]; then

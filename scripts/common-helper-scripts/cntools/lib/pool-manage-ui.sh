@@ -109,7 +109,7 @@ cntools_pool_action_import() {
 }
 
 cntools_pool_action_protection() {
-  local operation="$1" title="" selected="" directory="" cold="" source="" password="" confirmation="" status=0
+  local operation="$1" title="" selected="" directory="" cold="" calidus="" calidus_state="" source="" calidus_source="" password="" confirmation="" status=0
   [[ "${operation}" != encrypt ]] && title=Decrypt || title=Encrypt
   cntools_ui_action_begin "${title}" "/ Pool / ${title}"
   cntools_pool_catalog_build || { cntools_ui_render_status error 'The pool directory could not be read safely.'; cntools_ui_wait; return 1; }
@@ -118,24 +118,28 @@ cntools_pool_action_protection() {
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   directory="${CNTOOLS_POOL_DIRECTORIES[selected]}"
   cntools_pool_file_name_into cold cold-skey
+  cntools_pool_file_name_into calidus calidus-skey
   source="${directory}/${cold}"
-  [[ "${operation}" != decrypt ]] || source+='.gpg'
+  calidus_source="${directory}/${calidus}"
+  [[ "${operation}" != decrypt ]] || { source+='.gpg'; calidus_source+='.gpg'; }
+  cntools_pool_key_state_into calidus_state "${directory}" calidus-skey || return 1
   {
     cntools_table_pair Pool "${CNTOOLS_POOL_NAMES[selected]}" identifier
     cntools_table_pair 'Cold key' "${CNTOOLS_POOL_PROTECTIONS[selected]}" value
+    [[ "${calidus_state}" == Missing ]] || cntools_table_pair 'Calidus key' "${calidus_state}" value
     if [[ "${operation}" == encrypt ]]; then
-      cntools_table_pair Result 'Cold signing key encrypted (when present); pool files locked' value
+      cntools_table_pair Result 'Cold and Calidus signing keys encrypted when present; pool files locked' value
     else
-      cntools_table_pair Result 'Cold signing key decrypted (when present); pool files unlocked' value
+      cntools_table_pair Result 'Cold and Calidus signing keys decrypted when present; pool files unlocked' value
     fi
     cntools_table_pair 'Node keys' 'KES and VRF keys remain readable by the node' muted
   } | cntools_table_render "${title} pool"
-  cntools_ui_render_status warn 'Keep offline backups. Password loss cannot be recovered; decrypted cold keys must be handled securely.'
+  cntools_ui_render_status warn 'Keep offline backups. Password loss cannot be recovered. Both signing keys use the same password; decryption opens all protected keys together.'
   status=0; cntools_ui_confirm "${title} this pool?" false || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
-  if [[ -f "${source}" && ! -L "${source}" ]]; then
+  if [[ ( -f "${source}" && ! -L "${source}" ) || ( -f "${calidus_source}" && ! -L "${calidus_source}" ) ]]; then
     while true; do
-      cntools_ui_password password 'Pool cold-key password' || {
+      cntools_ui_password password 'Pool signing-key password' || {
         status=$?; unset password; ((status != 1)) || return 0; return "${status}";
       }
       if [[ -z "${password}" || "${password}" == *$'\n'* || "${password}" == *$'\r'* ]] ||
@@ -144,7 +148,7 @@ cntools_pool_action_protection() {
         unset password; continue
       fi
       if [[ "${operation}" == encrypt ]]; then
-        cntools_ui_password confirmation 'Confirm pool cold-key password' || {
+        cntools_ui_password confirmation 'Confirm pool signing-key password' || {
           status=$?; unset password confirmation; ((status != 1)) || return 0; return "${status}";
         }
         if [[ "${password}" != "${confirmation}" ]]; then
@@ -156,11 +160,12 @@ cntools_pool_action_protection() {
   fi
   cntools_transaction_log CHOICE "Pool protection confirmed pool=${directory##*/} operation=${operation}"
   status=0
-  cntools_ui_spin_function "${title}ing pool cold key and file protection…" cntools_pool_protect "${directory}" "${operation}" "${password:-}" || status=$?
+  cntools_ui_spin_function "${title}ing pool signing keys and file protection…" cntools_pool_protect "${directory}" "${operation}" "${password:-}" || status=$?
   unset password confirmation
   cntools_ui_action_begin "${title}" "/ Pool / ${title}"
   if ((status == 0)); then
     { cntools_table_pair Pool "${directory##*/}" identifier; cntools_table_pair Result "${title} completed" success;
+      cntools_table_pair 'Signing keys processed' "$(cntools_number_format "${CNTOOLS_POOL_PROTECTION_KEYS}")" number;
       [[ "${operation}" != encrypt ]] || cntools_table_pair Protection "${CNTOOLS_POOL_LOCK_METHOD}" value;
     } | cntools_table_render Pool
   else

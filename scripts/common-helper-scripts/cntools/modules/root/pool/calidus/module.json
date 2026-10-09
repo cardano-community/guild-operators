@@ -6,9 +6,45 @@
   "order": 110,
   "modes": [
     "local",
-    "light"
+    "light",
+    "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "wallet-query.sh",
+    "utxo.sh",
+    "transaction.sh",
+    "transaction-build.sh",
+    "transaction-sign.sh",
+    "transaction-submit.sh",
+    "transaction-monitor.sh",
+    "transaction-ui.sh",
+    "transaction-files.sh",
+    "coin-selection.sh",
+    "change-plan.sh",
+    "recipient.sh",
+    "transaction-funding.sh",
+    "transaction-metadata.sh",
+    "wallet-payment.sh",
+    "multisig-spend.sh",
+    "funds-send.sh",
+    "metadata-transaction.sh",
+    "wallet-selection.sh",
+    "pool-id.sh",
+    "drep-id.sh",
+    "calidus-id.sh",
+    "table.sh",
+    "pool.sh",
+    "pool-files.sh",
+    "pool-key.sh",
+    "pool-calidus.sh",
+    "calidus-registration.sh",
+    "pool-calidus-registration-ui.sh",
+    "pool-calidus-ui.sh"
   ]
 }

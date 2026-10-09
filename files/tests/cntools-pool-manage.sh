@@ -221,18 +221,22 @@ fi
 cntools_pool_temp_into interrupted "${directory}"
 printf 'test-counterpart' > "${interrupted}"
 ln "${interrupted}" "${directory}/cold.skey.gpg"
-CNTOOLS_POOL_PROTECTION_SOURCE="${directory}/cold.skey"
-CNTOOLS_POOL_PROTECTION_TARGET="${directory}/cold.skey.gpg"
-CNTOOLS_POOL_PROTECTION_STAGED="${interrupted}"
+cntools_pool_temp_into snapshot "${directory}"
+cp "${directory}/cold.skey" "${snapshot}"
+CNTOOLS_POOL_PROTECTION_SOURCES=("${directory}/cold.skey")
+CNTOOLS_POOL_PROTECTION_TARGETS=("${directory}/cold.skey.gpg")
+CNTOOLS_POOL_PROTECTION_STAGED=("${interrupted}")
+CNTOOLS_POOL_PROTECTION_SNAPSHOTS=("${snapshot}")
+CNTOOLS_POOL_PROTECTION_MODES=(600)
 cntools_pool_protection_cleanup
 [[ -f "${directory}/cold.skey" && ! -e "${directory}/cold.skey.gpg" ]] || fail 'interrupted counterpart rollback'
 # After retirement, cleanup must retain the final copy.
 cntools_pool_temp_into interrupted "${directory}"
 printf 'test-counterpart' > "${interrupted}"
 ln "${interrupted}" "${directory}/retained-copy"
-CNTOOLS_POOL_PROTECTION_SOURCE="${directory}/already-retired"
-CNTOOLS_POOL_PROTECTION_TARGET="${directory}/retained-copy"
-CNTOOLS_POOL_PROTECTION_STAGED="${interrupted}"
+CNTOOLS_POOL_PROTECTION_SOURCES=("${directory}/already-retired")
+CNTOOLS_POOL_PROTECTION_TARGETS=("${directory}/retained-copy")
+CNTOOLS_POOL_PROTECTION_STAGED=("${interrupted}")
 cntools_pool_protection_cleanup
 [[ -f "${directory}/retained-copy" ]] || fail 'cleanup removed last copy'
 rm "${directory}/retained-copy"

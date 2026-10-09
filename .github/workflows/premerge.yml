@@ -96,6 +96,12 @@ jobs:
       run: bash files/tests/cntools-pool.sh
     - name: Test CNTools pool creation, import and protection
       run: bash files/tests/cntools-pool-manage.sh
+    - name: Test CNTools pool key protection interaction
+      run: bash files/tests/cntools-pool-protection-ui.sh
+    - name: Test CNTools Calidus interaction
+      run: bash files/tests/cntools-calidus-ui.sh
+    - name: Test CNTools Calidus registration interaction
+      run: bash files/tests/cntools-calidus-registration-ui.sh
     - name: Test CNTools pool registration and modification
       run: bash files/tests/cntools-pool-registration.sh
     - name: Test CNTools pool retirement

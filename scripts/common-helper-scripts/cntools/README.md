@@ -147,7 +147,9 @@ metadata; a separate metadata action would duplicate that workflow.
 
 Pool List and Show are functional read-only browsers for existing pool
 directories. Pool New, Import, Encrypt, Decrypt, Register, Modify, Rotate and
-Retire are also implemented. Calidus remains a separate slice.
+Retire are also implemented. Calidus key creation/import, local status, Koios
+registration lookup, offline authorization, on-chain registration/revocation and
+cold/Calidus signing-key protection are available.
 
 **Advanced → MultiSig → Derive Keys / Create** are functional. Threshold script
 wallets support Funds Send/Collect and stake registration, de-registration,
@@ -1689,24 +1691,150 @@ counter before subsequent registration or certificate issuance. Physical device
 approval remains a manual acceptance check.
 
 **Pool → Encrypt / Decrypt** follows the legacy protection model: GnuPG protects
-only the cold signing key. KES and VRF keys stay readable for node operation.
+the cold and Calidus signing keys when present. KES and VRF keys stay readable
+for node operation; public keys, Calidus IDs and hardware references are not
+encrypted. A single password protects both local signing keys.
 New encryption requires at least 12 password characters; decryption accepts
 shorter legacy passwords. Passwords are supplied through a private descriptor,
 never command arguments or logs. Encryption is round-trip verified, and decrypted
-keys must match any existing cold public key, before the original is retired.
-Failed operations retain the original key; cleanup never deletes the last copy.
+keys must match any existing public keys and cached Calidus ID. Normal and
+extended Calidus envelopes are supported. Every key is prepared and verified
+before any counterpart is published; all counterparts are published before
+originals are retired. Failures restore originals already retired before
+discarding only this operation's own counterparts. If restoration is impossible,
+the validated counterpart is retained instead of losing the last key copy.
+Unexpected file replacement preserves private recovery staging for manual review.
+No existing destination is overwritten.
+
+Both encrypted keys must use the supplied password: a failure on either leaves
+both protected, even if the first could be decrypted successfully. Existing keys
+encrypted independently with different passwords must be normalized externally
+before using the combined flow. Mixed clear/encrypted copies of the same key,
+unsupported encrypted files and linked/unfinished files are rejected.
 
 Encryption sets owner-only read permissions on pool files and uses immutable
 flags when `ENABLE_CHATTR` permits and the filesystem/permissions support them.
 Otherwise read-only permissions are the fallback. Decryption removes locks and
 restores owner read/write permissions. Hardware and watch-only pools can also
-lock/unlock their local files without a password. Keep independent offline
+lock/unlock their local files without a password when no local signing keys
+need transformation. A Calidus-only pool, including one with a hardware cold
+key, still requests a password to protect its local Calidus key. Keep independent offline
 backups: neither permissions nor encryption protects against password loss.
 
 Focused safety tests run in `cntools-pool-manage.sh`; the pinned suite also runs
 them against the cnode deployment's Cardano CLI version. Tests cover no-clobber
 publication, missing-key derivation, source preservation, invalid imports, GPG
 round trips, legacy short passwords and failure rollback.
+`cntools-calidus-protection-pinned.sh` adds real two-key GPG round trips against
+the cnode CLI pin, second-key publication/retirement failures in both directions,
+last-copy retention, mixed password failures, public/ID binding and extended
+Calidus keys. Disposable GPG homes and generated keys isolate these tests from
+user key material.
+
+## Calidus identity, registration and revocation
+
+**Pool → Calidus** selects an existing pool and provides local Info & Status,
+CLI key creation, signing-key import, verification-key-only import and repair
+of missing public files. These operations also work in offline mode: Cardano
+CLI is needed to verify identities, but no node or Koios connection is used.
+Local Info & Status does not make network requests or claim registration.
+Use **Check on-chain status** to query the latest indexed authorization via Koios,
+including revoked keys. An empty result is “Not indexed”, never proof that a
+pending transaction does not exist. A failed query is “Unavailable”.
+
+The separate artifacts are `calidus.skey`, `calidus.vkey` and `calidus.id`.
+Normal and extended payment key envelopes are accepted, including existing
+Cardano Signer Calidus keys. Extended public keys are normalized in staging;
+imported private keys and source files remain unchanged. IDs use the Calidus
+`a1` header, Blake2b-224 public-key hash and `calidus` Bech32 prefix. The
+published Cardano Signer example is independently checked in the pinned tests.
+
+Creation/import never replaces existing Calidus material, including incomplete
+sets. Repair derives only missing verification/ID files, checks existing pairs
+and cached IDs, and rejects mismatches without correcting or deleting them.
+Files are prepared privately, validated and published without overwriting;
+partial publication/interruption removes only this operation's own links.
+Cold, KES, VRF, counters and operational certificates remain untouched.
+
+Signing keys are saved unencrypted with owner-only permissions. This is shown
+before confirmation: use **Pool → Encrypt** to protect it together with any
+local cold signing key.
+Unlock an encrypted pool before adding a clear Calidus signing key. Public-only
+import/repair does not decrypt private material. Public backups include the
+Calidus verification key and ID, never its signing key; full backups include
+the secret and must be stored securely.
+
+**Prepare registration metadata** authorizes the displayed public key under
+[CIP-151](https://cips.cardano.org/cip/CIP-0151) (CIP-88 v2, label 867). It needs
+Cardano Signer 1.24.0+ (already offered by Guild Deploy). Use a local CLI pool
+cold key, or import an authorization prepared externally. The Calidus signing
+key is not needed. Verified metadata is saved automatically under the node's
+`transactions/calidus-authorization-*/metadata.json`; only that public file
+needs to move from an offline signing system to the online node. Cold, KES,
+VRF and counter files are never modified. Hardware cold-key COSE authorization
+is not available through Cardano HW CLI; a hardware transaction witness is not
+a substitute for this metadata signature.
+
+**Register / replace on-chain** checks the latest indexed Koios nonce, verifies
+the complete cold-key signature, then selects a funding wallet. Koios is required
+for this registration lookup even in local mode; the local node remains preferred
+for funding data. Nonces must increase, including after a revoked registration.
+Enter uses the current slot (or previous nonce + 1 if higher); offline metadata
+preparation requires an explicit nonce and warns that it has not been checked.
+The exact Signer range is 0–9,007,199,254,740,991. Unavailable/malformed chain data,
+stale authorizations and changed pool/Calidus identities stop the operation.
+Indexing can lag; check earlier submissions before creating another authorization.
+
+**Revoke on-chain** checks the latest indexed key and asks for explicit
+confirmation (default No). It submits the CIP-151 all-zero public-key replacement
+with a higher nonce, signed by the pool cold key. This invalidates all previous
+Calidus authorizations without introducing another key; it does **not** retire
+the pool, stop the node, delete keys or refund a deposit. Missing, damaged or
+encrypted local Calidus files do not block revocation: none are read or modified.
+The verified pool cold public key is still required. Already revoked or not
+indexed authorizations are shown without building an unnecessary transaction;
+check any pending registration when Koios has not indexed it yet.
+
+**Prepare revocation metadata** also works offline, with an explicit nonce and
+an unchecked-state warning. Import an externally signed revocation or use the
+local CLI cold key, then move only the public
+`transactions/calidus-revocation-*/metadata.json` to the online system and choose
+**Revoke on-chain → Import signed metadata**. Registration and revocation imports
+cannot be interchanged. Online preparation checks the current indexed nonce;
+construction, live signing and submission also stop if the reviewed indexed
+authorization changes, including replacement by another key. Revocation uses
+the same funding workflow and durable `calidus-revoke-*` transaction exports.
+
+The transaction pays only its fee: no deposit, recipient, certificate or cold
+transaction witness. Shared input selection, token fragmentation, ADA-only change
+management and exact CLI fee calculation are reused. Datum/reference-script
+UTxOs are excluded. All selected coins/assets return to the funding wallet's
+primary address. CLI, mnemonic, hardware and native multisig funding wallets
+use their existing signer and change-reference plans. The compact review exposes
+required signers through the common menu, supports expiry changes/No expiry,
+and offers live, sign-only and unsigned/offline funding workflows. Signed packages
+are retained before any submission, including cancellation or ambiguous failures.
+Live signing/submission rechecks the indexed authorization and selected inputs;
+an exported package is fixed, so its funding expiry and on-chain nonce must still
+be checked when it is submitted later. No expiry does not prevent input conflicts
+or a later authorization superseding the package.
+
+Mnemonic creation and hardware Calidus key generation remain outside these
+Calidus slices.
+
+`cntools-calidus-ui.sh` checks cancellation and local-status wording in CI.
+`cntools-calidus-pinned.sh` runs against only the cnode deployment CLI pin and
+checks real key generation/import, ID vectors, missing-only repair, private
+permissions, backup exclusions, collisions, rollback and interruption.
+`cntools-calidus-registration-ui.sh` tests registration/revocation workflows,
+no-op handling, confirmation, cancellation and recovery.
+`cntools-calidus-registration-pinned.sh` uses the cnode CLI pin (11.2.3.1) and
+checksum-pinned Cardano Signer 1.35.0 for real COSE verification, metadata/body
+binding, replay checks, fee/change balancing and portable offline funding signing.
+It also covers zero-key revocation, missing/damaged local Calidus files,
+cross-operation import rejection, changed indexed keys, native multisig funding
+and unchanged exact/max/sweep Send builds.
+Chain responses are fixtures; no node, hardware device or live submission is used.
 
 ## Pool retirement
 

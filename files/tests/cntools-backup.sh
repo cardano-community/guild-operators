@@ -48,13 +48,20 @@ CNTOOLS_POOL_DIR="${CNTOOLS_NODE_HOME}/priv/pool"
 CNTOOLS_ASSET_DIR="${CNTOOLS_NODE_HOME}/priv/asset"
 CNTOOLS_NETWORK=preview
 CNTOOLS_WALLET_PAY_VKEY_FILENAME=payment.vkey
+CNTOOLS_WALLET_STAKE_VKEY_FILENAME=stake.vkey
+CNTOOLS_WALLET_PAY_CRED_FILENAME=payment.cred
+CNTOOLS_WALLET_STAKE_CRED_FILENAME=stake.cred
 CNTOOLS_WALLET_PAY_SKEY_FILENAME=payment.skey
 CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME=payment.hwsfile
+CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME=stake.hwsfile
 CNTOOLS_WALLET_BASE_ADDR_FILENAME=base.addr
 CNTOOLS_POOL_COLD_SKEY_FILENAME=cold.skey
 CNTOOLS_POOL_COLD_VKEY_FILENAME=cold.vkey
 CNTOOLS_POOL_COUNTER_FILENAME=cold.counter
 CNTOOLS_POOL_OPCERT_FILENAME=op.cert
+CNTOOLS_POOL_CALIDUS_SKEY_FILENAME=calidus.skey
+CNTOOLS_POOL_CALIDUS_VKEY_FILENAME=calidus.vkey
+CNTOOLS_POOL_CALIDUS_ID_FILENAME=calidus.id
 mkdir -p "${CNTOOLS_TMP_DIR}" "${CNTOOLS_WALLET_DIR}/Test" "${CNTOOLS_POOL_DIR}/Pool" "${CNTOOLS_POOL_DIR}/.cntools-kes-rotate.recovery" "${CNTOOLS_ASSET_DIR}/Asset" "${TEST_ROOT}/out"
 printf 'private payment\n' > "${CNTOOLS_WALLET_DIR}/Test/payment.skey"
 printf 'public payment\n' > "${CNTOOLS_WALLET_DIR}/Test/payment.vkey"
@@ -63,6 +70,9 @@ printf 'addr_test\n' > "${CNTOOLS_WALLET_DIR}/Test/base.addr"
 printf 'custom secret\n' > "${CNTOOLS_WALLET_DIR}/Test/my-seed.txt"
 printf 'private cold\n' > "${CNTOOLS_POOL_DIR}/Pool/cold.skey"
 printf 'cold public\n' > "${CNTOOLS_POOL_DIR}/Pool/cold.vkey"
+printf 'private Calidus\n' > "${CNTOOLS_POOL_DIR}/Pool/calidus.skey"
+printf 'public Calidus\n' > "${CNTOOLS_POOL_DIR}/Pool/calidus.vkey"
+printf 'Calidus ID\n' > "${CNTOOLS_POOL_DIR}/Pool/calidus.id"
 printf 'counter 9\n' > "${CNTOOLS_POOL_DIR}/Pool/cold.counter"
 printf 'certificate 8\n' > "${CNTOOLS_POOL_DIR}/Pool/op.cert"
 printf 'recovery hot key\n' > "${CNTOOLS_POOL_DIR}/.cntools-kes-rotate.recovery/hot.skey"
@@ -73,6 +83,7 @@ FULL_BACKUP="${CNTOOLS_BACKUP_RESULT}"
 cntools_backup_restore_prepare "${FULL_BACKUP}" || fail "prepare full: ${CNTOOLS_BACKUP_ERROR}"
 eq "${CNTOOLS_BACKUP_KIND}" full; eq "${CNTOOLS_BACKUP_NETWORK}" preview
 cmp "${CNTOOLS_WALLET_DIR}/Test/payment.skey" "${CNTOOLS_BACKUP_WORK}/restore/wallets/Test/payment.skey"
+cmp "${CNTOOLS_POOL_DIR}/Pool/calidus.skey" "${CNTOOLS_BACKUP_WORK}/restore/pools/Pool/calidus.skey"
 cntools_backup_create "${TEST_ROOT}/out" public plain || fail "public backup: ${CNTOOLS_BACKUP_ERROR}"
 PUBLIC_BACKUP="${CNTOOLS_BACKUP_RESULT}"
 cntools_backup_restore_prepare "${PUBLIC_BACKUP}" || fail 'public prepare'
@@ -81,6 +92,9 @@ cntools_backup_restore_prepare "${PUBLIC_BACKUP}" || fail 'public prepare'
    ! -e "${CNTOOLS_BACKUP_WORK}/restore/pools/.cntools-kes-rotate.recovery" &&
    -f "${CNTOOLS_BACKUP_WORK}/restore/wallets/Test/base.addr" &&
    -f "${CNTOOLS_BACKUP_WORK}/restore/wallets/Test/payment.hwsfile" ]] || fail 'public private-file omission/HWS retention'
+[[ ! -e "${CNTOOLS_BACKUP_WORK}/restore/pools/Pool/calidus.skey" &&
+   -f "${CNTOOLS_BACKUP_WORK}/restore/pools/Pool/calidus.vkey" &&
+   -f "${CNTOOLS_BACKUP_WORK}/restore/pools/Pool/calidus.id" ]] || fail 'Calidus public/private backup boundary'
 
 # Restore on a fresh deployment imports missing objects, but leaves KES stages
 # inactive. Same-name objects are never merged, even on a repeat restore.

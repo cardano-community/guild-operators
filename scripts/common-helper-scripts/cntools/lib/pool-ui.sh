@@ -17,6 +17,8 @@ cntools_pool_identity_rows() {
   [[ "${CNTOOLS_POOL_IDENTITIES[index]}" != 'Identity needs attention' ]] || role=warning
   cntools_table_pair Identity "${CNTOOLS_POOL_IDENTITIES[index]}" "${role}"
   cntools_table_pair 'Cold key' "${CNTOOLS_POOL_PROTECTIONS[index]}" "$([[ "${CNTOOLS_POOL_PROTECTIONS[index]}" == Missing ]] && printf warning || printf value)"
+  cntools_pool_key_state_into state "${CNTOOLS_POOL_DIRECTORIES[index]}" calidus-skey || return 1
+  [[ "${state}" == Missing ]] || cntools_table_pair 'Calidus key' "${state}" value
   if [[ "${detailed}" == Y ]]; then
     for kind in kes-skey vrf-skey; do
       cntools_pool_key_state_into state "${CNTOOLS_POOL_DIRECTORIES[index]}" "${kind}" || return 1

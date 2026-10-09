@@ -12,6 +12,7 @@ cntools_drep_bech32_into() {
     drep|drep_script)
       [[ "${di_hex}" =~ ^[0-9a-f]{56}$ || ( "${di_hrp}" == drep && "${di_hex}" =~ ^2[23][0-9a-f]{56}$ ) ]] || return 2 ;;
     gov_action) [[ "${di_hex}" =~ ^[0-9a-f]{66}$ ]] || return 2 ;;
+    calidus) [[ "${di_hex}" =~ ^a1[0-9a-f]{56}$ ]] || return 2 ;;
     *) return 2 ;;
   esac
   for ((di_i=0; di_i<${#di_hrp}; di_i++)); do

@@ -31,7 +31,7 @@ pool/show	action	s	70	local,light,offline	-	Show
 pool/rotate	action	o	80	local,light,offline	-	Rotate
 pool/decrypt	action	d	90	local,light,offline	-	Decrypt
 pool/encrypt	action	e	100	local,light,offline	-	Encrypt
-pool/calidus	action	c	110	local,light	-	Calidus
+pool/calidus	action	c	110	local,light,offline	-	Calidus
 transaction	menu	t	40	-	-	Transaction
 transaction/sign	action	s	10	local,light,offline	-	Sign
 transaction/submit	action	t	20	local,light	-	Submit

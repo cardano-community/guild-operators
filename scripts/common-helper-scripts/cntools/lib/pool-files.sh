@@ -45,7 +45,7 @@ cntools_pool_filenames_validate() {
   local kind="" filename="" reserved=""
   local -A names=()
   # Reject filename collisions before generation or protection touches a key.
-  for kind in id cold-vkey cold-skey cold-hardware kes-vkey kes-skey vrf-vkey vrf-skey counter opcert kes-start config metadata; do
+  for kind in id cold-vkey cold-skey cold-hardware calidus-skey calidus-vkey calidus-id kes-vkey kes-skey vrf-vkey vrf-skey counter opcert kes-start config metadata; do
     cntools_pool_file_name_into filename "${kind}" || return 1
     for reserved in "${filename}" "${filename}.gpg" "${filename}.previous"; do
       [[ -z "${names[${reserved}]:-}" ]] || { cntools_pool_write_error 'Configured pool filenames or backups overlap.'; return 1; }

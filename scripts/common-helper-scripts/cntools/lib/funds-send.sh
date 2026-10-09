@@ -69,6 +69,13 @@ cntools_send_minimum_into() {
 cntools_send_demands() {
   local index=0 asset="" quantity="" sum="" minimum="" output="" key=""
   CNTOOLS_SEND_DEMAND=()
+  # Metadata-only actions return every selected asset/coin as normal wallet
+  # change. They use exactly the same selection, minimum-ADA and fee engine.
+  if [[ "${CNTOOLS_SEND_MODE}" == metadata ]]; then
+    (( ${#CNTOOLS_SEND_ADDRESSES[@]} == 0 && ${#CNTOOLS_SEND_AMOUNTS[@]} == 0 && ${#CNTOOLS_SEND_ASSETS[@]} == 0 )) &&
+      [[ -n "${CNTOOLS_METADATA_CUSTOM:-}" && -z "${CNTOOLS_METADATA_MESSAGE:-}" ]] || return 2
+    return 0
+  fi
   case "${CNTOOLS_SEND_MODE}" in exact|max|sweep) ;; *) return 2 ;; esac
   (( ${#CNTOOLS_SEND_ADDRESSES[@]} >= 1 && ${#CNTOOLS_SEND_ADDRESSES[@]} <= 20 )) || return 2
   [[ "${CNTOOLS_SEND_MODE}" == exact || ${#CNTOOLS_SEND_ADDRESSES[@]} == 1 ]] || return 1
@@ -167,14 +174,14 @@ cntools_send_change() {
   cntools_uint_add_into cost "${outputs_total}" "${CNTOOLS_SEND_FEE}" || return 1
   cntools_uint_add_into cost "${cost}" "${CNTOOLS_CHANGE_TOKEN_MIN_TOTAL}" || return 1
   cntools_send_minimum_into minimum "${CNTOOLS_SEND_ADDRESS}+0" || return 1
-  if [[ "${CNTOOLS_SEND_MODE}" == exact ]]; then
+  if [[ "${CNTOOLS_SEND_MODE}" == exact || "${CNTOOLS_SEND_MODE}" == metadata ]]; then
     cntools_uint_add_into cost "${cost}" "${minimum}" || return 1
   fi
   if ! cntools_uint_greater_equal "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${cost}"; then
     cntools_uint_subtract_into CNTOOLS_CHANGE_REQUIRED_EXTRA "${cost}" "${CNTOOLS_COIN_SELECTED_LOVELACE}" || return 1
     return 3
   fi
-  if [[ "${CNTOOLS_SEND_MODE}" != exact ]]; then
+  if [[ "${CNTOOLS_SEND_MODE}" != exact && "${CNTOOLS_SEND_MODE}" != metadata ]]; then
     cntools_uint_subtract_into remaining "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${cost}" || return 1
     CNTOOLS_SEND_AMOUNTS[0]="${remaining}"
     CNTOOLS_CHANGE_UTXO_STATUS="Skipped for Max ADA / Send everything"
@@ -194,6 +201,9 @@ cntools_send_build_into() {
   local output_name="${1:-}" total=0 required=0 extra=0 index=0 attempt=0 status=0
   local body="" built_send_package="" next_fee="" minimum="" output="" asset="" policy="" summary=""
   local max_size=0 max_value=0 value_bytes=0 body_bytes=0 witnesses=0
+  local intent="${2:-Send funds}" description="${3:-Transfer from ${CNTOOLS_SEND_WALLET}; rewards and deposits are not withdrawn.}"
+  local context="${4:-}"; [[ -n "${context}" ]] || context='{"action":"send"}'
+  jq -e 'type == "object"' <<< "${context}" >/dev/null || return 2
   local -a arguments=() metadata_arguments=()
   local -n send_package_ref="${output_name}"
   send_package_ref=""
@@ -203,13 +213,13 @@ cntools_send_build_into() {
     }
   fi
   cntools_send_demands || return 1
-  cntools_send_plan_signers || return 1
+  cntools_send_plan_signers "${intent}" "${description}" || return 1
   CNTOOLS_SEND_FEE=0
   max_size="$(jq -er '.maxTxSize | select(type == "number" and . > 0 and . <= 100000) | floor' "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
   max_value="$(jq -er '.maxValueSize | select(type == "number" and . > 0 and . <= 100000) | floor' "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
   for (( attempt=0; attempt<20; attempt++ )); do
     total=0
-    if [[ "${CNTOOLS_SEND_MODE}" == exact ]]; then
+    if [[ "${CNTOOLS_SEND_MODE}" == exact || "${CNTOOLS_SEND_MODE}" == metadata ]]; then
       for index in "${!CNTOOLS_SEND_AMOUNTS[@]}"; do
         cntools_uint_add_into total "${total}" "${CNTOOLS_SEND_AMOUNTS[index]}" || return 1
       done
@@ -225,7 +235,7 @@ cntools_send_build_into() {
     fi
     status=0
     cntools_send_change "${total}" || status=$?
-    if (( status == 3 )) && [[ "${CNTOOLS_SEND_MODE}" == exact ]]; then
+    if (( status == 3 )) && [[ "${CNTOOLS_SEND_MODE}" == exact || "${CNTOOLS_SEND_MODE}" == metadata ]]; then
       cntools_uint_add_into extra "${extra}" "${CNTOOLS_CHANGE_REQUIRED_EXTRA}" || return 1
       continue
     fi
@@ -272,14 +282,14 @@ cntools_send_build_into() {
       CNTOOLS_SEND_FEE="${next_fee}"; continue
     fi
     policy="$(cntools_change_policy_json | jq -c --arg mode "${CNTOOLS_SEND_MODE}" \
-      '. + {selectionApplied: (if $mode == "exact" then .selection else "all-inputs" end)}')" || return 1
+      '. + {selectionApplied: (if $mode == "exact" or $mode == "metadata" then .selection else "all-inputs" end)}')" || return 1
     CNTOOLS_SEND_POLICY="${policy}"
     summary="$(jq -cn --arg wallet "${CNTOOLS_SEND_WALLET}" --arg mode "${CNTOOLS_SEND_MODE}" \
       --arg fee "${CNTOOLS_SEND_FEE}" --arg source "${CNTOOLS_FUNDING_BACKEND}" \
-      --argjson transactionPolicy "${policy}" \
+      --argjson transactionPolicy "${policy}" --argjson context "${context}" \
       --arg metadata "${CNTOOLS_METADATA_MODE:-none}" \
       --argjson resolutions "$(printf '%s\n' "${CNTOOLS_SEND_RESOLUTIONS[@]}" | jq -sc '[.[] | select(type == "object")]')" \
-      '{action:"send",wallet:$wallet,amountMode:$mode,feeLovelace:$fee,dataSource:$source,transactionPolicy:$transactionPolicy,messageMode:$metadata,handleResolutions:$resolutions}')" || return 1
+      '$context + {wallet:$wallet,amountMode:$mode,feeLovelace:$fee,dataSource:$source,transactionPolicy:$transactionPolicy,messageMode:$metadata,handleResolutions:$resolutions}')" || return 1
     cntools_transaction_plan_set_summary "${summary}" || return 1
     cntools_transaction_package_create_staged_into built_send_package "${body}" || return 1
     if [[ "${CNTOOLS_SEND_TYPE}" == Hardware || "${CNTOOLS_TRANSACTION_PACKAGE_HARDWARE_PREPARED:-N}" == Y ]]; then
@@ -296,7 +306,7 @@ cntools_send_build_into() {
       fi
     fi
     send_package_ref="${built_send_package}"
-    cntools_transaction_log TRANSACTION "Send built mode=${CNTOOLS_SEND_MODE} inputs=${#CNTOOLS_COIN_SELECTED_INDICES[@]} outputs=${#CNTOOLS_SEND_OUTPUTS[@]} fee=${CNTOOLS_SEND_FEE} policy=${policy}"
+    cntools_transaction_log TRANSACTION "${intent} built mode=${CNTOOLS_SEND_MODE} inputs=${#CNTOOLS_COIN_SELECTED_INDICES[@]} outputs=${#CNTOOLS_SEND_OUTPUTS[@]} fee=${CNTOOLS_SEND_FEE} policy=${policy}"
     return 0
   done
   cntools_send_fail "Fee and change balancing did not converge within the safety limit."

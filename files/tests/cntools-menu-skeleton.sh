@@ -433,6 +433,11 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_policy_action_create' "${action_file}" >/dev/null || fail 'Policy creation entrypoint missing'
         grep -F 'cntools_policy_files_cleanup' "${action_file}" >/dev/null || fail 'Policy creation cleanup missing'
         ;;
+      pool/calidus)
+        jq -e '.libs | index("pool-calidus.sh") != null and index("pool-calidus-ui.sh") != null and index("calidus-id.sh") != null and index("calidus-registration.sh") != null and index("metadata-transaction.sh") != null and index("transaction-sign.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail 'Calidus dependencies missing'
+        grep -F 'cntools_pool_action_calidus' "${action_file}" >/dev/null || fail 'Calidus entrypoint missing'
+        grep -F 'cntools_calidus_publication_cleanup' "${action_file}" >/dev/null || fail 'Calidus publication cleanup missing'
+        ;;
       pool/new|pool/import|pool/encrypt|pool/decrypt)
         jq -e '.libs | index("pool-files.sh") != null and index("pool-key.sh") != null and index("pool-manage-ui.sh") != null and index("placeholder.sh") == null' \
           "${metadata}" >/dev/null || fail "Pool management dependencies missing: ${module_id}"
@@ -590,8 +595,8 @@ while IFS=$'\t' read -r \
   fi
 done < "${MENU_FIXTURE}"
 
-assert_eq "${connected_only}" "22" "local/light-only action count"
-assert_eq "${offline_capable}" "37" "offline-capable action count"
+assert_eq "${connected_only}" "21" "local/light-only action count"
+assert_eq "${offline_capable}" "38" "offline-capable action count"
 [[ -f "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    ! -L "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    -s "${CNTOOLS_ROOT}/lib/placeholder.sh" ]] ||
@@ -761,7 +766,7 @@ while IFS=$'\t' read -r \
     vote/governance/multisig-drep) continue ;;
     backup/create|backup/restore) continue ;;
     blocks/summary|blocks/epoch) continue ;;
-    pool/list|pool/show|pool/new|pool/import|pool/encrypt|pool/decrypt|pool/register|pool/modify|pool/rotate|pool/retire) continue ;;
+    pool/list|pool/show|pool/new|pool/import|pool/encrypt|pool/decrypt|pool/register|pool/modify|pool/rotate|pool/retire|pool/calidus) continue ;;
     wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/transactions|wallet/utxos|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|funds/withdraw|funds/delegate|funds/collect|vote/governance/delegate|vote/governance/derive-keys|vote/governance/info|vote/governance/drep-register|vote/governance/drep-retire|vote/governance/proposals|vote/governance/cast|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
   esac
   module_directory="$(fixture_directory "${module_id}")"

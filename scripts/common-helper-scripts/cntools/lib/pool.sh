@@ -11,6 +11,9 @@ cntools_pool_file_name_into() {
     cold-vkey) chosen="${CNTOOLS_POOL_COLD_VKEY_FILENAME:-cold.vkey}" ;;
     cold-skey) chosen="${CNTOOLS_POOL_COLD_SKEY_FILENAME:-cold.skey}" ;;
     cold-hardware) chosen="${CNTOOLS_POOL_COLD_HW_FILENAME:-cold.hwsfile}" ;;
+    calidus-skey) chosen="${CNTOOLS_POOL_CALIDUS_SKEY_FILENAME:-calidus.skey}" ;;
+    calidus-vkey) chosen="${CNTOOLS_POOL_CALIDUS_VKEY_FILENAME:-calidus.vkey}" ;;
+    calidus-id) chosen="${CNTOOLS_POOL_CALIDUS_ID_FILENAME:-calidus.id}" ;;
     kes-vkey) chosen="${CNTOOLS_POOL_KES_VKEY_FILENAME:-hot.vkey}" ;;
     kes-skey) chosen="${CNTOOLS_POOL_KES_SKEY_FILENAME:-hot.skey}" ;;
     vrf-vkey) chosen="${CNTOOLS_POOL_VRF_VKEY_FILENAME:-vrf.vkey}" ;;
