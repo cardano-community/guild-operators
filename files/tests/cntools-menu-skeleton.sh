@@ -191,7 +191,6 @@ done
 
 connected_only=0
 offline_capable=0
-canonical_action=""
 while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   module_directory="$(fixture_directory "${module_id}")"
@@ -568,17 +567,16 @@ while IFS=$'\t' read -r \
         grep -F 'cntools_settings_save' "${action_file}" >/dev/null ||
           fail "Transaction Defaults does not persist the selected policy"
         ;;
+      vote/catalyst/register|vote/catalyst/qr|vote/catalyst/verify)
+        jq -e '.libs | index("catalyst-key.sh") != null and index("catalyst-ui.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail 'Catalyst dependencies missing'
+        grep -F 'cntools_catalyst_action_' "${action_file}" >/dev/null || fail 'Catalyst action not routed'
+        ;;
+      advanced/delete-private-keys)
+        jq -e '.libs | index("private-keys.sh") != null and index("private-keys-ui.sh") != null and index("placeholder.sh") == null' "${metadata}" >/dev/null || fail 'Private-key deletion dependencies missing'
+        grep -F 'cntools_private_keys_action' "${action_file}" >/dev/null || fail 'Private-key deletion not routed'
+        ;;
       *)
-        jq -e '.libs == ["placeholder.sh"]' "${metadata}" >/dev/null ||
-          fail "placeholder action has unexpected library declarations: ${module_id}"
-        grep -F 'cntools_action_placeholder' "${action_file}" >/dev/null ||
-          fail "action does not call the shared placeholder: ${module_id}"
-        if [[ -z "${canonical_action}" ]]; then
-          canonical_action="${action_file}"
-        else
-          cmp -s "${canonical_action}" "${action_file}" ||
-            fail "Phase 4 placeholder entrypoints are not identical: ${module_id}"
-        fi
+        fail "Operational action lacks an implementation contract: ${module_id}"
         ;;
     esac
     [[ -z "$(find "${module_directory}" -mindepth 1 -type d -print)" ]] ||
@@ -595,8 +593,8 @@ while IFS=$'\t' read -r \
   fi
 done < "${MENU_FIXTURE}"
 
-assert_eq "${connected_only}" "21" "local/light-only action count"
-assert_eq "${offline_capable}" "38" "offline-capable action count"
+assert_eq "${connected_only}" "20" "local/light-only action count"
+assert_eq "${offline_capable}" "39" "offline-capable action count"
 [[ -f "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    ! -L "${CNTOOLS_ROOT}/lib/placeholder.sh" &&
    -s "${CNTOOLS_ROOT}/lib/placeholder.sh" ]] ||
@@ -753,35 +751,16 @@ for mode in local light offline; do
   done < "${MENU_FIXTURE}"
 done
 
-# Every operational action outside the implemented wallet slices remains a
-# runnable placeholder. Settings actions are framework functionality covered
-# separately.
-CNTOOLS_MODE="local"
+# Every operational leaf now has a real implementation. The placeholder helper
+# remains only for framework smoke tests, never as a production module library.
 while IFS=$'\t' read -r \
   module_id kind shortcut order modes advanced label; do
   [[ "${kind}" == "action" ]] || continue
-  case "${module_id}" in
-    advanced/asset/*) continue ;;
-    advanced/multisig/create|advanced/multisig/derive-keys) continue ;;
-    vote/governance/multisig-drep) continue ;;
-    backup/create|backup/restore) continue ;;
-    blocks/summary|blocks/epoch) continue ;;
-    pool/list|pool/show|pool/new|pool/import|pool/encrypt|pool/decrypt|pool/register|pool/modify|pool/rotate|pool/retire|pool/calidus) continue ;;
-    wallet/new/cli|wallet/new/mnemonic|wallet/import/mnemonic|wallet/import/hardware|wallet/list|wallet/show|wallet/transactions|wallet/utxos|wallet/remove|wallet/encrypt|wallet/decrypt|wallet/register|wallet/deregister|funds/send|funds/withdraw|funds/delegate|funds/collect|vote/governance/delegate|vote/governance/derive-keys|vote/governance/info|vote/governance/drep-register|vote/governance/drep-retire|vote/governance/proposals|vote/governance/cast|transaction/sign|transaction/submit|settings/theme|settings/transaction-defaults|advanced/clear-asset-cache) continue ;;
-  esac
   module_directory="$(fixture_directory "${module_id}")"
-  if output="$(cntools_action_run "${module_directory}" 2>&1)"; then
-    status=0
-  else
-    status=$?
-  fi
-  assert_eq "${status}" "0" "placeholder status for ${module_id}"
-  [[ "${output}" == *"${label}"* &&
-     "${output}" == *"Not implemented yet"* ]] ||
-    fail "placeholder notice is incomplete for ${module_id}"
-  grep -F $'ACTION\t'"${module_id}"$'\tnot implemented yet' \
-    "${CNTOOLS_TEST_LOG_TRACE}" >/dev/null ||
-    fail "placeholder selection was not logged for ${module_id}"
+  jq -e '(.libs // [] | index("placeholder.sh")) == null' "${module_directory}/module.json" >/dev/null ||
+    fail "Operational module still loads a placeholder: ${module_id}"
+  ! grep -F 'cntools_action_placeholder' "${module_directory}/action.sh" >/dev/null ||
+    fail "Operational module still calls a placeholder: ${module_id}"
 done < "${MENU_FIXTURE}"
 
 # Direct loading must enforce every production offline restriction as well as

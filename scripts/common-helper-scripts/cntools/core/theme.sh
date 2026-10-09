@@ -3,8 +3,8 @@
 # Functions only; sourced before the Gum presentation layer.
 # shellcheck disable=SC2034
 
-declare -ag CNTOOLS_THEME_IDS=(default)
-declare -Ag CNTOOLS_THEME_NAMES=([default]="Default")
+declare -ag CNTOOLS_THEME_IDS=(default hydra-after-dark)
+declare -Ag CNTOOLS_THEME_NAMES=([default]="Default" [hydra-after-dark]="Hydra After Dark")
 
 CNTOOLS_THEME_ID="default"
 CNTOOLS_THEME_STATE_DIR=""
@@ -19,7 +19,7 @@ cntools_theme_log() {
 
 cntools_theme_valid() {
   case "${1:-}" in
-    default) return 0 ;;
+    default|hydra-after-dark) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -46,6 +46,25 @@ cntools_theme_apply() {
       # warm-neutral tone for numeric values.
       CNTOOLS_THEME_COLOR_IDENTIFIER="#78BFD0"
       CNTOOLS_THEME_COLOR_NUMBER="#D8BC7A"
+      ;;
+    hydra-after-dark)
+      # A playful Cardano-inspired night palette: navy panels, electric cyan
+      # navigation, blue identifiers and warm gold quantities. Keep familiar
+      # green/amber/red status colors so the theme never changes their meaning.
+      CNTOOLS_THEME_COLOR_CANVAS="#0B1220"
+      CNTOOLS_THEME_COLOR_DEEP="#070D18"
+      CNTOOLS_THEME_COLOR_SURFACE="#111E31"
+      CNTOOLS_THEME_COLOR_DIVIDER="#27415F"
+      CNTOOLS_THEME_COLOR_TEXT="#E6F0FA"
+      CNTOOLS_THEME_COLOR_MUTED="#9AABC1"
+      CNTOOLS_THEME_COLOR_QUIET="#768AA4"
+      CNTOOLS_THEME_COLOR_ACCENT="#59D8F5"
+      CNTOOLS_THEME_COLOR_ACCENT_DARK="#226F97"
+      CNTOOLS_THEME_COLOR_SUCCESS="#61D6A3"
+      CNTOOLS_THEME_COLOR_WARNING="#F3C875"
+      CNTOOLS_THEME_COLOR_DANGER="#FF7C91"
+      CNTOOLS_THEME_COLOR_IDENTIFIER="#83B6FF"
+      CNTOOLS_THEME_COLOR_NUMBER="#E9CF8A"
       ;;
   esac
 

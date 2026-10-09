@@ -100,7 +100,7 @@ fetch_pinned_archive() {
   local label="$2"
   local url="$3"
   local expected_sha256="$4"
-  local archive="${CACHE_ROOT}/${label}-${expected_sha256}.tar.gz"
+  local archive="${CACHE_ROOT}/${label}-${expected_sha256}.${5:-tar.gz}"
   local temporary=""
   local actual_sha256=""
 
@@ -157,6 +157,14 @@ fetch_pinned_archive HWCLI_ARCHIVE cardano-hw-cli \
   "${HWCLI_URL}" "${HWCLI_SHA256}"
 fetch_pinned_archive ADDRESS_ARCHIVE cardano-address "${ADDRESS_URL}" "${ADDRESS_SHA256}"
 fetch_pinned_archive SIGNER_ARCHIVE cardano-signer "${SIGNER_URL}" "${SIGNER_SHA256}"
+TOOLBOX_ARTIFACT=''
+TOOLBOX_VERSION="$(jq -er '.tools["catalyst-toolbox"].version' "${RELEASE_FILE}")"
+TOOLBOX_URL="$(jq -er '.tools["catalyst-toolbox"].artifacts["linux-x86_64"].url | select(startswith("https://"))' "${RELEASE_FILE}")"
+TOOLBOX_SHA256="$(jq -er '.tools["catalyst-toolbox"].artifacts["linux-x86_64"].sha256 | select(test("^[0-9a-f]{64}$"))' "${RELEASE_FILE}")"
+fetch_pinned_archive TOOLBOX_ARTIFACT catalyst-toolbox "${TOOLBOX_URL}" "${TOOLBOX_SHA256}" bin
+TOOLBOX="${TEST_ROOT}/catalyst-toolbox"
+cp -- "${TOOLBOX_ARTIFACT}" "${TOOLBOX}"; chmod 0700 "${TOOLBOX}"
+[[ "$("${TOOLBOX}" --version)" == "catalyst-toolbox ${TOOLBOX_VERSION}" ]] || fail 'wrong Catalyst Toolbox version'
 
 CLI_ROOT="${TEST_ROOT}/cardano-cli"
 HWCLI_ROOT="${TEST_ROOT}/cardano-hw-cli"
@@ -585,6 +593,8 @@ bash "${SCRIPT_DIR}/cntools-pool-manage.sh" "${CLI}"
 bash "${SCRIPT_DIR}/cntools-calidus-pinned.sh" "${CLI}"
 bash "${SCRIPT_DIR}/cntools-calidus-protection-pinned.sh" "${CLI}"
 bash "${SCRIPT_DIR}/cntools-calidus-registration-pinned.sh" "${CLI}" "${SIGNER}"
+bash "${SCRIPT_DIR}/cntools-catalyst-pinned.sh" "${CLI}" "${SIGNER}" "${TOOLBOX}"
+bash "${SCRIPT_DIR}/cntools-private-keys-pinned.sh" "${CLI}"
 bash "${SCRIPT_DIR}/cntools-pool-registration.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-pool-retirement.sh" "${CLI}" "${HWCLI}"
 bash "${SCRIPT_DIR}/cntools-policy-create.sh" "${CLI}"

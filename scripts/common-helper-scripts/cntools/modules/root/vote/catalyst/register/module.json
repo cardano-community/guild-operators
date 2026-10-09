@@ -6,9 +6,38 @@
   "order": 10,
   "modes": [
     "local",
-    "light"
+    "light",
+    "offline"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "wallet-material.sh",
+    "wallet-key.sh",
+    "wallet-address.sh",
+    "wallet-id.sh",
+    "wallet-query.sh",
+    "wallet-selection.sh",
+    "utxo.sh",
+    "transaction.sh",
+    "transaction-build.sh",
+    "transaction-sign.sh",
+    "transaction-submit.sh",
+    "transaction-monitor.sh",
+    "transaction-ui.sh",
+    "transaction-files.sh",
+    "transaction-funding.sh",
+    "transaction-metadata.sh",
+    "coin-selection.sh",
+    "change-plan.sh",
+    "recipient.sh",
+    "wallet-payment.sh",
+    "funds-send.sh",
+    "metadata-transaction.sh",
+    "metadata-transaction-ui.sh",
+    "table.sh",
+    "catalyst-key.sh",
+    "catalyst-metadata.sh",
+    "catalyst-ui.sh"
   ]
 }

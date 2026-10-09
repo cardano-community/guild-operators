@@ -156,7 +156,62 @@ wallets support Funds Send/Collect and stake registration, de-registration,
 pool/voting delegation and reward withdrawal with explicit signer selection
 and the existing live/offline transaction packages. **Governance → MultiSig
 DRep** also creates public threshold DRep identities; their registration,
-update, retirement and voting remain a separate transaction slice.
+update, retirement and voting use the shared threshold transaction flow.
+
+### Catalyst voting
+
+**Vote → Catalyst → Registration / Display QR / Verify** are implemented.
+Registration creates a separate CIP-36 voting identity, reuses an existing
+identity without replacing keys, and binds the voting key, payment rewards
+address, nonce and voting purpose to a verified stake-key signature. CLI,
+extended mnemonic stake keys and hardware stake authorization are supported;
+script-based stake identities are not. Cardano Signer is resolved on demand.
+Missing voting public keys are restored from a valid unencrypted voting private
+key; encrypted/inconsistent material is never replaced with a new identity.
+
+Online registration uses the common transaction review, expiry/No expiry,
+required-signers review and unsigned/export, sign-only or live submission flow.
+Only the fee is spent. Offline mode exports verified public authorization JSON;
+import it on the online wallet, then prepare a funding package for offline
+signing or submit live. The voting public key must also be available there.
+Choose a nonce higher than any previous registration for the same stake key.
+Testnet metadata can be exercised but does not grant mainnet voting eligibility.
+
+Display QR requires Catalyst Toolbox and the unencrypted voting key. It saves
+a private PIN-encrypted PNG and displays a terminal QR for the voting app,
+retaining existing images under numbered filenames. The PIN is exactly four
+digits, including leading zeros. Neither the PIN nor unencrypted voting key is
+logged or exported. Toolbox currently requires the PIN as a command argument,
+so it is briefly visible to same-user process inspection. Its deployed binary
+is currently available for Linux x86_64; other platforms need a compatible
+Toolbox installation. Keep the QR and PIN private and back up the voting key
+separately: it is not recoverable from the payment wallet mnemonic.
+Wallet Encrypt/Decrypt includes this voting signing key alongside the wallet
+keys; decrypt it before generating a QR, then re-encrypt after use if desired.
+
+Verify uses the official Catalyst API for mainnet fund-snapshot status and
+voting power, from a wallet's public voting key or an entered key. Snapshot
+eligibility is not proof of recent Cardano transaction inclusion. Network
+failures are reported as unavailable, not as an unregistered voting identity.
+Fund dates and eligibility rules remain external to CNTools.
+
+### Explicit private-key removal
+
+**Advanced → Delete Private Keys** previews exact known key files for selected
+wallets, pools, asset policies or all categories. Plaintext-only is the initial
+choice; encrypted keys require explicit inclusion. Public verification keys
+must already exist and plaintext identities are checked against them. Both
+private and retained public files are checked again before deletion.
+
+Removal requires acknowledging a separate verified full backup and typing
+`DELETE PRIVATE KEYS`. The action rejects symlinks, hard links, unsafe paths and
+changed previews. It attempts to restore immutable protection on unchanged retained keys
+after a partial failure and reports how many files were removed. Public keys,
+addresses, scripts, hardware references, KES/VRF operational keys and unknown
+seed/private files are retained; existing QR images are not selected. This does
+not unregister anything on chain or move funds. Unlinking files is not a
+guarantee of secure erasure on SSDs, snapshots or backups. Deleted keys can only
+be recovered from the separate backup.
 
 ## Runtime modes
 
@@ -570,9 +625,11 @@ framework controls rather than metadata modules. Update remains Phase 5.
 The later **Settings → Theme** action is advanced framework functionality,
 shown when CNTools starts with `-a`, rather than a legacy operational workflow.
 It selects from the central semantic theme
-registry and stores the choice in `${NODE_HOME}/.cntools/theme`. The initial
-registry intentionally contains only the Koios-inspired Default theme, while
-the selector and persistence contract are ready for additional themes. A
+registry and stores the choice in `${NODE_HOME}/.cntools/theme`. The registry
+contains the Koios-inspired Default theme and Hydra After Dark, a playful
+Cardano-inspired night palette with navy panels, electric-cyan highlights,
+blue identifiers and warm gold quantities. Both preserve green/amber/red status
+semantics, and changing the theme invalidates cached UI colors immediately. A
 non-empty `NO_COLOR` value disables both Gum and semantic value colors.
 
 ## Phase 5 update experience

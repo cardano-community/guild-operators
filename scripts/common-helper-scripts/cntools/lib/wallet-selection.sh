@@ -90,7 +90,7 @@ cntools_wallet_selection_candidate_into() {
     [[ "${CNTOOLS_WALLET_TYPES[index]}" != Unknown ]] || return 1
     cntools_wallet_selection_material "${directory}" payment || return 1
     case "${context}" in
-      register|deregister|delegate|vote-delegate|withdraw) cntools_wallet_selection_material "${directory}" stake || return 1 ;;
+      register|deregister|delegate|vote-delegate|withdraw|catalyst) cntools_wallet_selection_material "${directory}" stake || return 1 ;;
       drep-register|drep-update|drep-retire|gov-vote) cntools_wallet_selection_material "${directory}" drep || return 1 ;;
     esac
   fi

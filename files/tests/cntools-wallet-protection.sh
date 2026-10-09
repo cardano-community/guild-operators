@@ -442,6 +442,17 @@ for key in payment stake ms_payment ms_stake; do
   [[ -f "${WALLET_ROOT}/MultisigParticipant/${key}.skey" && ! -e "${WALLET_ROOT}/MultisigParticipant/${key}.skey.gpg" ]] || fail 'participant decryption incomplete'
 done
 
+# The separate Catalyst voting secret participates in wallet key protection.
+create_wallet Catalyst
+jq -n --arg hex "5880$(printf 'ab%.0s' {1..128})" \
+  '{type:"CIP36VoteExtendedSigningKey_ed25519",cborHex:$hex}' > "${WALLET_ROOT}/Catalyst/catalyst.skey"
+catalyst_before="$(< "${WALLET_ROOT}/Catalyst/catalyst.skey")"
+cntools_wallet_protection_encrypt "${WALLET_ROOT}/Catalyst" "${LONG_PASSPHRASE}" || fail 'Catalyst encryption'
+assert_eq "${CNTOOLS_WALLET_PROTECTION_KEYS}" 3 'Catalyst key included in encryption'
+[[ -f "${WALLET_ROOT}/Catalyst/catalyst.skey.gpg" && ! -e "${WALLET_ROOT}/Catalyst/catalyst.skey" ]] || fail 'voting secret left clear'
+cntools_wallet_protection_decrypt "${WALLET_ROOT}/Catalyst" "${LONG_PASSPHRASE}" || fail 'Catalyst decryption'
+assert_eq "$(< "${WALLET_ROOT}/Catalyst/catalyst.skey")" "${catalyst_before}" 'voting key round trip'
+
 if grep -F -- "${LONG_PASSPHRASE}" "${LOG_TRACE}" >/dev/null ||
    grep -F -- "${SHORT_LEGACY_PASSPHRASE}" "${LOG_TRACE}" >/dev/null ||
    grep -F -- "${PRIVATE_SENTINEL}" "${LOG_TRACE}" >/dev/null ||

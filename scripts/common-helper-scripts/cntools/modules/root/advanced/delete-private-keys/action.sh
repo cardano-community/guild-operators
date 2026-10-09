@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# CNTools placeholder action. Functions only.
+# Guarded removal of reviewed private keys, retaining public/operational data.
 
 cntools_action_main() {
-  cntools_action_placeholder
+  cntools_private_keys_action
+}
+
+cntools_action_cleanup() {
+  cntools_private_keys_restore_locks
+  cntools_wallet_material_cleanup
+  cntools_transaction_cleanup
 }

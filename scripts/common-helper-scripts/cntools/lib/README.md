@@ -1,5 +1,21 @@
 # CNTools libraries
 
+Catalyst uses `catalyst-key.sh` for separate voting identities and no-overwrite
+publication, `catalyst-metadata.sh` for exact CIP-36 payload/signature validation
+and CLI/hardware authorization, `catalyst-qr.sh` for secret-safe PIN-encrypted
+Toolbox transport, `catalyst-query.sh` for official fund-snapshot status, and
+`catalyst-ui.sh` for the shared-table actions. `metadata-transaction-ui.sh`
+provides the common fee-only metadata export/sign/submit review. These libraries
+are loaded only when their corresponding actions are selected. Public metadata
+and commands are logged; private voting material and PINs are never logged.
+
+`private-keys.sh` inventories only explicit configured signing-key roles,
+validates public companions, fingerprints the reviewed file identities in
+memory, and performs exact confirmed unlinks with partial-failure reporting.
+`private-keys-ui.sh` provides scope/encrypted-key choices, the exact-file preview,
+backup acknowledgement and typed confirmation. It does not recursively erase a
+directory or remove operational KES/VRF keys.
+
 Cross-action parity helpers remain focused and lazy-loaded:
 `wallet-selection.sh` supplies advisory role/registration/rewards candidates;
 `wallet-utxo-local.sh` supplies the saved-address-only browser fallback;

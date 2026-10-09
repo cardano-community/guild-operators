@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# CNTools placeholder action. Functions only.
+# Official Catalyst fund snapshot lookup.
 
 cntools_action_main() {
-  cntools_action_placeholder
+  cntools_catalyst_action_verify
 }
+
+cntools_action_cleanup() { cntools_transaction_cleanup; }

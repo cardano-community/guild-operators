@@ -263,7 +263,8 @@ cntools_wallet_protection_keys_into() {
         "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}.gpg"|\
         "${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_PAY_SKEY_FILENAME}.gpg"|\
         "${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}.gpg"|\
-        "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}.gpg") ;;
+        "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}.gpg"|\
+        "${CNTOOLS_WALLET_CATALYST_SKEY_FILENAME:-catalyst.skey}.gpg") ;;
         *)
           cntools_wallet_protection_set_error \
             "The wallet contains an unsupported encrypted file: ${_cntools_allowed_gpg}"
@@ -273,11 +274,12 @@ cntools_wallet_protection_keys_into() {
     done
   fi
 
-  for _cntools_role in payment stake drep ms-payment ms-stake; do
+  for _cntools_role in payment stake drep catalyst ms-payment ms-stake; do
     case "${_cntools_role}" in
       payment) _cntools_filename="${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" ;;
       stake) _cntools_filename="${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" ;;
       drep) _cntools_filename="${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" ;;
+      catalyst) _cntools_filename="${CNTOOLS_WALLET_CATALYST_SKEY_FILENAME:-catalyst.skey}" ;;
       ms-payment) _cntools_filename="${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" ;;
       ms-stake) _cntools_filename="${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" ;;
     esac
@@ -327,10 +329,10 @@ cntools_wallet_protection_keys_into() {
   if (( ${#_cntools_files_ref[@]} == 0 )); then
     if [[ "${_cntools_operation}" == "encrypt" ]]; then
       cntools_wallet_protection_set_error \
-        "This wallet has no clear payment, stake or DRep signing keys to encrypt."
+        "This wallet has no clear payment, stake, DRep or Catalyst signing keys to encrypt."
     else
       cntools_wallet_protection_set_error \
-        "This wallet has no encrypted payment, stake or DRep signing keys to decrypt."
+        "This wallet has no encrypted payment, stake, DRep or Catalyst signing keys to decrypt."
     fi
     return 1
   fi

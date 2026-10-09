@@ -46,7 +46,7 @@ vote/governance/drep-retire	action	x	60	local,light	-	DRep Retire
 vote/governance/multisig-drep	action	m	70	local,light,offline	-	MultiSig DRep
 vote/governance/derive-keys	action	k	80	local,light,offline	-	Derive Keys
 vote/catalyst	menu	c	20	-	-	Catalyst
-vote/catalyst/register	action	r	10	local,light	-	Registration
+vote/catalyst/register	action	r	10	local,light,offline	-	Registration
 vote/catalyst/qr	action	q	20	local,light,offline	-	Display QR
 vote/catalyst/verify	action	v	30	local,light	-	Verify
 blocks	menu	b	60	-	-	Blocks

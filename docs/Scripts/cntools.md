@@ -13,9 +13,11 @@ a Charm Gum interface.
     Show may cache missing public wallet artifacts; wallet creation and import
     publish keys only after explicit confirmation and complete validation.
     **Settings → Theme** and **Settings → Transaction Defaults** are also
-    functional; remaining wallet and transaction actions and all pool,
-    governance, backup, block, and operational advanced actions remain
-    placeholders.
+    functional. Funds, pool, governance, backup, block and advanced actions
+    are also implemented. Catalyst registration, voting QR and snapshot
+    verification, plus guarded private-key deletion, complete the operational
+    menu. Version 14 still requires live-chain, hardware and migration
+    acceptance testing before release.
 
 ## Installation and migration
 
@@ -93,16 +95,17 @@ cleanly on narrower terminals.
 CNTools validates all modular menu metadata in one multi-file JSON pass at
 startup and keeps the resulting catalog in memory. Gum provides filtering and
 keyboard navigation, while action code and its focused libraries are checked
-and loaded only when selected. Functional Wallet and Transaction actions load
-their focused libraries on demand; remaining operational actions display a
-not-implemented notice.
+and loaded only when selected. Operational actions load their focused libraries
+on demand rather than loading the entire application at startup.
 
 Start CNTools with `-a`, then open **Settings → Theme** to select the interface theme. Theme colors are defined
 centrally by semantic purpose so headers, numbers, identifiers, and statuses
 remain consistent. The selected theme is stored privately in
-`${NODE_HOME}/.cntools/theme` and restored at startup. Only the Koios-inspired
-**Default** theme is available in this release; the selector is in place for
-future themes. Set `NO_COLOR` to a non-empty value to disable color output.
+`${NODE_HOME}/.cntools/theme` and restored at startup. Choose the Koios-inspired
+**Default** theme or **Hydra After Dark**, a Cardano-inspired navy palette with
+electric-cyan highlights, blue identifiers and warm gold numbers. Both retain
+familiar green, amber and red status colors. Set `NO_COLOR` to a non-empty value
+to disable color output.
 
 **Settings → Transaction Defaults** stores one reusable transaction policy in
 `${NODE_HOME}/.cntools/transaction-settings.json`. It controls deterministic

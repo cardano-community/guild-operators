@@ -86,13 +86,28 @@ jq -e '
 # shellcheck source=/dev/null
 . "${THEME_CORE}"
 
-assert_eq "${#CNTOOLS_THEME_IDS[@]}" "1" "initial theme count"
+assert_eq "${#CNTOOLS_THEME_IDS[@]}" "2" "available theme count"
 assert_eq "${CNTOOLS_THEME_IDS[0]}" "default" "initial theme ID"
+assert_eq "${CNTOOLS_THEME_IDS[1]}" "hydra-after-dark" "additional theme ID"
 assert_eq "$(cntools_theme_display_name default)" "Default" \
   "default theme name"
 assert_eq "${CNTOOLS_GUM_COLOR_BRAND}" "#4FBC85" \
   "default Koios accent"
 assert_status 2 "unknown theme was accepted" cntools_theme_apply unknown
+assert_eq "${CNTOOLS_THEME_ID}" "default" "unknown theme retained current palette"
+assert_eq "$(cntools_theme_display_name hydra-after-dark)" "Hydra After Dark" \
+  "Hydra theme name"
+for theme_id in "${CNTOOLS_THEME_IDS[@]}"; do
+  cntools_theme_apply "${theme_id}" || fail "registered theme could not be applied: ${theme_id}"
+  for color_name in ${!CNTOOLS_THEME_COLOR_@}; do
+    [[ "${!color_name}" =~ ^#[0-9A-Fa-f]{6}$ ]] || fail "invalid theme color: ${theme_id}/${color_name}"
+  done
+  assert_eq "${CNTOOLS_GUM_COLOR_BRAND}" "${CNTOOLS_THEME_COLOR_ACCENT}" 'Gum accent follows theme'
+  assert_eq "${CNTOOLS_GUM_COLOR_SURFACE}" "${CNTOOLS_THEME_COLOR_SURFACE}" 'Gum panels follow theme'
+done
+assert_eq "${CNTOOLS_GUM_COLOR_BRAND}" '#59D8F5' 'Hydra cyan accent'
+assert_eq "${CNTOOLS_GUM_COLOR_CANVAS}" '#0B1220' 'Hydra navy canvas'
+cntools_theme_apply default
 
 mkdir -m 0700 -- "${CNTOOLS_NODE_HOME}"
 cntools_theme_init || fail "default theme initialization failed"
@@ -193,6 +208,7 @@ cntools_action_cleanup
   local_status="${TEST_ROOT}/theme-action-status"
   cntools_ui_action_begin() { return 0; }
   cntools_ui_choose() {
+    [[ "$*" == *'Hydra After Dark'* ]] || fail 'additional theme missing from selector'
     printf -v "$1" '%s' "Default  ·  Current"
   }
   cntools_ui_render_status() {
@@ -211,6 +227,30 @@ cntools_action_cleanup
 )
 
 (
+  cntools_ui_action_begin() { return 0; }
+  cntools_ui_choose() { printf -v "$1" '%s' 'Hydra After Dark'; }
+  cntools_ui_render_status() { [[ "$1" == success && "$2" == 'Hydra After Dark is now the active CNTools theme.' ]] || fail 'Hydra selection feedback'; }
+  cntools_ui_wait() { return 0; }
+  cntools_log() { return 0; }
+  CNTOOLS_GUM_STATIC_HEADER_KEY=cached-default
+  cntools_action_main || fail 'Theme action could not select Hydra After Dark'
+  assert_eq "${CNTOOLS_THEME_ID}" 'hydra-after-dark' 'action activated additional theme'
+  assert_eq "${CNTOOLS_GUM_STATIC_HEADER_KEY}" '' 'action invalidated default header cache'
+)
+CNTOOLS_GUM_STATIC_HEADER_KEY=cached-default
+cntools_theme_reload || fail 'parent session could not activate Hydra After Dark'
+assert_eq "${CNTOOLS_THEME_ID}" 'hydra-after-dark' 'parent session theme reload'
+assert_eq "${CNTOOLS_GUM_STATIC_HEADER_KEY}" '' 'parent session cache invalidation'
+cntools_theme_init || fail 'persisted Hydra theme could not load at startup'
+assert_eq "${CNTOOLS_THEME_ID}" 'hydra-after-dark' 'startup restored additional theme'
+cntools_theme_style_value_into styled identifier 'addr_test1safe' || fail 'Hydra identifier styling'
+assert_eq "${styled}" $'\033[38;2;131;182;255maddr_test1safe\033[0m' 'Hydra blue identifiers'
+NO_COLOR=1
+cntools_theme_style_value_into styled number '1,234.500000' || fail 'Hydra NO_COLOR styling'
+assert_eq "${styled}" '1,234.500000' 'Hydra NO_COLOR output'
+unset NO_COLOR
+
+(
   clear_marker="${TEST_ROOT}/theme-action-cancelled"
   cntools_ui_action_begin() { return 0; }
   cntools_ui_choose() { return 1; }
@@ -220,6 +260,7 @@ cntools_action_cleanup
   cntools_action_main || fail "Theme action treated cancellation as failure"
   [[ -f "${clear_marker}" ]] ||
     fail "Theme action did not clear a cancelled selector"
+  assert_eq "$(< "${CNTOOLS_THEME_STATE_FILE}")" 'hydra-after-dark' 'cancellation retained saved theme'
 )
 
 (

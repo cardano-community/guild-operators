@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# CNTools placeholder action. Functions only.
+# Catalyst stake authorization and live/offline funding workflows.
 
 cntools_action_main() {
-  cntools_action_placeholder
+  cntools_catalyst_action_registration
 }
+
+cntools_action_cleanup() { cntools_catalyst_cleanup; }

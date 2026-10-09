@@ -50,6 +50,10 @@ cntools_wallet_key_signing_type() {
     stake:StakeExtendedSigningKeyShelley_ed25519_bip32)
       output_ref="extended"
       ;;
+    catalyst:CIP36VoteExtendedSigningKey_ed25519)
+      jq -es 'length==1 and (.[0].cborHex|type=="string" and test("^5880[0-9a-fA-F]{256}$"))' "${key_file}" >/dev/null || return 1
+      output_ref="extended"
+      ;;
     *) return 1 ;;
   esac
   if [[ "${role}" == drep ]]; then

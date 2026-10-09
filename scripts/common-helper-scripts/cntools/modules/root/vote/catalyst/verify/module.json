@@ -9,6 +9,13 @@
     "light"
   ],
   "libs": [
-    "placeholder.sh"
+    "number.sh",
+    "wallet.sh",
+    "transaction.sh",
+    "table.sh",
+    "recipient.sh",
+    "catalyst-key.sh",
+    "catalyst-query.sh",
+    "catalyst-ui.sh"
   ]
 }
