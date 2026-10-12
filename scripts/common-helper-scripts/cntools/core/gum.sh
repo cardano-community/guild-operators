@@ -1112,15 +1112,19 @@ cntools_ui_managed_transaction_folder_into() {
 
 cntools_ui_file_selected() {
   local file_action_path="${1:-}" file_action_begin="${2:-}" file_action_choice='' file_action_status=0
+  local file_action_mode="${3:-manage}"
   local file_action_identity='' file_action_current='' file_action_errors='' file_action_width=''
   local file_action_folder='' file_action_target='' file_action_kind=file file_action_text='' file_action_prompt=''
   local file_action_label="${CNTOOLS_GUM_CONTEXT_LABEL:-CNTools}" file_action_breadcrumb="${CNTOOLS_GUM_CONTEXT_PATH:-/}"
   local -a file_action_choices=('Use selected file')
+  case "${file_action_mode}" in manage|delete) ;; *) return 2 ;; esac
   [[ "${file_action_path}" == /* ]] || file_action_path="${PWD}/${file_action_path}"
   # Invalid manual paths go to the caller's existing validator; they cannot be
   # managed or deleted. Do not resolve symlinks to reach a deletion target.
-  [[ -f "${file_action_path}" && ! -L "${file_action_path}" ]] || return 0
-  cntools_filesystem_path_components_safe "${file_action_path}" || return 0
+  if [[ ! -f "${file_action_path}" || -L "${file_action_path}" ]] ||
+     ! cntools_filesystem_path_components_safe "${file_action_path}"; then
+    [[ "${file_action_mode}" == manage ]] && return 0 || return 1
+  fi
   [[ -z "${file_action_begin}" ]] || declare -F "${file_action_begin}" >/dev/null || return 2
   file_action_width="$(cntools_ui_content_width 100 42)" || return 2
   while true; do
@@ -1128,7 +1132,8 @@ cntools_ui_file_selected() {
     if [[ -n "${file_action_begin}" ]]; then "${file_action_begin}" || return 2
     else cntools_ui_render_begin "${file_action_label}" "${file_action_breadcrumb}" || return 2; fi
     cntools_ui_render_status info "Selected file: ${file_action_path}" "$((file_action_width - 4))" || return 2
-    file_action_choices=('Use selected file')
+    file_action_choices=()
+    [[ "${file_action_mode}" != manage ]] || file_action_choices+=('Use selected file')
     if cntools_filesystem_file_delete_safe "${file_action_path}"; then file_action_choices+=('Delete selected file'); fi
     if cntools_ui_managed_transaction_folder_into file_action_folder "${file_action_path}" &&
        cntools_filesystem_file_delete_safe "${file_action_path}"; then
@@ -1140,7 +1145,7 @@ cntools_ui_file_selected() {
     ((file_action_status == 0)) || return "${file_action_status}"
     cntools_gum_log CHOICE "Selected file action=${file_action_choice} path=$(printf '%q' "${file_action_path}")"
     case "${file_action_choice}" in
-      'Use selected file') return 0 ;;
+      'Use selected file') [[ "${file_action_mode}" == manage ]] || return 2; return 0 ;;
       Back) return 1 ;;
       'Delete selected file'|'Delete saved transaction folder')
         file_action_kind='file'; file_action_target="${file_action_path}"; file_action_prompt='Permanently delete the selected file?'
@@ -1204,6 +1209,7 @@ cntools_ui_file_selected() {
 cntools_ui_file() {
   local _cntools_output_name="${1:-}" _cntools_start="${2:-${PWD}}" _cntools_begin="${3:-}"
   local _cntools_kind="${4:-file}"
+  local _cntools_file_actions="${5:-Y}"
   local _cntools_file_status=0
   local _cntools_directory="" _cntools_entry="" _cntools_name="" _cntools_selected="" _cntools_index=0 _cntools_found=N
   local -a _cntools_paths=() _cntools_labels=()
@@ -1212,6 +1218,7 @@ cntools_ui_file() {
      ! "${_cntools_start}" =~ [[:cntrl:]] ]] || return 2
   [[ -z "${_cntools_begin}" ]] || declare -F "${_cntools_begin}" >/dev/null || return 2
   case "${_cntools_kind}" in file|directory) ;; *) return 2 ;; esac
+  case "${_cntools_file_actions}" in Y|N) ;; *) return 2 ;; esac
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   [[ "${_cntools_start}" == /* ]] || _cntools_start="${PWD}/${_cntools_start}"
@@ -1261,6 +1268,9 @@ cntools_ui_file() {
       if [[ -d "${_cntools_paths[_cntools_index]}" ]]; then
         _cntools_directory="${_cntools_paths[_cntools_index]}"
         break
+      fi
+      if [[ "${_cntools_file_actions}" == N ]]; then
+        _cntools_output_ref="${_cntools_paths[_cntools_index]}"; return 0
       fi
       _cntools_file_status=0
       cntools_ui_file_selected "${_cntools_paths[_cntools_index]}" "${_cntools_begin}" || _cntools_file_status=$?

@@ -3,8 +3,9 @@
 # an honest source label; this renderer never queries chain data or signs.
 # Public components: cntools_detail_transaction_render(file, source heading),
 # cntools_detail_utxo_render(record JSON, heading), cntools_detail_io_render(file,
-# field, heading), cntools_detail_assets_render(record JSON), and
-# cntools_detail_metadata_render(file). Use CNTOOLS_DETAIL_METADATA
+# field, heading), cntools_detail_list_render(file, field, heading),
+# cntools_detail_assets_render(record JSON), and cntools_detail_metadata_render(file).
+# Use CNTOOLS_DETAIL_METADATA
 # to opt into already-fetched metadata; rendering must never fetch it implicitly.
 # shellcheck disable=SC2034
 
@@ -28,11 +29,25 @@ cntools_detail_asset_display() {
   fi
 }
 
+cntools_detail_coin_field() {
+  local section="$1" context="$2" field="$3"
+  case "${section}" in
+    Overview) [[ "${field}" =~ ^(value|fee|deposit|treasury_donation|treasuryDonation|treasury\ donation|currentTreasuryValue|current_treasury_value|totalCollateral|total_collateral|total\ collateral|total_output)$ ]] ;;
+    Record|inputs|outputs|collateral_inputs|collateral_output|reference_inputs) [[ "${field}" == value ]] ;;
+    ListRecord)
+      if [[ "${context}" == withdrawals ]]; then [[ "${field}" =~ ^(amount|value|lovelace)$ ]]
+      elif [[ "${context}" =~ ^(certificates|proposal_procedures|governance\ actions)$ ]]; then
+        [[ "${field##* / }" =~ ^(deposit|refund|cost|pledge)$ ]]
+      else return 1; fi ;;
+    *) return 1 ;;
+  esac
+}
+
 # Input/output records are already isolated, so paths never repeat the I/O
 # ordinal or payment address. Optional nulls and empty structures stay hidden.
 cntools_detail_tree_rows() {
   local file="$1" section="$2" path="" type="" value="" role="value" formatted=""
-  local decimals="${3:-}"
+  local decimals="${3:-}" context="${4:-}"
   cntools_table_row Field Value
   while IFS=$'\037' read -r path type value; do
     role=value
@@ -44,11 +59,9 @@ cntools_detail_tree_rows() {
       cntools_timestamp_datetime_into formatted "${value}" && value="${formatted}"
     elif [[ "${section}" == Overview && "${path}" =~ ^(invalid_before|invalid_after)$ && "${type}" != null ]]; then
       cntools_slot_datetime_into formatted "${value}" && value="${formatted}"
-    elif [[ "${type}" == string && "${value}" =~ ^-?[0-9]+$ ]] &&
-         { [[ "${section}" == Overview &&
-              "${path}" =~ ^(value|fee|deposit|treasury_donation|total_output)$ ]] ||
-           [[ "${section}" =~ ^(Record|inputs|outputs|collateral_inputs|collateral_output|reference_inputs)$ &&
-              "${path}" =~ ^(\[[0-9]+\]\ /\ )?value$ ]]; }; then
+    elif cntools_detail_coin_field "${section}" "${context}" "${path}" &&
+         { [[ "${value}" =~ ^-?[0-9]+$ ]] || [[ "${value}" =~ ^-?[0-9]+[[:space:]]+[Ll]ovelace$ ]]; }; then
+      value="${value%% *}"
       if [[ "${value}" == -* ]]; then
         value="-$(cntools_number_format_lovelace "${value#-}")"
       else
@@ -56,11 +69,22 @@ cntools_detail_tree_rows() {
       fi
       role=number
     elif [[ "${type}" == number || ( "${section}" != metadata &&
-            "${path}" == *quantity && "${value}" =~ ^-?[0-9]+$ ) ]]; then
+            ( "${path}" == *quantity || ( "${context}" == mint && "${path}" == 'asset '* ) ||
+              "${path##* / }" =~ ^(deposit|refund|cost|pledge|tx_index|cert_index|index|epoch|port)$ ) &&
+            "${value}" =~ ^-?[0-9]+$ ) ]]; then
       cntools_number_format_into formatted "${value}" && value="${formatted}"
       role=number
     elif [[ "${path}" =~ (hash|fingerprint|address|bech32|cred|policy_id|asset_name)$ ]]; then
       role=identifier
+    fi
+    if [[ "${section}" == Overview ]]; then
+      case "${path}" in
+        treasuryDonation|treasury_donation|'treasury donation') path='Treasury donation' ;;
+        currentTreasuryValue|current_treasury_value) path='Current treasury value' ;;
+        totalCollateral|total_collateral|'total collateral') path='Total collateral' ;;
+      esac
+    elif [[ "${section}" == ListRecord && "${context}" == withdrawals ]]; then
+      [[ "${path}" != amount && "${path}" != value && "${path}" != lovelace ]] || path=Amount
     fi
     if [[ "${section}" == Asset ]]; then
       case "${path}" in
@@ -83,8 +107,13 @@ cntools_detail_tree_rows() {
       elif type == "array" and length > 0 then
         to_entries[] | .key as $key | .value | leaves($path + "[" + (($key+1)|tostring) + "]")
       else [$path,type,(if type == "string" then (if . == "" then "(empty string)" else . end) else tojson end)] end;
-    (if $section == "Overview" then with_entries(select(.value | type != "array" and type != "object"))
+    def absent_optional_zero:
+      (.key | IN("treasuryDonation","treasury_donation","treasury donation",
+        "currentTreasuryValue","current_treasury_value","totalCollateral","total_collateral","total collateral")) and
+      (.value == 0 or .value == "0" or .value == "0 Lovelace");
+    (if $section == "Overview" then with_entries(select((.value | type != "array" and type != "object") and (absent_optional_zero|not)))
      elif $section == "Record" then del(.payment_addr,.payment_cred,.address,.asset_list,.is_spent)
+     elif $section == "ListRecord" then del(.asset_list)
      elif $section == "Asset" then
        if $decimals != "" then .decimals=($decimals|tonumber) else . end
      else .[$section] end) |
@@ -160,6 +189,52 @@ cntools_detail_io_render() {
   done < <(jq -c --arg section "${section}" '.[$section] | if type == "array" then .[] else . end' "${file}")
 }
 
+# Every list/map collection uses separate records, not a single table whose
+# labels repeat [1]/[2]. Address/type/ID fields identify a record in its heading.
+# Scalar entries retain their value; arbitrary future fields stay inspectable.
+cntools_detail_list_render() {
+  local file="$1" section="$2" title="$3" entry='' record='' label='' heading='' formatted='' index=0
+  local CNTOOLS_TABLE_TITLE_ROLE=identifier
+  cntools_table_heading "━━ ${title} ━━" accent || return 1
+  while IFS= read -r entry; do
+    index=$((index+1))
+    label="$(jq -r '.label' <<< "${entry}")" || return 1
+    record="$(jq -c '.record' <<< "${entry}")" || return 1
+    cntools_text_sanitize_into label "${label}" || return 1
+    cntools_number_format_into formatted "${index}" || return 1
+    heading="${formatted}${label:+ · ${label}}"
+    if jq -e 'any(..; type!="object" and type!="array" and .!=null)' <<< "${record}" >/dev/null; then
+      cntools_detail_tree_rows <(printf '%s\n' "${record}") ListRecord '' "${section}" |
+        cntools_table_render "${heading}" || return 1
+    else
+      cntools_table_heading "${heading}" identifier || return 1
+    fi
+    cntools_detail_assets_render "${record}" || return 1
+  done < <(jq -c --arg section "${section}" '
+    def populated: . != null and . != [] and . != {};
+    def record($key):
+      if $key=="" and type=="string" and test("^[0-9a-fA-F]{56,64}$|^(addr|stake|pool|drep|asset)[a-z0-9_]*1[a-z0-9]+$") then
+        {label:.,record:{}}
+      elif type != "object" then {label:$key,record:{Value:.}}
+      elif $key != "" then {label:$key,record:.}
+      else
+        . as $item |
+        (["address","stake_addr","stake_address","reward_addr","pool_id","poolId",
+          "drep_id","voter_id","voter","voter_hex","gov_action_id","proposal_id","action_id",
+          "tx_hash","hash","type","cert_type","certificate_type","name"] |
+          map(. as $field | select($item[$field] | type=="string" and length>0)) | .[0]) as $field |
+        if $field != null then {label:$item[$field],record:($item|del(.[$field]))}
+        elif length==1 and ((to_entries[0].value|type)=="object" or to_entries[0].value==null) then
+          to_entries[0] | {label:.key,record:.value}
+        else {label:"",record:.} end
+      end;
+    .[$section] |
+    if type=="array" then .[] | select(populated) | record("")
+    elif type=="object" then to_entries[] | select(.value|populated) | .key as $key | .value | record($key)
+    else empty end
+  ' "${file}")
+}
+
 cntools_detail_metadata_render() {
   local file="$1" entry="" label="" type="" line="" number=0 extra=""
   if ! jq -e '.metadata | type == "object"' "${file}" >/dev/null; then
@@ -225,13 +300,25 @@ cntools_detail_transaction_render() {
       metadata) cntools_detail_metadata_render "${file}" ;;
       *)
         cntools_text_sanitize_into title "${section//_/ }" || return 1
-        cntools_detail_tree_rows "${file}" "${section}" | cntools_table_render "${title}"
+        case "${section}" in
+          withdrawals) title=Withdrawals ;;
+          certificates) title=Certificates ;;
+          voting_procedures|voters|votes) title=Votes ;;
+          proposal_procedures|'governance actions') title='Governance proposals' ;;
+          required_signers|'required signers (payment key hashes needed for scripts)') title='Required signers' ;;
+          mint) title='Mint / burn' ;;
+          scripts|'auxiliary scripts') title=Scripts ;;
+          witnesses) title=Witnesses ;;
+        esac
+        cntools_detail_list_render "${file}" "${section}" "${title}"
         ;;
     esac || return 1
   done < <(jq -c '
     . as $tx |
     (["inputs","outputs"] + [keys_unsorted[] | select(. != "inputs" and . != "outputs")])[] as $key |
-    select($tx[$key] | (type == "array" or type == "object") and length > 0) | $key
+    select($tx[$key] | (type == "array" or type == "object") and length > 0) |
+    select($key=="metadata" or ($tx[$key] | if type=="array" then . else [.[]] end |
+      any(. != null and . != [] and . != {}))) | $key
   ' "${file}")
 }
 

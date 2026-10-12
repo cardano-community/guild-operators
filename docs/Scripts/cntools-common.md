@@ -75,6 +75,10 @@ Choose 1–10 results per page; Enter uses **5**. Next and Previous appear where
 applicable. Open Details using the item number; transaction details also accept
 a transaction ID. Press **q** to return from the detail view. Asset metadata
 is optional and adds readable names and decimal amounts.
+Transaction details group repeated items—such as withdrawals, certificates and
+votes—under section headings, with a separate numbered table for each entry.
+Absent optional fields and zero treasury/collateral totals are omitted; meaningful
+zeros in amounts, indices, votes and metadata remain visible.
 
 UTxO List shows unspent outputs only. Its summaries include ADA, asset counts
 and asset names; details show individual asset information beneath each output.
@@ -237,6 +241,11 @@ separate inputs/outputs, nested asset tables, and relevant metadata, certificate
 withdrawal and governance sections. This view is decoded locally from the selected
 transaction and works offline. It cannot resolve input addresses or their original
 balances from the transaction body; inputs are shown as UTxO references.
+Selecting a transaction file opens this review directly, without a separate
+**Use selected file** step. **Delete** in the review menu opens the file/package
+deletion choices. Back or declining deletion lets you continue reviewing;
+successful deletion ends Sign/Submit and returns to the Transaction menu, so a
+cached copy cannot accidentally be signed or submitted afterward.
 
 Signing offers matching local wallet keys with their known key type and role.
 Only usable unencrypted keys or hardware references are offered; public-only and
@@ -264,9 +273,9 @@ Generated package folders directly under `.transactions` additionally offer
 contents. Custom folders, `.transactions` itself, and symlinks cannot be deleted.
 A separate confirmation defaults to No, and changed or unsafe targets are refused.
 Deletion is permanent and cannot be undone through CNTools; keep an independent
-backup before deleting keys or recovery archives. After deletion, selection is
-refreshed and the deleted path is never used by the action. Locked files are not
-unlocked automatically.
+backup before deleting keys or recovery archives. Other file pickers refresh
+selection after deletion; Sign/Submit ends the current action. Deleted paths
+are never used afterward. Locked files are not unlocked automatically.
 
 **Transaction → Submit** accepts a completed CNTools package or a supported
 external signed Cardano transaction. Review the effects, network and named

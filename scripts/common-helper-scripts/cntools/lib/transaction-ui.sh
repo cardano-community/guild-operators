@@ -94,12 +94,24 @@ cntools_transaction_ui_review_into() {
     "${render}" || return 2
     local -a options=("${proceed}")
     case "${render}" in
-      cntools_transaction_ui_render_package_review|cntools_transaction_ui_render_submit_review) options+=('Review transaction') ;;
+      cntools_transaction_ui_render_package_review|cntools_transaction_ui_render_submit_review)
+        options+=('Review transaction')
+        if cntools_filesystem_file_delete_safe "${CNTOOLS_TRANSACTION_UI_SOURCE_FILE:-}"; then options+=(Delete); fi
+        ;;
     esac
     [[ -z "${package}" ]] || options+=('Show required signers')
     cntools_ui_choose review_selection 'Review transaction' "${options[@]}" "$@" Cancel || { status=$?; return "${status}"; }
     cntools_transaction_log CHOICE "Transaction review selected=${review_selection}"
     case "${review_selection}" in
+      Delete)
+        status=0
+        cntools_ui_file_selected "${CNTOOLS_TRANSACTION_UI_SOURCE_FILE:-}" "${begin}" delete || status=$?
+        case "${status}" in
+          1) continue ;;
+          3) return 3 ;; # Never sign/submit a cached copy after source deletion.
+          *) return 2 ;;
+        esac
+        ;;
       'Review transaction') cntools_transaction_ui_detail_view "${begin}" || return 2 ;;
       'Show required signers')
         "${begin}" || return 2
@@ -431,6 +443,7 @@ cntools_transaction_ui_prompt_package_into() {
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
+  CNTOOLS_TRANSACTION_UI_SOURCE_FILE=''
   while true; do
     if cntools_transaction_picker_into entered sign "${feedback}"; then
       status=0
@@ -768,7 +781,8 @@ cntools_transaction_action_sign() {
   status=0
   cntools_transaction_ui_review_into review_choice "${input_file}" 'Continue to select signing sources' \
     cntools_transaction_ui_sign_begin cntools_transaction_ui_render_package_review || status=$?
-  if (( status == 1 )); then
+  if (( status == 3 )); then return 0
+  elif (( status == 1 )); then
     cntools_transaction_ui_cancel \
       "transaction signing cancelled after initial review id=${original_id}"
     return 0
@@ -944,7 +958,8 @@ cntools_transaction_action_sign() {
     cntools_transaction_ui_render_selected_sources "${working_file}" signer_sources change_sources || return 1
     cntools_ui_wait
   done
-  if (( status == 1 )); then
+  if (( status == 3 )); then return 0
+  elif (( status == 1 )); then
     cntools_transaction_ui_cancel \
       "transaction signing declined id=${CNTOOLS_TRANSACTION_ID}"
     return 0
@@ -1032,6 +1047,7 @@ cntools_transaction_ui_prompt_submit_input_into() {
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
+  CNTOOLS_TRANSACTION_UI_SOURCE_FILE=''
   while true; do
     if cntools_transaction_picker_into entered submit "${feedback}"; then
       status=0
@@ -1064,6 +1080,7 @@ cntools_transaction_ui_prompt_submit_input_into() {
       return "${status}"
     fi
     _cntools_output_ref="${normalized}"
+    CNTOOLS_TRANSACTION_UI_SOURCE_FILE="${normalized}"
     cntools_transaction_ui_log_path \
       "transaction artifact selected id=${CNTOOLS_TRANSACTION_SUBMIT_ID} kind=${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}" \
       "${normalized}"
@@ -1187,6 +1204,7 @@ cntools_transaction_action_submit() {
   [[ "${input_kind}" != package ]] || review_package="${CNTOOLS_TRANSACTION_PACKAGE_FILE}"
   cntools_transaction_ui_review_into review_choice "${review_package}" 'Continue to submit' \
     cntools_transaction_ui_submit_begin cntools_transaction_ui_render_submit_review || status=$?
+  (( status != 3 )) || return 0
   if (( status == 0 )); then
     cntools_transaction_ui_confirm_submit "${backend}" || status=$?
   fi
