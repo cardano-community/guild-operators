@@ -31,21 +31,21 @@ cntools_settings_log() {
 }
 
 cntools_settings_state_paths() {
-  local node_home="${CNTOOLS_NODE_HOME:-}"
+  local root="${CNTOOLS_ROOT:-}"
 
   CNTOOLS_SETTINGS_STATE_DIR=""
   CNTOOLS_SETTINGS_FILE=""
-  [[ -n "${node_home}" && "${node_home}" = /* && "${node_home}" != "/" &&
-     -d "${node_home}" && ! -L "${node_home}" && -O "${node_home}" &&
-     -w "${node_home}" && "${node_home}" != *$'\n'* &&
-     "${node_home}" != *$'\r'* ]] || return 1
-  CNTOOLS_SETTINGS_STATE_DIR="${node_home}/.cntools"
+  [[ -n "${root}" && "${root}" = /* && "${root}" != "/" &&
+     -d "${root}" && ! -L "${root}" && -O "${root}" &&
+     -w "${root}" ]] || return 1
+  cntools_filesystem_path_components_safe "${root}" || return 1
+  CNTOOLS_SETTINGS_STATE_DIR="${root}/.state"
   CNTOOLS_SETTINGS_FILE="${CNTOOLS_SETTINGS_STATE_DIR}/transaction-settings.json"
 }
 
 cntools_settings_state_directory_safe() {
   [[ -n "${CNTOOLS_SETTINGS_STATE_DIR:-}" &&
-     "${CNTOOLS_SETTINGS_STATE_DIR}" == "${CNTOOLS_NODE_HOME}/.cntools" &&
+     "${CNTOOLS_SETTINGS_STATE_DIR}" == "${CNTOOLS_ROOT}/.state" &&
      -d "${CNTOOLS_SETTINGS_STATE_DIR}" &&
      ! -L "${CNTOOLS_SETTINGS_STATE_DIR}" &&
      -O "${CNTOOLS_SETTINGS_STATE_DIR}" ]] || return 1
@@ -56,7 +56,7 @@ cntools_settings_state_directory_ready() {
   local previous_umask=""
 
   [[ -n "${CNTOOLS_SETTINGS_STATE_DIR:-}" &&
-     "${CNTOOLS_SETTINGS_STATE_DIR}" == "${CNTOOLS_NODE_HOME}/.cntools" ]] ||
+     "${CNTOOLS_SETTINGS_STATE_DIR}" == "${CNTOOLS_ROOT}/.state" ]] ||
     return 1
   if [[ ! -e "${CNTOOLS_SETTINGS_STATE_DIR}" &&
         ! -L "${CNTOOLS_SETTINGS_STATE_DIR}" ]]; then

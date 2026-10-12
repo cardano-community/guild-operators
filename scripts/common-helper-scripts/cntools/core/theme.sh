@@ -87,15 +87,15 @@ cntools_theme_apply() {
 }
 
 cntools_theme_state_paths() {
-  local node_home="${CNTOOLS_NODE_HOME:-}"
+  local root="${CNTOOLS_ROOT:-}"
 
   CNTOOLS_THEME_STATE_DIR=""
   CNTOOLS_THEME_STATE_FILE=""
-  [[ -n "${node_home}" && "${node_home}" = /* && "${node_home}" != "/" &&
-     -d "${node_home}" && ! -L "${node_home}" && -O "${node_home}" &&
-     -w "${node_home}" && "${node_home}" != *$'\n'* &&
-     "${node_home}" != *$'\r'* ]] || return 1
-  CNTOOLS_THEME_STATE_DIR="${node_home}/.cntools"
+  [[ -n "${root}" && "${root}" = /* && "${root}" != "/" &&
+     -d "${root}" && ! -L "${root}" && -O "${root}" &&
+     -w "${root}" ]] || return 1
+  cntools_filesystem_path_components_safe "${root}" || return 1
+  CNTOOLS_THEME_STATE_DIR="${root}/.state"
   CNTOOLS_THEME_STATE_FILE="${CNTOOLS_THEME_STATE_DIR}/theme"
 }
 
@@ -122,7 +122,7 @@ cntools_theme_private_path() {
 
 cntools_theme_state_directory_safe() {
   [[ -n "${CNTOOLS_THEME_STATE_DIR:-}" &&
-     "${CNTOOLS_THEME_STATE_DIR}" == "${CNTOOLS_NODE_HOME}/.cntools" &&
+     "${CNTOOLS_THEME_STATE_DIR}" == "${CNTOOLS_ROOT}/.state" &&
      -d "${CNTOOLS_THEME_STATE_DIR}" &&
      ! -L "${CNTOOLS_THEME_STATE_DIR}" &&
      -O "${CNTOOLS_THEME_STATE_DIR}" ]] || return 1
@@ -133,7 +133,7 @@ cntools_theme_state_directory_ready() {
   local previous_umask=""
 
   [[ -n "${CNTOOLS_THEME_STATE_DIR:-}" &&
-     "${CNTOOLS_THEME_STATE_DIR}" == "${CNTOOLS_NODE_HOME}/.cntools" ]] ||
+     "${CNTOOLS_THEME_STATE_DIR}" == "${CNTOOLS_ROOT}/.state" ]] ||
     return 1
   if [[ ! -e "${CNTOOLS_THEME_STATE_DIR}" &&
         ! -L "${CNTOOLS_THEME_STATE_DIR}" ]]; then

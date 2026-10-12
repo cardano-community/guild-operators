@@ -13,12 +13,12 @@ cntools_transaction_signed_path_into() {
 
 cntools_transaction_save_into() {
   local -n sf_result="$1"
-  local sf_source="$2" sf_kind="$3" sf_action="$4" sf_base="${CNTOOLS_NODE_HOME}/transactions"
+  local sf_source="$2" sf_kind="$3" sf_action="$4" sf_base="${CNTOOLS_ROOT:-}/.transactions"
   local sf_directory="" sf_path="" sf_time="" sf_umask="" sf_log=""
   sf_result=""
   [[ "${sf_action}" =~ ^[a-z][a-z-]{0,30}$ ]] || return 2
   [[ "${sf_kind}" == signed || "${sf_kind}" == unsigned || "${sf_kind}" == metadata ]] || return 2
-  cntools_transaction_directory_safe "${CNTOOLS_NODE_HOME}" || return 1
+  cntools_transaction_directory_safe "${CNTOOLS_ROOT:-}" || return 1
   sf_umask="$(umask)"; umask 077
   if [[ ! -e "${sf_base}" && ! -L "${sf_base}" ]]; then
     mkdir -- "${sf_base}" || { umask "${sf_umask}"; return 1; }

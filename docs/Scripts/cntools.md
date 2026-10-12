@@ -118,10 +118,10 @@ Fees use the final transaction and required witnesses. The review also shows
 deposits, refunds and minimum-ADA adjustments where applicable. CNTools rechecks
 relevant chain state during live workflows; changes can require rebuilding.
 
-Saved packages are reported under `${NODE_HOME}/transactions/`. Keep them
-until the operation is resolved. Packages contain public transaction and signer
-information, not private keys, but may still contain sensitive addresses,
-messages or metadata.
+Saved packages are reported under
+`${NODE_HOME}/scripts/cntools/.transactions/`. Keep them until the operation is
+resolved. Packages contain public transaction and signer information, not private
+keys, but may still contain sensitive addresses, messages or metadata.
 
 Accepted submission does not prove block inclusion. When Koios is available,
 CNTools offers to monitor inclusion every five seconds. The result shows the
@@ -160,16 +160,28 @@ color output.
 
 Wallet, pool and policy folders follow `WALLET_FOLDER`, `POOL_FOLDER` and
 `ASSET_FOLDER` in `env`. Their defaults are beneath `${NODE_HOME}/priv/`.
-Preferences live beneath `${NODE_HOME}/.cntools/`; backups, saved transactions
-and asset-registry exports have their own reported locations.
+Theme and transaction preferences live beneath
+`${NODE_HOME}/scripts/cntools/.state/` and are preserved by script deployments.
+Backups, saved transactions and asset-registry exports have their own reported
+locations.
+
+Temporary transaction bodies, signing snapshots and witnesses are created in
+private `.cntools-transaction-action.*` workspaces beneath `TMP_DIR`. If it is
+not configured in `env`, CNTools uses `/tmp/<deployment-name>`. These workspaces
+are cleaned when the action finishes or is cancelled. Saved unsigned or signed
+packages are kept separately under `${NODE_HOME}/scripts/cntools/.transactions/`;
+their paths are displayed when saved. They survive temporary-file cleanup and
+are preserved by script deployments.
 
 CNTools can generate missing public keys, addresses and IDs from available
 keys or scripts and reuse them later. It does not silently replace mismatched
 files or decrypt protected keys during inspection.
 
 Asset metadata comes from Koios, including in local mode, and is cached for
-one day. **Advanced → Clear asset cache** requests fresh metadata on the next
-lookup. Metadata failures do not remove known holdings.
+one day beneath `${NODE_HOME}/scripts/cntools/.cache/asset-cache/`.
+**Advanced → Clear asset cache** requests fresh metadata on the next lookup.
+Metadata failures do not remove known holdings. This cache is disposable and
+can be regenerated after a script deployment.
 
 The default log is `${NODE_HOME}/logs/cntools.log`, subject to your configured
 log path. It records user choices, commands, API requests, technical transaction

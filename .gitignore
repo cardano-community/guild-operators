@@ -5,3 +5,6 @@ book
 files/docker/smash/
 .env
 files/docker/grest/config/postgres/crontab
+/scripts/common-helper-scripts/cntools/.cache/
+/scripts/common-helper-scripts/cntools/.state/
+/scripts/common-helper-scripts/cntools/.transactions/

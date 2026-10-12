@@ -37,10 +37,11 @@ cntools_asset_response_valid() {
 }
 
 cntools_asset_cache_directory() {
-  local base="${CNTOOLS_NODE_HOME:-}" directory=""
+  local base="${CNTOOLS_ROOT:-}" directory=""
   [[ "${CNTOOLS_ASSET_CACHE_ENABLED:-Y}" == Y && "${base}" == /* &&
      "${base}" != / && -d "${base}" && ! -L "${base}" && -O "${base}" ]] || return 1
-  for directory in "${base}/.cntools" "${base}/.cntools/asset-cache"; do
+  cntools_filesystem_path_components_safe "${base}" || return 1
+  for directory in "${base}/.cache" "${base}/.cache/asset-cache"; do
     if [[ ! -e "${directory}" && ! -L "${directory}" ]]; then
       (umask 077; mkdir -- "${directory}") 2>/dev/null || return 1
     fi

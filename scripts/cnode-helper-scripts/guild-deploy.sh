@@ -992,6 +992,12 @@ dispatcher_validate_cntools_tree() {
   done
 
   if [[ "${require_tracked}" = "Y" ]]; then
+    for relative_path in .state .cache .transactions; do
+      [[ ! -e "${tree}/${relative_path}" && ! -L "${tree}/${relative_path}" ]] || {
+        log_warn "The CNTools source snapshot must not contain runtime data: ${relative_path}"
+        return 1
+      }
+    done
     [[ -n "${source_root}" && -d "${source_root}" && ! -L "${source_root}" ]] || return 1
     source_root="$(cd -- "${source_root}" && pwd -P)" || return 1
     repository_root="$(git -C "${source_root}" rev-parse --show-toplevel 2>/dev/null)" || return 1
@@ -1050,7 +1056,9 @@ dispatcher_validate_cntools_tree() {
       log_warn "CNTools contains an unsupported filesystem entry: ${relative_path}"
       return 1
     fi
-  done < <(find "${tree}" -mindepth 1 -print0)
+  done < <(find "${tree}" -mindepth 1 \
+    \( -path "${tree}/.state" -o -path "${tree}/.cache" -o \
+       -path "${tree}/.transactions" \) -prune -o -print0)
 
   version="$(< "${tree}/VERSION")"
   [[ "$(awk 'END { print NR }' "${tree}/VERSION")" = "1" &&
@@ -1064,7 +1072,10 @@ dispatcher_validate_cntools_tree() {
       log_warn "CNTools shell validation failed: ${entry#"${tree}"/}"
       return 1
     }
-  done < <(find "${tree}" -type f -name '*.sh' -print0)
+  done < <(find "${tree}" \
+    \( -path "${tree}/.state" -o -path "${tree}/.cache" -o \
+       -path "${tree}/.transactions" \) -prune -o \
+    -type f -name '*.sh' -print0)
   while IFS= read -r -d '' entry; do
     jq -e 'type == "object"' "${entry}" >/dev/null 2>&1 || {
       log_warn "CNTools metadata validation failed: ${entry#"${tree}"/}"
@@ -1728,6 +1739,23 @@ dispatcher_cntools_move_tree() {
   mv -- "$1" "$2"
 }
 
+# Runtime data is never executed or normalized as downloaded script payload.
+dispatcher_cntools_runtime_data_safe() {
+  local directory="${1:-}" entry="" mode=""
+
+  [[ "${directory}" = /* && -d "${directory}" &&
+     ! -L "${directory}" && -O "${directory}" ]] || return 1
+  while IFS= read -r -d '' entry; do
+    [[ ! "${entry}" =~ [[:cntrl:]] && ! -L "${entry}" &&
+       -O "${entry}" && -r "${entry}" &&
+       ( ( -d "${entry}" && -x "${entry}" ) || -f "${entry}" ) ]] || return 1
+    if mode="$(stat -c '%a' -- "${entry}" 2>/dev/null)"; then :
+    elif mode="$(stat -f '%Lp' "${entry}" 2>/dev/null)"; then :
+    else return 1; fi
+    [[ "${mode}" =~ ^[0-7]{3,4}$ ]] && (( (8#${mode} & 077) == 0 )) || return 1
+  done < <(find "${directory}" -print0)
+}
+
 # Install the complete CNTools directory as a single generation. The old tree
 # is kept inside the same-filesystem staging directory until the candidate has
 # been installed and revalidated, which permits rollback on every failure.
@@ -1738,6 +1766,7 @@ dispatcher_install_cntools_tree() (
   local stage_root=""
   local candidate_directory=""
   local previous_directory=""
+  local persisted_directory=""
   local target_lock_acquired="N"
   local target_existed="N"
   local previous_moved="N"
@@ -1765,16 +1794,29 @@ dispatcher_install_cntools_tree() (
 
   _dispatcher_cntools_permissions_valid() {
     local cntools_tree="${1:-}"
+    local runtime_directory=""
 
     [[ -n "${cntools_tree}" &&
        -d "${cntools_tree}" &&
        ! -L "${cntools_tree}" &&
-       -z "$(find "${cntools_tree}" -type d ! -perm 0755 -print -quit)" &&
-       -z "$(find "${cntools_tree}" -type f \
+       -z "$(find "${cntools_tree}" \
+         \( -path "${cntools_tree}/.state" -o -path "${cntools_tree}/.cache" -o \
+            -path "${cntools_tree}/.transactions" \) -prune -o \
+         -type d ! -perm 0755 -print -quit)" &&
+       -z "$(find "${cntools_tree}" \
+         \( -path "${cntools_tree}/.state" -o -path "${cntools_tree}/.cache" -o \
+            -path "${cntools_tree}/.transactions" \) -prune -o -type f \
          ! -path "${cntools_tree}/cntools_main.sh" \
          ! -perm 0644 -print -quit)" &&
        -n "$(find "${cntools_tree}/cntools_main.sh" -prune \
-         -type f -perm 0755 -print)" ]]
+         -type f -perm 0755 -print)" ]] || return 1
+    for runtime_directory in "${cntools_tree}/.state" "${cntools_tree}/.cache" \
+        "${cntools_tree}/.transactions"; do
+      if [[ -e "${runtime_directory}" || -L "${runtime_directory}" ]]; then
+        dispatcher_cntools_runtime_data_safe "${runtime_directory}" || return 1
+      fi
+    done
+    return 0
   }
 
   _dispatcher_cntools_cleanup() {
@@ -1870,6 +1912,27 @@ dispatcher_install_cntools_tree() (
     return 2
   }
   dispatcher_validate_cntools_tree "${candidate_directory}" N || return 2
+
+  # Copy preferences and saved packages after script permissions are normalized.
+  # The previous generation retains its own copies for every rollback path.
+  for persisted_directory in .state .transactions; do
+    if [[ "${target_existed}" = Y &&
+          ( -e "${target_directory}/${persisted_directory}" ||
+            -L "${target_directory}/${persisted_directory}" ) ]]; then
+      dispatcher_cntools_runtime_data_safe "${target_directory}/${persisted_directory}" || {
+        log_warn "CNTools persisted data is not owned and private (${persisted_directory}); the current installation was left unchanged."
+        return 2
+      }
+      [[ ! -e "${candidate_directory}/${persisted_directory}" &&
+         ! -L "${candidate_directory}/${persisted_directory}" ]] || return 2
+      (umask 077; cp -Rp -- "${target_directory}/${persisted_directory}" \
+        "${candidate_directory}/${persisted_directory}") || {
+        log_warn "Could not preserve CNTools persisted data (${persisted_directory}); the current installation was left unchanged."
+        return 2
+      }
+      dispatcher_cntools_runtime_data_safe "${candidate_directory}/${persisted_directory}" || return 2
+    fi
+  done
 
   transaction_active="Y"
   if [[ "${target_existed}" = "Y" ]]; then
