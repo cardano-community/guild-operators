@@ -204,8 +204,10 @@ and delegation are unchanged.
 2. Transfer that package, not private keys, to the signing system.
 3. Start `./cntools.sh -o`, open **Transaction → Sign**, and choose a saved
    package, browse for the imported file, or enter its path.
-4. Review its actual effects and required signers. Supply the matching CLI or
-   hardware sources and save the resulting package.
+4. Use **Review transaction** to inspect its decoded details, and review the
+   required signers. CNTools searches local wallets for matching signing keys
+   and hardware references. Choose a verified match, select a file manually,
+   or skip a signer and save a partial package for them to sign elsewhere.
 5. Return the completed package to an online system and use
    **Transaction → Submit**.
 
@@ -228,6 +230,43 @@ packages. Imported files can be browsed without knowing their full path, includi
 hidden folders. Back or Escape returns to file selection; Cancel leaves the action.
 Listing a package is not proof that it is valid: CNTools validates the selected
 file before the existing review, signing or submission flow.
+
+Sign and Submit show a compact transaction information table. **Review
+transaction** opens the same detail layout as wallet transaction history:
+separate inputs/outputs, nested asset tables, and relevant metadata, certificate,
+withdrawal and governance sections. This view is decoded locally from the selected
+transaction and works offline. It cannot resolve input addresses or their original
+balances from the transaction body; inputs are shown as UTxO references.
+
+Signing offers matching local wallet keys with their known key type and role.
+Only usable unencrypted keys or hardware references are offered; public-only and
+encrypted wallets may identify a key type but cannot sign. Decrypt encrypted keys
+through **Wallet → Decrypt** first. Skipping leaves that witness missing and moves
+to the next signer. A hardware session must be completed as a group or deferred
+as a group. No key is used without your selection, and matching is rechecked
+before signing.
+
+File imports elsewhere offer **Browse files**, **Enter file path** and **Cancel**,
+including signing/hardware references, participant public keys, transaction and
+governance metadata, Token Registry entries/logos, Calidus and Catalyst
+authorizations, and backup archives. Folder inputs offer **Browse folders** for
+pool imports, offline KES requests/responses and backup destinations. Navigate to
+the desired folder and choose **Select this folder**. Browsing includes hidden
+folders but excludes symlinks. Back or Escape returns to the path-choice menu.
+Optional inputs have an explicit **Skip**, **Defer** or **Use default** choice;
+Cancel does not mean skip. Selecting a path does not approve its contents: the
+action's existing validation and confirmation steps still apply. Browsing does
+not create folders. After selecting a file, choose **Use selected file**,
+**Delete selected file**, or **Back**. Deletion is available for owned regular
+files in safe, owned writable folders, including saved transaction packages.
+Generated package folders directly under `.transactions` additionally offer
+**Delete saved transaction folder**, which removes the complete package and its
+contents. Custom folders, `.transactions` itself, and symlinks cannot be deleted.
+A separate confirmation defaults to No, and changed or unsafe targets are refused.
+Deletion is permanent and cannot be undone through CNTools; keep an independent
+backup before deleting keys or recovery archives. After deletion, selection is
+refreshed and the deleted path is never used by the action. Locked files are not
+unlocked automatically.
 
 **Transaction → Submit** accepts a completed CNTools package or a supported
 external signed Cardano transaction. Review the effects, network and named

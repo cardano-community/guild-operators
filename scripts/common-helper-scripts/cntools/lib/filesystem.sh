@@ -51,6 +51,64 @@ cntools_filesystem_mtime_into() {
   _cntools_output_ref="${_cntools_mtime}"
 }
 
+# A deletion is a single owned regular file, never a directory or symlink.
+# The parent must be owned/private so an unrelated user cannot replace targets.
+cntools_filesystem_file_delete_safe() {
+  local target="${1:-}" parent='' mode=''
+  [[ "${target}" == /* && -f "${target}" && ! -L "${target}" && -O "${target}" ]] || return 1
+  cntools_filesystem_path_components_safe "${target}" || return 1
+  parent="${target%/*}"; [[ -n "${parent}" ]] || parent=/
+  [[ -d "${parent}" && -O "${parent}" && -w "${parent}" && -x "${parent}" ]] || return 1
+  cntools_filesystem_directory_ancestry_safe "${parent}" || return 1
+  cntools_filesystem_mode_into mode "${parent}" || return 1
+  (( (8#${mode} & 0022) == 0 ))
+}
+
+cntools_filesystem_file_identity_into() {
+  local identity_output="${1:-}" identity_path="${2:-}" identity_value=''
+  [[ "${identity_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n identity_result="${identity_output}"
+  identity_result=''
+  if identity_value="$(stat -c '%d:%i:%s:%Y:%Z' -- "${identity_path}" 2>/dev/null)"; then :
+  elif identity_value="$(stat -f '%d:%i:%z:%m:%c' "${identity_path}" 2>/dev/null)"; then :
+  else return 1; fi
+  [[ "${identity_value}" =~ ^[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+$ ]] || return 1
+  identity_result="${identity_value}"
+}
+
+# Bounded snapshot for an explicitly selected managed export folder. Refuse
+# symlinks, special files, foreign ownership and shared-writable directories.
+cntools_filesystem_owned_tree_identity_into() {
+  local tree_output="${1:-}" tree_root="${2:-}" tree_directory='' tree_entry='' tree_name='' tree_identity='' tree_mode=''
+  local tree_manifest='' tree_count=0 tree_index=0
+  local -a tree_pending=("${tree_root}")
+  [[ "${tree_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ && "${tree_root}" == /* ]] || return 2
+  local -n tree_result="${tree_output}"
+  tree_result=''
+  cntools_filesystem_directory_ancestry_safe "${tree_root}" || return 1
+  while ((tree_index < ${#tree_pending[@]})); do
+    tree_directory="${tree_pending[tree_index]}"; tree_index=$((tree_index+1))
+    [[ -d "${tree_directory}" && ! -L "${tree_directory}" && -O "${tree_directory}" &&
+       -w "${tree_directory}" && -r "${tree_directory}" && -x "${tree_directory}" ]] || return 1
+    cntools_filesystem_mode_into tree_mode "${tree_directory}" || return 1
+    (( (8#${tree_mode} & 0022) == 0 )) || return 1
+    cntools_filesystem_file_identity_into tree_identity "${tree_directory}" || return 1
+    tree_manifest+="D ${tree_directory} ${tree_identity}"$'\n'
+    for tree_entry in "${tree_directory}/"* "${tree_directory}/".*; do
+      tree_name="${tree_entry##*/}"; [[ "${tree_name}" != . && "${tree_name}" != .. ]] || continue
+      [[ -e "${tree_entry}" || -L "${tree_entry}" ]] || continue
+      [[ ! "${tree_entry}" =~ [[:cntrl:]] && ! -L "${tree_entry}" && -O "${tree_entry}" ]] || return 1
+      tree_count=$((tree_count+1)); ((tree_count <= 1024)) || return 1
+      if [[ -d "${tree_entry}" ]]; then tree_pending+=("${tree_entry}")
+      elif [[ -f "${tree_entry}" ]]; then
+        cntools_filesystem_file_identity_into tree_identity "${tree_entry}" || return 1
+        tree_manifest+="F ${tree_entry} ${tree_identity}"$'\n'
+      else return 1; fi
+    done
+  done
+  tree_result="${tree_manifest}"
+}
+
 
 cntools_filesystem_mode_into() {
   local _cntools_output_name="${1:-}"

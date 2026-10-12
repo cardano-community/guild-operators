@@ -42,7 +42,7 @@ cntools_gov_vote_choose_rationale() {
         case "${method}" in
           Cancel) continue ;;
           'Hash local JSON file')
-            cntools_ui_input file 'Rationale JSON file' 'Absolute path to the exact published bytes' || return $?
+            cntools_ui_pick_path file 'Rationale JSON file' 'Choose the exact published JSON bytes; the file is not uploaded.' || return $?
             if ! cntools_ui_spin_function 'Hashing vote rationale…' cntools_gov_vote_hash_into hash "${file}"; then
               cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-Could not hash that rationale.}"; continue
             fi ;;

@@ -103,7 +103,9 @@ cntools_backup_create_wizard() {
     *) return 0 ;;
   esac
   destination="${CNTOOLS_NODE_HOME}/backups"
-  cntools_backup_interact cntools_ui_input destination 'Existing backup directory (Enter for default)' "${destination}" || return $?
+  cntools_backup_interact cntools_ui_pick_path destination 'Backup directory' \
+    "Choose an existing backup folder, or use the default: ${destination}. Only the default folder is created automatically." \
+    "${destination}" directory 'Use default backup folder' "${destination}" || return $?
   destination="${destination:-${CNTOOLS_NODE_HOME}/backups}"; destination="${destination%/}"
   # Create only the advertised default, never an arbitrary recursive path.
   if [[ "${destination}" == "${CNTOOLS_NODE_HOME}/backups" && ! -e "${destination}" && ! -L "${destination}" ]]; then
@@ -148,7 +150,8 @@ cntools_backup_restore_wizard() {
   local source='' password='' status=0
   cntools_backup_begin Restore
   cntools_ui_render_status info 'Restore imports only missing wallet, pool and asset folders. A complete, decrypted owner-private recovery copy is kept separately; existing .gpg keys stay encrypted. Existing folders are never merged or overwritten. Use only a backup you trust.'
-  cntools_backup_interact cntools_ui_input source 'Backup file (.tar.gz or .tar.gz.gpg)' || return $?
+  cntools_backup_interact cntools_ui_pick_path source 'Backup file (.tar.gz or .tar.gz.gpg)' \
+    'Choose a trusted backup archive. Its contents and integrity are checked before restore.' "${CNTOOLS_NODE_HOME}/backups" || return $?
   [[ -n "${source}" ]] || return 0
   cntools_log CHOICE "backup restore selected file=${source}" || true
   if [[ "${source}" == *.gpg ]]; then cntools_backup_interact cntools_backup_password_into password decrypt || return $?; fi

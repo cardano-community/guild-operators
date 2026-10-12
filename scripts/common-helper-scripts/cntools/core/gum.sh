@@ -17,6 +17,8 @@ CNTOOLS_GUM_STATIC_HEADER_TITLE=""
 CNTOOLS_GUM_STATIC_HEADER_RUNTIME=""
 CNTOOLS_GUM_HEALTH_FRAGMENT_KEY=""
 CNTOOLS_GUM_HEALTH_FRAGMENT=""
+CNTOOLS_GUM_CONTEXT_LABEL="CNTools"
+CNTOOLS_GUM_CONTEXT_PATH="/"
 declare -Ag CNTOOLS_GUM_BREADCRUMB_KEYS=()
 declare -Ag CNTOOLS_GUM_BREADCRUMB_FRAGMENTS=()
 declare -Ag CNTOOLS_GUM_HEADER_RENDER_KEYS=()
@@ -904,7 +906,8 @@ cntools_ui_render_begin() {
   local _label="${1:-CNTools}"
   local breadcrumb="${2:-/}"
 
-  : "${_label}"
+  CNTOOLS_GUM_CONTEXT_LABEL="${_label}"
+  CNTOOLS_GUM_CONTEXT_PATH="${breadcrumb}"
   cntools_gum_header "${breadcrumb}"
 }
 
@@ -1090,21 +1093,138 @@ cntools_ui_pager() {
     --match-highlight.background "${CNTOOLS_GUM_COLOR_BRAND}" "$@"
 }
 
+# Selected-file actions are shared by browsing, saved-package discovery and
+# manual paths. Status 3 means deleted: refresh selection, never return the path.
+cntools_ui_managed_transaction_folder_into() {
+  local managed_output="$1" managed_file="$2" managed_root="${CNTOOLS_ROOT:-}" managed_folder='' managed_name=''
+  [[ "${managed_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n managed_result="${managed_output}"
+  managed_result=''
+  [[ -n "${managed_root}" && "${managed_root}" == /* && "${managed_root}" != / ]] || return 1
+  managed_folder="${managed_file%/*}"; managed_name="${managed_folder##*/}"
+  [[ "${managed_folder%/*}" == "${managed_root}/.transactions" &&
+     "${managed_name}" =~ ^[a-z][a-z-]{0,30}-[0-9]{8}-[0-9]{6}\.[A-Za-z0-9]{6}$ ]] || return 1
+  [[ -d "${managed_folder}" && ! -L "${managed_folder}" && -O "${managed_folder}" &&
+     -d "${managed_root}/.transactions" && -O "${managed_root}/.transactions" ]] || return 1
+  cntools_filesystem_directory_ancestry_safe "${managed_folder}" || return 1
+  managed_result="${managed_folder}"
+}
+
+cntools_ui_file_selected() {
+  local file_action_path="${1:-}" file_action_begin="${2:-}" file_action_choice='' file_action_status=0
+  local file_action_identity='' file_action_current='' file_action_errors='' file_action_width=''
+  local file_action_folder='' file_action_target='' file_action_kind=file file_action_text='' file_action_prompt=''
+  local file_action_label="${CNTOOLS_GUM_CONTEXT_LABEL:-CNTools}" file_action_breadcrumb="${CNTOOLS_GUM_CONTEXT_PATH:-/}"
+  local -a file_action_choices=('Use selected file')
+  [[ "${file_action_path}" == /* ]] || file_action_path="${PWD}/${file_action_path}"
+  # Invalid manual paths go to the caller's existing validator; they cannot be
+  # managed or deleted. Do not resolve symlinks to reach a deletion target.
+  [[ -f "${file_action_path}" && ! -L "${file_action_path}" ]] || return 0
+  cntools_filesystem_path_components_safe "${file_action_path}" || return 0
+  [[ -z "${file_action_begin}" ]] || declare -F "${file_action_begin}" >/dev/null || return 2
+  file_action_width="$(cntools_ui_content_width 100 42)" || return 2
+  while true; do
+    cntools_gum_clear
+    if [[ -n "${file_action_begin}" ]]; then "${file_action_begin}" || return 2
+    else cntools_ui_render_begin "${file_action_label}" "${file_action_breadcrumb}" || return 2; fi
+    cntools_ui_render_status info "Selected file: ${file_action_path}" "$((file_action_width - 4))" || return 2
+    file_action_choices=('Use selected file')
+    if cntools_filesystem_file_delete_safe "${file_action_path}"; then file_action_choices+=('Delete selected file'); fi
+    if cntools_ui_managed_transaction_folder_into file_action_folder "${file_action_path}" &&
+       cntools_filesystem_file_delete_safe "${file_action_path}"; then
+      file_action_choices+=('Delete saved transaction folder')
+    fi
+    file_action_choices+=(Back)
+    file_action_status=0
+    cntools_ui_choose file_action_choice 'Selected file' "${file_action_choices[@]}" || file_action_status=$?
+    ((file_action_status == 0)) || return "${file_action_status}"
+    cntools_gum_log CHOICE "Selected file action=${file_action_choice} path=$(printf '%q' "${file_action_path}")"
+    case "${file_action_choice}" in
+      'Use selected file') return 0 ;;
+      Back) return 1 ;;
+      'Delete selected file'|'Delete saved transaction folder')
+        file_action_kind='file'; file_action_target="${file_action_path}"; file_action_prompt='Permanently delete the selected file?'
+        if [[ "${file_action_choice}" == 'Delete saved transaction folder' ]]; then
+          file_action_kind=directory; file_action_prompt='Permanently delete this saved transaction folder and all its files?'
+          if ! cntools_ui_managed_transaction_folder_into file_action_target "${file_action_path}" ||
+             ! cntools_filesystem_file_delete_safe "${file_action_path}" ||
+             ! cntools_filesystem_owned_tree_identity_into file_action_identity "${file_action_target}"; then
+            cntools_ui_render_status warn 'This managed folder cannot be deleted safely. It may contain symlinks, special files, unsafe permissions or files owned by another user.'
+            cntools_ui_wait; return 1
+          fi
+        elif ! cntools_filesystem_file_delete_safe "${file_action_path}" ||
+             ! cntools_filesystem_file_identity_into file_action_identity "${file_action_path}"; then
+          cntools_ui_render_status warn 'This file can no longer be deleted safely.'; cntools_ui_wait; return 1
+        fi
+        file_action_text="Permanently delete ${file_action_kind}: ${file_action_target}."
+        [[ "${file_action_kind}" != directory ]] || file_action_text+=' All files and subfolders in this saved transaction package will be removed.'
+        file_action_text+=' CNTools cannot undo this. Deleting a private key or backup can make funds or pool operations unrecoverable; keep a verified independent backup. This is not secure erasure.'
+        cntools_ui_render_status warn "${file_action_text}" "$((file_action_width - 4))" || return 2
+        file_action_status=0
+        cntools_ui_confirm "${file_action_prompt}" false || file_action_status=$?
+        cntools_gum_log CHOICE "Deletion confirmation kind=${file_action_kind} path=$(printf '%q' "${file_action_target}") status=${file_action_status}"
+        if ((file_action_status == 1)); then continue; fi
+        ((file_action_status == 0)) || return "${file_action_status}"
+        # Recheck after confirmation. A changed file must be selected again.
+        file_action_current=''
+        if [[ "${file_action_kind}" == directory ]]; then
+          if cntools_ui_managed_transaction_folder_into file_action_folder "${file_action_path}" &&
+             [[ "${file_action_folder}" == "${file_action_target}" ]] && cntools_filesystem_file_delete_safe "${file_action_path}"; then
+            cntools_filesystem_owned_tree_identity_into file_action_current "${file_action_target}" || file_action_current=''
+          fi
+        elif cntools_filesystem_file_delete_safe "${file_action_path}"; then
+          cntools_filesystem_file_identity_into file_action_current "${file_action_path}" || file_action_current=''
+        fi
+        if [[ -z "${file_action_current}" || "${file_action_current}" != "${file_action_identity}" ]]; then
+          cntools_gum_log ERROR "Deletion refused: target changed or unsafe path=$(printf '%q' "${file_action_target}")"
+          cntools_ui_render_status warn 'The selected target changed or is no longer safe to delete. Nothing was deleted.'
+          cntools_ui_wait; return 1
+        fi
+        local -a file_action_command=(rm -- "${file_action_target}")
+        [[ "${file_action_kind}" != directory ]] || file_action_command=(rm -r -- "${file_action_target}")
+        cntools_gum_log CMD "$(printf '%q ' "${file_action_command[@]}")"
+        if file_action_errors="$("${file_action_command[@]}" 2>&1)"; then
+          cntools_gum_log FILE "Permanently deleted ${file_action_kind}=$(printf '%q' "${file_action_target}")"
+          cntools_ui_render_status success "Selected ${file_action_kind} permanently deleted. It cannot be restored through CNTools."
+          cntools_ui_wait; return 3
+        fi
+        file_action_errors="${file_action_errors//[[:cntrl:]]/ }"
+        cntools_gum_log ERROR "Deletion failed kind=${file_action_kind} path=$(printf '%q' "${file_action_target}") error=${file_action_errors}"
+        file_action_text="The ${file_action_kind} could not be completely deleted."
+        [[ "${file_action_kind}" != directory ]] || file_action_text+=' Some files may already have been removed; inspect the remaining folder.'
+        cntools_ui_render_status error "${file_action_text} ${file_action_errors}" "$((file_action_width - 4))"
+        cntools_ui_wait
+        [[ -f "${file_action_path}" ]] || return 3
+        ;;
+      *) return 2 ;;
+    esac
+  done
+}
+
 cntools_ui_file() {
   local _cntools_output_name="${1:-}" _cntools_start="${2:-${PWD}}" _cntools_begin="${3:-}"
+  local _cntools_kind="${4:-file}"
+  local _cntools_file_status=0
   local _cntools_directory="" _cntools_entry="" _cntools_name="" _cntools_selected="" _cntools_index=0 _cntools_found=N
   local -a _cntools_paths=() _cntools_labels=()
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
      -d "${_cntools_start}" && -r "${_cntools_start}" && -x "${_cntools_start}" &&
      ! "${_cntools_start}" =~ [[:cntrl:]] ]] || return 2
   [[ -z "${_cntools_begin}" ]] || declare -F "${_cntools_begin}" >/dev/null || return 2
+  case "${_cntools_kind}" in file|directory) ;; *) return 2 ;; esac
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
+  [[ "${_cntools_start}" == /* ]] || _cntools_start="${PWD}/${_cntools_start}"
+  cntools_filesystem_path_components_safe "${_cntools_start}" || return 2
   _cntools_directory="$(cd -- "${_cntools_start}" && pwd -P)" || return 2
   while true; do
     cntools_filesystem_path_components_safe "${_cntools_directory}" || return 2
+    [[ -d "${_cntools_directory}" && -r "${_cntools_directory}" && -x "${_cntools_directory}" ]] || return 2
     [[ -z "${_cntools_begin}" ]] || "${_cntools_begin}" || return 2
     _cntools_paths=(); _cntools_labels=()
+    if [[ "${_cntools_kind}" == directory ]]; then
+      _cntools_paths+=("${_cntools_directory}"); _cntools_labels+=('Select this folder')
+    fi
     # Explicit dot-file globs keep hidden package folders accessible without
     # changing shell options. Never follow symlinks or display control bytes.
     for _cntools_entry in "${_cntools_directory%/}/"* "${_cntools_directory%/}/".*; do
@@ -1115,7 +1235,7 @@ cntools_ui_file() {
       if [[ -d "${_cntools_entry}" && -x "${_cntools_entry}" ]]; then
         _cntools_paths+=("${_cntools_entry}")
         _cntools_labels+=("Folder · ${_cntools_name}")
-      elif [[ -f "${_cntools_entry}" ]]; then
+      elif [[ "${_cntools_kind}" == file && -f "${_cntools_entry}" ]]; then
         _cntools_paths+=("${_cntools_entry}")
         _cntools_labels+=("File · ${_cntools_name}")
       fi
@@ -1126,6 +1246,9 @@ cntools_ui_file() {
       "${_cntools_labels[@]}" Back || return $?
     case "${_cntools_selected}" in
       Back) return 1 ;;
+      'Select this folder')
+        [[ "${_cntools_kind}" == directory ]] || return 2
+        _cntools_output_ref="${_cntools_directory}"; return 0 ;;
       'Parent folder')
         _cntools_directory="${_cntools_directory%/*}"
         [[ -n "${_cntools_directory}" ]] || _cntools_directory=/
@@ -1139,10 +1262,97 @@ cntools_ui_file() {
         _cntools_directory="${_cntools_paths[_cntools_index]}"
         break
       fi
-      _cntools_output_ref="${_cntools_paths[_cntools_index]}"
-      return 0
+      _cntools_file_status=0
+      cntools_ui_file_selected "${_cntools_paths[_cntools_index]}" "${_cntools_begin}" || _cntools_file_status=$?
+      case "${_cntools_file_status}" in
+        0) _cntools_output_ref="${_cntools_paths[_cntools_index]}"; return 0 ;;
+        1|3)
+          [[ -d "${_cntools_directory}" ]] || _cntools_directory="${_cntools_directory%/*}"
+          break ;;
+        *) return "${_cntools_file_status}" ;;
+      esac
     done
     [[ "${_cntools_found}" == Y ]] || return 2
+  done
+}
+
+# The path picker owns navigation and explicit file deletion. Actions validate file type,
+# identity, permissions, size and contents before using the selected path.
+# A named empty choice preserves optional inputs (Skip/Defer) and defaults.
+cntools_ui_path_begin() {
+  cntools_gum_clear
+  cntools_ui_render_begin "${path_picker_context_label}" "${path_picker_context_path}" || return 2
+}
+
+cntools_ui_pick_path() {
+  local path_picker_output="${1:-}" path_picker_prompt="${2:-File}" path_picker_hint="${3:-}"
+  local path_picker_start="${4:-${CNTOOLS_NODE_HOME:-${CNTOOLS_ROOT:-${PWD}}}}" path_picker_kind="${5:-file}"
+  local path_picker_empty_choice="${6:-}" path_picker_default="${7:-}"
+  local path_picker_context_label="${CNTOOLS_GUM_CONTEXT_LABEL:-CNTools}"
+  local path_picker_context_path="${CNTOOLS_GUM_CONTEXT_PATH:-/}"
+  local path_picker_method='' path_picker_value='' path_picker_feedback="${8:-}" path_picker_candidate='' path_picker_width='' path_picker_status=0
+  local -a path_picker_choices=()
+  [[ "${path_picker_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  case "${path_picker_kind}" in
+    file) path_picker_choices=('Browse files' 'Enter file path') ;;
+    directory) path_picker_choices=('Browse folders' 'Enter directory path') ;;
+    *) return 2 ;;
+  esac
+  case "${path_picker_empty_choice}" in
+    'Browse files'|'Browse folders'|'Enter file path'|'Enter directory path'|Cancel) return 2 ;;
+  esac
+  [[ -z "${path_picker_default}" || -n "${path_picker_empty_choice}" ]] || return 2
+  local -n path_picker_result="${path_picker_output}"
+  path_picker_result=''
+  [[ -z "${path_picker_empty_choice}" ]] || path_picker_choices+=("${path_picker_empty_choice}")
+  path_picker_choices+=(Cancel)
+  # An optional default folder may not exist yet. Browsing never creates it.
+  for path_picker_candidate in "${path_picker_start}" "${CNTOOLS_NODE_HOME:-}" "${CNTOOLS_ROOT:-}" "${PWD}"; do
+    [[ -d "${path_picker_candidate}" && -r "${path_picker_candidate}" && -x "${path_picker_candidate}" ]] || continue
+    [[ "${path_picker_candidate}" == /* ]] || path_picker_candidate="${PWD}/${path_picker_candidate}"
+    cntools_filesystem_path_components_safe "${path_picker_candidate}" || continue
+    path_picker_start="${path_picker_candidate}"
+    break
+  done
+  path_picker_width="$(cntools_ui_content_width 100 42)" || return 2
+  while true; do
+    cntools_ui_path_begin || return 2
+    [[ -z "${path_picker_hint}" ]] || cntools_ui_render_status info "${path_picker_hint}" "$((path_picker_width - 4))" || return 2
+    [[ -z "${path_picker_feedback}" ]] || cntools_ui_render_status warn "${path_picker_feedback}"
+    cntools_ui_choose path_picker_method "${path_picker_prompt}" "${path_picker_choices[@]}" || return $?
+    cntools_gum_log CHOICE "path selection prompt=$(printf '%q' "${path_picker_prompt}") method=${path_picker_method}"
+    case "${path_picker_method}" in
+      Cancel) return 1 ;;
+      'Browse files'|'Browse folders')
+        path_picker_status=0
+        cntools_ui_file path_picker_value "${path_picker_start}" cntools_ui_path_begin "${path_picker_kind}" || path_picker_status=$?
+        ((path_picker_status == 0 || path_picker_status == 1)) || return "${path_picker_status}"
+        ((path_picker_status == 0)) || continue
+        ;;
+      'Enter file path'|'Enter directory path')
+        cntools_ui_path_begin || return 2
+        path_picker_status=0
+        cntools_ui_input path_picker_value "${path_picker_prompt}" "${path_picker_default:-${path_picker_start}/}" || path_picker_status=$?
+        ((path_picker_status == 0 || path_picker_status == 1)) || return "${path_picker_status}"
+        ((path_picker_status == 0)) || continue
+        if [[ -z "${path_picker_value}" ]]; then
+          if [[ -n "${path_picker_empty_choice}" ]]; then path_picker_value="${path_picker_default}"
+          else path_picker_feedback='Choose a file or folder, enter its path, or Cancel.'; continue; fi
+        fi
+        if [[ "${path_picker_kind}" == file && -n "${path_picker_value}" ]]; then
+          path_picker_status=0
+          cntools_ui_file_selected "${path_picker_value}" cntools_ui_path_begin || path_picker_status=$?
+          case "${path_picker_status}" in 0) ;; 1|3) continue ;; *) return "${path_picker_status}" ;; esac
+        fi
+        ;;
+      *)
+        [[ -n "${path_picker_empty_choice}" && "${path_picker_method}" == "${path_picker_empty_choice}" ]] || return 2
+        path_picker_value="${path_picker_default}"
+        ;;
+    esac
+    path_picker_result="${path_picker_value}"
+    cntools_gum_log CHOICE "path selected prompt=$(printf '%q' "${path_picker_prompt}") path=$(printf '%q' "${path_picker_value}")"
+    return 0
   done
 }
 

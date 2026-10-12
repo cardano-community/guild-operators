@@ -27,6 +27,7 @@
     "wallet-query.sh",
     "table.sh",
     "wallet-history.sh",
+    "transaction-detail-ui.sh",
     "utxo.sh",
     "wallet-utxo-local.sh",
     "wallet-history-ui.sh"

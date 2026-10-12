@@ -23,7 +23,7 @@ cntools_registry_workflow() {
   cntools_ui_choose kind 'Registry entry' New 'Update existing entry' Cancel || return $?
   [[ "${kind}" != Cancel ]] || return 1
   if [[ "${kind}" == 'Update existing entry' ]]; then
-    cntools_ui_input previous 'Current registry JSON file' 'Provide the current published entry to preserve fields and update sequences safely' || return $?
+    cntools_ui_pick_path previous 'Current registry JSON file' 'Choose the current published entry to preserve fields and update sequences safely.' || return $?
     [[ -n "${previous}" ]] || return 1
   fi
   cntools_registry_prompt_into name Name 'Required · 1–50 characters' &&
@@ -31,7 +31,7 @@ cntools_registry_workflow() {
     cntools_registry_prompt_into ticker Ticker 'Optional · 2–9 characters; blank preserves an existing field' &&
     cntools_registry_prompt_into url URL 'Optional · https:// URL, at most 250 characters' &&
     cntools_registry_prompt_into decimals Decimals 'Optional · 0–255 (0 is supported)' || return $?
-  cntools_ui_input logo 'Logo PNG file' 'Optional · at most 64 KiB; blank preserves an existing logo' || return $?
+  cntools_ui_pick_path logo 'Logo PNG file' 'Optional · at most 64 KiB; skipping preserves an existing logo.' '' file 'Skip logo' || return $?
   {
     cntools_table_pair Subject "${identity/./}" identifier
     cntools_table_pair Name "${name}" value

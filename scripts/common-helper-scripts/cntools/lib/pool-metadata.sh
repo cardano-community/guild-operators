@@ -66,7 +66,7 @@ cntools_pool_metadata_wizard() {
     'No metadata') CNTOOLS_POOL_REG_METADATA=null; return 0 ;;
     'URL + known hash') cntools_pool_registration_input hash 'Pool metadata hash' '64 hexadecimal characters' || return $?; hash="${hash,,}" ;;
     'Local JSON file + published URL')
-      cntools_pool_registration_input file 'Pool metadata JSON file' '512 bytes; up to 1024 with extended metadata' || return $?
+      cntools_ui_pick_path file 'Pool metadata JSON file' '512 bytes; up to 1024 with extended metadata. Choose the exact bytes to publish.' "${directory}" || return $?
       cntools_transaction_input_path_into file "${file}" &&
         cntools_transaction_snapshot_into file "${file}" 1024 pool-metadata-edit && cntools_pool_metadata_file_hash_into hash "${file}" || return 3 ;;
     'Download and reuse published metadata')

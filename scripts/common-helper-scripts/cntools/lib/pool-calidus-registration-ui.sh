@@ -43,7 +43,7 @@ cntools_calidus_registration_prompt_authorization() {
   cntools_ui_choose choice 'Pool cold-key authorization' 'Import signed metadata (offline cold key)' 'Authorize with local CLI cold key' Cancel || return $?
   [[ "${choice}" != Cancel ]] || return 1
   if [[ "${choice}" == 'Import signed metadata (offline cold key)' ]]; then
-    cntools_ui_input source 'Signed CIP-151 metadata file' 'Absolute path · original file is retained' || return $?
+    cntools_ui_pick_path source 'Signed CIP-151 metadata file' 'The original file is retained; its authorization is verified before use.' "${CNTOOLS_ROOT}/.transactions" || return $?
     cntools_ui_spin_function 'Verifying the pool cold-key authorization…' cntools_calidus_registration_verify "${source}" || return 2
     return 0
   fi

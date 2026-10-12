@@ -103,7 +103,7 @@ cntools_kes_continue() {
             cntools_ui_spin_function 'Issuing and validating the KES certificate…' cntools_kes_issue || return 1 ;;
           'Prepare offline hand-off') cntools_kes_offline_instructions; return $? ;;
           'Import signed response')
-            cntools_kes_input directory 'Signed response directory' 'Absolute path containing op.cert and cold.counter' || return $?
+            cntools_ui_pick_path directory 'Signed response directory' 'Choose the folder containing op.cert and cold.counter.' "${CNTOOLS_KES_DIRECTORY}" directory || return $?
             cntools_ui_spin_function 'Validating the returned certificate and counter…' cntools_kes_import_response "${directory}" || return 1 ;;
           *) return 0 ;;
         esac ;;
@@ -111,7 +111,7 @@ cntools_kes_continue() {
         cntools_kes_choose choice 'Offline rotation' 'Import signed response' 'Show hand-off instructions' 'Return without changing active keys' || return $?
         case "${choice}" in
           'Import signed response')
-            cntools_kes_input directory 'Signed response directory' 'Absolute path containing op.cert and cold.counter' || return $?
+            cntools_ui_pick_path directory 'Signed response directory' 'Choose the folder containing op.cert and cold.counter.' "${CNTOOLS_KES_DIRECTORY}" directory || return $?
             cntools_ui_spin_function 'Validating the returned certificate and counter…' cntools_kes_import_response "${directory}" || return 1 ;;
           'Show hand-off instructions') cntools_kes_offline_instructions; return $? ;;
           *) return 0 ;;
@@ -178,7 +178,7 @@ cntools_pool_action_rotate() {
         ((status != 0)) || cntools_kes_continue || status=$? ;;
       'Sign an offline request')
         [[ -n "${CNTOOLS_KES_SOURCE}" ]] || { cntools_kes_result 'Open the cold key or connect its hardware device on the signing system first.' warning; return 0; }
-        cntools_kes_input request 'Offline request directory' 'Absolute path to the public request folder' || return $?
+        cntools_ui_pick_path request 'Offline request directory' 'Choose the public request folder copied from the node.' "${CNTOOLS_KES_DIRECTORY}" directory || return $?
         cntools_kes_request_validate "${request}" || { cntools_kes_result 'The request does not match this pool, network or counter.' error; return 0; }
         CNTOOLS_KES_START="$(jq -r '.startPeriod' "${request}/request.json")"
         cntools_kes_review || return 1

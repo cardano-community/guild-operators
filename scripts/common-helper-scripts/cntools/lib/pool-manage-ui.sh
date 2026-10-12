@@ -66,7 +66,7 @@ cntools_pool_action_import() {
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   case "${choice}" in
     'Existing pool directory')
-      cntools_ui_input source 'Source pool directory' 'Absolute path; the source is copied, never modified' || status=$?
+      cntools_ui_pick_path source 'Source pool directory' 'The source is copied, never modified.' "${CNTOOLS_NODE_HOME}" directory || status=$?
       ((status != 1)) || return 0; ((status == 0)) || return "${status}" ;;
     'Hardware cold key')
       while true; do

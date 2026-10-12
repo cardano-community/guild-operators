@@ -97,7 +97,7 @@ cntools_pool_registration_select_stake_into() {
         cntools_ui_render_status warn 'Select a wallet with a valid stake public key; script owners are not supported.'; cntools_ui_wait; return 3;
       } ;;
     'External stake public key (offline signer)')
-      cntools_pool_registration_input file 'Stake verification key file' 'Absolute path to public .vkey; no private key is needed' || return $?
+      cntools_ui_pick_path file 'Stake verification key file' 'Choose a public .vkey; no private key is needed.' || return $?
       cntools_transaction_input_path_into file "${file}" && cntools_pool_stake_record_into stake_record "${file}" '' "${file##*/}" || {
         cntools_ui_render_status warn 'The stake public key could not be read or validated.'; cntools_ui_wait; return 3;
       } ;;

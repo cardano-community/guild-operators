@@ -62,7 +62,7 @@ cntools_pool_action_calidus() {
     esac
     if [[ "${kind}" == signing || "${kind}" == verification ]]; then
       status=0
-      cntools_ui_input source 'Key file' 'Absolute path to a Cardano payment key envelope; source is retained' || status=$?
+      cntools_ui_pick_path source 'Key file' 'Choose a Cardano payment key envelope; the source is retained.' "${directory}" || status=$?
       ((status != 1)) || continue; ((status == 0)) || return "${status}"
     fi
     if ! cntools_calidus_preflight "${directory}" "${kind}"; then

@@ -31,7 +31,7 @@ cntools_drep_script_external_participant() {
   cntools_ui_choose choice 'External DRep participant' 'Verification key file' 'Signing key hash' Cancel || return $?
   case "${choice}" in
     'Verification key file')
-      cntools_ui_input entered 'DRep verification key file (not a signing key)' '' || return $?
+      cntools_ui_pick_path entered 'DRep verification key file' 'Choose a public verification key, not a signing key.' || return $?
       cntools_drep_script_vkey_hash_into hash "${entered}" || return 2
       ;;
     'Signing key hash') cntools_ui_input hash 'DRep signing-key credential hash (56 hex characters, not a script hash)' '' || return $? ;;

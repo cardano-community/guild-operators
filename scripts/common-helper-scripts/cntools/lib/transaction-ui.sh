@@ -93,10 +93,14 @@ cntools_transaction_ui_review_into() {
     "${begin}" || return 2
     "${render}" || return 2
     local -a options=("${proceed}")
+    case "${render}" in
+      cntools_transaction_ui_render_package_review|cntools_transaction_ui_render_submit_review) options+=('Review transaction') ;;
+    esac
     [[ -z "${package}" ]] || options+=('Show required signers')
     cntools_ui_choose review_selection 'Review transaction' "${options[@]}" "$@" Cancel || { status=$?; return "${status}"; }
     cntools_transaction_log CHOICE "Transaction review selected=${review_selection}"
     case "${review_selection}" in
+      'Review transaction') cntools_transaction_ui_detail_view "${begin}" || return 2 ;;
       'Show required signers')
         "${begin}" || return 2
         cntools_transaction_ui_render_signer_progress "${package}" || return 2
@@ -255,6 +259,7 @@ cntools_transaction_ui_render_signer_progress() {
   local key_id=""
   local state=""
   local signer=""
+  local key_type=""
   local state_role="warning"
   local widths=""
   local index=0
@@ -273,6 +278,11 @@ cntools_transaction_ui_render_signer_progress() {
       cntools_transaction_ui_styled_signer_row \
         "${signer}" "Status" "${state}" "${state_role}"
       cntools_transaction_ui_styled_signer_row "" "Roles" "${roles}" value
+      key_type=''
+      if declare -p CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES >/dev/null 2>&1; then
+        key_type="${CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES[${key_id}]:-}"
+      fi
+      [[ -z "${key_type}" ]] || cntools_transaction_ui_styled_signer_row "" 'Key type' "${key_type}" value
       cntools_transaction_ui_styled_signer_row \
         "" "Signing method" "${preferred}" accent
       if [[ -n "${hardware_group}" ]]; then
@@ -390,58 +400,9 @@ cntools_transaction_ui_render_native_scripts() {
 }
 
 cntools_transaction_ui_render_package_review() {
-  cntools_transaction_ui_render_package_overview "${CNTOOLS_TRANSACTION_PACKAGE_FILE}" || return 1
-  cntools_transaction_ui_render_effects
+  cntools_transaction_ui_render_package_overview "${CNTOOLS_TRANSACTION_PACKAGE_FILE}"
 }
 
-# Protect integer literals before jq parses them, including metadata and token
-# quantities beyond its floating-point range. Strings and escapes stay intact.
-# Imported transactions have no trusted action-local summary. Display every
-# nonempty effect from the pinned CLI decode, retaining unknown future fields.
-cntools_transaction_ui_render_effects() {
-  local rows="" label="" value="" role="" exact_view=""
-  exact_view="$(cntools_json_exact_integer_strings <<< "${CNTOOLS_TRANSACTION_UI_VIEW}")" || return 1
-  rows="$(jq -r '
-    def compact:
-      walk(if type == "object" then with_entries(select(.value != null and .value != [] and .value != {}))
-           elif type == "array" then map(select(. != null and . != [] and . != {})) else . end);
-    def metadata_content:
-      if type == "array" and length > 0 and all(.[]; type == "array" and length == 2 and (.[0]|type)=="string") and
-         (map(.[0]) | unique | length) == length
-      then map({key:.[0],value:(.[1]|metadata_content)}) | from_entries
-      elif type == "array" then map(metadata_content)
-      elif type == "object" then map_values(metadata_content) else . end;
-    . as $body |
-    (del(.era,.fee,.["validity range"],.["required signers"],.["network id"],
-         .inputs,.outputs,.withdrawals,.certificates,.mint,.["governance actions"],
-         .voters,.votes,.treasuryDonation,.["treasury donation"],.metadata) +
-     {Inputs:$body.inputs, Outputs:$body.outputs, Withdrawals:$body.withdrawals,
-      Certificates:$body.certificates, Mint:$body.mint, Governance:$body["governance actions"],
-      Votes:($body.voters // $body.votes),
-      "Treasury donation / ADA":(($body.treasuryDonation // $body["treasury donation"]) | if . == "0" then null else . end),
-      Metadata:($body.metadata | metadata_content)})
-    | compact
-    | paths(scalars) as $p | getpath($p) as $v
-    | [($p | map(if type == "number" then (. + 1 | tostring) else . end) | join(" / ")),
-       ($v|tostring)] | @tsv' <<< "${exact_view}")" || return 1
-  [[ -n "${rows}" ]] || return 0
-  {
-    while IFS=$'\t' read -r label value; do
-      role=value
-      case "${value}" in addr*|stake*) role=address ;; esac
-      if [[ "${value}" =~ ^-?[0-9]+$ ]]; then
-        if [[ "${label}" == *' / lovelace' || "${label}" == 'Treasury donation / ADA' ]]; then
-          [[ "${label}" != *' / lovelace' ]] || label="${label% / lovelace} / ADA"
-          value="$(cntools_number_format_units "${value}" 6) ADA" || return 1
-        else
-          value="$(cntools_number_format "${value}")" || return 1
-        fi
-        role=number
-      fi
-      cntools_table_pair "${label}" "${value}" "${role}"
-    done <<< "${rows}"
-  } | cntools_table_render 'Transaction effects'
-}
 
 cntools_transaction_ui_sign_begin() { cntools_ui_action_begin Sign '/ Transaction / Sign'; }
 cntools_transaction_ui_submit_begin() { cntools_ui_action_begin Submit '/ Transaction / Submit'; }
@@ -519,31 +480,29 @@ cntools_transaction_ui_prompt_signer_into() {
   local actual_key_id=""
   local kind=""
   local status=0
+  local defer_choice='' signer_hint=''
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
      "${expected_key_id}" =~ ^[0-9a-f]{64}$ ]] || return 2
   case "${allow_defer}" in Y|N) ;; *) return 2 ;; esac
+  [[ "${allow_defer}" != Y ]] || defer_choice='Defer this signature'
+  [[ -z "${hardware_group}" || "${allow_defer}" != Y ]] || defer_choice='Defer this hardware session'
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   while true; do
     cntools_ui_action_begin "Sign" "/ Transaction / Sign"
     if [[ -n "${hardware_group}" && "${allow_defer}" == "Y" ]]; then
-      cntools_ui_render_status info \
-        "Hardware session ${hardware_group} must collect every missing group witness together. Select the HWS file for ${labels} to begin, or leave it blank to defer the entire session."
+      signer_hint="Hardware session ${hardware_group} must collect every missing group witness together. Choose the HWS file for ${labels}, or defer the entire session."
     elif [[ -n "${hardware_group}" ]]; then
-      cntools_ui_render_status info \
-        "Hardware session ${hardware_group} is selected and must be completed now. Provide the HWS file for ${labels}; every missing group witness is collected in the same device session."
+      signer_hint="Hardware session ${hardware_group} is selected and must be completed now. Choose the HWS file for ${labels}; every missing group witness is collected in the same device session."
     else
-      cntools_ui_render_status info \
-        "Provide the private signing key or hardware signing file for ${labels}. Leave it blank to collect this signature on another CNTools system."
+      signer_hint="Choose the private signing key or hardware signing file for ${labels}. Signing method: ${preferred}."
+      [[ "${allow_defer}" != Y ]] || signer_hint+=' Defer to collect this signature on another CNTools system.'
     fi
-    {
-      printf 'Signing source\tValue\n'
-      cntools_transaction_ui_styled_row Signer "${labels}" identifier
-      cntools_transaction_ui_styled_row Method "${preferred}" accent
-    } | cntools_ui_table --separator $'\t' || return 1
-    [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
-    if cntools_ui_input entered "Signing key / HWS path"; then
+    signer_hint+=' Its identity and permissions are verified before signing.'
+    if cntools_ui_pick_path entered 'Signing key / HWS file' \
+      "${signer_hint}" \
+      "${WALLET_FOLDER:-${CNTOOLS_NODE_HOME:-${CNTOOLS_ROOT}}}" file "${defer_choice}" '' "${feedback}"; then
       status=0
     else
       status=$?
@@ -613,14 +572,9 @@ cntools_transaction_ui_prompt_change_into() {
   _cntools_output_ref=""
   while true; do
     cntools_ui_action_begin "Sign" "/ Transaction / Sign"
-    cntools_ui_render_status info \
-      "Hardware session ${hardware_group} needs its planned change-address reference (${labels}). This HWS file identifies change and does not add another witness."
-    {
-      printf 'Change reference\tValue\n'
-      cntools_transaction_ui_styled_row 'Change address key' "${labels}" identifier
-    } | cntools_ui_table --separator $'\t' || return 1
-    [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
-    if cntools_ui_input entered "Change HWS path"; then
+    if cntools_ui_pick_path entered 'Change HWS file' \
+      "Hardware session ${hardware_group} needs its planned change-address reference (${labels}). Choose this HWS file; it identifies change and does not add another witness." \
+      "${WALLET_FOLDER:-${CNTOOLS_NODE_HOME:-${CNTOOLS_ROOT}}}" file '' '' "${feedback}"; then
       status=0
     else
       status=$?
@@ -721,6 +675,7 @@ cntools_transaction_ui_render_selected_sources() {
   local source=""
   local key_id=""
   local kind=""
+  local key_type=""
   local labels=""
   local widths=""
   local index=0
@@ -737,11 +692,12 @@ cntools_transaction_ui_render_selected_sources() {
       index=$((index + 1))
       cntools_transaction_source_kind_into kind "${source}" || return 1
       cntools_transaction_source_key_id_into key_id "${source}" || return 1
+      cntools_transaction_source_type_into key_type "${source}" || return 1
       labels="$(jq -r --arg id "${key_id}" \
         '.signing.required[] | select(.keyId == $id) | .labels | join(", ")' \
         "${package_file}")" || return 1
       cntools_transaction_ui_styled_signer_row \
-        "$(printf '%02d · %s' "${index}" "${labels}")" "${kind}" \
+        "$(printf '%02d · %s' "${index}" "${labels}")" "${key_type} · ${kind}" \
         "${source}" identifier
     done
     for source in "${change_sources_ref[@]}"; do
@@ -765,7 +721,7 @@ cntools_transaction_action_sign() {
   local original_id=""
   local record=""
   local key_id=""
-  local labels=""
+  local labels="" roles=""
   local preferred=""
   local hardware_group=""
   local source=""
@@ -823,9 +779,10 @@ cntools_transaction_action_sign() {
   fi
   cntools_transaction_ui_log CHOICE \
     "transaction signing review accepted id=${original_id}"
+  cntools_ui_spin_function 'Finding matching keys in local wallets…' cntools_transaction_sources_collect || return 2
 
   while IFS= read -r record; do
-    IFS=$'\037' read -r key_id labels preferred hardware_group <<< "${record}"
+    IFS=$'\037' read -r key_id labels preferred hardware_group roles <<< "${record}"
     signer_allow_defer="Y"
     if [[ -n "${hardware_group}" ]]; then
       group_active="N"
@@ -843,9 +800,9 @@ cntools_transaction_action_sign() {
       done
       [[ "${group_active}" == "N" ]] || signer_allow_defer="N"
     fi
-    if cntools_transaction_ui_prompt_signer_into \
+    if cntools_transaction_ui_local_source_into \
         source "${key_id}" "${labels}" "${preferred}" "${hardware_group}" \
-        "${signer_allow_defer}"; then
+        "${signer_allow_defer}" "${roles}"; then
       status=0
     else
       status=$?
@@ -877,7 +834,7 @@ cntools_transaction_action_sign() {
     . as $signer |
     select(any($package.signing.witnesses[]; .keyId == $signer.keyId) | not) |
     [.keyId, (.labels | join(", ")), .preferredKind,
-     (.hardwareGroup // "")] | join("\u001f")
+     (.hardwareGroup // ""), (.roles|join(", "))] | join("\u001f")
   ' "${input_file}")
 
   if (( ${#signer_sources[@]} == 0 )); then
@@ -1136,7 +1093,7 @@ cntools_transaction_ui_render_submit_review() {
   if [[ "${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}" != package ]]; then
     cntools_ui_render_status warn 'External-envelope completeness cannot be inferred. The submission backend must perform final ledger validation.'
   fi
-  cntools_transaction_ui_render_effects
+  return 0
 }
 
 cntools_transaction_ui_submit_selected() {

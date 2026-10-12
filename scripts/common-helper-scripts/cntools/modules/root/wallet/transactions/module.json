@@ -28,6 +28,7 @@
     "wallet-query.sh",
     "table.sh",
     "wallet-history.sh",
+    "transaction-detail-ui.sh",
     "wallet-history-ui.sh"
   ]
 }

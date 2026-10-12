@@ -63,7 +63,7 @@ cntools_drep_lifecycle_choose_metadata() {
             cntools_ui_confirm 'Use these published metadata bytes and hash?' false || continue
             ;;
           'Hash local JSON file')
-            cntools_ui_input file 'Metadata JSON file' 'Absolute path to the exact published JSON bytes' || return $?
+            cntools_ui_pick_path file 'Metadata JSON file' 'Choose the exact published JSON bytes; the file is not uploaded.' || return $?
             if ! cntools_ui_spin_function 'Hashing DRep metadata…' cntools_drep_lifecycle_hash_file_into hash "${file}"; then
               cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-Could not hash that metadata file.}"; continue
             fi

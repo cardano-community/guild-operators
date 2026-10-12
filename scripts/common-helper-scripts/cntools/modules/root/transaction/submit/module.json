@@ -13,11 +13,14 @@
     "filesystem.sh",
     "presentation.sh",
     "table.sh",
+    "asset.sh",
+    "transaction-detail-ui.sh",
     "transaction.sh",
     "transaction-submit.sh",
     "transaction-monitor.sh",
     "json.sh",
     "transaction-ui.sh",
-    "transaction-picker.sh"
+    "transaction-picker.sh",
+    "transaction-review.sh"
   ]
 }

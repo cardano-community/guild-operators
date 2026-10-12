@@ -47,7 +47,7 @@ cntools_catalyst_registration_workflow() {
   cntools_ui_choose choice 'Registration authorization' "${options[@]}" || return $?
   [[ "${choice}" != Cancel ]] || return 1
   if [[ "${choice}" == 'Import metadata signed offline' ]]; then
-    cntools_ui_input metadata 'Signed CIP-36 JSON metadata' 'Absolute path · original retained' || return $?
+    cntools_ui_pick_path metadata 'Signed CIP-36 JSON metadata' 'The original file is retained; its registration signature is verified before use.' "${CNTOOLS_ROOT}/.transactions" || return $?
     cntools_ui_spin_function 'Verifying the stake-key signature and registration…' cntools_catalyst_verify_metadata "${metadata}" || return 2
   else
     if [[ "${CNTOOLS_MODE}" != offline ]]; then

@@ -76,24 +76,32 @@ cntools_transaction_picker_into() {
     case "${method}" in
       Cancel) return 1 ;;
       'Saved CNTools packages')
-        cntools_transaction_picker_begin "${mode}" || return 2
-        cntools_ui_spin_function 'Finding saved transaction packages…' \
-          cntools_transaction_picker_catalog "${mode}" || return 2
-        if (( ${#CNTOOLS_TRANSACTION_PICKER_FILES[@]} == 0 )); then
-          feedback='No matching saved packages found. Use Browse files or Enter file path for imported files.'
-        else
+        while true; do
+          cntools_transaction_picker_begin "${mode}" || return 2
+          cntools_ui_spin_function 'Finding saved transaction packages…' \
+            cntools_transaction_picker_catalog "${mode}" || return 2
+          if (( ${#CNTOOLS_TRANSACTION_PICKER_FILES[@]} == 0 )); then
+            feedback='No matching saved packages found. Use Browse files or Enter file path for imported files.'
+            break
+          fi
           status=0
           cntools_ui_choose chosen 'Saved packages · newest first · type to filter' "${CNTOOLS_TRANSACTION_PICKER_ROWS[@]}" Back || status=$?
           (( status == 0 || status == 1 )) || return "${status}"
-          if (( status == 0 )) && [[ "${chosen}" != Back ]]; then
-            for index in "${!CNTOOLS_TRANSACTION_PICKER_ROWS[@]}"; do
-              [[ "${chosen}" == "${CNTOOLS_TRANSACTION_PICKER_ROWS[index]}" ]] || continue
-              picker_result="${CNTOOLS_TRANSACTION_PICKER_FILES[index]}"
-              return 0
-            done
-            return 2
-          fi
-        fi
+          (( status == 0 )) && [[ "${chosen}" != Back ]] || break
+          picker_input=''
+          for index in "${!CNTOOLS_TRANSACTION_PICKER_ROWS[@]}"; do
+            [[ "${chosen}" == "${CNTOOLS_TRANSACTION_PICKER_ROWS[index]}" ]] || continue
+            picker_input="${CNTOOLS_TRANSACTION_PICKER_FILES[index]}"; break
+          done
+          [[ -n "${picker_input}" ]] || return 2
+          status=0
+          cntools_ui_file_selected "${picker_input}" "cntools_transaction_ui_${mode}_begin" || status=$?
+          case "${status}" in
+            0) picker_result="${picker_input}"; return 0 ;;
+            1|3) continue ;;
+            *) return "${status}" ;;
+          esac
+        done
         ;;
       'Browse files')
         status=0
@@ -106,7 +114,15 @@ cntools_transaction_picker_into() {
         status=0
         cntools_ui_input picker_input 'Transaction file path' "${start}/transaction.json" || status=$?
         (( status == 0 || status == 1 )) || return "${status}"
-        if (( status == 0 )) && [[ -n "${picker_input}" ]]; then picker_result="${picker_input}"; return 0; fi
+        if (( status == 0 )) && [[ -n "${picker_input}" ]]; then
+          status=0
+          cntools_ui_file_selected "${picker_input}" "cntools_transaction_ui_${mode}_begin" || status=$?
+          case "${status}" in
+            0) picker_result="${picker_input}"; return 0 ;;
+            1|3) continue ;;
+            *) return "${status}" ;;
+          esac
+        fi
         cntools_transaction_log CHOICE 'Manual transaction file selection cancelled'
         ;;
       *) return 2 ;;

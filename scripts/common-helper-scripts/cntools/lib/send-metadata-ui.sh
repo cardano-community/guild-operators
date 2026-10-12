@@ -122,7 +122,7 @@ cntools_send_metadata_edit_inner() {
       'Remove message') CNTOOLS_METADATA_MESSAGE=""; CNTOOLS_METADATA_MODE=none ;;
       'Remove custom metadata') CNTOOLS_METADATA_CUSTOM=""; CNTOOLS_METADATA_SCHEMA=detailed ;;
       'Import custom metadata')
-        cntools_ui_input path 'Metadata JSON file' '' || return $?
+        cntools_ui_pick_path path 'Metadata JSON file' 'Choose a metadata JSON file. Its format and contents are checked before attachment.' || return $?
         cntools_send_choose format 'Metadata JSON format' 'Simple JSON' 'Detailed JSON' || return $?
         format="${format%% *}"
         cntools_metadata_import "${path}" "${format,,}" || status=2

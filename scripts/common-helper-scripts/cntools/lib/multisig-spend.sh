@@ -150,7 +150,7 @@ cntools_multisig_spend_choose_signers() {
         if (( ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} >= CNTOOLS_MULTISIG_SPEND_THRESHOLD )); then break; fi ;;
       'Clear selected signers') CNTOOLS_MULTISIG_SIGNER_IDS=(); CNTOOLS_MULTISIG_SIGNER_HASHES=(); CNTOOLS_MULTISIG_SIGNER_SOURCES=(); CNTOOLS_MULTISIG_SIGNER_LABELS=() ;;
       'Add external verification key')
-        cntools_ui_input path "Participant ${CNTOOLS_MULTISIG_SELECTION_ROLE} verification-key file" '' || continue
+        cntools_ui_pick_path path "Participant ${CNTOOLS_MULTISIG_SELECTION_ROLE} verification-key file" 'Choose a public verification key belonging to this script. Private keys are not requested here.' || continue
         if ! cntools_multisig_candidate_add "${path}" '' "External participant $((${#CNTOOLS_MULTISIG_CANDIDATE_IDS[@]}+1))"; then
           cntools_ui_render_status warn "Use a safe ${CNTOOLS_MULTISIG_SELECTION_ROLE} verification key belonging to this script. Private keys are not requested here."
         fi ;;
