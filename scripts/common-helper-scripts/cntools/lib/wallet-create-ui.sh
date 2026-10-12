@@ -40,8 +40,6 @@ cntools_wallet_create_render_plan() {
     printf 'Setting\tValue\n'
     cntools_wallet_create_styled_row "Name" "${name}" identifier
     cntools_wallet_create_styled_row "Type" "CLI" accent
-    cntools_wallet_create_styled_row \
-      "Network" "${CNTOOLS_NETWORK:-Unavailable}" accent
     cntools_wallet_create_styled_row "Wallet directory" "${target}" identifier
     cntools_wallet_create_styled_row "Signing keys" \
       "${CNTOOLS_WALLET_PAY_SKEY_FILENAME}, ${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" value

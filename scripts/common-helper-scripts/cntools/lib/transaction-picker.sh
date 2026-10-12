@@ -20,7 +20,7 @@ cntools_transaction_picker_catalog() {
   for file in "${directory}/"*.json "${directory}/"*/*.json; do
     cntools_transaction_file_safe "${file}" || continue
     cntools_filesystem_mtime_into mtime "${file}" || continue
-    metadata="$(jq -ers --arg schema "${CNTOOLS_TRANSACTION_SCHEMA}" --arg mode "${mode}" '
+    metadata="$(jq -ers --arg schema "${CNTOOLS_TRANSACTION_SCHEMA}" --arg mode "${mode}" --arg network "${CNTOOLS_NETWORK:-}" '
       def clean: type=="string" and length>0 and length<=80 and (test("[\u0000-\u001f\u007f-\u009f]")|not);
       select(length==1) | .[0] |
       select(type=="object" and .schema==$schema and
@@ -28,6 +28,7 @@ cntools_transaction_picker_catalog() {
         (.transaction.id|type=="string" and test("^[0-9a-f]{64}$")) and
         (.signing.required|type=="array" and length<=128) and
         (.signing.witnesses|type=="array" and length<=128)) |
+      select($network=="" or .network.name==$network) |
       (.signing.required|length) as $required | (.signing.witnesses|length) as $witnesses |
       [$witnesses,.transaction.id,.intent.kind,.network.name,
        (if (if $mode=="sign" then .signedTransaction==null and $witnesses<$required
@@ -48,7 +49,7 @@ cntools_transaction_picker_catalog() {
     [[ "${eligible}" == Y ]] || continue
     ordinal=$((ordinal+1))
     CNTOOLS_TRANSACTION_PICKER_FILES+=("${path}")
-    CNTOOLS_TRANSACTION_PICKER_ROWS+=("${ordinal} · ${intent} · ${network} · ${progress} · ${id:0:12} · ${path#"${directory}/"}")
+    CNTOOLS_TRANSACTION_PICKER_ROWS+=("${ordinal} · ${intent} · ${progress} · ${id:0:12} · ${path#"${directory}/"}")
   done <<< "${sorted}"
   cntools_transaction_log CHOICE "Saved transaction discovery mode=${mode} count=${#CNTOOLS_TRANSACTION_PICKER_FILES[@]}"
 }

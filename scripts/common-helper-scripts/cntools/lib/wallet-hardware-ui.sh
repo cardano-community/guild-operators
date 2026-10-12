@@ -145,8 +145,6 @@ cntools_wallet_hardware_render_plan() {
     cntools_wallet_create_styled_row "Name" "${name}" identifier
     cntools_wallet_create_styled_row "Type" "Hardware" accent
     cntools_wallet_create_styled_row \
-      "Network" "${CNTOOLS_NETWORK:-Unavailable}" accent
-    cntools_wallet_create_styled_row \
       "Hardware tool" "cardano-hw-cli ${CNTOOLS_WALLET_HARDWARE_VERSION}" value
     cntools_wallet_create_styled_row \
       "Payment path" "${payment_path}" identifier

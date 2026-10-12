@@ -269,6 +269,14 @@ CNTools shows whether its contents are unsigned, partially signed or complete.
 Custom imported files remain untouched and their signed results are saved under
 CNTools. Saved-package selection shows only the newest copy of each transaction
 on each network, with signing progress used to break equal-time ties.
+The saved list is limited to the network shown in the main header. Content
+tables omit redundant network fields. Withdrawal records show the amount, raw
+stake credential and whether it is a key or script credential.
+Address-bearing inputs, outputs and UTxOs also identify their payment/stake
+credential types. Certificate and governance credentials show key/script types
+when the decoded data identifies them. Unresolved input references and bare
+hashes do not imply a credential type. These labels do not identify hardware
+wallets or distinguish native scripts from Plutus scripts.
 
 File imports elsewhere offer **Browse files**, **Enter file path** and **Cancel**,
 including signing/hardware references, participant public keys, transaction and

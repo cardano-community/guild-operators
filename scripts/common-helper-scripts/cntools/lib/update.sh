@@ -264,8 +264,7 @@ cntools_update_action_install() {
     "${CNTOOLS_VERSION}" "${CNTOOLS_UPDATE_REMOTE_VERSION}"
   printf 'Repository       : %s/guild-operators\n' "${CNTOOLS_ACCOUNT}"
   printf 'Branch           : %s\n' "${CNTOOLS_BRANCH}"
-  printf 'Deployment       : %s (%s)\n\n' \
-    "${CNTOOLS_IMPLEMENTATION_NAME}" "${CNTOOLS_NETWORK}"
+  printf 'Deployment       : %s\n\n' "${CNTOOLS_IMPLEMENTATION_NAME}"
   if [[ "${force_deploy}" == "Y" ]]; then
     printf '%sThe installed and selected versions are both v%s.%s\n\n' \
       "${CNTOOLS_UI_YELLOW:-}" "${CNTOOLS_UPDATE_REMOTE_VERSION}" \

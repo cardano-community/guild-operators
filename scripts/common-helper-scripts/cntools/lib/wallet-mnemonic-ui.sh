@@ -276,8 +276,6 @@ cntools_wallet_mnemonic_plan_rows() {
     cntools_wallet_create_styled_row "Type" "Mnemonic" accent &&
     cntools_wallet_create_styled_row "Source" "${source_label}" value &&
     cntools_wallet_create_styled_row \
-      "Network" "${CNTOOLS_NETWORK:-Unavailable}" accent &&
-    cntools_wallet_create_styled_row \
       "Wallet directory" "${target}" identifier &&
     cntools_wallet_create_styled_row \
       "Payment path" "1852H/1815H/${account}H/0/${key_index}" identifier &&
@@ -298,7 +296,6 @@ cntools_wallet_mnemonic_render_plan_fallback() {
     "Name" "${name}" \
     "Type" "Mnemonic" \
     "Source" "${source_label}" \
-    "Network" "${CNTOOLS_NETWORK:-Unavailable}" \
     "Wallet directory" "${target}" \
     "Payment path" "1852H/1815H/${account}H/0/${key_index}" \
     "Stake path" "1852H/1815H/${account}H/2/${key_index}"

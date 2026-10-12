@@ -787,9 +787,10 @@ cntools_transaction_action_sign() {
     return "${status}"
   fi
   if [[ "${CNTOOLS_TRANSACTION_PACKAGE_NETWORK}" != "${CNTOOLS_NETWORK:-}" ]]; then
+    cntools_transaction_ui_log ERROR "Package network mismatch package=${CNTOOLS_TRANSACTION_PACKAGE_NETWORK} configured=${CNTOOLS_NETWORK:-unknown}"
     cntools_ui_action_begin "Sign" "/ Transaction / Sign"
     cntools_ui_render_status error \
-      "This package targets ${CNTOOLS_TRANSACTION_PACKAGE_NETWORK}, but CNTools is configured for ${CNTOOLS_NETWORK:-unknown}."
+      'This package targets a different network than the one shown in the header.'
     cntools_ui_wait
     return 1
   fi

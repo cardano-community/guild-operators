@@ -11,6 +11,9 @@
   ],
   "libs": [
     "number.sh",
+    "bech32.sh",
+    "drep-id.sh",
+    "address-credential.sh",
     "filesystem.sh",
     "presentation.sh",
     "table.sh",

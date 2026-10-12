@@ -46,13 +46,13 @@ cntools_history_overview_rows() {
   cntools_table_row Property Value
   cntools_detail_pair Wallet "${CNTOOLS_HISTORY_WALLET}" identifier
   if [[ "${CNTOOLS_HISTORY_BACKEND}" == local ]]; then
-    cntools_detail_pair Source "Local node · ${CNTOOLS_NETWORK}"
+    cntools_detail_pair Source 'Local node'
     cntools_detail_pair Lookup 'Saved wallet addresses only'
   elif [[ "${CNTOOLS_HISTORY_LOOKUP}" == stake ]]; then
-    cntools_detail_pair Source "Koios API · ${CNTOOLS_NETWORK}"
+    cntools_detail_pair Source 'Koios API'
     cntools_detail_pair Lookup "Stake address"
   else
-    cntools_detail_pair Source "Koios API · ${CNTOOLS_NETWORK}"
+    cntools_detail_pair Source 'Koios API'
     cntools_detail_pair Lookup "Payment credential"
   fi
   cntools_history_number_pair "Matching ${CNTOOLS_HISTORY_KIND}" "${CNTOOLS_HISTORY_TOTAL}"

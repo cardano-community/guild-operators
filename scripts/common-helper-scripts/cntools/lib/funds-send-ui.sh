@@ -108,7 +108,7 @@ cntools_send_prompt_recipient() {
   cntools_send_render_recipient "${label}" "${address}" || return 2
   [[ -z "${resolution}" ]] || cntools_send_review_virtual "${resolution}" || return $?
   if [[ "${choice}" == 'External address' && "${CNTOOLS_NETWORK}" != mainnet ]]; then
-    cntools_ui_render_status info "Testnet addresses do not distinguish testnet networks. Confirm the recipient uses ${CNTOOLS_NETWORK}."
+    cntools_ui_render_status info 'Testnet addresses do not distinguish testnet networks. Confirm the recipient uses the network shown in the header.'
   fi
   CNTOOLS_SEND_ADDRESSES[index]="${address}"
   CNTOOLS_SEND_LABELS[index]="${label}"

@@ -132,7 +132,6 @@ cntools_backup_restore_preview() {
   local object='' root='' name='' decision=''
   {
     cntools_table_pair 'Backup contents' "${CNTOOLS_BACKUP_KIND}" accent
-    cntools_table_pair 'Backup network' "${CNTOOLS_BACKUP_NETWORK}" accent
     for object in "${CNTOOLS_BACKUP_OBJECTS[@]}"; do
       cntools_backup_role_root_into root "${object%%/*}" || return 1
       name="${object#*/}"; decision=Import

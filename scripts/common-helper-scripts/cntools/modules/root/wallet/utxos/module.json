@@ -11,6 +11,8 @@
   "libs": [
     "number.sh",
     "bech32.sh",
+    "drep-id.sh",
+    "address-credential.sh",
     "presentation.sh",
     "wallet.sh",
     "wallet-material.sh",

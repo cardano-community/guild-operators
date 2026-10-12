@@ -13,6 +13,20 @@ cntools_detail_pair() {
   cntools_table_pair "$1" "$2" "${3:-value}"
 }
 
+cntools_detail_address_type_rows() {
+  local address="$1" prefix="${2:-}" facts='' label='' value=''
+  declare -F cntools_address_credentials_into >/dev/null || return 0
+  cntools_address_credentials_into facts "${address}" || return 0
+  while IFS=$'\037' read -r label value; do
+    cntools_detail_pair "${prefix:+${prefix} / }${label}" "${value}" value || return 1
+  done < <(jq -r '
+    (if .payment then ["Payment credential type",.payment.type] else empty end),
+    (if .stake then ["Stake credential type",.stake.type] else empty end),
+    (if .credential then ["Credential type",.credential.type] else empty end),
+    (if .stakeReference then ["Stake reference type",.stakeReference] else empty end) |
+    join("\u001f")' <<< "${facts}")
+}
+
 cntools_detail_asset_display() {
   local asset="$1" prefix="${2:-Asset}" identity="" quantity="" label="" formatted="" decimals=""
   identity="$(jq -r '.policy_id + "." + .asset_name' <<< "${asset}")" || return 1
@@ -47,7 +61,7 @@ cntools_detail_coin_field() {
 # ordinal or payment address. Optional nulls and empty structures stay hidden.
 cntools_detail_tree_rows() {
   local file="$1" section="$2" path="" type="" value="" role="value" formatted=""
-  local decimals="${3:-}" context="${4:-}"
+  local decimals="${3:-}" context="${4:-}" credential_path=''
   cntools_table_row Field Value
   while IFS=$'\037' read -r path type value; do
     role=value
@@ -76,6 +90,8 @@ cntools_detail_tree_rows() {
       role=number
     elif [[ "${path}" =~ (hash|fingerprint|address|bech32|cred|policy_id|asset_name)$ ]]; then
       role=identifier
+    elif [[ "${path}" == Credential || "${path}" == *' / Credential' ]]; then
+      role=credential
     fi
     if [[ "${section}" == Overview ]]; then
       case "${path}" in
@@ -84,7 +100,11 @@ cntools_detail_tree_rows() {
         totalCollateral|total_collateral|'total collateral') path='Total collateral' ;;
       esac
     elif [[ "${section}" == ListRecord && "${context}" == withdrawals ]]; then
-      [[ "${path}" != amount && "${path}" != value && "${path}" != lovelace ]] || path=Amount
+      case "${path}" in
+        amount|value|lovelace) path=Amount ;;
+        credential) path=Credential; role=credential ;;
+        credential_type) path=Type ;;
+      esac
     fi
     if [[ "${section}" == Asset ]]; then
       case "${path}" in
@@ -96,14 +116,29 @@ cntools_detail_tree_rows() {
       esac
     fi
     cntools_detail_pair "${path}" "${value}" "${role}" || return 1
+    credential_path="${path,,}"
+    if [[ "${section}" == ListRecord && "${context}" != withdrawals &&
+          "${type}" == string && ! "${credential_path}" =~ (^|\ /\ )(metadata|datum|inline[_\ ]datum|data|script[_\ ]data|reference\ script)(\ /|\[|$) &&
+          "${credential_path}" =~ (address|bech32|stake_addr|stake_address|reward_addr|reward[_\ ]account|reward_account_bech32|drep_id|voter|voter_id|pool_id|pool_id_bech32)$ ]]; then
+      cntools_detail_address_type_rows "${value}" "${path}" || return 1
+    fi
   done < <(jq -r --arg section "${section}" --arg decimals "${decimals}" '
     def clean: tostring | gsub("[\u0000-\u001f\u007f]";" ");
+    def network_field: ascii_downcase | gsub("[ _-]";"") |
+      IN("network","networkid","networkname","networktype","networkmagic");
+    def opaque_path: test("(^| / )(metadata|datum|inline[_ ]datum|data|script[_ ]data|reference script)( /|\\[|$)";"i");
     def leaves($path):
       if . == null or . == [] or . == {} then empty
       elif type == "object" and length > 0 then
         (if $section != "Asset" and (.policy_id? | type == "string") and (.asset_name? | type == "string")
           then [$path,"asset",tojson] else empty end),
-        (to_entries[] | .key as $key | .value | leaves(if $path == "" then $key else $path + " / " + $key end))
+        (if $section!="Asset" and $section!="metadata" and ($path|opaque_path|not) and
+            (keys==["keyHash"] or keys==["scriptHash"]) and
+            (.[keys[0]] | type=="string" and test("^[0-9a-fA-F]{56}$")) then
+           {Credential:.[keys[0]],Type:(if has("keyHash") then "Key" else "Script" end)}
+         else . end | to_entries[] | .key as $key |
+         select($section=="Asset" or $section=="metadata" or ($path|opaque_path) or ($key|network_field|not)) |
+         .value | leaves(if $path == "" then $key else $path + " / " + $key end))
       elif type == "array" and length > 0 then
         to_entries[] | .key as $key | .value | leaves($path + "[" + (($key+1)|tostring) + "]")
       else [$path,type,(if type == "string" then (if . == "" then "(empty string)" else . end) else tojson end)] end;
@@ -119,6 +154,31 @@ cntools_detail_tree_rows() {
      else .[$section] end) |
     leaves("") | map(clean) | join("\u001f")
   ' "${file}")
+}
+
+# Koios supplies reward addresses; the CLI also supplies explicit key/script
+# hashes. Decode locally with the shared checksum-validating codec, never infer
+# a script credential from its name or issue a chain query while rendering.
+cntools_detail_withdrawal_rows() {
+  local withdrawal_record="$1" withdrawal_address="$2" withdrawal_key='' withdrawal_script=''
+  local withdrawal_credential=Unavailable withdrawal_type=Unknown withdrawal_facts=''
+  IFS=$'\037' read -r withdrawal_key withdrawal_script < <(jq -r '
+    [.["stake credential key hash"] // "", .["stake credential script hash"] // ""] |
+    join("\u001f")' <<< "${withdrawal_record}")
+  if [[ "${withdrawal_key}" =~ ^[0-9a-fA-F]{56}$ && -z "${withdrawal_script}" ]]; then
+    withdrawal_credential="${withdrawal_key,,}"; withdrawal_type=Key
+  elif [[ "${withdrawal_script}" =~ ^[0-9a-fA-F]{56}$ && -z "${withdrawal_key}" ]]; then
+    withdrawal_credential="${withdrawal_script,,}"; withdrawal_type=Script
+  fi
+  if declare -F cntools_address_credentials_into >/dev/null &&
+     cntools_address_credentials_into withdrawal_facts "${withdrawal_address}" &&
+     jq -e '.stake != null' <<< "${withdrawal_facts}" >/dev/null; then
+    IFS=$'\037' read -r withdrawal_credential withdrawal_type < <(jq -r '
+      [.stake.hash // "Unavailable", .stake.type // "Unknown"] | join("\u001f")' <<< "${withdrawal_facts}")
+  fi
+  cntools_detail_tree_rows <(jq --arg credential "${withdrawal_credential}" --arg type "${withdrawal_type}" '
+    {amount:(.amount // .value // .lovelace // .Value // "Unavailable"), credential:$credential, credential_type:$type}
+  ' <<< "${withdrawal_record}") ListRecord '' withdrawals
 }
 
 cntools_detail_asset_title_into() {
@@ -164,8 +224,12 @@ cntools_detail_assets_render() {
 }
 
 cntools_detail_utxo_render() {
-  local record="$1" title="$2"
-  cntools_detail_tree_rows <(printf '%s\n' "${record}") Record | cntools_table_render "${title}" || return 1
+  local record="$1" title="$2" address=''
+  address="$(jq -r '((try .payment_addr.bech32 catch null) // .address // "") | select(type=="string")' <<< "${record}")" || return 1
+  {
+    cntools_detail_tree_rows <(printf '%s\n' "${record}") Record || return 1
+    cntools_detail_address_type_rows "${address}" || return 1
+  } | cntools_table_render "${title}" || return 1
   cntools_detail_assets_render "${record}"
 }
 
@@ -194,7 +258,12 @@ cntools_detail_io_render() {
 # Scalar entries retain their value; arbitrary future fields stay inspectable.
 cntools_detail_list_render() {
   local file="$1" section="$2" title="$3" entry='' record='' label='' heading='' formatted='' index=0
+  local last_heading_only=N voter_kind='' label_facts='{}'
   local CNTOOLS_TABLE_TITLE_ROLE=identifier
+  if [[ "${section}" == required_signers || "${section}" == 'required signers (payment key hashes needed for scripts)' ]] &&
+     jq -e --arg section "${section}" '.[$section] | type=="array" and length>0 and all(.[]; type=="string" and test("^[0-9a-fA-F]{56}$"))' "${file}" >/dev/null; then
+    title+=' · Key credentials'
+  fi
   cntools_table_heading "━━ ${title} ━━" accent || return 1
   while IFS= read -r entry; do
     index=$((index+1))
@@ -203,10 +272,28 @@ cntools_detail_list_render() {
     cntools_text_sanitize_into label "${label}" || return 1
     cntools_number_format_into formatted "${index}" || return 1
     heading="${formatted}${label:+ · ${label}}"
-    if jq -e 'any(..; type!="object" and type!="array" and .!=null)' <<< "${record}" >/dev/null; then
-      cntools_detail_tree_rows <(printf '%s\n' "${record}") ListRecord '' "${section}" |
+    label_facts='{}'
+    if declare -F cntools_address_credentials_into >/dev/null; then
+      cntools_address_credentials_into label_facts "${label}" || label_facts='{}'
+    fi
+    if [[ "${section}" == withdrawals ]]; then
+      last_heading_only=N
+      cntools_detail_withdrawal_rows "${record}" "${label}" | cntools_table_render "${heading}" || return 1
+    elif [[ "${label_facts}" != '{}' ]] || jq -e 'any(..; type!="object" and type!="array" and .!=null)' <<< "${record}" >/dev/null; then
+      last_heading_only=N
+      {
+        cntools_detail_tree_rows <(printf '%s\n' "${record}") ListRecord '' "${section}" || return 1
+        cntools_detail_address_type_rows "${label}" || return 1
+        if [[ "${section}" =~ ^(voters|voting_procedures|votes)$ &&
+              "${label}" =~ ^(drep|committee-hot|stakepool)-(key|script)Hash-([0-9a-fA-F]{56})$ ]]; then
+          voter_kind="${BASH_REMATCH[2]}"
+          cntools_detail_pair Credential "${BASH_REMATCH[3]}" credential || return 1
+          case "${voter_kind}" in key) cntools_detail_pair 'Credential type' Key ;; script) cntools_detail_pair 'Credential type' Script ;; esac
+        fi
+      } |
         cntools_table_render "${heading}" || return 1
     else
+      last_heading_only=Y
       cntools_table_heading "${heading}" identifier || return 1
     fi
     cntools_detail_assets_render "${record}" || return 1
@@ -233,6 +320,9 @@ cntools_detail_list_render() {
     elif type=="object" then to_entries[] | select(.value|populated) | .key as $key | .value | record($key)
     else empty end
   ' "${file}")
+  # Tables already end with a blank line. Match their section gap when the
+  # final record is only a heading, without adding gaps between scalar IDs.
+  if [[ "${last_heading_only}" == Y ]]; then printf '\n'; fi
 }
 
 cntools_detail_metadata_render() {
@@ -316,6 +406,8 @@ cntools_detail_transaction_render() {
   done < <(jq -c '
     . as $tx |
     (["inputs","outputs"] + [keys_unsorted[] | select(. != "inputs" and . != "outputs")])[] as $key |
+    select($key | ascii_downcase | gsub("[ _-]";"") |
+      IN("network","networkid","networkname","networktype","networkmagic") | not) |
     select($tx[$key] | (type == "array" or type == "object") and length > 0) |
     select($key=="metadata" or ($tx[$key] | if type=="array" then . else [.[]] end |
       any(. != null and . != [] and . != {}))) | $key
