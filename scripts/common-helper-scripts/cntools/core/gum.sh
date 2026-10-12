@@ -1090,6 +1090,62 @@ cntools_ui_pager() {
     --match-highlight.background "${CNTOOLS_GUM_COLOR_BRAND}" "$@"
 }
 
+cntools_ui_file() {
+  local _cntools_output_name="${1:-}" _cntools_start="${2:-${PWD}}" _cntools_begin="${3:-}"
+  local _cntools_directory="" _cntools_entry="" _cntools_name="" _cntools_selected="" _cntools_index=0 _cntools_found=N
+  local -a _cntools_paths=() _cntools_labels=()
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
+     -d "${_cntools_start}" && -r "${_cntools_start}" && -x "${_cntools_start}" &&
+     ! "${_cntools_start}" =~ [[:cntrl:]] ]] || return 2
+  [[ -z "${_cntools_begin}" ]] || declare -F "${_cntools_begin}" >/dev/null || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  _cntools_directory="$(cd -- "${_cntools_start}" && pwd -P)" || return 2
+  while true; do
+    cntools_filesystem_path_components_safe "${_cntools_directory}" || return 2
+    [[ -z "${_cntools_begin}" ]] || "${_cntools_begin}" || return 2
+    _cntools_paths=(); _cntools_labels=()
+    # Explicit dot-file globs keep hidden package folders accessible without
+    # changing shell options. Never follow symlinks or display control bytes.
+    for _cntools_entry in "${_cntools_directory%/}/"* "${_cntools_directory%/}/".*; do
+      _cntools_name="${_cntools_entry##*/}"
+      [[ "${_cntools_name}" != . && "${_cntools_name}" != .. &&
+         ! "${_cntools_entry}" =~ [[:cntrl:]] && ! -L "${_cntools_entry}" &&
+         -r "${_cntools_entry}" ]] || continue
+      if [[ -d "${_cntools_entry}" && -x "${_cntools_entry}" ]]; then
+        _cntools_paths+=("${_cntools_entry}")
+        _cntools_labels+=("Folder · ${_cntools_name}")
+      elif [[ -f "${_cntools_entry}" ]]; then
+        _cntools_paths+=("${_cntools_entry}")
+        _cntools_labels+=("File · ${_cntools_name}")
+      fi
+    done
+    [[ "${_cntools_directory}" == / ]] || _cntools_labels+=('Parent folder')
+    cntools_gum_log CHOICE "file browser directory=$(printf '%q' "${_cntools_directory}") entries=${#_cntools_paths[@]}"
+    cntools_ui_choose _cntools_selected "Browse ${_cntools_directory}" \
+      "${_cntools_labels[@]}" Back || return $?
+    case "${_cntools_selected}" in
+      Back) return 1 ;;
+      'Parent folder')
+        _cntools_directory="${_cntools_directory%/*}"
+        [[ -n "${_cntools_directory}" ]] || _cntools_directory=/
+        continue ;;
+    esac
+    _cntools_found=N
+    for _cntools_index in "${!_cntools_paths[@]}"; do
+      [[ "${_cntools_selected}" == "${_cntools_labels[_cntools_index]}" ]] || continue
+      _cntools_found=Y
+      if [[ -d "${_cntools_paths[_cntools_index]}" ]]; then
+        _cntools_directory="${_cntools_paths[_cntools_index]}"
+        break
+      fi
+      _cntools_output_ref="${_cntools_paths[_cntools_index]}"
+      return 0
+    done
+    [[ "${_cntools_found}" == Y ]] || return 2
+  done
+}
+
 cntools_ui_page_file() {
   local source_file="${1:-}"
 

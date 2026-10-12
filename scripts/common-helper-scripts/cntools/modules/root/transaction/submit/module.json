@@ -17,6 +17,7 @@
     "transaction-submit.sh",
     "transaction-monitor.sh",
     "json.sh",
-    "transaction-ui.sh"
+    "transaction-ui.sh",
+    "transaction-picker.sh"
   ]
 }

@@ -471,11 +471,7 @@ cntools_transaction_ui_prompt_package_into() {
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   while true; do
-    cntools_ui_action_begin "Sign" "/ Transaction / Sign"
-    cntools_ui_render_status info \
-      "Select a CNTools transaction package. Arbitrary unsigned transaction bodies are not accepted because their intended signer set cannot be verified safely."
-    [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
-    if cntools_ui_input entered "Transaction package" "${PWD}/transaction.json"; then
+    if cntools_transaction_picker_into entered sign "${feedback}"; then
       status=0
     else
       status=$?
@@ -1080,11 +1076,7 @@ cntools_transaction_ui_prompt_submit_input_into() {
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   while true; do
-    cntools_ui_action_begin "Submit" "/ Transaction / Submit"
-    cntools_ui_render_status info \
-      "Select a complete CNTools transaction package or an external Cardano transaction envelope. CNTools can prove package completeness; an external envelope receives final ledger validation from the submission backend."
-    [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
-    if cntools_ui_input entered "Transaction artifact" "${PWD}/transaction.signed.json"; then
+    if cntools_transaction_picker_into entered submit "${feedback}"; then
       status=0
     else
       status=$?

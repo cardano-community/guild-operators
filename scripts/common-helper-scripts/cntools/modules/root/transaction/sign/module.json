@@ -18,6 +18,7 @@
     "transaction-sign.sh",
     "json.sh",
     "transaction-ui.sh",
+    "transaction-picker.sh",
     "transaction-files.sh"
   ]
 }

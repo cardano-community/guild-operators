@@ -39,6 +39,18 @@ cntools_filesystem_size_into() {
   _cntools_output_ref="${_cntools_size}"
 }
 
+cntools_filesystem_mtime_into() {
+  local _cntools_output_name="${1:-}" _cntools_path="${2:-}" _cntools_mtime=""
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  if _cntools_mtime="$(stat -c '%Y' -- "${_cntools_path}" 2>/dev/null)"; then :
+  elif _cntools_mtime="$(stat -f '%m' "${_cntools_path}" 2>/dev/null)"; then :
+  else return 1; fi
+  [[ "${_cntools_mtime}" =~ ^[0-9]+$ ]] || return 1
+  _cntools_output_ref="${_cntools_mtime}"
+}
+
 
 cntools_filesystem_mode_into() {
   local _cntools_output_name="${1:-}"

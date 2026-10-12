@@ -202,7 +202,8 @@ and delegation are unchanged.
 1. On an online system, create and review the transaction, then choose
    **Create unsigned package**. Record the saved path.
 2. Transfer that package, not private keys, to the signing system.
-3. Start `./cntools.sh -o`, open **Transaction → Sign**, and select the package.
+3. Start `./cntools.sh -o`, open **Transaction → Sign**, and choose a saved
+   package, browse for the imported file, or enter its path.
 4. Review its actual effects and required signers. Supply the matching CLI or
    hardware sources and save the resulting package.
 5. Return the completed package to an online system and use
@@ -219,6 +220,14 @@ does not remove script time limits or prevent inputs from being spent elsewhere.
 Changing a transaction requires rebuilding and collecting new signatures.
 
 ### Submit or monitor a transaction
+
+Sign and Submit both offer **Saved CNTools packages**, **Browse files** and
+**Enter file path**. Saved packages are listed newest first with action, network
+and signing progress. Sign lists unsigned/partial packages; Submit lists signed
+packages. Imported files can be browsed without knowing their full path, including
+hidden folders. Back or Escape returns to file selection; Cancel leaves the action.
+Listing a package is not proof that it is valid: CNTools validates the selected
+file before the existing review, signing or submission flow.
 
 **Transaction → Submit** accepts a completed CNTools package or a supported
 external signed Cardano transaction. Review the effects, network and named
