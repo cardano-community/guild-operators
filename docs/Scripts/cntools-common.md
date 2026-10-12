@@ -241,19 +241,34 @@ separate inputs/outputs, nested asset tables, and relevant metadata, certificate
 withdrawal and governance sections. This view is decoded locally from the selected
 transaction and works offline. It cannot resolve input addresses or their original
 balances from the transaction body; inputs are shown as UTxO references.
+Expired transactions show a prominent error and cannot continue to signing or
+submission. Review, required signers and deletion remain available. Expiry checks
+work offline using the configured network and your system clock; keep the clock
+accurate. Rebuild an expired transaction with a new expiry before signing it.
 Selecting a transaction file opens this review directly, without a separate
 **Use selected file** step. **Delete** in the review menu opens the file/package
 deletion choices. Back or declining deletion lets you continue reviewing;
 successful deletion ends Sign/Submit and returns to the Transaction menu, so a
 cached copy cannot accidentally be signed or submitted afterward.
 
-Signing offers matching local wallet keys with their known key type and role.
+Signing offers matching local wallet keys with their wallet name, key type and
+signing method. Source choices show only the wallet name and filename.
 Only usable unencrypted keys or hardware references are offered; public-only and
 encrypted wallets may identify a key type but cannot sign. Decrypt encrypted keys
 through **Wallet → Decrypt** first. Skipping leaves that witness missing and moves
 to the next signer. A hardware session must be completed as a group or deferred
 as a group. No key is used without your selection, and matching is rechecked
 before signing.
+After source selection, signing starts without a second confirmation. Hardware
+sessions collect their signing and change references together. If hardware
+preparation changes the transaction, CNTools requires another review before
+signing. Expiry is checked again before collecting signatures.
+Signing updates a managed saved package at the same path, keeping its latest
+signatures instead of creating another copy. Its filename stays unchanged;
+CNTools shows whether its contents are unsigned, partially signed or complete.
+Custom imported files remain untouched and their signed results are saved under
+CNTools. Saved-package selection shows only the newest copy of each transaction
+on each network, with signing progress used to break equal-time ties.
 
 File imports elsewhere offer **Browse files**, **Enter file path** and **Cancel**,
 including signing/hardware references, participant public keys, transaction and

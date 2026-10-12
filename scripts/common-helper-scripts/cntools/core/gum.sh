@@ -1096,18 +1096,7 @@ cntools_ui_pager() {
 # Selected-file actions are shared by browsing, saved-package discovery and
 # manual paths. Status 3 means deleted: refresh selection, never return the path.
 cntools_ui_managed_transaction_folder_into() {
-  local managed_output="$1" managed_file="$2" managed_root="${CNTOOLS_ROOT:-}" managed_folder='' managed_name=''
-  [[ "${managed_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n managed_result="${managed_output}"
-  managed_result=''
-  [[ -n "${managed_root}" && "${managed_root}" == /* && "${managed_root}" != / ]] || return 1
-  managed_folder="${managed_file%/*}"; managed_name="${managed_folder##*/}"
-  [[ "${managed_folder%/*}" == "${managed_root}/.transactions" &&
-     "${managed_name}" =~ ^[a-z][a-z-]{0,30}-[0-9]{8}-[0-9]{6}\.[A-Za-z0-9]{6}$ ]] || return 1
-  [[ -d "${managed_folder}" && ! -L "${managed_folder}" && -O "${managed_folder}" &&
-     -d "${managed_root}/.transactions" && -O "${managed_root}/.transactions" ]] || return 1
-  cntools_filesystem_directory_ancestry_safe "${managed_folder}" || return 1
-  managed_result="${managed_folder}"
+  cntools_filesystem_managed_transaction_folder_into "$@"
 }
 
 cntools_ui_file_selected() {

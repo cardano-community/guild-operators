@@ -74,12 +74,39 @@ cntools_transaction_ui_fee_into() {
   printf -v "$1" '%s' "${fee_value}"
 }
 
+# Inspect the authoritative decoded body, not the descriptive package fields.
+# The upper validity bound is exclusive. The shared network clock also works
+# offline; no node or indexer request is needed to reject an expired package.
+cntools_transaction_ui_validity_state_into() {
+  local validity_target="$1" validity_upper='' validity_current='' validity_result=unknown
+  validity_upper="$(jq -er '
+    .["validity range"] | select(type == "object" and has("upper bound")) |
+    .["upper bound"] |
+    if . == null then "none"
+    elif type == "number" or type == "string" then tostring
+    else error("Invalid upper validity bound") end
+  ' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}" 2>/dev/null)" || validity_upper=invalid
+  if [[ "${validity_upper}" == none ]]; then
+    validity_result=none
+  elif [[ "${validity_upper}" =~ ^(0|[1-9][0-9]{0,14})$ ]] &&
+       validity_current="$(cntools_health_reference_slot "${CNTOOLS_NETWORK:-}")" &&
+       [[ "${validity_current}" =~ ^(0|[1-9][0-9]{0,14})$ ]]; then
+    validity_result=valid
+    (( validity_current < validity_upper )) || validity_result=expired
+  fi
+  printf -v "${validity_target}" '%s' "${validity_result}"
+}
+
 # Rendering callbacks take no arguments. No signing occurs here. Returning a
 # change option lets the action rebuild and validate before another review.
 cntools_transaction_ui_review_into() {
   local output_name="$1" package="$2" proceed="$3" begin="$4" render="$5"
   local review_selection="" status=0 summary="" allowed=""
+  local guard_validity=N validity_state='' proceed_allowed=Y
   shift 5
+  case "${render}" in
+    cntools_transaction_ui_render_package_review|cntools_transaction_ui_render_prepared_review|cntools_transaction_ui_render_submit_review) guard_validity=Y ;;
+  esac
   if [[ -n "${package}" ]]; then
     cntools_transaction_package_load "${package}" || return 2
     package="${CNTOOLS_TRANSACTION_PACKAGE_FILE}"
@@ -90,11 +117,34 @@ cntools_transaction_ui_review_into() {
   fi
   cntools_transaction_log REVIEW "Decoded transaction=${CNTOOLS_TRANSACTION_UI_VIEW}"
   while true; do
+    proceed_allowed=Y
+    if [[ "${guard_validity}" == Y ]]; then
+      cntools_transaction_ui_validity_state_into validity_state
+      case "${validity_state}" in expired|unknown) proceed_allowed=N ;; esac
+      if [[ "${render}" != cntools_transaction_ui_render_submit_review && "${CNTOOLS_TRANSACTION_COMPLETE:-N}" == Y ]]; then
+        proceed_allowed=N
+      fi
+    fi
     "${begin}" || return 2
     "${render}" || return 2
-    local -a options=("${proceed}")
+    if [[ "${guard_validity}" == Y ]]; then
+      case "${validity_state}" in
+        expired)
+          cntools_ui_render_status error 'TRANSACTION EXPIRED — it cannot be signed or submitted. Create a new transaction. Review, signer inspection and deletion remain available.' || return 2
+          cntools_transaction_log REVIEW 'Transaction expired; signing/submission continuation disabled' ;;
+        unknown)
+          cntools_ui_render_status error 'Transaction expiry could not be verified. Signing and submission are disabled. Check the configured network and system clock.' || return 2
+          cntools_transaction_log REVIEW 'Transaction expiry unverified; signing/submission continuation disabled' ;;
+        *)
+          if [[ "${proceed_allowed}" == N ]]; then
+            cntools_ui_render_status info 'This package is already fully signed. Use Transaction → Submit to submit it.' || return 2
+          fi ;;
+      esac
+    fi
+    local -a options=()
+    [[ "${proceed_allowed}" != Y ]] || options+=("${proceed}")
     case "${render}" in
-      cntools_transaction_ui_render_package_review|cntools_transaction_ui_render_submit_review)
+      cntools_transaction_ui_render_package_review|cntools_transaction_ui_render_prepared_review|cntools_transaction_ui_render_submit_review)
         options+=('Review transaction')
         if cntools_filesystem_file_delete_safe "${CNTOOLS_TRANSACTION_UI_SOURCE_FILE:-}"; then options+=(Delete); fi
         ;;
@@ -121,6 +171,11 @@ cntools_transaction_ui_review_into() {
       *)
         for allowed in "${proceed}" "$@"; do
           if [[ "${review_selection}" == "${allowed}" ]]; then
+            if [[ "${allowed}" == "${proceed}" && "${guard_validity}" == Y ]]; then
+              # A filter menu may stay open beyond the transaction's expiry.
+              cntools_transaction_ui_validity_state_into validity_state
+              [[ "${proceed_allowed}" == Y && ( "${validity_state}" == valid || "${validity_state}" == none ) ]] || continue 2
+            fi
             printf -v "${output_name}" '%s' "${review_selection}"
             return 0
           fi
@@ -241,7 +296,9 @@ cntools_transaction_ui_render_json() {
   } | cntools_table_render "${heading}"
 }
 cntools_transaction_ui_render_package_overview() {
-  local widths="" expiry_label="No expiry" fee=""
+  local widths="" expiry_label="No expiry" fee="" expiry_role=number validity_state=''
+  cntools_transaction_ui_validity_state_into validity_state
+  [[ "${validity_state}" != expired ]] || expiry_role=danger
   cntools_transaction_ui_table_widths_into widths 22 || return 1
   if [[ -n "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER:-}" ]]; then
     cntools_slot_datetime_into expiry_label "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}" || expiry_label='Date unavailable'
@@ -254,18 +311,27 @@ cntools_transaction_ui_render_package_overview() {
       cntools_transaction_ui_styled_row Fee "$(cntools_number_format_units "${fee}" 6) ADA" number
     fi
     cntools_transaction_ui_styled_row Signatures "${CNTOOLS_TRANSACTION_WITNESS_COUNT}/${CNTOOLS_TRANSACTION_REQUIRED_COUNT} collected" number
-    cntools_transaction_ui_styled_row Expires "${expiry_label}" number
+    cntools_transaction_ui_styled_row Expires "${expiry_label}" "${expiry_role}"
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
   if [[ "${CNTOOLS_TRANSACTION_PACKAGE_ASSURANCE}" == manual ]]; then
     cntools_ui_render_status warn 'Reference script contents need independent verification against the original script and reference input before signing.'
   fi
 }
 
+# A verified local identity supplies its wallet name. Imported labels are only
+# a fallback when the wallet is unknown; they are never used to identify keys.
+cntools_transaction_ui_signer_name_into() {
+  local signer_name_target="$1" signer_name_id="$2" signer_name_value="$3"
+  if declare -p CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES >/dev/null 2>&1; then
+    signer_name_value="${CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES[${signer_name_id}]:-${signer_name_value}}"
+  fi
+  printf -v "${signer_name_target}" '%s' "${signer_name_value}"
+}
+
 cntools_transaction_ui_render_signer_progress() {
   local package_file="${1:-}"
   local record=""
   local labels=""
-  local roles=""
   local preferred=""
   local hardware_group=""
   local key_id=""
@@ -281,15 +347,15 @@ cntools_transaction_ui_render_signer_progress() {
   {
     printf 'Signer\tProperty\tValue\n'
     while IFS= read -r record; do
-      IFS=$'\037' read -r labels roles preferred hardware_group key_id state \
+      IFS=$'\037' read -r labels preferred hardware_group key_id state \
         <<< "${record}"
       index=$((index + 1))
+      cntools_transaction_ui_signer_name_into labels "${key_id}" "${labels}"
       printf -v signer '%02d · %s' "${index}" "${labels}"
       state_role="warning"
       [[ "${state}" != "Signed" ]] || state_role="success"
       cntools_transaction_ui_styled_signer_row \
         "${signer}" "Status" "${state}" "${state_role}"
-      cntools_transaction_ui_styled_signer_row "" "Roles" "${roles}" value
       key_type=''
       if declare -p CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES >/dev/null 2>&1; then
         key_type="${CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES[${key_id}]:-}"
@@ -307,8 +373,7 @@ cntools_transaction_ui_render_signer_progress() {
       . as $package |
       $package.signing.required[] |
       . as $signer |
-      [(.labels | join(", ")), (.roles | join(", ")),
-       .preferredKind, (.hardwareGroup // ""), .keyId,
+      [(.labels | join(", ")), .preferredKind, (.hardwareGroup // ""), .keyId,
        (if any($package.signing.witnesses[]; .keyId == $signer.keyId)
         then "Signed" else "Missing" end)] | join("\u001f")
     ' "${package_file}")
@@ -415,6 +480,10 @@ cntools_transaction_ui_render_package_review() {
   cntools_transaction_ui_render_package_overview "${CNTOOLS_TRANSACTION_PACKAGE_FILE}"
 }
 
+cntools_transaction_ui_render_prepared_review() {
+  cntools_transaction_ui_render_package_review || return 1
+  cntools_ui_render_status warn 'Hardware preparation changed the transaction ID. Review the prepared transaction before signing it.'
+}
 
 cntools_transaction_ui_sign_begin() { cntools_ui_action_begin Sign '/ Transaction / Sign'; }
 cntools_transaction_ui_submit_begin() { cntools_ui_action_begin Submit '/ Transaction / Submit'; }
@@ -681,60 +750,16 @@ cntools_transaction_ui_selection_preflight() {
   done
 }
 
-cntools_transaction_ui_render_selected_sources() {
-  local package_file="${1:-}"
-  local signer_sources_name="${2:-}"
-  local change_sources_name="${3:-}"
-  local source=""
-  local key_id=""
-  local kind=""
-  local key_type=""
-  local labels=""
-  local widths=""
-  local index=0
-
-  [[ "${signer_sources_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
-     "${change_sources_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n signer_sources_ref="${signer_sources_name}"
-  local -n change_sources_ref="${change_sources_name}"
-  cntools_transaction_ui_signer_widths_into widths || return 1
-  cntools_ui_render_detail "Selected private sources" || return 1
-  {
-    printf 'Source\tKind\tPath\n'
-    for source in "${signer_sources_ref[@]}"; do
-      index=$((index + 1))
-      cntools_transaction_source_kind_into kind "${source}" || return 1
-      cntools_transaction_source_key_id_into key_id "${source}" || return 1
-      cntools_transaction_source_type_into key_type "${source}" || return 1
-      labels="$(jq -r --arg id "${key_id}" \
-        '.signing.required[] | select(.keyId == $id) | .labels | join(", ")' \
-        "${package_file}")" || return 1
-      cntools_transaction_ui_styled_signer_row \
-        "$(printf '%02d · %s' "${index}" "${labels}")" "${key_type} · ${kind}" \
-        "${source}" identifier
-    done
-    for source in "${change_sources_ref[@]}"; do
-      index=$((index + 1))
-      cntools_transaction_source_key_id_into key_id "${source}" || return 1
-      labels="$(jq -r --arg id "${key_id}" \
-        '.signing.changeKeys[] | select(.keyId == $id) | .labels | join(", ")' \
-        "${package_file}")" || return 1
-      cntools_transaction_ui_styled_signer_row \
-        "$(printf '%02d · %s' "${index}" "${labels}")" "change HWS" \
-        "${source}" identifier
-    done
-  } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
-}
-
 cntools_transaction_action_sign() {
   local input_file=""
   local working_file=""
   local prepared_file=""
-  local output_file="" saved_file="" review_choice=""
+  local output_file="" saved_file="" review_choice="" save_error=''
+  local review_renderer=cntools_transaction_ui_render_package_review
   local original_id=""
   local record=""
   local key_id=""
-  local labels="" roles=""
+  local labels="" validity_state=''
   local preferred=""
   local hardware_group=""
   local source=""
@@ -768,14 +793,6 @@ cntools_transaction_action_sign() {
     cntools_ui_wait
     return 1
   fi
-  if [[ "${CNTOOLS_TRANSACTION_COMPLETE}" == "Y" ]]; then
-    cntools_ui_action_begin "Sign" "/ Transaction / Sign"
-    cntools_ui_render_status warn \
-      "This package is already fully signed and ready for submission."
-    cntools_ui_wait
-    return 0
-  fi
-
   original_id="${CNTOOLS_TRANSACTION_ID}"
   cntools_ui_action_begin "Sign" "/ Transaction / Sign"
   status=0
@@ -796,7 +813,7 @@ cntools_transaction_action_sign() {
   cntools_ui_spin_function 'Finding matching keys in local wallets…' cntools_transaction_sources_collect || return 2
 
   while IFS= read -r record; do
-    IFS=$'\037' read -r key_id labels preferred hardware_group roles <<< "${record}"
+    IFS=$'\037' read -r key_id labels preferred hardware_group <<< "${record}"
     signer_allow_defer="Y"
     if [[ -n "${hardware_group}" ]]; then
       group_active="N"
@@ -816,7 +833,7 @@ cntools_transaction_action_sign() {
     fi
     if cntools_transaction_ui_local_source_into \
         source "${key_id}" "${labels}" "${preferred}" "${hardware_group}" \
-        "${signer_allow_defer}" "${roles}"; then
+        "${signer_allow_defer}"; then
       status=0
     else
       status=$?
@@ -848,7 +865,7 @@ cntools_transaction_action_sign() {
     . as $signer |
     select(any($package.signing.witnesses[]; .keyId == $signer.keyId) | not) |
     [.keyId, (.labels | join(", ")), .preferredKind,
-     (.hardwareGroup // ""), (.roles|join(", "))] | join("\u001f")
+     (.hardwareGroup // "")] | join("\u001f")
   ' "${input_file}")
 
   if (( ${#signer_sources[@]} == 0 )); then
@@ -943,21 +960,21 @@ cntools_transaction_action_sign() {
     working_file="${prepared_file}"
     cntools_transaction_package_load "${working_file}" || return 1
     if [[ "${CNTOOLS_TRANSACTION_ID}" != "${original_id}" ]]; then
+      review_renderer=cntools_transaction_ui_render_prepared_review
       cntools_transaction_ui_log HARDWARE \
         "pre-confirmation transform changed transaction id old=${original_id} new=${CNTOOLS_TRANSACTION_ID}"
     fi
   fi
 
-  cntools_transaction_signed_path_into output_file || return 1
+  # Source selection authorizes signing the already-reviewed body. Ask again
+  # only if hardware preparation changes that body, or expiry now blocks it.
+  cntools_transaction_view_into CNTOOLS_TRANSACTION_UI_VIEW "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 1
+  cntools_transaction_ui_validity_state_into validity_state
   status=0
-  while true; do
-    cntools_transaction_ui_review_into review_choice "${working_file}" 'Sign with selected sources' \
-      cntools_transaction_ui_sign_begin cntools_transaction_ui_render_package_review 'Show selected sources' || { status=$?; break; }
-    [[ "${review_choice}" == 'Show selected sources' ]] || break
-    cntools_transaction_ui_sign_begin
-    cntools_transaction_ui_render_selected_sources "${working_file}" signer_sources change_sources || return 1
-    cntools_ui_wait
-  done
+  if [[ "${CNTOOLS_TRANSACTION_ID}" != "${original_id}" || "${validity_state}" == expired || "${validity_state}" == unknown ]]; then
+    cntools_transaction_ui_review_into review_choice "${working_file}" 'Continue to sign prepared transaction' \
+      cntools_transaction_ui_sign_begin "${review_renderer}" || status=$?
+  fi
   if (( status == 3 )); then return 0
   elif (( status == 1 )); then
     cntools_transaction_ui_cancel \
@@ -969,8 +986,9 @@ cntools_transaction_action_sign() {
     return "${status}"
   fi
   cntools_transaction_ui_log CHOICE \
-    "transaction signing confirmed id=${CNTOOLS_TRANSACTION_ID} signers=${#signer_sources[@]} change_refs=${#change_sources[@]}"
+    "transaction signing authorized by source selection id=${CNTOOLS_TRANSACTION_ID} signers=${#signer_sources[@]} change_refs=${#change_sources[@]}"
 
+  cntools_transaction_signed_path_into output_file || return 1
   cntools_ui_action_begin "Sign" "/ Transaction / Sign"
   if cntools_ui_spin_function "Collecting transaction signatures…" \
       cntools_transaction_sign_package \
@@ -993,8 +1011,13 @@ cntools_transaction_action_sign() {
     cntools_ui_wait
     return 1
   }
-  if ! cntools_transaction_save_into saved_file "${output_file}" signed transaction; then
-    cntools_transaction_ui_render_result danger "${CNTOOLS_TRANSACTION_ERROR:-Could not save the signed package.}" "${CNTOOLS_TRANSACTION_ID}"
+  if ! cntools_transaction_save_signed_into saved_file "${output_file}" "${CNTOOLS_TRANSACTION_UI_SOURCE_FILE}" "${input_file}"; then
+    save_error="${CNTOOLS_TRANSACTION_ERROR:-Could not save the signed package.}"
+    # Never discard new witnesses if the original changed while signing.
+    if cntools_transaction_save_into saved_file "${output_file}" signed transaction; then
+      save_error+=' New signatures were saved separately; review this package before continuing.'
+    fi
+    cntools_transaction_ui_render_result danger "${save_error}" "${CNTOOLS_TRANSACTION_ID}" "${saved_file}"
     cntools_ui_wait
     return 1
   fi
@@ -1089,7 +1112,13 @@ cntools_transaction_ui_prompt_submit_input_into() {
 }
 
 cntools_transaction_ui_render_submit_review() {
-  local widths="" fee="" expiry_label="" expiry_slot=""
+  local widths="" fee="" expiry_label="" expiry_slot="" validity_state=''
+  local submit_label='Signed · ready to submit' submit_role=success expiry_role=number
+  cntools_transaction_ui_validity_state_into validity_state
+  case "${validity_state}" in
+    expired) submit_label='Expired · cannot submit'; submit_role=danger; expiry_role=danger ;;
+    unknown) submit_label='Expiry unverified · cannot submit'; submit_role=danger ;;
+  esac
   if [[ "${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}" == package ]]; then
     expiry_slot="${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER:-}"
   else
@@ -1101,11 +1130,11 @@ cntools_transaction_ui_render_submit_review() {
   {
     printf 'Property\tValue\n'
     cntools_transaction_ui_styled_row 'Transaction ID' "${CNTOOLS_TRANSACTION_SUBMIT_ID}" identifier
-    cntools_transaction_ui_styled_row Status 'Signed · ready to submit' success
+    cntools_transaction_ui_styled_row Status "${submit_label}" "${submit_role}"
     if cntools_transaction_ui_fee_into fee; then
       cntools_transaction_ui_styled_row Fee "$(cntools_number_format_units "${fee}" 6) ADA" number
     fi
-    cntools_transaction_ui_styled_row Expires "${expiry_label}" number
+    cntools_transaction_ui_styled_row Expires "${expiry_label}" "${expiry_role}"
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
   if [[ "${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}" != package ]]; then
     cntools_ui_render_status warn 'External-envelope completeness cannot be inferred. The submission backend must perform final ledger validation.'
@@ -1177,7 +1206,7 @@ cntools_transaction_action_submit() {
   local input_kind=""
   local transaction_id=""
   local signed_file=""
-  local status=0 review_choice="" review_package=""
+  local status=0 review_choice="" review_package="" validity_state=''
 
   if cntools_transaction_ui_prompt_submit_input_into input_file; then
     status=0
@@ -1193,21 +1222,27 @@ cntools_transaction_action_submit() {
   input_kind="${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}"
   transaction_id="${CNTOOLS_TRANSACTION_SUBMIT_ID}"
   signed_file="${CNTOOLS_TRANSACTION_SIGNED_FILE}"
-  if ! cntools_transaction_ui_submission_backend_into backend; then
-    cntools_ui_action_begin "Submit" "/ Transaction / Submit"
-    cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR}"
-    cntools_ui_wait
-    return 1
-  fi
-
   cntools_transaction_view_into CNTOOLS_TRANSACTION_UI_VIEW "${signed_file}" || return 1
   [[ "${input_kind}" != package ]] || review_package="${CNTOOLS_TRANSACTION_PACKAGE_FILE}"
-  cntools_transaction_ui_review_into review_choice "${review_package}" 'Continue to submit' \
-    cntools_transaction_ui_submit_begin cntools_transaction_ui_render_submit_review || status=$?
-  (( status != 3 )) || return 0
-  if (( status == 0 )); then
+  while true; do
+    status=0
+    cntools_transaction_ui_review_into review_choice "${review_package}" 'Continue to submit' \
+      cntools_transaction_ui_submit_begin cntools_transaction_ui_render_submit_review || status=$?
+    (( status != 3 )) || return 0
+    (( status == 0 )) || break
+    # Inspection/deletion of expired transactions must not require a backend.
+    if ! cntools_transaction_ui_submission_backend_into backend; then
+      cntools_ui_action_begin "Submit" "/ Transaction / Submit"
+      cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR}"
+      cntools_ui_wait
+      return 1
+    fi
     cntools_transaction_ui_confirm_submit "${backend}" || status=$?
-  fi
+    (( status == 0 )) || break
+    cntools_transaction_ui_validity_state_into validity_state
+    [[ "${validity_state}" == expired || "${validity_state}" == unknown ]] || break
+    cntools_transaction_log REVIEW 'Transaction expiry changed during submission confirmation; returning to review'
+  done
   if (( status == 1 )); then
     cntools_transaction_ui_cancel \
       "transaction submission declined id=${transaction_id} backend=${backend}"

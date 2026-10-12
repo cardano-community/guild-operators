@@ -7,6 +7,8 @@ declare -ag CNTOOLS_TRANSACTION_PICKER_FILES=() CNTOOLS_TRANSACTION_PICKER_ROWS=
 cntools_transaction_picker_catalog() {
   local mode="${1:-}" directory="${CNTOOLS_ROOT:-}/.transactions"
   local file="" metadata="" mtime="" sorted="" intent="" network="" progress="" id="" path="" ordinal=0
+  local witnesses='' eligible='' transaction_key=''
+  local -A seen_transactions=()
   local -a records=()
   CNTOOLS_TRANSACTION_PICKER_FILES=(); CNTOOLS_TRANSACTION_PICKER_ROWS=()
   case "${mode}" in sign|submit) ;; *) return 2 ;; esac
@@ -27,20 +29,26 @@ cntools_transaction_picker_catalog() {
         (.signing.required|type=="array" and length<=128) and
         (.signing.witnesses|type=="array" and length<=128)) |
       (.signing.required|length) as $required | (.signing.witnesses|length) as $witnesses |
-      select(if $mode=="sign" then .signedTransaction==null and $witnesses<$required
-             else (.signedTransaction|type=="object") end) |
-      [.intent.kind,.network.name,
-       (if $mode=="submit" then "Signed package" elif $witnesses==0 then "Unsigned"
-        else "Partially signed" end) + " · " + ($witnesses|tostring) + "/" + ($required|tostring),
-       .transaction.id[0:12]] | @tsv' "${file}" 2>/dev/null)" || continue
+      [$witnesses,.transaction.id,.intent.kind,.network.name,
+       (if (if $mode=="sign" then .signedTransaction==null and $witnesses<$required
+            else (.signedTransaction|type=="object") end) then "Y" else "N" end),
+       (if (.signedTransaction|type=="object") then "Signed package" elif $witnesses==0 then "Unsigned"
+        else "Partially signed" end) + " · " + ($witnesses|tostring) + "/" + ($required|tostring)
+      ] | @tsv' "${file}" 2>/dev/null)" || continue
     records+=("${mtime}"$'\t'"${metadata}"$'\t'"${file}")
   done
   (( ${#records[@]} > 0 )) || return 0
-  sorted="$(printf '%s\n' "${records[@]}" | LC_ALL=C sort -t $'\t' -k1,1nr -k6,6)" || return 1
-  while IFS=$'\t' read -r mtime intent network progress id path; do
+  sorted="$(printf '%s\n' "${records[@]}" | LC_ALL=C sort -t $'\t' -k1,1nr -k2,2nr -k8,8)" || return 1
+  while IFS=$'\t' read -r mtime witnesses id intent network eligible progress path; do
+    # Deduplicate before filtering for Sign/Submit: a newer complete package
+    # must also hide its obsolete unsigned copies from the Sign list.
+    transaction_key="${network}/${id}"
+    [[ -z "${seen_transactions[${transaction_key}]:-}" ]] || continue
+    seen_transactions["${transaction_key}"]=Y
+    [[ "${eligible}" == Y ]] || continue
     ordinal=$((ordinal+1))
     CNTOOLS_TRANSACTION_PICKER_FILES+=("${path}")
-    CNTOOLS_TRANSACTION_PICKER_ROWS+=("${ordinal} · ${intent} · ${network} · ${progress} · ${id} · ${path#"${directory}/"}")
+    CNTOOLS_TRANSACTION_PICKER_ROWS+=("${ordinal} · ${intent} · ${network} · ${progress} · ${id:0:12} · ${path#"${directory}/"}")
   done <<< "${sorted}"
   cntools_transaction_log CHOICE "Saved transaction discovery mode=${mode} count=${#CNTOOLS_TRANSACTION_PICKER_FILES[@]}"
 }

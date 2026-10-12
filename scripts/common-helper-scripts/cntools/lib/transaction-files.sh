@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Intermediate packages stay in the tracked private workspace. Final exports
-# are published without overwrite and deliberately survive action cleanup.
+# survive action cleanup. Managed signing updates the selected package in place;
+# imported/custom files are never overwritten.
 # shellcheck disable=SC2034
 
 cntools_transaction_signed_path_into() {
@@ -35,4 +36,57 @@ cntools_transaction_save_into() {
   sf_result="${sf_path}"
   printf -v sf_log '%q' "${sf_path}"
   cntools_transaction_log TRANSACTION "${sf_action} package saved file=${sf_log}"
+}
+
+# The caller has authenticated the old snapshot and new signed package. Commit
+# only if the selected managed file still matches that snapshot. A private,
+# short-lived lock serializes CNTools commits; atomic rename never exposes a
+# partly written package. The subshell's trap cannot alter application traps.
+cntools_transaction_replace_managed() (
+  local replace_target="$1" replace_snapshot="$2" replace_signed="$3"
+  local replace_folder='' replace_lock='' replace_stage='' replace_identity='' replace_current=''
+  cntools_filesystem_managed_transaction_folder_into replace_folder "${replace_target}" || return 1
+  cntools_filesystem_file_delete_safe "${replace_target}" || return 1
+  cntools_transaction_file_safe "${replace_signed}" "${CNTOOLS_TRANSACTION_MAX_PACKAGE_BYTES}" || return 1
+  cntools_transaction_file_safe "${replace_snapshot}" "${CNTOOLS_TRANSACTION_MAX_PACKAGE_BYTES}" || return 1
+  replace_lock="${replace_folder}/.cntools-package-update.lock"
+  if ! mkdir -m 700 -- "${replace_lock}" 2>/dev/null; then
+    cntools_transaction_set_error 'The saved package is being updated by another session. Nothing was overwritten.'
+    return 1
+  fi
+  trap '[[ -z "${replace_stage}" ]] || cntools_transaction_temp_remove "${replace_stage}" || true; rmdir -- "${replace_lock}" 2>/dev/null || true' EXIT
+  if ! cntools_filesystem_file_identity_into replace_identity "${replace_target}" ||
+     ! cmp -s -- "${replace_target}" "${replace_snapshot}"; then
+    cntools_transaction_log ERROR 'Saved package changed after selection; refusing to overwrite it'
+    return 1
+  fi
+  cntools_transaction_temp_file replace_stage package-update "${replace_folder}" || return 1
+  cntools_run_command 0000 -- cp -- "${replace_signed}" "${replace_stage}" || return 1
+  chmod 0600 -- "${replace_stage}" || return 1
+  cmp -s -- "${replace_stage}" "${replace_signed}" || return 1
+  if ! cntools_filesystem_managed_transaction_folder_into replace_folder "${replace_target}" ||
+     ! cntools_filesystem_file_delete_safe "${replace_target}" ||
+     ! cntools_filesystem_file_identity_into replace_current "${replace_target}" ||
+     [[ "${replace_current}" != "${replace_identity}" ]] ||
+     ! cmp -s -- "${replace_target}" "${replace_snapshot}"; then
+    cntools_transaction_log ERROR 'Saved package changed during publication; refusing to overwrite it'
+    return 1
+  fi
+  cntools_run_command 00000 -- mv -T -- "${replace_stage}" "${replace_target}" || return 1
+  cntools_transaction_log TRANSACTION "Managed transaction package updated file=${replace_target}" || true
+)
+
+cntools_transaction_save_signed_into() {
+  local -n ss_result="$1"
+  local ss_signed="$2" ss_original="$3" ss_snapshot="$4" ss_folder=''
+  ss_result=''
+  if cntools_filesystem_managed_transaction_folder_into ss_folder "${ss_original}"; then
+    if ! cntools_transaction_replace_managed "${ss_original}" "${ss_snapshot}" "${ss_signed}"; then
+      cntools_transaction_set_error 'The managed package could not be updated safely. The existing file was left untouched.'
+      return 1
+    fi
+    ss_result="${ss_original}"
+  else
+    cntools_transaction_save_into "$1" "${ss_signed}" signed transaction || return 1
+  fi
 }

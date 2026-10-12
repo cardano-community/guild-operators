@@ -4,7 +4,7 @@
 # shellcheck disable=SC2034
 declare -ag CNTOOLS_TRANSACTION_LOCAL_FILES=() CNTOOLS_TRANSACTION_LOCAL_IDS=()
 declare -ag CNTOOLS_TRANSACTION_LOCAL_KINDS=() CNTOOLS_TRANSACTION_LOCAL_TYPES=()
-declare -Ag CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES=()
+declare -Ag CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES=() CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES=()
 
 cntools_transaction_source_type_into() {
   local output="$1" file="$2" envelope_type='' known_type=Unknown
@@ -25,7 +25,7 @@ cntools_transaction_source_type_into() {
 }
 
 cntools_transaction_sources_collect() {
-  local root="${CNTOOLS_WALLET_DIR:-}" directory='' file='' kind='' identity='' key_type=''
+  local root="${CNTOOLS_WALLET_DIR:-}" directory='' file='' kind='' identity='' key_type='' wallet_name=''
   local previous_error="${CNTOOLS_TRANSACTION_ERROR:-}"
   local -A seen=()
   local -a configured_names=(
@@ -39,11 +39,13 @@ cntools_transaction_sources_collect() {
   CNTOOLS_TRANSACTION_LOCAL_FILES=(); CNTOOLS_TRANSACTION_LOCAL_IDS=()
   CNTOOLS_TRANSACTION_LOCAL_KINDS=(); CNTOOLS_TRANSACTION_LOCAL_TYPES=()
   CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES=()
+  CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES=()
   [[ -n "${root}" && "${root}" == /* && "${root}" != / && -d "${root}" &&
      -r "${root}" && -x "${root}" ]] || return 0
   cntools_filesystem_path_components_safe "${root}" || return 0
   for directory in "${root}/"*; do
     cntools_transaction_directory_safe "${directory}" || continue
+    wallet_name="${directory##*/}"
     # Top-level sources only. Do not traverse hidden staging/recovery folders,
     # import archives, or follow wallet/file symlinks.
     for file in "${directory}/"*.skey "${directory}/"*.hwsfile "${configured_names[@]/#/${directory}/}"; do
@@ -55,6 +57,7 @@ cntools_transaction_sources_collect() {
       CNTOOLS_TRANSACTION_LOCAL_FILES+=("${file}"); CNTOOLS_TRANSACTION_LOCAL_IDS+=("${identity}")
       CNTOOLS_TRANSACTION_LOCAL_KINDS+=("${kind}"); CNTOOLS_TRANSACTION_LOCAL_TYPES+=("${key_type}")
       CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES["${identity}"]="${key_type}"
+      [[ -n "${CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES[${identity}]:-}" ]] || CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES["${identity}"]="${wallet_name}"
     done
     for file in "${directory}/"*.vkey "${public_names[@]/#/${directory}/}"; do
       [[ -z "${seen[${file}]:-}" ]] || continue
@@ -64,6 +67,7 @@ cntools_transaction_sources_collect() {
       # Public-only/encrypted wallets can identify the requested type, but
       # their public files never count as an available signing source.
       [[ -n "${CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES[${identity}]:-}" ]] || CNTOOLS_TRANSACTION_LOCAL_KEY_TYPES["${identity}"]="${key_type}"
+      [[ -n "${CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES[${identity}]:-}" ]] || CNTOOLS_TRANSACTION_LOCAL_KEY_NAMES["${identity}"]="${wallet_name}"
     done
   done
   CNTOOLS_TRANSACTION_ERROR="${previous_error}"
@@ -71,9 +75,11 @@ cntools_transaction_sources_collect() {
 }
 
 cntools_transaction_ui_local_source_into() {
-  local output="$1" expected="$2" labels="$3" preferred="$4" hardware_group="${5:-}" allow_defer="${6:-Y}" roles="${7:-}"
-  local index=0 ordinal=0 selected='' selected_path='' key_type=Unknown
+  local output="$1" expected="$2" labels="$3" preferred="$4" hardware_group="${5:-}" allow_defer="${6:-Y}"
+  local index=0 selected='' selected_path='' key_type=Unknown signer_name=''
   local matching_types='' candidate='' wallet_name='' candidate_kind='' candidate_id='' found=N status=0
+  local matching_names=''
+  local -A matched_wallets=()
   local -a choices=() matched_files=()
   [[ "${output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ && "${expected}" =~ ^[0-9a-f]{64}$ ]] || return 2
   case "${preferred}" in cli|hardware|either) ;; *) return 2 ;; esac
@@ -82,16 +88,22 @@ cntools_transaction_ui_local_source_into() {
   for index in "${!CNTOOLS_TRANSACTION_LOCAL_FILES[@]}"; do
     [[ "${CNTOOLS_TRANSACTION_LOCAL_IDS[index]}" == "${expected}" ]] || continue
     [[ "${preferred}" == either || "${CNTOOLS_TRANSACTION_LOCAL_KINDS[index]}" == "${preferred}" ]] || continue
-    ordinal=$((ordinal+1)); candidate="${CNTOOLS_TRANSACTION_LOCAL_FILES[index]}"
+    candidate="${CNTOOLS_TRANSACTION_LOCAL_FILES[index]}"
     wallet_name="${candidate%/*}"; wallet_name="${wallet_name##*/}"
-    choices+=("${ordinal} · Use ${wallet_name} · ${CNTOOLS_TRANSACTION_LOCAL_TYPES[index]} · ${CNTOOLS_TRANSACTION_LOCAL_KINDS[index]} · ${candidate##*/}")
+    choices+=("${wallet_name} · ${candidate##*/}")
     matched_files+=("${candidate}")
+    if [[ -z "${matched_wallets[${wallet_name}]:-}" ]]; then
+      matching_names+="${matching_names:+, }${wallet_name}"
+      matched_wallets["${wallet_name}"]=Y
+    fi
     key_type="${CNTOOLS_TRANSACTION_LOCAL_TYPES[index]}"
     [[ "${matching_types}" == *"${key_type}"* ]] || matching_types+="${matching_types:+, }${key_type}"
   done
   # Roles do not reliably identify a certificate/vote signer key type. Avoid
   # guessing from an imported label; use the verified local envelope if known.
   [[ -z "${matching_types}" ]] || key_type="${matching_types}"
+  cntools_transaction_ui_signer_name_into signer_name "${expected}" "${labels}"
+  [[ -z "${matching_names}" ]] || signer_name="${matching_names}"
   choices+=('Select file manually')
   if [[ "${allow_defer}" == Y ]]; then
     [[ -z "${hardware_group}" ]] && choices+=('Skip this signer') || choices+=('Defer this hardware session')
@@ -103,9 +115,8 @@ cntools_transaction_ui_local_source_into() {
     cntools_gum_clear
     cntools_transaction_ui_sign_begin || return 2
     {
-      cntools_table_pair Signer "${labels}" identifier
+      cntools_table_pair Signer "${signer_name}" identifier
       cntools_table_pair 'Key type' "${key_type}" value
-      [[ -z "${roles}" ]] || cntools_table_pair Roles "${roles}" value
       cntools_table_pair 'Signing method' "${preferred}" accent
     } | cntools_table_render 'Required signer' || return 2
     if (( ${#matched_files[@]} == 0 )); then
@@ -122,7 +133,7 @@ cntools_transaction_ui_local_source_into() {
       'Defer this hardware session') [[ "${allow_defer}" == Y && -n "${hardware_group}" ]] || return 2; return 0 ;;
       'Select file manually')
         status=0
-        cntools_transaction_ui_prompt_signer_into selected_path "${expected}" "${labels}" "${preferred}" "${hardware_group}" "${allow_defer}" || status=$?
+        cntools_transaction_ui_prompt_signer_into selected_path "${expected}" "${signer_name}" "${preferred}" "${hardware_group}" "${allow_defer}" || status=$?
         ((status == 0 || status == 1)) || return "${status}"
         ((status == 0)) || continue
         if [[ -n "${selected_path}" ]] && cntools_transaction_source_type_into key_type "${selected_path}"; then
