@@ -916,14 +916,20 @@ cntools_ui_render_status() {
   local level="${1:-info}"
   local message="${2:-}"
   local color="${CNTOOLS_GUM_COLOR_BRAND}"
+  local width="${3:-}"
+  local -a width_arguments=()
 
   [[ -n "${message}" ]] || return 0
+  if [[ -n "${width}" ]]; then
+    [[ "${width}" =~ ^[1-9][0-9]*$ ]] || return 2
+    width_arguments=(--width "${width}")
+  fi
   case "${level}" in
     error) color="${CNTOOLS_GUM_COLOR_DANGER}" ;;
     warn) color="${CNTOOLS_GUM_COLOR_WARNING}" ;;
     success) color="${CNTOOLS_GUM_COLOR_SUCCESS}" ;;
   esac
-  cntools_gum style --margin "0 2 1 2" --padding "0 1" --border normal \
+  cntools_gum style "${width_arguments[@]}" --margin "0 2 1 2" --padding "0 1" --border normal \
     --border-foreground "${color}" --foreground "${color}" "${message}"
 }
 

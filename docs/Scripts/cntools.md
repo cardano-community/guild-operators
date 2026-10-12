@@ -133,6 +133,11 @@ creating a replacement transaction.
 
 **Settings → Transaction Defaults** persists your preferences between sessions:
 
+Each setting shows an explanation before its choices. **Cancel** returns to the
+settings overview without changing or saving anything. Numeric editors offer
+**Enter new value** and **Cancel**; pressing Escape while typing also cancels,
+and an empty input keeps the current value.
+
 - **Coin selection:** Balanced prefers simpler ADA-only inputs and avoids
   unnecessary native assets; Fewest inputs prioritizes fewer inputs.
 - **Token fragmentation:** optionally limits distinct assets per change output

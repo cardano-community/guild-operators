@@ -32,6 +32,48 @@ cntools_settings_action_render() {
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
 }
 
+cntools_settings_action_explain() {
+  local setting="${1:-}" message="" width=""
+
+  case "${setting}" in
+    'Coin selection')
+      message=$'Balanced: prefer simple ADA-only inputs and avoid carrying\nunneeded native assets into the transaction.\nFewest inputs: prioritize fewer, larger inputs; this can bring\nmore native assets into change.\nBoth select inputs automatically from the wallet.'
+      ;;
+    'Send change-address choice')
+      message=$'Enabled: Send asks where change should return when the wallet\nhas both base and payment-only addresses.\nDisabled: change returns to the primary address.\nThis changes only returned change, not input selection.\nPayment-only change does not participate in staking.'
+      ;;
+    'Default transaction expiry')
+      message=$'Starting expiry for new transactions, in seconds.\n1,800 seconds = 30 minutes. Longer periods allow offline signing.\n0 means no expiry; native-script time limits still apply.\nYou can change the expiry while creating a transaction.\nAllowed: 0 through 31,536,000. Enter keeps the current value.'
+      ;;
+    'Token fragmentation')
+      message=$'Enabled: split token change using the configured maximum number\nof distinct native assets per output.\nDisabled: keep token change together unless protocol limits\nrequire a split. More outputs need more ADA and can raise fees.\nThis shapes change only; it does not reorganize existing UTxOs.'
+      ;;
+    'Maximum assets per token output')
+      message=$'Maximum distinct native assets in a token-change output when\nfragmentation is enabled. This counts asset types, not units.\nLower limits create smaller bundles but need more outputs and ADA.\nAllowed: 1 through 100. Enter keeps the current value.'
+      ;;
+    'ADA-only UTxO management')
+      message=$'Enabled: use change to create useful ADA-only outputs, counting\nthose already left in the wallet after input selection.\nDisabled: do not create optional ADA-only management outputs.\nToken change is funded first. Fees, minimum ADA and output limits\ncan reduce what is created. This is not background maintenance.'
+      ;;
+    'Desired ADA-only UTxOs')
+      message=$'Target number of useful ADA-only UTxOs after a transaction,\nincluding existing outputs and planned residual change.\nThe separately maintained collateral candidate is not counted.\nOnly missing outputs are added; the target is not guaranteed.\nRequires ADA-only management. Allowed: 1 through 12.\nEnter keeps the current value.'
+      ;;
+    'Change percentages')
+      message=$'Each percentage uses the same remaining ADA change after token\noutputs and any new collateral candidate have been funded.\nFor example, 10,20,30 creates differently sized outputs where\nneeded; the remainder stays in residual change.\nRequires ADA-only management. Enter one to six increasing values\nfrom 1 through 75, with a combined total no greater than 75.\nOnly missing outputs that can be funded are created.\nEnter keeps the current values.'
+      ;;
+    'Maintain 5 ADA collateral candidate')
+      message=$'Enabled: try to retain a suitable ADA-only output, or create\na 5 ADA collateral candidate from change when one is missing.\nDisabled: do not specially retain or create a candidate.\nRequires ADA-only UTxO management and sufficient change.\nThis does not lock funds or use collateral in this transaction.'
+      ;;
+    'Restore safe defaults')
+      message=$'Restore safe defaults: replace all transaction preferences with\nthe built-in defaults. Cancel keeps your current preferences.\nDefaults use Balanced inputs and primary-address change, with\na 1,800-second expiry. Token fragmentation and ADA-only UTxO\nmanagement are disabled. Wallet files, funds and theme are unchanged.'
+      ;;
+    'Done') return 0 ;;
+    *) return 2 ;;
+  esac
+  cntools_ui_action_begin "${setting}" "/ Settings / Transaction Defaults / ${setting}" || return 1
+  width="$(cntools_ui_content_width 100 42)" || return 1
+  cntools_ui_render_status info "${message}" "$((width - 4))"
+}
+
 cntools_settings_action_choose_toggle() {
   local _cntools_output_name="${1:-}"
   local label="${2:-Setting}"
@@ -40,10 +82,13 @@ cntools_settings_action_choose_toggle() {
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
-  if cntools_ui_choose selected "${label}…" "Enabled" "Disabled"; then
-    [[ "${selected}" == "Enabled" ]] && _cntools_output_ref="Y" ||
-      _cntools_output_ref="N"
-    return 0
+  if cntools_ui_choose selected "${label}…" "Enabled" "Disabled" "Cancel"; then
+    case "${selected}" in
+      Enabled) _cntools_output_ref=Y; return 0 ;;
+      Disabled) _cntools_output_ref=N; return 0 ;;
+      Cancel) return 1 ;;
+      *) return 2 ;;
+    esac
   fi
   _cntools_output_ref="${current}"
   return 1
@@ -56,10 +101,19 @@ cntools_settings_action_input_integer() {
   local minimum="${4:-1}"
   local maximum="${5:-100}"
   local entered=""
+  local choice=""
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   while true; do
+    if ! cntools_ui_choose choice "${label}…" "Enter new value" "Cancel"; then
+      return 1
+    fi
+    case "${choice}" in
+      'Enter new value') ;;
+      Cancel) return 1 ;;
+      *) return 2 ;;
+    esac
     if ! cntools_ui_input entered "${label}" "${current}"; then
       return 1
     fi
@@ -98,9 +152,18 @@ cntools_settings_action_percentages_valid() {
 
 cntools_settings_action_edit_percentages() {
   local entered=""
+  local choice=""
   local -a values=()
 
   while true; do
+    if ! cntools_ui_choose choice "Change percentages…" "Enter new percentages" "Cancel"; then
+      return 1
+    fi
+    case "${choice}" in
+      'Enter new percentages') ;;
+      Cancel) return 1 ;;
+      *) return 2 ;;
+    esac
     if ! cntools_ui_input entered "Comma-separated percentages" \
         "${CNTOOLS_TX_UTXO_PERCENTAGES}"; then
       return 1
@@ -128,6 +191,7 @@ cntools_action_main() {
   local selected=""
   local status=0
   local strategy=""
+  local restore_choice=""
   local -a rows=(
     "Coin selection"
     "Send change-address choice"
@@ -158,6 +222,7 @@ cntools_action_main() {
     elif (( status != 0 )); then
       return "${status}"
     fi
+    cntools_settings_action_explain "${selected}" || return 1
     case "${selected}" in
       'Send change-address choice')
         cntools_settings_action_choose_toggle CNTOOLS_SEND_CHOOSE_CHANGE 'Choose Send change address' "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" || continue ;;
@@ -165,10 +230,13 @@ cntools_action_main() {
         cntools_settings_action_input_integer CNTOOLS_TX_DEFAULT_TTL 'Seconds (0 for no expiry)' "${CNTOOLS_TX_DEFAULT_TTL:-1800}" 0 31536000 || continue ;;
       "Coin selection")
         if cntools_ui_choose strategy "Coin selection…" \
-            "Balanced" "Fewest inputs"; then
-          [[ "${strategy}" == "Balanced" ]] &&
-            CNTOOLS_TX_SELECTION_STRATEGY="balanced" ||
-            CNTOOLS_TX_SELECTION_STRATEGY="fewest-inputs"
+            "Balanced" "Fewest inputs" "Cancel"; then
+          case "${strategy}" in
+            Balanced) CNTOOLS_TX_SELECTION_STRATEGY=balanced ;;
+            'Fewest inputs') CNTOOLS_TX_SELECTION_STRATEGY=fewest-inputs ;;
+            Cancel) continue ;;
+            *) return 2 ;;
+          esac
         else
           continue
         fi
@@ -200,10 +268,15 @@ cntools_action_main() {
           "${CNTOOLS_TX_COLLATERAL_MANAGEMENT}" || continue
         ;;
       "Restore safe defaults")
-        if ! cntools_ui_confirm \
-            "Restore all transaction settings to their safe defaults?"; then
+        if ! cntools_ui_choose restore_choice "Restore transaction defaults…" \
+            "Cancel" "Restore safe defaults"; then
           continue
         fi
+        case "${restore_choice}" in
+          Cancel) continue ;;
+          'Restore safe defaults') ;;
+          *) return 2 ;;
+        esac
         cntools_settings_defaults
         ;;
       "Done") return 0 ;;
