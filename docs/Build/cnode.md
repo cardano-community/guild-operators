@@ -267,7 +267,7 @@ the common environment is explicitly replaced with `-s s`.
 The current manifest was verified against the official
 [cardano-node 11.1.3 release](https://github.com/IntersectMBO/cardano-node/releases/tag/11.1.3)
 and
-[cardano-cli 11.2.3.1 release](https://github.com/IntersectMBO/cardano-cli/releases/tag/cardano-cli-11.2.3.1),
+[cardano-cli 11.4.0.0 release](https://github.com/IntersectMBO/cardano-cli/releases/tag/cardano-cli-11.4.0.0),
 using their published GitHub release-asset digests.
 The companion Koios bundles, pinned Catalyst Toolbox and GHCup binaries,
 openBlockPerf installer, and hardware-wallet support files were fully

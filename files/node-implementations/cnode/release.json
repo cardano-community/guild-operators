@@ -14,15 +14,15 @@
   },
   "companions": {
     "cardano-cli": {
-      "version": "11.2.3.1",
+      "version": "11.4.0.0",
       "artifacts": {
         "linux-x86_64": {
-          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.2.3.1/cardano-cli-11.2.3.1-x86_64-linux.tar.gz",
-          "sha256": "7ee5fc7698fc00344422e0d2e80d1a8dfc0683f772f4d9fb264f7705d5e35168"
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.4.0.0/cardano-cli-11.4.0.0-x86_64-linux.tar.gz",
+          "sha256": "268cd961518e9040da23ade5edc9da420cd387929c549af66259ff7954f02109"
         },
         "linux-aarch64": {
-          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.2.3.1/cardano-cli-11.2.3.1-aarch64-linux.tar.gz",
-          "sha256": "582f894fe9d21d7e8b20d2b6853ad7a2c04f20f5ce033f5e7884afa96be5d4f9"
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.4.0.0/cardano-cli-11.4.0.0-aarch64-linux.tar.gz",
+          "sha256": "e6706d1bc24640986b845b6d393b709113bc5cf544b393286ed40dcb9365757f"
         }
       }
     },
