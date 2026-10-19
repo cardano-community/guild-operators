@@ -115,15 +115,16 @@
     "openblockperf": {
       "version": "latest",
       "installer": {
-        "url": "https://raw.githubusercontent.com/cardano-foundation/openblockperf/a12820f5dbf591939b6e36eb2e1aca5383522189/blockperf-install.sh",
-        "sha256": "28c649fee50483f10e3c6dd56861560d0f4e0a352434ade3ccab6a9e629603d9"
+        "url": "https://raw.githubusercontent.com/cardano-foundation/openblockperf/4807f901245d2935c79051b04ac702afd8e8b3b1/blockperf-install.sh",
+        "sha256": "9681741fbb87465a4ea1340b2a7edd2807f54d9f4b5776bbe564bfda94c4f2e6"
       }
     }
   },
   "build": {
+    "cardanoCli": "11.2.3.0",
     "toolchain": {
       "ghc": "9.6.7",
-      "cabal": "3.12.1.0"
+      "cabal": "3.16.1.0"
     },
     "sourceDependencies": {
       "libsodium": {

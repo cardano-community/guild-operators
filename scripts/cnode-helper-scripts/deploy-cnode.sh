@@ -704,16 +704,28 @@ build_dependencies() {
     ghcup set ghc ${BOOTSTRAP_HASKELL_GHC_VERSION} >/dev/null 2>&1
     log_ok "GHC ready" "v${BOOTSTRAP_HASKELL_GHC_VERSION}"
   fi
-  cabal_version=$(cabal --version 2>/dev/null | head -n 1 | cut -d' ' -f3)
-  if [[ -z ${cabal_version} || ! ${cabal_version} = "${BOOTSTRAP_HASKELL_CABAL_VERSION}" ]]; then
-    if [[ -n ${cabal_version} ]]; then
-      log_progress "Removing previous Cabal release"
-      ghcup rm cabal ${cabal_version} >/dev/null 2>&1
-      log_ok "Previous Cabal release removed"
-    fi
+  # Inspect GHCup's own cabal: an older cabal earlier on PATH (for example in
+  # ~/.cabal/bin) would otherwise report its version instead.
+  local ghcup_cabal="${HOME}/.ghcup/bin/cabal" cabal_version="" path_cabal=""
+  cabal_version=$("${ghcup_cabal}" --version 2>/dev/null | head -n 1 | cut -d' ' -f3)
+  if [[ ${cabal_version} != "${BOOTSTRAP_HASKELL_CABAL_VERSION}" ]]; then
     log_progress "Installing Cabal" "v${BOOTSTRAP_HASKELL_CABAL_VERSION}"
-    ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION} >/dev/null 2>&1 || err_exit "Command failed: ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION}"
+    # An already installed release exits successfully without being selected.
+    ghcup install cabal "${BOOTSTRAP_HASKELL_CABAL_VERSION}" >/dev/null 2>&1 &&
+      ghcup set cabal "${BOOTSTRAP_HASKELL_CABAL_VERSION}" >/dev/null 2>&1 ||
+      err_exit "Command failed: ghcup install cabal ${BOOTSTRAP_HASKELL_CABAL_VERSION}"
+    if [[ -n ${cabal_version} ]]; then
+      if ghcup rm cabal "${cabal_version}" >/dev/null 2>&1; then
+        log_ok "Previous Cabal release removed" "v${cabal_version}"
+      else
+        log_warn "Could not remove previous Cabal release v${cabal_version}."
+      fi
+    fi
     log_ok "Cabal ready" "v${BOOTSTRAP_HASKELL_CABAL_VERSION}"
+  fi
+  path_cabal="$(command -v cabal 2>/dev/null || true)"
+  if [[ "${path_cabal}" != "${ghcup_cabal}" ]]; then
+    log_warn "PATH selects ${path_cabal:-no cabal} instead of ${ghcup_cabal}; put ${HOME}/.ghcup/bin first before building."
   fi
   build_libsecp
   build_libblst
@@ -989,7 +1001,8 @@ cnode_deploy_validate_release_metadata() {
     (.tools["cardano-signer"].minimumVersion | concrete_version) and
     (.managedInstallers | keys == ["openblockperf"]) and
     (.managedInstallers.openblockperf | managed_installer) and
-    (.build | keys == ["sourceDependencies", "toolchain"]) and
+    (.build | keys == ["cardanoCli", "sourceDependencies", "toolchain"]) and
+    (.build.cardanoCli | concrete_version) and
     (.build.toolchain | keys == ["cabal", "ghc"]) and
     all(.build.toolchain[]; concrete_version) and
     (.build.sourceDependencies | keys == [
@@ -1518,6 +1531,9 @@ download_blockperf() {
   local release_data policy_mode package_version installer_version
   local installer_url expected_sha actual_sha version_output
   local blockperf_mode="install" rc
+  # The installer's own defaults, passed back to it so both sides agree.
+  local blockperf_install_dir="${BLOCKPERF_INSTALL_DIR:-/opt/cardano/openblockperf}"
+  local blockperf_service_file="${BLOCKPERF_SERVICE_FILE:-/etc/systemd/system/openblockperf.service}"
 
   log_info "Preparing openBlockPerf installer."
   cnode_deploy_load_release_metadata
@@ -1530,7 +1546,16 @@ download_blockperf() {
     mkdir -p "${installer_dir}" || err_exit "Failed to create installer directory: ${installer_dir}"
   fi
   blockperf_installer="${installer_dir}/blockperf-install.sh"
-  [[ -f "${blockperf_installer}" ]] && blockperf_mode="update"
+  # Select the mode from the installed state, not from a kept installer copy.
+  # A failed install (e.g. relay API key registration under --yes) leaves the
+  # virtualenv without config or service; --update would never complete it.
+  if [[ -x "${blockperf_install_dir}/venv/bin/blockperf" &&
+        -f "${blockperf_install_dir}/config.json" &&
+        -f "${blockperf_service_file}" ]]; then
+    blockperf_mode="update"
+  elif [[ -e "${blockperf_install_dir}" ]]; then
+    blockperf_mode="reinstall"
+  fi
 
   release_data="$(
     jq -er '
@@ -1592,13 +1617,10 @@ download_blockperf() {
 
   log_progress "Running openBlockPerf installer" "${blockperf_mode}/${policy_mode}"
   [[ -t 1 ]] && printf "\n"
-  if [[ "${blockperf_mode}" == "update" ]]; then
-    $sudo env PACKAGE_VERSION="${package_version}" \
-      "${blockperf_installer}" --update "${blockperf_common_args[@]}"
-  else
-    $sudo env PACKAGE_VERSION="${package_version}" \
-      "${blockperf_installer}" "${blockperf_common_args[@]}"
-  fi
+  $sudo env PACKAGE_VERSION="${package_version}" \
+    INSTALL_DIR="${blockperf_install_dir}" \
+    SERVICE_FILE="${blockperf_service_file}" \
+    "${blockperf_installer}" "--${blockperf_mode}" "${blockperf_common_args[@]}"
   rc=$?
   [[ ${rc} -eq 0 ]] ||
     err_exit "openBlockPerf installer failed with exit code ${rc}."

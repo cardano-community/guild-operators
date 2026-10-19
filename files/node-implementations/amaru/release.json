@@ -9,29 +9,29 @@
   },
   "companions": {
     "cardano-cli": {
-      "version": "11.0.0.0",
+      "version": "11.4.0.0",
       "artifacts": {
         "linux-x86_64": {
-          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.0.0.0/cardano-cli-11.0.0.0-x86_64-linux.tar.gz",
-          "sha256": "c37b26be04106ecd2ba88841e64d3b7ecdc80d838055102323691b087f7255b1"
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.4.0.0/cardano-cli-11.4.0.0-x86_64-linux.tar.gz",
+          "sha256": "268cd961518e9040da23ade5edc9da420cd387929c549af66259ff7954f02109"
         },
         "linux-aarch64": {
-          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.0.0.0/cardano-cli-11.0.0.0-aarch64-linux.tar.gz",
-          "sha256": "5e1db5459ee6b58433e2ce2db2ba53dd9fd4dd43bae0c14aefc25677bba88ae7"
+          "url": "https://github.com/IntersectMBO/cardano-cli/releases/download/cardano-cli-11.4.0.0/cardano-cli-11.4.0.0-aarch64-linux.tar.gz",
+          "sha256": "e6706d1bc24640986b845b6d393b709113bc5cf544b393286ed40dcb9365757f"
         }
       }
     }
   },
   "otelcol": {
-    "version": "0.157.0",
+    "version": "0.163.1",
     "artifacts": {
       "linux-x86_64": {
-        "url": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.157.0/otelcol-contrib_0.157.0_linux_amd64.tar.gz",
-        "sha256": "d33177515a244a2393f03ffd66ab3e68a8fc11a56bc145ec4d0ca2644ee95504"
+        "url": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.163.1/otelcol-contrib_0.163.1_linux_amd64.tar.gz",
+        "sha256": "e93e6fd2b59427420a9e8eba5b9e78260df6d21e95283a7298084d2aa07f9df7"
       },
       "linux-aarch64": {
-        "url": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.157.0/otelcol-contrib_0.157.0_linux_arm64.tar.gz",
-        "sha256": "34eb82390c462c877dd60ec5ec84de899088916facd07306ec988e4c34bd05b3"
+        "url": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.163.1/otelcol-contrib_0.163.1_linux_arm64.tar.gz",
+        "sha256": "5ac4fb93e9858f6c7b5d5b2e81991dded61ca14b1a29bb01c3364e69567c76e3"
       }
     }
   }

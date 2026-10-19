@@ -16,7 +16,7 @@ Start CNTools from that directory:
 ./cntools.sh
 ```
 
-CNTools requires Bash 4.4 or newer, Charm Gum 2.0.0, a UTF-8 terminal and the
+CNTools requires Bash 4.4 or newer, Charm Gum 2.0.2, a UTF-8 terminal and the
 common Linux tools provided by Guild Deploy's prerequisite installation.
 If Gum is missing or has a different version, interactive startup offers to
 install it. Declining leaves CNTools closed. Install Gum before entering

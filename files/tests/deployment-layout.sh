@@ -143,6 +143,20 @@ jq -e '
   cnode_deploy_validate_release_metadata "${CNODE_RELEASE}"
 ) || fail "runtime validator rejected compact cnode release metadata"
 
+# CNTools accepts exactly the cardano-cli releases these profiles install: the
+# shared downloaded companion, and the one built with the pinned node source.
+cntools_cli_versions="$(
+  sed -nE 's/^CNTOOLS_TRANSACTION_(CARDANO|SOURCE_BUILD)_CLI_VERSION="([^"]+)"$/\2/p' \
+    "${ROOT_DIR}/scripts/common-helper-scripts/cntools/lib/transaction.sh"
+)"
+[[ "${cntools_cli_versions}" == "$(jq -r '.companions["cardano-cli"].version, .build.cardanoCli' "${CNODE_RELEASE}")" ]] ||
+  fail "CNTools cardano-cli versions differ from the cnode release metadata"
+for implementation in dingo amaru; do
+  [[ "$(jq -r '.companions["cardano-cli"].version' "${ROOT_DIR}/files/node-implementations/${implementation}/release.json")" == \
+     "$(jq -r '.companions["cardano-cli"].version' "${CNODE_RELEASE}")" ]] ||
+    fail "${implementation} cardano-cli companion differs from the CNTools contract"
+done
+
 (
   # shellcheck source=../../scripts/dingo-helper-scripts/deploy-dingo.sh
   . "${ROOT_DIR}/scripts/dingo-helper-scripts/deploy-dingo.sh"

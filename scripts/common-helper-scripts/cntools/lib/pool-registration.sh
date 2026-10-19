@@ -181,7 +181,7 @@ cntools_pool_registration_collect() {
 
 cntools_pool_registration_certificate_create() {
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then cntools_pool_retirement_certificate_create; return $?; fi
-  local certificate='' response='' errors='' owner='' relay='' type='' status=0
+  local certificate='' response='' errors='' owner='' relay='' type='' status=0 reversed=0
   local -a args=(--cold-verification-key-file "${CNTOOLS_POOL_REG_COLD_VKEY}" --vrf-verification-key-file "${CNTOOLS_POOL_REG_VRF_VKEY}"
     --pool-pledge "${CNTOOLS_POOL_REG_PLEDGE}" --pool-cost "${CNTOOLS_POOL_REG_COST}" --pool-margin "${CNTOOLS_POOL_REG_MARGIN}"
     --pool-reward-account-verification-key-file "${CNTOOLS_POOL_REG_REWARD_VKEY}") network=()
@@ -196,7 +196,14 @@ cntools_pool_registration_certificate_create() {
       dns) args+=(--single-host-pool-relay "$(jq -r .dns <<< "${relay}")" --pool-relay-port "$(jq -r .port <<< "${relay}")") ;;
       srv) args+=(--multi-host-pool-relay "$(jq -r .dns <<< "${relay}")") ;;
       ip)
-        [[ "$(jq -r .ipv4 <<< "${relay}")" == '' ]] || args+=(--pool-relay-ipv4 "$(jq -r .ipv4 <<< "${relay}")")
+        if [[ "$(jq -r .ipv4 <<< "${relay}")" != '' ]]; then
+          cntools_transaction_cli_reverses_relay_ipv4 && reversed=0 || reversed=$?
+          if ((reversed == 0)); then
+            cntools_wallet_register_set_error "Cardano CLI ${CNTOOLS_TRANSACTION_VALIDATED_CLI_VERSION} registers IPv4 relays with reversed bytes (cardano-cli#1442). Use a DNS or IPv6 relay, or deploy the pinned Cardano CLI ${CNTOOLS_TRANSACTION_CARDANO_CLI_VERSION}."; return 1
+          fi
+          ((reversed == 1)) || return 1
+          args+=(--pool-relay-ipv4 "$(jq -r .ipv4 <<< "${relay}")")
+        fi
         [[ "$(jq -r .ipv6 <<< "${relay}")" == '' ]] || args+=(--pool-relay-ipv6 "$(jq -r .ipv6 <<< "${relay}")")
         args+=(--pool-relay-port "$(jq -r .port <<< "${relay}")") ;;
     esac

@@ -288,6 +288,12 @@ run_release_manifest_validation_tests() (
     '.managedInstallers.openblockperf.installer.sha256 = "invalid"' \
     "invalid openBlockPerf installer checksum"
   assert_manifest_rejected \
+    'del(.build.cardanoCli)' \
+    "missing source-build cardano-cli version"
+  assert_manifest_rejected \
+    '.build.cardanoCli = "latest"' \
+    "moving source-build cardano-cli version"
+  assert_manifest_rejected \
     '.build.toolchain.ghc = {"version": "9.6.7"}' \
     "non-string GHC toolchain version"
   assert_manifest_rejected \
@@ -734,7 +740,7 @@ run_managed_installer_policy_test() (
     '  printf "blockperf-install.sh version 0.2.0\\n"' \
     '  exit 0' \
     'fi' \
-    'printf "PACKAGE_VERSION=%s|%s\\n" "${PACKAGE_VERSION:-}" "$*" >> "${BLOCKPERF_TEST_LOG}"' \
+    'printf "PACKAGE_VERSION=%s|INSTALL_DIR=%s|SERVICE_FILE=%s|%s\\n" "${PACKAGE_VERSION:-}" "${INSTALL_DIR:-}" "${SERVICE_FILE:-}" "$*" >> "${BLOCKPERF_TEST_LOG}"' \
     > "${fake_installer}"
   chmod 0755 "${fake_installer}"
   installer_sha="$(sha256sum "${fake_installer}" | awk '{print $1}')"
@@ -749,6 +755,8 @@ run_managed_installer_policy_test() (
   DOWNLOAD_TIMEOUT=30
   CNODE_RELEASE_MANIFEST="${manifest}"
   BLOCKPERF_TEST_LOG="${invocation_log}"
+  BLOCKPERF_INSTALL_DIR="${node_root}/openblockperf"
+  BLOCKPERF_SERVICE_FILE="${node_root}/openblockperf.service"
   sudo=""
   export BLOCKPERF_TEST_LOG
 
@@ -777,17 +785,39 @@ run_managed_installer_policy_test() (
   log_info() { :; }
   log_ok() { :; }
 
-  download_blockperf
-  grep -q '^PACKAGE_VERSION=|--yes ' "${invocation_log}" ||
-    fail "latest openBlockPerf policy did not delegate an unpinned stable package"
+  local paths="INSTALL_DIR=${BLOCKPERF_INSTALL_DIR}|SERVICE_FILE=${BLOCKPERF_SERVICE_FILE}"
 
+  download_blockperf
+  tail -n 1 "${invocation_log}" |
+    grep -qF "PACKAGE_VERSION=|${paths}|--install --yes " ||
+    fail "latest openBlockPerf policy did not delegate an unpinned stable install"
+
+  # A kept installer copy alone must not turn a later run into an update.
+  [[ -f "${node_root}/scripts/blockperf-install.sh" ]] ||
+    fail "validated openBlockPerf installer was not kept"
+  download_blockperf
+  tail -n 1 "${invocation_log}" |
+    grep -qF "PACKAGE_VERSION=|${paths}|--install --yes " ||
+    fail "kept openBlockPerf installer selected update without an installation"
+
+  # A virtualenv without config or service is an interrupted install.
+  mkdir -p "${BLOCKPERF_INSTALL_DIR}/venv/bin"
+  printf '#!/usr/bin/env bash\n' > "${BLOCKPERF_INSTALL_DIR}/venv/bin/blockperf"
+  chmod 0755 "${BLOCKPERF_INSTALL_DIR}/venv/bin/blockperf"
+  download_blockperf
+  tail -n 1 "${invocation_log}" |
+    grep -qF "PACKAGE_VERSION=|${paths}|--reinstall --yes " ||
+    fail "incomplete openBlockPerf installation was not reinstalled"
+
+  printf '{}\n' > "${BLOCKPERF_INSTALL_DIR}/config.json"
+  : > "${BLOCKPERF_SERVICE_FILE}"
   jq '.managedInstallers.openblockperf.version = "0.0.35"' \
     "${manifest}" > "${manifest_tmp}"
   mv -f "${manifest_tmp}" "${manifest}"
   download_blockperf
   tail -n 1 "${invocation_log}" |
-    grep -q '^PACKAGE_VERSION=0.0.35|--update ' ||
-    fail "pinned openBlockPerf policy did not pass the configured package version"
+    grep -qF "PACKAGE_VERSION=0.0.35|${paths}|--update --yes " ||
+    fail "pinned openBlockPerf policy did not update the complete installation"
 )
 
 run_source_checkout_test() (

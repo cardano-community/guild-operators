@@ -8,12 +8,20 @@ cntools_multisig_begin() {
 }
 
 cntools_multisig_prompt_path() {
-  local destination="$1" prompt="$2" default="$3" entered='' normal=''
+  local destination="$1" prompt="$2" default="$3" role="$4" mode="$5" entered='' normal='' role_hint='0 or 1'
+  [[ "${role}" == payment ]] || role_hint=2
   while true; do
     cntools_ui_input entered "${prompt}" "${default}" || return $?
     [[ -n "${entered}" ]] || entered="${default}"
-    if cntools_multisig_path_into normal "${entered}"; then printf -v "${destination}" '%s' "${normal}"; return 0; fi
-    cntools_ui_render_status warn 'Use 3–10 slash-separated indices, with H for hardened indices. Each index must be 0–2,147,483,647.'
+    if cntools_multisig_path_into normal "${entered}" &&
+       { [[ "${mode}" != mnemonic ]] || cntools_multisig_mnemonic_path_valid "${normal}" "${role}"; }; then
+      printf -v "${destination}" '%s' "${normal}"; return 0
+    fi
+    if [[ "${mode}" == mnemonic ]]; then
+      cntools_ui_render_status warn "Use purpose/coin_type/account/role/index with role ${role_hint}, and H for hardened indices. Each index must be 0–2,147,483,647."
+    else
+      cntools_ui_render_status warn 'Use 3–10 slash-separated indices, with H for hardened indices. Each index must be 0–2,147,483,647.'
+    fi
   done
 }
 
@@ -43,8 +51,8 @@ cntools_multisig_derive_workflow() {
         pay_path="1854H/1815H/${account}H/0/${index}"; stake_path="1854H/1815H/${account}H/2/${index}"
         ;;
       'Custom payment and stake paths')
-        cntools_multisig_prompt_path pay_path 'Payment derivation path' '1854H/1815H/0H/0/0' &&
-          cntools_multisig_prompt_path stake_path 'Stake derivation path' '1854H/1815H/0H/2/0' || return $?
+        cntools_multisig_prompt_path pay_path 'Payment derivation path' '1854H/1815H/0H/0/0' payment "${mode}" &&
+          cntools_multisig_prompt_path stake_path 'Stake derivation path' '1854H/1815H/0H/2/0' stake "${mode}" || return $?
         ;;
       *) return 1 ;;
     esac

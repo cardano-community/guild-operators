@@ -25,4 +25,8 @@ RUN curl -s -f -k -o cnode-release.json "https://raw.githubusercontent.com/${G_A
     git checkout tags/"${CNODE_VERSION}" &&\
     git status &&\
     /opt/cardano/cnode/scripts/cabal-build-all.sh -c &&\
-    /root/.local/bin/cardano-cli version ; /root/.local/bin/cardano-node version
+    CLI_VERSION=$(jq -er '.build.cardanoCli' cnode-release.json) &&\
+    echo "Expecting source-built cardano-cli ${CLI_VERSION}" &&\
+    /root/.local/bin/cardano-cli version &&\
+    /root/.local/bin/cardano-cli version | head -n 1 | grep -Fq "cardano-cli ${CLI_VERSION} " &&\
+    /root/.local/bin/cardano-node version

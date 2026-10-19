@@ -3,10 +3,10 @@
 # Functions only; sourced by the CNTools entrypoint.
 # shellcheck disable=SC2034,SC2153
 
-CNTOOLS_GUM_REQUIRED_VERSION="2.0.0"
+CNTOOLS_GUM_REQUIRED_VERSION="2.0.2"
 CNTOOLS_GUM_RELEASE_ROOT="https://github.com/charmbracelet/gum/releases/download/v${CNTOOLS_GUM_REQUIRED_VERSION}"
-CNTOOLS_GUM_SHA256_X86_64="c99b0005bb5b514770eea404b24c7987e08eba35bb0b2d7bc6545bb676c36861"
-CNTOOLS_GUM_SHA256_ARM64="ed51e91457a48f5681f67dd925bd40eb1794d41d1f48cf1d7e19e2517b7fac76"
+CNTOOLS_GUM_SHA256_X86_64="d842e06d93dbed90af48cb8dd10698db6f22e331fc40346bb37bbc753109edc2"
+CNTOOLS_GUM_SHA256_ARM64="8ebf8b54ec1e8c81f2bb58b59ff9b70998186a4d11375f0cf357b80e0ccfa1d5"
 CNTOOLS_GUM_BIN="${CNTOOLS_GUM_BIN:-}"
 CNTOOLS_GUM_INSTALL_TMP=""
 CNTOOLS_GUM_INSTALL_STAGE=""
@@ -1387,7 +1387,7 @@ cntools_ui_table() {
     --selected.background "${CNTOOLS_GUM_COLOR_CANVAS}"
   )
 
-  # Gum v2.0.0's static table renderer applies its header style to the first
+  # Gum 2.0's static table renderer applies its header style to the first
   # data row instead of Lip Gloss's header row. Keep every Gum-owned row color
   # neutral and use the section label above the table for the brand accent.
   # Selected colors are also pinned because a static table must never imply
@@ -1401,7 +1401,7 @@ cntools_ui_table() {
     rendered="$(printf '%s\n%s\n' "${header}" "${remaining}" | CLICOLOR_FORCE=1 \
       cntools_gum "${table_arguments[@]}" "${arguments[@]}")" || return $?
   fi
-  # Gum 2.0.0 has no headerless static-table option. Drop only its single
+  # Gum 2.0 has no headerless static-table option. Drop only its single
   # header line and header divider, never a data row or its ANSI styling.
   while IFS= read -r line; do
     row=$((row + 1))

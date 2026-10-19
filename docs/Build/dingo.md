@@ -56,8 +56,9 @@ exactly one uploaded artifact for the current architecture, and that artifact
 must publish a valid GitHub SHA-256 digest. Its repository, tag, filename,
 download URL, size, and digest are validated together before download.
 
-The initial Dingo CLI pin is 11.0.0.0, matching the version selected by Dingo's
-upstream Dockerfile. Dingo does not provide a separate operator CLI: its Unix
+The Dingo CLI pin is 11.4.0.0, the same release pinned by the cnode and Amaru
+profiles. It offers node-to-client V23, which Dingo's gouroboros handshake
+supports. Dingo does not provide a separate operator CLI: its Unix
 socket implements Ouroboros node-to-client and is designed for `cardano-cli`
 and other standard Cardano clients.
 

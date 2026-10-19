@@ -41,6 +41,11 @@ cnode additionally supports:
 | `x` | Install Cardano Signer |
 | `r` | Install openBlockPerf |
 
+The openBlockPerf installer mode follows the state of
+`/opt/cardano/openblockperf`. An installation with its virtualenv, config and
+`openblockperf.service` gets a package update. An interrupted installation is
+reinstalled. A host without either gets a fresh install.
+
 The profile refreshes `submitapi.json` on every deployment run. Without `f`,
 it preserves existing node, topology, db-sync, and genesis files when the
 required base configuration is already present.
@@ -190,8 +195,11 @@ separate version text files as the cnode deployment source of truth.
 
 The `build.toolchain` values for GHC and Cabal are plain version strings.
 `build.sourceDependencies` records repository URLs, display versions, and
-immutable commit refs. These build fields are consumed only by source-build
-flags and do not change a binary-only deployment. Node and CLI compatibility
+immutable commit refs. `build.cardanoCli` records the cardano-cli release that
+a source build of the pinned node includes, which CNTools accepts alongside the
+downloaded companion. The pre-merge source build fails when the two differ.
+These build fields are consumed only by source-build flags and do not change a
+binary-only deployment. Node and CLI compatibility
 thresholds are not part of this compact manifest.
 
 Version constants owned by a helper script itself, common monitoring or gREST

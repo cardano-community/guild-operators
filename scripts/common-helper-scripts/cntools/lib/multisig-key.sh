@@ -44,6 +44,22 @@ cntools_multisig_path_into() {
   ms_path_result="${canonical}"
 }
 
+# From a root key, cardano-address derives a payment or stake key only for a
+# full purpose/coin_type/account/role/index path, while cardano-cli converts
+# any extended key it is given. Require the unhardened role of the key it
+# becomes, so an account or other-role key cannot pass as a participant key.
+cntools_multisig_mnemonic_path_valid() {
+  local path="$1" role="$2"
+  local -a components=()
+  IFS=/ read -r -a components <<< "${path}"
+  (( ${#components[@]} == 5 )) || return 1
+  case "${role}" in
+    payment) [[ "${components[3]}" == 0 || "${components[3]}" == 1 ]] ;;
+    stake) [[ "${components[3]}" == 2 ]] ;;
+    *) return 2 ;;
+  esac
+}
+
 cntools_multisig_key_preflight() {
   local directory="$1" name='' mode='' prefix="${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}"
   CNTOOLS_MULTISIG_ERROR=''
@@ -122,6 +138,10 @@ cntools_multisig_key_generate_internal() {
     cntools_multisig_path_into canonical "${pay_path}" || return 2; pay_path="${canonical}"
     cntools_multisig_path_into canonical "${stake_path}" || return 2; stake_path="${canonical}"
     [[ "${pay_path}" != "${stake_path}" ]] || { cntools_multisig_fail 'Payment and stake paths must be different.'; return 1; }
+    if [[ "${mode}" == mnemonic ]]; then
+      cntools_multisig_mnemonic_path_valid "${pay_path}" payment && cntools_multisig_mnemonic_path_valid "${stake_path}" stake || {
+        cntools_multisig_fail 'Recovery-phrase keys need purpose/coin_type/account/role/index paths, with role 0 or 1 for payment and 2 for stake.'; return 1; }
+    fi
   fi
   if [[ "${mode}" == mnemonic ]]; then
     cntools_wallet_mnemonic_words_into words "${phrase}" && cntools_wallet_mnemonic_phrase_into phrase words || return 2
