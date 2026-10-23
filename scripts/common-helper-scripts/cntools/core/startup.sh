@@ -247,6 +247,18 @@ cntools_startup_wallet_filename_valid() {
      "${value}" != "." && "${value}" != ".." ]]
 }
 
+# The definitions-only env load skips the adapter's node-config parsing, so
+# derive the Shelley genesis from the node config when env did not set one.
+cntools_startup_shelley_genesis() {
+  local config="${1:-}" genesis="${GENESIS_JSON:-}"
+
+  if [[ -z "${genesis}" && -f "${config}" && -r "${config}" ]]; then
+    genesis="$(jq -r '.ShelleyGenesisFile // empty' "${config}" 2>/dev/null)" || genesis=""
+    [[ -z "${genesis}" || "${genesis}" == /* ]] || genesis="${config%/*}/${genesis}"
+  fi
+  printf '%s\n' "${genesis}"
+}
+
 cntools_startup_normalize_session() {
   local node_home="${NODE_HOME:-${CNODE_HOME:-}}"
   local cli_candidate="${CCLI:-}"
@@ -322,7 +334,7 @@ cntools_startup_normalize_session() {
   CNTOOLS_POOL_CONFIG_FILENAME="${POOL_CONFIG_FILENAME:-pool.config}"
   CNTOOLS_POOL_KES_START_FILENAME="${POOL_CURRENT_KES_START:-kes.start}"
   CNTOOLS_SLOTS_PER_KES_PERIOD="${SLOTS_PER_KES_PERIOD:-}"
-  CNTOOLS_SHELLEY_GENESIS="${GENESIS_JSON:-}"
+  CNTOOLS_SHELLEY_GENESIS="$(cntools_startup_shelley_genesis "${CNTOOLS_CONFIG}")"
   CNTOOLS_CONFIGURED_POOL_NAME="${POOL_NAME:-}"
   CNTOOLS_ASSET_DIR="${ASSET_FOLDER:-${CNTOOLS_NODE_HOME}/priv/asset}"
   CNTOOLS_POLICY_VKEY_FILENAME="${ASSET_POLICY_VK_FILENAME:-policy.vkey}"

@@ -24,7 +24,7 @@ cntools_pool_health_uint_into() {
 
 cntools_pool_health_collect() {
   local index="$1" query_node="${2:-Y}" directory="${CNTOOLS_POOL_DIRECTORIES[$1]}" filename='' cert='' counter='' start='' period='' rest='' saved_start=''
-  local slots="${CNTOOLS_SLOTS_PER_KES_PERIOD:-}" evolutions='' genesis="${CNTOOLS_SHELLEY_GENESIS:-}" now='' current='' end=0 remaining=0 expires='' response='' errors='' chain=''
+  local slots="${CNTOOLS_SLOTS_PER_KES_PERIOD:-}" evolutions='' genesis="${CNTOOLS_SHELLEY_GENESIS:-}" now='' current='' end=0 remaining=0 expires='' response='' output='' errors='' chain=''
   CNTOOLS_POOL_KES_STATUS[index]='Unavailable' CNTOOLS_POOL_KES_EXPIRY[index]='' CNTOOLS_POOL_KES_REMAINING[index]=''
   CNTOOLS_POOL_CERT_DISK[index]='' CNTOOLS_POOL_CERT_CHAIN[index]='' CNTOOLS_POOL_CERT_NEXT[index]='' CNTOOLS_POOL_KES_SOURCE[index]=''
   CNTOOLS_POOL_KES_TIME[index]=''
@@ -57,19 +57,22 @@ cntools_pool_health_collect() {
   fi
   # Local node data is authoritative for the on-chain counter and current tip.
   if [[ "${query_node}" == Y && "${CNTOOLS_MODE:-offline}" != offline && "${CNTOOLS_LOCAL_CLI_CAPABLE:-false}" == true && -x "${CNTOOLS_CLI:-}" ]] && cntools_wallet_query_local_socket_ready; then
-    cntools_transaction_temp_file response kes-health && cntools_transaction_temp_file errors kes-health-errors || return 1
+    cntools_transaction_temp_file response kes-health && cntools_transaction_temp_file output kes-health-json &&
+      cntools_transaction_temp_file errors kes-health-errors || return 1
     cntools_wallet_query_network_arguments || return 1
+    # kes-period-info always prints its diagnostic checks to stdout, so only
+    # --out-file carries the JSON document alone.
     if cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest query kes-period-info \
-        "${CNTOOLS_WALLET_NETWORK_ARGS[@]}" --socket-path "${CNTOOLS_SOCKET}" --op-cert-file "${cert}" --output-json &&
+        "${CNTOOLS_WALLET_NETWORK_ARGS[@]}" --socket-path "${CNTOOLS_SOCKET}" --op-cert-file "${cert}" --output-json --out-file "${output}" &&
         jq -se --argjson start "${start}" 'length == 1 and (.[0] | type == "object" and
           all(.qKesCurrentKesPeriod,.qKesStartKesInterval,.qKesEndKesInterval,.qKesSlotsPerKesPeriod,.qKesMaxKESEvolutions;
             type == "number" and . >= 0 and . <= 2147483647 and floor == .) and
           .qKesSlotsPerKesPeriod > 0 and .qKesMaxKESEvolutions > 0 and
           .qKesStartKesInterval == $start and .qKesEndKesInterval == ($start+.qKesMaxKESEvolutions) and
-          (.qKesNodeStateOperationalCertificateNumber | . == null or (type == "number" and . >= 0 and floor == . and . <= 2147483647)))' "${response}" >/dev/null; then
-      current="$(jq -r .qKesCurrentKesPeriod "${response}")"
-      slots="$(jq -r .qKesSlotsPerKesPeriod "${response}")"; evolutions="$(jq -r .qKesMaxKESEvolutions "${response}")"
-      chain="$(jq -r '.qKesNodeStateOperationalCertificateNumber // ""' "${response}")"
+          (.qKesNodeStateOperationalCertificateNumber | . == null or (type == "number" and . >= 0 and floor == . and . <= 2147483647)))' "${output}" >/dev/null; then
+      current="$(jq -r .qKesCurrentKesPeriod "${output}")"
+      slots="$(jq -r .qKesSlotsPerKesPeriod "${output}")"; evolutions="$(jq -r .qKesMaxKESEvolutions "${output}")"
+      chain="$(jq -r '.qKesNodeStateOperationalCertificateNumber // ""' "${output}")"
       CNTOOLS_POOL_KES_SOURCE[index]='Local node'
     else
       cntools_transaction_log WARN "KES node query unavailable pool=${CNTOOLS_POOL_NAMES[index]}; using certificate and wall clock"

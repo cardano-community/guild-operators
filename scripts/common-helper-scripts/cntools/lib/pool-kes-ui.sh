@@ -7,10 +7,18 @@ cntools_kes_choose() {
   cntools_transaction_log CHOICE "KES ${2}: ${kes_selected_ref}"
 }
 
+# Every unconfirmed step reports what state it left, so an exit to the menu
+# never hides whether anything changed.
 cntools_kes_confirm() {
-  local kes_confirmation_status=0
-  cntools_ui_confirm "$@" || kes_confirmation_status=$?
-  cntools_transaction_log CHOICE "KES confirmation=${kes_confirmation_status} prompt=$1"
+  local prompt="$1" default="$2" stopped="${3:-}" kes_confirmation_status=0
+  cntools_ui_confirm "${prompt}" "${default}" || kes_confirmation_status=$?
+  cntools_transaction_log CHOICE "KES confirmation=${kes_confirmation_status} prompt=${prompt}"
+  if ((kes_confirmation_status != 0)) && [[ -n "${stopped}" ]]; then
+    # 1 is No and 130 is Esc/Ctrl+C; anything else means the prompt itself failed.
+    ((kes_confirmation_status == 1 || kes_confirmation_status == 130)) ||
+      stopped="Confirmation prompt failed (status ${kes_confirmation_status}). ${stopped}"
+    cntools_kes_result "${stopped}" warning
+  fi
   return "${kes_confirmation_status}"
 }
 
@@ -26,7 +34,9 @@ cntools_kes_review() {
     cntools_table_pair 'Pool ID' "${CNTOOLS_POOL_IDS[CNTOOLS_KES_INDEX]}" identifier
     cntools_pool_health_rows "${CNTOOLS_KES_INDEX}" Y
     [[ -z "${CNTOOLS_KES_START}" ]] || cntools_table_pair 'Replacement start period' "$(cntools_number_format "${CNTOOLS_KES_START}")" number
-    cntools_table_pair 'Issue counter to use' "$(cntools_number_format "${CNTOOLS_KES_NEXT}")" number
+    # Normally equal to the health rows' next issue counter; show only a divergence.
+    [[ "${CNTOOLS_KES_NEXT}" == "${CNTOOLS_POOL_CERT_NEXT[CNTOOLS_KES_INDEX]:-}" ]] ||
+      cntools_table_pair 'Issue counter to use' "$(cntools_number_format "${CNTOOLS_KES_NEXT}")" number
     [[ -z "${CNTOOLS_KES_PERIOD_SOURCE}" ]] || cntools_table_pair 'Period source' "${CNTOOLS_KES_PERIOD_SOURCE}" muted
     [[ -z "${CNTOOLS_KES_STAGE}" ]] || cntools_table_pair Recovery "${CNTOOLS_KES_STAGE}" identifier
   } | cntools_table_render 'KES rotation'
@@ -47,7 +57,8 @@ cntools_kes_counter_approve() {
   CNTOOLS_KES_COUNTER_APPROVED=N
   if [[ -z "${CNTOOLS_POOL_CERT_CHAIN[CNTOOLS_KES_INDEX]:-}" ]]; then
     cntools_ui_render_status warn 'The ledger certificate counter is unavailable. Verify the real issue counter against a connected node before continuing. A reset or stale counter can stop block production.'
-    cntools_kes_confirm 'Have you independently verified this issue counter for the pool?' no || return 1
+    cntools_kes_confirm 'Have you independently verified this issue counter for the pool?' false \
+      'Rotation stopped at counter verification. No certificate was issued and the issue counter is unchanged.' || return 1
     CNTOOLS_KES_COUNTER_APPROVED=Y
     cntools_transaction_log CHOICE 'KES counter approved after independent verification (ledger unavailable)'
   fi
@@ -63,7 +74,8 @@ cntools_kes_choose_period() {
     cntools_kes_input entered 'Verified current KES period' 'Unsigned integer; cancel to return' || return $?
     if cntools_number_normalize_into normalized "${entered}" && [[ "${normalized}" =~ ^(0|[1-9][0-9]{0,9})$ ]] &&
         ((normalized < 2147483647)); then
-      cntools_kes_confirm "Use independently verified KES period ${normalized}?" no || return 1
+      cntools_kes_confirm "Use independently verified KES period ${normalized}?" false \
+        'Rotation stopped before preparing keys. Nothing was changed.' || return 1
       CNTOOLS_KES_START="${normalized}" CNTOOLS_KES_PERIOD_SOURCE='Operator verified · offline/unavailable tip'
       cntools_transaction_log CHOICE "KES start independently verified period=${normalized}"
       return 0
@@ -98,7 +110,8 @@ cntools_kes_continue() {
         case "${choice}" in
           'Issue certificate now')
             cntools_ui_render_status warn 'Issuing a certificate advances the real counter, even if you postpone installation. Keep its recovery copy; never restore an older counter.'
-            cntools_kes_confirm 'Issue this replacement certificate?' no || return 0
+            cntools_kes_confirm 'Issue this replacement certificate?' false \
+              'Certificate not issued. The prepared KES keys stay in recovery; reopen Pool → Rotate to continue.' || return 0
             if [[ "${CNTOOLS_KES_KIND}" == hardware ]]; then cntools_ui_render_status info 'Connect and unlock the hardware device, open Cardano and approve certificate issuance.'; fi
             cntools_ui_spin_function 'Issuing and validating the KES certificate…' cntools_kes_issue || return 1 ;;
           'Prepare offline hand-off') cntools_kes_offline_instructions; return $? ;;
@@ -118,7 +131,8 @@ cntools_kes_continue() {
         esac ;;
       issuing)
         cntools_ui_render_status warn 'Issuance was interrupted. CNTools will only validate existing recovery output and preserve its advanced counter; it will not issue again.'
-        cntools_kes_confirm 'Validate and recover the already issued certificate?' no || return 0
+        cntools_kes_confirm 'Validate and recover the already issued certificate?' false \
+          'Recovery not started. The interrupted issuance stays locked; reopen Pool → Rotate to recover it.' || return 0
         cntools_ui_spin_function 'Checking existing certificate recovery files…' cntools_kes_consume_counter || {
           cntools_kes_error 'Recovery is incomplete or invalid. Inspect it manually; keep the lock and never restore an older counter.'; return 1;
         } ;;
@@ -126,7 +140,8 @@ cntools_kes_continue() {
         cntools_ui_render_status warn 'Stop the block producer before installing the matching KES key/certificate set. CNTools will not stop or restart your node. Original files and the new set are retained privately for recovery.'
         cntools_kes_choose choice 'Install replacement files' 'Install on this node' 'Return and install later' || return $?
         [[ "${choice}" == 'Install on this node' ]] || return 0
-        cntools_kes_confirm 'Is the block producer stopped, and should CNTools install this replacement?' no || return 0
+        cntools_kes_confirm 'Is the block producer stopped, and should CNTools install this replacement?' false \
+          'Replacement not installed. Active node files are unchanged; the issued set stays in recovery.' || return 0
         CNTOOLS_KES_NODE_STOPPED=Y
         cntools_transaction_log CHOICE 'KES operational file publication approved; operator confirmed node stopped'
         cntools_ui_spin_function 'Installing the validated KES key and certificate set…' cntools_kes_publish || return 1
@@ -157,7 +172,11 @@ cntools_pool_action_rotate() {
   if [[ -e "${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock" || -L "${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock" ]]; then
     if cntools_kes_pending_load; then
       case "$(< "${CNTOOLS_KES_STAGE}/phase")" in
-        prepared|awaiting) cntools_kes_counter_approve || return 0 ;;
+        prepared|awaiting)
+          if ! cntools_kes_counter_approve; then
+            [[ -z "${CNTOOLS_POOL_WRITE_ERROR}" ]] || cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR}" error
+            return 0
+          fi ;;
       esac
       cntools_kes_continue || status=$?
     else status=2; fi
@@ -173,7 +192,8 @@ cntools_pool_action_rotate() {
       'Prepare replacement KES keys')
         cntools_kes_choose_period || return 0
         cntools_kes_review || return 1
-        cntools_kes_confirm 'Generate replacement KES keys? Existing keys remain active until installation.' no || return 0
+        cntools_kes_confirm 'Generate replacement KES keys? Existing keys remain active until installation.' false \
+          'No KES keys were generated. Nothing was changed.' || return 0
         cntools_ui_spin_function 'Preparing and validating replacement KES keys…' cntools_kes_prepare "${CNTOOLS_KES_START}" || status=$?
         ((status != 0)) || cntools_kes_continue || status=$? ;;
       'Sign an offline request')
@@ -183,7 +203,8 @@ cntools_pool_action_rotate() {
         CNTOOLS_KES_START="$(jq -r '.startPeriod' "${request}/request.json")"
         cntools_kes_review || return 1
         cntools_ui_render_status warn 'Check the requested KES period against the node. Issuance advances your real cold counter. Only return the public certificate and advanced counter, never cold or KES private keys.'
-        cntools_kes_confirm 'Sign this offline certificate request and advance the real counter?' no || return 0
+        cntools_kes_confirm 'Sign this offline certificate request and advance the real counter?' false \
+          'Request not signed. The issue counter was not advanced.' || return 0
         [[ "${CNTOOLS_KES_KIND}" != hardware ]] || cntools_ui_render_status info 'Connect and unlock the hardware device, open Cardano and approve certificate issuance.'
         cntools_ui_spin_function 'Issuing the offline operational certificate…' cntools_kes_sign_request "${request}" || status=$?
         if ((status == 0)); then
