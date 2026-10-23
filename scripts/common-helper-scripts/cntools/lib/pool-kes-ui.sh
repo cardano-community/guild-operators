@@ -35,11 +35,27 @@ cntools_kes_review() {
     cntools_pool_health_rows "${CNTOOLS_KES_INDEX}" Y
     [[ -z "${CNTOOLS_KES_START}" ]] || cntools_table_pair 'Replacement start period' "$(cntools_number_format "${CNTOOLS_KES_START}")" number
     # Normally equal to the health rows' next issue counter; show only a divergence.
-    [[ "${CNTOOLS_KES_NEXT}" == "${CNTOOLS_POOL_CERT_NEXT[CNTOOLS_KES_INDEX]:-}" ]] ||
+    if [[ "${CNTOOLS_KES_NEXT}" != "${CNTOOLS_POOL_CERT_NEXT[CNTOOLS_KES_INDEX]:-}" ]]; then
       cntools_table_pair 'Issue counter to use' "$(cntools_number_format "${CNTOOLS_KES_NEXT}")" number
+      [[ -z "${CNTOOLS_KES_COUNTER_SOURCE}" ]] || cntools_table_pair 'Counter source' "${CNTOOLS_KES_COUNTER_SOURCE}" muted
+    fi
     [[ -z "${CNTOOLS_KES_PERIOD_SOURCE}" ]] || cntools_table_pair 'Period source' "${CNTOOLS_KES_PERIOD_SOURCE}" muted
     [[ -z "${CNTOOLS_KES_STAGE}" ]] || cntools_table_pair Recovery "${CNTOOLS_KES_STAGE}" identifier
   } | cntools_table_render 'KES rotation'
+  cntools_kes_counter_notice
+}
+
+# Explain a new rotation's counter when cold.counter disagrees with the ledger.
+cntools_kes_counter_notice() {
+  local ledger="${CNTOOLS_POOL_CERT_CHAIN[CNTOOLS_KES_INDEX]:-}" disk="${CNTOOLS_KES_DISK_NEXT}" next="${CNTOOLS_KES_NEXT}" range=''
+  [[ -z "${CNTOOLS_KES_STAGE}" && "${CNTOOLS_KES_COUNTER_SOURCE}" == 'Ledger counter + 1' && -n "${ledger}" &&
+     "${disk}" =~ ^[0-9]+$ && "${next}" =~ ^[0-9]+$ && "${disk}" != "${next}" ]] || return 0
+  if ((disk > next)); then
+    range="${next}"; ((disk-1 == next)) || range="${next}–$((disk-1))"
+    cntools_ui_render_status warn "cold.counter (${disk}) is ahead of the ledger counter (${ledger}): certificate ${range} was issued but never used on chain. This rotation issues ${next} instead, so never deploy the earlier certificate."
+  else
+    cntools_ui_render_status info "cold.counter (${disk}) is behind the ledger counter (${ledger}). This rotation issues ${next} and moves cold.counter forward."
+  fi
 }
 
 cntools_kes_result() {
@@ -53,14 +69,35 @@ cntools_kes_result() {
   cntools_ui_wait
 }
 
-cntools_kes_counter_approve() {
+# A new rotation uses the ledger counter + 1 when local node or Koios data has
+# it. Otherwise the operator enters the counter, starting from cold.counter.
+cntools_kes_counter_choose() {
+  local entered='' normalized=''
+  CNTOOLS_KES_COUNTER_APPROVED=N
+  if cntools_kes_counter_from_ledger; then cntools_kes_counter_guard; return; fi
+  cntools_ui_render_status warn "No ledger counter is available. Enter the pool's latest on-chain certificate counter + 1; a wrong counter stops block production."
+  while true; do
+    cntools_kes_input entered 'Issue counter to use' "Enter for ${CNTOOLS_KES_DISK_NEXT} (cold.counter)" || return $?
+    [[ -n "${entered}" ]] || entered="${CNTOOLS_KES_DISK_NEXT}"
+    if cntools_number_normalize_into normalized "${entered}" && [[ "${normalized}" =~ ^(0|[1-9][0-9]{0,9})$ ]] &&
+        ((normalized < 2147483647)); then
+      CNTOOLS_KES_NEXT="${normalized}" CNTOOLS_KES_COUNTER_APPROVED=Y CNTOOLS_KES_COUNTER_SOURCE='Operator entered'
+      cntools_transaction_log CHOICE "KES issue counter entered=${normalized} cold.counter=${CNTOOLS_KES_DISK_NEXT}"
+      cntools_kes_counter_guard; return
+    fi
+    cntools_ui_render_status warn 'Enter a non-negative integer below 2,147,483,647.'
+  done
+}
+
+# A pending rotation keeps the counter recorded in its request; only verify it.
+cntools_kes_counter_verify() {
   CNTOOLS_KES_COUNTER_APPROVED=N
   if [[ -z "${CNTOOLS_POOL_CERT_CHAIN[CNTOOLS_KES_INDEX]:-}" ]]; then
-    cntools_ui_render_status warn 'The ledger certificate counter is unavailable. Verify the real issue counter against a connected node before continuing. A reset or stale counter can stop block production.'
-    cntools_kes_confirm 'Have you independently verified this issue counter for the pool?' false \
+    cntools_ui_render_status warn "The ledger counter is unavailable. Continue only if ${CNTOOLS_KES_NEXT} is the pool's latest on-chain certificate counter + 1; a wrong counter stops block production."
+    cntools_kes_confirm "Is ${CNTOOLS_KES_NEXT} the right issue counter for this pool?" false \
       'Rotation stopped at counter verification. No certificate was issued and the issue counter is unchanged.' || return 1
     CNTOOLS_KES_COUNTER_APPROVED=Y
-    cntools_transaction_log CHOICE 'KES counter approved after independent verification (ledger unavailable)'
+    cntools_transaction_log CHOICE "KES pending counter=${CNTOOLS_KES_NEXT} approved (ledger unavailable)"
   fi
   cntools_kes_counter_guard
 }
@@ -184,7 +221,7 @@ cntools_pool_action_rotate() {
     if cntools_kes_pending_load; then
       case "$(< "${CNTOOLS_KES_STAGE}/phase")" in
         prepared|awaiting)
-          if ! cntools_kes_counter_approve; then
+          if ! cntools_kes_counter_verify; then
             [[ -z "${CNTOOLS_POOL_WRITE_ERROR}" ]] || cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR}" error
             return 0
           fi ;;
@@ -192,6 +229,7 @@ cntools_pool_action_rotate() {
       cntools_kes_continue || status=$?
     else status=2; fi
   else
+    cntools_kes_counter_from_ledger || true
     cntools_kes_review || return 1
     # Signing needs the cold key (file or hardware wallet) on this system.
     local -a workflows=()
@@ -202,7 +240,7 @@ cntools_pool_action_rotate() {
       cntools_ui_render_status info 'No cold signing key or hardware wallet file for this pool is on this system, so only an offline request can be prepared here.'
     cntools_kes_choose choice 'KES workflow' "${workflows[@]}" Cancel || return $?
     [[ "${choice}" != Cancel ]] || return 0
-    if ! cntools_kes_counter_approve; then
+    if [[ "${choice}" != 'Sign an offline request' ]] && ! cntools_kes_counter_choose; then
       [[ -z "${CNTOOLS_POOL_WRITE_ERROR}" ]] || cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR}" error
       return 0
     fi
@@ -230,10 +268,12 @@ cntools_pool_action_rotate() {
         cntools_ui_pick_path request 'Offline request directory' 'Choose the public request folder copied from the node.' "${CNTOOLS_KES_DIRECTORY}" directory || return $?
         cntools_kes_request_validate "${request}" || { cntools_kes_result 'The request does not match this pool, network or counter.' error; return 0; }
         CNTOOLS_KES_START="$(jq -r '.startPeriod' "${request}/request.json")"
+        CNTOOLS_KES_NEXT="$(jq -r '.issueCounter' "${request}/request.json")" CNTOOLS_KES_COUNTER_SOURCE='Offline request'
         cntools_kes_review || return 1
-        cntools_ui_render_status warn 'Check the requested KES period against the node. Issuance advances your real cold counter. Only return the public certificate and advanced counter, never cold or KES private keys.'
+        cntools_ui_render_status warn "Check the requested KES period against the node. The node chose issue counter ${CNTOOLS_KES_NEXT}; signing sets this system's cold.counter (now ${CNTOOLS_KES_DISK_NEXT}) to $((CNTOOLS_KES_NEXT+1)). Only return the public certificate and advanced counter, never cold or KES private keys."
         cntools_kes_confirm 'Sign this offline certificate request and advance the real counter?' false \
           'Request not signed. The issue counter was not advanced.' || return 0
+        CNTOOLS_KES_COUNTER_APPROVED=Y
         [[ "${CNTOOLS_KES_KIND}" != hardware ]] || cntools_ui_render_status info 'Connect and unlock the hardware device, open Cardano and approve certificate issuance.'
         cntools_ui_spin_function 'Issuing the offline operational certificate…' cntools_kes_sign_request "${request}" || status=$?
         if ((status == 0)); then

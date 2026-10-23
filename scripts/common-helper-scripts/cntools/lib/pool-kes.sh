@@ -4,7 +4,7 @@
 CNTOOLS_KES_DIRECTORY='' CNTOOLS_KES_STAGE='' CNTOOLS_KES_BUSY=''
 CNTOOLS_KES_INDEX=0 CNTOOLS_KES_START='' CNTOOLS_KES_NEXT='' CNTOOLS_KES_LEDGER=''
 CNTOOLS_KES_SOURCE='' CNTOOLS_KES_KIND='' CNTOOLS_KES_CURRENT='' CNTOOLS_KES_PERIOD_SOURCE=''
-CNTOOLS_KES_COUNTER_APPROVED=N CNTOOLS_KES_NODE_STOPPED=N
+CNTOOLS_KES_COUNTER_APPROVED=N CNTOOLS_KES_NODE_STOPPED=N CNTOOLS_KES_DISK_NEXT='' CNTOOLS_KES_COUNTER_SOURCE=''
 
 cntools_kes_error() { cntools_pool_write_error "$1"; }
 
@@ -38,6 +38,7 @@ cntools_kes_identity() {
   cntools_pool_counter_into CNTOOLS_KES_NEXT "${CNTOOLS_KES_DIRECTORY}/${counter}" "${CNTOOLS_KES_DIRECTORY}/${cold}" || {
     cntools_kes_error 'The original issue counter is missing, invalid or belongs to another pool. Restore the real counter; never reset it.'; return 1;
   }
+  CNTOOLS_KES_DISK_NEXT="${CNTOOLS_KES_NEXT}" CNTOOLS_KES_COUNTER_SOURCE='cold.counter'
   if [[ -e "${CNTOOLS_KES_DIRECTORY}/${hardware}" || -L "${CNTOOLS_KES_DIRECTORY}/${hardware}" ]]; then
     [[ ! -e "${CNTOOLS_KES_DIRECTORY}/${signing}" && ! -e "${CNTOOLS_KES_DIRECTORY}/${signing}.gpg" ]] &&
       cntools_pool_hardware_pair_validate "${CNTOOLS_KES_DIRECTORY}" || {
@@ -73,25 +74,35 @@ cntools_kes_period_collect() {
   CNTOOLS_KES_CURRENT=$((tip / slots))
 }
 
+# With a ledger counter (local node or Koios), the next certificate always uses
+# the ledger counter + 1, whatever cold.counter holds.
+cntools_kes_counter_from_ledger() {
+  local ledger="${CNTOOLS_POOL_CERT_CHAIN[CNTOOLS_KES_INDEX]:-}"
+  [[ "${ledger}" =~ ^(0|[1-9][0-9]{0,9})$ ]] || return 1
+  CNTOOLS_KES_NEXT=$((ledger+1)) CNTOOLS_KES_COUNTER_SOURCE='Ledger counter + 1'
+}
+
 cntools_kes_counter_guard() {
   local index="${CNTOOLS_KES_INDEX}" cert='' hot='' cold='' disk='' period='' signature=''
   CNTOOLS_KES_LEDGER="${CNTOOLS_POOL_CERT_CHAIN[index]:-}"
+  [[ "${CNTOOLS_KES_NEXT}" =~ ^(0|[1-9][0-9]{0,9})$ ]] && ((CNTOOLS_KES_NEXT < 2147483647)) || return 1
   if [[ -n "${CNTOOLS_KES_LEDGER}" ]]; then
-    [[ "${CNTOOLS_KES_LEDGER}" =~ ^(0|[1-9][0-9]{0,9})$ ]] &&
-      ((CNTOOLS_KES_NEXT == CNTOOLS_KES_LEDGER || CNTOOLS_KES_NEXT == CNTOOLS_KES_LEDGER+1)) || {
-      cntools_kes_error 'The next issue counter is not the ledger counter or its immediate successor. Resolve counter history before rotation; CNTools will not reset it.'; return 1;
+    [[ "${CNTOOLS_KES_LEDGER}" =~ ^(0|[1-9][0-9]{0,9})$ ]] && ((CNTOOLS_KES_NEXT == CNTOOLS_KES_LEDGER+1)) || {
+      cntools_kes_error "The issue counter must be the ledger counter + 1 ($((CNTOOLS_KES_LEDGER+1))), not ${CNTOOLS_KES_NEXT}. Nothing was issued."; return 1;
     }
-  elif [[ "${CNTOOLS_KES_COUNTER_APPROVED}" != Y ]]; then
-    cntools_kes_error 'The ledger counter is unavailable. Verify the real issue counter on a connected system and explicitly approve it before proceeding.'; return 1
+    return 0
   fi
+  [[ "${CNTOOLS_KES_COUNTER_APPROVED}" == Y ]] || {
+    cntools_kes_error 'The ledger counter is unavailable. Enter and approve the issue counter before proceeding.'; return 1;
+  }
+  # Without a ledger, never issue below the certificate already installed.
   cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into hot kes-vkey; cntools_pool_file_name_into cold cold-vkey
   if [[ -e "${CNTOOLS_KES_DIRECTORY}/${cert}" || -L "${CNTOOLS_KES_DIRECTORY}/${cert}" ]]; then
     cntools_pool_opcert_fields_into disk period signature "${CNTOOLS_KES_DIRECTORY}/${cert}" \
-      "${CNTOOLS_KES_DIRECTORY}/${cold}" "${CNTOOLS_KES_DIRECTORY}/${hot}" && ((CNTOOLS_KES_NEXT > disk)) || {
-      cntools_kes_error 'The current certificate is invalid or the issue counter is not ahead of it. Nothing was reset or replaced.'; return 1;
+      "${CNTOOLS_KES_DIRECTORY}/${cold}" "${CNTOOLS_KES_DIRECTORY}/${hot}" && ((CNTOOLS_KES_NEXT >= disk)) || {
+      cntools_kes_error 'The current certificate is invalid or the issue counter is below its counter. Nothing was issued.'; return 1;
     }
   fi
-  ((CNTOOLS_KES_NEXT < 2147483647))
 }
 
 cntools_kes_counter_recheck() {
@@ -190,7 +201,14 @@ cntools_kes_prepare() {
   cntools_pool_file_name_into filename cold-vkey
   cp -- "${directory}/${filename}" "${stage}/request/cold.vkey" || return 1
   cntools_pool_file_name_into filename counter
-  cp -- "${directory}/${filename}" "${stage}/request/cold.counter" || return 1
+  if [[ "${CNTOOLS_KES_NEXT}" == "${CNTOOLS_KES_DISK_NEXT}" ]]; then
+    cp -- "${directory}/${filename}" "${stage}/request/cold.counter" || return 1
+  else
+    # Issue at the selected counter. The live cold.counter changes only when
+    # the issued certificate's advanced counter is consumed.
+    cntools_pool_cli latest node new-counter --cold-verification-key-file "${stage}/request/cold.vkey" \
+      --counter-value "${CNTOOLS_KES_NEXT}" --operational-certificate-issue-counter-file "${stage}/request/cold.counter" || return 1
+  fi
   chmod 0600 "${stage}/request/"* || return 1
   cntools_pool_cli latest node key-gen-KES --verification-key-file "${stage}/replacement/hot.vkey" \
     --signing-key-file "${stage}/replacement/hot.skey" || return 1
@@ -408,10 +426,10 @@ cntools_kes_cleanup() {
 # local issue counter is consumed. No KES private key is exported or required.
 cntools_kes_sign_request() {
   local directory="$1" stage='' file='' counter_name=''
-  [[ -n "${CNTOOLS_KES_SOURCE}" ]] && cntools_kes_counter_guard && cntools_kes_request_validate "${directory}" || return 1
-  [[ "$(jq -r '.issueCounter' "${directory}/request.json")" == "${CNTOOLS_KES_NEXT}" ]] || {
-    cntools_kes_error 'The request does not match the real local issue counter. Do not reset or replace it with the transferred counter.'; return 1;
-  }
+  # The node chose the counter (ledger + 1, or operator input when offline).
+  [[ -n "${CNTOOLS_KES_SOURCE}" ]] && cntools_kes_request_validate "${directory}" || return 1
+  CNTOOLS_KES_NEXT="$(jq -r '.issueCounter' "${directory}/request.json")" CNTOOLS_KES_COUNTER_SOURCE='Offline request'
+  cntools_kes_counter_guard || return 1
   cntools_kes_lock_acquire sign || return 1
   stage="${CNTOOLS_KES_STAGE}"
   mkdir -m 700 -- "${stage}/request" "${stage}/original" "${stage}/replacement" || return 1

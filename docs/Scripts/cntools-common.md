@@ -360,6 +360,14 @@ operational files and pledge maintenance; CNTools does not edit `env` for you.
 does not restart the node. Verify the pool, issue counter and start period; if
 chain data is unavailable, independently confirm the requested values.
 
+With a local node or Koios, the new certificate always uses the ledger's
+certificate counter + 1, whatever `cold.counter` holds. If `cold.counter` is
+ahead, the certificates in between were issued but never used on chain; never
+deploy them. Without a ledger counter (offline, or a pool that has not made a
+block yet), enter the issue counter yourself; the prompt defaults to
+`cold.counter`. An offline signing system uses the counter in the node's
+request, then sets its own `cold.counter` to that counter + 1.
+
 When the cold signing key or hardware wallet file is on the same system,
 choose **Rotate now**. One confirmation generates the new KES keys and issues
 the certificate, which permanently advances the issue counter. CNTools then

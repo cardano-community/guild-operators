@@ -122,5 +122,5 @@ cntools_pool_health_rows() {
   [[ -z "${CNTOOLS_POOL_KES_SOURCE[index]:-}" ]] || cntools_table_pair 'KES source' "${CNTOOLS_POOL_KES_SOURCE[index]}" muted
   [[ -z "${CNTOOLS_POOL_CERT_DISK[index]:-}" ]] || cntools_table_pair 'Certificate counter · disk' "${CNTOOLS_POOL_CERT_DISK[index]}" number
   cntools_table_pair 'Certificate counter · ledger' "${CNTOOLS_POOL_CERT_CHAIN[index]:-Unavailable}" muted
-  [[ -z "${CNTOOLS_POOL_CERT_NEXT[index]:-}" ]] || cntools_table_pair 'Next issue counter' "${CNTOOLS_POOL_CERT_NEXT[index]}" number
+  [[ -z "${CNTOOLS_POOL_CERT_NEXT[index]:-}" ]] || cntools_table_pair 'Next issue counter · disk' "${CNTOOLS_POOL_CERT_NEXT[index]}" number
 }
