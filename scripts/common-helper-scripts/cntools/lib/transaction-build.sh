@@ -39,13 +39,6 @@ cntools_transaction_build_arguments_safe() {
   done
 }
 
-cntools_transaction_local_backend_ready() {
-  [[ "${CNTOOLS_MODE:-}" == "local" &&
-     "${CNTOOLS_LOCAL_CLI_CAPABLE:-false}" == "true" &&
-     -n "${CNTOOLS_SOCKET:-}" && "${CNTOOLS_SOCKET}" = /* &&
-     -S "${CNTOOLS_SOCKET}" ]]
-}
-
 cntools_transaction_build_body() {
   local builder="${1:-}"
   local output_file="${2:-}"

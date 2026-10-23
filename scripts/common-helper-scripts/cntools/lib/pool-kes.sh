@@ -157,6 +157,7 @@ cntools_kes_pending_load() {
   CNTOOLS_KES_BUSY="${lock}/busy"
   CNTOOLS_KES_START="$(jq -r '.startPeriod' "${CNTOOLS_KES_STAGE}/request/request.json")"
   CNTOOLS_KES_NEXT="$(jq -r '.issueCounter' "${CNTOOLS_KES_STAGE}/request/request.json")"
+  CNTOOLS_KES_COUNTER_SOURCE='Pending rotation request'
 }
 
 cntools_kes_request_validate() {

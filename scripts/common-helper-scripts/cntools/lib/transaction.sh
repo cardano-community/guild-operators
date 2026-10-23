@@ -463,6 +463,14 @@ cntools_transaction_first_diagnostic_into() {
   return 1
 }
 
+# Shared by transaction, pool and governance libraries for local node queries.
+cntools_transaction_local_backend_ready() {
+  [[ "${CNTOOLS_MODE:-}" == "local" &&
+     "${CNTOOLS_LOCAL_CLI_CAPABLE:-false}" == "true" &&
+     -n "${CNTOOLS_SOCKET:-}" && "${CNTOOLS_SOCKET}" = /* &&
+     -S "${CNTOOLS_SOCKET}" ]]
+}
+
 cntools_transaction_cli_version_supported() {
   # Exact pin downloaded by the cnode, dingo and amaru profiles, or the release
   # a cnode source build includes.

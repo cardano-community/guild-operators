@@ -171,11 +171,26 @@ cntools_kes_reload_confirmed() {
   return 1
 }
 
+# What an installed rotation changed, and whether the node runs it yet.
+cntools_kes_installed_summary() {
+  local node_state="$1" role="$2"
+  {
+    cntools_table_pair Pool "${CNTOOLS_POOL_NAMES[CNTOOLS_KES_INDEX]}" identifier
+    cntools_table_pair 'KES key' 'Replaced (hot.skey, hot.vkey)' success
+    cntools_table_pair 'Operational certificate' "Replaced · counter ${CNTOOLS_KES_NEXT}, start period $(cntools_number_format "${CNTOOLS_KES_START}")" success
+    cntools_table_pair 'Issue counter · disk' "cold.counter next is $((CNTOOLS_KES_NEXT+1))" value
+    cntools_table_pair 'Running node' "${node_state}" "${role}"
+    cntools_table_pair Unchanged 'Cold and VRF keys' muted
+    [[ -z "${CNTOOLS_KES_STAGE}" ]] || cntools_table_pair 'Recovery copy' "${CNTOOLS_KES_STAGE}" identifier
+  } | cntools_table_render 'KES rotation installed'
+  cntools_ui_render_status info 'If another system runs this pool as block producer, copy the new hot.skey and op.cert there and reload it. Never roll the issue counter back.'
+  cntools_ui_wait
+}
+
 # cardano-node re-reads its KES key and operational certificate on SIGHUP.
 cntools_kes_reload_offer() {
   local unit="${CNTOOLS_SERVICE%.service}.service" pid='' choice='' status=0
   local manual="sudo kill -SIGHUP \$(systemctl show --property MainPID --value ${unit})"
-  local closing='VRF and cold keys were not changed; never roll the issue counter back. If another system runs this pool, deploy its matching KES signing key and certificate there.'
   if cntools_kes_systemd_pid_into pid "${unit}"; then
     cntools_kes_choose choice 'Load the new KES key' 'Reload the node now (SIGHUP)' 'I will reload or restart it myself' || choice=''
     if [[ "${choice}" == 'Reload the node now (SIGHUP)' ]]; then
@@ -183,20 +198,19 @@ cntools_kes_reload_offer() {
         cntools_transaction_log POOL "KES reload signal sent unit=${unit} pid=${pid}"
         cntools_ui_spin_function 'Waiting for the node to load the new certificate…' cntools_kes_reload_confirmed || status=$?
         if ((status == 0)); then
-          cntools_ui_render_status info "${closing}"
-          cntools_kes_result 'KES keys and certificate installed and loaded by the node'; return 0
+          cntools_kes_installed_summary "Reloaded · now using the new key (confirmed by node metrics)" success; return 0
         fi
-        cntools_ui_render_status warn "The reload signal was sent, but node metrics did not show the new certificate (start period ${CNTOOLS_KES_START}). Check gLiveView or the node log; restart the node if it did not reload. ${closing}"
-        cntools_kes_result 'KES keys and certificate installed; reload signal sent' warning; return 0
+        cntools_ui_render_status warn "The reload signal was sent, but node metrics did not show start period ${CNTOOLS_KES_START}. Check gLiveView or the node log, and restart the node if it did not reload."
+        cntools_kes_installed_summary 'Reload signal sent · not confirmed' warning; return 0
       fi
       cntools_ui_render_status warn "CNTools could not signal ${unit} (PID ${pid}). Run: ${manual}"
-      cntools_kes_result 'KES keys and certificate installed; the node has not loaded them yet' warning; return 0
+      cntools_kes_installed_summary 'Still using the previous key · reload or restart it' warning; return 0
     fi
-    cntools_ui_render_status info "Load the new set by reloading the node (${manual}) or restarting it. ${closing}"
+    cntools_ui_render_status info "Load the new set by reloading the node (${manual}) or restarting it."
   else
-    cntools_ui_render_status info "No active systemd unit ${unit} was found for this node. Load the new set by sending SIGHUP to the cardano-node process or restarting it. ${closing}"
+    cntools_ui_render_status info "No active systemd unit ${unit} was found for this node. Load the new set by sending SIGHUP to the cardano-node process or restarting it."
   fi
-  cntools_kes_result 'KES keys and certificate installed; reload or restart the node to use them' warning
+  cntools_kes_installed_summary 'Still using the previous key · reload or restart it' warning
 }
 
 cntools_kes_continue() {
