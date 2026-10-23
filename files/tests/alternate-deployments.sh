@@ -1292,7 +1292,9 @@ run_alternate_profile_test() (
     )
 
     local custom_cli="${test_root}/bin/custom-cardano-cli"
-    write_fake_executable "${custom_cli}" "cardano-cli 11.0.0.0"
+    # An explicit CCLI must still satisfy the profile's pinned companion minimum.
+    write_fake_executable "${custom_cli}" "cardano-cli $(jq -r '.companions["cardano-cli"].version' \
+      "${REPO_ROOT}/files/node-implementations/${implementation}/release.json")"
     (
       unset CNODE_HOME GUILD_ENV_ENTRY_DIR
       CCLI="${custom_cli}"
@@ -1320,7 +1322,9 @@ run_alternate_profile_test() (
     )
 
     local custom_cli="${test_root}/bin/custom-cardano-cli"
-    write_fake_executable "${custom_cli}" "cardano-cli 11.0.0.0"
+    # An explicit CCLI must still satisfy the profile's pinned companion minimum.
+    write_fake_executable "${custom_cli}" "cardano-cli $(jq -r '.companions["cardano-cli"].version' \
+      "${REPO_ROOT}/files/node-implementations/${implementation}/release.json")"
     (
       unset CNODE_HOME GUILD_ENV_ENTRY_DIR
       CCLI="${custom_cli}"
