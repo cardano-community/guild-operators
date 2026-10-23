@@ -356,18 +356,22 @@ operational files and pledge maintenance; CNTools does not edit `env` for you.
 
 ### Rotate KES keys
 
-**Pool → Rotate** prepares replacement KES keys and an operational certificate.
-It does not restart the node. Verify the pool, issue counter and start period;
-if chain data is unavailable, independently confirm the requested values.
+**Pool → Rotate** replaces the pool's KES key and operational certificate. It
+does not restart the node. Verify the pool, issue counter and start period; if
+chain data is unavailable, independently confirm the requested values.
 
-Stop the block producer before approving installation. Keep it stopped if
-installation is interrupted, and continue the recorded recovery operation
-rather than issuing another certificate. Restart the node yourself afterwards
-and verify its health.
+When the cold signing key or hardware wallet file is on the same system,
+choose **Rotate now**. One confirmation generates the new KES keys and issues
+the certificate, which permanently advances the issue counter. CNTools then
+asks once whether to install the new set: answer yes only after stopping the
+block producer, or no to install later from **Pool → Rotate**. Keep the
+producer stopped if installation is interrupted, and continue the recorded
+recovery operation rather than issuing another certificate. Restart the node
+yourself afterwards and verify its health.
 
 For offline cold-key signing:
 
-1. Prepare replacement keys and choose **Prepare offline hand-off** on the node.
+1. Choose **Prepare offline request** on the node.
 2. Copy only the reported public request directory to the signing system.
    Never transfer the new KES private key or the parent recovery directory.
 3. Use **Pool → Rotate → Sign an offline request** there with the independently
@@ -533,8 +537,9 @@ Restore only trusted archives.
 Restored files do not regain immutable locking automatically. Reapply
 encryption/locking where appropriate. Do not start a pool with old operational
 files or an older issue counter: verify current state and rotate KES safely.
-Pending KES recovery material remains for manual recovery rather than being
-activated automatically.
+Full backups also include KES and operational-certificate recovery from
+`${NODE_HOME}/.cntools/recovery/`. Restore keeps it only in the recovery copy for
+manual recovery; it is never activated automatically.
 
 ## Block production history
 

@@ -57,7 +57,18 @@ cntools_wallet_directory_safe() {
   physical_root="$(cd -- "${root}" 2>/dev/null && pwd -P)" || return 1
   physical_wallet="$(cd -- "${wallet_directory}" 2>/dev/null && pwd -P)" ||
     return 1
-  [[ "${physical_wallet}" == "${physical_root}/"* ]] || return 1
+  if [[ "${physical_wallet}" != "${physical_root}/"* ]]; then
+    # Wallet creation stages in the CNTools state work folder while it is
+    # prepared; only a stage this process created and tracks qualifies.
+    local work=""
+    declare -F cntools_wallet_create_stage_tracked >/dev/null 2>&1 &&
+      cntools_wallet_create_stage_tracked "${wallet_directory}" &&
+      cntools_state_path_into work work &&
+      [[ "${physical_wallet}" == "${wallet_directory%/}" &&
+         "${physical_wallet%/*}" == "${work}" &&
+         "${physical_wallet##*/}" == .cntools-wallet-new.* ]]
+    return
+  fi
   relative_wallet="${physical_wallet#"${physical_root}/"}"
   [[ -n "${relative_wallet}" && "${relative_wallet}" != */* ]]
 }

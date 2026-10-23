@@ -211,8 +211,8 @@ cntools_wallet_create_stage_safe() {
   local name="${stage##*/}"
 
   cntools_wallet_create_stage_tracked "${stage}" || return 1
-  [[ "${stage}" == "${root%/}/.cntools-wallet-new."* &&
-     "${name}" =~ ^[.]cntools-wallet-new[.][A-Za-z0-9]+$ &&
+  cntools_state_staging_path_valid "${stage}" "${root}" .cntools-wallet-new. &&
+    [[ "${name}" =~ ^[.]cntools-wallet-new[.][A-Za-z0-9]+$ &&
      -d "${stage}" && ! -L "${stage}" && -O "${stage}" ]] || return 1
   cntools_wallet_directory_safe "${stage}" &&
     cntools_wallet_create_directory_private "${stage}"
@@ -222,16 +222,18 @@ cntools_wallet_create_stage_into() {
   local _cntools_output_name="${1:-}"
   local _cntools_previous_umask=""
   local _cntools_stage=""
+  local _cntools_parent=""
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
   cntools_wallet_root_safe &&
-    cntools_wallet_create_directory_private "${CNTOOLS_WALLET_DIR}" || return 1
+    cntools_wallet_create_directory_private "${CNTOOLS_WALLET_DIR}" &&
+    cntools_state_work_directory_into _cntools_parent "${CNTOOLS_WALLET_DIR}" || return 1
   _cntools_previous_umask="$(umask)"
   umask 077
   _cntools_stage="$(mktemp -d \
-    "${CNTOOLS_WALLET_DIR%/}/.cntools-wallet-new.XXXXXX")" || {
+    "${_cntools_parent%/}/.cntools-wallet-new.XXXXXX")" || {
       umask "${_cntools_previous_umask}"
       return 1
     }

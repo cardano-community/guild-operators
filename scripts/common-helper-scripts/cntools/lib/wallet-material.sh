@@ -76,6 +76,7 @@ cntools_wallet_material_temp_file() {
   local _cntools_label="${3:-artifact}"
   local _cntools_previous_umask=""
   local _cntools_temporary_file=""
+  local _cntools_parent=""
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
      "${_cntools_label}" =~ ^[A-Za-z0-9._-]+$ ]] || return 2
@@ -84,11 +85,13 @@ cntools_wallet_material_temp_file() {
   cntools_wallet_directory_safe "${_cntools_wallet_directory}" || return 1
   [[ -O "${_cntools_wallet_directory}" &&
      -w "${_cntools_wallet_directory}" ]] || return 1
+  # Same-filesystem work folder keeps later renames into the wallet atomic.
+  cntools_state_work_directory_into _cntools_parent "${_cntools_wallet_directory}" || return 1
 
   _cntools_previous_umask="$(umask)"
   umask 077
   _cntools_temporary_file="$(
-    mktemp "${_cntools_wallet_directory}/.cntools-${_cntools_label}.XXXXXX"
+    mktemp "${_cntools_parent%/}/.cntools-${_cntools_label}.XXXXXX"
   )" || {
     umask "${_cntools_previous_umask}"
     return 1
@@ -156,8 +159,8 @@ cntools_wallet_material_publish() {
   wallet_directory="${target_file%/*}"
   target_name="${target_file##*/}"
   [[ -n "${target_name}" && "${wallet_directory}" != "${target_file}" &&
-     "${staged_file}" == "${wallet_directory}/.cntools-"* &&
-     "${validator}" =~ ^cntools_wallet_[A-Za-z0-9_]+_validate$ ]] || return 2
+     "${validator}" =~ ^cntools_wallet_[A-Za-z0-9_]+_validate$ ]] &&
+    cntools_state_staging_path_valid "${staged_file}" "${wallet_directory}" .cntools- || return 2
   declare -F "${validator}" >/dev/null 2>&1 || return 2
   cntools_wallet_directory_safe "${wallet_directory}" || return 1
   [[ -f "${staged_file}" && ! -L "${staged_file}" &&

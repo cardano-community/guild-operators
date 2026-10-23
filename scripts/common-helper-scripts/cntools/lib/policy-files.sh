@@ -63,13 +63,14 @@ cntools_policy_preflight() {
 }
 
 cntools_policy_stage_into() {
-  local output="$1" temporary='' saved=''
+  local output="$1" temporary='' saved='' parent=''
   saved="$(umask)"; umask 077
   if [[ ! -e "${CNTOOLS_ASSET_DIR}" ]]; then
     if ! mkdir -- "${CNTOOLS_ASSET_DIR}"; then umask "${saved}"; return 1; fi
   fi
-  if ! cntools_transaction_directory_safe "${CNTOOLS_ASSET_DIR}"; then umask "${saved}"; return 1; fi
-  temporary="$(mktemp -d "${CNTOOLS_ASSET_DIR}/.cntools-policy-new.XXXXXX")" || { umask "${saved}"; return 1; }
+  if ! cntools_transaction_directory_safe "${CNTOOLS_ASSET_DIR}" ||
+     ! cntools_state_work_directory_into parent "${CNTOOLS_ASSET_DIR}"; then umask "${saved}"; return 1; fi
+  temporary="$(mktemp -d "${parent%/}/.cntools-policy-new.XXXXXX")" || { umask "${saved}"; return 1; }
   umask "${saved}"
   CNTOOLS_POLICY_STAGES+=("${temporary}")
   printf -v "${output}" '%s' "${temporary}"
@@ -84,8 +85,8 @@ cntools_policy_files_cleanup() {
   done
   CNTOOLS_POLICY_WORK_FILES=()
   for stage in "${CNTOOLS_POLICY_STAGES[@]}"; do
-    [[ "${stage}" == "${CNTOOLS_ASSET_DIR%/}/.cntools-policy-new."* &&
-       -d "${stage}" && ! -L "${stage}" && -O "${stage}" ]] || continue
+    cntools_state_staging_path_valid "${stage}" "${CNTOOLS_ASSET_DIR}" .cntools-policy-new. &&
+      [[ -d "${stage}" && ! -L "${stage}" && -O "${stage}" ]] || continue
     cntools_filesystem_path_components_safe "${stage}" || continue
     rm -rf -- "${stage}" || cntools_transaction_log ERROR "Could not remove private policy staging directory=${stage}"
   done
@@ -93,10 +94,11 @@ cntools_policy_files_cleanup() {
 }
 
 cntools_policy_work_into() {
-  local output="$1" directory="$2" temporary='' saved=''
-  cntools_transaction_directory_safe "${directory}" || return 1
+  local output="$1" directory="$2" temporary='' saved='' parent=''
+  cntools_transaction_directory_safe "${directory}" &&
+    cntools_state_work_directory_into parent "${directory}" || return 1
   saved="$(umask)"; umask 077
-  temporary="$(mktemp "${directory}/.cntools-policy-work.XXXXXX")" || { umask "${saved}"; return 1; }
+  temporary="$(mktemp "${parent%/}/.cntools-policy-work.XXXXXX")" || { umask "${saved}"; return 1; }
   umask "${saved}"
   CNTOOLS_POLICY_WORK_FILES+=("${temporary}")
   printf -v "${output}" '%s' "${temporary}"

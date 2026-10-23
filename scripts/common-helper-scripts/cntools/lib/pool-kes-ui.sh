@@ -96,6 +96,19 @@ cntools_kes_offline_instructions() {
   cntools_ui_wait
 }
 
+# The node reads these files only at startup, and CNTools never stops or
+# restarts it. One answer confirms the stopped producer and the installation.
+cntools_kes_install() {
+  cntools_ui_render_status warn 'Stop the block producer first: the five files are replaced one by one. CNTools never stops or restarts your node, and keeps the current files and the new set privately for recovery.'
+  cntools_kes_confirm 'Install the new KES key and certificate now? The block producer must already be stopped.' false \
+    'Not installed. Active node files are unchanged and the issued set stays staged; reopen Pool → Rotate to install it.' || return 0
+  CNTOOLS_KES_NODE_STOPPED=Y
+  cntools_transaction_log CHOICE 'KES operational file publication approved; operator confirmed node stopped'
+  cntools_ui_spin_function 'Installing the validated KES key and certificate set…' cntools_kes_publish || return 1
+  cntools_ui_render_status info 'Restart the block producer with the new operational files, then check Pool → Show or gLiveView. If another deployment runs the node, securely deploy its matching KES signing key and certificate first. VRF and cold keys were not changed; never roll the issue counter back.'
+  cntools_kes_result 'KES keys and certificate installed'
+}
+
 cntools_kes_continue() {
   local phase='' choice='' directory='' status=0
   while true; do
@@ -136,17 +149,7 @@ cntools_kes_continue() {
         cntools_ui_spin_function 'Checking existing certificate recovery files…' cntools_kes_consume_counter || {
           cntools_kes_error 'Recovery is incomplete or invalid. Inspect it manually; keep the lock and never restore an older counter.'; return 1;
         } ;;
-      issued|publishing)
-        cntools_ui_render_status warn 'Stop the block producer before installing the matching KES key/certificate set. CNTools will not stop or restart your node. Original files and the new set are retained privately for recovery.'
-        cntools_kes_choose choice 'Install replacement files' 'Install on this node' 'Return and install later' || return $?
-        [[ "${choice}" == 'Install on this node' ]] || return 0
-        cntools_kes_confirm 'Is the block producer stopped, and should CNTools install this replacement?' false \
-          'Replacement not installed. Active node files are unchanged; the issued set stays in recovery.' || return 0
-        CNTOOLS_KES_NODE_STOPPED=Y
-        cntools_transaction_log CHOICE 'KES operational file publication approved; operator confirmed node stopped'
-        cntools_ui_spin_function 'Installing the validated KES key and certificate set…' cntools_kes_publish || return 1
-        cntools_ui_render_status info 'Restart the block producer with the new operational files, then check Pool → Show or gLiveView. If another deployment runs the node, securely deploy its matching KES signing key and certificate first. VRF and cold keys were not changed; never roll the issue counter back.'
-        cntools_kes_result 'KES keys and certificate installed'; return 0 ;;
+      issued|publishing) cntools_kes_install; return $? ;;
       complete) cntools_kes_lock_release; return $? ;;
       *) cntools_kes_error 'The pending rotation phase is incomplete. Inspect its recovery directory; no new issuance was attempted.'; return 1 ;;
     esac
@@ -169,7 +172,15 @@ cntools_pool_action_rotate() {
   fi
   cntools_ui_spin_function 'Checking current KES health and counter…' cntools_pool_inspect_catalog "${selected}" || return 1
   cntools_ui_spin_function 'Checking operational certificate…' cntools_pool_health_collect "${selected}" || return 1
-  if [[ -e "${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock" || -L "${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock" ]]; then
+  if cntools_pool_legacy_opcert_lock "${CNTOOLS_KES_DIRECTORY}"; then
+    cntools_kes_result "An earlier CNTools build left an operational-certificate lock in ${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock. Finish or inspect that operation manually; no new certificate will be issued." error
+    return 0
+  fi
+  local lock=''
+  cntools_pool_opcert_lock_into lock "${CNTOOLS_KES_DIRECTORY}" || {
+    cntools_kes_result 'The owner-only CNTools state folder (.cntools in the node home) is unavailable.' error; return 0;
+  }
+  if [[ -e "${lock}" || -L "${lock}" ]]; then
     if cntools_kes_pending_load; then
       case "$(< "${CNTOOLS_KES_STAGE}/phase")" in
         prepared|awaiting)
@@ -182,22 +193,40 @@ cntools_pool_action_rotate() {
     else status=2; fi
   else
     cntools_kes_review || return 1
-    cntools_kes_choose choice 'KES workflow' 'Prepare replacement KES keys' 'Sign an offline request' Cancel || return $?
+    # Signing needs the cold key (file or hardware wallet) on this system.
+    local -a workflows=()
+    [[ -z "${CNTOOLS_KES_SOURCE}" ]] || workflows+=('Rotate now')
+    workflows+=('Prepare offline request')
+    [[ -z "${CNTOOLS_KES_SOURCE}" ]] || workflows+=('Sign an offline request')
+    [[ -n "${CNTOOLS_KES_SOURCE}" ]] ||
+      cntools_ui_render_status info 'No cold signing key or hardware wallet file for this pool is on this system, so only an offline request can be prepared here.'
+    cntools_kes_choose choice 'KES workflow' "${workflows[@]}" Cancel || return $?
     [[ "${choice}" != Cancel ]] || return 0
     if ! cntools_kes_counter_approve; then
       [[ -z "${CNTOOLS_POOL_WRITE_ERROR}" ]] || cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR}" error
       return 0
     fi
     case "${choice}" in
-      'Prepare replacement KES keys')
+      'Rotate now')
         cntools_kes_choose_period || return 0
         cntools_kes_review || return 1
-        cntools_kes_confirm 'Generate replacement KES keys? Existing keys remain active until installation.' false \
-          'No KES keys were generated. Nothing was changed.' || return 0
+        cntools_ui_render_status warn "Rotation generates new KES keys and issues certificate ${CNTOOLS_KES_NEXT}, which permanently advances the cold counter. Active node files change only when you install the new set."
+        cntools_kes_confirm "Rotate KES now, starting at period ${CNTOOLS_KES_START}?" false \
+          'No KES keys were generated and the issue counter is unchanged.' || return 0
         cntools_ui_spin_function 'Preparing and validating replacement KES keys…' cntools_kes_prepare "${CNTOOLS_KES_START}" || status=$?
+        if ((status == 0)); then
+          [[ "${CNTOOLS_KES_KIND}" != hardware ]] || cntools_ui_render_status info 'Connect and unlock the hardware device, open Cardano and approve certificate issuance.'
+          cntools_ui_spin_function 'Issuing and validating the KES certificate…' cntools_kes_issue || status=$?
+        fi
         ((status != 0)) || cntools_kes_continue || status=$? ;;
+      'Prepare offline request')
+        cntools_kes_choose_period || return 0
+        cntools_kes_review || return 1
+        cntools_kes_confirm "Prepare an offline request starting at KES period ${CNTOOLS_KES_START}? The counter advances only when the cold key signs it." false \
+          'No offline request was prepared. Nothing was changed.' || return 0
+        cntools_ui_spin_function 'Preparing and validating replacement KES keys…' cntools_kes_prepare "${CNTOOLS_KES_START}" || status=$?
+        ((status != 0)) || cntools_kes_offline_instructions || status=$? ;;
       'Sign an offline request')
-        [[ -n "${CNTOOLS_KES_SOURCE}" ]] || { cntools_kes_result 'Open the cold key or connect its hardware device on the signing system first.' warning; return 0; }
         cntools_ui_pick_path request 'Offline request directory' 'Choose the public request folder copied from the node.' "${CNTOOLS_KES_DIRECTORY}" directory || return $?
         cntools_kes_request_validate "${request}" || { cntools_kes_result 'The request does not match this pool, network or counter.' error; return 0; }
         CNTOOLS_KES_START="$(jq -r '.startPeriod' "${request}/request.json")"

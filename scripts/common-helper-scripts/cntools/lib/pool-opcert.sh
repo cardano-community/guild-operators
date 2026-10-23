@@ -17,7 +17,7 @@ cntools_pool_kes_period_into() {
 }
 
 cntools_pool_opcert_issue() {
-  local period="$1" directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" cold='' kes='' counter='' cert='' start='' stage='' kind='' response='' errors='' status=0 original='' saved=''
+  local period="$1" directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" cold='' kes='' counter='' cert='' start='' stage='' kind='' response='' errors='' status=0 original='' saved='' lock='' recovery=''
   [[ "${period}" =~ ^(0|[1-9][0-9]{0,9})$ ]] && cntools_pool_directory_writable "${directory}" &&
     cntools_pool_filenames_validate || return 1
   cntools_pool_file_name_into cold cold-vkey; cntools_pool_file_name_into kes kes-vkey
@@ -29,13 +29,20 @@ cntools_pool_opcert_issue() {
   cntools_transaction_source_kind_into kind "${CNTOOLS_POOL_REG_COLD_SOURCE}" || return 1
   [[ "$(jq -r .cborHex "${directory}/${cold}")" == "$(jq -r .cborHex "${CNTOOLS_POOL_REG_COLD_VKEY}")" ]] || return 1
   original="$(jq -cS . "${directory}/${counter}")" || return 1
-  # Keep a durable recovery directory, outside ordinary transaction cleanup.
-  # The lock prevents a second issuance if publication is interrupted.
+  # Keep a durable recovery directory in the CNTools state folder, outside
+  # ordinary transaction cleanup. The shared per-pool certificate lock
+  # prevents a second issuance if publication is interrupted.
+  ! cntools_pool_legacy_opcert_lock "${directory}" || {
+    cntools_wallet_register_set_error "An earlier CNTools build left an operational-certificate lock in ${directory}/.cntools-opcert-lock. Finish or inspect that operation manually before retrying."; return 1;
+  }
+  cntools_pool_opcert_lock_into lock "${directory}" && cntools_state_directory_into recovery recovery || {
+    cntools_wallet_register_set_error 'The owner-only CNTools state folder (.cntools in the node home) is unavailable.'; return 1;
+  }
   saved="$(umask)"; umask 077
-  if ! mkdir -- "${directory}/.cntools-opcert-lock" 2>/dev/null; then
-    umask "${saved}"; cntools_wallet_register_set_error 'Operational certificate preparation is locked. Inspect .cntools-opcert-lock and recovery files before retrying.'; return 1
+  if ! mkdir -- "${lock}" 2>/dev/null; then
+    umask "${saved}"; cntools_wallet_register_set_error "Operational certificate preparation is locked. Inspect ${lock} and the recovery files in ${recovery} before retrying."; return 1
   fi
-  stage="$(mktemp -d "${directory}/.cntools-opcert-recovery.XXXXXX")" || { umask "${saved}"; return 1; }
+  stage="$(mktemp -d "${recovery}/opcert-${directory##*/}.XXXXXX")" || { umask "${saved}"; return 1; }
   umask "${saved}"
   CNTOOLS_POOL_OPCERT_RECOVERY="${stage}"
   cp -- "${directory}/${cold}" "${directory}/${kes}" "${directory}/${counter}" "${stage}/" || return 1
@@ -59,8 +66,9 @@ cntools_pool_opcert_issue() {
   # Consume the issued counter BEFORE exposing the certificate. On any failure,
   # retain the signed certificate + advanced counter; never roll the counter back.
   cntools_pool_public_save "${directory}" "${counter}" "${stage}/${counter}" &&
-    ln -- "${stage}/${start}" "${directory}/${start}" && ln -- "${stage}/${cert}" "${directory}/${cert}" || return 1
-  rmdir -- "${directory}/.cntools-opcert-lock" || return 1
+    cntools_pool_publish_new_file "${stage}/${start}" "${directory}/${start}" &&
+    cntools_pool_publish_new_file "${stage}/${cert}" "${directory}/${cert}" || return 1
+  rmdir -- "${lock}" || return 1
   CNTOOLS_POOL_OPCERT_RECOVERY=''
   cntools_transaction_log POOL "Operational certificate published; recovery copy retained=${stage}"
 }

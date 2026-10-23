@@ -71,25 +71,50 @@ cntools_pool_write_environment() {
 }
 
 cntools_pool_stage_into() {
-  local output="$1" temporary="" saved=""
+  local output="$1" temporary="" saved="" parent=""
   saved="$(umask)"
-  cntools_pool_directory_writable "${CNTOOLS_POOL_DIR}" || return 1
+  cntools_pool_directory_writable "${CNTOOLS_POOL_DIR}" &&
+    cntools_state_work_directory_into parent "${CNTOOLS_POOL_DIR}" || return 1
   umask 077
-  temporary="$(mktemp -d "${CNTOOLS_POOL_DIR%/}/.cntools-pool-new.XXXXXX")" || { umask "${saved}"; return 1; }
+  temporary="$(mktemp -d "${parent%/}/.cntools-pool-new.XXXXXX")" || { umask "${saved}"; return 1; }
   umask "${saved}"
   CNTOOLS_POOL_STAGES+=("${temporary}")
   printf -v "${output}" '%s' "${temporary}"
 }
 
 cntools_pool_temp_into() {
-  local output="$1" directory="$2" temporary="" saved=""
+  local output="$1" directory="$2" temporary="" saved="" parent=""
   saved="$(umask)"
-  cntools_pool_directory_writable "${directory}" || return 1
+  cntools_pool_directory_writable "${directory}" &&
+    cntools_state_work_directory_into parent "${directory}" || return 1
   umask 077
-  temporary="$(mktemp "${directory}/.cntools-pool-work.XXXXXX")" || { umask "${saved}"; return 1; }
+  temporary="$(mktemp "${parent%/}/.cntools-pool-work.XXXXXX")" || { umask "${saved}"; return 1; }
   umask "${saved}"
   CNTOOLS_POOL_TEMP_FILES+=("${temporary}")
   printf -v "${output}" '%s' "${temporary}"
+}
+
+# One certificate operation per pool at a time: KES rotation and first
+# operational-certificate issuance share this lock in the CNTools state folder.
+cntools_pool_opcert_lock_into() {
+  local output="$1" directory="$2" locks="" name="${2##*/}"
+  [[ "${name}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] && cntools_state_directory_into locks locks || return 1
+  printf -v "${output}" '%s' "${locks}/opcert-${name}"
+}
+
+# Earlier CNTools 14 builds kept this lock inside the pool directory.
+cntools_pool_legacy_opcert_lock() {
+  [[ -e "$1/.cntools-opcert-lock" || -L "$1/.cntools-opcert-lock" ]]
+}
+
+# Publish a copy without replacing an existing file: link a same-filesystem
+# temporary into place, then drop the temporary alias.
+cntools_pool_publish_new_file() {
+  # Not "temporary": cntools_pool_temp_into assigns by name and has that local.
+  local source="$1" target="$2" published=""
+  [[ ! -e "${target}" && ! -L "${target}" ]] && cntools_pool_temp_into published "${target%/*}" || return 1
+  cp -- "${source}" "${published}" && chmod 0600 "${published}" && ln -- "${published}" "${target}" || return 1
+  rm -f -- "${published}"
 }
 
 cntools_pool_files_cleanup() {
@@ -100,7 +125,8 @@ cntools_pool_files_cleanup() {
   done
   CNTOOLS_POOL_TEMP_FILES=()
   for stage in "${CNTOOLS_POOL_STAGES[@]}"; do
-    [[ "${stage}" == "${CNTOOLS_POOL_DIR%/}/.cntools-pool-new."* && -d "${stage}" && ! -L "${stage}" && -O "${stage}" ]] || continue
+    cntools_state_staging_path_valid "${stage}" "${CNTOOLS_POOL_DIR}" .cntools-pool-new. &&
+      [[ -d "${stage}" && ! -L "${stage}" && -O "${stage}" ]] || continue
     cntools_filesystem_path_components_safe "${stage}" || continue
     rm -rf -- "${stage}" || cntools_transaction_log ERROR "Could not remove private pool staging directory=${stage}"
   done

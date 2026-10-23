@@ -135,7 +135,7 @@ cntools_backup_restore_preview() {
     for object in "${CNTOOLS_BACKUP_OBJECTS[@]}"; do
       cntools_backup_role_root_into root "${object%%/*}" || return 1
       name="${object#*/}"; decision=Import
-      if [[ "${name}" == .* || -e "${CNTOOLS_BACKUP_WORK}/restore/${object}/.cntools-opcert-lock" ]]; then
+      if [[ "${object%%/*}" == recovery || "${name}" == .* || -e "${CNTOOLS_BACKUP_WORK}/restore/${object}/.cntools-opcert-lock" ]]; then
         decision='Recovery copy only · KES/unfinished data'
       elif [[ -e "${root}/${name}" || -L "${root}/${name}" ]]; then
         decision='Preserve existing folder · recovery copy only'

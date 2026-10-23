@@ -76,8 +76,8 @@ cntools_pool_protection_cleanup() {
     fi
   done
   if [[ "${recovery}" == Y ]]; then
-    cntools_pool_write_error 'Pool files changed unexpectedly. Private recovery files were retained in the pool directory; review it before retrying.' || true
-    CNTOOLS_POOL_WRITE_WARNING='Private recovery files were retained in the pool directory. Review them before retrying; never discard the last validated key copy.'
+    cntools_pool_write_error 'Pool files changed unexpectedly. Private recovery files were retained in the CNTools work folder (.cntools/work) or the pool directory; review them before retrying.' || true
+    CNTOOLS_POOL_WRITE_WARNING='Private recovery files were retained in the CNTools work folder (.cntools/work) or the pool directory. Review them before retrying; never discard the last validated key copy.'
     # Detach private recovery files from automatic cleanup, including its
     # later invocation by the action's interruption/return hook.
     CNTOOLS_POOL_TEMP_FILES=()

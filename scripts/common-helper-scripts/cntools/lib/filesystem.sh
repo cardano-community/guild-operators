@@ -195,3 +195,88 @@ cntools_filesystem_directory_ancestry_safe() {
     fi
   done
 }
+
+cntools_filesystem_device_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_path="${2:-}"
+  local _cntools_device=""
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  _cntools_device="$(stat -c '%d' -- "${_cntools_path}" 2>/dev/null)" ||
+    _cntools_device="$(stat -f '%d' "${_cntools_path}" 2>/dev/null)" || return 1
+  [[ "${_cntools_device}" =~ ^[0-9]+$ ]] || return 1
+  _cntools_output_ref="${_cntools_device}"
+}
+
+# CNTools keeps its staging, work files, locks and KES/opcert recovery in one
+# owner-only folder beside the node's priv data, never inside it.
+cntools_state_path_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_kind="${2:-}"
+  local _cntools_home="${CNTOOLS_NODE_HOME:-}"
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
+     "${_cntools_kind}" =~ ^(work|locks|recovery)$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  [[ "${_cntools_home}" == /* && "${_cntools_home}" != / ]] || return 1
+  _cntools_output_ref="${_cntools_home%/}/.cntools/${_cntools_kind}"
+}
+
+cntools_state_directory_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_kind="${2:-}"
+  local _cntools_state=""
+  local _cntools_directory=""
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref=""
+  cntools_state_path_into _cntools_state "${_cntools_kind}" || return $?
+  [[ -d "${CNTOOLS_NODE_HOME%/}" && ! -L "${CNTOOLS_NODE_HOME%/}" ]] &&
+    cntools_filesystem_path_components_safe "${CNTOOLS_NODE_HOME%/}" || return 1
+  for _cntools_directory in "${_cntools_state%/*}" "${_cntools_state}"; do
+    if [[ ! -e "${_cntools_directory}" && ! -L "${_cntools_directory}" ]]; then
+      (umask 077; mkdir -- "${_cntools_directory}" 2>/dev/null) ||
+        [[ -d "${_cntools_directory}" && ! -L "${_cntools_directory}" ]] || return 1
+    fi
+    [[ -d "${_cntools_directory}" && ! -L "${_cntools_directory}" &&
+       -O "${_cntools_directory}" ]] &&
+      chmod 0700 "${_cntools_directory}" || return 1
+  done
+  _cntools_output_ref="${_cntools_state}"
+}
+
+# Staging and scratch files use the state work folder when it shares the
+# target's filesystem, so publishing stays one atomic rename or link. Without
+# that, they fall back to the target folder for the brief final write.
+cntools_state_work_directory_into() {
+  local _cntools_output_name="${1:-}"
+  local _cntools_target="${2:-}"
+  local _cntools_work=""
+  local _cntools_target_device=""
+  local _cntools_work_device=""
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  _cntools_output_ref="${_cntools_target%/}"
+  [[ -d "${_cntools_target}" && ! -L "${_cntools_target}" ]] || return 1
+  if cntools_state_directory_into _cntools_work work &&
+     cntools_filesystem_device_into _cntools_target_device "${_cntools_target}" &&
+     cntools_filesystem_device_into _cntools_work_device "${_cntools_work}" &&
+     [[ "${_cntools_target_device}" == "${_cntools_work_device}" ]]; then
+    _cntools_output_ref="${_cntools_work}"
+  fi
+  return 0
+}
+
+# A staging path is CNTools-owned only directly below the target root or the
+# state work folder, with the expected reserved name prefix.
+cntools_state_staging_path_valid() {
+  local path="${1:-}" root="${2:-}" prefix="${3:-}" work=""
+  [[ -n "${prefix}" && "${path##*/}" == "${prefix}"* ]] || return 1
+  [[ "${path%/*}" == "${root%/}" ]] && return 0
+  cntools_state_path_into work work && [[ "${path%/*}" == "${work}" ]]
+}

@@ -112,8 +112,17 @@ cntools_backup_public_file() {
 }
 
 cntools_backup_tree_inventory() {
-  local role='' root='' path='' relative='' size='' hash='' total=0 count=0 kind='' mode=''
-  for role in wallets pools assets; do
+  local role='' root='' path='' relative='' size='' hash='' total=0 count=0 kind='' mode='' locks='' busy=''
+  # Issuance/install can cross several files. Refuse active operations,
+  # rather than blessing a torn cold-counter/opcert snapshot.
+  if cntools_state_path_into locks locks && [[ -d "${locks}" ]]; then
+    for busy in "${locks}"/*/busy; do
+      [[ ! -e "${busy}" && ! -L "${busy}" ]] || {
+        cntools_backup_error 'A pool certificate operation is in progress. Finish it before creating a backup.'; return 1;
+      }
+    done
+  fi
+  for role in wallets pools assets recovery; do
     cntools_backup_role_root_into root "${role}" || return 1
     [[ -n "${root}" && "${root}" == /* && "${root}" != / ]] || return 1
     [[ -e "${root}" || -L "${root}" ]] || continue
@@ -124,8 +133,7 @@ cntools_backup_tree_inventory() {
       cntools_backup_member_valid "${relative}" && [[ ! -L "${path}" && -O "${path}" ]] || {
         cntools_backup_error 'Source data contains unsupported paths, links or files not owned by this user.'; return 1;
       }
-      # Issuance/install can cross several files. Refuse active operations,
-      # rather than blessing a torn cold-counter/opcert snapshot.
+      # Locks left inside pool folders by earlier CNTools builds.
       [[ "${relative}" != */.cntools-opcert-lock/busy* ]] || {
         cntools_backup_error 'A pool certificate operation is in progress. Finish it before creating a backup.'; return 1;
       }
@@ -159,7 +167,7 @@ cntools_backup_create() {
   cntools_backup_environment && cntools_backup_directory_safe "${destination}" || {
     cntools_backup_error 'Backup destination must be an existing owned, writable directory with no group/public write access.'; return 1;
   }
-  for role in wallets pools assets; do
+  for role in wallets pools assets recovery; do
     cntools_backup_role_root_into root "${role}" || return 1
     [[ "${destination%/}" != "${root%/}" && "${destination}" != "${root%/}/"* &&
        "${CNTOOLS_BACKUP_WORK}" != "${root%/}/"* ]] || {
@@ -205,7 +213,7 @@ cntools_backup_create() {
     < "${CNTOOLS_BACKUP_WORK}/records" > "${CNTOOLS_BACKUP_WORK}/snapshot/manifest.json" || return 1
   cntools_filesystem_size_into size "${CNTOOLS_BACKUP_WORK}/snapshot/manifest.json" && (( size <= 8388608 )) || return 1
   local -a roots=(manifest.json)
-  for role in wallets pools assets; do [[ ! -d "${CNTOOLS_BACKUP_WORK}/snapshot/${role}" ]] || roots+=("${role}"); done
+  for role in wallets pools assets recovery; do [[ ! -d "${CNTOOLS_BACKUP_WORK}/snapshot/${role}" ]] || roots+=("${role}"); done
   output="${CNTOOLS_BACKUP_WORK}/backup.tar.gz"
   cntools_backup_command tar --format=ustar -czf "${output}" -C "${CNTOOLS_BACKUP_WORK}/snapshot" "${roots[@]}" || return 1
   chmod 0600 -- "${output}" || return 1
@@ -243,7 +251,10 @@ cntools_backup_restore_path_into() {
   local member="${2%/}" legacy="$3" role='' root='' prefix=''
   mapped_output=''
   if [[ "${legacy}" == N ]]; then
-    case "${member}" in wallets|pools|assets|wallets/*|pools/*|assets/*) mapped_output="${member}"; return 0 ;; *) return 1 ;; esac
+    case "${member}" in
+      wallets|pools|assets|recovery|wallets/*|pools/*|assets/*|recovery/*) mapped_output="${member}"; return 0 ;;
+      *) return 1 ;;
+    esac
   fi
   # Legacy tar removed the leading slash from absolute source paths. Accept
   # configured roots, plus the standard priv/{wallet,pool,asset} layout from
@@ -347,6 +358,7 @@ cntools_backup_restore_apply() {
   # Check all destinations before importing the first object. Empty missing
   # roots may be created, but an unsafe later root cannot cause a partial plan.
   for object in "${CNTOOLS_BACKUP_OBJECTS[@]}"; do
+    [[ "${object%%/*}" != recovery ]] || continue
     cntools_backup_role_root_into root "${object%%/*}" || return 1
     if [[ -e "${root}" || -L "${root}" ]]; then
       cntools_backup_directory_safe "${root}" || {
@@ -375,7 +387,7 @@ cntools_backup_restore_apply() {
     name="${object#*/}"
     # Recovery locks and hidden KES work contain absolute-path intent and must
     # never be activated automatically on a new/different node.
-    if [[ "${name}" == .* || -e "${target}/${object}/.cntools-opcert-lock" ]]; then
+    if [[ "${object%%/*}" == recovery || "${name}" == .* || -e "${target}/${object}/.cntools-opcert-lock" ]]; then
       CNTOOLS_BACKUP_SKIPPED=$((CNTOOLS_BACKUP_SKIPPED+1)); continue
     fi
     cntools_backup_role_root_into root "${object%%/*}" || return 1

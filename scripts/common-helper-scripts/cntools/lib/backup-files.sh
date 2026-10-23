@@ -100,6 +100,11 @@ cntools_backup_role_root_into() {
     wallets) root_output="${CNTOOLS_WALLET_DIR:-}" ;;
     pools) root_output="${CNTOOLS_POOL_DIR:-}" ;;
     assets) root_output="${CNTOOLS_ASSET_DIR:-}" ;;
+    # KES/opcert recovery in the CNTools state folder: backed up in full
+    # backups, but restored only as a recovery copy, never activated.
+    recovery)
+      [[ "${CNTOOLS_NODE_HOME:-}" == /* && "${CNTOOLS_NODE_HOME}" != / ]] || return 1
+      root_output="${CNTOOLS_NODE_HOME%/}/.cntools/recovery" ;;
     *) return 1 ;;
   esac
   root_output="${root_output%/}"

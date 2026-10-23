@@ -178,6 +178,17 @@ packages are kept separately under `${NODE_HOME}/scripts/cntools/.transactions/`
 their paths are displayed when saved. They survive temporary-file cleanup and
 are preserved by script deployments.
 
+Wallet, pool and policy creation, key protection and certificate operations
+keep their staging and work files in the owner-only `${NODE_HOME}/.cntools/`
+folder, not beside your keys in `priv`. KES rotation and first
+operational-certificate issuance also keep their per-pool lock in
+`.cntools/locks/` and their recovery copies, including the advanced issue
+counter, in `.cntools/recovery/`. Keep that folder until each operation has
+completed and been verified. Only the final rename or link into place touches
+the target folder. If a custom wallet, pool or asset folder is on a different
+filesystem, its brief staging falls back to that folder so publication stays
+atomic.
+
 CNTools can generate missing public keys, addresses and IDs from available
 keys or scripts and reuse them later. It does not silently replace mismatched
 files or decrypt protected keys during inspection.

@@ -9,8 +9,8 @@ CNTOOLS_KES_COUNTER_APPROVED=N CNTOOLS_KES_NODE_STOPPED=N
 cntools_kes_error() { cntools_pool_write_error "$1"; }
 
 cntools_kes_stage_safe() {
-  local directory='' mode=''
-  [[ "${CNTOOLS_KES_STAGE}" == "${CNTOOLS_POOL_DIR%/}/.cntools-kes-"* ]] || return 1
+  local directory='' mode='' recovery=''
+  cntools_state_path_into recovery recovery && [[ "${CNTOOLS_KES_STAGE}" == "${recovery}/kes-"* ]] || return 1
   for directory in "${CNTOOLS_KES_STAGE}" "${CNTOOLS_KES_STAGE}/original" "${CNTOOLS_KES_STAGE}/request" "${CNTOOLS_KES_STAGE}/replacement"; do
     cntools_pool_directory_writable "${directory}" && cntools_filesystem_mode_into mode "${directory}" &&
       [[ "${mode}" == 700 || "${mode}" == 0700 ]] || return 1
@@ -111,13 +111,18 @@ cntools_kes_phase_set() {
 }
 
 cntools_kes_lock_acquire() {
-  local prefix="$1" lock="${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock" saved=''
+  local prefix="$1" lock='' recovery='' saved=''
+  ! cntools_pool_legacy_opcert_lock "${CNTOOLS_KES_DIRECTORY}" || {
+    cntools_kes_error "An earlier CNTools build left an operational-certificate lock in ${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock. Finish or inspect that operation manually; no new certificate was issued."; return 1;
+  }
+  cntools_pool_opcert_lock_into lock "${CNTOOLS_KES_DIRECTORY}" && cntools_state_directory_into recovery recovery || {
+    cntools_kes_error 'The owner-only CNTools state folder (.cntools in the node home) is unavailable.'; return 1;
+  }
   saved="$(umask)"; umask 077
-  cntools_pool_directory_writable "${CNTOOLS_POOL_DIR}" || { umask "${saved}"; return 1; }
   if ! mkdir -- "${lock}" 2>/dev/null; then
     umask "${saved}"; cntools_kes_error 'An operational-certificate operation is pending. Continue it or inspect its recovery files; do not issue another certificate.'; return 1
   fi
-  CNTOOLS_KES_STAGE="$(mktemp -d "${CNTOOLS_POOL_DIR%/}/.cntools-kes-${prefix}.XXXXXX")" || { umask "${saved}"; return 1; }
+  CNTOOLS_KES_STAGE="$(mktemp -d "${recovery}/kes-${prefix}.XXXXXX")" || { umask "${saved}"; return 1; }
   umask "${saved}"
   printf '%s\n' "${CNTOOLS_KES_STAGE##*/}" > "${lock}/rotation" || return 1
   mkdir -m 700 -- "${lock}/busy" || return 1
@@ -125,13 +130,14 @@ cntools_kes_lock_acquire() {
 }
 
 cntools_kes_pending_load() {
-  local lock="${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock" name=''
-  cntools_pool_directory_writable "${lock}" && cntools_pool_public_file_safe "${lock}/rotation" 128 || return 1
+  local lock='' recovery='' name=''
+  cntools_pool_opcert_lock_into lock "${CNTOOLS_KES_DIRECTORY}" && cntools_state_directory_into recovery recovery &&
+    cntools_pool_directory_writable "${lock}" && cntools_pool_public_file_safe "${lock}/rotation" 128 || return 1
   name="$(< "${lock}/rotation")"
-  [[ "${name}" =~ ^\.cntools-kes-rotate\.[A-Za-z0-9]+$ ]] || {
+  [[ "${name}" =~ ^kes-rotate\.[A-Za-z0-9]+$ ]] || {
     cntools_kes_error 'The existing issuance lock requires manual recovery. No new certificate will be issued.'; return 1;
   }
-  CNTOOLS_KES_STAGE="${CNTOOLS_POOL_DIR%/}/${name}"
+  CNTOOLS_KES_STAGE="${recovery}/${name}"
   cntools_kes_stage_safe && cntools_kes_request_validate "${CNTOOLS_KES_STAGE}/request" || return 1
   cntools_pool_public_file_safe "${CNTOOLS_KES_STAGE}/phase" 128 || return 1
   mkdir -m 700 -- "${lock}/busy" 2>/dev/null || {
@@ -253,8 +259,9 @@ cntools_kes_replace() {
     cntools_filesystem_mode_into mode "${CNTOOLS_KES_STAGE}/original/${kind}" || return 1
     mode="$(printf '%03o' "$((8#${mode} & 0600))")"
   fi
-  # The publish temporary must be in the destination directory, even if the
-  # recovery root lives on another filesystem. Rename then remains atomic.
+  # The publish temporary shares the destination's filesystem (state work
+  # folder or the destination itself), so the rename stays atomic even when
+  # the recovery folder lives elsewhere.
   cntools_pool_temp_into work "${CNTOOLS_KES_DIRECTORY}" || return 1
   cp -- "${source}" "${work}" && chmod "${mode}" "${work}" || return 1
   if [[ "${immutable}" == Y ]]; then cntools_pool_chattr_prepare "${CNTOOLS_KES_DIRECTORY}" && cntools_pool_chattr -i "${target}" || return 1; fi
@@ -379,14 +386,17 @@ cntools_kes_publish() {
 }
 
 cntools_kes_lock_release() {
-  local lock="${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock"
-  cntools_pool_directory_writable "${lock}" && [[ "$(< "${lock}/rotation")" == "${CNTOOLS_KES_STAGE##*/}" ]] || return 1
+  local lock=''
+  cntools_pool_opcert_lock_into lock "${CNTOOLS_KES_DIRECTORY}" &&
+    cntools_pool_directory_writable "${lock}" && [[ "$(< "${lock}/rotation")" == "${CNTOOLS_KES_STAGE##*/}" ]] || return 1
   cntools_kes_cleanup
   rm -- "${lock}/rotation" && rmdir -- "${lock}"
 }
 
 cntools_kes_cleanup() {
-  if [[ -n "${CNTOOLS_KES_BUSY}" && "${CNTOOLS_KES_BUSY}" == "${CNTOOLS_KES_DIRECTORY}/.cntools-opcert-lock/busy" ]]; then
+  local lock=''
+  if [[ -n "${CNTOOLS_KES_BUSY}" ]] && cntools_pool_opcert_lock_into lock "${CNTOOLS_KES_DIRECTORY}" &&
+     [[ "${CNTOOLS_KES_BUSY}" == "${lock}/busy" ]]; then
     rmdir -- "${CNTOOLS_KES_BUSY}" 2>/dev/null || true
   fi
   CNTOOLS_KES_BUSY=''
