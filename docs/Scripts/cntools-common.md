@@ -371,11 +371,17 @@ request, then sets its own `cold.counter` to that counter + 1.
 When the cold signing key or hardware wallet file is on the same system,
 choose **Rotate now**. One confirmation generates the new KES keys and issues
 the certificate, which permanently advances the issue counter. CNTools then
-asks once whether to install the new set: answer yes only after stopping the
-block producer, or no to install later from **Pool → Rotate**. Keep the
-producer stopped if installation is interrupted, and continue the recorded
-recovery operation rather than issuing another certificate. Restart the node
-yourself afterwards and verify its health.
+asks once whether to install the new set, or you can install later from
+**Pool → Rotate**. The node can keep running: it uses its current KES key
+until it reloads or restarts. Don't restart it while the files are replaced;
+if installation is interrupted, continue the recorded recovery operation
+rather than issuing another certificate.
+
+After installation, a cnode running as an active systemd unit can be reloaded
+from CNTools with SIGHUP, which loads the new key without a restart. CNTools
+then checks the node's metrics for the new certificate. Otherwise reload the
+node yourself (`sudo kill -SIGHUP $(systemctl show --property MainPID --value <name>.service)`)
+or restart it, and verify its health.
 
 For offline cold-key signing:
 
@@ -385,7 +391,7 @@ For offline cold-key signing:
 3. Use **Pool → Rotate → Sign an offline request** there with the independently
    held cold key and current issue counter.
 4. Return only the reported certificate and advanced counter, import the
-   response on the node, then approve installation while the producer is stopped.
+   response on the node, approve installation, then reload or restart the node.
 
 A used issue counter is never rolled back. Keep recovery copies securely;
 never restore an older counter to make an old certificate usable.

@@ -133,17 +133,70 @@ cntools_kes_offline_instructions() {
   cntools_ui_wait
 }
 
-# The node reads these files only at startup, and CNTools never stops or
-# restarts it. One answer confirms the stopped producer and the installation.
+# The running node keeps its loaded KES key until it reloads or restarts, so
+# installation does not require stopping it. Load the new set afterwards.
 cntools_kes_install() {
-  cntools_ui_render_status warn 'Stop the block producer first: the five files are replaced one by one. CNTools never stops or restarts your node, and keeps the current files and the new set privately for recovery.'
-  cntools_kes_confirm 'Install the new KES key and certificate now? The block producer must already be stopped.' false \
+  cntools_ui_render_status info 'The node keeps signing with its current KES key until it reloads or restarts, so it can stay running. Do not restart it while the files are being replaced. CNTools keeps the current files and the new set privately for recovery.'
+  cntools_kes_confirm 'Install the new KES key and certificate now?' false \
     'Not installed. Active node files are unchanged and the issued set stays staged; reopen Pool → Rotate to install it.' || return 0
-  CNTOOLS_KES_NODE_STOPPED=Y
-  cntools_transaction_log CHOICE 'KES operational file publication approved; operator confirmed node stopped'
+  CNTOOLS_KES_INSTALL_APPROVED=Y
+  cntools_transaction_log CHOICE 'KES operational file publication approved'
   cntools_ui_spin_function 'Installing the validated KES key and certificate set…' cntools_kes_publish || return 1
-  cntools_ui_render_status info 'Restart the block producer with the new operational files, then check Pool → Show or gLiveView. If another deployment runs the node, securely deploy its matching KES signing key and certificate first. VRF and cold keys were not changed; never roll the issue counter back.'
-  cntools_kes_result 'KES keys and certificate installed'
+  cntools_kes_reload_offer
+}
+
+# PID of the cnode block producer's active systemd unit, if it runs that way.
+cntools_kes_systemd_pid_into() {
+  # Locals avoid "pid": callers pass that name to be assigned by printf -v.
+  local output="$1" unit="$2" main_pid=''
+  [[ "${CNTOOLS_IMPLEMENTATION:-}" == cnode && "${unit}" =~ ^[A-Za-z0-9_.@-]+\.service$ ]] &&
+    command -v systemctl >/dev/null 2>&1 || return 1
+  [[ "$(systemctl show --property LoadState --value -- "${unit}" 2>/dev/null)" == loaded &&
+     "$(systemctl show --property ActiveState --value -- "${unit}" 2>/dev/null)" == active ]] || return 1
+  main_pid="$(systemctl show --property MainPID --value -- "${unit}" 2>/dev/null)" || return 1
+  [[ "${main_pid}" =~ ^[1-9][0-9]*$ ]] || return 1
+  printf -v "${output}" '%s' "${main_pid}"
+}
+
+# Wait briefly for node metrics to report the new certificate's start period.
+cntools_kes_reload_confirmed() {
+  local url='' metrics='' seen='' attempt=0
+  url="$(cntools_health_local_metrics_url)" || return 2
+  for ((attempt = 0; attempt < 15; attempt++)); do
+    metrics="$(cntools_health_fetch_local "${url}" 2>/dev/null)" &&
+      seen="$(sed -nE 's/^cardano_node_metrics_operationalCertificateStartKESPeriod_int[[:space:]]+([0-9]+).*/\1/p' <<< "${metrics}" | head -n 1)"
+    [[ "${seen}" != "${CNTOOLS_KES_START}" ]] || return 0
+    sleep 1
+  done
+  return 1
+}
+
+# cardano-node re-reads its KES key and operational certificate on SIGHUP.
+cntools_kes_reload_offer() {
+  local unit="${CNTOOLS_SERVICE%.service}.service" pid='' choice='' status=0
+  local manual="sudo kill -SIGHUP \$(systemctl show --property MainPID --value ${unit})"
+  local closing='VRF and cold keys were not changed; never roll the issue counter back. If another system runs this pool, deploy its matching KES signing key and certificate there.'
+  if cntools_kes_systemd_pid_into pid "${unit}"; then
+    cntools_kes_choose choice 'Load the new KES key' 'Reload the node now (SIGHUP)' 'I will reload or restart it myself' || choice=''
+    if [[ "${choice}" == 'Reload the node now (SIGHUP)' ]]; then
+      if kill -HUP "${pid}" 2>/dev/null || { command -v sudo >/dev/null 2>&1 && sudo -n kill -HUP "${pid}" 2>/dev/null; }; then
+        cntools_transaction_log POOL "KES reload signal sent unit=${unit} pid=${pid}"
+        cntools_ui_spin_function 'Waiting for the node to load the new certificate…' cntools_kes_reload_confirmed || status=$?
+        if ((status == 0)); then
+          cntools_ui_render_status info "${closing}"
+          cntools_kes_result 'KES keys and certificate installed and loaded by the node'; return 0
+        fi
+        cntools_ui_render_status warn "The reload signal was sent, but node metrics did not show the new certificate (start period ${CNTOOLS_KES_START}). Check gLiveView or the node log; restart the node if it did not reload. ${closing}"
+        cntools_kes_result 'KES keys and certificate installed; reload signal sent' warning; return 0
+      fi
+      cntools_ui_render_status warn "CNTools could not signal ${unit} (PID ${pid}). Run: ${manual}"
+      cntools_kes_result 'KES keys and certificate installed; the node has not loaded them yet' warning; return 0
+    fi
+    cntools_ui_render_status info "Load the new set by reloading the node (${manual}) or restarting it. ${closing}"
+  else
+    cntools_ui_render_status info "No active systemd unit ${unit} was found for this node. Load the new set by sending SIGHUP to the cardano-node process or restarting it. ${closing}"
+  fi
+  cntools_kes_result 'KES keys and certificate installed; reload or restart the node to use them' warning
 }
 
 cntools_kes_continue() {
@@ -197,7 +250,7 @@ cntools_kes_continue() {
 cntools_pool_action_rotate() {
   local selected='' choice='' request='' status=0
   CNTOOLS_KES_STAGE='' CNTOOLS_KES_BUSY='' CNTOOLS_KES_START='' CNTOOLS_KES_CURRENT=''
-  CNTOOLS_KES_COUNTER_APPROVED=N CNTOOLS_KES_NODE_STOPPED=N CNTOOLS_KES_PERIOD_SOURCE=''
+  CNTOOLS_KES_COUNTER_APPROVED=N CNTOOLS_KES_INSTALL_APPROVED=N CNTOOLS_KES_PERIOD_SOURCE=''
   cntools_ui_action_begin Rotate '/ Pool / Rotate'
   cntools_kes_environment || { cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-KES prerequisites unavailable}}" error; return 0; }
   cntools_ui_spin_function 'Reading pool identities…' cntools_pool_catalog_build || return 1

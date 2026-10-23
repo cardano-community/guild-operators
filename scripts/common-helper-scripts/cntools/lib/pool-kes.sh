@@ -4,7 +4,7 @@
 CNTOOLS_KES_DIRECTORY='' CNTOOLS_KES_STAGE='' CNTOOLS_KES_BUSY=''
 CNTOOLS_KES_INDEX=0 CNTOOLS_KES_START='' CNTOOLS_KES_NEXT='' CNTOOLS_KES_LEDGER=''
 CNTOOLS_KES_SOURCE='' CNTOOLS_KES_KIND='' CNTOOLS_KES_CURRENT='' CNTOOLS_KES_PERIOD_SOURCE=''
-CNTOOLS_KES_COUNTER_APPROVED=N CNTOOLS_KES_NODE_STOPPED=N CNTOOLS_KES_DISK_NEXT='' CNTOOLS_KES_COUNTER_SOURCE=''
+CNTOOLS_KES_COUNTER_APPROVED=N CNTOOLS_KES_INSTALL_APPROVED=N CNTOOLS_KES_DISK_NEXT='' CNTOOLS_KES_COUNTER_SOURCE=''
 
 cntools_kes_error() { cntools_pool_write_error "$1"; }
 
@@ -374,7 +374,7 @@ cntools_kes_import_response() {
 
 cntools_kes_publish() {
   local phase='' stage="${CNTOOLS_KES_STAGE}" kind='' filename='' evolutions='' derived='' genesis="${CNTOOLS_SHELLEY_GENESIS:-}"
-  [[ "${CNTOOLS_KES_NODE_STOPPED}" == Y ]] || { cntools_kes_error 'Stop the block producer and explicitly confirm before replacing KES operational files.'; return 1; }
+  [[ "${CNTOOLS_KES_INSTALL_APPROVED}" == Y ]] || { cntools_kes_error 'Confirm the installation before replacing KES operational files.'; return 1; }
   phase="$(< "${stage}/phase")"
   [[ "${phase}" == issued || "${phase}" == publishing ]] && cntools_kes_response_validate "${stage}/replacement" &&
     cntools_pool_key_validate "${stage}/replacement/hot.skey" kes signing && cntools_kes_originals_match Y || return 1
@@ -394,10 +394,12 @@ cntools_kes_publish() {
     }
   fi
   cntools_kes_phase_set publishing || return 1
-  for kind in counter kes-skey kes-vkey kes-start opcert; do
+  # The node reads only hot.skey and op.cert, and only at startup or reload.
+  # Replace them last and back to back; reload once all five are in place.
+  for kind in counter kes-vkey kes-start kes-skey opcert; do
     case "${kind}" in counter) filename=cold.counter ;; kes-skey) filename=hot.skey ;; kes-vkey) filename=hot.vkey ;; kes-start) filename=kes.start ;; opcert) filename=op.cert ;; esac
     cntools_kes_originals_match Y && cntools_kes_replace "${kind}" "${stage}/replacement/${filename}" || {
-      cntools_kes_error 'Publication was interrupted. Keep the node stopped and continue this rotation; its recovery copy and advanced counter were retained.'; return 1;
+      cntools_kes_error 'Publication was interrupted. Do not restart or reload the node; continue this rotation to finish installing; its recovery copy and advanced counter were retained.'; return 1;
     }
   done
   cntools_kes_phase_set complete && cntools_kes_lock_release
