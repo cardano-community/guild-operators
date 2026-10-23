@@ -441,13 +441,20 @@ dispatcher_usage() {
 	-p    Parent path below which the top-level folder is created (Default: /opt/cardano)
 	-t    Alternate top-level folder/service name (Default: selected implementation)
 	-b    Guild Operators repository branch (Default: stored deployment branch, then master)
-	-s    Selective install flags. Common meanings:
+	-s    Selective install flags. All implementations:
 	        p  runtime OS prerequisites
 	        d  selected node implementation binaries
 	        f  force configuration overwrite
 	        s  force helper-script overwrite
 	        w  cardano-hw-cli and host device rules
-	      cnode also supports b,l,m,c,o,x,r; alternate profiles reject them.
+	      cnode only (dingo and amaru reject these):
+	        b  Haskell build toolchain (GHCup, GHC, Cabal, secp256k1, blst)
+	        l  libsodium fork for source builds
+	        m  Mithril signer and client
+	        c  CNCLI
+	        o  Ogmios
+	        x  Cardano Signer
+	        r  openBlockPerf
 	      Unsupported flags fail explicitly.
 	-h    Show this help
 

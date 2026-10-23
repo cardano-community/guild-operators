@@ -143,9 +143,11 @@ The usage syntax can be checked using `./guild-deploy.sh -h`. The same
 downloaded entrypoint dispatches to the selected node implementation:
 
 ``` bash
-Usage: guild-deploy.sh [-i <cnode|dingo|amaru>] [-n <network>] \
+Usage: guild-deploy.sh [-g account] [-i <cnode|dingo|amaru>] [-n <network>] \
                        [-p path] [-t name] [-b branch] [-s flags]
 
+-g    GitHub account that owns the Guild Operators repository
+      (default: stored deployment account, then cardano-community)
 -i    Node implementation (default: cnode)
 -n    Network. cnode defaults to mainnet; alternate profiles require an
       explicit supported network on initial deployment (an existing manifest
@@ -153,25 +155,23 @@ Usage: guild-deploy.sh [-i <cnode|dingo|amaru>] [-n <network>] \
 -p    Parent folder (default: /opt/cardano)
 -t    Top-level folder and service name (default: selected implementation)
 -b    Guild Operators branch (default: stored deployment branch, then master)
--s    Selective install flags
-        p  runtime prerequisites
-        d  selected implementation binaries
-        f  force implementation configuration overwrite
-        s  force helper-script user-variable overwrite
+-s    Selective install flags. All implementations:
+        p  runtime OS prerequisites
+        d  selected node implementation binaries
+        f  force configuration overwrite
+        s  force helper-script overwrite
+        w  cardano-hw-cli and host device rules
+      cnode only (dingo and amaru reject these):
+        b  Haskell build toolchain (GHCup, GHC, Cabal, secp256k1, blst)
+        l  libsodium fork for source builds
+        m  Mithril signer and client
+        c  CNCLI
+        o  Ogmios
+        x  Cardano Signer
+        r  openBlockPerf
 ```
 
-The cnode profile additionally supports:
-
-- `b`: install the Haskell build toolchain and source-build prerequisites
-- `l`: build and install the cnode libsodium dependency
-- `m`: install Mithril binaries
-- `c`: install CNCLI
-- `o`: install Ogmios
-- `w`: install Cardano Hardware CLI
-- `x`: install Cardano Signer
-- `r`: install openBlockPerf
-
-Dingo and Amaru reject those cnode-only choices instead of silently installing
+Dingo and Amaru reject the cnode-only choices instead of silently installing
 incompatible software. See
 [Node implementation deployment architecture](Build/node-implementations.md)
 and the implementation-specific
