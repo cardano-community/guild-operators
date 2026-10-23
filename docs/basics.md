@@ -154,6 +154,8 @@ Usage: guild-deploy.sh [-g account] [-i <cnode|dingo|amaru>] [-n <network>] \
       restores it on later runs)
 -p    Parent folder (default: /opt/cardano)
 -t    Top-level folder and service name (default: selected implementation)
+      Without -p and -t, the copy installed as <target>/scripts/guild-deploy.sh
+      defaults to its own <target> and implementation
 -b    Guild Operators branch (default: stored deployment branch, then master)
 -s    Selective install flags. All implementations:
         p  runtime OS prerequisites
@@ -248,6 +250,20 @@ update source; an explicit network must match the existing deployment and
 cannot convert the target.
 For Dingo and Amaru, `-n` is therefore required only on the initial
 deployment; it may be omitted when updating a target with a valid manifest.
+
+Each deployment also installs its own copy of the dispatcher at
+`<target>/scripts/guild-deploy.sh`. Run without `-p` and `-t`, that copy
+updates the deployment it is installed in instead of the default
+`/opt/cardano/<implementation>`, so the manifest supplies the implementation,
+network, branch, and repository account:
+
+```bash
+/opt/cardano/preview/scripts/guild-deploy.sh -s d
+```
+
+`-p`, `-t`, or `NODE_PARENT`/`NODE_NAME` in its user-variable block or
+environment select a target as usual, and `-i` naming a different
+implementation falls back to that implementation's default target.
 
 Deployment paths are intentionally limited to shell- and systemd-safe
 characters. A target is locked for the full deployment, so a simultaneous

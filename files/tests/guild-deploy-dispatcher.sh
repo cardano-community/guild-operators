@@ -1416,6 +1416,80 @@ if find "${TEST_DIR}" -maxdepth 1 -type d -name 'guild-operators-source.*' \
   fail "end-to-end snapshot deployment left a temporary checkout"
 fi
 
+installed_target="$(cd "${full_snapshot_target}" && pwd)"
+installed_dispatcher="${installed_target}/scripts/guild-deploy.sh"
+unmanaged_dispatcher="${TEST_DIR}/unmanaged/scripts/guild-deploy.sh"
+mkdir -p "$(dirname "${unmanaged_dispatcher}")"
+cp "${installed_dispatcher}" "${unmanaged_dispatcher}"
+
+# Prints the target inputs that reach dispatcher_set_defaults, before the
+# regular /opt/cardano/<implementation> defaults are applied.
+installed_target_selection() (
+  local dispatcher="$1"
+  local preset="$2"
+  shift 2
+  dispatcher_set_defaults() {
+    printf '%s|%s|%s\n' \
+      "${NODE_PARENT:-}" "${NODE_NAME:-}" "${NODE_IMPLEMENTATION:-}"
+    exit 0
+  }
+  unset NODE_IMPLEMENTATION CNODE_IMPLEMENTATION
+  unset NODE_PARENT NODE_NAME CNODE_PATH CNODE_NAME
+  [[ -z "${preset}" ]] || export "${preset?}"
+  DISPATCHER_DIR="$(dirname "${dispatcher}")"
+  DISPATCHER_SCRIPT_PATH="${dispatcher}"
+  guild_deploy_main "$@" | tail -n 1
+)
+
+installed_selection="$(dirname "${installed_target}")|snapshot_e2e|dingo"
+assert_eq \
+  "$(installed_target_selection "${installed_dispatcher}" "")" \
+  "${installed_selection}"
+assert_eq \
+  "$(installed_target_selection "${installed_dispatcher}" "" -i dingo)" \
+  "${installed_selection}"
+assert_eq \
+  "$(installed_target_selection "${installed_dispatcher}" "" -t override-target)" \
+  "|override-target|"
+assert_eq \
+  "$(installed_target_selection "${installed_dispatcher}" "" -p "${TEST_DIR}")" \
+  "${TEST_DIR}||"
+assert_eq \
+  "$(installed_target_selection "${installed_dispatcher}" "NODE_NAME=header-target")" \
+  "|header-target|"
+assert_eq \
+  "$(installed_target_selection "${installed_dispatcher}" "" -i cnode)" \
+  "||cnode"
+assert_eq \
+  "$(installed_target_selection "${DISPATCHER_SCRIPT_PATH}" "")" \
+  "||"
+assert_eq \
+  "$(installed_target_selection "${unmanaged_dispatcher}" "")" \
+  "||"
+
+installed_run_log="${TEST_DIR}/installed-dispatcher.log"
+(
+  unset NODE_IMPLEMENTATION CNODE_IMPLEMENTATION
+  unset NODE_PARENT NODE_NAME CNODE_PATH CNODE_NAME
+  unset NETWORK BRANCH G_ACCOUNT
+  TMPDIR="${TEST_DIR}"
+  SUDO="N"
+  export TMPDIR SUDO
+  configure_local_git_remote "${full_snapshot_remote}"
+  bash "${installed_dispatcher}"
+) > "${installed_run_log}" 2>&1 ||
+  fail "installed dispatcher could not update its own deployment without -p/-t"
+grep -qF "Using ${installed_target}, where this guild-deploy.sh is installed" \
+  "${installed_run_log}" ||
+  fail "installed dispatcher did not report its inferred target"
+grep -qxF "  Target         : ${installed_target}" "${installed_run_log}" ||
+  fail "installed dispatcher did not select its own deployment"
+grep -qxF "  Network        : preprod" "${installed_run_log}" ||
+  fail "installed dispatcher did not restore its stored network"
+assert_eq \
+  "$(jq -r '.deploymentStatus' "${installed_target}/.deployment.json")" \
+  "deployed"
+
 failure_child_log="${TEST_DIR}/snapshot-child-failure.log"
 if (
   trap cleanup_dispatcher EXIT

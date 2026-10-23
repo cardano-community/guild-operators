@@ -440,6 +440,8 @@ dispatcher_usage() {
 	-n    Network. cnode defaults to mainnet; alternate implementations require an explicit supported network
 	-p    Parent path below which the top-level folder is created (Default: /opt/cardano)
 	-t    Alternate top-level folder/service name (Default: selected implementation)
+	      Without -p and -t, the copy installed as <target>/scripts/guild-deploy.sh
+	      defaults to its own <target> and implementation
 	-b    Guild Operators repository branch (Default: stored deployment branch, then master)
 	-s    Selective install flags. All implementations:
 	        p  runtime OS prerequisites
@@ -2205,6 +2207,44 @@ partial_target_matches_implementation() {
   esac
 }
 
+# The copy installed at <target>/scripts/guild-deploy.sh manages <target>
+# unless -p/-t, NODE_PARENT/NODE_NAME, or the legacy CNODE_PATH/CNODE_NAME
+# select another one, or the implementation requested differs from the stored
+# one. Only the bootstrap stage infers this: the snapshot child runs from the
+# temporary checkout, inherits the exported NODE_PARENT, NODE_NAME, and
+# NODE_IMPLEMENTATION, and must match GUILD_DEPLOY_TARGET_PATH.
+dispatcher_select_installed_target() {
+  local installed_home=""
+  local installed_parent=""
+  local installed_name=""
+  local manifest=""
+  local stored_schema=""
+  local stored_implementation=""
+  local requested_implementation="${NODE_IMPLEMENTATION:-${CNODE_IMPLEMENTATION:-}}"
+
+  [[ -z "${NODE_PARENT:-}${NODE_NAME:-}${CNODE_PATH:-}${CNODE_NAME:-}" ]] || return 0
+  [[ "$(basename "${DISPATCHER_SCRIPT_PATH}")" = "guild-deploy.sh" &&
+     "$(basename "${DISPATCHER_DIR}")" = "scripts" ]] || return 0
+  installed_home="$(dirname "${DISPATCHER_DIR}")"
+  installed_parent="$(dirname "${installed_home}")"
+  installed_name="$(basename "${installed_home}")"
+  manifest="${installed_home}/.deployment.json"
+  validate_deployment_path "${installed_parent}" &&
+    [[ "${installed_name}" =~ ^[A-Za-z0-9_]+$ ]] || return 0
+  [[ -f "${manifest}" && ! -L "${manifest}" ]] || return 0
+  stored_schema="$(deployment_json_get "${manifest}" schemaVersion || true)"
+  stored_implementation="$(deployment_json_get "${manifest}" implementation || true)"
+  [[ "${stored_schema}" = "1" ]] &&
+    validate_implementation "${stored_implementation}" || return 0
+  [[ -z "${requested_implementation}" ||
+     "${requested_implementation}" = "${stored_implementation}" ]] || return 0
+
+  NODE_IMPLEMENTATION="${stored_implementation}"
+  NODE_PARENT="${installed_parent}"
+  NODE_NAME="${installed_name}"
+  log_info "Using ${installed_home}, where this guild-deploy.sh is installed (pass -p/-t to choose another target)."
+}
+
 dispatcher_set_defaults() {
   : "${LEGACY_CNODE_TARGET:=N}"
   : "${NETWORK_PRESET:=N}"
@@ -2826,6 +2866,7 @@ guild_deploy_main() {
     bootstrap)
       GUILD_DEPLOY_USER_HEADER="$(dispatcher_extract_user_header "${DISPATCHER_SCRIPT_PATH}")" ||
         err_exit "The running guild-deploy.sh has an invalid user-variable header."
+      dispatcher_select_installed_target
       DISPATCHER_LOCK_TARGET="Y"
       ;;
     ready)
