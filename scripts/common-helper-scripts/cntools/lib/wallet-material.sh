@@ -225,6 +225,8 @@ cntools_wallet_materialize_all() {
   local failures=0
   local -a candidates=()
 
+  # No wallet folder yet means nothing to prepare, not a failure.
+  [[ -e "${root}" || -L "${root}" ]] || return 0
   cntools_wallet_root_safe || return 1
   candidates=(
     "${root}"/*

@@ -402,10 +402,12 @@ cntools_wallet_catalog_build() {
     cntools_wallet_log ERROR "Wallet root is unset or unsafe"
     return 1
   }
-  [[ -e "${root}" || -L "${root}" ]] || {
-    cntools_wallet_log ERROR "Wallet root does not exist: ${root}"
-    return 1
-  }
+  # A fresh deployment has no wallet folder until the first wallet is created
+  # or imported; that is an empty catalog, as for pools and policies.
+  if [[ ! -e "${root}" && ! -L "${root}" ]]; then
+    cntools_wallet_log WALLET "Wallet root does not exist yet: ${root}"
+    return 0
+  fi
   [[ -d "${root}" && ! -L "${root}" ]] || {
     cntools_wallet_log ERROR "Wallet root is not a safe directory: ${root}"
     return 1
