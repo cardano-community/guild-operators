@@ -150,6 +150,13 @@ cntools_pool_choose_into() {
     printf -v _pool_row '%02d  %s · %s' "$((_pool_index + 1))" "${CNTOOLS_POOL_NAMES[_pool_index]}" "${CNTOOLS_POOL_PROTECTIONS[_pool_index]}"
     _pool_rows+=("${_pool_row}")
   done
+  # A lone pool needs no picker; later steps still confirm the action.
+  if (( ${#_pool_rows[@]} == 1 )); then
+    printf -v "${_pool_output}" '%s' 0
+    cntools_transaction_log CHOICE "Pool auto-selected=${CNTOOLS_POOL_NAMES[0]}"
+    cntools_ui_render_status info "Using ${CNTOOLS_POOL_NAMES[0]}, the only pool."
+    return 0
+  fi
   cntools_ui_choose _pool_choice 'Filter pools…' "${_pool_rows[@]}" Cancel || return $?
   [[ "${_pool_choice}" != Cancel ]] || return 1
   for _pool_index in "${!_pool_rows[@]}"; do

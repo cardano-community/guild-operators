@@ -20,6 +20,17 @@ cntools_wallet_selection_material() {
 cntools_wallet_selection_collect() {
   local context="$1" directory='' address='' payload='' response='' now=0 registered='' rewards='' status='' offset=0 snapshot=''
   local -a addresses=() batch=()
+  if [[ "${context}" == send ]]; then
+    # Koios answers every wallet in one batch, so light mode shows balances.
+    declare -F cntools_wallet_list_query_koios_funding >/dev/null 2>&1 || return 0
+    cntools_wallet_list_query_reset
+    [[ "${CNTOOLS_MODE:-offline}" == light ]] || return 0
+    cntools_wallet_list_collect_addresses || return 0
+    cntools_wallet_list_query_koios_funding || cntools_wallet_log WARN 'Send wallet balances unavailable; wallets remain selectable'
+    cntools_wallet_list_project_koios_results || true
+    cntools_wallet_query_cleanup
+    return 0
+  fi
   case "${context}" in register|deregister|delegate|vote-delegate|withdraw) ;; *) return 0 ;; esac
   printf -v now '%(%s)T' -1
   local scope="${CNTOOLS_NETWORK}|${CNTOOLS_MODE:-offline}|${CNTOOLS_KOIOS_ENABLED:-N}|${CNTOOLS_KOIOS_API:-}|${CNTOOLS_SOCKET:-}|${CNTOOLS_WALLET_PATHS[*]}"
@@ -107,6 +118,9 @@ cntools_wallet_selection_candidate_into() {
       fi
     fi
     [[ "${CNTOOLS_WALLET_TYPES[index]}" != MultiSig ]] || candidate_annotation="Native script · ${candidate_annotation}"
+  fi
+  if [[ "${context}" == send && "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]:-}" =~ ^[0-9]+$ ]]; then
+    candidate_annotation="$(cntools_number_format_lovelace "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]}")${candidate_annotation:+ · ${candidate_annotation}}"
   fi
   printf -v "${destination}" '%s' "${candidate_annotation}"
 }

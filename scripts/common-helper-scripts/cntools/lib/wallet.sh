@@ -562,6 +562,8 @@ cntools_wallet_catalog_rows() {
   cntools_table_row "Wallet" "Property" "Value" || return 1
   for (( index = 0; index < ${#CNTOOLS_WALLET_NAMES[@]}; index++ )); do
     wallet_name="${CNTOOLS_WALLET_NAMES[index]}"
+    # A blank row keeps each wallet's properties visually grouped.
+    (( index == 0 )) || cntools_table_row_prepared '' '' '' || return 1
     cntools_wallet_catalog_primary_into \
       "${CNTOOLS_WALLET_PATHS[index]}" "${index}" \
       primary_address primary_label primary_note || return 1
@@ -636,6 +638,7 @@ cntools_wallet_choose() {
   local _cntools_row=""
   local _cntools_status=0
   local _cntools_context="${3:-}" _cntools_annotation=''
+  local _cntools_auto_single="${4:-Y}"
   local -a _cntools_rows=()
   local -a _cntools_indices=()
 
@@ -665,6 +668,15 @@ cntools_wallet_choose() {
   if (( ${#_cntools_rows[@]} == 0 )); then
     cntools_ui_render_status info 'No suitable wallets for this action. Protected/watch-only keys can still be used for offline signing when their public material is available.'
     cntools_ui_wait; return 1
+  fi
+  # A lone candidate needs no picker; later steps still confirm the action.
+  if (( ${#_cntools_rows[@]} == 1 )) && [[ "${_cntools_auto_single}" == "Y" ]]; then
+    _cntools_output_ref="${_cntools_indices[0]}"
+    cntools_wallet_log CHOICE \
+      "auto-selected only wallet=${CNTOOLS_WALLET_NAMES[_cntools_output_ref]} action=${_cntools_context:-inspect}"
+    cntools_ui_render_status info \
+      "Using ${CNTOOLS_WALLET_NAMES[_cntools_output_ref]}, the only suitable wallet."
+    return 0
   fi
   [[ -z "${_cntools_cancel}" ]] || _cntools_rows+=("${_cntools_cancel}")
   if cntools_ui_choose \
@@ -725,6 +737,7 @@ cntools_wallet_cleanup_material() {
 
 cntools_wallet_action_list_impl() {
   local fetch_live="N"
+  local ask_live="N"
   local spinner_title="Fetching wallet balances and rewards…"
   local confirmation_status=0
 
@@ -753,13 +766,16 @@ cntools_wallet_action_list_impl() {
     local)
       if [[ "${CNTOOLS_LOCAL_CLI_CAPABLE:-false}" == "true" ]]; then
         fetch_live="Y"
+        # Local address queries scan the UTxO set and can take minutes.
+        ask_live="Y"
         spinner_title="Fetching wallet balances and rewards from ${CNTOOLS_IMPLEMENTATION_NAME:-the local node}…"
       fi
       ;;
   esac
 
   if [[ "${fetch_live}" == "Y" ]]; then
-    if cntools_ui_confirm "Fetch balances and rewards for all wallets now?"; then
+    if [[ "${ask_live}" != "Y" ]] ||
+        cntools_ui_confirm "Fetch balances and rewards for all wallets now? This can take a while on mainnet."; then
       cntools_wallet_log CHOICE "wallet catalog live balances requested"
       if ! cntools_ui_spin_function \
           "${spinner_title}" cntools_wallet_list_query_catalog; then

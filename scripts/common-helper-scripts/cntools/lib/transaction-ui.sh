@@ -1192,9 +1192,10 @@ cntools_transaction_ui_offer_monitor() {
       cntools_transaction_ui_styled_row 'Transaction ID' "${transaction_id}" identifier
       if [[ "${CNTOOLS_TRANSACTION_MONITOR_STATE}" == included ]]; then
         if [[ "${CNTOOLS_TRANSACTION_MONITOR_ELAPSED}" =~ ^[0-9]+$ ]]; then
-          elapsed_label="$(cntools_number_format "${CNTOOLS_TRANSACTION_MONITOR_ELAPSED}") seconds"
+          # Includes Koios indexing lag and the five-second check interval.
+          elapsed_label="$(cntools_number_format "${CNTOOLS_TRANSACTION_MONITOR_ELAPSED}") seconds after submission"
         fi
-        cntools_transaction_ui_styled_row 'Time to inclusion' "${elapsed_label}" number
+        cntools_transaction_ui_styled_row 'Observed in a block' "${elapsed_label}" number
       fi
     } | cntools_ui_table --separator $'\t' --widths "${widths}" || true
   fi

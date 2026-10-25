@@ -1046,7 +1046,7 @@ cntools_ui_choose() {
     "$#" "${_cntools_rows_above}")" || return 1
   if _cntools_value="$(printf '%s\n' "$@" | cntools_gum filter \
       --limit 1 --height "${_cntools_height}" --width "${_cntools_width}" \
-      --padding "0 2 1 2" --no-show-help \
+      --padding "0 2 1 2" --no-show-help --no-fuzzy \
       --placeholder "${_cntools_placeholder}" \
       --placeholder.foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
       --prompt "› " --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
@@ -1520,7 +1520,7 @@ cntools_gum_filter() {
   _cntools_width="$(cntools_gum_width)"
   if _cntools_result="$(printf '%s\n' "$@" | cntools_gum filter \
       --limit 1 --height "${_cntools_height}" --width "${_cntools_width}" \
-      --padding "0 2 1 2" \
+      --padding "0 2 1 2" --no-fuzzy \
       --placeholder "Filter actions…" \
       --placeholder.foreground "${CNTOOLS_GUM_COLOR_MUTED}" \
       --prompt "› " --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \

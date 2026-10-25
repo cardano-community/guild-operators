@@ -24,6 +24,7 @@
     "wallet-query-local.sh",
     "asset-metadata.sh",
     "wallet-query-koios.sh",
+    "wallet-list-query.sh",
     "asset-view.sh",
     "wallet-query.sh",
     "utxo.sh",

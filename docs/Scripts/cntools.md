@@ -57,6 +57,9 @@ menu does not make an unavailable backend or companion tool optional.
 Local node queries wait up to `QUERY_TIMEOUT` seconds (default 180; set it in
 `env`). On mainnet, address balance queries scan the whole UTxO set and can
 take a minute or more; light mode answers wallet views much faster.
+**Wallet → List** therefore asks before fetching balances in local mode, and
+fetches them directly in light mode, where the Send wallet picker also shows
+each wallet's ADA balance.
 
 Building a normal transaction requires current chain data, even when you plan
 to sign it offline. An unavailable node does not stop CNTools from opening.
@@ -69,7 +72,10 @@ The header shows CNTools version, current menu path, mode, backend and network.
 Check the network before performing any transaction.
 
 Type to filter menu choices, use the arrow keys to move, and press Enter to
-select. Use the displayed Back, Home and Quit choices to navigate. Escape first
+select. Filtering keeps the rows that contain the typed text, in menu order.
+Use the displayed Back, Home and Quit choices to navigate. When only one wallet
+or pool suits an action, CNTools selects it and names it instead of asking;
+Wallet → Remove always asks. Escape first
 leaves the filter input; cancelling a submenu selection returns without running
 an action. Prompts provide cancellation where applicable.
 

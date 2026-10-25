@@ -17,6 +17,12 @@ cntools_pool_registration_choose_eligible_into() {
   if (( ${#rows[@]} == 0 )); then
     cntools_wallet_register_set_error 'No eligible pools with verified public keys and reachable registration state. Register needs an unregistered pool; Modify and Retire need a registered pool.'; return 2
   fi
+  if (( ${#rows[@]} == 1 )); then
+    printf -v "${output}" '%s' "${indices[0]}"
+    cntools_transaction_log CHOICE "Pool auto-selected=${CNTOOLS_POOL_NAMES[indices[0]]}"
+    cntools_ui_render_status info "Using ${CNTOOLS_POOL_NAMES[indices[0]]}, the only eligible pool."
+    return 0
+  fi
   cntools_pool_registration_choose selected_choice 'Select pool' "${rows[@]}" Cancel || return $?
   [[ "${selected_choice}" != Cancel ]] || return 1
   for index in "${!rows[@]}"; do
