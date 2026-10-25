@@ -24,8 +24,12 @@ cntools_history_metadata_offer() {
   [[ -n "${identities}" ]] || return 0
   mapfile -t assets <<< "${identities}"
   if [[ "${CNTOOLS_HISTORY_METADATA}" == ask ]]; then
-    cntools_ui_choose choice "Asset metadata (Koios API / one-day cache)" \
-      "Use asset names and decimal amounts" "Keep raw asset identifiers and quantities" || choice="Keep raw asset identifiers and quantities"
+    if cntools_flow_quick; then
+      choice="Use asset names and decimal amounts"
+    else
+      cntools_ui_choose choice "Asset metadata (Koios API / one-day cache)" \
+        "Use asset names and decimal amounts" "Keep raw asset identifiers and quantities" || choice="Keep raw asset identifiers and quantities"
+    fi
     if [[ "${choice}" == "Use asset names and decimal amounts" ]]; then
       CNTOOLS_HISTORY_METADATA=Y
     else

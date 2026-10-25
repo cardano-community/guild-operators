@@ -59,18 +59,19 @@ cntools_pool_retirement_workflow() {
   cntools_ui_spin_function 'Checking pool state, retirement limits and funding…' cntools_pool_registration_collect || return 2
   cntools_pool_retirement_select_epoch || return $?
   cntools_pool_registration_can_sign_into can_sign
-  cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
-  cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
+  cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
+  cntools_transaction_ui_initial_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
   cntools_pool_registration_hardware_choice || return $?
   while true; do
     cntools_ui_spin_function 'Building and validating the retirement transaction…' cntools_pool_registration_build_into staged || return 2
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into choice "${staged}" "${proceed}" cntools_pool_registration_begin \
-      cntools_pool_registration_render_plan 'Change retirement epoch' 'Change workflow' || return $?
+      cntools_pool_registration_render_plan 'Change retirement epoch' 'Change expiry' 'Change workflow' || return $?
     case "${choice}" in
       "${proceed}") break ;;
       'Change retirement epoch') cntools_pool_retirement_select_epoch || return $? ;;
       'Change workflow') cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $? ;;
+      'Change expiry') cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $? ;;
       *) return 2 ;;
     esac
   done

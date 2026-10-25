@@ -95,7 +95,7 @@ Dates follow `BLOCKLOG_TZ` in `env`, defaulting to UTC.
 | Transaction | Review and sign portable packages, or submit completed packages and supported external signed transactions. |
 | Backup & Restore | Create full or public-only backups and restore without overwriting existing folders. |
 | Blocks | Read block-production summaries and epoch details from the configured CNCLI blocklog. |
-| Settings | Set transaction defaults and, with `-a`, choose a theme. |
+| Settings | Choose the Quick or Detailed flow style, set transaction defaults and, with `-a`, choose a theme. |
 | Update | Check availability, read changes and refresh the deployment through Guild Deploy. |
 | Advanced (`-a`) | Manage native assets and policies, create multisig identities, clear asset metadata cache and explicitly delete private keys. |
 
@@ -119,6 +119,12 @@ If the required signing keys are unavailable or protected, unsigned export
 remains available when the required public material exists. Multisig actions
 ask which participants will sign; the selected witnesses must all be collected.
 
+In the Quick flow style, transactions start as **Create, sign and submit**
+(or **Create unsigned package** when the signing keys are unavailable) with
+the default expiry from Settings; change either with **Change workflow** or
+**Change expiry** in the review. Approving the review submits without a second
+question. Detailed asks for the workflow and expiry first.
+
 Every creating action offers an expiry, including **No expiry**. The standard
 choices include 30 minutes, 2 hours and 24 hours for offline signing.
 No expiry does not remove a native script's mandatory time bounds. Changing
@@ -134,12 +140,30 @@ resolved. Packages contain public transaction and signer information, not privat
 keys, but may still contain sensitive addresses, messages or metadata.
 
 Accepted submission does not prove block inclusion. When Koios is available,
-CNTools offers to monitor inclusion every five seconds. The result shows the
+CNTools monitors inclusion every five seconds; Detailed asks first. The result shows the
 transaction ID and elapsed time until Koios observes it in a block. Indexing
 can lag: if submission or monitoring is uncertain, check the reported ID before
 creating a replacement transaction.
 
 ## Settings
+
+### Flow style
+
+On first start, CNTools asks whether to use the **Quick** or **Detailed**
+flow style and saves the answer. Change it any time in
+**Settings → Flow Style**.
+
+- **Quick** uses sensible defaults instead of asking. Transactions follow the
+  shortened flow above, summary confirmations such as "Create this pool?" are
+  skipped, and optional lookups such as pool details or asset names are
+  fetched directly.
+- **Detailed** asks every question.
+
+Both styles keep warnings and safety confirmations, such as self-sends,
+retiring pools, deletions, restores, key encryption, KES rotation and
+cold-key signing.
+
+### Transaction defaults
 
 **Settings → Transaction Defaults** persists your preferences between sessions:
 
@@ -175,7 +199,7 @@ color output.
 
 Wallet, pool and policy folders follow `WALLET_FOLDER`, `POOL_FOLDER` and
 `ASSET_FOLDER` in `env`. Their defaults are beneath `${NODE_HOME}/priv/`.
-Theme and transaction preferences live beneath
+Theme, flow style and transaction preferences live beneath
 `${NODE_HOME}/scripts/cntools/.state/` and are preserved by script deployments.
 Backups, saved transactions and asset-registry exports have their own reported
 locations.

@@ -45,7 +45,7 @@ cntools_pool_action_new() {
     cntools_table_pair Counter 'New issue counter (0)' number
   } | cntools_table_render 'Create pool'
   cntools_ui_render_status info 'This prepares keys only. Registration and a KES start period/certificate are separate steps.'
-  status=0; cntools_ui_confirm 'Create this pool?' false || status=$?
+  status=0; cntools_ui_flow_confirm 'Create this pool?' false || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   cntools_transaction_log CHOICE "Pool creation confirmed name=${name}"
   status=0
@@ -93,7 +93,7 @@ cntools_pool_action_import() {
   else
     cntools_ui_render_status info 'Only regular top-level files are accepted. Existing keys, counters and certificates are preserved; mismatched identities are rejected.'
   fi
-  status=0; cntools_ui_confirm 'Import this pool without overwriting any existing pool?' false || status=$?
+  status=0; cntools_ui_flow_confirm 'Import this pool without overwriting any existing pool?' false || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   cntools_transaction_log CHOICE "Pool import confirmed name=${name} method=${choice}"
   status=0

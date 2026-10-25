@@ -23,7 +23,8 @@ cntools_vote_choose_target() {
   local choice="" entered="" status=0 widths=""
   CNTOOLS_VOTE_TARGET="" CNTOOLS_VOTE_KIND="" CNTOOLS_VOTE_HASH="" CNTOOLS_VOTE_INACTIVE_CONFIRMED=N
   if [[ "${CNTOOLS_VOTE_REGISTER}" == Y ]]; then
-    cntools_ui_confirm "This stake address is not registered. Register it and delegate in one transaction, paying $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")?" false || return $?
+    ! cntools_flow_quick || cntools_ui_render_status info "This stake address is not registered yet, so the transaction also registers it. Refundable deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")."
+    cntools_ui_flow_confirm "This stake address is not registered. Register it and delegate in one transaction, paying $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")?" false || return $?
     CNTOOLS_VOTE_REGISTRATION_CONFIRMED=Y
     cntools_transaction_log CHOICE "Combined stake registration approved deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
   fi

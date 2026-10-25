@@ -44,9 +44,9 @@ cntools_metadata_transaction_workflow() {
   # never an exported public file that could be edited during the wizard.
   cntools_transaction_snapshot_into mt_metadata "${mt_metadata}" 65536 metadata-workflow || return 2
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
-  cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
+  cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
+  cntools_transaction_ui_initial_expiry_into lifetime || return $?
   while true; do
-    cntools_transaction_ui_expiry_into lifetime || return $?
     "${mt_recheck}" "${mt_metadata}" && cntools_ui_spin_function 'Fetching current funding data…' cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" &&
       cntools_transaction_expiry_into CNTOOLS_SEND_EXPIRY "${CNTOOLS_FUNDING_SLOT}" "${lifetime}" || return 2
     cntools_ui_spin_function 'Balancing and verifying the metadata transaction…' cntools_metadata_transaction_build_into staged \
@@ -62,6 +62,7 @@ cntools_metadata_transaction_workflow() {
       esac
     done
     [[ "${choice}" != "${proceed}" ]] || break
+    cntools_transaction_ui_expiry_into lifetime || return $?
   done
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "${mt_action}" || return 2

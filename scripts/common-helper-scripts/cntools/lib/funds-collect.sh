@@ -115,7 +115,7 @@ cntools_collect_build_into() {
 }
 cntools_collect_refresh_build_into() {
   local result_name="$1" lifetime="$2"
-  [[ "${lifetime}" =~ ^(0|1800|7200|86400)$ ]] || return 2
+  [[ "${lifetime}" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( lifetime <= 31536000 )) || return 2
   cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" || return 1
   CNTOOLS_COLLECT_BACKEND="${CNTOOLS_FUNDING_BACKEND}"
   cntools_transaction_expiry_into CNTOOLS_SEND_EXPIRY "${CNTOOLS_FUNDING_SLOT}" "${lifetime}" || return 1

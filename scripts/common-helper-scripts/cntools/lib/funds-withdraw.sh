@@ -183,7 +183,7 @@ cntools_withdraw_validate_output() {
 
 cntools_withdraw_refresh_build_into() {
   local result_name="$1" lifetime="$2"
-  [[ "${lifetime}" =~ ^(0|1800|7200|86400)$ ]] || return 2
+  [[ "${lifetime}" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( lifetime <= 31536000 )) || return 2
   cntools_withdraw_collect || return 1
   # All supported deployment networks use one-second Shelley slots.
   cntools_transaction_expiry_into CNTOOLS_WITHDRAW_EXPIRY "${CNTOOLS_FUNDING_SLOT}" "${lifetime}" || return 1

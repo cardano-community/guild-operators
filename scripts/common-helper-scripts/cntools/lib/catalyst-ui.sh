@@ -36,7 +36,7 @@ cntools_catalyst_registration_workflow() {
     cntools_ui_spin_function 'Validating the existing voting identity…' cntools_catalyst_keys_prepare "${CNTOOLS_CATALYST_DIRECTORY}" || return 2
   elif [[ ! -e "${CNTOOLS_CATALYST_DIRECTORY}/${names[1]}" && ! -L "${CNTOOLS_CATALYST_DIRECTORY}/${names[1]}" ]]; then
     cntools_ui_render_status warn 'A new voting key will be saved in this wallet. Back it up separately; it is not recoverable from the payment wallet mnemonic.'
-    cntools_ui_confirm 'Create and save a Catalyst voting key?' false || return $?
+    cntools_ui_flow_confirm 'Create and save a Catalyst voting key?' false || return $?
     cntools_ui_spin_function 'Generating and validating the voting key…' cntools_catalyst_keys_prepare "${CNTOOLS_CATALYST_DIRECTORY}" create || return 2
   else
     cntools_catalyst_keys_prepare "${CNTOOLS_CATALYST_DIRECTORY}" || return 2
@@ -99,7 +99,7 @@ cntools_catalyst_qr_workflow() {
   cntools_wallet_choose selected Cancel || return $?
   directory="${CNTOOLS_WALLET_PATHS[selected]}"
   cntools_ui_render_status warn 'The QR contains the voting secret protected by a four-digit PIN. Keep it private and save the PIN separately. Toolbox briefly exposes the PIN to same-user process inspection.'
-  cntools_ui_confirm 'Display and save a new PIN-protected voting QR?' false || return $?
+  cntools_ui_flow_confirm 'Display and save a new PIN-protected voting QR?' false || return $?
   while true; do
     cntools_ui_password pin 'Four-digit QR PIN' || return $?
     [[ "${pin}" =~ ^[0-9]{4}$ ]] && break
@@ -170,7 +170,7 @@ cntools_catalyst_verify_workflow() {
   } | cntools_table_render 'Catalyst snapshot'
   if jq -e '.voter_info.delegator_addresses|length>0' "${CNTOOLS_CATALYST_STATUS_FILE}" >/dev/null; then
     local details=N snapshot="${CNTOOLS_CATALYST_STATUS_FILE}" delegator_file='' local_wallet='' stake_address='' index=0
-    if cntools_ui_confirm 'Fetch individual delegator voting power and reward details?' false; then details=Y; fi
+    if ! cntools_flow_quick && cntools_ui_confirm 'Fetch individual delegator voting power and reward details?' false; then details=Y; fi
     cntools_wallet_catalog_build || true
     while IFS= read -r address; do
       index=$((index+1)); delegator_file=''; local_wallet=''; stake_address=''

@@ -164,7 +164,7 @@ cntools_pool_action_list() {
   fi
   cntools_pool_inspect_reset
   if [[ "${CNTOOLS_MODE:-offline}" != offline ]]; then
-    if cntools_ui_confirm 'Fetch on-chain information for all pools now?' false; then
+    if cntools_ui_flow_confirm 'Fetch on-chain information for all pools now?' false; then
       cntools_transaction_log CHOICE 'Pool list chain information requested'
       cntools_ui_spin_function 'Fetching pool information…' cntools_pool_inspect_catalog || return 1
       query_node=Y

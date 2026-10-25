@@ -3,7 +3,7 @@
 cntools_action_main() {
   cntools_ui_action_begin 'Clear asset cache' '/ Advanced / Clear asset cache'
   cntools_ui_render_status info 'Asset names and metadata from Koios are cached for one day. Clearing this deployment’s cache affects all networks, not wallet balances or keys.'
-  if ! cntools_ui_confirm 'Clear cached asset details?'; then
+  if ! cntools_ui_flow_confirm 'Clear cached asset details?'; then
     cntools_log CHOICE 'Asset cache clearing cancelled' || true
     return 0
   fi

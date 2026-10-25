@@ -103,7 +103,8 @@ cntools_delegate_choose_target() {
     fi
     if [[ "${CNTOOLS_DELEGATE_REGISTER}" == Y ]]; then
       status=0
-      cntools_ui_confirm "Register this stake address in the same transaction? Deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}") plus the transaction fee." false || status=$?
+      ! cntools_flow_quick || cntools_ui_render_status info "This stake address is not registered yet, so the transaction also registers it. Refundable deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")."
+      cntools_ui_flow_confirm "Register this stake address in the same transaction? Deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}") plus the transaction fee." false || status=$?
       cntools_transaction_log CHOICE "Delegate registration confirmation status=${status} deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
       (( status == 0 )) || return "${status}"
       CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED=Y

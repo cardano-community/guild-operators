@@ -105,11 +105,13 @@ cntools_asset_tx_workflow() {
   else cntools_asset_tx_burn_choose || return $?; fi
   cntools_asset_tx_quantity_prompt || return $?
   cntools_metadata_reset
-  cntools_ui_confirm 'Attach optional transaction metadata?' false || status=$?
+  # Quick leaves metadata to the review's 'Change metadata'.
+  if cntools_flow_quick; then status=1
+  else cntools_ui_confirm 'Attach optional transaction metadata?' false || status=$?; fi
   if ((status == 0)); then cntools_send_metadata_edit || return $?; elif ((status != 1)); then return "${status}"; fi
   [[ -z "${CNTOOLS_SEND_SOURCE}" || -z "${CNTOOLS_POLICY_SELECTED_SOURCE}" ]] || can_sign=Y
-  cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
-  cntools_transaction_ui_expiry_into lifetime || return $?
+  cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
+  cntools_transaction_ui_initial_expiry_into lifetime || return $?
   cntools_ui_spin_function 'Checking policy, funds and building the asset transaction…' cntools_asset_tx_refresh_build_into staged "${lifetime}" || return 2
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2

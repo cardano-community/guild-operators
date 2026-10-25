@@ -48,7 +48,7 @@ cntools_policy_action_create() {
     cntools_ui_render_status warn 'The policy cannot be changed after creation. Expiry permanently prevents both minting and burning. Check your system clock before proceeding.'
   fi
   cntools_ui_render_status info 'This creates keys and a policy only: no tokens, transaction or fee.'
-  status=0; cntools_ui_confirm 'Create this policy?' false || status=$?
+  status=0; cntools_ui_flow_confirm 'Create this policy?' false || status=$?
   cntools_policy_cancelled "${status}" && return 0
   ((status == 0)) || return "${status}"
   cntools_transaction_log CHOICE "Policy creation confirmed name=${name} expiry=${expiry}"

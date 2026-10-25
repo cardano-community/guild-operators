@@ -77,7 +77,7 @@ cntools_drep_script_workflow() {
   { cntools_table_pair Wallet "${directory##*/}" identifier; cntools_table_pair Threshold "${threshold} of ${#CNTOOLS_DREP_SCRIPT_HASHES[@]}" number; } |
     cntools_table_render 'DRep identity' || return 2
   cntools_ui_render_status warn 'The participants and threshold permanently define this DRep ID. Keep their signing keys backed up. This creates an identity only; registration and voting with a script DRep are not enabled yet.'
-  cntools_ui_confirm 'Create this public DRep identity without replacing existing files?' false || return $?
+  cntools_ui_flow_confirm 'Create this public DRep identity without replacing existing files?' false || return $?
   cntools_log CHOICE "Script DRep creation confirmed wallet=${directory##*/} threshold=${threshold} participants=${#CNTOOLS_DREP_SCRIPT_HASHES[@]}" || true
   cntools_drep_script_create "${directory}" "${threshold}" && cntools_drep_key_inspect "${directory}" || return 2
   cntools_drep_script_begin

@@ -43,7 +43,7 @@ cntools_registry_workflow() {
     cntools_table_pair Entry "${kind}" value
   } | cntools_table_render 'Token Registry entry' || return 2
   cntools_ui_render_status warn 'For an already registered asset, use Update with its current registry entry. Blank optional fields are preserved; this flow does not delete published fields.'
-  cntools_ui_confirm 'Sign and save this registry submission?' false || return $?
+  cntools_ui_flow_confirm 'Sign and save this registry submission?' false || return $?
   cntools_transaction_log CHOICE "Registry export confirmed asset=${identity} kind=${kind}"
   cntools_ui_spin_function 'Signing and validating registry metadata…' cntools_registry_export "${identity}" "${name}" "${description}" "${ticker}" "${url}" "${decimals}" "${logo}" "${previous}" || return 2
   [[ "${CNTOOLS_NETWORK}" == mainnet ]] && repo=https://github.com/cardano-foundation/cardano-token-registry || repo=https://github.com/input-output-hk/metadata-registry-testnet

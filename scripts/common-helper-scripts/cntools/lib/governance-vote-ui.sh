@@ -80,7 +80,7 @@ cntools_gov_vote_choose() {
     cntools_proposal_select "${selection%% *}" || return 2
     CNTOOLS_GOV_VOTE_PROPOSAL="${CNTOOLS_PROPOSAL_SELECTED}"
     cntools_proposal_details "${CNTOOLS_GOV_VOTE_PROPOSAL}" || return 2
-    if ! cntools_ui_confirm 'Use this proposal?' false; then continue; fi
+    if ! cntools_ui_flow_confirm 'Use this proposal?' false; then continue; fi
     cntools_gov_vote_previous_into previous "${CNTOOLS_GOV_VOTE_PROPOSAL}" || {
       cntools_wallet_register_set_error 'Your previous vote could not be verified. Nothing was built.'; return 2;
     }

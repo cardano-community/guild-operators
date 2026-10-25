@@ -42,7 +42,8 @@ cntools_multisig_derive_workflow() {
     *) return 1 ;;
   esac
   if [[ "${mode}" != cli ]]; then
-    cntools_ui_choose choice 'Derivation paths' 'Standard multisig (1854)' 'Custom payment and stake paths' Cancel || return $?
+    if cntools_flow_quick; then choice='Standard multisig (1854)'
+    else cntools_ui_choose choice 'Derivation paths' 'Standard multisig (1854)' 'Custom payment and stake paths' Cancel || return $?; fi
     cntools_log CHOICE "Multisig derivation layout selected=${choice}" || true
     case "${choice}" in
       'Standard multisig (1854)')
@@ -69,7 +70,7 @@ cntools_multisig_derive_workflow() {
   elif [[ "${mode}" == hardware ]]; then
     cntools_ui_render_status info 'Connect and unlock the hardware device. Support for the chosen paths depends on its firmware.'
   fi
-  cntools_ui_confirm 'Add these participant keys without replacing existing files?' false || return $?
+  cntools_ui_flow_confirm 'Add these participant keys without replacing existing files?' false || return $?
   cntools_log CHOICE "Multisig key generation confirmed wallet=${directory##*/} mode=${mode} payment_path=${pay_path:-none} stake_path=${stake_path:-none}" || true
   if [[ "${mode}" == mnemonic ]]; then
     cntools_wallet_mnemonic_collect_import_into phrase || return $?
@@ -226,7 +227,7 @@ cntools_multisig_create_workflow() {
     cntools_table_pair 'Spending ends' "${date}" warning
   } | cntools_table_render 'Script wallet' || return 2
   cntools_ui_render_status warn 'Participants, threshold and timelocks cannot be changed for this address. An expiry permanently locks remaining funds. Check and back up participant keys before funding it.'
-  cntools_ui_confirm 'Create this multisig wallet?' false || return $?
+  cntools_ui_flow_confirm 'Create this multisig wallet?' false || return $?
   cntools_log CHOICE "Multisig creation confirmed wallet=${name} threshold=${threshold} staking=${staking} after=${after:-none} before=${before:-none}" || true
   cntools_multisig_wallet_create "${name}" "${threshold}" "${staking}" "${after}" "${before}" || return 2
   cntools_multisig_begin Create

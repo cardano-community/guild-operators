@@ -8,6 +8,11 @@ header and keep an independent backup. Read every confirmation: cancelling a
 transaction does not undo separate key generation or operational-certificate
 issuance that you already approved.
 
+The steps below describe the **Detailed** flow style. **Quick** skips the
+questions that have a sensible default and summary confirmations such as
+"Create this wallet now?"; warnings and key-safety confirmations remain. See
+[Flow style](cntools.md#flow-style).
+
 ## Wallets
 
 ### Create a CLI wallet
@@ -132,6 +137,12 @@ Open **Funds → Send** and choose the source wallet. For each recipient choose:
 - **External address** — enter and review the address. Testnet addresses do not
   identify a specific testnet; independently confirm the recipient's network.
 - **ADA Handle** — enter `$name` or `$child@parent` for resolution through Koios.
+
+In Quick, a single **Recipient** field takes an address or `$handle`; press
+Enter on an empty field to pick a CNTools wallet. The ADA amount also accepts
+`max` (all ADA, keeping native assets) or `all` (everything), and CNTools moves
+from the first recipient straight to the review, where **Edit recipients**
+adds more recipients or a message.
 
 Handle resolution supports standard Handles, NFT subhandles and virtual
 subhandles on configured supported networks. Review the resolved address,
@@ -306,7 +317,8 @@ submission backend before confirming. External transactions cannot always
 prove signer completeness in the interface; the ledger makes the final decision.
 
 The result shows status, transaction ID and any saved recovery path.
-If Koios is available, choose whether to monitor block inclusion.
+If Koios is available, Detailed asks whether to monitor block inclusion;
+Quick starts monitoring straight away (press q to stop).
 An accepted submission or delayed indexer response is not proof of finality;
 check the same transaction ID before attempting a replacement.
 
@@ -526,7 +538,9 @@ secure erasure from SSDs, snapshots or other backups.
 ## Backups and restoration
 
 **Backup & Restore → Backup** offers full or public-only archives, with GPG
-encryption recommended. Full backups include present wallet, pool and policy
+encryption recommended. Quick uses GPG encryption, when GnuPG is installed, and
+the default backup folder; choose Detailed for an unencrypted archive or
+another folder. Full backups include present wallet, pool and policy
 files; public-only archives are not signing-key recovery backups.
 
 New encrypted archives require a confirmed passphrase of at least 12 characters.

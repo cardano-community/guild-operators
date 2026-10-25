@@ -91,7 +91,9 @@ cntools_backup_create_wizard() {
     fi
     cntools_ui_render_status warn 'A full backup contains only files that are present. Missing/external keys, hardware devices and their recovery seeds are not recovered by archive verification. Keep encrypted-key passphrases separately.'
   fi
-  cntools_backup_interact cntools_ui_choose encryption 'Backup protection' 'Encrypt with GPG (recommended)' 'Unencrypted archive' 'Cancel' || return $?
+  if cntools_flow_quick && { type -P gpg || type -P gpg2; } >/dev/null 2>&1; then
+    encryption='Encrypt with GPG (recommended)'
+  else cntools_backup_interact cntools_ui_choose encryption 'Backup protection' 'Encrypt with GPG (recommended)' 'Unencrypted archive' 'Cancel' || return $?; fi
   cntools_log CHOICE "backup protection selection=${encryption}" || true
   case "${encryption}" in
     'Encrypt with GPG (recommended)') encryption=encrypted ;;
@@ -103,7 +105,8 @@ cntools_backup_create_wizard() {
     *) return 0 ;;
   esac
   destination="${CNTOOLS_NODE_HOME}/backups"
-  cntools_backup_interact cntools_ui_pick_path destination 'Backup directory' \
+  # Quick writes to the default folder; Detailed offers another folder.
+  cntools_flow_quick || cntools_backup_interact cntools_ui_pick_path destination 'Backup directory' \
     "Choose an existing backup folder, or use the default: ${destination}. Only the default folder is created automatically." \
     "${destination}" directory 'Use default backup folder' "${destination}" || return $?
   destination="${destination:-${CNTOOLS_NODE_HOME}/backups}"; destination="${destination%/}"
@@ -117,7 +120,7 @@ cntools_backup_create_wizard() {
     cntools_table_pair Protection "$([[ "${encryption}" == encrypted ]] && printf 'GPG · AES-256' || printf Unencrypted)" "$([[ "${encryption}" == encrypted ]] && printf success || printf warning)"
     cntools_table_pair Destination "${destination}" identifier
   } | cntools_table_render 'Backup'
-  cntools_backup_interact cntools_ui_confirm 'Create this backup?' false || return $?
+  cntools_backup_interact cntools_ui_flow_confirm 'Create this backup?' false || return $?
   if [[ "${encryption}" == encrypted ]]; then
     cntools_ui_render_status warn 'Keep the backup passphrase safe. It cannot be recovered. Use at least 12 characters.'
     cntools_backup_interact cntools_backup_password_into password encrypt || return $?

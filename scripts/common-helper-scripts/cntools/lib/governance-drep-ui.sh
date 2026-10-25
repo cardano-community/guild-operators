@@ -60,7 +60,7 @@ cntools_drep_lifecycle_choose_metadata() {
             fi
             hash="${CNTOOLS_PUBLIC_METADATA_HASH}"
             cntools_public_metadata_render "${CNTOOLS_PUBLIC_METADATA_FILE}" N || return 2
-            cntools_ui_confirm 'Use these published metadata bytes and hash?' false || continue
+            cntools_ui_flow_confirm 'Use these published metadata bytes and hash?' false || continue
             ;;
           'Hash local JSON file')
             cntools_ui_pick_path file 'Metadata JSON file' 'Choose the exact published JSON bytes; the file is not uploaded.' || return $?

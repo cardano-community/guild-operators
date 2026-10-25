@@ -136,6 +136,7 @@ cntools_main() {
   cntools_gum_require_terminal || return 1
   cntools_update_init
   cntools_ui_init || return 1
+  cntools_flow_style_first_run
   if ! cntools_menu_cache_build; then
     cntools_log ERROR "${CNTOOLS_MENU_ERROR}" || true
     printf 'CNTools: %s\n' "${CNTOOLS_MENU_ERROR}" >&2

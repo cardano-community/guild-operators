@@ -208,9 +208,9 @@ cntools_calidus_registration_workflow() {
   [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_spend_choose_signers cntools_calidus_registration_begin || return $?
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
   [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || can_sign="${CNTOOLS_MULTISIG_CAN_SIGN}"
-  cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
+  cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
+  cntools_transaction_ui_initial_expiry_into lifetime || return $?
   while true; do
-    cntools_transaction_ui_expiry_into lifetime || return $?
     cntools_ui_spin_function 'Checking authorization and balancing the funding transaction…' cntools_calidus_registration_refresh_build_into staged "${lifetime}" || return 2
     while true; do
       cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
@@ -223,6 +223,7 @@ cntools_calidus_registration_workflow() {
       esac
     done
     [[ "${selected}" != "${proceed}" ]] || break
+    cntools_transaction_ui_expiry_into lifetime || return $?
   done
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "calidus-${CNTOOLS_CALIDUS_OPERATION}" || return 2

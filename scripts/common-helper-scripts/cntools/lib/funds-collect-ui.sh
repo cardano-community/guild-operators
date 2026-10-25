@@ -53,17 +53,21 @@ cntools_collect_workflow() {
     *) return 1 ;;
   esac
   cntools_transaction_log CHOICE "Collection scope=${CNTOOLS_COLLECT_SCOPE}"
-  cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
-  cntools_transaction_ui_expiry_into lifetime || return $?
+  cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
+  cntools_transaction_ui_initial_expiry_into lifetime || return $?
   cntools_ui_spin_function 'Checking funds and building the collection…' \
     cntools_collect_refresh_build_into staged "${lifetime}" || return 2
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into selected "${staged}" "${proceed}" \
-      cntools_collect_begin cntools_collect_render 'Change workflow' || return $?
+      cntools_collect_begin cntools_collect_render 'Change expiry' 'Change workflow' || return $?
     case "${selected}" in
       "${proceed}") break ;;
       'Change workflow') cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $? ;;
+      'Change expiry')
+        cntools_transaction_ui_expiry_into lifetime || return $?
+        cntools_ui_spin_function 'Checking funds and rebuilding the collection…' \
+          cntools_collect_refresh_build_into staged "${lifetime}" || return 2 ;;
       *) return 2 ;;
     esac
   done

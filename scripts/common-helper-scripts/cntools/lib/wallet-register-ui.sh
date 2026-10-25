@@ -128,8 +128,8 @@ cntools_wallet_register_workflow() {
     cntools_multisig_stake_choose_signers cntools_wallet_register_begin || return $?
     CNTOOLS_WALLET_REGISTER_CAN_SIGN="${CNTOOLS_STAKE_CAN_SIGN}"
   fi
-  cntools_transaction_ui_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || return $?
-  cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
+  cntools_transaction_ui_initial_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || return $?
+  cntools_transaction_ui_initial_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
     collecting='Checking DRep registration, deposit and spendable funds…'
     prefix=''
@@ -159,10 +159,14 @@ cntools_wallet_register_workflow() {
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into choice "${staged}" "${proceed}" \
-      cntools_wallet_register_begin cntools_wallet_register_render_plan 'Change workflow' || return $?
+      cntools_wallet_register_begin cntools_wallet_register_render_plan 'Change expiry' 'Change workflow' || return $?
     case "${choice}" in
       "${proceed}") break ;;
       'Change workflow') cntools_transaction_ui_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || return $? ;;
+      'Change expiry')
+        cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
+        cntools_ui_spin_function "Building ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
+          cntools_wallet_register_build_package_into staged || return 2 ;;
       *) return 2 ;;
     esac
   done

@@ -52,7 +52,7 @@ cntools_governance_action_keys() {
   else
     cntools_ui_render_status warn 'This independently generated DRep key cannot be recovered from a wallet recovery phrase. Back up the new signing key.'
   fi
-  cntools_ui_confirm 'Add these DRep keys to the selected wallet?' false || return $?
+  cntools_ui_flow_confirm 'Add these DRep keys to the selected wallet?' false || return $?
   cntools_log CHOICE "DRep key creation confirmed wallet=${directory##*/} method=${method} account=${account}" || true
   if [[ "${method}" == mnemonic ]]; then
     cntools_wallet_mnemonic_collect_import_into phrase || return $?

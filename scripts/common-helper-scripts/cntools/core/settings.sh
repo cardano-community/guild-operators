@@ -7,6 +7,9 @@ CNTOOLS_SETTINGS_SCHEMA_VERSION=1
 CNTOOLS_SETTINGS_STATE_DIR=""
 CNTOOLS_SETTINGS_FILE=""
 CNTOOLS_SETTINGS_STAGE_FILE=""
+# Empty until the user picks Quick or Detailed; kept apart from the
+# transaction defaults so restoring those never resets it.
+CNTOOLS_FLOW_STYLE=""
 
 cntools_settings_defaults() {
   CNTOOLS_SEND_CHOOSE_CHANGE=N
@@ -96,7 +99,9 @@ cntools_settings_file_valid() {
     type == "object" and
     (keys - ["coinSelection", "interaction", "schemaVersion", "tokenFragmentation", "utxoManagement"] | length == 0) and
     (if has("interaction") then (.interaction | type == "object" and
-      keys == ["chooseSendChange", "defaultTtlSeconds"] and
+      (keys - ["chooseSendChange", "defaultTtlSeconds", "flowStyle"] | length == 0) and
+      has("chooseSendChange") and has("defaultTtlSeconds") and
+      ((has("flowStyle") | not) or .flowStyle == "quick" or .flowStyle == "detailed") and
       (.chooseSendChange | type == "boolean") and
       (.defaultTtlSeconds | type == "number" and floor == . and . >= 0 and . <= 31536000)) else true end) and
     .schemaVersion == $schema and
@@ -128,6 +133,7 @@ cntools_settings_file_valid() {
 cntools_settings_apply_file() {
   local file="${1:-}"
   local record=""
+  local flow_style=""
   local sentinel=""
 
   cntools_settings_file_valid "${file}" || return 1
@@ -146,6 +152,7 @@ cntools_settings_apply_file() {
       .utxoManagement.collateral.lovelace,
       (if .interaction.chooseSendChange == true then "Y" else "N" end),
       ((.interaction.defaultTtlSeconds // 1800) | tostring),
+      (.interaction.flowStyle // "unset"),
       "."
     ] | join("\u001f")
   ' "${file}")" || return 1
@@ -163,8 +170,10 @@ cntools_settings_apply_file() {
     CNTOOLS_TX_COLLATERAL_LOVELACE \
     CNTOOLS_SEND_CHOOSE_CHANGE \
     CNTOOLS_TX_DEFAULT_TTL \
+    flow_style \
     sentinel <<< "${record}"
-  [[ "${sentinel}" == "." ]]
+  [[ "${sentinel}" == "." ]] || return 1
+  [[ "${flow_style}" == unset ]] || CNTOOLS_FLOW_STYLE="${flow_style}"
 }
 
 cntools_settings_values_valid() {
@@ -173,7 +182,8 @@ cntools_settings_values_valid() {
   local sum=0
   local -a percentages=()
   [[ "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" =~ ^[YN]$ &&
-     "${CNTOOLS_TX_DEFAULT_TTL:-1800}" =~ ^(0|[1-9][0-9]{0,7})$ ]] || return 1
+     "${CNTOOLS_TX_DEFAULT_TTL:-1800}" =~ ^(0|[1-9][0-9]{0,7})$ &&
+     "${CNTOOLS_FLOW_STYLE:-}" =~ ^(quick|detailed)?$ ]] || return 1
   (( ${CNTOOLS_TX_DEFAULT_TTL:-1800} <= 31536000 )) || return 1
 
   case "${CNTOOLS_TX_SELECTION_STRATEGY:-}" in
@@ -239,10 +249,12 @@ cntools_settings_json() {
     --argjson collateralTarget "${CNTOOLS_TX_COLLATERAL_TARGET_COUNT}" \
     --arg collateralLovelace "${CNTOOLS_TX_COLLATERAL_LOVELACE}" \
     --arg chooseChange "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" \
-    --argjson ttl "${CNTOOLS_TX_DEFAULT_TTL:-1800}" '
+    --argjson ttl "${CNTOOLS_TX_DEFAULT_TTL:-1800}" \
+    --arg flowStyle "${CNTOOLS_FLOW_STYLE:-}" '
       {
         schemaVersion: $schemaVersion,
-        interaction: {chooseSendChange: ($chooseChange == "Y"), defaultTtlSeconds: $ttl},
+        interaction: ({chooseSendChange: ($chooseChange == "Y"), defaultTtlSeconds: $ttl} +
+          (if $flowStyle == "" then {} else {flowStyle: $flowStyle} end)),
         coinSelection: {strategy: $strategy},
         tokenFragmentation: {
           enabled: $tokenEnabled,
@@ -333,6 +345,72 @@ cntools_settings_reload() {
   fi
   cntools_settings_log SETTINGS \
     "activated selection=${CNTOOLS_TX_SELECTION_STRATEGY} token_fragmentation=${CNTOOLS_TX_TOKEN_FRAGMENTATION} utxo_management=${CNTOOLS_TX_UTXO_MANAGEMENT}"
+}
+
+# Quick uses sensible defaults instead of asking; Detailed asks every
+# question. Safety confirmations (self-sends, deletions, key material) stay
+# in both styles.
+cntools_flow_quick() {
+  [[ "${CNTOOLS_FLOW_STYLE:-}" == quick ]]
+}
+
+cntools_flow_style_name() {
+  case "${1:-${CNTOOLS_FLOW_STYLE:-}}" in
+    quick) printf 'Quick' ;;
+    detailed) printf 'Detailed' ;;
+    *) printf 'Not chosen' ;;
+  esac
+}
+
+cntools_flow_style_choose_into() {
+  local _cntools_output_name="${1:-}"
+  local selected=""
+  local quick_label="Quick · sensible defaults, fewer questions"
+  local detailed_label="Detailed · ask every question"
+
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_output_ref="${_cntools_output_name}"
+  cntools_ui_render_status info $'Quick asks fewer questions and uses sensible defaults. Transactions\nstart as create, sign and submit with your default expiry (change either\nin the review), submit once you approve the review and then monitor\ninclusion. Summary confirmations such as "Create this wallet now?" are\nskipped.\nDetailed asks every question, as before.\nWarnings and key-safety confirmations appear in both styles.' || return 1
+  cntools_ui_choose selected 'Flow style' "${quick_label}" "${detailed_label}" Cancel || return $?
+  case "${selected}" in
+    "${quick_label}") _cntools_output_ref=quick ;;
+    "${detailed_label}") _cntools_output_ref=detailed ;;
+    Cancel) return 1 ;;
+    *) return 2 ;;
+  esac
+}
+
+cntools_flow_style_save() {
+  local style="${1:-}" previous="${CNTOOLS_FLOW_STYLE:-}"
+
+  [[ "${style}" == quick || "${style}" == detailed ]] || return 2
+  CNTOOLS_FLOW_STYLE="${style}"
+  if ! cntools_settings_save; then
+    cntools_settings_log WARN "Flow style could not be saved; using ${style} for this session"
+    return 1
+  fi
+  cntools_settings_log SETTINGS "flow_style=${style} previous=${previous:-unset}"
+}
+
+# Asked once, on the first interactive start without a saved choice.
+cntools_flow_style_first_run() {
+  local style="" status=0
+
+  [[ -z "${CNTOOLS_FLOW_STYLE:-}" && "${CNTOOLS_UI_INTERACTIVE:-N}" == Y ]] || return 0
+  cntools_ui_action_begin "Flow Style" "/ Settings / Flow Style" || return 0
+  cntools_flow_style_choose_into style || status=$?
+  if (( status != 0 )); then
+    # Cancelling keeps today's behaviour and asks again next start.
+    CNTOOLS_FLOW_STYLE=detailed
+    cntools_settings_log CHOICE "flow style question skipped; detailed for this session"
+    return 0
+  fi
+  if cntools_flow_style_save "${style}"; then
+    cntools_ui_render_status success "Saved: $(cntools_flow_style_name "${style}"). Change it any time in Settings → Flow Style."
+  else
+    cntools_ui_render_status warn "Using $(cntools_flow_style_name "${style}") for this session; it could not be saved. See ${CNTOOLS_LOG}."
+  fi
+  cntools_ui_wait
 }
 
 cntools_settings_strategy_name() {

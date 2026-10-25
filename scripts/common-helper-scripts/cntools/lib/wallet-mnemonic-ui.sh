@@ -726,7 +726,7 @@ cntools_wallet_action_new_mnemonic() {
   fi
   cntools_ui_render_status warn \
     "CNTools will display the recovery phrase once and then verify your backup."
-  if cntools_ui_confirm "Generate this wallet's recovery phrase now?"; then
+  if cntools_ui_flow_confirm "Generate this wallet's recovery phrase now?"; then
     :
   else
     status=$?
@@ -903,7 +903,7 @@ cntools_wallet_action_import_mnemonic() {
     "Recovery phrase accepted locally: ${word_count} words. Cardano CLI will validate it during derivation."
   cntools_ui_render_status warn \
     "Only the selected payment and stake addresses are imported; this is a single-address CNTools wallet."
-  if cntools_ui_confirm "Import this mnemonic wallet now?"; then
+  if cntools_ui_flow_confirm "Import this mnemonic wallet now?"; then
     :
   else
     status=$?

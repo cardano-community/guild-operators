@@ -71,7 +71,7 @@ cntools_policy_render() {
 cntools_policy_asset_enrich() {
   (( $# > 0 )) || return 0
   [[ "${CNTOOLS_MODE:-offline}" != offline && "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && -n "${CNTOOLS_KOIOS_API:-}" ]] || return 0
-  cntools_ui_confirm 'Fetch token supply and metadata from Koios (one-day cache)?' true || return 0
+  cntools_ui_flow_confirm 'Fetch token supply and metadata from Koios (one-day cache)?' true || return 0
   cntools_transaction_log CHOICE 'Policy asset Koios metadata lookup confirmed'
   cntools_ui_spin_function 'Fetching Koios asset details…' cntools_asset_details_for_ids "$@" || true
   cntools_ui_render_status info 'Token metadata and supply are from Koios API/cache, not local policy records.'

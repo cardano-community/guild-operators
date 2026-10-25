@@ -32,6 +32,33 @@ cntools_transaction_ui_proceed_into() {
   esac
 }
 
+# First workflow choice of an action. Quick picks the most direct workflow the
+# keys allow; the review's 'Change workflow' still asks in both styles.
+cntools_transaction_ui_initial_workflow_into() {
+  local output_name="$1" can_sign="$2" workflow_selection='Create unsigned package'
+  if ! cntools_flow_quick; then
+    cntools_transaction_ui_workflow_into "$@"
+    return $?
+  fi
+  if [[ "${can_sign}" == Y ]]; then
+    workflow_selection='Create, sign and submit'
+    [[ "${CNTOOLS_MODE:-}" != offline ]] || workflow_selection='Create and sign'
+  fi
+  printf -v "${output_name}" '%s' "${workflow_selection}"
+  cntools_transaction_log CHOICE "Transaction workflow default=${workflow_selection} flow=quick"
+}
+
+# First expiry choice of an action. Quick uses the Settings default; the
+# review's 'Change expiry' still offers every duration.
+cntools_transaction_ui_initial_expiry_into() {
+  if ! cntools_flow_quick; then
+    cntools_transaction_ui_expiry_into "$@"
+    return $?
+  fi
+  printf -v "$1" '%s' "${CNTOOLS_TX_DEFAULT_TTL:-1800}"
+  cntools_transaction_log CHOICE "Transaction expiry default seconds=${CNTOOLS_TX_DEFAULT_TTL:-1800} flow=quick"
+}
+
 cntools_transaction_ui_expiry_into() {
   local expiry_choice="" expiry_seconds="" status=0
   local default_label="Default · ${CNTOOLS_TX_DEFAULT_TTL:-1800} seconds"
@@ -208,6 +235,11 @@ cntools_transaction_ui_render_result() {
 cntools_transaction_ui_confirm_submit() {
   local label="" status=0
   case "$1" in local) label='local node' ;; koios) label=Koios ;; *) return 2 ;; esac
+  if cntools_flow_quick; then
+    # The reviewed 'sign & submit' choice is the confirmation in Quick.
+    cntools_transaction_log CHOICE "Transaction submission confirmed by review backend=$1 flow=quick"
+    return 0
+  fi
   cntools_ui_confirm "Submit this signed transaction using ${label}?" true || status=$?
   cntools_transaction_log CHOICE "Transaction submission confirmation backend=$1 status=${status}"
   return "${status}"
@@ -1171,7 +1203,8 @@ cntools_transaction_ui_offer_monitor() {
   [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == Y ]] || return 0
   cntools_transaction_monitor_available || return 0
   [[ "${transaction_id}" =~ ^[0-9a-f]{64}$ ]] || return 0
-  if ! cntools_ui_confirm 'Monitor block inclusion through Koios?' true; then
+  if ! cntools_flow_quick &&
+     ! cntools_ui_confirm 'Monitor block inclusion through Koios?' true; then
     cntools_transaction_log CHOICE "Koios transaction monitoring declined id=${transaction_id}"
     return 0
   fi

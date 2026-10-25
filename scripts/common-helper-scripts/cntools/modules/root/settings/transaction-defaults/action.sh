@@ -64,7 +64,7 @@ cntools_settings_action_explain() {
       message=$'Enabled: try to retain a suitable ADA-only output, or create\na 5 ADA collateral candidate from change when one is missing.\nDisabled: do not specially retain or create a candidate.\nRequires ADA-only UTxO management and sufficient change.\nThis does not lock funds or use collateral in this transaction.'
       ;;
     'Restore safe defaults')
-      message=$'Restore safe defaults: replace all transaction preferences with\nthe built-in defaults. Cancel keeps your current preferences.\nDefaults use Balanced inputs and primary-address change, with\na 1,800-second expiry. Token fragmentation and ADA-only UTxO\nmanagement are disabled. Wallet files, funds and theme are unchanged.'
+      message=$'Restore safe defaults: replace all transaction preferences with\nthe built-in defaults. Cancel keeps your current preferences.\nDefaults use Balanced inputs and primary-address change, with\na 1,800-second expiry. Token fragmentation and ADA-only UTxO\nmanagement are disabled. Wallet files, funds, theme and flow style are unchanged.'
       ;;
     'Done') return 0 ;;
     *) return 2 ;;

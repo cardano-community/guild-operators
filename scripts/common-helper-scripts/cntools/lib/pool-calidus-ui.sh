@@ -79,7 +79,7 @@ cntools_pool_action_calidus() {
       cntools_ui_render_status warn 'The Calidus signing key is stored unencrypted. Keep a secure offline backup. Use Pool → Encrypt to protect it together with any local cold signing key.'
     fi
     cntools_ui_render_status info 'Cold, KES and VRF keys stay unchanged. This does not register or replace the Calidus key on-chain.'
-    status=0; cntools_ui_confirm 'Proceed with this Calidus key setup?' false || status=$?
+    status=0; cntools_ui_flow_confirm 'Proceed with this Calidus key setup?' false || status=$?
     ((status != 1)) || continue; ((status == 0)) || return "${status}"
     cntools_transaction_log CHOICE "Calidus setup confirmed pool=${directory##*/} operation=${kind}"
     status=0

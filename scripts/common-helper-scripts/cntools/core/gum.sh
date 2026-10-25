@@ -969,6 +969,16 @@ cntools_ui_confirm() {
     --selected.foreground "${CNTOOLS_GUM_COLOR_TEXT}" "${prompt}"
 }
 
+# A "do it now?" confirmation after a summary. Quick treats choosing the
+# action as the answer; keep cntools_ui_confirm for warnings and safety checks.
+cntools_ui_flow_confirm() {
+  if declare -F cntools_flow_quick >/dev/null 2>&1 && cntools_flow_quick; then
+    cntools_gum_log CHOICE "confirmed by quick flow: ${1:-Continue?}"
+    return 0
+  fi
+  cntools_ui_confirm "$@"
+}
+
 cntools_ui_wait() {
   [[ "${CNTOOLS_UI_INTERACTIVE:-N}" == "Y" ]] || return 0
   printf '\n'
@@ -1781,7 +1791,7 @@ cntools_gum_menu_run() {
           (( action_status != 0 )) || action_status=1
         fi
         ;;
-      settings/transaction-defaults)
+      settings/transaction-defaults|settings/flow-style)
         if declare -F cntools_settings_reload >/dev/null 2>&1 &&
            ! cntools_settings_reload; then
           cntools_gum_log ERROR \

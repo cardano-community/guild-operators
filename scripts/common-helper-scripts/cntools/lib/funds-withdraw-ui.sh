@@ -48,17 +48,21 @@ cntools_withdraw_workflow() {
   cntools_wallet_choose selected Cancel withdraw || return $?
   cntools_stake_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" "${CNTOOLS_WALLET_NAMES[selected]}" || return 2
   [[ "${CNTOOLS_STAKE_WALLET_TYPE:-}" != MultiSig ]] || cntools_multisig_stake_choose_signers cntools_withdraw_begin || return $?
-  cntools_transaction_ui_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || return $?
-  cntools_transaction_ui_expiry_into lifetime || return $?
+  cntools_transaction_ui_initial_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || return $?
+  cntools_transaction_ui_initial_expiry_into lifetime || return $?
   cntools_ui_spin_function 'Checking rewards and building the withdrawal…' \
     cntools_withdraw_refresh_build_into staged "${lifetime}" || return 2
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into selected "${staged}" "${proceed}" \
-      cntools_withdraw_begin cntools_withdraw_render 'Change workflow' || return $?
+      cntools_withdraw_begin cntools_withdraw_render 'Change expiry' 'Change workflow' || return $?
     case "${selected}" in
       "${proceed}") break ;;
       'Change workflow') cntools_transaction_ui_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || return $? ;;
+      'Change expiry')
+        cntools_transaction_ui_expiry_into lifetime || return $?
+        cntools_ui_spin_function 'Checking rewards and rebuilding the withdrawal…' \
+          cntools_withdraw_refresh_build_into staged "${lifetime}" || return 2 ;;
       *) return 2 ;;
     esac
   done

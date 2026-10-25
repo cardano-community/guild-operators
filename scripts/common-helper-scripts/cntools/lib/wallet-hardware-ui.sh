@@ -256,7 +256,7 @@ cntools_wallet_action_import_hardware() {
     "Only public keys and hardware signing references are stored. Private keys never leave the device."
   cntools_ui_render_status warn \
     "This imports standard CIP-1852 payment and stake keys only."
-  if cntools_ui_confirm "Import this hardware wallet now?"; then
+  if cntools_ui_flow_confirm "Import this hardware wallet now?"; then
     :
   else
     status=$?

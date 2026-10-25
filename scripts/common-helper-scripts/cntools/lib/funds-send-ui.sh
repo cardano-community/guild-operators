@@ -64,7 +64,21 @@ cntools_send_review_virtual() {
 cntools_send_prompt_recipient() {
   local index="${1:-}" choice="" address="" label="" note="" selected="" allow_script=N
   local directory="" entered="" handle_name="" resolution=""
-  cntools_send_choose choice "Recipient type" "CNTools wallet" "External address" "ADA Handle" || return $?
+  if cntools_flow_quick; then
+    # One field: the prefix tells an address from a Handle; empty picks a wallet.
+    # shellcheck disable=SC2016 # literal Handle syntax in the placeholder
+    cntools_ui_input entered 'Recipient' 'addr…, $handle, or Enter to pick a CNTools wallet' || return $?
+    cntools_recipient_trim_into entered "${entered}" || return 2
+    case "${entered}" in
+      '') choice="CNTools wallet" ;;
+      '$'*) choice="ADA Handle" ;;
+      *) choice="External address" ;;
+    esac
+    cntools_transaction_log CHOICE "Send Recipient type detected=${choice}"
+  else
+    cntools_send_choose choice "Recipient type" "CNTools wallet" "External address" "ADA Handle" || return $?
+    entered=""
+  fi
   if [[ "${choice}" == "CNTools wallet" ]]; then
     cntools_wallet_choose selected "${CNTOOLS_SEND_EDIT_CANCEL:-Cancel}" || return $?
     directory="${CNTOOLS_WALLET_PATHS[selected]}"
@@ -86,7 +100,7 @@ cntools_send_prompt_recipient() {
     fi
     label="${CNTOOLS_WALLET_NAMES[selected]} · ${label}"
   elif [[ "${choice}" == "ADA Handle" ]]; then
-    cntools_ui_input entered 'ADA Handle' '$name or $child@parent' || return $?
+    [[ -n "${entered}" ]] || cntools_ui_input entered 'ADA Handle' '$name or $child@parent' || return $?
     if ! cntools_ui_spin_function 'Resolving Handle through Koios…' cntools_handle_resolve_into address resolution "${entered}"; then
       cntools_ui_render_status warn "${CNTOOLS_HANDLE_ERROR:-Handle resolution failed; no destination was selected.}"
       return 2
@@ -94,7 +108,7 @@ cntools_send_prompt_recipient() {
     handle_name="$(jq -r '.handle' <<< "${resolution}")"
     label="${handle_name} · $(jq -r '.type' <<< "${resolution}") · Koios"
   else
-    cntools_ui_input entered "Receiving address" "addr…" || return $?
+    [[ -n "${entered}" ]] || cntools_ui_input entered "Receiving address" "addr…" || return $?
     cntools_recipient_trim_into address "${entered}" || return 2
     label="External address"
   fi
@@ -119,8 +133,14 @@ cntools_send_prompt_recipient() {
 
 cntools_send_prompt_amounts() {
   local index="${1:-}" choice="" entered="" units="" asset="" option="" asset_label="" i=0
+  local amount_prompt="ADA amount (0 = minimum ADA for this output)" choose_mode=N
   local -a options=()
-  if (( index == 0 && ${#CNTOOLS_SEND_ADDRESSES[@]} == 1 )); then
+  (( index != 0 || ${#CNTOOLS_SEND_ADDRESSES[@]} != 1 )) || choose_mode=Y
+  if [[ "${choose_mode}" == Y ]] && cntools_flow_quick; then
+    # Quick folds the amount mode into the amount: max or all instead of a number.
+    CNTOOLS_SEND_MODE=exact
+    amount_prompt="ADA amount (max = all ADA, all = everything incl. assets, 0 = minimum ADA)"
+  elif [[ "${choose_mode}" == Y ]]; then
     cntools_send_choose choice "Amount mode" "Exact amounts" "Max ADA" "Send everything" || return $?
     case "${choice}" in
       "Exact amounts") CNTOOLS_SEND_MODE=exact ;;
@@ -130,15 +150,33 @@ cntools_send_prompt_amounts() {
   fi
   if [[ "${CNTOOLS_SEND_MODE}" == exact ]]; then
     while true; do
-      cntools_ui_input entered "ADA amount (0 = minimum ADA for this output)" "0" || return $?
+      cntools_ui_input entered "${amount_prompt}" "0" || return $?
       [[ -n "${entered}" ]] || entered=0
+      if [[ "${choose_mode}" == Y ]] && cntools_flow_quick; then
+        case "${entered,,}" in
+          max) CNTOOLS_SEND_MODE=max ;;
+          all) CNTOOLS_SEND_MODE=sweep ;;
+        esac
+        if [[ "${CNTOOLS_SEND_MODE}" != exact ]]; then
+          cntools_transaction_log CHOICE "Send Amount mode selected=${CNTOOLS_SEND_MODE} flow=quick"
+          break
+        fi
+      fi
       if cntools_number_units_into units "${entered}" 6 &&
          cntools_uint_greater_equal "${CNTOOLS_FUNDING_TOTAL}" "${units}"; then break; fi
       cntools_transaction_log CHOICE "Send invalid ADA amount rejected"
-      cntools_ui_render_status warn "Enter an available non-negative ADA amount, with at most six decimal places."
+      if [[ "${choose_mode}" == Y ]] && cntools_flow_quick; then
+        cntools_ui_render_status warn "Enter an available ADA amount with at most six decimal places, max or all."
+      else
+        cntools_ui_render_status warn "Enter an available non-negative ADA amount, with at most six decimal places."
+      fi
     done
-    CNTOOLS_SEND_AMOUNTS[index]="${units}"
-    cntools_transaction_log CHOICE "Send recipient=$((index+1)) lovelace=${units}"
+    if [[ "${CNTOOLS_SEND_MODE}" == exact ]]; then
+      CNTOOLS_SEND_AMOUNTS[index]="${units}"
+      cntools_transaction_log CHOICE "Send recipient=$((index+1)) lovelace=${units}"
+    else
+      CNTOOLS_SEND_AMOUNTS[index]=0
+    fi
   else
     CNTOOLS_SEND_AMOUNTS[index]=0
   fi
@@ -223,7 +261,7 @@ cntools_send_remove_recipient() {
 }
 
 cntools_send_edit_recipients() {
-  local command="Review" index=0 selected="" status=0
+  local command="Review" index=0 selected="" status=0 initial="${1:-N}"
   local -a options=()
   (( ${#CNTOOLS_SEND_ADDRESSES[@]} > 0 )) || command=Add
   while true; do
@@ -235,6 +273,12 @@ cntools_send_edit_recipients() {
       if (( status != 0 && status != 1 && status != 130 )); then
         cntools_ui_render_status warn 'Recipient changes were not saved.'
         cntools_ui_wait
+      fi
+      # Quick goes from the first recipient straight to the review, where
+      # 'Edit recipients' adds more recipients or a message.
+      if [[ "${initial}" == Y ]] && (( status == 0 && ${#CNTOOLS_SEND_ADDRESSES[@]} > 0 )) &&
+         cntools_flow_quick; then
+        return 0
       fi
     elif [[ "${command}" == Remove ]]; then
       cntools_send_remove_recipient "${index}" || return 2
@@ -360,23 +404,24 @@ cntools_send_workflow() {
       cntools_asset_details_for_ids "${CNTOOLS_FUNDING_ASSET_IDS[@]}" ||
       cntools_transaction_log WARN 'Some asset metadata is unavailable; using on-chain name / identity fallback'
   fi
-  cntools_send_edit_recipients || return $?
+  cntools_send_edit_recipients Y || return $?
   local can_sign=N
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
   [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || can_sign="${CNTOOLS_MULTISIG_CAN_SIGN}"
-  cntools_transaction_ui_workflow_into choice "${can_sign}" || return $?
-  cntools_transaction_ui_expiry_into lifetime || return $?
+  cntools_transaction_ui_initial_workflow_into choice "${can_sign}" || return $?
+  cntools_transaction_ui_initial_expiry_into lifetime || return $?
   cntools_transaction_ui_proceed_into proceed "${choice}" || return 2
   while true; do
     cntools_ui_spin_function "Refreshing funds and balancing the transfer…" cntools_send_refresh_build_into staged "${lifetime}" || return 2
     while true; do
       cntools_transaction_ui_proceed_into proceed "${choice}" || return 2
       cntools_transaction_ui_review_into selected "${staged}" "${proceed}" \
-        cntools_send_begin cntools_send_render_review 'Edit recipients' 'Change workflow' || return $?
+        cntools_send_begin cntools_send_render_review 'Edit recipients' 'Change expiry' 'Change workflow' || return $?
       case "${selected}" in
         "${proceed}") break ;;
         'Edit recipients') cntools_send_edit_recipients || return $?; break ;;
         'Change workflow') cntools_transaction_ui_workflow_into choice "${can_sign}" || return $? ;;
+        'Change expiry') cntools_transaction_ui_expiry_into lifetime || return $?; break ;;
         *) return 2 ;;
       esac
     done
