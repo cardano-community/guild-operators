@@ -85,7 +85,7 @@ cntools_wallet_query_log_failure() {
   local detail=""
 
   if [[ "${status}" == "124" ]]; then
-    detail="timed out after ${CNTOOLS_CLI_TIMEOUT:-10} seconds"
+    detail="timed out after ${CNTOOLS_WALLET_QUERY_LAST_TIMEOUT:-${CNTOOLS_CLI_TIMEOUT:-10}} seconds"
     CNTOOLS_WALLET_QUERY_SYSTEMIC_FAILURE="timeout"
   else
     detail="$(cntools_wallet_query_first_diagnostic \
@@ -125,7 +125,8 @@ cntools_wallet_query_run_cli() {
   (( $# > 0 )) || return 2
   printf -v mask '%*s' "$#" ''
   mask="${mask// /0}"
-  cntools_run_command_timeout "${CNTOOLS_CLI_TIMEOUT:-10}" \
+  cntools_cli_timeout_into CNTOOLS_WALLET_QUERY_LAST_TIMEOUT "${CNTOOLS_CLI_TIMEOUT:-10}" "$@" || return 2
+  cntools_run_command_timeout "${CNTOOLS_WALLET_QUERY_LAST_TIMEOUT}" \
     "${mask}" -- "$@" > "${output_file}" 2> "${error_file}"
 }
 

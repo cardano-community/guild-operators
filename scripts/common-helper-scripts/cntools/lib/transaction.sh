@@ -755,7 +755,8 @@ cntools_transaction_run_cli() {
      -O "${error_file}" ]] || return 2
   printf -v mask '%*s' "$#" ''
   mask="${mask// /0}"
-  cntools_run_command_timeout "${CNTOOLS_TRANSACTION_TIMEOUT}" \
+  cntools_cli_timeout_into CNTOOLS_TRANSACTION_LAST_TIMEOUT "${CNTOOLS_TRANSACTION_TIMEOUT}" "$@" || return 2
+  cntools_run_command_timeout "${CNTOOLS_TRANSACTION_LAST_TIMEOUT}" \
     "${mask}" -- "$@" > "${output_file}" 2> "${error_file}"
 }
 
@@ -767,7 +768,7 @@ cntools_transaction_log_cli_failure() {
   local detail=""
 
   if [[ "${status}" == "124" ]]; then
-    detail="timed out after ${CNTOOLS_TRANSACTION_TIMEOUT} seconds"
+    detail="timed out after ${CNTOOLS_TRANSACTION_LAST_TIMEOUT:-${CNTOOLS_TRANSACTION_TIMEOUT}} seconds"
   else
     cntools_transaction_first_diagnostic_into detail "${error_file}" ||
       cntools_transaction_first_diagnostic_into detail "${output_file}" || true

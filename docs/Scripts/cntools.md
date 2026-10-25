@@ -54,6 +54,10 @@ its configured compatible CLI/socket. Amaru has no compatible local query
 socket; use light mode for its online CNTools workflows. Availability of a
 menu does not make an unavailable backend or companion tool optional.
 
+Local node queries wait up to `QUERY_TIMEOUT` seconds (default 180; set it in
+`env`). On mainnet, address balance queries scan the whole UTxO set and can
+take a minute or more; light mode answers wallet views much faster.
+
 Building a normal transaction requires current chain data, even when you plan
 to sign it offline. An unavailable node does not stop CNTools from opening.
 The root header shows best-effort epoch, tip and sync-gap information, refreshed

@@ -26,6 +26,7 @@
 #PROM_PORT=12798
 #PROM_TIMEOUT=3
 #CURL_TIMEOUT=10
+#QUERY_TIMEOUT=180                                       # CNTools: seconds to wait for local node queries
 #BLOCKLOG_DIR="${NODE_HOME}/guild-db/blocklog"
 #BLOCKLOG_TZ="UTC"
 #SHELLEY_TRANS_EPOCH=208

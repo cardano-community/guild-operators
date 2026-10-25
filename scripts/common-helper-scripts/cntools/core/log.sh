@@ -342,6 +342,21 @@ cntools_run_command() {
   return "${status}"
 }
 
+# Commands that reach the node through --socket-path use the query limit when
+# it is longer than the caller's default; offline commands keep the default.
+cntools_cli_timeout_into() {
+  local _cntools_output_name="${1:-}" _cntools_timeout="${2:-10}" _cntools_argument=""
+  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  shift 2 || return 2
+  for _cntools_argument in "$@"; do
+    if [[ "${_cntools_argument}" == --socket-path ]]; then
+      (( ${CNTOOLS_QUERY_TIMEOUT:-180} <= _cntools_timeout )) || _cntools_timeout="${CNTOOLS_QUERY_TIMEOUT:-180}"
+      break
+    fi
+  done
+  printf -v "${_cntools_output_name}" '%s' "${_cntools_timeout}"
+}
+
 cntools_run_command_timeout() {
   local timeout_seconds="${1:-}"
   local mask="${2:-}"

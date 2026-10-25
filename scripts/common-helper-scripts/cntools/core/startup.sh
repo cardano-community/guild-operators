@@ -353,6 +353,9 @@ cntools_startup_normalize_session() {
   CNTOOLS_KOIOS_API="${KOIOS_API:-}"
   CNTOOLS_CURL_TIMEOUT="${CURL_TIMEOUT:-10}"
   CNTOOLS_CLI_TIMEOUT="${CLI_TIMEOUT:-${CNTOOLS_CURL_TIMEOUT}}"
+  # Local node queries can take minutes on mainnet (address queries scan the
+  # whole UTxO set), so they get their own, longer limit.
+  CNTOOLS_QUERY_TIMEOUT="${QUERY_TIMEOUT:-180}"
   # SOCKET is the documented env override. NODE_SOCKET may be established by
   # an implementation adapter during the definitions profile (for example,
   # Dingo). CARDANO_NODE_SOCKET_PATH is a full-runtime adapter output and must
@@ -471,6 +474,10 @@ cntools_startup_normalize_session() {
     cntools_startup_error "CLI_TIMEOUT must be a positive integer."
     return 1
   }
+  [[ "${CNTOOLS_QUERY_TIMEOUT}" =~ ^[1-9][0-9]*$ ]] || {
+    cntools_startup_error "QUERY_TIMEOUT must be a positive integer."
+    return 1
+  }
   for path_value in \
     "${CNTOOLS_LOG_DIR}" "${CNTOOLS_LOG}" "${CNTOOLS_TMP_DIR}" \
     "${CNTOOLS_WALLET_DIR}" "${CNTOOLS_POOL_DIR}" "${CNTOOLS_ASSET_DIR}" \
@@ -583,7 +590,7 @@ cntools_startup_normalize_session() {
   export CNTOOLS_POOL_KES_START_FILENAME CNTOOLS_SLOTS_PER_KES_PERIOD CNTOOLS_SHELLEY_GENESIS CNTOOLS_CONFIGURED_POOL_NAME
   export CNTOOLS_DBSYNC_QUERY_DIR CNTOOLS_UPDATE_CHECK CNTOOLS_KOIOS_ENABLED
   export CNTOOLS_ENABLE_CHATTR
-  export CNTOOLS_KOIOS_API CNTOOLS_CURL_TIMEOUT CNTOOLS_CLI_TIMEOUT
+  export CNTOOLS_KOIOS_API CNTOOLS_CURL_TIMEOUT CNTOOLS_CLI_TIMEOUT CNTOOLS_QUERY_TIMEOUT
   export CNTOOLS_TIMEOUT_BIN
   export CNTOOLS_WALLET_PAY_VKEY_FILENAME CNTOOLS_WALLET_PAY_SKEY_FILENAME
   export CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME
