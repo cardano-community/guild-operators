@@ -51,8 +51,8 @@ cntools_pool_identity_rows() {
 cntools_pool_settings_rows() {
   local json="$1" format="$2" label="" value="" kind="" formatted="" records=""
   records="$(jq -r --arg format "${format}" '
-    def row($label; $value; $kind):
-      if ($value | type == "string" or type == "number") then [$label, ($value|tostring), $kind] | join("\u001f") else empty end;
+    def row($caption; $value; $kind):
+      if ($value | type == "string" or type == "number") then [$caption, ($value|tostring), $kind] | join("\u001f") else empty end;
     if $format == "local" then
       row("Pledge"; .spsPledge; "lovelace"), row("Fixed cost"; .spsCost; "lovelace"),
       row("Margin"; (.spsMargin * 100); "percent"), row("Reward credential"; (.spsAccountId.keyHash // .spsAccountId.scriptHash); "identifier"),
@@ -95,7 +95,7 @@ cntools_pool_settings_rows() {
 cntools_pool_members_rows() {
   local json="$1" format="$2" records="" label="" value="" role=""
   records="$(jq -r --arg format "${format}" '
-    def row($label; $value; $role): [$label, $value, $role] | map(tostring | gsub("[[:cntrl:]]"; " ")) | join("\u001f");
+    def row($caption; $value; $role): [$caption, $value, $role] | map(tostring | gsub("[[:cntrl:]]"; " ")) | join("\u001f");
     (if $format == "local" then .spsOwners else .owners end | if type == "array" then . else [] end) | to_entries[] |
       (if $format == "config" then .value | if type == "object" then (.label // .wallet_name) else null end else .value end) as $owner |
       select($owner | type == "string") | row("Owner " + ((.key+1)|tostring); $owner; "identifier")

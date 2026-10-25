@@ -20,8 +20,8 @@ cntools_pool_stake_record_into() {
   if ((status != 0)); then cntools_transaction_log_cli_failure 'Pool stake address derivation failed' "${status}" "${errors}" "${response}"; return 1; fi
   address="$(< "${response}")"
   cntools_wallet_bech32_valid "${address}" "$(cntools_wallet_address_hrp reward)" reward || return 1
-  printf -v "${output}" '%s' "$(jq -cn --arg label "${label}" --arg vkey "${public}" --arg source "${source}" --arg hash "${hash}" \
-    --arg address "${address}" '{label:$label,vkey:$vkey,source:$source,hash:$hash,address:$address}')"
+  printf -v "${output}" '%s' "$(jq -cn --arg key_label "${label}" --arg vkey "${public}" --arg source "${source}" --arg hash "${hash}" \
+    --arg address "${address}" '{label:$key_label,vkey:$vkey,source:$source,hash:$hash,address:$address}')"
 }
 
 cntools_pool_wallet_stake_record_into() {

@@ -25,8 +25,8 @@ cntools_pool_config_save() {
     record="$(jq --argjson public "$(jq . "$(jq -r .vkey <<< "${record}")")" '{label,hash,address,publicKey:$public}' <<< "${record}")" || return 1
     owners="$(jq -c --argjson record "${record}" '.+[$record]' <<< "${owners}")" || return 1
   done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_REG_OWNERS}")
-  reward="$(jq -cn --arg label "${CNTOOLS_POOL_REG_REWARD_LABEL}" --arg hash "${CNTOOLS_POOL_REG_REWARD_HASH}" \
-    --argjson public "$(jq . "${CNTOOLS_POOL_REG_REWARD_VKEY}")" '{label:$label,hash:$hash,publicKey:$public}')" || return 1
+  reward="$(jq -cn --arg reward_label "${CNTOOLS_POOL_REG_REWARD_LABEL}" --arg hash "${CNTOOLS_POOL_REG_REWARD_HASH}" \
+    --argjson public "$(jq . "${CNTOOLS_POOL_REG_REWARD_VKEY}")" '{label:$reward_label,hash:$hash,publicKey:$public}')" || return 1
   cntools_transaction_temp_file file pool-config || return 1
   jq -n --arg network "${CNTOOLS_NETWORK}" --arg pool "${CNTOOLS_POOL_REG_ID}" --arg pledge "${CNTOOLS_POOL_REG_PLEDGE}" \
     --arg cost "${CNTOOLS_POOL_REG_COST}" --arg margin "${CNTOOLS_POOL_REG_MARGIN}" --argjson owners "${owners}" \

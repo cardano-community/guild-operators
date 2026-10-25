@@ -71,8 +71,8 @@ cntools_voting_thresholds() {
         $v.numerator >= 0 and $v.denominator > 0 and $v.numerator <= $v.denominator and
         ($v.numerator|floor) == $v.numerator and ($v.denominator|floor) == $v.denominator then $v.numerator/$v.denominator
       else null end;
-    def row($label;$raw): ratio($raw) as $v |
-      [$label, (if ($v|type) == "number" and $v >= 0 and $v <= 1 then ((($v*10000|round)/100)|tostring)+" %" else "Unavailable" end)] | join("\u001f");
+    def row($caption;$raw): ratio($raw) as $v |
+      [$caption, (if ($v|type) == "number" and $v >= 0 and $v <= 1 then ((($v*10000|round)/100)|tostring)+" %" else "Unavailable" end)] | join("\u001f");
     $proposal.type as $type | $protocol.dRepVotingThresholds as $d | $protocol.poolVotingThresholds as $s |
     if $type == "InfoAction" then ["Ratification","Informational action · no ratification threshold"]|join("\u001f")
     else

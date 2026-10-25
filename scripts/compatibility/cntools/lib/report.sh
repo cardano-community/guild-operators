@@ -64,9 +64,9 @@ ck_run() {
     printf '      Check returned status %s; inspect %s\n' "$status" "$CK_CASE_DIR"
   fi
   detail="$(sed -n '1,12p' "$CK_CASE_DIR/details.log")"
-  jq -cn --arg id "$id" --arg label "$label" --arg level "$level" --arg result "$result" \
+  jq -cn --arg id "$id" --arg check_label "$label" --arg level "$level" --arg result "$result" \
     --arg details "$detail" --arg path "$CK_CASE_DIR" --argjson seconds "$duration" --argjson status "$status" \
-    '{id:$id,label:$label,level:$level,result:$result,exitStatus:$status,seconds:$seconds,details:$details,artifacts:$path}' >> "$CK_REPORT/results.jsonl" || { printf 'Cannot save check result\n' >&2; exit 2; }
+    '{id:$id,label:$check_label,level:$level,result:$result,exitStatus:$status,seconds:$seconds,details:$details,artifacts:$path}' >> "$CK_REPORT/results.jsonl" || { printf 'Cannot save check result\n' >&2; exit 2; }
 }
 ck_fixture() { [[ -n "$CK_FIXTURES" ]] || return 1; jq -er --arg k "$1" '.[$k]|select(type=="string" and length>0)' "$CK_FIXTURES"; }
 ck_lookup() {

@@ -9,10 +9,10 @@ CNTOOLS_POOL_STAKE_PLAN='[]'
 CNTOOLS_POOL_REG_POOL_DEPOSIT=0
 
 cntools_pool_stake_records() {
-  jq -cn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --arg label "${CNTOOLS_POOL_REG_REWARD_LABEL}" \
+  jq -cn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --arg reward_label "${CNTOOLS_POOL_REG_REWARD_LABEL}" \
     --arg hash "${CNTOOLS_POOL_REG_REWARD_HASH}" --arg vkey "${CNTOOLS_POOL_REG_REWARD_VKEY}" \
     --arg address "${CNTOOLS_POOL_REG_REWARD_ADDRESS}" --arg source "${CNTOOLS_POOL_REG_REWARD_SOURCE:-}" \
-    '$owners + [{label:$label,hash:$hash,vkey:$vkey,address:$address,source:$source}] | unique_by(.hash)'
+    '$owners + [{label:$reward_label,hash:$hash,vkey:$vkey,address:$address,source:$source}] | unique_by(.hash)'
 }
 
 cntools_pool_stake_collect() {

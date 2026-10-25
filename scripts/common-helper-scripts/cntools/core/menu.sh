@@ -470,9 +470,11 @@ cntools_menu_catalog_parse() {
   local record=""
   local index="" source="" kind="" label="" description="" shortcut=""
   local order="" advanced="" modes="" libs="" koios="" sentinel=""
-  local expected=0 count="${#CNTOOLS_MENU_CATALOG_METADATA[@]}"
+  local expected=0 count="${#CNTOOLS_MENU_CATALOG_METADATA[@]}" errors_file="" jq_error="" status=0
 
   (( count > 0 )) || cntools_menu_fail "No module metadata was collected" || return 1
+  errors_file="$(umask 077; mktemp "${TMPDIR:-/tmp}/cntools-menu-catalog.XXXXXX")" ||
+    cntools_menu_fail "Module metadata catalog could not be checked" || return 1
   output="$(jq -ner '
       def line:
         type == "string" and length > 0 and
@@ -515,28 +517,33 @@ cntools_menu_catalog_parse() {
       to_entries[] |
       .key as $index |
       .value as $input |
-      $input.document as $module |
-      if (($index == 0 and ($module | root_menu)) or
-          ($index > 0 and ($module | child_menu or child_action))) then
+      $input.document as $entry |
+      if (($index == 0 and ($entry | root_menu)) or
+          ($index > 0 and ($entry | child_menu or child_action))) then
         [
           ($index | tostring),
           $input.source,
-          $module.kind,
-          $module.label,
-          $module.description,
-          ($module.shortcut // ""),
-          (($module.order // 0) | tostring),
-          (($module.advanced // false) | tostring),
-          (($module.modes // []) | join(",")),
-          (($module.libs // []) | join(",")),
-          (($module.requiresKoios // false) | tostring),
+          $entry.kind,
+          $entry.label,
+          $entry.description,
+          ($entry.shortcut // ""),
+          (($entry.order // 0) | tostring),
+          (($entry.advanced // false) | tostring),
+          (($entry.modes // []) | join(",")),
+          (($entry.libs // []) | join(",")),
+          (($entry.requiresKoios // false) | tostring),
           "."
         ] | join("\u001f")
       else
         error("invalid module metadata: \($input.source)")
       end
-    ' "${CNTOOLS_MENU_CATALOG_METADATA[@]}" 2>/dev/null)" ||
-      cntools_menu_fail "Module metadata catalog is invalid" || return 1
+    ' "${CNTOOLS_MENU_CATALOG_METADATA[@]}" 2>"${errors_file}")" || status=$?
+  # Keep jq's own diagnostic: a jq too old or a broken module.json differ.
+  jq_error="$(head -n 1 "${errors_file}" 2>/dev/null | tr -d '[:cntrl:]' | cut -c1-200)"
+  rm -f -- "${errors_file}"
+  if (( status != 0 )); then
+    cntools_menu_fail "Module metadata catalog is invalid${jq_error:+ (jq $(jq --version 2>/dev/null): ${jq_error})}" || return 1
+  fi
 
   while IFS= read -r record; do
     [[ -n "${record}" ]] || continue

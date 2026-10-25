@@ -1443,12 +1443,12 @@ cntools_transaction_plan_add_public_signer() {
     merged_kind="${preferred_kind}"
   fi
   updated="$(jq -c \
-    --arg id "${key_id}" --arg label "${label}" --arg role "${role}" \
+    --arg id "${key_id}" --arg entry_label "${label}" --arg role "${role}" \
     --arg credential "${credential}" --arg preferred "${merged_kind}" \
     --arg hardware_group "${hardware_group}" '
       if any(.[]; .keyId == $id) then
         map(if .keyId == $id then
-          .labels = ((.labels + [$label]) | unique) |
+          .labels = ((.labels + [$entry_label]) | unique) |
           .roles = ((.roles + [$role]) | unique) |
           .credential = $credential |
           .hardwareGroup =
@@ -1462,7 +1462,7 @@ cntools_transaction_plan_add_public_signer() {
           credential: $credential,
           hardwareGroup:
             (if $hardware_group == "" then null else $hardware_group end),
-          labels: [$label],
+          labels: [$entry_label],
           roles: [$role],
           preferredKind: $preferred
         }]
@@ -1538,16 +1538,16 @@ cntools_transaction_plan_add_public_change_key() {
     return 1
   }
   updated="$(jq -c \
-    --arg id "${key_id}" --arg label "${label}" \
+    --arg id "${key_id}" --arg entry_label "${label}" \
     --arg group "${hardware_group}" '
       if any(.[]; .keyId == $id) then
         map(if .keyId == $id then
           if .hardwareGroup != $group then
             error("conflicting hardware group")
-          else .labels = ((.labels + [$label]) | unique)
+          else .labels = ((.labels + [$entry_label]) | unique)
           end
         else . end)
-      else . + [{keyId: $id, labels: [$label], hardwareGroup: $group}]
+      else . + [{keyId: $id, labels: [$entry_label], hardwareGroup: $group}]
       end
     ' <<< "${CNTOOLS_TRANSACTION_PLAN_CHANGE_KEYS}" 2>/dev/null)" || {
     cntools_transaction_set_error \
@@ -1820,12 +1820,12 @@ cntools_transaction_plan_add_native_script_internal() {
     native_scripts_file native-plan \
     "${CNTOOLS_TRANSACTION_PLAN_NATIVE_SCRIPTS}" || return 1
   CNTOOLS_TRANSACTION_PLAN_NATIVE_SCRIPTS="$(jq -c \
-    --arg label "${label}" --arg purpose "${purpose}" \
+    --arg entry_label "${label}" --arg purpose "${purpose}" \
     --arg source "${source}" --arg script_hash "${script_hash}" \
     --arg reference_input "${reference_input}" \
     --slurpfile script "${script_file}" \
     --slurpfile selected "${selected_file}" '
-      . + [{label: $label, purpose: $purpose, script: $script[0],
+      . + [{label: $entry_label, purpose: $purpose, script: $script[0],
             scriptHash: $script_hash,
             referenceInput:
               (if $source == "reference" then $reference_input else null end),

@@ -429,8 +429,8 @@ cntools_wallet_query_koios_asset_metadata_batch() {
             else [] end))
       else null
       end;
-    def cip68_map($row; $label):
-      (($row.cip68_metadata // {})[$label] // null) as $datum
+    def cip68_map($row; $cip67):
+      (($row.cip68_metadata // {})[$cip67] // null) as $datum
       | if ($datum | type) != "object" or
            $datum.constructor != 0 or
            ($datum.fields | type) != "array" or
@@ -456,8 +456,8 @@ cntools_wallet_query_koios_asset_metadata_batch() {
                 end
             end
         end;
-    def cip68_metadata($row; $label):
-      cip68_map($row; $label) as $metadata
+    def cip68_metadata($row; $cip67):
+      cip68_map($row; $cip67) as $metadata
       | if $metadata == null then {} else ($metadata | plutus_value(0)) end;
     # CIP-67 prefixes for CIP-68 user-token labels 222, 333, and 444.
     def cip67_label($row):
@@ -480,19 +480,19 @@ cntools_wallet_query_koios_asset_metadata_batch() {
         (type == "string" and length > 0) or
         type == "number" or type == "boolean")]
       | length > 0;
-    def metadata_sources($label; $registry; $cip68; $mint20; $mint721):
-      if $label == "222" then
+    def metadata_sources($cip67; $registry; $cip68; $mint20; $mint721):
+      if $cip67 == "222" then
           [
             {source:"CIP-68 (222)", document:$cip68},
             {source:"CIP-25 (721)", document:$mint721}
           ]
-        elif $label == "333" then
+        elif $cip67 == "333" then
           [
             {source:"CIP-68 (333)", document:$cip68},
             {source:"CIP-X (label 20)", document:$mint20},
             {source:"Token Registry", document:$registry}
           ]
-        elif $label == "444" then
+        elif $cip67 == "444" then
           [
             {source:"CIP-68 (444)", document:$cip68},
             {source:"Token Registry", document:$registry}
@@ -627,11 +627,11 @@ cntools_wallet_query_koios_asset_metadata_batch() {
         description:$row.metadata_description,
         url:$row.metadata_url
       }) | if type == "object" then . else {} end) as $registry
-    | cip67_label($row) as $label
-    | cip68_metadata($row; $label) as $cip68
+    | cip67_label($row) as $cip67
+    | cip68_metadata($row; $cip67) as $cip68
     | mint_metadata($row; $row.metadata_20) as $mint20
     | mint_metadata($row; $row.metadata_721) as $mint721
-    | metadata_sources($label; $registry; $cip68; $mint20; $mint721) as $sources
+    | metadata_sources($cip67; $registry; $cip68; $mint20; $mint721) as $sources
     | selected_metadata($sources) as $selected
     | ($selected.document
        | safe_document(0; ""; ($row.total_supply == "1"))) as $display_document
@@ -661,7 +661,7 @@ cntools_wallet_query_koios_asset_metadata_batch() {
       $row.fingerprint,
       $row.total_supply,
       asset_class($row.total_supply),
-      $label,
+      $cip67,
       $selected.source,
       $name,
       $ticker,
