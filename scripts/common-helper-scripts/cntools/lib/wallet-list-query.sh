@@ -154,17 +154,17 @@ cntools_wallet_list_query_koios_address_batch() {
     cntools_wallet_log ERROR "Koios address_info batch returned invalid JSON"
     return 1
   }
-  # A successful empty response means none of the requested addresses has
-  # appeared on-chain. Treat the complete batch as known zero rather than as
-  # missing data. A non-empty response that omits a requested row remains
-  # partial so an unexpectedly incomplete response cannot create a false zero.
-  if [[ "$(jq -r 'length' "${response_file}")" == "0" ]]; then
-    for address in "$@"; do
-      batch_balances["${address}"]=0
-      batch_assets["${address}"]=""
-    done
+  # Koios address_info returns only addresses that have appeared on-chain. A
+  # successful response that omits a requested address, such as a new wallet's
+  # unused payment-only address, therefore means a known zero balance, just as
+  # account_info omits never-registered stake accounts.
+  for address in "$@"; do
+    batch_balances["${address}"]=0
+    batch_assets["${address}"]=""
+  done
+  if (( $(jq -r 'length' "${response_file}") < $# )); then
     cntools_wallet_log WALLET \
-      "Koios address_info batch returned no rows; unused funding addresses have zero balances"
+      "Koios address_info batch omitted unused addresses; they have zero balances"
   fi
   balance_rows="$(jq -r \
     '.[] | [.address, .balance] | @tsv' "${response_file}")" || return 1

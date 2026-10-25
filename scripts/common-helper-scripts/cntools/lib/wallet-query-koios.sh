@@ -79,29 +79,26 @@ cntools_wallet_query_koios_addresses() {
       "Koios address_info returned no rows; unused funding addresses have zero balances"
     return 0
   fi
+  # Koios omits addresses that have never appeared on-chain, such as a new
+  # wallet's unused payment-only address: a known zero balance, not an error.
   if [[ -n "${base_address}" ]]; then
-    if balance="$(jq -er --arg address "${base_address}" '
-        ([.[] | select(.address == $address)][0].balance // empty) | tostring
-      ' "${response_file}" 2>/dev/null)" &&
-       [[ "${balance}" =~ ^[0-9]+$ ]]; then
-      CNTOOLS_WALLET_BASE_LOVELACE="${balance}"
-      matched_count=$((matched_count + 1))
-    fi
+    balance="$(jq -r --arg address "${base_address}" '
+        ([.[] | select(.address == $address)][0].balance // "0") | tostring
+      ' "${response_file}" 2>/dev/null)" && [[ "${balance}" =~ ^[0-9]+$ ]] || return 1
+    CNTOOLS_WALLET_BASE_LOVELACE="${balance}"
+    matched_count=$((matched_count + 1))
   fi
   if [[ -n "${payment_address}" ]]; then
-    if balance="$(jq -er --arg address "${payment_address}" '
-        ([.[] | select(.address == $address)][0].balance // empty) | tostring
-      ' "${response_file}" 2>/dev/null)" &&
-       [[ "${balance}" =~ ^[0-9]+$ ]]; then
-      CNTOOLS_WALLET_PAYMENT_LOVELACE="${balance}"
-      matched_count=$((matched_count + 1))
-    fi
+    balance="$(jq -r --arg address "${payment_address}" '
+        ([.[] | select(.address == $address)][0].balance // "0") | tostring
+      ' "${response_file}" 2>/dev/null)" && [[ "${balance}" =~ ^[0-9]+$ ]] || return 1
+    CNTOOLS_WALLET_PAYMENT_LOVELACE="${balance}"
+    matched_count=$((matched_count + 1))
   fi
   CNTOOLS_WALLET_FUNDING_SUCCEEDED="${matched_count}"
-  if (( matched_count != expected_count )); then
-    cntools_wallet_log ERROR \
-      "Koios address_info omitted a requested funding address"
-    return 1
+  if (( $(jq -r 'length' "${response_file}") < expected_count )); then
+    cntools_wallet_log WALLET \
+      "Koios address_info omitted unused funding addresses; they have zero balances"
   fi
   CNTOOLS_WALLET_UTXO_COUNT="$(jq -er '
     [.[].utxo_set[]?] | length | tostring
