@@ -7,19 +7,25 @@ cntools_multisig_participants_reset() {
   CNTOOLS_MULTISIG_PAYMENT_HASHES=(); CNTOOLS_MULTISIG_STAKE_HASHES=(); CNTOOLS_MULTISIG_LABELS=()
 }
 
+# Every refusal sets CNTOOLS_MULTISIG_ERROR and returns 2, so callers always
+# have a reason to show (1 stays reserved for Cancel).
 cntools_multisig_participant_add() {
   local payment="${1,,}" stake="${2,,}" label="$3" existing=''
-  [[ "${payment}" =~ ^[0-9a-f]{56}$ && ( -z "${stake}" || "${stake}" =~ ^[0-9a-f]{56}$ ) &&
-      ${#label} -le 64 && -n "${label}" && ! "${label}" =~ [[:cntrl:]] ]] || return 2
+  [[ "${payment}" =~ ^[0-9a-f]{56}$ && ( -z "${stake}" || "${stake}" =~ ^[0-9a-f]{56}$ ) ]] || {
+    cntools_multisig_fail 'Use 56 hexadecimal characters for each key hash.'; return 2;
+  }
+  [[ ${#label} -le 64 && -n "${label}" && ! "${label}" =~ [[:cntrl:]] ]] || {
+    cntools_multisig_fail 'The participant label is invalid.'; return 2;
+  }
   (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} < 20 )) || {
-    cntools_multisig_fail 'At most 20 participants are supported.'; return 1;
+    cntools_multisig_fail 'At most 20 participants are supported.'; return 2;
   }
   for existing in "${CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}"; do
-    [[ "${existing}" != "${payment}" ]] || { cntools_multisig_fail 'That payment participant is already included.'; return 1; }
+    [[ "${existing}" != "${payment}" ]] || { cntools_multisig_fail 'That payment participant is already included.'; return 2; }
   done
   if [[ -n "${stake}" ]]; then
     for existing in "${CNTOOLS_MULTISIG_STAKE_HASHES[@]}"; do
-      [[ "${existing}" != "${stake}" ]] || { cntools_multisig_fail 'That stake participant is already included.'; return 1; }
+      [[ "${existing}" != "${stake}" ]] || { cntools_multisig_fail 'That stake participant is already included.'; return 2; }
     done
   fi
   CNTOOLS_MULTISIG_PAYMENT_HASHES+=("${payment}"); CNTOOLS_MULTISIG_STAKE_HASHES+=("${stake}"); CNTOOLS_MULTISIG_LABELS+=("${label}")

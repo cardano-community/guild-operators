@@ -26,6 +26,10 @@ declare -Ag CNTOOLS_GUM_HEADER_RENDERED=()
 declare -Ag CNTOOLS_GUM_HEADER_RENDER_ROWS=()
 declare -Ag CNTOOLS_GUM_MENU_ROW_KEYS=()
 declare -Ag CNTOOLS_GUM_MENU_ROWS=()
+# Warnings on the current screen, and those a Quick auto-confirmation carries
+# to the next screen so a redraw cannot hide them before they are read.
+declare -ag CNTOOLS_UI_SCREEN_WARNINGS=()
+declare -ag CNTOOLS_UI_CARRIED_WARNINGS=()
 
 # Gum subtracts its help and vertical padding from the explicit filter height
 # to size the choice viewport. The input is already part of the rendered
@@ -906,9 +910,17 @@ cntools_ui_render_begin() {
   local _label="${1:-CNTools}"
   local breadcrumb="${2:-/}"
 
+  local carried=""
+  local -a carried_warnings=("${CNTOOLS_UI_CARRIED_WARNINGS[@]}")
+
   CNTOOLS_GUM_CONTEXT_LABEL="${_label}"
   CNTOOLS_GUM_CONTEXT_PATH="${breadcrumb}"
-  cntools_gum_header "${breadcrumb}"
+  CNTOOLS_UI_SCREEN_WARNINGS=()
+  CNTOOLS_UI_CARRIED_WARNINGS=()
+  cntools_gum_header "${breadcrumb}" || return $?
+  for carried in "${carried_warnings[@]}"; do
+    cntools_ui_render_status "${carried%%$'\037'*}" "${carried#*$'\037'}" || return $?
+  done
 }
 
 cntools_ui_action_begin() {
@@ -927,6 +939,8 @@ cntools_ui_render_status() {
     [[ "${width}" =~ ^[1-9][0-9]*$ ]] || return 2
     width_arguments=(--width "${width}")
   fi
+  [[ "${level}" != warn && "${level}" != error ]] ||
+    CNTOOLS_UI_SCREEN_WARNINGS+=("${level}"$'\037'"${message}")
   case "${level}" in
     error) color="${CNTOOLS_GUM_COLOR_DANGER}" ;;
     warn) color="${CNTOOLS_GUM_COLOR_WARNING}" ;;
@@ -974,6 +988,7 @@ cntools_ui_confirm() {
 cntools_ui_flow_confirm() {
   if declare -F cntools_flow_quick >/dev/null 2>&1 && cntools_flow_quick; then
     cntools_gum_log CHOICE "confirmed by quick flow: ${1:-Continue?}"
+    CNTOOLS_UI_CARRIED_WARNINGS=("${CNTOOLS_UI_SCREEN_WARNINGS[@]}")
     return 0
   fi
   cntools_ui_confirm "$@"
@@ -1268,7 +1283,9 @@ cntools_ui_file() {
         _cntools_directory="${_cntools_paths[_cntools_index]}"
         break
       fi
-      if [[ "${_cntools_file_actions}" == N ]]; then
+      # Quick uses a browsed file directly; Detailed also offers deletion.
+      if [[ "${_cntools_file_actions}" == N ]] ||
+         { declare -F cntools_flow_quick >/dev/null 2>&1 && cntools_flow_quick; }; then
         _cntools_output_ref="${_cntools_paths[_cntools_index]}"; return 0
       fi
       _cntools_file_status=0
@@ -1345,14 +1362,12 @@ cntools_ui_pick_path() {
         ((path_picker_status == 0 || path_picker_status == 1)) || return "${path_picker_status}"
         ((path_picker_status == 0)) || continue
         if [[ -z "${path_picker_value}" ]]; then
-          if [[ -n "${path_picker_empty_choice}" ]]; then path_picker_value="${path_picker_default}"
+          # An empty entry uses a real default only; an empty-valued choice such
+          # as Defer must be picked explicitly from the menu.
+          if [[ -n "${path_picker_default}" ]]; then path_picker_value="${path_picker_default}"
           else path_picker_feedback='Choose a file or folder, enter its path, or Cancel.'; continue; fi
         fi
-        if [[ "${path_picker_kind}" == file && -n "${path_picker_value}" ]]; then
-          path_picker_status=0
-          cntools_ui_file_selected "${path_picker_value}" cntools_ui_path_begin || path_picker_status=$?
-          case "${path_picker_status}" in 0) ;; 1|3) continue ;; *) return "${path_picker_status}" ;; esac
-        fi
+        # A typed path is already the answer; deletion stays in Browse.
         ;;
       *)
         [[ -n "${path_picker_empty_choice}" && "${path_picker_method}" == "${path_picker_empty_choice}" ]] || return 2

@@ -87,13 +87,20 @@ cntools_pool_opcert_offer() {
   cntools_pool_registration_choose choice 'Prepare missing operational certificate?' 'Prepare certificate' 'Keep operational setup separate' || return $?
   [[ "${choice}" == 'Prepare certificate' ]] || return 0
   if ! cntools_pool_kes_period_into period; then
+    period=''
     cntools_ui_render_status warn 'KES start could not be calculated from the chain tip and Shelley genesis. Enter the current period verified for this network.'
   fi
-  cntools_pool_registration_input input "KES start period (Enter keeps ${period:-no default})" "${period}" || return $?
-  [[ -n "${input}" ]] || input="${period}"
+  # Quick uses the period calculated from the chain tip; it asks only without one.
+  if [[ -n "${period}" ]] && cntools_flow_quick; then
+    input="${period}"
+    cntools_transaction_log CHOICE "Pool input=KES start period default=${period} flow=quick"
+  else
+    cntools_pool_registration_input input "KES start period (Enter keeps ${period:-no default})" "${period}" || return $?
+    [[ -n "${input}" ]] || input="${period}"
+  fi
   if ! cntools_ui_spin_function 'Issuing the first operational certificate…' cntools_pool_opcert_issue "${input}"; then
     cntools_wallet_register_set_error "Operational certificate preparation failed. Do not reset the counter. Inspect recovery files at ${CNTOOLS_POOL_OPCERT_RECOVERY:-${directory}} before retrying."; return 2
   fi
-  cntools_ui_render_status success "Operational certificate ready; KES start recorded in ${directory}/${start}. Existing KES/VRF keys were not replaced."
+  cntools_ui_render_status success "Operational certificate ready; KES start period ${input} recorded in ${directory}/${start}. Existing KES/VRF keys were not replaced."
   cntools_ui_wait
 }

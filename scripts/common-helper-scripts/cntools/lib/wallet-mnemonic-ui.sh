@@ -141,8 +141,13 @@ cntools_wallet_mnemonic_prompt_name_into() {
   while true; do
     cntools_wallet_mnemonic_screen_begin \
       "${_cntools_title}" "${_cntools_breadcrumb}"
-    cntools_ui_render_status info \
-      "Create a recoverable payment-and-stake wallet using Cardano CLI."
+    if [[ "${_cntools_breadcrumb}" == *Import* ]]; then
+      cntools_ui_render_status info \
+        "Import a payment-and-stake wallet from an existing recovery phrase."
+    else
+      cntools_ui_render_status info \
+        "Create a recoverable payment-and-stake wallet using Cardano CLI."
+    fi
     [[ -z "${_cntools_feedback}" ]] ||
       cntools_ui_render_status warn "${_cntools_feedback}"
     if cntools_ui_input _cntools_prompt_candidate_name "Wallet name"; then
@@ -209,6 +214,26 @@ cntools_wallet_mnemonic_prompt_index_into() {
   done
 }
 
+cntools_wallet_mnemonic_prompt_derivation_into() {
+  local _cntools_derivation_account_output="${1:-}"
+  local _cntools_derivation_key_output="${2:-}"
+  local _cntools_derivation_title="${3:-Mnemonic}"
+  local _cntools_derivation_breadcrumb="${4:-/ Wallet / Mnemonic}"
+  local _cntools_derivation_account=""
+  local _cntools_derivation_key=""
+
+  [[ "${_cntools_derivation_account_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
+     "${_cntools_derivation_key_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  cntools_wallet_mnemonic_prompt_index_into \
+    _cntools_derivation_account "Account number" \
+    "${_cntools_derivation_title}" "${_cntools_derivation_breadcrumb}" || return $?
+  cntools_wallet_mnemonic_prompt_index_into \
+    _cntools_derivation_key "Address key index" \
+    "${_cntools_derivation_title}" "${_cntools_derivation_breadcrumb}" || return $?
+  printf -v "${_cntools_derivation_account_output}" '%s' "${_cntools_derivation_account}"
+  printf -v "${_cntools_derivation_key_output}" '%s' "${_cntools_derivation_key}"
+}
+
 cntools_wallet_mnemonic_collect_settings() {
   local _cntools_name_output="${1:-}"
   local _cntools_account_output="${2:-}"
@@ -236,21 +261,15 @@ cntools_wallet_mnemonic_collect_settings() {
     _cntools_status=$?
     return "${_cntools_status}"
   fi
-  if cntools_wallet_mnemonic_prompt_index_into \
-      _cntools_account "Account number" \
-      "${_cntools_title}" "${_cntools_breadcrumb}"; then
-    :
+  if cntools_flow_quick; then
+    # The plan step offers 'Change account and key index'.
+    _cntools_account=0
+    _cntools_key_index=0
+    cntools_wallet_mnemonic_log CHOICE "mnemonic derivation default account=0 key_index=0 flow=quick"
   else
-    _cntools_status=$?
-    return "${_cntools_status}"
-  fi
-  if cntools_wallet_mnemonic_prompt_index_into \
-      _cntools_key_index "Address key index" \
-      "${_cntools_title}" "${_cntools_breadcrumb}"; then
-    :
-  else
-    _cntools_status=$?
-    return "${_cntools_status}"
+    cntools_wallet_mnemonic_prompt_derivation_into \
+      _cntools_account _cntools_key_index \
+      "${_cntools_title}" "${_cntools_breadcrumb}" || return $?
   fi
   _cntools_name_ref="${_cntools_name}"
   _cntools_account_ref="${_cntools_account}"
@@ -715,21 +734,29 @@ cntools_wallet_action_new_mnemonic() {
       "/ Wallet / New / Mnemonic"
     return 1
   fi
-  cntools_wallet_mnemonic_screen_begin \
-    "Mnemonic" "/ Wallet / New / Mnemonic"
-  if ! cntools_wallet_mnemonic_render_plan \
-      "${name}" "${account}" "${key_index}" new; then
-    cntools_wallet_mnemonic_ui_failure \
-      "The mnemonic wallet plan could not be displayed." \
-      "/ Wallet / New / Mnemonic"
-    return 1
-  fi
-  cntools_ui_render_status warn \
-    "CNTools will display the recovery phrase once and then verify your backup."
-  if cntools_ui_flow_confirm "Generate this wallet's recovery phrase now?"; then
+  while true; do
+    cntools_wallet_mnemonic_screen_begin \
+      "Mnemonic" "/ Wallet / New / Mnemonic"
+    if ! cntools_wallet_mnemonic_render_plan \
+        "${name}" "${account}" "${key_index}" new; then
+      cntools_wallet_mnemonic_ui_failure \
+        "The mnemonic wallet plan could not be displayed." \
+        "/ Wallet / New / Mnemonic"
+      return 1
+    fi
+    cntools_ui_render_status warn \
+      "CNTools will display the recovery phrase once and then verify your backup."
+    status=0
+    cntools_wallet_derivation_confirm "Generate this wallet's recovery phrase now?" \
+      'Generate recovery phrase' || status=$?
+    (( status == 4 )) || break
+    # Esc while changing keeps the shown values.
+    cntools_wallet_mnemonic_prompt_derivation_into account key_index \
+      "Mnemonic" "/ Wallet / New / Mnemonic" || true
+  done
+  if (( status == 0 )); then
     :
   else
-    status=$?
     (( status != 1 )) || {
       cntools_wallet_mnemonic_ui_cancelled \
         "new mnemonic wallet generation declined wallet=${name}"
@@ -889,24 +916,30 @@ cntools_wallet_action_import_mnemonic() {
   fi
   word_count="${#words[@]}"
   unset words
-  cntools_wallet_mnemonic_screen_begin \
-    "Mnemonic" "/ Wallet / Import / Mnemonic"
-  if ! cntools_wallet_mnemonic_render_plan \
-      "${name}" "${account}" "${key_index}" import; then
-    unset phrase
-    cntools_wallet_mnemonic_ui_failure \
-      "The mnemonic import plan could not be displayed." \
-      "/ Wallet / Import / Mnemonic"
-    return 1
-  fi
-  cntools_ui_render_status info \
-    "Recovery phrase accepted locally: ${word_count} words. Cardano CLI will validate it during derivation."
-  cntools_ui_render_status warn \
-    "Only the selected payment and stake addresses are imported; this is a single-address CNTools wallet."
-  if cntools_ui_flow_confirm "Import this mnemonic wallet now?"; then
+  while true; do
+    cntools_wallet_mnemonic_screen_begin \
+      "Mnemonic" "/ Wallet / Import / Mnemonic"
+    if ! cntools_wallet_mnemonic_render_plan \
+        "${name}" "${account}" "${key_index}" import; then
+      unset phrase
+      cntools_wallet_mnemonic_ui_failure \
+        "The mnemonic import plan could not be displayed." \
+        "/ Wallet / Import / Mnemonic"
+      return 1
+    fi
+    cntools_ui_render_status info \
+      "Recovery phrase accepted locally: ${word_count} words. Cardano CLI will validate it during derivation."
+    cntools_ui_render_status warn \
+      "Only the selected payment and stake addresses are imported; this is a single-address CNTools wallet."
+    status=0
+    cntools_wallet_derivation_confirm "Import this mnemonic wallet now?" 'Import wallet' || status=$?
+    (( status == 4 )) || break
+    cntools_wallet_mnemonic_prompt_derivation_into account key_index \
+      "Mnemonic" "/ Wallet / Import / Mnemonic" || true
+  done
+  if (( status == 0 )); then
     :
   else
-    status=$?
     unset phrase
     (( status != 1 )) || {
       cntools_wallet_mnemonic_ui_cancelled \

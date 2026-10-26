@@ -64,7 +64,9 @@ cntools_transaction_picker_begin() {
 
 cntools_transaction_picker_into() {
   local output_name="${1:-}" mode="${2:-}" feedback="${3:-}" method="" chosen="" status=0 index=0
-  local start="${CNTOOLS_ROOT:-}" picker_input="" width=""
+  local start="${CNTOOLS_ROOT:-}" picker_input="" width="" saved_first=N
+  # Quick opens the saved packages first; Back returns to the full menu.
+  [[ -n "${feedback}" ]] || ! cntools_flow_quick || saved_first=Y
   [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   case "${mode}" in sign|submit) ;; *) return 2 ;; esac
   local -n picker_result="${output_name}"
@@ -79,8 +81,12 @@ cntools_transaction_picker_into() {
       cntools_ui_render_status info 'Choose a signed CNTools package or external signed Cardano envelope. Saved-list labels are hints: packages are fully validated, and external envelopes require final ledger validation.' "$((width - 4))" || return 2
     fi
     [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
-    cntools_ui_choose method 'Choose a transaction file' 'Saved CNTools packages' \
-      'Browse files' 'Enter file path' Cancel || return $?
+    if [[ "${saved_first}" == Y ]]; then
+      saved_first=N; method='Saved CNTools packages'
+    else
+      cntools_ui_choose method 'Choose a transaction file' 'Saved CNTools packages' \
+        'Browse files' 'Enter file path' Cancel || return $?
+    fi
     cntools_transaction_log CHOICE "Transaction file selection mode=${mode} method=${method}"
     case "${method}" in
       Cancel) return 1 ;;
@@ -90,6 +96,11 @@ cntools_transaction_picker_into() {
           cntools_transaction_picker_catalog "${mode}" || return 2
         if (( ${#CNTOOLS_TRANSACTION_PICKER_FILES[@]} == 0 )); then
           feedback='No matching saved packages found. Use Browse files or Enter file path for imported files.'
+        elif (( ${#CNTOOLS_TRANSACTION_PICKER_FILES[@]} == 1 )); then
+          # A lone package needs no list; the review that follows can cancel.
+          picker_result="${CNTOOLS_TRANSACTION_PICKER_FILES[0]}"
+          cntools_transaction_log CHOICE "Transaction file auto-selected only saved package mode=${mode}"
+          return 0
         else
           status=0
           cntools_ui_choose chosen 'Saved packages · newest first · type to filter' "${CNTOOLS_TRANSACTION_PICKER_ROWS[@]}" Back || status=$?

@@ -8,10 +8,12 @@ cntools_kes_choose() {
 }
 
 # Every unconfirmed step reports what state it left, so an exit to the menu
-# never hides whether anything changed.
+# never hides whether anything changed. Pass "flow" as $4 for a step that
+# changes nothing active, which Quick then treats as confirmed.
 cntools_kes_confirm() {
   local prompt="$1" default="$2" stopped="${3:-}" kes_confirmation_status=0
-  cntools_ui_confirm "${prompt}" "${default}" || kes_confirmation_status=$?
+  if [[ "${4:-}" == flow ]]; then cntools_ui_flow_confirm "${prompt}" "${default}" || kes_confirmation_status=$?
+  else cntools_ui_confirm "${prompt}" "${default}" || kes_confirmation_status=$?; fi
   cntools_transaction_log CHOICE "KES confirmation=${kes_confirmation_status} prompt=${prompt}"
   if ((kes_confirmation_status != 0)) && [[ -n "${stopped}" ]]; then
     # 1 is No and 130 is Esc/Ctrl+C; anything else means the prompt itself failed.
@@ -303,10 +305,14 @@ cntools_pool_action_rotate() {
     [[ -z "${CNTOOLS_KES_SOURCE}" ]] || workflows+=('Rotate now')
     workflows+=('Prepare offline request')
     [[ -z "${CNTOOLS_KES_SOURCE}" ]] || workflows+=('Sign an offline request')
-    [[ -n "${CNTOOLS_KES_SOURCE}" ]] ||
-      cntools_ui_render_status info 'No cold signing key or hardware wallet file for this pool is on this system, so only an offline request can be prepared here.'
-    cntools_kes_choose choice 'KES workflow' "${workflows[@]}" Cancel || return $?
-    [[ "${choice}" != Cancel ]] || return 0
+    local only_workflow=N
+    if (( ${#workflows[@]} == 1 )); then
+      choice="${workflows[0]}" only_workflow=Y
+      cntools_transaction_log CHOICE "KES workflow: ${choice} (only option)"
+    else
+      cntools_kes_choose choice 'KES workflow' "${workflows[@]}" Cancel || return $?
+      [[ "${choice}" != Cancel ]] || return 0
+    fi
     if [[ "${choice}" != 'Sign an offline request' ]] && ! cntools_kes_counter_choose; then
       [[ -z "${CNTOOLS_POOL_WRITE_ERROR}" ]] || cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR}" error
       return 0
@@ -327,8 +333,10 @@ cntools_pool_action_rotate() {
       'Prepare offline request')
         cntools_kes_choose_period || return 0
         cntools_kes_review || return 1
+        [[ "${only_workflow}" != Y ]] ||
+          cntools_ui_render_status info 'No cold signing key or hardware wallet file for this pool is on this system, so this prepares an offline request for the signing system.'
         cntools_kes_confirm "Prepare an offline request starting at KES period ${CNTOOLS_KES_START}? The counter advances only when the cold key signs it." false \
-          'No offline request was prepared. Nothing was changed.' || return 0
+          'No offline request was prepared. Nothing was changed.' flow || return 0
         cntools_ui_spin_function 'Preparing and validating replacement KES keys…' cntools_kes_prepare "${CNTOOLS_KES_START}" || status=$?
         ((status != 0)) || cntools_kes_offline_instructions || status=$? ;;
       'Sign an offline request')

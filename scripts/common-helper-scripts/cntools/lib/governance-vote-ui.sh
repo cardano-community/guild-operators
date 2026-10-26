@@ -29,7 +29,7 @@ cntools_gov_vote_hash_into() {
 }
 
 cntools_gov_vote_choose_rationale() {
-  local choice='' method='' url='' hash='' file=''
+  local choice='' url='' hash='' status=0
   while true; do
     cntools_ui_choose choice 'Vote rationale' 'No rationale anchor' 'Add rationale anchor' Cancel || return $?
     case "${choice}" in
@@ -37,23 +37,21 @@ cntools_gov_vote_choose_rationale() {
       'No rationale anchor') CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL='' CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH=''; return 0 ;;
       'Add rationale anchor')
         cntools_ui_render_status info 'Publish a prepared CIP-100 rationale first. CNTools records its URL and exact-byte hash, but does not upload the document or validate its complete schema. The anchor is public.'
-        cntools_ui_input url 'Published rationale URL' 'https://… or ipfs://… (maximum 128 bytes)' || return $?
-        cntools_ui_choose method 'Rationale hash' 'Hash local JSON file' 'Enter known hash' Cancel || return $?
-        case "${method}" in
-          Cancel) continue ;;
-          'Hash local JSON file')
-            cntools_ui_pick_path file 'Rationale JSON file' 'Choose the exact published JSON bytes; the file is not uploaded.' || return $?
-            if ! cntools_ui_spin_function 'Hashing vote rationale…' cntools_gov_vote_hash_into hash "${file}"; then
-              cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-Could not hash that rationale.}"; continue
-            fi ;;
-          'Enter known hash') cntools_ui_input hash 'Rationale hash' '64 hexadecimal characters (Blake2b-256)' || return $?; hash="${hash,,}" ;;
-        esac
+        status=0
+        cntools_ui_input url 'Published rationale URL' 'https://… or ipfs://… (maximum 128 bytes)' || status=$?
+        ((status == 0)) || { ((status == 1)) && continue; return "${status}"; }
+        if ! cntools_drep_lifecycle_anchor_valid "${url}" "$(printf '%064d' 0)"; then
+          cntools_ui_render_status warn 'Use an HTTP(S) or IPFS URL of at most 128 bytes.'; continue
+        fi
+        cntools_public_metadata_anchor_hash_into hash "${url}" 'vote rationale' Rationale cntools_gov_vote_hash_into 4194304 || status=$?
+        ((status == 0)) || { ((status == 1)) && continue; return "${status}"; }
         if ! cntools_drep_lifecycle_anchor_valid "${url}" "${hash}"; then
           cntools_ui_render_status warn 'Use an HTTP(S) or IPFS URL of at most 128 bytes and a 64-character hexadecimal hash.'; continue
         fi
         CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL="${url}" CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH="${hash}"
         cntools_transaction_log CHOICE "Vote rationale url=${url} hash=${hash}"
         return 0 ;;
+      *) return 2 ;;
     esac
   done
 }

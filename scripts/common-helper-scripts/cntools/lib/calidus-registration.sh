@@ -174,15 +174,22 @@ cntools_calidus_registration_verify() {
   cntools_transaction_log POOL "Verified Calidus authorization operation=${CNTOOLS_CALIDUS_OPERATION} pool=${CNTOOLS_CALIDUS_REG_POOL} id=${CNTOOLS_CALIDUS_REG_ID} nonce=${nonce} metadata=$(jq -c . "${normalized}")"
 }
 
-cntools_calidus_registration_authorize() {
-  local nonce="$1" name='' hardware='' frozen='' public='' metadata='' response='' errors='' status=0 source=''
-  cntools_calidus_registration_nonce_valid "${nonce}" && cntools_calidus_signer_require || return 1
-  cntools_pool_file_name_into name cold-skey || return 1
-  cntools_pool_file_name_into hardware cold-hardware || return 1
-  source="${CNTOOLS_CALIDUS_REG_DIRECTORY}/${name}"
-  [[ ! -e "${source}.gpg" && ! -L "${source}.gpg" &&
+# Local authorization needs a private, unencrypted CLI cold key and no
+# encrypted or hardware cold key beside it.
+cntools_calidus_registration_local_cold_into() {
+  local output="$1" name='' hardware='' cold_source=''
+  cntools_pool_file_name_into name cold-skey && cntools_pool_file_name_into hardware cold-hardware || return 1
+  cold_source="${CNTOOLS_CALIDUS_REG_DIRECTORY}/${name}"
+  [[ ! -e "${cold_source}.gpg" && ! -L "${cold_source}.gpg" &&
      ! -e "${CNTOOLS_CALIDUS_REG_DIRECTORY}/${hardware}" && ! -L "${CNTOOLS_CALIDUS_REG_DIRECTORY}/${hardware}" ]] &&
-    cntools_transaction_private_file_safe "${source}" &&
+    cntools_transaction_private_file_safe "${cold_source}" || return 1
+  printf -v "${output}" '%s' "${cold_source}"
+}
+
+cntools_calidus_registration_authorize() {
+  local nonce="$1" frozen='' public='' metadata='' response='' errors='' status=0 source=''
+  cntools_calidus_registration_nonce_valid "${nonce}" && cntools_calidus_signer_require || return 1
+  cntools_calidus_registration_local_cold_into source &&
     cntools_transaction_snapshot_into frozen "${source}" 65536 calidus-cold-signing && cntools_pool_key_validate "${frozen}" cold signing || {
     cntools_calidus_registration_fail 'A private unencrypted CLI cold key is needed for local authorization. Otherwise import metadata signed on your offline system; do not copy the cold key online.'; return 1;
   }

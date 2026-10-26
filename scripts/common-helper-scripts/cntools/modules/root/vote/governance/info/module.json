@@ -37,6 +37,7 @@
     "drep-script.sh",
     "governance-wallet-ui.sh",
     "table.sh",
-    "public-metadata.sh"
+    "public-metadata.sh",
+    "wallet-selection.sh"
   ]
 }

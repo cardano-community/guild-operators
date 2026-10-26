@@ -68,3 +68,57 @@ cntools_public_metadata_offer() {
   fi
   cntools_public_metadata_render "${CNTOOLS_PUBLIC_METADATA_FILE}"
 }
+
+# Hash for an anchor URL the user publishes (DRep metadata, vote rationale).
+# Keeps the URL across failed attempts. Quick tries the download first when
+# online, falling back to asking. Returns 1 on Cancel.
+# Usage: OUTPUT URL NOUN LABEL FILE_HASHER [DOWNLOAD_LIMIT] [FILE_NOTE]
+cntools_public_metadata_anchor_hash_into() {
+  local pm_output="$1" pm_url="$2" pm_noun="$3" pm_label="$4" pm_hasher="$5" pm_limit="${6:-262144}" pm_note="${7:-}"
+  local pm_method='' pm_hash='' pm_file='' pm_status=0 pm_auto=N
+  local -a pm_methods=('Hash local JSON file' 'Enter known hash')
+  [[ "${pm_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && declare -F "${pm_hasher}" >/dev/null || return 2
+  if [[ "${CNTOOLS_MODE:-offline}" != offline ]]; then
+    pm_methods=('Download published JSON' "${pm_methods[@]}")
+    ! cntools_flow_quick || pm_auto=Y
+  fi
+  while true; do
+    if [[ "${pm_auto}" == Y ]]; then
+      pm_auto=N pm_method='Download published JSON'
+      cntools_wallet_log CHOICE "${pm_noun} hash method default=download flow=quick"
+    else
+      cntools_ui_choose pm_method "${pm_label} hash" "${pm_methods[@]}" Cancel || return $?
+      cntools_wallet_log CHOICE "${pm_noun} hash method=${pm_method}"
+    fi
+    pm_status=0
+    case "${pm_method}" in
+      Cancel) return 1 ;;
+      'Download published JSON')
+        [[ "${pm_url}" != ipfs://* ]] || cntools_ui_render_status info 'IPFS content is fetched through the public ipfs.io gateway.'
+        if ! cntools_ui_spin_function "Downloading and hashing published ${pm_noun}…" cntools_public_metadata_fetch "${pm_url}" '' "${pm_limit}"; then
+          cntools_ui_render_status warn "${CNTOOLS_PUBLIC_METADATA_ERROR} Choose another way to hash it."; continue
+        fi
+        pm_hash="${CNTOOLS_PUBLIC_METADATA_HASH}"
+        cntools_public_metadata_render "${CNTOOLS_PUBLIC_METADATA_FILE}" N || return 2
+        cntools_ui_flow_confirm 'Use these published bytes and hash?' false || continue
+        ;;
+      'Hash local JSON file')
+        cntools_ui_pick_path pm_file "${pm_label} JSON file" 'Choose the exact published JSON bytes; the file is not uploaded.' || pm_status=$?
+        ((pm_status == 0)) || { ((pm_status == 1)) && continue; return "${pm_status}"; }
+        if ! cntools_ui_spin_function "Hashing ${pm_noun}…" "${pm_hasher}" pm_hash "${pm_file}"; then
+          cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-Could not hash that ${pm_noun} file.}"; continue
+        fi
+        [[ -z "${pm_note}" ]] || cntools_ui_render_status info "${pm_note}"
+        ;;
+      'Enter known hash')
+        cntools_ui_input pm_hash "${pm_label} hash" '64 hexadecimal characters (Blake2b-256)' || pm_status=$?
+        ((pm_status == 0)) || { ((pm_status == 1)) && continue; return "${pm_status}"; }
+        pm_hash="${pm_hash,,}"
+        [[ "${pm_hash}" =~ ^[0-9a-f]{64}$ ]] || { cntools_ui_render_status warn 'Enter exactly 64 hexadecimal characters.'; continue; }
+        ;;
+      *) return 2 ;;
+    esac
+    printf -v "${pm_output}" '%s' "${pm_hash}"
+    return 0
+  done
+}

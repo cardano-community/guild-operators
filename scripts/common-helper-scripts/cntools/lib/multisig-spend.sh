@@ -120,45 +120,61 @@ cntools_multisig_signer_select() {
 
 cntools_multisig_spend_choose_signers() {
   local choice='' index=0 id='' selected=N path='' source='' begin="${1:-cntools_send_begin}" role_title=''
+  local script_keys=0 feedback=''
   local -a options=()
   CNTOOLS_MULTISIG_SELECTION_ROLE="${2:-payment}"
   [[ "${CNTOOLS_MULTISIG_SELECTION_ROLE}" =~ ^(payment|stake|drep)$ ]] || return 2
   role_title="${CNTOOLS_MULTISIG_SELECTION_ROLE}"
   [[ "${role_title}" != drep ]] || role_title=DRep
   cntools_multisig_candidates_load || return 2
-  while true; do
-    if declare -F "${begin}" >/dev/null; then cntools_gum_clear; "${begin}" || return 2; fi
-    if (( ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} > 0 )); then
-      {
-        for index in "${!CNTOOLS_MULTISIG_SIGNER_IDS[@]}"; do
-          cntools_table_pair "${CNTOOLS_MULTISIG_SIGNER_LABELS[index]}" "${CNTOOLS_MULTISIG_SIGNER_HASHES[index]}" identifier
-        done
-      } | cntools_table_render 'Selected signing participants' || return 2
-    fi
-    cntools_ui_render_status info "Choose the participants who will sign: at least ${CNTOOLS_MULTISIG_SPEND_THRESHOLD} required. ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} selected. Public-only participants can sign the exported package elsewhere."
-    options=('Done selecting signers' 'Add external verification key' 'Clear selected signers' Cancel)
+  # When the script needs every key and all of them are known, there is
+  # nothing to choose.
+  script_keys="$(jq '[..|objects|select(.type=="sig")|.keyHash|ascii_downcase]|unique|length' "${CNTOOLS_MULTISIG_SPEND_SCRIPT}")" || script_keys=0
+  if (( ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} == 0 && script_keys > 0 &&
+        CNTOOLS_MULTISIG_SPEND_THRESHOLD == script_keys &&
+        ${#CNTOOLS_MULTISIG_CANDIDATE_IDS[@]} == script_keys )); then
     for index in "${!CNTOOLS_MULTISIG_CANDIDATE_IDS[@]}"; do
-      id="${CNTOOLS_MULTISIG_CANDIDATE_IDS[index]}"; selected=N
-      for path in "${CNTOOLS_MULTISIG_SIGNER_IDS[@]}"; do [[ "${path}" != "${id}" ]] || selected=Y; done
-      [[ "${selected}" == N ]] || continue
-      options+=("$((index+1)) · ${CNTOOLS_MULTISIG_CANDIDATE_LABELS[index]} · $([[ -n "${CNTOOLS_MULTISIG_CANDIDATE_SOURCES[index]}" ]] && printf 'Local signer' || printf 'Offline signer')")
+      cntools_multisig_signer_select "${index}" || return 2
     done
-    cntools_ui_choose choice "Multisig ${role_title} signing participants" "${options[@]}" || return $?
-    cntools_transaction_log CHOICE "Multisig participant menu role=${CNTOOLS_MULTISIG_SELECTION_ROLE} selected=${choice}"
-    case "${choice}" in
-      'Done selecting signers')
-        if (( ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} >= CNTOOLS_MULTISIG_SPEND_THRESHOLD )); then break; fi ;;
-      'Clear selected signers') CNTOOLS_MULTISIG_SIGNER_IDS=(); CNTOOLS_MULTISIG_SIGNER_HASHES=(); CNTOOLS_MULTISIG_SIGNER_SOURCES=(); CNTOOLS_MULTISIG_SIGNER_LABELS=() ;;
-      'Add external verification key')
-        cntools_ui_pick_path path "Participant ${CNTOOLS_MULTISIG_SELECTION_ROLE} verification-key file" 'Choose a public verification key belonging to this script. Private keys are not requested here.' || continue
-        if ! cntools_multisig_candidate_add "${path}" '' "External participant $((${#CNTOOLS_MULTISIG_CANDIDATE_IDS[@]}+1))"; then
-          cntools_ui_render_status warn "Use a safe ${CNTOOLS_MULTISIG_SELECTION_ROLE} verification key belonging to this script. Private keys are not requested here."
-        fi ;;
-      Cancel) return 1 ;;
-      *) index="${choice%% ·*}"; [[ "${index}" =~ ^[1-9][0-9]*$ ]] || return 2
-         cntools_multisig_signer_select "$((index-1))" || return 2 ;;
-    esac
-  done
+    cntools_transaction_log CHOICE "Multisig signers auto-selected role=${CNTOOLS_MULTISIG_SELECTION_ROLE} reason=all-keys-required"
+  else
+    while true; do
+      if declare -F "${begin}" >/dev/null; then cntools_gum_clear; "${begin}" || return 2; fi
+      if (( ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} > 0 )); then
+        {
+          for index in "${!CNTOOLS_MULTISIG_SIGNER_IDS[@]}"; do
+            cntools_table_pair "${CNTOOLS_MULTISIG_SIGNER_LABELS[index]}" "${CNTOOLS_MULTISIG_SIGNER_HASHES[index]}" identifier
+          done
+        } | cntools_table_render 'Selected signing participants' || return 2
+      fi
+      cntools_ui_render_status info "Choose the participants who will sign: at least ${CNTOOLS_MULTISIG_SPEND_THRESHOLD} required. ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} selected. Public-only participants can sign the exported package elsewhere."
+      [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
+      feedback=''
+      options=('Done selecting signers' 'Add external verification key' 'Clear selected signers' Cancel)
+      for index in "${!CNTOOLS_MULTISIG_CANDIDATE_IDS[@]}"; do
+        id="${CNTOOLS_MULTISIG_CANDIDATE_IDS[index]}"; selected=N
+        for path in "${CNTOOLS_MULTISIG_SIGNER_IDS[@]}"; do [[ "${path}" != "${id}" ]] || selected=Y; done
+        [[ "${selected}" == N ]] || continue
+        options+=("$((index+1)) · ${CNTOOLS_MULTISIG_CANDIDATE_LABELS[index]} · $([[ -n "${CNTOOLS_MULTISIG_CANDIDATE_SOURCES[index]}" ]] && printf 'Local signer' || printf 'Offline signer')")
+      done
+      cntools_ui_choose choice "Multisig ${role_title} signing participants" "${options[@]}" || return $?
+      cntools_transaction_log CHOICE "Multisig participant menu role=${CNTOOLS_MULTISIG_SELECTION_ROLE} selected=${choice}"
+      case "${choice}" in
+        'Done selecting signers')
+          if (( ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} >= CNTOOLS_MULTISIG_SPEND_THRESHOLD )); then break; fi
+          feedback="Select at least ${CNTOOLS_MULTISIG_SPEND_THRESHOLD} signing participants first; ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} selected." ;;
+        'Clear selected signers') CNTOOLS_MULTISIG_SIGNER_IDS=(); CNTOOLS_MULTISIG_SIGNER_HASHES=(); CNTOOLS_MULTISIG_SIGNER_SOURCES=(); CNTOOLS_MULTISIG_SIGNER_LABELS=() ;;
+        'Add external verification key')
+          cntools_ui_pick_path path "Participant ${CNTOOLS_MULTISIG_SELECTION_ROLE} verification-key file" 'Choose a public verification key belonging to this script. Private keys are not requested here.' || continue
+          if ! cntools_multisig_candidate_add "${path}" '' "External participant $((${#CNTOOLS_MULTISIG_CANDIDATE_IDS[@]}+1))"; then
+            cntools_ui_render_status warn "Use a safe ${CNTOOLS_MULTISIG_SELECTION_ROLE} verification key belonging to this script. Private keys are not requested here."
+          fi ;;
+        Cancel) return 1 ;;
+        *) index="${choice%% ·*}"; [[ "${index}" =~ ^[1-9][0-9]*$ ]] || return 2
+           cntools_multisig_signer_select "$((index-1))" || return 2 ;;
+      esac
+    done
+  fi
   CNTOOLS_MULTISIG_CAN_SIGN=Y
   for source in "${CNTOOLS_MULTISIG_SIGNER_SOURCES[@]}"; do [[ -n "${source}" ]] || CNTOOLS_MULTISIG_CAN_SIGN=N; done
   cntools_transaction_log CHOICE "Multisig signing subset role=${CNTOOLS_MULTISIG_SELECTION_ROLE} selected participants=${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} can_sign=${CNTOOLS_MULTISIG_CAN_SIGN}"

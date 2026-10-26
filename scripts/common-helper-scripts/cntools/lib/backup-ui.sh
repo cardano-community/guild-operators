@@ -91,7 +91,11 @@ cntools_backup_create_wizard() {
     fi
     cntools_ui_render_status warn 'A full backup contains only files that are present. Missing/external keys, hardware devices and their recovery seeds are not recovered by archive verification. Keep encrypted-key passphrases separately.'
   fi
-  if cntools_flow_quick && { type -P gpg || type -P gpg2; } >/dev/null 2>&1; then
+  if ! { type -P gpg || type -P gpg2; } >/dev/null 2>&1; then
+    # Offering GPG without GnuPG would only fail after the passphrase.
+    cntools_ui_render_status warn 'GnuPG is not installed, so only an unencrypted archive can be created. Install GnuPG for an encrypted backup.'
+    cntools_backup_interact cntools_ui_choose encryption 'Backup protection' 'Unencrypted archive' 'Cancel' || return $?
+  elif cntools_flow_quick; then
     encryption='Encrypt with GPG (recommended)'
   else cntools_backup_interact cntools_ui_choose encryption 'Backup protection' 'Encrypt with GPG (recommended)' 'Unencrypted archive' 'Cancel' || return $?; fi
   cntools_log CHOICE "backup protection selection=${encryption}" || true

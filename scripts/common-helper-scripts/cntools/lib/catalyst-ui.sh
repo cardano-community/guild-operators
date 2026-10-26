@@ -42,25 +42,47 @@ cntools_catalyst_registration_workflow() {
     cntools_catalyst_keys_prepare "${CNTOOLS_CATALYST_DIRECTORY}" || return 2
   fi
   cntools_catalyst_render_identity || return 2
-  local -a options=('Authorize with wallet stake key' 'Import metadata signed offline' Cancel)
-  [[ "${CNTOOLS_MODE}" != offline ]] || options=('Authorize with wallet stake key' Cancel)
-  cntools_ui_choose choice 'Registration authorization' "${options[@]}" || return $?
+  # Offer only what can work: offline cannot import for submission, and an
+  # encrypted/watch-only stake key cannot sign here.
+  local -a options=()
+  local hint='The original file is retained; its registration signature is verified before use.' entered='' encoded=''
+  ! cntools_catalyst_stake_signable || options+=('Authorize with wallet stake key')
+  [[ "${CNTOOLS_MODE}" == offline ]] || options+=('Import metadata signed offline')
+  if ((${#options[@]} == 0)); then
+    cntools_catalyst_fail 'This wallet cannot sign the Catalyst authorization here. Decrypt its stake key, or sign offline and import the metadata online.'; return 2
+  elif ((${#options[@]} == 1)); then
+    choice="${options[0]}"
+    cntools_transaction_log CHOICE "Catalyst authorization auto=${choice} only option"
+    if [[ "${choice}" == 'Import metadata signed offline' ]]; then
+      hint="This wallet's stake key cannot sign here, so import registration metadata signed offline. ${hint}"
+    else
+      cntools_ui_render_status info 'Offline mode: authorizing with the wallet stake key. Import the saved metadata online to submit it.'
+    fi
+  else
+    cntools_ui_choose choice 'Registration authorization' "${options[@]}" Cancel || return $?
+  fi
   [[ "${choice}" != Cancel ]] || return 1
   if [[ "${choice}" == 'Import metadata signed offline' ]]; then
-    cntools_ui_pick_path metadata 'Signed CIP-36 JSON metadata' 'The original file is retained; its registration signature is verified before use.' "${CNTOOLS_ROOT}/.transactions" || return $?
+    cntools_ui_pick_path metadata 'Signed CIP-36 JSON metadata' "${hint}" "${CNTOOLS_ROOT}/.transactions" || return $?
     cntools_ui_spin_function 'Verifying the stake-key signature and registration…' cntools_catalyst_verify_metadata "${metadata}" || return 2
   else
     if [[ "${CNTOOLS_MODE}" != offline ]]; then
       cntools_ui_spin_function 'Fetching the current slot…' cntools_funding_collect "${CNTOOLS_PAYMENT_ADDRESS}" "${CNTOOLS_PAYMENT_PAYMENT}" || return 2
       nonce="${CNTOOLS_FUNDING_SLOT}"
     fi
-    while true; do
-      cntools_ui_input selected 'Registration nonce' "${nonce:-Whole nonce · higher than any previous registration}" || return $?
-      selected="${selected:-${nonce}}"
-      cntools_number_normalize_into selected "${selected}" || selected=invalid
-      if cntools_catalyst_cbor_uint_into choice "${selected}"; then nonce="${selected}"; break; fi
-      cntools_ui_render_status warn 'Enter a whole nonce from 0 to 9,007,199,254,740,991.'
-    done
+    # Quick uses the current slot online; offline there is no default to use.
+    if [[ -n "${nonce}" ]] && cntools_flow_quick && cntools_catalyst_cbor_uint_into encoded "${nonce}"; then
+      cntools_transaction_log CHOICE "Catalyst nonce default=${nonce} flow=quick"
+      cntools_ui_render_status info "Registration nonce: current slot $(cntools_number_format "${nonce}")."
+    else
+      while true; do
+        cntools_ui_input entered 'Registration nonce' "${nonce:-Whole nonce · higher than any previous registration}" || return $?
+        entered="${entered:-${nonce}}"
+        cntools_number_normalize_into entered "${entered}" || entered=invalid
+        if cntools_catalyst_cbor_uint_into encoded "${entered}"; then nonce="${entered}"; break; fi
+        cntools_ui_render_status warn 'Enter a whole nonce from 0 to 9,007,199,254,740,991.'
+      done
+    fi
     cntools_ui_render_status warn 'The nonce must exceed previous registrations for this stake key. Catalyst fund snapshots may not include a new registration until their next update.'
     [[ "${CNTOOLS_PAYMENT_TYPE}" != Hardware ]] || cntools_ui_render_status info 'Connect/unlock the hardware wallet and approve Catalyst registration on the device.'
     cntools_ui_confirm 'Authorize this voting key and rewards address with the wallet stake key?' false || return $?
@@ -96,7 +118,7 @@ cntools_catalyst_action_registration() {
 cntools_catalyst_qr_workflow() {
   local selected='' pin='' repeated='' status=0 directory=''
   cntools_wallet_catalog_build && cntools_transaction_require_cli || return 2
-  cntools_wallet_choose selected Cancel || return $?
+  cntools_wallet_choose selected Cancel catalyst-qr || return $?
   directory="${CNTOOLS_WALLET_PATHS[selected]}"
   cntools_ui_render_status warn 'The QR contains the voting secret protected by a four-digit PIN. Keep it private and save the PIN separately. Toolbox briefly exposes the PIN to same-user process inspection.'
   cntools_ui_flow_confirm 'Display and save a new PIN-protected voting QR?' false || return $?
@@ -130,11 +152,24 @@ cntools_catalyst_action_qr() {
 }
 
 cntools_catalyst_verify_workflow() {
-  local choice='' public='' selected='' value='' date_label='' timestamp='' address=''
-  cntools_ui_choose choice 'Voting key to verify' 'CNTools wallet' 'External voting public key' Cancel || return $?
+  local choice='' public='' selected='' value='' date_label='' timestamp='' address='' index=0 keyed=N
+  if cntools_wallet_catalog_build; then
+    for index in "${!CNTOOLS_WALLET_PATHS[@]}"; do
+      cntools_wallet_selection_candidate_into value "${index}" catalyst-key && { keyed=Y; break; }
+    done
+    value=''
+  fi
+  # Without a wallet key only an external key can be verified, so neither
+  # style asks; with one, both sources stay available.
+  if [[ "${keyed}" == Y ]]; then
+    cntools_ui_choose choice 'Voting key to verify' 'CNTools wallet' 'External voting public key' Cancel || return $?
+  else
+    choice='External voting public key'
+    cntools_ui_render_status info 'No CNTools wallet has a Catalyst voting key. Enter an external voting public key.'
+  fi
   [[ "${choice}" != Cancel ]] || return 1
   if [[ "${choice}" == 'CNTools wallet' ]]; then
-    cntools_wallet_catalog_build && cntools_wallet_choose selected Cancel || return $?
+    cntools_wallet_choose selected Cancel catalyst-key || return $?
     local -a names=()
     cntools_catalyst_names_into names && cntools_catalyst_public_into public "${CNTOOLS_WALLET_PATHS[selected]}/${names[1]}" || {
       cntools_catalyst_fail 'The selected wallet has no valid Catalyst public key.'; return 2;

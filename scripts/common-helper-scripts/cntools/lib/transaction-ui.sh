@@ -235,7 +235,8 @@ cntools_transaction_ui_render_result() {
 cntools_transaction_ui_confirm_submit() {
   local label="" status=0
   case "$1" in local) label='local node' ;; koios) label=Koios ;; *) return 2 ;; esac
-  if cntools_flow_quick; then
+  # Pass "always" for irreversible effects, such as pool retirement.
+  if [[ "${2:-}" != always ]] && cntools_flow_quick; then
     # The reviewed 'sign & submit' choice is the confirmation in Quick.
     cntools_transaction_log CHOICE "Transaction submission confirmed by review backend=$1 flow=quick"
     return 0
@@ -684,6 +685,26 @@ cntools_transaction_ui_prompt_change_into() {
      -n "${hardware_group}" ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
+  # A lone local HWS file with the expected identity needs no prompt: it adds
+  # no witness and is verified the same way as a picked file.
+  local index=0 match=""
+  for index in "${!CNTOOLS_TRANSACTION_LOCAL_IDS[@]}"; do
+    [[ "${CNTOOLS_TRANSACTION_LOCAL_IDS[index]}" == "${expected_key_id}" &&
+       "${CNTOOLS_TRANSACTION_LOCAL_FILES[index]}" == *.hwsfile ]] || continue
+    [[ -z "${match}" ]] || { match=""; break; }
+    match="${CNTOOLS_TRANSACTION_LOCAL_FILES[index]}"
+  done
+  if [[ -n "${match}" ]] &&
+     cntools_transaction_ui_normalize_path_into normalized "${match}" &&
+     cntools_transaction_source_kind_into kind "${normalized}" && [[ "${kind}" == hardware ]] &&
+     cntools_transaction_source_key_id_into actual_key_id "${normalized}" &&
+     [[ "${actual_key_id}" == "${expected_key_id}" ]]; then
+    _cntools_output_ref="${normalized}"
+    cntools_transaction_ui_log_path \
+      "hardware change source auto-selected id=${expected_key_id} group=${hardware_group}" \
+      "${normalized}"
+    return 0
+  fi
   while true; do
     cntools_ui_action_begin "Sign" "/ Transaction / Sign"
     if cntools_ui_pick_path entered 'Change HWS file' \

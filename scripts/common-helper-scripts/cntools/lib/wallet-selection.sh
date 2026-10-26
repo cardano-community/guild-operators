@@ -90,7 +90,7 @@ cntools_wallet_selection_candidate_into() {
   if [[ "${CNTOOLS_WALLET_TYPES[index]}" == MultiSig ]]; then
     case "${context}" in
       send|collect) ;;
-      drep-register|drep-update|drep-retire|gov-vote) cntools_wallet_selection_material "${directory}" drep || return 1 ;;
+      drep-register|drep-update|drep-retire|gov-vote|drep-info) cntools_wallet_selection_material "${directory}" drep || return 1 ;;
       register|deregister|delegate|vote-delegate|withdraw)
         cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}" || return 1 ;;
       *) return 1 ;;
@@ -99,6 +99,21 @@ cntools_wallet_selection_candidate_into() {
     candidate_annotation='Native script · participants selected after wallet'
   else
     [[ "${CNTOOLS_WALLET_TYPES[index]}" != Unknown ]] || return 1
+    # Read-only contexts need only the identity they inspect, not payment keys.
+    case "${context}" in
+      catalyst-key)
+        cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_CATALYST_VKEY_FILENAME:-catalyst.vkey}" || return 1
+        printf -v "${destination}" '%s' ''; return 0 ;;
+      catalyst-qr)
+        cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_CATALYST_SKEY_FILENAME:-catalyst.skey}" || return 1
+        printf -v "${destination}" '%s' ''; return 0 ;;
+      drep-info)
+        cntools_wallet_selection_material "${directory}" drep || return 1
+        printf -v "${destination}" '%s' ''; return 0 ;;
+      drep-key)
+        [[ ! -L "${directory}/${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" && -f "${directory}/${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}" ]] || return 1
+        printf -v "${destination}" '%s' ''; return 0 ;;
+    esac
     cntools_wallet_selection_material "${directory}" payment || return 1
     case "${context}" in
       register|deregister|delegate|vote-delegate|withdraw|catalyst) cntools_wallet_selection_material "${directory}" stake || return 1 ;;

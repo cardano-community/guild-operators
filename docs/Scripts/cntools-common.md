@@ -59,25 +59,26 @@ on a remote server. Never enter a hardware recovery phrase into CNTools.
 ### Inspect wallets, history and UTxOs
 
 **Wallet → List** shows each wallet's type, key protection and primary address.
-Choose whether to fetch live balances. Without that lookup, the list opens
-quickly and omits balance rows. With it, applicable base/payment balances,
+In local mode, choose whether to fetch live balances; light mode fetches them
+directly. Without that lookup, the list opens quickly and omits balance rows. With it, applicable base/payment balances,
 stake rewards, total balance and native-asset counts are shown.
 
 **Wallet → Show** presents addresses, credentials, registration, stake-pool
 and DRep delegation, balances and available native assets. Choose **Simple**,
-**Detailed** or **Skip** for asset output. Detailed includes available metadata;
+**Detailed** or **Skip** for asset output (Quick uses Simple). Detailed includes available metadata;
 the display identifies its source. Koios metadata is optional even when your
 balances come from the local node. An unused wallet shows zero balances;
 unavailable data is not presented as a confirmed zero.
 
 **Wallet → Transaction List** requires Koios. **Wallet → UTxO List** prefers
 Koios and can fall back to a simpler local-node view. After selecting a wallet,
-choose payment-credential or stake-address lookup when both are available.
+choose payment-credential or stake-address lookup when both are available
+(Quick uses payment-credential lookup; use **Change lookup** on the page menu).
 Payment lookup includes base and payment-only addresses sharing that credential.
 Stake lookup includes stake-linked addresses, but not payment-only addresses.
 
-Choose 1–10 results per page; Enter uses **5**. Next and Previous appear where
-applicable. Open Details using the item number; transaction details also accept
+Choose 1–10 results per page; Enter uses **5** (Quick uses 5; **Page size**
+on the page menu changes it). Next and Previous appear where applicable. Open Details using the item number; transaction details also accept
 a transaction ID. Press **q** to return from the detail view. Asset metadata
 is optional and adds readable names and decimal amounts.
 Transaction details group repeated items—such as withdrawals, certificates and
@@ -179,8 +180,10 @@ label; the editor explains conflicts.
 ### Delegate stake
 
 **Funds → Delegate** selects a registered pool as the wallet's delegation
-target. If the stake address is not registered, you can explicitly include
-registration and its deposit in the same transaction.
+target: enter a pool ID or pick a local pool (in Quick, press Enter on the
+empty Stake pool field to pick one). If the stake address is not registered,
+the same transaction also registers it; the review shows the refundable
+deposit, and Cancel there leaves everything unchanged.
 
 Review the pool, any deposit and fee. Delegation does not transfer the wallet's
 ADA to the pool or withdraw rewards. Voting/DRep delegation is separate and
@@ -202,7 +205,8 @@ is being signed elsewhere, rebuild rather than reuse stale withdrawal data.
 ### Collect UTxOs
 
 **Funds → Collect UTxOs** returns eligible funds to the same wallet, less the
-fee. Choose **ADA-only UTxOs** or **ADA and native assets**. Outputs carrying
+fee. Choose **ADA-only UTxOs** or **ADA and native assets** (Quick starts
+with ADA-only; use **Change scope** in the review). Outputs carrying
 datums or reference scripts are left untouched.
 
 Your change settings still apply. Fragmentation or ADA-only management may
@@ -360,8 +364,13 @@ Missing local signing sources use the offline package route. Hardware approval
 depends on the companion/device's pool-signing rules; follow the displayed
 session and funding-source requirements.
 
-Where offered, initial registration can include explicitly approved owner or
-reward-account setup and prepare a missing operational certificate. Certificate
+Where offered, initial registration can include the main owner's stake
+registration and delegation and the reward-account registration. Quick
+includes both and shows them in the review; **Change stake setup** there asks
+again. An owner already delegated to this pool needs no setup. A hardware
+funding wallet must hold the pool cold key on the same Ledger, so CNTools uses
+one combined device session without asking. Registration can also prepare a
+missing operational certificate (Quick uses the computed KES start period). Certificate
 issuance is a separate side effect: it advances the issue counter even if you
 later cancel the transaction. Follow the final guidance for `POOL_NAME`,
 operational files and pledge maintenance; CNTools does not edit `env` for you.
@@ -429,6 +438,10 @@ even in local mode. Public authorization metadata can be prepared on an offline
 cold-key system and transferred without private keys. Hardware transaction
 signatures do not replace the required cold-key metadata authorization.
 
+CNTools offers local cold-key authorization only when an unencrypted CLI cold
+key is present, and Quick uses the computed authorization nonce when Koios
+provides one.
+
 An empty indexed result is not proof that a recent submission never occurred.
 Check previous transaction IDs before creating another authorization.
 
@@ -459,7 +472,7 @@ ratification. Metadata from an indexer is not independently verified by CNTools.
 
 **Cast vote** uses a registered key or script DRep identity. Select the proposal,
 choose **Yes**, **No** or **Abstain**, and optionally attach a published rationale
-URL/hash. Replacing an existing vote needs explicit confirmation.
+URL/hash; CNTools can download the published JSON to compute its hash. Replacing an existing vote needs explicit confirmation.
 
 This action casts DRep votes, not committee or pool votes. Review the exact
 proposal and decision before using the shared transaction flow.
@@ -538,9 +551,9 @@ secure erasure from SSDs, snapshots or other backups.
 ## Backups and restoration
 
 **Backup & Restore → Backup** offers full or public-only archives, with GPG
-encryption recommended. Quick uses GPG encryption, when GnuPG is installed, and
-the default backup folder; choose Detailed for an unencrypted archive or
-another folder. Full backups include present wallet, pool and policy
+encryption recommended; without GnuPG only an unencrypted archive is offered.
+Quick uses GPG encryption, when GnuPG is installed, and the default backup
+folder; choose Detailed for an unencrypted archive or another folder. Full backups include present wallet, pool and policy
 files; public-only archives are not signing-key recovery backups.
 
 New encrypted archives require a confirmed passphrase of at least 12 characters.
@@ -573,5 +586,7 @@ manual recovery; it is never activated automatically.
 
 **Blocks → Summary / Epoch** reads the configured CNCLI blocklog database.
 It shows available production results and epoch details without altering the
-database or controlling the node. Set up the blocklog collector separately
+database or controlling the node. Quick opens the last 10 epochs (Summary) or
+the latest epoch (Epoch); **Change epoch count** and **Choose epoch** change
+the view. Set up the blocklog collector separately
 using the [CNCLI guide](cncli.md).

@@ -6,7 +6,8 @@ cntools_policy_manage_begin() { cntools_ui_action_begin "$1" "/ Advanced / Asset
 cntools_policy_selection_into() {
   local output="$1" chosen='' status=0
   cntools_policy_catalog_build || { cntools_policy_error 'The asset directory could not be inspected safely.'; return 2; }
-  (( ${#CNTOOLS_POLICY_NAMES[@]} > 0 )) || { cntools_ui_render_status info 'No policy folders are available.'; return 1; }
+  # 3 = nothing to choose (reason shown); 1 stays a plain Cancel.
+  (( ${#CNTOOLS_POLICY_NAMES[@]} > 0 )) || { cntools_ui_render_status info 'No policy folders are available.'; return 3; }
   cntools_policy_choose_into chosen || status=$?
   ((status == 0)) || return "${status}"
   printf -v "${output}" '%s' "${chosen}"
@@ -124,17 +125,24 @@ cntools_policy_action_show() {
   local selected='' identity='' view='' status=0
   cntools_policy_manage_begin 'Show Asset'
   cntools_policy_selection_into selected || status=$?
-  cntools_policy_cancelled "${status}" && { cntools_ui_wait; return 0; }
+  ((status != 3)) || { cntools_ui_wait; return 0; }
+  cntools_policy_cancelled "${status}" && return 0
   ((status == 0)) || return "${status}"
   cntools_policy_asset_catalog "${CNTOOLS_POLICY_PATHS[selected]}" "${CNTOOLS_POLICY_IDS[selected]}" || return 1
   cntools_policy_asset_choose_into identity "${CNTOOLS_POLICY_IDS[selected]}" || status=$?
   cntools_policy_cancelled "${status}" && return 0
   ((status == 0)) || return "${status}"
   cntools_policy_asset_enrich "${identity}"
-  cntools_ui_choose view 'Asset details' Simple Detailed Cancel || status=$?
-  cntools_policy_cancelled "${status}" && return 0
-  ((status == 0)) || return "${status}"
-  [[ "${view}" != Cancel ]] || return 0
+  # Quick shows every known field; Detailed may ask for the short view.
+  if cntools_flow_quick; then
+    view=Detailed
+    cntools_transaction_log CHOICE 'Asset details default=Detailed flow=quick'
+  else
+    cntools_ui_choose view 'Asset details' Simple Detailed Cancel || status=$?
+    cntools_policy_cancelled "${status}" && return 0
+    ((status == 0)) || return "${status}"
+    [[ "${view}" != Cancel ]] || return 0
+  fi
   cntools_policy_manage_begin 'Show Asset'
   cntools_policy_render "${selected}" || return 1
   [[ "${view}" == Detailed ]] && view=Y || view=N
@@ -147,7 +155,8 @@ cntools_policy_action_protection_inner() {
   [[ "${operation}" == encrypt ]] && title='Encrypt / Lock Policy' || title='Decrypt / Unlock Policy'
   cntools_policy_manage_begin "${title}"
   cntools_policy_selection_into selected || status=$?
-  cntools_policy_cancelled "${status}" && { cntools_ui_wait; return 0; }
+  ((status != 3)) || { cntools_ui_wait; return 0; }
+  cntools_policy_cancelled "${status}" && return 0
   ((status == 0)) || return "${status}"
   directory="${CNTOOLS_POLICY_PATHS[selected]}"; key="${directory}/${CNTOOLS_POLICY_SKEY_FILENAME:-policy.skey}"
   [[ "${operation}" != decrypt ]] || key+='.gpg'
@@ -158,7 +167,13 @@ cntools_policy_action_protection_inner() {
     cntools_table_pair Directory "${directory}" identifier
   } | cntools_table_render Policy || return 1
   cntools_ui_render_status warn 'Keep a secure backup. Encryption passwords cannot be recovered. Decrypt/Unlock removes file write protection.'
-  cntools_ui_confirm "${title}?" false || { status=$?; cntools_policy_cancelled "${status}" && return 0; return "${status}"; }
+  # Decrypt always confirms. Encrypting a key asks for a new password on this
+  # screen (Esc cancels), which is the commitment; lock-only is a flow step.
+  if [[ "${operation}" == decrypt ]]; then
+    cntools_ui_confirm "${title}?" false || { status=$?; cntools_policy_cancelled "${status}" && return 0; return "${status}"; }
+  elif [[ ! -f "${key}" || -L "${key}" ]]; then
+    cntools_ui_flow_confirm "${title}?" false || { status=$?; cntools_policy_cancelled "${status}" && return 0; return "${status}"; }
+  fi
   if [[ -f "${key}" && ! -L "${key}" ]]; then
     while true; do
       cntools_ui_password password 'Policy password' || { status=$?; unset password; cntools_policy_cancelled "${status}" && return 0; return "${status}"; }

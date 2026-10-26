@@ -33,8 +33,19 @@ cntools_collect_result() {
   CNTOOLS_COLLECT_RESULT_SHOWN=Y
 }
 
+cntools_collect_choose_scope() {
+  local scope=""
+  cntools_ui_choose scope 'Collect which UTxOs?' 'ADA-only UTxOs' 'ADA and native assets' 'Cancel' || return $?
+  case "${scope}" in
+    'ADA-only UTxOs') CNTOOLS_COLLECT_SCOPE=ada ;;
+    'ADA and native assets') CNTOOLS_COLLECT_SCOPE=all ;;
+    *) return 1 ;;
+  esac
+  cntools_transaction_log CHOICE "Collection scope=${CNTOOLS_COLLECT_SCOPE}"
+}
+
 cntools_collect_workflow() {
-  local selected="" workflow="" staged="" signed="" saved="" proceed="" scope="" can_sign=N
+  local selected="" workflow="" staged="" signed="" saved="" proceed="" can_sign=N
   local backend="" signed_body="" txid="" lifetime=1800 status=0
   CNTOOLS_COLLECT_RESULT_SHOWN=N; CNTOOLS_COLLECT_SAVED_PACKAGE=""
   cntools_collect_begin
@@ -46,13 +57,13 @@ cntools_collect_workflow() {
   [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_spend_choose_signers cntools_collect_begin || return $?
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
   [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || can_sign="${CNTOOLS_MULTISIG_CAN_SIGN}"
-  cntools_ui_choose scope 'Collect which UTxOs?' 'ADA-only UTxOs' 'ADA and native assets' 'Cancel' || return $?
-  case "${scope}" in
-    'ADA-only UTxOs') CNTOOLS_COLLECT_SCOPE=ada ;;
-    'ADA and native assets') CNTOOLS_COLLECT_SCOPE=all ;;
-    *) return 1 ;;
-  esac
-  cntools_transaction_log CHOICE "Collection scope=${CNTOOLS_COLLECT_SCOPE}"
+  if cntools_flow_quick; then
+    # The review offers 'Change scope'.
+    CNTOOLS_COLLECT_SCOPE=ada
+    cntools_transaction_log CHOICE "Collection scope default=ada flow=quick"
+  else
+    cntools_collect_choose_scope || return $?
+  fi
   cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
   cntools_transaction_ui_initial_expiry_into lifetime || return $?
   cntools_ui_spin_function 'Checking funds and building the collection…' \
@@ -60,10 +71,16 @@ cntools_collect_workflow() {
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into selected "${staged}" "${proceed}" \
-      cntools_collect_begin cntools_collect_render 'Change expiry' 'Change workflow' || return $?
+      cntools_collect_begin cntools_collect_render 'Change scope' 'Change expiry' 'Change workflow' || return $?
     case "${selected}" in
       "${proceed}") break ;;
       'Change workflow') cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $? ;;
+      'Change scope')
+        status=0; cntools_collect_choose_scope || status=$?
+        (( status != 1 )) || continue
+        (( status == 0 )) || return "${status}"
+        cntools_ui_spin_function 'Checking funds and rebuilding the collection…' \
+          cntools_collect_refresh_build_into staged "${lifetime}" || return 2 ;;
       'Change expiry')
         cntools_transaction_ui_expiry_into lifetime || return $?
         cntools_ui_spin_function 'Checking funds and rebuilding the collection…' \

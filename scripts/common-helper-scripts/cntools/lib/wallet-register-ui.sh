@@ -156,13 +156,24 @@ cntools_wallet_register_workflow() {
   fi
   cntools_ui_spin_function "Building ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
     cntools_wallet_register_build_package_into staged || return 2
+  local metadata_status=0
+  local -a review_options=('Change expiry' 'Change workflow')
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-register && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-update ]] ||
+    review_options=('Change metadata' "${review_options[@]}")
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into choice "${staged}" "${proceed}" \
-      cntools_wallet_register_begin cntools_wallet_register_render_plan 'Change expiry' 'Change workflow' || return $?
+      cntools_wallet_register_begin cntools_wallet_register_render_plan "${review_options[@]}" || return $?
     case "${choice}" in
       "${proceed}") break ;;
       'Change workflow') cntools_transaction_ui_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || return $? ;;
+      'Change metadata')
+        # Cancel keeps the reviewed anchor and package.
+        metadata_status=0
+        cntools_drep_lifecycle_choose_metadata change || metadata_status=$?
+        ((metadata_status == 0)) || { ((metadata_status == 1)) && continue; return "${metadata_status}"; }
+        cntools_ui_spin_function "Building ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
+          cntools_wallet_register_build_package_into staged || return 2 ;;
       'Change expiry')
         cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
         cntools_ui_spin_function "Building ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \

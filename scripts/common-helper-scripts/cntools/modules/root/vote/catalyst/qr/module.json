@@ -22,6 +22,7 @@
     "drep-id.sh",
     "catalyst-key.sh",
     "catalyst-qr.sh",
-    "catalyst-ui.sh"
+    "catalyst-ui.sh",
+    "wallet-selection.sh"
   ]
 }

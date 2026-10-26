@@ -101,19 +101,12 @@ cntools_settings_action_input_integer() {
   local minimum="${4:-1}"
   local maximum="${5:-100}"
   local entered=""
-  local choice=""
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
+  # Straight to the input under the explanation: Esc cancels, Enter keeps
+  # the current value and an invalid number asks again.
   while true; do
-    if ! cntools_ui_choose choice "${label}…" "Enter new value" "Cancel"; then
-      return 1
-    fi
-    case "${choice}" in
-      'Enter new value') ;;
-      Cancel) return 1 ;;
-      *) return 2 ;;
-    esac
     if ! cntools_ui_input entered "${label}" "${current}"; then
       return 1
     fi
@@ -152,18 +145,10 @@ cntools_settings_action_percentages_valid() {
 
 cntools_settings_action_edit_percentages() {
   local entered=""
-  local choice=""
   local -a values=()
 
+  # Esc cancels, Enter keeps the current values, invalid input asks again.
   while true; do
-    if ! cntools_ui_choose choice "Change percentages…" "Enter new percentages" "Cancel"; then
-      return 1
-    fi
-    case "${choice}" in
-      'Enter new percentages') ;;
-      Cancel) return 1 ;;
-      *) return 2 ;;
-    esac
     if ! cntools_ui_input entered "Comma-separated percentages" \
         "${CNTOOLS_TX_UTXO_PERCENTAGES}"; then
       return 1

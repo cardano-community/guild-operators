@@ -37,6 +37,7 @@
     "multisig-wallet.sh",
     "governance-wallet-ui.sh",
     "drep-script-ui.sh",
-    "table.sh"
+    "table.sh",
+    "wallet-selection.sh"
   ]
 }

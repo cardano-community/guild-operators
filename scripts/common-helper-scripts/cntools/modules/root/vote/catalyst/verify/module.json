@@ -19,6 +19,7 @@
     "recipient.sh",
     "catalyst-key.sh",
     "catalyst-query.sh",
-    "catalyst-ui.sh"
+    "catalyst-ui.sh",
+    "wallet-selection.sh"
   ]
 }

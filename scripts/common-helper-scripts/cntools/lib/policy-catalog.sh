@@ -60,6 +60,13 @@ cntools_policy_choose_into() {
     choices+=("$((index+1)) · ${CNTOOLS_POLICY_NAMES[index]} · ${CNTOOLS_POLICY_STATES[index]}")
   done
   (( ${#choices[@]} > 0 )) || return 2
+  # A lone policy needs no picker; later steps still confirm the action.
+  if (( ${#choices[@]} == 1 )); then
+    printf -v "${output}" '%s' 0
+    cntools_transaction_log CHOICE "Policy auto-selected=${CNTOOLS_POLICY_NAMES[0]}"
+    cntools_ui_render_status info "Using ${CNTOOLS_POLICY_NAMES[0]}, the only policy."
+    return 0
+  fi
   cntools_ui_choose selected Policy "${choices[@]}" Cancel || return $?
   [[ "${selected}" != Cancel ]] || return 1
   for index in "${!choices[@]}"; do

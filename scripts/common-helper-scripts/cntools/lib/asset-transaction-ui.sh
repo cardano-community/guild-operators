@@ -37,8 +37,8 @@ cntools_asset_tx_quantity_prompt() {
       {
         cntools_table_pair 'Available (smallest units)' "$(cntools_number_format "${available}")" number
       } | cntools_table_render 'Burn amount'
-      cntools_ui_input entered 'Quantity to burn (or all)' all || return $?
-      [[ "${entered,,}" != all ]] || entered="${available}"
+      cntools_ui_input entered 'Quantity to burn (Enter = all)' all || return $?
+      [[ -n "${entered}" && "${entered,,}" != all ]] || entered="${available}"
     else cntools_ui_input entered 'Quantity to mint (smallest units)' 'Whole number; commas are allowed' || return $?; fi
     if cntools_asset_tx_quantity_into quantity "${entered}" &&
       { [[ "${CNTOOLS_ASSET_TX_OPERATION}" != burn ]] || cntools_uint_greater_equal "${available}" "${quantity}"; }; then
@@ -85,7 +85,9 @@ cntools_asset_tx_workflow() {
   local CNTOOLS_METADATA_BEGIN_CALLBACK=cntools_asset_tx_begin CNTOOLS_METADATA_OVERVIEW_CALLBACK=cntools_asset_tx_metadata_overview
   local selected='' workflow='' staged='' signed='' saved='' proceed='' can_sign=N lifetime=1800 backend='' signed_body='' txid='' status=0
   cntools_asset_tx_begin
-  cntools_policy_selection_into selected || return $?
+  cntools_policy_selection_into selected || status=$?
+  ((status != 3)) || return 0 # No policies; the reason is already shown.
+  ((status == 0)) || return "${status}"
   CNTOOLS_ASSET_TX_DIRECTORY="${CNTOOLS_POLICY_PATHS[selected]}"
   cntools_policy_prepare "${CNTOOLS_ASSET_TX_DIRECTORY}" || { cntools_asset_tx_fail "${CNTOOLS_POLICY_ERROR:-Policy authority could not be verified.}"; return 2; }
   cntools_wallet_catalog_build || return 2

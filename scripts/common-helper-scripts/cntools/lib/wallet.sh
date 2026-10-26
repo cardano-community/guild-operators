@@ -630,6 +630,25 @@ cntools_wallet_render_catalog() {
     "Wallets" cntools_wallet_catalog_rows
 }
 
+# Plan-step decision for derived wallets. Quick takes account and key index 0
+# without asking, so this step offers to change them; Detailed already asked.
+# Returns 0 to proceed, 1 to cancel and 4 to change the derivation.
+cntools_wallet_derivation_confirm() {
+  local prompt="${1:-Continue?}" proceed="${2:-Continue}" choice="" status=0
+  if ! cntools_flow_quick; then
+    cntools_ui_confirm "${prompt}"
+    return $?
+  fi
+  cntools_ui_choose choice "${prompt%\?}" "${proceed}" 'Change account and key index' Cancel || status=$?
+  (( status == 0 )) || return "${status}"
+  case "${choice}" in
+    "${proceed}") return 0 ;;
+    'Change account and key index') return 4 ;;
+    Cancel) return 1 ;;
+    *) return 2 ;;
+  esac
+}
+
 cntools_wallet_choose() {
   local _cntools_output_name="${1:-}"
   local _cntools_cancel="${2:-}"

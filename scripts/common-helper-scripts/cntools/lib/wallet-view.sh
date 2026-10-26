@@ -338,6 +338,11 @@ cntools_wallet_choose_asset_view() {
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
+  if cntools_flow_quick; then
+    _cntools_output_ref=simple
+    cntools_wallet_log CHOICE "native-asset view default=simple flow=quick"
+    return 0
+  fi
   if cntools_ui_choose _cntools_selected \
       "Select native-asset view…" "${_cntools_rows[@]}"; then
     _cntools_status=0
@@ -503,18 +508,6 @@ cntools_wallet_action_show_impl() {
 }
 
 
-cntools_wallet_action_show() {
-  local status=0
-
-  if cntools_wallet_action_show_impl; then
-    status=0
-  else
-    status=$?
-  fi
-  cntools_wallet_query_cleanup || true
-  cntools_wallet_cleanup_material || true
-  return "${status}"
-}
 
 
 cntools_wallet_display_address() {

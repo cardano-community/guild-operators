@@ -61,8 +61,22 @@ cntools_proposal_details() {
   cntools_public_metadata_offer "${url}" "${hash}"
 }
 
+# Asks for proposals per page; returns 1 when the prompt is dismissed.
+cntools_proposal_page_size_into() {
+  local pp_output="$1" pp_entered='' pp_normalized=''
+  while true; do
+    cntools_ui_input pp_entered 'Proposals per page (1–10; Enter uses 5)' '5 (default)' || return 1
+    pp_entered="${pp_entered#"${pp_entered%%[![:space:]]*}"}"; pp_entered="${pp_entered%"${pp_entered##*[![:space:]]}"}"
+    pp_entered="${pp_entered:-5}"
+    if cntools_number_normalize_into pp_normalized "${pp_entered}" && [[ "${pp_normalized}" =~ ^([1-9]|10)$ ]]; then
+      printf -v "${pp_output}" '%s' "${pp_normalized}"; return 0
+    fi
+    cntools_ui_render_status warn 'Enter a whole number from 1 to 10.'
+  done
+}
+
 cntools_governance_action_proposals() {
-  local size='' page=0 total=0 first=0 last=0 index=0 record='' choice='' selection=''
+  local size='' resized='' page=0 total=0 first=0 last=0 index=0 record='' choice='' selection=''
   local -a choices=()
   cntools_ui_action_begin 'List Proposals' '/ Vote / Governance / List Proposals'
   if ! cntools_ui_spin_function 'Collecting active governance proposals…' cntools_proposals_query; then
@@ -70,12 +84,12 @@ cntools_governance_action_proposals() {
   fi
   total="$(jq length <<< "${CNTOOLS_PROPOSALS}")" || return 1
   if ((total == 0)); then cntools_ui_render_status info 'There are no active governance proposals.'; cntools_ui_wait; return 0; fi
-  while true; do
-    cntools_ui_input size 'Proposals per page (1–10; Enter uses 5)' '5 (default)' || return 0
-    size="${size:-5}"
-    [[ "${size}" =~ ^([1-9]|10)$ ]] && break
-    cntools_ui_render_status warn 'Enter a whole number from 1 to 10.'
-  done
+  if cntools_flow_quick; then
+    size=5
+    cntools_log CHOICE 'Proposals per page default=5 flow=quick' || true
+  else
+    cntools_proposal_page_size_into size || return 0
+  fi
   while true; do
     [[ "${CNTOOLS_VOTING_PARAMETERS_CHECKED}" == Y ]] || cntools_ui_spin_function 'Checking voting thresholds…' cntools_voting_parameters_collect || true
     cntools_ui_action_begin 'List Proposals' '/ Vote / Governance / List Proposals'
@@ -97,11 +111,14 @@ cntools_governance_action_proposals() {
     ((total == 0)) || choices+=('View proposal details')
     ((last >= total)) || choices+=('Next page')
     ((page == 0)) || choices+=('Previous page')
-    choices+=(Refresh Back)
+    choices+=('Page size' Refresh Back)
     cntools_ui_choose choice 'Proposals' "${choices[@]}" || return 0
     case "${choice}" in
       'Next page') page=$((page+1)) ;;
       'Previous page') page=$((page-1)) ;;
+      'Page size')
+        # Keep the first proposal on screen visible on the resized page.
+        if cntools_proposal_page_size_into resized; then page=$((first/resized)); size="${resized}"; fi ;;
       Refresh)
         if cntools_ui_spin_function 'Refreshing governance proposals…' cntools_proposals_query; then page=0
         else cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR}"; cntools_ui_wait; fi ;;

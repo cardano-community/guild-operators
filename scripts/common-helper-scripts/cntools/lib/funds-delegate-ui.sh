@@ -2,10 +2,12 @@
 # Pool selection and delegation presentation; signing/export use shared stake UI.
 # shellcheck disable=SC2034
 
-cntools_delegate_pool_local_into() {
-  local result_name="$1" selected="" directory="" file="" name="" response="" errors="" status=0 index=0
+declare -ag CNTOOLS_DELEGATE_LOCAL_LABELS=() CNTOOLS_DELEGATE_LOCAL_DIRECTORIES=()
+
+cntools_delegate_local_pools_collect() {
+  local directory="" name=""
   local cold="${CNTOOLS_POOL_COLD_VKEY_FILENAME:-cold.vkey}" id="${CNTOOLS_POOL_ID_FILENAME:-pool.id}"
-  local -a labels=() directories=()
+  CNTOOLS_DELEGATE_LOCAL_LABELS=(); CNTOOLS_DELEGATE_LOCAL_DIRECTORIES=()
   [[ "${cold}" =~ ^[A-Za-z0-9_.-]+$ && "${id}" =~ ^[A-Za-z0-9_.-]+$ ]] || return 2
   if [[ -n "${CNTOOLS_POOL_DIR:-}" ]] && cntools_filesystem_path_components_safe "${CNTOOLS_POOL_DIR}" && [[ -d "${CNTOOLS_POOL_DIR}" ]]; then
     for directory in "${CNTOOLS_POOL_DIR}"/*; do
@@ -13,16 +15,29 @@ cntools_delegate_pool_local_into() {
       name="${directory##*/}"
       [[ "${name}" =~ ^[A-Za-z0-9][A-Za-z0-9_.\ -]*$ ]] || continue
       if cntools_transaction_file_safe "${directory}/${cold}" 65536 || cntools_transaction_file_safe "${directory}/${id}" 1024; then
-        labels+=("${name}"); directories+=("${directory}")
+        CNTOOLS_DELEGATE_LOCAL_LABELS+=("${name}"); CNTOOLS_DELEGATE_LOCAL_DIRECTORIES+=("${directory}")
       fi
     done
   fi
+}
+
+cntools_delegate_pool_local_into() {
+  local result_name="$1" selected="" directory="" file="" response="" errors="" status=0 index=0
+  local cold="${CNTOOLS_POOL_COLD_VKEY_FILENAME:-cold.vkey}" id="${CNTOOLS_POOL_ID_FILENAME:-pool.id}"
+  local -a labels=() directories=()
+  cntools_delegate_local_pools_collect || return 2
+  labels=("${CNTOOLS_DELEGATE_LOCAL_LABELS[@]}"); directories=("${CNTOOLS_DELEGATE_LOCAL_DIRECTORIES[@]}")
   if (( ${#labels[@]} == 0 )); then
     cntools_ui_render_status info 'No readable local pool public keys or pool IDs were found. Enter a pool ID instead.'
     return 3
   fi
-  cntools_ui_choose selected 'Local stake pool' "${labels[@]}" Cancel || return $?
-  [[ "${selected}" != Cancel ]] || return 1
+  if (( ${#labels[@]} == 1 )); then
+    selected="${labels[0]}"
+    cntools_ui_render_status info "Using ${selected}, the only local pool."
+  else
+    cntools_ui_choose selected 'Local stake pool' "${labels[@]}" Cancel || return $?
+    [[ "${selected}" != Cancel ]] || return 1
+  fi
   for index in "${!labels[@]}"; do [[ "${labels[index]}" != "${selected}" ]] || break; done
   [[ "${labels[index]}" == "${selected}" ]] || return 2
   directory="${directories[index]}"; file="${directory}/${cold}"
@@ -66,13 +81,26 @@ cntools_delegate_choose_target() {
       cntools_transaction_ui_styled_row Wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" identifier
       cntools_transaction_ui_styled_row 'Current stake pool' "${CNTOOLS_DELEGATE_CURRENT_POOL:-Not delegated}" identifier
     } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
-    cntools_ui_choose choice 'Stake pool' 'Enter pool ID' 'Local pool' Cancel || return $?
+    cntools_delegate_local_pools_collect || return 2
+    entered=""
+    if (( ${#CNTOOLS_DELEGATE_LOCAL_LABELS[@]} == 0 )); then
+      # Without local pools the only source is an ID.
+      choice='Enter pool ID'
+    elif cntools_flow_quick; then
+      # One field: an ID, or Enter to pick a local pool.
+      cntools_ui_input entered 'Stake pool' 'pool1…, hex ID, or Enter to pick a local pool' || return $?
+      entered="${entered//[[:space:]]/}"
+      choice='Enter pool ID'; [[ -n "${entered}" ]] || choice='Local pool'
+    else
+      cntools_ui_choose choice 'Stake pool' 'Enter pool ID' 'Local pool' Cancel || return $?
+    fi
     cntools_transaction_log CHOICE "Delegate target source=${choice}"
     case "${choice}" in
-      'Enter pool ID') cntools_ui_input entered 'Stake pool ID' 'pool1… or 56-character hex ID' || return $? ;;
+      'Enter pool ID') [[ -n "${entered}" ]] || cntools_ui_input entered 'Stake pool ID' 'pool1… or 56-character hex ID' || return $? ;;
       'Local pool')
         status=0; cntools_delegate_pool_local_into entered || status=$?
         (( status != 3 )) || { cntools_ui_wait; continue; }
+        (( status != 1 )) || continue
         (( status == 0 )) || return "${status}" ;;
       Cancel) return 1 ;;
       *) return 2 ;;
@@ -102,11 +130,9 @@ cntools_delegate_choose_target() {
       (( status == 0 )) || return "${status}"
     fi
     if [[ "${CNTOOLS_DELEGATE_REGISTER}" == Y ]]; then
-      status=0
-      ! cntools_flow_quick || cntools_ui_render_status info "This stake address is not registered yet, so the transaction also registers it. Refundable deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")."
-      cntools_ui_flow_confirm "Register this stake address in the same transaction? Deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}") plus the transaction fee." false || status=$?
-      cntools_transaction_log CHOICE "Delegate registration confirmation status=${status} deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
-      (( status == 0 )) || return "${status}"
+      # Registering is required to delegate; the review shows the deposit and offers Cancel.
+      cntools_ui_render_status info "This stake address is not registered yet, so the transaction also registers it. Refundable deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")."
+      cntools_transaction_log CHOICE "Delegate includes stake registration deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
       CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED=Y
     fi
     cntools_transaction_log CHOICE "Delegate target=${CNTOOLS_DELEGATE_POOL_ID} registration=${CNTOOLS_DELEGATE_REGISTER}"

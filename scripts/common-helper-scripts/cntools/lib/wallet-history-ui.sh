@@ -132,9 +132,19 @@ cntools_history_detail_view() {
   cntools_ui_page_file "${display}"
 }
 
+cntools_history_prompt_page_size() {
+  local size=""
+  while :; do
+    cntools_ui_input size "Items per page (1–10; Enter uses 5)" "5 (default)" || return 1
+    cntools_history_page_size "${size}" && return 0
+    cntools_ui_render_status warn "Choose a whole number from 1 to 10."
+  done
+}
+
 cntools_history_action() {
   local kind="$1" title="Transaction List" selected="" directory="" type="" credential=""
-  local size="" choice="" record="" number=0 target=0 stake="" lookup=payment summary_title=""
+  local choice="" record="" number=0 target=0 stake="" lookup=payment summary_title=""
+  local payment_credential="" status=0
   local -a choices=()
   [[ "${kind}" != utxos ]] || title="UTxO List"
   cntools_ui_action_begin "${title}" "/ Wallet / ${title}"
@@ -154,7 +164,10 @@ cntools_history_action() {
     cntools_ui_wait
     return 0
   fi
-  cntools_wallet_choose selected || return 0
+  status=0
+  cntools_wallet_choose selected || status=$?
+  (( status != 1 )) || return 0
+  (( status == 0 )) || return "${status}"
   directory="${CNTOOLS_WALLET_PATHS[selected]}"
   CNTOOLS_HISTORY_WALLET="${CNTOOLS_WALLET_NAMES[selected]}"
   cntools_wallet_prepare_selected_material "${directory}" || true
@@ -165,6 +178,9 @@ cntools_history_action() {
   CNTOOLS_HISTORY_PAYMENT="${credential,,}" CNTOOLS_HISTORY_STAKE="${stake}"
   if [[ "${kind}" == utxos ]] && ! cntools_history_available; then
     lookup=addresses
+  elif [[ -n "${credential}" && -n "${stake}" ]] && cntools_flow_quick; then
+    # The page menu offers 'Change lookup'.
+    cntools_wallet_log CHOICE "wallet history lookup default=payment flow=quick"
   elif [[ -n "${credential}" && -n "${stake}" ]]; then
     cntools_ui_choose choice "Look up by" \
       "Payment credential · matching base and payment-only addresses" \
@@ -181,12 +197,13 @@ cntools_history_action() {
     cntools_ui_wait
     return 0
   fi
+  payment_credential="${credential}"
   [[ "${lookup}" != stake ]] || credential="${stake}"
-  while :; do
-    cntools_ui_input size "Items per page (1–10; Enter uses 5)" "5 (default)" || return 0
-    cntools_history_page_size "${size}" && break
-    cntools_ui_render_status warn "Choose a whole number from 1 to 10."
-  done
+  if cntools_flow_quick; then
+    cntools_history_page_size 5 || return 1
+  else
+    cntools_history_prompt_page_size || return 0
+  fi
   cntools_wallet_log CHOICE "wallet history kind=${kind} wallet=${CNTOOLS_HISTORY_WALLET} lookup=${lookup} page_size=${CNTOOLS_HISTORY_SIZE}"
   if ! cntools_history_available || ! cntools_ui_spin_function "Fetching wallet inventory from Koios…" cntools_history_load "${kind}" "${credential}" "${lookup}"; then
     if [[ "${kind}" != utxos ]] || ! cntools_history_local_available; then
@@ -227,6 +244,10 @@ cntools_history_action() {
     (( (CNTOOLS_HISTORY_PAGE + 1) * CNTOOLS_HISTORY_SIZE >= CNTOOLS_HISTORY_TOTAL )) || choices+=("Next page")
     (( CNTOOLS_HISTORY_PAGE == 0 )) || choices+=("Previous page")
     if [[ "${kind}" == transactions ]] || (( CNTOOLS_HISTORY_TOTAL > 0 )); then choices+=("Show details"); fi
+    choices+=("Page size")
+    if [[ -n "${payment_credential}" && -n "${stake}" && "${CNTOOLS_HISTORY_BACKEND}" == koios ]]; then
+      choices+=("Change lookup")
+    fi
     choices+=("Back")
     cntools_ui_choose choice "${title}" "${choices[@]}" || return 0
     cntools_wallet_log CHOICE "wallet history page=$((CNTOOLS_HISTORY_PAGE + 1)) choice=${choice}"
@@ -234,6 +255,17 @@ cntools_history_action() {
       "Next page") target=$((CNTOOLS_HISTORY_PAGE + 1)) ;;
       "Previous page") target=$((CNTOOLS_HISTORY_PAGE - 1)) ;;
       "Show details") cntools_history_detail_view || return 1 ;;
+      "Page size")
+        cntools_history_prompt_page_size || continue
+        target=0 ;;
+      "Change lookup")
+        if [[ "${lookup}" == stake ]]; then lookup=payment; credential="${payment_credential}"
+        else lookup=stake; credential="${stake}"; fi
+        cntools_wallet_log CHOICE "wallet history lookup changed lookup=${lookup}"
+        cntools_ui_spin_function "Fetching wallet inventory from Koios…" cntools_history_load "${kind}" "${credential}" "${lookup}" || {
+          cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR:-Koios is unavailable.}"; cntools_ui_wait; return 1;
+        }
+        target=0 ;;
       *) return 0 ;;
     esac
   done

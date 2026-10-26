@@ -103,8 +103,9 @@ cntools_blocks_load() {
   fi
 }
 
+# choose=Y (the Epoch action) also offers another epoch from the menu.
 cntools_blocks_epoch_view() {
-  local epoch="$1" page=0 total=0 index=0 last=0 choice='' record='' number=''
+  local epoch="$1" choose="${2:-N}" page=0 total=0 index=0 last=0 choice='' record='' number='' requested=''
   local snapshot=''
   local -a options=()
   cntools_blocks_load Epoch "${epoch}" || return 1
@@ -130,6 +131,7 @@ cntools_blocks_epoch_view() {
     (( last >= total )) || options+=('Next page')
     (( page == 0 )) || options+=('Previous page')
     (( total == 0 )) || options+=('Show block details')
+    [[ "${choose}" != Y ]] || options+=('Choose epoch')
     options+=('Refresh' 'Status guide' 'Back')
     cntools_blocks_interact cntools_ui_choose choice 'Block history' "${options[@]}" || return $?
     cntools_log CHOICE "Blocks epoch=${epoch} page=${page} choice=${choice}" || true
@@ -137,6 +139,11 @@ cntools_blocks_epoch_view() {
       'Next page') page=$((page+1)) ;;
       'Previous page') page=$((page-1)) ;;
       Refresh) cntools_blocks_load Epoch "${epoch}" || return 1; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; page=0 ;;
+      'Choose epoch')
+        requested="${epoch}"
+        if ! cntools_blocks_prompt_integer requested 'Epoch' "${epoch}" 0 999999999; then CNTOOLS_BLOCKS_CANCELLED=N; continue; fi
+        cntools_blocks_load Epoch "${requested}" || continue # Keeps the current epoch.
+        epoch="${requested}"; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; page=0 ;;
       'Status guide') cntools_blocks_help || return 1 ;;
       'Show block details')
         if ! cntools_blocks_prompt_integer number 'Block number in this list' "$((page*5+1))" 1 "${total}"; then CNTOOLS_BLOCKS_CANCELLED=N; continue; fi
@@ -150,18 +157,22 @@ cntools_blocks_epoch_view() {
 }
 
 cntools_blocks_wizard() {
-  local kind="$1" count=10 epoch='' snapshot='' page=0 total=0 index=0 last=0 choice='' record='' status=0
+  local kind="$1" count=10 epoch='' snapshot='' page=0 total=0 index=0 last=0 choice='' record='' status=0 requested=''
   local -a options=()
   cntools_ui_action_begin "${kind}" "/ Blocks / ${kind}"
   cntools_ui_render_status info 'Read-only local CNCLI history, not a live chain query. CNCLI / logMonitor must maintain the journal for production statuses to stay current.'
   if [[ "${kind}" == Epoch ]]; then
     cntools_blocks_load Summary 1 || return 1
     epoch="$(jq -r '.[0].epoch // 0' <<< "${CNTOOLS_BLOCKLOG_DATA}")" || return 1
-    cntools_blocks_prompt_integer epoch 'Epoch (latest recorded)' "${epoch}" 0 999999999 || return $?
-    cntools_blocks_epoch_view "${epoch}"
+    # Quick opens the latest recorded epoch; 'Choose epoch' picks another.
+    if cntools_flow_quick; then cntools_log CHOICE "Blocks epoch default=${epoch} flow=quick" || true
+    else cntools_blocks_prompt_integer epoch 'Epoch (latest recorded)' "${epoch}" 0 999999999 || return $?; fi
+    cntools_blocks_epoch_view "${epoch}" Y
     return $?
   fi
-  cntools_blocks_prompt_integer count 'Recent recorded epochs' 10 1 100 || return $?
+  # Quick shows the last 10 epochs; 'Change epoch count' asks for another.
+  if cntools_flow_quick; then cntools_log CHOICE "Blocks summary epochs default=${count} flow=quick" || true
+  else cntools_blocks_prompt_integer count 'Recent recorded epochs' 10 1 100 || return $?; fi
   cntools_blocks_load Summary "${count}" || return 1
   snapshot="${CNTOOLS_BLOCKLOG_DATA}"
   while true; do
@@ -182,7 +193,7 @@ cntools_blocks_wizard() {
     options=()
     (( last >= total )) || options+=('Next page')
     (( page == 0 )) || options+=('Previous page')
-    options+=('View epoch' 'Refresh' 'Status guide' 'Back')
+    options+=('View epoch' 'Change epoch count' 'Refresh' 'Status guide' 'Back')
     cntools_blocks_interact cntools_ui_choose choice 'Block summary' "${options[@]}" || return $?
     cntools_log CHOICE "Blocks summary page=${page} choice=${choice}" || true
     case "${choice}" in
@@ -194,6 +205,11 @@ cntools_blocks_wizard() {
         status=0; cntools_blocks_epoch_view "${epoch}" || status=$?
         if [[ "${CNTOOLS_BLOCKS_CANCELLED}" == Y ]]; then CNTOOLS_BLOCKS_CANCELLED=N;
         elif (( status != 0 )); then return "${status}"; fi ;;
+      'Change epoch count')
+        requested="${count}"
+        if ! cntools_blocks_prompt_integer requested 'Recent recorded epochs' "${count}" 1 100; then CNTOOLS_BLOCKS_CANCELLED=N; continue; fi
+        cntools_blocks_load Summary "${requested}" || continue # Keeps the current list.
+        count="${requested}"; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; page=0 ;;
       Refresh) cntools_blocks_load Summary "${count}" || return 1; snapshot="${CNTOOLS_BLOCKLOG_DATA}"; page=0 ;;
       'Status guide') cntools_blocks_help || return 1 ;;
       *) return 0 ;;

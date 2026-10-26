@@ -15,7 +15,9 @@ cntools_registry_workflow() {
   cntools_policy_manage_begin 'Register Asset'
   cntools_ui_render_status info 'Prepare a signed Token Registry submission file. This does not mint tokens, attach transaction metadata or publish to a registry.'
   cntools_registry_require_tool || return 2
-  cntools_policy_selection_into selected || return $?
+  cntools_policy_selection_into selected || status=$?
+  ((status != 3)) || return 0 # No policies; the reason is already shown.
+  ((status == 0)) || return "${status}"
   cntools_policy_prepare "${CNTOOLS_POLICY_PATHS[selected]}" || return 2
   [[ -n "${CNTOOLS_POLICY_SELECTED_SOURCE}" ]] || { cntools_policy_error 'Decrypt the policy before signing registry metadata.'; return 2; }
   cntools_policy_asset_catalog "${CNTOOLS_POLICY_PATHS[selected]}" "${CNTOOLS_POLICY_ID}" || return 2

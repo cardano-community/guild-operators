@@ -33,12 +33,11 @@ cntools_pool_action_calidus() {
     cntools_ui_action_begin Calidus '/ Pool / Calidus'
     cntools_calidus_render "${directory}"
     status=0
-    cntools_ui_choose choice Calidus 'Info & Status' 'Check on-chain status' 'Prepare registration metadata' \
+    cntools_ui_choose choice Calidus 'Check on-chain status' 'Prepare registration metadata' \
       'Register / replace on-chain' 'Prepare revocation metadata' 'Revoke on-chain' \
       'Create CLI key' 'Import signing key' 'Import verification key (public only)' 'Repair missing public files' Back || status=$?
     ((status != 1)) || return 0; ((status == 0)) || return "${status}"
     [[ "${choice}" != Back ]] || return 0
-    if [[ "${choice}" == 'Info & Status' ]]; then cntools_ui_wait; continue; fi
     case "${choice}" in
       'Check on-chain status') kind=status ;;
       'Prepare registration metadata') kind=metadata ;;

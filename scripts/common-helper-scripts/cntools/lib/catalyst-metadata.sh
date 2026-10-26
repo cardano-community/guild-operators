@@ -80,6 +80,18 @@ cntools_catalyst_verify_metadata() {
   cntools_transaction_log REVIEW "Verified CIP-36 wallet=${CNTOOLS_CATALYST_DIRECTORY##*/} nonce=${nonce} metadata=$(jq -c . "${CNTOOLS_CATALYST_METADATA}")"
 }
 
+# Whether the wallet itself can sign the authorization (no side effects).
+cntools_catalyst_stake_signable() {
+  local signing="${CNTOOLS_CATALYST_DIRECTORY}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" kind=''
+  if [[ "${CNTOOLS_PAYMENT_TYPE}" == Hardware ]]; then
+    cntools_transaction_private_file_safe "${CNTOOLS_CATALYST_DIRECTORY}/${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}" &&
+      cntools_transaction_private_file_safe "${CNTOOLS_CATALYST_DIRECTORY}/${CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME}"
+    return $?
+  fi
+  [[ ! -e "${signing}.gpg" && ! -L "${signing}.gpg" ]] && cntools_transaction_private_file_safe "${signing}" &&
+    cntools_wallet_key_signing_type stake "${signing}" kind
+}
+
 cntools_catalyst_authorize() {
   local nonce="$1" signing='' public='' metadata='' response='' errors='' status=0
   cntools_catalyst_cbor_uint_into response "${nonce}" && cntools_catalyst_signer_require || return 1

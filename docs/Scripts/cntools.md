@@ -156,21 +156,29 @@ flow style and saves the answer. Change it any time in
 - **Quick** uses sensible defaults instead of asking. Transactions follow the
   shortened flow above, summary confirmations such as "Create this pool?" are
   skipped, and optional lookups such as pool details or asset names are
-  fetched directly.
+  fetched directly. Defaults that matter can still be changed: wallets start
+  at account and key index 0 with **Change account and key index** at the
+  plan step, and reviews offer options such as **Change scope**,
+  **Change stake setup** or **Change metadata**.
 - **Detailed** asks every question.
 
 Both styles keep warnings and safety confirmations, such as self-sends,
-retiring pools, deletions, restores, key encryption, KES rotation and
-cold-key signing.
+retiring pools, pool retirement submission, deletions, restores, key
+encryption, KES rotation and cold-key signing. Warnings shown before a step
+Quick confirms automatically are repeated on the next screen.
+
+In both styles, CNTools selects the only suitable wallet, pool, policy,
+local DRep or saved transaction package instead of showing a one-item list,
+and skips questions with only one possible answer.
 
 ### Transaction defaults
 
 **Settings → Transaction Defaults** persists your preferences between sessions:
 
 Each setting shows an explanation before its choices. **Cancel** returns to the
-settings overview without changing or saving anything. Numeric editors offer
-**Enter new value** and **Cancel**; pressing Escape while typing also cancels,
-and an empty input keeps the current value.
+settings overview without changing or saving anything. Numeric editors go
+straight to the input: Escape cancels, an empty input keeps the current value
+and an invalid number asks again.
 
 - **Coin selection:** Balanced prefers simpler ADA-only inputs and avoids
   unnecessary native assets; Fewest inputs prioritizes fewer inputs.

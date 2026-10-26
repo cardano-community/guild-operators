@@ -81,6 +81,22 @@ cntools_wallet_hardware_prompt_index_into() {
   done
 }
 
+cntools_wallet_hardware_prompt_derivation_into() {
+  local _cntools_derivation_account_output="${1:-}"
+  local _cntools_derivation_key_output="${2:-}"
+  local _cntools_derivation_account=""
+  local _cntools_derivation_key=""
+
+  [[ "${_cntools_derivation_account_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
+     "${_cntools_derivation_key_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  cntools_wallet_hardware_prompt_index_into \
+    _cntools_derivation_account "Account number" || return $?
+  cntools_wallet_hardware_prompt_index_into \
+    _cntools_derivation_key "Address key index" || return $?
+  printf -v "${_cntools_derivation_account_output}" '%s' "${_cntools_derivation_account}"
+  printf -v "${_cntools_derivation_key_output}" '%s' "${_cntools_derivation_key}"
+}
+
 cntools_wallet_hardware_collect_settings() {
   local _cntools_name_output="${1:-}"
   local _cntools_account_output="${2:-}"
@@ -105,19 +121,14 @@ cntools_wallet_hardware_collect_settings() {
     _cntools_status=$?
     return "${_cntools_status}"
   fi
-  if cntools_wallet_hardware_prompt_index_into \
-      _cntools_account "Account number"; then
-    :
+  if cntools_flow_quick; then
+    # The plan step offers 'Change account and key index'.
+    _cntools_account=0
+    _cntools_key_index=0
+    cntools_wallet_hardware_log CHOICE "hardware derivation default account=0 key_index=0 flow=quick"
   else
-    _cntools_status=$?
-    return "${_cntools_status}"
-  fi
-  if cntools_wallet_hardware_prompt_index_into \
-      _cntools_key_index "Address key index"; then
-    :
-  else
-    _cntools_status=$?
-    return "${_cntools_status}"
+    cntools_wallet_hardware_prompt_derivation_into \
+      _cntools_account _cntools_key_index || return $?
   fi
   _cntools_name_ref="${_cntools_name}"
   _cntools_account_ref="${_cntools_account}"
@@ -242,24 +253,29 @@ cntools_wallet_action_import_hardware() {
     return "${status}"
   fi
 
-  cntools_wallet_hardware_screen_begin
-  if ! cntools_wallet_hardware_render_plan \
-      "${name}" "${account}" "${key_index}"; then
-    cntools_wallet_hardware_log ERROR \
-      "hardware wallet plan rendering failed wallet=${name}"
-    cntools_ui_render_status error \
-      "The hardware wallet plan could not be displayed. See ${CNTOOLS_LOG}."
-    cntools_ui_wait
-    return 1
-  fi
-  cntools_ui_render_status info \
-    "Only public keys and hardware signing references are stored. Private keys never leave the device."
-  cntools_ui_render_status warn \
-    "This imports standard CIP-1852 payment and stake keys only."
-  if cntools_ui_flow_confirm "Import this hardware wallet now?"; then
+  while true; do
+    cntools_wallet_hardware_screen_begin
+    if ! cntools_wallet_hardware_render_plan \
+        "${name}" "${account}" "${key_index}"; then
+      cntools_wallet_hardware_log ERROR \
+        "hardware wallet plan rendering failed wallet=${name}"
+      cntools_ui_render_status error \
+        "The hardware wallet plan could not be displayed. See ${CNTOOLS_LOG}."
+      cntools_ui_wait
+      return 1
+    fi
+    cntools_ui_render_status info \
+      "Only public keys and hardware signing references are stored. Private keys never leave the device."
+    cntools_ui_render_status warn \
+      "This imports standard CIP-1852 payment and stake keys only."
+    status=0
+    cntools_wallet_derivation_confirm "Import this hardware wallet now?" 'Import wallet' || status=$?
+    (( status == 4 )) || break
+    cntools_wallet_hardware_prompt_derivation_into account key_index || true
+  done
+  if (( status == 0 )); then
     :
   else
-    status=$?
     if (( status == 1 )); then
       cntools_wallet_hardware_log CHOICE \
         "hardware wallet import declined wallet=${name}"

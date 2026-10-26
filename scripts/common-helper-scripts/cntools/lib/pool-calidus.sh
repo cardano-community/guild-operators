@@ -141,7 +141,7 @@ cntools_calidus_preflight() {
   if [[ "${operation}" != repair ]]; then
     for name in "${names[@]}" "${names[0]}.gpg"; do
       [[ ! -e "${directory}/${name}" && ! -L "${directory}/${name}" ]] ||
-        { cntools_pool_write_error 'Existing Calidus material was retained. Use Info & Status or repair missing public files.'; return 1; }
+        { cntools_pool_write_error 'Existing Calidus material was retained. Check its status in the Calidus menu or repair missing public files.'; return 1; }
     done
   fi
   if [[ "${operation}" == create || "${operation}" == signing ]]; then

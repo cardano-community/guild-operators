@@ -63,7 +63,7 @@ cntools_pool_registration_rows() {
   cntools_table_pair 'Pool deposit' "$(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_POOL_DEPOSIT:-${CNTOOLS_WALLET_REGISTER_DEPOSIT}}")" number
   if [[ "${CNTOOLS_POOL_STAKE_PLAN:-[]}" != '[]' ]]; then
     while IFS= read -r record; do
-      cntools_table_pair 'Included stake setup' "$(jq -r '.label + " · " + .setup' <<< "${record}")" success
+      cntools_table_pair 'Included stake setup' "$(jq -r '.label + " · " + .setup + (if .setup == "delegate" and .previousDelegation != "" then " · replaces delegation to " + .previousDelegation else "" end)' <<< "${record}")" success
     done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_STAKE_PLAN}")
     cntools_table_pair 'Total deposits' "$(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")" number
   fi
@@ -84,7 +84,14 @@ cntools_pool_registration_render_plan() {
     cntools_table_pair 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}"
   } | cntools_table_render 'Transaction information'
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then cntools_pool_retirement_notice
-  else cntools_ui_render_status info 'Pledge is a commitment, not a transfer. Only explicitly selected stake setup is included. Operational setup is handled separately; this transaction does not start a node.'; fi
+  else cntools_ui_render_status info 'Pledge is a commitment, not a transfer. Only the stake setup listed above is included. Operational setup is handled separately; this transaction does not start a node.'; fi
+  [[ "${CNTOOLS_POOL_REG_COMBINE_HARDWARE}" != Y ]] || cntools_pool_registration_hardware_notice
+}
+
+cntools_pool_registration_hardware_notice() {
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then
+    cntools_ui_render_status info 'Hardware-funded retirement needs the funding payment key and pool cold key together on the same Ledger. Use a CLI/mnemonic funding wallet if the cold key is on a different device.'
+  else cntools_ui_render_status info 'Pool operator signing needs the funding payment key and cold key on the same Ledger. Every hardware owner signs separately, including owners on that Ledger.'; fi
 }
 
 cntools_pool_registration_select_stake_into() {
@@ -193,10 +200,13 @@ cntools_pool_registration_edit_metadata() {
 
 cntools_pool_registration_edit_settings() {
   local choice='' input='' amount='' record='' status=0 current=''
+  local -a options=()
   while true; do
     cntools_pool_registration_begin
     cntools_pool_registration_rows | cntools_table_render 'Pool settings' || return 2
-    cntools_pool_registration_choose choice 'Pool settings' Done Pledge 'Fixed cost' Margin 'Reward account' Owners Relays Metadata 'Reuse saved settings' 'Cancel transaction' || return $?
+    options=(Done Pledge 'Fixed cost' Margin 'Reward account' Owners Relays Metadata)
+    ! cntools_pool_wizard_saved_present || options+=('Reuse saved settings')
+    cntools_pool_registration_choose choice 'Pool settings' "${options[@]}" 'Cancel transaction' || return $?
     status=0
     case "${choice}" in
       Done)
@@ -211,7 +221,8 @@ cntools_pool_registration_edit_settings() {
         elif cntools_uint_greater_equal "${amount}" "${CNTOOLS_POOL_REG_MIN_COST}"; then CNTOOLS_POOL_REG_COST="${amount}"
         else cntools_ui_render_status warn "Minimum fixed cost: $(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_MIN_COST}")."; cntools_ui_wait; fi ;;
       Margin)
-        cntools_pool_registration_input input 'Margin percent (Enter keeps current)' '0–100; up to six decimal places' || status=$?
+        current="$(cntools_pool_margin_number "${CNTOOLS_POOL_REG_MARGIN}" | jq -r '. * 100')" || return 2
+        cntools_pool_registration_input input "Margin percent (Enter keeps ${current} %)" '0–100; up to six decimal places' || status=$?
         ((status != 1)) || continue; ((status == 0)) || return "${status}"; [[ -n "${input}" ]] || continue
         cntools_pool_margin_into amount "${input}" && CNTOOLS_POOL_REG_MARGIN="${amount}" || { cntools_ui_render_status warn 'Use a percentage from 0 to 100.'; cntools_ui_wait; } ;;
       'Reward account')
@@ -220,7 +231,7 @@ cntools_pool_registration_edit_settings() {
         cntools_pool_reward_record_use "${record}" ;;
       Owners) cntools_pool_registration_edit_owners || status=$? ;;
       Relays) cntools_pool_registration_edit_relays || status=$? ;;
-      'Reuse saved settings') cntools_pool_wizard_saved_offer || status=$? ;;
+      'Reuse saved settings') cntools_pool_wizard_saved_apply || status=$? ;;
       Metadata)
         cntools_pool_registration_edit_metadata || status=$?
         if ((status == 3)); then cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-Invalid pool metadata URL, hash or JSON file.}"; cntools_ui_wait; status=0; fi ;;
@@ -231,27 +242,31 @@ cntools_pool_registration_edit_settings() {
   done
 }
 
-cntools_pool_registration_hardware_choice() {
-  local kind='' choice=''
+# A hardware funding wallet needs the cold key on the same Ledger (checked when
+# the funding wallet is prepared), so the combined session is the only option.
+cntools_pool_registration_hardware_session() {
+  local kind=''
   CNTOOLS_POOL_REG_COMBINE_HARDWARE=N
   [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE}" == Hardware ]] || return 0
   cntools_transaction_source_kind_into kind "${CNTOOLS_POOL_REG_COLD_SOURCE}" && [[ "${kind}" == hardware ]] || return 2
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then
-    cntools_ui_render_status info 'Hardware-funded retirement needs the funding payment key and pool cold key together on the same Ledger. Use a CLI/mnemonic funding wallet if the cold key is on a different device.'
-  else cntools_ui_render_status info 'Pool operator signing needs the funding payment key and cold key on the same Ledger. Every hardware owner signs separately, including owners on that Ledger.'; fi
-  cntools_pool_registration_choose choice 'Funding and cold keys on the same Ledger?' 'Yes, same Ledger device' 'No, use another funding wallet' Cancel || return $?
-  case "${choice}" in
-    'Yes, same Ledger device') CNTOOLS_POOL_REG_COMBINE_HARDWARE=Y ;;
-    'No, use another funding wallet') cntools_wallet_register_set_error 'Restart this action with a CLI/mnemonic funding wallet, or a funding wallet on the pool cold key Ledger.'; return 2 ;;
-    Cancel) return 1 ;;
-    *) return 2 ;;
-  esac
-  cntools_transaction_log CHOICE "Pool hardware session operation=${CNTOOLS_WALLET_REGISTER_OPERATION} selected=${choice}; owners remain separate"
+  CNTOOLS_POOL_REG_COMBINE_HARDWARE=Y
+  cntools_transaction_log CHOICE "Pool hardware session operation=${CNTOOLS_WALLET_REGISTER_OPERATION} funding and cold key on the same Ledger (required); owners remain separate"
+}
+
+# Keep the chosen workflow unless the keys no longer allow signing.
+cntools_pool_registration_workflow_keep_into() {
+  local -n prk_workflow="$1"
+  local prk_can_sign="$2"
+  [[ "${prk_can_sign}" != Y && "${prk_workflow}" != 'Create unsigned package' ]] || return 0
+  cntools_transaction_log CHOICE "Pool workflow=${prk_workflow} no longer signable; choosing again"
+  cntools_transaction_ui_initial_workflow_into "$1" "${prk_can_sign}"
 }
 
 cntools_pool_registration_workflow() {
-  local selected='' wallet='' workflow='' can_sign=N choice='' proceed='' staged=''
+  local selected='' wallet='' workflow='' can_sign=N choice='' proceed='' staged='' pause=N
+  local -a review_options=()
   CNTOOLS_POOL_REG_SAVED=''; CNTOOLS_POOL_REG_RESULT_SHOWN=N
+  CNTOOLS_POOL_WIZARD_STAKE_INPUTS=''; CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS=''
   cntools_pool_registration_begin
   cntools_transaction_require_cli && cntools_pool_catalog_build || return 2
   (( ${#CNTOOLS_POOL_NAMES[@]} > 0 )) || { cntools_wallet_register_set_error 'No pools are available. Use Pool → New or Import first.'; return 2; }
@@ -259,7 +274,7 @@ cntools_pool_registration_workflow() {
   cntools_pool_registration_prepare_identity "${selected}" || return 2
   cntools_wallet_catalog_build || return 2
   (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || { cntools_wallet_register_set_error 'No funding wallets are available.'; return 2; }
-  cntools_wallet_choose wallet || return $?
+  cntools_wallet_choose wallet Cancel send || return $?
   cntools_pool_registration_prepare_funding "${CNTOOLS_WALLET_PATHS[wallet]}" || return 2
   cntools_ui_spin_function 'Checking pool registration, protocol parameters and funding…' cntools_pool_registration_collect || return 2
   cntools_pool_registration_defaults || return 2
@@ -273,28 +288,35 @@ cntools_pool_registration_workflow() {
     cntools_pool_registration_choose choice 'Registering a new or fully retired pool?' Cancel 'Yes, continue with registration' || return $?
     [[ "${choice}" == 'Yes, continue with registration' ]] || return 1
   fi
-  [[ "${CNTOOLS_POOL_CHAIN_STATUS[CNTOOLS_POOL_REG_INDEX]}" != Retiring ]] || cntools_ui_render_status warn 'Re-registering this retiring pool cancels its pending retirement.'
-  cntools_ui_wait
+  if [[ "${CNTOOLS_POOL_CHAIN_STATUS[CNTOOLS_POOL_REG_INDEX]}" == Retiring ]]; then
+    cntools_ui_render_status warn 'Re-registering this retiring pool cancels its pending retirement.'; pause=Y
+  fi
+  # The settings screen that follows shows the pool and wallet; pause only for a warning.
+  [[ "${pause}" != Y ]] || cntools_ui_wait
   cntools_pool_registration_edit_settings || return $?
   cntools_pool_wizard_prepare_stake || return $?
   cntools_pool_registration_can_sign_into can_sign
   cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
   cntools_transaction_ui_initial_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
-  CNTOOLS_POOL_REG_COMBINE_HARDWARE=N
-  cntools_pool_registration_hardware_choice || return $?
+  cntools_pool_registration_hardware_session || return $?
   while true; do
     cntools_ui_spin_function 'Building and validating the pool transaction…' cntools_pool_registration_build_into staged || return 2
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
+    review_options=('Edit pool settings')
+    [[ "${CNTOOLS_POOL_STAKE_SETUP_ASKABLE}" != Y ]] || review_options+=('Change stake setup')
     cntools_transaction_ui_review_into choice "${staged}" "${proceed}" cntools_pool_registration_begin \
-      cntools_pool_registration_render_plan 'Edit pool settings' 'Change expiry' 'Change workflow' || return $?
+      cntools_pool_registration_render_plan "${review_options[@]}" 'Change expiry' 'Change workflow' || return $?
     case "${choice}" in
       "${proceed}") break ;;
       'Edit pool settings')
         cntools_pool_registration_edit_settings || return $?
         cntools_pool_wizard_prepare_stake || return $?
         cntools_pool_registration_can_sign_into can_sign
-        cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
-        cntools_pool_registration_hardware_choice || return $? ;;
+        cntools_pool_registration_workflow_keep_into workflow "${can_sign}" || return $? ;;
+      'Change stake setup')
+        cntools_pool_stake_setup_choose ask || return $?
+        cntools_pool_registration_can_sign_into can_sign
+        cntools_pool_registration_workflow_keep_into workflow "${can_sign}" || return $? ;;
       'Change workflow') cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $? ;;
       'Change expiry') cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $? ;;
       *) return 2 ;;
@@ -327,7 +349,9 @@ cntools_pool_transaction_finish() {
   cntools_transaction_submit_input_prepare "${saved}" || return 2
   body="${CNTOOLS_TRANSACTION_SIGNED_FILE}"; txid="${CNTOOLS_TRANSACTION_SUBMIT_ID}"
   cntools_transaction_ui_submission_backend_into backend || return 2
-  status=0; cntools_transaction_ui_confirm_submit "${backend}" || status=$?
+  local confirm_mode=''
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]] || confirm_mode=always
+  status=0; cntools_transaction_ui_confirm_submit "${backend}" "${confirm_mode}" || status=$?
   if ((status == 1)); then
     cntools_pool_registration_begin; cntools_transaction_ui_render_result warning 'Not submitted · signed package retained' "${txid}" "${saved}"
     CNTOOLS_POOL_REG_RESULT_SHOWN=Y; return 0

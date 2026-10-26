@@ -22,9 +22,8 @@ cntools_vote_render_rows() {
 cntools_vote_choose_target() {
   local choice="" entered="" status=0 widths=""
   CNTOOLS_VOTE_TARGET="" CNTOOLS_VOTE_KIND="" CNTOOLS_VOTE_HASH="" CNTOOLS_VOTE_INACTIVE_CONFIRMED=N
+  # The review shows the deposit row and offers Cancel; no separate approval.
   if [[ "${CNTOOLS_VOTE_REGISTER}" == Y ]]; then
-    ! cntools_flow_quick || cntools_ui_render_status info "This stake address is not registered yet, so the transaction also registers it. Refundable deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")."
-    cntools_ui_flow_confirm "This stake address is not registered. Register it and delegate in one transaction, paying $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")?" false || return $?
     CNTOOLS_VOTE_REGISTRATION_CONFIRMED=Y
     cntools_transaction_log CHOICE "Combined stake registration approved deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
   fi
@@ -36,6 +35,7 @@ cntools_vote_choose_target() {
       cntools_transaction_ui_styled_row Wallet "${CNTOOLS_WALLET_REGISTER_WALLET}" identifier
       cntools_transaction_ui_styled_row 'Current voting delegation' "$(cntools_vote_label "${CNTOOLS_VOTE_CURRENT}")" identifier
     } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
+    [[ "${CNTOOLS_VOTE_REGISTER}" != Y ]] || cntools_ui_render_status info "This stake address is not registered yet, so the transaction also registers it. Refundable deposit: $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}")."
     cntools_ui_render_status info 'Voting delegation does not change your stake pool or withdraw rewards. Any first stake registration and deposit are shown in the transaction review.'
     cntools_ui_choose choice 'Voting delegation' 'Specific DRep' 'Local DRep wallet' 'Always Abstain' 'Always No Confidence' Cancel || return $?
     cntools_transaction_log CHOICE "Voting delegation target choice=${choice}"
@@ -65,7 +65,8 @@ cntools_vote_choose_target() {
       status=0
       cntools_ui_confirm 'This DRep is registered but currently inactive. Delegate to it anyway?' false || status=$?
       cntools_transaction_log CHOICE "Inactive DRep confirmation status=${status} target=${CNTOOLS_VOTE_TARGET}"
-      ((status == 0)) || return "${status}"
+      # Declining returns to the target choice.
+      ((status == 0)) || { ((status == 1)) && continue; return "${status}"; }
       CNTOOLS_VOTE_INACTIVE_CONFIRMED=Y
     fi
     cntools_transaction_log CHOICE "Voting delegation target=${CNTOOLS_VOTE_TARGET} kind=${CNTOOLS_VOTE_KIND} previous=${CNTOOLS_VOTE_CURRENT}"
@@ -85,6 +86,12 @@ cntools_vote_choose_local_into() {
   done
   if (( ${#labels[@]} == 0 )); then
     cntools_ui_render_status info 'No verified local DRep public keys are available.'; cntools_ui_wait; return 1
+  fi
+  if (( ${#labels[@]} == 1 )); then
+    printf -v "${destination}" '%s' "${ids[0]}"
+    cntools_transaction_log CHOICE "Local DRep wallet auto-selected only=${labels[0]}"
+    cntools_ui_render_status info "Using ${labels[0]#* · }, the only local DRep wallet."
+    return 0
   fi
   cntools_ui_choose selection 'Local DRep wallet · registration checked next' "${labels[@]}" Cancel || return $?
   [[ "${selection}" != Cancel ]] || return 1

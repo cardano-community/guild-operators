@@ -61,6 +61,8 @@ cntools_wallet_delegation_info_render() {
       done
       cntools_table_pair Source 'Koios API' muted
     } | cntools_table_render 'Delegated DRep'
-    cntools_public_metadata_offer "$(jq -r '.meta_url // ""' <<< "${record}")" "$(jq -r '.meta_hash // ""' <<< "${record}")"
+    # Quick skips the third-party download; Governance → Info still offers it.
+    cntools_flow_quick ||
+      cntools_public_metadata_offer "$(jq -r '.meta_url // ""' <<< "${record}")" "$(jq -r '.meta_hash // ""' <<< "${record}")"
   fi
 }

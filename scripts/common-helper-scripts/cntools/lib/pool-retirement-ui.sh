@@ -54,14 +54,14 @@ cntools_pool_retirement_workflow() {
   cntools_pool_registration_prepare_identity "${selected}" || return 2
   cntools_wallet_catalog_build || return 2
   (( ${#CNTOOLS_WALLET_NAMES[@]} > 0 )) || { cntools_wallet_register_set_error 'No funding wallets are available.'; return 2; }
-  cntools_wallet_choose wallet || return $?
+  cntools_wallet_choose wallet Cancel send || return $?
   cntools_pool_registration_prepare_funding "${CNTOOLS_WALLET_PATHS[wallet]}" || return 2
   cntools_ui_spin_function 'Checking pool state, retirement limits and funding…' cntools_pool_registration_collect || return 2
   cntools_pool_retirement_select_epoch || return $?
   cntools_pool_registration_can_sign_into can_sign
   cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
   cntools_transaction_ui_initial_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
-  cntools_pool_registration_hardware_choice || return $?
+  cntools_pool_registration_hardware_session || return $?
   while true; do
     cntools_ui_spin_function 'Building and validating the retirement transaction…' cntools_pool_registration_build_into staged || return 2
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2

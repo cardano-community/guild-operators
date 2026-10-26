@@ -80,7 +80,8 @@ cntools_send_prompt_recipient() {
     entered=""
   fi
   if [[ "${choice}" == "CNTools wallet" ]]; then
-    cntools_wallet_choose selected "${CNTOOLS_SEND_EDIT_CANCEL:-Cancel}" || return $?
+    # Never auto-pick the recipient: a lone wallet would be the source itself.
+    cntools_wallet_choose selected "${CNTOOLS_SEND_EDIT_CANCEL:-Cancel}" "" N || return $?
     directory="${CNTOOLS_WALLET_PATHS[selected]}"
     cntools_wallet_prepare_selected_material "${directory}" || {
       cntools_ui_render_status warn "The recipient's public artifacts could not be prepared safely. Check the log."; return 2;
@@ -204,7 +205,7 @@ cntools_send_prompt_amounts() {
     [[ -n "${asset}" ]] || return 2
     while true; do
       cntools_ui_input entered "Smallest-unit quantity (All or 0 to remove)" "All" || return $?
-      if [[ "${entered,,}" == all ]]; then units="${CNTOOLS_FUNDING_ASSETS[${asset}]}"
+      if [[ -z "${entered}" || "${entered,,}" == all ]]; then units="${CNTOOLS_FUNDING_ASSETS[${asset}]}"
       elif ! cntools_number_units_into units "${entered}" 0; then
         cntools_ui_render_status warn "Enter a whole smallest-unit quantity, optionally with commas, or All."; continue
       fi
@@ -275,10 +276,12 @@ cntools_send_edit_recipients() {
         cntools_ui_wait
       fi
       # Quick goes from the first recipient straight to the review, where
-      # 'Edit recipients' adds more recipients or a message.
-      if [[ "${initial}" == Y ]] && (( status == 0 && ${#CNTOOLS_SEND_ADDRESSES[@]} > 0 )) &&
-         cntools_flow_quick; then
-        return 0
+      # 'Edit recipients' adds more recipients or a message. Until there is
+      # one, cancelling ends the transfer and other failures ask again.
+      if [[ "${initial}" == Y ]] && cntools_flow_quick; then
+        (( ${#CNTOOLS_SEND_ADDRESSES[@]} == 0 )) || return 0
+        (( status != 1 && status != 130 )) || return 1
+        continue
       fi
     elif [[ "${command}" == Remove ]]; then
       cntools_send_remove_recipient "${index}" || return 2
@@ -288,13 +291,13 @@ cntools_send_edit_recipients() {
     cntools_send_render_recipients || return 2
     cntools_ui_render_status info "Amounts use exact smallest units; minimum ADA adjustments and the final fee will be shown after building. Rewards and deposits are not included."
     cntools_send_metadata_render || return 2
-    options=("Continue" "Edit" "Remove" "Message / metadata" "Cancel")
-    [[ "${CNTOOLS_SEND_MODE}" != exact ]] || options=("Continue" "Add" "Edit" "Remove" "Message / metadata" "Cancel")
-    if (( ${#CNTOOLS_SEND_ADDRESSES[@]} == 0 )); then options=("Add" "Cancel"); CNTOOLS_SEND_MODE=exact; fi
+    options=("Continue" "Edit" "Remove" "Message / metadata" "Cancel transfer")
+    [[ "${CNTOOLS_SEND_MODE}" != exact ]] || options=("Continue" "Add" "Edit" "Remove" "Message / metadata" "Cancel transfer")
+    if (( ${#CNTOOLS_SEND_ADDRESSES[@]} == 0 )); then options=("Add" "Cancel transfer"); CNTOOLS_SEND_MODE=exact; fi
     cntools_send_choose command "Recipients" "${options[@]}" || return $?
     case "${command}" in
       Continue) return 0 ;;
-      Cancel) return 1 ;;
+      'Cancel transfer') return 1 ;;
       'Message / metadata')
         status=0
         cntools_send_metadata_edit || status=$?

@@ -102,17 +102,30 @@ cntools_multisig_action_derive() {
   ((status == 0 || status == 1 || status == 130))
 }
 
+# Sets CNTOOLS_MULTISIG_NOTICE for the redrawn participant list.
 cntools_multisig_local_participant() {
   local selected='' directory='' prefix='' choice='' payment='' stake='' output='' errors='' role='' file='' hash='' status=0
+  local -a pairs=()
   cntools_wallet_catalog_build && cntools_wallet_choose selected Cancel || return $?
   directory="${CNTOOLS_WALLET_PATHS[selected]}"
-  cntools_ui_choose choice 'Participant key pair' 'Multisig participant keys' 'Regular wallet keys' Cancel || return $?
+  cntools_wallet_prepare_selected_material "${directory}" || return 2
+  # Offer only the key pairs this wallet has; a lone pair needs no question.
+  [[ ! -e "${directory}/${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" ]] || pairs+=('Multisig participant keys')
+  [[ ! -e "${directory}/${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" ]] || pairs+=('Regular wallet keys')
+  case "${#pairs[@]}" in
+    0) cntools_multisig_fail 'This wallet has no payment verification key to add as a participant.'; return 2 ;;
+    1)
+      choice="${pairs[0]}"
+      cntools_log CHOICE "Multisig participant key pair auto-selected=${choice}" || true
+      CNTOOLS_MULTISIG_NOTICE="Used ${choice,}, the only key pair in ${directory##*/}." ;;
+    *) cntools_ui_choose choice 'Participant key pair' "${pairs[@]}" Cancel || return $? ;;
+  esac
   case "${choice}" in
     'Multisig participant keys') prefix="${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}" ;;
-    'Regular wallet keys') cntools_ui_render_status info 'Regular wallet keys are valid native-script participants. Dedicated 1854 keys keep signing roles separate.' ;;
+    'Regular wallet keys')
+      CNTOOLS_MULTISIG_NOTICE="${CNTOOLS_MULTISIG_NOTICE:+${CNTOOLS_MULTISIG_NOTICE} }Regular wallet keys are valid native-script participants. Dedicated 1854 keys keep signing roles separate." ;;
     *) return 1 ;;
   esac
-  cntools_wallet_prepare_selected_material "${directory}" || return 2
   cntools_transaction_temp_file output multisig-hash && cntools_transaction_temp_file errors multisig-errors || return 2
   for role in payment stake; do
     if [[ "${role}" == payment ]]; then file="${directory}/${prefix}${CNTOOLS_WALLET_PAY_VKEY_FILENAME}"; else file="${directory}/${prefix}${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}"; fi
@@ -165,7 +178,8 @@ cntools_multisig_prompt_bound() {
 }
 
 cntools_multisig_create_workflow() {
-  local name='' choice='' payment='' stake='' threshold='' normalized='' staking=N after='' before='' date='' status=0
+  local name='' choice='' payment='' stake='' threshold='' normalized='' staking=N after='' before='' date='' status=0 warning=''
+  CNTOOLS_MULTISIG_NOTICE=''
   cntools_multisig_participants_reset
   cntools_multisig_begin Create
   cntools_wallet_create_environment_ready || return 2
@@ -174,28 +188,36 @@ cntools_multisig_create_workflow() {
     cntools_wallet_create_name_valid "${name}" && cntools_wallet_create_target_available "${name}" && break
     cntools_ui_render_status warn 'Use a valid unused wallet name (1–64 letters, numbers, dots, underscores or hyphens).'
   done
+  # Refusals show on the redrawn list instead of behind a Press Enter.
   while true; do
     cntools_multisig_begin Create
     cntools_multisig_render_participants || return 2
+    [[ -z "${warning}" ]] || cntools_ui_render_status warn "${warning}"
+    [[ -z "${CNTOOLS_MULTISIG_NOTICE}" ]] || cntools_ui_render_status info "${CNTOOLS_MULTISIG_NOTICE}"
+    warning=''; CNTOOLS_MULTISIG_NOTICE=''; CNTOOLS_MULTISIG_ERROR=''
     cntools_ui_choose choice 'Participants' 'Add CNTools wallet' 'Add external key hashes' 'Remove last participant' 'Done' Cancel || return $?
     cntools_log CHOICE "Multisig creation participant menu selected=${choice}" || true
     case "${choice}" in
+      'Add CNTools wallet'|'Add external key hashes')
+        if (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} >= 20 )); then warning='At most 20 participants are supported.'; continue; fi ;;&
       'Add CNTools wallet')
         status=0; cntools_multisig_local_participant || status=$?
-        if ((status != 0 && status != 1 && status != 130)); then cntools_ui_render_status warn "${CNTOOLS_MULTISIG_ERROR:-Could not add that participant.}"; cntools_ui_wait; fi
+        if ((status != 0 && status != 1 && status != 130)); then warning="${CNTOOLS_MULTISIG_ERROR:-Could not add that participant.}"; CNTOOLS_MULTISIG_NOTICE=''; fi
         ;;
       'Add external key hashes')
         cntools_ui_input payment 'Payment key hash (56 hex characters)' '' || continue
         cntools_ui_input stake 'Stake key hash (blank = payment-only participant)' '' || continue
         if ! cntools_multisig_participant_add "${payment}" "${stake}" "External $((${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}+1))"; then
-          cntools_ui_render_status warn "${CNTOOLS_MULTISIG_ERROR:-Invalid participant hashes.}"; cntools_ui_wait
+          warning="${CNTOOLS_MULTISIG_ERROR:-Invalid participant hashes.}"
         fi
         ;;
       'Remove last participant')
         if (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} > 0 )); then
           unset 'CNTOOLS_MULTISIG_PAYMENT_HASHES[-1]' 'CNTOOLS_MULTISIG_STAKE_HASHES[-1]' 'CNTOOLS_MULTISIG_LABELS[-1]'
-        fi ;;
-      Done) (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} > 0 )) && break ;;
+        else warning='There are no participants to remove.'; fi ;;
+      Done)
+        (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} > 0 )) && break
+        warning='Add at least one participant before continuing.' ;;
       *) return 1 ;;
     esac
   done
@@ -213,8 +235,11 @@ cntools_multisig_create_workflow() {
   else
     cntools_ui_render_status info 'At least one participant has no stake hash. This will be a payment-only wallet.'
   fi
-  cntools_multisig_prompt_bound after 'Spendable from' && cntools_multisig_prompt_bound before 'Spendable before' || return $?
-  [[ -z "${after}" || -z "${before}" ]] || ((after<before)) || { cntools_multisig_fail 'The spending start must be before its expiry.'; return 2; }
+  while true; do
+    cntools_multisig_prompt_bound after 'Spendable from' && cntools_multisig_prompt_bound before 'Spendable before' || return $?
+    [[ -z "${after}" || -z "${before}" ]] || ((after<before)) && break
+    cntools_ui_render_status warn 'The spending start must be before its expiry. Choose the time bounds again.'
+  done
   cntools_multisig_begin Create
   cntools_multisig_render_participants || return 2
   {

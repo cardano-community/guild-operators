@@ -70,6 +70,13 @@ cntools_wallet_protection_choose() {
     _cntools_indexes+=("${_cntools_index}")
   done
   (( ${#_cntools_rows[@]} > 0 )) || return 4
+  if (( ${#_cntools_rows[@]} == 1 )); then
+    _cntools_output_ref="${CNTOOLS_WALLET_PATHS[${_cntools_indexes[0]}]}"
+    cntools_wallet_protection_log CHOICE \
+      "auto-selected only wallet=${_cntools_output_ref##*/} operation=${_cntools_operation}"
+    cntools_ui_render_status info "Using ${_cntools_output_ref##*/}, the only suitable wallet."
+    return 0
+  fi
   if cntools_ui_choose _cntools_selected \
       "Filter wallets…" "${_cntools_rows[@]}"; then
     _cntools_status=0
@@ -115,7 +122,7 @@ cntools_wallet_protection_lock_only_action() {
   local directory="$1" operation="$2" verb=Lock status=0
   [[ "${operation}" != decrypt ]] || verb=Unlock
   cntools_ui_render_status info 'This wallet has no local private signing keys. Only local file permissions/immutable flags will change; no encryption or device operation is performed.'
-  cntools_ui_confirm "${verb} local wallet files?" false || return $?
+  cntools_ui_flow_confirm "${verb} local wallet files?" false || return $?
   cntools_ui_spin_function "${verb}ing local wallet files…" cntools_wallet_protection_lock_files "${directory}" "${operation}" || status=$?
   if (( status == 0 )); then
     cntools_ui_render_status success "Local wallet files ${verb,,}ed. No private keys were encrypted or decrypted."
@@ -275,7 +282,7 @@ cntools_wallet_action_encrypt() {
   cntools_wallet_protection_render_plan encrypt "${wallet_directory}" || return 1
   cntools_ui_render_status warn \
     "Keep this passphrase safe. CNTools cannot recover encrypted signing keys without it."
-  if cntools_ui_confirm "Encrypt and lock this wallet?"; then
+  if cntools_ui_flow_confirm "Encrypt and lock this wallet?"; then
     status=0
   else
     status=$?

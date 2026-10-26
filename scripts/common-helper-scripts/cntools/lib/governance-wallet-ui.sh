@@ -2,14 +2,15 @@
 # Wallet-scoped DRep key setup and read-only on-chain status.
 # shellcheck disable=SC2034,SC2153
 
+# Optional third argument: a wallet-selection context that filters the list.
 cntools_governance_wallet_select_into() {
-  local output_name="$1" selected="" title="$2"
+  local output_name="$1" selected="" title="$2" context="${3:-}"
   cntools_ui_action_begin "${title}" "/ Vote / Governance / ${title}"
   cntools_wallet_catalog_build || return 2
   if ((${#CNTOOLS_WALLET_NAMES[@]} == 0)); then
     cntools_ui_render_status info 'No wallets found. Create or import a wallet first.'; cntools_ui_wait; return 1
   fi
-  cntools_wallet_choose selected Cancel || return $?
+  cntools_wallet_choose selected Cancel "${context}" || return $?
   printf -v "${output_name}" '%s' "${CNTOOLS_WALLET_PATHS[selected]}"
 }
 
@@ -131,7 +132,7 @@ cntools_governance_status_rows() {
 
 cntools_governance_action_info() {
   local directory="" widths="" status=0 protection=Absent verification=Absent
-  cntools_governance_wallet_select_into directory 'Info & Status' || return $?
+  cntools_governance_wallet_select_into directory 'Info & Status' drep-info || return $?
   cntools_drep_key_inspect "${directory}" || status=$?
   if ((status == 4)); then
     cntools_ui_render_status info 'No usable DRep identity found. Create keys through Governance → Derive Keys if none exist. Missing public files require Cardano CLI and an open key; restore the public verification key for encrypted/hardware keys.'

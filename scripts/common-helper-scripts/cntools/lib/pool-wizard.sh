@@ -31,24 +31,53 @@ cntools_pool_registration_choose_eligible_into() {
   return 2
 }
 
+cntools_pool_wizard_saved_present() {
+  local filename=''
+  cntools_pool_file_name_into filename config || return 1
+  [[ -e "${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}/${filename}" ]]
+}
+
+# Start-of-action offer. Quick Modify keeps the chain settings; the Pool
+# settings menu still offers the draft.
 cntools_pool_wizard_saved_offer() {
-  local choice='' filename=''
-  cntools_pool_file_name_into filename config || return 2
-  [[ -e "${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}/${filename}" ]] || return 0
+  local choice=''
+  cntools_pool_wizard_saved_present || return 0
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-modify ]] && cntools_flow_quick; then
+    cntools_transaction_log CHOICE 'Pool menu=Starting settings default=Keep current defaults flow=quick'
+    return 0
+  fi
   cntools_ui_render_status info 'Saved settings are local drafts, not proof of on-chain state. Modify starts with current/pending chain settings unless you explicitly reuse the draft.'
   cntools_pool_registration_choose choice 'Starting settings' 'Keep current defaults' 'Reuse saved pool settings' || return $?
   [[ "${choice}" == 'Reuse saved pool settings' ]] || return 0
+  cntools_pool_wizard_saved_apply
+}
+
+cntools_pool_wizard_saved_apply() {
   if ! cntools_pool_config_load; then
     cntools_transaction_log WARN "Saved pool draft rejected pool=${CNTOOLS_POOL_REG_NAME}; current defaults retained"
     cntools_ui_render_status warn 'Saved settings could not be fully validated or resolved. Current defaults were retained; edit the settings manually.'
-    cntools_ui_wait
+    cntools_ui_wait; return 0
   fi
+  cntools_transaction_log CHOICE "Pool saved settings applied pool=${CNTOOLS_POOL_REG_NAME}"
 }
 
+# Owner/reward lookups, the pledge check and the stake setup questions rerun
+# only when their inputs changed, so an unrelated edit does not re-ask them.
+CNTOOLS_POOL_WIZARD_STAKE_INPUTS='' CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS=''
 cntools_pool_wizard_prepare_stake() {
-  cntools_ui_spin_function 'Checking owner/reward registration and pledge…' cntools_pool_stake_collect || return 2
-  cntools_pool_stake_guidance || return $?
-  cntools_pool_stake_setup_choose || return $?
+  local stake_inputs='' pledge_inputs=''
+  stake_inputs="${CNTOOLS_POOL_REG_OWNERS}|$(cntools_pool_stake_records)" || return 2
+  pledge_inputs="${stake_inputs}|${CNTOOLS_POOL_REG_PLEDGE}"
+  if [[ "${stake_inputs}" != "${CNTOOLS_POOL_WIZARD_STAKE_INPUTS}" ]]; then
+    cntools_ui_spin_function 'Checking owner/reward registration and pledge…' cntools_pool_stake_collect || return 2
+    cntools_pool_stake_guidance || return $?
+    cntools_pool_stake_setup_choose || return $?
+  elif [[ "${pledge_inputs}" != "${CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS}" ]]; then
+    cntools_pool_stake_guidance || return $?
+  else
+    cntools_transaction_log POOL 'Owners, reward account and pledge unchanged; previous checks and stake setup kept'
+  fi
+  CNTOOLS_POOL_WIZARD_STAKE_INPUTS="${stake_inputs}"; CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS="${pledge_inputs}"
   CNTOOLS_POOL_CONFIG_SAVED=N
   if cntools_pool_config_save; then CNTOOLS_POOL_CONFIG_SAVED=Y
   else

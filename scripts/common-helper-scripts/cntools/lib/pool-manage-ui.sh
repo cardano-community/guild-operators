@@ -93,7 +93,10 @@ cntools_pool_action_import() {
   else
     cntools_ui_render_status info 'Only regular top-level files are accepted. Existing keys, counters and certificates are preserved; mismatched identities are rejected.'
   fi
-  status=0; cntools_ui_flow_confirm 'Import this pool without overwriting any existing pool?' false || status=$?
+  # The hardware branch warns and talks to the device next, so it always asks.
+  status=0
+  if [[ "${choice}" == 'Hardware cold key' ]]; then cntools_ui_confirm 'Import this pool without overwriting any existing pool?' false || status=$?
+  else cntools_ui_flow_confirm 'Import this pool without overwriting any existing pool?' false || status=$?; fi
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   cntools_transaction_log CHOICE "Pool import confirmed name=${name} method=${choice}"
   status=0

@@ -36,12 +36,19 @@ cntools_calidus_revocation_confirm() {
 }
 
 cntools_calidus_registration_prompt_authorization() {
-  local choice='' nonce='' default_nonce='' source='' status=0
+  local choice='' nonce='' default_nonce='' source='' status=0 local_cold=''
   [[ "${CNTOOLS_CALIDUS_CHAIN_NONCE}" != 9007199254740991 ]] || {
     cntools_calidus_registration_fail 'The indexed nonce is already at the supported Cardano Signer maximum; a newer authorization cannot be prepared with this tool.'; return 2;
   }
-  cntools_ui_choose choice 'Pool cold-key authorization' 'Import signed metadata (offline cold key)' 'Authorize with local CLI cold key' Cancel || return $?
-  [[ "${choice}" != Cancel ]] || return 1
+  # Offer local signing only when an unencrypted CLI cold key is present.
+  if cntools_calidus_registration_local_cold_into local_cold; then
+    cntools_ui_choose choice 'Pool cold-key authorization' 'Import signed metadata (offline cold key)' 'Authorize with local CLI cold key' Cancel || return $?
+    [[ "${choice}" != Cancel ]] || return 1
+  else
+    choice='Import signed metadata (offline cold key)'
+    cntools_transaction_log CHOICE "Calidus authorization=${choice} (only option; no unencrypted CLI cold key)"
+    cntools_ui_render_status info 'No unencrypted CLI cold key is in this pool folder (Pool → Decrypt makes an encrypted one usable), so import metadata signed with the cold key on your offline system.'
+  fi
   if [[ "${choice}" == 'Import signed metadata (offline cold key)' ]]; then
     cntools_ui_pick_path source 'Signed CIP-151 metadata file' 'The original file is retained; its authorization is verified before use.' "${CNTOOLS_ROOT}/.transactions" || return $?
     cntools_ui_spin_function 'Verifying the pool cold-key authorization…' cntools_calidus_registration_verify "${source}" || return 2
@@ -54,13 +61,20 @@ cntools_calidus_registration_prompt_authorization() {
       cntools_uint_add_into default_nonce "${CNTOOLS_CALIDUS_CHAIN_NONCE}" 1 || return 2
     fi
   fi
-  while true; do
-    cntools_ui_input nonce 'Authorization nonce' "${default_nonce:-A whole number higher than the last on-chain nonce}" || return $?
-    nonce="${nonce:-${default_nonce}}"
-    cntools_number_normalize_into nonce "${nonce}" || nonce=invalid
-    cntools_calidus_registration_nonce_valid "${nonce}" && break
-    cntools_ui_render_status warn 'Enter an exact whole nonce from 0 to 9,007,199,254,740,991, higher than the last indexed registration.'
-  done
+  # Quick uses the computed nonce; it asks only when none is available.
+  if [[ -n "${default_nonce}" ]] && cntools_flow_quick && cntools_calidus_registration_nonce_valid "${default_nonce}"; then
+    nonce="${default_nonce}"
+    cntools_transaction_log CHOICE "Calidus input=Authorization nonce default=${nonce} flow=quick"
+    cntools_ui_render_status info "Using authorization nonce $(cntools_number_format "${nonce}"), computed online to be higher than the last indexed nonce."
+  else
+    while true; do
+      cntools_ui_input nonce 'Authorization nonce' "${default_nonce:-A whole number higher than the last on-chain nonce}" || return $?
+      nonce="${nonce:-${default_nonce}}"
+      cntools_number_normalize_into nonce "${nonce}" || nonce=invalid
+      cntools_calidus_registration_nonce_valid "${nonce}" && break
+      cntools_ui_render_status warn 'Enter an exact whole nonce from 0 to 9,007,199,254,740,991, higher than the last indexed registration.'
+    done
+  fi
   if [[ "${CNTOOLS_MODE:-}" == offline || "${CNTOOLS_KOIOS_ENABLED:-N}" != Y ]]; then
     cntools_ui_render_status warn 'On-chain nonce has not been checked. Check it online before signing; stale metadata cannot replace a newer authorization.'
   fi
@@ -79,6 +93,8 @@ cntools_calidus_registration_prompt_authorization() {
 cntools_calidus_registration_prepare_metadata() {
   local index="$1" saved='' action=calidus-authorization next='Register / replace on-chain'
   cntools_calidus_registration_identity "${index}" || return 2
+  # Check for Cardano Signer before asking anything that needs it.
+  cntools_calidus_signer_require || return 2
   if [[ "${CNTOOLS_MODE:-}" != offline && "${CNTOOLS_KOIOS_ENABLED:-N}" == Y ]]; then
     cntools_ui_spin_function 'Checking Calidus registration through Koios…' cntools_calidus_registration_lookup || return 2
   fi
@@ -185,9 +201,10 @@ cntools_calidus_registration_render_review() {
 cntools_calidus_registration_workflow() {
   local index="$1" selected='' workflow='' can_sign=N lifetime=1800 staged='' signed='' saved='' proceed='' backend='' txid='' body='' status=0
   [[ "${CNTOOLS_MODE:-}" != offline ]] || {
-    cntools_calidus_registration_fail 'Prepare cold-key authorization offline, then build online with current chain data. The funding transaction can still be exported for offline signing.'; return 2;
+    cntools_calidus_registration_fail 'Publishing needs current chain data, so it is unavailable in offline mode. Use Prepare registration/revocation metadata here, then publish from an online system; it can save the funding transaction unsigned for offline signing.'; return 2;
   }
   cntools_calidus_registration_identity "${index}" || return 2
+  cntools_calidus_signer_require || return 2
   cntools_ui_spin_function 'Checking the latest Calidus authorization through Koios…' cntools_calidus_registration_lookup || return 2
   CNTOOLS_CALIDUS_REG_REVIEW_STATE="${CNTOOLS_CALIDUS_CHAIN_STATE}"
   cntools_calidus_registration_render_identity || return 2
@@ -199,7 +216,6 @@ cntools_calidus_registration_workflow() {
   elif [[ "${CNTOOLS_CALIDUS_CHAIN_STATUS}" == 'Different key registered' ]]; then
     cntools_ui_render_status warn 'This transaction replaces the indexed Calidus key. Review the local Calidus ID before proceeding.'
   fi
-  cntools_calidus_signer_require || return 2
   cntools_calidus_registration_prompt_authorization || return $?
   cntools_wallet_catalog_build || return 2
   cntools_ui_render_detail 'Funding wallet'
