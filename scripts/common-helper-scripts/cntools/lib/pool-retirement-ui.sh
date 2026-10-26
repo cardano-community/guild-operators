@@ -48,7 +48,8 @@ cntools_pool_retirement_notice() {
 cntools_pool_retirement_select_epoch() {
   local mode="${1:-}" answer='' normalized='' default=''
   cntools_ui_spin_function 'Checking the allowed retirement epochs…' cntools_pool_retirement_window_collect || return 2
-  default="${CNTOOLS_POOL_RETIRE_EPOCH:-${CNTOOLS_POOL_RETIRE_MIN}}"
+  default="${CNTOOLS_POOL_RETIRE_MIN}"
+  ! cntools_pool_retirement_epoch_allowed || default="${CNTOOLS_POOL_RETIRE_EPOCH}"
   if [[ "${mode}" != ask && -z "${CNTOOLS_POOL_RETIRE_EPOCH}" ]] && cntools_flow_quick; then
     CNTOOLS_POOL_RETIRE_EPOCH="${default}"
     cntools_transaction_log CHOICE "Pool retirement epoch default=${default} (earliest) flow=quick pool=${CNTOOLS_POOL_REG_ID}"
@@ -71,6 +72,25 @@ cntools_pool_retirement_select_epoch() {
     # The redraw repeats this warning; no extra Enter.
     cntools_ui_render_status warn "Choose an integer epoch from ${CNTOOLS_POOL_RETIRE_MIN} to ${CNTOOLS_POOL_RETIRE_MAX}."
   done
+}
+
+cntools_pool_retirement_epoch_allowed() {
+  cntools_pool_retirement_uint_valid "${CNTOOLS_POOL_RETIRE_EPOCH}" &&
+    (( CNTOOLS_POOL_RETIRE_EPOCH >= CNTOOLS_POOL_RETIRE_MIN && CNTOOLS_POOL_RETIRE_EPOCH <= CNTOOLS_POOL_RETIRE_MAX ))
+}
+
+# After a rebuild for changed chain state: an epoch the chain moved past is
+# reset to the new earliest (Quick) or asked again (Detailed).
+cntools_pool_retirement_epoch_refresh() {
+  local previous="${CNTOOLS_POOL_RETIRE_EPOCH}"
+  ! cntools_pool_retirement_epoch_allowed || return 0
+  if cntools_flow_quick; then
+    CNTOOLS_POOL_RETIRE_EPOCH="${CNTOOLS_POOL_RETIRE_MIN}"
+    cntools_transaction_log CHOICE "Pool retirement epoch reset previous=${previous} default=${CNTOOLS_POOL_RETIRE_EPOCH} (earliest) flow=quick"
+    cntools_ui_render_status warn "Retirement epoch is now the new earliest, $(cntools_number_format "${CNTOOLS_POOL_RETIRE_EPOCH}")."
+    return 0
+  fi
+  cntools_pool_retirement_select_epoch ask
 }
 
 cntools_pool_retirement_workflow() {
@@ -99,7 +119,10 @@ cntools_pool_retirement_workflow() {
       case "${choice}" in
         "${proceed}") break ;;
         'Change retirement epoch') cntools_pool_review_change cntools_pool_retirement_select_epoch ask || return $? ;;
-        'Change workflow') cntools_pool_review_change cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $? ;;
+        'Change workflow')
+          cntools_pool_review_change cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
+          # The loop rebuilds; Quick gives an unsigned package a day.
+          cntools_transaction_ui_unsigned_lifetime_into CNTOOLS_WALLET_REGISTER_LIFETIME "${workflow}" || true ;;
         'Change expiry') cntools_pool_review_change cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $? ;;
         *) return 2 ;;
       esac

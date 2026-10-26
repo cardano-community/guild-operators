@@ -114,9 +114,9 @@ cntools_transaction_ui_local_source_into() {
   choices+=(Cancel)
   local -n local_source_result="${output}"
   local_source_result=''
-  # Quick signs with a lone verified key file directly; a hardware match
-  # still asks, because it starts a device session.
-  if (( ${#matched_files[@]} == 1 )) && [[ -z "${hardware_group}" ]] && cntools_flow_quick &&
+  # Quick signs with a lone verified key file directly. A hardware match
+  # still asks (it starts a device session), and so does a pool cold key.
+  if (( ${#matched_files[@]} == 1 )) && [[ -z "${hardware_group}" && "${key_type}" != *'Pool cold'* ]] && cntools_flow_quick &&
      cntools_transaction_source_kind_into candidate_kind "${matched_files[0]}" && [[ "${candidate_kind}" == cli ]] &&
      cntools_transaction_source_key_id_into candidate_id "${matched_files[0]}" && [[ "${candidate_id}" == "${expected}" ]]; then
     cntools_transaction_log CHOICE "Signer source default id=${expected} selection=${choices[0]} flow=quick"
@@ -133,7 +133,11 @@ cntools_transaction_ui_local_source_into() {
       cntools_table_pair 'Signing method' "${method_label}" accent
     } | cntools_table_render 'Required signer' || return 2
     if (( ${#matched_files[@]} == 0 )); then
-      cntools_ui_render_status info 'No usable matching key was found in local wallets. Choose a file manually; encrypted keys must be decrypted through Wallet → Decrypt first.' || return 2
+      if [[ "${key_type}" == *'Pool cold'* ]]; then
+        cntools_ui_render_status info 'No usable matching cold key was found in the pool folders. Choose a file manually; an encrypted cold key must be decrypted through Pool → Decrypt first.' || return 2
+      else
+        cntools_ui_render_status info 'No usable matching key was found in local wallets or pool folders. Choose a file manually; encrypted keys must be decrypted first (Wallet → Decrypt or Pool → Decrypt).' || return 2
+      fi
     fi
     if [[ -n "${hardware_group}" ]]; then
       cntools_ui_render_status info "Hardware session ${hardware_group} collects its missing witnesses together. Once selected, all required session references must be supplied; otherwise defer the whole session." || return 2

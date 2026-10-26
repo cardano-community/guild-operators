@@ -36,7 +36,8 @@ cntools_pool_wallet_stake_record_into() {
     base="$(< "${directory}/${CNTOOLS_WALLET_BASE_ADDR_FILENAME}")"
     cntools_wallet_bech32_valid "${base}" "$(cntools_wallet_address_hrp base)" base || base=''
   fi
-  printf -v "${output}" '%s' "$(jq -c --arg base "${base}" '.+{baseAddress:$base}' <<< "${wallet_record}")"
+  # The wallet folder lets the owner picker skip wallets already added.
+  printf -v "${output}" '%s' "$(jq -c --arg base "${base}" --arg folder "${directory}" '.+{baseAddress:$base,walletDirectory:$folder}' <<< "${wallet_record}")"
 }
 
 cntools_pool_owner_add() {
@@ -102,8 +103,12 @@ cntools_pool_registration_changes_into() {
   printf -v "${prc_output}" '%s' "${prc_list}"
 }
 
+# Labels of the chain's owners and reward account when the action started,
+# so removed or replaced ones read as wallet names, not bare hashes.
+CNTOOLS_POOL_REG_INITIAL_LABELS='{}'
 cntools_pool_registration_defaults() {
   local current='{}' hash='' record='' index=0 owner=''
+  CNTOOLS_POOL_REG_INITIAL_LABELS='{}'
   CNTOOLS_POOL_REG_PLEDGE=50000000000; CNTOOLS_POOL_REG_COST="${CNTOOLS_POOL_REG_MIN_COST}"; CNTOOLS_POOL_REG_MARGIN=7500000/100000000
   CNTOOLS_POOL_REG_METADATA_URL=''
   CNTOOLS_POOL_REG_METADATA=null; CNTOOLS_POOL_REG_RELAYS='[]'; CNTOOLS_POOL_REG_OWNERS='[]'
@@ -131,6 +136,9 @@ cntools_pool_registration_defaults() {
       cntools_pool_reward_record_use "${record}"; break
     fi
   done
+  CNTOOLS_POOL_REG_INITIAL_LABELS="$(jq -c --arg hash "${CNTOOLS_POOL_REG_REWARD_HASH}" --arg reward_label "${CNTOOLS_POOL_REG_REWARD_LABEL}" \
+    'map({key:.hash,value:.label}) | from_entries + (if $reward_label == "" then {} else {($hash):$reward_label} end)' <<< "${CNTOOLS_POOL_REG_OWNERS}")" ||
+    CNTOOLS_POOL_REG_INITIAL_LABELS='{}'
 }
 
 cntools_pool_reward_record_use() {

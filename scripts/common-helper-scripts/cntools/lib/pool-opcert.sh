@@ -16,8 +16,37 @@ cntools_pool_kes_period_into() {
   printf -v "${output}" '%s' "$((slot / periods))"
 }
 
+# Copies the public inputs into the recovery stage and runs the issuing
+# command. Nothing is issued unless this returns 0.
+cntools_pool_opcert_sign() {
+  local stage="$1" period="$2" kind="$3" directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" cold='' kes='' counter='' cert='' start='' response='' errors='' status=0
+  cntools_pool_file_name_into cold cold-vkey; cntools_pool_file_name_into kes kes-vkey
+  cntools_pool_file_name_into counter counter; cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into start kes-start
+  cp -- "${directory}/${cold}" "${directory}/${kes}" "${directory}/${counter}" "${stage}/" &&
+    chmod 0600 "${stage}/${cold}" "${stage}/${kes}" "${stage}/${counter}" && printf '%s\n' "${period}" > "${stage}/${start}" || return 1
+  cntools_transaction_log POOL "Issuing missing operational certificate pool=${CNTOOLS_POOL_REG_ID} KES=${period} recovery=${stage}"
+  if [[ "${kind}" == cli ]]; then
+    cntools_pool_cli latest node issue-op-cert --kes-verification-key-file "${stage}/${kes}" \
+      --cold-signing-key-file "${CNTOOLS_POOL_REG_COLD_SOURCE}" --operational-certificate-issue-counter-file "${stage}/${counter}" \
+      --kes-period "${period}" --out-file "${stage}/${cert}"
+    return
+  fi
+  cntools_transaction_hardware_device_check || return 1
+  cntools_transaction_temp_file response pool-opcert-hardware; cntools_transaction_temp_file errors pool-opcert-hardware-errors
+  local CNTOOLS_TRANSACTION_TIMEOUT="${CNTOOLS_TRANSACTION_HARDWARE_TIMEOUT:-${CNTOOLS_TRANSACTION_TIMEOUT:-60}}"
+  cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_TRANSACTION_HWCLI}" node issue-op-cert \
+    --kes-verification-key-file "${stage}/${kes}" --hw-signing-file "${CNTOOLS_POOL_REG_COLD_SOURCE}" \
+    --operational-certificate-issue-counter-file "${stage}/${counter}" --kes-period "${period}" --out-file "${stage}/${cert}" || status=$?
+  if ((status != 0)); then cntools_transaction_log_cli_failure 'Hardware operational certificate failed' "${status}" "${errors}" "${response}"; return 1; fi
+}
+
+# The lock records its recovery stage so Pool → Rotate can show it.
+cntools_pool_opcert_unlock() {
+  rm -f -- "$1/rotation" && rmdir -- "$1"
+}
+
 cntools_pool_opcert_issue() {
-  local period="$1" directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" cold='' kes='' counter='' cert='' start='' stage='' kind='' response='' errors='' status=0 original='' saved='' lock='' recovery=''
+  local period="$1" directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" cold='' kes='' counter='' cert='' start='' stage='' kind='' original='' saved='' lock='' recovery=''
   [[ "${period}" =~ ^(0|[1-9][0-9]{0,9})$ ]] && cntools_pool_directory_writable "${directory}" &&
     cntools_pool_filenames_validate || return 1
   cntools_pool_file_name_into cold cold-vkey; cntools_pool_file_name_into kes kes-vkey
@@ -43,27 +72,20 @@ cntools_pool_opcert_issue() {
   }
   saved="$(umask)"; umask 077
   if ! mkdir -- "${lock}" 2>/dev/null; then
-    umask "${saved}"; cntools_wallet_register_set_error "Operational certificate preparation is locked. Inspect ${lock} and the recovery files in ${recovery} before retrying."; return 1
+    umask "${saved}"; cntools_wallet_register_set_error "Another operational-certificate operation is pending for this pool. Open Pool → Rotate to inspect or release it (lock ${lock}, recovery files in ${recovery})."; return 1
   fi
-  stage="$(mktemp -d "${recovery}/opcert-${directory##*/}.XXXXXX")" || { umask "${saved}"; return 1; }
+  stage="$(mktemp -d "${recovery}/opcert-${directory##*/}.XXXXXX")" || { umask "${saved}"; rmdir -- "${lock}"; return 1; }
   umask "${saved}"
+  printf '%s\n' "${stage##*/}" > "${lock}/rotation" || { cntools_pool_opcert_unlock "${lock}"; return 1; }
   CNTOOLS_POOL_OPCERT_RECOVERY="${stage}"
-  cp -- "${directory}/${cold}" "${directory}/${kes}" "${directory}/${counter}" "${stage}/" || return 1
-  chmod 0600 "${stage}/${cold}" "${stage}/${kes}" "${stage}/${counter}" || return 1
-  printf '%s\n' "${period}" > "${stage}/${start}" || return 1
-  cntools_transaction_log POOL "Issuing missing operational certificate pool=${CNTOOLS_POOL_REG_ID} KES=${period} recovery=${stage}"
-  if [[ "${kind}" == cli ]]; then
-    cntools_pool_cli latest node issue-op-cert --kes-verification-key-file "${stage}/${kes}" \
-      --cold-signing-key-file "${CNTOOLS_POOL_REG_COLD_SOURCE}" --operational-certificate-issue-counter-file "${stage}/${counter}" \
-      --kes-period "${period}" --out-file "${stage}/${cert}" || return 1
-  else
-    cntools_transaction_hardware_device_check || return 1
-    cntools_transaction_temp_file response pool-opcert-hardware; cntools_transaction_temp_file errors pool-opcert-hardware-errors
-    local CNTOOLS_TRANSACTION_TIMEOUT="${CNTOOLS_TRANSACTION_HARDWARE_TIMEOUT:-${CNTOOLS_TRANSACTION_TIMEOUT:-60}}"
-    cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_TRANSACTION_HWCLI}" node issue-op-cert \
-      --kes-verification-key-file "${stage}/${kes}" --hw-signing-file "${CNTOOLS_POOL_REG_COLD_SOURCE}" \
-      --operational-certificate-issue-counter-file "${stage}/${counter}" --kes-period "${period}" --out-file "${stage}/${cert}" || status=$?
-    if ((status != 0)); then cntools_transaction_log_cli_failure 'Hardware operational certificate failed' "${status}" "${errors}" "${response}"; return 1; fi
+  # Until the issuing command succeeds nothing was issued: any failure (device
+  # check, timeout) releases the lock and keeps the recovery copy.
+  if ! cntools_pool_opcert_sign "${stage}" "${period}" "${kind}"; then
+    if cntools_pool_opcert_unlock "${lock}"; then
+      CNTOOLS_POOL_OPCERT_RECOVERY=''
+      cntools_transaction_log POOL "First operational certificate not issued; lock released, recovery kept=${stage}"
+    else cntools_transaction_log WARN "First operational certificate not issued; lock could not be released=${lock}"; fi
+    return 1
   fi
   cntools_pool_public_records_prepare "${stage}" && chmod 0600 "${stage}/${cert}" "${stage}/${start}" || return 1
   [[ "$(jq -cS . "${directory}/${counter}")" == "${original}" ]] || return 1
@@ -72,38 +94,41 @@ cntools_pool_opcert_issue() {
   cntools_pool_public_save "${directory}" "${counter}" "${stage}/${counter}" &&
     cntools_pool_publish_new_file "${stage}/${start}" "${directory}/${start}" &&
     cntools_pool_publish_new_file "${stage}/${cert}" "${directory}/${cert}" || return 1
-  rmdir -- "${lock}" || return 1
+  cntools_pool_new_file_lock "${directory}/${start}"; cntools_pool_new_file_lock "${directory}/${cert}"
+  cntools_pool_opcert_unlock "${lock}" || return 1
   CNTOOLS_POOL_OPCERT_RECOVERY=''
   cntools_transaction_log POOL "Operational certificate published; recovery copy retained=${stage}"
 }
 
 # Optional first certificate after the review. A failure here is reported and
 # the pool transaction continues; Rotate can issue the certificate later.
+# Without a local cold key the result's Next steps explain the offline steps.
+CNTOOLS_POOL_OPCERT_OFFLINE=N
 cntools_pool_opcert_offer() {
-  local workflow="$1" directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" cert='' start='' choice='' period='' input='' normalized='' kind=''
-  CNTOOLS_POOL_OPCERT_RECOVERY=''
+  local workflow="$1" directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" cert='' start='' choice='' period='' input='' normalized='' kind='' prompt='Prepare the missing operational certificate?'
+  CNTOOLS_POOL_OPCERT_RECOVERY='' CNTOOLS_POOL_OPCERT_OFFLINE=N
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-register ]] || return 0
   cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into start kes-start
   [[ ! -e "${directory}/${cert}" ]] || return 0
   if [[ "${workflow}" == 'Create unsigned package' || -z "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]]; then
-    cntools_ui_render_status info "Offline setup: issue ${cert} using the existing KES public key and real cold.counter on your signing system. Record its start period in ${start}; return ${cert}, ${start} and the advanced counter to this pool directory. Never transfer a private cold key to the node."
-    cntools_ui_wait; return 0
+    CNTOOLS_POOL_OPCERT_OFFLINE=Y
+    cntools_transaction_log POOL 'First operational certificate left to the signing system; shown in Next steps'
+    return 0
   fi
+  # The certificate starts at the chain's current KES period, as in Rotate;
+  # only without a chain tip is it entered.
+  cntools_ui_spin_function 'Checking the current KES period…' cntools_pool_kes_period_into period || period=''
+  [[ -z "${period}" ]] || prompt="Prepare the missing operational certificate at KES period $(cntools_number_format "${period}")?"
   cntools_ui_render_status info 'No operational certificate exists. Prepare the first certificate with the existing KES keys? This advances the issue counter even if the pool transaction is later cancelled. Imported pools must use their real issue counter, not a reset counter.'
-  cntools_pool_registration_choose choice 'Prepare missing operational certificate?' 'Prepare certificate' 'Keep operational setup separate' || return $?
+  [[ -n "${period}" ]] || cntools_ui_render_status warn 'The current KES period could not be calculated from the chain tip and Shelley genesis. Preparing asks for the period verified for this network.'
+  cntools_pool_registration_choose choice "${prompt}" 'Prepare certificate' 'Keep operational setup separate' || return $?
   [[ "${choice}" == 'Prepare certificate' ]] || return 0
-  if ! cntools_pool_kes_period_into period; then
-    period=''
-    cntools_ui_render_status warn 'KES start could not be calculated from the chain tip and Shelley genesis. Enter the current period verified for this network.'
-  fi
-  # Quick uses the period calculated from the chain tip; it asks only without one.
-  if [[ -n "${period}" ]] && cntools_flow_quick; then
+  if [[ -n "${period}" ]]; then
     input="${period}"
-    cntools_transaction_log CHOICE "Pool input=KES start period default=${period} flow=quick"
+    cntools_transaction_log CHOICE "Pool KES start period=${period} (chain tip)"
   else
     while true; do
-      cntools_pool_registration_input input "KES start period (Enter keeps ${period:-no default})" "${period}" || return $?
-      [[ -n "${input}" ]] || input="${period}"
+      cntools_pool_registration_input input 'Current KES period' 'Whole number verified for this network, for example from gLiveView' || return $?
       cntools_number_normalize_into normalized "${input}" 2>/dev/null || normalized=''
       if [[ "${normalized}" =~ ^(0|[1-9][0-9]{0,9})$ ]] && ((normalized < 2147483647)); then input="${normalized}"; break; fi
       cntools_ui_render_status warn 'Enter the current KES period as a whole number, for example the period shown by gLiveView.'
@@ -119,5 +144,6 @@ cntools_pool_opcert_offer() {
     cntools_ui_wait; return 0
   fi
   cntools_ui_render_status success "Operational certificate ready; KES start period ${input} recorded in ${directory}/${start}. Existing KES/VRF keys were not replaced."
+  [[ -z "${CNTOOLS_POOL_WRITE_WARNING:-}" ]] || cntools_ui_render_status warn "${CNTOOLS_POOL_WRITE_WARNING}"
   cntools_ui_wait
 }

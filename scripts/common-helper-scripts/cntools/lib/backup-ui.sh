@@ -66,7 +66,7 @@ cntools_backup_result() {
     } | cntools_table_render 'Result'
   fi
   cntools_ui_wait
-  return "${status}"
+  (( status == 0 )) || return 1
 }
 
 # Why a destination cannot take a backup, or empty when it can. The default
@@ -212,9 +212,18 @@ cntools_backup_create_wizard() {
 }
 
 cntools_backup_restore_preview() {
-  local object='' root='' name='' decision=''
+  local object='' root='' name='' decision='' contents='' created="${CNTOOLS_BACKUP_CREATED}"
+  case "${CNTOOLS_BACKUP_KIND}" in
+    full) contents='Full · includes private files' ;;
+    public) contents='Public artifacts only' ;;
+    *) contents='Legacy archive' ;;
+  esac
+  [[ -z "${created}" ]] || { created="${created/T/ }"; created="${created:0:16} UTC"; }
   {
-    cntools_table_pair 'Backup contents' "${CNTOOLS_BACKUP_KIND}" accent
+    cntools_table_pair 'Backup contents' "${contents}" "$([[ "${CNTOOLS_BACKUP_KIND}" == legacy ]] && printf warning || printf accent)"
+    [[ "${CNTOOLS_BACKUP_NETWORK}" == unknown ]] ||
+      cntools_table_pair Network "${CNTOOLS_BACKUP_NETWORK}" "$([[ "${CNTOOLS_BACKUP_NETWORK}" == "${CNTOOLS_NETWORK}" ]] && printf value || printf warning)"
+    [[ -z "${created}" ]] || cntools_table_pair Created "${created}" value
     for object in "${CNTOOLS_BACKUP_OBJECTS[@]}"; do
       cntools_backup_role_root_into root "${object%%/*}" || return 1
       name="${object#*/}"; decision=Import
@@ -254,12 +263,16 @@ cntools_backup_restore_wizard() {
     [[ "${status}" != 0 && "${CNTOOLS_BACKUP_DECRYPT_FAILED}" == Y ]] || break
     feedback="${CNTOOLS_BACKUP_ERROR}"
   done
-  if (( status != 0 )); then cntools_backup_result Restore "${status}"; return "${status}"; fi
+  if (( status != 0 )); then cntools_backup_result Restore "${status}"; return 1; fi
   cntools_backup_begin Restore
   cntools_backup_restore_preview || return 1
   [[ "${CNTOOLS_BACKUP_KIND}" != legacy ]] || cntools_ui_render_status warn 'Legacy archive: no CNTools checksum manifest is available. Encrypted archives must still pass GPG verification.'
   [[ "${CNTOOLS_BACKUP_NETWORK}" == unknown || "${CNTOOLS_BACKUP_NETWORK}" == "${CNTOOLS_NETWORK}" ]] || cntools_ui_render_status warn 'This backup was created for a different network. Restoring files does not convert their addresses or registration state.'
-  cntools_ui_render_status warn 'For pools, do not start a node using old operational files or counters. Verify the current issuance counter and complete a fresh KES rotation first. Immutable flags are not restored; imported files have owner-only access.'
+  if [[ " ${CNTOOLS_BACKUP_OBJECTS[*]} " == *' pools/'* || " ${CNTOOLS_BACKUP_OBJECTS[*]} " == *' recovery/'* ]]; then
+    cntools_ui_render_status warn 'For pools, do not start a node using old operational files or counters. Verify the current issuance counter and complete a fresh KES rotation first. Immutable flags are not restored; imported files have owner-only access.'
+  else
+    cntools_ui_render_status info 'Immutable flags are not restored; imported files have owner-only access.'
+  fi
   cntools_backup_interact cntools_ui_confirm 'Keep a recovery copy and import the missing folders?' false || return $?
   cntools_log CHOICE 'backup restore confirmed; existing folders preserved' || true
   status=0

@@ -72,9 +72,16 @@ cntools_collect_scopes_into() {
   cntools_transaction_log TRANSACTION "Collection scopes available=${collect_scopes_ref[*]:-none}"
 }
 
-# Funds and scopes are checked before any question is asked.
+# Funds and scopes are checked before any question is asked. An empty
+# wallet is an outcome like any other with nothing to collect.
 cntools_collect_check() {
-  cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" || return 1
+  CNTOOLS_COLLECT_SCOPES=(); CNTOOLS_COLLECT_NOTHING_REASON=''
+  if ! cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}"; then
+    [[ "${CNTOOLS_FUNDING_EMPTY:-N}" == Y ]] || return 1
+    CNTOOLS_COLLECT_NOTHING_REASON="Nothing to collect: ${CNTOOLS_SEND_WALLET} has no UTxOs."
+    cntools_transaction_log TRANSACTION 'Collection scopes available=none (no UTxOs)'
+    return 0
+  fi
   CNTOOLS_COLLECT_BACKEND="${CNTOOLS_FUNDING_BACKEND}"
   cntools_collect_scopes_into CNTOOLS_COLLECT_SCOPES CNTOOLS_COLLECT_NOTHING_REASON
 }

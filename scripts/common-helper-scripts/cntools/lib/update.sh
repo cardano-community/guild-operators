@@ -256,16 +256,16 @@ cntools_update_action_install() {
       ;;
   esac
 
-  printf 'CNTools          : v%s -> v%s\n' \
-    "${CNTOOLS_VERSION}" "${CNTOOLS_UPDATE_REMOTE_VERSION}"
+  # A force deploy reinstalls the installed version.
+  if [[ "${force_deploy}" == "Y" ]]; then
+    printf 'CNTools          : v%s (reinstall)\n' "${CNTOOLS_VERSION}"
+  else
+    printf 'CNTools          : v%s -> v%s\n' \
+      "${CNTOOLS_VERSION}" "${CNTOOLS_UPDATE_REMOTE_VERSION}"
+  fi
   printf 'Repository       : %s/guild-operators\n' "${CNTOOLS_ACCOUNT}"
   printf 'Branch           : %s\n' "${CNTOOLS_BRANCH}"
   printf 'Deployment       : %s\n\n' "${CNTOOLS_IMPLEMENTATION_NAME}"
-  if [[ "${force_deploy}" == "Y" ]]; then
-    printf '%sThe installed and selected versions are both v%s.%s\n\n' \
-      "${CNTOOLS_UI_YELLOW:-}" "${CNTOOLS_UPDATE_REMOTE_VERSION}" \
-      "${CNTOOLS_UI_RESET:-}"
-  fi
   printf '%sGuild Deploy refreshes the complete managed script and configuration snapshot,%s\n' \
     "${CNTOOLS_UI_YELLOW:-}" "${CNTOOLS_UI_RESET:-}"
   printf 'not only CNTools. No node binaries or OS packages will be installed.\n\n'

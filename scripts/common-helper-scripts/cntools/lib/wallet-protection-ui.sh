@@ -16,7 +16,10 @@ cntools_wallet_protection_candidate() {
   local drep_gpg="${drep_clear}.gpg"
 
   [[ "${operation}" == encrypt || "${operation}" == decrypt ]] || return 2
-  cntools_wallet_protection_lock_only "${wallet_directory}" && return 0
+  if cntools_wallet_protection_lock_only "${wallet_directory}"; then
+    cntools_wallet_protection_lock_would_change "${wallet_directory}" "${operation}"
+    return $?
+  fi
   [[ "${wallet_type}" == "CLI" || "${wallet_type}" == "Mnemonic" ]] || return 1
   case "${operation}" in
     encrypt)
@@ -54,7 +57,7 @@ cntools_wallet_protection_choose() {
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
-  cntools_wallet_catalog_build || return 3
+  cntools_wallet_catalog_build || return 2
   for ((_cntools_index = 0;
         _cntools_index < ${#CNTOOLS_WALLET_NAMES[@]};
         _cntools_index++)); do
@@ -69,7 +72,18 @@ cntools_wallet_protection_choose() {
     _cntools_rows+=("${_cntools_row}")
     _cntools_indexes+=("${_cntools_index}")
   done
-  (( ${#_cntools_rows[@]} > 0 )) || return 4
+  # 3 = nothing to choose: the reason is shown here, once.
+  if (( ${#_cntools_rows[@]} == 0 )); then
+    if (( ${#CNTOOLS_WALLET_NAMES[@]} == 0 )); then
+      cntools_ui_render_status info 'No wallets are available. Create or import a wallet first.'
+    elif [[ "${_cntools_operation}" == encrypt ]]; then
+      cntools_ui_render_status info 'No wallet has open signing keys to encrypt or unlocked files to lock.'
+    else
+      cntools_ui_render_status info 'No wallet has encrypted signing keys to decrypt or locked files to unlock.'
+    fi
+    cntools_ui_wait
+    return 3
+  fi
   if (( ${#_cntools_rows[@]} == 1 )); then
     _cntools_output_ref="${CNTOOLS_WALLET_PATHS[${_cntools_indexes[0]}]}"
     # No info line: the plan on the next screen names the wallet.
@@ -121,8 +135,14 @@ cntools_wallet_protection_key_names() {
 cntools_wallet_protection_lock_only_action() {
   local directory="$1" operation="$2" verb=Lock status=0
   [[ "${operation}" != decrypt ]] || verb=Unlock
-  cntools_ui_render_status info 'This wallet has no local private signing keys. Only local file permissions/immutable flags will change; no encryption or device operation is performed.'
-  cntools_ui_flow_confirm "${verb} local wallet files?" false || return $?
+  cntools_ui_render_status info "${directory##*/} has no local private signing keys. Only its local file permissions and immutable flags change; nothing is encrypted or decrypted."
+  # Asked in both styles: a lone lock-only wallet is auto-selected.
+  cntools_ui_confirm "${verb} the files of ${directory##*/}?" false || status=$?
+  if (( status != 0 )); then
+    (( status == 1 || status == 130 )) || return "${status}"
+    cntools_wallet_protection_log CHOICE "wallet file ${verb,,} declined wallet=${directory##*/}"
+    return 0
+  fi
   cntools_ui_spin_function "${verb}ing local wallet files…" cntools_wallet_protection_lock_files "${directory}" "${operation}" || status=$?
   if (( status == 0 )); then
     cntools_ui_render_status success "Local wallet files ${verb,,}ed. No private keys were encrypted or decrypted."
@@ -130,7 +150,7 @@ cntools_wallet_protection_lock_only_action() {
   [[ -z "${CNTOOLS_WALLET_PROTECTION_WARNING}" ]] || cntools_ui_render_status warn "${CNTOOLS_WALLET_PROTECTION_WARNING}"
   cntools_wallet_protection_render_result "${operation}" "${directory}" || true
   cntools_ui_wait
-  return "${status}"
+  (( status == 0 )) || return 1
 }
 
 cntools_wallet_protection_table_widths_into() {
@@ -260,12 +280,7 @@ cntools_wallet_action_encrypt() {
       cntools_wallet_protection_log CHOICE "wallet encryption selection cancelled"
       return 0
       ;;
-    4)
-      cntools_ui_render_status warn \
-        "No wallet is available for encryption or public/hardware file locking."
-      cntools_ui_wait
-      return 0
-      ;;
+    3) return 0 ;;
     *)
       cntools_ui_render_status error \
         "The wallet directory could not be read safely. See ${CNTOOLS_LOG}."
@@ -295,9 +310,14 @@ cntools_wallet_action_encrypt() {
 
   while true; do
     cntools_ui_action_begin "Encrypt" "/ Wallet / Encrypt"
-    # Quick skips the plan prompt, so this screen names what is encrypted.
-    cntools_ui_render_status info \
-      "Encrypting ${wallet_directory##*/}: $(cntools_wallet_protection_key_names encrypt "${wallet_directory}"). Use at least 12 characters; the passphrase is never written to the CNTools log."
+    # Quick skips the plan prompt, so only then this screen names what is encrypted.
+    if cntools_flow_quick; then
+      cntools_ui_render_status info \
+        "Encrypting ${wallet_directory##*/}: $(cntools_wallet_protection_key_names encrypt "${wallet_directory}"). Use at least 12 characters; the passphrase is never written to the CNTools log."
+    else
+      cntools_ui_render_status info \
+        "Use at least 12 characters; the passphrase is never written to the CNTools log."
+    fi
     [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
     if cntools_ui_password passphrase "New wallet passphrase"; then
       status=0
@@ -357,7 +377,7 @@ cntools_wallet_action_encrypt() {
     [[ -z "${CNTOOLS_WALLET_PROTECTION_WARNING}" ]] ||
       cntools_ui_render_status warn "${CNTOOLS_WALLET_PROTECTION_WARNING}"
     cntools_ui_wait
-    return "${status}"
+    return 1
   fi
 
   cntools_ui_action_begin "Encrypt" "/ Wallet / Encrypt"
@@ -393,12 +413,7 @@ cntools_wallet_action_decrypt() {
       cntools_wallet_protection_log CHOICE "wallet decryption selection cancelled"
       return 0
       ;;
-    4)
-      cntools_ui_render_status warn \
-        "No wallet is available for decryption or public/hardware file unlocking."
-      cntools_ui_wait
-      return 0
-      ;;
+    3) return 0 ;;
     *)
       cntools_ui_render_status error \
         "The wallet directory could not be read safely. See ${CNTOOLS_LOG}."
@@ -428,7 +443,6 @@ cntools_wallet_action_decrypt() {
 
   while true; do
     cntools_ui_action_begin "Decrypt" "/ Wallet / Decrypt"
-    cntools_ui_render_status info "Decrypting ${wallet_directory##*/}: $(cntools_wallet_protection_key_names decrypt "${wallet_directory}")."
     [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
     if cntools_ui_password passphrase "Wallet passphrase"; then
       status=0
@@ -467,7 +481,7 @@ cntools_wallet_action_decrypt() {
     [[ -z "${CNTOOLS_WALLET_PROTECTION_WARNING}" ]] ||
       cntools_ui_render_status warn "${CNTOOLS_WALLET_PROTECTION_WARNING}"
     cntools_ui_wait
-    return "${status}"
+    return 1
   fi
 
   cntools_ui_action_begin "Decrypt" "/ Wallet / Decrypt"

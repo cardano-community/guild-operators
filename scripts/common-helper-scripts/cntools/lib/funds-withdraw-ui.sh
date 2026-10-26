@@ -24,6 +24,7 @@ cntools_withdraw_render() {
     cntools_transaction_ui_styled_row Fee "$(cntools_number_format_lovelace "${CNTOOLS_WITHDRAW_FEE}")" number
     cntools_transaction_ui_styled_row "${effect}" "$(cntools_number_format_lovelace "${net}")" number
     cntools_transaction_ui_render_policy_rows "${CNTOOLS_TX_SELECTION_STRATEGY}" "${#CNTOOLS_WITHDRAW_INPUTS[@]}"
+    cntools_funding_render_untouched_row
     cntools_transaction_ui_styled_row Expires "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
   cntools_ui_render_status info 'Registration and delegation stay unchanged.'
@@ -37,17 +38,33 @@ cntools_withdraw_result() {
   CNTOOLS_WITHDRAW_RESULT_SHOWN=Y
 }
 
+# Rebuild after a review change. A failed rebuild restores the previous
+# lifetime, rebuilds that and warns; the action continues.
+cntools_withdraw_rebuild_into() {
+  local wr_target="$1" wr_lifetime="$2" wr_previous="$3" wr_reason=''
+  cntools_transaction_clear_error
+  cntools_ui_spin_function 'Checking rewards and rebuilding the withdrawal…' \
+    cntools_withdraw_refresh_build_into "${wr_target}" "${!wr_lifetime}" && return 0
+  wr_reason="${CNTOOLS_TRANSACTION_ERROR:-The withdrawal could not be rebuilt.}"
+  printf -v "${wr_lifetime}" '%s' "${wr_previous}"
+  cntools_transaction_clear_error
+  cntools_ui_spin_function 'Restoring the previous withdrawal…' \
+    cntools_withdraw_refresh_build_into "${wr_target}" "${wr_previous}" || return 2
+  cntools_transaction_log CHOICE "Withdrawal rebuild failed; previous expiry kept lifetime=${wr_previous}"
+  cntools_ui_render_status warn "The new expiry could not be built, so the previous one is kept. ${wr_reason}"
+}
+
 cntools_withdraw_workflow() {
   local selected="" workflow="" staged="" signed="" saved="" proceed=""
-  local backend="" signed_body="" txid="" lifetime=1800 status=0
+  local backend="" signed_body="" txid="" lifetime=1800 status=0 previous=""
   CNTOOLS_WITHDRAW_RESULT_SHOWN=N; CNTOOLS_WITHDRAW_SAVED_PACKAGE=""
   cntools_withdraw_begin
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
   cntools_wallet_choose selected Cancel withdraw || return $?
   cntools_stake_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" "${CNTOOLS_WALLET_NAMES[selected]}" || return 2
-  [[ "${CNTOOLS_STAKE_WALLET_TYPE:-}" != MultiSig ]] || cntools_multisig_stake_choose_signers cntools_withdraw_begin || return $?
-  # Check rewards first: a wallet with nothing to withdraw asks nothing more.
+  # Check rewards first: a wallet with nothing to withdraw asks nothing more,
+  # not even for its multisig signers.
   cntools_ui_spin_function 'Checking rewards and spendable funds…' cntools_withdraw_collect || status=$?
   if (( status == 4 )); then
     cntools_withdraw_begin
@@ -56,6 +73,7 @@ cntools_withdraw_workflow() {
     return 0
   fi
   (( status == 0 )) || return 2
+  [[ "${CNTOOLS_STAKE_WALLET_TYPE:-}" != MultiSig ]] || cntools_multisig_stake_choose_signers cntools_withdraw_begin || return $?
   cntools_transaction_ui_initial_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || return $?
   cntools_transaction_ui_initial_expiry_into lifetime || return $?
   if cntools_flow_quick; then
@@ -72,15 +90,20 @@ cntools_withdraw_workflow() {
     case "${selected}" in
       "${proceed}") break ;;
       'Change workflow')
-        # Esc keeps the current value and returns to the review.
+        # Esc keeps the current value and returns to the review. Quick gives
+        # an unsigned package a day to be signed, so that rebuilds.
+        previous="${lifetime}"
         cntools_transaction_ui_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || status=$?
-        (( status <= 1 )) || return "${status}" ;;
+        (( status <= 1 )) || return "${status}"
+        (( status == 0 )) || continue
+        cntools_transaction_ui_unsigned_lifetime_into lifetime "${workflow}" || continue
+        cntools_withdraw_rebuild_into staged lifetime "${previous}" || return $? ;;
       'Change expiry')
+        previous="${lifetime}"
         cntools_transaction_ui_expiry_into lifetime || status=$?
         (( status != 1 )) || continue
         (( status == 0 )) || return "${status}"
-        cntools_ui_spin_function 'Checking rewards and rebuilding the withdrawal…' \
-          cntools_withdraw_refresh_build_into staged "${lifetime}" || return 2 ;;
+        cntools_withdraw_rebuild_into staged lifetime "${previous}" || return $? ;;
       *) return 2 ;;
     esac
   done

@@ -1150,7 +1150,7 @@ cntools_ui_file_selected() {
   local file_action_mode="${3:-manage}"
   local file_action_identity='' file_action_current='' file_action_errors='' file_action_width=''
   local file_action_folder='' file_action_target='' file_action_kind=file file_action_text='' file_action_prompt=''
-  local file_action_label="${CNTOOLS_GUM_CONTEXT_LABEL:-CNTools}" file_action_breadcrumb="${CNTOOLS_GUM_CONTEXT_PATH:-/}"
+  local file_action_label="${CNTOOLS_GUM_CONTEXT_LABEL:-CNTools}" file_action_breadcrumb="${CNTOOLS_GUM_CONTEXT_PATH:-/}" file_action_auto=N
   local -a file_action_choices=('Use selected file')
   case "${file_action_mode}" in manage|delete) ;; *) return 2 ;; esac
   [[ "${file_action_path}" == /* ]] || file_action_path="${PWD}/${file_action_path}"
@@ -1174,10 +1174,18 @@ cntools_ui_file_selected() {
        cntools_filesystem_file_delete_safe "${file_action_path}"; then
       file_action_choices+=('Delete saved transaction folder')
     fi
-    file_action_choices+=(Back)
-    file_action_status=0
-    cntools_ui_choose file_action_choice 'Selected file' "${file_action_choices[@]}" || file_action_status=$?
-    ((file_action_status == 0)) || return "${file_action_status}"
+    # With a single real choice there is nothing to ask: use the file, or go
+    # straight to the deletion warning the user asked for.
+    file_action_auto=N
+    if (( ${#file_action_choices[@]} == 1 )); then
+      [[ "${file_action_mode}" == manage ]] && return 0
+      file_action_choice="${file_action_choices[0]}" file_action_auto=Y
+    else
+      file_action_choices+=(Back)
+      file_action_status=0
+      cntools_ui_choose file_action_choice 'Selected file' "${file_action_choices[@]}" || file_action_status=$?
+      ((file_action_status == 0)) || return "${file_action_status}"
+    fi
     cntools_gum_log CHOICE "Selected file action=${file_action_choice} path=$(printf '%q' "${file_action_path}")"
     case "${file_action_choice}" in
       'Use selected file') [[ "${file_action_mode}" == manage ]] || return 2; return 0 ;;
@@ -1203,7 +1211,8 @@ cntools_ui_file_selected() {
         file_action_status=0
         cntools_ui_confirm "${file_action_prompt}" false || file_action_status=$?
         cntools_gum_log CHOICE "Deletion confirmation kind=${file_action_kind} path=$(printf '%q' "${file_action_target}") status=${file_action_status}"
-        if ((file_action_status == 1)); then continue; fi
+        # Declining an automatic deletion step goes back instead of re-asking.
+        if ((file_action_status == 1)); then [[ "${file_action_auto}" == Y ]] && return 1; continue; fi
         ((file_action_status == 0)) || return "${file_action_status}"
         # Recheck after confirmation. A changed file must be selected again.
         file_action_current=''

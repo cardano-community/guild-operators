@@ -146,6 +146,7 @@ cntools_wallet_register_reset_chain_state() {
   CNTOOLS_WALLET_REGISTER_INPUTS=()
   CNTOOLS_WALLET_REGISTER_ASSET_IDS=()
   CNTOOLS_WALLET_REGISTER_ASSETS=()
+  CNTOOLS_FUNDING_REFERENCE_SKIPPED=0
   cntools_utxo_reset
   cntools_coin_reset
   cntools_change_reset
@@ -246,9 +247,15 @@ cntools_wallet_register_inventory_use_indices() {
   cntools_wallet_register_total_value_build
 }
 
+# Stake and governance builds price no reference scripts, so every loader
+# leaves those UTxOs untouched (the review names them).
 cntools_wallet_register_inventory_use_all() {
   local -a indices=()
 
+  cntools_funding_exclude_reference_scripts || {
+    cntools_wallet_register_set_error "${CNTOOLS_TRANSACTION_ERROR:-Reference-script UTxOs could not be set aside safely.}"
+    return 1
+  }
   indices=("${!CNTOOLS_UTXO_REFS[@]}")
   cntools_wallet_register_inventory_use_indices "${indices[@]}" || return 1
   CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE="${CNTOOLS_WALLET_REGISTER_LOVELACE}"

@@ -101,33 +101,57 @@ cntools_voting_thresholds() {
     end'
 }
 
-cntools_voting_stats_render() {
-  local record="$1" id='' data='' label='' value='' role='' prefix='' vote='' percentage='' power='' count=''
+# Pairs for one proposal. "page" leaves out the facts a list page shows once
+# (snapshot source/epoch, threshold and quorum sources, missing statistics).
+cntools_voting_stats_rows() {
+  local record="$1" mode="${2:-}" id='' data='' label='' value='' role='' prefix='' vote='' percentage='' power='' count=''
   id="$(jq -r .id <<< "${record}")"; data="${CNTOOLS_VOTING_STATS[${id}]:-}"
   [[ -n "${data}" ]] || data='{}'
-  {
-    if [[ "${data}" != '{}' ]]; then
+  if [[ "${data}" != '{}' ]]; then
+    if [[ "${mode}" != page ]]; then
       cntools_table_pair Source 'Koios API · indexed weighted snapshot' muted
       cntools_table_pair 'Snapshot epoch' "$(jq -r .epoch_no <<< "${data}")" number
-      for prefix in drep pool committee; do
-        case "${prefix}" in drep) role=DRep ;; pool) role=SPO ;; *) role=Committee ;; esac
-        for vote in yes no abstain; do
-          count="$(jq -r --arg key "${prefix}_${vote}_votes_cast" '.[$key] // ""' <<< "${data}")"
-          percentage="$(jq -r --arg key "${prefix}_${vote}_pct" '.[$key] // ""' <<< "${data}")"
-          power="$(jq -r --arg key "${prefix}_${vote}_vote_power" '.[$key] // ""' <<< "${data}")"
-          [[ -n "${power}" || "${vote}" != abstain ]] || power="$(jq -r --arg key "${prefix}_active_abstain_vote_power" '.[$key] // ""' <<< "${data}")"
-          value=''
-          [[ -z "${count}" ]] || value="$(cntools_number_format "${count}") votes"
-          [[ -z "${power}" ]] || value+=" · $(cntools_number_format_lovelace "${power}") voting power"
-          [[ -z "${percentage}" ]] || value+=" · $(cntools_number_format "${percentage}") %"
-          [[ -z "${value}" ]] || cntools_table_pair "${role} · ${vote^}" "${value}" number
-        done
+    fi
+    for prefix in drep pool committee; do
+      case "${prefix}" in drep) role=DRep ;; pool) role=SPO ;; *) role=Committee ;; esac
+      for vote in yes no abstain; do
+        count="$(jq -r --arg key "${prefix}_${vote}_votes_cast" '.[$key] // ""' <<< "${data}")"
+        percentage="$(jq -r --arg key "${prefix}_${vote}_pct" '.[$key] // ""' <<< "${data}")"
+        power="$(jq -r --arg key "${prefix}_${vote}_vote_power" '.[$key] // ""' <<< "${data}")"
+        [[ -n "${power}" || "${vote}" != abstain ]] || power="$(jq -r --arg key "${prefix}_active_abstain_vote_power" '.[$key] // ""' <<< "${data}")"
+        value=''
+        [[ -z "${count}" ]] || value="$(cntools_number_format "${count}") votes"
+        [[ -z "${power}" ]] || value+=" · $(cntools_number_format_lovelace "${power}") voting power"
+        [[ -z "${percentage}" ]] || value+=" · $(cntools_number_format "${percentage}") %"
+        [[ -z "${value}" ]] || cntools_table_pair "${role} · ${vote^}" "${value}" number
       done
-    else cntools_table_pair 'Voting power' 'Unavailable · vote counts are not voting power' muted; fi
-    while IFS=$'\037' read -r label value; do
-      [[ -z "${label}" ]] || cntools_table_pair "${label}" "${value}" number
-    done < <(cntools_voting_thresholds "${record}")
-    [[ -z "${CNTOOLS_VOTING_PARAMETERS_SOURCE}" ]] || cntools_table_pair 'Threshold source' "${CNTOOLS_VOTING_PARAMETERS_SOURCE} · current parameters" muted
-    [[ -z "${CNTOOLS_VOTING_COMMITTEE_SOURCE}" ]] || cntools_table_pair 'Quorum source' "${CNTOOLS_VOTING_COMMITTEE_SOURCE} · current committee" muted
-  } | cntools_table_render 'Voting power & thresholds · advisory, not a ratification decision'
+    done
+  elif [[ "${mode}" != page ]]; then
+    cntools_table_pair 'Voting power' 'Unavailable · vote counts are not voting power' muted
+  fi
+  while IFS=$'\037' read -r label value; do
+    [[ -z "${label}" ]] || cntools_table_pair "${label}" "${value}" number
+  done < <(cntools_voting_thresholds "${record}")
+  [[ "${mode}" == page ]] || cntools_voting_sources_rows
+}
+
+# Where thresholds and quorum come from; one row when both share a source.
+cntools_voting_sources_rows() {
+  if [[ -n "${CNTOOLS_VOTING_PARAMETERS_SOURCE}" && "${CNTOOLS_VOTING_PARAMETERS_SOURCE}" == "${CNTOOLS_VOTING_COMMITTEE_SOURCE}" ]]; then
+    cntools_table_pair 'Threshold source' "${CNTOOLS_VOTING_PARAMETERS_SOURCE} · current parameters and committee" muted
+    return 0
+  fi
+  [[ -z "${CNTOOLS_VOTING_PARAMETERS_SOURCE}" ]] || cntools_table_pair 'Threshold source' "${CNTOOLS_VOTING_PARAMETERS_SOURCE} · current parameters" muted
+  [[ -z "${CNTOOLS_VOTING_COMMITTEE_SOURCE}" ]] || cntools_table_pair 'Quorum source' "${CNTOOLS_VOTING_COMMITTEE_SOURCE} · current committee" muted
+}
+
+# True when indexed statistics are known for this proposal.
+cntools_voting_stats_present() {
+  local id=''
+  id="$(jq -r .id <<< "$1")" || return 1
+  [[ -n "${CNTOOLS_VOTING_STATS[${id}]:-}" && "${CNTOOLS_VOTING_STATS[${id}]}" != '{}' ]]
+}
+
+cntools_voting_stats_render() {
+  cntools_voting_stats_rows "$1" | cntools_table_render 'Voting power & thresholds · advisory, not a ratification decision'
 }

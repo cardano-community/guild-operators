@@ -235,5 +235,6 @@ cntools_pool_action_protection() {
   fi
   [[ -z "${CNTOOLS_POOL_WRITE_WARNING}" ]] || cntools_ui_render_status warn "${CNTOOLS_POOL_WRITE_WARNING}"
   cntools_ui_wait
-  return "${status}"
+  # A failure was shown above; the menu does not report it again.
+  ((status == 0)) || return 1
 }

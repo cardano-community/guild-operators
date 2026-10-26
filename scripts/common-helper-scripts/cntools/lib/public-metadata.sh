@@ -53,15 +53,17 @@ cntools_public_metadata_render() {
   } | cntools_table_render "${title}"
 }
 
-# Optional 4th argument "shown": the content is already on screen (e.g. from
-# an indexer), so a successful download only reports the verified hash.
-cntools_public_metadata_offer() {
+# True when this anchor can be downloaded and checked against its hash here.
+cntools_public_metadata_verifiable() {
+  [[ "${CNTOOLS_MODE:-offline}" != offline && -n "$1" && "$2" =~ ^[0-9a-fA-F]{64}$ ]] &&
+    [[ "$1" =~ ^https?://[^[:space:]]+$ || "$1" == ipfs://* ]]
+}
+
+# Downloads, verifies and shows the anchor (no prompt). Optional 4th argument
+# "shown": the content is already on screen (e.g. from an indexer), so a
+# successful download only reports the verified hash.
+cntools_public_metadata_verify() {
   local url="$1" expected="$2" limit="${3:-262144}" shown="${4:-}" status=0
-  [[ "${CNTOOLS_MODE:-offline}" != offline && -n "${url}" && "${expected}" =~ ^[0-9a-fA-F]{64}$ ]] || return 0
-  if [[ ! "${url}" =~ ^https?://[^[:space:]]+$ && "${url}" != ipfs://* ]]; then
-    cntools_ui_render_status info 'This anchor is not a public HTTP(S) URL. Download it independently and compare its exact byte hash.'; return 0
-  fi
-  cntools_ui_confirm "Download and verify published metadata from ${url}?" false || return 0
   [[ "${url}" != ipfs://* ]] || cntools_ui_render_status info 'IPFS content is fetched through the public ipfs.io gateway and checked against the on-chain byte hash.'
   [[ "${url}" != http://* ]] || cntools_ui_render_status warn 'This URL uses unencrypted HTTP. Only the matching on-chain hash establishes byte integrity.'
   cntools_ui_spin_function 'Downloading and verifying published metadata…' cntools_public_metadata_fetch "${url}" "${expected}" "${limit}" || status=$?
@@ -72,6 +74,20 @@ cntools_public_metadata_offer() {
     cntools_ui_render_status success 'Published bytes match the on-chain hash. The content above is the indexed copy.'; return 0
   fi
   cntools_public_metadata_render "${CNTOOLS_PUBLIC_METADATA_FILE}"
+}
+
+# Asks before downloading. Same arguments as cntools_public_metadata_verify;
+# returns 130 on Ctrl+C, otherwise 0 whether or not it was downloaded.
+cntools_public_metadata_offer() {
+  local url="$1" expected="$2" status=0
+  [[ "${CNTOOLS_MODE:-offline}" != offline && -n "${url}" && "${expected}" =~ ^[0-9a-fA-F]{64}$ ]] || return 0
+  if ! cntools_public_metadata_verifiable "${url}" "${expected}"; then
+    cntools_ui_render_status info 'This anchor is not a public HTTP(S) URL. Download it independently and compare its exact byte hash.'; return 0
+  fi
+  cntools_ui_confirm "Download and verify published metadata from ${url}?" false || status=$?
+  ((status != 130)) || return 130
+  ((status == 0)) || return 0
+  cntools_public_metadata_verify "$@"
 }
 
 # Hash for an anchor URL the user publishes (DRep metadata, vote rationale).
@@ -104,8 +120,12 @@ cntools_public_metadata_anchor_hash_into() {
           cntools_ui_render_status warn "${CNTOOLS_PUBLIC_METADATA_ERROR} Choose another way to hash it."; continue
         fi
         pm_hash="${CNTOOLS_PUBLIC_METADATA_HASH}"
-        cntools_public_metadata_render "${CNTOOLS_PUBLIC_METADATA_FILE}" N || return 2
-        cntools_ui_flow_confirm 'Use these published bytes and hash?' false || continue
+        # Quick uses them at once, so the content table would only flash by.
+        if ! cntools_flow_quick; then
+          cntools_public_metadata_render "${CNTOOLS_PUBLIC_METADATA_FILE}" N || return 2
+          cntools_ui_confirm 'Use these published bytes and hash?' false || pm_status=$?
+          ((pm_status == 0)) || { ((pm_status == 130)) && return 130; continue; }
+        fi
         ;;
       'Hash local JSON file')
         cntools_ui_pick_path pm_file "${pm_label} JSON file" 'Choose the exact published JSON bytes; the file is not uploaded.' || pm_status=$?

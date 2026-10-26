@@ -18,15 +18,16 @@ cntools_action_main() {
 
   cntools_ui_action_begin "Theme" "/ Settings / Theme"
   for theme_id in "${CNTOOLS_THEME_IDS[@]}"; do
-    theme_name="$(cntools_theme_display_name "${theme_id}")" || return 1
+    # Not shown yet: 2 gives the menu banner.
+    theme_name="$(cntools_theme_display_name "${theme_id}")" || return 2
     current_suffix=""
     [[ "${theme_id}" != "${CNTOOLS_THEME_ID}" ]] ||
-      current_suffix="  ·  Current"
+      current_suffix=" · current"
     row="${theme_name}${current_suffix}"
     rows+=("${row}")
     row_ids+=("${theme_id}")
   done
-  (( ${#rows[@]} > 0 )) || return 1
+  (( ${#rows[@]} > 0 )) || return 2
 
   if cntools_ui_choose selected "Filter themes…" "${rows[@]}"; then
     selection_status=0
@@ -44,11 +45,18 @@ cntools_action_main() {
   for index in "${!rows[@]}"; do
     [[ "${selected}" == "${rows[index]}" ]] || continue
     theme_id="${row_ids[index]}"
-    cntools_theme_save "${theme_id}" || {
+    if ! cntools_theme_save "${theme_id}"; then
       cntools_log ERROR "Could not persist theme=${theme_id}" || true
+      cntools_ui_render_status error "The theme could not be saved. See ${CNTOOLS_LOG} for details."
+      cntools_ui_wait
       return 1
-    }
-    cntools_theme_apply "${theme_id}" || return 1
+    fi
+    if ! cntools_theme_apply "${theme_id}"; then
+      cntools_log ERROR "Could not apply theme=${theme_id}" || true
+      cntools_ui_render_status error "The theme was saved but could not be applied. See ${CNTOOLS_LOG} for details."
+      cntools_ui_wait
+      return 1
+    fi
     cntools_theme_invalidate_ui_cache
     cntools_log CHOICE "selected theme=${theme_id}" || true
     cntools_ui_action_begin "Theme" "/ Settings / Theme"

@@ -50,8 +50,10 @@ cntools_withdraw_query_stake() {
   fi
 }
 
+# Withdrawals price no reference scripts, so their UTxOs stay untouched.
 cntools_withdraw_collect() {
-  cntools_funding_collect "${CNTOOLS_STAKE_BASE_ADDRESS}" "${CNTOOLS_STAKE_PAYMENT_ADDRESS}" || return 1
+  cntools_funding_collect "${CNTOOLS_STAKE_BASE_ADDRESS}" "${CNTOOLS_STAKE_PAYMENT_ADDRESS}" &&
+    cntools_funding_exclude_reference_scripts || return 1
   CNTOOLS_WITHDRAW_BACKEND="${CNTOOLS_FUNDING_BACKEND}"
   cntools_withdraw_query_stake || return $?
   CNTOOLS_WITHDRAW_REWARDS="${CNTOOLS_WALLET_REWARD_LOVELACE}"
@@ -59,7 +61,7 @@ cntools_withdraw_collect() {
 }
 
 cntools_withdraw_select() {
-  local reserve="" required="" status=0 attempt=0 index=0
+  local reserve="" required="" status=0 attempt=0
   if [[ $# -gt 0 ]]; then cntools_uint_normalize_into reserve "$1" || return 2
   else cntools_coin_initial_fee_into reserve "${CNTOOLS_FUNDING_PROTOCOL}" || return 1; fi
   cntools_coin_required_for_stake_into required withdraw "${CNTOOLS_WITHDRAW_REWARDS}" "${reserve}" || return 1
@@ -67,14 +69,6 @@ cntools_withdraw_select() {
     cntools_coin_select_lovelace "${required}" "${CNTOOLS_TX_SELECTION_STRATEGY}" || {
       cntools_withdraw_fail "${CNTOOLS_COIN_ERROR:-No eligible spending input can fund this withdrawal.}"; return 1;
     }
-    # This slice does not price or consume stored reference scripts. Do not
-    # silently destroy one or calculate its fee as though its size were zero.
-    for index in "${CNTOOLS_COIN_SELECTED_INDICES[@]}"; do
-      [[ "${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[index]}" == N ]] || {
-        cntools_withdraw_fail 'A selected input contains a reference script. Use Balanced selection with sufficient ordinary UTxOs; reference-script spending is not supported for reward withdrawals.'
-        return 1
-      }
-    done
     status=0
     cntools_change_plan_stake withdraw "${CNTOOLS_WITHDRAW_REWARDS}" "${reserve}" \
       "${CNTOOLS_FUNDING_PROTOCOL}" "${CNTOOLS_STAKE_BASE_ADDRESS}" || status=$?

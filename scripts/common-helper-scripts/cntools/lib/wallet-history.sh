@@ -44,8 +44,9 @@ cntools_history_page_size() {
 
 cntools_history_load() {
   local kind="$1" credential="$2" response="" endpoint="" payload=""
-  local lookup="${3:-payment}" method=POST
+  local lookup="${3:-payment}" method=POST total=0
   cntools_history_available || cntools_history_error "Koios is unavailable. These views require an online Koios connection." || return 1
+  CNTOOLS_HISTORY_ERROR="Could not prepare the wallet inventory. See the log for details."
   case "${lookup}" in
     payment)
       [[ "${credential}" =~ ^[0-9a-fA-F]{56}$ ]] || return 2
@@ -56,12 +57,8 @@ cntools_history_load() {
       ;;
     *) return 2 ;;
   esac
-  CNTOOLS_HISTORY_LOOKUP="${lookup}"
-  CNTOOLS_HISTORY_BACKEND=koios
-  CNTOOLS_HISTORY_KIND="${kind}"
-  CNTOOLS_HISTORY_LIST="" CNTOOLS_HISTORY_TOTAL=0 CNTOOLS_HISTORY_PAGE=0
-  CNTOOLS_HISTORY_PAGES=() CNTOOLS_HISTORY_PAGE_FILE="" CNTOOLS_HISTORY_DETAIL=""
-  CNTOOLS_HISTORY_ERROR="Could not prepare the wallet inventory. See the log for details."
+  # The current inventory stays until the new one is valid (a failed
+  # 'Change lookup' keeps the page).
   case "${lookup}/${kind}" in
     payment/transactions) endpoint=credential_txs ;;
     payment/utxos) endpoint='credential_utxos?is_spent=eq.false' ;;
@@ -108,8 +105,10 @@ cntools_history_load() {
     cntools_history_error "Koios returned an invalid or inconsistent wallet inventory."
     return 1
   fi
-  CNTOOLS_HISTORY_TOTAL="$(jq 'length' "${response}")" || return 1
-  CNTOOLS_HISTORY_LIST="${response}"
+  total="$(jq 'length' "${response}")" || return 1
+  CNTOOLS_HISTORY_LOOKUP="${lookup}" CNTOOLS_HISTORY_BACKEND=koios CNTOOLS_HISTORY_KIND="${kind}"
+  CNTOOLS_HISTORY_LIST="${response}" CNTOOLS_HISTORY_TOTAL="${total}" CNTOOLS_HISTORY_PAGE=0
+  CNTOOLS_HISTORY_PAGES=() CNTOOLS_HISTORY_PAGE_FILE="" CNTOOLS_HISTORY_DETAIL=""
   CNTOOLS_HISTORY_ERROR=""
   cntools_wallet_log WALLET "Koios ${kind} lookup=${lookup} inventory count=${CNTOOLS_HISTORY_TOTAL}"
 }

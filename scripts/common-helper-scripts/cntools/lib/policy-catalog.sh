@@ -2,7 +2,7 @@
 # Read-only policy/asset inventory, including legacy .asset records.
 # shellcheck disable=SC2034,SC2015
 declare -a CNTOOLS_POLICY_NAMES=() CNTOOLS_POLICY_PATHS=() CNTOOLS_POLICY_IDS=() CNTOOLS_POLICY_STATES=() CNTOOLS_POLICY_WARNINGS=()
-declare -a CNTOOLS_POLICY_WINDOWS=() CNTOOLS_POLICY_BEFORE=() CNTOOLS_POLICY_AFTER=()
+declare -a CNTOOLS_POLICY_WINDOWS=() CNTOOLS_POLICY_BEFORE=() CNTOOLS_POLICY_AFTER=() CNTOOLS_POLICY_SUPPORTED=()
 declare -a CNTOOLS_POLICY_ASSET_IDS=() CNTOOLS_POLICY_ASSET_RECORDS=()
 CNTOOLS_POLICY_SELECTED_SCRIPT='' CNTOOLS_POLICY_SELECTED_VKEY='' CNTOOLS_POLICY_SELECTED_SOURCE=''
 CNTOOLS_POLICY_SELECTED_CREDENTIAL='' CNTOOLS_POLICY_SELECTED_BEFORE='' CNTOOLS_POLICY_SELECTED_AFTER=''
@@ -39,6 +39,15 @@ cntools_policy_script_bounds_into() {
   printf -v "${_bounds_after}" '%s' "$(jq -r '[..|objects|select(.type=="after")|.slot]|max // empty' "${_bounds_script}")"
 }
 
+# Single-signer policies cntools_policy_prepare accepts: linear
+# sig/before/after/all with exactly one distinct key hash.
+cntools_policy_script_supported() {
+  cntools_transaction_native_script_valid "$1" && jq -e '
+    def linear: .type=="sig" or .type=="before" or .type=="after" or (.type=="all" and all(.scripts[];linear));
+    linear and ([..|objects|select(.type=="sig")|.keyHash|ascii_downcase]|unique|length)==1
+    ' "$1" >/dev/null 2>&1
+}
+
 # valid · expired · pending (not valid yet) · unknown (no clock for this network).
 cntools_policy_window_state_into() {
   local _window_output="$1" _window_before="$2" _window_after="$3" _window_now='' _window_state=valid
@@ -51,9 +60,9 @@ cntools_policy_window_state_into() {
 }
 
 cntools_policy_catalog_build() {
-  local directory='' id='' state='' warning='' skey='' before='' after='' window=''
+  local directory='' id='' state='' warning='' skey='' before='' after='' window='' supported=''
   CNTOOLS_POLICY_NAMES=(); CNTOOLS_POLICY_PATHS=(); CNTOOLS_POLICY_IDS=(); CNTOOLS_POLICY_STATES=(); CNTOOLS_POLICY_WARNINGS=()
-  CNTOOLS_POLICY_WINDOWS=(); CNTOOLS_POLICY_BEFORE=(); CNTOOLS_POLICY_AFTER=()
+  CNTOOLS_POLICY_WINDOWS=(); CNTOOLS_POLICY_BEFORE=(); CNTOOLS_POLICY_AFTER=(); CNTOOLS_POLICY_SUPPORTED=()
   [[ -n "${CNTOOLS_ASSET_DIR:-}" && "${CNTOOLS_ASSET_DIR}" == /* && "${CNTOOLS_ASSET_DIR}" != / ]] || return 1
   [[ -e "${CNTOOLS_ASSET_DIR}" || -L "${CNTOOLS_ASSET_DIR}" ]] || return 0
   [[ -d "${CNTOOLS_ASSET_DIR}" && -r "${CNTOOLS_ASSET_DIR}" && ! -L "${CNTOOLS_ASSET_DIR}" ]] &&
@@ -75,20 +84,60 @@ cntools_policy_catalog_build() {
     if cntools_policy_script_bounds_into before after "${directory}/${CNTOOLS_POLICY_SCRIPT_FILENAME:-policy.script}"; then
       cntools_policy_window_state_into window "${before}" "${after}"
     fi
+    supported=N
+    ! cntools_policy_script_supported "${directory}/${CNTOOLS_POLICY_SCRIPT_FILENAME:-policy.script}" || supported=Y
     CNTOOLS_POLICY_NAMES+=("${directory##*/}"); CNTOOLS_POLICY_PATHS+=("${directory}"); CNTOOLS_POLICY_IDS+=("${id}")
     CNTOOLS_POLICY_STATES+=("${state}"); CNTOOLS_POLICY_WARNINGS+=("${warning}")
     CNTOOLS_POLICY_WINDOWS+=("${window}"); CNTOOLS_POLICY_BEFORE+=("${before}"); CNTOOLS_POLICY_AFTER+=("${after}")
+    CNTOOLS_POLICY_SUPPORTED+=("${supported}")
     [[ -z "${warning}" ]] || cntools_transaction_log WARN "Policy=${directory##*/} ${warning}"
   done
 }
 
-# Filters: transact (a valid ID inside its time window), sign (also an
-# unencrypted signing key). Empty offers every policy.
+# Filters need a valid ID and a single-signer script: transact (inside its
+# time window), sign (an unencrypted signing key; registry attestations need
+# no time window). Empty offers every policy.
 cntools_policy_eligible() {
   local index="$1" filter="${2:-}"
   [[ -n "${filter}" ]] || return 0
-  [[ -n "${CNTOOLS_POLICY_IDS[index]}" && "${CNTOOLS_POLICY_WINDOWS[index]}" != expired && "${CNTOOLS_POLICY_WINDOWS[index]}" != pending ]] || return 1
-  [[ "${filter}" != sign || "${CNTOOLS_POLICY_STATES[index]}" == Open ]]
+  [[ -n "${CNTOOLS_POLICY_IDS[index]}" && "${CNTOOLS_POLICY_SUPPORTED[index]}" == Y ]] || return 1
+  case "${filter}" in
+    transact) [[ "${CNTOOLS_POLICY_WINDOWS[index]}" != expired && "${CNTOOLS_POLICY_WINDOWS[index]}" != pending ]] ;;
+    sign) [[ "${CNTOOLS_POLICY_STATES[index]}" == Open ]] ;;
+    *) return 1 ;;
+  esac
+}
+
+# Why no policy passed a filter, naming only the causes that occurred.
+cntools_policy_ineligible_reason_into() {
+  local _ineligible_output="$1" _ineligible_filter="$2" _ineligible_index=0 _ineligible_cause='' _ineligible_text='' _ineligible_last=''
+  local -a _ineligible_causes=()
+  local -A _ineligible_seen=()
+  for _ineligible_index in "${!CNTOOLS_POLICY_NAMES[@]}"; do
+    if [[ -z "${CNTOOLS_POLICY_IDS[_ineligible_index]}" ]]; then _ineligible_cause='has an invalid script/ID'
+    elif [[ "${CNTOOLS_POLICY_SUPPORTED[_ineligible_index]}" != Y ]]; then _ineligible_cause='needs several signers (not supported here)'
+    elif [[ "${_ineligible_filter}" == transact ]]; then
+      case "${CNTOOLS_POLICY_WINDOWS[_ineligible_index]}" in expired) _ineligible_cause='is expired' ;; pending) _ineligible_cause='is not valid yet' ;; *) continue ;; esac
+    else
+      case "${CNTOOLS_POLICY_STATES[_ineligible_index]}" in
+        Encrypted) _ineligible_cause='has an encrypted signing key' ;;
+        Mixed) _ineligible_cause='has both plain and encrypted signing keys' ;;
+        Watch-only) _ineligible_cause='has no signing key here' ;;
+        *) continue ;;
+      esac
+    fi
+    [[ -n "${_ineligible_seen[${_ineligible_cause}]+x}" ]] || { _ineligible_seen["${_ineligible_cause}"]=Y; _ineligible_causes+=("${_ineligible_cause}"); }
+  done
+  if (( ${#_ineligible_causes[@]} > 1 )); then
+    _ineligible_last="${_ineligible_causes[-1]}"; unset '_ineligible_causes[-1]'
+    printf -v _ineligible_text '%s, ' "${_ineligible_causes[@]}"
+    _ineligible_text="${_ineligible_text%, } or ${_ineligible_last}"
+  else _ineligible_text="${_ineligible_causes[0]:-is unsuitable}"; fi
+  (( ${#CNTOOLS_POLICY_NAMES[@]} == 1 )) && _ineligible_text="The only policy ${_ineligible_text}" || _ineligible_text="Each policy ${_ineligible_text}"
+  if [[ "${_ineligible_filter}" == transact ]]; then _ineligible_text="No policy can mint or burn now. ${_ineligible_text}."
+  else _ineligible_text="No policy can sign here. ${_ineligible_text}."; fi
+  [[ -z "${_ineligible_seen['has an encrypted signing key']+x}" ]] || _ineligible_text+=' Use Decrypt / Unlock Policy first.'
+  printf -v "${_ineligible_output}" '%s' "${_ineligible_text}"
 }
 
 cntools_policy_choose_into() {
@@ -97,6 +146,7 @@ cntools_policy_choose_into() {
   for index in "${!CNTOOLS_POLICY_NAMES[@]}"; do
     cntools_policy_eligible "${index}" "${filter}" || continue
     row="$((index+1)) · ${CNTOOLS_POLICY_NAMES[index]} · ${CNTOOLS_POLICY_STATES[index]}"
+    # Sign lists expired policies too; the mark still shows their state.
     case "${CNTOOLS_POLICY_WINDOWS[index]}" in expired) row+=' · Expired' ;; pending) row+=' · Not valid yet' ;; esac
     [[ -n "${CNTOOLS_POLICY_IDS[index]}" ]] || row+=' · Invalid'
     choices+=("${row}"); indices+=("${index}")

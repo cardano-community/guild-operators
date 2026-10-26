@@ -38,7 +38,11 @@ cntools_asset_tx_eligible_inventory() {
     done
     cntools_utxo_value_add_index "${added}" CNTOOLS_FUNDING_TOTAL CNTOOLS_FUNDING_ASSET_IDS CNTOOLS_FUNDING_ASSETS || return 1
   done
-  (( ${#CNTOOLS_UTXO_REFS[@]} > 0 )) || { cntools_asset_tx_fail 'No eligible UTxOs remain. Datum and reference-script outputs are not consumed.'; return 1; }
+  (( ${#CNTOOLS_UTXO_REFS[@]} > 0 )) || {
+    if (( CNTOOLS_ASSET_TX_SKIPPED == 0 )); then cntools_asset_tx_fail 'This wallet has no spendable UTxOs.'
+    else cntools_asset_tx_fail 'No eligible UTxOs remain. Datum and reference-script outputs are not consumed.'; fi
+    return 1;
+  }
 }
 
 cntools_asset_tx_validity() {

@@ -10,11 +10,8 @@ cntools_policy_selection_into() {
   cntools_policy_catalog_build || { cntools_policy_error 'The asset directory could not be inspected safely.'; return 2; }
   cntools_policy_choose_into chosen "${filter}" || status=$?
   if ((status == 3)); then
-    case "${filter}" in
-      transact) reason='No policy can mint or burn now: each one is expired, not valid yet or has an invalid script/ID.' ;;
-      sign) reason='No policy has an unencrypted signing key. Use Decrypt / Unlock Policy first.' ;;
-    esac
-    (( ${#CNTOOLS_POLICY_NAMES[@]} > 0 )) || reason='No policy folders are available. Use Create Policy first.'
+    if (( ${#CNTOOLS_POLICY_NAMES[@]} == 0 )); then reason='No policy folders are available. Use Create Policy first.'
+    elif [[ -n "${filter}" ]]; then cntools_policy_ineligible_reason_into reason "${filter}"; fi
     cntools_ui_render_status info "${reason:-No suitable policy is available.}"
     cntools_ui_wait
     return 3
@@ -216,11 +213,11 @@ cntools_policy_action_protection_inner() {
     {
       cntools_table_pair Policy "${CNTOOLS_POLICY_NAMES[selected]}" identifier
       cntools_table_pair 'Key protection' "${CNTOOLS_POLICY_STATES[selected]}" status
-      cntools_table_pair Action "${title}" value
       cntools_table_pair Directory "${directory}" identifier
     } | cntools_table_render Policy || return 1
+    # Lock-only (no key file) sets no password, so it needs no password warning.
     if [[ "${operation}" == encrypt ]]; then
-      cntools_ui_render_status warn 'Keep a secure backup: an encryption password cannot be recovered.'
+      [[ ! -f "${key}" || -L "${key}" ]] || cntools_ui_render_status warn 'Keep a secure backup: an encryption password cannot be recovered.'
     else
       cntools_ui_render_status warn 'Decrypt / Unlock leaves the signing key unencrypted and removes file write protection.'
     fi

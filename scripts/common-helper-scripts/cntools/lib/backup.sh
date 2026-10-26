@@ -251,6 +251,21 @@ cntools_backup_crypto() {
   cntools_key_crypto_run "$1" "$2" "$3" "$4" "$5" "${CNTOOLS_BACKUP_WORK}/errors" 300 "${CNTOOLS_BACKUP_MAX_BYTES}"
 }
 
+# Only a wrong passphrase is retryable; any other GPG failure stops Restore.
+cntools_backup_decrypt_error() {
+  local detail=''
+  if grep -qiE 'bad session key|bad passphrase|invalid passphrase' -- "$1" 2>/dev/null; then
+    CNTOOLS_BACKUP_DECRYPT_FAILED=Y
+    cntools_backup_error 'The backup could not be decrypted. Check the passphrase.'
+    return 1
+  fi
+  # The last line is the reason (earlier ones describe the packet).
+  [[ ! -f "$1" || -L "$1" ]] || detail="$(grep -v '^[[:space:]]*$' -- "$1" 2>/dev/null | tail -n 1)"
+  detail="${detail#gpg: }"; detail="${detail:0:200}"
+  ! declare -F cntools_log_sanitize_line >/dev/null 2>&1 || detail="$(cntools_log_sanitize_line "${detail}")"
+  cntools_backup_error "GnuPG could not open the backup${detail:+: ${detail}}. See ${CNTOOLS_LOG:-the CNTools log}."
+}
+
 cntools_backup_restore_path_into() {
   local -n mapped_output="$1"
   local member="${2%/}" legacy="$3" role='' root='' prefix=''
@@ -280,7 +295,7 @@ cntools_backup_restore_path_into() {
 cntools_backup_restore_prepare() {
   local source="$1" password="${2:-}" archive='' binary='' legacy=Y member='' mapped='' role='' relative='' object='' target='' hash='' expected='' manifest=''
   local -A paths=() objects=() expected_hashes=()
-  CNTOOLS_BACKUP_OBJECTS=(); CNTOOLS_BACKUP_KIND=legacy; CNTOOLS_BACKUP_NETWORK=unknown
+  CNTOOLS_BACKUP_OBJECTS=(); CNTOOLS_BACKUP_KIND=legacy; CNTOOLS_BACKUP_NETWORK=unknown; CNTOOLS_BACKUP_CREATED=''
   CNTOOLS_BACKUP_DECRYPT_FAILED=N
   cntools_backup_environment || return 1
   cntools_transaction_file_safe "${source}" "${CNTOOLS_BACKUP_MAX_BYTES}" || {
@@ -295,8 +310,7 @@ cntools_backup_restore_prepare() {
     binary="$(type -P gpg || type -P gpg2)" || { cntools_backup_error 'Install GnuPG to open this backup.'; return 1; }
     : > "${archive}"
     cntools_backup_crypto "${binary}" decrypt "${CNTOOLS_BACKUP_WORK}/input" "${archive}" "${password}" || {
-      CNTOOLS_BACKUP_DECRYPT_FAILED=Y
-      cntools_backup_error 'The backup could not be decrypted. Check the passphrase.'; return 1;
+      cntools_backup_decrypt_error "${CNTOOLS_BACKUP_WORK}/errors"; return 1;
     }
   else
     cntools_backup_command mv -- "${CNTOOLS_BACKUP_WORK}/input" "${archive}" || return 1
@@ -316,6 +330,9 @@ cntools_backup_restore_prepare() {
       cntools_backup_error 'Backup manifest is invalid.'; return 1;
     }
     CNTOOLS_BACKUP_KIND="$(jq -r .kind "${manifest}")"; CNTOOLS_BACKUP_NETWORK="$(jq -r .network "${manifest}")"
+    # Informational only: an unexpected value is not shown.
+    CNTOOLS_BACKUP_CREATED="$(jq -r '.created // "" | strings' "${manifest}")" || CNTOOLS_BACKUP_CREATED=''
+    [[ "${CNTOOLS_BACKUP_CREATED}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || CNTOOLS_BACKUP_CREATED=''
     (( $(jq '.files|length' "${manifest}") == ${#CNTOOLS_BACKUP_FILES[@]}-1 )) || return 1
     jq -r '.files[] | [.path,.sha256] | @tsv' "${manifest}" > "${CNTOOLS_BACKUP_WORK}/manifest-records" || return 1
     while IFS=$'\t' read -r member hash; do

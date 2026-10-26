@@ -10,7 +10,8 @@ cntools_send_render_source() {
     printf 'Wallet detail\tValue\n'
     cntools_transaction_ui_styled_row Wallet "${CNTOOLS_SEND_WALLET}" identifier
     cntools_transaction_ui_styled_row 'Spendable ADA' "$(cntools_number_format_lovelace "${CNTOOLS_FUNDING_TOTAL}")" number
-    cntools_transaction_ui_styled_row 'Native assets' "$(cntools_number_format "${#CNTOOLS_FUNDING_ASSET_IDS[@]}")" number
+    (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} == 0 )) ||
+      cntools_transaction_ui_styled_row 'Native assets' "$(cntools_number_format "${#CNTOOLS_FUNDING_ASSET_IDS[@]}")" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
 }
 
@@ -46,7 +47,7 @@ cntools_send_render_assets() {
 }
 
 cntools_send_render_information() {
-  local widths="" selection="${CNTOOLS_TX_SELECTION_STRATEGY}" expiry_label="" change_total=0 amount=""
+  local widths="" selection="${CNTOOLS_TX_SELECTION_STRATEGY}" expiry_label="" change_total=0 amount="" label=""
   for amount in "${CNTOOLS_CHANGE_OUTPUT_LOVELACE[@]}"; do
     cntools_uint_add_into change_total "${change_total}" "${amount}" || return 1
   done
@@ -66,10 +67,12 @@ cntools_send_render_information() {
       cntools_transaction_ui_styled_row 'Returned change' "$(cntools_number_format_lovelace "${change_total}") · $(cntools_number_format "${#CNTOOLS_CHANGE_OUTPUTS[@]}") outputs" number
       cntools_transaction_ui_render_policy_rows "${selection}" "${#CNTOOLS_COIN_SELECTED_REFS[@]}"
     else
-      cntools_transaction_ui_styled_row 'Input selection' "${selection} · $(cntools_number_format "${#CNTOOLS_COIN_SELECTED_REFS[@]}") inputs" value
+      label="$(cntools_settings_strategy_name "${selection}" 2>/dev/null)" || label="${selection}"
+      label+=" · $(cntools_number_format "${#CNTOOLS_COIN_SELECTED_REFS[@]}") input"
+      (( ${#CNTOOLS_COIN_SELECTED_REFS[@]} == 1 )) || label+=s
+      cntools_transaction_ui_styled_row 'Input selection' "${label}" value
     fi
-    (( ${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0} == 0 )) ||
-      cntools_transaction_ui_styled_row 'Left untouched' "$(cntools_number_format "${CNTOOLS_FUNDING_REFERENCE_SKIPPED}") reference-script UTxOs" value
+    cntools_funding_render_untouched_row
     cntools_transaction_ui_styled_row 'Expires' "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
 }

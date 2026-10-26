@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Guided mint/burn with the shared transaction review/sign/export/submit UX.
 # shellcheck disable=SC2034,SC2015
-CNTOOLS_ASSET_TX_RESULT_SHOWN=N CNTOOLS_ASSET_TX_SAVED='' CNTOOLS_ASSET_TX_SIGN_NOTE=''
+CNTOOLS_ASSET_TX_RESULT_SHOWN=N CNTOOLS_ASSET_TX_SAVED=''
 cntools_asset_tx_begin() { cntools_policy_manage_begin "${CNTOOLS_ASSET_TX_OPERATION^} Asset"; }
 
 # Smallest units, plus the decimal amount when Koios metadata gives decimals.
@@ -13,7 +13,7 @@ cntools_asset_tx_amount_into() {
 }
 
 cntools_asset_tx_render() {
-  local label='' expiry='' fingerprint='' date='' amount='' held="${CNTOOLS_FUNDING_ASSETS[${CNTOOLS_ASSET_TX_ID}]:-0}" after=''
+  local label='' expiry='' fingerprint='' date='' amount='' held="${CNTOOLS_FUNDING_ASSETS[${CNTOOLS_ASSET_TX_ID}]:-0}" after='' selection=''
   cntools_asset_label_into label "${CNTOOLS_ASSET_TX_ID}" 1 || return 1
   cntools_transaction_ui_expiry_label_into expiry "${CNTOOLS_SEND_EXPIRY}" || return 1
   cntools_wallet_asset_fingerprint_into fingerprint "${CNTOOLS_ASSET_TX_ID%%.*}" "${CNTOOLS_ASSET_TX_ID#*.}" || fingerprint=Unavailable
@@ -35,14 +35,17 @@ cntools_asset_tx_render() {
     cntools_table_pair 'Return address' "${CNTOOLS_SEND_ADDRESS}" identifier
     cntools_table_pair Fee "$(cntools_number_format_lovelace "${CNTOOLS_ASSET_TX_FEE}")" number
     cntools_table_pair Expires "${expiry}" value
-    cntools_table_pair 'Input selection' "${CNTOOLS_TX_SELECTION_STRATEGY:-balanced} · ${#CNTOOLS_ASSET_TX_INPUTS[@]} inputs" value
-    cntools_table_pair 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
-    cntools_table_pair 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
-    cntools_table_pair 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" value
+    # As cntools_transaction_ui_render_policy_rows: readable strategy, rows
+    # only for change features that are switched on.
+    selection="$(cntools_settings_strategy_name "${CNTOOLS_TX_SELECTION_STRATEGY:-balanced}" 2>/dev/null)" || selection="${CNTOOLS_TX_SELECTION_STRATEGY:-balanced}"
+    selection+=" · ${#CNTOOLS_ASSET_TX_INPUTS[@]} input"; (( ${#CNTOOLS_ASSET_TX_INPUTS[@]} == 1 )) || selection+=s
+    cntools_table_pair 'Input selection' "${selection}" value
+    [[ -z "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" || "${CNTOOLS_CHANGE_TOKEN_STATUS}" == Disabled* ]] || cntools_table_pair 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
+    [[ -z "${CNTOOLS_CHANGE_UTXO_STATUS:-}" || "${CNTOOLS_CHANGE_UTXO_STATUS}" == Disabled* ]] || cntools_table_pair 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
+    [[ -z "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" || "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" == Disabled* ]] || cntools_table_pair 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" value
     [[ "${CNTOOLS_ASSET_TX_SKIPPED}" == 0 ]] || cntools_table_pair 'App UTxOs left untouched' "${CNTOOLS_ASSET_TX_SKIPPED}" number
   } | cntools_table_render 'Transaction information' || return 1
   cntools_send_metadata_render || return 1
-  [[ -z "${CNTOOLS_ASSET_TX_SIGN_NOTE}" ]] || cntools_ui_render_status info "${CNTOOLS_ASSET_TX_SIGN_NOTE}"
   if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == burn ]]; then
     cntools_ui_render_status warn 'Burning permanently destroys the selected quantity. Other tokens, rewards and deposits are not burned.'
   else cntools_ui_render_status info 'New tokens and all selected change return to this wallet. No stake registration, delegation or rewards are changed.'; fi
@@ -145,8 +148,11 @@ cntools_asset_tx_sign_note_into() {
 
 cntools_asset_tx_workflow() {
   local CNTOOLS_METADATA_BEGIN_CALLBACK=cntools_asset_tx_begin CNTOOLS_METADATA_OVERVIEW_CALLBACK=cntools_asset_tx_metadata_overview
-  local selected='' workflow='' staged='' signed='' saved='' proceed='' can_sign=N lifetime=1800 backend='' signed_body='' txid='' status=0 confirm='' draft=''
-  local -a changes=('Change quantity' 'Change metadata' 'Change expiry')
+  # The shared review states why only an unsigned package is offered.
+  local CNTOOLS_TRANSACTION_UI_UNSIGNED_REASON=''
+  local selected='' workflow='' staged='' signed='' saved='' proceed='' can_sign=N lifetime=1800 backend='' signed_body='' txid='' status=0 draft=''
+  local previous_quantity='' previous_lifetime=''
+  local -a changes=('Change quantity' 'Change metadata' 'Change expiry') previous_metadata=()
   cntools_asset_tx_begin
   # 3 = no usable policy (reason shown and acknowledged); 1 stays a plain Cancel.
   cntools_policy_selection_into selected transact || return $?
@@ -181,7 +187,7 @@ cntools_asset_tx_workflow() {
   [[ -z "${CNTOOLS_SEND_SOURCE}" || -z "${CNTOOLS_POLICY_SELECTED_SOURCE}" ]] || can_sign=Y
   # Without both keys the unsigned package is the only workflow: say why on
   # the review and offer no 'Change workflow'.
-  cntools_asset_tx_sign_note_into CNTOOLS_ASSET_TX_SIGN_NOTE
+  cntools_asset_tx_sign_note_into CNTOOLS_TRANSACTION_UI_UNSIGNED_REASON
   [[ "${can_sign}" != Y ]] || changes+=('Change workflow')
   cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
   cntools_transaction_ui_initial_expiry_into lifetime || return $?
@@ -190,7 +196,8 @@ cntools_asset_tx_workflow() {
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into selected "${staged}" "${proceed}" cntools_asset_tx_begin cntools_asset_tx_render \
       "${changes[@]}" || return $?
-    status=0
+    status=0; previous_quantity="${CNTOOLS_ASSET_TX_QUANTITY}"; previous_lifetime="${lifetime}"
+    previous_metadata=("${CNTOOLS_METADATA_MODE}" "${CNTOOLS_METADATA_SCHEMA}" "${CNTOOLS_METADATA_MESSAGE}" "${CNTOOLS_METADATA_CUSTOM}")
     case "${selected}" in
       "${proceed}") break ;;
       'Change workflow') cntools_transaction_ui_workflow_into workflow "${can_sign}" || status=$? ;;
@@ -206,8 +213,17 @@ cntools_asset_tx_workflow() {
     # Esc keeps the current value and returns to the review; Ctrl+C cancels.
     ((status != 1)) || continue
     ((status == 0)) || return "${status}"
-    [[ "${selected}" != 'Change workflow' ]] || continue
+    # A workflow change rebuilds only when Quick raised an unsigned package's expiry.
+    [[ "${selected}" != 'Change workflow' ]] || cntools_transaction_ui_unsigned_lifetime_into lifetime "${workflow}" || continue
+    cntools_ui_spin_function 'Rebuilding the asset transaction…' cntools_asset_tx_refresh_build_into staged "${lifetime}" && continue
+    # A change that cannot be built is undone and the previous one rebuilt.
+    cntools_transaction_log WARN "Asset transaction change could not be built; previous values restored change=${selected}"
+    CNTOOLS_ASSET_TX_QUANTITY="${previous_quantity}"; lifetime="${previous_lifetime}"
+    CNTOOLS_METADATA_MODE="${previous_metadata[0]}"; CNTOOLS_METADATA_SCHEMA="${previous_metadata[1]}"
+    CNTOOLS_METADATA_MESSAGE="${previous_metadata[2]}"; CNTOOLS_METADATA_CUSTOM="${previous_metadata[3]}"
     cntools_ui_spin_function 'Rebuilding the asset transaction…' cntools_asset_tx_refresh_build_into staged "${lifetime}" || return 2
+    cntools_ui_render_status warn "That change could not be built, so it was undone: ${CNTOOLS_TRANSACTION_ERROR:-see ${CNTOOLS_LOG} for details.}"
+    cntools_transaction_clear_error
   done
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "asset-${CNTOOLS_ASSET_TX_OPERATION}" || return 2
@@ -229,9 +245,11 @@ cntools_asset_tx_workflow() {
   cntools_transaction_submit_input_prepare "${saved}" || return 2
   signed_body="${CNTOOLS_TRANSACTION_SIGNED_FILE}"; txid="${CNTOOLS_TRANSACTION_SUBMIT_ID}"
   cntools_transaction_ui_submission_backend_into backend || return 2
-  # A burn cannot be undone, so it is confirmed in both flow styles.
-  [[ "${CNTOOLS_ASSET_TX_OPERATION}" != burn ]] || confirm=always
-  status=0; cntools_transaction_ui_confirm_submit "${backend}" "${confirm}" || status=$?
+  # A burn cannot be undone, so it is asked again in both flow styles; the
+  # reviewed choice is a mint's confirmation.
+  status=0
+  if [[ "${CNTOOLS_ASSET_TX_OPERATION}" == burn ]]; then cntools_transaction_ui_confirm_submit "${backend}" always burn || status=$?
+  else cntools_transaction_ui_confirm_submit "${backend}" || status=$?; fi
   if ((status != 0)); then
     cntools_asset_tx_begin; cntools_asset_tx_result warning 'Not submitted · signed package retained' "${txid}" "${saved}"
     cntools_asset_tx_remember "${txid}" Signed; return 0
@@ -258,7 +276,7 @@ cntools_asset_tx_metadata_overview() {
 
 cntools_asset_tx_action() {
   local status=0
-  CNTOOLS_ASSET_TX_OPERATION="$1"; CNTOOLS_ASSET_TX_RESULT_SHOWN=N; CNTOOLS_ASSET_TX_SAVED=''; CNTOOLS_ASSET_TX_SIGN_NOTE=''
+  CNTOOLS_ASSET_TX_OPERATION="$1"; CNTOOLS_ASSET_TX_RESULT_SHOWN=N; CNTOOLS_ASSET_TX_SAVED=''
   cntools_transaction_clear_error
   cntools_asset_tx_workflow || status=$?
   case "${status}" in

@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # Deterministic threshold script creation; public artifacts only.
 # shellcheck disable=SC2034,SC2015
-declare -ag CNTOOLS_MULTISIG_PAYMENT_HASHES=() CNTOOLS_MULTISIG_STAKE_HASHES=() CNTOOLS_MULTISIG_LABELS=()
+# DIRECTORIES holds each CNTools wallet participant's folder (empty for external hashes).
+declare -ag CNTOOLS_MULTISIG_PAYMENT_HASHES=() CNTOOLS_MULTISIG_STAKE_HASHES=() CNTOOLS_MULTISIG_LABELS=() CNTOOLS_MULTISIG_DIRECTORIES=()
 
 cntools_multisig_participants_reset() {
-  CNTOOLS_MULTISIG_PAYMENT_HASHES=(); CNTOOLS_MULTISIG_STAKE_HASHES=(); CNTOOLS_MULTISIG_LABELS=()
+  CNTOOLS_MULTISIG_PAYMENT_HASHES=(); CNTOOLS_MULTISIG_STAKE_HASHES=(); CNTOOLS_MULTISIG_LABELS=(); CNTOOLS_MULTISIG_DIRECTORIES=()
 }
 
 # Every refusal sets CNTOOLS_MULTISIG_ERROR and returns 2, so callers always
-# have a reason to show (1 stays reserved for Cancel).
+# have a reason to show (1 stays reserved for Cancel). Arguments: payment hash,
+# stake hash, label and, for a CNTools wallet, its directory.
 cntools_multisig_participant_add() {
-  local payment="${1,,}" stake="${2,,}" label="$3" existing=''
+  local payment="${1,,}" stake="${2,,}" label="$3" directory="${4:-}" existing=''
   [[ "${payment}" =~ ^[0-9a-f]{56}$ && ( -z "${stake}" || "${stake}" =~ ^[0-9a-f]{56}$ ) ]] || {
     cntools_multisig_fail 'Use 56 hexadecimal characters for each key hash.'; return 2;
   }
@@ -29,6 +31,7 @@ cntools_multisig_participant_add() {
     done
   fi
   CNTOOLS_MULTISIG_PAYMENT_HASHES+=("${payment}"); CNTOOLS_MULTISIG_STAKE_HASHES+=("${stake}"); CNTOOLS_MULTISIG_LABELS+=("${label}")
+  CNTOOLS_MULTISIG_DIRECTORIES+=("${directory}")
 }
 
 cntools_multisig_script_write() {

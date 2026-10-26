@@ -103,18 +103,42 @@ cntools_wallet_selection_drep_present() {
     "${CNTOOLS_WALLET_DREP_REGISTER_CERT_FILENAME:-drep-reg.cert}" "${CNTOOLS_WALLET_DREP_RETIRE_CERT_FILENAME:-drep-ret.cert}"
 }
 
-# Why a context left no wallets, shown once by cntools_wallet_choose.
+# Why a context left no wallets, shown once by cntools_wallet_choose. The
+# reason names only causes that were actually checked.
 cntools_wallet_selection_empty_reason_into() {
-  local destination="$1" context="$2" reason=''
+  local destination="$1" context="$2" reason='' index=0 directory='' stake=0 scripts=0 hardware=0
+  for index in "${!CNTOOLS_WALLET_PATHS[@]}"; do
+    directory="${CNTOOLS_WALLET_PATHS[index]}"
+    case "${CNTOOLS_WALLET_TYPES[index]}" in
+      MultiSig) scripts=$((scripts + 1))
+        ! cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}" || stake=$((stake + 1)) ;;
+      *) [[ "${CNTOOLS_WALLET_TYPES[index]}" != Hardware ]] || hardware=$((hardware + 1))
+        ! cntools_wallet_selection_material "${directory}" stake || stake=$((stake + 1)) ;;
+    esac
+  done
   case "${context}" in
-    send|collect|funding|funding-software) reason='No wallet can fund this action. It needs a wallet with a payment key or payment script.' ;;
-    register) reason='No wallet needs stake registration: every wallet with stake keys is already registered.' ;;
-    deregister) reason='No wallet has a registered stake address to de-register.' ;;
-    delegate|vote-delegate) reason='No wallet has the stake key or stake script needed to delegate.' ;;
-    withdraw) reason='No wallet has rewards to withdraw.' ;;
+    send|collect) reason='No wallet has a payment key or payment script.' ;;
+    funding|funding-software)
+      reason='No wallet can fund this action'
+      (( scripts == 0 )) || reason+=': MultiSig wallets cannot fund it'
+      if [[ "${context}" == funding-software ]] && (( hardware > 0 )); then
+        reason+="$( (( scripts > 0 )) && printf ', and' || printf ':') hardware wallets need the pool cold key on the same Ledger"
+      fi
+      reason+='. A CLI or mnemonic wallet with a payment key is needed.' ;;
+    register|deregister|withdraw|delegate|vote-delegate)
+      if (( stake == 0 )); then
+        reason='No wallet has a stake key or stake script.'
+      else
+        case "${context}" in
+          register) reason='Every wallet with stake keys is already registered.' ;;
+          deregister) reason='No wallet with stake keys has a registered stake address.' ;;
+          withdraw) reason='No wallet with stake keys has rewards to withdraw.' ;;
+          *) reason='No wallet has the stake key or stake script needed to delegate.' ;;
+        esac
+      fi ;;
     catalyst) reason='No wallet has the payment and stake keys needed for Catalyst registration.' ;;
     catalyst-key) reason='No wallet has a Catalyst voting public key. Register for Catalyst first.' ;;
-    catalyst-qr) reason='No wallet has a Catalyst voting signing key. Register for Catalyst first.' ;;
+    catalyst-qr) reason='No wallet has an unencrypted Catalyst voting signing key. Register for Catalyst, or decrypt the wallet first.' ;;
     drep-info|drep-register|drep-update|drep-retire|gov-vote) reason='No wallet has a DRep key or DRep script. Use Vote → Governance → Derive Keys or MultiSig DRep first.' ;;
     drep-key) reason='No wallet has a DRep verification key.' ;;
     drep-create) reason='No wallet can take new DRep keys: it must be an open CLI or mnemonic wallet without existing DRep files.' ;;

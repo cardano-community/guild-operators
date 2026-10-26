@@ -213,7 +213,7 @@ cntools_wallet_action_remove() {
     cntools_ui_render_status error \
       "The wallet selection failed. See ${CNTOOLS_LOG}."
     cntools_ui_wait
-    return "${status}"
+    return 1
   fi
 
   wallet_directory="${CNTOOLS_WALLET_PATHS[selected_index]}"
@@ -236,7 +236,7 @@ cntools_wallet_action_remove() {
     cntools_ui_render_status error \
       "${CNTOOLS_WALLET_REMOVE_ERROR:-The wallet safety check failed. See ${CNTOOLS_LOG}.}"
     cntools_ui_wait
-    return "${status}"
+    return 1
   fi
 
   cntools_ui_action_begin "Remove" "/ Wallet / Remove"
@@ -269,7 +269,7 @@ cntools_wallet_action_remove() {
     cntools_ui_render_status error \
       "${CNTOOLS_WALLET_REMOVE_ERROR:-Wallet removal failed. See ${CNTOOLS_LOG}.}"
     cntools_ui_wait
-    return "${status}"
+    return 1
   fi
   cntools_ui_render_status success \
     "Wallet ${wallet_name} was removed successfully."

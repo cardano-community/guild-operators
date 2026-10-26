@@ -94,6 +94,27 @@ cntools_wallet_protection_lock_only() {
   [[ "${wallet_kind}" != Unknown ]]
 }
 
+# Lock-only wallets are offered only when the operation changes something:
+# Lock needs an owner-writable file, Unlock a read-only one (locked files are
+# 0400, immutable or not). Read-only: the safety checks run in the action.
+cntools_wallet_protection_lock_would_change() {
+  local directory="${1:-}" operation="${2:-}" entry='' mode='' writable=0 total=0
+  for entry in "${directory}"/* "${directory}"/.[!.]* "${directory}"/..?*; do
+    [[ -f "${entry}" && ! -L "${entry}" ]] || continue
+    [[ "${entry##*/}" != .cntools-* && "${entry}" != *.addr ]] || continue
+    total=$((total + 1))
+    mode="$(stat -c '%a' -- "${entry}" 2>/dev/null || stat -f '%Lp' "${entry}" 2>/dev/null)" || mode=''
+    # Unknown mode: offer it; the action reports what it finds.
+    [[ "${mode}" =~ ^[0-7]{3,4}$ ]] || return 0
+    (( (8#${mode} & 0200) == 0 )) || writable=$((writable + 1))
+  done
+  case "${operation}" in
+    encrypt) (( writable > 0 )) ;;
+    decrypt) (( total > writable )) ;;
+    *) return 2 ;;
+  esac
+}
+
 cntools_wallet_protection_lock_files() {
   local directory="$1" operation="$2"
   cntools_wallet_protection_reset_result

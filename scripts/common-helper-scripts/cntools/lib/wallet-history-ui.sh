@@ -53,6 +53,7 @@ cntools_history_overview_rows() {
   if [[ "${CNTOOLS_HISTORY_BACKEND}" == local ]]; then
     cntools_detail_pair Source 'Local node'
     cntools_detail_pair Lookup 'Saved wallet addresses only'
+    cntools_detail_pair Limits 'Koios unavailable · no linked addresses or block dates'
   elif [[ "${CNTOOLS_HISTORY_LOOKUP}" == stake ]]; then
     cntools_detail_pair Source 'Koios API'
     cntools_detail_pair Lookup "Stake address"
@@ -111,7 +112,8 @@ cntools_history_summary_rows() {
        ["Date",.block_time],["Block",.block_height]] +
       (if .datum_hash != null or .inline_datum != null then [["Datum","Present"]] else [] end) +
       (if .reference_script != null then [["Reference script","Present"]] else [] end)
-     end)[] | select(.[1] != null) | map(tostring | gsub("[\u0000-\u001f\u007f]";" ")) | join("\u001f")
+     end)[] | select(.[1] != null) |
+    select((.[0] == "Output assets" or .[0] == "Native assets") and .[1] == 0 | not) | map(tostring | gsub("[\u0000-\u001f\u007f]";" ")) | join("\u001f")
   ' <<< "${record}")
   if [[ "${CNTOOLS_HISTORY_KIND}" == utxos ]]; then
     while IFS= read -r identity; do
@@ -169,7 +171,11 @@ cntools_history_action() {
   fi
   cntools_wallet_query_reset
   CNTOOLS_HISTORY_METADATA=ask
-  cntools_wallet_catalog_build || return 1
+  if ! cntools_wallet_catalog_build; then
+    cntools_ui_render_status error "The wallet directory could not be read safely. See ${CNTOOLS_LOG}."
+    cntools_ui_wait
+    return 1
+  fi
   status=0
   cntools_wallet_choose selected || status=$?
   # 3: no wallets, already shown and acknowledged.
@@ -234,12 +240,12 @@ cntools_history_action() {
     fi
     shown="${target}"
     if [[ "${kind}" == utxos ]]; then
-      cntools_history_metadata_offer "${CNTOOLS_HISTORY_PAGE_FILE}" || return 1
+      cntools_history_metadata_offer "${CNTOOLS_HISTORY_PAGE_FILE}" || return 2
     fi
     cntools_ui_action_begin "${title}" "/ Wallet / ${title}"
-    cntools_history_overview_rows | cntools_table_render "${title}" || return 1
+    cntools_history_overview_rows | cntools_table_render "${title}" || return 2
     if [[ "${CNTOOLS_HISTORY_BACKEND}" == koios ]] && (( CNTOOLS_HISTORY_TOTAL == 1000 )); then
-      cntools_ui_render_status warn "Koios returns at most 1,000 matches; only the last 1,000 matching ${kind} can be displayed."
+      cntools_ui_render_status warn "Koios returns at most 1,000 matches; only the last 1,000 matching $([[ "${kind}" == utxos ]] && printf UTxOs || printf transactions) can be displayed."
     fi
     number=$((CNTOOLS_HISTORY_PAGE * CNTOOLS_HISTORY_SIZE))
     [[ "${kind}" != utxos ]] || cntools_history_utxo_address_count_into addresses
@@ -269,7 +275,7 @@ cntools_history_action() {
     case "${choice}" in
       "Next page") target=$((CNTOOLS_HISTORY_PAGE + 1)) ;;
       "Previous page") target=$((CNTOOLS_HISTORY_PAGE - 1)) ;;
-      "Show details") cntools_history_detail_view || return 1 ;;
+      "Show details") cntools_history_detail_view || return 2 ;;
       "Page size")
         # Esc keeps the current size and page; a new size starts at page 1.
         cntools_history_prompt_page_size || { target="${CNTOOLS_HISTORY_PAGE}"; continue; }
@@ -278,9 +284,14 @@ cntools_history_action() {
         if [[ "${lookup}" == stake ]]; then lookup=payment; credential="${payment_credential}"
         else lookup=stake; credential="${stake}"; fi
         cntools_wallet_log CHOICE "wallet history lookup changed lookup=${lookup}"
-        cntools_ui_spin_function "Fetching wallet inventory from Koios…" cntools_history_load "${kind}" "${credential}" "${lookup}" || {
-          cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR:-Koios is unavailable.}"; cntools_ui_wait; return 1;
-        }
+        if ! cntools_ui_spin_function "Fetching wallet inventory from Koios…" cntools_history_load "${kind}" "${credential}" "${lookup}"; then
+          # The previous inventory is untouched: show the error, keep the page.
+          cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR:-Koios is unavailable.}"; cntools_ui_wait
+          lookup="${CNTOOLS_HISTORY_LOOKUP}"
+          if [[ "${lookup}" == stake ]]; then credential="${stake}"; else credential="${payment_credential}"; fi
+          target="${CNTOOLS_HISTORY_PAGE}"
+          continue
+        fi
         shown="" target=0 ;;
       *) return 0 ;;
     esac

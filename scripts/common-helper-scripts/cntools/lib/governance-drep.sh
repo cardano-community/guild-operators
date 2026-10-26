@@ -139,10 +139,24 @@ cntools_drep_lifecycle_collect() {
   cntools_wallet_register_select_inputs
 }
 
+# The anchor the ledger holds for this DRep now (empty when it has none).
+cntools_drep_lifecycle_current_anchor_into() {
+  local ca_url='' ca_hash=''
+  ca_url="$(jq -r '.url // ""' <<< "${CNTOOLS_DREP_LIFECYCLE_STATE}")" &&
+    ca_hash="$(jq -r '.hash // ""' <<< "${CNTOOLS_DREP_LIFECYCLE_STATE}")" || return 1
+  printf -v "$1" '%s' "${ca_url}"; printf -v "$2" '%s' "${ca_hash}"
+}
+
 cntools_drep_lifecycle_anchor_valid() {
-  local url="${1:-}" hash="${2:-}" LC_ALL=C
+  local url="${1:-}" hash="${2:-}" current_url='' current_hash='' LC_ALL=C
   [[ -z "${url}" && -z "${hash}" ]] && return 0
-  [[ "${url}" =~ ^(https?://|ipfs://)[^[:space:][:cntrl:]]+$ && ${#url} -le 128 && "${hash}" =~ ^[0-9a-f]{64}$ ]]
+  [[ "${url}" =~ ^(https?://|ipfs://)[^[:space:][:cntrl:]]+$ && ${#url} -le 128 && "${hash}" =~ ^[0-9a-f]{64}$ ]] && return 0
+  # An update may keep the current on-chain anchor as the ledger accepted it
+  # (e.g. ar://), within the ledger's 128-byte limit.
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION:-}" == drep-update ]] &&
+    cntools_drep_lifecycle_current_anchor_into current_url current_hash &&
+    [[ -n "${current_url}" && "${url}" == "${current_url}" && "${hash}" == "${current_hash}" &&
+       ${#url} -le 128 && ! "${url}" =~ [[:cntrl:]] && "${hash}" =~ ^[0-9a-f]{64}$ ]]
 }
 
 cntools_drep_lifecycle_hash_file_into() {

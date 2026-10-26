@@ -68,15 +68,22 @@ cntools_pool_wizard_saved_apply() {
 
 # Owner/reward lookups, the pledge check and the stake setup questions rerun
 # only when their inputs changed, so an unrelated edit does not re-ask them.
+# "refresh" (changed chain state) checks again and keeps the earlier answers
+# in both styles while registration and delegation are unchanged.
 CNTOOLS_POOL_WIZARD_STAKE_INPUTS='' CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS=''
 cntools_pool_wizard_prepare_stake() {
-  local stake_inputs='' pledge_inputs=''
+  local mode="${1:-}" stake_inputs='' pledge_inputs='' before='' reuse=''
   stake_inputs="${CNTOOLS_POOL_REG_OWNERS}|$(cntools_pool_stake_records)" || return 2
   pledge_inputs="${stake_inputs}|${CNTOOLS_POOL_REG_PLEDGE}"
-  if [[ "${stake_inputs}" != "${CNTOOLS_POOL_WIZARD_STAKE_INPUTS}" ]]; then
+  if [[ "${mode}" == refresh || "${stake_inputs}" != "${CNTOOLS_POOL_WIZARD_STAKE_INPUTS}" ]]; then
+    before="$(cntools_pool_stake_snapshot)"
     cntools_ui_spin_function 'Checking owner/reward registration and pledge…' cntools_pool_stake_collect || return 2
-    cntools_pool_stake_guidance || return $?
-    cntools_pool_stake_setup_choose || return $?
+    if [[ "${mode}" == refresh && "${before}" == "$(cntools_pool_stake_snapshot)" ]]; then
+      reuse=reuse
+      cntools_transaction_log POOL 'Owner/reward registration and delegation unchanged; earlier stake answers kept'
+    fi
+    cntools_pool_stake_guidance "${reuse}" || return $?
+    cntools_pool_stake_setup_choose "${reuse}" || return $?
   elif [[ "${pledge_inputs}" != "${CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS}" ]]; then
     cntools_pool_stake_guidance || return $?
   else
@@ -92,8 +99,10 @@ cntools_pool_wizard_prepare_stake() {
   fi
 }
 
+# Register only: Modify's draft path and generic notes add nothing to its result.
 cntools_pool_wizard_followups() {
-  local record='' label='' setup='' filename=''
+  local record='' label='' setup='' filename='' cert='' start='' counter=''
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-register ]] || return 0
   { if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-register && "${CNTOOLS_CONFIGURED_POOL_NAME:-}" != "${CNTOOLS_POOL_REG_NAME}" ]]; then
       cntools_table_pair 'Node configuration' "After successful pool registration, set POOL_NAME=\"${CNTOOLS_POOL_REG_NAME}\" in the common env and configure the node with the pool operational certificate/KES/VRF files. CNTools does not edit env." muted
     fi
@@ -105,6 +114,10 @@ cntools_pool_wizard_followups() {
       label="$(jq -r .label <<< "${record}")"; setup="$(jq -r .setup <<< "${record}")"
       cntools_table_pair "${label} stake setup" "$([[ "${setup}" == delegate ]] && printf 'Registration if needed + pool delegation' || printf 'Reward registration') included in this transaction; effective only after inclusion" success
     done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_STAKE_PLAN}")
+    if [[ "${CNTOOLS_POOL_OPCERT_OFFLINE:-N}" == Y ]]; then
+      cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into start kes-start; cntools_pool_file_name_into counter counter
+      cntools_table_pair 'Operational certificate' "Issue ${cert} on the signing system with the existing KES public key and the real ${counter}, and record its KES start period in ${start}. Return ${cert}, ${start} and the advanced counter to this pool folder. Never copy the cold signing key to the node." warning
+    fi
     cntools_table_pair 'Reward withdrawals' 'DRep delegation is required before withdrawing rewards.' muted
   } | cntools_table_render 'Next steps'
 }

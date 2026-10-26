@@ -95,6 +95,7 @@ cntools_wallet_mnemonic_select_word_into() {
   _cntools_output_ref=""
   cntools_wallet_mnemonic_wordlist_load || return 2
   _cntools_width="$(cntools_gum_width)" || return 2
+  cntools_ui_seen # A raw gum prompt: what is on screen has been seen.
   if _cntools_selected_word="$(
       printf '%s\n' "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[@]}" |
         cntools_gum filter --limit 1 --height "${_cntools_height}" \
@@ -519,17 +520,39 @@ cntools_wallet_mnemonic_verify_backup() {
   cntools_wallet_mnemonic_log CHOICE "mnemonic backup challenge passed"
 }
 
+# Returns 1 and sets the 1-based position of the first word that is not in
+# the loaded BIP39 word list; 0 when all are known or the list is unavailable.
+cntools_wallet_mnemonic_unknown_word_into() {
+  local _cntools_unknown_output="${1:-}" _cntools_unknown_words="${2:-}" _cntools_unknown_index=0
+  [[ "${_cntools_unknown_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
+     "${_cntools_unknown_words}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_unknown_ref="${_cntools_unknown_output}"
+  local -n _cntools_unknown_list="${_cntools_unknown_words}"
+  _cntools_unknown_ref=0
+  [[ "${CNTOOLS_WALLET_MNEMONIC_WORDLIST_READY:-N}" == Y ]] || return 0
+  for (( _cntools_unknown_index = 0;
+         _cntools_unknown_index < ${#_cntools_unknown_list[@]};
+         _cntools_unknown_index++ )); do
+    [[ -z "${CNTOOLS_WALLET_MNEMONIC_WORDSET[${_cntools_unknown_list[_cntools_unknown_index]}]+x}" ]] || continue
+    _cntools_unknown_ref=$((_cntools_unknown_index + 1))
+    return 1
+  done
+}
+
 cntools_wallet_mnemonic_collect_pasted_into() {
   local _cntools_output_name="${1:-}"
   local _cntools_pasted_secret=""
   local _cntools_pasted_normalized=""
   local _cntools_feedback=""
   local _cntools_status=0
+  local _cntools_position=0
   local -a _cntools_words=()
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
+  # Without the word list Cardano CLI still validates during derivation.
+  cntools_wallet_mnemonic_wordlist_load || true
   while true; do
     cntools_wallet_mnemonic_screen_begin \
       "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
@@ -543,8 +566,11 @@ cntools_wallet_mnemonic_collect_pasted_into() {
       _cntools_status=$?
     fi
     (( _cntools_status == 0 )) || return "${_cntools_status}"
+    _cntools_position=0
     if cntools_wallet_mnemonic_words_into \
          _cntools_words "${_cntools_pasted_secret}" &&
+       cntools_wallet_mnemonic_unknown_word_into \
+         _cntools_position _cntools_words &&
        cntools_wallet_mnemonic_phrase_into \
          _cntools_pasted_normalized _cntools_words; then
       _cntools_output_ref="${_cntools_pasted_normalized}"
@@ -553,9 +579,16 @@ cntools_wallet_mnemonic_collect_pasted_into() {
       unset _cntools_pasted_secret _cntools_pasted_normalized _cntools_words
       return 0
     fi
-    _cntools_feedback="Enter exactly 12, 15, 18, 21, or 24 alphabetic recovery words."
-    cntools_wallet_mnemonic_log CHOICE \
-      "pasted recovery phrase rejected by local shape validation"
+    if (( _cntools_position > 0 )); then
+      # Never the word itself: the phrase is secret.
+      _cntools_feedback="Word ${_cntools_position} is not in the BIP39 English word list. Check its spelling and paste the phrase again."
+      cntools_wallet_mnemonic_log CHOICE \
+        "pasted recovery phrase rejected: unknown word position=${_cntools_position}"
+    else
+      _cntools_feedback="Enter exactly 12, 15, 18, 21, or 24 alphabetic recovery words."
+      cntools_wallet_mnemonic_log CHOICE \
+        "pasted recovery phrase rejected by local shape validation"
+    fi
     unset _cntools_pasted_secret _cntools_pasted_normalized _cntools_words
   done
 }
@@ -834,7 +867,7 @@ cntools_wallet_action_new_mnemonic() {
       "Recovery phrase verification failed. The wallet was not created."
     cntools_ui_wait
     unset phrase words
-    return "${status}"
+    return 1
   fi
   cntools_ui_render_status success \
     "Recovery phrase backup verified. Deriving the wallet now."
@@ -851,7 +884,7 @@ cntools_wallet_action_new_mnemonic() {
     cntools_ui_render_status error \
       "${CNTOOLS_WALLET_MNEMONIC_ERROR:-Mnemonic wallet creation failed. See ${CNTOOLS_LOG}.}"
     cntools_ui_wait
-    return "${status}"
+    return 1
   fi
   cntools_wallet_mnemonic_screen_begin \
     "Mnemonic" "/ Wallet / New / Mnemonic"
@@ -903,85 +936,94 @@ cntools_wallet_action_import_mnemonic() {
       "/ Wallet / Import / Mnemonic"
     return 1
   fi
-  if cntools_wallet_mnemonic_collect_import_into phrase; then
-    :
-  else
-    status=$?
-    (( status != 1 && status != 130 )) || {
-      cntools_wallet_mnemonic_ui_cancelled \
-        "mnemonic import cancelled during phrase input wallet=${name}"
-      unset phrase
-      return 0
-    }
-    unset phrase
-    cntools_wallet_mnemonic_ui_failure \
-      "The recovery phrase input failed (status ${status})." \
-      "/ Wallet / Import / Mnemonic"
-    return 1
-  fi
-  if ! cntools_wallet_mnemonic_words_into words "${phrase}"; then
-    unset phrase words
-    cntools_wallet_mnemonic_ui_failure \
-      "The imported recovery phrase could not be normalized safely." \
-      "/ Wallet / Import / Mnemonic"
-    return 1
-  fi
-  word_count="${#words[@]}"
-  unset words
+  # A phrase Cardano CLI rejects is asked for again; name and derivation stay.
   while true; do
-    cntools_wallet_mnemonic_screen_begin \
-      "Mnemonic" "/ Wallet / Import / Mnemonic"
-    if ! cntools_wallet_mnemonic_render_plan \
-        "${name}" "${account}" "${key_index}" import; then
+    if cntools_wallet_mnemonic_collect_import_into phrase; then
+      :
+    else
+      status=$?
+      (( status != 1 && status != 130 )) || {
+        cntools_wallet_mnemonic_ui_cancelled \
+          "mnemonic import cancelled during phrase input wallet=${name}"
+        unset phrase
+        return 0
+      }
       unset phrase
       cntools_wallet_mnemonic_ui_failure \
-        "The mnemonic import plan could not be displayed." \
+        "The recovery phrase input failed (status ${status})." \
         "/ Wallet / Import / Mnemonic"
       return 1
     fi
-    cntools_ui_render_status info \
-      "Recovery phrase accepted locally: ${word_count} words. Cardano CLI will validate it during derivation."
-    cntools_ui_render_status warn \
-      "Only the selected payment and stake addresses are imported; this is a single-address CNTools wallet."
-    status=0
-    cntools_wallet_derivation_confirm "Import this mnemonic wallet now?" 'Import wallet' || status=$?
-    (( status == 4 )) || break
-    status=0
-    cntools_wallet_mnemonic_prompt_derivation_into account key_index \
-      "Mnemonic" "/ Wallet / Import / Mnemonic" || status=$?
-    (( status != 130 )) || { unset phrase; return 130; }
-  done
-  if (( status == 0 )); then
-    :
-  else
+    if ! cntools_wallet_mnemonic_words_into words "${phrase}"; then
+      unset phrase words
+      cntools_wallet_mnemonic_ui_failure \
+        "The imported recovery phrase could not be normalized safely." \
+        "/ Wallet / Import / Mnemonic"
+      return 1
+    fi
+    word_count="${#words[@]}"
+    unset words
+    while true; do
+      cntools_wallet_mnemonic_screen_begin \
+        "Mnemonic" "/ Wallet / Import / Mnemonic"
+      if ! cntools_wallet_mnemonic_render_plan \
+          "${name}" "${account}" "${key_index}" import; then
+        unset phrase
+        cntools_wallet_mnemonic_ui_failure \
+          "The mnemonic import plan could not be displayed." \
+          "/ Wallet / Import / Mnemonic"
+        return 1
+      fi
+      cntools_ui_render_status info \
+        "Recovery phrase accepted locally: ${word_count} words. Cardano CLI checks its checksum during derivation."
+      cntools_ui_render_status warn \
+        "Only the selected payment and stake addresses are imported; this is a single-address CNTools wallet."
+      status=0
+      cntools_wallet_derivation_confirm "Import this mnemonic wallet now?" 'Import wallet' || status=$?
+      (( status == 4 )) || break
+      status=0
+      cntools_wallet_mnemonic_prompt_derivation_into account key_index \
+        "Mnemonic" "/ Wallet / Import / Mnemonic" || status=$?
+      (( status != 130 )) || { unset phrase; return 130; }
+    done
+    if (( status == 0 )); then
+      :
+    else
+      unset phrase
+      (( status != 1 && status != 130 )) || {
+        cntools_wallet_mnemonic_ui_cancelled \
+          "mnemonic wallet import declined wallet=${name}"
+        return 0
+      }
+      cntools_wallet_mnemonic_ui_failure \
+        "The mnemonic import confirmation failed (status ${status})." \
+        "/ Wallet / Import / Mnemonic"
+      return 1
+    fi
+    cntools_wallet_mnemonic_screen_begin \
+      "Mnemonic" "/ Wallet / Import / Mnemonic"
+    if cntools_ui_spin_function \
+        "Importing mnemonic wallet ${name}…" \
+        cntools_wallet_mnemonic_create \
+        "${name}" "${account}" "${key_index}" "${phrase}" import; then
+      status=0
+    else
+      status=$?
+    fi
     unset phrase
-    (( status != 1 && status != 130 )) || {
-      cntools_wallet_mnemonic_ui_cancelled \
-        "mnemonic wallet import declined wallet=${name}"
-      return 0
-    }
-    cntools_wallet_mnemonic_ui_failure \
-      "The mnemonic import confirmation failed (status ${status})." \
-      "/ Wallet / Import / Mnemonic"
-    return 1
-  fi
-  cntools_wallet_mnemonic_screen_begin \
-    "Mnemonic" "/ Wallet / Import / Mnemonic"
-  if cntools_ui_spin_function \
-      "Importing mnemonic wallet ${name}…" \
-      cntools_wallet_mnemonic_create \
-      "${name}" "${account}" "${key_index}" "${phrase}" import; then
-    status=0
-  else
-    status=$?
-  fi
-  unset phrase
-  if (( status != 0 )); then
+    (( status != 0 )) || break
     cntools_ui_render_status error \
       "${CNTOOLS_WALLET_MNEMONIC_ERROR:-Mnemonic wallet import failed. See ${CNTOOLS_LOG}.}"
+    if [[ "${CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED}" == Y ]]; then
+      cntools_ui_render_status info \
+        "Enter the recovery phrase again; the wallet name and derivation are kept."
+      cntools_ui_wait
+      cntools_wallet_mnemonic_log CHOICE "mnemonic import phrase re-entry wallet=${name}"
+      continue
+    fi
     cntools_ui_wait
-    return "${status}"
-  fi
+    return 1
+  done
   cntools_wallet_mnemonic_screen_begin \
     "Mnemonic" "/ Wallet / Import / Mnemonic"
   cntools_ui_render_status success \

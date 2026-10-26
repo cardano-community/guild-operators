@@ -70,7 +70,8 @@ cntools_transaction_picker_into() {
   local output_name="${1:-}" mode="${2:-}" feedback="${3:-}" method="" chosen="" status=0 index=0
   local start="${CNTOOLS_ROOT:-}" picker_input="" width="" saved_first=N
   # Quick opens the saved packages first; Back returns to the full menu.
-  [[ -n "${feedback}" ]] || ! cntools_flow_quick || saved_first=Y
+  CNTOOLS_TRANSACTION_PICKER_AUTO_PICKED=N
+  [[ -n "${feedback}" || "${CNTOOLS_TRANSACTION_PICKER_NO_AUTO:-N}" == Y ]] || ! cntools_flow_quick || saved_first=Y
   [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   case "${mode}" in sign|submit) ;; *) return 2 ;; esac
   local -n picker_result="${output_name}"
@@ -100,7 +101,9 @@ cntools_transaction_picker_into() {
           cntools_transaction_picker_catalog "${mode}" || return 2
         if (( ${#CNTOOLS_TRANSACTION_PICKER_FILES[@]} == 0 )); then
           feedback='No matching saved packages found. Use Browse files or Enter file path for imported files.'
-        elif (( ${#CNTOOLS_TRANSACTION_PICKER_FILES[@]} == 1 )); then
+        elif (( ${#CNTOOLS_TRANSACTION_PICKER_FILES[@]} == 1 )) && [[ "${CNTOOLS_TRANSACTION_PICKER_NO_AUTO:-N}" != Y ]]; then
+          # The review then offers 'Choose another file'.
+          CNTOOLS_TRANSACTION_PICKER_AUTO_PICKED=Y
           # A lone package needs no list; the review that follows can cancel.
           picker_result="${CNTOOLS_TRANSACTION_PICKER_FILES[0]}"
           cntools_transaction_log CHOICE "Transaction file auto-selected only saved package mode=${mode}"

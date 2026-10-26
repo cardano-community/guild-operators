@@ -45,7 +45,8 @@ cntools_pool_metadata_author_into() {
         esac
       fi
       cntools_transaction_log WARN "Invalid pool metadata field=${title}"
-      cntools_ui_render_status warn "Check ${title}: ${prompt}."; cntools_ui_wait
+      # The prompt follows below this warning; no extra Enter.
+      cntools_ui_render_status warn "Check ${title}: ${prompt}."
     done
     [[ "${title}" != extended || -n "${value}" ]] || continue
     candidate="$(jq -c --arg field "${title}" --arg value "${value}" '.+{($field):$value}' <<< "${candidate}")" || return 2

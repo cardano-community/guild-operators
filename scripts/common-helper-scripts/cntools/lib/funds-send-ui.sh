@@ -96,7 +96,9 @@ cntools_send_prompt_recipient() {
     esac
     cntools_transaction_log CHOICE "Send Recipient type detected=${choice}"
   elif [[ -z "${choice}" ]]; then
-    cntools_send_choose choice "Recipient type" "CNTools wallet" "External address" "ADA Handle" || return $?
+    cntools_send_choose choice "Recipient type" "CNTools wallet" "External address" "ADA Handle" || {
+      status=$?; CNTOOLS_SEND_RECIPIENT_ESC=Y; return "${status}";
+    }
   fi
   if [[ "${choice}" == "CNTools wallet" ]]; then
     # Never auto-pick the recipient: a lone wallet would be the source itself.
@@ -159,12 +161,16 @@ cntools_send_prompt_amounts() {
   local keep="" placeholder="0" asset_back=N
   local -a options=()
   (( index != 0 || ${#CNTOOLS_SEND_ADDRESSES[@]} != 1 )) || choose_mode=Y
+  # Without native assets, Max ADA already sends everything: offer one.
   if [[ "${choose_mode}" == Y ]] && cntools_flow_quick; then
     # Quick folds the amount mode into the amount: max or all instead of a number.
     CNTOOLS_SEND_MODE=exact
     amount_prompt="ADA amount (max = all ADA, all = everything incl. assets, 0 = minimum ADA)"
+    (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} > 0 )) || amount_prompt="ADA amount (max = all ADA, 0 = minimum ADA)"
   elif [[ "${choose_mode}" == Y ]]; then
-    cntools_send_choose choice "Amount mode" "Exact amounts" "Max ADA" "Send everything" || return $?
+    options=("Exact amounts" "Max ADA")
+    (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} == 0 )) || options+=("Send everything")
+    cntools_send_choose choice "Amount mode" "${options[@]}" || return $?
     case "${choice}" in
       "Exact amounts") CNTOOLS_SEND_MODE=exact ;;
       "Max ADA") CNTOOLS_SEND_MODE=max ;;
@@ -196,7 +202,8 @@ cntools_send_prompt_amounts() {
       if [[ "${choose_mode}" == Y ]] && cntools_flow_quick; then
         case "${entered,,}" in
           max) CNTOOLS_SEND_MODE=max ;;
-          all) CNTOOLS_SEND_MODE=sweep ;;
+          all) CNTOOLS_SEND_MODE=sweep
+               (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} > 0 )) || CNTOOLS_SEND_MODE=max ;;
         esac
         if [[ "${CNTOOLS_SEND_MODE}" != exact ]]; then
           cntools_transaction_log CHOICE "Send Amount mode selected=${CNTOOLS_SEND_MODE} flow=quick"
@@ -206,8 +213,10 @@ cntools_send_prompt_amounts() {
       if cntools_number_units_into units "${entered}" 6 &&
          cntools_uint_greater_equal "${CNTOOLS_FUNDING_TOTAL}" "${units}"; then break; fi
       cntools_transaction_log CHOICE "Send invalid ADA amount rejected"
-      if [[ "${choose_mode}" == Y ]] && cntools_flow_quick; then
+      if [[ "${choose_mode}" == Y ]] && cntools_flow_quick && (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} > 0 )); then
         cntools_ui_render_status warn "Enter an available ADA amount with at most six decimal places, max or all."
+      elif [[ "${choose_mode}" == Y ]] && cntools_flow_quick; then
+        cntools_ui_render_status warn "Enter an available ADA amount with at most six decimal places, or max."
       else
         cntools_ui_render_status warn "Enter an available non-negative ADA amount, with at most six decimal places."
       fi
@@ -394,13 +403,20 @@ cntools_send_edit_recipients() {
         (( status != 1 )) || [[ "${CNTOOLS_SEND_RECIPIENT_ESC:-N}" != Y ]] || return 1
         continue
       fi
+      # Detailed: leaving the first recipient type ends the transfer too,
+      # rather than opening an empty recipients screen.
+      if [[ "${initial}" == Y && "${CNTOOLS_SEND_RECIPIENT_ESC:-N}" == Y ]] && (( status == 1 && ${#CNTOOLS_SEND_ADDRESSES[@]} == 0 )); then
+        return 1
+      fi
     elif [[ "${command}" == Remove ]]; then
       cntools_send_remove_recipient "${index}" || return 2
     fi
     cntools_send_begin
     cntools_send_render_source || return 2
     cntools_send_render_recipients || return 2
-    cntools_ui_render_status info "Amounts use exact smallest units. The review shows minimum ADA raises and the fee. Rewards and deposits are not included."
+    if (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} > 0 && ${#CNTOOLS_SEND_ADDRESSES[@]} > 0 )); then
+      cntools_ui_render_status info 'Asset quantities are in smallest units, without decimals. The review shows the fee and any minimum-ADA raise.'
+    fi
     cntools_send_metadata_render || return 2
     options=("Continue" "Edit" "Remove" "Message / metadata")
     [[ "${CNTOOLS_SEND_MODE}" != exact ]] || options=("Continue" "Add" "Edit" "Remove" "Message / metadata")
@@ -512,7 +528,7 @@ cntools_send_refresh_build_into() {
 
 cntools_send_workflow() {
   local selected="" choice="" staged="" signed="" saved="" proceed=""
-  local backend="" signed_body="" txid="" status=0 lifetime=1800
+  local backend="" signed_body="" txid="" status=0 lifetime=1800 previous=""
   CNTOOLS_SEND_RESULT_SHOWN=N
   CNTOOLS_SEND_SAVED_PACKAGE=""
   cntools_send_begin
@@ -541,12 +557,19 @@ cntools_send_workflow() {
     status=0
     cntools_transaction_clear_error
     cntools_ui_spin_function "Refreshing funds and balancing the transfer…" cntools_send_refresh_build_into staged "${lifetime}" || status=$?
-    if (( status != 0 )); then
+    if (( status != 0 )) && [[ -n "${previous}" ]]; then
+      # A new expiry that cannot be built keeps the previous one.
+      cntools_transaction_log CHOICE "Send rebuild failed; previous expiry kept lifetime=${previous}"
+      cntools_ui_render_status warn "The new expiry could not be built, so the previous one is kept. ${CNTOOLS_TRANSACTION_ERROR:-}"
+      lifetime="${previous}"; previous=""
+      continue
+    elif (( status != 0 )); then
       # Keep the recipients: show why the build failed and reopen them.
       cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-The transfer could not be built. See ${CNTOOLS_LOG} for details.}"
       cntools_send_edit_recipients || return $?
       continue
     fi
+    previous=""
     while true; do
       cntools_transaction_ui_proceed_into proceed "${choice}" || return 2
       cntools_transaction_ui_review_into selected "${staged}" "${proceed}" \
@@ -560,12 +583,18 @@ cntools_send_workflow() {
           (( status == 0 )) || return "${status}"
           break ;;
         'Change workflow')
-          # Esc keeps the current value and returns to the review.
+          # Esc keeps the current value and returns to the review. Quick gives
+          # an unsigned package a day to be signed, so that rebuilds.
           cntools_transaction_ui_workflow_into choice "${can_sign}" || status=$?
-          (( status <= 1 )) || return "${status}" ;;
+          (( status <= 1 )) || return "${status}"
+          (( status == 0 )) || continue
+          previous="${lifetime}"
+          cntools_transaction_ui_unsigned_lifetime_into lifetime "${choice}" && break
+          previous="" ;;
         'Change expiry')
+          previous="${lifetime}"
           cntools_transaction_ui_expiry_into lifetime || status=$?
-          (( status != 1 )) || continue
+          (( status != 1 )) || { previous=""; continue; }
           (( status == 0 )) || return "${status}"
           break ;;
         *) return 2 ;;

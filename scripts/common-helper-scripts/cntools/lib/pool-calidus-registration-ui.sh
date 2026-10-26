@@ -114,6 +114,7 @@ cntools_calidus_registration_prepare_metadata() {
   cntools_calidus_registration_begin
   {
     cntools_table_pair Status 'Cold-key authorization verified · no transaction submitted' success
+    [[ -z "${CNTOOLS_CALIDUS_REG_NONCE}" ]] || cntools_table_pair 'Authorization nonce' "$(cntools_number_format "${CNTOOLS_CALIDUS_REG_NONCE}")" number
     cntools_table_pair 'Metadata file' "${saved}" identifier
   } | cntools_table_render 'Calidus authorization'
   cntools_ui_render_status info "Move only this public metadata to the online system. Choose ${next} → Import signed metadata. Keep the pool cold key offline."
@@ -189,10 +190,7 @@ cntools_calidus_registration_render_review() {
     cntools_table_pair 'Funding wallet' "${CNTOOLS_SEND_WALLET}" identifier
     cntools_table_pair Fee "$(cntools_number_format_lovelace "${CNTOOLS_SEND_FEE}")" number
     cntools_table_pair 'Returned change' "$(cntools_number_format_lovelace "${total}")" number
-    cntools_table_pair 'Input selection' "${CNTOOLS_TX_SELECTION_STRATEGY} · $(cntools_number_format "${#CNTOOLS_COIN_SELECTED_REFS[@]}") inputs" value
-    cntools_table_pair 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
-    cntools_table_pair 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
-    cntools_table_pair 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" value
+    cntools_pool_policy_rows "${#CNTOOLS_COIN_SELECTED_REFS[@]}"
     cntools_table_pair Expires "${expiry}" number
   } | cntools_table_render 'Transaction information'
   cntools_ui_render_status info 'No deposit or refund. The funding wallet pays only the transaction fee; all selected funds and assets return as change.'
@@ -200,7 +198,7 @@ cntools_calidus_registration_render_review() {
 }
 
 cntools_calidus_registration_workflow() {
-  local index="$1" selected='' workflow='' can_sign=N lifetime=1800 staged='' signed='' saved='' proceed='' backend='' txid='' body='' status=0
+  local index="$1" selected='' workflow='' can_sign=N lifetime=1800 staged='' signed='' saved='' proceed='' backend='' txid='' body='' status=0 rebuild=Y change_status=0
   [[ "${CNTOOLS_MODE:-}" != offline ]] || {
     cntools_calidus_registration_fail 'Publishing needs current chain data, so it is unavailable in offline mode. Use Prepare registration/revocation metadata here, then publish from an online system; it can save the funding transaction unsigned for offline signing.'; return 2;
   }
@@ -217,30 +215,39 @@ cntools_calidus_registration_workflow() {
   elif [[ "${CNTOOLS_CALIDUS_CHAIN_STATUS}" == 'Different key registered' ]]; then
     cntools_ui_render_status warn 'This transaction replaces the indexed Calidus key. Review the local Calidus ID before proceeding.'
   fi
-  cntools_calidus_registration_prompt_authorization onchain || return $?
+  # The funding wallet first: authorizing is the step that needs the cold key.
   cntools_wallet_catalog_build || return 2
   cntools_ui_render_detail 'Funding wallet'
   cntools_wallet_choose selected Cancel send || return $?
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" multisig || return 2
   [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_spend_choose_signers cntools_calidus_registration_begin || return $?
+  cntools_calidus_registration_prompt_authorization onchain || return $?
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
   [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || can_sign="${CNTOOLS_MULTISIG_CAN_SIGN}"
   cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
   cntools_transaction_ui_initial_expiry_into lifetime || return $?
+  # Rebuilt only when the expiry changed; Esc in Change expiry keeps the build.
   while true; do
-    cntools_ui_spin_function 'Checking authorization and balancing the funding transaction…' cntools_calidus_registration_refresh_build_into staged "${lifetime}" || return 2
-    while true; do
-      cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
-      cntools_transaction_ui_review_into selected "${staged}" "${proceed}" cntools_calidus_registration_begin \
-        cntools_calidus_registration_render_review 'Change expiry' 'Change workflow' || return $?
-      case "${selected}" in
-        "${proceed}"|'Change expiry') break ;;
-        'Change workflow') cntools_pool_review_change cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $? ;;
-        *) return 2 ;;
-      esac
-    done
-    [[ "${selected}" != "${proceed}" ]] || break
-    cntools_pool_review_change cntools_transaction_ui_expiry_into lifetime || return $?
+    if [[ "${rebuild}" == Y ]]; then
+      cntools_ui_spin_function 'Checking authorization and balancing the funding transaction…' cntools_calidus_registration_refresh_build_into staged "${lifetime}" || return 2
+      rebuild=N
+    fi
+    cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
+    cntools_transaction_ui_review_into selected "${staged}" "${proceed}" cntools_calidus_registration_begin \
+      cntools_calidus_registration_render_review 'Change expiry' 'Change workflow' || return $?
+    case "${selected}" in
+      "${proceed}") break ;;
+      'Change workflow')
+        cntools_pool_review_change cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
+        # Quick gives an unsigned package a day.
+        ! cntools_transaction_ui_unsigned_lifetime_into lifetime "${workflow}" || rebuild=Y ;;
+      'Change expiry')
+        change_status=0; cntools_transaction_ui_expiry_into lifetime || change_status=$?
+        if ((change_status == 0)); then rebuild=Y
+        elif ((change_status == 1)); then cntools_transaction_log CHOICE 'Review change cancelled; current value kept step=cntools_transaction_ui_expiry_into'
+        else return "${change_status}"; fi ;;
+      *) return 2 ;;
+    esac
   done
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "calidus-${CNTOOLS_CALIDUS_OPERATION}" || return 2
@@ -271,8 +278,9 @@ cntools_calidus_registration_workflow() {
   if ((status == 0)); then cntools_ui_spin_function "Submitting Calidus ${CNTOOLS_CALIDUS_OPERATION} transaction…" cntools_transaction_ui_submit_selected "${backend}" "${body}" "${txid}" || status=$?; fi
   cntools_calidus_registration_begin
   if ((status != 0)); then
+    # Shown here once; 1 keeps the action from reporting it again.
     cntools_transaction_ui_render_result danger "${CNTOOLS_TRANSACTION_ERROR:-Submission could not be confirmed. Check the chain before retrying.}" "${txid}" "${saved}"
-    return 2
+    cntools_ui_wait; return 1
   fi
   cntools_transaction_ui_render_result success "${CNTOOLS_TRANSACTION_SUBMIT_MESSAGE} Calidus indexing follows block inclusion." "${txid}" || return 2
   cntools_transaction_ui_offer_monitor "${txid}"

@@ -33,8 +33,30 @@ cntools_multisig_source_label_into() {
   esac
 }
 
+# Standard 1854 account/index or custom paths, with the current paths as the
+# defaults. Esc (1) keeps them.
+cntools_multisig_derive_paths_into() {
+  local _msd_pay_name="$1" _msd_stake_name="$2" _msd_mode="$3" _msd_layout='' _msd_account=0 _msd_index=0 _msd_pay='' _msd_stake=''
+  local _msd_breadcrumb='/ Advanced / MultiSig / Derive Keys'
+  cntools_ui_choose _msd_layout 'Derivation paths' 'Standard multisig (1854)' 'Custom payment and stake paths' Cancel || return $?
+  cntools_log CHOICE "Multisig derivation layout selected=${_msd_layout}" || true
+  case "${_msd_layout}" in
+    'Standard multisig (1854)')
+      if [[ "${!_msd_pay_name}" =~ ^1854H/1815H/([0-9]+)H/0/([0-9]+)$ ]]; then _msd_account="${BASH_REMATCH[1]}"; _msd_index="${BASH_REMATCH[2]}"; fi
+      cntools_wallet_mnemonic_prompt_index_into _msd_account 'Account number' 'Derive Keys' "${_msd_breadcrumb}" "${_msd_account}" &&
+        cntools_wallet_mnemonic_prompt_index_into _msd_index 'Key index' 'Derive Keys' "${_msd_breadcrumb}" "${_msd_index}" || return $?
+      _msd_pay="1854H/1815H/${_msd_account}H/0/${_msd_index}"; _msd_stake="1854H/1815H/${_msd_account}H/2/${_msd_index}" ;;
+    'Custom payment and stake paths')
+      cntools_multisig_prompt_path _msd_pay 'Payment derivation path' "${!_msd_pay_name}" payment "${_msd_mode}" &&
+        cntools_multisig_prompt_path _msd_stake 'Stake derivation path' "${!_msd_stake_name}" stake "${_msd_mode}" || return $? ;;
+    *) return 1 ;;
+  esac
+  printf -v "${_msd_pay_name}" '%s' "${_msd_pay}"; printf -v "${_msd_stake_name}" '%s' "${_msd_stake}"
+  cntools_log CHOICE "Multisig derivation paths payment=${_msd_pay} stake=${_msd_stake}" || true
+}
+
 cntools_multisig_derive_workflow() {
-  local selected='' directory='' choice='' mode='' account='' index='' pay_path='' stake_path='' phrase='' status=0 source='' note='' payment='' stake=''
+  local selected='' directory='' choice='' mode='' pay_path='' stake_path='' phrase='' status=0 source='' note='' payment='' stake='' proceed=''
   local -a sources=() missing=()
   local CNTOOLS_MNEMONIC_INPUT_PATH='/ Advanced / MultiSig / Derive Keys'
   cntools_multisig_begin 'Derive Keys'
@@ -69,41 +91,41 @@ cntools_multisig_derive_workflow() {
     *) return 1 ;;
   esac
   if [[ "${mode}" != cli ]]; then
-    if cntools_flow_quick; then choice='Standard multisig (1854)'
-    else cntools_ui_choose choice 'Derivation paths' 'Standard multisig (1854)' 'Custom payment and stake paths' Cancel || return $?; fi
-    cntools_log CHOICE "Multisig derivation layout selected=${choice}" || true
+    # Standard 1854 at account and index 0 unless Detailed asks; the review
+    # offers 'Change derivation paths' in both styles.
+    pay_path='1854H/1815H/0H/0/0'; stake_path='1854H/1815H/0H/2/0'
+    if cntools_flow_quick; then cntools_log CHOICE 'Multisig derivation default=1854 account=0 index=0 flow=quick' || true
+    else cntools_multisig_derive_paths_into pay_path stake_path "${mode}" || return $?; fi
+  fi
+  [[ "${mode}" != mnemonic ]] || cntools_multisig_address_tool_ready || return 2
+  cntools_multisig_source_label_into source "${mode}"
+  [[ "${mode}" == hardware ]] && proceed='Add keys from the connected device' || proceed='Add participant keys'
+  # New key material is confirmed in both flow styles.
+  while true; do
+    cntools_multisig_begin 'Derive Keys'
+    {
+      cntools_table_pair Wallet "${directory##*/}" identifier
+      cntools_table_pair Source "${source}" value
+      [[ "${mode}" == cli ]] || { cntools_table_pair 'Payment path' "${pay_path}" identifier; cntools_table_pair 'Stake path' "${stake_path}" identifier; }
+    } | cntools_table_render 'Participant keys' || return 2
+    # An auto-picked source names the tools that would offer the others.
+    [[ -z "${note}" ]] || cntools_ui_render_status info "${note}"
+    case "${mode}" in
+      mnemonic) cntools_ui_render_status warn 'Use software-wallet recovery words only. Never enter hardware-wallet recovery words into CNTools.' ;;
+      hardware) cntools_ui_render_status info 'Connect and unlock the hardware device. Support for the chosen paths depends on its firmware.' ;;
+      *)
+        cntools_ui_confirm 'Add these participant keys without replacing existing files?' false || return $?
+        break ;;
+    esac
+    cntools_ui_choose choice 'Participant keys' "${proceed}" 'Change derivation paths' Cancel || return $?
     case "${choice}" in
-      'Standard multisig (1854)')
-        cntools_wallet_mnemonic_prompt_index_into account 'Account number (default: 0)' 'Derive Keys' '/ Advanced / MultiSig / Derive Keys' &&
-          cntools_wallet_mnemonic_prompt_index_into index 'Key index (default: 0)' 'Derive Keys' '/ Advanced / MultiSig / Derive Keys' || return $?
-        pay_path="1854H/1815H/${account}H/0/${index}"; stake_path="1854H/1815H/${account}H/2/${index}"
-        ;;
-      'Custom payment and stake paths')
-        cntools_multisig_prompt_path pay_path 'Payment derivation path' '1854H/1815H/0H/0/0' payment "${mode}" &&
-          cntools_multisig_prompt_path stake_path 'Stake derivation path' '1854H/1815H/0H/2/0' stake "${mode}" || return $?
-        ;;
+      "${proceed}") break ;;
+      'Change derivation paths')
+        status=0; cntools_multisig_derive_paths_into pay_path stake_path "${mode}" || status=$?
+        ((status == 0 || status == 1)) || return "${status}" ;;
       *) return 1 ;;
     esac
-  fi
-  cntools_multisig_source_label_into source "${mode}"
-  cntools_multisig_begin 'Derive Keys'
-  {
-    cntools_table_pair Wallet "${directory##*/}" identifier
-    cntools_table_pair Source "${source}" value
-    [[ "${mode}" == cli ]] || { cntools_table_pair 'Payment path' "${pay_path}" identifier; cntools_table_pair 'Stake path' "${stake_path}" identifier; }
-  } | cntools_table_render 'Participant keys' || return 2
-  [[ -z "${note}" ]] || cntools_ui_render_status info "${note}"
-  if [[ "${mode}" == mnemonic ]]; then
-    cntools_multisig_address_tool_ready || return 2
-    cntools_ui_render_status warn 'Use software-wallet recovery words only. Never enter hardware-wallet recovery words into CNTools.'
-    cntools_ui_flow_confirm 'Add these participant keys without replacing existing files?' false || return $?
-  elif [[ "${mode}" == hardware ]]; then
-    # The device step follows at once, so both styles stop here.
-    cntools_ui_render_status info 'Connect and unlock the hardware device. Support for the chosen paths depends on its firmware.'
-    cntools_ui_confirm 'The hardware device is connected and unlocked. Add these participant keys?' true || return $?
-  else
-    cntools_ui_flow_confirm 'Add these participant keys without replacing existing files?' false || return $?
-  fi
+  done
   cntools_log CHOICE "Multisig key generation confirmed wallet=${directory##*/} mode=${mode} payment_path=${pay_path:-none} stake_path=${stake_path:-none}" || true
   if [[ "${mode}" == mnemonic ]]; then
     cntools_wallet_mnemonic_collect_import_into phrase || return $?
@@ -122,8 +144,6 @@ cntools_multisig_derive_workflow() {
     cntools_table_pair Files "${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}* in ${directory}" identifier
   } | cntools_table_render 'Participant keys'
   cntools_ui_render_status info 'Other participants add these hashes with MultiSig → Create → Add external key hashes.'
-  # An auto-picked source names the tools that would offer the others.
-  [[ -z "${note}" ]] || cntools_ui_render_status info "${note}"
   cntools_ui_render_status warn 'Back up these participant keys. Use Wallet → Encrypt to protect software signing keys.'
 }
 
@@ -151,7 +171,12 @@ cntools_multisig_local_participant() {
   local -a pairs=()
   # Lists only non-script wallets with a payment verification key. 3 = none.
   cntools_wallet_catalog_build || return 2
-  cntools_wallet_choose selected Cancel multisig-participant || return $?
+  # Wallets already added are not offered again.
+  CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
+  for directory in "${CNTOOLS_MULTISIG_DIRECTORIES[@]}"; do [[ -z "${directory}" ]] || CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS+=("${directory}"); done
+  cntools_wallet_choose selected Cancel multisig-participant || status=$?
+  CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
+  ((status == 0)) || return "${status}"
   directory="${CNTOOLS_WALLET_PATHS[selected]}"
   cntools_wallet_prepare_selected_material "${directory}" || return 2
   # Offer only the key pairs this wallet has; a lone pair needs no question.
@@ -186,7 +211,7 @@ cntools_multisig_local_participant() {
     hash="$(< "${output}")"
     [[ "${role}" != payment ]] && stake="${hash}" || payment="${hash}"
   done
-  cntools_multisig_participant_add "${payment}" "${stake}" "${directory##*/}" || return 2
+  cntools_multisig_participant_add "${payment}" "${stake}" "${directory##*/}" "${directory}" || return 2
 }
 
 cntools_multisig_render_participants() {
@@ -222,6 +247,44 @@ cntools_multisig_prompt_bound() {
   done
 }
 
+# Spending window. A rejected 'Spendable before' asks only that bound again.
+cntools_multisig_prompt_bounds_into() {
+  local _msb_after_name="$1" _msb_before_name="$2" _msb_after='' _msb_before='' _msb_now='' _msb_date=''
+  cntools_multisig_prompt_bound _msb_after 'Spendable from' || return $?
+  while true; do
+    cntools_multisig_prompt_bound _msb_before 'Spendable before' || return $?
+    if [[ -n "${_msb_after}" && -n "${_msb_before}" ]] && ((_msb_after >= _msb_before)); then
+      cntools_ui_render_status warn 'Spendable before must be later than Spendable from. Choose it again.'; continue
+    fi
+    # A past expiry creates an address whose funds can never be spent.
+    _msb_now="$(cntools_health_reference_slot "${CNTOOLS_NETWORK:-}" 2>/dev/null)" || _msb_now=''
+    if [[ -n "${_msb_before}" && "${_msb_now}" =~ ^[0-9]+$ ]] && ((_msb_before <= _msb_now)); then
+      cntools_slot_datetime_into _msb_date "${_msb_before}" || _msb_date="slot ${_msb_before}"
+      cntools_ui_render_status warn "Spendable before (${_msb_date}) has already passed, so funds sent to this address could never be spent. Choose a future bound or No bound."
+      continue
+    fi
+    break
+  done
+  printf -v "${_msb_after_name}" '%s' "${_msb_after}"; printf -v "${_msb_before_name}" '%s' "${_msb_before}"
+  cntools_log CHOICE "Multisig time bounds after=${_msb_after:-none} before=${_msb_before:-none}" || true
+}
+
+# Enter keeps the current threshold (all participants at first).
+cntools_multisig_prompt_threshold_into() {
+  local _mst_output="$1" _mst_count="${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}" _mst_current="${2:-}" _mst_entered='' _mst_normalized=''
+  [[ -n "${_mst_current}" ]] || _mst_current="${_mst_count}"
+  while true; do
+    cntools_ui_input _mst_entered "Required signatures (1–${_mst_count})" "${_mst_current}" || return $?
+    [[ -n "${_mst_entered}" ]] || _mst_entered="${_mst_current}"
+    if cntools_number_normalize_into _mst_normalized "${_mst_entered}" && [[ "${_mst_normalized}" =~ ^[1-9][0-9]?$ ]] && ((_mst_normalized<=_mst_count)); then
+      printf -v "${_mst_output}" '%s' "${_mst_normalized}"
+      cntools_log CHOICE "Multisig threshold selected=${_mst_normalized} of ${_mst_count}" || true
+      return 0
+    fi
+    cntools_ui_render_status warn 'The threshold must be at least one and no greater than the participant count.'
+  done
+}
+
 # One table for the review and the result: what the address will enforce.
 cntools_multisig_render_script_wallet() {
   local name="$1" threshold="$2" staking="$3" after="$4" before="$5" title="$6" date='' now='' role=value
@@ -241,7 +304,8 @@ cntools_multisig_render_script_wallet() {
 }
 
 cntools_multisig_create_workflow() {
-  local name='' choice='' payment='' stake='' threshold='' normalized='' staking=N after='' before='' date='' status=0 warning='' now=''
+  local name='' choice='' payment='' stake='' threshold='' staking=N after='' before='' status=0 warning=''
+  local -a review=()
   CNTOOLS_MULTISIG_NOTICE=''; CNTOOLS_WALLET_CREATED_DIRECTORY=''
   cntools_multisig_participants_reset
   cntools_multisig_begin Create
@@ -269,15 +333,19 @@ cntools_multisig_create_workflow() {
         if ((status != 0 && status != 1 && status != 130 && status != 3)); then warning="${CNTOOLS_MULTISIG_ERROR:-Could not add that participant.}"; CNTOOLS_MULTISIG_NOTICE=''; fi
         ;;
       'Add external key hashes')
-        cntools_ui_input payment 'Payment key hash (56 hex characters)' '' || continue
-        cntools_ui_input stake 'Stake key hash (blank = payment-only participant)' '' || continue
+        # Esc returns to the participant list; Ctrl+C cancels the action.
+        status=0
+        cntools_ui_input payment 'Payment key hash (56 hex characters)' '' &&
+          cntools_ui_input stake 'Stake key hash (blank = payment-only participant)' '' || status=$?
+        ((status != 130)) || return 130
+        ((status == 0)) || continue
         if ! cntools_multisig_participant_add "${payment}" "${stake}" "External $((${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}+1))"; then
           warning="${CNTOOLS_MULTISIG_ERROR:-Invalid participant hashes.}"
         fi
         ;;
       'Remove last participant')
         if (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} > 0 )); then
-          unset 'CNTOOLS_MULTISIG_PAYMENT_HASHES[-1]' 'CNTOOLS_MULTISIG_STAKE_HASHES[-1]' 'CNTOOLS_MULTISIG_LABELS[-1]'
+          unset 'CNTOOLS_MULTISIG_PAYMENT_HASHES[-1]' 'CNTOOLS_MULTISIG_STAKE_HASHES[-1]' 'CNTOOLS_MULTISIG_LABELS[-1]' 'CNTOOLS_MULTISIG_DIRECTORIES[-1]'
         else warning='There are no participants to remove.'; fi ;;
       Done)
         (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} > 0 )) && break
@@ -289,12 +357,7 @@ cntools_multisig_create_workflow() {
     threshold=1 # One participant: 1 of 1 is the only threshold.
     cntools_log CHOICE 'Multisig threshold auto-selected=1 (single participant)' || true
   else
-    while true; do
-      cntools_ui_input threshold "Required signatures (1–${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]})" "${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}" || return $?
-      [[ -n "${threshold}" ]] || threshold="${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}"
-      if cntools_number_normalize_into normalized "${threshold}" && [[ "${normalized}" =~ ^[1-9][0-9]?$ ]] && ((normalized<=${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]})); then threshold="${normalized}"; break; fi
-      cntools_ui_render_status warn 'The threshold must be at least one and no greater than the participant count.'
-    done
+    cntools_multisig_prompt_threshold_into threshold || return $?
   fi
   staking=Y
   for stake in "${CNTOOLS_MULTISIG_STAKE_HASHES[@]}"; do [[ -n "${stake}" ]] || staking=N; done
@@ -304,27 +367,30 @@ cntools_multisig_create_workflow() {
   else
     cntools_ui_render_status info 'At least one participant has no stake hash. This will be a payment-only wallet.'
   fi
+  cntools_multisig_prompt_bounds_into after before || return $?
+  review=('Create multisig wallet' 'Change time bounds')
+  (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} == 1 )) || review+=('Change threshold')
+  # Inside a Change step Esc keeps the current values; Ctrl+C cancels.
   while true; do
-    cntools_multisig_prompt_bound after 'Spendable from' && cntools_multisig_prompt_bound before 'Spendable before' || return $?
-    if [[ -n "${after}" && -n "${before}" ]] && ((after >= before)); then
-      cntools_ui_render_status warn 'The spending start must be before its expiry. Choose the time bounds again.'; continue
-    fi
-    # A past expiry creates an address whose funds can never be spent.
-    now="$(cntools_health_reference_slot "${CNTOOLS_NETWORK:-}" 2>/dev/null)" || now=''
-    if [[ -n "${before}" && "${now}" =~ ^[0-9]+$ ]] && ((before <= now)); then
-      cntools_slot_datetime_into date "${before}" || date="slot ${before}"
-      cntools_ui_render_status warn "Spendable before (${date}) has already passed, so funds sent to this address could never be spent. Choose a future bound or No bound."
-      continue
-    fi
-    break
+    cntools_multisig_begin Create
+    cntools_multisig_render_participants || return 2
+    cntools_multisig_render_script_wallet "${name}" "${threshold}" "${staking}" "${after}" "${before}" 'Script wallet' || return 2
+    cntools_ui_render_status warn 'Participants, threshold and timelocks cannot be changed for this address. An expiry permanently locks remaining funds. Check and back up participant keys before funding it.'
+    cntools_ui_choose choice 'Review multisig wallet' "${review[@]}" Cancel || return $?
+    cntools_log CHOICE "Multisig creation review selected=${choice}" || true
+    status=0
+    case "${choice}" in
+      'Create multisig wallet')
+        # An expiry can lock funds for good, so it is asked again (default No).
+        [[ -n "${before}" ]] || break
+        cntools_ui_confirm 'Create this multisig wallet with a spending expiry?' false || status=$?
+        ((status == 0)) && break ;;
+      'Change time bounds') cntools_multisig_prompt_bounds_into after before || status=$? ;;
+      'Change threshold') cntools_multisig_prompt_threshold_into threshold "${threshold}" || status=$? ;;
+      *) return 1 ;;
+    esac
+    ((status == 0 || status == 1)) || return "${status}"
   done
-  cntools_multisig_begin Create
-  cntools_multisig_render_participants || return 2
-  cntools_multisig_render_script_wallet "${name}" "${threshold}" "${staking}" "${after}" "${before}" 'Script wallet' || return 2
-  cntools_ui_render_status warn 'Participants, threshold and timelocks cannot be changed for this address. An expiry permanently locks remaining funds. Check and back up participant keys before funding it.'
-  # An expiry can lock funds for good, so it is confirmed in both styles.
-  if [[ -n "${before}" ]]; then cntools_ui_confirm 'Create this multisig wallet with a spending expiry?' false || return $?
-  else cntools_ui_flow_confirm 'Create this multisig wallet?' false || return $?; fi
   cntools_log CHOICE "Multisig creation confirmed wallet=${name} threshold=${threshold} staking=${staking} after=${after:-none} before=${before:-none}" || true
   cntools_multisig_wallet_create "${name}" "${threshold}" "${staking}" "${after}" "${before}" || return 2
   cntools_wallet_address_primary_into "${CNTOOLS_WALLET_CREATED_DIRECTORY}" payment choice stake || return 2

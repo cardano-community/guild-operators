@@ -139,3 +139,40 @@ cntools_proposal_select() {
     CNTOOLS_PROPOSAL_SELECTED="$(jq -ce --arg id "${selection}" '[.[] | select(.id == $id or (.tx+"#"+(.index|tostring)) == $id)] | select(length == 1) | .[0]' <<< "${CNTOOLS_PROPOSALS}")" || return 1
   fi
 }
+
+# Ledger action tags in plain words.
+cntools_proposal_type_label_into() {
+  local pt_label=''
+  case "$2" in
+    ParameterChange) pt_label='Protocol parameter change' ;;
+    HardForkInitiation) pt_label='Hard fork initiation' ;;
+    TreasuryWithdrawals) pt_label='Treasury withdrawal' ;;
+    NoConfidence) pt_label='Motion of no confidence' ;;
+    UpdateCommittee) pt_label='Committee update' ;;
+    NewConstitution) pt_label='New constitution' ;;
+    InfoAction) pt_label='Info action' ;;
+    *) pt_label="$2" ;;
+  esac
+  printf -v "$1" '%s' "${pt_label}"
+}
+
+# The deposit return account as a stake address. The local ledger gives a
+# {network, credential} object; Koios already gives the address.
+cntools_proposal_return_address_into() {
+  local ra_value="$2" ra_fields='' ra_network='' ra_kind='' ra_hash='' ra_header='' ra_hrp=stake ra_address=''
+  printf -v "$1" '%s' ''
+  ra_fields="$(jq -r 'if type == "string" then "string\u001f\u001f" + .
+    elif type == "object" and (.credential | type == "object") then
+      [(.network // ""), (if .credential.keyHash then "key" elif .credential.scriptHash then "script" else "" end),
+       (.credential.keyHash // .credential.scriptHash // "")] | join("\u001f")
+    else empty end' <<< "${ra_value}" 2>/dev/null)" || ra_fields=''
+  IFS=$'\037' read -r ra_network ra_kind ra_hash <<< "${ra_fields}"
+  if [[ "${ra_network}" == string ]]; then printf -v "$1" '%s' "${ra_hash}"; return 0; fi
+  if [[ "${ra_kind}" =~ ^(key|script)$ && "${ra_hash,,}" =~ ^[0-9a-f]{56}$ && "${ra_network}" =~ ^(Mainnet|Testnet)$ ]]; then
+    ra_header=e; [[ "${ra_kind}" == key ]] || ra_header=f
+    if [[ "${ra_network}" == Mainnet ]]; then ra_header+='1'; else ra_header+='0'; ra_hrp=stake_test; fi
+    if cntools_bech32_encode_into ra_address "${ra_header}${ra_hash,,}" "${ra_hrp}"; then printf -v "$1" '%s' "${ra_address}"; return 0; fi
+  fi
+  # Unknown shape: show it compactly rather than hide it.
+  printf -v "$1" '%s' "$(jq -c . <<< "${ra_value}" 2>/dev/null || printf '%s' "${ra_value}")"
+}

@@ -61,18 +61,18 @@ cntools_transaction_ui_initial_workflow_into() {
 # First expiry choice of an action. Quick uses the Settings default; the
 # review's 'Change expiry' still offers every duration.
 cntools_transaction_ui_initial_expiry_into() {
-  local lifetime="${CNTOOLS_TX_DEFAULT_TTL:-1800}"
+  local initial_lifetime="${CNTOOLS_TX_DEFAULT_TTL:-1800}"
   if ! cntools_flow_quick; then
     cntools_transaction_ui_expiry_into "$@"
     return $?
   fi
   # An unsigned package is signed elsewhere, so allow at least a day.
   if [[ "${CNTOOLS_TRANSACTION_UI_INITIAL_WORKFLOW:-}" == 'Create unsigned package' ]] &&
-     (( lifetime != 0 && lifetime < 86400 )); then
-    lifetime=86400
+     (( initial_lifetime != 0 && initial_lifetime < 86400 )); then
+    initial_lifetime=86400
   fi
-  printf -v "$1" '%s' "${lifetime}"
-  cntools_transaction_log CHOICE "Transaction expiry default seconds=${lifetime} flow=quick"
+  printf -v "$1" '%s' "${initial_lifetime}"
+  cntools_transaction_log CHOICE "Transaction expiry default seconds=${initial_lifetime} flow=quick"
 }
 
 cntools_transaction_ui_duration_label_into() {
@@ -188,6 +188,10 @@ cntools_transaction_ui_review_into() {
     fi
     "${begin}" || return 2
     "${render}" || return 2
+    # Say why only an unsigned package is offered; actions may set the reason.
+    if [[ -z "${package}" && "${CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED:-N}" == Y ]]; then
+      cntools_ui_render_status info "${CNTOOLS_TRANSACTION_UI_UNSIGNED_REASON:-The signing keys are not available here, so CNTools saves an unsigned package to sign elsewhere.}" || return 2
+    fi
     if [[ "${guard_validity}" == Y ]]; then
       case "${validity_state}" in
         expired)
@@ -225,10 +229,13 @@ cntools_transaction_ui_review_into() {
         case "${status}" in
           1) continue ;;
           3) return 3 ;; # Never sign/submit a cached copy after source deletion.
+          130) return 130 ;;
           *) return 2 ;;
         esac
         ;;
-      'Review transaction') cntools_transaction_ui_detail_view "${begin}" || return 2 ;;
+      'Review transaction')
+        status=0; cntools_transaction_ui_detail_view "${begin}" || status=$?
+        (( status == 0 )) || { (( status == 130 )) && return 130; return 2; } ;;
       'Show required signers')
         "${begin}" || return 2
         cntools_transaction_ui_render_signer_progress "${package}" || return 2
@@ -251,11 +258,18 @@ cntools_transaction_ui_review_into() {
   done
 }
 
+# Change-shaping rows appear only for features that are switched on.
 cntools_transaction_ui_render_policy_rows() {
-  cntools_transaction_ui_styled_row 'Input selection' "$1 · $(cntools_number_format "$2") inputs" value
-  cntools_transaction_ui_styled_row 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
-  cntools_transaction_ui_styled_row 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
-  cntools_transaction_ui_styled_row 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" value
+  local strategy="$1" inputs="${2:-0}" label=''
+  label="$(cntools_settings_strategy_name "${strategy}" 2>/dev/null)" || label="${strategy}"
+  label+=" · $(cntools_number_format "${inputs}") input"; (( inputs == 1 )) || label+=s
+  cntools_transaction_ui_styled_row 'Input selection' "${label}" value
+  [[ "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" ]] ||
+    cntools_transaction_ui_styled_row 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
+  [[ "${CNTOOLS_CHANGE_UTXO_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_UTXO_STATUS:-}" ]] ||
+    cntools_transaction_ui_styled_row 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
+  [[ "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" ]] ||
+    cntools_transaction_ui_styled_row 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" value
 }
 
 cntools_transaction_ui_render_result() {
@@ -271,21 +285,30 @@ cntools_transaction_ui_render_result() {
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
 }
 
+# The reviewed "sign & submit" choice is the confirmation in both styles.
+# Pass "always" (and what it does, e.g. "pool retirement") for irreversible
+# effects: those ask again, defaulting to No.
 cntools_transaction_ui_confirm_submit() {
-  local label="" status=0
+  local label="" status=0 effect="${3:-transaction}"
   case "$1" in local) label='local node' ;; koios) label=Koios ;; *) return 2 ;; esac
-  # Pass "always" for irreversible effects, such as pool retirement.
-  if [[ "${2:-}" != always ]] && cntools_flow_quick; then
-    # The reviewed 'sign & submit' choice is the confirmation in Quick.
-    cntools_transaction_log CHOICE "Transaction submission confirmed by review backend=$1 flow=quick"
+  if [[ "${2:-}" != always ]]; then
+    cntools_transaction_log CHOICE "Transaction submission confirmed by review backend=$1"
     return 0
   fi
-  # An irreversible effect defaults to No; a routine submission to Yes.
-  local default=true
-  [[ "${2:-}" != always ]] || default=false
-  cntools_ui_confirm "Submit this signed transaction using ${label}?" "${default}" || status=$?
-  cntools_transaction_log CHOICE "Transaction submission confirmation backend=$1 status=${status}"
+  cntools_ui_confirm "Submit this ${effect} using ${label}? It cannot be undone." false || status=$?
+  cntools_transaction_log CHOICE "Transaction submission confirmation backend=$1 effect=${effect} status=${status}"
   return "${status}"
+}
+
+# Quick gives an unsigned package at least a day before it expires, also when
+# the workflow changes in the review. Returns 0 when the lifetime was raised,
+# so the caller rebuilds.
+cntools_transaction_ui_unsigned_lifetime_into() {
+  local lifetime_name="$1" unsigned_workflow="$2" unsigned_lifetime="${!1:-}"
+  cntools_flow_quick && [[ "${unsigned_workflow}" == 'Create unsigned package' &&
+    "${unsigned_lifetime}" =~ ^[0-9]+$ ]] && (( unsigned_lifetime != 0 && unsigned_lifetime < 86400 )) || return 1
+  printf -v "${lifetime_name}" '%s' 86400
+  cntools_transaction_log CHOICE "Unsigned package expiry raised to 86400 seconds flow=quick"
 }
 
 cntools_transaction_ui_log_path() {
@@ -399,22 +422,33 @@ cntools_transaction_ui_render_package_overview() {
 # What the decoded body does, in a few rows: outputs, certificates and
 # withdrawals. "Review transaction" opens every field.
 cntools_transaction_ui_effect_rows() {
-  local record="" kind="" label="" value=""
+  local kind="" label="" value="" assets=""
   [[ -n "${CNTOOLS_TRANSACTION_UI_VIEW:-}" ]] || return 0
-  while IFS=$'\037' read -r kind label value; do
+  while IFS=$'\037' read -r kind label value assets; do
     case "${kind}" in
-      output) cntools_transaction_ui_styled_row "${label}" "$(cntools_number_format_lovelace "${value}")" number ;;
+      output)
+        value="$(cntools_number_format_lovelace "${value}")"
+        (( assets == 0 )) || value+=" + ${assets} asset$( (( assets == 1 )) || printf s)"
+        cntools_transaction_ui_styled_row "${label}" "${value}" number ;;
       more) cntools_transaction_ui_styled_row Outputs "${value} more · see Review transaction" muted ;;
       certificate) cntools_transaction_ui_styled_row Certificate "${value}" accent ;;
       withdrawal) cntools_transaction_ui_styled_row Withdrawal "$(cntools_number_format_lovelace "${value}")" number ;;
+      mint) cntools_transaction_ui_styled_row 'Mint / burn' "${value} asset$( (( value == 1 )) || printf s)" accent ;;
+      votes) cntools_transaction_ui_styled_row Votes "${value}" accent ;;
+      proposals) cntools_transaction_ui_styled_row Proposals "${value}" accent ;;
     esac
   done < <(jq -r '
     def lovelace: if type == "object" then (.lovelace // 0) elif type == "string" then (split(" ")[0] | tonumber? // 0) else (. // 0) end;
+    def asset_count: if type == "object" then [to_entries[] | select(.key | startswith("policy ")) | .value | if type == "object" then length else 1 end] | add // 0 else 0 end;
+    def count: if type == "array" then length elif type == "object" then length else 0 end;
     (.outputs // []) as $outs |
-    ($outs[:4][] | ["output", ("To " + ((.address // "?") | tostring | if length > 24 then .[0:14] + "…" + .[-8:] else . end)), (.amount | lovelace | tostring)] | join("\u001f")),
-    (if ($outs | length) > 4 then ["more", "", (($outs | length) - 4 | tostring)] | join("\u001f") else empty end),
-    ((.certificates // [])[] | ["certificate", "", (if type == "object" then (keys[0] // "certificate") else tostring end | gsub("_"; " "))] | join("\u001f")),
-    ((.withdrawals // [])[]? | ["withdrawal", "", ((.amount // .value // 0) | lovelace | tostring)] | join("\u001f"))
+    ($outs[:4][] | ["output", ("To " + ((.address // "?") | tostring | if length > 24 then .[0:14] + "…" + .[-8:] else . end)), (.amount | lovelace | tostring), (.amount | asset_count | tostring)] | join("\u001f")),
+    (if ($outs | length) > 4 then ["more", "", (($outs | length) - 4 | tostring), "0"] | join("\u001f") else empty end),
+    ((.certificates // [])[] | ["certificate", "", (if type == "object" then (keys[0] // "certificate") else tostring end | gsub("_"; " ")), "0"] | join("\u001f")),
+    ((.withdrawals // [])[]? | ["withdrawal", "", ((.amount // .value // 0) | lovelace | tostring), "0"] | join("\u001f")),
+    (.mint // null | select(. != null) | asset_count | select(. > 0) | ["mint", "", tostring, "0"] | join("\u001f")),
+    ((.["voting procedures"] // .voters // .votes // null) | select(. != null) | count | select(. > 0) | ["votes", "", tostring, "0"] | join("\u001f")),
+    ((.["proposal procedures"] // .["governance actions"] // .proposals // null) | select(. != null) | count | select(. > 0) | ["proposals", "", tostring, "0"] | join("\u001f"))
   ' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}" 2>/dev/null)
 }
 
@@ -729,7 +763,7 @@ cntools_transaction_ui_prompt_signer_into() {
     if [[ "${preferred}" != "either" && "${preferred}" != "${kind}" ]]; then
       cntools_transaction_ui_log CHOICE \
         "signing source kind rejected id=${expected_key_id} required=${preferred} actual=${kind}"
-      feedback="This signer requires ${preferred}; the selected file is ${kind}."
+      feedback="This signer needs a $(cntools_transaction_ui_method_label "${preferred}" | tr '[:upper:]' '[:lower:]'); the selected file is a $(cntools_transaction_ui_method_label "${kind}" | tr '[:upper:]' '[:lower:]')."
       continue
     fi
     if ! cntools_transaction_source_key_id_into actual_key_id "${normalized}"; then
@@ -913,40 +947,48 @@ cntools_transaction_action_sign() {
   local -a active_hardware_groups=()
   local -a deferred_hardware_groups=()
 
-  if cntools_transaction_ui_prompt_package_into input_file; then
-    status=0
-  else
-    status=$?
-  fi
-  if (( status == 1 )); then
-    cntools_transaction_ui_cancel "transaction signing cancelled at package selection"
-    return 0
-  elif (( status != 0 )); then
-    return "${status}"
-  fi
-  if [[ "${CNTOOLS_TRANSACTION_PACKAGE_NETWORK}" != "${CNTOOLS_NETWORK:-}" ]]; then
-    cntools_transaction_ui_log ERROR "Package network mismatch package=${CNTOOLS_TRANSACTION_PACKAGE_NETWORK} configured=${CNTOOLS_NETWORK:-unknown}"
+  # Quick may pick a lone saved package; the review can go back for another.
+  while true; do
+    if cntools_transaction_ui_prompt_package_into input_file; then
+      status=0
+    else
+      status=$?
+    fi
+    if (( status == 1 || status == 130 )); then
+      cntools_transaction_ui_cancel "transaction signing cancelled at package selection"
+      return 0
+    elif (( status != 0 )); then
+      return "${status}"
+    fi
+    if [[ "${CNTOOLS_TRANSACTION_PACKAGE_NETWORK}" != "${CNTOOLS_NETWORK:-}" ]]; then
+      cntools_transaction_ui_log ERROR "Package network mismatch package=${CNTOOLS_TRANSACTION_PACKAGE_NETWORK} configured=${CNTOOLS_NETWORK:-unknown}"
+      cntools_ui_action_begin "Sign" "/ Transaction / Sign"
+      cntools_ui_render_status error \
+        'This package targets a different network than the one shown in the header.'
+      cntools_ui_wait
+      return 1
+    fi
+    original_id="${CNTOOLS_TRANSACTION_ID}"
     cntools_ui_action_begin "Sign" "/ Transaction / Sign"
-    cntools_ui_render_status error \
-      'This package targets a different network than the one shown in the header.'
-    cntools_ui_wait
-    return 1
-  fi
-  original_id="${CNTOOLS_TRANSACTION_ID}"
-  cntools_ui_action_begin "Sign" "/ Transaction / Sign"
-  status=0
-  cntools_transaction_ui_review_into review_choice "${input_file}" 'Continue to select signing sources' \
-    cntools_transaction_ui_sign_begin cntools_transaction_ui_render_package_review || status=$?
-  if (( status == 3 )); then return 0
-  elif (( status == 1 )); then
-    cntools_transaction_ui_cancel \
-      "transaction signing cancelled after initial review id=${original_id}"
-    return 0
-  elif (( status != 0 )); then
-    cntools_transaction_ui_render_result danger "${CNTOOLS_TRANSACTION_ERROR:-The transaction could not be reviewed safely. See ${CNTOOLS_LOG}.}" "${original_id}" "${input_file}"
-    cntools_ui_wait
-    return "${status}"
-  fi
+    status=0
+    local -a another_file=()
+    [[ "${CNTOOLS_TRANSACTION_PICKER_AUTO_PICKED:-N}" != Y ]] || another_file=('Choose another file')
+    cntools_transaction_ui_review_into review_choice "${input_file}" 'Continue to select signing sources' \
+      cntools_transaction_ui_sign_begin cntools_transaction_ui_render_package_review "${another_file[@]}" || status=$?
+    if (( status == 3 )); then return 0
+    elif (( status == 1 || status == 130 )); then
+      cntools_transaction_ui_cancel \
+        "transaction signing cancelled after initial review id=${original_id}"
+      return 0
+    elif (( status != 0 )); then
+      cntools_transaction_ui_render_result danger "${CNTOOLS_TRANSACTION_ERROR:-The transaction could not be reviewed safely. See ${CNTOOLS_LOG}.}" "${original_id}" "${input_file}"
+      cntools_ui_wait
+      return 1 # Shown: no second "failed" banner.
+    fi
+    # A lone saved package was picked automatically; offer the full picker.
+    [[ "${review_choice}" == 'Choose another file' ]] || break
+    CNTOOLS_TRANSACTION_PICKER_NO_AUTO=Y
+  done
   cntools_transaction_ui_log CHOICE \
     "transaction signing review accepted id=${original_id}"
   cntools_ui_spin_function 'Finding matching keys in local wallets…' cntools_transaction_sources_collect || return 2
@@ -977,7 +1019,7 @@ cntools_transaction_action_sign() {
     else
       status=$?
     fi
-    if (( status == 1 )); then
+    if (( status == 1 || status == 130 )); then
       cntools_transaction_ui_cancel \
         "transaction signing cancelled while selecting signer key=${key_id}"
       return 0
@@ -1057,7 +1099,7 @@ cntools_transaction_action_sign() {
     else
       status=$?
     fi
-    if (( status == 1 )); then
+    if (( status == 1 || status == 130 )); then
       cntools_transaction_ui_cancel \
         "transaction signing cancelled while selecting hardware change key=${key_id}"
       return 0
@@ -1097,7 +1139,7 @@ cntools_transaction_action_sign() {
       return "${status}"
     fi
     working_file="${prepared_file}"
-    cntools_transaction_package_load "${working_file}" || return 1
+    cntools_transaction_package_load "${working_file}" || return 2 # Unexpected: let the menu report it.
     if [[ "${CNTOOLS_TRANSACTION_ID}" != "${original_id}" ]]; then
       review_renderer=cntools_transaction_ui_render_prepared_review
       cntools_transaction_ui_log HARDWARE \
@@ -1107,7 +1149,7 @@ cntools_transaction_action_sign() {
 
   # Source selection authorizes signing the already-reviewed body. Ask again
   # only if hardware preparation changes that body, or expiry now blocks it.
-  cntools_transaction_view_into CNTOOLS_TRANSACTION_UI_VIEW "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 1
+  cntools_transaction_view_into CNTOOLS_TRANSACTION_UI_VIEW "${CNTOOLS_TRANSACTION_BODY_FILE}" || return 2 # Unexpected: let the menu report it.
   cntools_transaction_ui_validity_state_into validity_state
   status=0
   if [[ "${CNTOOLS_TRANSACTION_ID}" != "${original_id}" || "${validity_state}" == expired || "${validity_state}" == unknown ]]; then
@@ -1115,19 +1157,19 @@ cntools_transaction_action_sign() {
       cntools_transaction_ui_sign_begin "${review_renderer}" || status=$?
   fi
   if (( status == 3 )); then return 0
-  elif (( status == 1 )); then
+  elif (( status == 1 || status == 130 )); then
     cntools_transaction_ui_cancel \
       "transaction signing declined id=${CNTOOLS_TRANSACTION_ID}"
     return 0
   elif (( status != 0 )); then
     cntools_transaction_ui_render_result danger "${CNTOOLS_TRANSACTION_ERROR:-The transaction could not be reviewed safely. See ${CNTOOLS_LOG}.}" "${original_id}" "${input_file}"
     cntools_ui_wait
-    return "${status}"
+    return 1 # Shown: no second "failed" banner.
   fi
   cntools_transaction_ui_log CHOICE \
     "transaction signing authorized by source selection id=${CNTOOLS_TRANSACTION_ID} signers=${#signer_sources[@]} change_refs=${#change_sources[@]}"
 
-  cntools_transaction_signed_path_into output_file || return 1
+  cntools_transaction_signed_path_into output_file || return 2 # Unexpected: let the menu report it.
   cntools_ui_action_begin "Sign" "/ Transaction / Sign"
   if cntools_ui_spin_function "Collecting transaction signatures…" \
       cntools_transaction_sign_package \
@@ -1141,7 +1183,7 @@ cntools_transaction_action_sign() {
     cntools_transaction_ui_render_result danger \
       "${CNTOOLS_TRANSACTION_ERROR:-Transaction signing failed. See ${CNTOOLS_LOG}.}" "${original_id}" "${input_file}"
     cntools_ui_wait
-    return "${status}"
+    return 1 # Shown: no second "failed" banner.
   fi
 
   cntools_transaction_package_load "${output_file}" || {
@@ -1351,51 +1393,60 @@ cntools_transaction_action_submit() {
   local signed_file=""
   local status=0 review_choice="" review_package="" validity_state=''
 
-  if cntools_transaction_ui_prompt_submit_input_into input_file; then
-    status=0
-  else
-    status=$?
-  fi
-  if (( status == 1 )); then
-    cntools_transaction_ui_cancel "transaction submission cancelled at input selection"
-    return 0
-  elif (( status != 0 )); then
-    return "${status}"
-  fi
-  input_kind="${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}"
-  transaction_id="${CNTOOLS_TRANSACTION_SUBMIT_ID}"
-  signed_file="${CNTOOLS_TRANSACTION_SIGNED_FILE}"
-  cntools_transaction_view_into CNTOOLS_TRANSACTION_UI_VIEW "${signed_file}" || return 1
-  [[ "${input_kind}" != package ]] || review_package="${CNTOOLS_TRANSACTION_PACKAGE_FILE}"
+  # Quick may pick a lone saved package; the review can go back for another.
   while true; do
-    status=0
-    cntools_transaction_ui_review_into review_choice "${review_package}" 'Continue to submit' \
-      cntools_transaction_ui_submit_begin cntools_transaction_ui_render_submit_review || status=$?
-    (( status != 3 )) || return 0
-    (( status == 0 )) || break
-    # Inspection/deletion of expired transactions must not require a backend.
-    if ! cntools_transaction_ui_submission_backend_into backend; then
-      cntools_ui_action_begin "Submit" "/ Transaction / Submit"
-      cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR}"
-      cntools_ui_wait
-      return 1
+    if cntools_transaction_ui_prompt_submit_input_into input_file; then
+      status=0
+    else
+      status=$?
     fi
-    local confirm_mode=''
-    ! cntools_transaction_ui_has_retirement || confirm_mode=always
-    cntools_transaction_ui_confirm_submit "${backend}" "${confirm_mode}" || status=$?
-    (( status == 0 )) || break
-    cntools_transaction_ui_validity_state_into validity_state
-    [[ "${validity_state}" == expired || "${validity_state}" == unknown ]] || break
-    cntools_transaction_log REVIEW 'Transaction expiry changed during submission confirmation; returning to review'
+    if (( status == 1 || status == 130 )); then
+      cntools_transaction_ui_cancel "transaction submission cancelled at input selection"
+      return 0
+    elif (( status != 0 )); then
+      return "${status}"
+    fi
+    input_kind="${CNTOOLS_TRANSACTION_SUBMIT_INPUT_KIND}"
+    transaction_id="${CNTOOLS_TRANSACTION_SUBMIT_ID}"
+    signed_file="${CNTOOLS_TRANSACTION_SIGNED_FILE}"
+    cntools_transaction_view_into CNTOOLS_TRANSACTION_UI_VIEW "${signed_file}" || return 2 # Unexpected: let the menu report it.
+    review_package=''
+    [[ "${input_kind}" != package ]] || review_package="${CNTOOLS_TRANSACTION_PACKAGE_FILE}"
+    local -a another_file=()
+    [[ "${CNTOOLS_TRANSACTION_PICKER_AUTO_PICKED:-N}" != Y ]] || another_file=('Choose another file')
+    while true; do
+      status=0 review_choice=''
+      cntools_transaction_ui_review_into review_choice "${review_package}" 'Continue to submit' \
+        cntools_transaction_ui_submit_begin cntools_transaction_ui_render_submit_review "${another_file[@]}" || status=$?
+      (( status != 3 )) || return 0
+      (( status == 0 )) || break
+      [[ "${review_choice}" != 'Choose another file' ]] || break
+      # Inspection/deletion of expired transactions must not require a backend.
+      if ! cntools_transaction_ui_submission_backend_into backend; then
+        cntools_ui_action_begin "Submit" "/ Transaction / Submit"
+        cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR}"
+        cntools_ui_wait
+        return 1
+      fi
+      local confirm_mode=''
+      ! cntools_transaction_ui_has_retirement || confirm_mode=always
+      cntools_transaction_ui_confirm_submit "${backend}" "${confirm_mode}" 'pool retirement' || status=$?
+      (( status == 0 )) || break
+      cntools_transaction_ui_validity_state_into validity_state
+      [[ "${validity_state}" == expired || "${validity_state}" == unknown ]] || break
+      cntools_transaction_log REVIEW 'Transaction expiry changed during submission confirmation; returning to review'
+    done
+    (( status == 0 )) && [[ "${review_choice}" == 'Choose another file' ]] || break
+    CNTOOLS_TRANSACTION_PICKER_NO_AUTO=Y
   done
-  if (( status == 1 )); then
+  if (( status == 1 || status == 130 )); then
     cntools_transaction_ui_cancel \
       "transaction submission declined id=${transaction_id} backend=${backend}"
     return 0
   elif (( status != 0 )); then
     cntools_transaction_ui_render_result danger "${CNTOOLS_TRANSACTION_ERROR:-The transaction could not be reviewed safely. See ${CNTOOLS_LOG}.}" "${transaction_id}" "${input_file}"
     cntools_ui_wait
-    return "${status}"
+    return 1 # Shown: no second "failed" banner.
   fi
   cntools_transaction_ui_log CHOICE \
     "transaction submission confirmed id=${transaction_id} backend=${backend}"
@@ -1413,7 +1464,7 @@ cntools_transaction_action_submit() {
     cntools_transaction_ui_render_result danger \
       "${CNTOOLS_TRANSACTION_ERROR:-Transaction submission failed. See ${CNTOOLS_LOG}.}" "${transaction_id}" "${input_file}"
     cntools_ui_wait
-    return "${status}"
+    return 1 # Shown: no second "failed" banner.
   fi
   cntools_transaction_ui_render_result success "${CNTOOLS_TRANSACTION_SUBMIT_MESSAGE:-Transaction accepted.} Submission is not confirmation of inclusion." "${transaction_id}"
   cntools_transaction_ui_offer_monitor "${transaction_id}"

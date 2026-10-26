@@ -125,10 +125,14 @@ In the Quick flow style, transactions start as **Create, sign and submit**
 (or **Create unsigned package** when the signing keys are unavailable) with
 the default expiry from Settings (at least 24 hours for an unsigned package,
 which is signed elsewhere); change either with **Change workflow** or
-**Change expiry** in the review. Approving the review submits without a second
-question, except a pool retirement, which always asks (default No). Detailed
-asks for the workflow and expiry first. Without usable signing keys the
-unsigned package is the only workflow, so neither style asks.
+**Change expiry** in the review (switching to an unsigned package in Quick
+also extends a shorter expiry to 24 hours). Detailed asks for the workflow and
+expiry first. Without usable signing keys the unsigned package is the only
+workflow, so neither style asks, and the review says why.
+
+In both styles, approving the review submits without a second question; only
+irreversible effects such as a pool retirement or a token burn ask again
+(default No).
 
 Every creating action offers an expiry, including **No expiry**. The standard
 choices include 30 minutes, 2 hours and 24 hours for offline signing.

@@ -257,16 +257,16 @@ cntools_number_is_valid() {
 # string. Small digits, carries, divisors, and percentages remain bounded.
 cntools_uint_normalize_into() {
   local _cntools_output_name="${1:-}"
-  local _cntools_value="${2:-}"
+  local _cntools_uint_digits="${2:-}"
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
-     "${_cntools_value}" =~ ^[0-9]+$ &&
-     ${#_cntools_value} -le 80 ]] || return 2
+     "${_cntools_uint_digits}" =~ ^[0-9]+$ &&
+     ${#_cntools_uint_digits} -le 80 ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
-  while [[ ${#_cntools_value} -gt 1 && "${_cntools_value:0:1}" == "0" ]]; do
-    _cntools_value="${_cntools_value:1}"
+  while [[ ${#_cntools_uint_digits} -gt 1 && "${_cntools_uint_digits:0:1}" == "0" ]]; do
+    _cntools_uint_digits="${_cntools_uint_digits:1}"
   done
-  _cntools_output_ref="${_cntools_value}"
+  _cntools_output_ref="${_cntools_uint_digits}"
 }
 
 cntools_uint_compare_into() {

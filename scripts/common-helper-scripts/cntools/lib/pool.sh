@@ -96,20 +96,20 @@ cntools_pool_identity_read() {
 }
 
 cntools_pool_key_state_into() {
-  local output="$1" directory="$2" kind="$3" filename="" state='Missing'
+  local output="$1" directory="$2" kind="$3" filename="" pool_key_state='Missing'
   cntools_pool_file_name_into filename "${kind}" || return 2
   # Only inspect file attributes, never read private key contents.
-  if [[ -f "${directory}/${filename}" && ! -L "${directory}/${filename}" ]]; then state=Open; fi
+  if [[ -f "${directory}/${filename}" && ! -L "${directory}/${filename}" ]]; then pool_key_state=Open; fi
   if [[ -f "${directory}/${filename}.gpg" && ! -L "${directory}/${filename}.gpg" ]]; then
-    if [[ "${state}" == Open ]]; then state='Open + encrypted copy'; else state=Encrypted; fi
+    if [[ "${pool_key_state}" == Open ]]; then pool_key_state='Open + encrypted copy'; else pool_key_state=Encrypted; fi
   fi
   if [[ "${kind}" == cold-skey ]]; then
     cntools_pool_file_name_into filename cold-hardware || return 2
     if [[ -f "${directory}/${filename}" && ! -L "${directory}/${filename}" ]]; then
-      if [[ "${state}" == Missing ]]; then state=Hardware; else state='Mixed key material'; fi
+      if [[ "${pool_key_state}" == Missing ]]; then pool_key_state=Hardware; else pool_key_state='Mixed key material'; fi
     fi
   fi
-  printf -v "${output}" '%s' "${state}"
+  printf -v "${output}" '%s' "${pool_key_state}"
 }
 
 cntools_pool_catalog_build() {
@@ -167,6 +167,27 @@ cntools_pool_choose_into() {
     fi
   done
   return 2
+}
+
+# A review's input-selection rows as table pairs: readable strategy, correct
+# plural; change-shaping rows only for features that are switched on.
+cntools_pool_policy_rows() {
+  local inputs="${1:-0}" label=''
+  label="$(cntools_settings_strategy_name "${CNTOOLS_TX_SELECTION_STRATEGY:-}" 2>/dev/null)" || label="${CNTOOLS_TX_SELECTION_STRATEGY:-}"
+  label+=" · $(cntools_number_format "${inputs}") input"; (( inputs == 1 )) || label+=s
+  cntools_table_pair 'Input selection' "${label}" value
+  # As cntools_funding_render_untouched_row, in this table's row format.
+  if [[ "${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0}" =~ ^[1-9][0-9]*$ ]]; then
+    label="$(cntools_number_format "${CNTOOLS_FUNDING_REFERENCE_SKIPPED}") reference-script UTxO"
+    (( CNTOOLS_FUNDING_REFERENCE_SKIPPED == 1 )) || label+=s
+    cntools_table_pair 'Left untouched' "${label}" value
+  fi
+  [[ "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" ]] ||
+    cntools_table_pair 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
+  [[ "${CNTOOLS_CHANGE_UTXO_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_UTXO_STATUS:-}" ]] ||
+    cntools_table_pair 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
+  [[ "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" ]] ||
+    cntools_table_pair 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" value
 }
 
 # Run a review's "Change …" step. Esc (1) keeps the current value and returns

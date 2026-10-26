@@ -174,7 +174,7 @@ cntools_wallet_action_new_cli() {
     cntools_ui_render_status error \
       "${CNTOOLS_WALLET_CREATE_ERROR:-Wallet creation failed. See ${CNTOOLS_LOG}.}"
     cntools_ui_wait
-    return "${create_status}"
+    return 1
   fi
 
   cntools_ui_action_begin "CLI" "/ Wallet / New / CLI"

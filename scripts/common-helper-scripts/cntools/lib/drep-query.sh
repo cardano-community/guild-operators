@@ -5,6 +5,8 @@ CNTOOLS_DREP_STATUS=""
 CNTOOLS_DREP_ACTIVE=""
 CNTOOLS_DREP_SOURCE=""
 CNTOOLS_DREP_DETAILS='{}'
+# One label for the indexed DRep voting power on every screen.
+CNTOOLS_DREP_POWER_LABEL='Voting power (snapshot)'
 
 cntools_drep_parse_local() {
   local file="$1" kind="$2" hash="$3" field=keyHash deposit=""

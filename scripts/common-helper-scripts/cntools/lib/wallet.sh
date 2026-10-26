@@ -557,7 +557,7 @@ cntools_wallet_catalog_rows() {
   local display_tokens=""
   local rewards=""
   local total=""
-  local lone_utxo=N
+  local lone_component=N
   local nonzero_count=0
   local component=""
   local protection_role=""
@@ -594,30 +594,29 @@ cntools_wallet_catalog_rows() {
     tokens="${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]:-}"
     total="${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[index]:-}"
     [[ "${CNTOOLS_WALLET_LIST_QUERY_STATUSES[index]:-}" == available ]] || total=""
-    # Zero components are hidden; a lone UTxO component would only repeat
-    # the Total below it.
+    # Zero components are hidden; a lone component (rewards included) would
+    # only repeat the Total below it.
     nonzero_count=0
     for component in "${base_balance}" "${payment_balance}" "${rewards}"; do
       [[ ! "${component}" =~ ^[1-9][0-9]*$ ]] || nonzero_count=$((nonzero_count + 1))
     done
-    lone_utxo=N
-    [[ "${total}" =~ ^[0-9]+$ && "${nonzero_count}" == 1 &&
-       ! "${rewards}" =~ ^[1-9][0-9]*$ ]] && lone_utxo=Y
-    if [[ "${lone_utxo}" == N && "${base_balance}" =~ ^[1-9][0-9]*$ ]]; then
+    lone_component=N
+    [[ "${total}" =~ ^[0-9]+$ && "${nonzero_count}" == 1 ]] && lone_component=Y
+    if [[ "${lone_component}" == N && "${base_balance}" =~ ^[1-9][0-9]*$ ]]; then
       cntools_table_wrapped_triple \
         "" "Base UTxO" \
         "$(cntools_number_format_lovelace "${base_balance}")" \
         20 22 "" value number ||
         return 1
     fi
-    if [[ "${lone_utxo}" == N && "${payment_balance}" =~ ^[1-9][0-9]*$ ]]; then
+    if [[ "${lone_component}" == N && "${payment_balance}" =~ ^[1-9][0-9]*$ ]]; then
       cntools_table_wrapped_triple \
         "" "Payment UTxO" \
         "$(cntools_number_format_lovelace "${payment_balance}")" \
         20 22 "" value number ||
         return 1
     fi
-    if [[ "${rewards}" =~ ^[1-9][0-9]*$ ]]; then
+    if [[ "${lone_component}" == N && "${rewards}" =~ ^[1-9][0-9]*$ ]]; then
       cntools_table_wrapped_triple \
         "" "Rewards" \
         "$(cntools_number_format_lovelace "${rewards}")" \
@@ -649,6 +648,9 @@ cntools_wallet_render_catalog() {
     "Wallets" cntools_wallet_catalog_rows
 }
 
+# Wallet directories cntools_wallet_choose skips (already-added items).
+declare -ag CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
+
 # Plan-step decision for derived wallets. Quick takes account and key index 0
 # without asking, so this step offers to change them; Detailed already asked.
 # Returns 0 to proceed, 1 to cancel and 4 to change the derivation.
@@ -676,7 +678,7 @@ cntools_wallet_choose() {
   local _cntools_row=""
   local _cntools_status=0
   local _cntools_context="${3:-}" _cntools_annotation=''
-  local _cntools_auto_single="${4:-Y}"
+  local _cntools_auto_single="${4:-Y}" _cntools_excluded=0
   local -a _cntools_rows=()
   local -a _cntools_indices=()
 
@@ -694,6 +696,10 @@ cntools_wallet_choose() {
   for (( _cntools_index = 0;
          _cntools_index < ${#CNTOOLS_WALLET_NAMES[@]};
          _cntools_index++ )); do
+    # Callers list wallets already added (participants, owners) to skip them.
+    if [[ " ${CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS[*]:-} " == *" ${CNTOOLS_WALLET_PATHS[_cntools_index]} "* ]]; then
+      _cntools_excluded=$((_cntools_excluded + 1)); continue
+    fi
     if [[ -n "${_cntools_context}" ]]; then
       cntools_wallet_selection_candidate_into _cntools_annotation "${_cntools_index}" "${_cntools_context}" || continue
     fi
@@ -708,7 +714,9 @@ cntools_wallet_choose() {
     _cntools_indices+=("${_cntools_index}")
   done
   if (( ${#_cntools_rows[@]} == 0 )); then
-    if declare -F cntools_wallet_selection_empty_reason_into >/dev/null 2>&1; then
+    if (( _cntools_excluded > 0 )); then
+      _cntools_annotation='Every suitable wallet is already included.'
+    elif declare -F cntools_wallet_selection_empty_reason_into >/dev/null 2>&1; then
       cntools_wallet_selection_empty_reason_into _cntools_annotation "${_cntools_context}"
     else
       _cntools_annotation='No suitable wallets for this action.'
@@ -799,7 +807,7 @@ cntools_wallet_action_list_impl() {
     return 1
   fi
   if (( ${#CNTOOLS_WALLET_NAMES[@]} == 0 )); then
-    cntools_ui_render_status warn "No wallets are available."
+    cntools_ui_render_status info 'No wallets are available. Create or import a wallet first.'
     cntools_ui_wait
     return 0
   fi
@@ -835,9 +843,9 @@ cntools_wallet_action_list_impl() {
       (( confirmation_status != 130 )) || return 130
       if (( confirmation_status == 1 )); then
         cntools_wallet_log CHOICE "wallet catalog live balances skipped"
+        # The user just said No: no line repeats it.
         cntools_wallet_list_query_reset
-        CNTOOLS_WALLET_LIST_QUERY_LEVEL="info"
-        CNTOOLS_WALLET_LIST_QUERY_SUMMARY="Live wallet balances were not requested."
+        CNTOOLS_WALLET_LIST_QUERY_SUMMARY=""
       else
         cntools_wallet_log ERROR \
           "wallet catalog confirmation failed status=${confirmation_status}"

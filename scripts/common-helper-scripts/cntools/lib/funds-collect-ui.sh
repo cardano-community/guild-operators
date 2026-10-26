@@ -65,6 +65,22 @@ cntools_collect_choose_scope() {
   cntools_transaction_log CHOICE "Collection scope=${CNTOOLS_COLLECT_SCOPE}"
 }
 
+# Rebuild after a review change. A failed rebuild restores the previous
+# lifetime, rebuilds that and warns; the action continues.
+cntools_collect_rebuild_into() {
+  local cr_target="$1" cr_lifetime="$2" cr_previous="$3" cr_reason=''
+  cntools_transaction_clear_error
+  cntools_ui_spin_function 'Checking funds and rebuilding the collection…' \
+    cntools_collect_refresh_build_into "${cr_target}" "${!cr_lifetime}" && return 0
+  cr_reason="${CNTOOLS_TRANSACTION_ERROR:-The collection could not be rebuilt.}"
+  printf -v "${cr_lifetime}" '%s' "${cr_previous}"
+  cntools_transaction_clear_error
+  cntools_ui_spin_function 'Restoring the previous collection…' \
+    cntools_collect_refresh_build_into "${cr_target}" "${cr_previous}" || return 2
+  cntools_transaction_log CHOICE "Collection rebuild failed; previous expiry kept lifetime=${cr_previous}"
+  cntools_ui_render_status warn "The new expiry could not be built, so the previous one is kept. ${cr_reason}"
+}
+
 cntools_collect_workflow() {
   local selected="" workflow="" staged="" signed="" saved="" proceed="" can_sign=N
   local backend="" signed_body="" txid="" lifetime=1800 status=0 previous="" reason=""
@@ -75,10 +91,8 @@ cntools_collect_workflow() {
   cntools_wallet_catalog_build || return 2
   cntools_wallet_choose selected Cancel collect || return $?
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" multisig || return 2
-  [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_spend_choose_signers cntools_collect_begin || return $?
-  [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
-  [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || can_sign="${CNTOOLS_MULTISIG_CAN_SIGN}"
-  # Check first: a wallet with nothing to collect asks nothing more.
+  # Check first: a wallet with nothing to collect asks nothing more, not even
+  # for its multisig signers.
   cntools_ui_spin_function 'Checking funds…' cntools_collect_check || return 2
   if (( ${#CNTOOLS_COLLECT_SCOPES[@]} == 0 )); then
     cntools_collect_begin
@@ -86,6 +100,9 @@ cntools_collect_workflow() {
     CNTOOLS_COLLECT_RESULT_SHOWN=Y
     return 0
   fi
+  [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_spend_choose_signers cntools_collect_begin || return $?
+  [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
+  [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || can_sign="${CNTOOLS_MULTISIG_CAN_SIGN}"
   if cntools_flow_quick; then
     # ADA-only when it has something to collect; the review offers 'Change scope'.
     CNTOOLS_COLLECT_SCOPE="${CNTOOLS_COLLECT_SCOPES[0]}"
@@ -110,9 +127,14 @@ cntools_collect_workflow() {
     case "${selected}" in
       "${proceed}") break ;;
       'Change workflow')
-        # Esc keeps the current value and returns to the review.
+        # Esc keeps the current value and returns to the review. Quick gives
+        # an unsigned package a day to be signed, so that rebuilds.
+        previous="${lifetime}"
         cntools_transaction_ui_workflow_into workflow "${can_sign}" || status=$?
-        (( status <= 1 )) || return "${status}" ;;
+        (( status <= 1 )) || return "${status}"
+        (( status == 0 )) || continue
+        cntools_transaction_ui_unsigned_lifetime_into lifetime "${workflow}" || continue
+        cntools_collect_rebuild_into staged lifetime "${previous}" || return $? ;;
       'Change scope')
         previous="${CNTOOLS_COLLECT_SCOPE}"
         cntools_collect_choose_scope || status=$?
@@ -131,11 +153,11 @@ cntools_collect_workflow() {
           cntools_ui_render_status warn "The other scope could not be built, so the previous one is kept. ${reason}"
         fi ;;
       'Change expiry')
+        previous="${lifetime}"
         cntools_transaction_ui_expiry_into lifetime || status=$?
         (( status != 1 )) || continue
         (( status == 0 )) || return "${status}"
-        cntools_ui_spin_function 'Checking funds and rebuilding the collection…' \
-          cntools_collect_refresh_build_into staged "${lifetime}" || return 2 ;;
+        cntools_collect_rebuild_into staged lifetime "${previous}" || return $? ;;
       *) return 2 ;;
     esac
   done

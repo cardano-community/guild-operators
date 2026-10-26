@@ -126,15 +126,25 @@ cntools_pool_relays_rows() {
   while IFS=$'\037' read -r label value role; do [[ -z "${role}" ]] || cntools_table_pair "${label}" "${value}" "${role}"; done <<< "${records}"
 }
 
+# All rows of one settings record: values, owners and relays.
+cntools_pool_settings_all_rows() {
+  cntools_pool_settings_rows "$1" "$2" && cntools_pool_members_rows "$1" "$2" && cntools_pool_relays_rows "$1" "$2"
+}
+
+# With a baseline record (the current settings), only rows that differ.
 cntools_pool_render_settings() {
-  local title="$1" json="$2" format="$3" members="" relays="" settings=""
+  local title="$1" json="$2" format="$3" baseline="${4:-}" rows="" record="" shown=""
+  local -A unchanged=()
   [[ "${json}" != '{}' ]] || return 0
-  settings="$(cntools_pool_settings_rows "${json}" "${format}")" || return 1
-  members="$(cntools_pool_members_rows "${json}" "${format}")" || return 1
-  relays="$(cntools_pool_relays_rows "${json}" "${format}")" || return 1
-  [[ -z "${settings}${members}${relays}" ]] || {
-    printf '\n'; printf '%s\n%s\n%s\n' "${settings}" "${members}" "${relays}" | cntools_table_render "${title}"
-  }
+  rows="$(cntools_pool_settings_all_rows "${json}" "${format}")" || return 1
+  if [[ -n "${baseline}" && "${baseline}" != '{}' ]]; then
+    while IFS= read -r record; do [[ -z "${record}" ]] || unchanged["${record}"]=Y; done < <(cntools_pool_settings_all_rows "${baseline}" "${format}")
+  fi
+  while IFS= read -r record; do
+    [[ -n "${record}" && -z "${unchanged[${record}]:-}" ]] || continue
+    shown+="${record}"$'\n'
+  done <<< "${rows}"
+  [[ -z "${shown}" ]] || { printf '\n'; printf '%s' "${shown}" | cntools_table_render "${title}"; }
 }
 
 # The descriptive fields Show compares and renders.
@@ -157,21 +167,78 @@ cntools_pool_render_metadata() {
   } | cntools_table_render "${title}"
 }
 
-# Local draft rows that differ from both the current and pending chain
-# settings; owners and relays are compared on chain, not against the draft.
-cntools_pool_render_config_changes() {
-  local config="$1" format="$2" index="$3" chain='' record='' rows=''
-  local -A on_chain=()
-  [[ "${config}" != '{}' ]] || return 0
-  chain="$(cntools_pool_settings_rows "${CNTOOLS_POOL_CURRENT[index]}" "${format}")" || return 1
-  if [[ "${CNTOOLS_POOL_FUTURE[index]}" != '{}' ]]; then
-    chain+=$'\n'"$(cntools_pool_settings_rows "${CNTOOLS_POOL_FUTURE[index]}" "${format}")" || return 1
+# Comparable chain settings: amounts in lovelace, margin in exact units,
+# reward and owners as credential hashes (null when one cannot be read).
+cntools_pool_chain_compare_into() {
+  local pcc_output="$1" pcc_json="$2" pcc_format="$3" pcc_hrp=stake_test pcc_raw='' pcc_address='' pcc_reward=null pcc_owners='[]' pcc_result=''
+  if [[ "${pcc_format}" == koios ]]; then
+    [[ "${CNTOOLS_NETWORK:-}" != mainnet ]] || pcc_hrp=stake
+    pcc_address="$(jq -r '.reward_addr // empty' <<< "${pcc_json}")" || return 1
+    if [[ -n "${pcc_address}" ]] && cntools_bech32_decode_into pcc_raw "${pcc_address}" "${pcc_hrp}" && [[ "${pcc_raw}" =~ ^e[01][0-9a-f]{56}$ ]]; then
+      pcc_reward="\"${pcc_raw:2}\""
+    fi
+    while IFS= read -r pcc_address; do
+      pcc_raw=''
+      if cntools_bech32_decode_into pcc_raw "${pcc_address}" "${pcc_hrp}" && [[ "${pcc_raw}" =~ ^e[01][0-9a-f]{56}$ ]]; then
+        pcc_owners="$(jq -c --arg hash "${pcc_raw:2}" '. + [$hash]' <<< "${pcc_owners}")" || return 1
+      else pcc_owners=null; break; fi
+    done < <(jq -r '.owners // [] | .[]' <<< "${pcc_json}")
   fi
-  while IFS= read -r record; do [[ -z "${record}" ]] || on_chain["${record%$'\037'*}"]=Y; done <<< "${chain}"
-  while IFS= read -r record; do
-    [[ -n "${record}" && -z "${on_chain[${record%$'\037'*}]:-}" ]] || continue
-    rows+="${record}"$'\n'
-  done < <(cntools_pool_settings_rows "${config}" config)
+  pcc_result="$(jq -c --arg format "${pcc_format}" --argjson reward "${pcc_reward}" --argjson owners "${pcc_owners}" '
+    def units: if type == "number" then . * 100000000 | round else null end;
+    if $format == "local" then
+      {pledge:(.spsPledge|tostring), cost:(.spsCost|tostring), margin:(.spsMargin|units), metadata:(.spsMetadata.url // ""),
+       reward:(.spsAccountId.keyHash // .spsAccountId.scriptHash), owners:(.spsOwners // [] | sort)}
+    else
+      {pledge:(.pledge|tostring), cost:(.fixed_cost|tostring), margin:(.margin|units), metadata:(.meta_url // ""),
+       reward:$reward, owners:(if $owners == null then null else $owners | sort end)}
+    end' <<< "${pcc_json}" 2>/dev/null)" || return 1
+  printf -v "${pcc_output}" '%s' "${pcc_result}"
+}
+
+# Local draft rows that differ from both the current and pending chain
+# settings. Only pledge, fixed cost, margin, metadata URL, reward account and
+# owners are compared; relays are compared on chain, not against the draft.
+cntools_pool_render_config_changes() {
+  local config="$1" format="$2" index="$3" current='' pending=null records='' label='' value='' kind='' formatted='' rows=''
+  [[ "${config}" != '{}' ]] || return 0
+  cntools_pool_chain_compare_into current "${CNTOOLS_POOL_CURRENT[index]}" "${format}" || return 1
+  if [[ "${CNTOOLS_POOL_FUTURE[index]}" != '{}' ]]; then
+    cntools_pool_chain_compare_into pending "${CNTOOLS_POOL_FUTURE[index]}" "${format}" || return 1
+  fi
+  records="$(jq -r --argjson current "${current}" --argjson pending "${pending}" '
+    def units: if type == "number" then . * 100000000 | round
+      elif type == "string" and test("^[0-9]+/[1-9][0-9]*$") then split("/") | (.[0]|tonumber) * (100000000 / (.[1]|tonumber)) | round
+      elif type == "string" then (try (tonumber * 100000000 | round) catch null) else null end;
+    def lovelace: try ((tonumber * 1000000) | round | tostring) catch null;
+    def pct: (. / 1000000 | floor | tostring) + ((. % 1000000) as $f | if $f == 0 then "" else "." + ((1000000 + $f) | tostring | .[1:] | sub("0+$"; "")) end);
+    (if .schema == 1 then
+      {pledge:(.pledgeLovelace|tostring), cost:(.costLovelace|tostring), margin:(.margin|units), metadata:(.metadata.url // ""),
+       reward:(.reward.hash // null), owners:(.owners // [] | map(.hash) | if all(.[]; type == "string") then sort else null end),
+       rewardLabel:(.reward.label // .reward.hash // ""), ownerLabels:(.owners // [] | map(.label // .hash) | join(", "))}
+    else
+      {pledge:(.pledgeADA|lovelace), cost:(.costADA|lovelace), margin:(try ((.margin|tonumber) * 1000000 | round) catch null),
+       metadata:(.json_url // ""), reward:null, owners:null}
+    end) as $draft |
+    def differs($field): $draft[$field] != null and $current[$field] != null and $draft[$field] != $current[$field] and
+      ($pending == null or $pending[$field] == null or $draft[$field] != $pending[$field]);
+    (if differs("pledge") then ["Pledge", $draft.pledge, "lovelace"] else empty end),
+    (if differs("cost") then ["Fixed cost", $draft.cost, "lovelace"] else empty end),
+    (if differs("margin") then ["Margin", ($draft.margin | pct), "percent"] else empty end),
+    (if differs("reward") then ["Reward wallet", $draft.rewardLabel, "identifier"] else empty end),
+    (if differs("owners") then ["Owners", $draft.ownerLabels, "identifier"] else empty end),
+    (if differs("metadata") then ["Metadata URL", (if $draft.metadata == "" then "None" else $draft.metadata end), "identifier"] else empty end)
+    | map(tostring | gsub("[[:cntrl:]]"; " ")) | join("\u001f")
+  ' <<< "${config}" 2>/dev/null)" || return 1
+  while IFS=$'\037' read -r label value kind; do
+    [[ -n "${kind}" ]] || continue
+    case "${kind}" in
+      lovelace) [[ "${value}" =~ ^[0-9]+$ ]] || continue; formatted="$(cntools_number_format_lovelace "${value}")" || return 1; kind=number ;;
+      percent) cntools_number_format_into formatted "${value}" || continue; formatted+=' %'; kind=number ;;
+      *) formatted="${value}" ;;
+    esac
+    rows+="$(cntools_table_pair "${label}" "${formatted}" "${kind}")"$'\n' || return 1
+  done <<< "${records}"
   [[ -z "${rows}" ]] || { printf '\n'; printf '%s' "${rows}" | cntools_table_render 'Local draft · differs from chain'; }
 }
 
@@ -236,7 +303,7 @@ cntools_pool_action_show() {
   if [[ "${CNTOOLS_POOL_CHAIN_SOURCE[selected]}" == 'Local node' ]]; then
     format=local
     cntools_pool_render_settings 'Current on-chain settings · local node' "${CNTOOLS_POOL_CURRENT[selected]}" "${format}" || return 1
-    cntools_pool_render_settings 'Pending settings · next epoch' "${CNTOOLS_POOL_FUTURE[selected]}" "${format}" || return 1
+    cntools_pool_render_settings 'Pending changes · next epoch' "${CNTOOLS_POOL_FUTURE[selected]}" "${format}" "${CNTOOLS_POOL_CURRENT[selected]}" || return 1
   else
     format=koios
     cntools_pool_render_settings 'Latest indexed registration · Koios API' "${CNTOOLS_POOL_CURRENT[selected]}" "${format}" || return 1

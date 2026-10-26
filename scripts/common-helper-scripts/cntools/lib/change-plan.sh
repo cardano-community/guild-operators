@@ -239,7 +239,7 @@ cntools_change_plan_ada() {
           "${CNTOOLS_TX_COLLATERAL_LOVELACE}" 0 || return 1
         available="${remaining}"
         optional_created=$((optional_created + 1))
-        CNTOOLS_CHANGE_COLLATERAL_STATUS="Applied · 5 ADA candidate created"
+        CNTOOLS_CHANGE_COLLATERAL_STATUS="Applied · $(cntools_number_format_lovelace "${CNTOOLS_TX_COLLATERAL_LOVELACE:-5000000}") candidate created"
       else
         CNTOOLS_CHANGE_COLLATERAL_STATUS="Enabled · insufficient change"
       fi

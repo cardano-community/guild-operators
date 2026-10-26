@@ -86,11 +86,21 @@ cntools_pool_stake_collect() {
   done
 }
 
+# Registration and delegation of every checked credential, sorted, to tell
+# whether a new check changed anything.
+cntools_pool_stake_snapshot() {
+  local key=''
+  for key in "${!CNTOOLS_POOL_STAKE_STATUS[@]}"; do
+    printf '%s=%s/%s\n' "${key}" "${CNTOOLS_POOL_STAKE_STATUS[${key}]}" "${CNTOOLS_POOL_STAKE_DELEGATION[${key}]:-}"
+  done | sort
+}
+
 # Owner balances for the review's pledge row; asks only when they do not
 # cover the declared pledge. Registration and delegation show per owner in the review.
-CNTOOLS_POOL_PLEDGE_TOTAL='' CNTOOLS_POOL_PLEDGE_UNKNOWN=N
+# "reuse" keeps an earlier approval of the same pledge.
+CNTOOLS_POOL_PLEDGE_TOTAL='' CNTOOLS_POOL_PLEDGE_UNKNOWN=N CNTOOLS_POOL_PLEDGE_APPROVED=''
 cntools_pool_stake_guidance() {
-  local record='' hash='' total=0 unknown=N choice=''
+  local mode="${1:-}" record='' hash='' total=0 unknown=N choice=''
   while IFS= read -r record; do
     hash="$(jq -r .hash <<< "${record}")"
     if [[ -n "${CNTOOLS_POOL_STAKE_BALANCE[${hash}]:-}" ]]; then
@@ -100,6 +110,10 @@ cntools_pool_stake_guidance() {
   CNTOOLS_POOL_PLEDGE_TOTAL="${total}" CNTOOLS_POOL_PLEDGE_UNKNOWN="${unknown}"
   cntools_transaction_log POOL "Pledge check knownOwnerBalance=${total} declared=${CNTOOLS_POOL_REG_PLEDGE} missingBalances=${unknown} backend=${CNTOOLS_WALLET_REGISTER_BACKEND}"
   [[ "${unknown}" == Y ]] || ! cntools_uint_greater_equal "${total}" "${CNTOOLS_POOL_REG_PLEDGE}" || return 0
+  if [[ "${mode}" == reuse && "${CNTOOLS_POOL_PLEDGE_APPROVED}" == "${CNTOOLS_POOL_REG_PLEDGE}" ]]; then
+    cntools_transaction_log CHOICE "Pool menu=Continue with this pledge commitment? kept=Yes, continue pledge=${CNTOOLS_POOL_REG_PLEDGE}"
+    return 0
+  fi
   { cntools_table_pair 'Owner balances + rewards' "$(cntools_number_format_lovelace "${total}")" number
     cntools_table_pair 'Declared pledge' "$(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_PLEDGE}")" number
     [[ "${CNTOOLS_WALLET_REGISTER_BACKEND}" != local ]] || cntools_table_pair Coverage 'Known base addresses + rewards only; other stake-linked addresses are not counted' muted
@@ -108,6 +122,7 @@ cntools_pool_stake_guidance() {
   cntools_ui_render_status warn 'Pledge is below the declared amount or could not be fully verified. This may prevent pool rewards.'
   cntools_pool_registration_choose choice 'Continue with this pledge commitment?' 'Yes, continue' 'Cancel transaction' || return $?
   [[ "${choice}" == 'Yes, continue' ]] || return 1
+  CNTOOLS_POOL_PLEDGE_APPROVED="${CNTOOLS_POOL_REG_PLEDGE}"
 }
 
 # The review's pledge row: owner balances against the declared pledge.
@@ -161,7 +176,8 @@ declare -Ag CNTOOLS_POOL_STAKE_SETUP_CHOSEN=()
 CNTOOLS_POOL_STAKE_SETUP_NOTE=''
 
 # Quick includes the main-owner delegation and reward registration; "ask"
-# (review → Change stake setup) asks in both styles.
+# (review → Change stake setup) asks in both styles; "reuse" keeps answers
+# already given in both styles.
 cntools_pool_stake_setup_choose() {
   local mode="${1:-}" record='' source='' kind='' hash='' status='' choice='' deposit='' plan='[]' primary='' title='' remembered=''
   CNTOOLS_POOL_STAKE_PLAN='[]'; CNTOOLS_POOL_EXTRA_RECORDS='[]'; CNTOOLS_POOL_EXTRA_EXPECTED='[]'; CNTOOLS_POOL_EXTRA_CERTIFICATES=()
@@ -199,9 +215,9 @@ cntools_pool_stake_setup_choose() {
       fi
       CNTOOLS_POOL_STAKE_SETUP_ASKABLE=Y; title='Include main-owner stake setup?'
       remembered="${CNTOOLS_POOL_STAKE_SETUP_CHOSEN[delegate:${hash}]:-}"
-      if [[ "${mode}" != ask ]] && cntools_flow_quick; then
+      if [[ "${mode}" == reuse && -n "${remembered}" ]] || { [[ "${mode}" != ask ]] && cntools_flow_quick; }; then
         choice="${remembered:-Register if needed and delegate to this pool}"
-        cntools_transaction_log CHOICE "Pool menu=${title} default=${choice} flow=quick$([[ -z "${remembered}" ]] || printf ' remembered')"
+        cntools_transaction_log CHOICE "Pool menu=${title} default=${choice} $([[ "${mode}" == reuse ]] && printf kept || printf flow=quick)$([[ -z "${remembered}" ]] || printf ' remembered')"
       else
         cntools_ui_render_status info "Main owner: $(jq -r .label <<< "${record}"). Stake registration (if needed) and delegation can be included atomically with pool registration."
         cntools_pool_registration_choose choice "${title}" 'Register if needed and delegate to this pool' 'Keep stake setup separate' || return $?
@@ -212,9 +228,9 @@ cntools_pool_stake_setup_choose() {
     elif [[ "${status}" == no ]]; then
       CNTOOLS_POOL_STAKE_SETUP_ASKABLE=Y; title="Register reward account? Deposit $(cntools_number_format_lovelace "${deposit}")"
       remembered="${CNTOOLS_POOL_STAKE_SETUP_CHOSEN[register:${hash}]:-}"
-      if [[ "${mode}" != ask ]] && cntools_flow_quick; then
+      if [[ "${mode}" == reuse && -n "${remembered}" ]] || { [[ "${mode}" != ask ]] && cntools_flow_quick; }; then
         choice="${remembered:-Include reward registration}"
-        cntools_transaction_log CHOICE "Pool menu=${title} default=${choice} flow=quick$([[ -z "${remembered}" ]] || printf ' remembered')"
+        cntools_transaction_log CHOICE "Pool menu=${title} default=${choice} $([[ "${mode}" == reuse ]] && printf kept || printf flow=quick)$([[ -z "${remembered}" ]] || printf ' remembered')"
       else
         cntools_pool_registration_choose choice "${title}" 'Include reward registration' 'Keep reward registration separate' || return $?
         CNTOOLS_POOL_STAKE_SETUP_CHOSEN["register:${hash}"]="${choice}"

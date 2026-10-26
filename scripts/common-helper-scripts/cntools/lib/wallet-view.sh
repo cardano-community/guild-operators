@@ -141,6 +141,26 @@ cntools_wallet_render_credential_table() {
 }
 
 
+# One placeholder for an unknown amount, as in List.
+cntools_wallet_lovelace_cell() {
+  if [[ "${1:-}" =~ ^[0-9]+$ ]]; then
+    cntools_number_format_lovelace "$1"
+  else
+    printf '—\n'
+  fi
+}
+
+
+cntools_wallet_count_cell_into() {
+  local _cntools_count_value="${2:-}"
+  [[ "${1:-}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_count_ref="$1"
+  _cntools_count_ref="—"
+  [[ ! "${_cntools_count_value}" =~ ^[0-9]+$ ]] ||
+    cntools_number_format_into _cntools_count_ref "${_cntools_count_value}"
+}
+
+
 cntools_wallet_balance_rows() {
   local has_base="${1:-Y}"
   local has_payment="${2:-Y}"
@@ -154,64 +174,65 @@ cntools_wallet_balance_rows() {
   local show_payment=N
   local show_rewards=N
   local utxo_rows=0
+  local components=0
   local formatted=""
 
-  # Zero components and subtotals of a single component would repeat the
-  # Total; unknown values stay visible as Unavailable.
+  # Zero components are hidden, unknown ones read —. Rewards count as a
+  # component: when only one is left it would repeat the Total, so the
+  # Total stands alone.
   [[ "${has_base}" != Y || "${base}" == 0 ]] || { show_base=Y; utxo_rows=$((utxo_rows + 1)); }
   [[ "${has_payment}" != Y || "${payment}" == 0 ]] || { show_payment=Y; utxo_rows=$((utxo_rows + 1)); }
   [[ "${has_reward}" != Y || "${rewards}" == 0 ]] || show_rewards=Y
   if [[ "${has_base}" == Y || "${has_payment}" == Y ]]; then
     total="${utxo_total}"
+    components="${utxo_rows}"
     if [[ "${has_reward}" == Y ]]; then
       total=""
       [[ ! "${utxo_total}" =~ ^[0-9]+$ || ! "${rewards}" =~ ^[0-9]+$ ]] ||
         cntools_uint_add_into total "${utxo_total}" "${rewards}" || return 1
     fi
+    [[ "${show_rewards}" == N ]] || components=$((utxo_rows + 1))
+    if (( components <= 1 )); then
+      show_base=N
+      show_payment=N
+      show_rewards=N
+    fi
   elif [[ "${has_reward}" == Y ]]; then
     # A stake-only wallet: Rewards is the whole balance, no Total needed.
     show_rewards=Y
   fi
-  if (( utxo_rows == 1 )) && [[ "${show_rewards}" == N && "${total}" =~ ^[0-9]+$ ]]; then
-    show_base=N
-    show_payment=N
-  fi
   cntools_table_row "Balance" "Value" || return 1
   if [[ "${show_base}" == Y ]]; then
     cntools_table_wrapped_pair "Base UTxO" \
-      "$(cntools_number_format_lovelace "${base}")" \
+      "$(cntools_wallet_lovelace_cell "${base}")" \
       22 "$(cntools_text_number_role "${base}")" || return 1
   fi
   if [[ "${show_payment}" == Y ]]; then
     cntools_table_wrapped_pair "Payment UTxO" \
-      "$(cntools_number_format_lovelace "${payment}")" \
+      "$(cntools_wallet_lovelace_cell "${payment}")" \
       22 "$(cntools_text_number_role "${payment}")" || return 1
   fi
   if (( utxo_rows > 1 )) && [[ "${show_rewards}" == Y ]]; then
     cntools_table_wrapped_pair "Total UTxO" \
-      "$(cntools_number_format_lovelace "${utxo_total}")" \
+      "$(cntools_wallet_lovelace_cell "${utxo_total}")" \
       22 "$(cntools_text_number_role "${utxo_total}")" || return 1
   fi
   if [[ "${show_rewards}" == Y ]]; then
     cntools_table_wrapped_pair "Rewards" \
-      "$(cntools_number_format_lovelace "${rewards}")" \
+      "$(cntools_wallet_lovelace_cell "${rewards}")" \
       22 "$(cntools_text_number_role "${rewards}")" || return 1
   fi
   [[ "${has_base}" == Y || "${has_payment}" == Y ]] || return 0
   cntools_table_wrapped_pair "Total" \
-    "$(cntools_number_format_lovelace "${total}")" \
+    "$(cntools_wallet_lovelace_cell "${total}")" \
     22 "$(cntools_text_number_role "${total}")" || return 1
   if [[ "${CNTOOLS_WALLET_UTXO_COUNT:-}" != 0 ]]; then
-    formatted="Unavailable"
-    [[ ! "${CNTOOLS_WALLET_UTXO_COUNT:-}" =~ ^[0-9]+$ ]] ||
-      cntools_number_format_into formatted "${CNTOOLS_WALLET_UTXO_COUNT}" || return 1
+    cntools_wallet_count_cell_into formatted "${CNTOOLS_WALLET_UTXO_COUNT:-}" || return 1
     cntools_table_wrapped_pair "UTxO count" "${formatted}" 22 \
       "$(cntools_text_number_role "${CNTOOLS_WALLET_UTXO_COUNT:-}")" || return 1
   fi
   if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" != 0 ]]; then
-    formatted="Unavailable"
-    [[ ! "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[0-9]+$ ]] ||
-      cntools_number_format_into formatted "${CNTOOLS_WALLET_ASSET_COUNT}" || return 1
+    cntools_wallet_count_cell_into formatted "${CNTOOLS_WALLET_ASSET_COUNT:-}" || return 1
     cntools_table_wrapped_pair "Native assets" "${formatted}" 22 \
       "$(cntools_text_number_role "${CNTOOLS_WALLET_ASSET_COUNT:-}")" || return 1
   fi
@@ -324,53 +345,11 @@ cntools_wallet_render_query() {
 }
 
 
-cntools_wallet_choose_asset_view() {
-  local _cntools_output_name="${1:-}"
-  local _cntools_selected=""
-  local _cntools_status=0
-  local _cntools_index=0
-  local -a _cntools_rows=(
-    "Simple    · Essential holdings and identifiers"
-    "Detailed  · All available token metadata"
-    "Skip      · Do not print native-asset details"
-  )
-  local -a _cntools_ids=(simple detailed skip)
-
-  [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
-  local -n _cntools_output_ref="${_cntools_output_name}"
-  _cntools_output_ref=""
-  if cntools_flow_quick; then
-    _cntools_output_ref=simple
-    cntools_wallet_log CHOICE "native-asset view default=simple flow=quick"
-    return 0
-  fi
-  if cntools_ui_choose _cntools_selected \
-      "Select native-asset view…" "${_cntools_rows[@]}"; then
-    _cntools_status=0
-  else
-    _cntools_status=$?
-  fi
-  (( _cntools_status == 0 )) || return "${_cntools_status}"
-  for (( _cntools_index = 0;
-         _cntools_index < ${#_cntools_rows[@]};
-         _cntools_index++ )); do
-    if [[ "${_cntools_selected}" == "${_cntools_rows[_cntools_index]}" ]]; then
-      _cntools_output_ref="${_cntools_ids[_cntools_index]}"
-      cntools_wallet_log CHOICE \
-        "native-asset view selected view=${_cntools_output_ref}"
-      return 0
-    fi
-  done
-  cntools_wallet_log ERROR "Native-asset view selector returned an unknown row"
-  return 2
-}
-
-
 cntools_wallet_action_show_impl() {
   local selected_index=""
   local selector_status=0
-  local asset_selector_status=0
-  local asset_view="simple"
+  local asset_status=0
+  local asset_choice=""
   local wallet_directory=""
   local wallet_type=""
   local wallet_protection=""
@@ -487,22 +466,23 @@ cntools_wallet_action_show_impl() {
     "${has_base}" "${has_payment}" "${has_reward}" skip || return 1
   cntools_wallet_delegation_info_render || return 1
   if [[ "${CNTOOLS_WALLET_ASSET_COUNT:-}" =~ ^[1-9][0-9]*$ ]]; then
-    if cntools_wallet_choose_asset_view asset_view; then
-      asset_selector_status=0
+    # Essentials first (both styles); the full metadata is one step away.
+    cntools_wallet_render_asset_details_table simple || return 1
+    if cntools_ui_choose asset_choice "Wallet" \
+        "Done" "Show detailed asset metadata"; then
+      asset_status=0
     else
-      asset_selector_status=$?
+      asset_status=$?
     fi
-    if (( asset_selector_status == 1 || asset_selector_status == 130 )); then
-      cntools_wallet_log CHOICE "native-asset view selection cancelled"
+    if (( asset_status == 1 || asset_status == 130 )); then
       return 0
-    elif (( asset_selector_status != 0 )); then
-      cntools_wallet_log ERROR \
-        "native-asset view selection failed status=${asset_selector_status}"
-      return "${asset_selector_status}"
+    elif (( asset_status != 0 )); then
+      return "${asset_status}"
     fi
-    if [[ "${asset_view}" != "skip" ]]; then
-      cntools_wallet_render_asset_details_table "${asset_view}" || return 1
-    fi
+    cntools_wallet_log CHOICE "wallet show choice=${asset_choice}"
+    [[ "${asset_choice}" == "Show detailed asset metadata" ]] || return 0
+    cntools_ui_action_begin "Show" "/ Wallet / Show"
+    cntools_wallet_render_asset_details_table detailed || return 1
   fi
   cntools_ui_wait
 }

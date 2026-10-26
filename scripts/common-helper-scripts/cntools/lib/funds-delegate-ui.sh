@@ -66,10 +66,11 @@ cntools_delegate_render_pool_rows() {
   [[ -z "${CNTOOLS_DELEGATE_LOCAL_NAME}" ]] || cntools_transaction_ui_styled_row 'Local pool' "${CNTOOLS_DELEGATE_LOCAL_NAME}" value
   [[ -z "${CNTOOLS_POOL_NAME}" ]] || cntools_transaction_ui_styled_row 'Pool name (metadata)' "${CNTOOLS_POOL_NAME}" value
   [[ -z "${CNTOOLS_POOL_TICKER}" ]] || cntools_transaction_ui_styled_row 'Ticker (metadata)' "${CNTOOLS_POOL_TICKER}" value
-  cntools_transaction_ui_styled_row 'Pool status' "${CNTOOLS_POOL_STATUS}" "$([[ "${CNTOOLS_POOL_STATUS}" == retiring ]] && printf warning || printf success)"
-  [[ -z "${CNTOOLS_DELEGATE_RETIRING}" ]] || cntools_transaction_ui_styled_row 'Retirement epoch' "$(cntools_number_format "${CNTOOLS_DELEGATE_RETIRING}")" warning
-  cntools_transaction_ui_styled_row 'Pool checked through' "${CNTOOLS_POOL_SOURCE}" value
-  cntools_transaction_ui_styled_row 'Stake registration' "$([[ "${CNTOOLS_DELEGATE_REGISTER}" == Y ]] && printf 'Register in this transaction' || printf 'Already registered')" value
+  # Only what needs attention: a retiring pool, a registration in this transaction.
+  [[ "${CNTOOLS_POOL_STATUS}" != retiring || -z "${CNTOOLS_DELEGATE_RETIRING}" ]] ||
+    cntools_transaction_ui_styled_row 'Pool status' "Retiring in epoch $(cntools_number_format "${CNTOOLS_DELEGATE_RETIRING}")" warning
+  [[ "${CNTOOLS_DELEGATE_REGISTER}" != Y ]] ||
+    cntools_transaction_ui_styled_row 'Stake registration' 'Included in this transaction' value
 }
 
 cntools_delegate_choose_target() {
@@ -143,17 +144,18 @@ cntools_delegate_choose_target() {
   done
 }
 
+# Pool choice state a review 'Change pool' keeps, or restores after a failed rebuild.
+declare -ag CNTOOLS_DELEGATE_TARGET_STATE=(CNTOOLS_DELEGATE_POOL_ID CNTOOLS_DELEGATE_POOL_HEX CNTOOLS_DELEGATE_RETIRING
+  CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED CNTOOLS_DELEGATE_LOCAL_NAME CNTOOLS_POOL_STATUS CNTOOLS_POOL_RETIRING
+  CNTOOLS_POOL_NAME CNTOOLS_POOL_TICKER CNTOOLS_POOL_SOURCE)
+
 # Review 'Change pool': any non-zero status keeps the reviewed pool.
 cntools_delegate_change_target() {
   local status=0
-  local -a saved=("${CNTOOLS_DELEGATE_POOL_ID}" "${CNTOOLS_DELEGATE_POOL_HEX}" "${CNTOOLS_DELEGATE_RETIRING}"
-    "${CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED}" "${CNTOOLS_DELEGATE_LOCAL_NAME}" "${CNTOOLS_POOL_STATUS}"
-    "${CNTOOLS_POOL_RETIRING}" "${CNTOOLS_POOL_NAME}" "${CNTOOLS_POOL_TICKER}" "${CNTOOLS_POOL_SOURCE}")
+  cntools_wallet_register_save "${CNTOOLS_DELEGATE_TARGET_STATE[@]}"
   cntools_delegate_choose_target || status=$?
   (( status != 0 )) || return 0
-  CNTOOLS_DELEGATE_POOL_ID="${saved[0]}" CNTOOLS_DELEGATE_POOL_HEX="${saved[1]}" CNTOOLS_DELEGATE_RETIRING="${saved[2]}"
-  CNTOOLS_DELEGATE_REGISTRATION_CONFIRMED="${saved[3]}" CNTOOLS_DELEGATE_LOCAL_NAME="${saved[4]}" CNTOOLS_POOL_STATUS="${saved[5]}"
-  CNTOOLS_POOL_RETIRING="${saved[6]}" CNTOOLS_POOL_NAME="${saved[7]}" CNTOOLS_POOL_TICKER="${saved[8]}" CNTOOLS_POOL_SOURCE="${saved[9]}"
+  cntools_wallet_register_restore
   cntools_transaction_log CHOICE "Delegate pool unchanged status=${status} pool=${CNTOOLS_DELEGATE_POOL_ID}"
   return "${status}"
 }

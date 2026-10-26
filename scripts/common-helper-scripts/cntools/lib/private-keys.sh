@@ -156,15 +156,25 @@ cntools_private_keys_inventory() {
   done
 }
 
-# Object folders under a category root, as offered by the scope question.
+# Object folders of a category (wallets, pools or assets) holding deletable
+# key files, plain or encrypted, with a file count each; others are left out.
 cntools_private_keys_objects_into() {
-  local -n po_objects="$1"
-  local po_root="$2" po_directory=''
-  po_objects=()
+  local -n po_objects="$1" po_counts="$2"
+  local po_role="$3" po_root='' po_directory='' po_name='' po_count=0
+  local -a po_names=()
+  po_objects=(); po_counts=()
+  case "${po_role}" in wallets) po_root="${CNTOOLS_WALLET_DIR:-}" ;; pools) po_root="${CNTOOLS_POOL_DIR:-}" ;; assets) po_root="${CNTOOLS_ASSET_DIR:-}" ;; *) return 2 ;; esac
   [[ -n "${po_root}" && -d "${po_root}" && ! -L "${po_root}" ]] || return 0
+  cntools_private_keys_names_into po_names "${po_role}" || return 1
+  [[ "${po_role}" != wallets ]] || po_names+=("${CNTOOLS_WALLET_CATALYST_SKEY_FILENAME:-catalyst.skey}-bech32")
   for po_directory in "${po_root}"/*; do
     [[ -d "${po_directory}" && ! -L "${po_directory}" && "${po_directory##*/}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || continue
-    po_objects+=("${po_directory##*/}")
+    po_count=0
+    for po_name in "${po_names[@]}" "${po_names[@]/%/.gpg}"; do
+      [[ ! -e "${po_directory}/${po_name}" && ! -L "${po_directory}/${po_name}" ]] || po_count=$((po_count+1))
+    done
+    (( po_count > 0 )) || continue
+    po_objects+=("${po_directory##*/}"); po_counts+=("${po_count}")
   done
 }
 

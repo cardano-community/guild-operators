@@ -239,6 +239,7 @@ cntools_update_check() {
   local -a version_lines=()
 
   case "${check_kind}" in auto|manual) ;; *) return 2 ;; esac
+  CNTOOLS_UPDATE_LAST_CHECK_KIND="${check_kind}"
   cntools_update_state_load || {
     CNTOOLS_UPDATE_STATUS="unchecked"
     CNTOOLS_UPDATE_REMOTE_VERSION=""
@@ -340,7 +341,9 @@ cntools_update_render_summary() {
       ;;
     skipped) status_text="Automatic check skipped" ;;
     offline) status_text="Unavailable in offline mode" ;;
-    error) status_text="Check unavailable; use Check Again" ;;
+    # On the Check Again screen itself, pointing back at Check Again is no help.
+    error) [[ "${CNTOOLS_UPDATE_LAST_CHECK_KIND:-auto}" == manual ]] &&
+      status_text="Check failed; see ${CNTOOLS_LOG:-the log}" || status_text="Check unavailable; use Check Again" ;;
     *) status_text="Not checked" ;;
   esac
   [[ -n "${available}" ]] || available="Not known"

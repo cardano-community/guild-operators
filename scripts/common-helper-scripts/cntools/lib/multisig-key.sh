@@ -27,7 +27,7 @@ cntools_multisig_key_publication_cleanup() {
 # Canonicalise each component before passing a path to an external program.
 cntools_multisig_path_into() {
   local -n ms_path_result="$1"
-  local entered="$2" component='' number='' canonical='' suffix=''
+  local entered="$2" component='' number='' ms_path_canonical='' suffix=''
   local -a components=()
   ms_path_result=''
   entered="${entered#m/}"
@@ -39,9 +39,9 @@ cntools_multisig_path_into() {
     case "${component}" in *H|*h|*\') suffix=H; component="${component%?}" ;; esac
     cntools_wallet_mnemonic_index_into number "${component}" || return 2
     [[ -n "${component}" ]] || return 2
-    canonical+="${canonical:+/}${number}${suffix}"
+    ms_path_canonical+="${ms_path_canonical:+/}${number}${suffix}"
   done
-  ms_path_result="${canonical}"
+  ms_path_result="${ms_path_canonical}"
 }
 
 # From a root key, cardano-address derives a payment or stake key only for a

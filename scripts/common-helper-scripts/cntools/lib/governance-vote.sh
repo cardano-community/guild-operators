@@ -30,14 +30,29 @@ cntools_gov_vote_collect() {
   jq -e '.registered == true' <<< "${CNTOOLS_DREP_LIFECYCLE_STATE}" >/dev/null || {
     cntools_wallet_register_set_error 'Register this DRep before casting a governance vote.'; return 7;
   }
-  # Koios reports the DRep's voting power; the local ledger state does not.
+  # Koios reports the DRep's voting power; the local ledger state does not,
+  # so a local build asks Koios for it when enabled (as Info does).
   CNTOOLS_GOV_VOTE_POWER="$(jq -r '.amount // "" | tostring | select(test("^[0-9]+$"))' <<< "${CNTOOLS_DREP_DETAILS}" 2>/dev/null)" || CNTOOLS_GOV_VOTE_POWER=''
+  [[ -n "${CNTOOLS_GOV_VOTE_POWER}" || "${CNTOOLS_WALLET_REGISTER_BACKEND}" != local ]] || cntools_gov_vote_power_koios
   cntools_proposals_query_backend "${CNTOOLS_WALLET_REGISTER_BACKEND}" || return 1
   # Nothing to vote on is an outcome (7, shown as info), not a failure.
   cntools_gov_vote_any_eligible || return 7
   CNTOOLS_WALLET_REGISTER_DEPOSIT=0
   cntools_wallet_register_inventory_use_all || return 1
   cntools_wallet_register_select_inputs
+}
+
+# Optional Koios voting power for a local build. The local registration,
+# deposit and anchor stay authoritative, so they are restored afterwards.
+cntools_gov_vote_power_koios() {
+  local details="${CNTOOLS_DREP_DETAILS}" status="${CNTOOLS_DREP_STATUS}" active="${CNTOOLS_DREP_ACTIVE}" source="${CNTOOLS_DREP_SOURCE}"
+  [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y ]] || return 0
+  if cntools_drep_query "${CNTOOLS_DREP_LIFECYCLE_ID}" "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" "${CNTOOLS_DREP_LIFECYCLE_HASH}" koios &&
+     [[ "${CNTOOLS_DREP_STATUS}" == registered ]]; then
+    CNTOOLS_GOV_VOTE_POWER="$(jq -r '.amount // "" | tostring | select(test("^[0-9]+$"))' <<< "${CNTOOLS_DREP_DETAILS}" 2>/dev/null)" || CNTOOLS_GOV_VOTE_POWER=''
+  fi
+  [[ -n "${CNTOOLS_GOV_VOTE_POWER}" ]] || cntools_transaction_log WARN 'Koios DRep voting power unavailable; the vote review omits it'
+  CNTOOLS_DREP_DETAILS="${details}" CNTOOLS_DREP_STATUS="${status}" CNTOOLS_DREP_ACTIVE="${active}" CNTOOLS_DREP_SOURCE="${source}"
 }
 
 cntools_gov_vote_eligible() {

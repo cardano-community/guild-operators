@@ -125,7 +125,7 @@ cntools_multisig_signer_select() {
 cntools_multisig_spend_choose_signers() {
   local choice='' index=0 id='' selected=N path='' source='' begin="${1:-cntools_send_begin}" role_title=''
   local script_keys=0 feedback='' status=0 before=0
-  local -a options=()
+  local -a options=() local_signers=()
   CNTOOLS_MULTISIG_SELECTION_ROLE="${2:-payment}"
   [[ "${CNTOOLS_MULTISIG_SELECTION_ROLE}" =~ ^(payment|stake|drep)$ ]] || return 2
   role_title="${CNTOOLS_MULTISIG_SELECTION_ROLE}"
@@ -142,6 +142,17 @@ cntools_multisig_spend_choose_signers() {
     done
     cntools_transaction_log CHOICE "Multisig signers auto-selected role=${CNTOOLS_MULTISIG_SELECTION_ROLE} reason=all-keys-required"
   else
+    # Quick preselects the local signers when they exactly meet the threshold;
+    # the menu still opens, so Enter on 'Done' accepts them.
+    if (( ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} == 0 )) && cntools_flow_quick; then
+      for index in "${!CNTOOLS_MULTISIG_CANDIDATE_IDS[@]}"; do
+        [[ -z "${CNTOOLS_MULTISIG_CANDIDATE_SOURCES[index]}" ]] || local_signers+=("${index}")
+      done
+      if (( ${#local_signers[@]} == CNTOOLS_MULTISIG_SPEND_THRESHOLD )); then
+        for index in "${local_signers[@]}"; do cntools_multisig_signer_select "${index}" || return 2; done
+        cntools_transaction_log CHOICE "Multisig signers preselected role=${CNTOOLS_MULTISIG_SELECTION_ROLE} count=${#local_signers[@]} reason=local-signers-meet-threshold flow=quick"
+      fi
+    fi
     while true; do
       if declare -F "${begin}" >/dev/null; then cntools_gum_clear; "${begin}" || return 2; fi
       if (( ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} > 0 )); then

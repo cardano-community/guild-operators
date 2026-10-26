@@ -10,6 +10,32 @@ cntools_pool_file_immutable() {
   [[ "${attributes}" == *i* ]]
 }
 
+# True when Pool → Encrypt locked this directory: another file in it is
+# immutable. The second argument is skipped (the file being created).
+cntools_pool_directory_immutable() {
+  local directory="$1" skipped="${2:-}" file=''
+  for file in "${directory}"/* "${directory}"/.[!.]*; do
+    [[ "${file}" != "${skipped}" && "${file##*/}" != .cntools-* ]] || continue
+    ! cntools_pool_file_immutable "${file}" || return 0
+  done
+  return 1
+}
+
+# A file created in an encrypted pool is locked like its neighbours
+# (read-only + immutable). Failure is a warning; the file stays usable.
+cntools_pool_new_file_lock() {
+  local target="$1"
+  declare -F cntools_pool_chattr_prepare >/dev/null 2>&1 && [[ -f "${target}" && ! -L "${target}" ]] &&
+    cntools_pool_directory_immutable "${target%/*}" "${target}" || return 0
+  if chmod 0400 "${target}" && cntools_pool_chattr_prepare "${target%/*}" && cntools_pool_chattr +i "${target}"; then
+    cntools_transaction_log POOL "New pool file locked like the encrypted pool=${target}"
+  else
+    CNTOOLS_POOL_WRITE_WARNING="Could not lock the new file ${target}; run Pool → Encrypt again."
+    cntools_transaction_log WARN "${CNTOOLS_POOL_WRITE_WARNING}"
+  fi
+  return 0
+}
+
 cntools_pool_public_save_files() {
   local directory="$1" filename="$2" source="$3" mode="$4" publish_file='' backup_file=''
   if [[ -e "${directory}/${filename}" || -L "${directory}/${filename}" ]]; then
@@ -28,11 +54,12 @@ cntools_pool_public_save_files() {
 # immutable files are unlocked only for the rename and locked again after it,
 # with the original's read-only mode.
 cntools_pool_public_save() {
-  local directory="$1" filename="$2" source="$3" target='' file='' mode=600 locked=N status=0
+  local directory="$1" filename="$2" source="$3" target='' file='' mode=600 locked=N status=0 created=N
   cntools_pool_directory_writable "${directory}" && cntools_pool_filenames_validate &&
     [[ "${filename}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] &&
     cntools_pool_public_file_safe "${source}" 1048576 || return 1
   target="${directory}/${filename}"
+  [[ -e "${target}" || -L "${target}" ]] || created=Y
   if [[ -f "${target}" && ! -L "${target}" ]] && cntools_filesystem_mode_into mode "${target}"; then
     mode="$(printf '%03o' "$(( (8#${mode} & 0600) | 0400 ))")"
   fi
@@ -52,6 +79,7 @@ cntools_pool_public_save() {
     done
   fi
   ((status == 0)) || return "${status}"
+  [[ "${created}" != Y ]] || cntools_pool_new_file_lock "${target}"
   cntools_transaction_log POOL "Saved public wizard file=${target}$([[ "${locked}" != Y ]] || printf ' immutable=restored')"
 }
 

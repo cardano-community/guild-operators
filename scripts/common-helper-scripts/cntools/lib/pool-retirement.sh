@@ -54,7 +54,7 @@ cntools_pool_retirement_window_check() {
   cntools_pool_retirement_uint_valid "${CNTOOLS_POOL_RETIRE_EPOCH}" &&
     (( CNTOOLS_POOL_RETIRE_EPOCH >= CNTOOLS_POOL_RETIRE_MIN && CNTOOLS_POOL_RETIRE_EPOCH <= CNTOOLS_POOL_RETIRE_MAX )) || {
     CNTOOLS_POOL_REG_RECHECK_CHANGED=Y
-    cntools_wallet_register_set_error "Retirement epoch must be between ${CNTOOLS_POOL_RETIRE_MIN} and ${CNTOOLS_POOL_RETIRE_MAX}. The epoch may have advanced; rebuild and review."; return 1;
+    cntools_wallet_register_set_error "The epoch advanced: retirement epoch ${CNTOOLS_POOL_RETIRE_EPOCH} is outside the allowed ${CNTOOLS_POOL_RETIRE_MIN}–${CNTOOLS_POOL_RETIRE_MAX}. Rebuild and review."; return 1;
   }
 }
 

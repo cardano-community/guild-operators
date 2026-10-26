@@ -105,6 +105,55 @@ cntools_kes_counter_verify() {
   cntools_kes_counter_guard
 }
 
+# Issuing or importing needs the request's counter verified, asked once and
+# not before Discard. 1: declined (result shown); 2: stale, still discardable.
+CNTOOLS_KES_COUNTER_VERIFIED=N
+cntools_kes_counter_ready() {
+  [[ "${CNTOOLS_KES_COUNTER_VERIFIED}" != Y ]] || return 0
+  if cntools_kes_counter_verify; then CNTOOLS_KES_COUNTER_VERIFIED=Y; return 0; fi
+  [[ -n "${CNTOOLS_POOL_WRITE_ERROR}" ]] || return 1
+  # The redraw repeats this warning.
+  cntools_ui_render_status warn "${CNTOOLS_POOL_WRITE_ERROR} Discard this request to start a new rotation."
+  CNTOOLS_POOL_WRITE_ERROR=''
+  return 2
+}
+
+# A first-certificate or offline-signing lock left by an interrupted or
+# failed operation. Release is offered only when nothing was issued or the
+# issued counter is already in cold.counter; the recovery folder is kept.
+cntools_kes_lock_offer() {
+  local choice='' counter=''
+  cntools_ui_spin_function 'Inspecting the certificate lock…' cntools_kes_lock_inspect ||
+    { cntools_kes_result 'The certificate lock could not be inspected. Check the CNTools state folder.' error; return 0; }
+  cntools_pool_file_name_into counter counter
+  {
+    cntools_table_pair Pool "${CNTOOLS_POOL_NAMES[CNTOOLS_KES_INDEX]}" identifier
+    cntools_table_pair 'Pending operation' "${CNTOOLS_KES_LOCK_KIND}" warning
+    cntools_table_pair Lock "${CNTOOLS_KES_LOCK_PATH}" identifier
+    if [[ -n "${CNTOOLS_KES_STAGE}" ]]; then cntools_table_pair Recovery "${CNTOOLS_KES_STAGE}" identifier
+    else cntools_table_pair Recovery 'Not found' warning; fi
+    cntools_table_pair 'Certificate in recovery' "$([[ "${CNTOOLS_KES_LOCK_CERT}" == Y ]] && printf Issued || printf None)" value
+    [[ -z "${CNTOOLS_KES_LOCK_STAGED}" ]] || cntools_table_pair 'Staged counter' "$(cntools_number_format "${CNTOOLS_KES_LOCK_STAGED}")" number
+    cntools_table_pair "Live counter · ${counter}" "$(cntools_number_format "${CNTOOLS_KES_DISK_NEXT}")" number
+  } | cntools_table_render 'Certificate lock'
+  if [[ "${CNTOOLS_KES_LOCK_RELEASABLE}" != Y ]]; then
+    if [[ -z "${CNTOOLS_KES_STAGE}" ]]; then
+      cntools_ui_render_status warn 'CNTools cannot tell what this lock protects. Inspect it and the recovery folder; remove the lock by hand only when no certificate is pending.'
+    else
+      cntools_ui_render_status warn "A certificate was issued, but its advanced counter is not in ${counter}. Inspect the recovery folder and never reset the counter; remove the lock by hand only after resolving it."
+    fi
+    cntools_ui_wait; return 0
+  fi
+  cntools_ui_render_status info "$([[ "${CNTOOLS_KES_LOCK_CERT}" == Y ]] && printf "The issued certificate's counter is already in %s" "${counter}" || printf 'No certificate was issued'), so the lock can be released and a new certificate prepared. The recovery folder is kept. Release it only if no other CNTools session is working on this pool."
+  cntools_kes_choose choice 'Certificate lock' 'Release lock' 'Keep lock' || return 0
+  [[ "${choice}" == 'Release lock' ]] || return 0
+  if ! cntools_ui_spin_function 'Releasing the certificate lock…' cntools_kes_lock_force_release; then
+    cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-The lock could not be released.}" error; return 0
+  fi
+  cntools_ui_render_status success 'Lock released · recovery folder kept. Open Pool → Rotate again to issue a certificate.'
+  cntools_ui_wait
+}
+
 cntools_kes_choose_period() {
   local entered='' normalized=''
   cntools_ui_spin_function 'Checking the current KES period…' cntools_kes_period_collect || return 1
@@ -242,6 +291,8 @@ cntools_kes_continue() {
         cntools_kes_choose choice 'Continue rotation' "${choices[@]}" || return 0
         case "${choice}" in
           'Issue certificate now')
+            status=0; cntools_kes_counter_ready || status=$?
+            ((status != 1)) || return 0; ((status == 0)) || { status=0; continue; }
             cntools_ui_render_status warn 'Issuing a certificate advances the real counter, even if you postpone installation. Keep its recovery copy; never restore an older counter.'
             cntools_kes_confirm 'Issue this replacement certificate?' false \
               'Certificate not issued. The prepared KES keys stay in recovery; reopen Pool → Rotate to continue.' || return 0
@@ -249,6 +300,8 @@ cntools_kes_continue() {
             cntools_ui_spin_function 'Issuing and validating the KES certificate…' cntools_kes_issue || return 1 ;;
           'Prepare offline hand-off') cntools_kes_offline_instructions; return $? ;;
           'Import signed response')
+            status=0; cntools_kes_counter_ready || status=$?
+            ((status != 1)) || return 0; ((status == 0)) || { status=0; continue; }
             cntools_ui_pick_path directory 'Signed response directory' 'Choose the folder containing op.cert and cold.counter.' "${CNTOOLS_KES_DIRECTORY}" directory || {
               status=$?; ((status != 1)) || { status=0; continue; }; return 0; }
             cntools_ui_spin_function 'Validating the returned certificate and counter…' cntools_kes_import_response "${directory}" || return 1 ;;
@@ -259,6 +312,8 @@ cntools_kes_continue() {
         cntools_kes_choose choice 'Offline rotation' 'Import signed response' 'Show hand-off instructions' 'Discard this request' 'Return without changing active keys' || return 0
         case "${choice}" in
           'Import signed response')
+            status=0; cntools_kes_counter_ready || status=$?
+            ((status != 1)) || return 0; ((status == 0)) || { status=0; continue; }
             cntools_ui_pick_path directory 'Signed response directory' 'Choose the folder containing op.cert and cold.counter.' "${CNTOOLS_KES_DIRECTORY}" directory || {
               status=$?; ((status != 1)) || { status=0; continue; }; return 0; }
             cntools_ui_spin_function 'Validating the returned certificate and counter…' cntools_kes_import_response "${directory}" || return 1 ;;
@@ -274,7 +329,11 @@ cntools_kes_continue() {
           cntools_kes_error 'Recovery is incomplete or invalid. Inspect it manually; keep the lock and never restore an older counter.'; return 1;
         } ;;
       issued|publishing) cntools_kes_install; return $? ;;
-      complete) cntools_kes_lock_release; return $? ;;
+      complete|discarded)
+        # Only the lock was left; the request needs nothing more.
+        cntools_kes_lock_release || return 1
+        cntools_ui_render_status success "$([[ "${phase}" == complete ]] && printf 'The finished rotation' || printf 'The discarded request') released its lock · recovery folder kept. Open Pool → Rotate again for a new rotation."
+        cntools_ui_wait; return 0 ;;
       *) cntools_kes_error 'The pending rotation phase is incomplete. Inspect its recovery directory; no new issuance was attempted.'; return 1 ;;
     esac
   done
@@ -284,7 +343,7 @@ cntools_kes_continue() {
 cntools_pool_action_rotate() {
   local selected='' choice='' request='' status=0
   CNTOOLS_KES_STAGE='' CNTOOLS_KES_BUSY='' CNTOOLS_KES_START='' CNTOOLS_KES_CURRENT=''
-  CNTOOLS_KES_COUNTER_APPROVED=N CNTOOLS_KES_INSTALL_APPROVED=N CNTOOLS_KES_PERIOD_SOURCE=''
+  CNTOOLS_KES_COUNTER_APPROVED=N CNTOOLS_KES_INSTALL_APPROVED=N CNTOOLS_KES_PERIOD_SOURCE='' CNTOOLS_KES_COUNTER_VERIFIED=N
   cntools_ui_action_begin Rotate '/ Pool / Rotate'
   cntools_kes_environment || { cntools_kes_result "${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-KES prerequisites unavailable}}" error; return 0; }
   cntools_ui_spin_function 'Reading pool identities…' cntools_pool_catalog_build || return 1
@@ -308,17 +367,8 @@ cntools_pool_action_rotate() {
     cntools_kes_result 'The owner-only CNTools state folder (.cntools in the node home) is unavailable.' error; return 0;
   }
   if [[ -e "${lock}" || -L "${lock}" ]]; then
-    if cntools_kes_pending_load; then
-      case "$(< "${CNTOOLS_KES_STAGE}/phase")" in
-        prepared|awaiting)
-          if ! cntools_kes_counter_verify; then
-            [[ -n "${CNTOOLS_POOL_WRITE_ERROR}" ]] || return 0
-            # Issuing rechecks the counter; a stale request can still be discarded.
-            cntools_ui_render_status warn "${CNTOOLS_POOL_WRITE_ERROR} Discard this request to start a new rotation."
-            CNTOOLS_POOL_WRITE_ERROR=''
-          fi ;;
-      esac
-      cntools_kes_continue || status=$?
+    if cntools_kes_lock_foreign; then cntools_kes_lock_offer; return $?
+    elif cntools_kes_pending_load; then cntools_kes_continue || status=$?
     else status=2; fi
   else
     cntools_kes_counter_from_ledger || true

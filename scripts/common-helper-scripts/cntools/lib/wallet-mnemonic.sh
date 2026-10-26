@@ -8,6 +8,8 @@ declare -g CNTOOLS_WALLET_MNEMONIC_ERROR=""
 declare -g CNTOOLS_WALLET_MNEMONIC_ORIGIN=""
 declare -g CNTOOLS_WALLET_MNEMONIC_ACCOUNT=""
 declare -g CNTOOLS_WALLET_MNEMONIC_KEY_INDEX=""
+# Y when Cardano CLI rejected the phrase itself (Import asks for it again).
+declare -g CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED="N"
 
 cntools_wallet_mnemonic_log() {
   cntools_log "${1:-INFO}" "${2:-}" || true
@@ -24,6 +26,7 @@ cntools_wallet_mnemonic_reset_result() {
   CNTOOLS_WALLET_MNEMONIC_ORIGIN=""
   CNTOOLS_WALLET_MNEMONIC_ACCOUNT=""
   CNTOOLS_WALLET_MNEMONIC_KEY_INDEX=""
+  CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED="N"
   CNTOOLS_WALLET_CREATED_NAME=""
   CNTOOLS_WALLET_CREATED_DIRECTORY=""
   CNTOOLS_WALLET_CREATE_ERROR=""
@@ -347,8 +350,15 @@ cntools_wallet_mnemonic_derive_role() {
         "${status}" "${error_file}"
     fi
     cntools_wallet_material_remove_temp "${error_file}" || true
-    cntools_wallet_mnemonic_set_error \
-      "The recovery phrase or ${role} derivation settings were rejected by Cardano CLI."
+    if (( status == 124 )); then
+      cntools_wallet_mnemonic_set_error \
+        "Cardano CLI timed out while deriving the ${role} key."
+    else
+      # Account and key index are validated first, so the phrase was rejected.
+      CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED="Y"
+      cntools_wallet_mnemonic_set_error \
+        "Cardano CLI rejected the recovery phrase (a wrong word or checksum)."
+    fi
     return 1
   fi
   cntools_wallet_material_remove_temp "${error_file}" || true

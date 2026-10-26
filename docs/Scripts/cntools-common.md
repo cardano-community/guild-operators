@@ -35,8 +35,12 @@ word checks after the phrase is cleared from the display.
 Use **Wallet → Import → Mnemonic** for an existing software-wallet phrase.
 Paste the words separated by spaces or enter them one at a time using the
 English word suggestions. Supported lengths are 12, 15, 18, 21 and 24 words.
+A pasted word that is not in the English word list is reported by position
+(never echoed), and a phrase the CLI rejects can be re-entered without
+repeating the name and derivation.
 
-Account number and address key index default to **0** when you press Enter.
+Account number and address key index default to **0** when you press Enter
+(Quick uses 0 and offers **Change account and key index** at the plan step).
 Choose the original values when restoring a wallet. These actions create
 standard payment and stake keys; multisig and DRep setup have separate menus.
 The recorded derivation path is shown in Wallet Show.
@@ -64,8 +68,8 @@ directly. Without that lookup, the list opens quickly and omits balance rows. Wi
 stake rewards, total balance and native-asset counts are shown.
 
 **Wallet → Show** presents addresses, credentials, registration, stake-pool
-and DRep delegation, balances and available native assets. Choose **Simple**,
-**Detailed** or **Skip** for asset output (Quick uses Simple). Detailed includes available metadata;
+and DRep delegation, balances and available native assets. Assets are listed
+in a compact table; **Show detailed asset metadata** adds every known field.
 the display identifies its source. Koios metadata is optional even when your
 balances come from the local node. An unused wallet shows zero balances;
 unavailable data is not presented as a confirmed zero.
@@ -188,7 +192,8 @@ label; the editor explains conflicts.
 target: enter a pool ID or pick a local pool (in Quick, press Enter on the
 empty Stake pool field to pick one). If the stake address is not registered,
 the same transaction also registers it; the review shows the refundable
-deposit, and Cancel there leaves everything unchanged.
+deposit, and Cancel there leaves everything unchanged. Use **Change pool** in
+the review to pick another pool without restarting.
 
 Review the pool, any deposit and fee. Delegation does not transfer the wallet's
 ADA to the pool or withdraw rewards. Voting/DRep delegation is separate and
@@ -213,7 +218,9 @@ is being signed elsewhere, rebuild rather than reuse stale withdrawal data.
 fee. Choose **ADA-only UTxOs** or **ADA and native assets**; only scopes with
 something to collect are offered. Quick starts with ADA-only when that collects
 anything, otherwise with all assets; use **Change scope** in the review.
-Outputs carrying datums or reference scripts are left untouched.
+Outputs carrying datums or reference scripts are left untouched. Eligibility is
+checked before any signer is asked for, so a wallet with nothing to collect
+stops early.
 
 Your change settings still apply. Fragmentation or ADA-only management may
 create several outputs, so collection can reshape funds rather than reduce the
@@ -431,6 +438,10 @@ For offline cold-key signing:
 A used issue counter is never rolled back. Keep recovery copies securely;
 never restore an older counter to make an old certificate usable.
 
+If an earlier operation left a certificate lock (for example the Ledger was
+not connected), Rotate shows the lock and recovery paths and offers
+**Release lock** when no certificate was issued or the counter is unchanged.
+
 ### Retire a pool
 
 **Pool → Retire** selects a registered pool, funding wallet and permitted future
@@ -476,18 +487,22 @@ updates charge the fee, and **DRep Retire** refunds the recorded deposit.
 
 **Delegate** assigns voting power to a DRep, **Always Abstain** or
 **Always No Confidence**. It can include explicitly approved first stake
-registration. Registering your own DRep does not automatically delegate your
+registration; **Change DRep** in the review picks another target. Registering your own DRep does not automatically delegate your
 stake to it. Pool delegation remains separate.
 
 ### Browse proposals and vote
 
 **Vote → Governance → List Proposals** browses active proposals with pagination,
-details and vote information. Recorded vote counts are not a prediction of
+details and vote information. Page-wide facts (source, snapshot epoch,
+threshold source) are shown once above the list; choose a proposal from the
+page to see its details. Recorded vote counts are not a prediction of
 ratification. Metadata from an indexer is not independently verified by CNTools.
 
 **Cast vote** uses a registered key or script DRep identity. Select the proposal,
-choose **Yes**, **No** or **Abstain**, and optionally attach a published rationale
-URL/hash; CNTools can download the published JSON to compute its hash. Replacing an existing vote needs explicit confirmation.
+choose **Yes**, **No** or **Abstain** (the same menu can verify the proposal's
+published metadata first), and optionally attach a published rationale URL/hash;
+CNTools can download the published JSON to compute its hash. Replacing an
+existing vote needs explicit confirmation. The review offers **Change vote**.
 
 This action casts DRep votes, not committee or pool votes. Review the exact
 proposal and decision before using the shared transaction flow.
@@ -518,7 +533,8 @@ Start CNTools with `-a` to show these menus.
 
 **Advanced → MultiSig → Derive Keys** adds separate participant keys using a
 software recovery phrase, fresh CLI keys or a supported hardware device.
-Custom derivation paths are available. Existing wallet keys are not replaced.
+Custom derivation paths are available; the review offers **Change derivation
+paths** before keys are written. Existing wallet keys are not replaced.
 
 **Create** selects local or external participants, the signing threshold and
 optional payment time bounds to create a script wallet. Back up the scripts
@@ -526,6 +542,8 @@ and participant recovery information. Participants, threshold and time bounds
 determine the address and cannot be changed for that address.
 An expiry can permanently lock remaining funds, so a "Spendable before" bound
 must lie in the future; a create with time bounds always asks for confirmation.
+The review offers **Change threshold** and **Change time bounds** before the
+wallet is written.
 
 Use **Vote → Governance → MultiSig DRep** for a separate threshold DRep
 identity. Transaction actions choose payment, stake and DRep signing subsets
@@ -557,7 +575,7 @@ for manual submission. Registry metadata is separate from minting metadata.
 **Clear asset cache** refreshes names and metadata on their next Koios lookup.
 
 **Delete Private Keys** previews known keys from selected wallets, pools or
-policies. You must acknowledge a verified independent backup and type the
+policies; only categories and folders that hold keys are offered. You must acknowledge a verified independent backup and type the
 required deletion phrase. Public artifacts and node operational keys remain.
 
 This action does not move funds or unregister credentials. Deleted keys are

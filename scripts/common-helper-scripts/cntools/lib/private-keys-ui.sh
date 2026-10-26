@@ -1,20 +1,49 @@
 #!/usr/bin/env bash
 # Double-confirmed exact-file deletion with explicit backup acknowledgement.
 # shellcheck disable=SC2034
+
+# "1 key file" / "N key files".
+cntools_private_keys_count_label() {
+  printf '%s key file' "$(cntools_number_format "$1")"; (( $1 == 1 )) || printf s
+}
+
 cntools_private_keys_workflow() {
-  local scope='' encrypted=N object='' choice='' root='' index=0 acknowledgement='' folder='' feedback=''
-  local -a objects=() folders=()
+  local scope='' encrypted=N object='' choice='' role='' index=0 acknowledgement='' folder='' feedback='' total=0 count=0 label=''
+  local -a objects=() counts=() folders=() scopes=() rows=()
   local -A seen=()
-  cntools_ui_choose choice 'Private keys to remove' Wallets Pools 'Asset policies' 'All categories' Cancel || return $?
-  case "${choice}" in Wallets) scope=wallets; root="${CNTOOLS_WALLET_DIR}" ;; Pools) scope=pools; root="${CNTOOLS_POOL_DIR}" ;;
-    'Asset policies') scope=assets; root="${CNTOOLS_ASSET_DIR}" ;; 'All categories') scope=all ;; Cancel) return 1 ;; *) return 2 ;; esac
+  # Offer only categories and objects that hold deletable key files.
+  for role in wallets pools assets; do
+    cntools_private_keys_objects_into objects counts "${role}" ||
+      { cntools_private_keys_fail 'The configured private-key file names are unsafe. No keys were deleted.'; return 2; }
+    count=0; for index in "${!counts[@]}"; do count=$((count + counts[index])); done
+    (( count > 0 )) || continue
+    case "${role}" in wallets) label=Wallets ;; pools) label=Pools ;; *) label='Asset policies' ;; esac
+    scopes+=("${role}"); rows+=("${label} · $(cntools_private_keys_count_label "${count}")"); total=$((total + count))
+  done
+  if (( ${#scopes[@]} == 0 )); then
+    cntools_ui_render_status info 'No wallet, pool or asset policy has a private key file to delete.'
+    cntools_ui_wait
+    return 3
+  fi
+  if (( ${#scopes[@]} == 1 )); then
+    scope="${scopes[0]}"
+    cntools_log CHOICE "Private-key deletion category auto-selected=${scope}" || true
+  else
+    scopes+=(all); rows+=("All categories · $(cntools_private_keys_count_label "${total}")")
+    cntools_ui_choose choice 'Private keys to remove' "${rows[@]}" Cancel || return $?
+    [[ "${choice}" != Cancel ]] || return 1
+    for index in "${!rows[@]}"; do [[ "${rows[index]}" != "${choice}" ]] || scope="${scopes[index]}"; done
+    [[ -n "${scope}" ]] || return 2
+  fi
   # Ask for an object only when there is more than one to choose from.
   if [[ "${scope}" != all ]]; then
-    cntools_private_keys_objects_into objects "${root}"
+    cntools_private_keys_objects_into objects counts "${scope}" || return 2
     if (( ${#objects[@]} > 1 )); then
-      cntools_ui_choose object 'Object scope' 'All objects' "${objects[@]}" Cancel || return $?
-      [[ "${object}" != Cancel ]] || return 1
-      [[ "${object}" != 'All objects' ]] || object=''
+      rows=('All objects')
+      for index in "${!objects[@]}"; do rows+=("${objects[index]} · $(cntools_private_keys_count_label "${counts[index]}")"); done
+      cntools_ui_choose choice 'Object scope' "${rows[@]}" Cancel || return $?
+      [[ "${choice}" != Cancel ]] || return 1
+      [[ "${choice}" == 'All objects' ]] || object="${choice%% · *}"
     fi
   fi
   # Ask about encrypted keys only when some exist in this scope.
@@ -49,6 +78,7 @@ cntools_private_keys_workflow() {
   done
   cntools_log CHOICE "Private-key deletion confirmed scope=${scope} object=${object:-all} encrypted=${encrypted} count=${#CNTOOLS_PRIVATE_KEY_FILES[@]}" || true
   cntools_private_keys_delete "${acknowledgement}" || return 2
+  cntools_ui_action_begin 'Delete Private Keys' '/ Advanced / Delete Private Keys'
   {
     cntools_table_pair Status 'Listed private keys deleted · recoverable only from your separate backup' warning
     cntools_table_pair 'Keys removed' "$(cntools_number_format "${CNTOOLS_PRIVATE_KEY_REMOVED}")" number
@@ -63,6 +93,7 @@ cntools_private_keys_action() {
   cntools_private_keys_workflow || status=$?
   case "${status}" in
     0) cntools_ui_wait; return 0 ;;
+    3) return 0 ;; # Nothing to delete; the reason was shown and acknowledged.
     1|130) cntools_log CHOICE 'Private-key deletion cancelled; nothing further was deleted' || true; return "${status}" ;;
   esac
   cntools_ui_render_status error "${CNTOOLS_PRIVATE_KEY_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-Key deletion failed.}} See ${CNTOOLS_LOG} for details."

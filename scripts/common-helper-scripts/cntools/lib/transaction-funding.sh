@@ -8,6 +8,7 @@ CNTOOLS_FUNDING_SLOT=""
 CNTOOLS_FUNDING_EPOCH=""
 CNTOOLS_FUNDING_TOTAL="0"
 CNTOOLS_FUNDING_REFERENCE_SKIPPED=0
+CNTOOLS_FUNDING_EMPTY=N
 declare -ag CNTOOLS_FUNDING_ASSET_IDS=()
 declare -Ag CNTOOLS_FUNDING_ASSETS=()
 
@@ -56,7 +57,7 @@ cntools_funding_collect() {
   local primary="${1:-}" payment="${2:-${1:-}}" response="" errors=""
   local payload="" status=0 index=0 reserve=""
   local -a network=() address_arguments=(--address "${primary}")
-  CNTOOLS_FUNDING_TOTAL=0 CNTOOLS_FUNDING_REFERENCE_SKIPPED=0
+  CNTOOLS_FUNDING_TOTAL=0 CNTOOLS_FUNDING_REFERENCE_SKIPPED=0 CNTOOLS_FUNDING_EMPTY=N
   CNTOOLS_FUNDING_ASSET_IDS=(); CNTOOLS_FUNDING_ASSETS=()
   CNTOOLS_FUNDING_SLOT=""; CNTOOLS_FUNDING_BACKEND=""
   [[ "${CNTOOLS_MODE:-}" != offline ]] || {
@@ -111,7 +112,9 @@ cntools_funding_collect() {
     cntools_utxo_value_add_index "${index}" CNTOOLS_FUNDING_TOTAL \
       CNTOOLS_FUNDING_ASSET_IDS CNTOOLS_FUNDING_ASSETS || return 1
   done
+  # EMPTY lets actions report an empty wallet as an outcome, not a failure.
   (( ${#CNTOOLS_UTXO_REFS[@]} > 0 )) || {
+    CNTOOLS_FUNDING_EMPTY=Y
     cntools_transaction_set_error "This wallet has no spendable UTxOs."; return 1;
   }
   cntools_transaction_log TRANSACTION "Transaction funding inventory backend=${CNTOOLS_FUNDING_BACKEND} inputs=${#CNTOOLS_UTXO_REFS[@]} lovelace=${CNTOOLS_FUNDING_TOTAL} slot=${CNTOOLS_FUNDING_SLOT}"
@@ -147,4 +150,13 @@ cntools_funding_exclude_reference_scripts() {
   (( ${#CNTOOLS_UTXO_REFS[@]} > 0 )) || {
     cntools_transaction_set_error "This wallet's only UTxOs hold reference scripts, which this action leaves untouched."; return 1;
   }
+}
+
+# Review row naming the reference-script UTxOs a build left untouched.
+cntools_funding_render_untouched_row() {
+  local untouched_count="${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0}" untouched_label=''
+  (( untouched_count > 0 )) || return 0
+  untouched_label="$(cntools_number_format "${untouched_count}") reference-script UTxO"
+  (( untouched_count == 1 )) || untouched_label+=s
+  cntools_transaction_ui_styled_row 'Left untouched' "${untouched_label}" value
 }

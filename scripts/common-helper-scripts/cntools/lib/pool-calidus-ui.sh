@@ -27,7 +27,7 @@ cntools_calidus_render() {
 # needs local Calidus material; on-chain actions need Koios.
 cntools_calidus_menu_options_into() {
   local -n cmo_options="$1"
-  local cmo_directory="$2" cmo_online=N cmo_key=N cmo_name='' cmo_missing=N
+  local cmo_directory="$2" cmo_online=N cmo_key=N cmo_name='' cmo_missing=N cmo_cold=''
   local -a cmo_names=()
   [[ "${CNTOOLS_MODE:-offline}" == offline || "${CNTOOLS_KOIOS_ENABLED:-N}" != Y ]] || cmo_online=Y
   [[ "${CNTOOLS_CALIDUS_INSPECT_STATUS}" != 0 || "${CNTOOLS_CALIDUS_STATE}" == Missing ]] || cmo_key=Y
@@ -42,7 +42,11 @@ cntools_calidus_menu_options_into() {
   cmo_options+=('Prepare revocation metadata')
   [[ "${cmo_online}" != Y ]] || cmo_options+=('Revoke on-chain')
   if [[ "${CNTOOLS_CALIDUS_INSPECT_STATUS}" == 0 && "${cmo_key}" != Y ]]; then
-    cmo_options+=('Create CLI key' 'Import signing key' 'Import verification key (public only)')
+    # An encrypted pool takes no unencrypted Calidus signing key.
+    cntools_pool_file_name_into cmo_cold cold-skey || cmo_cold=''
+    [[ -n "${cmo_cold}" && ( -e "${cmo_directory}/${cmo_cold}.gpg" || -L "${cmo_directory}/${cmo_cold}.gpg" ) ]] ||
+      cmo_options+=('Create CLI key' 'Import signing key')
+    cmo_options+=('Import verification key (public only)')
   elif [[ "${cmo_key}" == Y ]] && cntools_calidus_names_into cmo_names; then
     for cmo_name in "${cmo_names[1]}" "${cmo_names[2]}"; do
       [[ -e "${cmo_directory}/${cmo_name}" || -L "${cmo_directory}/${cmo_name}" ]] || cmo_missing=Y

@@ -26,13 +26,17 @@ cntools_settings_action_collateral_amount() {
 }
 
 # Table labels are the menu rows, so each value is found under its own name.
+# Rows that depend on a disabled feature say they are inactive.
 cntools_settings_action_render() {
   local table_width=""
   local widths=""
+  local ada_only="" fragmentation=""
 
   table_width="$(cntools_ui_content_width 160 64)" || return 1
   widths="33,$((table_width - 40))"
   cntools_ui_render_detail "Transaction defaults" || return 1
+  [[ "${CNTOOLS_TX_UTXO_MANAGEMENT}" == Y ]] || ada_only=' · inactive (ADA-only management disabled)'
+  [[ "${CNTOOLS_TX_TOKEN_FRAGMENTATION}" == Y ]] || fragmentation=' · inactive (token fragmentation disabled)'
   {
     printf 'Setting\tValue\n'
     printf 'Coin selection\t%s\n' "$(cntools_settings_strategy_name)"
@@ -40,16 +44,16 @@ cntools_settings_action_render() {
     printf 'Default transaction expiry\t%s\n' "$(cntools_settings_action_duration "${CNTOOLS_TX_DEFAULT_TTL:-1800}")"
     printf 'Token fragmentation\t%s\n' \
       "$(cntools_settings_action_on_off "${CNTOOLS_TX_TOKEN_FRAGMENTATION}")"
-    printf 'Maximum assets per token output\t%s\n' \
-      "${CNTOOLS_TX_TOKEN_MAX_ASSETS}"
+    printf 'Maximum assets per token output\t%s%s\n' \
+      "${CNTOOLS_TX_TOKEN_MAX_ASSETS}" "${fragmentation}"
     printf 'ADA-only UTxO management\t%s\n' \
       "$(cntools_settings_action_on_off "${CNTOOLS_TX_UTXO_MANAGEMENT}")"
-    printf 'Desired ADA-only UTxOs\t%s\n' \
-      "${CNTOOLS_TX_UTXO_TARGET_COUNT}"
-    printf 'Change percentages\t%s%%\n' \
-      "${CNTOOLS_TX_UTXO_PERCENTAGES//,/% · }"
-    printf 'Collateral candidate\t%s · %s\n' \
-      "$(cntools_settings_action_on_off "${CNTOOLS_TX_COLLATERAL_MANAGEMENT}")" "$(cntools_settings_action_collateral_amount)"
+    printf 'Desired ADA-only UTxOs\t%s%s\n' \
+      "${CNTOOLS_TX_UTXO_TARGET_COUNT}" "${ada_only}"
+    printf 'Change percentages\t%s%%%s\n' \
+      "${CNTOOLS_TX_UTXO_PERCENTAGES//,/% · }" "${ada_only}"
+    printf 'Collateral candidate\t%s · %s%s\n' \
+      "$(cntools_settings_action_on_off "${CNTOOLS_TX_COLLATERAL_MANAGEMENT}")" "$(cntools_settings_action_collateral_amount)" "${ada_only}"
   } | cntools_ui_table --separator $'\t' --widths "${widths}"
 }
 
@@ -101,22 +105,22 @@ cntools_settings_action_choose_toggle() {
   local label="${2:-Setting}"
   local current="${3:-N}"
   local selected=""
+  local toggle_status=0
   local -a options=('Enabled' 'Disabled')
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   if [[ "${current}" == Y ]]; then options=('Enabled · current' 'Disabled')
   else options=('Disabled · current' 'Enabled'); fi
-  if cntools_ui_choose selected "${label}…" "${options[@]}" "Cancel"; then
-    case "${selected%% · current}" in
-      Enabled) _cntools_output_ref=Y; return 0 ;;
-      Disabled) _cntools_output_ref=N; return 0 ;;
-      Cancel) return 1 ;;
-      *) return 2 ;;
-    esac
-  fi
-  _cntools_output_ref="${current}"
-  return 1
+  # Esc keeps the value (1); Ctrl+C (130) leaves the editor.
+  cntools_ui_choose selected "${label}…" "${options[@]}" "Cancel" || toggle_status=$?
+  (( toggle_status == 0 )) || return "${toggle_status}"
+  case "${selected%% · current}" in
+    Enabled) _cntools_output_ref=Y; return 0 ;;
+    Disabled) _cntools_output_ref=N; return 0 ;;
+    Cancel) return 1 ;;
+    *) return 2 ;;
+  esac
 }
 
 cntools_settings_action_input_integer() {
@@ -132,9 +136,7 @@ cntools_settings_action_input_integer() {
   # Straight to the input under the explanation: Esc cancels, Enter keeps
   # the current value and an invalid number asks again.
   while true; do
-    if ! cntools_ui_input entered "${label}" "${current}"; then
-      return 1
-    fi
+    cntools_ui_input entered "${label}" "${current}" || return $?
     [[ -n "${entered}" ]] || entered="${current}"
     cntools_number_normalize_into entered "${entered}" || entered=invalid
     if [[ "${entered}" =~ ^[0-9]{1,8}$ ]] &&
@@ -174,10 +176,8 @@ cntools_settings_action_edit_percentages() {
 
   # Esc cancels, Enter keeps the current values, invalid input asks again.
   while true; do
-    if ! cntools_ui_input entered "Comma-separated percentages" \
-        "${CNTOOLS_TX_UTXO_PERCENTAGES}"; then
-      return 1
-    fi
+    cntools_ui_input entered "Comma-separated percentages" \
+      "${CNTOOLS_TX_UTXO_PERCENTAGES}" || return $?
     [[ -n "${entered}" ]] || entered="${CNTOOLS_TX_UTXO_PERCENTAGES}"
     entered="${entered//[[:space:]]/}"
     if cntools_settings_action_percentages_valid "${entered}"; then
@@ -220,7 +220,8 @@ cntools_action_main() {
   while true; do
     cntools_ui_action_begin \
       "Transaction Defaults" "/ Settings / Transaction Defaults"
-    cntools_settings_action_render || return 1
+    # A failed render or explanation is not shown yet: 2 gives the menu banner.
+    cntools_settings_action_render || return 2
     printf '\n'
     if cntools_ui_choose selected "Choose a setting…" "${rows[@]}"; then
       status=0
@@ -233,68 +234,69 @@ cntools_action_main() {
     elif (( status != 0 )); then
       return "${status}"
     fi
-    cntools_settings_action_explain "${selected}" || return 1
+    cntools_settings_action_explain "${selected}" || return 2
+    # Esc (1) keeps the value and returns to the list; Ctrl+C (130) leaves.
+    status=0
     case "${selected}" in
       'Send change-address choice')
-        cntools_settings_action_choose_toggle CNTOOLS_SEND_CHOOSE_CHANGE 'Choose Send change address' "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" || continue ;;
+        cntools_settings_action_choose_toggle CNTOOLS_SEND_CHOOSE_CHANGE 'Choose Send change address' "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" || status=$? ;;
       'Default transaction expiry')
-        cntools_settings_action_input_integer CNTOOLS_TX_DEFAULT_TTL 'Seconds (0 for no expiry)' "${CNTOOLS_TX_DEFAULT_TTL:-1800}" 0 31536000 || continue ;;
+        cntools_settings_action_input_integer CNTOOLS_TX_DEFAULT_TTL 'Seconds (0 for no expiry)' "${CNTOOLS_TX_DEFAULT_TTL:-1800}" 0 31536000 || status=$? ;;
       "Coin selection")
         if [[ "${CNTOOLS_TX_SELECTION_STRATEGY:-balanced}" == fewest-inputs ]]; then strategies=('Fewest inputs · current' 'Balanced')
         else strategies=('Balanced · current' 'Fewest inputs'); fi
-        if cntools_ui_choose strategy "Coin selection…" \
-            "${strategies[@]}" "Cancel"; then
+        cntools_ui_choose strategy "Coin selection…" "${strategies[@]}" "Cancel" || status=$?
+        if (( status == 0 )); then
           case "${strategy%% · current}" in
             Balanced) CNTOOLS_TX_SELECTION_STRATEGY=balanced ;;
             'Fewest inputs') CNTOOLS_TX_SELECTION_STRATEGY=fewest-inputs ;;
-            Cancel) continue ;;
+            Cancel) status=1 ;;
             *) return 2 ;;
           esac
-        else
-          continue
         fi
         ;;
       "Token fragmentation")
         cntools_settings_action_choose_toggle \
           CNTOOLS_TX_TOKEN_FRAGMENTATION "Token fragmentation" \
-          "${CNTOOLS_TX_TOKEN_FRAGMENTATION}" || continue
+          "${CNTOOLS_TX_TOKEN_FRAGMENTATION}" || status=$?
         ;;
       "Maximum assets per token output")
         cntools_settings_action_input_integer CNTOOLS_TX_TOKEN_MAX_ASSETS \
-          "Maximum assets" "${CNTOOLS_TX_TOKEN_MAX_ASSETS}" 1 100 || continue
+          "Maximum assets" "${CNTOOLS_TX_TOKEN_MAX_ASSETS}" 1 100 || status=$?
         ;;
       "ADA-only UTxO management")
         cntools_settings_action_choose_toggle \
           CNTOOLS_TX_UTXO_MANAGEMENT "ADA-only UTxO management" \
-          "${CNTOOLS_TX_UTXO_MANAGEMENT}" || continue
+          "${CNTOOLS_TX_UTXO_MANAGEMENT}" || status=$?
         ;;
       "Desired ADA-only UTxOs")
         cntools_settings_action_input_integer CNTOOLS_TX_UTXO_TARGET_COUNT \
-          "Desired count" "${CNTOOLS_TX_UTXO_TARGET_COUNT}" 1 12 || continue
+          "Desired count" "${CNTOOLS_TX_UTXO_TARGET_COUNT}" 1 12 || status=$?
         ;;
       "Change percentages")
-        cntools_settings_action_edit_percentages || continue
+        cntools_settings_action_edit_percentages || status=$?
         ;;
       "Collateral candidate")
         cntools_settings_action_choose_toggle \
           CNTOOLS_TX_COLLATERAL_MANAGEMENT "Collateral candidate" \
-          "${CNTOOLS_TX_COLLATERAL_MANAGEMENT}" || continue
+          "${CNTOOLS_TX_COLLATERAL_MANAGEMENT}" || status=$?
         ;;
       "Restore safe defaults")
-        if ! cntools_ui_choose restore_choice "Restore transaction defaults…" \
-            "Cancel" "Restore safe defaults"; then
-          continue
+        cntools_ui_choose restore_choice "Restore transaction defaults…" \
+          "Cancel" "Restore safe defaults" || status=$?
+        if (( status == 0 )); then
+          case "${restore_choice}" in
+            Cancel) status=1 ;;
+            'Restore safe defaults') cntools_settings_defaults ;;
+            *) return 2 ;;
+          esac
         fi
-        case "${restore_choice}" in
-          Cancel) continue ;;
-          'Restore safe defaults') ;;
-          *) return 2 ;;
-        esac
-        cntools_settings_defaults
         ;;
       "Done") return 0 ;;
       *) return 2 ;;
     esac
+    (( status != 1 )) || continue
+    (( status == 0 )) || return "${status}"
     if ! cntools_settings_save; then
       cntools_log ERROR "Could not persist transaction settings" || true
       cntools_ui_render_status error \

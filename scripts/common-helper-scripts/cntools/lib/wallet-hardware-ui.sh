@@ -332,7 +332,7 @@ cntools_wallet_action_import_hardware() {
     cntools_ui_render_status error \
       "${CNTOOLS_WALLET_HARDWARE_ERROR:-Hardware wallet import failed. See ${CNTOOLS_LOG}.}"
     cntools_ui_wait
-    return "${status}"
+    return 1
   fi
 
   cntools_wallet_hardware_screen_begin
