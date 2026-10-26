@@ -91,7 +91,7 @@ cntools_asset_tx_workflow() {
   CNTOOLS_ASSET_TX_DIRECTORY="${CNTOOLS_POLICY_PATHS[selected]}"
   cntools_policy_prepare "${CNTOOLS_ASSET_TX_DIRECTORY}" || { cntools_asset_tx_fail "${CNTOOLS_POLICY_ERROR:-Policy authority could not be verified.}"; return 2; }
   cntools_wallet_catalog_build || return 2
-  cntools_wallet_choose selected Cancel send || return $?
+  cntools_wallet_choose selected Cancel funding || return $?
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
   cntools_ui_spin_function 'Fetching eligible wallet funds…' cntools_funding_collect "${CNTOOLS_SEND_ADDRESS}" "${CNTOOLS_SEND_PAYMENT}" || return 2
   cntools_asset_tx_eligible_inventory || return 2

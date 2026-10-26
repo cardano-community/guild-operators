@@ -20,7 +20,8 @@ cntools_wallet_selection_material() {
 cntools_wallet_selection_collect() {
   local context="$1" directory='' address='' payload='' response='' now=0 registered='' rewards='' status='' offset=0 snapshot=''
   local -a addresses=() batch=()
-  if [[ "${context}" == send ]]; then
+  # "funding" is "send" for actions that cannot spend from a native script.
+  if [[ "${context}" == send || "${context}" == funding ]]; then
     # Koios answers every wallet in one batch, so light mode shows balances.
     declare -F cntools_wallet_list_query_koios_funding >/dev/null 2>&1 || return 0
     cntools_wallet_list_query_reset
@@ -90,6 +91,7 @@ cntools_wallet_selection_candidate_into() {
   if [[ "${CNTOOLS_WALLET_TYPES[index]}" == MultiSig ]]; then
     case "${context}" in
       send|collect) ;;
+      funding) return 1 ;; # These actions cannot spend from a native script.
       drep-register|drep-update|drep-retire|gov-vote|drep-info) cntools_wallet_selection_material "${directory}" drep || return 1 ;;
       register|deregister|delegate|vote-delegate|withdraw)
         cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}" || return 1 ;;
@@ -134,7 +136,7 @@ cntools_wallet_selection_candidate_into() {
     fi
     [[ "${CNTOOLS_WALLET_TYPES[index]}" != MultiSig ]] || candidate_annotation="Native script · ${candidate_annotation}"
   fi
-  if [[ "${context}" == send && "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]:-}" =~ ^[0-9]+$ ]]; then
+  if [[ "${context}" =~ ^(send|funding)$ && "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]:-}" =~ ^[0-9]+$ ]]; then
     candidate_annotation="$(cntools_number_format_lovelace "${CNTOOLS_WALLET_LIST_UTXO_LOVELACE[index]}")${candidate_annotation:+ · ${candidate_annotation}}"
   fi
   printf -v "${destination}" '%s' "${candidate_annotation}"
