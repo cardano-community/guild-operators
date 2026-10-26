@@ -7,7 +7,6 @@ declare -ag CNTOOLS_WALLET_PATHS=()
 declare -ag CNTOOLS_WALLET_NAMES=()
 declare -ag CNTOOLS_WALLET_TYPES=()
 declare -ag CNTOOLS_WALLET_PROTECTIONS=()
-declare -ag CNTOOLS_WALLET_ADDRESS_STATES=()
 
 cntools_wallet_log() {
   cntools_log "${1:-INFO}" "${2:-}" || true
@@ -192,17 +191,32 @@ cntools_wallet_type() {
 cntools_wallet_protection() {
   local wallet_directory="${1:-}"
   local candidate=""
+  local plaintext=""
 
   cntools_wallet_directory_safe "${wallet_directory}" || return 3
 
   for candidate in "${wallet_directory}"/*.gpg; do
     [[ -e "${candidate}" || -L "${candidate}" ]] || continue
     if [[ -f "${candidate}" && ! -L "${candidate}" ]]; then
+      # Encrypted keys next to a plaintext one are not a protected wallet.
+      for plaintext in "${wallet_directory}"/*.skey; do
+        [[ -f "${plaintext}" && ! -L "${plaintext}" ]] || continue
+        printf 'Partly protected\n'
+        return 0
+      done
       printf 'Protected\n'
       return 0
     fi
   done
   printf 'Open\n'
+}
+
+# Display role of a Key protection value; a partly protected wallet warns.
+cntools_wallet_protection_role() {
+  case "${1:-}" in
+    'Partly protected') printf 'warning\n' ;;
+    *) cntools_text_status_role "${1:-}" ;;
+  esac
 }
 
 cntools_wallet_address_filename() {
@@ -321,44 +335,11 @@ cntools_wallet_read_address() {
   _cntools_output_ref="${_cntools_address_value}"
 }
 
-cntools_wallet_address_state() {
-  local wallet_directory="${1:-}"
-  local kind=""
-  local address_value=""
-  local status=0
-  local present=0
-  local invalid=0
-
-  for kind in base payment reward; do
-    if cntools_wallet_read_address \
-        "${wallet_directory}" "${kind}" address_value; then
-      present=$((present + 1))
-    else
-      status=$?
-      case "${status}" in
-        1) ;;
-        2)
-          invalid=$((invalid + 1))
-          cntools_wallet_log ERROR \
-            "Wallet ${wallet_directory##*/} has an invalid ${kind} address file"
-          ;;
-        *) return "${status}" ;;
-      esac
-    fi
-  done
-  if (( invalid > 0 )); then
-    printf '%s valid, %s invalid\n' "${present}" "${invalid}"
-  else
-    printf '%s / 3\n' "${present}"
-  fi
-}
-
 cntools_wallet_insert_catalog_entry() {
   local path="${1:-}"
   local name="${2:-}"
   local wallet_type="${3:-Unknown}"
   local protection="${4:-Open}"
-  local addresses="${5:-0 / 3}"
   local count="${#CNTOOLS_WALLET_NAMES[@]}"
   local insert_at="${count}"
   local index=0
@@ -374,13 +355,11 @@ cntools_wallet_insert_catalog_entry() {
     CNTOOLS_WALLET_NAMES[index]="${CNTOOLS_WALLET_NAMES[index-1]}"
     CNTOOLS_WALLET_TYPES[index]="${CNTOOLS_WALLET_TYPES[index-1]}"
     CNTOOLS_WALLET_PROTECTIONS[index]="${CNTOOLS_WALLET_PROTECTIONS[index-1]}"
-    CNTOOLS_WALLET_ADDRESS_STATES[index]="${CNTOOLS_WALLET_ADDRESS_STATES[index-1]}"
   done
   CNTOOLS_WALLET_PATHS[insert_at]="${path}"
   CNTOOLS_WALLET_NAMES[insert_at]="${name}"
   CNTOOLS_WALLET_TYPES[insert_at]="${wallet_type}"
   CNTOOLS_WALLET_PROTECTIONS[insert_at]="${protection}"
-  CNTOOLS_WALLET_ADDRESS_STATES[insert_at]="${addresses}"
 }
 
 cntools_wallet_catalog_build() {
@@ -389,14 +368,12 @@ cntools_wallet_catalog_build() {
   local name=""
   local wallet_type=""
   local protection=""
-  local addresses=""
   local -a candidates=()
 
   CNTOOLS_WALLET_PATHS=()
   CNTOOLS_WALLET_NAMES=()
   CNTOOLS_WALLET_TYPES=()
   CNTOOLS_WALLET_PROTECTIONS=()
-  CNTOOLS_WALLET_ADDRESS_STATES=()
 
   [[ -n "${root}" && "${root}" = /* ]] || {
     cntools_wallet_log ERROR "Wallet root is unset or unsafe"
@@ -468,12 +445,9 @@ cntools_wallet_catalog_build() {
       cntools_wallet_log ERROR "Wallet became inaccessible while reading: ${name}"
       return 1
     }
-    addresses="$(cntools_wallet_address_state "${candidate}")" || {
-      cntools_wallet_log ERROR "Wallet became inaccessible while reading: ${name}"
-      return 1
-    }
+    # Addresses are read where they are shown (List, Show), not per picker.
     cntools_wallet_insert_catalog_entry \
-      "${candidate}" "${name}" "${wallet_type}" "${protection}" "${addresses}"
+      "${candidate}" "${name}" "${wallet_type}" "${protection}"
   done
   cntools_wallet_log WALLET "discovered ${#CNTOOLS_WALLET_NAMES[@]} wallet(s)"
 }
@@ -578,7 +552,7 @@ cntools_wallet_catalog_rows() {
       "${wallet_name}" "Type" "${CNTOOLS_WALLET_TYPES[index]}" \
       20 22 "" identifier accent ||
       return 1
-    protection_role="$(cntools_text_status_role \
+    protection_role="$(cntools_wallet_protection_role \
       "${CNTOOLS_WALLET_PROTECTIONS[index]}")" || return 1
     cntools_table_wrapped_triple \
       "" "Key protection" "${CNTOOLS_WALLET_PROTECTIONS[index]}" \
@@ -594,14 +568,16 @@ cntools_wallet_catalog_rows() {
     tokens="${CNTOOLS_WALLET_LIST_TOKEN_COUNTS[index]:-}"
     total="${CNTOOLS_WALLET_LIST_TOTAL_LOVELACE[index]:-}"
     [[ "${CNTOOLS_WALLET_LIST_QUERY_STATUSES[index]:-}" == available ]] || total=""
-    # Zero components are hidden; a lone component (rewards included) would
-    # only repeat the Total below it.
+    # Zero components are hidden; a lone UTxO component would only repeat the
+    # Total below it. Lone rewards stay: the Total alone would hide that the
+    # balance is unwithdrawn rewards, not spendable UTxOs.
     nonzero_count=0
     for component in "${base_balance}" "${payment_balance}" "${rewards}"; do
       [[ ! "${component}" =~ ^[1-9][0-9]*$ ]] || nonzero_count=$((nonzero_count + 1))
     done
     lone_component=N
-    [[ "${total}" =~ ^[0-9]+$ && "${nonzero_count}" == 1 ]] && lone_component=Y
+    [[ "${total}" =~ ^[0-9]+$ && "${nonzero_count}" == 1 &&
+       ! "${rewards}" =~ ^[1-9][0-9]*$ ]] && lone_component=Y
     if [[ "${lone_component}" == N && "${base_balance}" =~ ^[1-9][0-9]*$ ]]; then
       cntools_table_wrapped_triple \
         "" "Base UTxO" \
@@ -651,15 +627,12 @@ cntools_wallet_render_catalog() {
 # Wallet directories cntools_wallet_choose skips (already-added items).
 declare -ag CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
 
-# Plan-step decision for derived wallets. Quick takes account and key index 0
-# without asking, so this step offers to change them; Detailed already asked.
-# Returns 0 to proceed, 1 to cancel and 4 to change the derivation.
+# Plan-step decision for derived wallets, the same menu in both styles: the
+# plan can always go back to the account and key index (Quick took 0 without
+# asking; Detailed asked before the plan).
+# Returns 0 to proceed, 1 to cancel, 4 to change the derivation and 130.
 cntools_wallet_derivation_confirm() {
   local prompt="${1:-Continue?}" proceed="${2:-Continue}" choice="" status=0
-  if ! cntools_flow_quick; then
-    cntools_ui_confirm "${prompt}"
-    return $?
-  fi
   cntools_ui_choose choice "${prompt%\?}" "${proceed}" 'Change account and key index' Cancel || status=$?
   (( status == 0 )) || return "${status}"
   case "${choice}" in
@@ -678,9 +651,10 @@ cntools_wallet_choose() {
   local _cntools_row=""
   local _cntools_status=0
   local _cntools_context="${3:-}" _cntools_annotation=''
-  local _cntools_auto_single="${4:-Y}" _cntools_excluded=0
+  local _cntools_auto_single="${4:-Y}" _cntools_excluded=0 _cntools_excluded_dir=''
   local -a _cntools_rows=()
   local -a _cntools_indices=()
+  local -A _cntools_excluded_set=()
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
@@ -693,11 +667,15 @@ cntools_wallet_choose() {
   if [[ -n "${_cntools_context}" ]]; then
     cntools_ui_spin_function 'Checking suitable wallets…' cntools_wallet_selection_collect "${_cntools_context}" || return 2
   fi
+  # Callers list wallets already added (participants, owners) to skip them.
+  # Whole paths match exactly: "pool owner" must not hide "pool".
+  for _cntools_excluded_dir in "${CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS[@]}"; do
+    [[ -z "${_cntools_excluded_dir}" ]] || _cntools_excluded_set["${_cntools_excluded_dir}"]=1
+  done
   for (( _cntools_index = 0;
          _cntools_index < ${#CNTOOLS_WALLET_NAMES[@]};
          _cntools_index++ )); do
-    # Callers list wallets already added (participants, owners) to skip them.
-    if [[ " ${CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS[*]:-} " == *" ${CNTOOLS_WALLET_PATHS[_cntools_index]} "* ]]; then
+    if [[ -n "${_cntools_excluded_set[${CNTOOLS_WALLET_PATHS[_cntools_index]}]+x}" ]]; then
       _cntools_excluded=$((_cntools_excluded + 1)); continue
     fi
     if [[ -n "${_cntools_context}" ]]; then

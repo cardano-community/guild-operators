@@ -20,7 +20,7 @@ CNTools requires Bash 4.4 or newer, Charm Gum 2.0.2, a UTF-8 terminal and the
 common Linux tools provided by Guild Deploy's prerequisite installation.
 If Gum is missing or has a different version, interactive startup offers to
 install it. Declining leaves CNTools closed. Install Gum before entering
-offline mode, where no download is attempted. Individual actions check their
+offline mode, where CNTools says so instead of offering a download. Individual actions check their
 companion tools when needed and explain missing prerequisites.
 
 Use the deployed companion versions supplied by Guild Deploy. Hardware actions
@@ -117,16 +117,22 @@ Choose a workflow:
 2. **Create and sign** — save a signed package without submitting.
 3. **Create unsigned package** — save it for signing elsewhere.
 
+If signing fails (a disconnected or locked device, the app not open, a
+rejection on the device), CNTools shows why and offers **Retry signing**,
+**Save unsigned package** or **Cancel**; the reviewed transaction is kept.
+
 If the required signing keys are unavailable or protected, unsigned export
-remains available when the required public material exists. Multisig actions
+remains available when the required public material exists, and the review
+says why. Encrypted keys name the Decrypt action that lets you sign here. Multisig actions
 ask which participants will sign; the selected witnesses must all be collected.
 
 In the Quick flow style, transactions start as **Create, sign and submit**
 (or **Create unsigned package** when the signing keys are unavailable) with
-the default expiry from Settings (at least 24 hours for an unsigned package,
+the default expiry from Settings (at least 1 day for an unsigned package,
 which is signed elsewhere); change either with **Change workflow** or
-**Change expiry** in the review (switching to an unsigned package in Quick
-also extends a shorter expiry to 24 hours). Detailed asks for the workflow and
+**Change expiry** in the review. When the workflow becomes an unsigned package
+in Quick, a shorter default expiry is extended to 1 day and the review says
+so; an expiry you chose yourself is kept. Detailed asks for the workflow and
 expiry first. Without usable signing keys the unsigned package is the only
 workflow, so neither style asks, and the review says why.
 
@@ -135,13 +141,16 @@ irreversible effects such as a pool retirement or a token burn ask again
 (default No).
 
 Every creating action offers an expiry, including **No expiry**. The standard
-choices include 30 minutes, 2 hours and 24 hours for offline signing.
+choices include 30 minutes, 2 hours and 1 day (for offline signing); a custom
+expiry is at least 60 seconds.
 No expiry does not remove a native script's mandatory time bounds. Changing
 expiry, recipients or transaction effects requires a new build and signatures.
 
 Fees use the final transaction and required witnesses. The review also shows
 deposits, refunds and minimum-ADA adjustments where applicable. CNTools rechecks
-relevant chain state during live workflows; changes can require rebuilding.
+relevant chain state before signing, and again before submitting when signing
+took longer than 30 seconds (a device or another system); changes can require
+rebuilding.
 
 Saved packages are reported under
 `${NODE_HOME}/scripts/cntools/.transactions/`. Keep them until the operation is
@@ -172,9 +181,12 @@ flow style and saves the answer. Change it any time in
 - **Detailed** asks every question.
 
 Both styles keep warnings and safety confirmations, such as self-sends,
-retiring pools, pool retirement submission, deletions, restores, key
-encryption, KES rotation and cold-key signing. Warnings shown before a step
-Quick confirms automatically are repeated on the next screen.
+retiring pools, pool retirement and burn submission, deletions, restores, key
+decryption, KES rotation and cold-key signing. Creating new key material (a
+wallet, DRep or Catalyst key, a policy with an expiry) asks in both styles and
+names the wallet or object. For encryption, entering the passphrase is the
+confirmation; Escape cancels. Warnings shown before a step Quick confirms
+automatically are repeated on the next screen.
 
 In both styles, CNTools selects the only suitable wallet, pool, policy,
 local DRep or saved transaction package instead of showing a one-item list,
@@ -202,7 +214,15 @@ and an invalid number asks again.
   address is used.
 - **Default expiry:** sets the starting expiry preference for creating actions.
 
-Token fragmentation and ADA-only management are disabled by default.
+Settings are saved in `.state/transaction-settings.json`. If two CNTools
+sessions change settings, each save keeps the other session's changes. A
+settings file CNTools cannot read (for example after a hand edit) is moved
+aside as `transaction-settings.json.invalid-<time>` and the main menu says so;
+defaults apply until you set them again.
+
+Token fragmentation and ADA-only management are disabled by default. Without
+ADA-only management, change only needs the protocol minimum ADA, and token
+change that would exceed the value-size limit is still split across outputs.
 These settings shape change from a transaction, not a background wallet
 maintenance job. Use **Funds → Collect UTxOs** for explicit consolidation.
 The transaction review shows what the settings actually produced.
@@ -262,7 +282,9 @@ review them before sharing.
 The update check does not prevent normal menu use. **Update → Check Again**
 refreshes availability, **View Changes** shows newer changelog entries, and
 **Install Update** runs Guild Deploy for the selected repository branch.
-An explicit confirmation allows a forced refresh when versions match.
+Anything that would stop the install (a missing deploy script, an invalid
+branch, a log inside the CNTools folder) is reported before the install
+question. An explicit confirmation allows a forced refresh when versions match.
 
 Guild Deploy refreshes the managed scripts and configuration snapshot, not just
 CNTools. Review the target, network and branch first, and back up any locally
@@ -271,7 +293,8 @@ customized configuration. CNTools closes after deployment; restart with
 
 If a query fails, check the network, `env` connection settings, node health and
 Koios availability. Use `-o` for local/offline work. For a failed action, the
-reported log path contains the diagnostic details. Do not replace keys or
+reported log path contains the diagnostic details; the main menu names it
+after a failed action. Do not replace keys or
 retry an uncertain submission blindly.
 
 Release changes are recorded in the [CNTools changelog](cntools-changelog.md).

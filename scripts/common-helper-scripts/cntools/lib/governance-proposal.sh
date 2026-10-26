@@ -28,6 +28,11 @@ cntools_proposals_parse() {
     def totals: [to_entries[].value] | {Yes:(map(select(. == "VoteYes"))|length),No:(map(select(. == "VoteNo"))|length),Abstain:(map(select(. == "Abstain" or . == "VoteAbstain"))|length)};
     select(length == 1) | .[0] |
     (if $backend == "local" then
+      # Ratified this epoch and awaiting enactment: no longer worth a vote.
+      ([(.nextRatifyState.enactedGovActions // [])[] |
+        (if type == "object" and has("actionId") then .actionId else . end) |
+        select(type == "object" and (.txId|type) == "string" and (.govActionIx|type) == "number") |
+        .txId + "#" + (.govActionIx|tostring)]) as $ratified |
       .proposals | if type == "object" then [.[]] else . end |
       if type != "array" then error("Missing proposal array") else . end |
       map(if (.actionId.txId | type == "string") and (.actionId.govActionIx | type == "number") and
@@ -37,7 +42,8 @@ cntools_proposals_parse() {
         then {tx:.actionId.txId,index:.actionId.govActionIx,type:.proposalProcedure.govAction.tag,
           proposed:.proposedIn,expires:.expiresAfter,action:.proposalProcedure.govAction,
           anchor:(.proposalProcedure.anchor // null),deposit:(.proposalProcedure.deposit|tostring),
-          returnAddress:.proposalProcedure.returnAddr,metadata:null,title:null,ratified:false,
+          returnAddress:.proposalProcedure.returnAddr,metadata:null,title:null,
+          ratified:((.actionId.txId + "#" + (.actionId.govActionIx|tostring)) as $key | any($ratified[]; . == $key)),
           votes:.dRepVotes,counts:{DRep:(.dRepVotes|totals),Committee:(.committeeVotes|totals),SPO:(.stakePoolVotes|totals)}}
         else error("Malformed local proposal") end)
     else
@@ -79,8 +85,29 @@ cntools_proposals_parse() {
   CNTOOLS_PROPOSALS="${result}" CNTOOLS_PROPOSAL_EPOCH="${epoch}" CNTOOLS_PROPOSAL_BACKEND="${backend}"
 }
 
+# Active proposals from Koios, paginated below PostgREST's row cap, into
+# OUTPUT (one JSON array). Never silently presents a truncated catalog.
+cntools_proposals_koios_fetch() {
+  local output="$1" epoch="$2" part='' combined='' offset=0 count=0
+  cntools_transaction_temp_file part proposals-page || return 1
+  cntools_transaction_temp_file combined proposals-combined || return 1
+  printf '[]\n' > "${output}"
+  while ((offset < 10000)); do
+    cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/proposal_list?expiration=gte.${epoch}&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null&limit=500&offset=${offset}" '' "${part}" 33554432 GET || return 1
+    count="$(jq -er 'select(type == "array" and length <= 500) | length' "${part}")" || return 1
+    jq -cs '.[0]+.[1]' "${output}" "${part}" > "${combined}" || return 1
+    cntools_transaction_file_safe "${combined}" 33554432 || {
+      cntools_transaction_set_error 'The active proposal catalog exceeded the 32 MiB safety limit.'; return 1;
+    }
+    cp -- "${combined}" "${output}" || return 1
+    (( count == 500 )) || break
+    offset=$((offset+500))
+  done
+  ((offset < 10000)) || { cntools_transaction_set_error 'The proposal catalog exceeded the safety limit. Nothing was truncated or selected.'; return 1; }
+}
+
 cntools_proposals_query_backend() {
-  local backend="$1" output='' errors='' tip='' epoch='' status=0 part='' combined='' offset=0 count=0
+  local backend="$1" output='' errors='' tip='' epoch='' status=0
   local -a network=()
   [[ "${CNTOOLS_MODE:-}" != offline ]] || { cntools_transaction_set_error 'Proposal lookup needs a local node or Koios; saved transactions can still be signed offline.'; return 1; }
   cntools_transaction_temp_file output proposals || return 1
@@ -99,32 +126,49 @@ cntools_proposals_query_backend() {
     cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/tip" '' "${tip}" 4194304 GET || return 1
     epoch="$(jq -er 'select(type == "array" and length == 1) | .[0].epoch_no | select(type == "number")' "${tip}")" || return 1
     [[ "${epoch}" =~ ^(0|[1-9][0-9]{0,7})$ ]] || return 1
-    cntools_transaction_temp_file part proposals-page || return 1
-    cntools_transaction_temp_file combined proposals-combined || return 1
-    printf '[]\n' > "${output}"
-    # Paginate below PostgRESTs row cap. Never silently present a truncated catalog.
-    while ((offset < 10000)); do
-      cntools_wallet_query_http "${CNTOOLS_KOIOS_API%/}/proposal_list?expiration=gte.${epoch}&enacted_epoch=is.null&dropped_epoch=is.null&expired_epoch=is.null&limit=500&offset=${offset}" '' "${part}" 33554432 GET || return 1
-      count="$(jq -er 'select(type == "array" and length <= 500) | length' "${part}")" || return 1
-      jq -cs '.[0]+.[1]' "${output}" "${part}" > "${combined}" || return 1
-      cntools_transaction_file_safe "${combined}" 33554432 || {
-        cntools_transaction_set_error 'The active proposal catalog exceeded the 32 MiB safety limit.'; return 1;
-      }
-      cp -- "${combined}" "${output}" || return 1
-      (( count == 500 )) || break
-      offset=$((offset+500))
-    done
-    ((offset < 10000)) || { cntools_transaction_set_error 'The proposal catalog exceeded the safety limit. Nothing was truncated or selected.'; return 1; }
+    cntools_proposals_koios_fetch "${output}" "${epoch}" || return 1
   else return 2; fi
   cntools_transaction_file_safe "${output}" 33554432 || return 1
   cntools_proposals_parse "${output}" "${backend}" "${epoch}" || return 1
   cntools_transaction_log QUERY "Active proposals backend=${backend} epoch=${epoch} count=$(jq length <<< "${CNTOOLS_PROPOSALS}")"
 }
 
+# The ledger state has no off-chain titles or metadata. With Koios enabled, a
+# local catalog takes them from Koios (indexed, untrusted descriptive content,
+# shown as such); identities and votes stay those of the local node. A
+# failure leaves the catalog as it was.
+cntools_proposals_koios_annotate() {
+  local output='' merged=''
+  [[ "${CNTOOLS_PROPOSAL_BACKEND}" == local && "${CNTOOLS_MODE:-offline}" != offline && "${CNTOOLS_KOIOS_ENABLED:-N}" == Y &&
+     "${CNTOOLS_KOIOS_API:-}" =~ ^https://[^[:space:]]+$ ]] || return 0
+  [[ "$(jq length <<< "${CNTOOLS_PROPOSALS}")" != 0 ]] || return 0
+  cntools_transaction_temp_file output proposals-koios-titles || return 0
+  if ! cntools_proposals_koios_fetch "${output}" "${CNTOOLS_PROPOSAL_EPOCH}"; then
+    CNTOOLS_TRANSACTION_ERROR=''
+    cntools_transaction_log WARN 'Koios proposal titles unavailable; local proposals are shown without them'
+    return 0
+  fi
+  merged="$(jq -c --slurpfile koios "${output}" '
+    ($koios[0] | if type == "array" then . else [] end |
+      map(select((.proposal_tx_hash | type) == "string" and (.proposal_index | type) == "number") |
+        (.meta_json | if type == "object" then . else null end) as $meta |
+        {key:(.proposal_tx_hash + "#" + (.proposal_index | tostring)),
+         value:{title:($meta | if type == "object" then .body else null end | if type == "object" then .title else null end |
+                  if type == "string" and length > 0 then . else null end),
+                metadata:$meta}}) | from_entries) as $index |
+    map(($index[.tx + "#" + (.index | tostring)] // {}) as $indexed |
+      .title = (.title // $indexed.title) | .metadata = (.metadata // $indexed.metadata))
+  ' <<< "${CNTOOLS_PROPOSALS}")" || {
+    cntools_transaction_log WARN 'Koios proposal titles could not be matched; local proposals are shown without them'
+    return 0
+  }
+  CNTOOLS_PROPOSALS="${merged}"
+}
+
 cntools_proposals_query() {
   CNTOOLS_PROPOSAL_GOV_STATE='' CNTOOLS_VOTING_STATS=() CNTOOLS_VOTING_PARAMETERS_SOURCE=''
   CNTOOLS_VOTING_PARAMETERS_CHECKED=N
-  if cntools_transaction_local_backend_ready && cntools_proposals_query_backend local; then return 0; fi
+  if cntools_transaction_local_backend_ready && cntools_proposals_query_backend local; then cntools_proposals_koios_annotate; return 0; fi
   if [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y ]] && cntools_proposals_query_backend koios; then return 0; fi
   cntools_transaction_set_error 'Active governance proposals could not be collected. Check the local node or Koios and the log.'
   return 1
@@ -154,6 +198,33 @@ cntools_proposal_type_label_into() {
     *) pt_label="$2" ;;
   esac
   printf -v "$1" '%s' "${pt_label}"
+}
+
+# A proposal ID short enough for a menu line: its start and its checksum end.
+cntools_proposal_short_id_into() {
+  local si_id="$2"
+  if ((${#si_id} <= 24)); then :
+  elif [[ "${si_id}" == *#* ]]; then si_id="${si_id:0:10}…#${si_id##*#}"
+  else si_id="${si_id:0:14}…${si_id: -6}"; fi
+  printf -v "$1" '%s' "${si_id}"
+}
+
+# One picker line: ordinal, short ID, type and title (when known), cut to the
+# menu width with an ellipsis. Display only; the leading ordinal selects.
+cntools_proposal_label_into() {
+  local pl_record="$2" pl_ordinal="$3" pl_title='' pl_kind='' pl_id='' pl_label='' pl_width=0
+  pl_title="$(jq -r '.title | if type == "string" and length > 0 then . else "" end' <<< "${pl_record}")" || pl_title=''
+  cntools_text_sanitize_into pl_title "${pl_title}" || pl_title=''
+  cntools_proposal_type_label_into pl_kind "$(jq -r .type <<< "${pl_record}")"
+  cntools_proposal_short_id_into pl_id "$(jq -r .id <<< "${pl_record}")"
+  pl_label="${pl_ordinal} · ${pl_id} · ${pl_kind}"
+  [[ -z "${pl_title}" ]] || pl_label+=" · ${pl_title}"
+  # Room for the menu's indicator and padding.
+  pl_width="$(cntools_gum_width 2>/dev/null)" || pl_width=78
+  [[ "${pl_width}" =~ ^[0-9]+$ ]] || pl_width=78
+  pl_width=$((pl_width - 6)); ((pl_width >= 30)) || pl_width=30
+  ((${#pl_label} <= pl_width)) || pl_label="${pl_label:0:pl_width-1}…"
+  printf -v "$1" '%s' "${pl_label}"
 }
 
 # The deposit return account as a stake address. The local ledger gives a

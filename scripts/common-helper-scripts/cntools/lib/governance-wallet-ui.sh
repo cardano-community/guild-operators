@@ -31,52 +31,70 @@ cntools_governance_action_status() {
 cntools_governance_action_keys() { cntools_governance_action_status cntools_governance_keys_workflow; }
 
 cntools_governance_keys_workflow() {
-  local directory="" method="" method_label="" account=0 phrase="" widths="" status=0 path="Not derived · back up the signing key"
-  local recorded="" backup=""
+  local directory="" wallet="" method="" method_label="" account=0 phrase="" widths="" status=0 path="Not derived · back up the signing key"
+  local recorded="" backup="" choice=""
+  local -a sources=()
   # Existing mnemonic controls share presentation but keep the governance path.
   local CNTOOLS_MNEMONIC_INPUT_PATH='/ Vote / Governance / Derive Keys'
   cntools_governance_wallet_select_into directory 'Derive Keys' drep-create || return $?
+  wallet="${directory##*/}"
+  # Wallet type, open keys, Cardano CLI and no existing DRep: before any input.
   cntools_drep_key_preflight "${directory}" || { cntools_governance_wallet_failure; return $?; }
-  cntools_ui_render_status info 'Create a separate DRep identity in this wallet. This does not register it or change your voting delegation.'
-  cntools_ui_choose method 'DRep key source' 'Derive from recovery phrase' 'Generate new CLI keys' Cancel || return $?
-  cntools_log CHOICE "DRep key source=${method} wallet=${directory##*/}" || true
-  case "${method}" in
-    'Derive from recovery phrase')
-      method=mnemonic method_label='Recovery phrase'
-      # The wallet's own account (recorded at import) is the default.
-      if cntools_wallet_read_derivation_path "${directory}" recorded 2>/dev/null &&
-         [[ "${recorded}" =~ ^1852H/1815H/([0-9]+)H/ ]]; then
-        recorded="${BASH_REMATCH[1]}"
-      else
-        recorded=''
-      fi
-      if [[ -n "${recorded}" ]] && cntools_flow_quick; then
-        account="${recorded}"
-        cntools_log CHOICE "DRep account default=${account} recorded wallet account flow=quick" || true
-      else
-        cntools_wallet_mnemonic_prompt_index_into account Account 'Derive Keys' "${CNTOOLS_MNEMONIC_INPUT_PATH}" "${recorded:-0}" || return $?
-      fi
-      path="1852H/1815H/${account}H/3/0"
-      backup="Keep the recovery phrase and account ${account} backed up; the payment/stake keys cannot recover the DRep key."
-      ;;
-    'Generate new CLI keys')
-      method=cli method_label='New CLI keys'
-      backup='This new DRep key cannot be recovered from a recovery phrase: back up its signing key.'
-      ;;
-    Cancel) return 1 ;;
-    *) return 2 ;;
-  esac
+  # The wallet's own account (recorded at import) is the default.
+  if cntools_wallet_read_derivation_path "${directory}" recorded 2>/dev/null &&
+     [[ "${recorded}" =~ ^1852H/1815H/([0-9]+)H/ ]]; then
+    recorded="${BASH_REMATCH[1]}"
+  else
+    recorded=''
+  fi
+  # Quick offers the recorded account in the source menu itself; another
+  # account (and Detailed) asks for it, with the recorded one as default.
+  sources=('Derive from recovery phrase')
+  if [[ -n "${recorded}" ]] && cntools_flow_quick; then
+    sources=("Derive from recovery phrase · account ${recorded} (recorded)" 'Derive from recovery phrase · another account')
+  fi
+  while true; do
+    cntools_ui_render_status info "Create a separate DRep identity in ${wallet}. This does not register it or change your voting delegation."
+    cntools_ui_choose choice 'DRep key source' "${sources[@]}" 'Generate new CLI keys' Cancel || return $?
+    cntools_log CHOICE "DRep key source=${choice} wallet=${wallet}" || true
+    status=0
+    case "${choice}" in
+      'Derive from recovery phrase · account '*)
+        method=mnemonic method_label='Recovery phrase' account="${recorded}"
+        cntools_log CHOICE "DRep account=${account} recorded wallet account flow=quick" || true
+        ;;
+      'Derive from recovery phrase'*)
+        method=mnemonic method_label='Recovery phrase'
+        cntools_wallet_mnemonic_prompt_index_into account Account 'Derive Keys' "${CNTOOLS_MNEMONIC_INPUT_PATH}" "${recorded:-0}" || status=$?
+        ;;
+      'Generate new CLI keys') method=cli method_label='New CLI keys' ;;
+      Cancel) return 1 ;;
+      *) return 2 ;;
+    esac
+    # Esc at the account returns to the source menu.
+    ((status == 0)) && break
+    ((status == 1)) || return "${status}"
+    cntools_ui_action_begin 'Derive Keys' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
+  done
+  if [[ "${method}" == mnemonic ]]; then
+    path="1852H/1815H/${account}H/3/0"
+    backup="Keep the recovery phrase and account ${account} backed up; the payment/stake keys cannot recover the DRep key."
+  else
+    backup='This new DRep key cannot be recovered from a recovery phrase: back up its signing key.'
+  fi
   cntools_transaction_ui_table_widths_into widths 20 || return 2
-  # Quick goes straight on (its result names the path and the backup once);
-  # Detailed reviews the plan first.
+  # New key material: a real confirm in both styles. Detailed shows the plan.
   if cntools_flow_quick; then
-    [[ "${method}" != mnemonic ]] ||
+    if [[ "${method}" == mnemonic ]]; then
       cntools_ui_render_status warn "Deriving DRep keys at ${path}. Use an air-gapped machine for recovery phrases where possible; the phrase is not saved."
+    else
+      cntools_ui_render_status warn 'This independently generated DRep key cannot be recovered from a wallet recovery phrase. Back up the new signing key.'
+    fi
   else
     cntools_ui_action_begin 'Derive Keys' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
     {
       printf 'DRep keys\tValue\n'
-      cntools_transaction_ui_styled_row Wallet "${directory##*/}" identifier
+      cntools_transaction_ui_styled_row Wallet "${wallet}" identifier
       cntools_transaction_ui_styled_row Method "${method_label}" accent
       cntools_transaction_ui_styled_row 'Derivation path' "${path}" identifier
     } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
@@ -85,26 +103,40 @@ cntools_governance_keys_workflow() {
     else
       cntools_ui_render_status warn 'This independently generated DRep key cannot be recovered from a wallet recovery phrase. Back up the new signing key.'
     fi
-    cntools_ui_confirm 'Add these DRep keys to the selected wallet?' false || return $?
   fi
-  cntools_log CHOICE "DRep key creation confirmed wallet=${directory##*/} method=${method} account=${account}" || true
-  if [[ "${method}" == mnemonic ]]; then
-    cntools_wallet_mnemonic_collect_import_into phrase || return $?
-  fi
-  # Do not pass the recovery phrase through an external spinner/argv or log it.
-  cntools_drep_key_create "${directory}" "${method}" "${account}" "${phrase}" || status=$?
-  unset phrase
+  cntools_ui_confirm "Add DRep keys to ${wallet}?" false || return $?
+  cntools_log CHOICE "DRep key creation confirmed wallet=${wallet} method=${method} account=${account}" || true
+  # A rejected phrase asks for it again; the wallet, method and account stay.
+  while true; do
+    if [[ "${method}" == mnemonic ]]; then
+      cntools_wallet_mnemonic_collect_import_into phrase || return $?
+    fi
+    cntools_ui_action_begin 'Derive Keys' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
+    # The spinner runs the function in this shell: the phrase never reaches
+    # an external process's argv, the log or the screen.
+    status=0
+    cntools_ui_spin_function "Creating DRep keys in ${wallet}…" cntools_drep_key_create "${directory}" "${method}" "${account}" "${phrase}" || status=$?
+    phrase=''
+    ((status == 0)) && break
+    if [[ "${method}" == mnemonic && "${CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED:-N}" == Y ]]; then
+      cntools_ui_render_status error "${CNTOOLS_DREP_KEY_ERROR:-Cardano CLI rejected the recovery phrase.}"
+      cntools_ui_render_status info "Enter the recovery phrase again; ${wallet}, the method and account ${account} are kept."
+      cntools_log CHOICE "DRep recovery phrase re-entry wallet=${wallet}" || true
+      cntools_ui_wait
+      continue
+    fi
+    cntools_governance_wallet_failure; return $?
+  done
   cntools_ui_action_begin 'Derive Keys' "${CNTOOLS_MNEMONIC_INPUT_PATH}"
-  ((status == 0)) || { cntools_governance_wallet_failure; return $?; }
   cntools_drep_key_inspect "${directory}" || { cntools_governance_wallet_failure; return $?; }
   {
     printf 'DRep keys\tValue\n'
-    cntools_transaction_ui_styled_row Wallet "${directory##*/}" identifier
+    cntools_transaction_ui_styled_row Wallet "${wallet}" identifier
     cntools_transaction_ui_styled_row 'DRep ID' "${CNTOOLS_DREP_KEY_ID}" identifier
     cntools_transaction_ui_styled_row 'Saved in' "${directory}" identifier
     [[ -z "${CNTOOLS_DREP_KEY_PATH}" ]] || cntools_transaction_ui_styled_row 'Derivation path' "${CNTOOLS_DREP_KEY_PATH}" identifier
   } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 2
-  cntools_ui_render_status success "DRep keys created. No transaction was made. ${backup} Then use Wallet → Encrypt to protect all private wallet keys, including the DRep key."
+  cntools_ui_render_status success "DRep keys created in ${wallet}. No transaction was made. ${backup} Then use Wallet → Encrypt to protect all private wallet keys, including the DRep key."
   cntools_ui_wait
 }
 

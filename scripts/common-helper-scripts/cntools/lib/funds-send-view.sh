@@ -51,6 +51,8 @@ cntools_send_render_information() {
   for amount in "${CNTOOLS_CHANGE_OUTPUT_LOVELACE[@]}"; do
     cntools_uint_add_into change_total "${change_total}" "${amount}" || return 1
   done
+  label="$(cntools_number_format_lovelace "${change_total}") · $(cntools_number_format "${#CNTOOLS_CHANGE_OUTPUTS[@]}") output"
+  (( ${#CNTOOLS_CHANGE_OUTPUTS[@]} == 1 )) || label+=s
   cntools_transaction_ui_table_widths_into widths 22 || return 1
   [[ "${CNTOOLS_SEND_MODE}" == exact ]] || selection='All spendable inputs'
   cntools_transaction_ui_expiry_label_into expiry_label "${CNTOOLS_TRANSACTION_PACKAGE_INVALID_HEREAFTER}"
@@ -63,15 +65,9 @@ cntools_send_render_information() {
     if [[ "${CNTOOLS_SEND_CHANGE_ADDRESS:-${CNTOOLS_SEND_ADDRESS}}" != "${CNTOOLS_SEND_ADDRESS}" ]]; then
       cntools_transaction_ui_styled_row 'Change address' "${CNTOOLS_SEND_CHANGE_ADDRESS}" address
     fi
-    if (( ${#CNTOOLS_CHANGE_OUTPUTS[@]} > 0 )); then
-      cntools_transaction_ui_styled_row 'Returned change' "$(cntools_number_format_lovelace "${change_total}") · $(cntools_number_format "${#CNTOOLS_CHANGE_OUTPUTS[@]}") outputs" number
-      cntools_transaction_ui_render_policy_rows "${selection}" "${#CNTOOLS_COIN_SELECTED_REFS[@]}"
-    else
-      label="$(cntools_settings_strategy_name "${selection}" 2>/dev/null)" || label="${selection}"
-      label+=" · $(cntools_number_format "${#CNTOOLS_COIN_SELECTED_REFS[@]}") input"
-      (( ${#CNTOOLS_COIN_SELECTED_REFS[@]} == 1 )) || label+=s
-      cntools_transaction_ui_styled_row 'Input selection' "${label}" value
-    fi
+    (( ${#CNTOOLS_CHANGE_OUTPUTS[@]} == 0 )) ||
+      cntools_transaction_ui_styled_row 'Returned change' "${label}" number
+    cntools_transaction_ui_render_policy_rows "${selection}" "${#CNTOOLS_COIN_SELECTED_REFS[@]}"
     cntools_funding_render_untouched_row
     cntools_transaction_ui_styled_row 'Expires' "${expiry_label}" number
   } | cntools_ui_table --separator $'\t' --widths "${widths}"

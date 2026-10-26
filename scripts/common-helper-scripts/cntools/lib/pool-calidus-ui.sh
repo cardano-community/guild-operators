@@ -61,7 +61,7 @@ cntools_pool_action_calidus() {
   local -a menu_options=()
   cntools_ui_action_begin Calidus '/ Pool / Calidus'
   cntools_pool_catalog_build || { cntools_ui_render_status error 'The pool directory could not be read safely.'; cntools_ui_wait; return 1; }
-  (( ${#CNTOOLS_POOL_NAMES[@]} > 0 )) || { cntools_ui_render_status info 'No pools are available.'; cntools_ui_wait; return 0; }
+  (( ${#CNTOOLS_POOL_NAMES[@]} > 0 )) || { cntools_pool_empty_notice; return 0; }
   cntools_pool_choose_into selected || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   directory="${CNTOOLS_POOL_DIRECTORIES[selected]}"
@@ -106,16 +106,25 @@ cntools_pool_action_calidus() {
       cntools_ui_pick_path source 'Key file' 'Choose a Cardano payment key envelope; the source is retained.' "${directory}" || status=$?
       ((status != 1)) || continue; ((status == 0)) || return "${status}"
     fi
-    {
-      cntools_table_pair Pool "${directory##*/}" identifier
-      cntools_table_pair Operation "${choice}" value
-      [[ -z "${source}" ]] || cntools_table_pair Source "${source}" identifier
-    } | cntools_table_render 'Calidus plan'
-    if [[ "${kind}" == create || "${kind}" == signing ]]; then
-      cntools_ui_render_status warn 'The Calidus signing key is stored unencrypted. Keep a secure offline backup. Use Pool → Encrypt to protect it together with any local cold signing key.'
+    # A new signing key for the pool is a real question in both styles; public
+    # files only follow the menu choice in Quick, which skips the plan.
+    status=0
+    if [[ "${kind}" == create || "${kind}" == signing ]] || ! cntools_flow_quick; then
+      {
+        cntools_table_pair Pool "${directory##*/}" identifier
+        cntools_table_pair Operation "${choice}" value
+        [[ -z "${source}" ]] || cntools_table_pair Source "${source}" identifier
+      } | cntools_table_render 'Calidus plan'
+      if [[ "${kind}" == create || "${kind}" == signing ]]; then
+        cntools_ui_render_status warn 'The Calidus signing key is stored unencrypted. Keep a secure offline backup. Use Pool → Encrypt to protect it together with any local cold signing key.'
+      fi
+      cntools_ui_render_status info 'Existing files are never overwritten. Cold, KES and VRF keys stay unchanged, and nothing is registered on-chain.'
     fi
-    cntools_ui_render_status info 'Existing files are never overwritten. Cold, KES and VRF keys stay unchanged, and nothing is registered on-chain.'
-    status=0; cntools_ui_flow_confirm 'Proceed with this Calidus key setup?' false || status=$?
+    if [[ "${kind}" == create || "${kind}" == signing ]]; then
+      cntools_ui_confirm "$([[ "${kind}" == create ]] && printf 'Create' || printf 'Import') a Calidus signing key for ${directory##*/}?" false || status=$?
+    else
+      cntools_ui_flow_confirm 'Proceed with this Calidus key setup?' false || status=$?
+    fi
     ((status != 1)) || continue; ((status == 0)) || return "${status}"
     cntools_transaction_log CHOICE "Calidus setup confirmed pool=${directory##*/} operation=${kind}"
     status=0
@@ -123,7 +132,12 @@ cntools_pool_action_calidus() {
     cntools_ui_action_begin Calidus '/ Pool / Calidus'
     if ((status == 0)); then
       cntools_calidus_render "${directory}"
-      cntools_ui_render_status success 'Calidus key setup completed. Back up the signing key securely; no transaction was created.'
+      if [[ "${kind}" == create || "${kind}" == signing ]]; then
+        cntools_ui_render_status success 'Calidus key setup completed. Back up the signing key securely; no transaction was created.'
+      else
+        cntools_ui_render_status success 'Calidus public files are ready; no transaction was created.'
+      fi
+      [[ -z "${CNTOOLS_POOL_WRITE_WARNING:-}" ]] || cntools_ui_render_status warn "${CNTOOLS_POOL_WRITE_WARNING}"
     else
       cntools_ui_render_status error "${CNTOOLS_POOL_WRITE_ERROR:-Calidus setup failed; existing files were retained.} See ${CNTOOLS_LOG} for details."
     fi

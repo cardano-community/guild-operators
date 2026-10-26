@@ -20,6 +20,11 @@ CNTOOLS_SEND_POLICY='{}'
 declare -ag CNTOOLS_SEND_ADDRESSES=() CNTOOLS_SEND_LABELS=() CNTOOLS_SEND_AMOUNTS=() CNTOOLS_SEND_PAID=()
 declare -ag CNTOOLS_SEND_HANDLES=() CNTOOLS_SEND_RESOLUTIONS=()
 declare -ag CNTOOLS_SEND_OUTPUTS=() CNTOOLS_SEND_CHANGE_IDS=()
+# A recipient whose assets exceed one output's value-size limit gets several
+# outputs to the same address: PARTS counts them, FIRST_ASSETS holds the first
+# output's assets, and EXTRA_OUTPUTS/EXTRA_LOVELACE the others and their
+# minimum ADA. Set by cntools_send_demands.
+declare -ag CNTOOLS_SEND_PARTS=() CNTOOLS_SEND_FIRST_ASSETS=() CNTOOLS_SEND_EXTRA_LOVELACE=() CNTOOLS_SEND_EXTRA_OUTPUTS=()
 declare -Ag CNTOOLS_SEND_ASSETS=() CNTOOLS_SEND_DEMAND=() CNTOOLS_SEND_CHANGE_ASSETS=()
 
 cntools_send_fail() {
@@ -61,12 +66,62 @@ cntools_send_output_into() {
   [[ "${output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ && "${index}" =~ ^[0-9]+$ ]] || return 2
   local -n send_output_ref="${output_name}"
   value="${CNTOOLS_SEND_ADDRESSES[index]}+${amount}"
+  if (( ${CNTOOLS_SEND_PARTS[index]:-1} > 1 )); then
+    send_output_ref="${value}${CNTOOLS_SEND_FIRST_ASSETS[index]}"
+    return 0
+  fi
   for asset in "${CNTOOLS_FUNDING_ASSET_IDS[@]}"; do
     cntools_send_asset_quantity_into quantity "${index}" "${asset}"
     [[ "${quantity}" != 0 ]] || continue
     value+=" + ${quantity} ${asset%.}"
   done
   send_output_ref="${value}"
+}
+
+# Splits recipient INDEX's assets across outputs to the same address when they
+# exceed one output's value-size limit. The first output keeps the recipient's
+# ADA amount; each further output carries its own minimum ADA.
+cntools_send_split_recipient() {
+  local ssr_index="$1" ssr_asset='' ssr_quantity='' ssr_sorted='' ssr_part='' ssr_minimum='' ssr_extra=0 ssr_run=0 ssr_start=0 ssr_i=0
+  local -a ssr_ids=() ssr_pieces=() ssr_runs=()
+  CNTOOLS_SEND_PARTS[ssr_index]=1; CNTOOLS_SEND_FIRST_ASSETS[ssr_index]=''; CNTOOLS_SEND_EXTRA_LOVELACE[ssr_index]=0
+  (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} > 0 )) || return 0
+  ssr_sorted="$(printf '%s\n' "${CNTOOLS_FUNDING_ASSET_IDS[@]}" | LC_ALL=C sort)" || return 1
+  mapfile -t ssr_ids <<< "${ssr_sorted}"
+  for ssr_asset in "${ssr_ids[@]}"; do
+    cntools_send_asset_quantity_into ssr_quantity "${ssr_index}" "${ssr_asset}"
+    [[ "${ssr_quantity}" != 0 ]] || continue
+    ssr_pieces+=("${ssr_quantity} ${ssr_asset%.}")
+  done
+  (( ${#ssr_pieces[@]} > 0 )) || return 0
+  cntools_transaction_value_runs_into ssr_runs "${CNTOOLS_FUNDING_PROTOCOL}" 0 "${ssr_pieces[@]}" || {
+    cntools_send_fail 'The native assets could not be sized for the ledger value-size limit.'; return 1;
+  }
+  (( ${#ssr_runs[@]} > 1 )) || return 0
+  for ssr_run in "${ssr_runs[@]}"; do
+    ssr_part=''
+    for (( ssr_i = ssr_start; ssr_i < ssr_start + ssr_run; ssr_i++ )); do ssr_part+=" + ${ssr_pieces[ssr_i]}"; done
+    if (( ssr_start == 0 )); then
+      CNTOOLS_SEND_FIRST_ASSETS[ssr_index]="${ssr_part}"
+    else
+      cntools_send_minimum_into ssr_minimum "${CNTOOLS_SEND_ADDRESSES[ssr_index]}+0${ssr_part}" || return 1
+      CNTOOLS_SEND_EXTRA_OUTPUTS+=("${CNTOOLS_SEND_ADDRESSES[ssr_index]}+${ssr_minimum}${ssr_part}")
+      cntools_uint_add_into ssr_extra "${ssr_extra}" "${ssr_minimum}" || return 1
+    fi
+    ssr_start=$((ssr_start + ssr_run))
+  done
+  CNTOOLS_SEND_PARTS[ssr_index]="${#ssr_runs[@]}"; CNTOOLS_SEND_EXTRA_LOVELACE[ssr_index]="${ssr_extra}"
+  cntools_transaction_log TRANSACTION "recipient=$((ssr_index+1)) assets split into ${#ssr_runs[@]} outputs (value-size limit) extra_lovelace=${ssr_extra}"
+}
+
+# ADA the further outputs of split recipients carry.
+cntools_send_extra_total_into() {
+  local -n set_total="$1"
+  local set_amount=''
+  set_total=0
+  for set_amount in "${CNTOOLS_SEND_EXTRA_LOVELACE[@]}"; do
+    cntools_uint_add_into set_total "${set_total}" "${set_amount:-0}" || return 1
+  done
 }
 
 # calculate-min-required-utxo depends on the serialized coin size too; settle
@@ -88,6 +143,7 @@ cntools_send_minimum_into() {
 cntools_send_demands() {
   local index=0 asset="" quantity="" sum="" minimum="" output="" key=""
   CNTOOLS_SEND_DEMAND=(); CNTOOLS_SEND_PAID=("${CNTOOLS_SEND_AMOUNTS[@]}")
+  CNTOOLS_SEND_PARTS=(); CNTOOLS_SEND_FIRST_ASSETS=(); CNTOOLS_SEND_EXTRA_LOVELACE=(); CNTOOLS_SEND_EXTRA_OUTPUTS=()
   # Metadata-only actions return every selected asset/coin as normal wallet
   # change. They use exactly the same selection, minimum-ADA and fee engine.
   if [[ "${CNTOOLS_SEND_MODE}" == metadata ]]; then
@@ -121,6 +177,7 @@ cntools_send_demands() {
       }
       CNTOOLS_SEND_DEMAND["${asset}"]="${sum}"
     done
+    cntools_send_split_recipient "${index}" || return 1
     cntools_send_output_into output "${index}" "${CNTOOLS_SEND_AMOUNTS[index]}" || return 1
     cntools_send_minimum_into minimum "${output}" || return 1
     if [[ "${CNTOOLS_SEND_MODE}" == exact ]] &&
@@ -200,8 +257,13 @@ cntools_send_change() {
   if [[ "${CNTOOLS_SEND_MODE}" != exact && "${CNTOOLS_SEND_MODE}" != metadata ]]; then
     cntools_uint_subtract_into remaining "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${cost}" || return 1
     CNTOOLS_SEND_PAID[0]="${remaining}"
-    CNTOOLS_CHANGE_UTXO_STATUS="Skipped for Max ADA / Send everything"
-    CNTOOLS_CHANGE_COLLATERAL_STATUS="Skipped for Max ADA / Send everything"
+    # Name a skipped change feature only when it is switched on.
+    CNTOOLS_CHANGE_UTXO_STATUS=Disabled CNTOOLS_CHANGE_COLLATERAL_STATUS=Disabled
+    if [[ "${CNTOOLS_TX_UTXO_MANAGEMENT:-N}" == Y ]]; then
+      CNTOOLS_CHANGE_UTXO_STATUS="Skipped for Max ADA / Send everything"
+      [[ "${CNTOOLS_TX_COLLATERAL_MANAGEMENT:-N}" != Y ]] ||
+        CNTOOLS_CHANGE_COLLATERAL_STATUS="Skipped for Max ADA / Send everything"
+    fi
     return 0
   fi
   cntools_uint_subtract_into available "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${cost}" || return 1
@@ -217,7 +279,8 @@ cntools_send_prepare_balanced_body() {
   # The wrapper owns persistent shortfall and metadata/intent context.
   local total=0 required=0 index=0 status=0 body='' minimum='' output='' policy='' summary=''
   local -a arguments=()
-  total=0
+  # Further outputs of split recipients are paid like the recipients' own.
+  cntools_send_extra_total_into total || return 1
   if [[ "${CNTOOLS_SEND_MODE}" == exact || "${CNTOOLS_SEND_MODE}" == metadata ]]; then
     for index in "${!CNTOOLS_SEND_PAID[@]}"; do
       cntools_uint_add_into total "${total}" "${CNTOOLS_SEND_PAID[index]}" || return 1
@@ -225,11 +288,23 @@ cntools_send_prepare_balanced_body() {
     cntools_uint_add_into required "${total}" "${CNTOOLS_SEND_FEE}" || return 1
     cntools_uint_add_into required "${required}" "${extra}" || return 1
     cntools_coin_select_value "${required}" CNTOOLS_SEND_DEMAND "${CNTOOLS_TX_SELECTION_STRATEGY}" || {
-      cntools_send_fail "${CNTOOLS_COIN_ERROR}"; return 1;
+      cntools_send_fail "${CNTOOLS_COIN_ERROR}"
+      # A lone recipient can take everything after the fee instead.
+      if [[ "${CNTOOLS_COIN_ERROR}" == 'Not enough spendable ADA'* && "${CNTOOLS_SEND_MODE}" == exact && ${#CNTOOLS_SEND_ADDRESSES[@]} == 1 ]]; then
+        if declare -F cntools_flow_quick >/dev/null && cntools_flow_quick; then
+          cntools_send_fail "${CNTOOLS_COIN_ERROR} Lower the amount, or enter max to send all ADA after the fee."
+        else
+          cntools_send_fail "${CNTOOLS_COIN_ERROR} Lower the amount, or choose Max ADA to send all ADA after the fee."
+        fi
+      fi
+      return 1
     }
   else
     cntools_coin_reset
-    (( ${#CNTOOLS_UTXO_REFS[@]} <= 100 )) || { cntools_send_fail "Max/sweep exceeds the 100-input safety limit."; return 1; }
+    (( ${#CNTOOLS_UTXO_REFS[@]} <= 100 )) || {
+      cntools_send_fail "Max ADA and Send everything spend every UTxO, and ${CNTOOLS_SEND_WALLET} has $(cntools_number_format "${#CNTOOLS_UTXO_REFS[@]}"), more than the safe limit of 100. Combine them first with Funds → Collect UTxOs."
+      return 1
+    }
     for index in "${!CNTOOLS_UTXO_REFS[@]}"; do cntools_coin_add_index "${index}" || return 1; done
   fi
   status=0
@@ -238,7 +313,11 @@ cntools_send_prepare_balanced_body() {
     cntools_uint_add_into extra "${extra}" "${CNTOOLS_CHANGE_REQUIRED_EXTRA}" || return 1
     return 3
   fi
-  (( status == 0 )) || { cntools_send_fail "Insufficient ADA for recipient outputs, fees and token change."; return 1; }
+  if (( status == 3 )); then
+    cntools_send_fail "Not enough ADA: $(cntools_number_format_lovelace "${CNTOOLS_CHANGE_REQUIRED_EXTRA}") more is needed for the fee and the minimum ADA of the outputs and change."
+    return 1
+  fi
+  (( status == 0 )) || { cntools_send_fail "${CNTOOLS_CHANGE_ERROR:-The change for this transfer could not be planned.}"; return 1; }
   CNTOOLS_SEND_OUTPUTS=(); arguments=()
   for index in "${!CNTOOLS_SEND_ADDRESSES[@]}"; do
     cntools_send_output_into output "${index}" "${CNTOOLS_SEND_PAID[index]}" || return 1
@@ -248,7 +327,7 @@ cntools_send_prepare_balanced_body() {
     }
     CNTOOLS_SEND_OUTPUTS+=("${output}")
   done
-  CNTOOLS_SEND_OUTPUTS+=("${CNTOOLS_CHANGE_OUTPUTS[@]}")
+  CNTOOLS_SEND_OUTPUTS+=("${CNTOOLS_SEND_EXTRA_OUTPUTS[@]}" "${CNTOOLS_CHANGE_OUTPUTS[@]}")
   for output in "${CNTOOLS_SEND_OUTPUTS[@]}"; do
     cntools_transaction_validate_value_size "${output}" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
     arguments+=(--tx-out "${output}")

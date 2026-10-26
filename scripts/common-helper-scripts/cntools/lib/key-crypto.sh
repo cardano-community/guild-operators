@@ -18,5 +18,24 @@ cntools_key_crypto_run() {
     *) return 2 ;;
   esac
   printf -v mask '%*s' "${#command[@]}" ''; mask="${mask// /0}"
-  cntools_run_command_timeout "${timeout_seconds}" "${mask}" -- "${command[@]}" 3<<< "${password}" >/dev/null 2> "${errors}"
+  # gpg replaces --output with a new file, so a private umask keeps decrypted
+  # keys 0600 from the start. English messages make failures classifiable, and
+  # the passphrase travels over a pipe, never a here-string temp file.
+  (
+    umask 077
+    export LC_ALL=C LANGUAGE=C
+    cntools_run_command_timeout "${timeout_seconds}" "${mask}" -- "${command[@]}" 3< <(printf '%s\n' "${password}") >/dev/null 2> "${errors}"
+  ) || return $?
+  chmod 0600 "${output}"
+}
+
+# True when GnuPG is installed. Check before asking for a passphrase.
+cntools_key_crypto_available() {
+  command -v gpg >/dev/null 2>&1 || command -v gpg2 >/dev/null 2>&1
+}
+
+# True when a failed decrypt was a wrong passphrase (the errors file of
+# cntools_key_crypto_run); other failures should not ask again.
+cntools_key_crypto_bad_passphrase() {
+  [[ -f "${1:-}" ]] && grep -qiE 'bad session key|bad passphrase|invalid passphrase' -- "$1"
 }

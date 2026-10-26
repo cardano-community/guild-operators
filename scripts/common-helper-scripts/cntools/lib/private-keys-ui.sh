@@ -8,7 +8,7 @@ cntools_private_keys_count_label() {
 }
 
 cntools_private_keys_workflow() {
-  local scope='' encrypted=N object='' choice='' role='' index=0 acknowledgement='' folder='' feedback='' total=0 count=0 label=''
+  local scope='' encrypted=N object='' choice='' role='' index=0 acknowledgement='' folder='' feedback='' total=0 count=0 label='' plain_count=0 encrypted_count=0
   local -a objects=() counts=() folders=() scopes=() rows=()
   local -A seen=()
   # Offer only categories and objects that hold deletable key files.
@@ -46,11 +46,18 @@ cntools_private_keys_workflow() {
       [[ "${choice}" == 'All objects' ]] || object="${choice%% · *}"
     fi
   fi
-  # Ask about encrypted keys only when some exist in this scope.
-  if cntools_private_keys_encrypted_present "${scope}" "${object}"; then
-    cntools_ui_choose choice 'Include encrypted private keys?' 'Plaintext keys only' 'Plaintext and encrypted keys' Cancel || return $?
+  # Ask about encrypted keys only when both forms exist in this scope; with
+  # encrypted keys only, those are the keys to delete.
+  cntools_private_keys_form_counts_into plain_count encrypted_count "${scope}" "${object}" || {
+    cntools_private_keys_fail 'The configured private-key file names are unsafe. No keys were deleted.'; return 2; }
+  if (( encrypted_count > 0 && plain_count == 0 )); then
+    encrypted=Y
+  elif (( encrypted_count > 0 )); then
+    cntools_ui_choose choice 'Include encrypted private keys?' \
+      "Plaintext keys only · $(cntools_private_keys_count_label "${plain_count}")" \
+      "Plaintext and encrypted keys · $(cntools_private_keys_count_label "$((plain_count + encrypted_count))")" Cancel || return $?
     [[ "${choice}" != Cancel ]] || return 1
-    [[ "${choice}" != 'Plaintext and encrypted keys' ]] || encrypted=Y
+    [[ "${choice}" != 'Plaintext and encrypted keys · '* ]] || encrypted=Y
   fi
   cntools_log CHOICE "Private-key deletion scope=${scope} object=${object:-all} encrypted=${encrypted}" || true
   cntools_ui_spin_function 'Validating the exact key deletion preview…' cntools_private_keys_inventory "${scope}" "${encrypted}" "${object}" || return 2

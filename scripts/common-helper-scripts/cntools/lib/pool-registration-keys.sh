@@ -40,6 +40,21 @@ cntools_pool_wallet_stake_record_into() {
   printf -v "${output}" '%s' "$(jq -c --arg base "${base}" --arg folder "${directory}" '.+{baseAddress:$base,walletDirectory:$folder}' <<< "${wallet_record}")"
 }
 
+# A wallet's stake record, derived once per action: matching chain owners,
+# the reward account and saved settings needs every wallet's stake address,
+# one CLI call each.
+declare -Ag CNTOOLS_POOL_WALLET_STAKE_CACHE=()
+cntools_pool_wallet_stake_record_cached_into() {
+  local pwc_output="$1" pwc_index="$2" pwc_record=''
+  if [[ -z "${CNTOOLS_POOL_WALLET_STAKE_CACHE[${pwc_index}]+x}" ]]; then
+    cntools_pool_wallet_stake_record_into pwc_record "${pwc_index}" || pwc_record=''
+    CNTOOLS_POOL_WALLET_STAKE_CACHE["${pwc_index}"]="${pwc_record}"
+  fi
+  pwc_record="${CNTOOLS_POOL_WALLET_STAKE_CACHE[${pwc_index}]}"
+  [[ -n "${pwc_record}" ]] || return 1
+  printf -v "${pwc_output}" '%s' "${pwc_record}"
+}
+
 cntools_pool_owner_add() {
   local record="$1" hash=''
   hash="$(jq -er .hash <<< "${record}")" || return 1
@@ -126,13 +141,13 @@ cntools_pool_registration_defaults() {
       # Look only at wallets with a stake public key or a derivable stake key.
       [[ -f "${CNTOOLS_WALLET_PATHS[index]}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" ||
          -f "${CNTOOLS_WALLET_PATHS[index]}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" ]] || continue
-      if cntools_pool_wallet_stake_record_into record "${index}" && [[ "$(jq -r .hash <<< "${record}")" == "${hash}" ]]; then owner="${record}"; break; fi
+      if cntools_pool_wallet_stake_record_cached_into record "${index}" && [[ "$(jq -r .hash <<< "${record}")" == "${hash}" ]]; then owner="${record}"; break; fi
     done
     cntools_pool_owner_add "${owner}" || return 1
   done < <(jq -r '.owners[]' <<< "${current}")
   for index in "${!CNTOOLS_WALLET_NAMES[@]}"; do
     [[ -f "${CNTOOLS_WALLET_PATHS[index]}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}" ]] || continue
-    if cntools_pool_wallet_stake_record_into record "${index}" && [[ "$(jq -r .hash <<< "${record}")" == "${CNTOOLS_POOL_REG_REWARD_HASH}" ]]; then
+    if cntools_pool_wallet_stake_record_cached_into record "${index}" && [[ "$(jq -r .hash <<< "${record}")" == "${CNTOOLS_POOL_REG_REWARD_HASH}" ]]; then
       cntools_pool_reward_record_use "${record}"; break
     fi
   done
@@ -149,14 +164,45 @@ cntools_pool_reward_record_use() {
   CNTOOLS_POOL_REG_REWARD_SOURCE="$(jq -r '.source // empty' <<< "$1")"
 }
 
+# Also sets the review's reason for an unsigned-only workflow when a key that
+# is missing here is only present encrypted (Pool or Wallet → Decrypt).
 cntools_pool_registration_can_sign_into() {
   local -n pcs_result="$1"
-  local source='' record=''
+  local source='' record='' directory=''
   pcs_result=N
-  [[ -n "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" && -n "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]] || return 0
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]]; then pcs_result=Y; return 0; fi
-  while IFS= read -r record; do
-    source="$(jq -r .source <<< "${record}")"; [[ -n "${source}" ]] || return 0
-  done < <(jq -cn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --argjson extra "${CNTOOLS_POOL_EXTRA_RECORDS:-[]}" '$owners+$extra | unique_by(.hash) | .[]')
-  pcs_result=Y
+  CNTOOLS_TRANSACTION_UI_UNSIGNED_REASON=''
+  if [[ -n "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" && -n "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]]; then
+    pcs_result=Y
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]]; then
+      while IFS= read -r record; do
+        source="$(jq -r .source <<< "${record}")"; [[ -n "${source}" ]] || { pcs_result=N; break; }
+      done < <(jq -cn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --argjson extra "${CNTOOLS_POOL_EXTRA_RECORDS:-[]}" '$owners+$extra | unique_by(.hash) | .[]')
+    fi
+  fi
+  [[ "${pcs_result}" == N ]] || return 0
+  if [[ -z "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]] && cntools_pool_registration_cold_encrypted; then
+    cntools_transaction_ui_encrypted_reason_set 'Pool → Decrypt' "${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}/$(cntools_pool_registration_cold_name)" || true
+  elif [[ -z "${CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE}" && -n "${CNTOOLS_WALLET_REGISTER_DIRECTORY:-}" ]]; then
+    cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' "${CNTOOLS_WALLET_REGISTER_DIRECTORY}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" || true
+  fi
+  [[ -z "${CNTOOLS_TRANSACTION_UI_UNSIGNED_REASON}" && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]] || return 0
+  # An owner or reward stake key that exists only encrypted in its wallet.
+  while IFS= read -r directory; do
+    [[ -n "${directory}" ]] || continue
+    ! cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' "${directory}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" || return 0
+  done < <(jq -rn --argjson owners "${CNTOOLS_POOL_REG_OWNERS}" --argjson extra "${CNTOOLS_POOL_EXTRA_RECORDS:-[]}" \
+    '$owners+$extra | unique_by(.hash) | .[] | select((.source // "") == "") | .walletDirectory // empty')
+  return 0
+}
+
+cntools_pool_registration_cold_name() {
+  local pcn_name=''
+  cntools_pool_file_name_into pcn_name cold-skey && printf '%s' "${pcn_name}"
+}
+
+# True when the pool's cold signing key is present here only encrypted.
+cntools_pool_registration_cold_encrypted() {
+  local pce_file=''
+  pce_file="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}/$(cntools_pool_registration_cold_name)" || return 1
+  [[ -f "${pce_file}.gpg" && ! -L "${pce_file}.gpg" && ! -e "${pce_file}" ]]
 }

@@ -6,6 +6,7 @@ CNTOOLS_POOL_RETIRE_CURRENT=0
 CNTOOLS_POOL_RETIRE_MIN=0
 CNTOOLS_POOL_RETIRE_MAX=0
 CNTOOLS_POOL_RETIRE_DEPOSIT=''
+CNTOOLS_POOL_RETIRE_REWARD_ADDRESS='' CNTOOLS_POOL_RETIRE_REWARD_STATE=unknown
 
 cntools_pool_retirement_uint_valid() {
   [[ "$1" =~ ^(0|[1-9][0-9]{0,9})$ ]] && (( $1 <= 2147483647 ))
@@ -69,7 +70,41 @@ cntools_pool_retirement_collect() {
   [[ "${CNTOOLS_POOL_RETIRE_DEPOSIT}" =~ ^[0-9]+$ ]] ||
     cntools_wallet_query_json_uint_field CNTOOLS_POOL_RETIRE_DEPOSIT "${CNTOOLS_FUNDING_PROTOCOL}" stakePoolDeposit || CNTOOLS_POOL_RETIRE_DEPOSIT=''
   CNTOOLS_POOL_REG_PROTOCOL_STATE="$(jq -cS . "${CNTOOLS_FUNDING_PROTOCOL}")" || return 1
-  cntools_pool_retirement_window_collect && cntools_wallet_register_inventory_use_all
+  cntools_pool_retirement_window_collect && cntools_wallet_register_inventory_use_all || return 1
+  cntools_pool_retirement_reward_check
+}
+
+# Where the deposit refund goes at retirement: the reward account of the
+# parameters in force then (a pending update's, when there is one). Only a
+# registered account receives it; otherwise it goes to the treasury. Best
+# effort: an account that cannot be checked stays "unknown".
+cntools_pool_retirement_reward_check() {
+  local pending_key='' pending_script='' current_key='' current_script='' koios='' credential='' kind=key address='' hash=''
+  CNTOOLS_POOL_RETIRE_REWARD_ADDRESS='' CNTOOLS_POOL_RETIRE_REWARD_STATE=unknown
+  # Unit separators keep empty fields (tabs are whitespace to read).
+  IFS=$'\037' read -r pending_key pending_script current_key current_script koios < <(jq -r '
+    [.pending.spsAccountId.keyHash // "", .pending.spsAccountId.scriptHash // "", .current.spsAccountId.keyHash // "",
+     .current.spsAccountId.scriptHash // "", .current.reward_addr // ""] | map(tostring) | join("\u001f")' <<< "${CNTOOLS_POOL_REG_STATE}" 2>/dev/null) || return 0
+  if [[ -n "${pending_key}" ]]; then credential="${pending_key}"
+  elif [[ -n "${pending_script}" ]]; then credential="${pending_script}" kind=script
+  elif [[ -n "${current_key}" ]]; then credential="${current_key}"
+  elif [[ -n "${current_script}" ]]; then credential="${current_script}" kind=script
+  fi
+  if [[ -n "${credential}" ]]; then
+    cntools_pool_retirement_reward_address_into address "${credential}" "${kind}"
+    hash="${credential}"
+  elif [[ -n "${koios}" ]]; then
+    address="${koios}"
+    cntools_wallet_reward_credential_into hash "${address}" 2>/dev/null || hash="${address}"
+  fi
+  CNTOOLS_POOL_RETIRE_REWARD_ADDRESS="${address}"
+  [[ "${address}" =~ ^stake(_test)?1[a-z0-9]+$ ]] && declare -F cntools_pool_stake_collect >/dev/null 2>&1 || return 0
+  # The shared owner/reward check, with this account as the only record.
+  CNTOOLS_POOL_REG_OWNERS='[]' CNTOOLS_POOL_REG_REWARD_HASH="${hash}" CNTOOLS_POOL_REG_REWARD_ADDRESS="${address}"
+  CNTOOLS_POOL_REG_REWARD_LABEL='' CNTOOLS_POOL_REG_REWARD_VKEY='' CNTOOLS_POOL_REG_REWARD_SOURCE=''
+  cntools_pool_stake_collect || return 0
+  CNTOOLS_POOL_RETIRE_REWARD_STATE="${CNTOOLS_POOL_STAKE_STATUS[${hash}]:-unknown}"
+  cntools_transaction_log POOL "Retirement refund account=${address} registered=${CNTOOLS_POOL_RETIRE_REWARD_STATE}"
 }
 
 cntools_pool_retirement_certificate_create() {

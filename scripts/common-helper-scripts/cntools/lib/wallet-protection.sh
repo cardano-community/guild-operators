@@ -13,6 +13,10 @@ declare -g CNTOOLS_WALLET_PROTECTION_LOCK_METHOD="read-only permissions"
 declare -g CNTOOLS_WALLET_PROTECTION_KEYS=0
 declare -g CNTOOLS_WALLET_PROTECTION_FILES=0
 declare -g CNTOOLS_WALLET_PROTECTION_GPG=""
+# Y when the last Decrypt failed only because the passphrase was wrong.
+declare -g CNTOOLS_WALLET_PROTECTION_BAD_PASSPHRASE="N"
+# Plaintext *.skey files Encrypt does not recognize (they stay plaintext).
+declare -ag CNTOOLS_WALLET_PROTECTION_UNKNOWN_KEYS=()
 
 cntools_wallet_protection_log() {
   cntools_log "${1:-INFO}" "${2:-}" || true
@@ -45,6 +49,74 @@ cntools_wallet_protection_reset_result() {
   CNTOOLS_WALLET_PROTECTION_PUBLISHED_SOURCES=()
   CNTOOLS_WALLET_PROTECTION_CHATTR_COMMAND=()
   CNTOOLS_WALLET_PROTECTION_CLEARED_IMMUTABLE=()
+  CNTOOLS_WALLET_PROTECTION_BAD_PASSPHRASE="N"
+  CNTOOLS_WALLET_PROTECTION_UNKNOWN_KEYS=()
+}
+
+# Every wallet signing key Encrypt and Decrypt handle, as "role:file name".
+# The same list builds the plan, the candidates and the decrypt allowlist.
+# ms-* roles are MultiSig participant keys (ms-drep is the legacy
+# ms_drep.skey); their key type is that of the role without the prefix.
+cntools_wallet_protection_roles_into() {
+  local _cntools_roles_table_output="${1:-}"
+  local _cntools_roles_table_prefix="${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}"
+
+  [[ "${_cntools_roles_table_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_roles_table_ref="${_cntools_roles_table_output}"
+  _cntools_roles_table_ref=(
+    "payment:${CNTOOLS_WALLET_PAY_SKEY_FILENAME}"
+    "stake:${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"
+    "drep:${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}"
+    "catalyst:${CNTOOLS_WALLET_CATALYST_SKEY_FILENAME:-catalyst.skey}"
+    "cc-cold:${CNTOOLS_WALLET_CC_COLD_SKEY_FILENAME:-cc-cold.skey}"
+    "cc-hot:${CNTOOLS_WALLET_CC_HOT_SKEY_FILENAME:-cc-hot.skey}"
+    "ms-payment:${_cntools_roles_table_prefix}${CNTOOLS_WALLET_PAY_SKEY_FILENAME}"
+    "ms-stake:${_cntools_roles_table_prefix}${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"
+    "ms-drep:${_cntools_roles_table_prefix}${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}"
+  )
+}
+
+# Key file names present in a wallet, clear (encrypt) or .gpg (decrypt).
+cntools_wallet_protection_present_into() {
+  local _cntools_present_output="${1:-}"
+  local _cntools_present_operation="${2:-}"
+  local _cntools_present_directory="${3:-}"
+  local _cntools_present_entry="" _cntools_present_file="" _cntools_present_suffix=""
+  local -a _cntools_present_roles=()
+
+  [[ "${_cntools_present_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_present_ref="${_cntools_present_output}"
+  _cntools_present_ref=()
+  [[ "${_cntools_present_operation}" != decrypt ]] || _cntools_present_suffix=".gpg"
+  cntools_wallet_protection_roles_into _cntools_present_roles || return 2
+  for _cntools_present_entry in "${_cntools_present_roles[@]}"; do
+    _cntools_present_file="${_cntools_present_directory}/${_cntools_present_entry#*:}${_cntools_present_suffix}"
+    [[ -f "${_cntools_present_file}" && ! -L "${_cntools_present_file}" ]] || continue
+    _cntools_present_ref+=("${_cntools_present_file##*/}")
+  done
+}
+
+# Plaintext *.skey files that are not a known wallet signing key.
+cntools_wallet_protection_unknown_keys_into() {
+  local _cntools_unknown_keys_output="${1:-}"
+  local _cntools_unknown_keys_directory="${2:-}"
+  local _cntools_unknown_keys_file="" _cntools_unknown_keys_entry="" _cntools_unknown_keys_known=N
+  local -a _cntools_unknown_keys_roles=()
+
+  [[ "${_cntools_unknown_keys_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_unknown_keys_ref="${_cntools_unknown_keys_output}"
+  _cntools_unknown_keys_ref=()
+  cntools_wallet_protection_roles_into _cntools_unknown_keys_roles || return 2
+  for _cntools_unknown_keys_file in "${_cntools_unknown_keys_directory}"/*.skey; do
+    [[ -e "${_cntools_unknown_keys_file}" || -L "${_cntools_unknown_keys_file}" ]] || continue
+    _cntools_unknown_keys_known=N
+    for _cntools_unknown_keys_entry in "${_cntools_unknown_keys_roles[@]}"; do
+      [[ "${_cntools_unknown_keys_file##*/}" != "${_cntools_unknown_keys_entry#*:}" ]] ||
+        _cntools_unknown_keys_known=Y
+    done
+    [[ "${_cntools_unknown_keys_known}" == Y ]] ||
+      _cntools_unknown_keys_ref+=("${_cntools_unknown_keys_file##*/}")
+  done
 }
 
 cntools_wallet_protection_resolve_command_into() {
@@ -129,6 +201,34 @@ cntools_wallet_protection_lock_files() {
     *) return 2 ;;
   esac || return 1
   cntools_wallet_protection_log WALLET "wallet=${directory##*/} operation=${operation} lock-only files=${CNTOOLS_WALLET_PROTECTION_FILES}"
+}
+
+# An encrypted wallet whose files became writable again (Restore keeps
+# owner-only 0600 and no immutable flag): its locks can be re-applied
+# without decrypting anything.
+cntools_wallet_protection_relock_candidate() {
+  local directory="${1:-}" protection=''
+  local -a relock_clear=() relock_encrypted=()
+  protection="$(cntools_wallet_protection "${directory}")" || return 1
+  [[ "${protection}" == Protected ]] || return 1
+  cntools_wallet_protection_present_into relock_clear encrypt "${directory}" || return 1
+  cntools_wallet_protection_present_into relock_encrypted decrypt "${directory}" || return 1
+  (( ${#relock_clear[@]} == 0 && ${#relock_encrypted[@]} > 0 )) || return 1
+  cntools_wallet_protection_lock_would_change "${directory}" encrypt
+}
+
+cntools_wallet_protection_relock() {
+  local directory="${1:-}"
+  cntools_wallet_protection_reset_result
+  cntools_wallet_protection_relock_candidate "${directory}" || {
+    cntools_wallet_protection_set_error \
+      "The wallet has no encrypted keys with unlocked files to lock."
+    return 1
+  }
+  cntools_wallet_protection_directory_mutable "${directory}" &&
+    cntools_wallet_protection_entries_safe "${directory}" &&
+    cntools_wallet_protection_apply_locks "${directory}" || return 1
+  cntools_wallet_protection_log WALLET "wallet=${directory##*/} operation=relock files=${CNTOOLS_WALLET_PROTECTION_FILES} lock=${CNTOOLS_WALLET_PROTECTION_LOCK_METHOD}"
 }
 
 cntools_wallet_protection_directory_mutable() {
@@ -247,14 +347,15 @@ cntools_wallet_protection_keys_into() {
   local _cntools_operation="${3:-}"
   local _cntools_wallet_directory="${4:-}"
   local _cntools_role=""
-  local _cntools_filename=""
+  local _cntools_entry=""
   local _cntools_clear_file=""
   local _cntools_encrypted_file=""
   local _cntools_candidate=""
   local _cntools_allowed_gpg=""
   local _cntools_signing_form=""
-  local _cntools_encrypted_entry_count=0
+  local _cntools_known=""
   local -a _cntools_all_gpg=()
+  local -a _cntools_role_table=()
 
   [[ "${_cntools_files_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ &&
      "${_cntools_roles_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
@@ -262,78 +363,65 @@ cntools_wallet_protection_keys_into() {
   local -n _cntools_roles_ref="${_cntools_roles_name}"
   _cntools_files_ref=()
   _cntools_roles_ref=()
+  CNTOOLS_WALLET_PROTECTION_UNKNOWN_KEYS=()
   cntools_wallet_protection_entries_safe \
     "${_cntools_wallet_directory}" || return 1
+  cntools_wallet_protection_roles_into _cntools_role_table || return 2
 
   if [[ "${_cntools_operation}" == "encrypt" ]]; then
     _cntools_all_gpg=("${_cntools_wallet_directory}"/*.gpg)
     for _cntools_candidate in "${_cntools_all_gpg[@]}"; do
       [[ -e "${_cntools_candidate}" || -L "${_cntools_candidate}" ]] || continue
       cntools_wallet_protection_set_error \
-        "The wallet already contains encrypted or mixed key material. Decrypt or repair it before encrypting."
+        "The wallet already contains encrypted key material (${_cntools_candidate##*/}). Decrypt it first, then encrypt every key with one passphrase."
       return 1
     done
+    # Named in the plan and the result: CNTools never claims they are protected.
+    cntools_wallet_protection_unknown_keys_into \
+      CNTOOLS_WALLET_PROTECTION_UNKNOWN_KEYS "${_cntools_wallet_directory}" || return 2
   elif [[ "${_cntools_operation}" == "decrypt" ]]; then
     _cntools_all_gpg=("${_cntools_wallet_directory}"/*.gpg)
     for _cntools_candidate in "${_cntools_all_gpg[@]}"; do
       [[ -e "${_cntools_candidate}" || -L "${_cntools_candidate}" ]] || continue
-      _cntools_encrypted_entry_count=$((_cntools_encrypted_entry_count + 1))
       _cntools_allowed_gpg="${_cntools_candidate##*/}"
-      case "${_cntools_allowed_gpg}" in
-        "${CNTOOLS_WALLET_PAY_SKEY_FILENAME}.gpg"|\
-        "${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}.gpg"|\
-        "${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_PAY_SKEY_FILENAME}.gpg"|\
-        "${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}.gpg"|\
-        "${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}.gpg"|\
-        "${CNTOOLS_WALLET_CATALYST_SKEY_FILENAME:-catalyst.skey}.gpg") ;;
-        *)
-          cntools_wallet_protection_set_error \
-            "The wallet contains an unsupported encrypted file: ${_cntools_allowed_gpg}"
-          return 1
-          ;;
-      esac
+      _cntools_known=N
+      for _cntools_entry in "${_cntools_role_table[@]}"; do
+        [[ "${_cntools_allowed_gpg}" != "${_cntools_entry#*:}.gpg" ]] || _cntools_known=Y
+      done
+      if [[ "${_cntools_known}" != Y ]]; then
+        cntools_wallet_protection_set_error \
+          "The wallet contains an unsupported encrypted file: ${_cntools_allowed_gpg}"
+        return 1
+      fi
     done
   fi
 
-  for _cntools_role in payment stake drep catalyst ms-payment ms-stake; do
-    case "${_cntools_role}" in
-      payment) _cntools_filename="${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" ;;
-      stake) _cntools_filename="${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" ;;
-      drep) _cntools_filename="${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" ;;
-      catalyst) _cntools_filename="${CNTOOLS_WALLET_CATALYST_SKEY_FILENAME:-catalyst.skey}" ;;
-      ms-payment) _cntools_filename="${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" ;;
-      ms-stake) _cntools_filename="${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" ;;
-    esac
-    _cntools_clear_file="${_cntools_wallet_directory}/${_cntools_filename}"
+  for _cntools_entry in "${_cntools_role_table[@]}"; do
+    _cntools_role="${_cntools_entry%%:*}"
+    _cntools_clear_file="${_cntools_wallet_directory}/${_cntools_entry#*:}"
     _cntools_encrypted_file="${_cntools_clear_file}.gpg"
     case "${_cntools_operation}" in
       encrypt)
-        if [[ -e "${_cntools_encrypted_file}" || -L "${_cntools_encrypted_file}" ]]; then
-          cntools_wallet_protection_set_error \
-            "Both clear and encrypted ${_cntools_role} key entries must not coexist."
-          return 1
-        fi
         [[ -e "${_cntools_clear_file}" || -L "${_cntools_clear_file}" ]] || continue
         if [[ ! -f "${_cntools_clear_file}" || -L "${_cntools_clear_file}" ||
               ! -O "${_cntools_clear_file}" ]] ||
            ! cntools_wallet_key_signing_type \
              "${_cntools_role#ms-}" "${_cntools_clear_file}" _cntools_signing_form; then
           cntools_wallet_protection_set_error \
-            "The ${_cntools_role} signing key is unsafe or invalid."
+            "The ${_cntools_role} signing key ${_cntools_clear_file##*/} is unsafe or invalid. Nothing was encrypted."
           return 1
         fi
         _cntools_files_ref+=("${_cntools_clear_file}")
         ;;
       decrypt)
-        if [[ -e "${_cntools_clear_file}" || -L "${_cntools_clear_file}" ]]; then
-          if (( _cntools_encrypted_entry_count > 0 )); then
-            cntools_wallet_protection_set_error \
-              "Clear and encrypted signing keys coexist in this wallet. Neither was changed."
-            return 1
-          fi
-          continue
-        fi
         [[ -e "${_cntools_encrypted_file}" || -L "${_cntools_encrypted_file}" ]] || continue
+        # A key that is already clear in another role stays as it is; the
+        # same role clear and encrypted at once is ambiguous.
+        if [[ -e "${_cntools_clear_file}" || -L "${_cntools_clear_file}" ]]; then
+          cntools_wallet_protection_set_error \
+            "Both ${_cntools_clear_file##*/} and ${_cntools_encrypted_file##*/} exist in this wallet. Neither was changed."
+          return 1
+        fi
         if ! cntools_wallet_safe_regular_file \
              "${_cntools_encrypted_file}" 1048576 ||
            [[ ! -O "${_cntools_encrypted_file}" ]]; then
@@ -350,10 +438,10 @@ cntools_wallet_protection_keys_into() {
   if (( ${#_cntools_files_ref[@]} == 0 )); then
     if [[ "${_cntools_operation}" == "encrypt" ]]; then
       cntools_wallet_protection_set_error \
-        "This wallet has no clear payment, stake, DRep or Catalyst signing keys to encrypt."
+        "This wallet has no clear wallet signing keys to encrypt."
     else
       cntools_wallet_protection_set_error \
-        "This wallet has no encrypted payment, stake, DRep or Catalyst signing keys to decrypt."
+        "This wallet has no encrypted wallet signing keys to decrypt."
     fi
     return 1
   fi
@@ -463,11 +551,23 @@ cntools_wallet_protection_stage_decrypt() {
     "unprotect-${_cntools_role}-gpg-error" || return 1
   if ! cntools_wallet_protection_gpg_run decrypt \
       "${_cntools_source_file}" "${_cntools_staged}" \
-      "${_cntools_passphrase}" "${_cntools_error}" ||
-     ! cntools_wallet_key_signing_type \
+      "${_cntools_passphrase}" "${_cntools_error}"; then
+    # Only a wrong passphrase is worth asking again (X-GPG).
+    if declare -F cntools_key_crypto_bad_passphrase >/dev/null 2>&1 &&
+       cntools_key_crypto_bad_passphrase "${_cntools_error}"; then
+      CNTOOLS_WALLET_PROTECTION_BAD_PASSPHRASE="Y"
+      cntools_wallet_protection_set_error \
+        "The passphrase does not open ${_cntools_source_file##*/}."
+    else
+      cntools_wallet_protection_set_error \
+        "GnuPG could not open ${_cntools_source_file##*/}. Check the encrypted file; see ${CNTOOLS_LOG:-the CNTools log}."
+    fi
+    return 1
+  fi
+  if ! cntools_wallet_key_signing_type \
        "${_cntools_role}" "${_cntools_staged}" _cntools_signing_form; then
     cntools_wallet_protection_set_error \
-      "The encrypted wallet could not be opened. Check the passphrase and encrypted files."
+      "${_cntools_source_file##*/} decrypted, but it is not a valid ${_cntools_role} signing key. Nothing was changed."
     return 1
   fi
   chmod 0600 -- "${_cntools_staged}" || return 1

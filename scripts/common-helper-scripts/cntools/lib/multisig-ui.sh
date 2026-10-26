@@ -14,11 +14,14 @@ cntools_multisig_prompt_path() {
     cntools_ui_input entered "${prompt}" "${default}" || return $?
     [[ -n "${entered}" ]] || entered="${default}"
     if cntools_multisig_path_into normal "${entered}" &&
-       { [[ "${mode}" != mnemonic ]] || cntools_multisig_mnemonic_path_valid "${normal}" "${role}"; }; then
+       { [[ "${mode}" != mnemonic ]] || cntools_multisig_mnemonic_path_valid "${normal}" "${role}"; } &&
+       { [[ "${mode}" != hardware ]] || cntools_multisig_hardware_path_valid "${normal}"; }; then
       printf -v "${destination}" '%s' "${normal}"; return 0
     fi
     if [[ "${mode}" == mnemonic ]]; then
       cntools_ui_render_status warn "Use purpose/coin_type/account/role/index with role ${role_hint}, and H for hardened indices. Each index must be 0–2,147,483,647."
+    elif [[ "${mode}" == hardware ]]; then
+      cntools_ui_render_status warn 'Use purpose/coin_type/account/role/index with a hardened purpose other than 44H, and H for hardened indices. Each index must be 0–2,147,483,647.'
     else
       cntools_ui_render_status warn 'Use 3–10 slash-separated indices, with H for hardened indices. Each index must be 0–2,147,483,647.'
     fi
@@ -303,18 +306,11 @@ cntools_multisig_render_script_wallet() {
   } | cntools_table_render "${title}"
 }
 
-cntools_multisig_create_workflow() {
-  local name='' choice='' payment='' stake='' threshold='' staking=N after='' before='' status=0 warning=''
-  local -a review=()
-  CNTOOLS_MULTISIG_NOTICE=''; CNTOOLS_WALLET_CREATED_DIRECTORY=''
-  cntools_multisig_participants_reset
-  cntools_multisig_begin Create
-  cntools_wallet_create_environment_ready || return 2
-  while true; do
-    cntools_ui_input name 'New multisig wallet name' '' || return $?
-    cntools_wallet_create_name_valid "${name}" && cntools_wallet_create_target_available "${name}" && break
-    cntools_ui_render_status warn 'Use a valid unused wallet name (1–64 letters, numbers, dots, underscores or hyphens).'
-  done
+# The participant list. Esc or Cancel returns 1: at the start that cancels
+# the action; from the review it keeps the previous participants.
+cntools_multisig_participants_edit() {
+  local choice='' payment='' stake='' status=0 warning=''
+  local -a options=()
   # Refusals show on the redrawn list instead of behind a Press Enter.
   while true; do
     cntools_multisig_begin Create
@@ -322,15 +318,19 @@ cntools_multisig_create_workflow() {
     [[ -z "${warning}" ]] || cntools_ui_render_status warn "${warning}"
     [[ -z "${CNTOOLS_MULTISIG_NOTICE}" ]] || cntools_ui_render_status info "${CNTOOLS_MULTISIG_NOTICE}"
     warning=''; CNTOOLS_MULTISIG_NOTICE=''; CNTOOLS_MULTISIG_ERROR=''
-    cntools_ui_choose choice 'Participants' 'Add CNTools wallet' 'Add external key hashes' 'Remove last participant' 'Done' Cancel || return $?
+    options=('Add CNTools wallet' 'Add external key hashes')
+    (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} == 0 )) || options+=('Remove last participant' 'Done')
+    cntools_ui_choose choice 'Participants' "${options[@]}" Cancel || return $?
     cntools_log CHOICE "Multisig creation participant menu selected=${choice}" || true
     case "${choice}" in
       'Add CNTools wallet'|'Add external key hashes')
         if (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} >= 20 )); then warning='At most 20 participants are supported.'; continue; fi ;;&
       'Add CNTools wallet')
-        # 1/130 = cancelled pick; 3 = no suitable wallet, already shown and acknowledged.
+        # 1 = cancelled pick; 3 = no suitable wallet, already shown and
+        # acknowledged; Ctrl+C cancels the action.
         status=0; cntools_multisig_local_participant || status=$?
-        if ((status != 0 && status != 1 && status != 130 && status != 3)); then warning="${CNTOOLS_MULTISIG_ERROR:-Could not add that participant.}"; CNTOOLS_MULTISIG_NOTICE=''; fi
+        ((status != 130)) || return 130
+        if ((status != 0 && status != 1 && status != 3)); then warning="${CNTOOLS_MULTISIG_ERROR:-Could not add that participant.}"; CNTOOLS_MULTISIG_NOTICE=''; fi
         ;;
       'Add external key hashes')
         # Esc returns to the participant list; Ctrl+C cancels the action.
@@ -344,38 +344,64 @@ cntools_multisig_create_workflow() {
         fi
         ;;
       'Remove last participant')
-        if (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} > 0 )); then
-          unset 'CNTOOLS_MULTISIG_PAYMENT_HASHES[-1]' 'CNTOOLS_MULTISIG_STAKE_HASHES[-1]' 'CNTOOLS_MULTISIG_LABELS[-1]' 'CNTOOLS_MULTISIG_DIRECTORIES[-1]'
-        else warning='There are no participants to remove.'; fi ;;
-      Done)
-        (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} > 0 )) && break
-        warning='Add at least one participant before continuing.' ;;
+        unset 'CNTOOLS_MULTISIG_PAYMENT_HASHES[-1]' 'CNTOOLS_MULTISIG_STAKE_HASHES[-1]' 'CNTOOLS_MULTISIG_LABELS[-1]' 'CNTOOLS_MULTISIG_DIRECTORIES[-1]' ;;
+      Done) return 0 ;;
       *) return 1 ;;
     esac
   done
-  if (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} == 1 )); then
-    threshold=1 # One participant: 1 of 1 is the only threshold.
+}
+
+# Y when every participant has a stake key hash (a stake script is possible).
+cntools_multisig_staking_possible() {
+  local hash=''
+  for hash in "${CNTOOLS_MULTISIG_STAKE_HASHES[@]}"; do [[ -n "${hash}" ]] || return 1; done
+}
+
+cntools_multisig_create_workflow() {
+  local name='' choice='' payment='' stake='' threshold='' staking=N wanted=Y after='' before='' status=0 count=0 previous_count=0 warning=''
+  local -a review=() saved_payment=() saved_stake=() saved_labels=() saved_directories=()
+  CNTOOLS_MULTISIG_NOTICE=''; CNTOOLS_WALLET_CREATED_DIRECTORY=''
+  cntools_multisig_participants_reset
+  cntools_multisig_begin Create
+  cntools_wallet_create_environment_ready || return 2
+  while true; do
+    cntools_ui_input name 'New multisig wallet name' '' || return $?
+    cntools_wallet_create_name_valid "${name}" && cntools_wallet_create_target_available "${name}" && break
+    cntools_ui_render_status warn 'Use a valid unused wallet name (1–64 letters, numbers, dots, underscores or hyphens).'
+  done
+  cntools_multisig_participants_edit || return $?
+  count="${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}"
+  # Quick uses all participants, a stake script when every participant has a
+  # stake key, and no time bounds; the review changes each of them.
+  threshold="${count}"
+  if (( count == 1 )); then
     cntools_log CHOICE 'Multisig threshold auto-selected=1 (single participant)' || true
+  elif cntools_flow_quick; then
+    cntools_log CHOICE "Multisig threshold default=${count} of ${count} flow=quick" || true
   else
     cntools_multisig_prompt_threshold_into threshold || return $?
   fi
-  staking=Y
-  for stake in "${CNTOOLS_MULTISIG_STAKE_HASHES[@]}"; do [[ -n "${stake}" ]] || staking=N; done
-  if [[ "${staking}" == Y ]]; then
+  if cntools_multisig_staking_possible && ! cntools_flow_quick; then
     cntools_ui_choose choice 'Stake address' 'Include threshold stake script' 'Payment-only wallet' Cancel || return $?
-    case "${choice}" in 'Include threshold stake script') ;; 'Payment-only wallet') staking=N ;; *) return 1 ;; esac
-  else
-    cntools_ui_render_status info 'At least one participant has no stake hash. This will be a payment-only wallet.'
+    case "${choice}" in 'Include threshold stake script') ;; 'Payment-only wallet') wanted=N ;; *) return 1 ;; esac
   fi
-  cntools_multisig_prompt_bounds_into after before || return $?
-  review=('Create multisig wallet' 'Change time bounds')
-  (( ${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]} == 1 )) || review+=('Change threshold')
+  if cntools_flow_quick; then cntools_log CHOICE 'Multisig time bounds default=none flow=quick' || true
+  else cntools_multisig_prompt_bounds_into after before || return $?; fi
   # Inside a Change step Esc keeps the current values; Ctrl+C cancels.
   while true; do
+    count="${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}"
+    staking=N; ! cntools_multisig_staking_possible || staking="${wanted}"
+    review=('Create multisig wallet' 'Change participants')
+    (( count == 1 )) || review+=('Change threshold')
+    ! cntools_multisig_staking_possible || review+=('Change stake address')
+    review+=('Change time bounds')
     cntools_multisig_begin Create
     cntools_multisig_render_participants || return 2
     cntools_multisig_render_script_wallet "${name}" "${threshold}" "${staking}" "${after}" "${before}" 'Script wallet' || return 2
-    cntools_ui_render_status warn 'Participants, threshold and timelocks cannot be changed for this address. An expiry permanently locks remaining funds. Check and back up participant keys before funding it.'
+    cntools_multisig_staking_possible || cntools_ui_render_status info 'At least one participant has no stake key hash, so this is a payment-only wallet.'
+    warning='Participants, threshold and timelocks cannot be changed for this address.'
+    [[ -z "${before}" ]] || warning+=' Its spending expiry permanently locks any funds left after it.'
+    cntools_ui_render_status warn "${warning} Check and back up participant keys before funding it."
     cntools_ui_choose choice 'Review multisig wallet' "${review[@]}" Cancel || return $?
     cntools_log CHOICE "Multisig creation review selected=${choice}" || true
     status=0
@@ -383,10 +409,29 @@ cntools_multisig_create_workflow() {
       'Create multisig wallet')
         # An expiry can lock funds for good, so it is asked again (default No).
         [[ -n "${before}" ]] || break
-        cntools_ui_confirm 'Create this multisig wallet with a spending expiry?' false || status=$?
+        cntools_ui_confirm "Create ${name} with a spending expiry?" false || status=$?
         ((status == 0)) && break ;;
-      'Change time bounds') cntools_multisig_prompt_bounds_into after before || status=$? ;;
+      'Change participants')
+        saved_payment=("${CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}"); saved_stake=("${CNTOOLS_MULTISIG_STAKE_HASHES[@]}")
+        saved_labels=("${CNTOOLS_MULTISIG_LABELS[@]}"); saved_directories=("${CNTOOLS_MULTISIG_DIRECTORIES[@]}")
+        previous_count="${count}"
+        cntools_multisig_participants_edit || status=$?
+        if ((status != 0)); then
+          CNTOOLS_MULTISIG_PAYMENT_HASHES=("${saved_payment[@]}"); CNTOOLS_MULTISIG_STAKE_HASHES=("${saved_stake[@]}")
+          CNTOOLS_MULTISIG_LABELS=("${saved_labels[@]}"); CNTOOLS_MULTISIG_DIRECTORIES=("${saved_directories[@]}")
+        else
+          # All participants stay all; a lower threshold stays within the new count.
+          count="${#CNTOOLS_MULTISIG_PAYMENT_HASHES[@]}"
+          if (( threshold == previous_count || threshold > count )); then threshold="${count}"; fi
+          cntools_log CHOICE "Multisig participants changed count=${count} threshold=${threshold}" || true
+        fi ;;
       'Change threshold') cntools_multisig_prompt_threshold_into threshold "${threshold}" || status=$? ;;
+      'Change stake address')
+        cntools_ui_choose choice 'Stake address' 'Include threshold stake script' 'Payment-only wallet' Cancel || status=$?
+        if ((status == 0)); then
+          case "${choice}" in 'Include threshold stake script') wanted=Y ;; 'Payment-only wallet') wanted=N ;; *) status=1 ;; esac
+        fi ;;
+      'Change time bounds') cntools_multisig_prompt_bounds_into after before || status=$? ;;
       *) return 1 ;;
     esac
     ((status == 0 || status == 1)) || return "${status}"

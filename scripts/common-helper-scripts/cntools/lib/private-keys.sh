@@ -178,24 +178,27 @@ cntools_private_keys_objects_into() {
   done
 }
 
-# True when any encrypted (.gpg) counterpart of a deletable key exists in scope.
-cntools_private_keys_encrypted_present() {
-  local scope="$1" object="${2:-}" role='' root='' directory='' name=''
-  local -a roles=() names=()
-  case "${scope}" in wallets|pools|assets) roles=("${scope}") ;; all) roles=(wallets pools assets) ;; *) return 1 ;; esac
-  for role in "${roles[@]}"; do
-    case "${role}" in wallets) root="${CNTOOLS_WALLET_DIR:-}" ;; pools) root="${CNTOOLS_POOL_DIR:-}" ;; assets) root="${CNTOOLS_ASSET_DIR:-}" ;; esac
-    [[ -n "${root}" && -d "${root}" ]] || continue
-    cntools_private_keys_names_into names "${role}" || return 0 # Unknown: let the user decide.
-    for directory in "${root}"/*; do
-      [[ -d "${directory}" && ! -L "${directory}" ]] || continue
-      [[ -z "${object}" || "${directory##*/}" == "${object}" ]] || continue
-      for name in "${names[@]}"; do
-        [[ ! -e "${directory}/${name}.gpg" && ! -L "${directory}/${name}.gpg" ]] || return 0
+# Plaintext and encrypted (.gpg) deletable key files in scope, counted apart.
+cntools_private_keys_form_counts_into() {
+  local -n pf_plain="$1" pf_encrypted="$2"
+  local pf_scope="$3" pf_object="${4:-}" pf_role='' pf_root='' pf_directory='' pf_name=''
+  local -a pf_roles=() pf_names=()
+  pf_plain=0; pf_encrypted=0
+  case "${pf_scope}" in wallets|pools|assets) pf_roles=("${pf_scope}") ;; all) pf_roles=(wallets pools assets) ;; *) return 2 ;; esac
+  for pf_role in "${pf_roles[@]}"; do
+    case "${pf_role}" in wallets) pf_root="${CNTOOLS_WALLET_DIR:-}" ;; pools) pf_root="${CNTOOLS_POOL_DIR:-}" ;; assets) pf_root="${CNTOOLS_ASSET_DIR:-}" ;; esac
+    [[ -n "${pf_root}" && -d "${pf_root}" && ! -L "${pf_root}" ]] || continue
+    cntools_private_keys_names_into pf_names "${pf_role}" || return 1
+    [[ "${pf_role}" != wallets ]] || pf_names+=("${CNTOOLS_WALLET_CATALYST_SKEY_FILENAME:-catalyst.skey}-bech32")
+    for pf_directory in "${pf_root}"/*; do
+      [[ -d "${pf_directory}" && ! -L "${pf_directory}" && "${pf_directory##*/}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || continue
+      [[ -z "${pf_object}" || "${pf_directory##*/}" == "${pf_object}" ]] || continue
+      for pf_name in "${pf_names[@]}"; do
+        [[ ! -e "${pf_directory}/${pf_name}" && ! -L "${pf_directory}/${pf_name}" ]] || pf_plain=$((pf_plain + 1))
+        [[ ! -e "${pf_directory}/${pf_name}.gpg" && ! -L "${pf_directory}/${pf_name}.gpg" ]] || pf_encrypted=$((pf_encrypted + 1))
       done
     done
   done
-  return 1
 }
 
 cntools_private_keys_restore_locks() {

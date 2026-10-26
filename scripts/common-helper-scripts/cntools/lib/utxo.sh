@@ -4,6 +4,8 @@
 # shellcheck disable=SC2034
 
 CNTOOLS_UTXO_ERROR=""
+# Largest inventory a transaction flow loads; Collect combines it in batches.
+CNTOOLS_UTXO_MAX_COUNT=5000
 declare -ag CNTOOLS_UTXO_REFS=()
 declare -ag CNTOOLS_UTXO_ADDRESSES=()
 declare -ag CNTOOLS_UTXO_LOVELACE=()
@@ -137,15 +139,15 @@ cntools_utxo_load_local() {
 
   cntools_utxo_reset
   [[ -f "${source_file}" && ! -L "${source_file}" ]] || return 2
-  jq -e --arg base "${base_address}" --arg payment "${payment_address}" '
-    type == "object" and length <= 1000 and
+  jq -e --arg base "${base_address}" --arg payment "${payment_address}" --argjson maximum "${CNTOOLS_UTXO_MAX_COUNT}" '
+    type == "object" and length <= $maximum and
     all(to_entries[];
       (.key | test("^[0-9a-f]{64}#(0|[1-9][0-9]{0,9})$")) and
       (.value | type == "object") and
       (.value.address == $base or .value.address == $payment) and
       (.value.value | type == "object" and has("lovelace")))
   ' "${source_file}" >/dev/null 2>&1 ||
-    cntools_utxo_fail "The local node returned an invalid or oversized UTxO response." ||
+    cntools_utxo_fail "The local node returned an invalid UTxO response, or more than $(cntools_number_format "${CNTOOLS_UTXO_MAX_COUNT}") UTxOs." ||
     return 1
   while IFS=$'\037' read -r reference address datum reference_script; do
     [[ -n "${reference}" ]] || continue
@@ -209,13 +211,13 @@ cntools_utxo_load_koios() {
 
   cntools_utxo_reset
   [[ -f "${source_file}" && ! -L "${source_file}" ]] || return 2
-  jq -e --arg base "${base_address}" --arg payment "${payment_address}" '
+  jq -e --arg base "${base_address}" --arg payment "${payment_address}" --argjson maximum "${CNTOOLS_UTXO_MAX_COUNT}" '
     def uint: type == "string" and length <= 80 and test("^(0|[1-9][0-9]*)$");
     def policy: type == "string" and test("^[0-9a-fA-F]{56}$");
     def asset_name:
       type == "null" or
       (type == "string" and test("^([0-9a-fA-F]{2}){0,32}$"));
-    type == "array" and length <= 1000 and
+    type == "array" and length <= $maximum and
     all(.[].tx_hash; type == "string" and test("^[0-9a-f]{64}$")) and
     all(.[].tx_index;
       type == "number" and . >= 0 and . <= 4294967295 and floor == .) and
@@ -227,7 +229,7 @@ cntools_utxo_load_koios() {
     ([.[] | (.tx_hash + "#" + (.tx_index | tostring))] | unique | length)
       == length
   ' "${source_file}" >/dev/null 2>&1 ||
-    cntools_utxo_fail "Koios returned an invalid or oversized UTxO response." ||
+    cntools_utxo_fail "Koios returned an invalid UTxO response, or more than $(cntools_number_format "${CNTOOLS_UTXO_MAX_COUNT}") UTxOs." ||
     return 1
   while IFS=$'\037' read -r kind first second third fourth fifth; do
     case "${kind}" in

@@ -6,6 +6,7 @@ CNTOOLS_KES_INDEX=0 CNTOOLS_KES_START='' CNTOOLS_KES_NEXT='' CNTOOLS_KES_LEDGER=
 CNTOOLS_KES_SOURCE='' CNTOOLS_KES_KIND='' CNTOOLS_KES_CURRENT='' CNTOOLS_KES_PERIOD_SOURCE=''
 CNTOOLS_KES_COUNTER_APPROVED=N CNTOOLS_KES_INSTALL_APPROVED=N CNTOOLS_KES_DISK_NEXT='' CNTOOLS_KES_COUNTER_SOURCE=''
 CNTOOLS_KES_ISSUED=N CNTOOLS_KES_LOCK_PATH='' CNTOOLS_KES_LOCK_KIND='' CNTOOLS_KES_LOCK_STAGED='' CNTOOLS_KES_LOCK_CERT=N CNTOOLS_KES_LOCK_RELEASABLE=N
+CNTOOLS_KES_LOCK_CERT_COUNTER='' CNTOOLS_KES_LOCK_BUSY=N CNTOOLS_KES_ENCRYPTED=N
 
 cntools_kes_error() { cntools_pool_write_error "$1"; }
 
@@ -29,7 +30,7 @@ cntools_kes_identity() {
   local index="$1" cold='' counter='' signing='' hardware='' derived=''
   CNTOOLS_POOL_WRITE_ERROR='' CNTOOLS_POOL_WRITE_WARNING=''
   CNTOOLS_KES_INDEX="${index}" CNTOOLS_KES_DIRECTORY="${CNTOOLS_POOL_DIRECTORIES[index]}"
-  CNTOOLS_KES_SOURCE='' CNTOOLS_KES_KIND=''
+  CNTOOLS_KES_SOURCE='' CNTOOLS_KES_KIND='' CNTOOLS_KES_ENCRYPTED=N
   [[ "${CNTOOLS_POOL_IDENTITIES[index]}" == 'Verified cold public key' ]] &&
     cntools_pool_directory_writable "${CNTOOLS_KES_DIRECTORY}" || {
     cntools_kes_error 'A safe, owned, writable pool directory with a verified cold identity is required.'; return 1;
@@ -47,9 +48,13 @@ cntools_kes_identity() {
     }
     CNTOOLS_KES_SOURCE="${CNTOOLS_KES_DIRECTORY}/${hardware}" CNTOOLS_KES_KIND=hardware
   elif [[ -e "${CNTOOLS_KES_DIRECTORY}/${signing}" || -L "${CNTOOLS_KES_DIRECTORY}/${signing}" ]]; then
-    [[ ! -e "${CNTOOLS_KES_DIRECTORY}/${signing}.gpg" ]] &&
-      cntools_pool_key_validate "${CNTOOLS_KES_DIRECTORY}/${signing}" cold signing &&
-      cntools_transaction_source_kind_into CNTOOLS_KES_KIND "${CNTOOLS_KES_DIRECTORY}/${signing}" || return 1
+    [[ ! -e "${CNTOOLS_KES_DIRECTORY}/${signing}.gpg" ]] || {
+      cntools_kes_error "Both ${signing} and ${signing}.gpg exist. Keep only one of them before rotating."; return 1;
+    }
+    cntools_pool_key_validate "${CNTOOLS_KES_DIRECTORY}/${signing}" cold signing &&
+      cntools_transaction_source_kind_into CNTOOLS_KES_KIND "${CNTOOLS_KES_DIRECTORY}/${signing}" || {
+      cntools_kes_error "The cold signing key ${signing} is invalid or unsafe (it must be a private, regular file)."; return 1;
+    }
     cntools_transaction_temp_file derived kes-cold-public || return 1
     cntools_pool_cli key verification-key --signing-key-file "${CNTOOLS_KES_DIRECTORY}/${signing}" --verification-key-file "${derived}" &&
       jq -es 'length == 2 and (.[0].cborHex|ascii_downcase) == (.[1].cborHex|ascii_downcase)' \
@@ -57,6 +62,9 @@ cntools_kes_identity() {
       cntools_kes_error 'The cold signing key does not match this pool.'; return 1;
     }
     CNTOOLS_KES_SOURCE="${CNTOOLS_KES_DIRECTORY}/${signing}"
+  elif [[ -f "${CNTOOLS_KES_DIRECTORY}/${signing}.gpg" && ! -L "${CNTOOLS_KES_DIRECTORY}/${signing}.gpg" ]]; then
+    # Present but encrypted: Pool → Decrypt makes it usable here.
+    CNTOOLS_KES_ENCRYPTED=Y
   fi
 }
 
@@ -146,7 +154,7 @@ cntools_kes_lock_acquire() {
 # can start; the recovery folder is kept for inspection.
 cntools_kes_unlock_unissued() {
   cntools_kes_lock_release || return 1
-  CNTOOLS_POOL_WRITE_ERROR="${CNTOOLS_POOL_WRITE_ERROR:-Preparation failed before any certificate was issued.} The lock was released and the recovery folder kept, so you can retry."
+  CNTOOLS_POOL_WRITE_ERROR="${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:+${CNTOOLS_TRANSACTION_ERROR} }Preparation failed before any certificate was issued.} The lock was released and the recovery folder kept, so you can retry."
   cntools_transaction_log POOL "KES lock released; nothing was issued recovery=${CNTOOLS_KES_STAGE}"
 }
 
@@ -160,13 +168,28 @@ cntools_kes_lock_foreign() {
   return 0
 }
 
-# What a foreign lock holds and whether releasing it is safe: nothing was
-# issued, or the issued certificate's advanced counter is the live counter.
+# True for this node's own rotation lock left without a phase file: the
+# session ended while preparing, before anything could be issued.
+cntools_kes_lock_interrupted() {
+  local lock='' recovery='' name=''
+  cntools_pool_opcert_lock_into lock "${CNTOOLS_KES_DIRECTORY}" && cntools_state_path_into recovery recovery &&
+    cntools_pool_public_file_safe "${lock}/rotation" 128 || return 1
+  name="$(< "${lock}/rotation")"
+  [[ "${name}" =~ ^kes-rotate\.[A-Za-z0-9]+$ && ! -e "${recovery}/${name}/phase" && ! -L "${recovery}/${name}/phase" ]]
+}
+
+# What a lock left by another or an interrupted operation holds, and whether
+# releasing it is safe: nothing was issued, or the certificate in recovery
+# carries a counter the live cold.counter has already moved past, so no new
+# certificate can ever reuse it.
 cntools_kes_lock_inspect() {
-  local lock='' recovery='' name='' candidate='' suffix='' counter='' cold='' cert='' staged_counter='' staged_cert='' pool="${CNTOOLS_KES_DIRECTORY##*/}"
+  local lock='' recovery='' name='' candidate='' suffix='' counter='' cold='' cert='' hot='' staged_counter='' staged_cert='' staged_hot=''
+  local period='' signature='' pool="${CNTOOLS_KES_DIRECTORY##*/}"
   CNTOOLS_KES_LOCK_KIND='Unrecognised operation' CNTOOLS_KES_LOCK_STAGED='' CNTOOLS_KES_LOCK_CERT=N CNTOOLS_KES_LOCK_RELEASABLE=N CNTOOLS_KES_STAGE=''
+  CNTOOLS_KES_LOCK_CERT_COUNTER='' CNTOOLS_KES_LOCK_BUSY=N
   cntools_pool_opcert_lock_into lock "${CNTOOLS_KES_DIRECTORY}" && cntools_state_path_into recovery recovery || return 1
   CNTOOLS_KES_LOCK_PATH="${lock}"
+  [[ ! -d "${lock}/busy" || -L "${lock}/busy" ]] || CNTOOLS_KES_LOCK_BUSY=Y
   ! cntools_pool_public_file_safe "${lock}/rotation" 128 || name="$(< "${lock}/rotation")"
   if [[ -z "${name}" ]]; then
     # Earlier builds did not record a first certificate's stage: use the newest.
@@ -176,14 +199,26 @@ cntools_kes_lock_inspect() {
     done
   fi
   cntools_pool_file_name_into counter counter; cntools_pool_file_name_into cold cold-vkey; cntools_pool_file_name_into cert opcert
+  cntools_pool_file_name_into hot kes-vkey
   suffix="${name#"opcert-${pool}."}"
   if [[ "${name}" == "opcert-${pool}."* && "${suffix}" =~ ^[A-Za-z0-9]+$ ]]; then
     CNTOOLS_KES_LOCK_KIND='First operational certificate'
-    staged_counter="${recovery}/${name}/${counter}" staged_cert="${recovery}/${name}/${cert}"
+    staged_counter="${recovery}/${name}/${counter}" staged_cert="${recovery}/${name}/${cert}" staged_hot="${recovery}/${name}/${hot}"
   elif [[ "${name}" =~ ^kes-sign\.[A-Za-z0-9]+$ ]]; then
     CNTOOLS_KES_LOCK_KIND='Offline request signing'
     staged_counter="${recovery}/${name}/request/cold.counter" staged_cert="${recovery}/${name}/replacement/op.cert"
+    staged_hot="${recovery}/${name}/request/hot.vkey"
     [[ ! -e "${staged_cert}" ]] || staged_counter="${recovery}/${name}/replacement/cold.counter"
+  elif [[ "${name}" =~ ^kes-rotate\.[A-Za-z0-9]+$ ]]; then
+    if [[ -e "${recovery}/${name}/phase" || -L "${recovery}/${name}/phase" ]]; then
+      # A recorded rotation is continued by Rotate itself, never released here.
+      CNTOOLS_KES_LOCK_KIND='KES rotation in progress'
+      [[ ! -d "${recovery}/${name}" || -L "${recovery}/${name}" ]] || CNTOOLS_KES_STAGE="${recovery}/${name}"
+      return 0
+    fi
+    CNTOOLS_KES_LOCK_KIND='Interrupted KES rotation'
+    staged_counter="${recovery}/${name}/request/cold.counter" staged_cert="${recovery}/${name}/replacement/op.cert"
+    staged_hot="${recovery}/${name}/request/hot.vkey"
   else
     return 0
   fi
@@ -191,10 +226,15 @@ cntools_kes_lock_inspect() {
   CNTOOLS_KES_STAGE="${recovery}/${name}"
   [[ ! -e "${staged_cert}" && ! -L "${staged_cert}" ]] || CNTOOLS_KES_LOCK_CERT=Y
   cntools_pool_counter_into CNTOOLS_KES_LOCK_STAGED "${staged_counter}" "${CNTOOLS_KES_DIRECTORY}/${cold}" || CNTOOLS_KES_LOCK_STAGED=''
-  if [[ "${CNTOOLS_KES_LOCK_CERT}" == N || ( -n "${CNTOOLS_KES_LOCK_STAGED}" && "${CNTOOLS_KES_LOCK_STAGED}" == "${CNTOOLS_KES_DISK_NEXT}" ) ]]; then
+  if [[ "${CNTOOLS_KES_LOCK_CERT}" == N ]]; then
+    CNTOOLS_KES_LOCK_RELEASABLE=Y
+  elif cntools_pool_opcert_fields_into CNTOOLS_KES_LOCK_CERT_COUNTER period signature "${staged_cert}" \
+         "${CNTOOLS_KES_DIRECTORY}/${cold}" "${staged_hot}" 2>/dev/null &&
+       [[ "${CNTOOLS_KES_DISK_NEXT}" =~ ^(0|[1-9][0-9]{0,9})$ ]] && ((CNTOOLS_KES_DISK_NEXT > CNTOOLS_KES_LOCK_CERT_COUNTER)); then
+    # The live counter already moved past the recovered certificate's.
     CNTOOLS_KES_LOCK_RELEASABLE=Y
   fi
-  cntools_transaction_log POOL "Foreign certificate lock kind=${CNTOOLS_KES_LOCK_KIND} recovery=${CNTOOLS_KES_STAGE} certificate=${CNTOOLS_KES_LOCK_CERT} staged=${CNTOOLS_KES_LOCK_STAGED:-unknown} live=${CNTOOLS_KES_DISK_NEXT} releasable=${CNTOOLS_KES_LOCK_RELEASABLE}"
+  cntools_transaction_log POOL "Certificate lock kind=${CNTOOLS_KES_LOCK_KIND} recovery=${CNTOOLS_KES_STAGE} certificate=${CNTOOLS_KES_LOCK_CERT} certificateCounter=${CNTOOLS_KES_LOCK_CERT_COUNTER:-unknown} staged=${CNTOOLS_KES_LOCK_STAGED:-unknown} live=${CNTOOLS_KES_DISK_NEXT} busy=${CNTOOLS_KES_LOCK_BUSY} releasable=${CNTOOLS_KES_LOCK_RELEASABLE}"
 }
 
 # Inspected again first, so the release decision uses the current files.
@@ -220,8 +260,10 @@ cntools_kes_pending_load() {
     cntools_kes_error 'The existing issuance lock requires manual recovery. No new certificate will be issued.'; return 1;
   }
   CNTOOLS_KES_STAGE="${recovery}/${name}"
-  cntools_kes_stage_safe && cntools_kes_request_validate "${CNTOOLS_KES_STAGE}/request" || return 1
-  cntools_pool_public_file_safe "${CNTOOLS_KES_STAGE}/phase" 128 || return 1
+  cntools_kes_stage_safe && cntools_kes_request_validate "${CNTOOLS_KES_STAGE}/request" &&
+    cntools_pool_public_file_safe "${CNTOOLS_KES_STAGE}/phase" 128 || {
+    cntools_kes_error 'The pending rotation request is incomplete, changed or no longer owner-only, so CNTools cannot continue it. Inspect its recovery folder and never restore an older counter.'; return 1;
+  }
   mkdir -m 700 -- "${lock}/busy" 2>/dev/null || {
     cntools_kes_error 'This rotation is busy or was interrupted. Inspect the recovery directory before clearing only its busy marker.'; return 1;
   }
@@ -492,6 +534,17 @@ cntools_kes_publish() {
     }
   done
   cntools_kes_phase_set complete && cntools_kes_lock_release
+}
+
+# Issuance interrupted before the certificate was written (session closed
+# while the CLI or device worked): nothing usable exists and the live counter
+# never moved, so the request is ready again. Returns 1 when a certificate is
+# in recovery; that one is validated and recovered, never issued again.
+cntools_kes_issuing_reset() {
+  cntools_kes_stage_safe && [[ "$(< "${CNTOOLS_KES_STAGE}/phase")" == issuing ]] || return 1
+  [[ ! -e "${CNTOOLS_KES_STAGE}/replacement/op.cert" && ! -L "${CNTOOLS_KES_STAGE}/replacement/op.cert" ]] || return 1
+  cntools_kes_phase_set prepared || return 1
+  cntools_transaction_log POOL "KES issuance interrupted before a certificate was written; request ready again recovery=${CNTOOLS_KES_STAGE}"
 }
 
 # Abandon a request before any certificate was issued for it. The counter never

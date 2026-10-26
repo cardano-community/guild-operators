@@ -51,10 +51,20 @@ cntools_transaction_replace_managed() (
   cntools_transaction_file_safe "${replace_snapshot}" "${CNTOOLS_TRANSACTION_MAX_PACKAGE_BYTES}" || return 1
   replace_lock="${replace_folder}/.cntools-package-update.lock"
   if ! mkdir -m 700 -- "${replace_lock}" 2>/dev/null; then
-    cntools_transaction_set_error 'The saved package is being updated by another session. Nothing was overwritten.'
-    return 1
+    # A lock whose recorded process has ended was left by a killed session.
+    local replace_holder=''
+    replace_holder="$(head -c 16 -- "${replace_lock}/pid" 2>/dev/null)" || replace_holder=''
+    if [[ "${replace_holder}" =~ ^[1-9][0-9]*$ ]] && ! kill -0 "${replace_holder}" 2>/dev/null &&
+       rm -f -- "${replace_lock}/pid" && rmdir -- "${replace_lock}" 2>/dev/null &&
+       mkdir -m 700 -- "${replace_lock}" 2>/dev/null; then
+      cntools_transaction_log FILE "Removed a stale package update lock from process ${replace_holder}"
+    else
+      cntools_transaction_set_error "The saved package is being updated by another session. Nothing was overwritten. If no other CNTools session is running, remove ${replace_lock} and try again."
+      return 1
+    fi
   fi
-  trap '[[ -z "${replace_stage}" ]] || cntools_transaction_temp_remove "${replace_stage}" || true; rmdir -- "${replace_lock}" 2>/dev/null || true' EXIT
+  printf '%s\n' "${BASHPID:-$$}" > "${replace_lock}/pid" 2>/dev/null || true
+  trap '[[ -z "${replace_stage}" ]] || cntools_transaction_temp_remove "${replace_stage}" || true; rm -f -- "${replace_lock}/pid" 2>/dev/null; rmdir -- "${replace_lock}" 2>/dev/null || true' EXIT
   if ! cntools_filesystem_file_identity_into replace_identity "${replace_target}" ||
      ! cmp -s -- "${replace_target}" "${replace_snapshot}"; then
     cntools_transaction_log ERROR 'Saved package changed after selection; refusing to overwrite it'

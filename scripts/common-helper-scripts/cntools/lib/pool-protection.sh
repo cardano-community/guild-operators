@@ -4,7 +4,7 @@
 declare -ag CNTOOLS_POOL_PROTECTION_SOURCES=() CNTOOLS_POOL_PROTECTION_TARGETS=()
 declare -ag CNTOOLS_POOL_PROTECTION_STAGED=() CNTOOLS_POOL_PROTECTION_SNAPSHOTS=() CNTOOLS_POOL_PROTECTION_MODES=()
 CNTOOLS_POOL_PROTECTION_KEYS=0
-# Y when GnuPG could not open a key (normally a wrong password); nothing changed.
+# Y when GnuPG reported a wrong passphrase for a key; nothing changed.
 CNTOOLS_POOL_PROTECTION_PASSWORD_FAILED=N
 
 cntools_pool_protection_preflight() {
@@ -136,8 +136,12 @@ cntools_pool_protect() {
       cntools_key_crypto_run "${binary}" "${operation}" "${snapshot}" "${staged}" "${password}" "${errors}" 60 65536 || status=$?
       if ((status != 0)); then
         cntools_transaction_log_cli_failure "Pool GPG ${operation} failed; originals retained" "${status}" "${errors}" ''
-        CNTOOLS_POOL_PROTECTION_PASSWORD_FAILED=Y
-        cntools_pool_write_error 'A pool signing key could not be opened/protected. Check the password and GPG installation.'; return 1
+        # Only a wrong passphrase is worth another try; other failures stop.
+        if [[ "${operation}" == decrypt ]] && cntools_key_crypto_bad_passphrase "${errors}"; then
+          CNTOOLS_POOL_PROTECTION_PASSWORD_FAILED=Y
+          cntools_pool_write_error 'The password did not open the pool signing keys. Nothing was changed.'; return 1
+        fi
+        cntools_pool_write_error "A pool signing key could not be $([[ "${operation}" == decrypt ]] && printf opened || printf protected) by GnuPG (status ${status}). Nothing was changed."; return 1
       fi
       if [[ "${operation}" == encrypt ]]; then
         cntools_pool_temp_into roundtrip "${directory}" || return 1

@@ -3,7 +3,7 @@
 # Loaded after the wallet, query, and shared transaction libraries.
 # shellcheck disable=SC2034
 
-CNTOOLS_WALLET_REGISTER_MAX_INPUTS=1000
+CNTOOLS_WALLET_REGISTER_MAX_INPUTS="${CNTOOLS_UTXO_MAX_COUNT:-5000}"
 CNTOOLS_WALLET_REGISTER_ERROR=""
 CNTOOLS_WALLET_REGISTER_BACKEND=""
 CNTOOLS_WALLET_REGISTER_SOURCE=""
@@ -372,7 +372,7 @@ cntools_wallet_register_parse_local_utxos() {
   fi
   (( ${#CNTOOLS_UTXO_REFS[@]} <= CNTOOLS_WALLET_REGISTER_MAX_INPUTS )) || {
     cntools_wallet_register_set_error \
-      "The wallet contains more UTxOs than this transaction flow can inspect safely."
+      "The wallet holds more than $(cntools_number_format "${CNTOOLS_WALLET_REGISTER_MAX_INPUTS}") UTxOs. Combine them first with Funds → Collect UTxOs."
     return 1
   }
   cntools_wallet_register_inventory_use_all
@@ -425,7 +425,7 @@ cntools_wallet_register_parse_koios_utxos() {
   fi
   (( ${#CNTOOLS_UTXO_REFS[@]} <= CNTOOLS_WALLET_REGISTER_MAX_INPUTS )) || {
     cntools_wallet_register_set_error \
-      "The wallet contains more UTxOs than this transaction flow can inspect safely."
+      "The wallet holds more than $(cntools_number_format "${CNTOOLS_WALLET_REGISTER_MAX_INPUTS}") UTxOs. Combine them first with Funds → Collect UTxOs."
     return 1
   }
   cntools_wallet_register_inventory_use_all
@@ -433,20 +433,12 @@ cntools_wallet_register_parse_koios_utxos() {
 
 cntools_wallet_register_utxos_koios() {
   local response_file=""
-  local payload=""
 
   cntools_transaction_temp_file response_file register-utxos || return 1
-  payload="$(jq -cn \
-    --arg base "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" \
-    --arg payment "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}" '
-      # Koios deliberately omits asset_list when _extended is false. The
-      # transaction balancer must receive the complete input value or native
-      # assets could not be returned safely as change.
-      {_addresses: ([$base, $payment] | unique), _extended: true}
-    ')" || return 1
-  if ! cntools_wallet_query_http \
-      "${CNTOOLS_KOIOS_API%/}/address_utxos?select=tx_hash%2Ctx_index%2Caddress%2Cvalue%3A%3Atext%2Casset_list%2Cdatum_hash%2Cinline_datum%2Creference_script" \
-      "${payload}" "${response_file}"; then
+  # Extended rows carry asset_list: the balancer needs every input's full
+  # value to return native assets as change. Paged past 1,000 UTxOs.
+  if ! cntools_funding_koios_utxos "${response_file}" \
+      "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}"; then
     cntools_wallet_register_set_error \
       "Koios could not return the wallet's UTxOs."
     return 1

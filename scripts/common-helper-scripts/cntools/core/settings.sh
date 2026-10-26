@@ -174,6 +174,19 @@ cntools_settings_apply_file() {
     sentinel <<< "${record}"
   [[ "${sentinel}" == "." ]] || return 1
   [[ "${flow_style}" == unset ]] || CNTOOLS_FLOW_STYLE="${flow_style}"
+  # One new output per percentage. Older saves could keep a stale lower count.
+  if [[ -n "${CNTOOLS_TX_UTXO_PERCENTAGES}" ]]; then
+    local -a percentages=()
+    IFS=, read -r -a percentages <<< "${CNTOOLS_TX_UTXO_PERCENTAGES}"
+    CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS="${#percentages[@]}"
+  fi
+  cntools_settings_snapshot
+}
+
+# What this session last loaded or saved. A save merges only the fields this
+# session changed onto the file, so another CNTools session's changes stay.
+cntools_settings_snapshot() {
+  CNTOOLS_SETTINGS_LOADED_JSON="$(cntools_settings_json | jq -cS . 2>/dev/null)" || CNTOOLS_SETTINGS_LOADED_JSON=''
 }
 
 cntools_settings_values_valid() {
@@ -288,10 +301,27 @@ cntools_settings_cleanup() {
 }
 
 cntools_settings_save() {
-  local content=""
+  local content="" disk=""
 
+  if [[ "${CNTOOLS_SETTINGS_SAVE_BLOCKED:-N}" == Y ]]; then
+    cntools_settings_log WARN "Settings not saved: the unreadable settings file could not be moved aside"
+    return 1
+  fi
   cntools_settings_state_directory_ready || return 1
   content="$(cntools_settings_json)" || return 1
+  if [[ -n "${CNTOOLS_SETTINGS_LOADED_JSON:-}" && -f "${CNTOOLS_SETTINGS_FILE}" && ! -L "${CNTOOLS_SETTINGS_FILE}" ]] &&
+     cntools_settings_file_valid "${CNTOOLS_SETTINGS_FILE}" &&
+     disk="$(jq -cS . "${CNTOOLS_SETTINGS_FILE}" 2>/dev/null)" && [[ "${disk}" != "${CNTOOLS_SETTINGS_LOADED_JSON}" ]]; then
+    # Another session saved since this one loaded: apply only our changes.
+    content="$(jq -S --argjson base "${CNTOOLS_SETTINGS_LOADED_JSON}" --argjson mine "${content}" '
+      . as $disk |
+      [$mine | paths | select(all(.[]; type == "string")) | . as $path
+        | select(($mine | getpath($path) | type) != "object")
+        | select(($base | getpath($path)) != ($mine | getpath($path)))] as $changed |
+      reduce $changed[] as $p ($disk; setpath($p; $mine | getpath($p)))
+    ' <<< "${disk}")" || return 1
+    cntools_settings_log SETTINGS "merged with settings saved by another session"
+  fi
   cntools_settings_cleanup
   CNTOOLS_SETTINGS_STAGE_FILE="$(mktemp \
     "${CNTOOLS_SETTINGS_STATE_DIR}/.transaction-settings.XXXXXX")" || return 1
@@ -317,17 +347,36 @@ cntools_settings_init() {
   fi
   if [[ ! -e "${CNTOOLS_SETTINGS_FILE}" &&
         ! -L "${CNTOOLS_SETTINGS_FILE}" ]]; then
+    cntools_settings_snapshot
     cntools_settings_log SETTINGS "using default transaction settings"
     return 0
   fi
   if ! cntools_settings_apply_file "${CNTOOLS_SETTINGS_FILE}"; then
     cntools_settings_defaults
-    cntools_settings_log WARN \
-      "Saved transaction settings are unsafe or invalid; using safe defaults"
+    cntools_settings_snapshot
+    cntools_settings_set_aside
     return 0
   fi
   cntools_settings_log SETTINGS \
     "loaded selection=${CNTOOLS_TX_SELECTION_STRATEGY} token_fragmentation=${CNTOOLS_TX_TOKEN_FRAGMENTATION} utxo_management=${CNTOOLS_TX_UTXO_MANAGEMENT}"
+}
+
+# An unreadable settings file (hand edit, newer version) is moved aside rather
+# than overwritten by the next save, and the main menu says so once.
+cntools_settings_set_aside() {
+  local aside="" stamp=""
+  stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null)" || stamp=old
+  aside="${CNTOOLS_SETTINGS_FILE}.invalid-${stamp}"
+  CNTOOLS_GUM_STARTUP_STATUS_LEVEL=warn
+  if [[ -f "${CNTOOLS_SETTINGS_FILE}" && ! -L "${CNTOOLS_SETTINGS_FILE}" && ! -e "${aside}" ]] &&
+     mv -n -- "${CNTOOLS_SETTINGS_FILE}" "${aside}" 2>/dev/null && [[ ! -e "${CNTOOLS_SETTINGS_FILE}" ]]; then
+    cntools_settings_log WARN "Saved transaction settings are unsafe or invalid; moved to ${aside}; using safe defaults"
+    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="Saved settings could not be read and were moved to ${aside}. Using defaults; review Settings."
+  else
+    CNTOOLS_SETTINGS_SAVE_BLOCKED=Y
+    cntools_settings_log WARN "Saved transaction settings are unsafe or invalid and could not be moved aside; using safe defaults without saving"
+    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="Saved settings could not be read; using defaults for this session. Fix or remove ${CNTOOLS_SETTINGS_FILE}."
+  fi
 }
 
 cntools_settings_reload() {
@@ -408,13 +457,15 @@ cntools_flow_style_first_run() {
     cntools_settings_log CHOICE "flow style question skipped; detailed until chosen"
     return 0
   fi
-  # Shown on the main menu's status line instead of an extra Enter here.
+  # Shown on the main menu's status line instead of an extra Enter here. A
+  # settings warning from startup comes first and keeps its level.
+  local earlier="${CNTOOLS_GUM_STARTUP_STATUS_MESSAGE:-}"
   if cntools_flow_style_save "${style}"; then
-    CNTOOLS_GUM_STARTUP_STATUS_LEVEL=success
-    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="Flow style saved: $(cntools_flow_style_name "${style}"). Change it in Settings → Flow Style."
+    [[ -n "${earlier}" ]] || CNTOOLS_GUM_STARTUP_STATUS_LEVEL=success
+    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="${earlier:+${earlier} }Flow style saved: $(cntools_flow_style_name "${style}"). Change it in Settings → Flow Style."
   else
     CNTOOLS_GUM_STARTUP_STATUS_LEVEL=warn
-    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="Using $(cntools_flow_style_name "${style}") for this session; it could not be saved. See ${CNTOOLS_LOG}."
+    CNTOOLS_GUM_STARTUP_STATUS_MESSAGE="${earlier:+${earlier} }Using $(cntools_flow_style_name "${style}") for this session; it could not be saved. See ${CNTOOLS_LOG}."
   fi
 }
 

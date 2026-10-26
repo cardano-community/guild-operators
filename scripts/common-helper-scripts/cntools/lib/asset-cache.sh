@@ -69,24 +69,40 @@ cntools_asset_cache_read() {
   printf '%s' "${data}"
 }
 
+# The record goes to jq on stdin: a base64 registry logo can exceed the
+# 128 KiB limit of a single command-line argument.
 cntools_asset_cache_write() {
   local directory="$1" identity="$2" now="$3" data="$4" stage="" target=""
   target="${directory}/${CNTOOLS_NETWORK}-${identity}.json"
   [[ ! -L "${target}" && ( ! -e "${target}" || -f "${target}" ) ]] || return 1
   stage="$(umask 077; mktemp "${directory}/.asset.XXXXXX")" || return 1
-  if jq -cn --arg api "${CNTOOLS_KOIOS_API%/}" --argjson time "${now}" --argjson data "${data}" \
-      '{schema:1, api:$api, fetchedAt:$time, data:$data}' > "${stage}" &&
+  if printf '%s\n' "${data}" | jq -c --arg api "${CNTOOLS_KOIOS_API%/}" --argjson time "${now}" \
+      '{schema:1, api:$api, fetchedAt:$time, data:.}' > "${stage}" &&
      mv -f -- "${stage}" "${target}"; then return 0; fi
   rm -f -- "${stage}"
   return 1
 }
 
+# A mint or burn changes the total supply: drop that asset's cached details.
+cntools_asset_cache_forget() {
+  local identity="${1:-}" directory="" file=""
+  [[ "${identity}" =~ ^[0-9a-f]{56}\.([0-9a-f]{2}){0,32}$ &&
+     "${CNTOOLS_NETWORK:-}" =~ ^(mainnet|preprod|preview|guild)$ ]] || return 0
+  directory="$(cntools_asset_cache_directory)" || return 0
+  file="${directory}/${CNTOOLS_NETWORK}-${identity}.json"
+  [[ -f "${file}" && ! -L "${file}" && -O "${file}" ]] || return 0
+  rm -f -- "${file}" || return 1
+  cntools_log CACHE "Dropped cached asset details after a supply change asset=${identity}" || true
+}
+
 # Keep bulk requests: only cache misses go to the existing logged HTTP helper.
 # Every response, cached or fresh, passes the same strict identity/schema check.
+# Cached and fresh records are joined by jq -s on stdin, never passed as
+# --argjson arguments (a base64 logo can exceed the 128 KiB argument limit).
 cntools_asset_details_fetch() {
-  local destination="$1" directory="" identity="" cached="" combined='[]'
-  local payload="" requested="" fresh="" record="" now="" cached_count=0
-  local -a missing=()
+  local destination="$1" directory="" identity="" cached="" combined=''
+  local payload="" requested="" fresh="" record="" now=""
+  local -a missing=() cached_records=()
   shift
   [[ "${CNTOOLS_NETWORK:-}" =~ ^(mainnet|preprod|preview|guild)$ ]] || return 1
   printf -v now '%(%s)T' -1
@@ -95,12 +111,11 @@ cntools_asset_details_fetch() {
     [[ "${identity}" =~ ^[0-9a-f]{56}\.([0-9a-f]{2}){0,32}$ ]] || return 2
     if [[ -n "${directory}" ]] && cached="$(cntools_asset_cache_read \
         "${directory}/${CNTOOLS_NETWORK}-${identity}.json" "${identity}" "${now}")"; then
-      combined="$(jq -cn --argjson a "${combined}" --argjson b "${cached}" '$a+$b')" || return 1
-      cached_count=$((cached_count+1))
+      cached_records+=("${cached}")
     else missing+=("${identity}"); fi
   done
-  if (( cached_count > 0 )); then
-    cntools_wallet_log CACHE "Koios asset details cache hits=${cached_count} max_age=86400s"
+  if (( ${#cached_records[@]} > 0 )); then
+    cntools_wallet_log CACHE "Koios asset details cache hits=${#cached_records[@]} max_age=86400s"
   fi
   if (( ${#missing[@]} > 0 )); then
     cntools_wallet_query_koios_asset_payload payload "${missing[@]}" || return 1
@@ -113,16 +128,19 @@ cntools_asset_details_fetch() {
       return 1
     }
     fresh="$(< "${destination}")"
-    combined="$(jq -cn --argjson a "${combined}" --argjson b "${fresh}" '$a+$b')" || return 1
     if [[ -n "${directory}" ]]; then
       for identity in "${missing[@]}"; do
         record="$(jq -c --arg id "${identity}" '.[] | select(
-          ((.policy_id+"."+(.asset_name // "")) | ascii_downcase) == $id)' <<< "${fresh}")" || return 1
+          ((.policy_id+"."+(.asset_name // "")) | ascii_downcase) == $id)' "${destination}")" || return 1
         cntools_asset_cache_write "${directory}" "${identity}" "${now}" "${record}" ||
           cntools_wallet_log WARN "Could not cache asset=${identity}; using live metadata"
       done
     fi
   fi
+  combined="$({
+    (( ${#cached_records[@]} == 0 )) || printf '%s\n' "${cached_records[@]}"
+    [[ -z "${fresh}" ]] || printf '%s\n' "${fresh}"
+  } | jq -cs 'add // []')" || return 1
   printf '%s\n' "${combined}" > "${destination}"
 }
 

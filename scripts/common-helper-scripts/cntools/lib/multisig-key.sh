@@ -60,6 +60,12 @@ cntools_multisig_mnemonic_path_valid() {
   esac
 }
 
+# Paths a hardware device can derive participant keys for: five indices
+# with a hardened purpose other than the Byron 44H.
+cntools_multisig_hardware_path_valid() {
+  [[ "${1:-}" =~ ^[0-9]+H/ && "${1:-}" != 44H/* ]] && cntools_wallet_hardware_path_valid "$1"
+}
+
 cntools_multisig_key_preflight() {
   local directory="$1" name='' mode='' prefix="${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}"
   CNTOOLS_MULTISIG_ERROR=''
@@ -141,6 +147,9 @@ cntools_multisig_key_generate_internal() {
     if [[ "${mode}" == mnemonic ]]; then
       cntools_multisig_mnemonic_path_valid "${pay_path}" payment && cntools_multisig_mnemonic_path_valid "${stake_path}" stake || {
         cntools_multisig_fail 'Recovery-phrase keys need purpose/coin_type/account/role/index paths, with role 0 or 1 for payment and 2 for stake.'; return 1; }
+    else
+      cntools_multisig_hardware_path_valid "${pay_path}" && cntools_multisig_hardware_path_valid "${stake_path}" || {
+        cntools_multisig_fail 'Hardware devices need purpose/coin_type/account/role/index paths with a hardened purpose other than 44H.'; return 1; }
     fi
   fi
   if [[ "${mode}" == mnemonic ]]; then
@@ -152,12 +161,10 @@ cntools_multisig_key_generate_internal() {
   cntools_wallet_material_temp_file output "${stage}" multisig-key-output || return 1
   if [[ "${mode}" == mnemonic ]]; then
     cntools_wallet_material_temp_file root "${stage}" multisig-root &&
-      cntools_multisig_secret_command "${root}" "${errors}" "${CNTOOLS_MULTISIG_ADDRESS_TOOL}" key from-recovery-phrase Shelley <<< "${phrase}" || return 1
+      cntools_multisig_secret_command "${root}" "${errors}" "${CNTOOLS_MULTISIG_ADDRESS_TOOL}" key from-recovery-phrase Shelley < <(printf '%s\n' "${phrase}") || return 1
     unset phrase words
   elif [[ "${mode}" == hardware ]]; then
-    [[ "${pay_path}" =~ ^[0-9]+H/ && "${stake_path}" =~ ^[0-9]+H/ && "${pay_path}" != 44H/* && "${stake_path}" != 44H/* ]] &&
-      cntools_wallet_hardware_path_valid "${pay_path}" && cntools_wallet_hardware_path_valid "${stake_path}" &&
-      cntools_wallet_hardware_require && cntools_wallet_hardware_device_check || return 1
+    cntools_wallet_hardware_require && cntools_wallet_hardware_device_check || return 1
     hw_command=("${CNTOOLS_WALLET_HARDWARE_BIN}" address key-gen --path "${pay_path}" --path "${stake_path}"
       --verification-key-file "${stage}/${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" --verification-key-file "${stage}/${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}"
       --hw-signing-file "${stage}/${CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME}" --hw-signing-file "${stage}/${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}")

@@ -80,7 +80,7 @@ cntools_transaction_ui_duration_label_into() {
   if (( _dl_duration == 0 )); then _dl_label='No expiry'
   elif (( _dl_duration % 86400 == 0 )); then _dl_label="$((_dl_duration / 86400)) day"; (( _dl_duration == 86400 )) || _dl_label+=s
   elif (( _dl_duration % 3600 == 0 )); then _dl_label="$((_dl_duration / 3600)) hour"; (( _dl_duration == 3600 )) || _dl_label+=s
-  elif (( _dl_duration % 60 == 0 )); then _dl_label="$((_dl_duration / 60)) minutes"
+  elif (( _dl_duration % 60 == 0 )); then _dl_label="$((_dl_duration / 60)) minute"; (( _dl_duration == 60 )) || _dl_label+=s
   else _dl_label="$(cntools_number_format "${_dl_duration}") seconds"; fi
   printf -v "$1" '%s' "${_dl_label}"
 }
@@ -107,8 +107,9 @@ cntools_transaction_ui_expiry_into() {
         cntools_ui_input expiry_seconds 'Expiry in seconds (0 for no expiry)' "${default}" || return $?
         expiry_seconds="${expiry_seconds:-${default}}"
         cntools_number_normalize_into expiry_seconds "${expiry_seconds}" || expiry_seconds=invalid
-        [[ "${expiry_seconds}" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( expiry_seconds <= 31536000 )) && break
-        cntools_ui_render_status warn 'Enter a whole duration from 0 to 31,536,000 seconds.'
+        # Under a minute would expire before it can be signed and submitted.
+        [[ "${expiry_seconds}" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( expiry_seconds == 0 || ( expiry_seconds >= 60 && expiry_seconds <= 31536000 ) )) && break
+        cntools_ui_render_status warn 'Enter 0 for no expiry, or a whole duration from 60 to 31,536,000 seconds.'
       done ;;
     Cancel) return 1 ;;
     *)
@@ -118,6 +119,8 @@ cntools_transaction_ui_expiry_into() {
       [[ -n "${expiry_seconds}" ]] || return 2 ;;
   esac
   printf -v "$1" '%s' "${expiry_seconds}"
+  # An expiry the user picked is never raised behind their back.
+  CNTOOLS_TRANSACTION_UI_EXPIRY_CHOSEN=Y
   cntools_transaction_log CHOICE "Transaction expiry selected=${expiry_choice} seconds=${expiry_seconds}"
 }
 
@@ -188,9 +191,15 @@ cntools_transaction_ui_review_into() {
     fi
     "${begin}" || return 2
     "${render}" || return 2
-    # Say why only an unsigned package is offered; actions may set the reason.
-    if [[ -z "${package}" && "${CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED:-N}" == Y ]]; then
+    # Say why only an unsigned package is offered (action reviews only;
+    # Sign/Submit reviews have no workflow). Actions may set the reason.
+    if [[ "${guard_validity}" == N && "${CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED:-N}" == Y ]]; then
       cntools_ui_render_status info "${CNTOOLS_TRANSACTION_UI_UNSIGNED_REASON:-The signing keys are not available here, so CNTools saves an unsigned package to sign elsewhere.}" || return 2
+    fi
+    # One-shot notices, e.g. an expiry raised for an unsigned package.
+    if [[ -n "${CNTOOLS_TRANSACTION_UI_NOTICE:-}" ]]; then
+      cntools_ui_render_status info "${CNTOOLS_TRANSACTION_UI_NOTICE}" || return 2
+      CNTOOLS_TRANSACTION_UI_NOTICE=''
     fi
     if [[ "${guard_validity}" == Y ]]; then
       case "${validity_state}" in
@@ -214,7 +223,11 @@ cntools_transaction_ui_review_into() {
         if cntools_filesystem_file_delete_safe "${CNTOOLS_TRANSACTION_UI_SOURCE_FILE:-}"; then options+=(Delete); fi
         ;;
     esac
-    [[ -z "${package}" ]] || options+=('Show required signers')
+    # Signer progress matters when signing is the next step or several
+    # signers are needed; a lone local key would only read "Missing".
+    if [[ -n "${package}" && ( "${guard_validity}" == Y || "${CNTOOLS_TRANSACTION_REQUIRED_COUNT:-0}" -gt 1 ) ]]; then
+      options+=('Show required signers')
+    fi
     # 'Change workflow' has nothing to offer when only an unsigned package is possible.
     local -a extra_options=()
     for allowed in "$@"; do
@@ -256,6 +269,14 @@ cntools_transaction_ui_review_into() {
         return 2 ;;
     esac
   done
+}
+
+# One label for UTxOs a transaction leaves alone (reference scripts, datums).
+cntools_transaction_ui_untouched_row() {
+  local count="${1:-0}" what="${2:-script UTxO}" label=''
+  [[ "${count}" =~ ^[1-9][0-9]*$ ]] || return 0
+  label="$(cntools_number_format "${count}") ${what}"; (( count == 1 )) || label+=s
+  cntools_transaction_ui_styled_row 'Left untouched' "${label}" value
 }
 
 # Change-shaping rows appear only for features that are switched on.
@@ -301,14 +322,70 @@ cntools_transaction_ui_confirm_submit() {
 }
 
 # Quick gives an unsigned package at least a day before it expires, also when
-# the workflow changes in the review. Returns 0 when the lifetime was raised,
-# so the caller rebuilds.
+# the workflow changes in the review or is forced to unsigned. An expiry the
+# user chose is kept. Returns 0 when the lifetime was raised, so the caller
+# rebuilds; the next review says so once.
 cntools_transaction_ui_unsigned_lifetime_into() {
   local lifetime_name="$1" unsigned_workflow="$2" unsigned_lifetime="${!1:-}"
-  cntools_flow_quick && [[ "${unsigned_workflow}" == 'Create unsigned package' &&
+  cntools_flow_quick && [[ "${CNTOOLS_TRANSACTION_UI_EXPIRY_CHOSEN:-N}" != Y &&
+    "${unsigned_workflow}" == 'Create unsigned package' &&
     "${unsigned_lifetime}" =~ ^[0-9]+$ ]] && (( unsigned_lifetime != 0 && unsigned_lifetime < 86400 )) || return 1
   printf -v "${lifetime_name}" '%s' 86400
+  CNTOOLS_TRANSACTION_UI_NOTICE='Expiry set to 1 day so the package can be signed elsewhere. Use Change expiry to shorten it.'
   cntools_transaction_log CHOICE "Unsigned package expiry raised to 86400 seconds flow=quick"
+}
+
+# Explains a fixed unsigned workflow when the signing keys exist but are
+# encrypted. Usage: cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' KEY_FILE...
+# Returns 0 when one of the keys is only present encrypted.
+cntools_transaction_ui_encrypted_reason_set() {
+  local where="$1" key=''
+  shift
+  for key in "$@"; do
+    [[ -n "${key}" && -f "${key}.gpg" && ! -f "${key}" ]] || continue
+    CNTOOLS_TRANSACTION_UI_UNSIGNED_REASON="The signing keys are encrypted, so CNTools saves an unsigned package. To sign here instead, use ${where} first."
+    return 0
+  done
+  return 1
+}
+
+# Signs an action's staged package. A failure (device locked or
+# disconnected, app closed, rejected on the device, key problem) shows the
+# reason and offers Retry signing, Save unsigned package or Cancel instead of
+# ending the action. Returns 0 signed, 4 save the staged package unsigned,
+# 1 cancel, 130 Ctrl+C.
+cntools_transaction_ui_sign_staged() {
+  local what="$1" staged="$2" signed="$3" choice='' status=0
+  while true; do
+    status=0
+    cntools_transaction_clear_error
+    cntools_ui_spin_function "Signing ${what}…" cntools_transaction_sign_registered "${staged}" "${signed}" || status=$?
+    (( status == 0 )) && return 0
+    (( status != 130 )) || return 130
+    cntools_ui_render_status error "${CNTOOLS_TRANSACTION_ERROR:-Signing did not complete.} Check the device or key, then retry, or save the package to sign elsewhere."
+    status=0
+    cntools_ui_choose choice 'Signing failed' 'Retry signing' 'Save unsigned package' Cancel || status=$?
+    (( status == 0 )) || return "${status}"
+    cntools_transaction_log CHOICE "Signing failure choice=${choice}"
+    case "${choice}" in
+      'Retry signing') continue ;;
+      'Save unsigned package') return 4 ;;
+      *) return 1 ;;
+    esac
+  done
+}
+
+# Rechecks before signing and again before submitting are seconds apart when
+# local keys sign at once. Mark after each recheck; the pre-submit recheck runs
+# only when it is due (none yet, or 30 seconds have passed, e.g. a device or
+# another system signed).
+cntools_transaction_ui_recheck_mark() {
+  CNTOOLS_TRANSACTION_UI_RECHECKED_AT="${SECONDS}"
+}
+
+cntools_transaction_ui_recheck_due() {
+  [[ "${CNTOOLS_TRANSACTION_UI_RECHECKED_AT:-}" =~ ^[0-9]+$ ]] || return 0
+  (( SECONDS - CNTOOLS_TRANSACTION_UI_RECHECKED_AT >= 30 ))
 }
 
 cntools_transaction_ui_log_path() {
@@ -419,10 +496,11 @@ cntools_transaction_ui_render_package_overview() {
   fi
 }
 
-# What the decoded body does, in a few rows: outputs, certificates and
-# withdrawals. "Review transaction" opens every field.
+# What the decoded body does, in a few rows: outputs, certificates,
+# withdrawals, mint/burn, votes and proposals. "Review transaction" opens
+# every field.
 cntools_transaction_ui_effect_rows() {
-  local kind="" label="" value="" assets=""
+  local kind="" label="" value="" assets="" role=""
   [[ -n "${CNTOOLS_TRANSACTION_UI_VIEW:-}" ]] || return 0
   while IFS=$'\037' read -r kind label value assets; do
     case "${kind}" in
@@ -431,31 +509,65 @@ cntools_transaction_ui_effect_rows() {
         (( assets == 0 )) || value+=" + ${assets} asset$( (( assets == 1 )) || printf s)"
         cntools_transaction_ui_styled_row "${label}" "${value}" number ;;
       more) cntools_transaction_ui_styled_row Outputs "${value} more · see Review transaction" muted ;;
-      certificate) cntools_transaction_ui_styled_row Certificate "${value}" accent ;;
+      certificate)
+        role=accent; [[ "${value}" != 'Pool retirement'* ]] || role=warning
+        cntools_transaction_ui_styled_row Certificate "${value}" "${role}" ;;
       withdrawal) cntools_transaction_ui_styled_row Withdrawal "$(cntools_number_format_lovelace "${value}")" number ;;
-      mint) cntools_transaction_ui_styled_row 'Mint / burn' "${value} asset$( (( value == 1 )) || printf s)" accent ;;
+      mint) cntools_transaction_ui_styled_row Mint "${value} asset$( (( value == 1 )) || printf s)" accent ;;
+      burn) cntools_transaction_ui_styled_row Burn "${value} asset$( (( value == 1 )) || printf s)" warning ;;
       votes) cntools_transaction_ui_styled_row Votes "${value}" accent ;;
       proposals) cntools_transaction_ui_styled_row Proposals "${value}" accent ;;
     esac
   done < <(jq -r '
     def lovelace: if type == "object" then (.lovelace // 0) elif type == "string" then (split(" ")[0] | tonumber? // 0) else (. // 0) end;
     def asset_count: if type == "object" then [to_entries[] | select(.key | startswith("policy ")) | .value | if type == "object" then length else 1 end] | add // 0 else 0 end;
-    def count: if type == "array" then length elif type == "object" then length else 0 end;
+    def count: if type == "array" then length elif type == "object" then ([.[] | if type == "object" then length else 1 end] | add // 0) else 0 end;
+    def short: tostring | if length > 16 then .[0:8] + "…" + .[-6:] else . end;
+    def drep_word: if type == "string" then
+        (if . == "drep-alwaysAbstain" then "Always abstain" elif . == "drep-alwaysNoConfidence" then "Always no confidence"
+         else "DRep " + (sub("^drep-(keyHash|scriptHash)-"; "") | short) end)
+      elif type == "object" then "DRep " + ((.keyHash // .scriptHash // "?") | short) else "DRep" end;
+    def cert_word:
+      if type != "object" then tostring else
+      (keys[0] // "Certificate") as $k | .[$k] as $v | ($k | ascii_downcase) as $l |
+      if ($l | test("delegation")) and (($v | type) == "object") and ($v.delegatee | type) == "object" then
+        ($v.delegatee) as $d | ($d["delegatee type"] // "") as $t |
+        (if ($l | test("registration")) then "Stake registration, " else "" end) +
+        (if $t == "stake" then "Pool delegation · " + (($d["key hash"] // "?") | short)
+         elif $t == "vote" then "Vote delegation · " + ($d.DRep | drep_word)
+         elif $t == "stake vote" then "Pool and vote delegation · " + (($d["key hash"] // "?") | short) + " · " + ($d.DRep | drep_word)
+         else $k end)
+      elif ($l | test("pool retirement")) then "Pool retirement · epoch " + ($v.epoch // "?" | tostring)
+      elif ($l | test("pool registration")) then "Pool registration"
+      elif ($l | test("drep unregistration")) then "DRep retirement"
+      elif ($l | test("drep registration")) then "DRep registration"
+      elif ($l | test("drep update")) then "DRep update"
+      elif ($l | test("deregistration|unregistration")) then "Stake deregistration"
+      elif ($l | test("registration")) then "Stake registration"
+      else ($k | sub(" certificate$"; "")) end end;
+    def quantities: [(.mint // {}) | .. | numbers];
     (.outputs // []) as $outs |
     ($outs[:4][] | ["output", ("To " + ((.address // "?") | tostring | if length > 24 then .[0:14] + "…" + .[-8:] else . end)), (.amount | lovelace | tostring), (.amount | asset_count | tostring)] | join("\u001f")),
     (if ($outs | length) > 4 then ["more", "", (($outs | length) - 4 | tostring), "0"] | join("\u001f") else empty end),
-    ((.certificates // [])[] | ["certificate", "", (if type == "object" then (keys[0] // "certificate") else tostring end | gsub("_"; " ")), "0"] | join("\u001f")),
+    ((.certificates // [])[] | ["certificate", "", (cert_word | gsub("[[:cntrl:]]"; " ")), "0"] | join("\u001f")),
     ((.withdrawals // [])[]? | ["withdrawal", "", ((.amount // .value // 0) | lovelace | tostring), "0"] | join("\u001f")),
-    (.mint // null | select(. != null) | asset_count | select(. > 0) | ["mint", "", tostring, "0"] | join("\u001f")),
-    ((.["voting procedures"] // .voters // .votes // null) | select(. != null) | count | select(. > 0) | ["votes", "", tostring, "0"] | join("\u001f")),
+    (quantities | map(select(. > 0)) | length | select(. > 0) | ["mint", "", tostring, "0"] | join("\u001f")),
+    (quantities | map(select(. < 0)) | length | select(. > 0) | ["burn", "", tostring, "0"] | join("\u001f")),
+    ((.voters // .["voting procedures"] // .votes // null) | select(. != null) | count | select(. > 0) | ["votes", "", tostring, "0"] | join("\u001f")),
     ((.["proposal procedures"] // .["governance actions"] // .proposals // null) | select(. != null) | count | select(. > 0) | ["proposals", "", tostring, "0"] | join("\u001f"))
   ' <<< "${CNTOOLS_TRANSACTION_UI_VIEW}" 2>/dev/null)
 }
 
-# True when the decoded body retires a stake pool: Submit then always asks.
-cntools_transaction_ui_has_retirement() {
-  jq -e '[(.certificates // [])[] | if type == "object" then keys[] else tostring end | ascii_downcase | select(test("retire"))] | length > 0' \
-    <<< "${CNTOOLS_TRANSACTION_UI_VIEW:-{\}}" >/dev/null 2>&1
+# Effects that cannot be undone, for Submit's extra question: "pool
+# retirement", "burn", or both. Returns 1 when there are none.
+cntools_transaction_ui_irreversible_effect_into() {
+  local _cntools_irreversible=''
+  _cntools_irreversible="$(jq -r '[
+      (if [(.certificates // [])[] | if type == "object" then keys[] else tostring end | ascii_downcase | select(test("pool retirement"))] | length > 0 then "pool retirement" else empty end),
+      (if [(.mint // {}) | .. | numbers | select(. < 0)] | length > 0 then "burn" else empty end)
+    ] | join(" and ")' <<< "${CNTOOLS_TRANSACTION_UI_VIEW:-{\}}" 2>/dev/null)" || _cntools_irreversible=''
+  printf -v "$1" '%s' "${_cntools_irreversible}"
+  [[ -n "${_cntools_irreversible}" ]]
 }
 
 cntools_transaction_ui_method_label() {
@@ -1428,9 +1540,9 @@ cntools_transaction_action_submit() {
         cntools_ui_wait
         return 1
       fi
-      local confirm_mode=''
-      ! cntools_transaction_ui_has_retirement || confirm_mode=always
-      cntools_transaction_ui_confirm_submit "${backend}" "${confirm_mode}" 'pool retirement' || status=$?
+      local confirm_mode='' irreversible=''
+      ! cntools_transaction_ui_irreversible_effect_into irreversible || confirm_mode=always
+      cntools_transaction_ui_confirm_submit "${backend}" "${confirm_mode}" "${irreversible:-transaction}" || status=$?
       (( status == 0 )) || break
       cntools_transaction_ui_validity_state_into validity_state
       [[ "${validity_state}" == expired || "${validity_state}" == unknown ]] || break

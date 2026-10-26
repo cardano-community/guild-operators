@@ -2,6 +2,8 @@
 # Shared, read-only paginated wallet explorers. API content is untrusted text.
 # shellcheck disable=SC2034
 CNTOOLS_HISTORY_METADATA="ask"
+# Y once Show details asked about asset metadata in this action.
+CNTOOLS_HISTORY_DETAIL_ASKED="N"
 
 cntools_history_number_pair() {
   local formatted=""
@@ -16,7 +18,7 @@ cntools_history_date_pair() {
 }
 
 cntools_history_metadata_offer() {
-  local file="$1" identities="" choice=""
+  local file="$1" identities="" choice="" status=0
   local -a assets=()
   [[ "${CNTOOLS_HISTORY_METADATA}" != N ]] || return 0
   cntools_history_available || { CNTOOLS_HISTORY_METADATA=N; return 0; }
@@ -27,8 +29,12 @@ cntools_history_metadata_offer() {
     if cntools_flow_quick; then
       choice="Use asset names and decimal amounts"
     else
+      status=0
       cntools_ui_choose choice "Asset metadata (Koios API / one-day cache)" \
-        "Use asset names and decimal amounts" "Keep raw asset identifiers and quantities" || choice="Keep raw asset identifiers and quantities"
+        "Use asset names and decimal amounts" "Keep raw asset identifiers and quantities" || status=$?
+      # Ctrl+C cancels; Esc keeps the raw identifiers.
+      (( status != 130 )) || return 130
+      (( status == 0 )) || choice="Keep raw asset identifiers and quantities"
     fi
     if [[ "${choice}" == "Use asset names and decimal amounts" ]]; then
       CNTOOLS_HISTORY_METADATA=Y
@@ -127,30 +133,42 @@ cntools_history_summary_rows() {
 }
 
 
+# Returns 0 back to the page, 130 on Ctrl+C, other statuses on errors.
 cntools_history_detail_view() {
-  local selection="" display="" prompt="Item number"
-  local CNTOOLS_HISTORY_METADATA="${CNTOOLS_HISTORY_METADATA}"
+  local selection="" display="" prompt="Item number" status=0
   local CNTOOLS_TABLE_MARGIN=4 # Space for Gum pager borders/padding.
   [[ "${CNTOOLS_HISTORY_KIND}" != transactions ]] || prompt="Transaction number or transaction ID"
-  cntools_ui_input selection "${prompt}" "Number from the full list" || return 0
+  cntools_ui_input selection "${prompt}" "Number from the full list" || status=$?
+  (( status != 130 )) || return 130
+  (( status == 0 )) || return 0
   if ! cntools_ui_spin_function "Loading item details…" cntools_history_detail_load "${selection}"; then
     cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR}"
     cntools_ui_wait
     return 0
   fi
-  # A user who kept page summaries raw can still enrich a particular detail view.
   cntools_wallet_log CHOICE "wallet history detail=${selection//[[:space:]]/}"
-  [[ "${CNTOOLS_HISTORY_METADATA}" != N ]] || CNTOOLS_HISTORY_METADATA=ask
-  cntools_history_metadata_offer "${CNTOOLS_HISTORY_DETAIL}" || return 1
+  # A user who kept page summaries raw is asked once more, for details only;
+  # the answer is kept for the rest of this action.
+  if [[ "${CNTOOLS_HISTORY_METADATA}" == N && "${CNTOOLS_HISTORY_DETAIL_ASKED}" != Y ]]; then
+    CNTOOLS_HISTORY_METADATA=ask
+  fi
+  [[ "${CNTOOLS_HISTORY_METADATA}" != ask ]] || CNTOOLS_HISTORY_DETAIL_ASKED=Y
+  status=0
+  cntools_history_metadata_offer "${CNTOOLS_HISTORY_DETAIL}" || status=$?
+  (( status == 0 )) || return "${status}"
   cntools_wallet_query_temp_file display || return 1
   cntools_detail_transaction_render "${CNTOOLS_HISTORY_DETAIL}" 'Overview · Koios API' > "${display}" || return 1
   cntools_ui_page_file "${display}"
 }
 
+# Returns 1 on Esc (keep the size) and 130 on Ctrl+C.
 cntools_history_prompt_page_size() {
-  local size=""
+  local size="" status=0
   while :; do
-    cntools_ui_input size "Items per page (1–10; Enter keeps ${CNTOOLS_HISTORY_SIZE})" "${CNTOOLS_HISTORY_SIZE}" || return 1
+    status=0
+    cntools_ui_input size "Items per page (1–10; Enter keeps ${CNTOOLS_HISTORY_SIZE})" "${CNTOOLS_HISTORY_SIZE}" || status=$?
+    (( status != 130 )) || return 130
+    (( status == 0 )) || return 1
     [[ -n "${size//[[:space:]]/}" ]] || size="${CNTOOLS_HISTORY_SIZE}"
     cntools_history_page_size "${size}" && return 0
     cntools_ui_render_status warn "Choose a whole number from 1 to 10."
@@ -171,6 +189,7 @@ cntools_history_action() {
   fi
   cntools_wallet_query_reset
   CNTOOLS_HISTORY_METADATA=ask
+  CNTOOLS_HISTORY_DETAIL_ASKED=N
   if ! cntools_wallet_catalog_build; then
     cntools_ui_render_status error "The wallet directory could not be read safely. See ${CNTOOLS_LOG}."
     cntools_ui_wait
@@ -212,11 +231,8 @@ cntools_history_action() {
   fi
   payment_credential="${credential}"
   [[ "${lookup}" != stake ]] || credential="${stake}"
-  if cntools_flow_quick; then
-    cntools_history_page_size 5 || return 1
-  else
-    cntools_history_prompt_page_size || return 0
-  fi
+  # Five items per page in both styles; the page menu offers 'Page size'.
+  cntools_history_page_size 5 || return 1
   cntools_wallet_log CHOICE "wallet history kind=${kind} wallet=${CNTOOLS_HISTORY_WALLET} lookup=${lookup} page_size=${CNTOOLS_HISTORY_SIZE}"
   if ! cntools_history_available || ! cntools_ui_spin_function "Fetching wallet inventory from Koios…" cntools_history_load "${kind}" "${credential}" "${lookup}"; then
     if [[ "${kind}" != utxos ]] || ! cntools_history_local_available; then
@@ -232,7 +248,10 @@ cntools_history_action() {
     if ! cntools_ui_spin_function "Loading wallet inventory page…" cntools_history_page_load "${target}"; then
       cntools_ui_render_status error "${CNTOOLS_HISTORY_ERROR}"
       # Back returns to the last page shown, if any, rather than ending.
-      cntools_ui_choose choice "Page unavailable" Retry Back || choice=Back
+      status=0
+      cntools_ui_choose choice "Page unavailable" Retry Back || status=$?
+      (( status != 130 )) || return 130
+      (( status == 0 )) || choice=Back
       [[ "${choice}" == Retry ]] && continue
       [[ "${shown}" =~ ^[0-9]+$ && "${shown}" != "${target}" ]] || return 0
       target="${shown}"
@@ -240,7 +259,10 @@ cntools_history_action() {
     fi
     shown="${target}"
     if [[ "${kind}" == utxos ]]; then
-      cntools_history_metadata_offer "${CNTOOLS_HISTORY_PAGE_FILE}" || return 2
+      status=0
+      cntools_history_metadata_offer "${CNTOOLS_HISTORY_PAGE_FILE}" || status=$?
+      (( status != 130 )) || return 130
+      (( status == 0 )) || return 2
     fi
     cntools_ui_action_begin "${title}" "/ Wallet / ${title}"
     cntools_history_overview_rows | cntools_table_render "${title}" || return 2
@@ -270,15 +292,28 @@ cntools_history_action() {
       choices+=("Change lookup")
     fi
     choices+=("Back")
-    cntools_ui_choose choice "${title}" "${choices[@]}" || return 0
+    status=0
+    cntools_ui_choose choice "${title}" "${choices[@]}" || status=$?
+    (( status != 130 )) || return 130
+    (( status == 0 )) || return 0
     cntools_wallet_log CHOICE "wallet history page=$((CNTOOLS_HISTORY_PAGE + 1)) choice=${choice}"
     case "${choice}" in
       "Next page") target=$((CNTOOLS_HISTORY_PAGE + 1)) ;;
       "Previous page") target=$((CNTOOLS_HISTORY_PAGE - 1)) ;;
-      "Show details") cntools_history_detail_view || return 2 ;;
+      "Show details")
+        status=0
+        cntools_history_detail_view || status=$?
+        (( status != 130 )) || return 130
+        (( status == 0 )) || return 2
+        # Redraw the page that was shown.
+        target="${CNTOOLS_HISTORY_PAGE}" ;;
       "Page size")
-        # Esc keeps the current size and page; a new size starts at page 1.
-        cntools_history_prompt_page_size || { target="${CNTOOLS_HISTORY_PAGE}"; continue; }
+        # Esc keeps the current size and page; a new size starts at page 1;
+        # Ctrl+C cancels.
+        status=0
+        cntools_history_prompt_page_size || status=$?
+        (( status != 130 )) || return 130
+        (( status == 0 )) || { target="${CNTOOLS_HISTORY_PAGE}"; continue; }
         shown="" target="${CNTOOLS_HISTORY_PAGE}" ;;
       "Change lookup")
         if [[ "${lookup}" == stake ]]; then lookup=payment; credential="${payment_credential}"

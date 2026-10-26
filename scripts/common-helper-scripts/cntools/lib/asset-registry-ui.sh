@@ -3,12 +3,17 @@
 # shellcheck disable=SC2034,SC2015
 
 # With a current value, Enter keeps it (the previous entry's field on Update).
+# Optional fields (clearable=Y) take "-" to clear a value set in this review.
 cntools_registry_prompt_into() {
-  local output="$1" field="$2" hint="$3" current="${4:-}" entered='' placeholder="$3"
-  [[ -z "${current}" ]] || placeholder="Enter keeps: ${current:0:60}$( (( ${#current} > 60 )) && printf '…')"
+  local output="$1" field="$2" hint="$3" current="${4:-}" clearable="${5:-N}" entered='' placeholder="$3"
+  if [[ -n "${current}" ]]; then
+    placeholder="Enter keeps: ${current:0:60}$( (( ${#current} > 60 )) && printf '…')"
+    [[ "${clearable}" != Y ]] || placeholder+=' · - clears'
+  fi
   while true; do
     cntools_ui_input entered "${field}" "${placeholder}" || return $?
-    [[ -n "${entered}" || -z "${current}" ]] || entered="${current}"
+    if [[ "${clearable}" == Y && "${entered}" == - ]]; then entered=''
+    elif [[ -z "${entered}" && -n "${current}" ]]; then entered="${current}"; fi
     if cntools_registry_field_valid "${field}" "${entered}"; then printf -v "${output}" '%s' "${entered}"; return 0; fi
     cntools_ui_render_status warn "Invalid ${field}. ${hint}"
   done
@@ -28,7 +33,7 @@ cntools_registry_previous_fields_into() {
 
 cntools_registry_workflow() {
   local selected='' identity='' name='' description='' ticker='' url='' decimals='' logo='' previous='' kind='' status=0 repo='' feedback='' label=''
-  local old_name='' old_description='' old_ticker='' old_url='' old_decimals=''
+  local old_name='' old_description='' old_ticker='' old_url='' old_decimals='' keep='' logo_keep='' clearable=Y choice='' field='' chosen_logo=''
   cntools_policy_manage_begin 'Register Asset'
   cntools_ui_render_status info 'Prepare a signed Token Registry submission file. This does not mint tokens, attach transaction metadata or publish to a registry.'
   cntools_registry_require_tool || return 2
@@ -49,30 +54,60 @@ cntools_registry_workflow() {
       feedback='That file is not a registry entry for this asset. Choose its current entry JSON.'
     done
     cntools_transaction_log CHOICE "Registry update defaults loaded from previous entry asset=${identity}"
+    # Update leaves a blank optional field as published, so it cannot clear one.
+    keep='; blank keeps the published value'; logo_keep='; skipping keeps the published logo'; clearable=N
   fi
   cntools_registry_prompt_into name Name 'Required · 1–50 characters' "${old_name}" &&
     cntools_registry_prompt_into description Description 'Required · 1–500 characters' "${old_description}" &&
-    cntools_registry_prompt_into ticker Ticker 'Optional · 2–9 characters; blank preserves an existing field' "${old_ticker}" &&
-    cntools_registry_prompt_into url URL 'Optional · https:// URL, at most 250 characters' "${old_url}" &&
-    cntools_registry_prompt_into decimals Decimals 'Optional · 0–255 (0 is supported)' "${old_decimals}" || return $?
-  cntools_ui_pick_path logo 'Logo PNG file' 'Optional · at most 64 KiB; skipping preserves an existing logo.' '' file 'Skip logo' || return $?
-  # The path picker redraws; the review starts on a clean screen.
-  cntools_policy_manage_begin 'Register Asset'
+    cntools_registry_prompt_into ticker Ticker "Optional · 2–9 characters${keep}" "${old_ticker}" &&
+    cntools_registry_prompt_into url URL "Optional · https:// URL, at most 250 characters${keep}" "${old_url}" &&
+    cntools_registry_prompt_into decimals Decimals "Optional · 0–255 (0 is supported)${keep}" "${old_decimals}" || return $?
+  cntools_ui_pick_path logo 'Logo PNG file' "Optional · a PNG of at most 64 KiB${logo_keep}." '' file 'Skip logo' || return $?
   cntools_asset_label_into label "${identity}" 1 || label="${identity#*.}"
-  {
-    cntools_table_pair Policy "${CNTOOLS_POLICY_NAMES[selected]}" identifier
-    cntools_table_pair Asset "${label}" accent
-    cntools_table_pair Subject "${identity/./}" identifier
-    cntools_table_pair Name "${name}" value
-    cntools_table_pair Description "${description}" value
-    [[ -z "${ticker}" ]] || cntools_table_pair Ticker "${ticker}" value
-    [[ -z "${url}" ]] || cntools_table_pair URL "${url}" identifier
-    [[ -z "${decimals}" ]] || cntools_table_pair Decimals "${decimals}" number
-    [[ -z "${logo}" ]] || cntools_table_pair Logo "${logo}" identifier
-    cntools_table_pair Entry "${kind}" value
-  } | cntools_table_render 'Token Registry entry' || return 2
-  cntools_ui_render_status warn 'For an already registered asset, use Update with its current registry entry. Blank optional fields are preserved; this flow does not delete published fields.'
-  cntools_ui_flow_confirm 'Sign and save this registry submission?' false || return $?
+  # A typo is fixed here, field by field; nothing is signed before 'Sign and save'.
+  while true; do
+    cntools_policy_manage_begin 'Register Asset'
+    {
+      cntools_table_pair Policy "${CNTOOLS_POLICY_NAMES[selected]}" identifier
+      cntools_table_pair Asset "${label}" accent
+      cntools_table_pair Subject "${identity/./}" identifier
+      cntools_table_pair Name "${name}" value
+      cntools_table_pair Description "${description}" value
+      [[ -z "${ticker}" ]] || cntools_table_pair Ticker "${ticker}" value
+      [[ -z "${url}" ]] || cntools_table_pair URL "${url}" identifier
+      [[ -z "${decimals}" ]] || cntools_table_pair Decimals "${decimals}" number
+      [[ -z "${logo}" ]] || cntools_table_pair Logo "${logo}" identifier
+      cntools_table_pair Entry "${kind}" value
+    } | cntools_table_render 'Token Registry entry' || return 2
+    if [[ "${kind}" == New ]]; then
+      cntools_ui_render_status info 'A new entry is for an asset that is not registered yet. For a registered asset, use Update with its current entry.'
+    else
+      cntools_ui_render_status warn 'Blank optional fields keep their published values; this flow does not delete published fields.'
+    fi
+    cntools_ui_choose choice 'Review registry entry' 'Sign and save registry file' 'Change a field' Cancel || return $?
+    case "${choice}" in
+      'Sign and save registry file') break ;;
+      'Change a field') ;;
+      *) return 1 ;;
+    esac
+    status=0
+    cntools_ui_choose field 'Field' Name Description Ticker URL Decimals Logo Cancel || status=$?
+    ((status != 1)) || continue
+    ((status == 0)) || return "${status}"
+    # Esc keeps the current value; Ctrl+C cancels.
+    case "${field}" in
+      Name) cntools_registry_prompt_into name Name 'Required · 1–50 characters' "${name}" || status=$? ;;
+      Description) cntools_registry_prompt_into description Description 'Required · 1–500 characters' "${description}" || status=$? ;;
+      Ticker) cntools_registry_prompt_into ticker Ticker "Optional · 2–9 characters${keep}" "${ticker}" "${clearable}" || status=$? ;;
+      URL) cntools_registry_prompt_into url URL "Optional · https:// URL, at most 250 characters${keep}" "${url}" "${clearable}" || status=$? ;;
+      Decimals) cntools_registry_prompt_into decimals Decimals "Optional · 0–255 (0 is supported)${keep}" "${decimals}" "${clearable}" || status=$? ;;
+      Logo)
+        cntools_ui_pick_path chosen_logo 'Logo PNG file' "Optional · a PNG of at most 64 KiB${logo_keep}." '' file 'Skip logo' || status=$?
+        ((status != 0)) || logo="${chosen_logo}" ;;
+      *) continue ;;
+    esac
+    ((status == 0 || status == 1)) || return "${status}"
+  done
   cntools_transaction_log CHOICE "Registry export confirmed asset=${identity} kind=${kind}"
   cntools_ui_spin_function 'Signing and validating registry metadata…' cntools_registry_export "${identity}" "${name}" "${description}" "${ticker}" "${url}" "${decimals}" "${logo}" "${previous}" || return 2
   [[ "${CNTOOLS_NETWORK}" == mainnet ]] && repo=https://github.com/cardano-foundation/cardano-token-registry || repo=https://github.com/input-output-hk/metadata-registry-testnet

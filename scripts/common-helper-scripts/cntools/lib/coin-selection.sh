@@ -34,6 +34,15 @@ cntools_coin_fail() {
   return 1
 }
 
+cntools_coin_fail_input_limit() {
+  cntools_coin_fail "This needs more than 100 UTxOs, the safe input limit. Combine small UTxOs first with Funds → Collect UTxOs."
+}
+
+# Every usable UTxO is selected and still short: say how much is needed.
+cntools_coin_fail_short() {
+  cntools_coin_fail "Not enough spendable ADA: this needs at least $(cntools_number_format_lovelace "$1"), and the wallet's usable UTxOs hold $(cntools_number_format_lovelace "${CNTOOLS_COIN_SELECTED_LOVELACE}")."
+}
+
 cntools_coin_initial_fee_into() {
   local _cntools_output_name="${1:-}"
   local protocol_file="${2:-}"
@@ -252,12 +261,38 @@ cntools_coin_best_sufficient_balanced_into() {
   _cntools_output_ref="${best}"
 }
 
+# 0 for a plain UTxO, 1 when it carries a datum or reference script: those are
+# spent only when nothing else covers the amount (every strategy).
+cntools_coin_complex_into() {
+  local -n _cntools_complex_ref="$1"
+  _cntools_complex_ref=0
+  [[ "${CNTOOLS_UTXO_HAS_DATUM[$2]}" == "N" &&
+     "${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[$2]}" == "N" ]] || _cntools_complex_ref=1
+}
+
+# ALLOW_COMPLEX=N skips datum and reference-script UTxOs: the caller passes it
+# when plain UTxOs together cover the amount.
+# Lovelace in UTxOs without a datum or reference script.
+cntools_coin_plain_total_into() {
+  local -n _cntools_plain_ref="$1"
+  local plain_index=0 plain_complex=0
+  _cntools_plain_ref=0
+  for plain_index in "${!CNTOOLS_UTXO_REFS[@]}"; do
+    cntools_coin_complex_into plain_complex "${plain_index}"
+    (( plain_complex == 0 )) || continue
+    cntools_uint_add_into _cntools_plain_ref "${_cntools_plain_ref}" "${CNTOOLS_UTXO_LOVELACE[plain_index]}" || return 1
+  done
+}
+
 cntools_coin_best_sufficient_fewest_into() {
   local _cntools_output_name="${1:-}"
   local required="${2:-}"
+  local allow_complex="${3:-Y}"
   local index=0
   local best=""
   local best_assets=0
+  local best_complex=0
+  local complex=0
   local comparison=0
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
@@ -266,11 +301,15 @@ cntools_coin_best_sufficient_fewest_into() {
   for index in "${!CNTOOLS_UTXO_REFS[@]}"; do
     cntools_uint_greater_equal "${CNTOOLS_UTXO_LOVELACE[index]}" \
       "${required}" || continue
-    if [[ -z "${best}" ]]; then
+    cntools_coin_complex_into complex "${index}"
+    [[ "${allow_complex}" == Y ]] || (( complex == 0 )) || continue
+    if [[ -z "${best}" ]] || (( complex < best_complex )); then
       best="${index}"
       best_assets="${CNTOOLS_UTXO_ASSET_COUNTS[index]}"
+      best_complex="${complex}"
       continue
     fi
+    (( complex == best_complex )) || continue
     if (( CNTOOLS_UTXO_ASSET_COUNTS[index] < best_assets )); then
       best="${index}"
       best_assets="${CNTOOLS_UTXO_ASSET_COUNTS[index]}"
@@ -297,6 +336,8 @@ cntools_coin_next_largest_into() {
   local class=0
   local best=""
   local best_class=99
+  local complex=0
+  local best_complex=0
   local comparison=0
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
@@ -313,10 +354,16 @@ cntools_coin_next_largest_into() {
         continue
       fi
       (( class == best_class )) || continue
-    elif [[ -z "${best}" ]]; then
-      best="${index}"
-      best_class="${class}"
-      continue
+    else
+      # Fewest inputs takes the largest, but datum and reference-script UTxOs last.
+      cntools_coin_complex_into complex "${index}"
+      if [[ -z "${best}" ]] || (( complex < best_complex )); then
+        best="${index}"
+        best_class="${class}"
+        best_complex="${complex}"
+        continue
+      fi
+      (( complex == best_complex )) || continue
     fi
     cntools_uint_compare_into comparison \
       "${CNTOOLS_UTXO_LOVELACE[index]}" \
@@ -338,6 +385,8 @@ cntools_coin_select_lovelace() {
   local remaining=""
   local candidate=""
   local maximum_class=4
+  local plain_total=0
+  local allow_complex=Y
 
   cntools_coin_reset
   cntools_uint_normalize_into required "${required}" || return 2
@@ -353,7 +402,11 @@ cntools_coin_select_lovelace() {
       candidate "${required}" "${maximum_class}" ||
       return 1
   else
-    cntools_coin_best_sufficient_fewest_into candidate "${required}" ||
+    # Datum and reference-script UTxOs only when plain ones cannot cover it.
+    cntools_coin_plain_total_into plain_total || return 1
+    allow_complex=Y
+    ! cntools_uint_greater_equal "${plain_total}" "${required}" || allow_complex=N
+    cntools_coin_best_sufficient_fewest_into candidate "${required}" "${allow_complex}" ||
       return 1
   fi
   if [[ -n "${candidate}" ]]; then
@@ -361,14 +414,14 @@ cntools_coin_select_lovelace() {
   else
     while ! cntools_uint_greater_equal \
         "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${required}"; do
-      (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} < 100 )) ||
-        cntools_coin_fail "Coin selection exceeded the safe input limit." ||
-        return 1
+      (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} < 100 )) || {
+        cntools_coin_fail_input_limit; return 1;
+      }
       cntools_coin_next_largest_into \
         candidate "${strategy}" "${maximum_class}" || return 1
-      [[ -n "${candidate}" ]] ||
-        cntools_coin_fail "The wallet does not contain enough spendable ADA." ||
-        return 1
+      [[ -n "${candidate}" ]] || {
+        cntools_coin_fail_short "${required}"; return 1;
+      }
       cntools_coin_add_index "${candidate}" || return 1
     done
   fi
@@ -417,15 +470,15 @@ cntools_coin_select_value() {
           candidate="${index}"; best_class="${class}"
         fi
       done
-      [[ -n "${candidate}" ]] || { cntools_coin_fail "Insufficient quantity of ${asset}."; return 1; }
-      (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} < 100 )) || return 1
+      [[ -n "${candidate}" ]] || { cntools_coin_fail "The wallet does not hold enough of ${asset}."; return 1; }
+      (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} < 100 )) || { cntools_coin_fail_input_limit; return 1; }
       cntools_coin_add_index "${candidate}" || return 1
     done
   done <<< "${sorted}"
   while ! cntools_uint_greater_equal "${CNTOOLS_COIN_SELECTED_LOVELACE}" "${required}"; do
     cntools_coin_next_largest_into candidate "${strategy}" 4 || return 1
-    [[ -n "${candidate}" ]] || { cntools_coin_fail "Insufficient ADA for outputs, fees and change."; return 1; }
-    (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} < 100 )) || return 1
+    [[ -n "${candidate}" ]] || { cntools_coin_fail_short "${required}"; return 1; }
+    (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} < 100 )) || { cntools_coin_fail_input_limit; return 1; }
     cntools_coin_add_index "${candidate}" || return 1
   done
   CNTOOLS_COIN_SELECTION_REASON="Selected ${#CNTOOLS_COIN_SELECTED_INDICES[@]} of ${#CNTOOLS_UTXO_REFS[@]} UTxOs to cover ADA and requested native assets."

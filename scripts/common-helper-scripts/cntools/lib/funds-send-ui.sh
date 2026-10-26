@@ -9,15 +9,24 @@ declare -ag CNTOOLS_SEND_SNAPSHOT_ADDRESSES=() CNTOOLS_SEND_SNAPSHOT_LABELS=() C
 declare -ag CNTOOLS_SEND_SNAPSHOT_HANDLES=() CNTOOLS_SEND_SNAPSHOT_RESOLUTIONS=() CNTOOLS_SEND_SNAPSHOT_STATE=()
 declare -Ag CNTOOLS_SEND_SNAPSHOT_ASSETS=()
 
+# 0 when Send offers a choice of change address for this wallet.
+cntools_send_change_choice_offered() {
+  [[ "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" == Y && "${CNTOOLS_SEND_ADDRESS}" != "${CNTOOLS_SEND_PAYMENT}" ]]
+}
+
+# REVIEW=Y is the review's 'Change change address': it marks the current
+# address, and Esc or Cancel keeps it.
 cntools_send_choose_change() {
-  local choice=''
-  CNTOOLS_SEND_CHANGE_ADDRESS="${CNTOOLS_SEND_ADDRESS}"
-  [[ "${CNTOOLS_SEND_CHOOSE_CHANGE:-N}" == Y && "${CNTOOLS_SEND_ADDRESS}" != "${CNTOOLS_SEND_PAYMENT}" ]] || return 0
+  local choice='' review="${1:-N}" primary='Primary / base address (default)' payment='Payment-only address'
+  [[ "${review}" == Y ]] || CNTOOLS_SEND_CHANGE_ADDRESS="${CNTOOLS_SEND_ADDRESS}"
+  cntools_send_change_choice_offered || return 0
+  if [[ "${review}" == Y && "${CNTOOLS_SEND_CHANGE_ADDRESS}" == "${CNTOOLS_SEND_PAYMENT}" ]]; then payment+=' · current'
+  elif [[ "${review}" == Y ]]; then primary+=' · current'; fi
   cntools_ui_render_status info 'Inputs are selected automatically from both addresses. This choice affects only returned change. Payment-only change does not participate in staking.'
-  cntools_ui_choose choice 'Return change to' 'Primary / base address (default)' 'Payment-only address' Cancel || return $?
+  cntools_ui_choose choice 'Return change to' "${primary}" "${payment}" Cancel || return $?
   case "${choice}" in
-    'Primary / base address (default)') ;;
-    'Payment-only address') CNTOOLS_SEND_CHANGE_ADDRESS="${CNTOOLS_SEND_PAYMENT}" ;;
+    "${primary}") CNTOOLS_SEND_CHANGE_ADDRESS="${CNTOOLS_SEND_ADDRESS}" ;;
+    "${payment}") CNTOOLS_SEND_CHANGE_ADDRESS="${CNTOOLS_SEND_PAYMENT}" ;;
     Cancel) return 1 ;;
     *) return 2 ;;
   esac
@@ -53,7 +62,7 @@ cntools_send_review_virtual() {
   cntools_timestamp_datetime_into expires_label "$((expires/1000))" || return 1
   {
     printf 'Handle detail\tValue\n'
-    cntools_transaction_ui_styled_row 'Virtual lease' "$([[ "${public}" == true ]] && printf Public || printf Private) · ${lease}" value
+    cntools_transaction_ui_styled_row 'Virtual lease' "$([[ "${public}" == true ]] && printf Public || printf Private) · $([[ "${lease}" == expired ]] && printf expired || printf active)" value
     cntools_transaction_ui_styled_row 'Lease expiry' "${expires_label}" number
   } | cntools_ui_table --separator $'\t' || return 1
   if [[ "${public}" != true ]]; then
@@ -68,12 +77,20 @@ cntools_send_review_virtual() {
 
 cntools_send_prompt_recipient() {
   local index="${1:-}" operation="${2:-Add}" choice="" address="" label="" note="" selected="" allow_script=N
-  local directory="" entered="" handle_name="" resolution="" status=0
-  local -a edit_options=()
+  local directory="" entered="" handle_name="" resolution="" status=0 other=0 handles=N
+  # shellcheck disable=SC2016 # literal Handle syntax in the placeholder
+  local placeholder='addr…, $handle, or Enter to pick a CNTools wallet'
+  local -a edit_options=() types=("CNTools wallet" "External address")
   CNTOOLS_SEND_RECIPIENT_ESC=N
+  # Handles are offered only where they can resolve (Koios on a Handle network).
+  if declare -F cntools_handle_available >/dev/null && cntools_handle_available; then
+    handles=Y; types+=("ADA Handle")
+  else
+    placeholder='addr… or Enter to pick a CNTools wallet'
+  fi
   if [[ "${operation}" == Edit ]]; then
     # Edits usually change amounts: keeping the recipient is one Enter.
-    edit_options=('Keep current recipient' "CNTools wallet" "External address" "ADA Handle")
+    edit_options=('Keep current recipient' "${types[@]}")
     if cntools_flow_quick; then edit_options=('Keep current recipient' 'Change recipient'); fi
     cntools_send_choose choice "Recipient" "${edit_options[@]}" || return $?
     if [[ "${choice}" == 'Keep current recipient' ]]; then
@@ -84,8 +101,7 @@ cntools_send_prompt_recipient() {
   fi
   if [[ -z "${choice}" ]] && cntools_flow_quick; then
     # One field: the prefix tells an address from a Handle; empty picks a wallet.
-    # shellcheck disable=SC2016 # literal Handle syntax in the placeholder
-    cntools_ui_input entered 'Recipient' 'addr…, $handle, or Enter to pick a CNTools wallet' || {
+    cntools_ui_input entered 'Recipient' "${placeholder}" || {
       status=$?; CNTOOLS_SEND_RECIPIENT_ESC=Y; return "${status}";
     }
     cntools_recipient_trim_into entered "${entered}" || return 2
@@ -94,9 +110,13 @@ cntools_send_prompt_recipient() {
       '$'*) choice="ADA Handle" ;;
       *) choice="External address" ;;
     esac
+    if [[ "${choice}" == "ADA Handle" && "${handles}" != Y ]]; then
+      cntools_ui_render_status warn 'ADA Handles resolve only through Koios on mainnet, preprod or preview. Enter an address instead.'
+      return 2
+    fi
     cntools_transaction_log CHOICE "Send Recipient type detected=${choice}"
   elif [[ -z "${choice}" ]]; then
-    cntools_send_choose choice "Recipient type" "CNTools wallet" "External address" "ADA Handle" || {
+    cntools_send_choose choice "Recipient type" "${types[@]}" || {
       status=$?; CNTOOLS_SEND_RECIPIENT_ESC=Y; return "${status}";
     }
   fi
@@ -130,7 +150,12 @@ cntools_send_prompt_recipient() {
       return 2
     fi
     handle_name="$(jq -r '.handle' <<< "${resolution}")"
-    label="${handle_name} · $(jq -r '.type' <<< "${resolution}") · Koios"
+    case "$(jq -r '.type' <<< "${resolution}")" in
+      virtual-subhandle) label="${handle_name} · virtual subhandle" ;;
+      nft-subhandle) label="${handle_name} · subhandle" ;;
+      *) label="${handle_name} · ADA Handle" ;;
+    esac
+    label+=' · resolved through Koios'
   else
     [[ -n "${entered}" ]] || cntools_ui_input entered "Receiving address" "addr…" || return $?
     cntools_recipient_trim_into address "${entered}" || return 2
@@ -143,6 +168,12 @@ cntools_send_prompt_recipient() {
   if [[ "${address}" == "${CNTOOLS_SEND_ADDRESS}" || "${address}" == "${CNTOOLS_SEND_PAYMENT}" ]]; then
     cntools_send_confirm "This is the source wallet. Send back to this wallet?" || return $?
   fi
+  # A second output to the same address is rarely meant: ask, defaulting to No.
+  for other in "${!CNTOOLS_SEND_ADDRESSES[@]}"; do
+    [[ "${other}" != "${index}" && "${CNTOOLS_SEND_ADDRESSES[other]}" == "${address}" ]] || continue
+    cntools_send_confirm "Recipient $((other+1)) already receives at this address. Add another output to it?" || return $?
+    break
+  done
   cntools_send_render_recipient "${label}" "${address}" || return 2
   [[ -z "${resolution}" ]] || cntools_send_review_virtual "${resolution}" || return $?
   if [[ "${choice}" == 'External address' && "${CNTOOLS_NETWORK}" != mainnet ]]; then
@@ -211,7 +242,19 @@ cntools_send_prompt_amounts() {
         fi
       fi
       if cntools_number_units_into units "${entered}" 6 &&
-         cntools_uint_greater_equal "${CNTOOLS_FUNDING_TOTAL}" "${units}"; then break; fi
+         cntools_uint_greater_equal "${CNTOOLS_FUNDING_TOTAL}" "${units}"; then
+        cntools_send_amount_leaves_fee "${units}" && break
+        # The whole balance (or all but a few lovelace) leaves nothing for the fee.
+        cntools_transaction_log CHOICE "Send amount leaves no room for the fee"
+        if [[ "${choose_mode}" == Y ]] && cntools_flow_quick; then
+          cntools_ui_render_status warn 'That leaves nothing for the fee. Enter less, or max to send all ADA after the fee.'
+        elif [[ "${choose_mode}" == Y ]]; then
+          cntools_ui_render_status warn 'That leaves nothing for the fee. Enter less; Max ADA (amount mode) sends all ADA after the fee.'
+        else
+          cntools_ui_render_status warn 'That leaves nothing for the fee. Enter less.'
+        fi
+        continue
+      fi
       cntools_transaction_log CHOICE "Send invalid ADA amount rejected"
       if [[ "${choose_mode}" == Y ]] && cntools_flow_quick && (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} > 0 )); then
         cntools_ui_render_status warn "Enter an available ADA amount with at most six decimal places, max or all."
@@ -272,6 +315,16 @@ cntools_send_prompt_amounts() {
   done
 }
 
+# 0 when AMOUNT leaves room in the balance for at least the protocol's fixed fee.
+cntools_send_amount_leaves_fee() {
+  local alf_reserve=1 alf_room=''
+  if [[ -n "${CNTOOLS_FUNDING_PROTOCOL:-}" && -f "${CNTOOLS_FUNDING_PROTOCOL}" ]] && declare -F cntools_coin_initial_fee_into >/dev/null; then
+    cntools_coin_initial_fee_into alf_reserve "${CNTOOLS_FUNDING_PROTOCOL}" 2>/dev/null || alf_reserve=1
+  fi
+  cntools_uint_add_into alf_room "$1" "${alf_reserve}" || return 1
+  cntools_uint_greater_equal "${CNTOOLS_FUNDING_TOTAL}" "${alf_room}"
+}
+
 # One row per asset: friendly label and quantity, with the ID muted below.
 cntools_send_render_asset_rows() {
   local index="$1" asset="" quantity="" asset_label="" n=0
@@ -305,6 +358,12 @@ cntools_send_amount_label_into() {
   elif [[ "${paid}" != "${entered}" ]]; then
     send_amount_ref+=" · raised to the minimum (entered $(cntools_number_format_lovelace "${entered}"))"
   fi
+  # Assets too large for one output travel in more outputs to the same address.
+  local parts="${CNTOOLS_SEND_PARTS[$2]:-1}"
+  (( parts > 1 )) || return 0
+  send_amount_ref+=" · plus $(cntools_number_format_lovelace "${CNTOOLS_SEND_EXTRA_LOVELACE[$2]:-0}") in $((parts - 1)) more output"
+  (( parts == 2 )) || send_amount_ref+=s
+  send_amount_ref+=' for its assets (value-size limit)'
 }
 
 cntools_send_render_recipients() {
@@ -323,7 +382,7 @@ cntools_send_render_recipients() {
       cntools_transaction_ui_styled_row "ADA" "${amount}" number
       if [[ "${CNTOOLS_SEND_MODE}" == sweep && -z "${CNTOOLS_SEND_PAID[index]:-}" ]]; then
         (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} == 0 )) ||
-          cntools_transaction_ui_styled_row 'Native assets' "All · $(cntools_number_format "${#CNTOOLS_FUNDING_ASSET_IDS[@]}") assets" number
+          cntools_transaction_ui_styled_row 'Native assets' "All · $(cntools_number_format "${#CNTOOLS_FUNDING_ASSET_IDS[@]}") asset$( (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} == 1 )) || printf s)" number
       else
         cntools_send_render_asset_rows "${index}" || return 1
       fi
@@ -376,10 +435,12 @@ cntools_send_review_restore() {
 
 # initial=Y: the first recipients screen of a transfer. back=Y: a reviewed
 # build exists; 'Back to review' or Esc restores it and returns 4.
+# SNAPSHOT=N keeps the snapshot already taken, e.g. after edits from a review
+# failed to build, so 'Back to review' still returns to the reviewed transfer.
 cntools_send_edit_recipients() {
-  local command="Review" index=0 selected="" status=0 initial="${1:-N}" back="${2:-N}"
+  local command="Review" index=0 selected="" status=0 initial="${1:-N}" back="${2:-N}" snapshot="${3:-Y}"
   local -a options=()
-  [[ "${back}" != Y ]] || cntools_send_review_snapshot
+  [[ "${back}" != Y || "${snapshot}" != Y ]] || cntools_send_review_snapshot
   # The editor shows entered amounts; built outputs return with the next review.
   CNTOOLS_SEND_PAID=()
   (( ${#CNTOOLS_SEND_ADDRESSES[@]} > 0 )) || command=Add
@@ -526,9 +587,18 @@ cntools_send_refresh_build_into() {
   cntools_send_build_into "${result_name}"
 }
 
+# Says why only an unsigned package is offered when the wallet's key is encrypted.
+cntools_send_unsigned_reason() {
+  [[ "$1" != Y && "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || return 0
+  cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' \
+    "${CNTOOLS_SEND_DIRECTORY}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" || true
+}
+
 cntools_send_workflow() {
   local selected="" choice="" staged="" signed="" saved="" proceed=""
-  local backend="" signed_body="" txid="" status=0 lifetime=1800 previous=""
+  local backend="" signed_body="" txid="" status=0 lifetime=1800 previous="" can_sign=N
+  local reviewed=N undo='' reason=''
+  local -a review_options=()
   CNTOOLS_SEND_RESULT_SHOWN=N
   CNTOOLS_SEND_SAVED_PACKAGE=""
   cntools_send_begin
@@ -538,42 +608,78 @@ cntools_send_workflow() {
   cntools_ui_render_detail "Source wallet"
   cntools_wallet_choose selected Cancel send || return $?
   cntools_send_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" multisig || return 2
-  [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || cntools_multisig_spend_choose_signers || return $?
+  # Prerequisites and funds come first: a wallet that cannot send asks
+  # nothing more, not even for signers or a change address.
+  [[ "${CNTOOLS_SEND_TYPE}" != Hardware ]] || cntools_transaction_require_hwcli || return 2
+  cntools_ui_spin_function "Fetching spendable funds and protocol parameters…" cntools_send_funding_collect || status=$?
+  if (( status != 0 )); then
+    [[ "${CNTOOLS_FUNDING_EMPTY:-N}" == Y ]] || return 2
+    cntools_send_begin
+    reason="Nothing to send: ${CNTOOLS_SEND_WALLET} has no spendable UTxOs."
+    (( ${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0} == 0 )) || reason+=' Its reference-script UTxOs are left untouched.'
+    cntools_ui_render_status info "${reason}"
+    CNTOOLS_SEND_RESULT_SHOWN=Y
+    return 0
+  fi
+  if [[ "${CNTOOLS_SEND_TYPE}" == MultiSig ]]; then
+    cntools_multisig_spend_window_check "${CNTOOLS_FUNDING_SLOT}" || return 2
+    cntools_multisig_spend_choose_signers || return $?
+  fi
   cntools_send_choose_change || return $?
-  cntools_ui_spin_function "Fetching spendable funds and protocol parameters…" cntools_send_funding_collect || return 2
   if (( ${#CNTOOLS_FUNDING_ASSET_IDS[@]} > 0 )); then
     cntools_ui_spin_function 'Loading asset names from Koios / one-day cache…' \
       cntools_asset_details_for_ids "${CNTOOLS_FUNDING_ASSET_IDS[@]}" ||
       cntools_transaction_log WARN 'Some asset metadata is unavailable; using on-chain name / identity fallback'
   fi
   cntools_send_edit_recipients Y || return $?
-  local can_sign=N
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
   [[ "${CNTOOLS_SEND_TYPE}" != MultiSig ]] || can_sign="${CNTOOLS_MULTISIG_CAN_SIGN}"
+  cntools_send_unsigned_reason "${can_sign}"
   cntools_transaction_ui_initial_workflow_into choice "${can_sign}" || return $?
   cntools_transaction_ui_initial_expiry_into lifetime || return $?
   cntools_transaction_ui_proceed_into proceed "${choice}" || return 2
+  review_options=('Edit recipients' 'Change expiry' 'Change workflow')
+  if [[ "${CNTOOLS_SEND_TYPE}" == MultiSig ]] && cntools_multisig_signers_changeable; then review_options+=('Change signers'); fi
+  ! cntools_send_change_choice_offered || review_options+=('Change change address')
   while true; do
     status=0
     cntools_transaction_clear_error
     cntools_ui_spin_function "Refreshing funds and balancing the transfer…" cntools_send_refresh_build_into staged "${lifetime}" || status=$?
-    if (( status != 0 )) && [[ -n "${previous}" ]]; then
-      # A new expiry that cannot be built keeps the previous one.
-      cntools_transaction_log CHOICE "Send rebuild failed; previous expiry kept lifetime=${previous}"
-      cntools_ui_render_status warn "The new expiry could not be built, so the previous one is kept. ${CNTOOLS_TRANSACTION_ERROR:-}"
-      lifetime="${previous}"; previous=""
+    if (( status != 0 )) && [[ -n "${undo}" ]]; then
+      # A review change that cannot be built gives way to the reviewed value.
+      reason="${CNTOOLS_TRANSACTION_ERROR:-}"
+      CNTOOLS_TRANSACTION_UI_NOTICE=''
+      case "${undo}" in
+        expiry) lifetime="${previous}" ;;
+        signers) cntools_multisig_signers_restore_into choice can_sign lifetime; cntools_send_unsigned_reason "${can_sign}" ;;
+        'change address') CNTOOLS_SEND_CHANGE_ADDRESS="${previous}" ;;
+      esac
+      cntools_transaction_log CHOICE "Send rebuild failed; previous ${undo} kept"
+      if [[ "${undo}" == signers ]]; then
+        cntools_ui_render_status warn "The new signers could not be built, so the previous ones are kept. ${reason}"
+      else
+        cntools_ui_render_status warn "The new ${undo} could not be built, so the previous one is kept. ${reason}"
+      fi
+      undo=''; previous=''
       continue
     elif (( status != 0 )); then
-      # Keep the recipients: show why the build failed and reopen them.
+      # Keep the recipients: show why the build failed and reopen them. After a
+      # review, 'Back to review' (or Esc) still returns to the reviewed transfer.
       cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-The transfer could not be built. See ${CNTOOLS_LOG} for details.}"
-      cntools_send_edit_recipients || return $?
+      status=0
+      if [[ "${reviewed}" == Y ]]; then
+        cntools_send_edit_recipients N Y N || status=$?
+        (( status == 0 || status == 4 )) || return "${status}"
+      else
+        cntools_send_edit_recipients || return $?
+      fi
       continue
     fi
-    previous=""
+    undo=''; previous=''; reviewed=Y
     while true; do
       cntools_transaction_ui_proceed_into proceed "${choice}" || return 2
       cntools_transaction_ui_review_into selected "${staged}" "${proceed}" \
-        cntools_send_begin cntools_send_render_review 'Edit recipients' 'Change expiry' 'Change workflow' || return $?
+        cntools_send_begin cntools_send_render_review "${review_options[@]}" || return $?
       status=0
       case "${selected}" in
         "${proceed}") break ;;
@@ -589,28 +695,53 @@ cntools_send_workflow() {
           (( status <= 1 )) || return "${status}"
           (( status == 0 )) || continue
           previous="${lifetime}"
-          cntools_transaction_ui_unsigned_lifetime_into lifetime "${choice}" && break
-          previous="" ;;
+          cntools_transaction_ui_unsigned_lifetime_into lifetime "${choice}" || { previous=''; continue; }
+          undo=expiry; break ;;
         'Change expiry')
           previous="${lifetime}"
           cntools_transaction_ui_expiry_into lifetime || status=$?
-          (( status != 1 )) || { previous=""; continue; }
+          (( status != 1 )) || { previous=''; continue; }
           (( status == 0 )) || return "${status}"
-          break ;;
+          [[ "${lifetime}" != "${previous}" ]] || { previous=''; continue; }
+          undo=expiry; break ;;
+        'Change signers')
+          cntools_multisig_signers_change_into choice can_sign lifetime payment cntools_send_begin || status=$?
+          (( status != 1 )) || continue
+          (( status == 0 )) || return "${status}"
+          cntools_send_unsigned_reason "${can_sign}"
+          undo=signers; break ;;
+        'Change change address')
+          previous="${CNTOOLS_SEND_CHANGE_ADDRESS}"
+          cntools_send_choose_change Y || status=$?
+          (( status != 1 )) || { CNTOOLS_SEND_CHANGE_ADDRESS="${previous}"; previous=''; continue; }
+          (( status == 0 )) || return "${status}"
+          [[ "${CNTOOLS_SEND_CHANGE_ADDRESS}" != "${previous}" ]] || { previous=''; continue; }
+          undo='change address'; break ;;
         *) return 2 ;;
       esac
     done
     [[ "${selected}" != "${proceed}" ]] || break
   done
+  if [[ "${choice}" != 'Create unsigned package' ]]; then
+    cntools_send_signed_path_into signed || return 2
+    cntools_ui_spin_function "Rechecking selected inputs…" cntools_send_recheck || return 2
+    cntools_transaction_ui_recheck_mark
+    # A device or key failure offers Retry, Save unsigned package or Cancel.
+    status=0
+    cntools_transaction_ui_sign_staged transfer "${staged}" "${signed}" || status=$?
+    case "${status}" in
+      0) ;;
+      4) choice='Create unsigned package' ;;
+      1|130) return "${status}" ;;
+      *) return 2 ;;
+    esac
+  fi
   if [[ "${choice}" == 'Create unsigned package' ]]; then
     cntools_send_save_into saved "${staged}" unsigned || return 2
     cntools_send_begin
     cntools_send_render_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
-  cntools_send_signed_path_into signed || return 2
-  cntools_ui_spin_function "Rechecking selected inputs…" cntools_send_recheck || return 2
-  cntools_ui_spin_function "Signing transfer…" cntools_transaction_sign_registered "${staged}" "${signed}" || return 2
   cntools_transaction_package_load "${signed}" || return 2
   [[ "${CNTOOLS_TRANSACTION_COMPLETE}" == Y ]] || { cntools_send_fail 'The package still needs witnesses.'; return 2; }
   # Retain the final signed package before submission, including ambiguous
@@ -630,7 +761,11 @@ cntools_send_workflow() {
     return $?
   fi
   status=0
-  cntools_ui_spin_function "Rechecking selected inputs…" cntools_send_recheck || status=$?
+  # Signing a moment ago needs no second recheck; a slow signer does.
+  if cntools_transaction_ui_recheck_due; then
+    cntools_ui_spin_function "Rechecking selected inputs…" cntools_send_recheck || status=$?
+    (( status != 0 )) || cntools_transaction_ui_recheck_mark
+  fi
   if (( status == 0 )); then
     cntools_ui_spin_function "Submitting transfer…" cntools_transaction_ui_submit_selected "${backend}" "${signed_body}" "${txid}" || status=$?
   fi

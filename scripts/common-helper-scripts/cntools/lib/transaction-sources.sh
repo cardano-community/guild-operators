@@ -115,8 +115,10 @@ cntools_transaction_ui_local_source_into() {
   local -n local_source_result="${output}"
   local_source_result=''
   # Quick signs with a lone verified key file directly. A hardware match
-  # still asks (it starts a device session), and so does a pool cold key.
-  if (( ${#matched_files[@]} == 1 )) && [[ -z "${hardware_group}" && "${key_type}" != *'Pool cold'* ]] && cntools_flow_quick &&
+  # still asks (it starts a device session), and so do cold keys: pool,
+  # committee cold and genesis keys.
+  if (( ${#matched_files[@]} == 1 )) && [[ -z "${hardware_group}" && "${key_type}" != *'Pool cold'* &&
+     "${key_type}" != *'Committee cold'* && "${key_type}" != *Genesis* ]] && cntools_flow_quick &&
      cntools_transaction_source_kind_into candidate_kind "${matched_files[0]}" && [[ "${candidate_kind}" == cli ]] &&
      cntools_transaction_source_key_id_into candidate_id "${matched_files[0]}" && [[ "${candidate_id}" == "${expected}" ]]; then
     cntools_transaction_log CHOICE "Signer source default id=${expected} selection=${choices[0]} flow=quick"

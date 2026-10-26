@@ -183,9 +183,9 @@ cntools_settings_action_edit_percentages() {
     if cntools_settings_action_percentages_valid "${entered}"; then
       CNTOOLS_TX_UTXO_PERCENTAGES="${entered}"
       IFS=',' read -r -a values <<< "${entered}"
-      if (( CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS > ${#values[@]} )); then
-        CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS="${#values[@]}"
-      fi
+      # One new output per percentage: more percentages raise the limit too.
+      # shellcheck disable=SC2034 # Saved by cntools_settings_save.
+      CNTOOLS_TX_UTXO_MAX_NEW_OUTPUTS="${#values[@]}"
       return 0
     fi
     cntools_ui_render_status warn \

@@ -167,7 +167,7 @@ cntools_pool_registration_select_stake_into() {
       CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
       ((pick_status == 0)) || return "${pick_status}"
       # The editor redraws next and repeats this warning under its header.
-      cntools_pool_wallet_stake_record_into stake_record "${selected}" || {
+      cntools_pool_wallet_stake_record_cached_into stake_record "${selected}" || {
         cntools_ui_render_status warn 'The stake public key of this wallet could not be read or validated.'; return 3;
       } ;;
     'External stake public key (offline signer)')
@@ -229,8 +229,11 @@ cntools_pool_registration_edit_owners() {
   done
 }
 
+# Each field is checked as it is entered; a relay already listed is refused
+# and one other pools cannot reach (private, loopback, local name) is added
+# with a warning. Esc at a field returns to the relay menu.
 cntools_pool_registration_edit_relays() {
-  local choice='' kind='' dns='' ipv4='' ipv6='' port='' relay='' index=0 count=0 status=0
+  local choice='' kind='' dns='' ipv4='' ipv6='' port='' relay='' index=0 count=0 status=0 note='' normalized='' existing=''
   local -a options=()
   while true; do
     cntools_pool_registration_begin
@@ -239,27 +242,44 @@ cntools_pool_registration_edit_relays() {
     count="$(jq length <<< "${CNTOOLS_POOL_REG_RELAYS}")"
     for ((index=0; index<count; index++)); do options+=("Remove relay $((index+1))"); done
     cntools_pool_registration_choose choice Relays "${options[@]}" Back || return $?
+    dns='' ipv4='' ipv6='' port=''
     case "${choice}" in
       Done|Back) return 0 ;;
       'Remove relay '*) index="${choice##* }"; CNTOOLS_POOL_REG_RELAYS="$(jq -c --argjson index "$((index-1))" 'del(.[$index])' <<< "${CNTOOLS_POOL_REG_RELAYS}")"; continue ;;
       'Add DNS relay'|'Add SRV relay')
         kind=dns; [[ "${choice}" != 'Add SRV relay' ]] || kind=srv
-        status=0; cntools_pool_registration_input dns 'Relay DNS name' 'relay.example.com or SRV record' || status=$?
-        ((status != 1)) || continue; ((status == 0)) || return "${status}" ;;
+        while true; do
+          status=0; cntools_pool_registration_input dns 'Relay DNS name' "$([[ "${kind}" == srv ]] && printf '_cardano._tcp.example.com' || printf 'relay.example.com')" || status=$?
+          ((status != 1)) || continue 2; ((status == 0)) || return "${status}"
+          cntools_pool_relay_dns_valid "${dns}" "${kind}" && break
+          cntools_ui_render_status warn "Use a DNS name of up to 64 characters: letters, digits and hyphens between dots$([[ "${kind}" != srv ]] || printf ', and underscores for SRV records')."
+        done ;;
       'Add IP relay')
-        kind=ip; status=0
-        cntools_pool_registration_input ipv4 'IPv4 (optional)' 'Leave empty for IPv6 only' || status=$?
-        ((status != 1)) || continue; ((status == 0)) || return "${status}"
-        cntools_pool_registration_input ipv6 'IPv6 (optional)' 'Canonical IPv6; leave empty for IPv4 only' || status=$?
-        ((status != 1)) || continue; ((status == 0)) || return "${status}" ;;
+        kind=ip
+        while true; do
+          status=0; cntools_pool_registration_input ipv4 'IPv4 (optional)' 'Leave empty for IPv6 only' || status=$?
+          ((status != 1)) || continue 2; ((status == 0)) || return "${status}"
+          [[ -n "${ipv4}" ]] && ! cntools_pool_relay_ipv4_valid "${ipv4}" || break
+          cntools_ui_render_status warn 'Use four numbers from 0 to 255 separated by dots, without leading zeros, for example 203.0.113.10.'
+        done
+        while true; do
+          status=0; cntools_pool_registration_input ipv6 'IPv6 (optional)' "$([[ -n "${ipv4}" ]] && printf 'Leave empty for IPv4 only' || printf 'Required without an IPv4 address')" || status=$?
+          ((status != 1)) || continue 2; ((status == 0)) || return "${status}"
+          if [[ -z "${ipv6}" && -z "${ipv4}" ]]; then cntools_ui_render_status warn 'Enter an IPv4 or an IPv6 address.'; continue; fi
+          normalized=''
+          [[ -n "${ipv6}" ]] && ! cntools_pool_ipv6_into normalized "${ipv6}" || break
+          cntools_ui_render_status warn 'Use a valid IPv6 address, for example 2001:db8::10.'
+        done ;;
       *) return 2 ;;
     esac
     if [[ "${kind}" != srv ]]; then
-      status=0; cntools_pool_registration_input port 'Relay port (default: 3001)' 3001 || status=$?
-      ((status != 1)) || continue; ((status == 0)) || return "${status}"
-      [[ -n "${port}" ]] || port=3001
-      [[ "${port}" =~ ^[0-9]{1,5}$ ]] || { cntools_ui_render_status warn 'Use a port from 1 to 65,535.'; continue; }
-      port=$((10#${port}))
+      while true; do
+        status=0; cntools_pool_registration_input port 'Relay port (default: 3001)' 3001 || status=$?
+        ((status != 1)) || continue 2; ((status == 0)) || return "${status}"
+        [[ -n "${port}" ]] || port=3001
+        if [[ "${port}" =~ ^[0-9]{1,5}$ ]] && ((10#${port} >= 1 && 10#${port} <= 65535)); then port=$((10#${port})); break; fi
+        cntools_ui_render_status warn 'Use a port from 1 to 65,535.'
+      done
     fi
     case "${kind}" in
       dns) relay="$(jq -cn --arg dns "${dns}" --argjson port "${port}" '{type:"dns",dns:$dns,port:$port}')" ;;
@@ -267,7 +287,19 @@ cntools_pool_registration_edit_relays() {
       ip) relay="$(jq -cn --arg ip4 "${ipv4}" --arg ip6 "${ipv6}" --argjson port "${port}" '{type:"ip",ipv4:$ip4,ipv6:$ip6,port:$port}')" ;;
     esac
     if ! cntools_pool_relay_valid "${relay}"; then cntools_ui_render_status warn 'Invalid relay: check DNS/IP and port.'; continue; fi
+    # Compare in canonical form: DNS names ignore case, IPv6 has one spelling.
+    normalized="[${relay}]" existing="${CNTOOLS_POOL_REG_RELAYS}"
+    cntools_pool_relays_normalize_into normalized "${normalized}" || normalized="[${relay}]"
+    cntools_pool_relays_normalize_into existing "${existing}" || existing="${CNTOOLS_POOL_REG_RELAYS}"
+    if jq -e --argjson relay "${normalized}" 'def key: if .type == "ip" then . else .dns |= ascii_downcase end;
+        ($relay[0] | key) as $new | any(.[]; key == $new)' <<< "${existing}" >/dev/null 2>&1; then
+      cntools_ui_render_status warn "$(jq -r ".[0] | ${CNTOOLS_POOL_RELAY_TEXT_JQ}" <<< "${normalized}") is already listed."
+      continue
+    fi
     CNTOOLS_POOL_REG_RELAYS="$(jq -c --argjson relay "${relay}" '. + [$relay]' <<< "${CNTOOLS_POOL_REG_RELAYS}")"
+    cntools_pool_relay_private_into note "${relay}"
+    # The relay list redraws next and repeats this warning.
+    [[ -z "${note}" ]] || cntools_ui_render_status warn "Added, but ${note} that other pools cannot reach. Use the relay's public address or name."
   done
 }
 
@@ -346,7 +378,9 @@ cntools_pool_registration_hardware_session() {
 
 # Keep the chosen workflow unless the keys no longer allow signing. An
 # unsigned package forced by missing keys was no choice, so once the keys can
-# sign the workflow is derived again (Quick's default; Detailed asks).
+# sign the workflow is derived again (Quick's default; Detailed asks). A
+# forced unsigned package gets Quick's day to be signed elsewhere, as when it
+# is chosen in the review.
 cntools_pool_registration_workflow_keep_into() {
   local -n prk_workflow="$1"
   local prk_can_sign="$2" prk_status=0
@@ -359,8 +393,9 @@ cntools_pool_registration_workflow_keep_into() {
   fi
   cntools_transaction_ui_initial_workflow_into "$1" "${prk_can_sign}" || prk_status=$?
   # Esc keeps the unsigned package, which stays valid; Change workflow remains.
-  if ((prk_status == 1)); then CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED=N; return 0; fi
-  return "${prk_status}"
+  if ((prk_status == 1)); then CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED=N; prk_status=0
+  elif ((prk_status != 0)); then return "${prk_status}"; fi
+  cntools_transaction_ui_unsigned_lifetime_into CNTOOLS_WALLET_REGISTER_LIFETIME "${prk_workflow}" || true
 }
 
 # Funding picker context: a CLI or public-only cold key cannot share a Ledger
@@ -369,6 +404,182 @@ cntools_pool_registration_funding_context() {
   local kind=''
   if [[ -n "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]] && cntools_transaction_source_kind_into kind "${CNTOOLS_POOL_REG_COLD_SOURCE}" &&
      [[ "${kind}" == hardware ]]; then printf funding; else printf funding-software; fi
+}
+
+# A hardware funding wallet or cold key signs through cardano-hw-cli: report
+# a missing one right after the choice, before any settings (X-HW).
+cntools_pool_registration_hwcli_check() {
+  local phc_kind=''
+  if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == Hardware ]] ||
+     { [[ -n "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]] && cntools_transaction_source_kind_into phc_kind "${CNTOOLS_POOL_REG_COLD_SOURCE}" &&
+       [[ "${phc_kind}" == hardware ]]; }; then
+    cntools_transaction_require_hwcli || return 2
+  fi
+}
+
+# What the funding wallet must hold at least: the pool deposit (Register)
+# plus about 1 ADA for the fee and the change output.
+cntools_pool_registration_funds_needed_into() {
+  local pfn_output="$1" pfn_needed=''
+  cntools_uint_add_into pfn_needed "${CNTOOLS_WALLET_REGISTER_DEPOSIT:-0}" 1000000 || return 1
+  printf -v "${pfn_output}" '%s' "${pfn_needed}"
+}
+
+# Chooses and checks the funding wallet right away, before any settings: a
+# wallet that cannot pay the deposit and fee is named, and another one is
+# offered while one is left. 3: none can fund it (shown and acknowledged).
+cntools_pool_registration_choose_funding_into() {
+  local pcf_output="$1" pcf_context='' pcf_wallet='' pcf_status=0 pcf_needed='' pcf_index=0 pcf_note='' pcf_other=N pcf_tried='' pcf_message=''
+  local -a pcf_skipped=()
+  pcf_context="$(cntools_pool_registration_funding_context)"
+  while true; do
+    pcf_status=0
+    CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=("${pcf_skipped[@]}")
+    cntools_wallet_choose pcf_wallet Cancel "${pcf_context}" || pcf_status=$?
+    CNTOOLS_WALLET_SELECTION_EXCLUDE_DIRS=()
+    ((pcf_status == 0)) || return "${pcf_status}"
+    cntools_pool_registration_prepare_funding "${CNTOOLS_WALLET_PATHS[pcf_wallet]}" || return 2
+    cntools_ui_spin_function "$([[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire ]] && printf 'Checking pool state, retirement limits and funding…' ||
+      printf 'Checking pool registration, protocol parameters and funding…')" cntools_pool_registration_collect || return 2
+    cntools_pool_registration_funds_needed_into pcf_needed || return 2
+    if cntools_uint_greater_equal "${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE:-0}" "${pcf_needed}"; then
+      printf -v "${pcf_output}" '%s' "${pcf_wallet}"; return 0
+    fi
+    pcf_message="${CNTOOLS_WALLET_NAMES[pcf_wallet]} has $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE:-0}") spendable; "
+    if [[ "${CNTOOLS_WALLET_REGISTER_DEPOSIT:-0}" != 0 ]]; then
+      pcf_message+="${CNTOOLS_WALLET_REGISTER_TITLE} needs the $(cntools_number_format_lovelace "${CNTOOLS_WALLET_REGISTER_DEPOSIT}") pool deposit plus about 1 ADA for the fee and change."
+    else
+      pcf_message+="${CNTOOLS_WALLET_REGISTER_TITLE} needs about 1 ADA for the fee and change."
+    fi
+    cntools_transaction_log POOL "Funding wallet=${CNTOOLS_WALLET_NAMES[pcf_wallet]} short available=${CNTOOLS_WALLET_REGISTER_AVAILABLE_LOVELACE:-0} needed=${pcf_needed}"
+    pcf_skipped+=("${CNTOOLS_WALLET_PATHS[pcf_wallet]}")
+    # Another wallet the picker would still offer?
+    pcf_other=N
+    for pcf_index in "${!CNTOOLS_WALLET_PATHS[@]}"; do
+      for pcf_tried in "${pcf_skipped[@]}"; do [[ "${pcf_tried}" != "${CNTOOLS_WALLET_PATHS[pcf_index]}" ]] || continue 2; done
+      cntools_wallet_selection_candidate_into pcf_note "${pcf_index}" "${pcf_context}" || continue
+      pcf_other=Y; break
+    done
+    if [[ "${pcf_other}" != Y ]]; then
+      cntools_pool_registration_begin
+      cntools_ui_render_status info "${pcf_message} No other wallet can fund it; add funds and try again."
+      cntools_ui_wait; return 3
+    fi
+    # The picker redraws next and repeats this warning.
+    cntools_ui_render_status warn "${pcf_message} Choose another wallet."
+  done
+}
+
+# Values a review "Change …" can alter, saved before it so that a failed
+# rebuild restores them, together with the stake checks behind them. Callers
+# add their own locals (workflow, can_sign) by name.
+CNTOOLS_POOL_REG_SNAPSHOT_NAMES=(CNTOOLS_POOL_REG_PLEDGE CNTOOLS_POOL_REG_COST CNTOOLS_POOL_REG_MARGIN
+  CNTOOLS_POOL_REG_REWARD_VKEY CNTOOLS_POOL_REG_REWARD_HASH CNTOOLS_POOL_REG_REWARD_ADDRESS CNTOOLS_POOL_REG_REWARD_LABEL
+  CNTOOLS_POOL_REG_REWARD_SOURCE CNTOOLS_POOL_REG_OWNERS CNTOOLS_POOL_REG_RELAYS CNTOOLS_POOL_REG_METADATA CNTOOLS_POOL_REG_METADATA_URL
+  CNTOOLS_POOL_STAKE_PLAN CNTOOLS_POOL_EXTRA_RECORDS CNTOOLS_POOL_EXTRA_EXPECTED CNTOOLS_POOL_STAKE_SETUP_ASKABLE
+  CNTOOLS_POOL_STAKE_SETUP_NOTE CNTOOLS_WALLET_REGISTER_DEPOSIT CNTOOLS_POOL_PLEDGE_TOTAL CNTOOLS_POOL_PLEDGE_UNKNOWN
+  CNTOOLS_POOL_PLEDGE_APPROVED CNTOOLS_POOL_WIZARD_STAKE_INPUTS CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS CNTOOLS_POOL_CONFIG_SAVED
+  CNTOOLS_WALLET_REGISTER_LIFETIME CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED CNTOOLS_TRANSACTION_UI_EXPIRY_CHOSEN
+  CNTOOLS_TRANSACTION_UI_UNSIGNED_REASON CNTOOLS_POOL_RETIRE_EPOCH)
+declare -ag CNTOOLS_POOL_REG_SNAPSHOT=()
+declare -Ag CNTOOLS_POOL_REG_SNAPSHOT_STATUS=() CNTOOLS_POOL_REG_SNAPSHOT_DELEGATION=() CNTOOLS_POOL_REG_SNAPSHOT_BALANCE=() CNTOOLS_POOL_REG_SNAPSHOT_CHOSEN=()
+
+cntools_pool_registration_assoc_copy() {
+  declare -p "$1" >/dev/null 2>&1 && declare -p "$2" >/dev/null 2>&1 || return 0
+  local -n prc_from="$1" prc_to="$2"
+  local prc_key=''
+  prc_to=()
+  for prc_key in "${!prc_from[@]}"; do prc_to["${prc_key}"]="${prc_from[${prc_key}]}"; done
+}
+
+cntools_pool_registration_save() {
+  local prs_name=''
+  CNTOOLS_POOL_REG_SNAPSHOT=()
+  for prs_name in "${CNTOOLS_POOL_REG_SNAPSHOT_NAMES[@]}" "$@"; do
+    [[ -n "${!prs_name+x}" ]] || continue
+    CNTOOLS_POOL_REG_SNAPSHOT+=("${prs_name}" "${!prs_name}")
+  done
+  cntools_pool_registration_assoc_copy CNTOOLS_POOL_STAKE_STATUS CNTOOLS_POOL_REG_SNAPSHOT_STATUS
+  cntools_pool_registration_assoc_copy CNTOOLS_POOL_STAKE_DELEGATION CNTOOLS_POOL_REG_SNAPSHOT_DELEGATION
+  cntools_pool_registration_assoc_copy CNTOOLS_POOL_STAKE_BALANCE CNTOOLS_POOL_REG_SNAPSHOT_BALANCE
+  cntools_pool_registration_assoc_copy CNTOOLS_POOL_STAKE_SETUP_CHOSEN CNTOOLS_POOL_REG_SNAPSHOT_CHOSEN
+}
+
+cntools_pool_registration_restore() {
+  local prr_index=0
+  for ((prr_index = 0; prr_index + 1 < ${#CNTOOLS_POOL_REG_SNAPSHOT[@]}; prr_index += 2)); do
+    printf -v "${CNTOOLS_POOL_REG_SNAPSHOT[prr_index]}" '%s' "${CNTOOLS_POOL_REG_SNAPSHOT[prr_index+1]}"
+  done
+  cntools_pool_registration_assoc_copy CNTOOLS_POOL_REG_SNAPSHOT_STATUS CNTOOLS_POOL_STAKE_STATUS
+  cntools_pool_registration_assoc_copy CNTOOLS_POOL_REG_SNAPSHOT_DELEGATION CNTOOLS_POOL_STAKE_DELEGATION
+  cntools_pool_registration_assoc_copy CNTOOLS_POOL_REG_SNAPSHOT_BALANCE CNTOOLS_POOL_STAKE_BALANCE
+  cntools_pool_registration_assoc_copy CNTOOLS_POOL_REG_SNAPSHOT_CHOSEN CNTOOLS_POOL_STAKE_SETUP_CHOSEN
+}
+
+# The settings a rebuild depends on, to tell whether an edit changed anything.
+cntools_pool_registration_signature() {
+  jq -cn --arg pledge "${CNTOOLS_POOL_REG_PLEDGE:-}" --arg cost "${CNTOOLS_POOL_REG_COST:-}" --arg margin "${CNTOOLS_POOL_REG_MARGIN:-}" \
+    --arg reward "${CNTOOLS_POOL_REG_REWARD_HASH:-}" --arg reward_key "${CNTOOLS_POOL_REG_REWARD_VKEY:+Y}" \
+    --arg reward_signer "${CNTOOLS_POOL_REG_REWARD_SOURCE:+Y}" --argjson owners "${CNTOOLS_POOL_REG_OWNERS:-[]}" \
+    --argjson relays "${CNTOOLS_POOL_REG_RELAYS:-[]}" --argjson metadata "${CNTOOLS_POOL_REG_METADATA:-null}" '
+    {pledge:$pledge,cost:$cost,margin:$margin,reward:$reward,rewardKey:$reward_key,rewardSigner:$reward_signer,
+     owners:($owners|map({hash,key:((.vkey // "") != ""),signer:((.source // "") != "")})),relays:$relays,metadata:$metadata}'
+}
+
+# Builds the reviewed transaction. A retirement epoch the chain passed while
+# the review was open takes the new earliest epoch (Quick) or is asked again
+# (Detailed) before building once more. 2: the build failed.
+cntools_pool_registration_build_ui_into() {
+  local pbu_target="$1" pbu_title='Building and validating the pool transaction…'
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != pool-retire ]] || pbu_title='Building and validating the retirement transaction…'
+  CNTOOLS_POOL_REG_RECHECK_CHANGED=N
+  cntools_ui_spin_function "${pbu_title}" cntools_pool_registration_build_into "${pbu_target}" && return 0
+  [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-retire && "${CNTOOLS_POOL_REG_RECHECK_CHANGED}" == Y ]] &&
+    ! cntools_pool_retirement_epoch_allowed || return 2
+  cntools_transaction_log POOL "Retirement epoch=${CNTOOLS_POOL_RETIRE_EPOCH} left the allowed window; choosing again"
+  CNTOOLS_WALLET_REGISTER_ERROR=''; cntools_transaction_clear_error
+  cntools_pool_retirement_epoch_refresh || return $?
+  cntools_ui_spin_function "${pbu_title}" cntools_pool_registration_build_into "${pbu_target}" || return 2
+}
+
+# Rebuild after a review "Change …" (values saved before it). A failed
+# rebuild restores the saved values, rebuilds those and warns; the review
+# continues. Esc or Ctrl+C at a renewed epoch question cancels.
+cntools_pool_registration_rebuild_into() {
+  local prb_target="$1" prb_what="$2" prb_reason='' prb_status=0
+  CNTOOLS_WALLET_REGISTER_ERROR=''; cntools_transaction_clear_error
+  cntools_pool_registration_build_ui_into "${prb_target}" || prb_status=$?
+  ((prb_status != 0)) || return 0
+  ((prb_status != 1 && prb_status != 130)) || return "${prb_status}"
+  prb_reason="${CNTOOLS_WALLET_REGISTER_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-The transaction could not be built.}}"
+  cntools_pool_registration_restore
+  CNTOOLS_WALLET_REGISTER_ERROR=''; cntools_transaction_clear_error
+  cntools_ui_spin_function 'Restoring the reviewed transaction…' cntools_pool_registration_build_into "${prb_target}" || return 2
+  # Keep the local draft equal to the settings under review.
+  if [[ "${prb_what}" == 'pool settings' ]] && declare -F cntools_pool_config_save >/dev/null 2>&1; then
+    cntools_pool_config_save || cntools_transaction_log WARN "Pool draft not restored pool=${CNTOOLS_POOL_REG_NAME}"
+  fi
+  cntools_transaction_log CHOICE "${CNTOOLS_WALLET_REGISTER_TITLE} rebuild failed; previous ${prb_what} kept reason=${prb_reason}"
+  cntools_ui_render_status warn "The changed ${prb_what} could not be built, so the reviewed transaction is kept. ${prb_reason}"
+}
+
+# Review "Change workflow" and "Change expiry", shared by Register, Modify and
+# Retire. 0: changed and rebuild needed (what in the second variable); 1:
+# kept (Esc, or nothing to rebuild); others end the action.
+cntools_pool_registration_change_common() {
+  local pcc_choice="$1" pcc_workflow_name="$2" pcc_can_sign="$3" pcc_status=0
+  case "${pcc_choice}" in
+    'Change workflow')
+      cntools_pool_registration_save "${pcc_workflow_name}"
+      cntools_transaction_ui_workflow_into "${pcc_workflow_name}" "${pcc_can_sign}" || pcc_status=$?
+      ((pcc_status == 0)) || return "${pcc_status}"
+      # Quick gives an unsigned package a day to be signed; only that rebuilds.
+      cntools_transaction_ui_unsigned_lifetime_into CNTOOLS_WALLET_REGISTER_LIFETIME "${!pcc_workflow_name}" || return 1 ;;
+    'Change expiry')
+      cntools_pool_registration_save
+      cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $? ;;
+    *) return 2 ;;
+  esac
 }
 
 # A pre-signing recheck found changed chain state (return 4): collect it
@@ -387,15 +598,15 @@ cntools_pool_registration_refresh() {
 }
 
 cntools_pool_registration_workflow() {
-  local selected='' wallet='' workflow='' can_sign=N choice='' proceed='' staged='' status=0 offered=N
+  local selected='' wallet='' workflow='' can_sign=N choice='' proceed='' staged='' status=0 offered=N rebuild=N what='' before=''
   local -a review_options=()
   CNTOOLS_POOL_REG_SAVED=''; CNTOOLS_POOL_REG_RESULT_SHOWN=N
   CNTOOLS_POOL_WIZARD_STAKE_INPUTS=''; CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS=''
   CNTOOLS_POOL_STAKE_SETUP_CHOSEN=(); CNTOOLS_POOL_PLEDGE_TOTAL=''; CNTOOLS_POOL_PLEDGE_UNKNOWN=N; CNTOOLS_POOL_PLEDGE_APPROVED=''
-  CNTOOLS_POOL_OPCERT_OFFLINE=N
+  CNTOOLS_POOL_OPCERT_OFFLINE=N; CNTOOLS_POOL_OPCERT_NOTE=''; CNTOOLS_POOL_WALLET_STAKE_CACHE=()
   cntools_pool_registration_begin
   cntools_transaction_require_cli && cntools_pool_catalog_build || return 2
-  (( ${#CNTOOLS_POOL_NAMES[@]} > 0 )) || { cntools_wallet_register_set_error 'No pools are available. Use Pool → New or Import first.'; return 2; }
+  (( ${#CNTOOLS_POOL_NAMES[@]} > 0 )) || { cntools_pool_empty_notice; return 3; }
   cntools_pool_registration_choose_eligible_into selected || return $?
   # Asked before funding and settings: the answer decides whether to go on.
   if [[ "${CNTOOLS_POOL_CHAIN_STATUS[selected]}" == 'Not indexed' ]]; then
@@ -405,15 +616,15 @@ cntools_pool_registration_workflow() {
   fi
   cntools_pool_registration_prepare_identity "${selected}" || return 2
   cntools_wallet_catalog_build || return 2
-  cntools_wallet_choose wallet Cancel "$(cntools_pool_registration_funding_context)" || return $?
-  cntools_pool_registration_prepare_funding "${CNTOOLS_WALLET_PATHS[wallet]}" || return 2
-  cntools_ui_spin_function 'Checking pool registration, protocol parameters and funding…' cntools_pool_registration_collect || return 2
-  cntools_pool_registration_defaults || return 2
-  if [[ "$(jq -r .registered <<< "${CNTOOLS_POOL_REG_STATE}")" != true ]]; then
+  cntools_pool_registration_choose_funding_into wallet || return $?
+  cntools_pool_registration_hwcli_check || return 2
+  if [[ "$(jq -r .registered <<< "${CNTOOLS_POOL_REG_STATE}")" == true ]]; then
+    cntools_ui_spin_function 'Matching owners and the reward account to local wallets…' cntools_pool_registration_defaults || return 2
+  else
+    cntools_pool_registration_defaults || return 2
     local record=''
-    if cntools_pool_wallet_stake_record_into record "${wallet}"; then cntools_pool_owner_add "${record}"; cntools_pool_reward_record_use "${record}"; fi
+    if cntools_pool_wallet_stake_record_cached_into record "${wallet}"; then cntools_pool_owner_add "${record}"; cntools_pool_reward_record_use "${record}"; fi
   fi
-  cntools_pool_wizard_saved_offer || return $?
   # A retiring pool's settings show the cancellation in their Retirement row.
   cntools_pool_registration_edit_settings || return $?
   cntools_pool_wizard_prepare_stake || return $?
@@ -421,9 +632,11 @@ cntools_pool_registration_workflow() {
   cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
   cntools_transaction_ui_initial_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
   cntools_pool_registration_hardware_session || return $?
+  cntools_pool_registration_build_ui_into staged || return $?
   while true; do
     while true; do
-      cntools_ui_spin_function 'Building and validating the pool transaction…' cntools_pool_registration_build_into staged || return 2
+      # Rebuilt only after a change; Esc in a "Change …" keeps the build.
+      if [[ "${rebuild}" == Y ]]; then cntools_pool_registration_rebuild_into staged "${what}" || return $?; rebuild=N; fi
       cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
       review_options=('Edit pool settings')
       [[ "${CNTOOLS_POOL_STAKE_SETUP_ASKABLE}" != Y ]] || review_options+=('Change stake setup')
@@ -432,53 +645,85 @@ cntools_pool_registration_workflow() {
       case "${choice}" in
         "${proceed}") break ;;
         'Edit pool settings')
+          cntools_pool_registration_save workflow can_sign
+          before="$(cntools_pool_registration_signature)"
           # Esc on a stake setup or pledge question returns to the settings.
           while true; do
             cntools_pool_registration_edit_settings review || return $?
-            status=0; cntools_pool_wizard_prepare_stake review || status=$?
+            status=0
+            # Settings back where they were: the reviewed transaction stands.
+            if [[ "$(cntools_pool_registration_signature)" == "${before}" ]]; then status=1; break; fi
+            cntools_pool_wizard_prepare_stake review || status=$?
             ((status == 1)) || break
             cntools_transaction_log CHOICE 'Pool stake/pledge question cancelled; back to pool settings'
           done
+          if ((status == 1)); then
+            cntools_pool_registration_restore
+            cntools_transaction_log CHOICE 'Pool settings unchanged; reviewed transaction kept'
+            continue
+          fi
           ((status == 0)) || return "${status}"
           cntools_pool_registration_can_sign_into can_sign
-          cntools_pool_registration_workflow_keep_into workflow "${can_sign}" || return $? ;;
+          cntools_pool_registration_workflow_keep_into workflow "${can_sign}" || return $?
+          rebuild=Y what='pool settings' ;;
         'Change stake setup')
+          cntools_pool_registration_save workflow can_sign
+          before="${CNTOOLS_POOL_STAKE_PLAN}"
           cntools_pool_stake_setup_change || return $?
+          [[ "${CNTOOLS_POOL_STAKE_PLAN}" != "${before}" ]] || continue
           cntools_pool_registration_can_sign_into can_sign
-          cntools_pool_registration_workflow_keep_into workflow "${can_sign}" || return $? ;;
-        'Change workflow')
-          cntools_pool_review_change cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
-          # The loop rebuilds; Quick gives an unsigned package a day.
-          cntools_transaction_ui_unsigned_lifetime_into CNTOOLS_WALLET_REGISTER_LIFETIME "${workflow}" || true ;;
-        'Change expiry') cntools_pool_review_change cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $? ;;
+          cntools_pool_registration_workflow_keep_into workflow "${can_sign}" || return $?
+          rebuild=Y what='stake setup' ;;
+        'Change workflow'|'Change expiry')
+          status=0; cntools_pool_registration_change_common "${choice}" workflow "${can_sign}" || status=$?
+          ((status <= 1)) || return "${status}"
+          ((status == 0)) || continue
+          rebuild=Y what=expiry ;;
         *) return 2 ;;
       esac
     done
     # Offered once; a rebuild after changed chain state does not ask again.
-    [[ "${offered}" == Y ]] || { cntools_pool_opcert_offer "${workflow}" || return $?; offered=Y; }
+    # Esc at its questions goes back to the review.
+    if [[ "${offered}" != Y ]]; then
+      status=0; cntools_pool_opcert_offer "${workflow}" || status=$?
+      if ((status == 1)); then cntools_transaction_log CHOICE 'First operational certificate question left; back to the review'; continue; fi
+      ((status == 0)) || return "${status}"
+      offered=Y
+    fi
     status=0; cntools_pool_transaction_finish "${staged}" "${workflow}" || status=$?
     ((status == 4)) || return "${status}"
     cntools_pool_registration_refresh || return $?
+    cntools_pool_registration_build_ui_into staged || return $?
   done
 }
 
 # Registration, modification and retirement share export/sign/submit/results.
+# 4: chain state changed before signing; rebuild and review again.
 cntools_pool_transaction_finish() {
-  local staged="$1" workflow="$2" signed='' saved='' backend='' txid='' body='' status=0
+  local staged="$1" workflow="$2" signed='' saved='' backend='' txid='' body='' status=0 recheck=Y title=''
   # Changed chain state before signing is rebuilt and reviewed again (4); a
   # query that cannot complete is an error.
   CNTOOLS_POOL_REG_RECHECK_CHANGED=N
   cntools_ui_spin_function 'Rechecking pool state and selected inputs…' cntools_pool_registration_recheck || {
     [[ "${CNTOOLS_POOL_REG_RECHECK_CHANGED}" == Y ]] && return 4; return 2;
   }
+  cntools_transaction_ui_recheck_mark
+  if [[ "${workflow}" != 'Create unsigned package' ]]; then
+    cntools_transaction_signed_path_into signed || return 2
+    # A device or key failure offers Retry, Save unsigned package or Cancel.
+    status=0; cntools_transaction_ui_sign_staged 'the reviewed pool transaction' "${staged}" "${signed}" || status=$?
+    case "${status}" in
+      0) ;;
+      4) workflow='Create unsigned package' ;;
+      *) return "${status}" ;;
+    esac
+  fi
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
     CNTOOLS_POOL_REG_SAVED="${saved}"; cntools_pool_registration_begin
     cntools_transaction_ui_render_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     CNTOOLS_POOL_REG_RESULT_SHOWN=Y; return 0
   fi
-  cntools_transaction_signed_path_into signed || return 2
-  cntools_ui_spin_function 'Signing the reviewed pool transaction…' cntools_transaction_sign_registered "${staged}" "${signed}" || return 2
   cntools_transaction_package_load "${signed}" && [[ "${CNTOOLS_TRANSACTION_COMPLETE}" == Y ]] || return 2
   cntools_transaction_save_into saved "${signed}" signed "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
   CNTOOLS_POOL_REG_SAVED="${saved}"
@@ -496,13 +741,18 @@ cntools_pool_transaction_finish() {
     cntools_transaction_ui_confirm_submit "${backend}" always 'pool retirement' || status=$?
   else cntools_transaction_ui_confirm_submit "${backend}" || status=$?; fi
   if ((status == 1 || status == 130)); then
-    cntools_pool_registration_begin; cntools_transaction_ui_render_result warning 'Not submitted · signed package retained' "${txid}" "${saved}"
+    cntools_pool_registration_begin; cntools_transaction_ui_render_result warning 'Not submitted · signed package remains available' "${txid}" "${saved}"
     CNTOOLS_POOL_REG_RESULT_SHOWN=Y; return 0
   fi
   ((status == 0)) || return 2
-  if ! cntools_ui_spin_function 'Rechecking and submitting the pool transaction…' cntools_pool_registration_submit_checked "${backend}" "${body}" "${txid}"; then
+  # Rechecked again only when time passed since the pre-signing recheck
+  # (a device or a slow answer); local keys sign at once.
+  cntools_transaction_ui_recheck_due || recheck=N
+  title='Rechecking and submitting the pool transaction…'
+  [[ "${recheck}" == Y ]] || title='Submitting the pool transaction…'
+  if ! cntools_ui_spin_function "${title}" cntools_pool_registration_submit_checked "${recheck}" "${backend}" "${body}" "${txid}"; then
     cntools_pool_registration_begin
-    cntools_transaction_ui_render_result danger "${CNTOOLS_WALLET_REGISTER_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-Submission failed.}} Signed package retained." "${txid}" "${saved}"
+    cntools_transaction_ui_render_result danger "${CNTOOLS_WALLET_REGISTER_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-Submission failed.}} The signed package remains available." "${txid}" "${saved}"
     CNTOOLS_POOL_REG_RESULT_SHOWN=Y; return 2
   fi
   cntools_pool_registration_begin
@@ -511,8 +761,13 @@ cntools_pool_transaction_finish() {
   cntools_transaction_ui_offer_monitor "${txid}"
 }
 
+# Y as $1 rechecks the pool state and inputs first.
 cntools_pool_registration_submit_checked() {
-  cntools_pool_registration_recheck || { cntools_transaction_set_error "${CNTOOLS_WALLET_REGISTER_ERROR:-Pool state could not be rechecked.}"; return 1; }
+  if [[ "$1" == Y ]]; then
+    cntools_pool_registration_recheck || { cntools_transaction_set_error "${CNTOOLS_WALLET_REGISTER_ERROR:-Pool state could not be rechecked.}"; return 1; }
+    cntools_transaction_ui_recheck_mark
+  fi
+  shift
   cntools_transaction_ui_submit_selected "$@"
 }
 
@@ -529,7 +784,7 @@ cntools_pool_action_outcome() {
       if [[ "${CNTOOLS_POOL_REG_RESULT_SHOWN}" == Y ]]; then :
       elif [[ -n "${CNTOOLS_POOL_REG_SAVED}" ]]; then
         cntools_transaction_log CHOICE "${title} cancelled; saved package retained=${CNTOOLS_POOL_REG_SAVED}"
-        cntools_ui_render_status info "Cancelled. The saved package was kept: ${CNTOOLS_POOL_REG_SAVED}"
+        cntools_ui_render_status info "Cancelled. The saved package remains available: ${CNTOOLS_POOL_REG_SAVED}"
       else return "${status}"; fi ;;
     *)
       [[ "${CNTOOLS_POOL_REG_RESULT_SHOWN}" == Y ]] ||

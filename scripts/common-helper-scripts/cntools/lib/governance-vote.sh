@@ -35,6 +35,8 @@ cntools_gov_vote_collect() {
   CNTOOLS_GOV_VOTE_POWER="$(jq -r '.amount // "" | tostring | select(test("^[0-9]+$"))' <<< "${CNTOOLS_DREP_DETAILS}" 2>/dev/null)" || CNTOOLS_GOV_VOTE_POWER=''
   [[ -n "${CNTOOLS_GOV_VOTE_POWER}" || "${CNTOOLS_WALLET_REGISTER_BACKEND}" != local ]] || cntools_gov_vote_power_koios
   cntools_proposals_query_backend "${CNTOOLS_WALLET_REGISTER_BACKEND}" || return 1
+  # Off-chain titles for a local catalog, from Koios when enabled.
+  cntools_proposals_koios_annotate
   # Nothing to vote on is an outcome (7, shown as info), not a failure.
   cntools_gov_vote_any_eligible || return 7
   CNTOOLS_WALLET_REGISTER_DEPOSIT=0
@@ -42,17 +44,12 @@ cntools_gov_vote_collect() {
   cntools_wallet_register_select_inputs
 }
 
-# Optional Koios voting power for a local build. The local registration,
-# deposit and anchor stay authoritative, so they are restored afterwards.
+# Optional Koios voting power for a local build (the shared enrichment keeps
+# the local registration, deposit and anchor authoritative).
 cntools_gov_vote_power_koios() {
-  local details="${CNTOOLS_DREP_DETAILS}" status="${CNTOOLS_DREP_STATUS}" active="${CNTOOLS_DREP_ACTIVE}" source="${CNTOOLS_DREP_SOURCE}"
-  [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y ]] || return 0
-  if cntools_drep_query "${CNTOOLS_DREP_LIFECYCLE_ID}" "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" "${CNTOOLS_DREP_LIFECYCLE_HASH}" koios &&
-     [[ "${CNTOOLS_DREP_STATUS}" == registered ]]; then
-    CNTOOLS_GOV_VOTE_POWER="$(jq -r '.amount // "" | tostring | select(test("^[0-9]+$"))' <<< "${CNTOOLS_DREP_DETAILS}" 2>/dev/null)" || CNTOOLS_GOV_VOTE_POWER=''
-  fi
+  cntools_drep_koios_enrich "${CNTOOLS_DREP_LIFECYCLE_ID}" "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" "${CNTOOLS_DREP_LIFECYCLE_HASH}" || return 0
+  CNTOOLS_GOV_VOTE_POWER="$(jq -r '.amount // "" | tostring | select(test("^[0-9]+$"))' <<< "${CNTOOLS_DREP_KOIOS_DETAILS}" 2>/dev/null)" || CNTOOLS_GOV_VOTE_POWER=''
   [[ -n "${CNTOOLS_GOV_VOTE_POWER}" ]] || cntools_transaction_log WARN 'Koios DRep voting power unavailable; the vote review omits it'
-  CNTOOLS_DREP_DETAILS="${details}" CNTOOLS_DREP_STATUS="${status}" CNTOOLS_DREP_ACTIVE="${active}" CNTOOLS_DREP_SOURCE="${source}"
 }
 
 cntools_gov_vote_eligible() {

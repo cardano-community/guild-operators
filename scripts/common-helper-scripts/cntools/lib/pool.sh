@@ -35,8 +35,16 @@ cntools_pool_public_file_safe() {
 
 cntools_pool_warning_add() {
   local index="$1" message="$2"
+  # Health checks run again before issuance; say each thing once.
+  [[ "; ${CNTOOLS_POOL_WARNINGS[index]:-}; " != *"; ${message}; "* ]] || return 0
   CNTOOLS_POOL_WARNINGS[index]+="${CNTOOLS_POOL_WARNINGS[index]:+; }${message}"
   cntools_transaction_log WARN "Pool=${CNTOOLS_POOL_NAMES[index]} ${message}"
+}
+
+# The one empty state of every pool action: an info line, no error.
+cntools_pool_empty_notice() {
+  cntools_ui_render_status info 'No pools are available. Create one with Pool → New or add one with Pool → Import.'
+  cntools_ui_wait
 }
 
 cntools_pool_identity_read() {
@@ -132,6 +140,11 @@ cntools_pool_catalog_build() {
     CNTOOLS_POOL_NAMES+=("${name}"); CNTOOLS_POOL_DIRECTORIES+=("${directory}")
     CNTOOLS_POOL_IDS+=(''); CNTOOLS_POOL_HEX_IDS+=(''); CNTOOLS_POOL_IDENTITIES+=(''); CNTOOLS_POOL_WARNINGS+=('')
     cntools_pool_key_state_into key_state "${directory}" cold-skey || return 1
+    # Only the cold public key: signing happens on another system.
+    if [[ "${key_state}" == Missing ]] && cntools_pool_file_name_into filename cold-vkey &&
+       [[ -f "${directory}/${filename}" && ! -L "${directory}/${filename}" ]]; then
+      key_state='Public only · offline signing'
+    fi
     CNTOOLS_POOL_PROTECTIONS+=("${key_state}")
     for kind in id cold-vkey cold-skey cold-hardware kes-vkey kes-skey vrf-vkey vrf-skey counter opcert config; do
       cntools_pool_file_name_into filename "${kind}" || return 1
@@ -169,17 +182,26 @@ cntools_pool_choose_into() {
   return 2
 }
 
-# A review's input-selection rows as table pairs: readable strategy, correct
-# plural; change-shaping rows only for features that are switched on.
+# A review's input-selection rows as table pairs, with the same labels as
+# cntools_transaction_ui_render_policy_rows and _untouched_row: readable
+# strategy, correct plural; change-shaping rows only for features that are
+# switched on. The UTxOs left alone are counted as Funds counts them; an
+# optional second count adds script or datum UTxOs a build set aside itself.
 cntools_pool_policy_rows() {
-  local inputs="${1:-0}" label=''
+  local inputs="${1:-0}" extra="${2:-0}" label='' untouched=0 what='reference-script UTxO'
   label="$(cntools_settings_strategy_name "${CNTOOLS_TX_SELECTION_STRATEGY:-}" 2>/dev/null)" || label="${CNTOOLS_TX_SELECTION_STRATEGY:-}"
   label+=" · $(cntools_number_format "${inputs}") input"; (( inputs == 1 )) || label+=s
   cntools_table_pair 'Input selection' "${label}" value
-  # As cntools_funding_render_untouched_row, in this table's row format.
-  if [[ "${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0}" =~ ^[1-9][0-9]*$ ]]; then
-    label="$(cntools_number_format "${CNTOOLS_FUNDING_REFERENCE_SKIPPED}") reference-script UTxO"
-    (( CNTOOLS_FUNDING_REFERENCE_SKIPPED == 1 )) || label+=s
+  if declare -F cntools_funding_untouched_into >/dev/null 2>&1; then
+    cntools_funding_untouched_into untouched what
+  else
+    untouched="${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0}"
+  fi
+  [[ "${untouched}" =~ ^[0-9]+$ ]] || untouched=0
+  if [[ "${extra}" =~ ^[1-9][0-9]*$ ]]; then untouched=$((untouched + extra)) what='script or datum UTxO'; fi
+  if ((untouched > 0)); then
+    label="$(cntools_number_format "${untouched}") ${what}"
+    (( untouched == 1 )) || label+=s
     cntools_table_pair 'Left untouched' "${label}" value
   fi
   [[ "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" ]] ||
@@ -188,18 +210,6 @@ cntools_pool_policy_rows() {
     cntools_table_pair 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
   [[ "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" == Disabled* || -z "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" ]] ||
     cntools_table_pair 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" value
-}
-
-# Run a review's "Change …" step. Esc (1) keeps the current value and returns
-# to the review; Ctrl+C (130) and errors still end the action.
-cntools_pool_review_change() {
-  local change_status=0
-  "$@" || change_status=$?
-  if ((change_status == 1)); then
-    cntools_transaction_log CHOICE "Review change cancelled; current value kept step=$1"
-    return 0
-  fi
-  return "${change_status}"
 }
 
 # Pool folder names CNTools can lock, rotate and publish under (no spaces).

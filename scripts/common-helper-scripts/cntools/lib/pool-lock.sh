@@ -81,3 +81,18 @@ cntools_pool_locks_apply() {
   done
   CNTOOLS_POOL_LOCK_METHOD='read-only permissions + immutable flag'
 }
+
+# True when Pool → Encrypt left files locked here: immutable, or read-only
+# for the owner. Decrypt then has something to unlock even without keys.
+cntools_pool_directory_locked() {
+  local directory="$1" file='' lsattr='' attributes=''
+  lsattr="$(type -P lsattr 2>/dev/null || true)"
+  for file in "${directory}"/* "${directory}"/.[!.]* "${directory}"/..?*; do
+    [[ -f "${file}" && ! -L "${file}" && "${file##*/}" != .cntools-* ]] || continue
+    [[ -w "${file}" ]] || return 0
+    [[ -n "${lsattr}" ]] || continue
+    attributes="$(cntools_run_command 0000 -- "${lsattr}" -d -- "${file}" 2>/dev/null || true)"; attributes="${attributes%% *}"
+    [[ "${attributes}" != *i* ]] || return 0
+  done
+  return 1
+}

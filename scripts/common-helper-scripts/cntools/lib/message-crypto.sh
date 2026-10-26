@@ -25,9 +25,9 @@ cntools_message_encrypt_into() {
   (( ${#crypto_pass_ref} <= 1023 )) || return 1
   cntools_message_crypto_arguments_into crypto_args || return 1
   cntools_transaction_log CMD 'openssl enc -aes-256-cbc -pbkdf2 -iter 10000 -md sha256 -salt -a -A (CIP-83 salt=8; stdin and pass fd redacted)'
-  crypto_encoded="$(printf '%s' "${crypto_plain_ref}" | openssl enc -e "${crypto_args[@]}" -pass fd:3 3<<< "${crypto_pass_ref}" 2>/dev/null)" || crypto_status=$?
+  crypto_encoded="$(printf '%s' "${crypto_plain_ref}" | openssl enc -e "${crypto_args[@]}" -pass fd:3 3< <(printf '%s\n' "${crypto_pass_ref}") 2>/dev/null)" || crypto_status=$?
   if (( crypto_status == 0 )); then
-    crypto_recovered="$(printf '%s' "${crypto_encoded}" | openssl enc -d "${crypto_args[@]}" -pass fd:3 3<<< "${crypto_pass_ref}" 2>/dev/null)" || crypto_status=$?
+    crypto_recovered="$(printf '%s' "${crypto_encoded}" | openssl enc -d "${crypto_args[@]}" -pass fd:3 3< <(printf '%s\n' "${crypto_pass_ref}") 2>/dev/null)" || crypto_status=$?
   fi
   cntools_transaction_log CMD "CIP-83 local encryption and decryption check status=${crypto_status}"
   (( crypto_status == 0 )) && [[ "${crypto_recovered}" == "${crypto_plain_ref}" && "${crypto_encoded}" == U2FsdGVkX1* ]] || return 1

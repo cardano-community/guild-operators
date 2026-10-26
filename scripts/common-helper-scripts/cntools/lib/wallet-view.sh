@@ -11,7 +11,7 @@ cntools_wallet_identity_rows() {
   local protection_role=""
   local registration_role=""
 
-  protection_role="$(cntools_text_status_role "${key_protection}")" || return 1
+  protection_role="$(cntools_wallet_protection_role "${key_protection}")" || return 1
 
   cntools_table_row "Wallet detail" "Value" || return 1
   cntools_table_wrapped_pair \
@@ -177,9 +177,9 @@ cntools_wallet_balance_rows() {
   local components=0
   local formatted=""
 
-  # Zero components are hidden, unknown ones read —. Rewards count as a
-  # component: when only one is left it would repeat the Total, so the
-  # Total stands alone.
+  # Zero components are hidden, unknown ones read —. A lone UTxO component
+  # would repeat the Total, so the Total stands alone; lone rewards keep
+  # their row so the Total is not mistaken for spendable UTxOs.
   [[ "${has_base}" != Y || "${base}" == 0 ]] || { show_base=Y; utxo_rows=$((utxo_rows + 1)); }
   [[ "${has_payment}" != Y || "${payment}" == 0 ]] || { show_payment=Y; utxo_rows=$((utxo_rows + 1)); }
   [[ "${has_reward}" != Y || "${rewards}" == 0 ]] || show_rewards=Y
@@ -195,7 +195,6 @@ cntools_wallet_balance_rows() {
     if (( components <= 1 )); then
       show_base=N
       show_payment=N
-      show_rewards=N
     fi
   elif [[ "${has_reward}" == Y ]]; then
     # A stake-only wallet: Rewards is the whole balance, no Total needed.

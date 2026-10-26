@@ -63,13 +63,62 @@ cntools_transaction_value_size_into() {
   _cntools_value_value_size_result="${_cntools_value_size}"
 }
 
+cntools_transaction_value_maximum_into() {
+  local -n tvm_result="$1"
+  tvm_result="$(jq -er '.maxValueSize | select(type == "number" and . > 0 and . <= 100000 and floor == .)' "$2")"
+}
+
 cntools_transaction_validate_value_size() {
   local output="$1" protocol="$2" value_size=0 maximum=''
-  maximum="$(jq -er '.maxValueSize | select(type == "number" and . > 0 and . <= 100000 and floor == .)' "${protocol}")" || return 1
+  cntools_transaction_value_maximum_into maximum "${protocol}" || return 1
   cntools_transaction_value_size_into value_size "${output}" || return 1
   (( value_size <= maximum )) || {
-    cntools_transaction_set_error 'An output exceeds the ledger value-size limit. Split its assets or enable token fragmentation.'; return 1;
+    cntools_transaction_set_error 'An output holds more native assets than the ledger allows in one output (value-size limit).'; return 1;
   }
+}
+
+# Splits native-asset pieces ("QUANTITY POLICY.NAME", sorted by ID) into
+# consecutive runs whose output value fits maxValueSize even with the largest
+# coin; MAX_COUNT > 0 also caps the assets per run. Sets the array named by $1
+# to the run lengths, using the same sizing as cntools_transaction_value_size_into.
+# Usage: cntools_transaction_value_runs_into RUNS PROTOCOL MAX_COUNT PIECE...
+cntools_transaction_value_runs_into() {
+  local -n tvr_runs="$1"
+  local tvr_protocol="$2" tvr_cap="${3:-0}" tvr_maximum='' tvr_piece='' tvr_quantity='' tvr_id='' tvr_policy=''
+  local tvr_last='' tvr_name_bytes=0 tvr_quantity_size=0 tvr_entry=0 tvr_count=0 tvr_policies=0 tvr_in_policy=0
+  local tvr_policy_bytes=0 tvr_entries=0 tvr_size=0 tvr_next_policies=0 tvr_next_in_policy=0 tvr_next_policy_bytes=0
+  shift 3
+  tvr_runs=()
+  [[ "${tvr_cap}" =~ ^[0-9]+$ ]] || return 2
+  (( $# > 0 )) || return 0
+  cntools_transaction_value_maximum_into tvr_maximum "${tvr_protocol}" || return 1
+  for tvr_piece in "$@"; do
+    tvr_quantity="${tvr_piece%% *}"; tvr_id="${tvr_piece#* }"
+    [[ "${tvr_id}" =~ ^[0-9a-f]{56}(\.([0-9a-f]{2}){0,32})?$ ]] || return 2
+    tvr_policy="${tvr_id:0:56}"; tvr_name_bytes=$(( (${#tvr_id} - 57 > 0 ? ${#tvr_id} - 57 : 0) / 2 ))
+    cntools_transaction_cbor_uint_size_into tvr_quantity_size "${tvr_quantity}" || return 1
+    # CBOR header sizes of small counts: 1 byte below 24, 2 below 256, else 3.
+    tvr_entry=$(( (tvr_name_bytes < 24 ? 1 : 2) + tvr_name_bytes + tvr_quantity_size ))
+    if [[ "${tvr_policy}" == "${tvr_last}" && "${tvr_count}" -gt 0 ]]; then
+      tvr_next_policies="${tvr_policies}"; tvr_next_in_policy=$((tvr_in_policy + 1))
+      tvr_next_policy_bytes=$(( tvr_policy_bytes - (tvr_in_policy < 24 ? 1 : tvr_in_policy < 256 ? 2 : 3) + (tvr_next_in_policy < 24 ? 1 : tvr_next_in_policy < 256 ? 2 : 3) ))
+    else
+      tvr_next_policies=$((tvr_policies + 1)); tvr_next_in_policy=1
+      tvr_next_policy_bytes=$(( tvr_policy_bytes + 30 + 1 ))
+    fi
+    # Coin (9 bytes at most), the [coin, assets] header and the policy map.
+    tvr_size=$(( 9 + 1 + (tvr_next_policies < 24 ? 1 : tvr_next_policies < 256 ? 2 : 3) + tvr_next_policy_bytes + tvr_entries + tvr_entry ))
+    if (( tvr_count > 0 )) && { (( tvr_size > tvr_maximum )) || (( tvr_cap > 0 && tvr_count >= tvr_cap )); }; then
+      tvr_runs+=("${tvr_count}")
+      tvr_count=0 tvr_policies=0 tvr_in_policy=0 tvr_policy_bytes=0 tvr_entries=0
+      tvr_next_policies=1 tvr_next_in_policy=1 tvr_next_policy_bytes=31
+      tvr_size=$(( 9 + 1 + 1 + 31 + tvr_entry ))
+    fi
+    (( tvr_size <= tvr_maximum )) || return 1
+    tvr_count=$((tvr_count + 1)); tvr_policies="${tvr_next_policies}"; tvr_in_policy="${tvr_next_in_policy}"
+    tvr_policy_bytes="${tvr_next_policy_bytes}"; tvr_entries=$((tvr_entries + tvr_entry)); tvr_last="${tvr_policy}"
+  done
+  tvr_runs+=("${tvr_count}")
 }
 
 # A rebuild flag requests another build until exact convergence. Discretionary
@@ -111,6 +160,8 @@ cntools_transaction_balance_into() {
   local _bal_output="$1" _bal_fee_name="$2" _bal_protocol="$3" _bal_prepare="$4" _bal_validate="${5:-}"
   local _bal_body='' _bal_package='' _bal_next='' _bal_attempt=0 _bal_status=0 _bal_max=0 _bal_bytes=0 _bal_witnesses=0
   local CNTOOLS_TRANSACTION_BALANCE_CHANGE_CAP='' CNTOOLS_TRANSACTION_BALANCE_REBUILD=N
+  # Set when the size guard below fails, so a caller can retry with fewer inputs.
+  CNTOOLS_TRANSACTION_BALANCE_OVERSIZE=N
   local CNTOOLS_TRANSACTION_BALANCE_INPUT_COUNT=0 CNTOOLS_TRANSACTION_BALANCE_OUTPUT_COUNT=0
   [[ "${_bal_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ && "${_bal_fee_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   declare -F "${_bal_prepare}" >/dev/null || return 2
@@ -135,7 +186,8 @@ cntools_transaction_balance_into() {
     _bal_witnesses="$(cntools_transaction_plan_witness_count)" || return 1
     # This is a conservative maximum-size guard, never an input to fee pricing.
     (( _bal_bytes + _bal_witnesses * 112 + 32 <= _bal_max )) || {
-      cntools_transaction_set_error 'The transaction exceeds the signed-size safety limit. Reduce inputs, assets or change outputs.'; return 1;
+      CNTOOLS_TRANSACTION_BALANCE_OVERSIZE=Y
+      cntools_transaction_set_error 'The transaction exceeds the signed-size safety limit. Reduce its inputs (Funds → Collect UTxOs combines small UTxOs), assets or change outputs.'; return 1;
     }
     _bal_result="${_bal_package}"
     cntools_transaction_log TRANSACTION "Exact balanced transaction fee=${!_bal_fee_name} inputs=${CNTOOLS_TRANSACTION_BALANCE_INPUT_COUNT} outputs=${CNTOOLS_TRANSACTION_BALANCE_OUTPUT_COUNT} attempts=$((_bal_attempt+1))"

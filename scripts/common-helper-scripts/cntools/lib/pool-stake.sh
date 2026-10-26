@@ -95,12 +95,14 @@ cntools_pool_stake_snapshot() {
   done | sort
 }
 
-# Owner balances for the review's pledge row; asks only when they do not
-# cover the declared pledge. Registration and delegation show per owner in the review.
-# "reuse" keeps an earlier approval of the same pledge.
+# Owner balances for the review's pledge row; asks only when the known
+# balances do not cover the declared pledge. Registration and delegation show
+# per owner in the review. "reuse" keeps an earlier approval of the same
+# pledge; "back" (from the review) labels leaving as going back to the
+# settings, which is what Esc does there.
 CNTOOLS_POOL_PLEDGE_TOTAL='' CNTOOLS_POOL_PLEDGE_UNKNOWN=N CNTOOLS_POOL_PLEDGE_APPROVED=''
 cntools_pool_stake_guidance() {
-  local mode="${1:-}" record='' hash='' total=0 unknown=N choice=''
+  local mode="${1:-}" back="${2:-}" record='' hash='' total=0 unknown=N choice='' coverage='' leave='Cancel transaction'
   while IFS= read -r record; do
     hash="$(jq -r .hash <<< "${record}")"
     if [[ -n "${CNTOOLS_POOL_STAKE_BALANCE[${hash}]:-}" ]]; then
@@ -109,18 +111,28 @@ cntools_pool_stake_guidance() {
   done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_REG_OWNERS}")
   CNTOOLS_POOL_PLEDGE_TOTAL="${total}" CNTOOLS_POOL_PLEDGE_UNKNOWN="${unknown}"
   cntools_transaction_log POOL "Pledge check knownOwnerBalance=${total} declared=${CNTOOLS_POOL_REG_PLEDGE} missingBalances=${unknown} backend=${CNTOOLS_WALLET_REGISTER_BACKEND}"
-  [[ "${unknown}" == Y ]] || ! cntools_uint_greater_equal "${total}" "${CNTOOLS_POOL_REG_PLEDGE}" || return 0
+  # Known balances that cover the pledge (always so for pledge 0) need no
+  # question, even when another owner's balance is unknown.
+  ! cntools_uint_greater_equal "${total}" "${CNTOOLS_POOL_REG_PLEDGE}" || return 0
   if [[ "${mode}" == reuse && "${CNTOOLS_POOL_PLEDGE_APPROVED}" == "${CNTOOLS_POOL_REG_PLEDGE}" ]]; then
     cntools_transaction_log CHOICE "Pool menu=Continue with this pledge commitment? kept=Yes, continue pledge=${CNTOOLS_POOL_REG_PLEDGE}"
     return 0
   fi
+  [[ "${back}" != back ]] || leave='Back to pool settings'
+  if [[ "${unknown}" == Y ]]; then coverage='Partial · some owner balances unavailable'; fi
+  if [[ "${CNTOOLS_WALLET_REGISTER_BACKEND}" == local ]]; then
+    coverage="${coverage:+${coverage} · }base addresses + rewards only"
+  fi
   { cntools_table_pair 'Owner balances + rewards' "$(cntools_number_format_lovelace "${total}")" number
     cntools_table_pair 'Declared pledge' "$(cntools_number_format_lovelace "${CNTOOLS_POOL_REG_PLEDGE}")" number
-    [[ "${CNTOOLS_WALLET_REGISTER_BACKEND}" != local ]] || cntools_table_pair Coverage 'Known base addresses + rewards only; other stake-linked addresses are not counted' muted
-    [[ "${unknown}" != Y ]] || cntools_table_pair Coverage 'Partial · some owner balances unavailable' warning
+    [[ -z "${coverage}" ]] || cntools_table_pair Coverage "${coverage}" "$([[ "${unknown}" == Y ]] && printf warning || printf muted)"
   } | cntools_table_render 'Pledge check' || return 2
-  cntools_ui_render_status warn 'Pledge is below the declared amount or could not be fully verified. This may prevent pool rewards.'
-  cntools_pool_registration_choose choice 'Continue with this pledge commitment?' 'Yes, continue' 'Cancel transaction' || return $?
+  if [[ "${unknown}" == Y ]]; then
+    cntools_ui_render_status warn 'The owner balances CNTools could check are below the declared pledge, and some could not be checked. A pledge that is not met prevents pool rewards.'
+  else
+    cntools_ui_render_status warn 'The owner balances are below the declared pledge. A pledge that is not met prevents pool rewards.'
+  fi
+  cntools_pool_registration_choose choice 'Continue with this pledge commitment?' 'Yes, continue' "${leave}" || return $?
   [[ "${choice}" == 'Yes, continue' ]] || return 1
   CNTOOLS_POOL_PLEDGE_APPROVED="${CNTOOLS_POOL_REG_PLEDGE}"
 }
@@ -130,9 +142,9 @@ cntools_pool_stake_pledge_row() {
   local value='' role=success
   [[ -n "${CNTOOLS_POOL_PLEDGE_TOTAL}" ]] || return 0
   value="$(cntools_number_format_lovelace "${CNTOOLS_POOL_PLEDGE_TOTAL}")"
-  if [[ "${CNTOOLS_POOL_PLEDGE_UNKNOWN}" == Y ]]; then value+=' known · some balances unavailable'; role=warning
-  elif cntools_uint_greater_equal "${CNTOOLS_POOL_PLEDGE_TOTAL}" "${CNTOOLS_POOL_REG_PLEDGE}"; then value+=' · covers the pledge'
+  if cntools_uint_greater_equal "${CNTOOLS_POOL_PLEDGE_TOTAL}" "${CNTOOLS_POOL_REG_PLEDGE}"; then value+=' · covers the pledge'
   else value+=' · below the pledge'; role=warning; fi
+  [[ "${CNTOOLS_POOL_PLEDGE_UNKNOWN}" != Y ]] || value+=' · some balances unavailable'
   [[ "${CNTOOLS_WALLET_REGISTER_BACKEND}" != local ]] || value+=' · base addresses + rewards'
   cntools_table_pair 'Owner balances' "${value}" "${role}"
 }
@@ -154,6 +166,9 @@ cntools_pool_stake_state_into() {
     else state_text="${stake_label} · delegated here by this transaction"; fi
   elif [[ "${setup}" == register ]]; then
     state_text='Not registered · registered by this transaction'; state_role=success
+  elif [[ "${registered}" == no && "${kind}" == reward ]]; then
+    # Rewards and a retirement's deposit refund need it registered.
+    state_text='Not registered · rewards and the deposit refund need it registered'
   elif [[ "${registered}" != yes ]]; then
     state_text="${stake_label}"; [[ "${registered}" == no ]] || state_role=muted
   elif [[ "${kind}" == reward ]]; then

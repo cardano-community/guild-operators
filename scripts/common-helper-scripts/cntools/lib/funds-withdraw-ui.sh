@@ -48,35 +48,75 @@ cntools_withdraw_rebuild_into() {
   wr_reason="${CNTOOLS_TRANSACTION_ERROR:-The withdrawal could not be rebuilt.}"
   printf -v "${wr_lifetime}" '%s' "${wr_previous}"
   cntools_transaction_clear_error
+  CNTOOLS_TRANSACTION_UI_NOTICE=''
   cntools_ui_spin_function 'Restoring the previous withdrawal…' \
     cntools_withdraw_refresh_build_into "${wr_target}" "${wr_previous}" || return 2
   cntools_transaction_log CHOICE "Withdrawal rebuild failed; previous expiry kept lifetime=${wr_previous}"
   cntools_ui_render_status warn "The new expiry could not be built, so the previous one is kept. ${wr_reason}"
 }
 
+# Rebuild after 'Change signers'; a failed rebuild restores the signers and
+# the workflow, can-sign and lifetime values they changed.
+# Usage: cntools_withdraw_signers_rebuild_into TARGET WORKFLOW CAN_SIGN LIFETIME
+cntools_withdraw_signers_rebuild_into() {
+  local wsr_target="$1" wsr_reason=''
+  cntools_transaction_clear_error
+  cntools_ui_spin_function 'Checking rewards and rebuilding the withdrawal…' \
+    cntools_withdraw_refresh_build_into "${wsr_target}" "${!4}" && return 0
+  wsr_reason="${CNTOOLS_TRANSACTION_ERROR:-The withdrawal could not be rebuilt.}"
+  cntools_multisig_signers_restore_into "$2" "$3" "$4"
+  cntools_transaction_clear_error
+  cntools_ui_spin_function 'Restoring the previous withdrawal…' \
+    cntools_withdraw_refresh_build_into "${wsr_target}" "${!4}" || return 2
+  cntools_transaction_log CHOICE 'Withdrawal rebuild failed; previous signers kept'
+  cntools_ui_render_status warn "The new signers could not be built, so the previous ones are kept. ${wsr_reason}"
+}
+
+# Says why only an unsigned package is offered when the wallet's keys are encrypted.
+cntools_withdraw_unsigned_reason() {
+  [[ "${CNTOOLS_STAKE_CAN_SIGN}" != Y && "${CNTOOLS_STAKE_WALLET_TYPE:-}" != MultiSig ]] || return 0
+  cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' \
+    "${CNTOOLS_STAKE_DIRECTORY}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" \
+    "${CNTOOLS_STAKE_DIRECTORY}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}" || true
+}
+
 cntools_withdraw_workflow() {
   local selected="" workflow="" staged="" signed="" saved="" proceed=""
-  local backend="" signed_body="" txid="" lifetime=1800 status=0 previous=""
+  local backend="" signed_body="" txid="" lifetime=1800 status=0 previous="" asked=N
+  local -a review_options=('Change expiry' 'Change workflow')
   CNTOOLS_WITHDRAW_RESULT_SHOWN=N; CNTOOLS_WITHDRAW_SAVED_PACKAGE=""
   cntools_withdraw_begin
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
   cntools_wallet_choose selected Cancel withdraw || return $?
   cntools_stake_prepare_wallet "${CNTOOLS_WALLET_PATHS[selected]}" "${CNTOOLS_WALLET_NAMES[selected]}" || return 2
+  [[ "${CNTOOLS_STAKE_WALLET_TYPE:-}" != Hardware ]] || cntools_transaction_require_hwcli || return 2
   # Check rewards first: a wallet with nothing to withdraw asks nothing more,
   # not even for its multisig signers.
   cntools_ui_spin_function 'Checking rewards and spendable funds…' cntools_withdraw_collect || status=$?
-  if (( status == 4 )); then
+  if (( status == 4 || status == 5 )); then
     cntools_withdraw_begin
-    cntools_ui_render_status info "${CNTOOLS_TRANSACTION_ERROR}"
+    if (( status == 4 )); then
+      cntools_ui_render_status info "${CNTOOLS_TRANSACTION_ERROR}"
+    else
+      cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR}"
+    fi
     CNTOOLS_WITHDRAW_RESULT_SHOWN=Y
     return 0
   fi
   (( status == 0 )) || return 2
-  [[ "${CNTOOLS_STAKE_WALLET_TYPE:-}" != MultiSig ]] || cntools_multisig_stake_choose_signers cntools_withdraw_begin || return $?
+  if [[ "${CNTOOLS_STAKE_WALLET_TYPE:-}" == MultiSig ]]; then
+    cntools_multisig_stake_window_check "${CNTOOLS_FUNDING_SLOT}" || return 2
+    cntools_multisig_stake_choose_signers cntools_withdraw_begin || return $?
+    asked=Y
+    ! cntools_multisig_signers_changeable || review_options+=('Change signers')
+  fi
+  cntools_withdraw_unsigned_reason
   cntools_transaction_ui_initial_workflow_into workflow "${CNTOOLS_STAKE_CAN_SIGN}" || return $?
   cntools_transaction_ui_initial_expiry_into lifetime || return $?
-  if cntools_flow_quick; then
+  # Quick builds from the checked rewards and funds unless a question was
+  # asked since: time spent in the signer menus would leave them stale.
+  if cntools_flow_quick && [[ "${asked}" == N ]]; then
     cntools_ui_spin_function 'Building the withdrawal…' cntools_withdraw_current_build_into staged "${lifetime}" || return 2
   else
     cntools_ui_spin_function 'Checking rewards and building the withdrawal…' \
@@ -85,7 +125,7 @@ cntools_withdraw_workflow() {
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into selected "${staged}" "${proceed}" \
-      cntools_withdraw_begin cntools_withdraw_render 'Change expiry' 'Change workflow' || return $?
+      cntools_withdraw_begin cntools_withdraw_render "${review_options[@]}" || return $?
     status=0
     case "${selected}" in
       "${proceed}") break ;;
@@ -98,25 +138,42 @@ cntools_withdraw_workflow() {
         (( status == 0 )) || continue
         cntools_transaction_ui_unsigned_lifetime_into lifetime "${workflow}" || continue
         cntools_withdraw_rebuild_into staged lifetime "${previous}" || return $? ;;
+      'Change signers')
+        cntools_multisig_signers_change_into workflow CNTOOLS_STAKE_CAN_SIGN lifetime stake cntools_withdraw_begin || status=$?
+        (( status != 1 )) || continue
+        (( status == 0 )) || return "${status}"
+        cntools_withdraw_signers_rebuild_into staged workflow CNTOOLS_STAKE_CAN_SIGN lifetime || return $? ;;
       'Change expiry')
         previous="${lifetime}"
         cntools_transaction_ui_expiry_into lifetime || status=$?
         (( status != 1 )) || continue
         (( status == 0 )) || return "${status}"
+        [[ "${lifetime}" != "${previous}" ]] || continue
         cntools_withdraw_rebuild_into staged lifetime "${previous}" || return $? ;;
       *) return 2 ;;
     esac
   done
+  if [[ "${workflow}" != 'Create unsigned package' ]]; then
+    cntools_transaction_signed_path_into signed || return 2
+    cntools_ui_spin_function 'Rechecking rewards and selected inputs…' cntools_withdraw_recheck || return 2
+    cntools_transaction_ui_recheck_mark
+    # A device or key failure offers Retry, Save unsigned package or Cancel.
+    status=0
+    cntools_transaction_ui_sign_staged withdrawal "${staged}" "${signed}" || status=$?
+    case "${status}" in
+      0) ;;
+      4) workflow='Create unsigned package' ;;
+      1|130) return "${status}" ;;
+      *) return 2 ;;
+    esac
+  fi
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned withdraw-rewards || return 2
     CNTOOLS_WITHDRAW_SAVED_PACKAGE="${saved}"
     cntools_withdraw_begin
-    cntools_withdraw_result success 'Ready for Transaction → Sign, then Submit. Rebuild if the reward balance changes or the transaction expires.' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_withdraw_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
-  cntools_transaction_signed_path_into signed || return 2
-  cntools_ui_spin_function 'Rechecking rewards and selected inputs…' cntools_withdraw_recheck || return 2
-  cntools_ui_spin_function 'Signing withdrawal…' cntools_transaction_sign_registered "${staged}" "${signed}" || return 2
   cntools_transaction_package_load "${signed}" || return 2
   [[ "${CNTOOLS_TRANSACTION_COMPLETE}" == Y ]] || { cntools_withdraw_fail 'The package still needs witnesses.'; return 2; }
   cntools_transaction_save_into saved "${signed}" signed withdraw-rewards || return 2
@@ -135,7 +192,11 @@ cntools_withdraw_workflow() {
     cntools_withdraw_result warning 'Not submitted · signed package retained' "${txid}" "${saved}"
     return $?
   fi
-  cntools_ui_spin_function 'Rechecking rewards and selected inputs…' cntools_withdraw_recheck || status=$?
+  # Signing a moment ago needs no second recheck; a slow signer does.
+  if cntools_transaction_ui_recheck_due; then
+    cntools_ui_spin_function 'Rechecking rewards and selected inputs…' cntools_withdraw_recheck || status=$?
+    (( status != 0 )) || cntools_transaction_ui_recheck_mark
+  fi
   if (( status == 0 )); then
     cntools_ui_spin_function 'Submitting withdrawal…' cntools_transaction_ui_submit_selected "${backend}" "${signed_body}" "${txid}" || status=$?
   fi

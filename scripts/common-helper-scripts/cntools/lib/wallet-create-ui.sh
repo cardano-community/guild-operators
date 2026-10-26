@@ -147,7 +147,8 @@ cntools_wallet_action_new_cli() {
   cntools_wallet_create_render_plan "${name}" || return 1
   cntools_ui_render_status warn \
     "This wallet has no recovery phrase. Its signing keys will initially be stored locally and unencrypted."
-  if cntools_ui_flow_confirm "Create this CLI wallet now?"; then
+  # New key material: a real confirmation in both styles, naming the wallet.
+  if cntools_ui_confirm "Create CLI wallet ${name} now?"; then
     confirm_status=0
   else
     confirm_status=$?

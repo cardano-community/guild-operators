@@ -50,6 +50,12 @@ cntools_wallet_key_signing_type() {
     stake:StakeExtendedSigningKeyShelley_ed25519_bip32)
       output_ref="extended"
       ;;
+    cc-cold:ConstitutionalCommitteeColdSigningKey_ed25519|cc-hot:ConstitutionalCommitteeHotSigningKey_ed25519)
+      output_ref="normal"
+      ;;
+    cc-cold:ConstitutionalCommitteeColdExtendedSigningKey_ed25519_bip32|cc-hot:ConstitutionalCommitteeHotExtendedSigningKey_ed25519_bip32)
+      output_ref="extended"
+      ;;
     catalyst:CIP36VoteExtendedSigningKey_ed25519)
       jq -es 'length==1 and (.[0].cborHex|type=="string" and test("^5880[0-9a-fA-F]{256}$"))' "${key_file}" >/dev/null || return 1
       output_ref="extended"

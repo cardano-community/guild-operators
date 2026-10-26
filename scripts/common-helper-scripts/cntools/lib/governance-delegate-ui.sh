@@ -2,6 +2,8 @@
 # Governance delegation reuses the shared stake transaction UX and signers.
 # shellcheck disable=SC2034
 declare -ag CNTOOLS_VOTE_LOCAL_LABELS=() CNTOOLS_VOTE_LOCAL_IDS=()
+# Y once the local DRep wallets were inspected (each Change DRep reuses them).
+CNTOOLS_VOTE_LOCAL_COLLECTED=N
 
 cntools_vote_label() {
   case "$1" in
@@ -30,10 +32,23 @@ cntools_vote_render_rows() {
   cntools_vote_target_status_into label role
   cntools_transaction_ui_styled_row 'Current voting delegation' "$(cntools_vote_label "${CNTOOLS_VOTE_CURRENT}")" identifier
   cntools_transaction_ui_styled_row 'Target voting delegation' "$(cntools_vote_label "${CNTOOLS_VOTE_TARGET}")" identifier
-  cntools_transaction_ui_styled_row 'Target status' "${label}" "${role}"
+  # Only what needs attention: an inactive DRep, or activity not known.
   # Abstain and No Confidence are ledger options; nothing was queried.
-  [[ "${CNTOOLS_DREP_STATUS}" == predefined ]] ||
-    cntools_transaction_ui_styled_row 'Target checked through' "${CNTOOLS_DREP_SOURCE}" value
+  case "${CNTOOLS_DREP_STATUS}:${CNTOOLS_DREP_ACTIVE}" in
+    predefined:*|registered:true) ;;
+    *) cntools_transaction_ui_styled_row 'Target status' "${label}" "${role}" ;;
+  esac
+}
+
+# Registration of the chosen target, plus (local build, Koios enabled) the
+# activity the ledger state lacks, so an inactive DRep is caught.
+cntools_vote_target_check() {
+  cntools_drep_query "${CNTOOLS_VOTE_TARGET}" "${CNTOOLS_VOTE_KIND}" "${CNTOOLS_VOTE_HASH}" "${CNTOOLS_WALLET_REGISTER_BACKEND}" || return $?
+  [[ "${CNTOOLS_DREP_STATUS}" == registered && "${CNTOOLS_DREP_ACTIVE}" == unknown ]] || return 0
+  cntools_drep_koios_enrich "${CNTOOLS_VOTE_TARGET}" "${CNTOOLS_VOTE_KIND}" "${CNTOOLS_VOTE_HASH}" || return 0
+  CNTOOLS_DREP_ACTIVE="$(jq -r '.active | if . == true then "true" elif . == false then "false" else "unknown" end' <<< "${CNTOOLS_DREP_KOIOS_DETAILS}")" ||
+    CNTOOLS_DREP_ACTIVE=unknown
+  [[ "${CNTOOLS_DREP_ACTIVE}" == unknown ]] || CNTOOLS_DREP_SOURCE='Local node · Koios activity'
 }
 
 cntools_vote_choose_target() {
@@ -45,8 +60,10 @@ cntools_vote_choose_target() {
     CNTOOLS_VOTE_REGISTRATION_CONFIRMED=Y
     cntools_transaction_log CHOICE "Combined stake registration approved deposit=${CNTOOLS_WALLET_REGISTER_DEPOSIT}"
   fi
-  # Offer local DReps only when one exists.
-  cntools_ui_spin_function 'Checking local DRep wallets…' cntools_vote_local_collect || return 2
+  # Offer local DReps only when one exists; inspected once per action.
+  if [[ "${CNTOOLS_VOTE_LOCAL_COLLECTED}" != Y ]]; then
+    cntools_ui_spin_function 'Checking local DRep wallets…' cntools_vote_local_collect || return 2
+  fi
   ((${#CNTOOLS_VOTE_LOCAL_IDS[@]} == 0)) || options+=('Local DRep wallet')
   options+=('Always Abstain' 'Always No Confidence' Cancel)
   notice='Voting delegation does not change your stake pool or withdraw rewards.'
@@ -83,8 +100,7 @@ cntools_vote_choose_target() {
       cntools_ui_render_status warn 'This wallet already uses that voting delegation. No transaction is needed.'; continue
     fi
     status=0
-    cntools_ui_spin_function 'Checking the voting delegation target…' cntools_drep_query \
-      "${CNTOOLS_VOTE_TARGET}" "${CNTOOLS_VOTE_KIND}" "${CNTOOLS_VOTE_HASH}" "${CNTOOLS_WALLET_REGISTER_BACKEND}" || status=$?
+    cntools_ui_spin_function 'Checking the voting delegation target…' cntools_vote_target_check || status=$?
     if ((status == 4)); then
       cntools_ui_render_status warn 'The DRep is not registered on this network or has retired.'; continue
     elif ((status != 0)); then
@@ -116,7 +132,7 @@ cntools_vote_local_collect() {
       CNTOOLS_VOTE_LOCAL_IDS+=("${CNTOOLS_DREP_KEY_ID}")
     fi
   done
-  CNTOOLS_DREP_KEY_ERROR=''
+  CNTOOLS_DREP_KEY_ERROR='' CNTOOLS_VOTE_LOCAL_COLLECTED=Y
 }
 
 cntools_vote_choose_local_into() {

@@ -468,6 +468,12 @@ cntools_gum_require() {
     printf 'CNTools requires Charm Gum v%s, but Gum was not found.\n' \
       "${CNTOOLS_GUM_REQUIRED_VERSION}"
   fi
+  # Offline mode cannot download, so say so instead of offering it.
+  if [[ "${CNTOOLS_MODE:-}" == "offline" ]]; then
+    cntools_gum_prerequisite_error \
+      "Automatic Gum installation is unavailable in offline mode. Install Gum v${CNTOOLS_GUM_REQUIRED_VERSION} manually, then start CNTools again."
+    return 1
+  fi
   printf 'Install the official release for this user in %s? [y/N]: ' \
     "${install_directory}"
   IFS= read -r answer || answer=""
@@ -1050,6 +1056,9 @@ cntools_ui_input() {
     "${_cntools_placeholder_arguments[@]}" \
     --prompt.foreground "${CNTOOLS_GUM_COLOR_BRAND}" \
     --cursor.foreground "${CNTOOLS_GUM_COLOR_BRAND}")" || return $?
+  # Pasted values often carry surrounding spaces; no input needs them.
+  _cntools_value="${_cntools_value#"${_cntools_value%%[![:space:]]*}"}"
+  _cntools_value="${_cntools_value%"${_cntools_value##*[![:space:]]}"}"
   _cntools_output_ref="${_cntools_value}"
 }
 
@@ -1381,7 +1390,9 @@ cntools_ui_pick_path() {
       Cancel) return 1 ;;
       'Browse files'|'Browse folders')
         path_picker_status=0
-        cntools_ui_file path_picker_value "${path_picker_start}" cntools_ui_path_begin "${path_picker_kind}" || path_picker_status=$?
+        # Picking an input uses it; deleting keys or inputs from here is
+        # never wanted. Saved packages offer Delete in their own review.
+        cntools_ui_file path_picker_value "${path_picker_start}" cntools_ui_path_begin "${path_picker_kind}" N || path_picker_status=$?
         ((path_picker_status == 0 || path_picker_status == 1)) || return "${path_picker_status}"
         ((path_picker_status == 0)) || continue
         ;;
@@ -1851,7 +1862,7 @@ cntools_gum_menu_run() {
     # 1 and 130 are cancels (or an outcome the action already showed).
     if (( action_status != 0 && action_status != 1 && action_status != 130 )); then
       status_level="error"
-      status_message="${CNTOOLS_MENU_LABELS[selected_index]} failed (status ${action_status})."
+      status_message="${CNTOOLS_MENU_LABELS[selected_index]} failed (status ${action_status}). See ${CNTOOLS_LOG:-the CNTools log}."
       cntools_gum_log ERROR \
         "action ${CNTOOLS_MENU_IDS[selected_index]} failed with status ${action_status}"
     fi

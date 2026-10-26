@@ -28,18 +28,23 @@ cntools_policy_show_error() {
   return 1
 }
 
+# Text by default; 0x followed by hex enters raw bytes.
 cntools_policy_asset_input_into() {
-  local output="$1" form='' entered='' input_hex=''
-  cntools_ui_choose form 'Asset name format' Text Hex Cancel || return $?
-  [[ "${form}" != Cancel ]] || return 1
+  local output="$1" entered='' input_hex='' form=''
   while true; do
-    cntools_ui_input entered "Asset name (${form}; empty is valid)" '' || return $?
-    if cntools_policy_asset_name_into input_hex "${form,,}" "${entered}"; then
+    cntools_ui_input entered 'Asset name' 'Text, or 0x + hex · empty is valid' || return $?
+    form=text; [[ "${entered}" != 0[xX]* ]] || { form=hex; entered="${entered:2}"; }
+    if cntools_policy_asset_name_into input_hex "${form}" "${entered}"; then
       printf -v "${output}" '%s' "${input_hex}"
       cntools_transaction_log CHOICE "Asset name selected hex=${input_hex:-(empty)}"
+      # A CIP-67 label prefix alone does not make a CIP-68 asset.
+      case "${input_hex}" in
+        000643b0*|000de140*|0014df10*|001bc280*)
+          cntools_ui_render_status warn 'This name starts with a CIP-68 label. CNTools mints it as an ordinary token: a CIP-68 asset also needs its reference token with an inline datum.' ;;
+      esac
       return 0
     fi
-    cntools_ui_render_status warn 'Use at most 32 bytes of text, or 0–64 hexadecimal characters in complete byte pairs.'
+    cntools_ui_render_status warn 'Use at most 32 bytes of text, or 0x followed by up to 64 hexadecimal characters in complete byte pairs.'
   done
 }
 
@@ -87,7 +92,8 @@ cntools_policy_render() {
 cntools_policy_asset_enrich() {
   (( $# > 0 )) || return 0
   [[ "${CNTOOLS_MODE:-offline}" != offline && "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && -n "${CNTOOLS_KOIOS_API:-}" ]] || return 0
-  cntools_ui_flow_confirm 'Fetch token supply and metadata from Koios (one-day cache)?' true || return 0
+  # Light mode reads everything from Koios already; only local mode asks.
+  [[ "${CNTOOLS_MODE}" == light ]] || cntools_ui_flow_confirm 'Fetch token supply and metadata from Koios (one-day cache)?' true || return 0
   cntools_transaction_log CHOICE 'Policy asset Koios metadata lookup confirmed'
   cntools_ui_spin_function 'Fetching Koios asset details…' cntools_asset_details_for_ids "$@" || true
 }
@@ -202,32 +208,47 @@ cntools_policy_action_protection_inner() {
   ((status == 0)) || return "${status}"
   directory="${CNTOOLS_POLICY_PATHS[selected]}"; key="${directory}/${CNTOOLS_POLICY_SKEY_FILENAME:-policy.skey}"
   [[ "${operation}" != decrypt ]] || key+='.gpg'
-  # A key operation needs GnuPG: check before any password is typed.
-  if [[ -f "${key}" && ! -L "${key}" ]] && ! type -P gpg >/dev/null 2>&1 && ! type -P gpg2 >/dev/null 2>&1; then
+  # Folder problems (a mixed plaintext/encrypted key, unknown key files) and a
+  # missing GnuPG stop the action before any password is typed.
+  if ! cntools_policy_protection_preflight "${directory}" "${operation}"; then
+    [[ -n "${CNTOOLS_POLICY_ERROR}" ]] || cntools_policy_error 'The policy directory must be owned, writable and protected from group/public writes.' || true
+    cntools_policy_show_error
+    return 1
+  fi
+  if [[ -f "${key}" && ! -L "${key}" ]] && ! cntools_key_crypto_available && ! type -P gpg2 >/dev/null 2>&1; then
     cntools_policy_error 'GnuPG (gpg) is required to encrypt or decrypt a policy key. Install it and try again.' || true
     cntools_policy_show_error
     return 1
   fi
   while true; do
-    cntools_policy_manage_begin "${title}"
-    {
-      cntools_table_pair Policy "${CNTOOLS_POLICY_NAMES[selected]}" identifier
-      cntools_table_pair 'Key protection' "${CNTOOLS_POLICY_STATES[selected]}" status
-      cntools_table_pair Directory "${directory}" identifier
-    } | cntools_table_render Policy || return 1
-    # Lock-only (no key file) sets no password, so it needs no password warning.
-    if [[ "${operation}" == encrypt ]]; then
-      [[ ! -f "${key}" || -L "${key}" ]] || cntools_ui_render_status warn 'Keep a secure backup: an encryption password cannot be recovered.'
-    else
-      cntools_ui_render_status warn 'Decrypt / Unlock leaves the signing key unencrypted and removes file write protection.'
+    # Quick locks or unlocks files without a prompt, so it draws no table
+    # that the result screen would replace at once.
+    if [[ -f "${key}" && ! -L "${key}" ]] || ! cntools_flow_quick; then
+      cntools_policy_manage_begin "${title}"
+      {
+        cntools_table_pair Policy "${CNTOOLS_POLICY_NAMES[selected]}" identifier
+        cntools_table_pair 'Key protection' "${CNTOOLS_POLICY_STATES[selected]}" status
+        cntools_table_pair Directory "${directory}" identifier
+      } | cntools_table_render Policy || return 1
+      # Lock-only (no key file) sets no password, so it needs no password warning.
+      if [[ "${operation}" == encrypt ]]; then
+        [[ ! -f "${key}" || -L "${key}" ]] || cntools_ui_render_status warn 'Keep a secure backup: an encryption password cannot be recovered.'
+      elif [[ -f "${key}" && ! -L "${key}" ]]; then
+        cntools_ui_render_status warn 'Decrypt / Unlock leaves the signing key unencrypted and removes file write protection.'
+      else
+        cntools_ui_render_status info 'No encrypted signing key here: Unlock only removes file write protection.'
+      fi
+      [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
     fi
-    [[ -z "${feedback}" ]] || cntools_ui_render_status warn "${feedback}"
-    # Decrypt always confirms (once). Encrypting a key asks for a new password
-    # on this screen (Esc cancels), which is the commitment; lock-only is a flow step.
-    if [[ "${operation}" == decrypt && -z "${feedback}" ]]; then
-      cntools_ui_confirm "${title}?" false || return $?
-    elif [[ "${operation}" == encrypt && ( ! -f "${key}" || -L "${key}" ) ]]; then
-      cntools_ui_flow_confirm "${title}?" false || return $?
+    # Decrypting a key confirms once in both styles. Encrypting a key asks for
+    # a new password on this screen (Esc cancels), which is the commitment;
+    # lock-only and unlock-only are flow steps.
+    if [[ -f "${key}" && ! -L "${key}" ]]; then
+      [[ "${operation}" != decrypt || -n "${feedback}" ]] || cntools_ui_confirm "Decrypt the signing key of ${CNTOOLS_POLICY_NAMES[selected]}?" false || return $?
+    elif [[ "${operation}" == encrypt ]]; then
+      cntools_ui_flow_confirm "Lock the files of ${CNTOOLS_POLICY_NAMES[selected]}?" false || return $?
+    else
+      cntools_ui_flow_confirm "Unlock the files of ${CNTOOLS_POLICY_NAMES[selected]}?" false || return $?
     fi
     if [[ -f "${key}" && ! -L "${key}" ]]; then
       while true; do

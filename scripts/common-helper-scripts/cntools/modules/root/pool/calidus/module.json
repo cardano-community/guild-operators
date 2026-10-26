@@ -53,6 +53,8 @@
     "pool.sh",
     "pool-files.sh",
     "pool-key.sh",
+    "pool-config.sh",
+    "pool-lock.sh",
     "pool-calidus.sh",
     "calidus-registration.sh",
     "pool-calidus-registration-ui.sh",

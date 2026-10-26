@@ -50,8 +50,10 @@ cntools_wallet_register_render_plan() {
   fi
 }
 
+# WALLET names the chosen wallet in outcome lines (it may have been the only one).
 cntools_wallet_register_render_collect_error() {
   local status="${1:-1}" message="" fallback="The stake ${CNTOOLS_WALLET_REGISTER_NOUN} data could not be collected. See ${CNTOOLS_LOG}."
+  local wallet="${2:-${CNTOOLS_WALLET_REGISTER_WALLET:-This wallet}}"
   # DRep and vote collection is not stake data and reports through the transaction error.
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* || "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
     fallback="${CNTOOLS_TRANSACTION_ERROR:-The ${CNTOOLS_WALLET_REGISTER_NOUN} data could not be collected. See ${CNTOOLS_LOG}.}"
@@ -59,17 +61,18 @@ cntools_wallet_register_render_collect_error() {
   message="${CNTOOLS_WALLET_REGISTER_ERROR:-${fallback}}"
 
   case "${status}" in
-    4) message="This wallet's stake address is already registered." ;;
-    5) message="This wallet has no spendable UTxOs at its base or payment address." ;;
+    4) message="Nothing to register: ${wallet}'s stake address is already registered." ;;
+    5) message="${wallet} has no spendable UTxOs at its base or payment address." ;;
     6)
-      message="The wallet balance must be greater than the current stake deposit so it can also pay the transaction fee."
+      message="${wallet}'s balance must be greater than the current stake deposit so it can also pay the transaction fee."
       ;;
     7)
-      message="This wallet's stake address is not registered."
+      message="${wallet}'s stake address is not registered."
+      [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != deregister ]] || message="Nothing to de-register: ${message}"
       [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" != vote-delegate ]] || message+=' Use Wallet → Register first.'
       ;;
     8)
-      message="This wallet has unclaimed rewards. Withdraw all rewards before de-registering its stake address."
+      message="${wallet} has unclaimed rewards. Withdraw all rewards before de-registering its stake address."
       ;;
     9)
       message="${CNTOOLS_WALLET_REGISTER_ERROR:-The wallet does not contain a safe set of UTxOs for this transaction.}"
@@ -87,14 +90,9 @@ cntools_wallet_register_render_collect_error() {
   fi
 }
 
-cntools_wallet_register_sign() {
-  local unsigned_file="${1:-}"
-  local signed_file="${2:-}"
-
-  cntools_transaction_sign_registered "${unsigned_file}" "${signed_file}" || {
-    CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_TRANSACTION_ERROR}"
-    return 1
-  }
+# The signed package must load and carry every witness.
+cntools_wallet_register_signed_check() {
+  local signed_file="${1:-}"
   cntools_transaction_package_load "${signed_file}" || {
     CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_TRANSACTION_ERROR}"
     return 1
@@ -149,10 +147,25 @@ cntools_wallet_register_rebuild_into() {
   cntools_ui_spin_function "${rebuild_message}" cntools_wallet_register_build_package_into "${rebuild_target}" && return 0
   rebuild_reason="${CNTOOLS_WALLET_REGISTER_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-The transaction could not be rebuilt.}}"
   cntools_wallet_register_restore
+  CNTOOLS_TRANSACTION_UI_NOTICE=''
   CNTOOLS_WALLET_REGISTER_ERROR=''; cntools_transaction_clear_error
   cntools_ui_spin_function 'Restoring the reviewed transaction…' cntools_wallet_register_build_package_into "${rebuild_target}" || return 2
   cntools_transaction_log CHOICE "${CNTOOLS_WALLET_REGISTER_TITLE} rebuild failed; previous ${rebuild_what} kept"
   cntools_ui_render_status warn "The new ${rebuild_what} could not be built, so the previous one is kept. ${rebuild_reason}"
+}
+
+# Rebuild after 'Change signers'; a failed rebuild restores the signers and
+# the workflow, can-sign and lifetime values they changed.
+cntools_wallet_register_signers_rebuild_into() {
+  local wsr_target="$1" wsr_workflow="$2" wsr_message="$3" wsr_reason=''
+  CNTOOLS_WALLET_REGISTER_ERROR=''; cntools_transaction_clear_error
+  cntools_ui_spin_function "${wsr_message}" cntools_wallet_register_build_package_into "${wsr_target}" && return 0
+  wsr_reason="${CNTOOLS_WALLET_REGISTER_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-The transaction could not be rebuilt.}}"
+  cntools_multisig_signers_restore_into "${wsr_workflow}" CNTOOLS_WALLET_REGISTER_CAN_SIGN CNTOOLS_WALLET_REGISTER_LIFETIME
+  CNTOOLS_WALLET_REGISTER_ERROR=''; cntools_transaction_clear_error
+  cntools_ui_spin_function 'Restoring the reviewed transaction…' cntools_wallet_register_build_package_into "${wsr_target}" || return 2
+  cntools_transaction_log CHOICE "${CNTOOLS_WALLET_REGISTER_TITLE} rebuild failed; previous signers kept"
+  cntools_ui_render_status warn "The new signers could not be built, so the previous ones are kept. ${wsr_reason}"
 }
 
 # De-Register: 0 when the wallet picker already knows the wallet holds rewards.
@@ -184,19 +197,60 @@ cntools_wallet_register_choose_signers() {
   fi
 }
 
+# 0 when the review can offer 'Change signers': stake multisig wallets with a
+# real choice of participants (DRep scripts keep their own selection).
+cntools_wallet_register_signers_changeable() {
+  [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == MultiSig && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-* &&
+     "${CNTOOLS_WALLET_REGISTER_OPERATION}" != gov-vote ]] && cntools_multisig_signers_changeable
+}
+
+# Says why only an unsigned package is offered when the wallet's keys are encrypted.
+cntools_wallet_register_unsigned_reason() {
+  local -a urk_keys=()
+  [[ "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" != Y && "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" != MultiSig &&
+     -n "${CNTOOLS_WALLET_REGISTER_DIRECTORY:-}" ]] || return 0
+  urk_keys=("${CNTOOLS_WALLET_REGISTER_DIRECTORY}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME}")
+  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* || "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+    urk_keys+=("${CNTOOLS_WALLET_REGISTER_DIRECTORY}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}")
+  else
+    urk_keys+=("${CNTOOLS_WALLET_REGISTER_DIRECTORY}/${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}")
+  fi
+  cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' "${urk_keys[@]}" || true
+}
+
+# Collects the chain state, then (fail early) checks a stake multisig wallet's
+# time locks at the current slot before any target or signer is asked.
+cntools_wallet_register_collect_checked() {
+  local wrc_slot=''
+  cntools_wallet_register_collect || return $?
+  [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == MultiSig && "${CNTOOLS_WALLET_REGISTER_OPERATION}" != drep-* &&
+     "${CNTOOLS_WALLET_REGISTER_OPERATION}" != gov-vote ]] || return 0
+  # The build checks again; an unavailable tip is not a reason to stop here.
+  cntools_funding_tip_into wrc_slot "${CNTOOLS_WALLET_REGISTER_BACKEND}" || return 0
+  cntools_multisig_stake_window_check "${wrc_slot}" || {
+    CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_TRANSACTION_ERROR}"; return 1;
+  }
+}
+
+# Pre-submit rechecks run only when due (none yet, or the signing took a while).
+cntools_wallet_register_recheck_marked() {
+  "$@" || return $?
+  cntools_transaction_ui_recheck_mark
+}
+
 cntools_wallet_register_workflow() {
   local selected_index="" wallet_directory="" wallet_name="" workflow="" proceed="" choice=""
-  local staged="" signed="" saved="" backend="" signed_body="" txid="" status=0 collecting='Checking stake state, rewards and spendable funds…' prefix='stake '
-  local building=''
+  local staged="" signed="" saved="" backend="" signed_body="" txid="" status=0 collecting='Checking stake state and spendable funds…' prefix='stake '
+  local building='' signing=''
   CNTOOLS_WALLET_REGISTER_RESULT_SHOWN=N
   CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE=""
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
-    collecting='Checking DRep registration, deposit and spendable funds…'
-    prefix=''
-  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
-    collecting='Checking DRep registration, active proposals and spendable funds…'
-    prefix=''
-  fi
+  case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
+    register) collecting='Checking stake registration and spendable funds…' ;;
+    deregister) collecting='Checking stake state, rewards and spendable funds…' ;;
+    vote-delegate) collecting='Checking stake state, voting delegation and spendable funds…'; prefix='' ;;
+    drep-*) collecting='Checking DRep registration, deposit and spendable funds…'; prefix='' ;;
+    gov-vote) collecting='Checking DRep registration, active proposals and spendable funds…'; prefix='' ;;
+  esac
   cntools_wallet_register_begin
   cntools_transaction_require_cli || return 2
   cntools_wallet_catalog_build || return 2
@@ -211,7 +265,11 @@ cntools_wallet_register_workflow() {
       status=8 # Known from the picker; no chain check needed.
     else
       cntools_wallet_register_prepare_wallet "${wallet_directory}" "${wallet_name}" || return 2
-      cntools_ui_spin_function "${collecting}" cntools_wallet_register_collect || status=$?
+      # A hardware wallet needs cardano-hw-cli even to build: say so now.
+      if [[ "${CNTOOLS_WALLET_REGISTER_WALLET_TYPE:-}" == Hardware ]]; then
+        cntools_transaction_require_hwcli || { CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_TRANSACTION_ERROR}"; return 2; }
+      fi
+      cntools_ui_spin_function "${collecting}" cntools_wallet_register_collect_checked || status=$?
     fi
     (( status != 0 )) || break
     # Rewards block de-registration: say why and pick again while another wallet can.
@@ -221,7 +279,7 @@ cntools_wallet_register_workflow() {
       continue
     fi
     cntools_wallet_register_begin
-    cntools_wallet_register_render_collect_error "${status}"
+    cntools_wallet_register_render_collect_error "${status}" "${wallet_name}"
     CNTOOLS_WALLET_REGISTER_RESULT_SHOWN=Y
     [[ "${status}" != 4 && "${status}" != 7 ]] || return 0
     return 2
@@ -236,10 +294,12 @@ cntools_wallet_register_workflow() {
     cntools_gov_vote_choose || return $?
   fi
   cntools_wallet_register_choose_signers || return $?
+  cntools_wallet_register_unsigned_reason
   # Asked only once the chain state and target are known to allow the action.
   cntools_transaction_ui_initial_workflow_into workflow "${CNTOOLS_WALLET_REGISTER_CAN_SIGN}" || return $?
   cntools_transaction_ui_initial_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
   building="Building ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…"
+  signing="${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}"
   cntools_ui_spin_function "${building}" cntools_wallet_register_build_package_into staged || return 2
   local -a review_options=('Change expiry' 'Change workflow')
   case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
@@ -248,6 +308,7 @@ cntools_wallet_register_workflow() {
     vote-delegate) review_options=('Change DRep' "${review_options[@]}") ;;
     gov-vote) ! declare -F cntools_gov_vote_change >/dev/null || review_options=('Change vote' "${review_options[@]}") ;;
   esac
+  ! cntools_wallet_register_signers_changeable || review_options+=('Change signers')
   while true; do
     cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
     cntools_transaction_ui_review_into choice "${staged}" "${proceed}" \
@@ -277,6 +338,8 @@ cntools_wallet_register_workflow() {
           continue
         fi
         (( status == 0 )) || return "${status}"
+        # The same pool or DRep again needs no rebuild.
+        [[ "${!CNTOOLS_WALLET_REGISTER_SAVED[0]}" != "${CNTOOLS_WALLET_REGISTER_SAVED[1]}" ]] || continue
         cntools_wallet_register_rebuild_into staged "${choice#Change }" "${building}" || return $? ;;
       'Change metadata')
         cntools_wallet_register_save CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH
@@ -295,16 +358,37 @@ cntools_wallet_register_workflow() {
         cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || status=$?
         (( status != 1 )) || continue
         (( status == 0 )) || return "${status}"
+        [[ "${CNTOOLS_WALLET_REGISTER_LIFETIME}" != "${CNTOOLS_WALLET_REGISTER_SAVED[1]}" ]] || continue
         cntools_wallet_register_rebuild_into staged expiry "${building}" || return $? ;;
+      'Change signers')
+        cntools_multisig_signers_change_into workflow CNTOOLS_WALLET_REGISTER_CAN_SIGN CNTOOLS_WALLET_REGISTER_LIFETIME stake cntools_wallet_register_begin || status=$?
+        (( status != 1 )) || continue
+        (( status == 0 )) || return "${status}"
+        cntools_wallet_register_signers_rebuild_into staged workflow "${building}" || return $? ;;
       *) return 2 ;;
     esac
   done
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == vote-delegate ]]; then
-    cntools_ui_spin_function 'Rechecking stake state, DRep and selected inputs…' cntools_vote_recheck || return 2
+    cntools_ui_spin_function 'Rechecking stake state, DRep and selected inputs…' cntools_wallet_register_recheck_marked cntools_vote_recheck || return 2
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-* ]]; then
-    cntools_ui_spin_function 'Rechecking DRep state, deposit and selected inputs…' cntools_drep_lifecycle_recheck || return 2
+    cntools_ui_spin_function 'Rechecking DRep state, deposit and selected inputs…' cntools_wallet_register_recheck_marked cntools_drep_lifecycle_recheck || return 2
   elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
-    cntools_ui_spin_function 'Rechecking DRep, proposal, previous vote and selected inputs…' cntools_gov_vote_recheck || return 2
+    cntools_ui_spin_function 'Rechecking DRep, proposal, previous vote and selected inputs…' cntools_wallet_register_recheck_marked cntools_gov_vote_recheck || return 2
+  fi
+  if [[ "${workflow}" != 'Create unsigned package' ]]; then
+    cntools_transaction_signed_path_into signed || return 2
+    if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
+      cntools_ui_spin_function 'Rechecking stake state, pool and selected inputs…' cntools_wallet_register_recheck_marked cntools_delegate_recheck || return 2
+    fi
+    # A device or key failure offers Retry, Save unsigned package or Cancel.
+    status=0
+    cntools_transaction_ui_sign_staged "${signing}" "${staged}" "${signed}" || status=$?
+    case "${status}" in
+      0) cntools_wallet_register_signed_check "${signed}" || return 2 ;;
+      4) workflow='Create unsigned package' ;;
+      1|130) return "${status}" ;;
+      *) CNTOOLS_WALLET_REGISTER_ERROR="${CNTOOLS_TRANSACTION_ERROR:-}"; return 2 ;;
+    esac
   fi
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
     cntools_transaction_save_into saved "${staged}" unsigned "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
@@ -313,12 +397,6 @@ cntools_wallet_register_workflow() {
     cntools_wallet_register_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
     return $?
   fi
-  cntools_transaction_signed_path_into signed || return 2
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == delegate ]]; then
-    cntools_ui_spin_function 'Rechecking stake state, pool and selected inputs…' cntools_delegate_recheck || return 2
-  fi
-  cntools_ui_spin_function "Signing ${prefix}${CNTOOLS_WALLET_REGISTER_NOUN}…" \
-    cntools_wallet_register_sign "${staged}" "${signed}" || return 2
   cntools_transaction_save_into saved "${signed}" signed "${CNTOOLS_WALLET_REGISTER_FILE_SUFFIX}" || return 2
   CNTOOLS_WALLET_REGISTER_SAVED_PACKAGE="${saved}"
   if [[ "${workflow}" == 'Create and sign' ]]; then
@@ -349,8 +427,12 @@ cntools_wallet_register_workflow() {
   cntools_transaction_ui_offer_monitor "${txid}"
 }
 
+# Signing a moment ago needs no second recheck before submitting; a device or
+# another system that took a while does (cntools_transaction_ui_recheck_due).
 cntools_wallet_register_submit_checked() {
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
+  if ! cntools_transaction_ui_recheck_due; then
+    :
+  elif [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == gov-vote ]]; then
     cntools_gov_vote_recheck || {
       cntools_transaction_set_error "Not submitted: ${CNTOOLS_WALLET_REGISTER_ERROR:-Governance vote could not be rechecked.}"
       return 1
@@ -371,6 +453,7 @@ cntools_wallet_register_submit_checked() {
       return 1
     }
   fi
+  cntools_transaction_ui_recheck_mark
   cntools_transaction_ui_submit_selected "$@"
 }
 

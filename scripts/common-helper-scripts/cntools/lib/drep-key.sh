@@ -64,6 +64,10 @@ cntools_drep_key_id_into() {
 cntools_drep_key_preflight() {
   local directory="$1" type="" name=""
   local -a names=()
+  # Checked before the source menu, so nobody types 24 words first.
+  [[ "${CNTOOLS_CLI:-}" == /* && -x "${CNTOOLS_CLI}" && ! -d "${CNTOOLS_CLI}" ]] || {
+    cntools_drep_key_error 'Cardano CLI is required to create or derive DRep keys.'; return 1;
+  }
   cntools_drep_key_filenames_into names || { cntools_drep_key_error 'Conflicting or unsafe DRep filenames.'; return 1; }
   cntools_wallet_protection_entries_safe "${directory}" || {
     cntools_drep_key_error "${CNTOOLS_WALLET_PROTECTION_ERROR:-Unsafe wallet directory.}"; return 1;
@@ -110,19 +114,21 @@ cntools_drep_key_create() {
   local directory="$1" method="$2" account="${3:-0}" phrase="${4:-}" stage="" errors="" id="" status=0
   local -a names=()
   CNTOOLS_DREP_KEY_ERROR=""
-  [[ "${CNTOOLS_CLI:-}" == /* && -x "${CNTOOLS_CLI}" && ! -d "${CNTOOLS_CLI}" ]] || {
-    cntools_drep_key_error 'Cardano CLI is required to create or derive DRep keys.'; return 1;
-  }
   cntools_drep_key_preflight "${directory}" || return 1
   cntools_drep_key_filenames_into names || return 1
   [[ "${method}" == cli || "${method}" == mnemonic ]] || return 2
   cntools_wallet_mnemonic_index_into account "${account}" || return 2
   cntools_wallet_create_stage_into stage || { cntools_drep_key_error 'Could not create private key staging.'; return 1; }
   if [[ "${method}" == mnemonic ]]; then
+    # The UI asks for the phrase again only when this marks it rejected.
+    CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED=N CNTOOLS_WALLET_MNEMONIC_ERROR=''
     cntools_wallet_mnemonic_derive_role "${stage}" drep "${account}" 0 "${phrase}" || status=$?
     unset phrase
     if ((status == 0)); then
       printf '1852H/1815H/%sH/3/0\n' "${account}" > "${stage}/${names[3]}" || status=1
+    elif [[ -n "${CNTOOLS_WALLET_MNEMONIC_ERROR:-}" ]]; then
+      # Its own reason (a rejected phrase, a timeout), already logged.
+      CNTOOLS_DREP_KEY_ERROR="${CNTOOLS_WALLET_MNEMONIC_ERROR}"
     fi
   else
     cntools_wallet_material_temp_file errors "${stage}" drep-key-errors || return 1

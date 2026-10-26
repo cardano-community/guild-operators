@@ -196,7 +196,9 @@ cntools_blocks_wizard() {
   local kind="$1" count=10 epoch='' snapshot='' page=0 total=0 index=0 last=0 choice='' record='' status=0 requested=''
   local -a options=()
   cntools_ui_action_begin "${kind}" "/ Blocks / ${kind}"
-  cntools_ui_render_status info 'Read-only local CNCLI history, not a live chain query. CNCLI / logMonitor must maintain the journal for production statuses to stay current.'
+  # Quick opens the history straight away (its Source row names the CNCLI
+  # log), so the note is shown only where a prompt follows.
+  cntools_flow_quick || cntools_ui_render_status info 'Read-only local CNCLI history, not a live chain query. CNCLI / logMonitor must maintain the journal for production statuses to stay current.'
   if [[ "${kind}" == Epoch ]]; then
     cntools_blocks_load Summary 1 || return $?
     # An empty journal has no latest epoch to open.

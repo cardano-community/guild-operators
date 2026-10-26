@@ -39,15 +39,18 @@ cntools_pool_action_new() {
   cntools_pool_manage_name_into name create || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   cntools_pool_target_into target "${name}" || return 1
-  cntools_ui_action_begin New '/ Pool / New'
-  {
-    cntools_table_pair Name "${name}" identifier
-    cntools_table_pair Directory "${target}" identifier
-    cntools_table_pair 'Cold identity' 'New CLI signing and verification keys' value
-    cntools_table_pair 'Node keys' 'New KES and VRF key pairs' value
-    cntools_table_pair Counter 'New issue counter (0)' number
-  } | cntools_table_render 'Create pool'
-  status=0; cntools_ui_flow_confirm 'Create this pool?' false || status=$?
+  # Quick creates it at once, so the plan is drawn only when a question follows.
+  if ! cntools_flow_quick; then
+    cntools_ui_action_begin New '/ Pool / New'
+    {
+      cntools_table_pair Name "${name}" identifier
+      cntools_table_pair Directory "${target}" identifier
+      cntools_table_pair 'Cold identity' 'New CLI signing and verification keys' value
+      cntools_table_pair 'Node keys' 'New KES and VRF key pairs' value
+      cntools_table_pair Counter 'New issue counter (0)' number
+    } | cntools_table_render 'Create pool'
+  fi
+  status=0; cntools_ui_flow_confirm "Create pool ${name}?" false || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   cntools_transaction_log CHOICE "Pool creation confirmed name=${name}"
   status=0
@@ -86,6 +89,11 @@ cntools_pool_action_import() {
   cntools_pool_target_into target "${name}" || return 1
   while true; do
     [[ "${choice}" != 'Hardware cold key' ]] || source="1853H/1815H/0H/$((10#${index}))H"
+    if [[ "${choice}" != 'Hardware cold key' ]] && cntools_flow_quick; then
+      # Quick imports a directory at once: no plan that would be wiped.
+      cntools_transaction_log CHOICE "Pool import plan skipped flow=quick name=${name}"
+      break
+    fi
     cntools_ui_action_begin Import '/ Pool / Import'
     {
       cntools_table_pair Name "${name}" identifier
@@ -95,7 +103,7 @@ cntools_pool_action_import() {
     } | cntools_table_render 'Import pool'
     if [[ "${choice}" != 'Hardware cold key' ]]; then
       cntools_ui_render_status info 'Only regular top-level files are accepted. Existing keys, counters and certificates are preserved; mismatched identities are rejected.'
-      status=0; cntools_ui_flow_confirm 'Import this pool without overwriting any existing pool?' false || status=$?
+      status=0; cntools_ui_confirm "Import ${source##*/} as pool ${name}?" false || status=$?
       ((status != 1)) || return 0; ((status == 0)) || return "${status}"
       break
     fi
@@ -139,15 +147,18 @@ cntools_pool_manage_index_into() {
   done
 }
 
-# Encrypt/Decrypt names the keys it processes, refuses an already encrypted
-# pool before asking anything, and asks again after a wrong password.
+# Encrypt/Decrypt names the keys it processes and refuses an already
+# encrypted pool, or one with nothing to decrypt, before asking anything.
+# GnuPG is checked before any password. For Encrypt the password entry is the
+# commitment (Esc cancels); Decrypt warns and asks first. A wrong password
+# asks again; any other GnuPG failure stops.
 cntools_pool_action_protection() {
   local operation="$1" title="" selected="" directory="" kind="" name="" calidus_state="" password="" confirmation="" status=0 encrypted=N keys_text=""
   local -a keys=()
   [[ "${operation}" != encrypt ]] && title=Decrypt || title=Encrypt
   cntools_ui_action_begin "${title}" "/ Pool / ${title}"
   cntools_pool_catalog_build || { cntools_ui_render_status error 'The pool directory could not be read safely.'; cntools_ui_wait; return 1; }
-  (( ${#CNTOOLS_POOL_NAMES[@]} > 0 )) || { cntools_ui_render_status info 'No pools are available.'; cntools_ui_wait; return 0; }
+  (( ${#CNTOOLS_POOL_NAMES[@]} > 0 )) || { cntools_pool_empty_notice; return 0; }
   cntools_pool_choose_into selected || status=$?
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
   directory="${CNTOOLS_POOL_DIRECTORIES[selected]}"
@@ -169,31 +180,44 @@ cntools_pool_action_protection() {
     cntools_ui_render_status info 'This pool already has encrypted signing keys. To change the password, use Pool → Decrypt first.'
     cntools_ui_wait; return 0
   fi
+  if [[ "${operation}" == decrypt ]] && (( ${#keys[@]} == 0 )) && ! cntools_pool_directory_locked "${directory}"; then
+    cntools_ui_render_status info "${CNTOOLS_POOL_NAMES[selected]} has no encrypted signing keys and no locked files, so there is nothing to decrypt."
+    cntools_ui_wait; return 0
+  fi
+  if (( ${#keys[@]} > 0 )) && ! { cntools_key_crypto_available || type -P gpg2 >/dev/null 2>&1; }; then
+    cntools_ui_render_status error "GnuPG (gpg) is required to ${operation} the signing keys of ${CNTOOLS_POOL_NAMES[selected]}. Install it and try again; nothing was changed."
+    cntools_ui_wait; return 1
+  fi
   keys_text="${keys[*]}"; keys_text="${keys_text// / and }"
   local keys_log="${keys_text:-none}"
-  {
-    cntools_table_pair Pool "${CNTOOLS_POOL_NAMES[selected]}" identifier
-    cntools_table_pair 'Cold key' "${CNTOOLS_POOL_PROTECTIONS[selected]}" value
-    [[ "${calidus_state}" == Missing ]] || cntools_table_pair 'Calidus key' "${calidus_state}" value
-    if [[ "${operation}" == encrypt ]]; then
-      [[ -n "${keys_text}" ]] && keys_text="Encrypts ${keys_text}" || keys_text='No signing keys to encrypt'
-      cntools_table_pair Result "${keys_text} · locks pool files" value
-    else
-      [[ -n "${keys_text}" ]] && keys_text="Decrypts ${keys_text}" || keys_text='No encrypted signing keys'
-      cntools_table_pair Result "${keys_text} · unlocks pool files" value
-    fi
-    cntools_table_pair 'Node keys' 'KES and VRF keys remain readable by the node' muted
-  } | cntools_table_render "${title} pool"
-  if (( ${#keys[@]} > 0 )); then
-    if [[ "${operation}" == encrypt ]]; then
-      cntools_ui_render_status warn 'Keep offline backups. Password loss cannot be recovered. Both signing keys use the same password.'
-    else
-      cntools_ui_render_status warn 'Decryption opens all protected keys together with one password and leaves them unencrypted on this system.'
-    fi
+  # Quick locks a keyless pool at once: no plan that would be wiped.
+  if [[ "${operation}" == decrypt ]] || (( ${#keys[@]} > 0 )) || ! cntools_flow_quick; then
+    {
+      cntools_table_pair Pool "${CNTOOLS_POOL_NAMES[selected]}" identifier
+      cntools_table_pair 'Cold key' "${CNTOOLS_POOL_PROTECTIONS[selected]}" value
+      [[ "${calidus_state}" == Missing ]] || cntools_table_pair 'Calidus key' "${calidus_state}" value
+      if [[ "${operation}" == encrypt ]]; then
+        [[ -n "${keys_text}" ]] && keys_text="Encrypts ${keys_text}" || keys_text='No signing keys to encrypt'
+        cntools_table_pair Result "${keys_text} · locks pool files" value
+      else
+        [[ -n "${keys_text}" ]] && keys_text="Decrypts ${keys_text}" || keys_text='No encrypted signing keys'
+        cntools_table_pair Result "${keys_text} · unlocks pool files" value
+      fi
+      cntools_table_pair 'Node keys' 'KES and VRF keys remain readable by the node' muted
+    } | cntools_table_render "${title} pool"
   fi
-  status=0; cntools_ui_confirm "${title} this pool?" false || status=$?
+  status=0
+  if [[ "${operation}" == decrypt ]]; then
+    (( ${#keys[@]} == 0 )) ||
+      cntools_ui_render_status warn 'Decryption opens all protected keys together with one password and leaves them unencrypted on this system.'
+    cntools_ui_confirm "Decrypt ${CNTOOLS_POOL_NAMES[selected]}?" false || status=$?
+  elif (( ${#keys[@]} > 0 )); then
+    cntools_ui_render_status warn 'Keep offline backups. Password loss cannot be recovered. Both signing keys use the same password.'
+  else
+    cntools_ui_flow_confirm "Lock the files of ${CNTOOLS_POOL_NAMES[selected]}?" false || status=$?
+  fi
   ((status != 1)) || return 0; ((status == 0)) || return "${status}"
-  cntools_transaction_log CHOICE "Pool protection confirmed pool=${directory##*/} operation=${operation} keys=${keys_log}"
+  cntools_transaction_log CHOICE "Pool protection started pool=${directory##*/} operation=${operation} keys=${keys_log}"
   while true; do
     if (( ${#keys[@]} > 0 )); then
       cntools_ui_password password 'Pool signing-key password' || {

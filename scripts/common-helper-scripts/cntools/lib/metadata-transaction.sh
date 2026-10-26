@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Metadata-only adapter: reuse Send's balanced payment/change/fee engine.
 # shellcheck disable=SC2034
+# Datum/reference-script UTxOs the last build left alone (the review says so).
+CNTOOLS_METADATA_TRANSACTION_SKIPPED=0
+
 cntools_metadata_transaction_build_into() {
   local result="$1" intent="$2" description="$3" context="$4" metadata="$5" view='' expected='' skipped=0
+  CNTOOLS_METADATA_TRANSACTION_SKIPPED=0
   cntools_utxo_keep_simple_into skipped || return 1
+  CNTOOLS_METADATA_TRANSACTION_SKIPPED="${skipped}"
   cntools_transaction_log TRANSACTION "Metadata-only inventory excluded=${skipped} datum/reference-script UTxOs"
   (( ${#CNTOOLS_UTXO_REFS[@]} > 0 )) || {
     cntools_transaction_set_error 'No ordinary funding UTxOs are available. Datum/reference-script outputs are not consumed.'; return 1;

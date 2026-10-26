@@ -13,6 +13,39 @@ cntools_policy_expiry_into() {
   printf -v "${output}" '%s' "$((reference + normalized))"
 }
 
+# Seconds from now for a typed policy expiry: 0 or blank (none), seconds,
+# a duration such as 90d, 12h or 30m, or a date (YYYY-MM-DD [HH:MM]) in the
+# display time zone. 2 = not understood, 3 = a date that has passed.
+cntools_policy_expiry_seconds_into() {
+  local _pes_output="$1" _pes_entered="${2,,}" _pes_number='' _pes_unit='' _pes_target='' _pes_now='' _pes_date=''
+  local -x TZ="${CNTOOLS_TIMEZONE:-UTC}"
+  _pes_entered="${_pes_entered//[[:space:]]/ }"
+  if [[ -z "${_pes_entered//[[:space:]]/}" ]]; then printf -v "${_pes_output}" '%s' 0; return 0; fi
+  if [[ "${_pes_entered}" =~ ^([0-9][0-9,]*)[[:space:]]*(s|sec|secs|seconds?|m|min|mins|minutes?|h|hours?|d|days?|w|weeks?)?$ ]]; then
+    _pes_unit="${BASH_REMATCH[2]}"
+    cntools_number_normalize_into _pes_number "${BASH_REMATCH[1]}" && [[ "${_pes_number}" =~ ^[0-9]{1,10}$ ]] || return 2
+    case "${_pes_unit:0:1}" in
+      m) _pes_number=$((10#${_pes_number} * 60)) ;;
+      h) _pes_number=$((10#${_pes_number} * 3600)) ;;
+      d) _pes_number=$((10#${_pes_number} * 86400)) ;;
+      w) _pes_number=$((10#${_pes_number} * 604800)) ;;
+      *) _pes_number=$((10#${_pes_number})) ;;
+    esac
+    (( _pes_number <= 9999999999 )) || return 2
+    printf -v "${_pes_output}" '%s' "${_pes_number}"; return 0
+  fi
+  [[ "${_pes_entered}" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})([ t]([0-9]{2}:[0-9]{2}))?$ ]] || return 2
+  _pes_date="${BASH_REMATCH[1]} ${BASH_REMATCH[3]:-00:00}"
+  _pes_target="$(date -d "${_pes_date}" +%s 2>/dev/null || date -j -f '%Y-%m-%d %H:%M' "${_pes_date}" +%s 2>/dev/null)" || return 2
+  [[ "${_pes_target}" =~ ^[0-9]{1,12}$ ]] || return 2
+  # The calendar must not have rolled an invalid day (2027-02-30) forward.
+  printf -v _pes_now '%(%Y-%m-%d %H:%M)T' "${_pes_target}"
+  [[ "${_pes_now}" == "${_pes_date}" ]] || return 2
+  _pes_now="$(cntools_health_now)" || return 2
+  (( _pes_target > _pes_now )) || return 3
+  printf -v "${_pes_output}" '%s' "$((_pes_target - _pes_now))"
+}
+
 cntools_policy_expiry_valid() {
   local expiry="$1" reference=''
   [[ "${expiry}" =~ ^(0|[1-9][0-9]{0,12})$ ]] || return 2

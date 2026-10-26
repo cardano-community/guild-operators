@@ -54,8 +54,9 @@ cntools_public_metadata_render() {
 }
 
 # True when this anchor can be downloaded and checked against its hash here.
+# A proposer's URL with control characters (terminal escapes) never is.
 cntools_public_metadata_verifiable() {
-  [[ "${CNTOOLS_MODE:-offline}" != offline && -n "$1" && "$2" =~ ^[0-9a-fA-F]{64}$ ]] &&
+  [[ "${CNTOOLS_MODE:-offline}" != offline && -n "$1" && "$2" =~ ^[0-9a-fA-F]{64}$ && ! "$1" =~ [[:cntrl:][:space:]] ]] &&
     [[ "$1" =~ ^https?://[^[:space:]]+$ || "$1" == ipfs://* ]]
 }
 
@@ -79,12 +80,14 @@ cntools_public_metadata_verify() {
 # Asks before downloading. Same arguments as cntools_public_metadata_verify;
 # returns 130 on Ctrl+C, otherwise 0 whether or not it was downloaded.
 cntools_public_metadata_offer() {
-  local url="$1" expected="$2" status=0
+  local url="$1" expected="$2" status=0 shown=''
   [[ "${CNTOOLS_MODE:-offline}" != offline && -n "${url}" && "${expected}" =~ ^[0-9a-fA-F]{64}$ ]] || return 0
   if ! cntools_public_metadata_verifiable "${url}" "${expected}"; then
     cntools_ui_render_status info 'This anchor is not a public HTTP(S) URL. Download it independently and compare its exact byte hash.'; return 0
   fi
-  cntools_ui_confirm "Download and verify published metadata from ${url}?" false || status=$?
+  # Shown in a prompt: never raw third-party text.
+  cntools_text_sanitize_into shown "${url}" || shown='the anchor URL'
+  cntools_ui_confirm "Download and verify published metadata from ${shown}?" false || status=$?
   ((status != 130)) || return 130
   ((status == 0)) || return 0
   cntools_public_metadata_verify "$@"

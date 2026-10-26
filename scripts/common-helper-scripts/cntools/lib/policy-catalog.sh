@@ -115,7 +115,7 @@ cntools_policy_ineligible_reason_into() {
   local -A _ineligible_seen=()
   for _ineligible_index in "${!CNTOOLS_POLICY_NAMES[@]}"; do
     if [[ -z "${CNTOOLS_POLICY_IDS[_ineligible_index]}" ]]; then _ineligible_cause='has an invalid script/ID'
-    elif [[ "${CNTOOLS_POLICY_SUPPORTED[_ineligible_index]}" != Y ]]; then _ineligible_cause='needs several signers (not supported here)'
+    elif [[ "${CNTOOLS_POLICY_SUPPORTED[_ineligible_index]}" != Y ]]; then _ineligible_cause='uses a script form CNTools cannot sign'
     elif [[ "${_ineligible_filter}" == transact ]]; then
       case "${CNTOOLS_POLICY_WINDOWS[_ineligible_index]}" in expired) _ineligible_cause='is expired' ;; pending) _ineligible_cause='is not valid yet' ;; *) continue ;; esac
     else
@@ -242,8 +242,10 @@ cntools_policy_asset_remember() {
   [[ "${identity}" =~ ^[0-9a-f]{56}\.([0-9a-f]{2}){0,32}$ && "${txid}" =~ ^[0-9a-f]{64}$ ]] || return 1
   cntools_policy_directory_safe "${directory}" && cntools_transaction_directory_safe "${directory}" || return 1
   record="${directory}/asset-${identity#*.}.asset"
+  # The record is replaced, not written in place: a read-only one left by an
+  # older Encrypt / Lock Policy is updated too; an immutable one is not.
   if [[ -e "${record}" || -L "${record}" ]]; then
-    cntools_policy_public_file "${record}" && [[ -O "${record}" && -w "${record}" ]] || return 1
+    cntools_policy_public_file "${record}" && [[ -O "${record}" ]] || return 1
     existing="$(< "${record}")"
     jq -e --arg policy "${identity%%.*}" --arg name "${identity#*.}" '.policyID==$policy and .assetName==$name' <<< "${existing}" >/dev/null || return 1
   fi
@@ -257,7 +259,7 @@ cntools_policy_asset_remember() {
   # Tracking is advisory: never modifies supply counters or an existing legacy
   # record. An unmodifiable/immutable record does not invalidate a saved tx.
   if [[ -e "${record}" ]]; then
-    cntools_run_command 00000 -- mv -T -- "${stage}" "${record}"
+    cntools_run_command 000000 -- mv -f -T -- "${stage}" "${record}"
   else
     cntools_run_command 00000 -- ln -T -- "${stage}" "${record}"
   fi

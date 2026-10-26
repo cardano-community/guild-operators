@@ -3,13 +3,15 @@
 # Loaded after wallet-mnemonic.sh.
 # shellcheck disable=SC2034,SC2178
 
-CNTOOLS_WALLET_MNEMONIC_WORDLIST_FILE="${CNTOOLS_ROOT}/data/bip39-english.txt"
-CNTOOLS_WALLET_MNEMONIC_WORDLIST_READY="N"
-declare -ag CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
-declare -Ag CNTOOLS_WALLET_MNEMONIC_WORDSET=()
+# The BIP39 word list and its loader live in wallet-mnemonic.sh.
+# Y when the last collected phrase passed the local BIP39 checksum check.
+declare -g CNTOOLS_WALLET_MNEMONIC_CHECKSUM_VERIFIED="N"
 
+# Every mnemonic screen also clears the terminal scrollback, so recovery
+# words shown or chosen on an earlier screen cannot be scrolled back to.
 cntools_wallet_mnemonic_screen_begin() {
   cntools_gum_clear
+  [[ ! -t 1 ]] || printf '\033[3J'
   cntools_ui_action_begin "${1:-Mnemonic}" "${2:-/ Wallet / Mnemonic}"
 }
 
@@ -28,54 +30,6 @@ cntools_wallet_mnemonic_ui_failure() {
     "${message} See ${CNTOOLS_LOG} for details." || true
   cntools_ui_wait || true
   return 1
-}
-
-cntools_wallet_mnemonic_wordlist_load() {
-  local _cntools_wordlist_file="${CNTOOLS_WALLET_MNEMONIC_WORDLIST_FILE:-}"
-  local _cntools_wordlist_word=""
-
-  [[ "${CNTOOLS_WALLET_MNEMONIC_WORDLIST_READY:-N}" != "Y" ]] || return 0
-  CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
-  CNTOOLS_WALLET_MNEMONIC_WORDSET=()
-  if [[ -z "${_cntools_wordlist_file}" ||
-        "${_cntools_wordlist_file}" != /* ||
-        ! -f "${_cntools_wordlist_file}" ||
-        -L "${_cntools_wordlist_file}" ||
-        ! -r "${_cntools_wordlist_file}" ]]; then
-    cntools_wallet_mnemonic_log ERROR \
-      "BIP39 English word list is missing or unsafe: ${_cntools_wordlist_file:-unset}"
-    return 2
-  fi
-  mapfile -t CNTOOLS_WALLET_MNEMONIC_WORDLIST \
-    < "${_cntools_wordlist_file}" || {
-    CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
-    cntools_wallet_mnemonic_log ERROR \
-      "BIP39 English word list could not be read"
-    return 2
-  }
-  if (( ${#CNTOOLS_WALLET_MNEMONIC_WORDLIST[@]} != 2048 )) ||
-     [[ "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[0]:-}" != "abandon" ||
-        "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[2047]:-}" != "zoo" ]]; then
-    CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
-    cntools_wallet_mnemonic_log ERROR \
-      "BIP39 English word list failed inventory validation"
-    return 2
-  fi
-  for _cntools_wordlist_word in \
-      "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[@]}"; do
-    if [[ ! "${_cntools_wordlist_word}" =~ ^[a-z]+$ ||
-          -n "${CNTOOLS_WALLET_MNEMONIC_WORDSET[${_cntools_wordlist_word}]+x}" ]]; then
-      CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
-      CNTOOLS_WALLET_MNEMONIC_WORDSET=()
-      cntools_wallet_mnemonic_log ERROR \
-        "BIP39 English word list failed content validation"
-      return 2
-    fi
-    CNTOOLS_WALLET_MNEMONIC_WORDSET["${_cntools_wordlist_word}"]=1
-  done
-  CNTOOLS_WALLET_MNEMONIC_WORDLIST_READY="Y"
-  cntools_wallet_mnemonic_log INFO \
-    "BIP39 English word list loaded words=2048"
 }
 
 cntools_wallet_mnemonic_select_word_into() {
@@ -409,6 +363,8 @@ cntools_wallet_mnemonic_word_columns() {
 }
 
 cntools_wallet_mnemonic_render_phrase() {
+  local -
+  set +x # Recovery words must never reach an xtrace log.
   local words_name="${1:-}"
   local phrase=""
   local width=""
@@ -429,10 +385,13 @@ cntools_wallet_mnemonic_render_phrase() {
   cntools_ui_render_status warn \
     "Anyone with these words can control this wallet. Record them offline and never share them."
   cntools_ui_render_detail "Recovery phrase — copy as one line" || return 1
-  cntools_gum style --margin "0 2 1 2" --padding "0 1" \
-    --width "${width}" --border rounded \
-    --border-foreground "${CNTOOLS_GUM_COLOR_WARNING}" \
-    --foreground "${CNTOOLS_GUM_COLOR_TEXT}" "${phrase}" || return 1
+  # Over stdin, never argv: process arguments are visible to other users.
+  printf '%s\n' "${phrase}" |
+    cntools_gum style --margin "0 2 1 2" --padding "0 1" \
+      --width "${width}" --border rounded \
+      --border-foreground "${CNTOOLS_GUM_COLOR_WARNING}" \
+      --foreground "${CNTOOLS_GUM_COLOR_TEXT}" || return 1
+  unset phrase
 
   cntools_ui_render_detail "Recovery phrase — numbered" || return 1
   {
@@ -456,6 +415,8 @@ cntools_wallet_mnemonic_render_phrase() {
 }
 
 cntools_wallet_mnemonic_verify_backup() {
+  local -
+  set +x # Recovery words must never reach an xtrace log.
   local words_name="${1:-}"
   local name="${2:-}"
   local account="${3:-0}"
@@ -540,6 +501,8 @@ cntools_wallet_mnemonic_unknown_word_into() {
 }
 
 cntools_wallet_mnemonic_collect_pasted_into() {
+  local -
+  set +x # Recovery words must never reach an xtrace log.
   local _cntools_output_name="${1:-}"
   local _cntools_pasted_secret=""
   local _cntools_pasted_normalized=""
@@ -593,100 +556,233 @@ cntools_wallet_mnemonic_collect_pasted_into() {
   done
 }
 
+# Word-by-word entry into a word array. Esc returns to the previous word (at
+# the first word, to the length choice); Esc at the length choice returns 1.
 cntools_wallet_mnemonic_collect_interactive_into() {
+  local -
+  set +x
   local _cntools_output_name="${1:-}"
   local _cntools_count_choice=""
   local _cntools_count=0
   local _cntools_index=0
   local _cntools_word=""
-  local _cntools_interactive_phrase=""
   local _cntools_status=0
   local -a _cntools_words=()
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
-  _cntools_output_ref=""
-  cntools_wallet_mnemonic_screen_begin \
-    "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
-  if cntools_ui_choose _cntools_count_choice "Recovery phrase length…" \
-      "12 words" "15 words" "18 words" "21 words" "24 words"; then
-    :
-  else
-    return $?
-  fi
-  _cntools_count="${_cntools_count_choice%% *}"
-  cntools_wallet_mnemonic_word_count_valid "${_cntools_count}" || return 2
+  _cntools_output_ref=()
   cntools_wallet_mnemonic_wordlist_load || return 2
-  for ((_cntools_index = 1;
-       _cntools_index <= _cntools_count;
-       _cntools_index++)); do
+  while true; do
+    cntools_wallet_mnemonic_screen_begin \
+      "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
+    if cntools_ui_choose _cntools_count_choice "Recovery phrase length…" \
+        "12 words" "15 words" "18 words" "21 words" "24 words"; then
+      :
+    else
+      return $?
+    fi
+    _cntools_count="${_cntools_count_choice%% *}"
+    cntools_wallet_mnemonic_word_count_valid "${_cntools_count}" || return 2
+    _cntools_words=()
+    _cntools_index=1
+    while (( _cntools_index >= 1 && _cntools_index <= _cntools_count )); do
+      cntools_wallet_mnemonic_screen_begin \
+        "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
+      cntools_ui_render_status info \
+        "Choose recovery word ${_cntools_index} of ${_cntools_count}. Type to filter; Esc returns to the previous word. Previous words are cleared as you continue."
+      if cntools_wallet_mnemonic_select_word_into \
+          _cntools_word "${_cntools_index}" "${_cntools_count}"; then
+        _cntools_status=0
+      else
+        _cntools_status=$?
+      fi
+      case "${_cntools_status}" in
+        0)
+          _cntools_words[_cntools_index - 1]="${_cntools_word}"
+          cntools_wallet_mnemonic_log CHOICE \
+            "interactive recovery word selected position=${_cntools_index}"
+          _cntools_index=$((_cntools_index + 1))
+          ;;
+        1)
+          _cntools_index=$((_cntools_index - 1))
+          cntools_wallet_mnemonic_log CHOICE \
+            "interactive recovery word entry stepped back position=${_cntools_index}"
+          ;;
+        *) unset _cntools_words _cntools_word; return "${_cntools_status}" ;;
+      esac
+      unset _cntools_word
+    done
+    (( _cntools_index > _cntools_count )) && break
+    # Esc at the first word: back to the length choice.
+  done
+  _cntools_output_ref=("${_cntools_words[@]}")
+  cntools_wallet_mnemonic_log CHOICE \
+    "interactive recovery phrase entered words=${_cntools_count}"
+  unset _cntools_words
+}
+
+# After a checksum mismatch: correct one word in place (the words are kept)
+# or start again. Returns 0 to check again, 4 to re-enter every word, 1 to
+# cancel and 130 on Ctrl+C.
+cntools_wallet_mnemonic_correct_into() {
+  local -
+  set +x
+  local _cntools_correct_name="${1:-}"
+  local _cntools_correct_choice=""
+  local _cntools_correct_word=""
+  local _cntools_correct_position=0
+  local _cntools_correct_status=0
+  local _cntools_correct_count=0
+  local _cntools_correct_index=0
+  local -a _cntools_correct_rows=()
+
+  [[ "${_cntools_correct_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_correct_ref="${_cntools_correct_name}"
+  _cntools_correct_count="${#_cntools_correct_ref[@]}"
+  while true; do
+    cntools_wallet_mnemonic_screen_begin \
+      "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
+    cntools_ui_render_status warn \
+      "The recovery phrase checksum does not match: at least one of the ${_cntools_correct_count} words is wrong, most often the last one. Your words are kept; correct one or enter them all again."
+    _cntools_correct_status=0
+    cntools_ui_choose _cntools_correct_choice "Recovery phrase…" \
+      "Re-enter word ${_cntools_correct_count} (the last word)" \
+      "Re-enter another word" "Re-enter all words" Cancel ||
+      _cntools_correct_status=$?
+    (( _cntools_correct_status == 0 )) || return "${_cntools_correct_status}"
+    case "${_cntools_correct_choice}" in
+      "Re-enter word ${_cntools_correct_count} (the last word)")
+        _cntools_correct_position="${_cntools_correct_count}" ;;
+      "Re-enter another word")
+        _cntools_correct_rows=()
+        for ((_cntools_correct_index = 1;
+              _cntools_correct_index < _cntools_correct_count;
+              _cntools_correct_index++)); do
+          _cntools_correct_rows+=("Word ${_cntools_correct_index}")
+        done
+        _cntools_correct_status=0
+        cntools_ui_choose _cntools_correct_choice "Word to re-enter…" \
+          "${_cntools_correct_rows[@]}" || _cntools_correct_status=$?
+        (( _cntools_correct_status != 130 )) || return 130
+        (( _cntools_correct_status == 0 )) || continue
+        _cntools_correct_position="${_cntools_correct_choice#Word }"
+        [[ "${_cntools_correct_position}" =~ ^[1-9][0-9]*$ &&
+           _cntools_correct_position -lt _cntools_correct_count ]] || return 2
+        ;;
+      "Re-enter all words") return 4 ;;
+      *) return 1 ;;
+    esac
     cntools_wallet_mnemonic_screen_begin \
       "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
     cntools_ui_render_status info \
-      "Choose recovery word ${_cntools_index} of ${_cntools_count}. Type to filter; previous words are cleared as you continue."
-    if cntools_wallet_mnemonic_select_word_into \
-        _cntools_word "${_cntools_index}" "${_cntools_count}"; then
-      _cntools_status=0
-    else
-      _cntools_status=$?
-    fi
-    (( _cntools_status == 0 )) || return "${_cntools_status}"
-    _cntools_words+=("${_cntools_word}")
-    cntools_wallet_mnemonic_log CHOICE \
-      "interactive recovery word selected position=${_cntools_index}"
-    unset _cntools_word
+      "Choose the correct word ${_cntools_correct_position} of ${_cntools_correct_count}. Esc keeps the current word."
+    _cntools_correct_status=0
+    cntools_wallet_mnemonic_select_word_into _cntools_correct_word \
+      "${_cntools_correct_position}" "${_cntools_correct_count}" ||
+      _cntools_correct_status=$?
+    case "${_cntools_correct_status}" in
+      0)
+        _cntools_correct_ref[_cntools_correct_position - 1]="${_cntools_correct_word}"
+        unset _cntools_correct_word
+        cntools_wallet_mnemonic_log CHOICE \
+          "recovery word re-entered after checksum mismatch position=${_cntools_correct_position}"
+        return 0
+        ;;
+      1) continue ;;
+      *) return "${_cntools_correct_status}" ;;
+    esac
   done
-  cntools_wallet_mnemonic_phrase_into \
-    _cntools_interactive_phrase _cntools_words || return 1
-  _cntools_output_ref="${_cntools_interactive_phrase}"
-  cntools_wallet_mnemonic_log CHOICE \
-    "interactive recovery phrase accepted words=${_cntools_count}"
-  unset _cntools_interactive_phrase _cntools_words
 }
 
+# Collects an existing recovery phrase, then checks its BIP39 checksum at
+# once, before any plan or derivation. Shared by Wallet Import, Governance
+# Derive Keys and MultiSig participant keys. Sets
+# CNTOOLS_WALLET_MNEMONIC_CHECKSUM_VERIFIED=Y when the check passed (N when
+# it could not run here; Cardano CLI then validates during derivation).
 cntools_wallet_mnemonic_collect_import_into() {
+  local -
+  set +x # The phrase must never reach an xtrace log.
   local _cntools_output_name="${1:-}"
   local _cntools_method=""
   local _cntools_collected_phrase=""
   local _cntools_status=0
+  local -a _cntools_collected_words=()
 
   [[ "${_cntools_output_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
   local -n _cntools_output_ref="${_cntools_output_name}"
   _cntools_output_ref=""
-  cntools_wallet_mnemonic_screen_begin \
-    "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
-  cntools_ui_render_status info \
-    "Choose how to enter the existing recovery phrase."
-  if cntools_ui_choose _cntools_method "Mnemonic input method…" \
-      "Paste complete phrase" "Enter one word at a time"; then
-    :
-  else
-    return $?
-  fi
-  case "${_cntools_method}" in
-    "Paste complete phrase")
-      if cntools_wallet_mnemonic_collect_pasted_into \
-          _cntools_collected_phrase; then
-        :
-      else
+  CNTOOLS_WALLET_MNEMONIC_CHECKSUM_VERIFIED="N"
+  while true; do
+    cntools_wallet_mnemonic_screen_begin \
+      "Mnemonic" "${CNTOOLS_MNEMONIC_INPUT_PATH:-/ Wallet / Import / Mnemonic}"
+    cntools_ui_render_status info \
+      "Choose how to enter the existing recovery phrase."
+    if cntools_ui_choose _cntools_method "Mnemonic input method…" \
+        "Paste complete phrase" "Enter one word at a time"; then
+      :
+    else
+      return $?
+    fi
+    _cntools_status=0
+    _cntools_collected_words=()
+    case "${_cntools_method}" in
+      "Paste complete phrase")
+        cntools_wallet_mnemonic_collect_pasted_into \
+          _cntools_collected_phrase || _cntools_status=$?
+        (( _cntools_status != 0 )) ||
+          cntools_wallet_mnemonic_words_into \
+            _cntools_collected_words "${_cntools_collected_phrase}" ||
+          _cntools_status=2
+        unset _cntools_collected_phrase
+        ;;
+      "Enter one word at a time")
+        cntools_wallet_mnemonic_collect_interactive_into \
+          _cntools_collected_words || _cntools_status=$?
+        ;;
+      *) return 2 ;;
+    esac
+    # Esc inside an input method returns to the method choice.
+    (( _cntools_status != 1 )) || continue
+    (( _cntools_status == 0 )) || return "${_cntools_status}"
+    # Checked right after entry; a mismatch keeps the words for a correction.
+    while true; do
+      _cntools_status=0
+      cntools_wallet_mnemonic_checksum_valid _cntools_collected_words ||
         _cntools_status=$?
-        return "${_cntools_status}"
-      fi
-      ;;
-    "Enter one word at a time")
-      if cntools_wallet_mnemonic_collect_interactive_into \
-          _cntools_collected_phrase; then
-        :
-      else
-        _cntools_status=$?
-        return "${_cntools_status}"
-      fi
-      ;;
-    *) return 2 ;;
-  esac
+      case "${_cntools_status}" in
+        0)
+          CNTOOLS_WALLET_MNEMONIC_CHECKSUM_VERIFIED="Y"
+          cntools_wallet_mnemonic_log CHOICE \
+            "recovery phrase checksum verified locally words=${#_cntools_collected_words[@]}"
+          break 2
+          ;;
+        1)
+          cntools_wallet_mnemonic_log CHOICE \
+            "recovery phrase checksum mismatch words=${#_cntools_collected_words[@]}"
+          _cntools_status=0
+          cntools_wallet_mnemonic_correct_into _cntools_collected_words ||
+            _cntools_status=$?
+          case "${_cntools_status}" in
+            0) continue ;;
+            4) continue 2 ;;
+            *) unset _cntools_collected_words; return "${_cntools_status}" ;;
+          esac
+          ;;
+        *)
+          cntools_wallet_mnemonic_log WARN \
+            "recovery phrase checksum could not be checked locally; Cardano CLI validates it"
+          break 2
+          ;;
+      esac
+    done
+  done
+  cntools_wallet_mnemonic_phrase_into \
+    _cntools_collected_phrase _cntools_collected_words || return 1
   _cntools_output_ref="${_cntools_collected_phrase}"
-  unset _cntools_collected_phrase
+  unset _cntools_collected_phrase _cntools_collected_words
   cntools_gum_clear
+  [[ ! -t 1 ]] || printf '\033[3J'
 }
 
 cntools_wallet_mnemonic_render_result() {
@@ -747,6 +843,8 @@ cntools_wallet_mnemonic_render_result() {
 }
 
 cntools_wallet_action_new_mnemonic() {
+  local -
+  set +x # The recovery phrase must never reach an xtrace log.
   local name=""
   local account=""
   local key_index=""
@@ -790,7 +888,7 @@ cntools_wallet_action_new_mnemonic() {
     cntools_ui_render_status warn \
       "CNTools will display the recovery phrase once and then verify your backup."
     status=0
-    cntools_wallet_derivation_confirm "Generate this wallet's recovery phrase now?" \
+    cntools_wallet_derivation_confirm "Generate the recovery phrase for ${name} now?" \
       'Generate recovery phrase' || status=$?
     (( status == 4 )) || break
     # Esc while changing keeps the shown values; Ctrl+C cancels.
@@ -832,14 +930,9 @@ cntools_wallet_action_new_mnemonic() {
   fi
   cntools_wallet_mnemonic_screen_begin \
     "Mnemonic" "/ Wallet / New / Mnemonic"
-  if ! cntools_wallet_mnemonic_render_plan \
-      "${name}" "${account}" "${key_index}" new; then
-    unset phrase words
-    cntools_wallet_mnemonic_ui_failure \
-      "The mnemonic backup plan could not be displayed." \
-      "/ Wallet / New / Mnemonic"
-    return 1
-  fi
+  # The plan was just reviewed: one line names the wallet, not the table again.
+  cntools_ui_render_status info \
+    "Recovery phrase for ${name} · payment 1852H/1815H/${account}H/0/${key_index} · stake 1852H/1815H/${account}H/2/${key_index}"
   if ! cntools_wallet_mnemonic_render_phrase words; then
     unset phrase words
     cntools_wallet_mnemonic_ui_failure \
@@ -905,6 +998,8 @@ cntools_wallet_action_new_mnemonic() {
 }
 
 cntools_wallet_action_import_mnemonic() {
+  local -
+  set +x # The recovery phrase must never reach an xtrace log.
   local name=""
   local account=""
   local key_index=""
@@ -974,12 +1069,17 @@ cntools_wallet_action_import_mnemonic() {
           "/ Wallet / Import / Mnemonic"
         return 1
       fi
-      cntools_ui_render_status info \
-        "Recovery phrase accepted locally: ${word_count} words. Cardano CLI checks its checksum during derivation."
+      if [[ "${CNTOOLS_WALLET_MNEMONIC_CHECKSUM_VERIFIED}" == Y ]]; then
+        cntools_ui_render_status info \
+          "Recovery phrase checksum verified: ${word_count} words."
+      else
+        cntools_ui_render_status info \
+          "Recovery phrase accepted locally: ${word_count} words. Cardano CLI checks its checksum during derivation."
+      fi
       cntools_ui_render_status warn \
         "Only the selected payment and stake addresses are imported; this is a single-address CNTools wallet."
       status=0
-      cntools_wallet_derivation_confirm "Import this mnemonic wallet now?" 'Import wallet' || status=$?
+      cntools_wallet_derivation_confirm "Import mnemonic wallet ${name} now?" 'Import wallet' || status=$?
       (( status == 4 )) || break
       status=0
       cntools_wallet_mnemonic_prompt_derivation_into account key_index \

@@ -53,9 +53,34 @@ cntools_funding_tip_into() {
   printf -v "${tip_output}" '%s' "${tip_slot}"
 }
 
+# Koios returns at most 1,000 rows per request: page through a wallet's UTxOs
+# (up to CNTOOLS_UTXO_MAX_COUNT) and merge them into RESPONSE_FILE.
+cntools_funding_koios_utxos() {
+  local fku_response="$1" fku_payload='' fku_page='' fku_offset=0 fku_rows=0
+  local -a fku_pages=()
+  fku_payload="$(jq -cn --arg a "$2" --arg b "${3:-$2}" '{_addresses: ([$a,$b] | unique), _extended:true}')" || return 1
+  while true; do
+    cntools_transaction_temp_file fku_page funding-utxo-page || return 1
+    cntools_wallet_query_http \
+      "${CNTOOLS_KOIOS_API%/}/address_utxos?select=tx_hash%2Ctx_index%2Caddress%2Cvalue%3A%3Atext%2Casset_list%2Cdatum_hash%2Cinline_datum%2Creference_script&limit=1000&offset=${fku_offset}" \
+      "${fku_payload}" "${fku_page}" 16777216 || return 1
+    # The loader validates the response; a malformed page ends paging.
+    fku_rows="$(jq -r 'if type == "array" then length else 0 end' "${fku_page}" 2>/dev/null)" || fku_rows=0
+    fku_pages+=("${fku_page}")
+    [[ "${fku_rows}" == 1000 ]] || break
+    fku_offset=$((fku_offset + 1000))
+    (( fku_offset <= ${CNTOOLS_UTXO_MAX_COUNT:-5000} )) || break
+  done
+  if (( ${#fku_pages[@]} == 1 )); then
+    cat -- "${fku_pages[0]}" > "${fku_response}" || return 1
+  else
+    jq -cs 'add' "${fku_pages[@]}" > "${fku_response}" || return 1
+  fi
+}
+
 cntools_funding_collect() {
   local primary="${1:-}" payment="${2:-${1:-}}" response="" errors=""
-  local payload="" status=0 index=0 reserve=""
+  local status=0 index=0 reserve=""
   local -a network=() address_arguments=(--address "${primary}")
   CNTOOLS_FUNDING_TOTAL=0 CNTOOLS_FUNDING_REFERENCE_SKIPPED=0 CNTOOLS_FUNDING_EMPTY=N
   CNTOOLS_FUNDING_ASSET_IDS=(); CNTOOLS_FUNDING_ASSETS=()
@@ -92,11 +117,7 @@ cntools_funding_collect() {
   elif [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_KOIOS_API:-}" == https://* ]]; then
     CNTOOLS_FUNDING_BACKEND=koios
     cntools_funding_get "${CNTOOLS_KOIOS_API%/}/cli_protocol_params" "${CNTOOLS_FUNDING_PROTOCOL}" || return 1
-    payload="$(jq -cn --arg a "${primary}" --arg b "${payment}" \
-      '{_addresses: ([$a,$b] | unique), _extended:true}')" || return 1
-    cntools_wallet_query_http \
-      "${CNTOOLS_KOIOS_API%/}/address_utxos?select=tx_hash%2Ctx_index%2Caddress%2Cvalue%3A%3Atext%2Casset_list%2Cdatum_hash%2Cinline_datum%2Creference_script" \
-      "${payload}" "${response}" || return 1
+    cntools_funding_koios_utxos "${response}" "${primary}" "${payment}" || return 1
     cntools_utxo_load_koios "${response}" "${primary}" "${payment}" || {
       cntools_transaction_set_error "${CNTOOLS_UTXO_ERROR}"; return 1;
     }
@@ -148,15 +169,41 @@ cntools_funding_exclude_reference_scripts() {
   done
   cntools_transaction_log TRANSACTION "Reference-script UTxOs left untouched count=${CNTOOLS_FUNDING_REFERENCE_SKIPPED} remaining inputs=${#CNTOOLS_UTXO_REFS[@]} lovelace=${CNTOOLS_FUNDING_TOTAL}"
   (( ${#CNTOOLS_UTXO_REFS[@]} > 0 )) || {
+    # Nothing is left to spend: an outcome for the action, like an empty wallet.
+    CNTOOLS_FUNDING_EMPTY=Y
     cntools_transaction_set_error "This wallet's only UTxOs hold reference scripts, which this action leaves untouched."; return 1;
   }
 }
 
-# Review row naming the reference-script UTxOs a build left untouched.
+# The UTxOs a build left alone: reference scripts (never spent here) and datum
+# or script UTxOs it did not select (spent only as a last resort). Sets COUNT
+# and a singular WHAT label ("reference-script UTxO", "datum UTxO", ...), for
+# reviews that draw their own rows.
+cntools_funding_untouched_into() {
+  local -n fui_count="$1" fui_what="$2"
+  local fui_scripts="${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0}" fui_datums=0 fui_index=0
+  for fui_index in "${!CNTOOLS_UTXO_REFS[@]}"; do
+    [[ -z "${CNTOOLS_COIN_SELECTED_MAP[${fui_index}]+x}" ]] || continue
+    if [[ "${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[fui_index]:-N}" != N ]]; then fui_scripts=$((fui_scripts + 1))
+    elif [[ "${CNTOOLS_UTXO_HAS_DATUM[fui_index]:-N}" != N ]]; then fui_datums=$((fui_datums + 1)); fi
+  done
+  fui_count=$((fui_scripts + fui_datums)); fui_what='reference-script UTxO'
+  if (( fui_scripts > 0 && fui_datums > 0 )); then fui_what='script or datum UTxO'
+  elif (( fui_datums > 0 )); then fui_what='datum UTxO'; fi
+}
+
+# Review row (cntools_transaction_ui_untouched_row) for the UTxOs a build left
+# alone. An optional COUNT and WHAT add one more kind, e.g. Collect's token
+# UTxOs, on a continuation row.
 cntools_funding_render_untouched_row() {
-  local untouched_count="${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0}" untouched_label=''
-  (( untouched_count > 0 )) || return 0
-  untouched_label="$(cntools_number_format "${untouched_count}") reference-script UTxO"
-  (( untouched_count == 1 )) || untouched_label+=s
-  cntools_transaction_ui_styled_row 'Left untouched' "${untouched_label}" value
+  local fu_count=0 fu_what='' fu_extra="${1:-0}" fu_extra_what="${2:-token UTxO}" fu_label=''
+  cntools_funding_untouched_into fu_count fu_what
+  if (( fu_count > 0 )); then
+    cntools_transaction_ui_untouched_row "${fu_count}" "${fu_what}"
+    [[ "${fu_extra}" =~ ^[1-9][0-9]*$ ]] || return 0
+    fu_label="$(cntools_number_format "${fu_extra}") ${fu_extra_what}"; (( fu_extra == 1 )) || fu_label+=s
+    cntools_transaction_ui_styled_row '' "${fu_label}" value
+  else
+    cntools_transaction_ui_untouched_row "${fu_extra}" "${fu_extra_what}"
+  fi
 }

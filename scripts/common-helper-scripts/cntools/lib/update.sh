@@ -92,14 +92,8 @@ cntools_update_action_check() {
   else
     status=$?
   fi
+  # A failed check's Status row already names the log.
   cntools_update_render_summary
-  case "${CNTOOLS_UPDATE_STATUS:-error}" in
-    available|current|ahead|offline) ;;
-    *)
-      printf '%sSee %s for details.%s\n' \
-        "${CNTOOLS_UI_YELLOW:-}" "${CNTOOLS_LOG}" "${CNTOOLS_UI_RESET:-}"
-      ;;
-  esac
   cntools_log UPDATE "manual check action completed status=${status}" || true
   cntools_ui_wait
   # A failed check is shown and acknowledged above: no second menu banner.
@@ -256,6 +250,12 @@ cntools_update_action_install() {
       ;;
   esac
 
+  # Problems that would stop Guild Deploy are reported before the question.
+  if ! cntools_update_install_preflight; then
+    cntools_ui_render_status error "${CNTOOLS_UPDATE_INSTALL_ERROR} Nothing was changed."
+    cntools_ui_wait
+    return 1
+  fi
   # A force deploy reinstalls the installed version.
   if [[ "${force_deploy}" == "Y" ]]; then
     printf 'CNTools          : v%s (reinstall)\n' "${CNTOOLS_VERSION}"
@@ -293,5 +293,31 @@ cntools_update_action_install() {
   else
     deploy_status=$?
   fi
+  # A deploy that never started returns to the menu: keep its reason on
+  # screen instead of letting the redraw wipe it.
+  if (( deploy_status != 0 )) && ! cntools_startup_deployment_was_started; then
+    cntools_ui_render_status error "Guild Deploy did not start (status ${deploy_status}). Nothing was changed. See ${CNTOOLS_LOG} for details."
+    cntools_ui_wait
+    return 1
+  fi
   return "${deploy_status}"
+}
+
+# The checks cntools_startup_deploy_branch makes before it runs anything, so a
+# blocked install is explained before the user confirms it.
+cntools_update_install_preflight() {
+  local dispatcher="${CNTOOLS_NODE_HOME:-}/scripts/guild-deploy.sh"
+  CNTOOLS_UPDATE_INSTALL_ERROR=''
+  if ! cntools_startup_branch_valid "${CNTOOLS_BRANCH:-}"; then
+    CNTOOLS_UPDATE_INSTALL_ERROR="The configured branch is not a valid Guild branch: ${CNTOOLS_BRANCH:-unset}."
+  elif [[ "${CNTOOLS_LOG_PARENT:-}" == "${CNTOOLS_ROOT}" || "${CNTOOLS_LOG_PARENT:-}" == "${CNTOOLS_ROOT}/"* ]]; then
+    CNTOOLS_UPDATE_INSTALL_ERROR="Guild Deploy needs the CNTools log outside the installed CNTools folder (${CNTOOLS_ROOT}). Set CNTOOLS_LOG elsewhere and restart CNTools."
+  elif ! [[ -f "${dispatcher}" && ! -L "${dispatcher}" && -s "${dispatcher}" && -O "${dispatcher}" && -x "${dispatcher}" ]]; then
+    CNTOOLS_UPDATE_INSTALL_ERROR="Guild Deploy is unavailable: ${dispatcher} is missing or not an executable file you own. Restore it, then try again."
+  elif [[ -n "${CNTOOLS_DEPLOY_STARTED_FILE:-}" ]] &&
+       ! [[ -f "${CNTOOLS_UPDATE_STATE_FILE:-}" && ! -L "${CNTOOLS_UPDATE_STATE_FILE:-}" && -O "${CNTOOLS_UPDATE_STATE_FILE:-}" &&
+            ! -e "${CNTOOLS_DEPLOY_STARTED_FILE}" && ! -L "${CNTOOLS_DEPLOY_STARTED_FILE}" ]]; then
+    CNTOOLS_UPDATE_INSTALL_ERROR='The update state cannot record a new deployment safely (an earlier deployment marker remains). Run Check Again or restart CNTools.'
+  fi
+  [[ -z "${CNTOOLS_UPDATE_INSTALL_ERROR}" ]] || { cntools_log ERROR "installation blocked: ${CNTOOLS_UPDATE_INSTALL_ERROR}" || true; return 1; }
 }

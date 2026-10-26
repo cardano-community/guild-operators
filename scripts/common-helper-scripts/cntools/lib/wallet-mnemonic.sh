@@ -8,11 +8,175 @@ declare -g CNTOOLS_WALLET_MNEMONIC_ERROR=""
 declare -g CNTOOLS_WALLET_MNEMONIC_ORIGIN=""
 declare -g CNTOOLS_WALLET_MNEMONIC_ACCOUNT=""
 declare -g CNTOOLS_WALLET_MNEMONIC_KEY_INDEX=""
-# Y when Cardano CLI rejected the phrase itself (Import asks for it again).
+# Y only when Cardano CLI rejected the phrase itself (an unknown word, a
+# wrong word count or a bad checksum): Import asks for it again. Any other
+# failure (a timeout, a CLI without the command) leaves it N and stops.
 declare -g CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED="N"
+# BIP39 English word list, loaded on first use. WORDSET maps word → index.
+CNTOOLS_WALLET_MNEMONIC_WORDLIST_FILE="${CNTOOLS_ROOT:-}/data/bip39-english.txt"
+CNTOOLS_WALLET_MNEMONIC_WORDLIST_READY="N"
+declare -ag CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
+declare -Ag CNTOOLS_WALLET_MNEMONIC_WORDSET=()
 
 cntools_wallet_mnemonic_log() {
   cntools_log "${1:-INFO}" "${2:-}" || true
+}
+
+cntools_wallet_mnemonic_wordlist_load() {
+  local _cntools_wordlist_file="${CNTOOLS_WALLET_MNEMONIC_WORDLIST_FILE:-}"
+  local _cntools_wordlist_word=""
+  local _cntools_wordlist_index=0
+
+  [[ "${CNTOOLS_WALLET_MNEMONIC_WORDLIST_READY:-N}" != "Y" ]] || return 0
+  CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
+  CNTOOLS_WALLET_MNEMONIC_WORDSET=()
+  if [[ -z "${_cntools_wordlist_file}" ||
+        "${_cntools_wordlist_file}" != /* ||
+        ! -f "${_cntools_wordlist_file}" ||
+        -L "${_cntools_wordlist_file}" ||
+        ! -r "${_cntools_wordlist_file}" ]]; then
+    cntools_wallet_mnemonic_log ERROR \
+      "BIP39 English word list is missing or unsafe: ${_cntools_wordlist_file:-unset}"
+    return 2
+  fi
+  mapfile -t CNTOOLS_WALLET_MNEMONIC_WORDLIST \
+    < "${_cntools_wordlist_file}" || {
+    CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
+    cntools_wallet_mnemonic_log ERROR \
+      "BIP39 English word list could not be read"
+    return 2
+  }
+  if (( ${#CNTOOLS_WALLET_MNEMONIC_WORDLIST[@]} != 2048 )) ||
+     [[ "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[0]:-}" != "abandon" ||
+        "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[2047]:-}" != "zoo" ]]; then
+    CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
+    cntools_wallet_mnemonic_log ERROR \
+      "BIP39 English word list failed inventory validation"
+    return 2
+  fi
+  for _cntools_wordlist_word in \
+      "${CNTOOLS_WALLET_MNEMONIC_WORDLIST[@]}"; do
+    if [[ ! "${_cntools_wordlist_word}" =~ ^[a-z]+$ ||
+          -n "${CNTOOLS_WALLET_MNEMONIC_WORDSET[${_cntools_wordlist_word}]+x}" ]]; then
+      CNTOOLS_WALLET_MNEMONIC_WORDLIST=()
+      CNTOOLS_WALLET_MNEMONIC_WORDSET=()
+      cntools_wallet_mnemonic_log ERROR \
+        "BIP39 English word list failed content validation"
+      return 2
+    fi
+    CNTOOLS_WALLET_MNEMONIC_WORDSET["${_cntools_wordlist_word}"]="${_cntools_wordlist_index}"
+    _cntools_wordlist_index=$((_cntools_wordlist_index + 1))
+  done
+  CNTOOLS_WALLET_MNEMONIC_WORDLIST_READY="Y"
+  cntools_wallet_mnemonic_log INFO \
+    "BIP39 English word list loaded words=2048"
+}
+
+# SHA-256 of stdin as 64 hex characters. Reads a pipe: secrets never reach
+# argv or a temporary file.
+cntools_wallet_mnemonic_sha256_stdin_into() {
+  local _cntools_sha_output="${1:-}" _cntools_sha_digest=""
+  [[ "${_cntools_sha_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_sha_ref="${_cntools_sha_output}"
+  _cntools_sha_ref=""
+  if command -v sha256sum >/dev/null 2>&1; then
+    _cntools_sha_digest="$(sha256sum 2>/dev/null)" || return 2
+  elif command -v shasum >/dev/null 2>&1; then
+    _cntools_sha_digest="$(shasum -a 256 2>/dev/null)" || return 2
+  else
+    return 2
+  fi
+  _cntools_sha_digest="${_cntools_sha_digest:0:64}"
+  [[ "${_cntools_sha_digest}" =~ ^[0-9a-f]{64}$ ]] || return 2
+  _cntools_sha_ref="${_cntools_sha_digest}"
+}
+
+# BIP39 checksum check of a recovery phrase held in a word array (lower-case
+# words, 12–24 of them). Shared by every phrase entry (Wallet, Governance
+# Derive Keys, MultiSig) so a wrong word is caught before any derivation.
+# Returns 0 valid, 1 checksum mismatch (CNTools keeps the words for a
+# correction), 2 cannot be checked here (word list or SHA-256 tool missing,
+# unknown word, unsupported length); Cardano CLI then still validates.
+cntools_wallet_mnemonic_checksum_valid() {
+  local -
+  set +x # The phrase and its entropy never reach a trace.
+  local _cntools_checksum_words_name="${1:-}"
+  local _cntools_checksum_word=""
+  local _cntools_checksum_bits=""
+  local _cntools_checksum_format=""
+  local _cntools_checksum_digest=""
+  local _cntools_checksum_index=0
+  local _cntools_checksum_bit=0
+  local _cntools_checksum_count=0
+  local _cntools_checksum_entropy=0
+  local _cntools_checksum_size=0
+  local _cntools_checksum_position=0
+  local _cntools_checksum_status=0
+
+  [[ "${_cntools_checksum_words_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_checksum_words_ref="${_cntools_checksum_words_name}"
+  _cntools_checksum_count="${#_cntools_checksum_words_ref[@]}"
+  cntools_wallet_mnemonic_word_count_valid "${_cntools_checksum_count}" || return 2
+  cntools_wallet_mnemonic_wordlist_load || return 2
+  for _cntools_checksum_word in "${_cntools_checksum_words_ref[@]}"; do
+    [[ "${_cntools_checksum_word}" =~ ^[a-z]+$ &&
+       -n "${CNTOOLS_WALLET_MNEMONIC_WORDSET[${_cntools_checksum_word}]+x}" ]] || return 2
+    _cntools_checksum_index="${CNTOOLS_WALLET_MNEMONIC_WORDSET[${_cntools_checksum_word}]}"
+    for ((_cntools_checksum_bit = 10; _cntools_checksum_bit >= 0; _cntools_checksum_bit--)); do
+      _cntools_checksum_bits+=$(( (_cntools_checksum_index >> _cntools_checksum_bit) & 1 ))
+    done
+  done
+  # 11 bits per word: ENT entropy bits followed by ENT/32 checksum bits.
+  _cntools_checksum_entropy=$((_cntools_checksum_count * 11 * 32 / 33))
+  _cntools_checksum_size=$((_cntools_checksum_entropy / 32))
+  for ((_cntools_checksum_position = 0;
+        _cntools_checksum_position < _cntools_checksum_entropy;
+        _cntools_checksum_position += 8)); do
+    printf -v _cntools_checksum_format '%s\\x%02x' "${_cntools_checksum_format}" \
+      "$((2#${_cntools_checksum_bits:_cntools_checksum_position:8}))"
+  done
+  cntools_wallet_mnemonic_sha256_stdin_into _cntools_checksum_digest \
+    < <(printf '%b' "${_cntools_checksum_format}") || _cntools_checksum_status=2
+  if (( _cntools_checksum_status == 0 )) &&
+     (( (16#${_cntools_checksum_digest:0:2} >> (8 - _cntools_checksum_size)) !=
+        2#${_cntools_checksum_bits:_cntools_checksum_entropy:_cntools_checksum_size} )); then
+    _cntools_checksum_status=1
+  fi
+  unset _cntools_checksum_bits _cntools_checksum_format _cntools_checksum_digest \
+    _cntools_checksum_index _cntools_checksum_word
+  return "${_cntools_checksum_status}"
+}
+
+# A Cardano CLI error file that reports a rejected recovery phrase (wording of
+# cardano-cli 10.x/11.x). The file is read by grep, never logged or shown.
+cntools_wallet_mnemonic_rejection_reported() {
+  [[ -f "${1:-}" && ! -L "${1:-}" ]] || return 1
+  grep -qiE 'invalid mnemonic|mnemonic sentence|entropy checksum|(memonic|mnemonic) dictionary|number of words' -- "$1" 2>/dev/null
+}
+
+# The first error line, only when it names none of the phrase words: CLI
+# errors can echo recovery words, which must never reach a log or screen.
+cntools_wallet_mnemonic_safe_detail_into() {
+  local -
+  set +x
+  local _cntools_detail_output="${1:-}" _cntools_detail_file="${2:-}" _cntools_detail_phrase="${3:-}"
+  local _cntools_detail_line="" _cntools_detail_words="" _cntools_detail_word=""
+  [[ "${_cntools_detail_output}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+  local -n _cntools_detail_ref="${_cntools_detail_output}"
+  _cntools_detail_ref=""
+  [[ -f "${_cntools_detail_file}" && ! -L "${_cntools_detail_file}" ]] || return 0
+  _cntools_detail_line="$(grep -m 1 -v '^[[:space:]]*$' -- "${_cntools_detail_file}" 2>/dev/null)" || return 0
+  _cntools_detail_line="${_cntools_detail_line:0:300}"
+  _cntools_detail_words=" ${_cntools_detail_line,,} "
+  _cntools_detail_words="${_cntools_detail_words//[^a-z]/ }"
+  set -f
+  for _cntools_detail_word in ${_cntools_detail_phrase,,}; do
+    [[ "${_cntools_detail_words}" != *" ${_cntools_detail_word} "* ]] || return 0
+  done
+  if declare -F cntools_log_sanitize_line >/dev/null 2>&1; then
+    _cntools_detail_line="$(cntools_log_sanitize_line "${_cntools_detail_line}")"
+  fi
+  _cntools_detail_ref="${_cntools_detail_line}"
 }
 
 cntools_wallet_mnemonic_set_error() {
@@ -116,6 +280,8 @@ cntools_wallet_mnemonic_word_into() {
 }
 
 cntools_wallet_mnemonic_words_into() {
+  local -
+  set +x
   local _cntools_output_name="${1:-}"
   local _cntools_phrase="${2:-}"
   local _cntools_expected="${3:-}"
@@ -128,7 +294,11 @@ cntools_wallet_mnemonic_words_into() {
   _cntools_output_ref=()
   _cntools_mnemonic_cleaned="${_cntools_phrase//$'\r'/ }"
   _cntools_mnemonic_cleaned="${_cntools_mnemonic_cleaned//$'\n'/ }"
-  read -r -a _cntools_mnemonic_parsed <<< "${_cntools_mnemonic_cleaned}"
+  # Split in memory: a here-string is a temporary file in Bash 4.4–5.0.
+  set -f
+  local IFS=$' \t'
+  # shellcheck disable=SC2206 # Deliberate splitting with globbing disabled.
+  _cntools_mnemonic_parsed=(${_cntools_mnemonic_cleaned})
   cntools_wallet_mnemonic_word_count_valid \
     "${#_cntools_mnemonic_parsed[@]}" || return 1
   [[ -z "${_cntools_expected}" ||
@@ -236,6 +406,8 @@ cntools_wallet_mnemonic_command_failure() {
 }
 
 cntools_wallet_mnemonic_generate_into() {
+  local -
+  set +x # The generated phrase must never reach an xtrace log.
   local _cntools_output_name="${1:-}"
   local _cntools_error_file=""
   local _cntools_generated_raw=""
@@ -285,6 +457,8 @@ cntools_wallet_mnemonic_generate_into() {
 }
 
 cntools_wallet_mnemonic_derive_role() {
+  local -
+  set +x # The phrase must never reach an xtrace log.
   local stage="${1:-}"
   local role="${2:-}"
   local account="${3:-}"
@@ -296,8 +470,13 @@ cntools_wallet_mnemonic_derive_role() {
   local mask=""
   local status=0
   local signing_form=""
+  local rejected="N"
+  local detail=""
   local -a command=()
 
+  # The flag describes this derivation only (callers such as Governance
+  # Derive Keys call this directly, without a result reset).
+  CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED="N"
   cntools_wallet_create_stage_safe "${stage}" || return 1
   cntools_wallet_mnemonic_index_into account "${account}" || return 2
   cntools_wallet_mnemonic_index_into key_index "${key_index}" || return 2
@@ -333,34 +512,42 @@ cntools_wallet_mnemonic_derive_role() {
   )
   printf -v mask '%*s' "${#command[@]}" ''
   mask="${mask// /0}"
+  # A pipe, not a here-string: Bash 4.4–5.0 back here-strings with a file.
   if cntools_run_command_timeout "${CNTOOLS_CLI_TIMEOUT:-10}" \
       "${mask}" -- "${command[@]}" \
-      > /dev/null 2> "${error_file}" <<< "${phrase}"; then
+      > /dev/null 2> "${error_file}" < <(printf '%s\n' "${phrase}"); then
     status=0
   else
     status=$?
   fi
   if (( status != 0 )); then
-    if [[ "${role}" == drep ]]; then
-      # Derivation errors can echo recovery words; never log their raw output.
-      cntools_wallet_mnemonic_log ERROR "DRep mnemonic derivation failed status=${status}; secret-bearing output suppressed"
-    else
-      cntools_wallet_mnemonic_command_failure \
-        "Could not derive the ${role} mnemonic signing key" \
-        "${status}" "${error_file}"
+    # Only a reported phrase problem is a rejection; a timeout or a CLI
+    # without this command is not, and asking for the phrase again would loop.
+    if (( status != 124 )) &&
+       cntools_wallet_mnemonic_rejection_reported "${error_file}"; then
+      rejected="Y"
+    elif (( status != 124 )); then
+      cntools_wallet_mnemonic_safe_detail_into detail "${error_file}" "${phrase}" || detail=""
     fi
+    # Derivation errors can echo recovery words: the raw output is never logged.
+    cntools_wallet_mnemonic_log ERROR \
+      "Mnemonic ${role} derivation failed status=${status} phrase_rejected=${rejected}; secret-bearing output suppressed${detail:+; first line: ${detail}}"
     cntools_wallet_material_remove_temp "${error_file}" || true
     if (( status == 124 )); then
       cntools_wallet_mnemonic_set_error \
         "Cardano CLI timed out while deriving the ${role} key."
-    else
-      # Account and key index are validated first, so the phrase was rejected.
+    elif [[ "${rejected}" == Y ]]; then
       CNTOOLS_WALLET_MNEMONIC_PHRASE_REJECTED="Y"
       cntools_wallet_mnemonic_set_error \
         "Cardano CLI rejected the recovery phrase (a wrong word or checksum)."
+    else
+      cntools_wallet_mnemonic_set_error \
+        "Cardano CLI could not derive the ${role} key (status ${status})${detail:+: ${detail}}. Check that ${CNTOOLS_CLI##*/} supports key derive-from-mnemonic."
     fi
+    unset phrase
     return 1
   fi
+  unset phrase
   cntools_wallet_material_remove_temp "${error_file}" || true
   [[ -f "${signing_file}" && ! -L "${signing_file}" &&
      -O "${signing_file}" ]] && chmod 0600 "${signing_file}" || return 1
@@ -471,6 +658,8 @@ cntools_wallet_mnemonic_required_entries_valid() {
 }
 
 cntools_wallet_mnemonic_create() {
+  local -
+  set +x # The phrase must never reach an xtrace log.
   local name="${1:-}"
   local account_input="${2:-}"
   local key_index_input="${3:-}"

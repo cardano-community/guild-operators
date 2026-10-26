@@ -181,6 +181,15 @@ cntools_calidus_publish() {
     fi
   done
   CNTOOLS_CALIDUS_LINK_SOURCES=(); CNTOOLS_CALIDUS_LINK_TARGETS=()
+  # In a pool Pool → Encrypt locked, new files are locked like their
+  # neighbours. Drop the staging alias first: an immutable inode keeps every
+  # link to it, so the staging folder could not be cleaned up afterwards.
+  if declare -F cntools_pool_new_file_lock >/dev/null 2>&1; then
+    for name in "$@"; do
+      rm -f -- "${stage}/${name}" || continue
+      cntools_pool_new_file_lock "${directory}/${name}"
+    done
+  fi
   cntools_transaction_log POOL "Calidus public files ready pool=${directory##*/} id=${CNTOOLS_CALIDUS_ID}"
 }
 
@@ -236,7 +245,7 @@ cntools_calidus_prepare_files() {
 
 cntools_calidus_prepare() {
   local status=0
-  CNTOOLS_POOL_WRITE_ERROR='' CNTOOLS_TRANSACTION_ERROR=''
+  CNTOOLS_POOL_WRITE_ERROR='' CNTOOLS_POOL_WRITE_WARNING='' CNTOOLS_TRANSACTION_ERROR=''
   cntools_calidus_prepare_files "$@" || status=$?
   if ((status != 0)) && [[ -z "${CNTOOLS_POOL_WRITE_ERROR}" ]]; then
     cntools_pool_write_error "${CNTOOLS_TRANSACTION_ERROR:-Calidus key setup failed; existing files were retained.}" || true

@@ -5,6 +5,8 @@ CNTOOLS_DREP_STATUS=""
 CNTOOLS_DREP_ACTIVE=""
 CNTOOLS_DREP_SOURCE=""
 CNTOOLS_DREP_DETAILS='{}'
+# Koios activity, voting power and delegators for a local build (see below).
+CNTOOLS_DREP_KOIOS_DETAILS='{}'
 # One label for the indexed DRep voting power on every screen.
 CNTOOLS_DREP_POWER_LABEL='Voting power (snapshot)'
 
@@ -80,4 +82,25 @@ cntools_drep_query() {
     cntools_drep_parse_koios "${output}" "${id}" "${kind}" "${hash}" || return $?
   fi
   cntools_transaction_log QUERY "DRep=${id} status=${CNTOOLS_DREP_STATUS} active=${CNTOOLS_DREP_ACTIVE} source=${CNTOOLS_DREP_SOURCE}"
+}
+
+# The local ledger state has no activity, voting power or delegators. With
+# Koios enabled, ask it for them as Info and Cast do; the local registration,
+# deposit and anchor stay authoritative, so the CNTOOLS_DREP_* query state is
+# left as it was. Sets CNTOOLS_DREP_KOIOS_DETAILS to {amount,
+# live_delegator_count, active}; returns 1 when unavailable.
+cntools_drep_koios_enrich() {
+  local ke_status="${CNTOOLS_DREP_STATUS}" ke_active="${CNTOOLS_DREP_ACTIVE}" ke_source="${CNTOOLS_DREP_SOURCE}" ke_details="${CNTOOLS_DREP_DETAILS}"
+  CNTOOLS_DREP_KOIOS_DETAILS='{}'
+  [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_MODE:-offline}" != offline ]] || return 1
+  if cntools_drep_query "$1" "$2" "$3" koios && [[ "${CNTOOLS_DREP_STATUS}" == registered ]]; then
+    CNTOOLS_DREP_KOIOS_DETAILS="$(jq -c --arg active "${CNTOOLS_DREP_ACTIVE}" \
+      '{amount, live_delegator_count, active:(if $active == "true" then true elif $active == "false" then false else null end)}' \
+      <<< "${CNTOOLS_DREP_DETAILS}")" || CNTOOLS_DREP_KOIOS_DETAILS='{}'
+  fi
+  CNTOOLS_DREP_STATUS="${ke_status}" CNTOOLS_DREP_ACTIVE="${ke_active}" CNTOOLS_DREP_SOURCE="${ke_source}" CNTOOLS_DREP_DETAILS="${ke_details}"
+  [[ "${CNTOOLS_DREP_KOIOS_DETAILS}" != '{}' ]] || {
+    cntools_transaction_log WARN "Koios DRep activity unavailable drep=$1; the local registration is shown alone"
+    return 1
+  }
 }

@@ -45,7 +45,7 @@ cntools_registry_run() {
 # preserves unchanged fields/attestations when revising an existing entry.
 cntools_registry_export() {
   local identity="$1" name="$2" description="$3" ticker="$4" url="$5" decimals="$6" logo="$7" previous="${8:-}"
-  local subject="${identity/./}" temp='' work='' old='' frozen='' final='' export_root='' destination='' png=''
+  local subject="${identity/./}" temp='' work='' old='' frozen='' final='' export_root='' destination='' png='' stamp='' suffix='' visible=''
   local -a arguments=()
   CNTOOLS_REGISTRY_SAVED=''
   [[ "${identity}" =~ ^[0-9a-f]{56}\.([0-9a-f]{2}){0,32}$ && "${identity%%.*}" == "${CNTOOLS_POLICY_ID}" ]] || return 2
@@ -94,11 +94,27 @@ cntools_registry_export() {
   cntools_transaction_directory_safe "${CNTOOLS_NODE_HOME}" || return 1
   [[ -e "${export_root}" || -L "${export_root}" ]] || (umask 077; mkdir -- "${export_root}") || return 1
   cntools_transaction_directory_safe "${export_root}" || return 1
+  # Copy into a private folder on the export filesystem (the workspace may be
+  # a tmpfs, where a hard link fails), then publish that folder under a
+  # visible dated name that never replaces an earlier export.
   destination="$(umask 077; mktemp -d "${export_root}/.cntools-registry.XXXXXX")" || return 1
   CNTOOLS_REGISTRY_STAGES+=("${destination}")
-  cntools_run_command 00000 -- ln -T -- "${final}" "${destination}/${subject}.json" || return 1
-  cntools_transaction_private_file_safe "${destination}/${subject}.json" || return 1
-  CNTOOLS_REGISTRY_SAVED="${destination}/${subject}.json"
+  (umask 077; cp -- "${final}" "${destination}/${subject}.json") &&
+    cntools_run_command 000 -- chmod 0600 "${destination}/${subject}.json" &&
+    cmp -s -- "${final}" "${destination}/${subject}.json" &&
+    cntools_transaction_private_file_safe "${destination}/${subject}.json" || return 1
+  printf -v stamp '%(%Y-%m-%d_%H%M%S)T' -1
+  for suffix in '' _2 _3 _4 _5 _6 _7 _8 _9; do
+    visible="${export_root}/${stamp}${suffix}"
+    [[ ! -e "${visible}" && ! -L "${visible}" ]] || continue
+    cntools_run_command 000000 -- mv -T -n -- "${destination}" "${visible}" 2>/dev/null || true
+    [[ -e "${destination}" ]] || break
+  done
+  [[ ! -e "${destination}" && -d "${visible}" && ! -L "${visible}" ]] &&
+    cntools_transaction_private_file_safe "${visible}/${subject}.json" || {
+    cntools_policy_error 'The registry file could not be saved without replacing an earlier export.'; return 1;
+  }
+  CNTOOLS_REGISTRY_SAVED="${visible}/${subject}.json"
   # Detach the successfully saved export from temporary-file cleanup.
   unset 'CNTOOLS_REGISTRY_STAGES[${#CNTOOLS_REGISTRY_STAGES[@]}-1]'
   cntools_transaction_log ASSET "Registry entry exported subject=${subject} file=${CNTOOLS_REGISTRY_SAVED}; manual submission required"

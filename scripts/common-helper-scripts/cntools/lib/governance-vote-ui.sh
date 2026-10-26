@@ -8,7 +8,8 @@ cntools_gov_vote_render_rows() {
   cntools_transaction_ui_styled_row 'DRep ID' "${CNTOOLS_DREP_LIFECYCLE_ID}" identifier
   [[ -z "${CNTOOLS_GOV_VOTE_POWER}" ]] ||
     cntools_transaction_ui_styled_row "${CNTOOLS_DREP_POWER_LABEL:-Voting power}" "$(cntools_number_format_lovelace "${CNTOOLS_GOV_VOTE_POWER}")" number
-  [[ -z "${title}" ]] || cntools_transaction_ui_styled_row Proposal "${title:0:90}" value
+  ((${#title} <= 90)) || title="${title:0:89}…"
+  [[ -z "${title}" ]] || cntools_transaction_ui_styled_row Proposal "${title}" value
   cntools_transaction_ui_styled_row 'Proposal ID' "$(jq -r .id <<< "${CNTOOLS_GOV_VOTE_PROPOSAL}")" identifier
   cntools_proposal_type_label_into kind "$(jq -r .type <<< "${CNTOOLS_GOV_VOTE_PROPOSAL}")"
   cntools_transaction_ui_styled_row 'Action type' "${kind}" value
@@ -20,6 +21,9 @@ cntools_gov_vote_render_rows() {
   if [[ -n "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" ]]; then
     cntools_transaction_ui_styled_row 'Rationale URL' "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" address
     cntools_transaction_ui_styled_row 'Rationale hash' "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH}" identifier
+  else
+    # Quick's default; Change vote adds one.
+    cntools_transaction_ui_styled_row Rationale 'No rationale anchor' muted
   fi
 }
 
@@ -39,15 +43,16 @@ cntools_gov_vote_hash_into() {
 }
 
 # Optional "change" (from the review): the current rationale can be kept.
+# Optional BACK label for leaving the menu (default Cancel); returns 1 then.
 cntools_gov_vote_choose_rationale() {
-  local choice='' url='' hash='' status=0
-  local -a choices=('No rationale anchor' 'Add rationale anchor' Cancel)
+  local choice='' url='' hash='' status=0 back="${2:-Cancel}"
+  local -a choices=('No rationale anchor' 'Add rationale anchor' "${back}")
   [[ "${1:-}" != change || -z "${CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL}" ]] ||
-    choices=('Keep current rationale' 'Replace rationale anchor' 'Remove rationale anchor' Cancel)
+    choices=('Keep current rationale' 'Replace rationale anchor' 'Remove rationale anchor' "${back}")
   while true; do
     cntools_ui_choose choice 'Vote rationale' "${choices[@]}" || return $?
     case "${choice}" in
-      Cancel) return 1 ;;
+      "${back}") return 1 ;;
       'Keep current rationale') return 0 ;;
       'No rationale anchor'|'Remove rationale anchor') CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL='' CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH=''; return 0 ;;
       'Add rationale anchor'|'Replace rationale anchor')
@@ -100,56 +105,69 @@ cntools_gov_vote_decision_into() {
   done
 }
 
-# Declining a replacement, or Esc/Back at the decision or rationale, returns
-# to the proposal list; only Cancel there (or Ctrl+C) ends the action.
+# Esc/Back at the decision or rationale returns to the proposal list; only
+# Cancel there (or Ctrl+C) ends the action. A lone open proposal is picked
+# at once (its details name it), and Back then ends the action.
 cntools_gov_vote_choose() {
-  local record='' title='' selection='' ordinal=0 previous='' label='' vote='' id='' kind='' status=0
+  local record='' selection='' ordinal=0 previous='' label='' vote='' id='' status=0 auto=N back='Back to proposals'
   local -a choices=()
   while IFS= read -r record; do
     [[ -n "${record}" ]] || continue
     ordinal=$((ordinal+1))
     if ! cntools_gov_vote_eligible "${record}"; then continue; fi
-    title="$(jq -r '.title | if type == "string" and length > 0 then . else "Governance proposal" end' <<< "${record}")"
-    cntools_text_sanitize_into title "${title}" || return 2
-    id="$(jq -r '.tx[0:12]+"…#"+(.index|tostring)' <<< "${record}")" || return 2
-    cntools_proposal_type_label_into kind "$(jq -r .type <<< "${record}")"
-    choices+=("${ordinal} · ${kind} · ${title:0:70} · ${id}")
+    cntools_proposal_label_into label "${record}" "${ordinal}"
+    choices+=("${label}")
   done <<< "$(jq -c '.[]' <<< "${CNTOOLS_PROPOSALS}")"
   CNTOOLS_WALLET_REGISTER_ERROR=''
   # Collect already returned 7 for this; kept for a proposal set that changed.
   if ((${#choices[@]} == 0)); then cntools_gov_vote_any_eligible; return 2; fi
+  if ((${#choices[@]} == 1)); then auto=Y back=Cancel; fi
   choices+=(Cancel)
   while true; do
     cntools_wallet_register_begin
-    cntools_ui_choose selection 'Select governance proposal' "${choices[@]}" || return $?
-    [[ "${selection}" != Cancel ]] || return 1
+    if [[ "${auto}" == Y ]]; then
+      selection="${choices[0]}"
+      cntools_transaction_log CHOICE "Governance proposal auto-selected only open=${selection}"
+    else
+      cntools_ui_choose selection 'Select governance proposal' "${choices[@]}" || return $?
+      [[ "${selection}" != Cancel ]] || return 1
+    fi
     cntools_proposal_select "${selection%% *}" || return 2
     CNTOOLS_GOV_VOTE_PROPOSAL="${CNTOOLS_PROPOSAL_SELECTED}"
     status=0
     cntools_proposal_details "${CNTOOLS_GOV_VOTE_PROPOSAL}" vote || status=$?
     ((status != 130)) || return 130
     ((status == 0)) || return 2
-    cntools_gov_vote_previous_into previous "${CNTOOLS_GOV_VOTE_PROPOSAL}" || {
-      cntools_wallet_register_set_error 'Your previous vote could not be verified. Nothing was built.'; return 2;
-    }
+    status=0
+    if [[ "${CNTOOLS_PROPOSAL_BACKEND}" == koios ]]; then
+      cntools_ui_spin_function 'Checking your previous vote…' cntools_gov_vote_previous_into previous "${CNTOOLS_GOV_VOTE_PROPOSAL}" || status=$?
+    else
+      cntools_gov_vote_previous_into previous "${CNTOOLS_GOV_VOTE_PROPOSAL}" || status=$?
+    fi
+    ((status != 130)) || return 130
+    ((status == 0)) || { cntools_wallet_register_set_error 'Your previous vote could not be verified. Nothing was built.'; return 2; }
     CNTOOLS_GOV_VOTE_PREVIOUS="${previous}"
+    # A replacement is marked in the decision menu; choosing is the commitment.
+    label=''
     if [[ "${previous}" != null ]]; then
       cntools_gov_vote_label_into label "${previous}"
-      cntools_ui_render_status warn "This replaces your previous vote: ${label}."
-      status=0
-      cntools_ui_confirm 'Prepare a replacement vote?' false || status=$?
-      ((status != 130)) || return 130
-      ((status == 0)) || continue
+      cntools_ui_render_status warn "You already voted ${label} on this proposal. A new vote replaces it."
     fi
     status=0
-    cntools_gov_vote_decision_into vote || status=$?
+    cntools_gov_vote_decision_into vote "${label}" "${back}" || status=$?
     ((status != 130)) || return 130
-    ((status == 0)) || continue
+    if ((status != 0)); then [[ "${auto}" != Y ]] || return 1; continue; fi
     CNTOOLS_GOV_VOTE_DECISION="${vote}"
-    status=0
-    cntools_gov_vote_choose_rationale || status=$?
-    ((status != 1)) || continue
-    ((status == 0)) || return "${status}"
+    CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL='' CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH=''
+    if cntools_flow_quick; then
+      # Quick votes without a rationale; the review's Change vote adds one.
+      cntools_transaction_log CHOICE 'Vote rationale default=none flow=quick'
+    else
+      status=0
+      cntools_gov_vote_choose_rationale '' "${back}" || status=$?
+      if ((status == 1)); then [[ "${auto}" != Y ]] || return 1; continue; fi
+      ((status == 0)) || return "${status}"
+    fi
     id="$(jq -r .id <<< "${CNTOOLS_GOV_VOTE_PROPOSAL}")"
     cntools_transaction_log CHOICE "Governance vote proposal=${id} drep=${CNTOOLS_DREP_LIFECYCLE_ID} decision=${vote} previous=${previous}"
     return 0

@@ -56,6 +56,8 @@ cntools_change_output_add() {
   CNTOOLS_CHANGE_OUTPUT_ASSET_COUNTS+=("${asset_count}")
 }
 
+# The smallest ADA-only change output: the protocol minimum, raised to the
+# configured ADA-only minimum only while ADA-only management is enabled.
 cntools_change_plain_min_into() {
   local _cntools_output_name="${1:-}"
   local protocol_file="${2:-}"
@@ -67,6 +69,7 @@ cntools_change_plain_min_into() {
   local -n _cntools_output_ref="${_cntools_output_name}"
   cntools_transaction_calculate_min_utxo_into \
     protocol_min "${protocol_file}" "${address}+0" || return 1
+  [[ "${CNTOOLS_TX_UTXO_MANAGEMENT:-N}" == Y ]] || configured=0
   if cntools_uint_greater "${protocol_min}" "${configured}"; then
     _cntools_output_ref="${protocol_min}"
   else
@@ -113,7 +116,12 @@ cntools_change_plan_tokens() {
   local next=""
   local sorted=""
   local safety_split="N"
+  local run_left=0
+  local run_index=0
+  local asset_id=""
   local -a sorted_assets=()
+  local -a pieces=()
+  local -a runs=()
 
   (( asset_total > 0 )) || {
     if [[ "${CNTOOLS_TX_TOKEN_FRAGMENTATION:-N}" == "Y" ]]; then
@@ -131,8 +139,24 @@ cntools_change_plan_tokens() {
     maximum="${CNTOOLS_TX_TOKEN_MAX_ASSETS:-20}"
   fi
   (( maximum >= 1 )) || return 2
+  # Runs that fit the ledger's value-size limit (and the fragmentation cap):
+  # a token bundle too large for one output is split, also when disabled.
+  for asset_id in "${CNTOOLS_COIN_SELECTED_ASSET_IDS[@]}"; do
+    pieces+=("${CNTOOLS_COIN_SELECTED_ASSETS[${asset_id}]} ${asset_id%.}")
+  done
+  cntools_transaction_value_runs_into runs "${protocol_file}" "${maximum}" "${pieces[@]}" || {
+    cntools_change_fail "The token change could not be sized for the ledger's value-size limit."
+    return 1
+  }
+  if [[ "${CNTOOLS_TX_TOKEN_FRAGMENTATION:-N}" != "Y" ]] && (( ${#runs[@]} > 1 )); then
+    safety_split="Y"
+  fi
   while (( start < asset_total )); do
-    count="${maximum}"
+    if (( run_left <= 0 )); then
+      run_left="${runs[run_index]:-$((asset_total - start))}"
+      run_index=$((run_index + 1))
+    fi
+    count="${run_left}"
     (( start + count <= asset_total )) || count=$((asset_total - start))
     cntools_change_token_value_into value "${address}" 0 "${start}" "${count}" ||
       return 1
@@ -155,6 +179,7 @@ cntools_change_plan_tokens() {
     cntools_uint_add_into next "${total}" "${minimum}" || return 1
     total="${next}"
     start=$((start + count))
+    run_left=$((run_left - count))
   done
   [[ "${safety_split}" != "Y" ]] || cntools_transaction_clear_error
   if [[ "${CNTOOLS_TX_TOKEN_FRAGMENTATION:-N}" != "Y" &&
@@ -164,6 +189,8 @@ cntools_change_plan_tokens() {
     CNTOOLS_CHANGE_TOKEN_STATUS="Disabled · one token-change output"
   elif (( ${#CNTOOLS_CHANGE_OUTPUTS[@]} > 1 )); then
     CNTOOLS_CHANGE_TOKEN_STATUS="Applied · ${#CNTOOLS_CHANGE_OUTPUTS[@]} outputs · maximum ${maximum} assets"
+  elif (( asset_total == 1 )); then
+    CNTOOLS_CHANGE_TOKEN_STATUS="Enabled · not needed (1 asset)"
   else
     CNTOOLS_CHANGE_TOKEN_STATUS="Enabled · not needed (${asset_total} assets)"
   fi
@@ -297,6 +324,14 @@ cntools_change_plan_ada() {
   fi
 }
 
+# Shortfall in ADA, naming what the ADA is for.
+cntools_change_shortfall_error() {
+  local csf_for='the fee and the minimum change'
+  [[ "${2:-0}" == 0 ]] || csf_for='the deposit, the fee and the minimum change'
+  [[ "${3:-0}" == 0 ]] || csf_for+=' (including the change holding native assets)'
+  CNTOOLS_CHANGE_ERROR="Not enough ADA: $(cntools_number_format_lovelace "$1") more is needed for ${csf_for}."
+}
+
 cntools_change_plan_stake() {
   local operation="${1:-}"
   local deposit="${2:-}"
@@ -337,7 +372,7 @@ cntools_change_plan_stake() {
         cntools_uint_subtract_into shortfall "${mandatory}" "${available}" ||
           return 1
         CNTOOLS_CHANGE_REQUIRED_EXTRA="${shortfall}"
-        CNTOOLS_CHANGE_ERROR="Selected inputs need ${shortfall} more lovelace for fees and valid token change."
+        cntools_change_shortfall_error "${shortfall}" "${deposit}" "${token_min}"
         return 3
       fi
       cntools_uint_subtract_into after_ledger \
@@ -355,7 +390,7 @@ cntools_change_plan_stake() {
         cntools_uint_subtract_into shortfall "${mandatory}" "${after_ledger}" ||
           return 1
         CNTOOLS_CHANGE_REQUIRED_EXTRA="${shortfall}"
-        CNTOOLS_CHANGE_ERROR="Selected inputs need ${shortfall} more lovelace for fees and valid token change."
+        cntools_change_shortfall_error "${shortfall}" 0 "${token_min}"
         return 3
       fi
       cntools_uint_subtract_into after_ledger \

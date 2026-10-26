@@ -225,6 +225,7 @@ cntools_wallet_action_import_hardware() {
   local account=""
   local key_index=""
   local device=""
+  local device_error=""
   local status=0
 
   cntools_wallet_hardware_reset_result
@@ -253,6 +254,9 @@ cntools_wallet_action_import_hardware() {
     return "${status}"
   fi
 
+  # A device that cannot be reached, or an export the device rejects, returns
+  # here with the reason shown: 'Import wallet' retries, and the account and
+  # key index can still change.
   while true; do
     cntools_wallet_hardware_screen_begin
     if ! cntools_wallet_hardware_render_plan \
@@ -264,76 +268,78 @@ cntools_wallet_action_import_hardware() {
       cntools_ui_wait
       return 1
     fi
-    # One stop before the device: the plan doubles as the "device ready" step.
-    cntools_ui_render_status info \
-      "Connect and unlock the device (Ledger: open the Cardano app; Trezor: bridge running). Only public keys and signing references are stored; private keys never leave the device."
+    if [[ -n "${device_error}" ]]; then
+      cntools_ui_render_status error "${device_error}"
+    else
+      # One stop before the device: the plan doubles as the "device ready" step.
+      cntools_ui_render_status info \
+        "Connect and unlock the device (Ledger: open the Cardano app; Trezor: bridge running). Only public keys and signing references are stored; private keys never leave the device."
+    fi
     cntools_ui_render_status warn \
       "Only standard CIP-1852 payment and stake keys are imported. Verify the derivation paths on the device before approving."
     status=0
-    cntools_wallet_derivation_confirm "Import from the connected hardware wallet now?" 'Import wallet' || status=$?
-    (( status == 4 )) || break
-    # Esc while changing keeps the shown values; Ctrl+C cancels.
-    status=0
-    cntools_wallet_hardware_prompt_derivation_into account key_index || status=$?
-    (( status != 130 )) || return 130
-  done
-  if (( status != 0 )); then
-    if (( status == 1 || status == 130 )); then
-      cntools_wallet_hardware_log CHOICE \
-        "hardware wallet import declined wallet=${name}"
-      return 0
+    cntools_wallet_derivation_confirm "Import hardware wallet ${name} from the connected device?" 'Import wallet' || status=$?
+    if (( status == 4 )); then
+      # Esc while changing keeps the shown values; Ctrl+C cancels.
+      status=0
+      cntools_wallet_hardware_prompt_derivation_into account key_index || status=$?
+      (( status != 130 )) || return 130
+      device_error=""
+      continue
     fi
-    return "${status}"
-  fi
-
-  if cntools_ui_spin_function \
-      "Checking the connected hardware wallet…" \
-      cntools_wallet_hardware_device_check; then
-    status=0
-  else
-    status=$?
-  fi
-  if (( status != 0 )) &&
-     [[ -n "${CNTOOLS_WALLET_HARDWARE_DEVICE}" ]]; then
-    cntools_wallet_hardware_log WARN \
-      "hardware device check completed but spinner failed status=${status}"
-    status=0
-  fi
-  if (( status != 0 )); then
-    [[ -n "${CNTOOLS_WALLET_HARDWARE_ERROR}" ]] ||
-      cntools_wallet_hardware_log ERROR \
-        "hardware device progress display failed status=${status}"
-    cntools_ui_render_status error \
-      "${CNTOOLS_WALLET_HARDWARE_ERROR:-The hardware wallet could not be reached.}"
-    cntools_ui_wait
-    return 1
-  fi
-  device="${CNTOOLS_WALLET_HARDWARE_DEVICE}"
-  cntools_wallet_hardware_log CHOICE \
-    "hardware wallet import confirmed wallet=${name} account=${account} key_index=${key_index}"
-  if cntools_ui_spin_function \
-      "Approve the payment and stake key export on the device…" \
-      cntools_wallet_hardware_create \
-      "${name}" "${account}" "${key_index}"; then
-    status=0
-  else
-    status=$?
-  fi
-  if (( status != 0 )) &&
-     [[ -n "${CNTOOLS_WALLET_CREATED_DIRECTORY}" &&
-        -d "${CNTOOLS_WALLET_CREATED_DIRECTORY}" &&
-        ! -L "${CNTOOLS_WALLET_CREATED_DIRECTORY}" ]]; then
-    CNTOOLS_WALLET_CREATE_WARNING="The wallet was imported, but the progress display did not close cleanly."
-    cntools_wallet_hardware_log WARN \
-      "hardware wallet published but spinner failed status=${status} wallet=${name}"
-    status=0
-  fi
-  if (( status != 0 )); then
-    cntools_ui_render_status error \
-      "${CNTOOLS_WALLET_HARDWARE_ERROR:-Hardware wallet import failed. See ${CNTOOLS_LOG}.}"
-    cntools_ui_wait
-    return 1
-  fi
+    if (( status != 0 )); then
+      if (( status == 1 || status == 130 )); then
+        cntools_wallet_hardware_log CHOICE \
+          "hardware wallet import declined wallet=${name}"
+        return 0
+      fi
+      return "${status}"
+    fi
+    device_error=""
+    if cntools_ui_spin_function \
+        "Checking the connected hardware wallet…" \
+        cntools_wallet_hardware_device_check; then
+      status=0
+    else
+      status=$?
+    fi
+    if (( status != 0 )) &&
+       [[ -n "${CNTOOLS_WALLET_HARDWARE_DEVICE}" ]]; then
+      cntools_wallet_hardware_log WARN \
+        "hardware device check completed but spinner failed status=${status}"
+      status=0
+    fi
+    if (( status != 0 )); then
+      [[ -n "${CNTOOLS_WALLET_HARDWARE_ERROR}" ]] ||
+        cntools_wallet_hardware_log ERROR \
+          "hardware device progress display failed status=${status}"
+      device_error="${CNTOOLS_WALLET_HARDWARE_ERROR:-The hardware wallet could not be reached.}"
+      continue
+    fi
+    device="${CNTOOLS_WALLET_HARDWARE_DEVICE}"
+    cntools_wallet_hardware_log CHOICE \
+      "hardware wallet import confirmed wallet=${name} account=${account} key_index=${key_index}"
+    if cntools_ui_spin_function \
+        "Approve the payment and stake key export on the device…" \
+        cntools_wallet_hardware_create \
+        "${name}" "${account}" "${key_index}"; then
+      status=0
+    else
+      status=$?
+    fi
+    if (( status != 0 )) &&
+       [[ -n "${CNTOOLS_WALLET_CREATED_DIRECTORY}" &&
+          -d "${CNTOOLS_WALLET_CREATED_DIRECTORY}" &&
+          ! -L "${CNTOOLS_WALLET_CREATED_DIRECTORY}" ]]; then
+      CNTOOLS_WALLET_CREATE_WARNING="The wallet was imported, but the progress display did not close cleanly."
+      cntools_wallet_hardware_log WARN \
+        "hardware wallet published but spinner failed status=${status} wallet=${name}"
+      status=0
+    fi
+    (( status != 0 )) || break
+    # Nothing was published (the stage is removed on failure): retry is safe.
+    device_error="${CNTOOLS_WALLET_HARDWARE_ERROR:-Hardware wallet import failed. See ${CNTOOLS_LOG}.}"
+  done
 
   cntools_wallet_hardware_screen_begin
   cntools_ui_render_status success \

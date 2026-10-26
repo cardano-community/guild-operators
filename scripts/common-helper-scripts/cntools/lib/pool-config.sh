@@ -104,7 +104,7 @@ cntools_pool_config_record_into() {
   local output="$1" config_record="$2" public='' resolved_record='' index=0 expected=''
   expected="$(jq -er .hash <<< "${config_record}")" || return 1
   for index in "${!CNTOOLS_WALLET_NAMES[@]}"; do
-    if cntools_pool_wallet_stake_record_into resolved_record "${index}" && [[ "$(jq -r .hash <<< "${resolved_record}")" == "${expected}" ]]; then
+    if cntools_pool_wallet_stake_record_cached_into resolved_record "${index}" && [[ "$(jq -r .hash <<< "${resolved_record}")" == "${expected}" ]]; then
       printf -v "${output}" '%s' "${resolved_record}"; return 0
     fi
   done
@@ -137,14 +137,14 @@ cntools_pool_config_load() {
     while IFS= read -r label; do
       candidate=''
       for index in "${!CNTOOLS_WALLET_NAMES[@]}"; do
-        [[ "${CNTOOLS_WALLET_NAMES[index]}" != "${label}" ]] || { cntools_pool_wallet_stake_record_into candidate "${index}" || return 1; break; }
+        [[ "${CNTOOLS_WALLET_NAMES[index]}" != "${label}" ]] || { cntools_pool_wallet_stake_record_cached_into candidate "${index}" || return 1; break; }
       done
       [[ -n "${candidate}" ]] || return 1
       owners="$(jq -c --argjson record "${candidate}" '.+[$record]' <<< "${owners}")"
     done < <(jq -r 'if .owners then .owners[].wallet_name else .pledgeWallet end' <<< "${json}")
     label="$(jq -r '.rewardWallet // .pledgeWallet // .owners[0].wallet_name' <<< "${json}")"
     for index in "${!CNTOOLS_WALLET_NAMES[@]}"; do
-      [[ "${CNTOOLS_WALLET_NAMES[index]}" != "${label}" ]] || { cntools_pool_wallet_stake_record_into reward "${index}" || return 1; break; }
+      [[ "${CNTOOLS_WALLET_NAMES[index]}" != "${label}" ]] || { cntools_pool_wallet_stake_record_cached_into reward "${index}" || return 1; break; }
     done
     [[ -n "${reward}" ]] || return 1
     relays="$(jq -c '(.relays // []) | map(if .type == "DNS_A" then {type:"dns",dns:.address,port:(.port|tonumber)}

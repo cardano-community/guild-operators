@@ -8,6 +8,12 @@ declare -ag CNTOOLS_BACKUP_COVERAGE_LABELS=() CNTOOLS_BACKUP_COVERAGE_VALUES=()
 CNTOOLS_BACKUP_MISSING_KEYS=0 CNTOOLS_BACKUP_PRESENT_KEYS=0 CNTOOLS_BACKUP_HARDWARE_KEYS=0
 # Set when the last restore preparation failed at GPG decryption (retryable).
 CNTOOLS_BACKUP_DECRYPT_FAILED=N
+# Source paths a backup skips because their names cannot be archived safely
+# (role/relative path; folders end with /). Set by the tree inventory.
+declare -ag CNTOOLS_BACKUP_EXCLUDED=()
+# Restore decisions per object (import, preserve, recovery) and their counts.
+declare -Ag CNTOOLS_BACKUP_DECISIONS=()
+CNTOOLS_BACKUP_IMPORTABLE=0 CNTOOLS_BACKUP_SKIPPABLE=0
 
 cntools_backup_recovery_coverage() {
   local role='' root='' directory='' public='' secret='' hardware='' prefix='' label='' value=''
@@ -19,6 +25,8 @@ cntools_backup_recovery_coverage() {
     cntools_backup_directory_safe "${root}" || return 1
     for directory in "${root}"/*; do
       [[ -d "${directory}" && ! -L "${directory}" && -O "${directory}" ]] || continue
+      # A folder the backup skips is not covered by it.
+      cntools_backup_member_valid "${role}/${directory##*/}" || continue
       local -a public_names=() secret_names=() hardware_names=()
       case "${role}" in
         wallets)
@@ -116,8 +124,14 @@ cntools_backup_public_file() {
   return 1
 }
 
+# Lists every source path as "path<TAB>kind<TAB>size<TAB>sha256". With
+# "names" the hash is skipped (the early check before the review). Paths
+# whose names cannot be archived safely are skipped, with their contents,
+# and recorded in CNTOOLS_BACKUP_EXCLUDED; every other problem stops the
+# backup and names the path.
 cntools_backup_tree_inventory() {
-  local role='' root='' path='' relative='' size='' hash='' total=0 count=0 kind='' mode='' locks='' busy=''
+  local mode="${1:-hash}" role='' root='' path='' relative='' size='' hash='' total=0 count=0 kind='' mode_bits='' locks='' busy='' skip=''
+  CNTOOLS_BACKUP_EXCLUDED=()
   # Issuance/install can cross several files. Refuse active operations,
   # rather than blessing a torn cold-counter/opcert snapshot.
   if cntools_state_path_into locks locks && [[ -d "${locks}" ]]; then
@@ -131,37 +145,70 @@ cntools_backup_tree_inventory() {
     cntools_backup_role_root_into root "${role}" || return 1
     [[ -n "${root}" && "${root}" == /* && "${root}" != / ]] || return 1
     [[ -e "${root}" || -L "${root}" ]] || continue
-    cntools_backup_directory_safe "${root}" || return 1
+    cntools_backup_directory_safe "${root}" || {
+      cntools_backup_error "The ${role} folder ${root} is linked, not owned by you or writable by others. Fix it before creating a backup."; return 1;
+    }
     cntools_backup_command find "${root}" -mindepth 1 -print0 > "${CNTOOLS_BACKUP_WORK}/tree" || return 1
+    skip=''
     while IFS= read -r -d '' path; do
       relative="${path#"${root}/"}"
-      cntools_backup_member_valid "${relative}" && [[ ! -L "${path}" && -O "${path}" ]] || {
-        cntools_backup_error 'Source data contains unsupported paths, links or files not owned by this user.'; return 1;
+      # find lists a folder's contents right after it: skipped with it.
+      if [[ -n "${skip}" && "${relative}" == "${skip}/"* ]]; then continue; fi
+      skip=''
+      if ! cntools_backup_member_valid "${role}/${relative}"; then
+        if [[ -d "${path}" && ! -L "${path}" ]]; then
+          skip="${relative}"; CNTOOLS_BACKUP_EXCLUDED+=("${role}/${relative}/")
+        else
+          CNTOOLS_BACKUP_EXCLUDED+=("${role}/${relative}")
+        fi
+        continue
+      fi
+      [[ ! -L "${path}" && -O "${path}" ]] || {
+        cntools_backup_error "Source data contains a link or an entry not owned by you: ${role}/${relative}. Remove or fix it before creating a backup."; return 1;
       }
       # Locks left inside pool folders by earlier CNTools builds.
       [[ "${relative}" != */.cntools-opcert-lock/busy* ]] || {
         cntools_backup_error 'A pool certificate operation is in progress. Finish it before creating a backup.'; return 1;
       }
-      count=$((count+1)); (( count <= CNTOOLS_BACKUP_MAX_ENTRIES )) || return 1
+      count=$((count+1)); (( count <= CNTOOLS_BACKUP_MAX_ENTRIES )) || {
+        cntools_backup_error "The source data has more than ${CNTOOLS_BACKUP_MAX_ENTRIES} entries."; return 1;
+      }
       if [[ -d "${path}" ]]; then
-        cntools_filesystem_mode_into mode "${path}" && (( (8#${mode} & 0022) == 0 )) || {
-          cntools_backup_error 'A source subdirectory permits group or public writes. Protect it before creating a backup.'; return 1;
+        cntools_filesystem_mode_into mode_bits "${path}" && (( (8#${mode_bits} & 0022) == 0 )) || {
+          cntools_backup_error "The source folder ${role}/${relative} permits group or public writes. Protect it before creating a backup."; return 1;
         }
         kind=d; hash='-'; size=0
       elif [[ -f "${path}" && -r "${path}" ]]; then
         [[ "${relative}" == */* ]] || {
-          cntools_backup_error 'Backup roots must contain named folders, not loose files. Move loose files into their wallet, pool or asset folder first.'; return 1;
+          cntools_backup_error "Backup roots must contain named folders, not loose files: ${role}/${relative}. Move it into its wallet, pool or asset folder first."; return 1;
         }
         kind=f
-        cntools_filesystem_size_into size "${path}" && cntools_backup_hash_into hash "${path}" || return 1
+        cntools_filesystem_size_into size "${path}" || return 1
+        if [[ "${mode}" == names ]]; then hash='-'
+        else cntools_backup_hash_into hash "${path}" || return 1; fi
         [[ ${#size} -le 9 ]] || return 1
-        total=$((total+size)); (( total <= CNTOOLS_BACKUP_MAX_BYTES )) || return 1
+        total=$((total+size)); (( total <= CNTOOLS_BACKUP_MAX_BYTES )) || {
+          cntools_backup_error 'The source data exceeds the 512 MiB backup limit.'; return 1;
+        }
       else
-        cntools_backup_error 'Source data contains a socket, device or other unsupported file.'; return 1
+        cntools_backup_error "Source data contains a socket, device or unreadable file: ${role}/${relative}."; return 1
       fi
       printf '%s\t%s\t%s\t%s\n' "${role}/${relative}" "${kind}" "${size}" "${hash}"
     done < "${CNTOOLS_BACKUP_WORK}/tree"
   done
+}
+
+# The early check after the contents choice, before the review: tools,
+# temporary folder and every source path. Sets CNTOOLS_BACKUP_EXCLUDED.
+# Returns 3 when there is nothing to back up (an empty state, not an error).
+cntools_backup_inventory_check() {
+  cntools_backup_environment || {
+    [[ -n "${CNTOOLS_BACKUP_ERROR}" ]] || cntools_backup_error 'The backup tools or temporary folder are not usable.'; return 1;
+  }
+  cntools_backup_tree_inventory names > "${CNTOOLS_BACKUP_WORK}/check" || {
+    [[ -n "${CNTOOLS_BACKUP_ERROR}" ]] || cntools_backup_error 'The wallet, pool and asset folders could not be read safely.'; return 1;
+  }
+  [[ -s "${CNTOOLS_BACKUP_WORK}/check" ]] || return 3
 }
 
 cntools_backup_create() {
@@ -254,7 +301,8 @@ cntools_backup_crypto() {
 # Only a wrong passphrase is retryable; any other GPG failure stops Restore.
 cntools_backup_decrypt_error() {
   local detail=''
-  if grep -qiE 'bad session key|bad passphrase|invalid passphrase' -- "$1" 2>/dev/null; then
+  # The shared check: gpg runs under LC_ALL=C, so any user locale matches.
+  if cntools_key_crypto_bad_passphrase "$1"; then
     CNTOOLS_BACKUP_DECRYPT_FAILED=Y
     cntools_backup_error 'The backup could not be decrypted. Check the passphrase.'
     return 1
@@ -375,9 +423,35 @@ cntools_backup_restore_prepare() {
   cntools_log BACKUP "validated restore kind=${CNTOOLS_BACKUP_KIND} network=${CNTOOLS_BACKUP_NETWORK} objects=${#CNTOOLS_BACKUP_OBJECTS[@]}" || true
 }
 
+# What Restore does with each object: import (missing here), preserve (a
+# folder of that name exists; never overwritten) or recovery (KES/recovery
+# data and unfinished work, never activated). Recomputed before applying.
+cntools_backup_restore_plan() {
+  local object='' root='' name='' decision=''
+  CNTOOLS_BACKUP_DECISIONS=(); CNTOOLS_BACKUP_IMPORTABLE=0; CNTOOLS_BACKUP_SKIPPABLE=0
+  for object in "${CNTOOLS_BACKUP_OBJECTS[@]}"; do
+    name="${object#*/}"; decision=import
+    if [[ "${object%%/*}" == recovery || "${name}" == .* || -e "${CNTOOLS_BACKUP_WORK}/restore/${object}/.cntools-opcert-lock" ]]; then
+      decision=recovery
+    else
+      cntools_backup_role_root_into root "${object%%/*}" || return 1
+      [[ ! -e "${root}/${name}" && ! -L "${root}/${name}" ]] || decision=preserve
+    fi
+    CNTOOLS_BACKUP_DECISIONS["${object}"]="${decision}"
+    if [[ "${decision}" == import ]]; then
+      CNTOOLS_BACKUP_IMPORTABLE=$((CNTOOLS_BACKUP_IMPORTABLE+1))
+    else
+      CNTOOLS_BACKUP_SKIPPABLE=$((CNTOOLS_BACKUP_SKIPPABLE+1))
+    fi
+  done
+}
+
+# Imports missing folders. With keep_copy=Y the objects it does not import
+# (existing or recovery-only) are also kept in a recovery copy under
+# NODE_HOME/backups; imported folders are not duplicated there.
 cntools_backup_restore_apply() {
-  local object='' root='' name='' source='' stage='' recovery='' target=''
-  CNTOOLS_BACKUP_IMPORTED=0; CNTOOLS_BACKUP_SKIPPED=0
+  local keep_copy="${1:-N}" object='' root='' name='' source='' stage='' recovery='' target=''
+  CNTOOLS_BACKUP_IMPORTED=0; CNTOOLS_BACKUP_SKIPPED=0; CNTOOLS_BACKUP_RESULT=''
   [[ -d "${CNTOOLS_BACKUP_WORK}/restore" && ${#CNTOOLS_BACKUP_OBJECTS[@]} -gt 0 ]] || return 1
   # Check all destinations before importing the first object. Empty missing
   # roots may be created, but an unsafe later root cannot cause a partial plan.
@@ -394,24 +468,36 @@ cntools_backup_restore_apply() {
       }
     fi
   done
-  # Preserve a complete recovery copy, including conflicts and hidden KES
-  # handoff/rotation archives, before importing anything into live data.
-  recovery="${CNTOOLS_NODE_HOME}/backups"
-  cntools_backup_directory_safe "${CNTOOLS_NODE_HOME}" || return 1
-  if [[ ! -e "${recovery}" && ! -L "${recovery}" ]]; then mkdir -m 0700 -- "${recovery}" || return 1; fi
-  cntools_backup_directory_safe "${recovery}" || return 1
-  target="${recovery}/restored-${CNTOOLS_BACKUP_WORK##*.}"
-  stage="$(umask 077; mktemp -d "${recovery}/.cntools-restore.XXXXXXXX")" || return 1
-  CNTOOLS_BACKUP_STAGES+=("${stage}")
-  if ! cntools_backup_command cp -R -- "${CNTOOLS_BACKUP_WORK}/restore/." "${stage}/" || ! cntools_backup_publish "${stage}" "${target}"; then
-    rm -rf -- "${stage}"; return 1
+  cntools_backup_restore_plan || return 1
+  if [[ "${keep_copy}" == Y ]] && (( CNTOOLS_BACKUP_SKIPPABLE > 0 )); then
+    # Kept before importing anything into live data.
+    recovery="${CNTOOLS_NODE_HOME}/backups"
+    cntools_backup_directory_safe "${CNTOOLS_NODE_HOME}" || return 1
+    if [[ ! -e "${recovery}" && ! -L "${recovery}" ]]; then mkdir -m 0700 -- "${recovery}" || return 1; fi
+    cntools_backup_directory_safe "${recovery}" || return 1
+    target="${recovery}/restored-${CNTOOLS_BACKUP_WORK##*.}"
+    stage="$(umask 077; mktemp -d "${recovery}/.cntools-restore.XXXXXXXX")" || return 1
+    CNTOOLS_BACKUP_STAGES+=("${stage}")
+    for object in "${CNTOOLS_BACKUP_OBJECTS[@]}"; do
+      [[ "${CNTOOLS_BACKUP_DECISIONS[${object}]}" != import ]] || continue
+      (umask 077; mkdir -p -- "${stage}/${object%%/*}") &&
+        cntools_backup_command cp -R -- "${CNTOOLS_BACKUP_WORK}/restore/${object}" "${stage}/${object}" || {
+          rm -rf -- "${stage}"; cntools_backup_error 'The recovery copy could not be written. Nothing was imported.'; return 1;
+        }
+    done
+    if [[ -f "${CNTOOLS_BACKUP_WORK}/restore/manifest.json" ]]; then
+      cntools_backup_command cp -- "${CNTOOLS_BACKUP_WORK}/restore/manifest.json" "${stage}/manifest.json" || { rm -rf -- "${stage}"; return 1; }
+    fi
+    if ! cntools_backup_publish "${stage}" "${target}"; then
+      rm -rf -- "${stage}"; cntools_backup_error 'The recovery copy could not be published. Nothing was imported.'; return 1
+    fi
+    CNTOOLS_BACKUP_RESULT="${target}"
   fi
-  CNTOOLS_BACKUP_RESULT="${target}"
   for object in "${CNTOOLS_BACKUP_OBJECTS[@]}"; do
     name="${object#*/}"
     # Recovery locks and hidden KES work contain absolute-path intent and must
     # never be activated automatically on a new/different node.
-    if [[ "${object%%/*}" == recovery || "${name}" == .* || -e "${target}/${object}/.cntools-opcert-lock" ]]; then
+    if [[ "${CNTOOLS_BACKUP_DECISIONS[${object}]}" == recovery ]]; then
       CNTOOLS_BACKUP_SKIPPED=$((CNTOOLS_BACKUP_SKIPPED+1)); continue
     fi
     cntools_backup_role_root_into root "${object%%/*}" || return 1
@@ -422,15 +508,15 @@ cntools_backup_restore_apply() {
     if [[ -e "${root}/${name}" || -L "${root}/${name}" ]]; then
       CNTOOLS_BACKUP_SKIPPED=$((CNTOOLS_BACKUP_SKIPPED+1)); continue
     fi
-    source="${target}/${object}"
+    source="${CNTOOLS_BACKUP_WORK}/restore/${object}"
     [[ -d "${source}" && ! -L "${source}" ]] || return 1
     stage="$(umask 077; mktemp -d "${root}/.cntools-restore.XXXXXXXX")" || return 1
     CNTOOLS_BACKUP_STAGES+=("${stage}")
     if ! cntools_backup_command cp -R -- "${source}/." "${stage}/" || ! cntools_backup_publish "${stage}" "${root}/${name}"; then
-      rm -rf -- "${stage}"; cntools_backup_error 'Restore stopped before an unsafe overwrite. Already imported folders and the recovery copy were retained.'; return 1
+      rm -rf -- "${stage}"; cntools_backup_error "Restore stopped before an unsafe overwrite. Already imported folders${CNTOOLS_BACKUP_RESULT:+ and the recovery copy} were retained."; return 1
     fi
     CNTOOLS_BACKUP_IMPORTED=$((CNTOOLS_BACKUP_IMPORTED+1))
     cntools_log BACKUP "imported ${object}" || true
   done
-  cntools_log BACKUP "restore imported=${CNTOOLS_BACKUP_IMPORTED} skipped=${CNTOOLS_BACKUP_SKIPPED} recovery=${CNTOOLS_BACKUP_RESULT}" || true
+  cntools_log BACKUP "restore imported=${CNTOOLS_BACKUP_IMPORTED} skipped=${CNTOOLS_BACKUP_SKIPPED} recovery=${CNTOOLS_BACKUP_RESULT:-none}" || true
 }

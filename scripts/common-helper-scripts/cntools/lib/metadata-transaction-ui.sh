@@ -3,28 +3,26 @@
 # shellcheck disable=SC2034,SC2015
 
 cntools_metadata_transaction_render_review() {
-  local expiry='' total=0 coin='' strategy=''
+  local expiry='' total=0 coin='' widths='' untouched=0
   "${mt_identity_render}" || return 1
   for coin in "${CNTOOLS_CHANGE_OUTPUT_LOVELACE[@]}"; do cntools_uint_add_into total "${total}" "${coin}" || return 1; done
   cntools_transaction_ui_expiry_label_into expiry "${CNTOOLS_SEND_EXPIRY}" || return 1
+  cntools_transaction_ui_table_widths_into widths 22 || return 1
+  # Reference-script UTxOs (funding) and datum UTxOs (this build) stay put.
+  untouched=$(( ${CNTOOLS_FUNDING_REFERENCE_SKIPPED:-0} + ${CNTOOLS_METADATA_TRANSACTION_SKIPPED:-0} ))
+  cntools_ui_render_detail 'Transaction information' || return 1
   {
+    printf 'Transaction detail\tValue\n'
     # The identity table already names the wallet when it also funds.
     [[ -n "${mt_identity_directory}" && "${mt_identity_directory}" == "${CNTOOLS_SEND_DIRECTORY}" ]] ||
-      cntools_table_pair 'Funding wallet' "${CNTOOLS_SEND_WALLET}" identifier
-    cntools_table_pair Fee "$(cntools_number_format_lovelace "${CNTOOLS_SEND_FEE}")" number
-    cntools_table_pair 'Returned change' "$(cntools_number_format_lovelace "${total}")" number
+      cntools_transaction_ui_styled_row 'Funding wallet' "${CNTOOLS_SEND_WALLET}" identifier
+    cntools_transaction_ui_styled_row Fee "$(cntools_number_format_lovelace "${CNTOOLS_SEND_FEE}")" number
+    cntools_transaction_ui_styled_row 'Returned change' "$(cntools_number_format_lovelace "${total}")" number
     # Readable strategy; rows for disabled change features are left out.
-    strategy="$(cntools_settings_strategy_name "${CNTOOLS_TX_SELECTION_STRATEGY}" 2>/dev/null)" || strategy="${CNTOOLS_TX_SELECTION_STRATEGY}"
-    strategy+=" · $(cntools_number_format "${#CNTOOLS_COIN_SELECTED_REFS[@]}") input"; ((${#CNTOOLS_COIN_SELECTED_REFS[@]} == 1)) || strategy+=s
-    cntools_table_pair 'Input selection' "${strategy}" value
-    [[ -z "${CNTOOLS_CHANGE_TOKEN_STATUS:-}" || "${CNTOOLS_CHANGE_TOKEN_STATUS}" == Disabled* ]] ||
-      cntools_table_pair 'Token fragmentation' "${CNTOOLS_CHANGE_TOKEN_STATUS}" value
-    [[ -z "${CNTOOLS_CHANGE_UTXO_STATUS:-}" || "${CNTOOLS_CHANGE_UTXO_STATUS}" == Disabled* ]] ||
-      cntools_table_pair 'ADA-only management' "${CNTOOLS_CHANGE_UTXO_STATUS}" value
-    [[ -z "${CNTOOLS_CHANGE_COLLATERAL_STATUS:-}" || "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" == Disabled* ]] ||
-      cntools_table_pair 'Collateral candidate' "${CNTOOLS_CHANGE_COLLATERAL_STATUS}" value
-    cntools_table_pair Expires "${expiry}" number
-  } | cntools_table_render 'Transaction information'
+    cntools_transaction_ui_render_policy_rows "${CNTOOLS_TX_SELECTION_STRATEGY}" "${#CNTOOLS_COIN_SELECTED_REFS[@]}"
+    cntools_transaction_ui_untouched_row "${untouched}"
+    cntools_transaction_ui_styled_row Expires "${expiry}" number
+  } | cntools_ui_table --separator $'\t' --widths "${widths}" || return 1
   cntools_ui_render_status info 'Only the transaction fee is spent. All selected funds and assets return as change.'
 }
 
@@ -44,6 +42,14 @@ cntools_metadata_transaction_inputs_recheck() {
   done
 }
 
+# Saves the reviewed staged package for signing elsewhere and shows where.
+cntools_metadata_transaction_save_unsigned() {
+  local su_saved=''
+  cntools_transaction_save_into su_saved "$1" unsigned "${mt_action}" || return 2
+  "${mt_begin}"
+  cntools_transaction_ui_render_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${su_saved}"
+}
+
 cntools_metadata_transaction_workflow() {
   local mt_action="$1" mt_intent="$2" mt_description="$3" mt_context="$4" mt_metadata="$5"
   local mt_begin="$6" mt_identity_render="$7" mt_recheck="$8" mt_identity_directory="${9:-}"
@@ -54,6 +60,9 @@ cntools_metadata_transaction_workflow() {
   # never an exported public file that could be edited during the wizard.
   cntools_transaction_snapshot_into mt_metadata "${mt_metadata}" 65536 metadata-workflow || return 2
   [[ -z "${CNTOOLS_SEND_SOURCE}" ]] || can_sign=Y
+  # A payment key present only encrypted: the review says how to sign here.
+  [[ "${can_sign}" == Y ]] || cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' \
+    "${CNTOOLS_SEND_DIRECTORY}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME:-payment.skey}" || true
   cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
   cntools_transaction_ui_initial_expiry_into lifetime || return $?
   while true; do
@@ -66,7 +75,8 @@ cntools_metadata_transaction_workflow() {
       # A failed rebuild after a Change step restores the reviewed values.
       [[ -n "${previous}" ]] || return 2
       cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-The transaction could not be rebuilt.} The previous expiry and workflow are kept."
-      CNTOOLS_TRANSACTION_ERROR=''; lifetime="${previous%%|*}" workflow="${previous#*|}" previous=''
+      CNTOOLS_TRANSACTION_ERROR=''; CNTOOLS_TRANSACTION_UI_NOTICE=''
+      lifetime="${previous%%|*}" workflow="${previous#*|}" previous=''
       continue
     fi
     previous="${lifetime}|${workflow}"
@@ -83,8 +93,12 @@ cntools_metadata_transaction_workflow() {
           ((change_status == 0)) && break ;;
         'Change workflow')
           cntools_transaction_ui_workflow_into workflow "${can_sign}" || change_status=$?
-          # Quick gives a new unsigned package a day: rebuild with it.
-          ((change_status != 0)) || ! cntools_transaction_ui_unsigned_lifetime_into lifetime "${workflow}" || break ;;
+          if ((change_status == 0)); then
+            # Quick gives a new unsigned package a day: rebuild with it.
+            ! cntools_transaction_ui_unsigned_lifetime_into lifetime "${workflow}" || break
+            # Accepted without a rebuild: a later failed rebuild keeps it.
+            previous="${lifetime}|${workflow}"
+          fi ;;
         *) return 2 ;;
       esac
       ((change_status <= 1)) || return "${change_status}"
@@ -92,14 +106,20 @@ cntools_metadata_transaction_workflow() {
     [[ "${choice}" != "${proceed}" ]] || break
   done
   if [[ "${workflow}" == 'Create unsigned package' ]]; then
-    cntools_transaction_save_into saved "${staged}" unsigned "${mt_action}" || return 2
-    "${mt_begin}"
-    cntools_transaction_ui_render_result success 'Ready for offline signing · Transaction → Sign, then Submit' "${CNTOOLS_TRANSACTION_ID}" "${saved}"
+    cntools_metadata_transaction_save_unsigned "${staged}"
     return $?
   fi
   cntools_transaction_signed_path_into signed || return 2
   cntools_ui_spin_function 'Rechecking authorization and funding inputs…' cntools_metadata_transaction_inputs_recheck || return 2
-  cntools_ui_spin_function 'Signing the funding transaction…' cntools_transaction_sign_registered "${staged}" "${signed}" || return 2
+  cntools_transaction_ui_recheck_mark
+  # A device or key failure offers Retry, Save unsigned package or Cancel.
+  status=0
+  cntools_transaction_ui_sign_staged 'the funding transaction' "${staged}" "${signed}" || status=$?
+  if ((status == 4)); then
+    cntools_metadata_transaction_save_unsigned "${staged}"
+    return $?
+  fi
+  ((status == 0)) || return "${status}"
   cntools_transaction_package_load "${signed}" && [[ "${CNTOOLS_TRANSACTION_COMPLETE}" == Y ]] || return 2
   cntools_transaction_save_into saved "${signed}" signed "${mt_action}" || return 2
   if [[ "${workflow}" == 'Create and sign' ]]; then
@@ -115,7 +135,11 @@ cntools_metadata_transaction_workflow() {
     cntools_transaction_ui_render_result warning 'Not submitted · signed package retained' "${txid}" "${saved}"
     return $?
   fi
-  cntools_ui_spin_function 'Rechecking authorization and funding inputs…' cntools_metadata_transaction_inputs_recheck || status=$?
+  # Local keys signed seconds ago: the pre-sign recheck still holds.
+  if cntools_transaction_ui_recheck_due; then
+    cntools_ui_spin_function 'Rechecking authorization and funding inputs…' cntools_metadata_transaction_inputs_recheck || status=$?
+    ((status != 0)) || cntools_transaction_ui_recheck_mark
+  fi
   if ((status == 0)); then cntools_ui_spin_function 'Submitting the metadata transaction…' cntools_transaction_ui_submit_selected "${backend}" "${body}" "${txid}" || status=$?; fi
   "${mt_begin}"
   if ((status != 0)); then

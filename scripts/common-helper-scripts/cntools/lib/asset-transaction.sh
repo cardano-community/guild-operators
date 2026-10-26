@@ -97,6 +97,8 @@ cntools_asset_tx_validate_body() {
   [[ "${CNTOOLS_ASSET_TX_OPERATION}" != burn ]] || mint_quantity="-${mint_quantity}"
   cntools_transaction_view_into view "${body}" || return 1
   cntools_transaction_log TRANSACTION "Asset body verification view=${view}"
+  # jq 1.6 rounds integers above 2^53: compare quantities as exact strings.
+  view="$(cntools_json_exact_integer_strings <<< "${view}")" || return 1
   jq -e --arg address "${CNTOOLS_SEND_ADDRESS}" --arg fee "${CNTOOLS_ASSET_TX_FEE} Lovelace" \
     --arg policy "policy ${CNTOOLS_ASSET_TX_ID%%.*}" --arg name "asset ${CNTOOLS_ASSET_TX_ID#*.}" --arg quantity "${mint_quantity}" '
     .fee==$fee and (.certificates==null or .certificates==[]) and (.withdrawals==null or .withdrawals==[]) and

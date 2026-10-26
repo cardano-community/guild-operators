@@ -48,19 +48,45 @@ cntools_catalyst_delegator_lookup_into() {
   delegator_file_output="${response}"
 }
 
+# Per-delegator rows, collected once per snapshot: stake key, local wallet,
+# stake address and (after the optional lookup) the details file.
+declare -ag CNTOOLS_CATALYST_DELEGATOR_KEYS=() CNTOOLS_CATALYST_DELEGATOR_WALLETS=()
+declare -ag CNTOOLS_CATALYST_DELEGATOR_ADDRESSES=() CNTOOLS_CATALYST_DELEGATOR_FILES=()
+
 # Match public stake artifacts only. Never search signing keys or seed files.
-cntools_catalyst_delegator_wallet_into() {
-  local -n delegator_wallet_output="$1"
-  local public="${2#0x}" directory='' filename='' key=''
-  delegator_wallet_output=''
-  for directory in "${CNTOOLS_WALLET_PATHS[@]-}"; do
-    for filename in "${CNTOOLS_WALLET_STAKE_VKEY_FILENAME:-stake.vkey}" \
+# Each wallet's stake keys are read once, not once per delegator.
+cntools_catalyst_delegators_collect() {
+  local cd_directory='' cd_filename='' cd_key='' cd_address='' cd_stake=''
+  local -A cd_wallets=()
+  CNTOOLS_CATALYST_DELEGATOR_KEYS=() CNTOOLS_CATALYST_DELEGATOR_WALLETS=()
+  CNTOOLS_CATALYST_DELEGATOR_ADDRESSES=() CNTOOLS_CATALYST_DELEGATOR_FILES=()
+  for cd_directory in "${CNTOOLS_WALLET_PATHS[@]-}"; do
+    [[ -n "${cd_directory}" ]] || continue
+    for cd_filename in "${CNTOOLS_WALLET_STAKE_VKEY_FILENAME:-stake.vkey}" \
         "${CNTOOLS_WALLET_MULTISIG_PREFIX:-ms_}${CNTOOLS_WALLET_STAKE_VKEY_FILENAME:-stake.vkey}"; do
-      cntools_transaction_file_safe "${directory}/${filename}" 65536 || continue
-      key="$(jq -er '.cborHex|ascii_downcase|select(test("^(5820[0-9a-f]{64}|5840[0-9a-f]{128})$"))|.[4:68]' "${directory}/${filename}")" || continue
-      [[ "${key}" == "${public,,}" ]] || continue
-      delegator_wallet_output="${directory##*/}"; return 0
+      cntools_transaction_file_safe "${cd_directory}/${cd_filename}" 65536 || continue
+      cd_key="$(jq -er '.cborHex|ascii_downcase|select(test("^(5820[0-9a-f]{64}|5840[0-9a-f]{128})$"))|.[4:68]' "${cd_directory}/${cd_filename}")" || continue
+      [[ -n "${cd_wallets[${cd_key}]+x}" ]] || cd_wallets["${cd_key}"]="${cd_directory##*/}"
     done
+  done
+  while IFS= read -r cd_address; do
+    [[ -n "${cd_address}" ]] || continue
+    cd_key="${cd_address#0x}"; cd_key="${cd_key,,}" cd_stake=''
+    cntools_catalyst_delegator_address_into cd_stake "${cd_key}" || cd_stake=''
+    CNTOOLS_CATALYST_DELEGATOR_KEYS+=("${cd_address}")
+    CNTOOLS_CATALYST_DELEGATOR_WALLETS+=("${cd_wallets[${cd_key}]:-}")
+    CNTOOLS_CATALYST_DELEGATOR_ADDRESSES+=("${cd_stake}")
+    CNTOOLS_CATALYST_DELEGATOR_FILES+=('')
+  done < <(jq -r '.voter_info.delegator_addresses // [] | .[]' "${CNTOOLS_CATALYST_STATUS_FILE}")
+}
+
+# Optional per-delegator snapshot details, fetched once for all delegators.
+cntools_catalyst_delegators_lookup() {
+  local cl_index=0 cl_file=''
+  for cl_index in "${!CNTOOLS_CATALYST_DELEGATOR_KEYS[@]}"; do
+    cl_file=''
+    cntools_catalyst_delegator_lookup_into cl_file "${CNTOOLS_CATALYST_DELEGATOR_KEYS[cl_index]}" || cl_file=''
+    CNTOOLS_CATALYST_DELEGATOR_FILES[cl_index]="${cl_file}"
   done
 }
 

@@ -6,5 +6,7 @@ cntools_action_main() {
 }
 
 cntools_action_cleanup() {
+  # Metadata downloads use wallet-query temporary files.
+  cntools_wallet_query_cleanup
   cntools_transaction_cleanup
 }

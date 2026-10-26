@@ -6,16 +6,25 @@ declare -Ag CNTOOLS_VOTING_STATS=()
 CNTOOLS_VOTING_PROTOCOL='{}' CNTOOLS_VOTING_COMMITTEE='{}' CNTOOLS_VOTING_PARAMETERS_SOURCE=''
 CNTOOLS_VOTING_COMMITTEE_SOURCE='' CNTOOLS_VOTING_PARAMETERS_CHECKED=N
 
+# Optional PROTOCOL_FILE and its SOURCE label: parameters the action already
+# fetched (Cast), so they are not queried again.
 cntools_voting_parameters_collect() {
-  local response='' errors=''
+  local protocol_file="${1:-}" protocol_source="${2:-}" response='' errors=''
   CNTOOLS_VOTING_PROTOCOL='{}' CNTOOLS_VOTING_COMMITTEE='{}' CNTOOLS_VOTING_PARAMETERS_SOURCE=''
   CNTOOLS_VOTING_COMMITTEE_SOURCE='' CNTOOLS_VOTING_PARAMETERS_CHECKED=Y
   [[ "${CNTOOLS_MODE:-offline}" != offline ]] || return 0
+  if [[ -n "${protocol_file}" && -f "${protocol_file}" ]] &&
+     CNTOOLS_VOTING_PROTOCOL="$(jq -cse 'select(length == 1) | .[0] | select(type == "object")' "${protocol_file}")"; then
+    CNTOOLS_VOTING_PARAMETERS_SOURCE="${protocol_source:-Local node}"
+  else
+    CNTOOLS_VOTING_PROTOCOL='{}'
+  fi
   cntools_transaction_temp_file response voting-parameters && cntools_transaction_temp_file errors voting-parameter-errors || return 1
   local -a network=()
   if cntools_transaction_local_backend_ready; then
     cntools_transaction_network_arguments_into network || return 1
-    if cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest query protocol-parameters \
+    if [[ "${CNTOOLS_VOTING_PROTOCOL}" == '{}' ]] &&
+       cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest query protocol-parameters \
         "${network[@]}" --socket-path "${CNTOOLS_SOCKET}" --output-json; then
       CNTOOLS_VOTING_PROTOCOL="$(jq -cse 'select(length == 1) | .[0] | select(type == "object")' "${response}")" || CNTOOLS_VOTING_PROTOCOL='{}'
       CNTOOLS_VOTING_PARAMETERS_SOURCE='Local node'
@@ -38,6 +47,42 @@ cntools_voting_parameters_collect() {
       [[ "${CNTOOLS_VOTING_COMMITTEE}" == '{}' ]] || CNTOOLS_VOTING_COMMITTEE_SOURCE='Koios API'
     fi
   fi
+}
+
+# True when collecting this proposal's statistics would ask Koios (online,
+# Koios enabled, a CIP-129 ID, not yet cached): only then is a spinner worth it.
+cntools_voting_stats_pending() {
+  local id=''
+  [[ "${CNTOOLS_MODE:-offline}" != offline && "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_KOIOS_API:-}" == https://* ]] || return 1
+  id="$(jq -r .id <<< "$1")" || return 1
+  [[ "${id}" =~ ^gov_action1[0-9a-z]+$ && -z "${CNTOOLS_VOTING_STATS[${id}]+x}" ]]
+}
+
+# Statistics for every proposal in [FIRST, LAST) of the catalog.
+cntools_voting_stats_collect_range() {
+  local sr_index=0 sr_record=''
+  for ((sr_index=$1; sr_index<$2; sr_index++)); do
+    sr_record="$(jq -c --argjson n "${sr_index}" '.[$n]' <<< "${CNTOOLS_PROPOSALS}")" || return 1
+    cntools_voting_stats_collect "${sr_record}" || true
+  done
+}
+
+# The roles that vote on this kind of action (CIP-1694): SPOs only on no
+# confidence, committee updates, hard forks, info actions and security
+# parameters; the committee not on no confidence or committee updates.
+cntools_voting_roles_into() {
+  local vr_roles=''
+  vr_roles="$(jq -r '
+    .type as $type |
+    (.action | if type == "object" then .contents else null end |
+      if type == "array" then .[1] else null end | if type == "object" then keys else [] end) as $keys |
+    ["DRep",
+     (if ($type | IN("NoConfidence","UpdateCommittee")) then empty else "Committee" end),
+     (if ($type | IN("NoConfidence","UpdateCommittee","HardForkInitiation","InfoAction")) then "SPO"
+      elif $type == "ParameterChange" and any($keys[]; IN("txFeePerByte","txFeeFixed","maxBlockBodySize","maxTxSize","maxBlockHeaderSize",
+        "utxoCostPerByte","maxBlockExecutionUnits","maxValueSize","govActionDeposit","minFeeRefScriptCostPerByte")) then "SPO"
+      else empty end)] | join(" ")' <<< "$2" 2>/dev/null)" || vr_roles='DRep Committee SPO'
+  printf -v "$1" '%s' "${vr_roles}"
 }
 
 cntools_voting_stats_collect() {
@@ -92,7 +137,7 @@ cntools_voting_thresholds() {
           poolRetireMaxEpoch:"ppTechnicalGroup",stakePoolTargetNum:"ppTechnicalGroup",poolPledgeInfluence:"ppTechnicalGroup",costModels:"ppTechnicalGroup",collateralPercentage:"ppTechnicalGroup",
           poolVotingThresholds:"ppGovGroup",dRepVotingThresholds:"ppGovGroup",committeeMinSize:"ppGovGroup",committeeMaxTermLength:"ppGovGroup",
           govActionLifetime:"ppGovGroup",govActionDeposit:"ppGovGroup",dRepDeposit:"ppGovGroup",dRepActivity:"ppGovGroup",minFeeRefScriptCostPerByte:"ppEconomicGroup"} as $groups |
-         if ($keys|length) > 0 and all($keys[]; $groups[.] != null) then row("DRep threshold"; ([$keys[] | $d[$groups[.]]] | if all(.[]; type == "number") then max else null end))
+         if ($keys|length) > 0 and all($keys[]; $groups[.] != null) then row("DRep threshold"; ([$keys[] | ratio($d[$groups[.]])] | if all(.[]; type == "number") then max else null end))
          else row("DRep threshold";null) end,
          if any($keys[]; IN("txFeePerByte","txFeeFixed","maxBlockBodySize","maxTxSize","maxBlockHeaderSize","utxoCostPerByte","maxBlockExecutionUnits","maxValueSize","govActionDeposit","minFeeRefScriptCostPerByte"))
          then row("SPO threshold";$s.ppSecurityGroup) else empty end
@@ -104,7 +149,7 @@ cntools_voting_thresholds() {
 # Pairs for one proposal. "page" leaves out the facts a list page shows once
 # (snapshot source/epoch, threshold and quorum sources, missing statistics).
 cntools_voting_stats_rows() {
-  local record="$1" mode="${2:-}" id='' data='' label='' value='' role='' prefix='' vote='' percentage='' power='' count=''
+  local record="$1" mode="${2:-}" id='' data='' label='' value='' role='' prefix='' vote='' percentage='' power='' count='' roles=''
   id="$(jq -r .id <<< "${record}")"; data="${CNTOOLS_VOTING_STATS[${id}]:-}"
   [[ -n "${data}" ]] || data='{}'
   if [[ "${data}" != '{}' ]]; then
@@ -112,8 +157,11 @@ cntools_voting_stats_rows() {
       cntools_table_pair Source 'Koios API · indexed weighted snapshot' muted
       cntools_table_pair 'Snapshot epoch' "$(jq -r .epoch_no <<< "${data}")" number
     fi
+    # Only the roles that vote on this kind of action.
+    cntools_voting_roles_into roles "${record}"
     for prefix in drep pool committee; do
       case "${prefix}" in drep) role=DRep ;; pool) role=SPO ;; *) role=Committee ;; esac
+      [[ " ${roles} " == *" ${role} "* ]] || continue
       for vote in yes no abstain; do
         count="$(jq -r --arg key "${prefix}_${vote}_votes_cast" '.[$key] // ""' <<< "${data}")"
         percentage="$(jq -r --arg key "${prefix}_${vote}_pct" '.[$key] // ""' <<< "${data}")"

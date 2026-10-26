@@ -101,7 +101,8 @@ cntools_transaction_picker_into() {
           cntools_transaction_picker_catalog "${mode}" || return 2
         if (( ${#CNTOOLS_TRANSACTION_PICKER_FILES[@]} == 0 )); then
           feedback='No matching saved packages found. Use Browse files or Enter file path for imported files.'
-        elif (( ${#CNTOOLS_TRANSACTION_PICKER_FILES[@]} == 1 )) && [[ "${CNTOOLS_TRANSACTION_PICKER_NO_AUTO:-N}" != Y ]]; then
+        elif (( ${#CNTOOLS_TRANSACTION_PICKER_FILES[@]} == 1 )) && [[ "${CNTOOLS_TRANSACTION_PICKER_NO_AUTO:-N}" != Y && -z "${feedback}" ]]; then
+          # Feedback means the last pick failed validation: show the list.
           # The review then offers 'Choose another file'.
           CNTOOLS_TRANSACTION_PICKER_AUTO_PICKED=Y
           # A lone package needs no list; the review that follows can cancel.

@@ -18,6 +18,10 @@ cntools_pool_identity_rows() {
   cntools_table_pair Identity "${CNTOOLS_POOL_IDENTITIES[index]}" "${role}"
   cntools_table_pair 'Cold key' "${CNTOOLS_POOL_PROTECTIONS[index]}" "$([[ "${CNTOOLS_POOL_PROTECTIONS[index]}" == Missing ]] && printf warning || printf value)"
   cntools_pool_key_state_into state "${CNTOOLS_POOL_DIRECTORIES[index]}" calidus-skey || return 1
+  if [[ "${state}" == Missing ]] && cntools_pool_file_name_into filename calidus-vkey &&
+     [[ -f "${CNTOOLS_POOL_DIRECTORIES[index]}/${filename}" && ! -L "${CNTOOLS_POOL_DIRECTORIES[index]}/${filename}" ]]; then
+    state='Public only'
+  fi
   [[ "${state}" == Missing ]] || cntools_table_pair 'Calidus key' "${state}" value
   if [[ "${detailed}" == Y ]]; then
     for kind in kes-skey vrf-skey; do
@@ -62,12 +66,14 @@ cntools_pool_settings_rows() {
       ($u / 1000000 | floor | tostring) + (($u % 1000000) as $f | if $f == 0 then "" else "." + ((1000000 + $f) | tostring | .[1:] | sub("0+$"; "")) end);
     if $format == "local" then
       row("Pledge"; .spsPledge; "lovelace"), row("Fixed cost"; .spsCost; "lovelace"),
-      row("Margin"; (.spsMargin | pct); "percent"), row("Reward credential"; (.spsAccountId.keyHash // .spsAccountId.scriptHash); "identifier"),
+      row("Margin"; (.spsMargin | pct); "percent"),
+      (if .spsAccountId.keyHash then row("Reward account"; .spsAccountId.keyHash; "stakekey")
+       else row("Reward account"; .spsAccountId.scriptHash; "stakescript") end),
       row("VRF hash"; .spsVrf; "identifier"), row("Pool deposit"; .spsDeposit; "lovelace"),
       row("Metadata URL"; .spsMetadata.url; "identifier"), row("Metadata hash"; .spsMetadata.hash; "identifier")
     elif $format == "koios" then
       row("Pledge"; .pledge; "lovelace"), row("Fixed cost"; .fixed_cost; "lovelace"), row("Margin"; (.margin | pct); "percent"),
-      row("Effective epoch"; .active_epoch_no; "number"), row("Reward address"; .reward_addr; "address"),
+      row("Effective epoch"; .active_epoch_no; "number"), row("Reward account"; .reward_addr; "stakeaddress"),
       row("Reward DRep delegation"; .reward_addr_delegated_drep; "identifier"), row("VRF hash"; .vrf_key_hash; "identifier"),
       row("Pool deposit"; .deposit; "lovelace"), row("Metadata URL"; .meta_url; "identifier"), row("Metadata hash"; .meta_hash; "identifier"),
       row("Active stake"; .active_stake; "lovelace"), row("Live stake"; .live_stake; "lovelace"), row("Live pledge"; .live_pledge; "lovelace"),
@@ -93,10 +99,42 @@ cntools_pool_settings_rows() {
         [[ "${kind}" != ada ]] || formatted+=' ADA'
         [[ "${kind}" != percent ]] || formatted+=' %'
         kind=number ;;
+      stakekey|stakescript|stakeaddress)
+        cntools_pool_ui_account_into formatted "${value}" "${kind}"; kind=address ;;
       *) formatted="${value}" ;;
     esac
     cntools_table_pair "${label}" "${formatted}" "${kind}" || return 1
   done <<< "${records}"
+}
+
+# A stake credential from local node data as its stake address, with the
+# local wallet that holds it when one does: "stake1… · wallet".
+declare -Ag CNTOOLS_POOL_UI_WALLET_BY_ACCOUNT=()
+CNTOOLS_POOL_UI_WALLETS_READ=N
+cntools_pool_ui_account_into() {
+  local pua_output="$1" pua_value="$2" pua_kind="${3:-stakekey}" pua_header='e' pua_address='' pua_index=0 pua_reward=''
+  if [[ "${pua_value}" =~ ^[0-9a-f]{56}$ ]] && declare -F cntools_bech32_encode_into >/dev/null 2>&1; then
+    [[ "${pua_kind}" != stakescript ]] || pua_header='f'
+    [[ "${CNTOOLS_NETWORK:-}" == mainnet ]] && pua_header+='1' || pua_header+='0'
+    cntools_bech32_encode_into pua_address "${pua_header}${pua_value}" "$([[ "${CNTOOLS_NETWORK:-}" == mainnet ]] && printf stake || printf stake_test)" ||
+      pua_address=''
+  elif [[ "${pua_value}" == stake* ]]; then
+    pua_address="${pua_value}"
+  fi
+  [[ -n "${pua_address}" ]] || { printf -v "${pua_output}" '%s' "${pua_value}"; return 0; }
+  # Local wallets' cached reward addresses, read once per action.
+  if [[ "${CNTOOLS_POOL_UI_WALLETS_READ}" != Y ]]; then
+    CNTOOLS_POOL_UI_WALLETS_READ=Y
+    if declare -F cntools_wallet_catalog_build >/dev/null 2>&1 && declare -F cntools_wallet_read_address >/dev/null 2>&1 &&
+       cntools_wallet_catalog_build >/dev/null 2>&1; then
+      for pua_index in "${!CNTOOLS_WALLET_PATHS[@]}"; do
+        pua_reward=''
+        cntools_wallet_read_address "${CNTOOLS_WALLET_PATHS[pua_index]}" reward pua_reward >/dev/null 2>&1 && [[ -n "${pua_reward}" ]] || continue
+        CNTOOLS_POOL_UI_WALLET_BY_ACCOUNT["${pua_reward}"]="${CNTOOLS_WALLET_NAMES[pua_index]}"
+      done
+    fi
+  fi
+  printf -v "${pua_output}" '%s' "${pua_address}${CNTOOLS_POOL_UI_WALLET_BY_ACCOUNT[${pua_address}]:+ · ${CNTOOLS_POOL_UI_WALLET_BY_ACCOUNT[${pua_address}]}}"
 }
 
 cntools_pool_members_rows() {
@@ -105,9 +143,14 @@ cntools_pool_members_rows() {
     def row($caption; $value; $role): [$caption, $value, $role] | map(tostring | gsub("[[:cntrl:]]"; " ")) | join("\u001f");
     (if $format == "local" then .spsOwners else .owners end | if type == "array" then . else [] end) | to_entries[] |
       (if $format == "config" then .value | if type == "object" then (.label // .wallet_name) else null end else .value end) as $owner |
-      select($owner | type == "string") | row("Owner " + ((.key+1)|tostring); $owner; "identifier")
+      select($owner | type == "string") | row("Owner " + ((.key+1)|tostring); $owner; (if $format == "config" then "identifier" else "account" end))
   ' <<< "${json}" 2>/dev/null)" || return 1
-  while IFS=$'\037' read -r label value role; do [[ -z "${role}" ]] || cntools_table_pair "${label}" "${value}" "${role}"; done <<< "${records}"
+  while IFS=$'\037' read -r label value role; do
+    [[ -n "${role}" ]] || continue
+    # Owners from chain data read as stake addresses and local wallet names.
+    if [[ "${role}" == account ]]; then cntools_pool_ui_account_into value "${value}" stakekey; role=address; fi
+    cntools_table_pair "${label}" "${value}" "${role}"
+  done <<< "${records}"
 }
 
 cntools_pool_relays_rows() {
@@ -256,17 +299,21 @@ cntools_pool_action_list() {
   if ! cntools_pool_catalog_build; then
     cntools_ui_render_status error "The pool directory could not be read safely. See ${CNTOOLS_LOG}."; cntools_ui_wait; return 1
   fi
-  if (( ${#CNTOOLS_POOL_NAMES[@]} == 0 )); then
-    cntools_ui_render_status info 'No local pools are available.'; cntools_ui_wait; return 0
-  fi
+  if (( ${#CNTOOLS_POOL_NAMES[@]} == 0 )); then cntools_pool_empty_notice; return 0; fi
   cntools_pool_inspect_reset
+  # As Wallet List: node queries can be slow, so local mode asks in both
+  # styles; Koios (light mode) is fetched at once.
   if [[ "${CNTOOLS_MODE:-offline}" != offline ]]; then
-    if cntools_ui_flow_confirm 'Fetch on-chain information for all pools now?' false; then
+    status=0
+    if [[ "${CNTOOLS_MODE}" == local && "${CNTOOLS_LOCAL_CLI_CAPABLE:-false}" == true ]]; then
+      cntools_ui_confirm 'Fetch on-chain information for all pools now? This can take a while on mainnet.' || status=$?
+    fi
+    if ((status == 0)); then
       cntools_transaction_log CHOICE 'Pool list chain information requested'
       cntools_ui_spin_function 'Fetching pool information…' cntools_pool_inspect_catalog || return 1
       query_node=Y
     else
-      status=$?; (( status == 1 )) || return "${status}"
+      (( status == 1 )) || return "${status}"
       cntools_transaction_log CHOICE 'Pool list chain information skipped'
     fi
   fi
@@ -283,9 +330,7 @@ cntools_pool_action_show() {
   if ! cntools_pool_catalog_build; then
     cntools_ui_render_status error "The pool directory could not be read safely. See ${CNTOOLS_LOG}."; cntools_ui_wait; return 1
   fi
-  if (( ${#CNTOOLS_POOL_NAMES[@]} == 0 )); then
-    cntools_ui_render_status info 'No local pools are available.'; cntools_ui_wait; return 0
-  fi
+  if (( ${#CNTOOLS_POOL_NAMES[@]} == 0 )); then cntools_pool_empty_notice; return 0; fi
   cntools_pool_choose_into selected || status=$?
   ((status != 1)) || return 0
   ((status == 0)) || return "${status}"

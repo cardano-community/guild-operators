@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Legacy wizard guidance, with the same compact transaction review as other actions.
 # shellcheck disable=SC2034
+# 3: no pool fits; the reason was shown as one info line and acknowledged.
 cntools_pool_registration_choose_eligible_into() {
-  local output="$1" index=0 row='' selected_choice='' status=''
+  local output="$1" index=0 row='' selected_choice='' status='' unchecked=0 reason=''
   local -a rows=() indices=()
   cntools_ui_spin_function 'Checking pool eligibility…' cntools_pool_inspect_catalog || return 2
   for index in "${!CNTOOLS_POOL_NAMES[@]}"; do
     [[ "${CNTOOLS_POOL_IDENTITIES[index]}" == 'Verified cold public key' ]] || continue
     status="${CNTOOLS_POOL_CHAIN_STATUS[index]}"
+    [[ "${status}" != Unavailable ]] || unchecked=$((unchecked + 1))
     case "${CNTOOLS_WALLET_REGISTER_OPERATION}:${status}" in
       pool-register:'Not registered'|pool-register:'Not indexed'|pool-register:Retired|pool-modify:Registered|pool-modify:Retiring|pool-retire:Registered|pool-retire:Retiring) ;;
       *) continue ;;
@@ -15,7 +17,17 @@ cntools_pool_registration_choose_eligible_into() {
     row="${CNTOOLS_POOL_NAMES[index]} · ${status}"; rows+=("${row}"); indices+=("${index}")
   done
   if (( ${#rows[@]} == 0 )); then
-    cntools_wallet_register_set_error 'No eligible pools with verified public keys and reachable registration state. Register needs an unregistered pool; Modify and Retire need a registered pool.'; return 2
+    case "${CNTOOLS_WALLET_REGISTER_OPERATION}" in
+      pool-register) reason='No pool is ready to register. Register needs a pool with a verified cold public key that is not registered on chain.' ;;
+      pool-modify) reason='No registered pool to modify. Modify needs a registered pool with a verified cold public key.' ;;
+      *) reason='No registered pool to retire. Retire needs a registered pool with a verified cold public key.' ;;
+    esac
+    if ((unchecked > 0)); then
+      reason+=" The registration of $(cntools_number_format "${unchecked}") pool$( ((unchecked == 1)) || printf s) could not be checked; see ${CNTOOLS_LOG}."
+    fi
+    cntools_transaction_log POOL "No eligible pool operation=${CNTOOLS_WALLET_REGISTER_OPERATION} unchecked=${unchecked}"
+    cntools_ui_render_status info "${reason}"
+    cntools_ui_wait; return 3
   fi
   # A lone eligible pool needs no picker; the settings and review name it.
   if (( ${#rows[@]} == 1 )); then
@@ -37,30 +49,21 @@ cntools_pool_wizard_saved_present() {
   [[ -e "${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}/${filename}" ]]
 }
 
-# Start-of-action offer. Quick keeps the defaults (chain settings for Modify);
-# the Pool settings menu still offers 'Reuse saved settings'.
-cntools_pool_wizard_saved_offer() {
-  local choice=''
-  cntools_pool_wizard_saved_present || return 0
-  if cntools_flow_quick; then
-    cntools_transaction_log CHOICE 'Pool menu=Starting settings default=Keep current defaults flow=quick'
-    return 0
-  fi
-  if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-modify ]]; then
-    cntools_ui_render_status info 'Saved settings are a local draft, not proof of on-chain state. Modify starts with the current or pending chain settings unless you reuse the draft.'
-  else
-    cntools_ui_render_status info 'Saved settings are a local draft from an earlier Register or Modify, not proof of on-chain state.'
-  fi
-  cntools_pool_registration_choose choice 'Starting settings' 'Keep current defaults' 'Reuse saved pool settings' || return $?
-  [[ "${choice}" == 'Reuse saved pool settings' ]] || return 0
-  cntools_pool_wizard_saved_apply
-}
-
+# The settings menu's 'Reuse saved settings' loads the local draft; actions
+# start from the current defaults (chain settings for Modify).
 cntools_pool_wizard_saved_apply() {
+  local before=''
+  before="$(cntools_pool_registration_signature)"
   if ! cntools_pool_config_load; then
     cntools_transaction_log WARN "Saved pool draft rejected pool=${CNTOOLS_POOL_REG_NAME}; current defaults retained"
     # The settings screen follows and repeats this warning.
     cntools_ui_render_status warn 'Saved settings could not be fully validated or resolved. Current defaults were retained; edit the settings manually.'
+    return 0
+  fi
+  if [[ "$(cntools_pool_registration_signature)" == "${before}" ]]; then
+    cntools_transaction_log CHOICE "Pool saved settings match the current settings pool=${CNTOOLS_POOL_REG_NAME}"
+    # The settings screen follows and repeats this warning.
+    cntools_ui_render_status warn 'The saved settings are the same as the current ones; nothing changed.'
     return 0
   fi
   cntools_transaction_log CHOICE "Pool saved settings applied pool=${CNTOOLS_POOL_REG_NAME}"
@@ -72,9 +75,11 @@ cntools_pool_wizard_saved_apply() {
 # in both styles while registration and delegation are unchanged.
 CNTOOLS_POOL_WIZARD_STAKE_INPUTS='' CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS=''
 cntools_pool_wizard_prepare_stake() {
-  local mode="${1:-}" stake_inputs='' pledge_inputs='' before='' reuse=''
+  local mode="${1:-}" stake_inputs='' pledge_inputs='' before='' reuse='' status=0 back=''
   stake_inputs="${CNTOOLS_POOL_REG_OWNERS}|$(cntools_pool_stake_records)" || return 2
   pledge_inputs="${stake_inputs}|${CNTOOLS_POOL_REG_PLEDGE}"
+  # From the review, leaving the pledge question goes back to the settings.
+  [[ "${mode}" != review ]] || back=back
   if [[ "${mode}" == refresh || "${stake_inputs}" != "${CNTOOLS_POOL_WIZARD_STAKE_INPUTS}" ]]; then
     before="$(cntools_pool_stake_snapshot)"
     cntools_ui_spin_function 'Checking owner/reward registration and pledge…' cntools_pool_stake_collect || return 2
@@ -82,10 +87,15 @@ cntools_pool_wizard_prepare_stake() {
       reuse=reuse
       cntools_transaction_log POOL 'Owner/reward registration and delegation unchanged; earlier stake answers kept'
     fi
-    cntools_pool_stake_guidance "${reuse}" || return $?
-    cntools_pool_stake_setup_choose "${reuse}" || return $?
+    cntools_pool_stake_guidance "${reuse}" "${back}" && cntools_pool_stake_setup_choose "${reuse}" || status=$?
+    if ((status != 0)); then
+      # The answers were not completed for these inputs: ask again next time,
+      # even when the settings return to what they were.
+      CNTOOLS_POOL_WIZARD_STAKE_INPUTS='' CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS=''
+      return "${status}"
+    fi
   elif [[ "${pledge_inputs}" != "${CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS}" ]]; then
-    cntools_pool_stake_guidance || return $?
+    cntools_pool_stake_guidance '' "${back}" || { status=$?; CNTOOLS_POOL_WIZARD_PLEDGE_INPUTS=''; return "${status}"; }
   else
     cntools_transaction_log POOL 'Owners, reward account and pledge unchanged; previous checks and stake setup kept'
   fi
@@ -116,7 +126,13 @@ cntools_pool_wizard_followups() {
     done < <(jq -c '.[]' <<< "${CNTOOLS_POOL_STAKE_PLAN}")
     if [[ "${CNTOOLS_POOL_OPCERT_OFFLINE:-N}" == Y ]]; then
       cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into start kes-start; cntools_pool_file_name_into counter counter
-      cntools_table_pair 'Operational certificate' "Issue ${cert} on the signing system with the existing KES public key and the real ${counter}, and record its KES start period in ${start}. Return ${cert}, ${start} and the advanced counter to this pool folder. Never copy the cold signing key to the node." warning
+      if cntools_pool_registration_cold_encrypted; then
+        cntools_table_pair 'Operational certificate' "The cold signing key is encrypted. Use Pool → Decrypt, then Pool → Rotate to issue ${cert}; or issue it on the signing system with the real ${counter}." warning
+      else
+        cntools_table_pair 'Operational certificate' "Issue ${cert} on the signing system with the existing KES public key and the real ${counter}, and record its KES start period in ${start}. Return ${cert}, ${start} and the advanced counter to this pool folder. Never copy the cold signing key to the node." warning
+      fi
+    elif [[ -n "${CNTOOLS_POOL_OPCERT_NOTE:-}" ]]; then
+      cntools_table_pair 'Operational certificate' "${CNTOOLS_POOL_OPCERT_NOTE}" warning
     fi
     cntools_table_pair 'Reward withdrawals' 'DRep delegation is required before withdrawing rewards.' muted
   } | cntools_table_render 'Next steps'

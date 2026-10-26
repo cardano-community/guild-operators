@@ -101,9 +101,55 @@ cntools_pool_relays_normalize_into() {
   prn_result="${prn_normalized}"
 }
 
+# A relay DNS name: up to 64 characters of dot-separated labels; SRV
+# records may use underscores (_cardano._tcp.example.com).
+cntools_pool_relay_dns_valid() {
+  local dns="$1" kind="${2:-dns}" label='' LC_ALL=C
+  local -a labels=()
+  [[ -n "${dns%.}" && ${#dns} -le 64 && "${dns}" != *..* && "${dns}" != .* ]] || return 1
+  [[ "${kind}" != dns || "${dns}" != *_* ]] || return 1
+  IFS=. read -r -a labels <<< "${dns%.}"
+  for label in "${labels[@]}"; do [[ "${label}" =~ ^[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?$ && ${#label} -le 63 ]] || return 1; done
+}
+
+cntools_pool_relay_ipv4_valid() {
+  local ip="$1" octet='' LC_ALL=C
+  local -a octets=()
+  [[ "${ip}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+  IFS=. read -r -a octets <<< "${ip}"
+  for octet in "${octets[@]}"; do [[ "${octet}" == 0 || "${octet}" != 0* ]] && ((10#${octet} <= 255)) || return 1; done
+}
+
+# Why a relay is unreachable for other pools (loopback, private, link-local
+# or unspecified address, or a local name); empty for a public relay.
+cntools_pool_relay_private_into() {
+  local prp_output="$1" prp_relay="$2" prp_note='' prp_ip='' prp_dns='' prp_first=0 prp_second=0
+  prp_dns="$(jq -r '.dns // "" | ascii_downcase' <<< "${prp_relay}")"
+  if [[ -n "${prp_dns}" ]]; then
+    [[ "${prp_dns%.}" != localhost && "${prp_dns%.}" != *.localhost && "${prp_dns%.}" != *.local ]] || prp_note="${prp_dns} is a local name"
+  else
+    prp_ip="$(jq -r '.ipv4 // ""' <<< "${prp_relay}")"
+    if [[ "${prp_ip}" =~ ^([0-9]+)\.([0-9]+)\. ]]; then
+      prp_first=$((10#${BASH_REMATCH[1]})) prp_second=$((10#${BASH_REMATCH[2]}))
+      if ((prp_first == 0 || prp_first == 10 || prp_first == 127 || (prp_first == 169 && prp_second == 254) ||
+           (prp_first == 172 && prp_second >= 16 && prp_second <= 31) || (prp_first == 192 && prp_second == 168) ||
+           (prp_first == 100 && prp_second >= 64 && prp_second <= 127))); then
+        prp_note="${prp_ip} is a private, loopback or unspecified address"
+      fi
+    fi
+    prp_ip="$(jq -r '.ipv6 // "" | ascii_downcase' <<< "${prp_relay}")"
+    if [[ -z "${prp_note}" && -n "${prp_ip}" ]]; then
+      cntools_pool_ipv6_into prp_ip "${prp_ip}" || prp_ip=''
+      if [[ "${prp_ip}" == :: || "${prp_ip}" == ::1 || "${prp_ip}" =~ ^fe[89ab][0-9a-f]: || "${prp_ip}" =~ ^f[cd][0-9a-f]{2}: ]]; then
+        prp_note="${prp_ip} is a private, loopback or unspecified address"
+      fi
+    fi
+  fi
+  printf -v "${prp_output}" '%s' "${prp_note}"
+}
+
 cntools_pool_relay_valid() {
-  local json="$1" kind='' dns='' ip='' octet='' canonical='' LC_ALL=C
-  local -a octets=() labels=()
+  local json="$1" kind='' dns='' ip='' canonical='' LC_ALL=C
   jq -e 'type == "object" and
     (if .type == "dns" then keys == ["dns","port","type"] and (.dns|type == "string")
      elif .type == "srv" then keys == ["dns","type"] and (.dns|type == "string")
@@ -112,17 +158,10 @@ cntools_pool_relay_valid() {
   kind="$(jq -r .type <<< "${json}")"
   if [[ "${kind}" == dns || "${kind}" == srv ]]; then
     dns="$(jq -r .dns <<< "${json}")"
-    [[ -n "${dns%.}" && ${#dns} -le 64 && "${dns}" != *..* ]] || return 1
-    [[ "${kind}" != dns || "${dns}" != *_* ]] || return 1
-    IFS=. read -r -a labels <<< "${dns%.}"
-    for octet in "${labels[@]}"; do [[ "${octet}" =~ ^[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?$ && ${#octet} -le 63 ]] || return 1; done
+    cntools_pool_relay_dns_valid "${dns}" "${kind}" || return 1
   else
     ip="$(jq -r .ipv4 <<< "${json}")"
-    if [[ -n "${ip}" ]]; then
-      [[ "${ip}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
-      IFS=. read -r -a octets <<< "${ip}"
-      for octet in "${octets[@]}"; do [[ "${octet}" == 0 || "${octet}" != 0* ]] && ((10#${octet} <= 255)) || return 1; done
-    fi
+    [[ -z "${ip}" ]] || cntools_pool_relay_ipv4_valid "${ip}" || return 1
     ip="$(jq -r .ipv6 <<< "${json}")"
     [[ -z "${ip}" ]] || cntools_pool_ipv6_into canonical "${ip}" || return 1
     [[ -n "${ip}" || "$(jq -r .ipv4 <<< "${json}")" != '' ]] || return 1
@@ -138,8 +177,9 @@ cntools_pool_metadata_valid() {
   [[ "${url}" =~ ^https?://[^[:space:][:cntrl:]]+$ && ${#url} -le 128 ]]
 }
 
+CNTOOLS_POOL_METADATA_MAX_BYTES=512
 cntools_pool_metadata_file_hash_into() {
-  local output_name="$1" file="$2" snapshot='' response='' errors='' pmh_hash='' status=0
+  local output_name="$1" file="$2" snapshot='' response='' errors='' pmh_hash='' status=0 size=0
   cntools_transaction_snapshot_into snapshot "${file}" 1024 pool-metadata || return 1
   jq -se 'length == 1 and (.[0] | type == "object" and
     (.name|type == "string" and length > 0 and length <= 50) and
@@ -148,22 +188,16 @@ cntools_pool_metadata_file_hash_into() {
     (.homepage|type == "string" and test("^https?://[^\\s]+$")))' "${snapshot}" >/dev/null || {
     cntools_transaction_set_error 'Pool metadata needs name (1–50), ticker (3–5), description (up to 255) and an HTTP(S) homepage.'; return 1;
   }
-  if (( $(wc -c < "${snapshot}") > 512 )) && ! jq -e '
-      any([.extended,.extDataUrl,.extSigUrl,.extVkey][]; type == "string" and length > 0)
-    ' "${snapshot}" >/dev/null; then
-    cntools_transaction_set_error 'Standard metadata is limited to 512 bytes; extended metadata may use up to 1024 bytes.'; return 1
+  # Cardano CLI and CIP-6 indexers accept at most 512 bytes, extended
+  # metadata included.
+  size="$(wc -c < "${snapshot}")"; size="${size//[[:space:]]/}"
+  if (( size > CNTOOLS_POOL_METADATA_MAX_BYTES )); then
+    cntools_transaction_set_error "Pool metadata is limited to ${CNTOOLS_POOL_METADATA_MAX_BYTES} bytes; this file has $(cntools_number_format "${size}"). Shorten the description or the extended metadata URL."; return 1
   fi
   cntools_transaction_temp_file response pool-metadata-hash || return 1
   cntools_transaction_temp_file errors pool-metadata-errors || return 1
-  if (( $(wc -c < "${snapshot}") > 512 )); then
-    # Legacy extended metadata uses the same raw Blake2b-256 digest. The pinned
-    # pool-metadata parser enforces 512 bytes even when extended fields exist.
-    cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" hash anchor-data \
-      --file-binary "${snapshot}" || status=$?
-  else
-    cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-pool metadata-hash \
-      --pool-metadata-file "${snapshot}" || status=$?
-  fi
+  cntools_transaction_run_cli "${response}" "${errors}" -- "${CNTOOLS_CLI}" latest stake-pool metadata-hash \
+    --pool-metadata-file "${snapshot}" || status=$?
   if ((status != 0)); then cntools_transaction_log_cli_failure 'Pool metadata hashing failed' "${status}" "${errors}" "${response}"; return 1; fi
   pmh_hash="$(< "${response}")"; [[ "${pmh_hash}" =~ ^[0-9a-f]{64}$ ]] || return 1
   printf -v "${output_name}" '%s' "${pmh_hash}"

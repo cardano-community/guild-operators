@@ -390,7 +390,9 @@ cntools_run_command_timeout() {
         "${CNTOOLS_TIMEOUT_BIN}" = /* &&
         -x "${CNTOOLS_TIMEOUT_BIN}" &&
         ! -d "${CNTOOLS_TIMEOUT_BIN}" ]]; then
-    if "${CNTOOLS_TIMEOUT_BIN}" --signal=TERM --kill-after=2 \
+    # --foreground keeps the command in the terminal's process group, so
+    # Ctrl+C reaches it instead of waiting for the timeout.
+    if "${CNTOOLS_TIMEOUT_BIN}" --foreground --signal=TERM --kill-after=2 \
         "${timeout_seconds}" "$@"; then
       status=0
     else

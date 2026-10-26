@@ -9,6 +9,8 @@ CNTOOLS_DREP_LIFECYCLE_KIND=key
 CNTOOLS_DREP_LIFECYCLE_STATE='{}'
 CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL=""
 CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH=""
+# Voting power and delegators a retirement gives up, when known.
+CNTOOLS_DREP_LIFECYCLE_POWER='{}'
 
 cntools_drep_lifecycle_operation_set() {
   local operation="$1" noun="" command="" label="Deposit" effect=charged
@@ -52,6 +54,12 @@ cntools_drep_lifecycle_prepare_wallet() {
   if [[ "${CNTOOLS_DREP_LIFECYCLE_KIND}" == key ]] && cntools_transaction_source_kind_into kind "${source}" && [[ "${kind}" == cli || "${kind}" == hardware ]]; then
     CNTOOLS_DREP_LIFECYCLE_SOURCE="${source}"
   fi
+  # A hardware wallet or DRep key needs cardano-hw-cli: say so before any input.
+  if [[ "${CNTOOLS_PAYMENT_TYPE}" == Hardware || ( -n "${CNTOOLS_DREP_LIFECYCLE_SOURCE}" && "${kind}" == hardware ) ]]; then
+    cntools_transaction_require_hwcli || {
+      cntools_wallet_register_set_error "${CNTOOLS_TRANSACTION_ERROR:-cardano-hw-cli is required for hardware signing.}"; return 1;
+    }
+  fi
   if [[ "${CNTOOLS_DREP_LIFECYCLE_KIND}" == script ]]; then
     CNTOOLS_DREP_LIFECYCLE_VKEY=''
     cntools_multisig_drep_prepare "${directory}" || {
@@ -67,8 +75,14 @@ cntools_drep_lifecycle_prepare_wallet() {
   CNTOOLS_WALLET_REGISTER_PAYMENT_VKEY="${CNTOOLS_PAYMENT_VKEY}"
   CNTOOLS_WALLET_REGISTER_PAYMENT_SOURCE="${CNTOOLS_PAYMENT_SOURCE}"
   CNTOOLS_WALLET_REGISTER_PAYMENT_CREDENTIAL="${CNTOOLS_PAYMENT_CREDENTIAL}"
-  CNTOOLS_WALLET_REGISTER_CAN_SIGN=N
-  if [[ -n "${CNTOOLS_PAYMENT_SOURCE}" && -n "${CNTOOLS_DREP_LIFECYCLE_SOURCE}" ]]; then CNTOOLS_WALLET_REGISTER_CAN_SIGN=Y; fi
+  CNTOOLS_WALLET_REGISTER_CAN_SIGN=N CNTOOLS_TRANSACTION_UI_UNSIGNED_REASON=''
+  if [[ -n "${CNTOOLS_PAYMENT_SOURCE}" && -n "${CNTOOLS_DREP_LIFECYCLE_SOURCE}" ]]; then
+    CNTOOLS_WALLET_REGISTER_CAN_SIGN=Y
+  else
+    # Keys present only encrypted: the review says to decrypt to sign here.
+    cntools_transaction_ui_encrypted_reason_set 'Wallet → Decrypt' "${directory}/${CNTOOLS_WALLET_PAY_SKEY_FILENAME:-payment.skey}" \
+      "${directory}/${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}" || true
+  fi
   if [[ "${CNTOOLS_PAYMENT_TYPE}" == Hardware && -z "${CNTOOLS_PAYMENT_SOURCE}" ]]; then
     cntools_wallet_register_set_error 'A hardware funding wallet needs its payment HWS file to prepare change safely.'; return 1;
   fi
@@ -112,7 +126,7 @@ cntools_drep_lifecycle_query_state_into() {
 cntools_drep_lifecycle_collect() {
   local registered="" deposit=0
   cntools_wallet_register_reset_chain_state
-  CNTOOLS_DREP_LIFECYCLE_STATE='{}'
+  CNTOOLS_DREP_LIFECYCLE_STATE='{}' CNTOOLS_DREP_LIFECYCLE_POWER='{}'
   CNTOOLS_DREP_LIFECYCLE_ANCHOR_URL="" CNTOOLS_DREP_LIFECYCLE_ANCHOR_HASH=""
   cntools_funding_collect "${CNTOOLS_WALLET_REGISTER_BASE_ADDRESS}" "${CNTOOLS_WALLET_REGISTER_PAYMENT_ADDRESS}" || return 1
   CNTOOLS_WALLET_REGISTER_BACKEND="${CNTOOLS_FUNDING_BACKEND}"
@@ -125,6 +139,7 @@ cntools_drep_lifecycle_collect() {
       cntools_wallet_register_set_error 'This DRep is not registered on this network. There is no deposit to refund.'; return 7;
     }
     deposit="$(jq -r .deposit <<< "${CNTOOLS_DREP_LIFECYCLE_STATE}")" || return 1
+    cntools_drep_lifecycle_power_collect
   elif [[ "${registered}" == true ]]; then
     cntools_drep_lifecycle_operation_set drep-update || return 1
   else
@@ -137,6 +152,18 @@ cntools_drep_lifecycle_collect() {
   CNTOOLS_WALLET_REGISTER_DEPOSIT="${deposit}"
   cntools_wallet_register_inventory_use_all || return 1
   cntools_wallet_register_select_inputs
+}
+
+# What retiring gives up: Koios reports voting power and delegators; a local
+# build asks Koios for them when enabled, as Info and Cast do.
+cntools_drep_lifecycle_power_collect() {
+  CNTOOLS_DREP_LIFECYCLE_POWER='{}'
+  if [[ "${CNTOOLS_WALLET_REGISTER_BACKEND}" == koios ]]; then
+    CNTOOLS_DREP_LIFECYCLE_POWER="$(jq -c '{amount, live_delegator_count}' <<< "${CNTOOLS_DREP_DETAILS}")" || CNTOOLS_DREP_LIFECYCLE_POWER='{}'
+  elif cntools_drep_koios_enrich "${CNTOOLS_DREP_LIFECYCLE_ID}" "${CNTOOLS_DREP_LIFECYCLE_KIND:-key}" "${CNTOOLS_DREP_LIFECYCLE_HASH}"; then
+    CNTOOLS_DREP_LIFECYCLE_POWER="${CNTOOLS_DREP_KOIOS_DETAILS}"
+  fi
+  return 0
 }
 
 # The anchor the ledger holds for this DRep now (empty when it has none).

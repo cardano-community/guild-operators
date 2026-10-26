@@ -21,7 +21,8 @@ cntools_policy_protection_preflight() {
         } ;;
     esac
   done
-  [[ ! ( -e "${directory}/${skey}" && -e "${directory}/${skey}.gpg" ) ]] || { cntools_policy_error 'Mixed plaintext/encrypted policy keys must be resolved first.'; return 1; }
+  [[ ! ( -e "${directory}/${skey}" && -e "${directory}/${skey}.gpg" ) ]] || {
+    cntools_policy_error "This policy has both ${skey} and ${skey}.gpg. Move the one you do not need out of the folder, then try again."; return 1; }
   # An already encrypted/public-only policy can still have its file locks
   # restored. Never encrypt ciphertext a second time.
 }
@@ -76,8 +77,11 @@ cntools_policy_protect() {
     cntools_key_crypto_run "${binary}" "${operation}" "${snapshot}" "${staged}" "${password}" "${errors}" 60 65536 || status=$?
     if ((status != 0)); then
       cntools_transaction_log_cli_failure 'Policy GPG operation failed; original key retained' "${status}" "${errors}" ''
-      # Decrypt fails here before any file changes; the UI may ask again.
-      [[ "${operation}" != decrypt ]] || CNTOOLS_POLICY_PASSWORD_REJECTED=Y
+      # Decrypt fails here before any file changes; only a wrong password asks again.
+      if [[ "${operation}" == decrypt ]] && cntools_key_crypto_bad_passphrase "${errors}"; then
+        CNTOOLS_POLICY_PASSWORD_REJECTED=Y
+        cntools_policy_error 'The password did not open the policy key.'; return 1
+      fi
       cntools_policy_error 'The policy key could not be opened/protected. Check the password and GPG installation.'; return 1
     fi
     if [[ "${operation}" == encrypt ]]; then
@@ -90,6 +94,8 @@ cntools_policy_protect() {
     cntools_policy_locks_unlock "${directory}" || return 1
     cntools_policy_public_file "${source}" 1048576 && cmp -s "${source}" "${snapshot}" &&
       [[ ! -e "${target}" && ! -L "${target}" ]] || { cntools_policy_error 'The policy key changed during preparation. Nothing was replaced.'; return 1; }
+    # Owner-only before the key is linked into the policy folder.
+    cntools_run_command 000 -- chmod 0600 "${staged}" || return 1
     cntools_run_command 00000 -- ln -T -- "${staged}" "${target}" || return 1
     CNTOOLS_POLICY_PROTECTION_SOURCE="${source}"; CNTOOLS_POLICY_PROTECTION_TARGET="${target}"; CNTOOLS_POLICY_PROTECTION_STAGED="${staged}"
     if ! cntools_run_command 0000 -- rm -f -- "${source}"; then

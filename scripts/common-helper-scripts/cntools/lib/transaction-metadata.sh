@@ -117,6 +117,28 @@ cntools_metadata_validate_json() {
   }
 }
 
+# The ledger limits each metadata text and byte string to 64 bytes. Checked
+# at import, so an over-long value never reaches (and fails) the build.
+cntools_metadata_strings_fit() {
+  local file="$1" schema="$2" long=''
+  if [[ "${schema}" == detailed ]]; then
+    long="$(jq -r '[.. | objects | ((select(has("string")) | .string | select(type == "string" and utf8bytelength > 64)),
+      (select(has("bytes")) | .bytes | select(type == "string" and length > 128) | "0x" + .))] | .[0] // empty' "${file}")" || return 1
+  else
+    # No-schema: "0x" + lowercase hex is bytes, an integer-like key is a number.
+    long="$(jq -r '
+      def bytes_like: test("^0x([0-9a-f]{2})*$");
+      def too_long: if bytes_like then length > 130 else utf8bytelength > 64 end;
+      [.[] | .. | if type == "string" then select(too_long)
+        elif type == "object" then keys_unsorted[] | select((test("^-?[0-9]+$") | not) and too_long)
+        else empty end] | .[0] // empty' "${file}")" || return 1
+  fi
+  [[ -n "${long}" ]] || return 0
+  long="${long//[[:cntrl:]]/ }"
+  (( ${#long} <= 24 )) || long="${long:0:23}…"
+  cntools_metadata_fail "Metadata text and byte strings are limited to 64 bytes each; \"${long}\" is longer. Split long values into a list of strings (CIP-25 does this for long image URLs)."
+}
+
 cntools_metadata_import() {
   local selected="${1:-}" schema="${2:-simple}" frozen=""
   [[ "${schema}" == simple || "${schema}" == detailed ]] || return 2
@@ -124,6 +146,7 @@ cntools_metadata_import() {
     cntools_metadata_fail "${CNTOOLS_TRANSACTION_ERROR:-Could not read a safe metadata file (maximum 64 KiB).}"; return 1;
   }
   cntools_metadata_validate_json "${frozen}" || return 1
+  cntools_metadata_strings_fit "${frozen}" "${schema}" || return 1
   CNTOOLS_METADATA_CUSTOM="${frozen}"; CNTOOLS_METADATA_SCHEMA="${schema}"
   cntools_transaction_log METADATA "Imported frozen ${schema} metadata file=${frozen}; ledger validation occurs when building"
 }

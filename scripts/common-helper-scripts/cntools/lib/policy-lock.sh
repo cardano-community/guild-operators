@@ -70,6 +70,9 @@ cntools_policy_locks_apply() {
   for file in "${directory}"/* "${directory}"/.[!.]* "${directory}"/..?*; do
     [[ -f "${file}" && ! -L "${file}" ]] || continue
     [[ "${file##*/}" != .cntools-* ]] || continue
+    # Advisory .asset records stay writable so later mints and burns can
+    # record themselves; only the authority files are locked.
+    [[ "${operation}" != encrypt || "${file}" != *.asset ]] || continue
     cntools_run_command 000 -- chmod "${mode}" "${file}" || { cntools_policy_error 'Policy protection changed, but some file permissions could not be updated. Review this folder.'; return 1; }
     files+=("${file}")
   done

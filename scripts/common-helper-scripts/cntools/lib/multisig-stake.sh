@@ -48,7 +48,9 @@ cntools_multisig_stake_choose_signers() {
   payment_ids=("${CNTOOLS_MULTISIG_SIGNER_IDS[@]}"); payment_hashes=("${CNTOOLS_MULTISIG_SIGNER_HASHES[@]}")
   payment_sources=("${CNTOOLS_MULTISIG_SIGNER_SOURCES[@]}"); payment_labels=("${CNTOOLS_MULTISIG_SIGNER_LABELS[@]}")
   CNTOOLS_MULTISIG_SPEND_SCRIPT="${CNTOOLS_MULTISIG_STAKE_SCRIPT}" CNTOOLS_MULTISIG_SPEND_THRESHOLD="${CNTOOLS_MULTISIG_STAKE_THRESHOLD}"
-  CNTOOLS_MULTISIG_SIGNER_IDS=(); CNTOOLS_MULTISIG_SIGNER_HASHES=(); CNTOOLS_MULTISIG_SIGNER_SOURCES=(); CNTOOLS_MULTISIG_SIGNER_LABELS=()
+  # The stake menu starts from the current stake selection (none at first).
+  CNTOOLS_MULTISIG_SIGNER_IDS=("${CNTOOLS_MULTISIG_STAKE_SIGNER_IDS[@]}"); CNTOOLS_MULTISIG_SIGNER_HASHES=("${CNTOOLS_MULTISIG_STAKE_SIGNER_HASHES[@]}")
+  CNTOOLS_MULTISIG_SIGNER_SOURCES=("${CNTOOLS_MULTISIG_STAKE_SIGNER_SOURCES[@]}"); CNTOOLS_MULTISIG_SIGNER_LABELS=("${CNTOOLS_MULTISIG_STAKE_SIGNER_LABELS[@]}")
   cntools_multisig_spend_choose_signers "${begin}" stake || status=$?
   CNTOOLS_MULTISIG_STAKE_SIGNER_IDS=("${CNTOOLS_MULTISIG_SIGNER_IDS[@]}"); CNTOOLS_MULTISIG_STAKE_SIGNER_HASHES=("${CNTOOLS_MULTISIG_SIGNER_HASHES[@]}")
   CNTOOLS_MULTISIG_STAKE_SIGNER_SOURCES=("${CNTOOLS_MULTISIG_SIGNER_SOURCES[@]}"); CNTOOLS_MULTISIG_STAKE_SIGNER_LABELS=("${CNTOOLS_MULTISIG_SIGNER_LABELS[@]}")
@@ -59,6 +61,18 @@ cntools_multisig_stake_choose_signers() {
   CNTOOLS_MULTISIG_SIGNER_IDS=("${payment_ids[@]}"); CNTOOLS_MULTISIG_SIGNER_HASHES=("${payment_hashes[@]}")
   CNTOOLS_MULTISIG_SIGNER_SOURCES=("${payment_sources[@]}"); CNTOOLS_MULTISIG_SIGNER_LABELS=("${payment_labels[@]}")
   return "${status}"
+}
+
+# Before any further input: both scripts' time locks must allow SLOT.
+cntools_multisig_stake_window_check() {
+  local mswc_after="${CNTOOLS_MULTISIG_SPEND_AFTER}" mswc_before="${CNTOOLS_MULTISIG_SPEND_BEFORE}"
+  if [[ -n "${CNTOOLS_MULTISIG_STAKE_AFTER}" ]] && { [[ -z "${mswc_after}" ]] || (( CNTOOLS_MULTISIG_STAKE_AFTER > mswc_after )); }; then
+    mswc_after="${CNTOOLS_MULTISIG_STAKE_AFTER}"
+  fi
+  if [[ -n "${CNTOOLS_MULTISIG_STAKE_BEFORE}" ]] && { [[ -z "${mswc_before}" ]] || (( CNTOOLS_MULTISIG_STAKE_BEFORE < mswc_before )); }; then
+    mswc_before="${CNTOOLS_MULTISIG_STAKE_BEFORE}"
+  fi
+  cntools_multisig_window_check "$1" "${mswc_after}" "${mswc_before}"
 }
 
 # Intersect both mandatory script intervals with the requested TTL. No expiry

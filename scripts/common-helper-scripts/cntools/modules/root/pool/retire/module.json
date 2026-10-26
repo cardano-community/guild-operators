@@ -56,6 +56,7 @@
     "pool-registration-keys.sh",
     "pool-registration-ui.sh",
     "pool-wizard.sh",
+    "pool-stake.sh",
     "pool-retirement.sh",
     "pool-retirement-ui.sh"
   ]

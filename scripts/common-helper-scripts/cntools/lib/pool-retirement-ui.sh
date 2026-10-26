@@ -13,7 +13,7 @@ cntools_pool_retirement_reward_address_into() {
 }
 
 cntools_pool_retirement_rows() {
-  local reward='' pending='' kind=key refund=''
+  local pending='' kind=key refund='' reward="${CNTOOLS_POOL_RETIRE_REWARD_ADDRESS:-}"
   cntools_table_pair Pool "${CNTOOLS_POOL_REG_NAME}" identifier
   cntools_table_pair 'Pool ID' "${CNTOOLS_POOL_REG_ID}" identifier
   cntools_table_pair 'Funding wallet' "${CNTOOLS_WALLET_REGISTER_WALLET}" identifier
@@ -23,13 +23,14 @@ cntools_pool_retirement_rows() {
   cntools_table_pair 'Allowed epochs' "$(cntools_number_format "${CNTOOLS_POOL_RETIRE_MIN}")–$(cntools_number_format "${CNTOOLS_POOL_RETIRE_MAX}")" number
   pending="$(jq -r '.retirement // empty' <<< "${CNTOOLS_POOL_REG_STATE}")"
   [[ -z "${pending}" ]] || cntools_table_pair 'Already scheduled' "Epoch $(cntools_number_format "${pending}") · this transaction replaces that schedule" warning
-  # One row for where the deposit goes: it is refunded at retirement, not here.
-  jq -e '.current.spsAccountId.scriptHash // empty' <<< "${CNTOOLS_POOL_REG_STATE}" >/dev/null 2>&1 && kind=script
-  reward="$(jq -r '.current.reward_addr // .current.spsAccountId.keyHash // .current.spsAccountId.scriptHash // empty' <<< "${CNTOOLS_POOL_REG_STATE}")"
-  cntools_pool_retirement_reward_address_into reward "${reward}" "${kind}"
-  refund="$(cntools_number_format_lovelace "${CNTOOLS_POOL_RETIRE_DEPOSIT:-0}") → ${reward:-the registered reward account} · at retirement"
-  cntools_table_pair 'Pool deposit refund' "${refund}" value
-  kind=key
+  # One row for where the deposit goes: it is refunded at retirement, not
+  # here, and only to a registered reward account.
+  refund="$(cntools_number_format_lovelace "${CNTOOLS_POOL_RETIRE_DEPOSIT:-0}")"
+  case "${CNTOOLS_POOL_RETIRE_REWARD_STATE:-unknown}" in
+    no) cntools_table_pair 'Pool deposit refund' "${refund} → treasury · reward account ${reward} is not registered" warning ;;
+    yes) cntools_table_pair 'Pool deposit refund' "${refund} → ${reward} · at retirement" value ;;
+    *) cntools_table_pair 'Pool deposit refund' "${refund} → ${reward:-the registered reward account} · at retirement, if still registered" value ;;
+  esac
   jq -e '.pending.spsAccountId.scriptHash // empty' <<< "${CNTOOLS_POOL_REG_STATE}" >/dev/null 2>&1 && kind=script
   pending="$(jq -r '.pending.spsAccountId.keyHash // .pending.spsAccountId.scriptHash // empty' <<< "${CNTOOLS_POOL_REG_STATE}")"
   if [[ -n "${pending}" ]]; then
@@ -39,18 +40,26 @@ cntools_pool_retirement_rows() {
 }
 
 cntools_pool_retirement_notice() {
-  cntools_ui_render_status warn 'Keep that reward account registered until the deposit is refunded; otherwise the deposit goes to the treasury. Retiring does not withdraw rewards, remove keys or stop your node.'
+  if [[ "${CNTOOLS_POOL_RETIRE_REWARD_STATE:-unknown}" == no ]]; then
+    cntools_ui_render_status warn "The reward account ${CNTOOLS_POOL_RETIRE_REWARD_ADDRESS} is not registered, so the deposit refund would go to the treasury. Register it (Wallet → Register) before the retirement epoch. Retiring does not withdraw rewards, remove keys or stop your node."
+  else
+    cntools_ui_render_status warn 'Keep that reward account registered until the deposit is refunded; otherwise the deposit goes to the treasury. Retiring does not withdraw rewards, remove keys or stop your node.'
+  fi
 }
 
 # Detailed asks for the epoch on a compact screen (the review shows the rest);
 # Quick starts from the earliest epoch, and the review can change it. "ask"
-# (review → Change retirement epoch) asks in both styles.
+# (review → Change retirement epoch) reads the allowed window again and asks
+# in both styles; "again" asks with the window just read. The first call
+# uses the window the collection read.
 cntools_pool_retirement_select_epoch() {
   local mode="${1:-}" answer='' normalized='' default=''
-  cntools_ui_spin_function 'Checking the allowed retirement epochs…' cntools_pool_retirement_window_collect || return 2
+  if [[ "${mode}" == ask ]]; then
+    cntools_ui_spin_function 'Checking the allowed retirement epochs…' cntools_pool_retirement_window_collect || return 2
+  fi
   default="${CNTOOLS_POOL_RETIRE_MIN}"
   ! cntools_pool_retirement_epoch_allowed || default="${CNTOOLS_POOL_RETIRE_EPOCH}"
-  if [[ "${mode}" != ask && -z "${CNTOOLS_POOL_RETIRE_EPOCH}" ]] && cntools_flow_quick; then
+  if [[ -z "${mode}" && -z "${CNTOOLS_POOL_RETIRE_EPOCH}" ]] && cntools_flow_quick; then
     CNTOOLS_POOL_RETIRE_EPOCH="${default}"
     cntools_transaction_log CHOICE "Pool retirement epoch default=${default} (earliest) flow=quick pool=${CNTOOLS_POOL_REG_ID}"
     return 0
@@ -87,49 +96,58 @@ cntools_pool_retirement_epoch_refresh() {
   if cntools_flow_quick; then
     CNTOOLS_POOL_RETIRE_EPOCH="${CNTOOLS_POOL_RETIRE_MIN}"
     cntools_transaction_log CHOICE "Pool retirement epoch reset previous=${previous} default=${CNTOOLS_POOL_RETIRE_EPOCH} (earliest) flow=quick"
-    cntools_ui_render_status warn "Retirement epoch is now the new earliest, $(cntools_number_format "${CNTOOLS_POOL_RETIRE_EPOCH}")."
+    cntools_ui_render_status warn "The epoch advanced past retirement epoch $(cntools_number_format "${previous}"), so it is now the new earliest, $(cntools_number_format "${CNTOOLS_POOL_RETIRE_EPOCH}")."
     return 0
   fi
-  cntools_pool_retirement_select_epoch ask
+  cntools_pool_retirement_select_epoch again
 }
 
 cntools_pool_retirement_workflow() {
-  local selected='' wallet='' workflow='' can_sign=N choice='' proceed='' staged='' status=0
+  local selected='' wallet='' workflow='' can_sign=N choice='' proceed='' staged='' status=0 rebuild=N what='' before=''
   CNTOOLS_POOL_REG_SAVED=''; CNTOOLS_POOL_REG_RESULT_SHOWN=N
   CNTOOLS_POOL_RETIRE_EPOCH=''; CNTOOLS_POOL_REG_OWNERS='[]'; CNTOOLS_POOL_REG_COMBINE_HARDWARE=N
   cntools_pool_registration_begin
   cntools_transaction_require_cli && cntools_pool_catalog_build || return 2
+  (( ${#CNTOOLS_POOL_NAMES[@]} > 0 )) || { cntools_pool_empty_notice; return 3; }
   cntools_pool_registration_choose_eligible_into selected || return $?
   cntools_pool_registration_prepare_identity "${selected}" || return 2
   cntools_wallet_catalog_build || return 2
-  cntools_wallet_choose wallet Cancel "$(cntools_pool_registration_funding_context)" || return $?
-  cntools_pool_registration_prepare_funding "${CNTOOLS_WALLET_PATHS[wallet]}" || return 2
-  cntools_ui_spin_function 'Checking pool state, retirement limits and funding…' cntools_pool_registration_collect || return 2
+  cntools_pool_registration_choose_funding_into wallet || return $?
+  cntools_pool_registration_hwcli_check || return 2
   cntools_pool_retirement_select_epoch || return $?
   cntools_pool_registration_can_sign_into can_sign
   cntools_transaction_ui_initial_workflow_into workflow "${can_sign}" || return $?
   cntools_transaction_ui_initial_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $?
   cntools_pool_registration_hardware_session || return $?
+  cntools_pool_registration_build_ui_into staged || return $?
   while true; do
     while true; do
-      cntools_ui_spin_function 'Building and validating the retirement transaction…' cntools_pool_registration_build_into staged || return 2
+      # Rebuilt only after a change; Esc in a "Change …" keeps the build.
+      if [[ "${rebuild}" == Y ]]; then cntools_pool_registration_rebuild_into staged "${what}" || return $?; rebuild=N; fi
       cntools_transaction_ui_proceed_into proceed "${workflow}" || return 2
       cntools_transaction_ui_review_into choice "${staged}" "${proceed}" cntools_pool_registration_begin \
         cntools_pool_registration_render_plan 'Change retirement epoch' 'Change expiry' 'Change workflow' || return $?
       case "${choice}" in
         "${proceed}") break ;;
-        'Change retirement epoch') cntools_pool_review_change cntools_pool_retirement_select_epoch ask || return $? ;;
-        'Change workflow')
-          cntools_pool_review_change cntools_transaction_ui_workflow_into workflow "${can_sign}" || return $?
-          # The loop rebuilds; Quick gives an unsigned package a day.
-          cntools_transaction_ui_unsigned_lifetime_into CNTOOLS_WALLET_REGISTER_LIFETIME "${workflow}" || true ;;
-        'Change expiry') cntools_pool_review_change cntools_transaction_ui_expiry_into CNTOOLS_WALLET_REGISTER_LIFETIME || return $? ;;
+        'Change retirement epoch')
+          cntools_pool_registration_save
+          before="${CNTOOLS_POOL_RETIRE_EPOCH}"
+          status=0; cntools_pool_retirement_select_epoch ask || status=$?
+          ((status <= 1)) || return "${status}"
+          [[ "${status}" == 0 && "${CNTOOLS_POOL_RETIRE_EPOCH}" != "${before}" ]] || continue
+          rebuild=Y what='retirement epoch' ;;
+        'Change workflow'|'Change expiry')
+          status=0; cntools_pool_registration_change_common "${choice}" workflow "${can_sign}" || status=$?
+          ((status <= 1)) || return "${status}"
+          ((status == 0)) || continue
+          rebuild=Y what=expiry ;;
         *) return 2 ;;
       esac
     done
     status=0; cntools_pool_transaction_finish "${staged}" "${workflow}" || status=$?
     ((status == 4)) || return "${status}"
     cntools_pool_registration_refresh || return $?
+    cntools_pool_registration_build_ui_into staged || return $?
   done
 }
 

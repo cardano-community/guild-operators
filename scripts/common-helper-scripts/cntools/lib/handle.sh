@@ -10,6 +10,13 @@ CNTOOLS_HANDLE_REGISTRY_ASSET=000de14068616e646c655f706f6c6963696573
 
 cntools_handle_fail() { CNTOOLS_HANDLE_ERROR="$1"; return 1; }
 
+# 0 when Handles resolve here: online, Koios over HTTPS, and a network with a
+# Handle registry. Send offers Handles only then.
+cntools_handle_available() {
+  [[ "${CNTOOLS_MODE:-}" != offline && "${CNTOOLS_KOIOS_ENABLED:-N}" == Y && "${CNTOOLS_KOIOS_API:-}" == https://* ]] || return 1
+  case "${CNTOOLS_NETWORK:-}" in mainnet|preview|preprod) return 0 ;; *) return 1 ;; esac
+}
+
 cntools_handle_tip_into() {
   local -n hd_tip_ref="$1"
   local hd_tip_file="" hd_now="" hd_time="" hd_tip_slot=""

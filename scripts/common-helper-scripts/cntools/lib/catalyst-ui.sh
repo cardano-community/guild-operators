@@ -64,62 +64,98 @@ cntools_catalyst_nonce_prompt_into() {
   done
 }
 
+# Nothing can be authorized here: say what to do and wait (3, already shown).
+cntools_catalyst_cannot_sign() {
+  cntools_ui_render_status warn "$1"
+  cntools_transaction_log CHOICE "Catalyst registration stopped: $1"
+  cntools_ui_wait
+  return 3
+}
+
+# Sets the default nonce (current slot, else the estimated slot) and its label.
+cntools_catalyst_default_nonce_into() {
+  local dn_output="$1" dn_label="$2" dn_backend='' dn_slot='' dn_encoded=''
+  printf -v "${dn_output}" '%s' ''; printf -v "${dn_label}" '%s' 'current slot'
+  if [[ "${CNTOOLS_MODE}" != offline ]]; then
+    if cntools_transaction_local_backend_ready; then dn_backend=local; elif [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y ]]; then dn_backend=koios; fi
+    if [[ -n "${dn_backend}" ]] && cntools_ui_spin_function 'Fetching the current slot…' cntools_funding_tip_into dn_slot "${dn_backend}" &&
+       cntools_catalyst_cbor_uint_into dn_encoded "${dn_slot}"; then
+      printf -v "${dn_output}" '%s' "${dn_slot}"
+      cntools_transaction_log CHOICE "Catalyst nonce default=${dn_slot} backend=${dn_backend}"
+      return 0
+    fi
+  fi
+  # Offline or no tip: the slot estimated from the clock still exceeds any
+  # earlier registration made with a current-slot nonce.
+  dn_slot="$(cntools_health_reference_slot "${CNTOOLS_NETWORK:-}" 2>/dev/null)" || dn_slot=''
+  if [[ -n "${dn_slot}" ]] && cntools_catalyst_cbor_uint_into dn_encoded "${dn_slot}"; then
+    printf -v "${dn_output}" '%s' "${dn_slot}"; printf -v "${dn_label}" '%s' 'estimated current slot'
+    cntools_transaction_log CHOICE "Catalyst nonce default=${dn_slot} estimated from the clock"
+    return 0
+  fi
+  cntools_transaction_log WARN 'Catalyst nonce default unavailable: the current slot could not be fetched or estimated'
+}
+
 cntools_catalyst_registration_workflow() {
-  local selected='' choice='' nonce='' metadata='' saved='' status=0 context=''
+  local selected='' choice='' nonce='' metadata='' saved='' status=0 context='' wallet='' signable=N imported=N
   CNTOOLS_CATALYST_NONCE=''; CNTOOLS_CATALYST_METADATA=''; CNTOOLS_CATALYST_SAVED_NOTE=''
   CNTOOLS_METADATA_TRANSACTION_RESULT_SHOWN=N
   cntools_wallet_catalog_build && cntools_transaction_require_cli || return 2
   cntools_wallet_choose selected Cancel catalyst || return $?
   cntools_catalyst_identity "${CNTOOLS_WALLET_PATHS[selected]}" || return 2
-  CNTOOLS_CATALYST_DIRECTORY="${CNTOOLS_WALLET_PATHS[selected]}"
+  CNTOOLS_CATALYST_DIRECTORY="${CNTOOLS_WALLET_PATHS[selected]}" wallet="${CNTOOLS_WALLET_PATHS[selected]##*/}"
+  # A hardware wallet needs cardano-hw-cli: say so before any input.
+  [[ "${CNTOOLS_PAYMENT_TYPE}" != Hardware ]] || cntools_transaction_require_hwcli || return 2
   local -a names=()
   cntools_catalyst_names_into names || return 2
+  # Decide what can work before any key is created.
+  ! cntools_catalyst_stake_signable || signable=Y
   if [[ -e "${CNTOOLS_CATALYST_DIRECTORY}/${names[0]}" || -L "${CNTOOLS_CATALYST_DIRECTORY}/${names[0]}" ||
         -e "${CNTOOLS_CATALYST_DIRECTORY}/${names[0]}.gpg" || -L "${CNTOOLS_CATALYST_DIRECTORY}/${names[0]}.gpg" ]]; then
     cntools_ui_spin_function 'Validating the existing voting identity…' cntools_catalyst_keys_prepare "${CNTOOLS_CATALYST_DIRECTORY}" || return 2
   elif [[ ! -e "${CNTOOLS_CATALYST_DIRECTORY}/${names[1]}" && ! -L "${CNTOOLS_CATALYST_DIRECTORY}/${names[1]}" ]]; then
-    cntools_ui_render_status warn 'A new voting key will be saved in this wallet. Back it up separately; it is not recoverable from the payment wallet mnemonic.'
-    cntools_ui_flow_confirm 'Create and save a Catalyst voting key?' false || return $?
+    if [[ "${signable}" != Y ]]; then
+      # A key made here could never match metadata signed on another system.
+      if [[ "${CNTOOLS_MODE}" == offline ]]; then
+        cntools_catalyst_cannot_sign "${wallet}'s stake key cannot sign here. Decrypt it (Wallet → Decrypt) first; no voting key was created."
+      else
+        cntools_catalyst_cannot_sign "${wallet} has no Catalyst voting key here and its stake key cannot sign here. Copy the voting public key (${names[1]}) from the system that signed the registration into this wallet, then import the signed metadata."
+      fi
+      return $?
+    fi
+    cntools_ui_render_status warn "A new voting key will be saved in ${wallet}. Back it up separately; it is not recoverable from the payment wallet mnemonic."
+    cntools_ui_confirm "Create and save a Catalyst voting key in ${wallet}?" false || return $?
     cntools_ui_spin_function 'Generating and validating the voting key…' cntools_catalyst_keys_prepare "${CNTOOLS_CATALYST_DIRECTORY}" create || return 2
-    CNTOOLS_CATALYST_SAVED_NOTE="The new Catalyst voting key was kept in ${CNTOOLS_CATALYST_DIRECTORY##*/}. Back it up separately."
+    CNTOOLS_CATALYST_SAVED_NOTE="The new Catalyst voting key was kept in ${wallet}. Back it up separately."
   else
     cntools_catalyst_keys_prepare "${CNTOOLS_CATALYST_DIRECTORY}" || return 2
   fi
   cntools_catalyst_render_identity || return 2
   # Offer only what can work: offline cannot import for submission, and an
-  # encrypted/watch-only stake key cannot sign here. Online the current slot
-  # is the default nonce, offered in the same menu.
+  # encrypted/watch-only stake key cannot sign here. The current slot (or,
+  # offline, the estimated slot) is the default nonce, offered in the menu.
   local -a options=()
-  local hint='The original file is retained; its registration signature is verified before use.' encoded='' backend='' default_nonce=''
-  if cntools_catalyst_stake_signable; then
-    if [[ "${CNTOOLS_MODE}" != offline ]]; then
-      if cntools_transaction_local_backend_ready; then backend=local; elif [[ "${CNTOOLS_KOIOS_ENABLED:-N}" == Y ]]; then backend=koios; fi
-      if [[ -n "${backend}" ]] && cntools_ui_spin_function 'Fetching the current slot…' cntools_funding_tip_into default_nonce "${backend}" &&
-         cntools_catalyst_cbor_uint_into encoded "${default_nonce}"; then
-        cntools_transaction_log CHOICE "Catalyst nonce default=${default_nonce} backend=${backend}"
-      else
-        default_nonce=''; cntools_transaction_log WARN 'Catalyst nonce default unavailable: the current slot could not be fetched'
-      fi
-    fi
+  local hint='The original file is retained; its registration signature is verified before use.' default_nonce='' default_label=''
+  if [[ "${signable}" == Y ]]; then
+    cntools_catalyst_default_nonce_into default_nonce default_label
     if [[ -n "${default_nonce}" ]]; then
-      options+=("Authorize · nonce $(cntools_number_format "${default_nonce}") (current slot)" 'Authorize with another nonce')
+      options+=("Authorize · nonce $(cntools_number_format "${default_nonce}") (${default_label})" 'Authorize with another nonce')
     else
       options+=('Authorize with wallet stake key')
     fi
     cntools_ui_render_status warn 'The nonce must exceed previous registrations for this stake key. Catalyst fund snapshots may not include a new registration until their next update.'
     [[ "${CNTOOLS_PAYMENT_TYPE}" != Hardware ]] || cntools_ui_render_status info 'Connect/unlock the hardware wallet and approve Catalyst registration on the device.'
+    [[ "${CNTOOLS_MODE}" != offline ]] || cntools_ui_render_status info 'Offline mode: the signed authorization is saved. Import it online to submit it.'
   fi
   [[ "${CNTOOLS_MODE}" == offline ]] || options+=('Import metadata signed offline')
   if ((${#options[@]} == 0)); then
-    cntools_catalyst_fail 'This wallet cannot sign the Catalyst authorization here. Decrypt its stake key, or sign offline and import the metadata online.'; return 2
-  elif ((${#options[@]} == 1)); then
-    if [[ "${options[0]}" == 'Import metadata signed offline' ]]; then
-      hint="This wallet's stake key cannot sign here, so import registration metadata signed offline. ${hint}"
-    else
-      cntools_ui_render_status info 'Offline mode: authorizing with the wallet stake key. Import the saved metadata online to submit it.'
-    fi
+    cntools_catalyst_cannot_sign "${wallet}'s stake key cannot sign the Catalyst authorization here. Decrypt it (Wallet → Decrypt), or sign on another system and import the metadata online."
+    return $?
+  elif ((${#options[@]} == 1)) && [[ "${options[0]}" == 'Import metadata signed offline' ]]; then
+    hint="This wallet's stake key cannot sign here, so import registration metadata signed offline. ${hint}"
   fi
-  # Esc in a step returns to this menu when it offers a choice.
+  # Picking an authorization (or entering its nonce) is the commitment; Esc
+  # in a step returns to this menu when it offers a choice.
   while true; do
     if ((${#options[@]} == 1)); then
       choice="${options[0]}"
@@ -134,27 +170,36 @@ cntools_catalyst_registration_workflow() {
       'Import metadata signed offline')
         cntools_ui_pick_path metadata 'Signed CIP-36 JSON metadata' "${hint}" "${CNTOOLS_ROOT}/.transactions" || status=$?
         if ((status == 0)); then
-          cntools_ui_spin_function 'Verifying the stake-key signature and registration…' cntools_catalyst_verify_metadata "${metadata}" || return 2
-          break
+          CNTOOLS_TRANSACTION_ERROR=''
+          if cntools_ui_spin_function 'Verifying the stake-key signature and registration…' cntools_catalyst_verify_metadata "${metadata}"; then
+            imported=Y; break
+          fi
+          # Back to the choice (or the file picker) with the reason.
+          cntools_ui_render_status warn "${CNTOOLS_TRANSACTION_ERROR:-The metadata could not be verified.} Choose another file."
+          CNTOOLS_TRANSACTION_ERROR=''
+          continue
         fi ;;
       'Authorize · nonce '*) nonce="${default_nonce}" ;;
       *) cntools_catalyst_nonce_prompt_into nonce "${default_nonce}" || status=$? ;;
     esac
-    if ((status == 0)); then
-      cntools_ui_flow_confirm 'Authorize this voting key and rewards address with the wallet stake key?' false || status=$?
-    fi
     if ((status == 0)); then
       cntools_ui_spin_function 'Signing and verifying Catalyst authorization…' cntools_catalyst_authorize "${nonce}" || return 2
       break
     fi
     ((status == 1 && ${#options[@]} > 1)) || return "${status}"
   done
-  cntools_transaction_save_into saved "${CNTOOLS_CATALYST_METADATA}" metadata catalyst-authorization || return 2
-  CNTOOLS_CATALYST_METADATA="${saved}"
-  CNTOOLS_CATALYST_SAVED_NOTE="The signed authorization was kept: ${saved}. Use Registration → Import metadata signed offline to submit it later."
+  if [[ "${imported}" == Y ]]; then
+    # The imported file stays where it is; the verified canonical copy is used.
+    saved="${CNTOOLS_CATALYST_METADATA}"
+  else
+    cntools_transaction_save_into saved "${CNTOOLS_CATALYST_METADATA}" metadata catalyst-authorization || return 2
+    CNTOOLS_CATALYST_METADATA="${saved}"
+    CNTOOLS_CATALYST_SAVED_NOTE+="${CNTOOLS_CATALYST_SAVED_NOTE:+ }The signed authorization was kept: ${saved}. Use Registration → Import metadata signed offline to submit it later."
+  fi
   if [[ "${CNTOOLS_MODE}" == offline ]]; then
     cntools_catalyst_begin
     {
+      cntools_table_pair Wallet "${wallet}" identifier
       cntools_table_pair Status 'Stake authorization verified · not submitted' success
       cntools_table_pair 'Metadata file' "${saved}" identifier
     } | cntools_table_render 'Catalyst authorization'
@@ -175,12 +220,14 @@ cntools_catalyst_action_registration() {
 }
 
 cntools_catalyst_qr_workflow() {
-  local selected='' pin='' repeated='' status=0 directory=''
+  local selected='' pin='' repeated='' status=0 directory='' wallet=''
   cntools_wallet_catalog_build && cntools_transaction_require_cli || return 2
   cntools_wallet_choose selected Cancel catalyst-qr || return $?
-  directory="${CNTOOLS_WALLET_PATHS[selected]}"
-  cntools_ui_render_status warn 'The QR contains the voting secret protected by a four-digit PIN. Keep it private and save the PIN separately. Toolbox briefly exposes the PIN to same-user process inspection.'
-  cntools_ui_flow_confirm 'Display and save a new PIN-protected voting QR?' false || return $?
+  directory="${CNTOOLS_WALLET_PATHS[selected]}" wallet="${CNTOOLS_WALLET_PATHS[selected]##*/}"
+  # Toolbox and an unencrypted voting key are checked before any PIN.
+  cntools_ui_spin_function 'Checking the voting key and Catalyst Toolbox…' cntools_catalyst_qr_preflight "${directory}" || return 2
+  cntools_ui_render_status warn "The QR for ${wallet} contains the voting secret protected by a four-digit PIN. Keep it private and save the PIN separately. While the QR is generated, the PIN is briefly visible to other local users in the process list."
+  cntools_ui_flow_confirm "Display and save a new PIN-protected voting QR for ${wallet}?" false || return $?
   # A mistyped PIN or confirmation asks for both again.
   while true; do
     cntools_ui_password pin 'Four-digit QR PIN' || { status=$?; unset pin; return "${status}"; }
@@ -213,7 +260,7 @@ cntools_catalyst_action_qr() {
 }
 
 cntools_catalyst_verify_render() {
-  local public="$1" details="$2" wallet="${3:-}" value='' date_label='' timestamp='' address='' delegator_file='' local_wallet='' stake_address='' index=0
+  local public="$1" details="$2" wallet="${3:-}" value='' date_label='' timestamp='' index=0 fields='' reward='' payable='' power=''
   cntools_ui_action_begin Verify '/ Vote / Catalyst / Verify'
   {
     [[ -z "${wallet}" ]] || cntools_table_pair Wallet "${wallet}" identifier
@@ -235,31 +282,27 @@ cntools_catalyst_verify_render() {
       fi
     fi
   } | cntools_table_render 'Catalyst snapshot'
-  while IFS= read -r address; do
-    [[ -n "${address}" ]] || continue
-    index=$((index+1)); delegator_file=''; local_wallet=''; stake_address=''
-    cntools_catalyst_delegator_wallet_into local_wallet "${address}" || true
-    cntools_catalyst_delegator_address_into stake_address "${address}" || true
-    if [[ "${details}" == Y ]]; then
-      cntools_ui_spin_function "Checking delegator ${index}…" cntools_catalyst_delegator_lookup_into delegator_file "${address}" || true
-    fi
+  # Rows come from cntools_catalyst_delegators_collect (and _lookup).
+  for index in "${!CNTOOLS_CATALYST_DELEGATOR_KEYS[@]}"; do
     {
-      [[ -z "${local_wallet}" ]] || cntools_table_pair Wallet "${local_wallet}" accent
-      cntools_table_pair 'Stake public key' "${address}" identifier
-      [[ -z "${stake_address}" ]] || cntools_table_pair 'Stake address' "${stake_address}" identifier
-      if [[ -n "${delegator_file}" ]]; then
-        cntools_table_pair 'Reward address' "$(jq -r '.reward_address' "${delegator_file}")" identifier
-        if [[ "$(jq -r '.reward_payable' "${delegator_file}")" == true ]]; then
+      [[ -z "${CNTOOLS_CATALYST_DELEGATOR_WALLETS[index]}" ]] || cntools_table_pair Wallet "${CNTOOLS_CATALYST_DELEGATOR_WALLETS[index]}" accent
+      cntools_table_pair 'Stake public key' "${CNTOOLS_CATALYST_DELEGATOR_KEYS[index]}" identifier
+      [[ -z "${CNTOOLS_CATALYST_DELEGATOR_ADDRESSES[index]}" ]] || cntools_table_pair 'Stake address' "${CNTOOLS_CATALYST_DELEGATOR_ADDRESSES[index]}" identifier
+      if [[ -n "${CNTOOLS_CATALYST_DELEGATOR_FILES[index]}" ]]; then
+        fields="$(jq -r '[.reward_address, (.reward_payable|tostring), (.raw_power|tostring)] | join("\u001f")' "${CNTOOLS_CATALYST_DELEGATOR_FILES[index]}")" || fields=''
+        IFS=$'\037' read -r reward payable power <<< "${fields}"
+        cntools_table_pair 'Reward address' "${reward}" identifier
+        if [[ "${payable}" == true ]]; then
           cntools_table_pair 'Reward payable' Yes success
         else
           cntools_table_pair 'Reward payable' No warning
         fi
-        cntools_table_pair 'Individual voting power' "$(cntools_number_format_lovelace "$(jq -r '.raw_power|tostring' "${delegator_file}")")" number
+        cntools_table_pair 'Individual voting power' "$(cntools_number_format_lovelace "${power}")" number
       elif [[ "${details}" == Y ]]; then
         cntools_table_pair 'Reward / power details' Unavailable warning
       fi
-    } | cntools_table_render "${index} · Delegator"
-  done < <(jq -r '.voter_info.delegator_addresses // [] | .[]' "${CNTOOLS_CATALYST_STATUS_FILE}")
+    } | cntools_table_render "$((index+1)) · Delegator"
+  done
   cntools_ui_render_status info 'Snapshot status is separate from current Cardano registration inclusion. Check the current fund rules and dates before voting.'
 }
 
@@ -289,7 +332,7 @@ cntools_catalyst_verify_workflow() {
   if [[ "${choice}" == 'External voting public key' ]]; then
     while true; do
       cntools_ui_input public 'Voting public key' '64 hexadecimal characters' || return $?
-      cntools_recipient_trim_into public "${public}"; public="${public,,}"; public="${public#0x}"
+      public="${public,,}"; public="${public#0x}"
       [[ "${public}" =~ ^[0-9a-f]{64}$ ]] && break
       cntools_ui_render_status warn 'Enter exactly 64 hexadecimal characters.'
     done
@@ -304,15 +347,22 @@ cntools_catalyst_verify_workflow() {
     }
   fi
   cntools_ui_spin_function 'Checking the official Catalyst snapshot…' cntools_catalyst_lookup "${public}" || return 2
-  cntools_wallet_catalog_build || true
+  # Wallet matches and stake addresses are worked out once for both views.
+  CNTOOLS_CATALYST_DELEGATOR_KEYS=() CNTOOLS_CATALYST_DELEGATOR_WALLETS=() CNTOOLS_CATALYST_DELEGATOR_ADDRESSES=() CNTOOLS_CATALYST_DELEGATOR_FILES=()
+  if jq -e '.voter_info.delegator_addresses|length>0' "${CNTOOLS_CATALYST_STATUS_FILE}" >/dev/null 2>&1; then
+    cntools_ui_spin_function 'Matching delegators to wallets and stake addresses…' cntools_catalyst_delegators_collect || return 2
+  fi
   cntools_catalyst_verify_render "${public}" N "${wallet}" || return 2
-  jq -e '.voter_info.delegator_addresses|length>0' "${CNTOOLS_CATALYST_STATUS_FILE}" >/dev/null 2>&1 || return 0
+  ((${#CNTOOLS_CATALYST_DELEGATOR_KEYS[@]} > 0)) || return 0
   # Both styles: the per-delegator lookup is optional and asked after the table.
   status=0
   cntools_ui_choose choice 'Delegators' Done 'Fetch delegator voting power and rewards' || status=$?
   ((status != 130)) || return 130
   ((status == 0)) || return 4
   [[ "${choice}" != Done ]] || return 4
+  value="$(cntools_number_format "${#CNTOOLS_CATALYST_DELEGATOR_KEYS[@]}") delegator"
+  ((${#CNTOOLS_CATALYST_DELEGATOR_KEYS[@]} == 1)) || value+=s
+  cntools_ui_spin_function "Fetching voting power and rewards for ${value}…" cntools_catalyst_delegators_lookup || true
   cntools_catalyst_verify_render "${public}" Y "${wallet}" || return 2
 }
 

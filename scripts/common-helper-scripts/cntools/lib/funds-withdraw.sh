@@ -30,13 +30,13 @@ cntools_withdraw_query_stake() {
     *) return 2 ;;
   esac
   [[ "${CNTOOLS_WALLET_REGISTERED}" == yes ]] || {
-    cntools_withdraw_fail 'The stake address is not registered; there are no registered rewards to withdraw.'; return 4;
+    cntools_withdraw_fail "Nothing to withdraw: ${CNTOOLS_STAKE_WALLET}'s stake address is not registered, so it has no rewards."; return 4;
   }
   cntools_uint_normalize_into CNTOOLS_WALLET_REWARD_LOVELACE "${CNTOOLS_WALLET_REWARD_LOVELACE}" || {
     cntools_withdraw_fail 'The reward balance could not be determined exactly.'; return 1;
   }
   [[ "${CNTOOLS_WALLET_REWARD_LOVELACE}" != 0 ]] || {
-    cntools_withdraw_fail 'There are no claimable rewards to withdraw.'; return 4;
+    cntools_withdraw_fail "Nothing to withdraw: ${CNTOOLS_STAKE_WALLET} has no claimable rewards."; return 4;
   }
   # Conway protocol 10/11 requires voting delegation after bootstrap. Do not
   # silently add delegation, require an active DRep, or extrapolate to future eras.
@@ -51,12 +51,22 @@ cntools_withdraw_query_stake() {
 }
 
 # Withdrawals price no reference scripts, so their UTxOs stay untouched.
+# Rewards are checked even for a wallet without UTxOs: 4 = nothing to
+# withdraw; 5 = rewards, but no UTxO to pay the fee (both outcomes).
 cntools_withdraw_collect() {
+  local wc_status=0
   cntools_funding_collect "${CNTOOLS_STAKE_BASE_ADDRESS}" "${CNTOOLS_STAKE_PAYMENT_ADDRESS}" &&
-    cntools_funding_exclude_reference_scripts || return 1
+    cntools_funding_exclude_reference_scripts || wc_status=$?
+  if (( wc_status != 0 )); then
+    [[ "${CNTOOLS_FUNDING_EMPTY:-N}" == Y && -n "${CNTOOLS_FUNDING_BACKEND}" ]] || return 1
+  fi
   CNTOOLS_WITHDRAW_BACKEND="${CNTOOLS_FUNDING_BACKEND}"
   cntools_withdraw_query_stake || return $?
   CNTOOLS_WITHDRAW_REWARDS="${CNTOOLS_WALLET_REWARD_LOVELACE}"
+  if (( wc_status != 0 )); then
+    cntools_withdraw_fail "${CNTOOLS_STAKE_WALLET} has $(cntools_number_format_lovelace "${CNTOOLS_WITHDRAW_REWARDS}") in rewards, but no spendable UTxO to pay the withdrawal fee. Send at least 2 ADA to it first."
+    return 5
+  fi
   cntools_transaction_log TRANSACTION "Withdrawal rewards=${CNTOOLS_WITHDRAW_REWARDS} backend=${CNTOOLS_WITHDRAW_BACKEND} account=${CNTOOLS_STAKE_REWARD_ADDRESS}"
 }
 

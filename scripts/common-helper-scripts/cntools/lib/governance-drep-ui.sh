@@ -7,10 +7,10 @@ cntools_drep_lifecycle_render_rows() {
   cntools_transaction_ui_styled_row 'DRep ID' "${CNTOOLS_DREP_LIFECYCLE_ID}" identifier
   if [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == drep-retire ]]; then
     cntools_transaction_ui_styled_row Effect 'Ends this DRep · delegators must choose another DRep' warning
-    # What retiring gives up, when the source reports it (Koios).
-    value="$(jq -r '.amount // "" | tostring' <<< "${CNTOOLS_DREP_DETAILS}" 2>/dev/null)" || value=''
+    # What retiring gives up, when Koios reports it (also for a local build).
+    value="$(jq -r '.amount // "" | tostring' <<< "${CNTOOLS_DREP_LIFECYCLE_POWER}" 2>/dev/null)" || value=''
     [[ ! "${value}" =~ ^[0-9]+$ ]] || cntools_transaction_ui_styled_row "${CNTOOLS_DREP_POWER_LABEL:-Voting power}" "$(cntools_number_format_lovelace "${value}")" number
-    value="$(jq -r '.live_delegator_count // "" | tostring' <<< "${CNTOOLS_DREP_DETAILS}" 2>/dev/null)" || value=''
+    value="$(jq -r '.live_delegator_count // "" | tostring' <<< "${CNTOOLS_DREP_LIFECYCLE_POWER}" 2>/dev/null)" || value=''
     [[ ! "${value}" =~ ^[0-9]+$ ]] || cntools_transaction_ui_styled_row Delegators "$(cntools_number_format "${value}")" number
     return 0
   fi

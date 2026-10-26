@@ -8,15 +8,23 @@ CNTOOLS_COLLECT_BACKEND=""
 CNTOOLS_COLLECT_SKIPPED=0 CNTOOLS_COLLECT_SKIPPED_TOKENS=0 CNTOOLS_COLLECT_SKIPPED_SCRIPTS=0
 CNTOOLS_COLLECT_OUTPUT_COUNT=0
 CNTOOLS_COLLECT_NOTHING_REASON=""
+# One transaction collects at most a batch of the eligible UTxOs; the batch
+# shrinks when the signed transaction would exceed the protocol size limit.
+CNTOOLS_COLLECT_BATCH_MAX=300
+CNTOOLS_COLLECT_BATCH="${CNTOOLS_COLLECT_BATCH_MAX}"
+CNTOOLS_COLLECT_ELIGIBLE=0
 declare -ag CNTOOLS_COLLECT_INPUTS=() CNTOOLS_COLLECT_SCOPES=()
+declare -Ag CNTOOLS_COLLECT_SCOPE_COUNTS=()
 
 cntools_collect_fail() { cntools_transaction_set_error "${1:-UTxO collection failed.}"; return 1; }
 
+# Selects up to CNTOOLS_COLLECT_BATCH of the eligible UTxOs (all counted in
+# CNTOOLS_COLLECT_ELIGIBLE); a wallet with more is collected in several runs.
 cntools_collect_select() {
   local index=0
   case "${CNTOOLS_COLLECT_SCOPE}" in ada|all) ;; *) return 2 ;; esac
   cntools_coin_reset
-  CNTOOLS_COLLECT_SKIPPED=0 CNTOOLS_COLLECT_SKIPPED_TOKENS=0 CNTOOLS_COLLECT_SKIPPED_SCRIPTS=0
+  CNTOOLS_COLLECT_SKIPPED=0 CNTOOLS_COLLECT_SKIPPED_TOKENS=0 CNTOOLS_COLLECT_SKIPPED_SCRIPTS=0 CNTOOLS_COLLECT_ELIGIBLE=0
   for index in "${!CNTOOLS_UTXO_REFS[@]}"; do
     # Do not consume app data, reference scripts, or unverified destinations.
     if [[ "${CNTOOLS_UTXO_HAS_DATUM[index]}" != N || "${CNTOOLS_UTXO_HAS_REFERENCE_SCRIPT[index]}" != N ]]; then
@@ -30,40 +38,44 @@ cntools_collect_select() {
        "${CNTOOLS_UTXO_ADDRESSES[index]}" == "${CNTOOLS_SEND_PAYMENT}" ]] || {
       cntools_collect_fail 'The funding inventory contains an address outside this wallet.'; return 1;
     }
+    CNTOOLS_COLLECT_ELIGIBLE=$((CNTOOLS_COLLECT_ELIGIBLE + 1))
+    (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} < CNTOOLS_COLLECT_BATCH )) || continue
     cntools_coin_add_index "${index}" || return 1
-    (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} <= 1000 )) || {
-      cntools_collect_fail 'More than 1,000 eligible inputs were found. This collection is too large for one transaction; no partial batch was created.'; return 1;
-    }
   done
   (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} > 0 )) || {
-    cntools_collect_fail 'No eligible UTxOs match this collection. Datum and reference-script outputs are left untouched.'; return 1;
+    cntools_collect_fail "Nothing to collect: ${CNTOOLS_SEND_WALLET} has no eligible UTxOs. Datum and reference-script UTxOs are left untouched."; return 1;
   }
-  if (( ${#CNTOOLS_COIN_SELECTED_INDICES[@]} == 1 )) &&
+  if (( CNTOOLS_COLLECT_ELIGIBLE == 1 )) &&
       [[ "${CNTOOLS_UTXO_ADDRESSES[CNTOOLS_COIN_SELECTED_INDICES[0]]}" == "${CNTOOLS_SEND_ADDRESS}" &&
          "${CNTOOLS_TX_TOKEN_FRAGMENTATION:-N}" != Y && "${CNTOOLS_TX_UTXO_MANAGEMENT:-N}" != Y ]]; then
-    cntools_collect_fail 'There is only one eligible UTxO at the return address and no change-shaping policy enabled. Nothing needs collecting.'; return 1
+    cntools_collect_fail "Nothing to collect: ${CNTOOLS_SEND_WALLET} has one eligible UTxO, already at its return address, and no change-shaping policy is enabled."; return 1
   fi
   CNTOOLS_COLLECT_INPUTS=("${CNTOOLS_COIN_SELECTED_REFS[@]}")
   CNTOOLS_COIN_SELECTION_REASON='Explicit collection of all eligible inputs'
+  (( CNTOOLS_COLLECT_ELIGIBLE == ${#CNTOOLS_COLLECT_INPUTS[@]} )) ||
+    CNTOOLS_COIN_SELECTION_REASON="Explicit collection of ${#CNTOOLS_COLLECT_INPUTS[@]} of ${CNTOOLS_COLLECT_ELIGIBLE} eligible inputs (one transaction's limit)"
 }
 
-# Run in a subshell: prints the input count, or the reason and fails.
+# Run in a subshell: prints the eligible count, or the reason and fails.
 cntools_collect_try_scope() {
   CNTOOLS_COLLECT_SCOPE="$1"
   cntools_collect_select >/dev/null 2>&1 || { printf '%s' "${CNTOOLS_TRANSACTION_ERROR:-}"; return 1; }
-  printf '%s' "${#CNTOOLS_COIN_SELECTED_INDICES[@]}"
+  printf '%s' "${CNTOOLS_COLLECT_ELIGIBLE}"
 }
 
 # Scopes that have something to collect, tried in subshells so the current
-# selection is untouched. Equal selections offer only the ADA-only scope.
+# selection is untouched, with their eligible counts for the scope menu.
+# Equal counts offer only the ADA-only scope.
 cntools_collect_scopes_into() {
   local -n collect_scopes_ref="$1"
   local -n collect_reason_ref="$2"
   local scope='' result='' previous=''
-  collect_scopes_ref=(); collect_reason_ref=''
+  collect_scopes_ref=(); collect_reason_ref=''; CNTOOLS_COLLECT_SCOPE_COUNTS=()
   for scope in ada all; do
     if result="$(cntools_collect_try_scope "${scope}")"; then
-      [[ "${result}" == "${previous}" ]] || collect_scopes_ref+=("${scope}")
+      if [[ "${result}" != "${previous}" ]]; then
+        collect_scopes_ref+=("${scope}"); CNTOOLS_COLLECT_SCOPE_COUNTS["${scope}"]="${result}"
+      fi
       previous="${result}"
     else
       collect_reason_ref="${result}"
@@ -148,13 +160,19 @@ cntools_collect_prepare_balanced_body() {
   printf -v "$1" '%s' "${body}"
 }
 
+# A batch too large for one signed transaction is retried with fewer inputs.
 cntools_collect_build_into() {
   local -n collection_result="$1"
   collection_result=""
-  cntools_collect_select || return 1
-  CNTOOLS_COLLECT_FEE=0
-  cntools_transaction_balance_into "$1" CNTOOLS_COLLECT_FEE "${CNTOOLS_FUNDING_PROTOCOL}" \
-    cntools_collect_prepare_balanced_body "cntools_collect_validate_body" || return 1
+  while true; do
+    cntools_collect_select || return 1
+    CNTOOLS_COLLECT_FEE=0
+    cntools_transaction_balance_into "$1" CNTOOLS_COLLECT_FEE "${CNTOOLS_FUNDING_PROTOCOL}" \
+      cntools_collect_prepare_balanced_body "cntools_collect_validate_body" && return 0
+    [[ "${CNTOOLS_TRANSACTION_BALANCE_OVERSIZE:-N}" == Y && ${#CNTOOLS_COLLECT_INPUTS[@]} -gt 2 ]] || return 1
+    CNTOOLS_COLLECT_BATCH=$(( ${#CNTOOLS_COLLECT_INPUTS[@]} * 2 / 3 ))
+    cntools_transaction_log TRANSACTION "Collection batch too large for one transaction; retrying with ${CNTOOLS_COLLECT_BATCH} inputs"
+  done
 }
 cntools_collect_refresh_build_into() {
   [[ "$2" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( $2 <= 31536000 )) || return 2
@@ -163,7 +181,8 @@ cntools_collect_refresh_build_into() {
   cntools_collect_current_build_into "$@"
 }
 
-# Build from the funds already checked (nothing was asked in between).
+# Build from the funds already checked. Quick uses it only when nothing was
+# asked since the check; after any question the caller refreshes first.
 cntools_collect_current_build_into() {
   local result_name="$1" lifetime="$2"
   [[ "${lifetime}" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( lifetime <= 31536000 )) || return 2

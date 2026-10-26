@@ -5,6 +5,8 @@
 CNTOOLS_MULTISIG_SPEND_SCRIPT='' CNTOOLS_MULTISIG_SPEND_AFTER='' CNTOOLS_MULTISIG_SPEND_BEFORE=''
 CNTOOLS_MULTISIG_SPEND_THRESHOLD=0 CNTOOLS_MULTISIG_CAN_SIGN=N
 CNTOOLS_MULTISIG_SELECTION_ROLE=payment CNTOOLS_MULTISIG_CANDIDATE_LAST=''
+# Y once a signer menu offered a real choice: the review then offers 'Change signers'.
+CNTOOLS_MULTISIG_SIGNERS_CHOICE=N
 declare -ag CNTOOLS_MULTISIG_CANDIDATE_IDS=() CNTOOLS_MULTISIG_CANDIDATE_HASHES=() CNTOOLS_MULTISIG_CANDIDATE_SOURCES=() CNTOOLS_MULTISIG_CANDIDATE_LABELS=()
 declare -ag CNTOOLS_MULTISIG_SIGNER_IDS=() CNTOOLS_MULTISIG_SIGNER_HASHES=() CNTOOLS_MULTISIG_SIGNER_SOURCES=() CNTOOLS_MULTISIG_SIGNER_LABELS=()
 
@@ -36,7 +38,7 @@ cntools_multisig_spend_prepare() {
   IFS=$'\037' read -r CNTOOLS_MULTISIG_SPEND_THRESHOLD CNTOOLS_MULTISIG_SPEND_AFTER CNTOOLS_MULTISIG_SPEND_BEFORE <<< "${bounds}"
   CNTOOLS_MULTISIG_SPEND_SCRIPT="${script}"
   CNTOOLS_MULTISIG_SIGNER_IDS=(); CNTOOLS_MULTISIG_SIGNER_HASHES=(); CNTOOLS_MULTISIG_SIGNER_SOURCES=(); CNTOOLS_MULTISIG_SIGNER_LABELS=()
-  CNTOOLS_MULTISIG_CAN_SIGN=N
+  CNTOOLS_MULTISIG_CAN_SIGN=N CNTOOLS_MULTISIG_SIGNERS_CHOICE=N
   cntools_wallet_read_address "${directory}" payment CNTOOLS_PAYMENT_PAYMENT || return 1
   CNTOOLS_PAYMENT_ADDRESS="${CNTOOLS_PAYMENT_PAYMENT}"
   if cntools_wallet_read_address "${directory}" base address; then
@@ -90,7 +92,7 @@ cntools_multisig_candidate_add() {
 }
 
 cntools_multisig_candidates_load() {
-  local directory='' prefix='' source='' verification='' role="${CNTOOLS_MULTISIG_SELECTION_ROLE:-payment}"
+  local directory='' prefix='' source='' verification='' role="${CNTOOLS_MULTISIG_SELECTION_ROLE:-payment}" label=''
   local vkey="${CNTOOLS_WALLET_PAY_VKEY_FILENAME}" skey="${CNTOOLS_WALLET_PAY_SKEY_FILENAME}" hws="${CNTOOLS_WALLET_HW_PAY_SKEY_FILENAME}"
   if [[ "${role}" == stake ]]; then
     vkey="${CNTOOLS_WALLET_STAKE_VKEY_FILENAME}"; skey="${CNTOOLS_WALLET_STAKE_SKEY_FILENAME}"; hws="${CNTOOLS_WALLET_HW_STAKE_SKEY_FILENAME}"
@@ -98,6 +100,7 @@ cntools_multisig_candidates_load() {
   if [[ "${role}" == drep ]]; then
     vkey="${CNTOOLS_WALLET_DREP_VKEY_FILENAME:-drep.vkey}"; skey="${CNTOOLS_WALLET_DREP_SKEY_FILENAME:-drep.skey}"; hws="${CNTOOLS_WALLET_HW_DREP_SKEY_FILENAME:-drep.hwsfile}"
   fi
+  label="${role}"; [[ "${role}" != drep ]] || label=DRep
   CNTOOLS_MULTISIG_CANDIDATE_IDS=(); CNTOOLS_MULTISIG_CANDIDATE_HASHES=(); CNTOOLS_MULTISIG_CANDIDATE_SOURCES=(); CNTOOLS_MULTISIG_CANDIDATE_LABELS=()
   cntools_wallet_catalog_build || return 1
   for directory in "${CNTOOLS_WALLET_PATHS[@]}"; do
@@ -108,7 +111,7 @@ cntools_multisig_candidates_load() {
       source="${directory}/${prefix}${skey}"
       if [[ ! -f "${source}" ]]; then source="${directory}/${prefix}${hws}"; fi
       [[ -f "${source}" ]] || source=''
-      cntools_multisig_candidate_add "${verification}" "${source}" "${directory##*/} · ${prefix:-regular}${role}" || true
+      cntools_multisig_candidate_add "${verification}" "${source}" "${directory##*/} · ${prefix:+multisig }${label} key" || true
     done
   done
 }
@@ -132,16 +135,18 @@ cntools_multisig_spend_choose_signers() {
   [[ "${role_title}" != drep ]] || role_title=DRep
   cntools_multisig_candidates_load || return 2
   # When the script needs every key and all of them are known, there is
-  # nothing to choose.
+  # nothing to choose, also when asked again from a review.
   script_keys="$(jq '[..|objects|select(.type=="sig")|.keyHash|ascii_downcase]|unique|length' "${CNTOOLS_MULTISIG_SPEND_SCRIPT}")" || script_keys=0
-  if (( ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} == 0 && script_keys > 0 &&
+  if (( script_keys > 0 &&
         CNTOOLS_MULTISIG_SPEND_THRESHOLD == script_keys &&
         ${#CNTOOLS_MULTISIG_CANDIDATE_IDS[@]} == script_keys )); then
+    CNTOOLS_MULTISIG_SIGNER_IDS=(); CNTOOLS_MULTISIG_SIGNER_HASHES=(); CNTOOLS_MULTISIG_SIGNER_SOURCES=(); CNTOOLS_MULTISIG_SIGNER_LABELS=()
     for index in "${!CNTOOLS_MULTISIG_CANDIDATE_IDS[@]}"; do
       cntools_multisig_signer_select "${index}" || return 2
     done
     cntools_transaction_log CHOICE "Multisig signers auto-selected role=${CNTOOLS_MULTISIG_SELECTION_ROLE} reason=all-keys-required"
   else
+    CNTOOLS_MULTISIG_SIGNERS_CHOICE=Y
     # Quick preselects the local signers when they exactly meet the threshold;
     # the menu still opens, so Enter on 'Done' accepts them.
     if (( ${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} == 0 )) && cntools_flow_quick; then
@@ -202,6 +207,115 @@ cntools_multisig_spend_choose_signers() {
   CNTOOLS_MULTISIG_CAN_SIGN=Y
   for source in "${CNTOOLS_MULTISIG_SIGNER_SOURCES[@]}"; do [[ -n "${source}" ]] || CNTOOLS_MULTISIG_CAN_SIGN=N; done
   cntools_transaction_log CHOICE "Multisig signing subset role=${CNTOOLS_MULTISIG_SELECTION_ROLE} selected participants=${#CNTOOLS_MULTISIG_SIGNER_IDS[@]} can_sign=${CNTOOLS_MULTISIG_CAN_SIGN}"
+}
+
+# Before any further input: the payment script's time locks must allow
+# spending at SLOT (the build checks again).
+cntools_multisig_spend_window_check() {
+  cntools_multisig_window_check "$1" "${CNTOOLS_MULTISIG_SPEND_AFTER}" "${CNTOOLS_MULTISIG_SPEND_BEFORE}"
+}
+
+# Usage: cntools_multisig_window_check SLOT AFTER BEFORE (empty bounds are open).
+cntools_multisig_window_check() {
+  local mwc_slot="$1" mwc_after="${2:-}" mwc_before="${3:-}" mwc_label=''
+  local mwc_wallet="${CNTOOLS_SEND_WALLET:-${CNTOOLS_STAKE_WALLET:-${CNTOOLS_WALLET_REGISTER_WALLET:-This wallet}}}"
+  [[ "${mwc_slot}" =~ ^[0-9]+$ ]] || return 0
+  if [[ "${mwc_after}" =~ ^[0-9]+$ ]] && (( mwc_slot < mwc_after )); then
+    cntools_slot_datetime_into mwc_label "${mwc_after}" 2>/dev/null || mwc_label="slot ${mwc_after}"
+    cntools_transaction_set_error "${mwc_wallet} cannot be spent yet: its multisig script is valid from ${mwc_label}."
+    return 1
+  fi
+  if [[ "${mwc_before}" =~ ^[0-9]+$ ]] && (( mwc_slot >= mwc_before )); then
+    cntools_slot_datetime_into mwc_label "${mwc_before}" 2>/dev/null || mwc_label="slot ${mwc_before}"
+    cntools_transaction_set_error "${mwc_wallet} can no longer be spent: its multisig script expired at ${mwc_label}."
+    return 1
+  fi
+}
+
+# 0 when a signer menu offered a real choice, so a review can change it.
+cntools_multisig_signers_changeable() {
+  [[ "${CNTOOLS_MULTISIG_SIGNERS_CHOICE:-N}" == Y ]]
+}
+
+declare -ag CNTOOLS_MULTISIG_SAVED_PAYMENT=() CNTOOLS_MULTISIG_SAVED_STAKE=() CNTOOLS_MULTISIG_SAVED_STATE=()
+
+# Saves both signer selections (payment and, for stake actions, stake) and
+# the workflow, can-sign and lifetime values a signer change may alter.
+cntools_multisig_signers_save() {
+  local mss_index=0
+  CNTOOLS_MULTISIG_SAVED_PAYMENT=(); CNTOOLS_MULTISIG_SAVED_STAKE=()
+  for mss_index in "${!CNTOOLS_MULTISIG_SIGNER_IDS[@]}"; do
+    CNTOOLS_MULTISIG_SAVED_PAYMENT+=("${CNTOOLS_MULTISIG_SIGNER_IDS[mss_index]}" "${CNTOOLS_MULTISIG_SIGNER_HASHES[mss_index]}"
+      "${CNTOOLS_MULTISIG_SIGNER_SOURCES[mss_index]}" "${CNTOOLS_MULTISIG_SIGNER_LABELS[mss_index]}")
+  done
+  for mss_index in "${!CNTOOLS_MULTISIG_STAKE_SIGNER_IDS[@]}"; do
+    CNTOOLS_MULTISIG_SAVED_STAKE+=("${CNTOOLS_MULTISIG_STAKE_SIGNER_IDS[mss_index]}" "${CNTOOLS_MULTISIG_STAKE_SIGNER_HASHES[mss_index]}"
+      "${CNTOOLS_MULTISIG_STAKE_SIGNER_SOURCES[mss_index]}" "${CNTOOLS_MULTISIG_STAKE_SIGNER_LABELS[mss_index]}")
+  done
+  CNTOOLS_MULTISIG_SAVED_STATE=("${CNTOOLS_MULTISIG_CAN_SIGN}" "${CNTOOLS_STAKE_CAN_SIGN:-N}" "${CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED:-N}" "$@")
+}
+
+# Restores the signer selections cntools_multisig_signers_save kept.
+cntools_multisig_signers_restore() {
+  local msr_index=0
+  CNTOOLS_MULTISIG_SIGNER_IDS=(); CNTOOLS_MULTISIG_SIGNER_HASHES=(); CNTOOLS_MULTISIG_SIGNER_SOURCES=(); CNTOOLS_MULTISIG_SIGNER_LABELS=()
+  for (( msr_index = 0; msr_index + 3 < ${#CNTOOLS_MULTISIG_SAVED_PAYMENT[@]}; msr_index += 4 )); do
+    CNTOOLS_MULTISIG_SIGNER_IDS+=("${CNTOOLS_MULTISIG_SAVED_PAYMENT[msr_index]}"); CNTOOLS_MULTISIG_SIGNER_HASHES+=("${CNTOOLS_MULTISIG_SAVED_PAYMENT[msr_index+1]}")
+    CNTOOLS_MULTISIG_SIGNER_SOURCES+=("${CNTOOLS_MULTISIG_SAVED_PAYMENT[msr_index+2]}"); CNTOOLS_MULTISIG_SIGNER_LABELS+=("${CNTOOLS_MULTISIG_SAVED_PAYMENT[msr_index+3]}")
+  done
+  CNTOOLS_MULTISIG_STAKE_SIGNER_IDS=(); CNTOOLS_MULTISIG_STAKE_SIGNER_HASHES=(); CNTOOLS_MULTISIG_STAKE_SIGNER_SOURCES=(); CNTOOLS_MULTISIG_STAKE_SIGNER_LABELS=()
+  for (( msr_index = 0; msr_index + 3 < ${#CNTOOLS_MULTISIG_SAVED_STAKE[@]}; msr_index += 4 )); do
+    CNTOOLS_MULTISIG_STAKE_SIGNER_IDS+=("${CNTOOLS_MULTISIG_SAVED_STAKE[msr_index]}"); CNTOOLS_MULTISIG_STAKE_SIGNER_HASHES+=("${CNTOOLS_MULTISIG_SAVED_STAKE[msr_index+1]}")
+    CNTOOLS_MULTISIG_STAKE_SIGNER_SOURCES+=("${CNTOOLS_MULTISIG_SAVED_STAKE[msr_index+2]}"); CNTOOLS_MULTISIG_STAKE_SIGNER_LABELS+=("${CNTOOLS_MULTISIG_SAVED_STAKE[msr_index+3]}")
+  done
+  CNTOOLS_MULTISIG_CAN_SIGN="${CNTOOLS_MULTISIG_SAVED_STATE[0]:-N}" CNTOOLS_STAKE_CAN_SIGN="${CNTOOLS_MULTISIG_SAVED_STATE[1]:-N}"
+  CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED="${CNTOOLS_MULTISIG_SAVED_STATE[2]:-N}"
+}
+
+# Restores the signers and the WORKFLOW, CAN_SIGN and LIFETIME variables
+# (by name) after a failed rebuild. A raised expiry is undone with the rest,
+# so its one-shot notice goes too.
+cntools_multisig_signers_restore_into() {
+  cntools_multisig_signers_restore
+  CNTOOLS_TRANSACTION_UI_NOTICE=''
+  printf -v "$1" '%s' "${CNTOOLS_MULTISIG_SAVED_STATE[3]:-}"
+  printf -v "$2" '%s' "${CNTOOLS_MULTISIG_SAVED_STATE[4]:-N}"
+  printf -v "$3" '%s' "${CNTOOLS_MULTISIG_SAVED_STATE[5]:-}"
+}
+
+# Review 'Change signers'. KIND is payment (Send, Collect) or stake (payment
+# and stake participants). Esc keeps the reviewed signers. When the change
+# decides whether this system can sign, the workflow follows: unsigned only,
+# or (Quick) the default signing workflow. Returns 0 when the signers changed
+# and the caller rebuilds, 1 when they did not.
+# Usage: cntools_multisig_signers_change_into WORKFLOW CAN_SIGN LIFETIME KIND BEGIN
+cntools_multisig_signers_change_into() {
+  local msc_workflow="$1" msc_can_sign="$2" msc_lifetime="$3" msc_kind="$4" msc_begin="$5"
+  local msc_status=0 msc_before='' msc_was="${!2:-N}" msc_now=N
+  cntools_multisig_signers_save "${!msc_workflow}" "${!msc_can_sign}" "${!msc_lifetime}"
+  msc_before="${CNTOOLS_MULTISIG_SIGNER_IDS[*]}|${CNTOOLS_MULTISIG_STAKE_SIGNER_IDS[*]}"
+  if [[ "${msc_kind}" == stake ]]; then
+    cntools_multisig_stake_choose_signers "${msc_begin}" || msc_status=$?
+    msc_now="${CNTOOLS_STAKE_CAN_SIGN}"
+  else
+    cntools_multisig_spend_choose_signers "${msc_begin}" || msc_status=$?
+    msc_now="${CNTOOLS_MULTISIG_CAN_SIGN}"
+  fi
+  if (( msc_status != 0 )); then
+    cntools_multisig_signers_restore
+    cntools_transaction_log CHOICE "Multisig signers unchanged status=${msc_status}"
+    return "${msc_status}"
+  fi
+  [[ "${CNTOOLS_MULTISIG_SIGNER_IDS[*]}|${CNTOOLS_MULTISIG_STAKE_SIGNER_IDS[*]}" != "${msc_before}" ]] || return 1
+  printf -v "${msc_can_sign}" '%s' "${msc_now}"
+  if [[ "${msc_now}" != "${msc_was}" && "${msc_now}" != Y ]]; then
+    cntools_transaction_ui_workflow_into "${msc_workflow}" N || return 2
+    cntools_transaction_ui_unsigned_lifetime_into "${msc_lifetime}" "${!msc_workflow}" || true
+  elif [[ "${msc_now}" != "${msc_was}" ]]; then
+    CNTOOLS_TRANSACTION_UI_WORKFLOW_FIXED=N
+    if cntools_flow_quick; then cntools_transaction_ui_initial_workflow_into "${msc_workflow}" Y || return 2; fi
+  fi
+  cntools_transaction_log CHOICE "Multisig signers changed can_sign=${msc_now} workflow=${!msc_workflow}"
 }
 
 cntools_multisig_spend_plan() {

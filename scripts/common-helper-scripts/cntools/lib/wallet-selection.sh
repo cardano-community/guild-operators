@@ -106,14 +106,24 @@ cntools_wallet_selection_drep_present() {
 # Why a context left no wallets, shown once by cntools_wallet_choose. The
 # reason names only causes that were actually checked.
 cntools_wallet_selection_empty_reason_into() {
-  local destination="$1" context="$2" reason='' index=0 directory='' stake=0 scripts=0 hardware=0
+  local destination="$1" context="$2" reason='' index=0 directory='' stake=0 stake_only=0 scripts=0 hardware=0
+  # stake counts only wallets that meet every stake-action prerequisite the
+  # candidate check applies (payment and stake material, or both scripts), so
+  # "already registered" is never claimed for a wallet that was not eligible.
   for index in "${!CNTOOLS_WALLET_PATHS[@]}"; do
     directory="${CNTOOLS_WALLET_PATHS[index]}"
     case "${CNTOOLS_WALLET_TYPES[index]}" in
       MultiSig) scripts=$((scripts + 1))
-        ! cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}" || stake=$((stake + 1)) ;;
+        cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_STAKE_SCRIPT_FILENAME}" || continue
+        if cntools_wallet_file_present "${directory}" "${CNTOOLS_WALLET_PAY_SCRIPT_FILENAME}"; then
+          stake=$((stake + 1))
+        else stake_only=$((stake_only + 1)); fi ;;
+      Unknown) ;;
       *) [[ "${CNTOOLS_WALLET_TYPES[index]}" != Hardware ]] || hardware=$((hardware + 1))
-        ! cntools_wallet_selection_material "${directory}" stake || stake=$((stake + 1)) ;;
+        cntools_wallet_selection_material "${directory}" stake || continue
+        if cntools_wallet_selection_material "${directory}" payment; then
+          stake=$((stake + 1))
+        else stake_only=$((stake_only + 1)); fi ;;
     esac
   done
   case "${context}" in
@@ -126,7 +136,9 @@ cntools_wallet_selection_empty_reason_into() {
       fi
       reason+='. A CLI or mnemonic wallet with a payment key is needed.' ;;
     register|deregister|withdraw|delegate|vote-delegate)
-      if (( stake == 0 )); then
+      if (( stake == 0 && stake_only > 0 )); then
+        reason='No wallet has both a payment and a stake key (or both scripts); the fee is paid from the same wallet.'
+      elif (( stake == 0 )); then
         reason='No wallet has a stake key or stake script.'
       else
         case "${context}" in

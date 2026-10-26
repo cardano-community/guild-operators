@@ -22,16 +22,39 @@ cntools_backup_error() {
   return 1
 }
 
-cntools_backup_command() {
-  local mask=''
-  local -a command=("$@")
+cntools_backup_command_into() {
+  local -n backup_command_output="$1"
+  shift
+  backup_command_output=("$@")
   if [[ "$1" == tar ]]; then
     # Never let inherited options add transforms, absolute extraction,
     # checkpoints or executable hooks that were absent from validation/logs.
     if [[ "${CNTOOLS_BACKUP_TAR_VERSION}" == *'GNU tar'* ]]; then
-      command=(env -u TAR_OPTIONS tar --force-local "${@:2}")
-    else command=(env -u TAR_OPTIONS tar "${@:2}"); fi
+      backup_command_output=(env -u TAR_OPTIONS tar --force-local "${@:2}")
+    else backup_command_output=(env -u TAR_OPTIONS tar "${@:2}"); fi
   fi
+}
+
+cntools_backup_command() {
+  local mask=''
+  local -a command=()
+  cntools_backup_command_into command "$@"
+  printf -v mask '%*s' "${#command[@]}" ''; mask="${mask// /0}"
+  cntools_run_command_timeout 300 "${mask}" -- "${command[@]}"
+}
+
+# As cntools_backup_command, with a file-size limit (ulimit -f, 1024-byte
+# blocks in Bash) on that command alone: no extracted file can outgrow the
+# backup limit, while CNTools' own log stays writable.
+cntools_backup_command_bounded() {
+  local bytes="$1" mask=''
+  local -a command=()
+  shift
+  [[ "${bytes}" =~ ^[0-9]{1,12}$ ]] || return 2
+  cntools_backup_command_into command "$@"
+  # shellcheck disable=SC2016 # The inner script expands its own arguments.
+  command=("${BASH}" -c 'ulimit -f "$1" || exit 1; shift; exec "$@"' cntools-backup \
+    "$((10#${bytes} / 1024 + 1))" "${command[@]}")
   printf -v mask '%*s' "${#command[@]}" ''; mask="${mask// /0}"
   cntools_run_command_timeout 300 "${mask}" -- "${command[@]}"
 }
@@ -89,9 +112,13 @@ cntools_backup_environment() {
 
 cntools_backup_listing() {
   local archive="$1" operation="$2" output="$3" limit="$4" size=''
+  local -a owner=()
+  # Numeric owners keep the verbose columns fixed: a user or group name with
+  # spaces would shift the size column (GNU tar and bsdtar both accept it).
+  [[ "${operation}" != *v* ]] || owner=(--numeric-owner)
   # Bound listing storage and memory before mapfile, including pathological
   # archives with millions of members or enormous PAX path strings.
-  (set -o pipefail; cntools_backup_command tar "${operation}" "${archive}" 2> "${CNTOOLS_BACKUP_WORK}/errors" | head -c "$((limit+1))" > "${output}") || return 1
+  (set -o pipefail; cntools_backup_command tar "${owner[@]}" "${operation}" "${archive}" 2> "${CNTOOLS_BACKUP_WORK}/errors" | head -c "$((limit+1))" > "${output}") || return 1
   cntools_filesystem_size_into size "${output}" && (( size <= limit ))
 }
 
@@ -111,11 +138,17 @@ cntools_backup_role_root_into() {
   root_output="${root_output%/}"
 }
 
+# Archive paths CNTools backs up and restores. Besides letters, digits and
+# . _ - /, spaces and ~ + @ , = are allowed: tar lists them unquoted and
+# they are no glob or option characters. Anything else (UTF-8, quotes, glob
+# characters, backslashes, control characters) is listed differently by GNU
+# tar and bsdtar depending on the locale, so Create skips such paths with a
+# warning and Restore rejects them.
 cntools_backup_member_valid() {
   local member="${1%/}" part='' LC_ALL=C
   local -a parts=()
   [[ -n "${member}" && "${member}" != /* && "${member}" != *//* &&
-     "${member}" =~ ^[A-Za-z0-9._/-]+$ && ${#member} -le 1024 ]] || return 1
+     "${member}" =~ ^[A-Za-z0-9._/~+@,=\ -]+$ && ${#member} -le 1024 ]] || return 1
   IFS=/ read -r -a parts <<< "${member}"
   for part in "${parts[@]}"; do [[ "${part}" != . && "${part}" != .. ]] || return 1; done
 }
@@ -180,7 +213,10 @@ cntools_backup_archive_unpack() {
   # duplicate names and file/parent collisions. This frozen archive can therefore
   # be unpacked once into an empty private directory, never a live destination.
   # Avoid decompressing an entire potentially large backup once per key file.
-  (umask 077; COPYFILE_DISABLE=1 cntools_backup_command tar -xzf "${archive}" "${options[@]}" -C "${CNTOOLS_BACKUP_WORK}/unpacked") || return 1
+  # The declared sizes were bounded above; the file-size limit also bounds
+  # what tar actually writes.
+  (umask 077; COPYFILE_DISABLE=1 cntools_backup_command_bounded "${CNTOOLS_BACKUP_MAX_BYTES}" \
+    tar -xzf "${archive}" "${options[@]}" -C "${CNTOOLS_BACKUP_WORK}/unpacked") || return 1
   for member in "${CNTOOLS_BACKUP_MEMBERS[@]}"; do
     path="${CNTOOLS_BACKUP_WORK}/unpacked/${member%/}"
     [[ ! -L "${path}" && -O "${path}" ]] || return 1
@@ -195,12 +231,13 @@ cntools_backup_archive_unpack() {
 cntools_backup_payload() {
   local archive="$1" member="$2" target="$3" size=''
   [[ -v 'CNTOOLS_BACKUP_SIZES[$member]' && ! -e "${target}" && ! -L "${target}" ]] || return 1
-  # Validated names are literal ASCII paths (no glob metacharacters/options).
+  # Validated names are literal ASCII paths (no glob metacharacters/options;
+  # spaces are passed as one quoted argument).
   # Exclusive destination creation prevents any accidental counterpart reuse.
   if [[ -d "${CNTOOLS_BACKUP_WORK}/unpacked" ]]; then
     (umask 077; set -o noclobber; cntools_backup_command cat -- "${CNTOOLS_BACKUP_WORK}/unpacked/${member}" > "${target}") || return 1
   else
-    (umask 077; set -o noclobber; cntools_backup_command tar -xOzf "${archive}" -- "${member}" > "${target}") || return 1
+    (umask 077; set -o noclobber; cntools_backup_command_bounded "${CNTOOLS_BACKUP_SIZES[${member}]}" tar -xOzf "${archive}" -- "${member}" > "${target}") || return 1
   fi
   cntools_filesystem_size_into size "${target}" || return 1
   [[ "${size}" == "${CNTOOLS_BACKUP_SIZES[${member}]}" ]]

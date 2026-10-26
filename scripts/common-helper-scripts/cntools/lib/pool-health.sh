@@ -22,6 +22,24 @@ cntools_pool_health_uint_into() {
   printf -v "${target}" '%s' "${value}"; printf -v "${remainder}" '%s' "${encoded:2+digits}"
 }
 
+CNTOOLS_POOL_HEALTH_UINT='(0[0-9a-f]|1[0-7]|18[0-9a-f]{2}|19[0-9a-f]{4}|1a[0-9a-f]{8}|1b[0-9a-f]{16})'
+
+# Why op.cert does not bind this pool's keys, as an Attention row: a
+# certificate for another KES key, another pool, or no certificate at all.
+cntools_pool_health_mismatch() {
+  local index="$1" cert="$2" cold_hex="$3" hot="$4" encoded='' pattern='' opcert="${2##*/}"
+  CNTOOLS_POOL_KES_STATUS[index]='Needs attention'
+  encoded="$(jq -esr 'select(length == 1 and .[0].type == "NodeOperationalCertificate") | .[0].cborHex | ascii_downcase' "${cert}" 2>/dev/null)" || encoded=''
+  pattern="^82845820[0-9a-f]{64}${CNTOOLS_POOL_HEALTH_UINT}${CNTOOLS_POOL_HEALTH_UINT}5840[0-9a-f]{128}5820${cold_hex}\$"
+  if [[ -n "${encoded}" && "${encoded}" =~ ${pattern} ]]; then
+    cntools_pool_warning_add "${index}" "${opcert} was issued for another KES key than ${hot}, so the node cannot use them together. Restore the matching KES key pair, or issue a new certificate with Pool → Rotate"
+  elif [[ "${encoded}" =~ ^82845820[0-9a-f]{64} ]]; then
+    cntools_pool_warning_add "${index}" "${opcert} was not issued by this pool's cold key"
+  else
+    cntools_pool_warning_add "${index}" "${opcert} is not a readable operational certificate"
+  fi
+}
+
 cntools_pool_health_collect() {
   local index="$1" query_node="${2:-Y}" directory="${CNTOOLS_POOL_DIRECTORIES[$1]}" filename='' cert='' counter='' start='' period='' rest='' saved_start=''
   local slots="${CNTOOLS_SLOTS_PER_KES_PERIOD:-}" evolutions='' genesis="${CNTOOLS_SHELLEY_GENESIS:-}" now='' current='' end=0 remaining=0 expires='' response='' output='' errors='' chain=''
@@ -32,14 +50,21 @@ cntools_pool_health_collect() {
   if ! cntools_pool_public_file_safe "${directory}/${filename}"; then CNTOOLS_POOL_KES_STATUS[index]='No operational certificate'; return 0; fi
   cert="${directory}/${filename}"
   # Bind to the pool and KES public keys using the existing structural validator.
-  local cold='' hot='' cold_hex='' hot_hex='' cbor='' uint='(0[0-9a-f]|1[0-7]|18[0-9a-f]{2}|19[0-9a-f]{4}|1a[0-9a-f]{8}|1b[0-9a-f]{16})'
+  local cold='' hot='' cold_hex='' hot_hex='' cbor='' uint="${CNTOOLS_POOL_HEALTH_UINT}"
   cntools_pool_file_name_into cold cold-vkey; cntools_pool_file_name_into hot kes-vkey
-  if ! cntools_pool_public_file_safe "${directory}/${cold}" || ! cntools_pool_public_file_safe "${directory}/${hot}"; then return 0; fi
-  cold_hex="$(jq -er '.cborHex | ascii_downcase | select(test("^5820[0-9a-f]{64}$")) | .[4:]' "${directory}/${cold}")" || return 0
-  hot_hex="$(jq -er '.cborHex | ascii_downcase | select(test("^5820[0-9a-f]{64}$")) | .[4:]' "${directory}/${hot}")" || return 0
+  if ! cntools_pool_public_file_safe "${directory}/${cold}" || ! cntools_pool_public_file_safe "${directory}/${hot}"; then
+    CNTOOLS_POOL_KES_STATUS[index]='Needs attention'
+    cntools_pool_warning_add "${index}" "${hot} or ${cold} is missing or unsafe, so ${filename} cannot be checked"; return 0
+  fi
+  cold_hex="$(jq -er '.cborHex | ascii_downcase | select(test("^5820[0-9a-f]{64}$")) | .[4:]' "${directory}/${cold}")" || cold_hex=''
+  hot_hex="$(jq -er '.cborHex | ascii_downcase | select(test("^5820[0-9a-f]{64}$")) | .[4:]' "${directory}/${hot}")" || hot_hex=''
+  if [[ -z "${cold_hex}" || -z "${hot_hex}" ]]; then
+    CNTOOLS_POOL_KES_STATUS[index]='Needs attention'
+    cntools_pool_warning_add "${index}" "${hot} or ${cold} is not a valid public key, so ${filename} cannot be checked"; return 0
+  fi
   cbor="$(jq -esr --arg pattern "^82845820${hot_hex}${uint}${uint}5840[0-9a-f]{128}5820${cold_hex}$" '
-    select(length == 1 and .[0].type == "NodeOperationalCertificate") | .[0].cborHex | ascii_downcase | select(test($pattern))' "${cert}")" || return 0
-  [[ -n "${cbor}" ]] || return 0
+    select(length == 1 and .[0].type == "NodeOperationalCertificate") | .[0].cborHex | ascii_downcase | select(test($pattern))' "${cert}" 2>/dev/null)" || cbor=''
+  if [[ -z "${cbor}" ]]; then cntools_pool_health_mismatch "${index}" "${cert}" "${cold_hex}" "${hot}"; return 0; fi
   cntools_pool_health_uint_into counter rest "${cbor:72}" && cntools_pool_health_uint_into start rest "${rest}" || return 0
   CNTOOLS_POOL_CERT_DISK[index]="${counter}"
   cntools_pool_file_name_into filename kes-start

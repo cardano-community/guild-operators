@@ -87,32 +87,76 @@ cntools_pool_opcert_issue() {
     else cntools_transaction_log WARN "First operational certificate not issued; lock could not be released=${lock}"; fi
     return 1
   fi
+  CNTOOLS_POOL_OPCERT_ISSUED=Y
   cntools_pool_public_records_prepare "${stage}" && chmod 0600 "${stage}/${cert}" "${stage}/${start}" || return 1
-  [[ "$(jq -cS . "${directory}/${counter}")" == "${original}" ]] || return 1
+  [[ "$(jq -cS . "${directory}/${counter}")" == "${original}" ]] || {
+    cntools_wallet_register_set_error "${counter} changed while the certificate was issued, so it was not installed."; return 1;
+  }
   # Consume the issued counter BEFORE exposing the certificate. On any failure,
   # retain the signed certificate + advanced counter; never roll the counter back.
   cntools_pool_public_save "${directory}" "${counter}" "${stage}/${counter}" &&
     cntools_pool_publish_new_file "${stage}/${start}" "${directory}/${start}" &&
     cntools_pool_publish_new_file "${stage}/${cert}" "${directory}/${cert}" || return 1
   cntools_pool_new_file_lock "${directory}/${start}"; cntools_pool_new_file_lock "${directory}/${cert}"
-  cntools_pool_opcert_unlock "${lock}" || return 1
+  # Installed and its counter consumed: a lock left behind only blocks
+  # Rotate, which can release it, so this is a warning, not a failure.
+  if ! cntools_pool_opcert_unlock "${lock}"; then
+    CNTOOLS_POOL_WRITE_WARNING="${CNTOOLS_POOL_WRITE_WARNING:+${CNTOOLS_POOL_WRITE_WARNING} }The certificate lock ${lock} could not be removed; open Pool → Rotate to release it."
+    cntools_transaction_log WARN "Operational certificate published; lock could not be released=${lock}"
+  fi
   CNTOOLS_POOL_OPCERT_RECOVERY=''
   cntools_transaction_log POOL "Operational certificate published; recovery copy retained=${stage}"
+}
+
+# What issuing the first certificate needs, checked before the question so
+# a "Prepare certificate" answer cannot fail on a known problem. Sets the
+# reason when it cannot be offered.
+cntools_pool_opcert_ready_into() {
+  local por_output="$1" por_directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" por_kes='' por_counter='' por_start='' por_lock='' por_reason=''
+  cntools_pool_file_name_into por_kes kes-vkey; cntools_pool_file_name_into por_counter counter
+  cntools_pool_file_name_into por_start kes-start
+  if [[ -e "${por_directory}/${por_start}" || -L "${por_directory}/${por_start}" ]]; then
+    por_reason="${por_start} exists without a certificate. Check the pool folder; Pool → Rotate issues certificates."
+  elif ! cntools_pool_key_validate "${por_directory}/${por_kes}" kes verification; then
+    por_reason="the KES public key (${por_kes}) is missing or invalid."
+  elif ! cntools_pool_public_file_safe "${por_directory}/${por_counter}" ||
+       ! jq -e '.type == "NodeOperationalCertificateIssueCounter"' "${por_directory}/${por_counter}" >/dev/null 2>&1; then
+    por_reason="the issue counter (${por_counter}) is missing or does not belong to this pool. Restore the real counter; never reset it."
+  elif ! cntools_pool_folder_name_supported "${por_directory}"; then
+    por_reason="$(cntools_pool_folder_unsupported_message "${por_directory}")"
+  elif ! cntools_pool_directory_writable "${por_directory}"; then
+    por_reason='the pool folder must be owned, writable and protected from group/public writes.'
+  elif cntools_pool_legacy_opcert_lock "${por_directory}"; then
+    por_reason="an earlier CNTools build left ${por_directory}/.cntools-opcert-lock. Finish or inspect that operation first."
+  elif cntools_pool_opcert_lock_into por_lock "${por_directory}" && [[ -e "${por_lock}" || -L "${por_lock}" ]]; then
+    por_reason='another certificate operation is pending for this pool. Open Pool → Rotate to inspect or release it.'
+  fi
+  printf -v "${por_output}" '%s' "${por_reason}"
+  [[ -z "${por_reason}" ]]
 }
 
 # Optional first certificate after the review. A failure here is reported and
 # the pool transaction continues; Rotate can issue the certificate later.
 # Without a local cold key the result's Next steps explain the offline steps.
-CNTOOLS_POOL_OPCERT_OFFLINE=N
+# Esc at its questions returns 1: the caller goes back to the review.
+CNTOOLS_POOL_OPCERT_OFFLINE=N CNTOOLS_POOL_OPCERT_NOTE='' CNTOOLS_POOL_OPCERT_ISSUED=N
 cntools_pool_opcert_offer() {
   local workflow="$1" directory="${CNTOOLS_POOL_DIRECTORIES[CNTOOLS_POOL_REG_INDEX]}" cert='' start='' choice='' period='' input='' normalized='' kind='' prompt='Prepare the missing operational certificate?'
-  CNTOOLS_POOL_OPCERT_RECOVERY='' CNTOOLS_POOL_OPCERT_OFFLINE=N
+  local reason=''
+  CNTOOLS_POOL_OPCERT_RECOVERY='' CNTOOLS_POOL_OPCERT_OFFLINE=N CNTOOLS_POOL_OPCERT_NOTE='' CNTOOLS_POOL_OPCERT_ISSUED=N
   [[ "${CNTOOLS_WALLET_REGISTER_OPERATION}" == pool-register ]] || return 0
   cntools_pool_file_name_into cert opcert; cntools_pool_file_name_into start kes-start
   [[ ! -e "${directory}/${cert}" ]] || return 0
   if [[ "${workflow}" == 'Create unsigned package' || -z "${CNTOOLS_POOL_REG_COLD_SOURCE}" ]]; then
     CNTOOLS_POOL_OPCERT_OFFLINE=Y
     cntools_transaction_log POOL 'First operational certificate left to the signing system; shown in Next steps'
+    return 0
+  fi
+  if ! cntools_pool_opcert_ready_into reason; then
+    # The result screen repeats this warning; Next steps keeps it.
+    CNTOOLS_POOL_OPCERT_NOTE="Not prepared: ${reason}"
+    cntools_transaction_log WARN "First operational certificate not offered: ${reason}"
+    cntools_ui_render_status warn "The first operational certificate cannot be prepared here: ${reason}"
     return 0
   fi
   # The certificate starts at the chain's current KES period, as in Rotate;
@@ -136,10 +180,17 @@ cntools_pool_opcert_offer() {
   fi
   cntools_transaction_source_kind_into kind "${CNTOOLS_POOL_REG_COLD_SOURCE}" || kind=''
   [[ "${kind}" != hardware ]] || cntools_ui_render_status info 'Connect and unlock the hardware device, open Cardano and approve certificate issuance.'
+  CNTOOLS_POOL_WRITE_ERROR='' CNTOOLS_POOL_WRITE_WARNING=''
   if ! cntools_ui_spin_function 'Issuing the first operational certificate…' cntools_pool_opcert_issue "${input}"; then
     # Never reported again as the transaction's own failure.
-    cntools_ui_render_status warn "${CNTOOLS_WALLET_REGISTER_ERROR:-The operational certificate was not prepared.} The pool transaction continues without it.$([[ -z "${CNTOOLS_POOL_OPCERT_RECOVERY}" ]] || printf ' Do not reset the counter; inspect the recovery files at %s before issuing a certificate with Pool → Rotate.' "${CNTOOLS_POOL_OPCERT_RECOVERY}")"
-    cntools_transaction_log WARN "First operational certificate not prepared; registration continues recovery=${CNTOOLS_POOL_OPCERT_RECOVERY:-none}"
+    reason="${CNTOOLS_WALLET_REGISTER_ERROR:-${CNTOOLS_POOL_WRITE_ERROR:-${CNTOOLS_TRANSACTION_ERROR:-}}}"
+    if [[ "${CNTOOLS_POOL_OPCERT_ISSUED}" == Y ]]; then
+      cntools_ui_render_status warn "A certificate was issued but not fully installed.${reason:+ ${reason%.}.} The pool transaction continues without it. Never reset the counter: open Pool → Rotate to inspect the lock and the recovery files at ${CNTOOLS_POOL_OPCERT_RECOVERY}."
+    else
+      reason="${reason:-The operational certificate was not prepared}"
+      cntools_ui_render_status warn "${reason%.}. Nothing was issued; the pool transaction continues without it, and Pool → Rotate can issue it later."
+    fi
+    cntools_transaction_log WARN "First operational certificate not prepared issued=${CNTOOLS_POOL_OPCERT_ISSUED}; registration continues recovery=${CNTOOLS_POOL_OPCERT_RECOVERY:-none}"
     CNTOOLS_WALLET_REGISTER_ERROR=''; cntools_transaction_clear_error
     cntools_ui_wait; return 0
   fi
